@@ -28,10 +28,10 @@ jobs:
       GRC_SEED_DIR: ${{ github.workspace }}/no-seed-folder
     steps:
       - name: Check out
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           # The major version is pinned in one place, shared with tools/install-node.ps1.
           node-version-file: tools/node-version.txt
