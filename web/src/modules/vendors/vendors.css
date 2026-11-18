@@ -1,0 +1,52 @@
+/* Vendors and contracts. Colours come from the design tokens so both themes work. */
+
+.vnd-wrap, .table td.vnd-wrap { white-space: normal; min-width: 22ch; max-width: 60ch; overflow-wrap: anywhere; }
+
+/* ---- security terms checklist ---- */
+.vnd-checklist th[scope="row"] { white-space: normal; min-width: 20ch; max-width: 30ch; font-weight: 600; vertical-align: top; }
+.vnd-checklist td { vertical-align: top; }
+.vnd-clause-hint { display: block; margin-top: 2px; color: var(--text-muted); font-size: var(--fs-sm); font-weight: 400; white-space: normal; }
+.vnd-clause-chip { display: block; margin-top: var(--s-2); }
+.vnd-clause-status { min-width: 16ch; }
+.vnd-clause-text { min-width: 32ch; width: 45%; }
+.vnd-clause-note { min-width: 20ch; }
+
+/* ---- matrix ---- */
+.vnd-matrix-bar { justify-content: space-between; align-items: end; }
+.vnd-legend { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3); margin: 0; padding: 0; list-style: none; font-size: var(--fs-sm); }
+.vnd-legend li { display: inline-flex; align-items: center; gap: var(--s-2); }
+.vnd-legend .vnd-cell { width: 28px; min-height: 24px; }
+
+.vnd-detail { min-height: 4.5em; margin: 0; padding: var(--s-3); border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); }
+.vnd-detail-item { margin: var(--s-1) 0 0; overflow-wrap: anywhere; }
+
+.vnd-matrix th[scope="row"] { position: sticky; inset-inline-start: 0; z-index: 1; background: var(--surface); white-space: nowrap; }
+.vnd-matrix thead th { vertical-align: bottom; }
+.vnd-matrix .vnd-matrix-clause { white-space: normal; min-width: 9ch; max-width: 14ch; text-align: center; line-height: 1.25; }
+.vnd-matrix td.vnd-matrix-cell { padding: 3px; text-align: center; }
+.table td a.vnd-cell, .vnd-cell {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 100%; min-width: 44px; max-width: none; min-height: 32px;
+  border-radius: var(--radius); border: 1px solid transparent;
+  font-size: var(--fs-sm); font-weight: 700; text-decoration: none;
+}
+.vnd-cell-present { background: var(--c-green-bg); color: var(--c-green-fg); }
+.vnd-cell-partial { background: var(--c-amber-bg); color: var(--c-amber-fg); }
+.vnd-cell-absent { background: var(--c-red-bg); color: var(--c-red-fg); }
+.vnd-cell-none { background: var(--c-gray-bg); color: var(--c-gray-fg); }
+a.vnd-cell:hover { border-color: currentColor; }
+a.vnd-cell:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+/* ---- contract notice date ---- */
+.vnd-notice .card-body { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-4); }
+.vnd-notice-main { display: grid; gap: 2px; }
+.vnd-notice-label { color: var(--text-muted); font-size: var(--fs-sm); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+.vnd-notice-date { font-size: var(--fs-2xl); font-weight: 700; line-height: 1.2; }
+.vnd-notice-side { display: grid; gap: var(--s-2); justify-items: start; max-width: 60ch; }
+.vnd-notice-passed { border-color: var(--c-red-solid); }
+.vnd-notice-passed .vnd-notice-date { color: var(--c-red-fg); }
+
+/* ---- renewal calendar ---- */
+.vnd-group { gap: var(--s-2); margin-top: var(--s-2); }
+.vnd-group-title { font-size: var(--fs-lg); font-weight: 600; }
+.vnd-reminders { flex-wrap: nowrap; gap: var(--s-1); }

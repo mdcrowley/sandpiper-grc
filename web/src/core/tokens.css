@@ -1,0 +1,120 @@
+/* Design tokens. Brand colours are variables so they can be configured later.
+   Themes switch on <html data-theme="light|dark">. */
+
+:root {
+  color-scheme: light;
+
+  /* Brand (configurable) */
+  --brand: #1b5e7b;
+  --brand-hover: #154c64;
+  --brand-contrast: #ffffff;
+  --brand-soft: #e2eff5;
+
+  /* Surfaces and ink */
+  --bg: #f4f6f8;
+  --surface: #ffffff;
+  --surface-2: #eff2f5;
+  --surface-hover: #f3f6f9;
+  --border: #d8dde3;
+  --border-strong: #7f8a97;
+  --text: #19212b;
+  --text-muted: #55606d;
+  --link: #165a86;
+  --danger: #bf2f2f;
+  --danger-contrast: #ffffff;
+  --focus: #1668c4;
+  --overlay: rgba(16, 24, 32, 0.45);
+  --shadow-1: 0 1px 2px rgba(16, 24, 32, 0.08);
+  --shadow-2: 0 8px 28px rgba(16, 24, 32, 0.18);
+
+  /* Navigation */
+  --nav-bg: #15242e;
+  --nav-text: #d7dfe5;
+  --nav-muted: #9aa8b3;
+  --nav-hover: rgba(255, 255, 255, 0.08);
+  --nav-active: rgba(255, 255, 255, 0.14);
+  --nav-focus: #9fd2ff;
+
+  /* Named colour scale: chips use -bg/-fg, charts and bars use -solid */
+  --c-gray-bg: #eceff2;   --c-gray-fg: #3f4954;   --c-gray-solid: #6b7684;
+  --c-blue-bg: #e1edfb;   --c-blue-fg: #164e8c;   --c-blue-solid: #2a78d6;
+  --c-teal-bg: #d9f2ef;   --c-teal-fg: #0c5753;   --c-teal-solid: #14908a;
+  --c-green-bg: #dff2e2;  --c-green-fg: #1b5a29;  --c-green-solid: #2a9143;
+  --c-amber-bg: #fcefc9;  --c-amber-fg: #6b4700;  --c-amber-solid: #c98500;
+  --c-orange-bg: #fde5d3; --c-orange-fg: #853609; --c-orange-solid: #dd6420;
+  --c-red-bg: #fde2e0;    --c-red-fg: #951b1b;    --c-red-solid: #d03b3b;
+  --c-purple-bg: #ebe5fa; --c-purple-fg: #50309a; --c-purple-solid: #6f52d0;
+
+  /* Chart series (fixed order, never cycled) and chrome */
+  --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100;
+  --series-5: #e87ba4; --series-6: #008300; --series-7: #6250d6; --series-8: #e34948;
+  --chart-grid: #e3e6ea;
+  --chart-axis: #b9c0c8;
+
+  /* Type */
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", Consolas, "Liberation Mono", monospace;
+  --fs-xs: 0.75rem;
+  --fs-sm: 0.8125rem;
+  --fs-md: 0.875rem;
+  --fs-lg: 1rem;
+  --fs-xl: 1.25rem;
+  --fs-2xl: 1.625rem;
+
+  /* Space, shape, layout */
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 24px; --s-6: 32px;
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-lg: 10px;
+  --nav-width: 232px;
+  --topbar-height: 52px;
+  --control-height: 34px;
+}
+
+/* Larger targets on touch screens. */
+@media (pointer: coarse) {
+  :root { --control-height: 42px; }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --brand: #74bbdb;
+  --brand-hover: #93cde8;
+  --brand-contrast: #08202b;
+  --brand-soft: #1b3442;
+
+  --bg: #11161b;
+  --surface: #1a2027;
+  --surface-2: #222a33;
+  --surface-hover: #212932;
+  --border: #303a45;
+  --border-strong: #73808e;
+  --text: #e6eaee;
+  --text-muted: #a5afba;
+  --link: #8cc6ee;
+  --danger: #f08a85;
+  --danger-contrast: #2b0c0b;
+  --focus: #8cc8ff;
+  --overlay: rgba(0, 0, 0, 0.6);
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 8px 28px rgba(0, 0, 0, 0.55);
+
+  --nav-bg: #0d1216;
+  --nav-text: #d7dfe5;
+  --nav-muted: #94a2ad;
+
+  --c-gray-bg: #2c343d;   --c-gray-fg: #c9d0d7;   --c-gray-solid: #8a95a2;
+  --c-blue-bg: #162f4c;   --c-blue-fg: #a3ccf8;   --c-blue-solid: #3987e5;
+  --c-teal-bg: #0f3735;   --c-teal-fg: #88ddd6;   --c-teal-solid: #23a69f;
+  --c-green-bg: #173920;  --c-green-fg: #98dca6;  --c-green-solid: #37a651;
+  --c-amber-bg: #3f2f0a;  --c-amber-fg: #f2cf73;  --c-amber-solid: #d59a1c;
+  --c-orange-bg: #44230e; --c-orange-fg: #f8b48a; --c-orange-solid: #e0763a;
+  --c-red-bg: #491c1c;    --c-red-fg: #f8aaa5;    --c-red-solid: #e06060;
+  --c-purple-bg: #2d2350; --c-purple-fg: #c8b4f6; --c-purple-solid: #9085e9;
+
+  --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500;
+  --series-5: #d55181; --series-6: #0ca30c; --series-7: #9085e9; --series-8: #e66767;
+  --chart-grid: #2a323b;
+  --chart-axis: #46515d;
+}

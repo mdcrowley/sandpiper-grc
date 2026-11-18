@@ -1,0 +1,37 @@
+/* Inventory module styles. Tokens only, so both themes work. */
+.inv-graph-hint { font-size: var(--fs-sm); margin-top: var(--s-2); }
+.inv-filters { align-items: flex-end; gap: var(--s-3); }
+.inv-filters .field { width: 200px; }
+.inv-narrow { max-width: 320px; }
+.inv-subhead { font-size: var(--fs-md, 1rem); font-weight: 600; margin-bottom: var(--s-2); }
+.inv-impact { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--s-1); }
+.inv-impact li { overflow-wrap: anywhere; }
+
+.inv-callout {
+  display: grid; gap: var(--s-1);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.inv-callout-warn { background: var(--c-amber-bg); color: var(--c-amber-fg); border-color: transparent; }
+.inv-callout-block { background: var(--c-red-bg); color: var(--c-red-fg); border-color: transparent; }
+.inv-callout-ok { background: var(--c-green-bg); color: var(--c-green-fg); border-color: transparent; }
+.inv-callout strong { font-weight: 600; }
+
+.inv-table-wrap td { white-space: normal; }
+.inv-cell-error { color: var(--c-red-fg); font-size: var(--fs-sm); }
+.inv-row-error td { background: var(--c-red-bg); }
+.inv-row-skip td { color: var(--text-muted); }
+.inv-map-grid { display: grid; gap: var(--s-3); grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+.inv-file { display: block; }
+.inv-report-list { display: grid; gap: var(--s-3); grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+.inv-report-tile {
+  display: grid; gap: var(--s-1); text-align: start;
+  padding: var(--s-4);
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--surface); color: inherit; cursor: pointer;
+}
+.inv-report-tile:hover { background: var(--surface-hover); }
+.inv-report-tile[aria-pressed="true"] { border-color: var(--brand); background: var(--brand-soft); }
+.inv-report-tile .inv-report-count { font-size: var(--fs-2xl); font-weight: 600; }

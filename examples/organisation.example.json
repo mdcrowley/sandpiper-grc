@@ -1,0 +1,52 @@
+{
+  "appName": "Example Org GRC",
+  "lookups": {
+    "asset_type": [
+      { "value": "kiosk", "label": "Kiosk" },
+      { "value": "camera", "label": "Camera" }
+    ]
+  },
+  "obligations": [
+    {
+      "title": "Annual card payment self-assessment",
+      "source": "PCI DSS",
+      "requirement": "Complete the self-assessment every 12 months and keep service provider attestations on file",
+      "how_met": "Finance and IT complete it together each spring",
+      "next_due_on": "2027-04-30"
+    },
+    {
+      "title": "Cyber insurance conditions",
+      "source": "Example insurer policy",
+      "requirement": "Multi-factor sign-in for remote access; off-site backups tested each year"
+    }
+  ],
+  "notificationRules": [
+    {
+      "key": "national_cyber_agency",
+      "trigger": "is_cyber_incident",
+      "party": "National cyber security agency",
+      "hours": 72,
+      "required": true,
+      "active": true,
+      "guidance": "Report through the agency's incident portal and record the reference number."
+    },
+    {
+      "key": "card_acquirer",
+      "trigger": "card_data_involved",
+      "party": "Card acquirer",
+      "hours": 0,
+      "required": true,
+      "active": true,
+      "guidance": "Call the acquirer's incident line straight away."
+    },
+    {
+      "key": "cyber_insurer",
+      "trigger": "any",
+      "party": "Cyber insurer",
+      "hours": null,
+      "required": true,
+      "active": false,
+      "guidance": "Set the deadline from the policy wording to switch this rule on."
+    }
+  ]
+}

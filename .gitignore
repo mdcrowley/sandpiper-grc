@@ -1,0 +1,13 @@
+# Private to each installation: the organisation profile and any import files. Never commit.
+seed/
+# Internal requirements documents
+*Build Specification*.md
+data/
+backups/
+
+.tools/
+node_modules/
+dist/
+*.log
+.env
+.env.*

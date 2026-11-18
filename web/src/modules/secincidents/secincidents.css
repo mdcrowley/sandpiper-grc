@@ -1,0 +1,91 @@
+/* Security incidents. Tokens only, so both themes work. */
+
+.si-banner { display: grid; flex: 1 1 100%; gap: var(--s-3); min-width: 0; }
+.si-pilot {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--c-amber-solid);
+  border-radius: var(--radius);
+  background: var(--c-amber-bg);
+  color: var(--c-amber-fg);
+  font-weight: 600;
+}
+
+.si-clocks { display: grid; gap: var(--s-3); grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+.si-clock {
+  display: grid;
+  align-content: start;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  border: 1px solid var(--border);
+  border-block-start: 4px solid var(--c-gray-solid);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.si-clock-green { border-block-start-color: var(--c-green-solid); }
+.si-clock-amber { border-block-start-color: var(--c-amber-solid); }
+.si-clock-red { border-block-start-color: var(--c-red-solid); background: var(--c-red-bg); }
+.si-clock-met { border-block-start-color: var(--c-green-solid); }
+.si-clock-party { font-weight: 600; overflow-wrap: anywhere; }
+.si-clock-meta { color: var(--text-muted); font-size: var(--fs-sm); }
+.si-clock-red .si-clock-meta { color: inherit; }
+.si-section-title { margin: 0; font-size: var(--fs-md); font-weight: 600; }
+
+.si-log-add { display: grid; gap: var(--s-2); }
+.si-log-add-row { display: flex; flex-wrap: wrap; align-items: end; gap: var(--s-3); }
+.si-log-entry { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.si-checklist { display: grid; gap: 0; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.si-checklist li { display: grid; gap: 2px; padding: var(--s-2) var(--s-3); }
+.si-checklist li + li { border-top: 1px solid var(--border); }
+.si-checklist-done { color: var(--text-muted); font-size: var(--fs-sm); padding-inline-start: 26px; }
+.si-add-step { display: flex; flex-wrap: wrap; align-items: end; gap: var(--s-3); }
+.si-add-step > :first-child { flex: 1 1 260px; }
+
+.si-questions { display: grid; gap: var(--s-3); }
+.si-preview { display: grid; gap: var(--s-2); }
+.si-preview li {
+  display: grid;
+  gap: 2px;
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--border);
+  border-inline-start: 4px solid var(--c-blue-solid);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.si-preview li.si-preview-off { border-inline-start-color: var(--c-gray-solid); }
+.si-rule-box {
+  padding: var(--s-3);
+  border: 1px solid var(--border);
+  border-inline-start: 4px solid var(--c-red-solid);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+/* Offline incident kit: reads as a document on screen and prints cleanly. */
+.si-kit { display: grid; gap: var(--s-5); max-width: 900px; }
+.si-kit h2 { margin: 0 0 var(--s-2); font-size: var(--fs-xl); }
+.si-kit h3 { margin: var(--s-3) 0 var(--s-1); font-size: var(--fs-lg); }
+.si-kit h4 { margin: var(--s-2) 0 var(--s-1); font-size: var(--fs-md); }
+.si-kit ol { margin: 0; padding-inline-start: 1.4em; list-style: decimal; }
+.si-kit ol li { margin-block: 2px; }
+.si-kit-box { display: inline-block; width: 0.9em; height: 0.9em; margin-inline-end: 0.5em; border: 1px solid var(--border-strong); vertical-align: -1px; }
+.si-kit-blank { display: inline-block; min-width: 12em; border-bottom: 1px solid var(--border-strong); }
+.si-kit-scenario { break-inside: avoid; }
+.si-print-only { display: none; }
+
+@media print {
+  .sidebar, .topbar, .notice, .skip-link, .si-no-print, .toasts { display: none !important; }
+  html, body, .shell, .shell-main, .content { display: block !important; height: auto !important; overflow: visible !important; background: #fff !important; color: #000 !important; }
+  .content { padding: 0 !important; }
+  .si-print-only { display: block; }
+  .si-kit { max-width: none; gap: 14pt; font-size: 10.5pt; color: #000; }
+  .si-kit .table th, .si-kit .table td { border: 1px solid #666; padding: 3pt 5pt; color: #000; background: #fff; }
+  .si-kit .card { border: 0; box-shadow: none; background: #fff; }
+  .si-kit .card-head, .si-kit .card-body { padding: 0; }
+  .si-kit .table-wrap { overflow: visible; }
+  .si-kit-page { break-before: page; }
+  @page { margin: 16mm; }
+}

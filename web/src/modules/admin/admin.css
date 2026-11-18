@@ -1,0 +1,55 @@
+/* Administration screens. Tokens only, so both themes work. */
+.adm-chips { gap: var(--s-1); }
+.adm-toolbar { display: flex; flex-wrap: wrap; gap: var(--s-3); align-items: flex-end; margin-bottom: var(--s-4); }
+.adm-toolbar > .field { min-width: 180px; margin: 0; }
+.adm-toolbar-grow { flex: 1 1 240px; }
+.adm-foot { display: flex; justify-content: space-between; align-items: center; gap: var(--s-3); padding: var(--s-3) var(--s-4); flex-wrap: wrap; }
+
+.adm-copy-input { flex: 1 1 260px; font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-size: 0.85em; }
+.adm-copy .row { gap: var(--s-2); }
+
+.adm-key { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-size: 1.15rem; letter-spacing: 0.06em; word-spacing: 0.4em; padding: var(--s-3) var(--s-4); border: 1px dashed var(--border); border-radius: 8px; background: var(--surface); overflow-wrap: anywhere; }
+.adm-codes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-2) var(--s-5); list-style: none; padding: var(--s-4); margin: 0; border: 1px solid var(--border); border-radius: 8px; font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-size: 1.05rem; }
+.adm-steps { padding-left: 1.25rem; display: grid; gap: var(--s-4); }
+
+.adm-switch { display: inline-flex; align-items: center; gap: var(--s-2); cursor: pointer; }
+.adm-switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.adm-switch-track { width: 36px; height: 20px; border-radius: 10px; background: var(--border); position: relative; transition: background 0.15s; flex: none; }
+.adm-switch-track::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--surface); box-shadow: 0 1px 2px rgb(0 0 0 / 30%); transition: transform 0.15s; }
+.adm-switch input:checked + .adm-switch-track { background: var(--c-green-solid); }
+.adm-switch input:checked + .adm-switch-track::after { transform: translateX(16px); }
+.adm-switch input:focus-visible + .adm-switch-track { outline: 2px solid var(--c-blue-solid); outline-offset: 2px; }
+.adm-switch input:disabled + .adm-switch-track { opacity: 0.5; }
+
+.adm-grid th, .adm-grid td { text-align: center; }
+.adm-grid th:first-child, .adm-grid td:first-child { text-align: left; }
+.adm-grid input[type='checkbox'] { width: 16px; height: 16px; }
+.adm-grid-all { background: color-mix(in srgb, var(--c-blue-bg) 50%, transparent); }
+
+.adm-diff th[scope='row'] { font-weight: 600; white-space: nowrap; }
+.adm-diff td { overflow-wrap: anywhere; }
+.adm-diff-before { color: var(--c-red-fg); }
+.adm-diff-after { color: var(--c-green-fg); }
+.adm-expanded > td { background: color-mix(in srgb, var(--border) 25%, transparent); }
+
+.adm-setting { display: grid; gap: var(--s-1); padding: var(--s-4) 0; border-top: 1px solid var(--border); }
+.adm-setting:first-child { border-top: 0; padding-top: 0; }
+.adm-setting-title { font-weight: 600; }
+
+.adm-swatches { display: flex; flex-wrap: wrap; gap: var(--s-1); }
+.adm-swatch { border: 2px solid transparent; border-radius: 999px; padding: 0; background: none; cursor: pointer; }
+.adm-swatch[aria-pressed='true'] { border-color: var(--text); }
+.adm-lists { display: grid; grid-template-columns: minmax(200px, 260px) 1fr; gap: var(--s-5); align-items: start; }
+.adm-list-nav { display: grid; gap: 2px; max-height: 70vh; overflow: auto; }
+.adm-list-nav button { display: flex; justify-content: space-between; gap: var(--s-2); text-align: left; padding: var(--s-2) var(--s-3); border: 0; border-radius: 6px; background: none; color: inherit; cursor: pointer; font: inherit; }
+.adm-list-nav button:hover { background: color-mix(in srgb, var(--border) 40%, transparent); }
+.adm-list-nav button[aria-current='true'] { background: var(--c-blue-bg); color: var(--c-blue-fg); font-weight: 600; }
+.adm-retired td { opacity: 0.6; }
+
+@media (max-width: 800px) {
+  .adm-lists { grid-template-columns: 1fr; }
+  .adm-codes { grid-template-columns: 1fr; }
+}
+@media print {
+  .adm-no-print, .sidebar, .topbar, .notice { display: none !important; }
+}
