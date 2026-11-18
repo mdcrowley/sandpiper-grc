@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Card, Chart, EmptyState, formatCurrency, LookupChip } from '../../core';
 import type { ChartOption } from '../../core';
-import { BudgetBar } from './bits';
+import { BudgetBar, compactCurrency } from './bits';
 import type { PortfolioRow } from './types';
 
 const short = (s: string) => (s.length > 30 ? `${s.slice(0, 29)}…` : s);
@@ -22,7 +22,7 @@ export function PortfolioBudget({ rows }: { rows: PortfolioRow[] }) {
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: (v: unknown) => formatCurrency(Number(v)) },
       legend: {},
       grid: { left: 8, right: 24, top: 36, bottom: 8, containLabel: true },
-      xAxis: { type: 'value', axisLabel: { formatter: (v: number) => (v >= 1000 ? `$${Math.round(v / 1000)}k` : `$${v}`) } },
+      xAxis: { type: 'value', axisLabel: { formatter: (v: number) => compactCurrency(v) } },
       yAxis: { type: 'category', data: ordered.map((p) => short(p.name)) },
       series: [
         { name: 'Budget', type: 'bar', itemStyle: { borderRadius: [0, 4, 4, 0] }, data: ordered.map((p) => ({ value: p.budget ?? 0, key: p.id })) },

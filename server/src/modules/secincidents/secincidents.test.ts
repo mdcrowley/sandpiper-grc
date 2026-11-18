@@ -10,15 +10,22 @@ const ORG_RULES = [
   { key: 'test_agency_a', trigger: 'is_cyber_incident', party: 'Agency A', hours: 24, required: false, active: true, guidance: 'Invented: recommended within 24 hours.' },
   { key: 'test_agency_b', trigger: 'is_cyber_incident', party: 'Agency B', hours: 168, required: true, active: true, guidance: 'Invented: required within 7 days.' },
   { key: 'test_agency_c', trigger: 'is_cyber_incident', party: 'Agency C', hours: 720, required: true, active: true, guidance: 'Invented: required within 30 days.' },
-  { key: 'test_partner_d', trigger: 'health_data_involved', party: 'Partner D', hours: 72, required: true, active: true, guidance: 'Invented: required within 3 days.' },
-  { key: 'test_acquirer_e', trigger: 'card_data_involved', party: 'Acquirer E', hours: 0, required: true, active: true, guidance: 'Invented: immediately.' },
+  { key: 'test_partner_d', trigger: 'kind:special_records', party: 'Partner D', hours: 72, required: true, active: true, guidance: 'Invented: required within 3 days.' },
+  { key: 'test_acquirer_e', trigger: 'kind:card_payments', party: 'Acquirer E', hours: 0, required: true, active: true, guidance: 'Invented: immediately.' },
   { key: 'test_insurer_f', trigger: 'any', party: 'Insurer F', hours: null, required: true, active: false, guidance: 'Invented: no deadline set.' },
   { key: 'test_individuals_g', trigger: 'personal_info_involved', party: 'Individuals G', hours: null, required: true, active: false, guidance: 'Invented: no deadline set.' },
 ];
 const DEFAULT_PARTIES = RULES.map((r) => r.party);
 
 let t: Awaited<ReturnType<typeof testApp>>;
-beforeAll(async () => { t = await testApp(); });
+beforeAll(async () => {
+  t = await testApp();
+  // Kinds of data that this invented organisation holds; in an installation they come from the organisation profile.
+  await t.ctx.lookups.ensure('incident_data_kind', [
+    { value: 'special_records', label: 'Special records', meta: { hint: 'Invented kind.' } },
+    { value: 'card_payments', label: 'Card payments' },
+  ], { module: 'security' });
+});
 afterAll(async () => { await t.close(); });
 
 const HOUR = 3_600_000;
@@ -51,11 +58,13 @@ describe('regulatory clocks', () => {
     expect(rules.every((r) => r.active === false && r.deadline_hours === null)).toBe(true);
     expect(rules.map((r) => r.party).sort()).toEqual([...DEFAULT_PARTIES].sort());
     expect(new Set(rules.map((r) => r.trigger_attribute))).toEqual(
-      new Set(['any', 'is_cyber_incident', 'health_data_involved', 'card_data_involved', 'personal_info_involved']));
-    expect((await t.api.get('/api/meta')).body.lookups.notification_trigger.map((v: any) => v.value)).toContain('health_data_involved');
+      new Set(['any', 'is_cyber_incident', 'personal_info_involved']));
+    // No built-in rule, question or list value names a kind of data that only some organisations hold.
+    const builtIn = JSON.stringify([RULES, (await import('./defaults.ts')).LOOKUPS]).toLowerCase();
+    expect(builtIn).not.toMatch(/health|card|patient|student/);
 
     // With nothing switched on, declaring an incident starts no clocks.
-    const quiet = await declare({ title: 'Test incident: before any rule is set up', health_data_involved: true, card_data_involved: true });
+    const quiet = await declare({ title: 'Test incident: before any rule is set up', data_kinds: ['special_records', 'card_payments'] });
     expect(await tasksOf(quiet.id)).toEqual([]);
     await t.api.patch(`/api/security-incidents/${quiet.id}`, { status: 'closed' });
   });
@@ -68,8 +77,8 @@ describe('regulatory clocks', () => {
     expect(by('Agency A')).toMatchObject({ deadline_hours: 24, required: false, active: true, trigger_attribute: 'is_cyber_incident' });
     expect(by('Agency B')).toMatchObject({ deadline_hours: 168, required: true, active: true });
     expect(by('Agency C')).toMatchObject({ deadline_hours: 720, required: true, active: true });
-    expect(by('Partner D')).toMatchObject({ deadline_hours: 72, trigger_attribute: 'health_data_involved' });
-    expect(by('Acquirer E')).toMatchObject({ deadline_hours: 0, trigger_attribute: 'card_data_involved', active: true });
+    expect(by('Partner D')).toMatchObject({ deadline_hours: 72, trigger_attribute: 'kind:special_records' });
+    expect(by('Acquirer E')).toMatchObject({ deadline_hours: 0, trigger_attribute: 'kind:card_payments', active: true });
     expect(by('Insurer F')).toMatchObject({ deadline_hours: null, active: false });
     expect(by('Individuals G')).toMatchObject({ deadline_hours: null, active: false });
     // The starter rules stay off.
@@ -79,6 +88,7 @@ describe('regulatory clocks', () => {
   it('refuses a profile rule that could not work', async () => {
     const base = { key: 'test_bad', trigger: 'any', party: 'Nobody', hours: 1, required: true, active: true, guidance: '' };
     await expect(loadOrganisationRules(t.ctx, [{ ...base, trigger: 'no_such_flag' }])).rejects.toThrow(/trigger/);
+    await expect(loadOrganisationRules(t.ctx, [{ ...base, trigger: 'kind:no_such_kind' }])).rejects.toThrow(/trigger/);
     await expect(loadOrganisationRules(t.ctx, [{ ...base, hours: null }])).rejects.toThrow(/deadline/);
     await expect(loadOrganisationRules(t.ctx, [{ ...base, key: '' }])).rejects.toThrow(/key/);
     await expect(loadOrganisationRules(t.ctx, { not: 'a list' })).rejects.toThrow(/list/);
@@ -87,14 +97,14 @@ describe('regulatory clocks', () => {
   });
 
   it('creates no tasks before the incident is declared', async () => {
-    const made = await t.api.post('/api/security-incidents', { title: 'Test incident: only reported', health_data_involved: true });
+    const made = await t.api.post('/api/security-incidents', { title: 'Test incident: only reported', data_kinds: ['special_records'] });
     expect(made.body.ref).toMatch(/^SEC-\d{5}$/);
     expect(made.body.declared_at).toBeNull();
     expect(await tasksOf(made.body.id)).toEqual([]);
   });
 
-  it('declaring an incident with health data creates exactly four tasks with deadlines from discovery', async () => {
-    incident = await declare({ health_data_involved: true });
+  it('declaring an incident with a configured kind of data creates exactly four tasks with deadlines from discovery', async () => {
+    incident = await declare({ data_kinds: ['special_records'] });
     expect(incident.status).toBe('declared');
     expect(incident.declared_at).toBeTruthy();
     const tasks = await tasksOf(incident.id);
@@ -110,15 +120,15 @@ describe('regulatory clocks', () => {
     expect(tasks.find((x) => x.party === 'Agency A').required).toBe(false);
   });
 
-  it('adds an immediate task when card data is flagged, without duplicating the others', async () => {
-    const res = await t.api.patch(`/api/security-incidents/${incident.id}`, { card_data_involved: true });
+  it('adds an immediate task when another kind of data is flagged, without duplicating the others', async () => {
+    const res = await t.api.patch(`/api/security-incidents/${incident.id}`, { data_kinds: ['special_records', 'card_payments'] });
     expect(res.status).toBe(200);
     let tasks = await tasksOf(incident.id);
     expect(tasks.length).toBe(5);
     const card = tasks.find((x) => x.party === 'Acquirer E');
     expect(iso(card.due_at)).toBe(DISCOVERED.toISOString());
     // An unrelated edit and a repeat of the same flag change nothing.
-    await t.api.patch(`/api/security-incidents/${incident.id}`, { summary: 'Edited', card_data_involved: true });
+    await t.api.patch(`/api/security-incidents/${incident.id}`, { summary: 'Edited', data_kinds: ['card_payments', 'special_records'] });
     tasks = await tasksOf(incident.id);
     expect(tasks.length).toBe(5);
     expect(new Set(tasks.map((x) => x.rule_id)).size).toBe(5);
@@ -182,10 +192,10 @@ describe('regulatory clocks', () => {
   });
 
   it('marks an open task not required when its trigger is cleared, and reopens it if set again', async () => {
-    await t.api.patch(`/api/security-incidents/${incident.id}`, { card_data_involved: false });
+    await t.api.patch(`/api/security-incidents/${incident.id}`, { data_kinds: ['special_records'] });
     const card = async () => (await tasksOf(incident.id)).find((x) => x.party === 'Acquirer E');
     expect((await card()).status).toBe('not_required');
-    await t.api.patch(`/api/security-incidents/${incident.id}`, { card_data_involved: true });
+    await t.api.patch(`/api/security-incidents/${incident.id}`, { data_kinds: ['special_records', 'card_payments'] });
     expect((await card()).status).toBe('pending');
     expect((await tasksOf(incident.id)).length).toBe(5);
   });
@@ -206,15 +216,52 @@ describe('regulatory clocks', () => {
   it('previews the notifications for a set of answers without saving anything', async () => {
     const before = (await t.api.get('/api/security-incidents')).body.total;
     const res = await t.api.post('/api/security-incidents/notification-preview', {
-      discovered_at: DISCOVERED.toISOString(), is_cyber_incident: true, health_data_involved: true, personal_info_involved: true,
+      discovered_at: DISCOVERED.toISOString(), is_cyber_incident: true, data_kinds: ['special_records'], personal_info_involved: true,
     });
     expect(res.status).toBe(200);
     expect(res.body.notifications.map((n: any) => n.party).sort()).toEqual(['Agency A', 'Agency B', 'Agency C', 'Partner D']);
     expect(res.body.notifications.find((n: any) => n.party === 'Agency A').due_at).toBe(plus(24));
-        // Rules that apply but are switched off: the organisation's two, and every starter rule except the card one.
+    // Rules that apply but are switched off: the organisation's two, and every starter rule.
     expect(res.body.not_configured.map((n: any) => n.party).sort()).toEqual(
-      ['Individuals G', 'Insurer F', ...RULES.filter((r) => r.trigger !== 'card_data_involved').map((r) => r.party)].sort());
+      ['Individuals G', 'Insurer F', ...RULES.map((r) => r.party)].sort());
     expect((await t.api.get('/api/security-incidents')).body.total).toBe(before);
+  });
+
+  it('asks one question per built-in flag and per configured kind of data, and offers each as a rule trigger', async () => {
+    const res = await t.api.get('/api/security-incidents/questions');
+    expect(res.status).toBe(200);
+    expect(res.body.questions.filter((q: any) => q.kind === 'flag').map((q: any) => q.key)).toEqual(['is_cyber_incident', 'personal_info_involved']);
+    expect(res.body.questions.find((q: any) => q.key === 'kind:special_records')).toMatchObject({
+      kind: 'data_kind', value: 'special_records', question: 'Could special records be involved?', hint: 'Invented kind.',
+    });
+    expect(res.body.triggers.map((x: any) => x.value)).toEqual(expect.arrayContaining(['any', 'is_cyber_incident', 'kind:card_payments']));
+
+    // A kind an administrator adds to the list is asked about and can trigger a rule straight away.
+    await t.api.post('/api/lookups', { list_key: 'incident_data_kind', value: 'test_kind', label: 'Test kind' });
+    const rule = await t.api.post('/api/security-notification-rules', { trigger_attribute: 'kind:test_kind', party: 'Party T', deadline_hours: 12 });
+    expect(rule.status).toBe(201);
+    expect((await t.api.post('/api/security-notification-rules', { trigger_attribute: 'kind:nope', party: 'Nobody', deadline_hours: 1 })).status).toBe(400);
+    expect((await t.api.post('/api/security-notification-rules', { trigger_attribute: 'health_data_involved', party: 'Nobody', deadline_hours: 1 })).status).toBe(400);
+    const preview = await t.api.post('/api/security-incidents/notification-preview', { data_kinds: ['test_kind'] });
+    expect(preview.body.notifications.map((n: any) => n.party)).toEqual(['Party T']);
+    expect((await t.api.del(`/api/security-notification-rules/${rule.body.id}`)).status).toBe(200);
+  });
+
+  it('refuses a kind of data that is not on the list', async () => {
+    const bad = await t.api.post('/api/security-incidents', { title: 'Test incident: bad kind', data_kinds: ['no_such_kind'] });
+    expect(bad.status).toBe(400);
+    expect(bad.body.error.fields.data_kinds).toBeTruthy();
+    expect((await t.api.patch(`/api/security-incidents/${incident.id}`, { data_kinds: 'special_records' })).status).toBe(400);
+  });
+
+  it('maps the former built-in triggers of an older profile to kinds of data', async () => {
+    expect(await loadOrganisationRules(t.ctx, [
+      { key: 'test_legacy_x', trigger: 'card_data_involved', party: 'Legacy X', hours: 2, required: true, active: false, guidance: '' },
+    ])).toBe(1);
+    const rule = ((await t.api.get('/api/security-notification-rules')).body as any[]).find((r) => r.party === 'Legacy X');
+    expect(rule.trigger_attribute).toBe('kind:payment_card_data');
+    expect((await t.ctx.lookups.values('incident_data_kind')).map((k) => k.value)).toContain('payment_card_data');
+    await t.api.del(`/api/security-notification-rules/${rule.id}`);
   });
 });
 
@@ -231,6 +278,8 @@ describe('incident workspace', () => {
     const roles = (await t.api.get(`/api/security-incidents/${id}/roles`)).body as any[];
     expect(roles.map((r) => r.role)).toContain('Incident lead');
     expect(roles.map((r) => r.role)).toContain('Scribe');
+    const history = (await t.api.get(`/api/history?record_type=security_incident&record_id=${id}`)).body as any[];
+    expect(history.map((h) => h.action)).toEqual(expect.arrayContaining(['security_incident.roles_copied', 'security_incident.checklist_copied']));
   });
 
   it('ticks checklist steps with who and when, and keeps ticked steps when the scenario changes', async () => {
@@ -245,6 +294,8 @@ describe('incident workspace', () => {
     const after = (await t.api.get(`/api/security-incidents/${id}/checklist`)).body as any[];
     expect(after.filter((i) => i.scenario === 'lost_device').map((i) => i.id)).toEqual([items[0].id]);
     expect(after.filter((i) => i.scenario === 'account_compromise').length).toBeGreaterThan(5);
+    const cleared = await t.db.query(`select 1 from audit_events where action = 'security_incident.checklist_cleared' and record_id = $1`, [id]);
+    expect(cleared.length).toBe(1);
 
     const custom = await t.api.post(`/api/security-incidents/${id}/checklist`, { phase: 'recovery', step: 'Invented extra step' });
     expect(custom.status).toBe(201);
@@ -329,7 +380,8 @@ describe('incident workspace', () => {
     const kit = await t.api.get('/api/security-incidents/kit');
     expect(kit.status).toBe(200);
     expect(kit.body.rules.length).toBe(RULES.length + ORG_RULES.length);
-    expect(kit.body.rules.find((r: any) => r.party === 'Partner D').trigger_label).toBe('Health information involved');
+    expect(kit.body.questions.map((q: any) => q.key)).toEqual(expect.arrayContaining(['is_cyber_incident', 'kind:special_records']));
+    expect(kit.body.rules.find((r: any) => r.party === 'Partner D').trigger_label).toBe('Special records involved');
     expect(kit.body.rules[0].trigger_label).toBeTruthy();
     expect(kit.body.contacts.map((c: any) => c.role)).toContain('Executive sponsor');
     expect(kit.body.checklists.map((c: any) => c.scenario).sort()).toEqual(
@@ -359,6 +411,7 @@ describe('restricted behaviour', () => {
       ['clocks', agent.get(`${i}/clocks`)],
       ['all clocks', agent.get('/api/security-incidents/clocks')],
       ['kit', agent.get('/api/security-incidents/kit')],
+      ['questions', agent.get('/api/security-incidents/questions')],
       ['preview', agent.post('/api/security-incidents/notification-preview', { is_cyber_incident: true })],
       ['log list', agent.get(`${i}/log`)],
       ['log add', agent.post(`${i}/log`, { entry: 'Nope' })],
@@ -404,7 +457,7 @@ describe('restricted behaviour', () => {
 
   it('lets the security lead work an incident but keeps configuration for administrators', async () => {
     const lead = await t.as('security_lead');
-    const made = await lead.post('/api/security-incidents', { title: 'Test incident: worked by the lead', scenario: 'payment_fraud', card_data_involved: true });
+    const made = await lead.post('/api/security-incidents', { title: 'Test incident: worked by the lead', scenario: 'payment_fraud', data_kinds: ['card_payments'] });
     expect(made.status).toBe(201);
     const i = `/api/security-incidents/${made.body.id}`;
     expect((await lead.patch(i, { status: 'declared' })).body.declared_at).toBeTruthy();
@@ -425,9 +478,9 @@ describe('seed', () => {
     await mod.seed!(t.ctx, opts);
     const rows = (await t.api.get('/api/security-incidents?q=[Sample]')).body.rows as any[];
     expect(rows.length).toBe(1);
-    expect(rows[0]).toMatchObject({ status: 'declared', health_data_involved: true });
+    expect(rows[0]).toMatchObject({ status: 'declared', personal_info_involved: true });
     const clocks = (await t.api.get(`/api/security-incidents/${rows[0].id}/clocks`)).body.clocks as any[];
-    expect(clocks.length).toBe(4);
+    expect(clocks.length).toBe(3);
     expect(clocks.find((c) => c.party === 'Agency A').state).toBe('amber');
     const items = (await t.api.get(`/api/security-incidents/${rows[0].id}/checklist`)).body as any[];
     expect(items.filter((x) => x.done).length).toBe(3);
@@ -464,5 +517,37 @@ describe('seed', () => {
     expect((await t.api.del(`/api/security-notification-rules/${agencyB.id}`)).status).toBe(200);
     await mod.seed!(t.ctx, opts);
     expect((await list()).some((r) => r.party === 'Agency B')).toBe(false);
+  });
+});
+
+describe('configurable lists', () => {
+  it('ties every security incident list to the security module (E01-23)', async () => {
+    const { LOOKUPS } = await import('./defaults.ts');
+    const rows = await t.db.query<{ list_key: string; module: string }>(
+      'select list_key, module from lookup_lists where list_key = any($1::text[])', [Object.keys(LOOKUPS)]);
+    expect(rows.length).toBe(Object.keys(LOOKUPS).length);
+    expect(rows.every((r) => r.module === 'security')).toBe(true);
+  });
+});
+
+describe('list metadata (E01-23)', () => {
+  it('keeps the names and labels of the security incident lists from people without security.view', async () => {
+    const own = await testApp();
+    try {
+      const agent = await own.as('agent');
+      const SECURITY_LISTS = ['security_incident_scenario', 'security_incident_severity', 'security_incident_status', 'notification_trigger',
+        'incident_data_kind', 'incident_log_kind', 'incident_checklist_phase', 'ransom_payment_status', 'notification_task_status'];
+      const meta = (await agent.get('/api/meta')).body.lookups;
+      for (const list of SECURITY_LISTS) {
+        expect([list, meta[list]]).toEqual([list, undefined]);
+        expect([list, (await agent.get(`/api/lookups/${list}`)).status]).toEqual([list, 403]);
+      }
+      const lead = await own.as('security_lead');
+      const theirs = (await lead.get('/api/meta')).body.lookups;
+      for (const list of SECURITY_LISTS) expect([list, Array.isArray(theirs[list])]).toEqual([list, true]);
+      expect((await lead.get('/api/lookups/security_incident_scenario')).status).toBe(200);
+    } finally {
+      await own.close();
+    }
   });
 });

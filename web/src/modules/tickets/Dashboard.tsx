@@ -133,7 +133,7 @@ export function ServiceDeskDashboard() {
               <Stat label="Open now" value={data.backlog.total} color="blue" to={ticketListHref({ 'resolved_at.null': 'true' })} />
               <Stat label="Targets met" value={pctText(data.sla.compliance_pct)} color={data.sla.compliance_pct !== null && data.sla.compliance_pct < 90 ? 'amber' : 'green'} />
               <Stat label="Tickets with a missed target" value={data.sla.breaches} color={data.sla.breaches ? 'red' : 'green'}
-                to={ticketListHref({ ...range, resolve_breached: 'true' })} />
+                to={ticketListHref({ ...range, target_missed: 'true' })} />
               <Stat label="Average first response" value={minutesText(data.first_response.average_minutes)} />
               <Stat label="Average time to resolve" value={minutesText(data.resolution.average_minutes)} />
               <Stat label="Satisfaction (1 to 5)" value={data.satisfaction.average === null ? '—' : data.satisfaction.average.toFixed(1)}

@@ -43,6 +43,36 @@ not built.
 | Containers | `grc.ps1` + portable Node in `.tools/node` | Same reason |
 | Job queue | In-process timers | Single process |
 
+## Working in parallel (several people or agents in one working tree)
+
+- Stay inside the folders you were given. Shared files (`README.md`, `CLAUDE.md`,
+  `docs/README.md`, `docs/known-gaps.md`, `docs/roadmap/README.md`, `package.json`,
+  `web/src/core/**`, `server/src/core/**`) belong to whoever is coordinating: report what
+  should change in them instead of editing them, unless they were given to you.
+- Never use the shared instance: not `grc.ps1`, not port 8080, not `data/`, not `dist/`.
+  Use your own scratch folder outside the repository and your own ports:
+
+  ```
+  $env:Path = "$PWD\.tools\node;$env:Path"
+  $env:GRC_DATA_DIR = "<scratch>\data"; $env:GRC_WEB_DIST = "<scratch>\dist"
+  $env:GRC_SEED_DIR = "<scratch>\none"; $env:GRC_PORT = "<your port>"
+  npm run seed -- --profile dev        # invented sample data
+  npx vite build                       # builds into GRC_WEB_DIST
+  npx tsx server/src/main.ts           # serves API + that build on GRC_PORT (start it hidden/in the background)
+  # stop it cleanly: create an empty file <scratch>\data\grc.stop
+  ```
+- Run only your own tests: `$env:GRC_MODULES='<your modules>'; npx vitest run <your folders>`.
+  Typecheck with `npx tsc --noEmit -p server` / `-p web` and act on errors in your files only.
+- Look at your screens in a real browser before calling them done:
+  `node tools/browse.mjs http://127.0.0.1:<port> <scratch>\shots <user> <password> [light|dark] [width]`
+  with `ROUTES=/a,/b` and a `DEBUG_PORT` of your own. It signs in (create the first
+  administrator with `POST /api/setup`), visits each route, reports script errors, failed
+  API calls and horizontal scrolling, and saves screenshots to read. Check light and dark,
+  and 1440 and 820 wide. Delete the screenshots afterwards.
+- Do not install or remove npm packages; ask the coordinator.
+- Do not commit; the coordinator commits.
+- Never read `seed/` or any "Build Specification" file.
+
 ## Organisation profile and seed data
 
 `.\grc.ps1 seed` loads data into the database; it is idempotent. Two profiles:
@@ -74,13 +104,16 @@ Everything goes through `grc.ps1` (it puts the portable Node on PATH):
 .\grc.ps1 seed       # idempotent; -Profile pilot (private seed/ files, default) or dev (generated)
 .\grc.ps1 test       # vitest
 .\grc.ps1 typecheck
-.\grc.ps1 backup     # copies data/ to backups/<timestamp>
+.\grc.ps1 backup     # checksummed copy of data/ in backups/<timestamp> (-Prune <n> keeps the newest n)
+.\grc.ps1 restore <backup|latest>   # verifies, keeps a safety copy, replaces data/
+.\grc.ps1 status | logs | upgrade   # see docs/operations.md for these and export-all / import-all
 .\grc.ps1 npm <args> # any npm command with the portable Node
 ```
 
 ### Install on a new machine
 
-No admin rights needed. Download the Node.js 24 LTS Windows x64 zip from nodejs.org, check
+No admin rights needed. Run `tools\install-node.ps1` (downloads the pinned Node.js LTS
+and verifies its checksum), or do it by hand: download the Node.js 24 LTS Windows x64 zip from nodejs.org, check
 it against the published SHASUMS256.txt, and extract it to `.tools\node` (so that
 `.tools\node\node.exe` exists). Then `.\grc.ps1 npm install` and `.\grc.ps1 start`. The
 first visit shows the setup wizard, which creates the administrator; there is no default
@@ -90,6 +123,14 @@ In a plain shell: `$env:Path = "$PWD\.tools\node;$env:Path"` then `npm run <scri
 
 Environment: `GRC_PORT` (8080), `GRC_DATA_DIR` (`./data`; `memory` = in-memory database),
 `GRC_SEED_DIR` (`./seed`).
+
+Security environment (all optional; see `docs/security.md`): `GRC_SECRET_KEY` (32 bytes as
+64 hex characters or base64; encrypts authenticator keys), `GRC_SECRET_KEY_FILE` (a file
+holding it; default `secret.key` in the data folder, generated on first start),
+`GRC_SECRET_KEY_PREVIOUS` (retired keys, comma-separated, for one start after a key
+change), `GRC_COOKIE_SECURE` (`off` default | `auto` | `always`) and `GRC_TRUST_PROXY`
+(`1` only behind one trusted reverse proxy). In code, use `clientIp(req)` and
+`isHttps(req)` from `core/request.ts` rather than `req.ip` and `req.protocol`.
 
 ## Layout
 
@@ -143,7 +184,13 @@ export default mod;
   `ctx.db.tx(async (tx) => ...)`. Parameterised queries only (`$1`, `$2`).
 - `ctx.requirePerm('tickets.edit')` - preHandler. `ctx.can(user, perm)` - boolean.
 - `ctx.audit(req, { action, recordType, recordId, summary, before, after })`.
-- `ctx.lookups.ensure(list, values)` / `ctx.lookups.values(list)`.
+- `ctx.lookups.ensure(list, values, opts?)` / `ctx.lookups.values(list)`. `opts` says who may
+  read the list through `/api/meta` and `/api/lookups/:list`: `{ module: '<permission module>' }`
+  (people with `<module>.view`; for a module whose record types are all restricted, also
+  `security.view`) or `{ public: true }` (every signed-in user). A list used by a `lookup`
+  field is also readable by anyone who may view that record type. **A list with neither an
+  owner nor a field using it is readable by administrators only**, so pass `{ module }` on
+  every `ensure` call for lists used by hand-written routes and pages.
 - `ctx.settings.get(key, fallback)` / `ctx.settings.set(key, value)`.
 - `ctx.resources` - registry of record types: `get(type)` (undefined when that module is
   not loaded - always guard cross-module use), `labelFor(type, id)`, `find(type, id, user?)`,
@@ -151,6 +198,10 @@ export default mod;
   auto-number, run hooks and audit; pass `req` for a user action, omit it for system work
   (seeding, automation), which may also set `readOnly` fields. Use these rather than raw
   SQL whenever you write to a resource table, including another module's.
+  `visibleWhere(type, user, alias?)` returns the SQL condition (no parameters) for the rows of
+  a type that `user` may see under the restricted-record rules; every hand-written query
+  over a resource table includes it:
+  `where deleted_at is null and ${ctx.resources.visibleWhere('action', req.user)}`.
 - `ctx.readSeed(opts, 'systems.psv', '|')` - parses a delimited seed file into objects keyed by header.
   `opts.organisation` is the organisation profile (`{}` when there is none).
 - `ctx.fail(status, code, message, fields?)` - throws an API error.
@@ -188,6 +239,10 @@ ctx.defineResource({
   titleField: 'title',
   ref: { field: 'ref', prefix: 'TKT-' },  // optional auto-number: TKT-00001
   restricted: false,            // true = whole type needs security.view; 'flag' = rows with restricted=true need it
+  // restrictedFrom: { typeField: 'source_type', idField: 'source_id' },
+  //   with restricted: 'flag' and a boolean `restricted` column: rows take their restriction from
+  //   the record those two fields point at. Core sets the flag (declare the field readOnly),
+  //   keeps it in step when either record changes, and refuses a source the caller cannot see.
   searchable: ['title', 'description'],
   defaultSort: { field: 'created_at', dir: 'desc' },
   fields: {
@@ -255,7 +310,11 @@ Module keys (fixed): `tickets`, `knowledge`, `assets`, `systems`, `sites`, `data
 
 Restricted records (security incidents, risks, anything flagged) are invisible without
 `security.view` in lists, counts, search, links, exports and stats. `defineResource`
-enforces this; hand-written routes must too.
+enforces this; hand-written routes must too (`ctx.resources.find(type, id, req.user)` for
+one record, `ctx.resources.visibleWhere(type, req.user)` in SQL). Actions are
+`restricted: 'flag'` and inherit the flag from their source record. Sensitive
+administrative routes call `sensitive(ctx, req, what)` (`modules/admin/shared.ts`), which
+needs a recent password confirmation (`POST /api/auth/confirm`).
 
 ### Tests
 
@@ -275,13 +334,20 @@ to-do list. Fields: `title`, `description`, `status` (`action_status`: open, in_
 blocked, done, cancelled), `priority` (`action_priority`: high, medium, low), `owner_id`,
 `due_on`, `source` (`action_source`: risk, assessment, incident, audit, exercise,
 information_request, project, other), `source_type` + `source_id` (the record it arose
-from), `department`, `notes`. Any module may create one with
+from), `department`, `notes`, `restricted` (read-only: true when the source record is
+restricted; such actions are hidden without `security.view`). Any module may create one with
 `ctx.resources.create('action', {...})` after checking `ctx.resources.get('action')`.
+Always pass `source_type` and `source_id` so the restriction is inherited.
+
+Risk scales: the two built-in scale keys are `cyber_5x5` and `hazard_4x5` (the latter was
+`asp` before migration `risks/002`).
 
 ## Web conventions
 
 React 19 + React Router + Vite, TypeScript, plain CSS with design tokens
-(`web/src/core/tokens.css`), ECharts for charts. No UI framework. See
+(`web/src/core/tokens.css`), ECharts for charts. The component library is Mantine 9,
+wrapped by the core design system: import from `'../../core'` first, and use
+`@mantine/core` directly only for layouts the core does not cover. See
 `web/src/core/README.md` for the component catalogue.
 
 ```tsx
@@ -317,6 +383,12 @@ has filter, sort, saved view and export; every record shows its history.
 | `secincidents` | `security_incident` → security_incidents (restricted), `notification_task` → notification_tasks |
 | `projects` | `project` → projects |
 | `admin` | users, roles, second factor, audit viewer, lookups, settings |
+| `changes` | `change` → changes |
+| `policies` | `policy` → policies, `policy_exception` → policy_exceptions |
+| `training` | `course` → courses, `exercise` → exercises |
+| `vulnerabilities` | `vulnerability` → vulnerabilities (restricted) |
+| `attachments` | files on any record (`AttachmentsPanel`; stored in `data/files`) |
+| `notifications` | in-app notifications (`app.notify(...)`, `NotificationBell`) |
 | `home` | dashboards |
 | `help` | the user guide, rendered from `docs/user/*.md` (web only) |
 
@@ -326,8 +398,12 @@ vendor, evidence_item → `vendors`; contract → `contracts`; framework* and
 assessment_snapshot → `frameworks`; risk → `risks`; action → `actions`; obligation →
 `obligations`; security_incident, notification_task → `security`; project → `projects`.
 
-Not yet built: change enablement, policies, training, exceptions, exercises,
-vulnerabilities, report builder, imports/API tokens. See `docs/known-gaps.md`.
+Permission modules for the newer types: change → `changes`; policy → `policies`;
+policy_exception → `exceptions`; course → `training`; exercise → `exercises`;
+vulnerability → `vulnerabilities`.
+
+Not yet built: report builder and user-built dashboards, API tokens, single sign-on,
+self-service portal, custom fields, email. See `docs/known-gaps.md` and `docs/roadmap/`.
 
 ## Known gaps
 

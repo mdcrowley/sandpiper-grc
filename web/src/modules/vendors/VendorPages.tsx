@@ -1,4 +1,5 @@
 // Vendors list and the vendor record.
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Card, EmptyState, ErrorState, formatDate, Loading, LookupChip, RecordPage, ResourceList, Stat, useAuth,
@@ -7,6 +8,7 @@ import {
 import type { ListResult, Row } from '../../core';
 import { Checklist } from './Checklist';
 import { Contacts } from './Contacts';
+import { AddEvidence } from './EvidenceForm';
 import { ExpiryChip, NoticeChip, daysPhrase, daysUntil } from './shared';
 import type { VendorSummary } from './shared';
 
@@ -110,8 +112,10 @@ function TermsTab({ vendorId }: { vendorId: string }) {
 }
 
 function EvidenceTab({ vendorId }: { vendorId: string }) {
+  const [version, setVersion] = useState(0); // remounts the list after an item is added
   return (
     <ResourceList
+      key={version}
       type="evidence_item"
       baseFilter={{ vendor_id: vendorId }}
       columns={[
@@ -119,9 +123,7 @@ function EvidenceTab({ vendorId }: { vendorId: string }) {
         { field: 'expires_on', label: 'Expiry', sortable: true, render: (row) => <ExpiryChip date={row.expires_on} /> },
       ]}
       filters={['type', 'expires_on']}
-      createFields={['title', 'type', 'contract_id', 'received_on', 'expires_on', 'note']}
-      createInitial={{ vendor_id: vendorId }}
-      onCreated={() => undefined}
+      actions={<AddEvidence vendorId={vendorId} onCreated={() => setVersion((n) => n + 1)} />}
     />
   );
 }

@@ -1,0 +1,57 @@
+/* Policies and exceptions. Colours come from the design tokens so both themes work. */
+
+/* ---- presets above a list ---- */
+.pol-presets { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+
+/* ---- rendered policy text ---- */
+.pol-body { max-width: 76ch; line-height: 1.6; overflow-wrap: anywhere; }
+.pol-body > :first-child { margin-top: 0; }
+.pol-body > :last-child { margin-bottom: 0; }
+.pol-body h1, .pol-body h2 { font-size: var(--fs-xl); font-weight: 600; margin: var(--s-5) 0 var(--s-2); }
+.pol-body h3 { font-size: var(--fs-lg); font-weight: 600; margin: var(--s-4) 0 var(--s-2); }
+.pol-body h4, .pol-body h5, .pol-body h6 { font-weight: 600; margin: var(--s-3) 0 var(--s-1); }
+.pol-body p { margin: 0 0 var(--s-3); }
+.pol-body ul, .pol-body ol { margin: 0 0 var(--s-3); padding-inline-start: var(--s-5); }
+.pol-body ul { list-style: disc; }
+.pol-body ol { list-style: decimal; }
+.pol-body ul ul { list-style: circle; }
+.pol-body li { margin-bottom: var(--s-1); }
+.pol-body li > ul, .pol-body li > ol { margin: var(--s-1) 0 0; }
+.pol-body input[type="checkbox"] { margin-inline-end: var(--s-1); }
+.pol-body code { font-family: var(--font-mono); font-size: 0.92em; padding: 1px 5px; border-radius: 4px; background: var(--c-gray-bg); color: var(--c-gray-fg); }
+.pol-body pre { padding: var(--s-3); border-radius: var(--radius); background: var(--c-gray-bg); overflow-x: auto; margin: 0 0 var(--s-3); }
+.pol-body pre code { padding: 0; background: none; }
+.pol-body blockquote { margin: 0 0 var(--s-3); padding: var(--s-2) var(--s-3); border-inline-start: 3px solid var(--border-strong); color: var(--text-muted); }
+.pol-body blockquote p:last-child { margin-bottom: 0; }
+.pol-body table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; margin: 0 0 var(--s-3); }
+.pol-body th, .pol-body td { padding: var(--s-2) var(--s-3); text-align: start; vertical-align: top; border: 1px solid var(--border); }
+.pol-body th { font-weight: 600; background: var(--surface-2); }
+.pol-body hr { border: 0; border-top: 1px solid var(--border); margin: var(--s-4) 0; }
+.pol-body a { color: var(--link); }
+
+/* ---- policy page ---- */
+.pol-layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr); gap: var(--s-4); align-items: start; }
+.pol-meta { display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-4); margin: 0 0 var(--s-4); padding-bottom: var(--s-3); border-bottom: 1px solid var(--border); color: var(--text-muted); font-size: var(--fs-sm); }
+.pol-notice { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-3); padding: var(--s-3) var(--s-4); border: 1px solid var(--border); border-inline-start: 4px solid var(--c-amber-solid); border-radius: var(--radius); background: var(--surface); }
+.pol-notice-info { border-inline-start-color: var(--c-blue-solid); }
+.pol-notice p { margin: 0; }
+.pol-wrap, .table td.pol-wrap { white-space: normal; min-width: 18ch; max-width: 52ch; overflow-wrap: anywhere; }
+.pol-chips { display: flex; flex-wrap: wrap; gap: var(--s-1); }
+
+/* ---- compare by reading ---- */
+.pol-compare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-4); align-items: start; }
+.pol-pane { display: grid; gap: var(--s-3); min-width: 0; padding: var(--s-4); border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+
+/* ---- editor ---- */
+.pol-editor textarea { font-family: var(--font-mono); font-size: var(--fs-sm); line-height: 1.5; min-height: 26rem; }
+.pol-preview { min-height: 12rem; }
+.pol-help { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); }
+
+/* ---- acknowledgement reading dialog ---- */
+.pol-read { max-height: 55vh; overflow-y: auto; padding: var(--s-4); border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+
+@media (max-width: 1000px) {
+  .pol-layout, .pol-compare, .grid-2.pol-exc { grid-template-columns: minmax(0, 1fr); }
+}
+
+.table td.pol-rowhead { font-weight: 600; }

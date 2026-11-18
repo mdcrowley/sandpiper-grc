@@ -238,6 +238,22 @@ describe('ticket lifecycle', () => {
     expect(reopened.body.closed_at).toBeNull();
   });
 
+  it('needs a resolution code to close a ticket, but not to cancel one (E18-15)', async () => {
+    const agent = await t.as('agent');
+    const id = (await agent.post('/api/tickets', { ...base, title: 'Straight to closed' })).body.id;
+    const noCode = await agent.patch(`/api/tickets/${id}`, { status: 'closed' });
+    expect(noCode.status).toBe(400);
+    expect(noCode.body.error.fields.resolution_code).toBeDefined();
+    expect((await agent.post('/api/tickets', { ...base, title: 'Born closed', status: 'closed' })).status).toBe(400);
+    const closed = await agent.patch(`/api/tickets/${id}`, { status: 'closed', resolution_code: 'fixed' });
+    expect(closed.status).toBe(200);
+    expect(closed.body.closed_at).not.toBeNull();
+    // The code cannot be cleared while the ticket stays closed.
+    expect((await agent.patch(`/api/tickets/${id}`, { resolution_code: null })).status).toBe(400);
+    const other = (await agent.post('/api/tickets', { ...base, title: 'Not needed after all' })).body.id;
+    expect((await agent.patch(`/api/tickets/${other}`, { status: 'cancelled' })).status).toBe(200);
+  });
+
   it('links child tickets to a major incident and stores the review', async () => {
     const parent = await t.api.post('/api/tickets', { ...base, title: 'Major', impact: 'organisation', urgency: 'high', major_incident: true });
     const child = await t.api.post('/api/tickets', { ...base, title: 'Child', parent_ticket_id: parent.body.id });
@@ -329,14 +345,20 @@ describe('problems, knowledge and catalogue', () => {
     ]);
     expect(versions[2].title).toBe('Reset a password');
 
+    // E18-17: one vote per person per article version; a repeat is not counted, a change replaces it.
     const agent = await t.as('agent');
-    await agent.post(`/api/knowledge/${id}/feedback`, { helpful: true });
-    await agent.post(`/api/knowledge/${id}/feedback`, { helpful: true });
+    const other = await t.as('agent');
+    expect((await agent.post(`/api/knowledge/${id}/feedback`, { helpful: true })).body).toMatchObject({ helpful_yes: 1, helpful_no: 0, changed: true });
+    expect((await agent.post(`/api/knowledge/${id}/feedback`, { helpful: true })).body).toMatchObject({ helpful_yes: 1, helpful_no: 0, changed: false });
+    expect((await other.post(`/api/knowledge/${id}/feedback`, { helpful: true })).body).toMatchObject({ helpful_yes: 2, helpful_no: 0 });
     const fb = await agent.post(`/api/knowledge/${id}/feedback`, { helpful: false });
-    expect(fb.body).toEqual({ helpful_yes: 2, helpful_no: 1 });
+    expect(fb.body).toMatchObject({ helpful_yes: 1, helpful_no: 1, your_vote: false, changed: true });
     expect((await agent.post(`/api/knowledge/${id}/feedback`, { helpful: 'maybe' })).status).toBe(400);
     // Feedback does not make a new version.
     expect((await t.api.get(`/api/knowledge/${id}`)).body.version).toBe(3);
+    // A new version of the article can be voted on again.
+    await t.api.patch(`/api/knowledge/${id}`, { body: 'Fourth text' });
+    expect((await agent.post(`/api/knowledge/${id}/feedback`, { helpful: false })).body).toMatchObject({ helpful_yes: 1, helpful_no: 2, changed: true });
   });
 
   it('starts with the default catalogue', async () => {

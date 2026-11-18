@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  Button, ConfirmDialog, EditableSummary, errorMessage, Icon, LinksPanel, LookupChip, RecordPage, Stepper, useLookup, useToast,
+  Button, Checkbox, ConfirmDialog, EditableSummary, errorMessage, Icon, LinksPanel, LookupChip, RecordPage, Stepper, useAuth, useLookup, useToast,
 } from '../../core';
 import type { RecordContext } from '../../core';
 import { ChecklistTab } from './ChecklistTab';
@@ -9,12 +9,35 @@ import { EditableTable } from './EditableTable';
 import { LogTab } from './LogTab';
 import { RansomTab } from './RansomTab';
 
+/** Shown only while an administrator has pilot mode switched on (Administration > Settings). */
 export function PilotNotice() {
+  const { pilot } = useAuth();
+  if (!pilot) return null;
   return (
     <div className="si-pilot" role="note">
       <Icon name="alert" />
       <span>Pilot mode: do not record live incident details here yet. Use exercise or invented data only.</span>
     </div>
+  );
+}
+
+/** Tick boxes for the configurable kinds of data (the incident_data_kind list); saved straight away. */
+function DataKinds({ rec, onSaved }: { rec: RecordContext; onSaved: () => void }) {
+  const kinds = useLookup('incident_data_kind');
+  const toast = useToast();
+  const held: string[] = Array.isArray(rec.row.data_kinds) ? rec.row.data_kinds : [];
+  // A kind retired from the list stays visible on incidents that already carry it.
+  const options = [...kinds.map((k) => ({ value: k.value, label: k.label })), ...held.filter((v) => !kinds.some((k) => k.value === v)).map((v) => ({ value: v, label: v }))];
+  if (!options.length) return null;
+  const toggle = (value: string, on: boolean) =>
+    rec.save({ data_kinds: on ? [...held, value] : held.filter((v) => v !== value) }).then(onSaved).catch((err) => toast.error(errorMessage(err)));
+  return (
+    <fieldset className="si-questions">
+      <legend><strong>Other kinds of data involved</strong></legend>
+      {options.map((o) => (
+        <Checkbox key={o.value} label={o.label} checked={held.includes(o.value)} disabled={!rec.canEdit} onChange={(v) => void toggle(o.value, v)} />
+      ))}
+    </fieldset>
   );
 }
 
@@ -130,9 +153,10 @@ export function Workspace() {
           content: (rec) => (
             <div className="stack">
               <EditableSummary type="security_incident" row={rec.row} onSaved={refresh(rec)} title="What is involved"
-                fields={['is_cyber_incident', 'health_data_involved', 'card_data_involved', 'personal_info_involved', 'affected_systems', 'affected_data']} />
+                fields={['is_cyber_incident', 'personal_info_involved', 'affected_systems', 'affected_data']} />
+              <DataKinds rec={rec} onSaved={refresh(rec)} />
               <p className="muted">
-                The four yes/no answers decide which notifications are required. Changing one after the incident is declared adds or
+                These yes/no answers decide which notifications are required. Changing one after the incident is declared adds or
                 stands down the matching clocks; completed notifications are never removed.
               </p>
               <h2 className="si-section-title">Linked systems, data categories and other records</h2>

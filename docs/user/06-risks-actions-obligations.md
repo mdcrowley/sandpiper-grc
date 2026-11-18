@@ -13,7 +13,7 @@ Without both, risks do not appear anywhere for that person: not in the register,
 
 Recording an acceptance needs a further permission, **Approve** on **Risks**. Roles are managed by an administrator; see [Administration](09-administration.md).
 
-Actions and obligations are not restricted. Anyone with **View** on **Actions** sees every action, including the title of an action that was raised from a risk, so do not put sensitive detail in an action title.
+Obligations are not restricted. An action is restricted when the record it was raised from is: an action raised from a risk, a security incident or any other restricted record is hidden, everywhere, from people without **View** on **Security incidents and restricted records**, including its owner if they lack that permission. Other actions are visible to anyone with **View** on **Actions**. You cannot raise an action on, or move one to, a record you cannot see.
 
 ## The risk register
 

@@ -1,9 +1,9 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { Db } from './db.ts';
 import { fail, UUID_RE } from './errors.ts';
-import type { ResourceDef, Row } from './module.ts';
+import type { ResourceDef, Row, SessionUser } from './module.ts';
 import type { makeResources } from './resource.ts';
-import { requirePerm, type makeAudit, type makeLookups } from './services.ts';
+import { can, requirePerm, type makeAudit, type makeLookups } from './services.ts';
 
 interface Deps {
   app: FastifyInstance;
@@ -26,6 +26,47 @@ export function registerCoreRoutes({ app, db, audit, lookups, res }: Deps) {
     return { def: def!, row: row! };
   }
 
+  /**
+   * Which configurable lists a person may read. A list is readable when:
+   *  - a record type they may view has a field that uses it; or
+   *  - its owning module (ctx.lookups.ensure(list, values, { module })) is one they hold view on,
+   *    and, where that module has record types, they may view at least one of them (so the lists
+   *    of a restricted module stay hidden without security.view); or
+   *  - it is marked public; or
+   *  - they are an administrator (who maintains every list).
+   * A list with no owner that no record type uses is readable by administrators only.
+   */
+  async function listReader(user: SessionUser | null): Promise<(list: string) => boolean> {
+    if (can(user, 'admin.administer')) return () => true;
+    const defs = registry.all();
+    const used = new Set<string>();
+    for (const d of defs) {
+      if (!mayAccess(user, d, 'view')) continue;
+      for (const f of Object.values(d.fields)) if (f.type === 'lookup' && f.list) used.add(f.list);
+    }
+    const owners = await db.query<{ list_key: string; module: string | null; public: boolean }>('select list_key, module, public from lookup_lists');
+    for (const o of owners) {
+      if (o.public) { used.add(o.list_key); continue; }
+      if (!o.module || !can(user, `${o.module}.view`)) continue;
+      const types = defs.filter((d) => d.module === o.module);
+      if (!types.length || types.some((d) => mayAccess(user, d, 'view'))) used.add(o.list_key);
+    }
+    return (list) => used.has(list);
+  }
+
+  // Say once, at start-up, which lists nobody but an administrator can read: usually a module forgot { module }.
+  app.addHook('onReady', async () => {
+    const used = new Set(registry.all().flatMap((d) => Object.values(d.fields).map((f) => f.list)).filter(Boolean));
+    const rows = await db.query<{ list_key: string }>(
+      `select distinct l.list_key from lookups l left join lookup_lists o on o.list_key = l.list_key
+       where o.list_key is null or (o.module is null and not o.public) order by 1`);
+    const orphans = rows.map((r) => r.list_key).filter((k) => !used.has(k));
+    if (orphans.length && !process.env.VITEST) {
+      console.warn(`[lookups] administrator-only lists (no owning module, not used by a record type): ${orphans.join(', ')}. `
+        + `Pass { module } or { public: true } to ctx.lookups.ensure to let other people read them.`);
+    }
+  });
+
   app.get('/api/meta', async (req) => {
     const resources: Record<string, unknown> = {};
     for (const d of registry.all()) {
@@ -35,7 +76,10 @@ export function registerCoreRoutes({ app, db, audit, lookups, res }: Deps) {
         titleField: d.titleField, refField: d.ref?.field, restricted: d.restricted ?? false, fields: d.fields,
       };
     }
-    return { resources, lookups: await lookups.all() };
+    // Only the lists this person may read: list names and labels can themselves be sensitive.
+    const readable = await listReader(req.user);
+    const all = await lookups.all();
+    return { resources, lookups: Object.fromEntries(Object.entries(all).filter(([list]) => readable(list))) };
   });
 
   app.get('/api/records/lookup', async (req) => {
@@ -180,11 +224,20 @@ export function registerCoreRoutes({ app, db, audit, lookups, res }: Deps) {
     if (query.record_type) where.push(`record_type = ${add(query.record_type)}`);
     if (query.record_id) where.push(`record_id = ${add(query.record_id)}`);
     if (query.actor_id) where.push(`actor_id::text = ${add(query.actor_id)}`);
+    for (const k of ['from', 'to'] as const) {
+      if (query[k] && Number.isNaN(Date.parse(query[k]))) fail(400, 'bad_filter', `"${k}" must be a date or a date and time.`);
+    }
     if (query.from) where.push(`at >= ${add(query.from)}::timestamptz`);
     if (query.to) where.push(`at <= ${add(query.to)}::timestamptz`);
     // Events about restricted record types stay hidden without security.view.
     const hiddenTypes = registry.all().filter((d) => d.restricted === true && !mayAccess(req.user, d, 'view')).map((d) => d.type);
     if (hiddenTypes.length) where.push(`(record_type is null or record_type <> all(${add(hiddenTypes)}::text[]))`);
+    // So do events about individual records flagged restricted (for example an action raised on a risk).
+    if (!can(req.user, 'security.view')) {
+      for (const d of registry.all().filter((x) => x.restricted === 'flag')) {
+        where.push(`not (record_type = ${add(d.type)} and record_id in (select id::text from ${d.table} where coalesce(restricted, false)))`);
+      }
+    }
     const w = where.join(' and ');
 
     if (query.format === 'csv') {
@@ -214,9 +267,14 @@ export function registerCoreRoutes({ app, db, audit, lookups, res }: Deps) {
   app.get('/api/lookups', { preHandler: requirePerm('admin.administer') }, async () =>
     db.query('select list_key, count(*)::int as count from lookups group by 1 order by 1'));
 
-  app.get('/api/lookups/:list', async (req) =>
-    db.query('select id, list_key, value, label, color, sort, active, meta from lookups where list_key = $1 order by sort, label',
-      [(req.params as any).list]));
+  app.get('/api/lookups/:list', async (req) => {
+    const list = String((req.params as any).list);
+    if (!(await listReader(req.user))(list)) {
+      // The same answer whether or not the list exists.
+      fail(403, 'forbidden', 'You do not have permission to read that list.');
+    }
+    return db.query('select id, list_key, value, label, color, sort, active, meta from lookups where list_key = $1 order by sort, label', [list]);
+  });
 
   app.post('/api/lookups', { preHandler: requirePerm('admin.administer') }, async (req, reply) => {
     const b = (req.body ?? {}) as Row;

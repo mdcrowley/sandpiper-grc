@@ -10,8 +10,17 @@ export interface FetchState<T> {
   reload: () => void;
 }
 
+export interface FetchOptions {
+  /**
+   * Keep showing the last result while a *different* URL loads (lists: the table stays in
+   * place between pages and filters instead of flashing a skeleton). `loading` is true meanwhile.
+   */
+  keepPrevious?: boolean;
+}
+
 /** GET a URL and keep the result. Pass `null` to skip the request. Refetches when the URL changes. */
-export function useFetch<T = unknown>(url: string | null): FetchState<T> {
+export function useFetch<T = unknown>(url: string | null, options: FetchOptions = {}): FetchState<T> {
+  const keep = Boolean(options.keepPrevious);
   const [state, setState] = useState<{ data?: T; error?: unknown; loading: boolean; url: string | null }>({
     loading: url !== null,
     url,
@@ -24,18 +33,18 @@ export function useFetch<T = unknown>(url: string | null): FetchState<T> {
       return;
     }
     let stale = false;
-    setState((s) => ({ data: s.url === url ? s.data : undefined, loading: true, url }));
+    setState((s) => ({ data: s.url === url || (keep && s.url !== null) ? s.data : undefined, loading: true, url }));
     api.get<T>(url).then(
       (data) => { if (!stale) setState({ data, loading: false, url }); },
-      (error: unknown) => { if (!stale) setState({ error, loading: false, url }); },
+      (error: unknown) => { if (!stale) setState((s) => ({ data: keep ? s.data : undefined, error, loading: false, url })); },
     );
     return () => { stale = true; };
-  }, [url, tick]);
+  }, [url, tick, keep]);
 
   const reload = useCallback(() => setTick((t) => t + 1), []);
   const current = state.url === url;
   return {
-    data: current ? state.data : undefined,
+    data: current || (keep && url !== null) ? state.data : undefined,
     loading: state.loading || !current,
     error: current ? state.error : undefined,
     reload,

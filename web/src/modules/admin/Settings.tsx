@@ -1,8 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import {
-  api, ApiError, Button, Card, ErrorState, errorMessage, Loading, NumberField, PageHeader, TextField, useAuth, useFetch, useToast,
+  api, ApiError, Button, Card, ErrorState, errorMessage, Loading, NumberField, PageHeader, Select, TextField, useAuth, useFetch, useToast,
 } from '../../core';
 import { DepartmentsCard } from './Departments';
+import { adminApi } from './reauth';
 import { Switch } from './Switch';
 
 interface Values {
@@ -13,13 +14,16 @@ interface Values {
   'auth.password_history': number;
   'auth.idle_minutes': number;
   'auth.mfa_required_for_all': boolean;
+  'auth.mfa_enforcement': 'off' | 'notice' | 'required';
+  'auth.mfa_grace_days': number;
+  'auth.reauth_minutes': number;
 }
 interface SettingsResponse { values: Values; featureKeys: string[] }
 
 const FEATURES: Record<string, { title: string; text: string }> = {
   portal: {
     title: 'Self-service portal',
-    text: 'The simpler pages where any employee submits and tracks their own requests. Off by default: IT staff enter tickets on behalf of others. Switch on together with the Requester role when you open the application to all staff.',
+    text: 'The simpler pages where anyone in the organisation submits and tracks their own requests. Off by default: agents enter tickets on behalf of others. Switch on together with the Requester role when you open the application to everyone.',
   },
 };
 
@@ -56,7 +60,7 @@ export function SettingsPage() {
     if (Object.keys(found).length) return;
     setBusy(true);
     try {
-      await api.patch('/api/admin/settings', Object.fromEntries(changedKeys.map((k) => [k, form[k]])));
+      await adminApi.patch('/api/admin/settings', Object.fromEntries(changedKeys.map((k) => [k, form[k]])));
       toast.success('Settings saved.');
       reload();
       await auth.refresh();
@@ -121,9 +125,27 @@ export function SettingsPage() {
             </Setting>
             <Setting
               title="Second factor for everyone" error={errors['auth.mfa_required_for_all']}
-              text="Administrators and security leads are always expected to use an authenticator app. Switch this on to expect it of everyone; it should be on once the application leaves the pilot. People without one see a reminder (sign-in is not yet blocked)."
+              text="Roles marked “second factor required” (Administrator and Security lead by default) always expect an authenticator app. Switch this on to expect it of everyone."
             >
               <Switch label="Expect a second factor from every user" checked={form['auth.mfa_required_for_all']} onChange={(on) => set('auth.mfa_required_for_all', on)} />
+            </Setting>
+            <Setting
+              title="When a second factor is expected" error={errors['auth.mfa_enforcement']}
+              text="Reminder: people without one see a notice and can carry on (the default). Required: after signing in they can do nothing except set one up. Set up your own second factor before choosing Required."
+            >
+              <Select
+                label="When a second factor is expected" hideLabel value={form['auth.mfa_enforcement']}
+                onChange={(v) => set('auth.mfa_enforcement', (v || 'notice') as Values['auth.mfa_enforcement'])}
+                options={[{ value: 'off', label: 'Off: no reminder' }, { value: 'notice', label: 'Reminder only' }, { value: 'required', label: 'Required: nothing else works until it is set up' }]}
+              />
+            </Setting>
+            <Setting title="Grace period (days)" text="With Required, how long a person may keep working before the block applies, counted from their first visit. Default 0: no grace period.">
+              <NumberField label="Grace period in days" hideLabel min={0} max={30} step={1} value={form['auth.mfa_grace_days']}
+                onChange={(v) => set('auth.mfa_grace_days', v ?? 0)} error={errors['auth.mfa_grace_days']} />
+            </Setting>
+            <Setting title="Password confirmation (minutes)" text="Changing roles, permissions, these sign-in settings, a person's second factor or issuing a one-time link asks for your password again unless you gave it within this many minutes. Default 10.">
+              <NumberField label="Password confirmation window in minutes" hideLabel min={1} max={60} step={1} value={form['auth.reauth_minutes']}
+                onChange={(v) => set('auth.reauth_minutes', v ?? 10)} error={errors['auth.reauth_minutes']} />
             </Setting>
           </Card>
           <DepartmentsCard />

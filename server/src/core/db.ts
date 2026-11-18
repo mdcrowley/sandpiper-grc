@@ -16,6 +16,8 @@ export interface Db extends Queryable {
   /** Inside the callback use ONLY the `tx` argument: the outer handle waits for the transaction. */
   tx<T>(fn: (tx: Queryable) => Promise<T>): Promise<T>;
   close(): Promise<void>;
+  /** The folder the database lives in, or 'memory'. Files that belong beside the database (the secret key) go here. */
+  dataDir: string;
 }
 
 // Postgres type OIDs: keep dates as 'YYYY-MM-DD' strings, numerics and bigints as numbers.
@@ -55,5 +57,6 @@ export async function openDb(dataDir: string): Promise<Db> {
     ...wrap(pg),
     tx: (fn) => pg.transaction((tx) => fn(wrap(tx))) as Promise<any>,
     close: () => pg.close(),
+    dataDir,
   };
 }

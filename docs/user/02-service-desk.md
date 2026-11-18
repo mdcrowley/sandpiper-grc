@@ -88,8 +88,9 @@ A **Resolution** card then appears on the ticket, where the code and notes can b
 To close:
 
 1. Select **Change status**, then **Closed**.
-2. Record the requester's satisfaction if you have it (see below).
-3. Select **Close ticket**.
+2. If the ticket has no **Resolution code** yet, choose one. Closing a ticket needs a resolution code, as resolving does; cancelling does not.
+3. Record the requester's satisfaction if you have it (see below).
+4. Select **Close ticket**.
 
 To cancel a ticket, select **Change status**, then **Cancelled**. It is cancelled at once, with no further questions.
 
@@ -238,11 +239,11 @@ Every time the article text changes, the previous text is kept. The **Versions**
 
 ### Feedback
 
-A published article ends with **Was this helpful?** Select **Yes** or **No**. The totals appear under the article and in the **Helpful** column of the list. Use low scores and overdue review dates to decide what to rewrite.
+A published article ends with **Was this helpful?** Select **Yes** or **No**. Each person has one answer per version of the article; answering again replaces your earlier answer. The totals appear under the article and in the **Helpful** column of the list. Use low scores and overdue review dates to decide what to rewrite.
 
 ## Catalogue
 
-The catalogue holds standard requests. Choosing one opens a new ticket with the details already filled in. Open **Catalogue** in the **Service desk** group; the page is titled **Service catalogue**.
+The catalogue holds standard requests. Choosing one opens a new ticket with the details already filled in. Open **Service catalogue** in the **Service desk** group.
 
 As installed it contains **New starter**, **Leaver**, **Access request**, **Hardware**, **Software**, **Vendor access** and **Equipment fault**, grouped by category.
 
@@ -290,4 +291,3 @@ Below the tiles are charts: **Tickets opened and resolved by day**, **Service-le
 - Restricting **IT agents only** articles. The audience is a label; anyone who can open the knowledge base can read every article.
 - Formatting in articles, and attachments on tickets or articles.
 - Approval or fulfilment steps for catalogue items. An item only pre-fills a ticket.
-- One answer per person for **Was this helpful?** The same person can answer more than once.

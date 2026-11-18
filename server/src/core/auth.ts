@@ -7,8 +7,11 @@ import { CURRENCY, DEFAULT_APP_NAME, TIME_ZONE } from './config.ts';
 import type { Db } from './db.ts';
 import { fail } from './errors.ts';
 import type { SessionUser } from './module.ts';
+import { makeDbLimiter } from './ratelimit.ts';
+import { clientIp, cookieSecure } from './request.ts';
+import { isEncrypted, loadSecretBox, type SecretBox } from './secretbox.ts';
 import type { makeAudit, makeSettings } from './services.ts';
-import { verifyTotp } from './totp.ts';
+import { matchTotpStep } from './totp.ts';
 
 export const SESSION_COOKIE = 'grc_session';
 const GENERIC_SIGNIN_ERROR = 'Sign-in failed. Check your details, or wait a few minutes and try again.';
@@ -82,6 +85,158 @@ export async function consumeRecoveryCode(db: Db, userId: string, code: string):
   return Boolean(row);
 }
 
+// ---------- authenticator keys: encrypted at rest, each code accepted once ----------
+
+const boxes = new WeakMap<Db, SecretBox>();
+/** The encryption box for this database's secrets (key from GRC_SECRET_KEY or the key file; see secretbox.ts). */
+export function secretBox(db: Db): SecretBox {
+  let box = boxes.get(db);
+  if (!box) {
+    box = loadSecretBox(db.dataDir);
+    boxes.set(db, box);
+  }
+  return box;
+}
+
+const totpContext = (userId: string) => `totp:${userId}`;
+
+/** Stores a user's authenticator key, encrypted. `null` removes it. */
+export async function storeTotpSecret(db: Db, userId: string, secret: string | null): Promise<void> {
+  await db.query(
+    'update users set totp_secret = $2, totp_last_step = null, updated_at = now() where id = $1',
+    [userId, secret === null ? null : secretBox(db).encrypt(secret, totpContext(userId))],
+  );
+}
+
+/** The user's authenticator key in the clear, or null. Never return it from an API after enrolment. */
+export async function readTotpSecret(db: Db, userId: string): Promise<string | null> {
+  const row = await db.one<{ totp_secret: string | null }>('select totp_secret from users where id = $1', [userId]);
+  if (!row?.totp_secret) return null;
+  try {
+    return secretBox(db).decrypt(row.totp_secret, totpContext(userId));
+  } catch {
+    // Written with a different secret key: no code can be accepted. A recovery code or an
+    // administrator reset still works; supplying the right key puts it right.
+    return null;
+  }
+}
+
+/**
+ * Checks a 6-digit code and uses it up: the time step of an accepted code is stored, and a code
+ * from that step or an earlier one is refused, so a code seen once cannot be replayed.
+ */
+export async function acceptTotpCode(db: Db, userId: string, code: string, atMs = Date.now()): Promise<boolean> {
+  const secret = await readTotpSecret(db, userId);
+  if (!secret) return false;
+  const step = matchTotpStep(secret, code, atMs);
+  if (step === null) return false;
+  const claimed = await db.one(
+    'update users set totp_last_step = $2 where id = $1 and (totp_last_step is null or totp_last_step < $2) returning id',
+    [userId, step],
+  );
+  return Boolean(claimed);
+}
+
+/**
+ * Start-up migration: encrypts keys still stored in the clear (databases from before encryption)
+ * and re-encrypts keys written with a retired key (GRC_SECRET_KEY_PREVIOUS). Returns how many changed.
+ */
+export async function encryptStoredSecrets(deps: Pick<Deps, 'db' | 'audit'>): Promise<number> {
+  const box = secretBox(deps.db);
+  const rows = await deps.db.query<{ id: string; totp_secret: string }>('select id, totp_secret from users where totp_secret is not null');
+  let changed = 0;
+  let unreadable = 0;
+  for (const r of rows) {
+    const context = totpContext(r.id);
+    if (isEncrypted(r.totp_secret) && box.isCurrent(r.totp_secret, context)) continue;
+    let plain: string;
+    try {
+      plain = box.decrypt(r.totp_secret, context);
+    } catch {
+      unreadable += 1; // written with a key we do not have: leave it, and say so below
+      continue;
+    }
+    const sealed = box.encrypt(plain, context);
+    await deps.db.query('update users set totp_secret = $2 where id = $1 and totp_secret = $3', [r.id, sealed, r.totp_secret]);
+    changed += 1;
+  }
+  if (changed) {
+    await deps.audit(null, {
+      action: 'mfa.secrets_encrypted', recordType: 'user',
+      summary: `${changed} authenticator key(s) encrypted with the current secret key`,
+    });
+  }
+  if (unreadable) {
+    console.error(`[secret key] ${unreadable} authenticator key(s) cannot be read with the current secret key. `
+      + 'Those people cannot sign in with a code until the right key is supplied (GRC_SECRET_KEY, GRC_SECRET_KEY_FILE '
+      + 'or GRC_SECRET_KEY_PREVIOUS) or an administrator resets their second factor.');
+    await deps.audit(null, {
+      action: 'mfa.secrets_unreadable', recordType: 'user',
+      summary: `${unreadable} authenticator key(s) could not be read with the current secret key`,
+    });
+  }
+  return changed;
+}
+
+// ---------- second-factor requirement ----------
+
+export type MfaEnforcement = 'off' | 'notice' | 'required';
+
+/**
+ * How a required second factor is applied (setting `auth.mfa_enforcement`):
+ * `off` - nothing; `notice` - a reminder only (the default, so existing installations keep working);
+ * `required` - a person who must enrol and has not can reach only the enrolment routes.
+ */
+export async function mfaEnforcement(deps: Deps): Promise<MfaEnforcement> {
+  const v = await deps.settings.get<string>('auth.mfa_enforcement', 'notice');
+  return v === 'off' || v === 'required' ? v : 'notice';
+}
+
+/** What a person who must enrol may still call: their own state, enrolment, password and sign-out. */
+export const MFA_ENROLMENT_ROUTES = [
+  '/api/health', '/api/auth/state', '/api/auth/logout', '/api/auth/security', '/api/auth/confirm',
+  '/api/auth/totp/begin', '/api/auth/totp/confirm', '/api/auth/change-password', '/api/auth/sessions',
+];
+
+/**
+ * Whether the second factor is required of this user and missing, and whether that now blocks them.
+ * The grace period (`auth.mfa_grace_days`, default none) runs from the first request made while required.
+ */
+export async function mfaStatus(deps: Deps, userId: string): Promise<{ required: boolean; blocked: boolean; graceEndsAt: string | null }> {
+  const mode = await mfaEnforcement(deps);
+  if (mode === 'off' || !(await mfaEnrollmentRequired(deps, userId))) return { required: false, blocked: false, graceEndsAt: null };
+  if (mode === 'notice') return { required: true, blocked: false, graceEndsAt: null };
+  const graceDays = Math.max(0, Number(await deps.settings.get('auth.mfa_grace_days', 0)) || 0);
+  const row = await deps.db.one<{ blocked: boolean; ends: string }>(
+    `update users set mfa_required_since = coalesce(mfa_required_since, now()) where id = $1
+     returning (coalesce(mfa_required_since, now()) + make_interval(days => $2::int)) <= now() as blocked,
+               (coalesce(mfa_required_since, now()) + make_interval(days => $2::int)) as ends`,
+    [userId, graceDays],
+  );
+  return { required: true, blocked: row?.blocked ?? true, graceEndsAt: graceDays ? row?.ends ?? null : null };
+}
+
+// ---------- re-authentication before sensitive actions ----------
+
+/**
+ * Sensitive administrative actions need the password to have been proved in this session within
+ * the last `auth.reauth_minutes` (default 10): at sign-in, or since through POST /api/auth/confirm.
+ * A refusal is audited and answers 403 `reauth_required`, which the web app turns into a prompt.
+ */
+export async function requireRecentAuth(deps: Deps, req: FastifyRequest, what: string): Promise<void> {
+  const minutes = Math.max(1, Number(await deps.settings.get('auth.reauth_minutes', 10)) || 10);
+  const fresh = req.sessionHash && await deps.db.one(
+    `select 1 from sessions where token_hash = $1 and confirmed_at > now() - make_interval(mins => $2::int)`,
+    [req.sessionHash, minutes],
+  );
+  if (fresh) return;
+  await deps.audit(req, {
+    action: 'reauth.required', recordType: 'user', recordId: req.user?.id,
+    summary: `Refused until the password is confirmed again: ${what}`,
+  });
+  fail(403, 'reauth_required', 'Confirm your password to continue.');
+}
+
 /** True when a second factor is expected of this user (role or site-wide setting) and none is set up. */
 export async function mfaEnrollmentRequired(deps: Deps, userId: string): Promise<boolean> {
   const forAll = (await deps.settings.get<boolean>('auth.mfa_required_for_all', false)) === true;
@@ -98,16 +253,19 @@ export async function mfaEnrollmentRequired(deps: Deps, userId: string): Promise
 export async function createSession(db: Db, userId: string, ip?: string, userAgent?: string): Promise<string> {
   const token = randomToken();
   await db.query(
-    `insert into sessions (token_hash, user_id, expires_at, ip, user_agent)
-     values ($1, $2, now() + interval '8 hours', $3, $4)`,
+    // A session starts with the password just proved (sign-in, setup or a password change).
+    `insert into sessions (token_hash, user_id, expires_at, ip, user_agent, confirmed_at)
+     values ($1, $2, now() + interval '8 hours', $3, $4, now())`,
     [sha256(token), userId, ip ?? null, userAgent ?? null],
   );
   return token;
 }
 
-function setSessionCookie(reply: FastifyReply, token: string) {
-  // `secure` is off because the prototype is served over http on 127.0.0.1 only.
-  reply.setCookie(SESSION_COOKIE, token, { httpOnly: true, sameSite: 'strict', path: '/', maxAge: 8 * 3600 });
+function setSessionCookie(req: FastifyRequest, reply: FastifyReply, token: string) {
+  // `secure` follows GRC_COOKIE_SECURE (off by default: the prototype is plain http on 127.0.0.1).
+  reply.setCookie(SESSION_COOKIE, token, {
+    httpOnly: true, sameSite: 'strict', path: '/', maxAge: 8 * 3600, secure: cookieSecure(req),
+  });
 }
 
 export async function loadUser(db: Db, userId: string): Promise<SessionUser | null> {
@@ -148,7 +306,12 @@ async function sessionUser(db: Db, token: string | undefined, idleMinutes: numbe
 
 export function registerAuth(app: FastifyInstance, deps: Deps) {
   const { db, audit, settings } = deps;
-  const failuresByIp = new Map<string, number[]>();
+  // Failures only, kept in the database so a restart does not reset them.
+  const signinFailures = makeDbLimiter(db, 'signin', 20, 5 * 60_000); // by source address
+  const confirmFailures = makeDbLimiter(db, 'confirm', 8, 5 * 60_000); // by user
+
+  // Encrypt authenticator keys left in the clear by an earlier version (and after a key change).
+  app.addHook('onReady', async () => { await encryptStoredSecrets(deps); });
 
   app.decorateRequest('user', null);
   app.decorateRequest('sessionHash', null);
@@ -163,13 +326,24 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
       fail(403, 'csrf', 'Request blocked: missing security header.');
     }
     if (!req.user && !req.routeOptions?.config?.public) fail(401, 'unauthenticated', 'Sign in to continue.');
+    // A required second factor that is missing limits the person to enrolment (and signing out).
+    if (req.user && !req.routeOptions?.config?.public && !MFA_ENROLMENT_ROUTES.includes(req.url.split('?')[0])) {
+      if ((await mfaEnforcement(deps)) === 'required' && (await mfaStatus(deps, req.user.id)).blocked) {
+        fail(403, 'mfa_enrolment_required', 'Set up your second factor to continue. Open Account security to do it.');
+      }
+    }
   });
 
-  const userCount = async () => (await db.one<{ c: number }>('select count(*)::int c from users'))!.c;
+  // Setup stays open until someone can actually sign in: sample people created by a seed
+  // (no password) must not lock the first administrator out.
+  const userCount = async () =>
+    (await db.one<{ c: number }>('select count(*)::int c from users where password_hash is not null'))!.c;
 
   app.get('/api/health', { config: { public: true } }, async () => ({ ok: true }));
 
-  app.get('/api/auth/state', { config: { public: true } }, async (req) => ({
+  app.get('/api/auth/state', { config: { public: true } }, async (req) => {
+    const mfa = req.user ? await mfaStatus(deps, req.user.id) : { required: false, blocked: false, graceEndsAt: null };
+    return {
     appName: await settings.get('app.name', DEFAULT_APP_NAME),
     timeZone: TIME_ZONE,
     currency: CURRENCY,
@@ -181,9 +355,14 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
     permissions: req.user?.permissions ?? [],
     features: await settings.get('features', { portal: false }),
     pilot: await settings.get('pilot_mode', true),
-    // The prototype shows a notice rather than blocking; see docs/known-gaps.md.
-    mfaEnrollmentRequired: req.user ? await mfaEnrollmentRequired(deps, req.user.id) : false,
-  }));
+    // `mfaEnrollmentRequired`: show the reminder. `mfaEnrollmentBlocked`: nothing but enrolment works
+    // until the person enrols (setting auth.mfa_enforcement = required; see docs/security.md).
+    mfaEnrollmentRequired: mfa.required,
+    mfaEnrollmentBlocked: mfa.blocked,
+    mfaGraceEndsAt: mfa.graceEndsAt,
+    mfaEnforcement: await mfaEnforcement(deps),
+    };
+  });
 
   // First run: creates the initial administrator. There is no default account.
   app.post('/api/setup', { config: { public: true } }, async (req, reply) => {
@@ -208,8 +387,8 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
     await db.query(
       `insert into user_roles (user_id, role_id) select $1, id from roles where key = 'administrator'`, [user!.id],
     );
-    const token = await createSession(db, user!.id, req.ip, req.headers['user-agent']);
-    setSessionCookie(reply, token);
+    const token = await createSession(db, user!.id, clientIp(req), req.headers['user-agent']);
+    setSessionCookie(req, reply, token);
     req.user = await loadUser(db, user!.id);
     await audit(req, {
       action: 'setup.complete', recordType: 'user', recordId: user!.id,
@@ -224,22 +403,21 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
     const password = String(b.password ?? '');
 
     // Rate limit by source address (failures only).
-    const now = Date.now();
-    const recent = (failuresByIp.get(req.ip) ?? []).filter((t) => now - t < 5 * 60_000);
-    failuresByIp.set(req.ip, recent);
-    if (recent.length >= 20) fail(429, 'rate_limited', GENERIC_SIGNIN_ERROR);
+    const ip = clientIp(req);
+    if (await signinFailures.blocked(ip)) fail(429, 'rate_limited', GENERIC_SIGNIN_ERROR);
 
     const reject = async (reason: string, userId?: string): Promise<never> => {
-      recent.push(now);
-      await audit(null, {
+      await signinFailures.hit(ip);
+      // Passing the request records the source address; nobody is signed in, so there is no actor.
+      await audit(req, {
         action: 'signin.failure', recordType: 'user', recordId: userId,
-        summary: `Sign-in failed (${reason}) for "${identifier.slice(0, 80)}" via local from ${req.ip}`,
+        summary: `Sign-in failed (${reason}) for "${identifier.slice(0, 80)}" via local from ${ip}`,
       });
       return fail(401, 'invalid_credentials', GENERIC_SIGNIN_ERROR);
     };
 
     const u = await db.one<any>(
-      `select id, password_hash, status, totp_enabled, totp_secret, failed_attempts,
+      `select id, password_hash, status, totp_enabled, failed_attempts,
               (locked_until is not null and locked_until > now()) as locked
        from users where deleted_at is null and (lower(username) = $1 or lower(email) = $1)`,
       [identifier],
@@ -274,7 +452,7 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
       // A single-use recovery code is accepted in place of the authenticator code.
       const code = String(b.totp ?? b.recoveryCode ?? '').trim();
       if (!code) fail(401, 'mfa_required', 'Enter the 6-digit code from your authenticator app.');
-      if (!verifyTotp(u.totp_secret, code)) {
+      if (!(await acceptTotpCode(db, u.id, code))) {
         usedRecoveryCode = await consumeRecoveryCode(db, u.id, code);
         if (!usedRecoveryCode) return registerFailure('wrong authenticator or recovery code');
       }
@@ -283,8 +461,8 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
     await db.query(
       'update users set failed_attempts = 0, locked_until = null, last_login_at = now() where id = $1', [u.id],
     );
-    const token = await createSession(db, u.id, req.ip, req.headers['user-agent']);
-    setSessionCookie(reply, token);
+    const token = await createSession(db, u.id, ip, req.headers['user-agent']);
+    setSessionCookie(req, reply, token);
     req.user = await loadUser(db, u.id);
     await audit(req, {
       action: 'signin.success', recordType: 'user', recordId: u.id,
@@ -321,9 +499,25 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
     await setPassword(deps, me.id, b.newPassword);
     // All active sessions end on password change; this browser gets a fresh one.
     await db.query('delete from sessions where user_id = $1', [me.id]);
-    setSessionCookie(reply, await createSession(db, me.id, req.ip, req.headers['user-agent']));
+    setSessionCookie(req, reply, await createSession(db, me.id, clientIp(req), req.headers['user-agent']));
     await audit(req, { action: 'password.change', recordType: 'user', recordId: me.id, summary: 'Password changed' });
     return { ok: true };
+  });
+
+  // Proves the password again for this session, before a sensitive administrative action.
+  app.post('/api/auth/confirm', async (req) => {
+    const me = req.user!;
+    if (await confirmFailures.blocked(me.id)) fail(429, 'rate_limited', 'Too many attempts. Wait a few minutes and try again.');
+    const row = await db.one<{ password_hash: string | null }>('select password_hash from users where id = $1', [me.id]);
+    if (!row?.password_hash || !(await verifyPassword(row.password_hash, String((req.body as any)?.password ?? '')))) {
+      await confirmFailures.hit(me.id);
+      await audit(req, { action: 'reauth.failure', recordType: 'user', recordId: me.id, summary: 'Password confirmation refused: wrong password' });
+      fail(400, 'validation', 'Check the highlighted fields.', { password: 'That is not your current password.' });
+    }
+    const minutes = Math.max(1, Number(await settings.get('auth.reauth_minutes', 10)) || 10);
+    await db.query('update sessions set confirmed_at = now() where token_hash = $1', [req.sessionHash]);
+    await audit(req, { action: 'reauth.success', recordType: 'user', recordId: me.id, summary: 'Password confirmed for administrative actions' });
+    return { ok: true, minutes };
   });
 
   app.get('/api/users/options', async (req) => {

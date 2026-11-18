@@ -8,7 +8,12 @@ An IT governance, risk and compliance platform for a small IT team, in one appli
 - **Cybersecurity**: framework outcomes (NIST CSF 2.0 included) with assessments over time,
   a risk register with configurable scales and a heat map, an action tracker, an
   obligations register, and security incidents with notification deadline clocks
+- **Change enablement**: risk-scored changes, approvals, a calendar with blackout periods and conflict warnings
+- **Policies and exceptions**: versions, publishing, acknowledgement tracking, time-limited exceptions
+- **Training and exercises**: courses, assignments, completion tracking, tabletop and restore tests
+- **Vulnerabilities**: findings with fix-by dates, scanner CSV import, dashboard
 - **Projects**: tiers, stage gates with checklists, status reports and portfolio views
+- **Everywhere**: attachments, in-app notifications, comments, history, search, CSV export
 - **Administration**: users, roles, second factor, configurable lists, settings, audit log
 
 **Status: prototype.** It runs locally on one Windows machine for evaluation. It is not
@@ -18,8 +23,8 @@ hardened for production; read `docs/known-gaps.md` before relying on it.
 
 Windows, no admin rights, no Docker.
 
-1. Download the Node.js 24 LTS Windows x64 zip from nodejs.org, check it against the
-   published SHASUMS256.txt, and extract it so that `.tools\node\node.exe` exists.
+1. `powershell -ExecutionPolicy Bypass -File tools\install-node.ps1` (downloads the pinned
+   Node.js LTS into `.tools\node` and verifies its checksum).
 2. `.\grc.ps1 npm install`
 3. `.\grc.ps1 seed -Profile dev` (optional: invented sample data)
 4. `.\grc.ps1 start`, then open http://127.0.0.1:8080
@@ -27,7 +32,9 @@ Windows, no admin rights, no Docker.
 The first visit shows a setup wizard that creates the administrator. There is no default
 account. The server listens on 127.0.0.1 only and makes no outbound connections.
 
-Other commands: `stop`, `restart`, `health`, `dev`, `build`, `test`, `typecheck`, `backup`.
+Other commands: `stop`, `restart`, `health`, `status`, `logs`, `dev`, `build`, `test`,
+`typecheck`, `backup`, `restore`, `upgrade`, `export-all`, `import-all`. See
+[docs/operations.md](docs/operations.md).
 
 ## Documentation
 
@@ -52,5 +59,5 @@ on your law, regulators, contracts and insurer: set them yourself, with legal ad
 
 ## Technology
 
-TypeScript throughout. Fastify and embedded Postgres (PGlite) on the server; React, Vite
-and ECharts on the web. `CLAUDE.md` describes the structure and conventions in detail.
+TypeScript throughout. Fastify and embedded Postgres (PGlite) on the server; React, Vite,
+Mantine and ECharts on the web. `CLAUDE.md` describes the structure and conventions in detail.

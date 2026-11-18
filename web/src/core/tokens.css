@@ -1,44 +1,57 @@
-/* Design tokens. Brand colours are variables so they can be configured later.
-   Themes switch on <html data-theme="light|dark">. */
+/* Design tokens: the one place colours, type sizes, spacing and shape are decided.
+   Themes switch on <html data-theme="light|dark"> (kept in step with Mantine's colour scheme
+   by theme.ts). The Mantine theme in mantine.tsx points its own variables at these tokens, so
+   Mantine components and hand-written CSS can never disagree.
+   To re-brand: change the --brand* values here and the `brand` scale in mantine.tsx. */
+
+@layer reset, mantine;
 
 :root {
   color-scheme: light;
 
-  /* Brand (configurable) */
-  --brand: #1b5e7b;
-  --brand-hover: #154c64;
+  /* Brand: a deep tidal blue-green */
+  --brand: #17656f;
+  --brand-hover: #0f525b;
   --brand-contrast: #ffffff;
-  --brand-soft: #e2eff5;
+  --brand-soft: #e1f0f0;
+  --brand-strong: #0a3d45;
+  --accent: #b9782a;          /* warm sand, used sparingly (logo, highlights) */
 
   /* Surfaces and ink */
-  --bg: #f4f6f8;
+  --bg: #f3f6f6;
   --surface: #ffffff;
-  --surface-2: #eff2f5;
-  --surface-hover: #f3f6f9;
-  --border: #d8dde3;
-  --border-strong: #7f8a97;
-  --text: #19212b;
-  --text-muted: #55606d;
-  --link: #165a86;
-  --danger: #bf2f2f;
+  --surface-2: #edf2f3;
+  --surface-hover: #f4f8f8;
+  --border: #dbe3e5;
+  --border-control: #b9c5c9;
+  --border-strong: #7b8a90;
+  --text: #14252b;
+  --text-muted: #50626a;
+  --link: #14606a;
+  --danger: #b42a2a;
   --danger-contrast: #ffffff;
-  --focus: #1668c4;
-  --overlay: rgba(16, 24, 32, 0.45);
-  --shadow-1: 0 1px 2px rgba(16, 24, 32, 0.08);
-  --shadow-2: 0 8px 28px rgba(16, 24, 32, 0.18);
+  --danger-text: #a32222;
+  --focus: #1c7480;
+  --overlay: rgba(10, 30, 36, 0.48);
+  --shadow-1: 0 1px 2px rgba(13, 38, 45, 0.06), 0 1px 1px rgba(13, 38, 45, 0.04);
+  --shadow-2: 0 10px 32px rgba(13, 38, 45, 0.16), 0 2px 6px rgba(13, 38, 45, 0.08);
+  --shadow-3: 0 24px 64px rgba(13, 38, 45, 0.24), 0 4px 12px rgba(13, 38, 45, 0.1);
 
-  /* Navigation */
-  --nav-bg: #15242e;
-  --nav-text: #d7dfe5;
-  --nav-muted: #9aa8b3;
-  --nav-hover: rgba(255, 255, 255, 0.08);
-  --nav-active: rgba(255, 255, 255, 0.14);
-  --nav-focus: #9fd2ff;
+  /* Navigation (the sidebar keeps a deep-water tone in both themes) */
+  --nav-bg: #0e2b32;
+  --nav-bg-2: #123840;
+  --nav-border: rgba(255, 255, 255, 0.08);
+  --nav-text: #d5e2e4;
+  --nav-muted: #93aab0;
+  --nav-hover: rgba(255, 255, 255, 0.07);
+  --nav-active: rgba(255, 255, 255, 0.13);
+  --nav-accent: #7fd0d2;
+  --nav-focus: #a5e3e4;
 
   /* Named colour scale: chips use -bg/-fg, charts and bars use -solid */
-  --c-gray-bg: #eceff2;   --c-gray-fg: #3f4954;   --c-gray-solid: #6b7684;
+  --c-gray-bg: #e9eef0;   --c-gray-fg: #3c4b52;   --c-gray-solid: #6a7a81;
   --c-blue-bg: #e1edfb;   --c-blue-fg: #164e8c;   --c-blue-solid: #2a78d6;
-  --c-teal-bg: #d9f2ef;   --c-teal-fg: #0c5753;   --c-teal-solid: #14908a;
+  --c-teal-bg: #d8f1ee;   --c-teal-fg: #0c5753;   --c-teal-solid: #14908a;
   --c-green-bg: #dff2e2;  --c-green-fg: #1b5a29;  --c-green-solid: #2a9143;
   --c-amber-bg: #fcefc9;  --c-amber-fg: #6b4700;  --c-amber-solid: #c98500;
   --c-orange-bg: #fde5d3; --c-orange-fg: #853609; --c-orange-solid: #dd6420;
@@ -48,10 +61,10 @@
   /* Chart series (fixed order, never cycled) and chrome */
   --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100;
   --series-5: #e87ba4; --series-6: #008300; --series-7: #6250d6; --series-8: #e34948;
-  --chart-grid: #e3e6ea;
-  --chart-axis: #b9c0c8;
+  --chart-grid: #e3e9eb;
+  --chart-axis: #b9c5c9;
 
-  /* Type */
+  /* Type: system fonts only */
   --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, "Cascadia Mono", Consolas, "Liberation Mono", monospace;
   --fs-xs: 0.75rem;
@@ -60,51 +73,55 @@
   --fs-lg: 1rem;
   --fs-xl: 1.25rem;
   --fs-2xl: 1.625rem;
+  --fs-3xl: 2rem;
 
   /* Space, shape, layout */
-  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 24px; --s-6: 32px;
-  --radius-sm: 4px;
-  --radius: 6px;
-  --radius-lg: 10px;
-  --nav-width: 232px;
-  --topbar-height: 52px;
-  --control-height: 34px;
-}
-
-/* Larger targets on touch screens. */
-@media (pointer: coarse) {
-  :root { --control-height: 42px; }
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 24px; --s-6: 32px; --s-7: 48px;
+  --radius-sm: 6px;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --nav-width: 256px;
+  --rail-width: 64px;
+  --topbar-height: 56px;
+  --control-height: 36px;
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  --brand: #74bbdb;
-  --brand-hover: #93cde8;
-  --brand-contrast: #08202b;
-  --brand-soft: #1b3442;
+  --brand: #5fb3b8;
+  --brand-hover: #86c9cc;
+  --brand-contrast: #06262b;
+  --brand-soft: #16353b;
+  --brand-strong: #b3dcde;
+  --accent: #e2b06d;
 
-  --bg: #11161b;
-  --surface: #1a2027;
-  --surface-2: #222a33;
-  --surface-hover: #212932;
-  --border: #303a45;
-  --border-strong: #73808e;
-  --text: #e6eaee;
-  --text-muted: #a5afba;
-  --link: #8cc6ee;
+  --bg: #0d1416;
+  --surface: #151e21;
+  --surface-2: #1d282c;
+  --surface-hover: #1a2529;
+  --border: #2a383d;
+  --border-control: #3d4e54;
+  --border-strong: #6d7f85;
+  --text: #e4ecee;
+  --text-muted: #a0b1b6;
+  --link: #86c9cc;
   --danger: #f08a85;
   --danger-contrast: #2b0c0b;
-  --focus: #8cc8ff;
-  --overlay: rgba(0, 0, 0, 0.6);
+  --danger-text: #f59c97;
+  --focus: #86c9cc;
+  --overlay: rgba(0, 0, 0, 0.62);
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-2: 0 8px 28px rgba(0, 0, 0, 0.55);
+  --shadow-2: 0 10px 32px rgba(0, 0, 0, 0.55);
+  --shadow-3: 0 24px 64px rgba(0, 0, 0, 0.65);
 
-  --nav-bg: #0d1216;
-  --nav-text: #d7dfe5;
-  --nav-muted: #94a2ad;
+  --nav-bg: #0a1113;
+  --nav-bg-2: #111b1e;
+  --nav-border: rgba(255, 255, 255, 0.07);
+  --nav-text: #d5e2e4;
+  --nav-muted: #8fa5ab;
 
-  --c-gray-bg: #2c343d;   --c-gray-fg: #c9d0d7;   --c-gray-solid: #8a95a2;
+  --c-gray-bg: #29353a;   --c-gray-fg: #c7d1d5;   --c-gray-solid: #8798a0;
   --c-blue-bg: #162f4c;   --c-blue-fg: #a3ccf8;   --c-blue-solid: #3987e5;
   --c-teal-bg: #0f3735;   --c-teal-fg: #88ddd6;   --c-teal-solid: #23a69f;
   --c-green-bg: #173920;  --c-green-fg: #98dca6;  --c-green-solid: #37a651;
@@ -115,6 +132,6 @@
 
   --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500;
   --series-5: #d55181; --series-6: #0ca30c; --series-7: #9085e9; --series-8: #e66767;
-  --chart-grid: #2a323b;
-  --chart-axis: #46515d;
+  --chart-grid: #263237;
+  --chart-axis: #44545a;
 }

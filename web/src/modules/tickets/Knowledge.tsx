@@ -50,7 +50,7 @@ function Helpful({ row, onVoted }: { row: Row; onVoted: () => void }) {
   }
   return (
     <div className="sd-helpful" aria-live="polite">
-      {voted ? <span>Thank you. Your answer has been counted.</span> : (
+      {voted ? <span>Thank you. Your answer has been counted (one per person for each version; answering again replaces it).</span> : (
         <>
           <span>Was this helpful?</span>
           <Button size="sm" icon="check" loading={busy} onClick={() => vote(true)}>Yes</Button>

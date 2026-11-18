@@ -14,38 +14,38 @@ async function seedLookups(ctx: ModuleContext): Promise<void> {
     { value: 'medium', label: 'Medium', color: 'amber', sort: 20 },
     { value: 'high', label: 'High', color: 'orange', sort: 30 },
     { value: 'critical', label: 'Critical', color: 'red', sort: 40 },
-  ]);
+  ], { module: 'risks' });
   await ctx.lookups.ensure('risk_category', [
     { value: 'cyber', label: 'Cybersecurity', color: 'blue', sort: 10, meta: { scale: 'cyber_5x5' } },
     { value: 'enterprise', label: 'Enterprise', color: 'purple', sort: 20, meta: { scale: 'cyber_5x5' } },
     { value: 'third_party', label: 'Third party', color: 'teal', sort: 30, meta: { scale: 'cyber_5x5' } },
     { value: 'compliance', label: 'Compliance', color: 'gray', sort: 40, meta: { scale: 'cyber_5x5' } },
-    { value: 'safety', label: 'Safety', color: 'orange', sort: 50, meta: { scale: 'asp' } },
-  ]);
+    { value: 'safety', label: 'Safety', color: 'orange', sort: 50, meta: { scale: 'hazard_4x5' } },
+  ], { module: 'risks' });
   await ctx.lookups.ensure('risk_treatment', [
     { value: 'mitigate', label: 'Mitigate', color: 'blue', sort: 10 },
     { value: 'accept', label: 'Accept', color: 'amber', sort: 20 },
     { value: 'transfer', label: 'Transfer', color: 'purple', sort: 30 },
     { value: 'avoid', label: 'Avoid', color: 'teal', sort: 40 },
-  ]);
+  ], { module: 'risks' });
   await ctx.lookups.ensure('risk_status', [
     { value: 'open', label: 'Open', color: 'blue', sort: 10 },
     { value: 'in_treatment', label: 'In treatment', color: 'amber', sort: 20 },
     { value: 'accepted', label: 'Accepted', color: 'purple', sort: 30 },
     { value: 'closed', label: 'Closed', color: 'gray', sort: 40, meta: { closed: true } },
-  ]);
+  ], { module: 'risks' });
   await ctx.lookups.ensure('action_status', [
     { value: 'open', label: 'Open', color: 'blue', sort: 10 },
     { value: 'in_progress', label: 'In progress', color: 'amber', sort: 20 },
     { value: 'blocked', label: 'Blocked', color: 'red', sort: 30 },
     { value: 'done', label: 'Done', color: 'green', sort: 40, meta: { closed: true, done: true } },
     { value: 'cancelled', label: 'Cancelled', color: 'gray', sort: 50, meta: { closed: true } },
-  ]);
+  ], { module: 'actions' });
   await ctx.lookups.ensure('action_priority', [
     { value: 'high', label: 'High', color: 'red', sort: 10 },
     { value: 'medium', label: 'Medium', color: 'amber', sort: 20 },
     { value: 'low', label: 'Low', color: 'gray', sort: 30 },
-  ]);
+  ], { module: 'actions' });
   await ctx.lookups.ensure('action_source', [
     { value: 'risk', label: 'Risk', color: 'orange', sort: 10 },
     { value: 'assessment', label: 'Assessment', color: 'blue', sort: 20 },
@@ -55,13 +55,13 @@ async function seedLookups(ctx: ModuleContext): Promise<void> {
     { value: 'information_request', label: 'Information request', color: 'amber', sort: 60 },
     { value: 'project', label: 'Project', color: 'green', sort: 70 },
     { value: 'other', label: 'Other', color: 'gray', sort: 80 },
-  ]);
+  ], { module: 'actions' });
   await ctx.lookups.ensure('obligation_status', [
     { value: 'not_assessed', label: 'Not assessed', color: 'gray', sort: 10 },
     { value: 'met', label: 'Met', color: 'green', sort: 20 },
     { value: 'partly_met', label: 'Partly met', color: 'amber', sort: 30 },
     { value: 'not_met', label: 'Not met', color: 'red', sort: 40 },
-  ]);
+  ], { module: 'obligations' });
 }
 
 const mod: ModuleDef = {
@@ -381,6 +381,9 @@ const mod: ModuleDef = {
     ctx.defineResource({
       type: 'action', table: 'actions', module: 'actions', label: 'Action', plural: 'Actions',
       path: '/api/actions', route: '/actions', titleField: 'title', ref: { field: 'ref', prefix: 'ACT-' },
+      // An action raised on a restricted record (a risk, a security incident, anything flagged) is
+      // itself restricted: core copies the flag from the source record and keeps it in step.
+      restricted: 'flag', restrictedFrom: { typeField: 'source_type', idField: 'source_id' },
       searchable: ['title', 'description', 'notes', 'department', 'external_ref'],
       defaultSort: { field: 'due_on', dir: 'asc' },
       fields: {
@@ -398,6 +401,7 @@ const mod: ModuleDef = {
         external_ref: { label: 'External reference', type: 'text' },
         department: { label: 'Department', type: 'text' },
         notes: { label: 'Notes', type: 'longtext' },
+        restricted: { label: 'Restricted', type: 'boolean', readOnly: true },
       },
       hooks: {
         beforeCreate: (_req, data) => prepareAction(null, data),
@@ -405,9 +409,10 @@ const mod: ModuleDef = {
       },
     });
 
-    ctx.app.get('/api/actions/summary', { preHandler: ctx.requirePerm('actions.view') }, async () => {
+    ctx.app.get('/api/actions/summary', { preHandler: ctx.requirePerm('actions.view') }, async (req) => {
       const closed = await statusesWith('action_status', 'closed');
-      const open = `deleted_at is null and not (coalesce(status, '') = any($1::text[]))`;
+      // Restricted actions are left out of every count for people without security.view.
+      const open = `deleted_at is null and not (coalesce(status, '') = any($1::text[])) and ${ctx.resources.visibleWhere('action', req.user)}`;
       const head = (await ctx.db.one<Row>(
         `select count(*)::int as open,
                 count(*) filter (where due_on < current_date)::int as overdue,

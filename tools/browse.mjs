@@ -72,6 +72,85 @@ await send('Emulation.setDeviceMetricsOverride', { width: Number(width), height:
 await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: theme }] }, s);
 await send('Network.setCookie', { name: 'grc_session', value: token, url: base, httpOnly: true }, s);
 
+// Optional scripted interaction: SCRIPT=<file.json> holds an array of steps, run in order in
+// place of the route tour. Each step is an object with one of:
+//   { "goto": "/path" }                 navigate (then settles for WAIT ms)
+//   { "click": "css selector" }         real mouse click on the first match
+//   { "clickText": "Save", "within": "css selector (optional)", "tag": "button,a (optional)" }
+//   { "clickLabel": "Title" }           click the form control whose <label> is (or else starts with) this text
+//   { "type": "text", "into": "css selector (optional: focus it first)" }
+//   { "key": "Enter" }                  Enter, Escape, Tab, ArrowDown, ArrowUp, Backspace, or one character
+//   { "waitFor": "css selector" }       up to 10 s
+//   { "wait": 500 }                     milliseconds
+//   { "eval": "js expression" }         printed in the output
+//   { "shot": "name" }                  screenshot <name>-<theme>-<width>.png
+// Script errors, failed API calls and failed steps are listed at the end.
+if (process.env.SCRIPT) {
+  const { readFileSync } = await import('node:fs');
+  const steps = JSON.parse(readFileSync(process.env.SCRIPT, 'utf8').replace(/^﻿/, ''));
+  const evaluate = async (expression) => (await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }, s)).result?.value;
+  const locate = async (finder) => evaluate(`(() => { const el = ${finder}; if (!el) return null; el.scrollIntoView({ block: 'center', inline: 'center' }); const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
+  const click = async (finder, what) => {
+    let at = null;
+    for (let i = 0; i < 40 && !at; i++) { at = await locate(finder); if (!at) await sleep(250); }
+    if (!at) throw new Error(`nothing matches ${what}`);
+    for (const type of ['mouseMoved', 'mousePressed', 'mouseReleased']) {
+      await send('Input.dispatchMouseEvent', { type, x: at.x, y: at.y, button: type === 'mouseMoved' ? 'none' : 'left', clickCount: type === 'mouseMoved' ? 0 : 1 }, s);
+    }
+  };
+  const KEYS = { Enter: 13, Escape: 27, Tab: 9, ArrowDown: 40, ArrowUp: 38, ArrowLeft: 37, ArrowRight: 39, Backspace: 8, Home: 36, End: 35, ' ': 32 };
+  const failures = [];
+  const seen = new Set();
+  for (const [n, step] of steps.entries()) {
+    try {
+      if (step.goto !== undefined) { await send('Page.navigate', { url: base + step.goto }, s); await sleep(Number(process.env.WAIT ?? 2800)); }
+      else if (step.click) await click(`document.querySelector(${JSON.stringify(step.click)})`, step.click);
+      else if (step.clickText) {
+        await click(`[...(${step.within ? `document.querySelector(${JSON.stringify(step.within)})` : 'document'})?.querySelectorAll(${JSON.stringify(step.tag ?? 'button, a, [role=option], [role=menuitem], [role=tab], label, [role=radio]')}) ?? []].filter((e) => e.getClientRects().length).find((e) => e.innerText.trim().replace(/\\s+/g, ' ').includes(${JSON.stringify(step.clickText)}))`, `text "${step.clickText}"`);
+      }
+      else if (step.clickLabel) {
+        await click(`(() => { const all = [...document.querySelectorAll('label')].filter((l) => l.getClientRects().length); const want = ${JSON.stringify(step.clickLabel)}; return (all.find((l) => l.innerText.replace(/\\s*\\*\\s*$/, '').trim() === want) ?? all.find((l) => l.innerText.trim().startsWith(want)))?.control; })()`, `the control labelled "${step.clickLabel}"`);
+      }
+      else if (step.type !== undefined) {
+        if (step.into) await click(`document.querySelector(${JSON.stringify(step.into)})`, step.into);
+        await send('Input.insertText', { text: step.type }, s);
+      }
+      else if (step.key) {
+        const code = KEYS[step.key] ?? step.key.toUpperCase().charCodeAt(0);
+        const text = step.key === 'Enter' ? '\r' : step.key.length === 1 ? step.key : undefined;
+        await send('Input.dispatchKeyEvent', { type: text ? 'keyDown' : 'rawKeyDown', key: step.key, code: step.key.length === 1 ? undefined : step.key, windowsVirtualKeyCode: code, text }, s);
+        await send('Input.dispatchKeyEvent', { type: 'keyUp', key: step.key, windowsVirtualKeyCode: code }, s);
+      }
+      else if (step.waitFor) {
+        let found = false;
+        for (let i = 0; i < 40 && !found; i++) { found = await evaluate(`!!document.querySelector(${JSON.stringify(step.waitFor)})`); if (!found) await sleep(250); }
+        if (!found) throw new Error(`timed out waiting for ${step.waitFor}`);
+      }
+      else if (step.wait) await sleep(step.wait);
+      else if (step.eval) console.log(`eval[${n}]: ${JSON.stringify(await evaluate(step.eval))}`);
+      else if (step.shot) {
+        const shot = await send('Page.captureScreenshot', { format: 'png' }, s);
+        writeFileSync(join(outDir, `${step.shot}-${theme}-${width}.png`), Buffer.from(shot.data, 'base64'));
+      }
+      if (!step.wait && !step.shot && !step.goto) await sleep(350);
+    } catch (err) {
+      failures.push(`step ${n} ${JSON.stringify(step)}: ${err.message}`);
+    }
+    for (const e of events) {
+      if (e.method === 'Runtime.exceptionThrown') seen.add('exception: ' + (e.params.exceptionDetails.exception?.description ?? e.params.exceptionDetails.text).slice(0, 300));
+      if (e.method === 'Runtime.consoleAPICalled' && e.params.type === 'error') seen.add('console: ' + e.params.args.map((a) => a.value ?? a.description ?? '').join(' ').slice(0, 300));
+      if (e.method === 'Network.responseReceived' && e.params.response.status >= 400) seen.add(`http ${e.params.response.status}: ${e.params.response.url.replace(base, '')}`);
+    }
+    events = [];
+  }
+  await send('Browser.close');
+  proc.kill();
+  console.log(`${steps.length} steps run, ${failures.length} failed`);
+  for (const f of failures) console.log('  FAILED ' + f);
+  for (const p of seen) console.log('  - ' + p);
+  process.exit(0);
+}
+
 const report = [];
 for (const [i, route] of routes.entries()) {
   events = [];

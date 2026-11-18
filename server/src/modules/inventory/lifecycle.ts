@@ -82,6 +82,10 @@ export function registerLifecycle(ctx: ModuleContext) {
     if (due && !ISO_DATE.test(due)) fields.due_back_on = 'Due back must be a date (YYYY-MM-DD).';
     const siteId = text(body.site_id);
     if (siteId && !UUID.test(siteId)) fields.site_id = 'Site is not a valid reference.';
+    // The site must exist (and is only accepted from someone who may see sites).
+    if (siteId && !fields.site_id && !(ctx.can(req.user, 'sites.view') && await ctx.resources.find('site', siteId, req.user))) {
+      fields.site_id = 'That site does not exist.';
+    }
     if (Object.keys(fields).length) ctx.fail(400, 'validation', 'Check the highlighted fields.', fields);
 
     if (asset.status === 'disposed' || asset.status === 'retired') {
@@ -124,6 +128,10 @@ export function registerLifecycle(ctx: ModuleContext) {
     const open = (await openAssignment(asset.id)) ?? ctx.fail(409, 'not_checked_out', 'This asset is not checked out.');
     const status = text(body.status) ?? 'in_stock';
     if (status === 'disposed') ctx.fail(400, 'validation', 'Use the disposal step to dispose of an asset.', { status: 'Choose another status.' });
+    // Checked before anything is written, so a bad status cannot leave the assignment closed and the asset unchanged.
+    if (!(await ctx.lookups.values('asset_status')).some((v) => v.value === status)) {
+      ctx.fail(400, 'validation', 'Check the highlighted fields.', { status: `Status: "${status}" is not an allowed value.` });
+    }
 
     const row = await db.one<Row>(
       `update asset_assignments set checked_in_at = now(), checked_in_by = $2, check_in_notes = $3 where id = $1 returning *`,

@@ -1,6 +1,6 @@
 import { DEFAULT_APP_NAME } from '../../core/config.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
-import { adminRoute, body, idParam, invalid } from './shared.ts';
+import { adminRoute, body, idParam, invalid, sensitive } from './shared.ts';
 
 type Check = (v: unknown) => { value: unknown } | string;
 
@@ -36,7 +36,18 @@ export const SETTINGS: Record<string, { fallback: unknown; check: Check }> = {
   'auth.password_history': { fallback: 5, check: int(0, 24, 'Password history') },
   'auth.idle_minutes': { fallback: 30, check: int(5, 480, 'Idle time-out') },
   'auth.mfa_required_for_all': { fallback: false, check: bool },
+  // off: no reminder. notice: a reminder only (default, so an existing installation is not locked out
+  // by an upgrade). required: a person who must enrol can reach nothing but enrolment until they do.
+  'auth.mfa_enforcement': {
+    fallback: 'notice',
+    check: (v) => (v === 'off' || v === 'notice' || v === 'required' ? { value: v } : 'Choose off, notice or required.'),
+  },
+  'auth.mfa_grace_days': { fallback: 0, check: int(0, 30, 'Grace period') },
+  'auth.reauth_minutes': { fallback: 10, check: int(1, 60, 'Password confirmation window') },
 };
+
+/** Security settings: changing one needs a recent password confirmation. */
+export const isSecuritySetting = (key: string) => key.startsWith('auth.');
 
 export function registerSettings(ctx: ModuleContext) {
   const { db } = ctx;
@@ -64,6 +75,13 @@ export function registerSettings(ctx: ModuleContext) {
     if (Object.keys(fields).length) invalid(fields);
     const current = (await read()).values;
     if (clean.features) clean.features = { ...current.features, ...clean.features };
+    const changed = Object.keys(clean).filter((key) => JSON.stringify(current[key]) !== JSON.stringify(clean[key]));
+    if (changed.some(isSecuritySetting)) await sensitive(ctx, req, `changing security settings (${changed.filter(isSecuritySetting).join(', ')})`);
+    // Requiring a second factor must not lock out the administrator who switches it on.
+    if (clean['auth.mfa_enforcement'] === 'required' && current['auth.mfa_enforcement'] !== 'required') {
+      const me = await db.one<{ totp_enabled: boolean }>('select totp_enabled from users where id = $1', [req.user!.id]);
+      if (!me?.totp_enabled) invalid({ 'auth.mfa_enforcement': 'Set up your own second factor first (Account security), then require it.' });
+    }
     for (const [key, value] of Object.entries(clean)) {
       // ctx.settings.set writes the audit event (setting.change) with before and after.
       if (JSON.stringify(current[key]) !== JSON.stringify(value)) await ctx.settings.set(key, value, req);

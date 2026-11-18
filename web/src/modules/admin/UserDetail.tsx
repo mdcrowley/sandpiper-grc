@@ -7,6 +7,7 @@ import {
 import type { ListResult } from '../../core';
 import { RoleChips, UserStatus } from './common';
 import type { AdminUser, AuditEvent, Department, IssuedLink, RolesResponse } from './common';
+import { adminApi } from './reauth';
 import { LinkIssued } from './Users';
 
 interface Pending { title: string; message: string; label: string; danger?: boolean; run: () => Promise<void> }
@@ -27,10 +28,10 @@ export function UserDetailPage() {
   const refresh = () => { reload(); events.reload(); };
 
   const act = (url: string, done: string) => async () => {
-    await api.post(`/api/admin/users/${user.id}/${url}`);
+    await adminApi.post(`/api/admin/users/${user.id}/${url}`);
     toast.success(done);
   };
-  const issue = (url: string) => async () => setLink(await api.post<IssuedLink>(`/api/admin/users/${user.id}/${url}`));
+  const issue = (url: string) => async () => setLink(await adminApi.post<IssuedLink>(`/api/admin/users/${user.id}/${url}`));
   const run = async () => {
     if (!confirm) return;
     setBusy(true);
@@ -125,7 +126,7 @@ export function UserDetailPage() {
                         <tr key={e.id}>
                           <td style={{ whiteSpace: 'nowrap' }}>{formatDateTime(e.at)}</td>
                           <td>{e.summary ?? e.action}</td>
-                          <td>{e.actor_name ?? <span className="muted">Not signed in</span>}</td>
+                          <td>{e.actor_name ?? (e.ip ? <span className="muted">Not signed in</span> : 'System')}</td>
                           <td>{e.ip ?? '—'}</td>
                         </tr>
                       ))}
@@ -208,7 +209,7 @@ function RolesCard({ user, isSelf, onSaved }: { user: AdminUser; isSelf: boolean
   const save = async () => {
     setBusy(true);
     try {
-      await api.patch(`/api/admin/users/${user.id}`, { roles: picked });
+      await adminApi.patch(`/api/admin/users/${user.id}`, { roles: picked });
       toast.success('Roles saved.');
       onSaved();
     } catch (err) {

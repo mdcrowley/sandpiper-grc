@@ -19,26 +19,24 @@ export async function seedSample(ctx: ModuleContext, svc: IncidentService): Prom
   const incident: Row = await ctx.resources.create('security_incident', {
     title: '[Sample] Tabletop exercise: ransomware on the scheduling server',
     summary: 'Invented exercise data, not a real event. Scheduling staff found files renamed and a ransom note on the '
-      + 'scheduling server. Appointment records that include health information are stored on that server.',
+      + 'scheduling server. Booking records that include personal information are stored on that server.',
     severity: 'high',
     status: 'declared',
     scenario: 'ransomware',
     discovered_at: discovered.toISOString(),
     declared_at: at(1).toISOString(),
-    affected_systems: 'Scheduling server (exercise stand-in); two front-desk workstations',
-    affected_data: 'Appointment records that include health information (exercise assumption)',
+    affected_systems: 'Scheduling server (exercise stand-in); two shared workstations',
+    affected_data: 'Booking records that include personal information (exercise assumption)',
     is_cyber_incident: true,
-    health_data_involved: true,
-    card_data_involved: false,
-    personal_info_involved: false,
+    personal_info_involved: true,
     ransom_payment_status: 'under_consideration',
   });
 
   const entries: [number, string, string][] = [
-    [0, 'note', 'Exercise inject 1: front desk reports that schedule files will not open and a text file demanding payment is on the shared drive.'],
-    [0.5, 'action', 'Scheduling server and two front-desk workstations disconnected from the network. Machines left powered on.'],
-    [1, 'decision', 'Incident lead declares a security incident. Severity set to high because health information is on the server.'],
-    [2, 'communication', 'Front desk moved to the paper booking procedure. Operations supervisor informed by phone.'],
+    [0, 'note', 'Exercise inject 1: staff report that schedule files will not open and a text file demanding payment is on the shared drive.'],
+    [0.5, 'action', 'Scheduling server and two shared workstations disconnected from the network. Machines left powered on.'],
+    [1, 'decision', 'Incident lead declares a security incident. Severity set to high because personal information is on the server.'],
+    [2, 'communication', 'Bookings moved to the paper procedure. Operations supervisor informed by phone.'],
     [6, 'action', 'Backups for the scheduling server confirmed intact and isolated. Most recent verified copy is from the night before discovery.'],
   ];
   for (const [h, kind, text] of entries) await svc.addLog(incident.id, null, text, kind, at(h));

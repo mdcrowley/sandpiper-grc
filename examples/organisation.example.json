@@ -4,12 +4,15 @@
     "asset_type": [
       { "value": "kiosk", "label": "Kiosk" },
       { "value": "camera", "label": "Camera" }
+    ],
+    "incident_data_kind": [
+      { "value": "payment_card_data", "label": "Payment card data" }
     ]
   },
   "obligations": [
     {
-      "title": "Annual card payment self-assessment",
-      "source": "PCI DSS",
+      "title": "Annual payment security self-assessment",
+      "source": "Example payment provider agreement",
       "requirement": "Complete the self-assessment every 12 months and keep service provider attestations on file",
       "how_met": "Finance and IT complete it together each spring",
       "next_due_on": "2027-04-30"
@@ -32,7 +35,7 @@
     },
     {
       "key": "example_card_acquirer",
-      "trigger": "card_data_involved",
+      "trigger": "kind:payment_card_data",
       "party": "Card acquirer",
       "hours": 0,
       "required": true,

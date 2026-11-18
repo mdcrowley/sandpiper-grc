@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { CURRENCY } from '../../core/config.ts';
 import type { ModuleContext, Row, SeedOptions } from '../../core/module.ts';
 import { classifyClauseText, saveClauseCheck } from './clauses.ts';
 import { addDays, localDate } from './dates.ts';
@@ -94,10 +95,48 @@ export function parseResolution(textValue: string | null): string | undefined {
   return found.size === 1 ? [...found][0] : undefined;
 }
 
-/** A total only when the whole cell is one amount, such as "$12,500.00". */
-export function parseTotalValue(valueText: string | null): number | undefined {
-  const m = /^\$\s?([\d,]+(?:\.\d{1,2})?)$/.exec((valueText ?? '').trim());
-  return m ? Number(m[1].replace(/,/g, '')) : undefined;
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** The ways the given currency is written beside an amount: its ISO code and its symbols (for example "USD", "US$", "$"). */
+export function currencyMarkers(code: string = CURRENCY): string[] {
+  const out = new Set<string>([code.toUpperCase()]);
+  for (const currencyDisplay of ['symbol', 'narrowSymbol'] as const) {
+    try {
+      const part = new Intl.NumberFormat('en', { style: 'currency', currency: code, currencyDisplay })
+        .formatToParts(0).find((p) => p.type === 'currency')?.value;
+      if (part) out.add(part.toUpperCase());
+    } catch { /* an unknown code has no symbol; the code itself still works */ }
+  }
+  return [...out].sort((a, b) => b.length - a.length);
+}
+
+/**
+ * A total only when the whole cell is one amount in the organisation's currency (GRC_CURRENCY):
+ * a bare number, or a number with that currency's code or symbol before or after it, such as
+ * "$12,500.00", "12 500,00 EUR" or "£1,200". Thousands may be separated by commas, spaces,
+ * apostrophes or full stops. Anything else, including another currency's symbol, gives nothing
+ * and the text is kept as recorded.
+ */
+export function parseTotalValue(valueText: string | null, code: string = CURRENCY): number | undefined {
+  let s = (valueText ?? '').trim().toUpperCase();
+  if (!s) return undefined;
+  const marker = currencyMarkers(code).map(escapeRe).join('|');
+  const before = new RegExp(`^(?:${marker})\\s*`).exec(s);
+  if (before) s = s.slice(before[0].length);
+  else {
+    const after = new RegExp(`\\s*(?:${marker})$`).exec(s);
+    if (after) s = s.slice(0, s.length - after[0].length);
+  }
+  let m: RegExpExecArray | null;
+  // 12,500.00 | 12 500.00 | 12'500.00 | 12500 | 12500.5
+  if ((m = /^(\d{1,3}(?:[, \u00a0\u202f'’]\d{3})+|\d+)(?:\.(\d{1,2}))?$/.exec(s))) {
+    return Number(`${m[1].replace(/\D/g, '')}.${m[2] ?? '0'}`);
+  }
+  // 12.500,00 | 12 500,00 | 12500,5 (decimal comma)
+  if ((m = /^(\d{1,3}(?:[. \u00a0\u202f'’]\d{3})+|\d+),(\d{1,2})$/.exec(s)) || (m = /^(\d{1,3}(?:\.\d{3})+)()$/.exec(s))) {
+    return Number(`${m[1].replace(/\D/g, '')}.${m[2] || '0'}`);
+  }
+  return undefined;
 }
 
 const nothingOnFile = (documentText: string | null) =>
@@ -332,7 +371,7 @@ const DEV_VENDORS: DevVendor[] = [
       breach_notice: ['partial', 'Notice "without undue delay"; no fixed number of hours.'],
       data_ownership: ['present', 'Customer owns its data; returned within 30 days of exit.'],
       recovery_sla: ['present', 'Recovery time 8 hours, recovery point 1 hour, 99.9 percent uptime.'],
-      cyber_insurance: ['present', 'Cyber liability cover of $5,000,000.'],
+      cyber_insurance: ['present', 'Cyber liability cover of 5,000,000.'],
       liability: ['absent', 'Cap of 12 months\' fees with no carve-out for data breach.'],
       subcontractors: ['partial', 'Subcontractors listed on a web page; no flow-down wording.'],
       security_standard: ['present', 'ISO/IEC 27001 certification maintained.'],

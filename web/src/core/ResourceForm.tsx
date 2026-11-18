@@ -1,5 +1,7 @@
 // Create or edit form for any registered record type, built from /api/meta field metadata.
-import { useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { Alert, Button, Text } from '@mantine/core';
+import { IconAlertTriangle } from '@tabler/icons-react';
 import { api, ApiError, errorMessage, type Row } from './api';
 import {
   Checkbox, DateField, DateTimeField, LookupSelect, NumberField, RecordPicker, TextArea, TextField, UserPicker,
@@ -7,7 +9,17 @@ import {
 import { fieldMeta } from './FieldValue';
 import { currency } from './format';
 import { useResource, type FieldMeta } from './meta';
-import { Button, ErrorState } from './ui';
+import { ErrorState } from './ui';
+import './records.css';
+
+export interface FormSection {
+  /** Heading above the group. */
+  title?: string;
+  /** One line of help under the heading. */
+  description?: string;
+  /** Field names (each must also be in the form's `fields`). */
+  fields: string[];
+}
 
 export interface ResourceFormProps {
   /** Record type key, e.g. "ticket". */
@@ -24,9 +36,17 @@ export interface ResourceFormProps {
   onSaved: (row: Row) => void;
   onCancel?: () => void;
   submitLabel?: string;
+  /** Groups the fields under headings. Fields not named in any section come first, without a heading. */
+  sections?: FormSection[];
+  /** Help text under individual fields, by field name. */
+  hints?: Record<string, string>;
+  /** Told whenever the form gains or loses unsaved changes (e.g. to guard a dialog's close button). */
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 type Values = Record<string, unknown>;
+
+const WIDE_TYPES = ['longtext', 'json'];
 
 function toFormValue(meta: FieldMeta, value: unknown): unknown {
   if (meta.type === 'json') return value === null || value === undefined ? '' : JSON.stringify(value, null, 2);
@@ -43,24 +63,50 @@ function toApiValue(meta: FieldMeta, value: unknown): unknown {
   return value;
 }
 
-export function ResourceForm({ type, fields, initial = {}, id, onSaved, onCancel, submitLabel }: ResourceFormProps) {
+export function ResourceForm({
+  type, fields, initial = {}, id, onSaved, onCancel, submitLabel, sections, hints, onDirtyChange,
+}: ResourceFormProps) {
   const resource = useResource(type);
   const formRef = useRef<HTMLFormElement>(null);
-  const [values, setValues] = useState<Values>(() =>
-    resource ? Object.fromEntries(fields.map((f) => [f, toFormValue(fieldMeta(resource, f), initial[f])])) : {});
+  const start = useMemo<Values>(
+    () => (resource ? Object.fromEntries(fields.map((f) => [f, toFormValue(fieldMeta(resource, f), initial[f])])) : {}),
+    // The starting values are fixed when the form opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [resource],
+  );
+  const [values, setValues] = useState<Values>(start);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+
+  const dirty = useMemo(() => JSON.stringify(values) !== JSON.stringify(start), [values, start]);
+  const dirtyCallback = useRef(onDirtyChange);
+  dirtyCallback.current = onDirtyChange;
+  useEffect(() => {
+    dirtyCallback.current?.(dirty);
+  }, [dirty]);
+  useEffect(() => () => dirtyCallback.current?.(false), []);
 
   if (!resource) return <ErrorState title={`Unknown record type "${type}"`} />;
 
   const set = (field: string, value: unknown) => {
     setValues((v) => ({ ...v, [field]: value }));
     if (errors[field]) setErrors(({ [field]: _cleared, ...rest }) => rest);
+    if (confirmDiscard) setConfirmDiscard(false);
   };
 
+  /** Move to the first field with a problem (or the message above the form). */
   const focusFirstError = () =>
-    requestAnimationFrame(() => formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus());
+    requestAnimationFrame(() => {
+      const form = formRef.current;
+      if (!form) return;
+      const cell = form.querySelector<HTMLElement>('[data-invalid-field="true"]');
+      const target = cell?.querySelector<HTMLElement>('input:not([type="hidden"]), textarea, button, select')
+        ?? form.querySelector<HTMLElement>('.rc-form-error');
+      target?.focus();
+      (cell ?? target)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    });
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -119,7 +165,7 @@ export function ResourceForm({ type, fields, initial = {}, id, onSaved, onCancel
   const control = (field: string) => {
     const meta = fieldMeta(resource, field);
     const display = (initial._display as Record<string, string> | undefined)?.[field];
-    const common = { label: meta.label, required: meta.required, error: errors[field] };
+    const common = { label: meta.label, required: meta.required, error: errors[field], hint: hints?.[field] };
     const value = values[field];
     if (meta.readOnly) {
       return <TextField {...common} required={false} disabled value={String(display ?? initial[field] ?? '')} onChange={() => {}} />;
@@ -128,17 +174,17 @@ export function ResourceForm({ type, fields, initial = {}, id, onSaved, onCancel
       case 'longtext':
         return <TextArea {...common} value={value as string} onChange={(v) => set(field, v)} />;
       case 'json':
-        return <TextArea {...common} className="field-mono" rows={6} hint="JSON" value={value as string} onChange={(v) => set(field, v)} />;
+        return <TextArea {...common} className="rc-field-mono" rows={6} hint={common.hint ?? 'JSON'} value={value as string} onChange={(v) => set(field, v)} />;
       case 'number':
         return <NumberField {...common} value={value as number | null} onChange={(v) => set(field, v)} />;
       case 'currency':
-        return <NumberField {...common} prefix={currency()} step={0.01} min={0} value={value as number | null} onChange={(v) => set(field, v)} />;
+        return <NumberField {...common} prefix={currency()} thousands decimals={2} step={0.01} min={0} value={value as number | null} onChange={(v) => set(field, v)} />;
       case 'date':
         return <DateField {...common} value={value as string} onChange={(v) => set(field, v)} />;
       case 'datetime':
         return <DateTimeField {...common} value={value as string} onChange={(v) => set(field, v)} />;
       case 'boolean':
-        return <Checkbox label={meta.label} error={errors[field]} checked={value as boolean} onChange={(v) => set(field, v)} />;
+        return <Checkbox label={meta.label} error={errors[field]} hint={hints?.[field]} checked={value as boolean} onChange={(v) => set(field, v)} />;
       case 'lookup':
         return <LookupSelect {...common} list={meta.list ?? ''} value={value as string} onChange={(v) => set(field, v)} />;
       case 'user':
@@ -150,20 +196,65 @@ export function ResourceForm({ type, fields, initial = {}, id, onSaved, onCancel
     }
   };
 
+  const grid = (names: string[]) => (
+    <div className="rc-form-grid">
+      {names.map((field) => {
+        const meta = fieldMeta(resource, field);
+        const wide = WIDE_TYPES.includes(meta.type) || field === resource.titleField;
+        return (
+          <div
+            key={field}
+            className={`rc-form-cell${wide ? ' rc-form-cell-wide' : ''}${meta.type === 'boolean' ? ' rc-form-cell-check' : ''}`}
+            data-field={field}
+            data-invalid-field={errors[field] ? 'true' : undefined}
+          >
+            {control(field)}
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  const usable = (sections ?? []).map((s) => ({ ...s, fields: s.fields.filter((f) => fields.includes(f)) })).filter((s) => s.fields.length > 0);
+  const sectioned = new Set(usable.flatMap((s) => s.fields));
+  const loose = fields.filter((f) => !sectioned.has(f));
+
+  const cancel = () => {
+    if (dirty && !confirmDiscard) setConfirmDiscard(true);
+    else onCancel?.();
+  };
+
   return (
-    <form ref={formRef} className="form" onSubmit={submit} noValidate>
-      {formError && <p className="form-error" role="alert">{formError}</p>}
-      <div className="form-grid">
-        {fields.map((field) => {
-          const wide = ['longtext', 'json'].includes(fieldMeta(resource, field).type);
-          return <div key={field} className={wide ? 'form-cell form-cell-wide' : 'form-cell'}>{control(field)}</div>;
-        })}
-      </div>
-      <div className="form-actions">
-        {onCancel && <Button onClick={onCancel} disabled={saving}>Cancel</Button>}
-        <Button type="submit" variant="primary" loading={saving}>
-          {submitLabel ?? (id ? 'Save changes' : `Create ${resource.label.toLowerCase()}`)}
-        </Button>
+    <form ref={formRef} className="rc-form" onSubmit={submit} noValidate aria-busy={saving}>
+      {formError && (
+        <Alert className="rc-form-error" color="red" variant="light" role="alert" tabIndex={-1} icon={<IconAlertTriangle size={18} />}>
+          {formError}
+        </Alert>
+      )}
+      {loose.length > 0 && grid(loose)}
+      {usable.map((section, i) => (
+        <fieldset key={section.title ?? i} className="rc-form-section">
+          {section.title && <legend className="rc-form-legend">{section.title}</legend>}
+          {section.description && <Text size="sm" c="dimmed" mb="xs">{section.description}</Text>}
+          {grid(section.fields)}
+        </fieldset>
+      ))}
+      <div className="rc-form-actions">
+        {confirmDiscard ? (
+          <>
+            {/* Keys keep React from reusing a button element as the submit button in the middle of a click. */}
+            <Text key="ask" size="sm" fw={500} role="alert" className="rc-form-discard">Discard your unsaved changes?</Text>
+            <Button key="keep" variant="default" onClick={() => setConfirmDiscard(false)} autoFocus>Keep editing</Button>
+            <Button key="discard" color="red" variant="light" onClick={() => onCancel?.()}>Discard changes</Button>
+          </>
+        ) : (
+          <>
+            {onCancel && <Button key="cancel" variant="default" onClick={cancel} disabled={saving}>Cancel</Button>}
+            <Button key="submit" type="submit" loading={saving}>
+              {submitLabel ?? (id ? 'Save changes' : `Create ${resource.label.toLowerCase()}`)}
+            </Button>
+          </>
+        )}
       </div>
     </form>
   );

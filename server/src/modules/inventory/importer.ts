@@ -1,4 +1,5 @@
 import type { FastifyRequest } from 'fastify';
+import { CURRENCY } from '../../core/config.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { disposalProblem } from './lifecycle.ts';
 
@@ -49,6 +50,34 @@ export function parseDate(v: string): string | null {
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === out ? out : null;
 }
 
+/** The ways the organisation's currency (GRC_CURRENCY) is written beside an amount: its code and symbols. */
+function currencyMarkers(code: string): string[] {
+  const out = new Set<string>([code.toUpperCase()]);
+  for (const currencyDisplay of ['symbol', 'narrowSymbol'] as const) {
+    try {
+      const part = new Intl.NumberFormat('en', { style: 'currency', currency: code, currencyDisplay })
+        .formatToParts(0).find((p) => p.type === 'currency')?.value;
+      if (part) out.add(part.toUpperCase());
+    } catch { /* unknown code: the code itself still works */ }
+  }
+  return [...out].sort((a, b) => b.length - a.length);
+}
+
+/**
+ * An amount in the organisation's currency: a number, optionally with that currency's code or
+ * symbol and comma thousands separators ("1,200.50", "$1,200.50" when the currency is USD).
+ * Another currency's symbol is not accepted. Returns null when the text is not such an amount.
+ */
+export function parseAmount(text: string, code: string = CURRENCY): number | null {
+  let s = text.trim().toUpperCase();
+  for (const m of currencyMarkers(code)) {
+    if (s.startsWith(m)) { s = s.slice(m.length); break; }
+    if (s.endsWith(m)) { s = s.slice(0, -m.length); break; }
+  }
+  s = s.replace(/[,\s  ]/g, '');
+  return /^-?\d+(\.\d+)?$/.test(s) ? Number(s) : null;
+}
+
 interface Normaliser { normalise(raw: Row): Promise<{ data: Row; errors: Record<string, string> }> }
 
 /** Builds a normaliser for asset input with lookups, sites, systems and users loaded once. */
@@ -88,9 +117,14 @@ async function assetNormaliser(ctx: ModuleContext): Promise<Normaliser> {
         if (v === '') continue;
         const s = String(v);
         switch (f.type) {
-          case 'number': case 'currency': {
-            const n = typeof v === 'number' ? v : Number(s.replace(/[$,%\s]/g, ''));
+          case 'number': {
+            const n = typeof v === 'number' ? v : Number(s.replace(/[,%\s]/g, ''));
             if (Number.isFinite(n)) data[name] = n; else errors[name] = `${f.label} must be a number.`;
+            break;
+          }
+          case 'currency': {
+            const n = typeof v === 'number' ? v : parseAmount(s);
+            if (n !== null) data[name] = n; else errors[name] = `${f.label} must be an amount in ${CURRENCY}.`;
             break;
           }
           case 'date': {

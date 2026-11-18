@@ -65,7 +65,7 @@ export function TicketActions({ rec }: { rec: RecordContext }) {
   function chooseStatus(value: string) {
     const c = category(value);
     if (c === 'resolved') return openDialog('resolve', { status: value, resolution_code: row.resolution_code ?? '', resolution_notes: row.resolution_notes ?? '' });
-    if (c === 'closed' && value === 'closed') return openDialog('close', { status: value, score: row.satisfaction_score ?? null, comment: row.satisfaction_comment ?? '' });
+    if (c === 'closed' && value !== 'cancelled') return openDialog('close', { status: value, resolution_code: row.resolution_code ?? '', score: row.satisfaction_score ?? null, comment: row.satisfaction_comment ?? '' });
     return apply({ status: value }, 'Status changed.');
   }
 
@@ -118,8 +118,9 @@ export function TicketActions({ rec }: { rec: RecordContext }) {
       </Modal>
 
       <Modal open={dialog === 'close'} title="Close ticket" onClose={() => setDialog(null)}
-        footer={footer(() => apply({ status: f.status, satisfaction_score: f.score ?? null, satisfaction_comment: f.comment || null }, 'Ticket closed.'), 'Close ticket')}>
+        footer={footer(() => apply({ status: f.status, resolution_code: f.resolution_code || null, satisfaction_score: f.score ?? null, satisfaction_comment: f.comment || null }, 'Ticket closed.'), 'Close ticket')}>
         <div className="stack">
+          <LookupSelect label="Resolution code" list="resolution_code" required value={f.resolution_code ?? ''} onChange={set('resolution_code')} error={errors.resolution_code} />
           <p className="muted">Until the portal is switched on, ask the requester and record their answer here.</p>
           <ScorePicker value={f.score ?? null} onChange={set('score')} />
           {errors.satisfaction_score && <p className="sd-form-error" role="alert">{errors.satisfaction_score}</p>}

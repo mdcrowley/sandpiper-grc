@@ -11,14 +11,14 @@ export const BASELINE = 'Baseline';
 
 const CODE = /^[A-Z]{2}\.[A-Z]{2}-\d{2}$/;
 /**
- * Widely used names, some of which contain a number (ISO/IEC 27001, SOC 2), so the general
- * rule below would split them in the wrong place. Any other name is handled by that rule.
+ * International standards whose names contain a number, so the general rule below would
+ * split them in the wrong place. Any other name is handled by that rule.
  */
-const KNOWN_FRAMEWORKS = ['PCI DSS', 'HIPAA Security Rule', 'ISO/IEC 27001', 'CIS Controls', 'SOC 2'];
+const KNOWN_FRAMEWORKS = ['ISO/IEC 27001', 'SOC 2'];
 
 /**
  * Splits one "also satisfies" entry into the other framework's name and the reference
- * within it: "PCI DSS 12.10.1" -> PCI DSS / 12.10.1. A trailing note in brackets becomes
+ * within it: "Example Guild 12.10.1" -> Example Guild / 12.10.1. A trailing note in brackets becomes
  * part of the reference. Entries with no number are kept whole as the name.
  */
 export function parseMapping(entry: string): { framework_name: string; reference: string } | null {

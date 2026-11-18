@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { testApp } from '../../test/helpers.ts';
-import { parseCsv, parseDate } from './importer.ts';
+import { parseAmount, parseCsv, parseDate } from './importer.ts';
 
 // Invented data only.
 let t: Awaited<ReturnType<typeof testApp>>;
@@ -30,6 +30,18 @@ describe('helpers', () => {
     expect(parseCsv('a,b\r\n"x, ""y""",2\n\n3,"line\nbreak"')).toEqual([['a', 'b'], ['x, "y"', '2'], ['3', 'line\nbreak']]);
     expect(parseDate('3/5/2025')).toBe('2025-03-05');
     expect(parseDate('2025-02-30')).toBeNull();
+  });
+
+  it('reads amounts in the configured currency, not only dollars (E18-20)', () => {
+    // Tests run with the default currency (USD).
+    expect(parseAmount('$1,200.50')).toBe(1200.5);
+    expect(parseAmount('USD 400')).toBe(400);
+    expect(parseAmount('400')).toBe(400);
+    expect(parseAmount('£400')).toBeNull();
+    expect(parseAmount('£1,200.50', 'GBP')).toBe(1200.5);
+    expect(parseAmount('1 200 EUR', 'EUR')).toBe(1200);
+    expect(parseAmount('$400', 'EUR')).toBeNull();
+    expect(parseAmount('abc')).toBeNull();
   });
 });
 

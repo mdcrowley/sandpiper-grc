@@ -7,6 +7,7 @@ import {
 import type { ListResult } from '../../core';
 import { absoluteLink, CopyBox, RoleChips, UserStatus } from './common';
 import type { AdminUser, Department, IssuedLink, RolesResponse } from './common';
+import { adminApi } from './reauth';
 
 const PAGE_SIZE = 25;
 const STATUS_OPTIONS = [
@@ -153,7 +154,7 @@ function NewUserDialog({ open, roles, onClose, onCreated }: {
     if (Object.keys(found).length) return;
     setBusy(true);
     try {
-      const res = await api.post<{ user: AdminUser; setupLink: string; expiresAt: string }>('/api/admin/users', {
+      const res = await adminApi.post<{ user: AdminUser; setupLink: string; expiresAt: string }>('/api/admin/users', {
         displayName: form.displayName.trim(), username: form.username.trim(), email: form.email.trim(),
         departmentId: form.departmentId || null, roles: picked,
       });

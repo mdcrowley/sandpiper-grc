@@ -20,7 +20,7 @@ async function seedDefaults(ctx: ModuleContext) {
     { value: 'software_licence', label: 'Software licence' },
     { value: 'subscription', label: 'Subscription' },
     { value: 'other', label: 'Other' },
-  ]);
+  ], { module: 'assets' });
   await ctx.lookups.ensure('asset_status', [
     { value: 'ordered', label: 'Ordered', color: 'purple' },
     { value: 'in_stock', label: 'In stock', color: 'blue' },
@@ -28,32 +28,32 @@ async function seedDefaults(ctx: ModuleContext) {
     { value: 'in_repair', label: 'In repair', color: 'amber' },
     { value: 'retired', label: 'Retired', color: 'gray' },
     { value: 'disposed', label: 'Disposed', color: 'gray', meta: { final: true } },
-  ]);
+  ], { module: 'assets' });
   await ctx.lookups.ensure('funding_source', [
     { value: 'operating', label: 'Operating budget' },
     { value: 'capital', label: 'Capital budget' },
     { value: 'grant', label: 'Grant or outside funder' },
     { value: 'mixed', label: 'Mixed (own funds and outside funder)' },
     { value: 'other', label: 'Other' },
-  ]);
+  ], { module: 'assets' });
   await ctx.lookups.ensure('hosting_type', [
     { value: 'on_premises', label: 'On-premises', color: 'blue' },
     { value: 'vendor_hosted', label: 'Vendor-hosted', color: 'purple' },
     { value: 'cloud', label: 'Cloud', color: 'teal' },
     { value: 'hybrid', label: 'Hybrid', color: 'gray' },
-  ]);
+  ], { module: 'systems' });
   await ctx.lookups.ensure('criticality_tier', [
     { value: 'tier_1', label: 'Tier 1 - Critical', color: 'red' },
     { value: 'tier_2', label: 'Tier 2 - High', color: 'orange' },
     { value: 'tier_3', label: 'Tier 3 - Normal', color: 'blue' },
     { value: 'tier_4', label: 'Tier 4 - Low', color: 'gray' },
-  ]);
+  ], { module: 'systems' });
   await ctx.lookups.ensure('system_status', [
     { value: 'planned', label: 'Planned', color: 'purple' },
     { value: 'in_use', label: 'In use', color: 'green' },
     { value: 'being_replaced', label: 'Being replaced', color: 'amber' },
     { value: 'retired', label: 'Retired', color: 'gray' },
-  ]);
+  ], { module: 'systems' });
   // meta.satisfied: the system does not appear on the "sensitive data without multi-factor" report.
   await ctx.lookups.ensure('mfa_status', [
     { value: 'enforced', label: 'Enforced', color: 'green', meta: { satisfied: true } },
@@ -61,18 +61,18 @@ async function seedDefaults(ctx: ModuleContext) {
     { value: 'none', label: 'Not in place', color: 'red' },
     { value: 'not_applicable', label: 'Not applicable', color: 'gray', meta: { satisfied: true } },
     { value: 'unknown', label: 'Not known', color: 'gray' },
-  ]);
+  ], { module: 'systems' });
   // meta.sensitive: counts as sensitive data on reports. Unclassified categories also count.
   await ctx.lookups.ensure('sensitivity_level', [
     { value: 'public', label: 'Public', color: 'green', meta: { sensitive: false } },
     { value: 'internal', label: 'Internal', color: 'blue', meta: { sensitive: false } },
     { value: 'confidential', label: 'Confidential', color: 'amber', meta: { sensitive: true } },
     { value: 'restricted', label: 'Restricted', color: 'red', meta: { sensitive: true } },
-  ]);
+  ], { module: 'data' });
   await ctx.lookups.ensure('integration_direction', [
     { value: 'one_way', label: 'One way' },
     { value: 'two_way', label: 'Both ways' },
-  ]);
+  ], { module: 'systems' });
   await ctx.lookups.ensure('integration_method', [
     { value: 'api', label: 'API' },
     { value: 'file_transfer', label: 'File transfer' },
@@ -81,7 +81,7 @@ async function seedDefaults(ctx: ModuleContext) {
     { value: 'single_sign_on', label: 'Single sign-on' },
     { value: 'manual', label: 'Manual re-entry' },
     { value: 'other', label: 'Other' },
-  ]);
+  ], { module: 'systems' });
 }
 
 async function register(ctx: ModuleContext) {

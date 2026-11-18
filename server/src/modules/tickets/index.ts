@@ -124,6 +124,17 @@ const mod: ModuleDef = {
       }
     };
 
+    /**
+     * Closing needs a resolution code just as resolving does. A status that ends a ticket without
+     * resolving it (the built-in "cancelled", or any status with meta.resolution_code = false) is exempt.
+     */
+    const needsCodeToClose = async (req: FastifyRequest | null, status: unknown, code: unknown) => {
+      if (!req || code) return;
+      const meta = (await ctx.lookups.values('ticket_status')).find((s) => s.value === status)?.meta;
+      if (categoryOf(meta) !== 'closed' || status === 'cancelled' || meta?.resolution_code === false) return;
+      ctx.fail(400, 'validation', 'Check the highlighted fields.', { resolution_code: 'Choose a resolution code to close the ticket.' });
+    };
+
     async function beforeCreate(req: FastifyRequest | null, data: Row): Promise<Row> {
       checkCommon(data);
       const opened = (!req && toDate(data.opened_at)) || clock.now();
@@ -137,6 +148,7 @@ const mod: ModuleDef = {
 
       const cat = await sla.category(data.status);
       needsCode(req, cat, data.resolution_code);
+      await needsCodeToClose(req, data.status, data.resolution_code);
       const t = await sla.target(data.priority);
       const paused = Number(data.paused_minutes ?? 0);
       const respDue = t ? addWorkingMinutes(t.cal, opened, t.respond_minutes) : null;
@@ -180,6 +192,7 @@ const mod: ModuleDef = {
       const wasDone = prevCat === 'resolved' || prevCat === 'closed';
       const done = cat === 'resolved' || cat === 'closed';
       if (cat === 'resolved' && prevCat !== 'resolved') needsCode(req, cat, m.resolution_code);
+      if (cat === 'closed' && (m.status !== existing.status || 'resolution_code' in patch)) await needsCodeToClose(req, m.status, m.resolution_code);
 
       const t = await sla.target(m.priority);
       const opened = toDate(existing.opened_at) ?? now;
@@ -280,6 +293,8 @@ const mod: ModuleDef = {
         paused_minutes: { label: 'Paused (working minutes)', type: 'number', readOnly: true },
         response_breached: { label: 'Response target missed', type: 'boolean', readOnly: true },
         resolve_breached: { label: 'Resolution target missed', type: 'boolean', readOnly: true },
+        // Generated column: either target missed. Used to filter the list from the dashboard tile.
+        target_missed: { label: 'Any target missed', type: 'boolean', readOnly: true },
       },
       hooks: { beforeCreate, beforeUpdate },
     });
@@ -570,14 +585,28 @@ const mod: ModuleDef = {
       const a = (await ctx.resources.find('knowledge_article', (req.params as any).id, req.user)) ?? ctx.fail(404, 'not_found', 'Article not found.');
       const helpful = (req.body as Row | undefined)?.helpful;
       if (typeof helpful !== 'boolean') ctx.fail(400, 'validation', 'Check the highlighted fields.', { helpful: 'Say whether the article helped: yes or no.' });
-      const col = helpful ? 'helpful_yes' : 'helpful_no';
-      const row = await db.one<Row>(`update knowledge_articles set ${col} = ${col} + 1 where id = $1 returning helpful_yes, helpful_no`, [a.id]);
+      // One vote per person per article version. Voting again replaces the earlier vote.
+      const version = Number(a.version ?? 1);
+      const prior = await db.one<{ helpful: boolean }>(
+        'select helpful from knowledge_article_feedback where article_id = $1 and user_id = $2 and version = $3', [a.id, req.user!.id, version]);
+      if (prior && prior.helpful === helpful) {
+        return { helpful_yes: a.helpful_yes, helpful_no: a.helpful_no, your_vote: helpful, changed: false };
+      }
+      await db.query(
+        `insert into knowledge_article_feedback (article_id, user_id, version, helpful) values ($1,$2,$3,$4)
+         on conflict (article_id, user_id, version) do update set helpful = excluded.helpful, updated_at = now()`,
+        [a.id, req.user!.id, version, helpful]);
+      const yes = (helpful ? 1 : 0) - (prior?.helpful === true ? 1 : 0);
+      const no = (helpful ? 0 : 1) - (prior?.helpful === false ? 1 : 0);
+      const row = await db.one<Row>(
+        `update knowledge_articles set helpful_yes = greatest(0, helpful_yes + $2::int), helpful_no = greatest(0, helpful_no + $3::int)
+         where id = $1 returning helpful_yes, helpful_no`, [a.id, yes, no]);
       await ctx.audit(req, {
         action: 'knowledge_article.feedback', recordType: 'knowledge_article', recordId: a.id,
-        summary: `Marked ${helpful ? 'helpful' : 'not helpful'}: ${a.ref} ${a.title}`,
-        before: { [col]: a[col] }, after: { [col]: row![col] },
+        summary: `${prior ? 'Changed vote to' : 'Marked'} ${helpful ? 'helpful' : 'not helpful'}: ${a.ref} ${a.title} (version ${version})`,
+        before: { helpful_yes: a.helpful_yes, helpful_no: a.helpful_no }, after: { helpful_yes: row!.helpful_yes, helpful_no: row!.helpful_no },
       });
-      return row;
+      return { ...row, your_vote: helpful, changed: true };
     });
 
     registerMetrics(ctx, sla);

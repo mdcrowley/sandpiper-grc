@@ -23,7 +23,7 @@ beforeAll(async () => {
     if (res.status !== 201) throw new Error(`${path}: ${res.text}`);
     return res.body;
   };
-  site.north = await make('/api/sites', { name: 'North Garage' });
+  site.north = await make('/api/sites', { name: 'North Workshop' });
   site.south = await make('/api/sites', { name: 'South Office' });
   cat.pay = await make('/api/data-categories', { name: 'Invented pay data', sensitivity_level: 'restricted' });
   cat.open = await make('/api/data-categories', { name: 'Invented public data', sensitivity_level: 'public' });
@@ -85,7 +85,7 @@ describe('integrations, data categories and sites', () => {
     expect((await t.api.post(`/api/systems/${sys.gamma.id}/sites`, { site_id: site.south.id })).status).toBe(201);
     await t.api.post(`/api/systems/${sys.alpha.id}/sites`, { site_id: site.south.id });
     expect((await t.api.del(`/api/systems/${sys.alpha.id}/sites/${site.south.id}`)).status).toBe(200);
-    expect((await t.api.get(`/api/systems/${sys.alpha.id}/sites`)).body.map((r: any) => r.name)).toEqual(['North Garage']);
+    expect((await t.api.get(`/api/systems/${sys.alpha.id}/sites`)).body.map((r: any) => r.name)).toEqual(['North Workshop']);
     expect((await t.api.get(`/api/sites/${site.north.id}/systems`)).body.map((r: any) => r.name)).toEqual(['Alpha']);
 
     const actions = (await t.api.get(`/api/history?record_type=system&record_id=${sys.alpha.id}`)).body.map((h: any) => h.action);
@@ -132,6 +132,20 @@ describe('relationship graph', () => {
     expect([...new Set(limited.nodes.map((n: any) => n.type))].sort()).toEqual(['system', 'vendor']);
     expect((await (await t.as('executive_viewer')).get('/api/systems/graph')).status).toBe(403);
   });
+
+  it('shows a linked vendor record\'s name only to people who may see vendors', async () => {
+    if (!t.ctx.resources.get('vendor')) return; // the vendors module is not loaded in an isolated run
+    const vendor = await t.ctx.resources.create('vendor', { name: 'Private Vendor Record Ltd' });
+    const s = (await t.api.post('/api/systems', { name: 'Epsilon', vendor_name: 'As recorded', vendor_id: vendor.id })).body;
+    const role = await t.db.one<{ id: string }>(`insert into roles (key, name, enabled) values ('systems_only', 'Systems only', true) returning id`);
+    await t.db.query(`insert into role_permissions (role_id, permission) values ($1, 'systems.view')`, [role!.id]);
+    const limited = (await (await t.as('systems_only')).get(`/api/systems/graph?focus=${s.id}`)).body;
+    const node = limited.nodes.find((n: any) => n.id === vendor.id);
+    expect(node).toMatchObject({ label: 'As recorded', route: null });
+    const full = (await t.api.get(`/api/systems/graph?focus=${s.id}`)).body;
+    expect(full.nodes.find((n: any) => n.id === vendor.id).label).toBe('Private Vendor Record Ltd');
+    await t.api.del(`/api/systems/${s.id}`);
+  });
 });
 
 describe('impact', () => {
@@ -141,7 +155,7 @@ describe('impact', () => {
       ['Beta', 1, 'Alpha'], ['Gamma', 2, 'Beta'], ['Delta', 2, 'Beta'],
     ]);
     expect(impact.downstream.some((d: any) => d.label === 'Epsilon')).toBe(false); // upstream only
-    expect(impact.sites.map((s: any) => [s.label, s.via.label]).sort()).toEqual([['North Garage', 'Alpha'], ['South Office', 'Gamma']]);
+    expect(impact.sites.map((s: any) => [s.label, s.via.label]).sort()).toEqual([['North Workshop', 'Alpha'], ['South Office', 'Gamma']]);
     expect(impact.data_categories.find((c: any) => c.label === 'Invented pay data').via).toMatchObject({ label: 'Alpha', direct: true });
     expect(impact.assets.map((a: any) => a.label).sort()).toEqual(['Alpha server', 'Gamma switch']);
     expect(impact.counts).toEqual({ systems: 3, sites: 2, data_categories: 3, assets: 2 });
@@ -174,7 +188,7 @@ describe('canned reports', () => {
   it('assets past support', async () => {
     const res = (await t.api.get('/api/inventory/reports/assets-past-support')).body;
     expect(res.rows.map((r: any) => r.name)).toEqual(['Alpha server']); // the retired one is left out
-    expect(res.rows[0]).toMatchObject({ days_past: 10, site: 'North Garage', status: 'In use', route: `/assets/${asset.server.id}` });
+    expect(res.rows[0]).toMatchObject({ days_past: 10, site: 'North Workshop', status: 'In use', route: `/assets/${asset.server.id}` });
   });
 
   it('warranty expiring in the next 90 days', async () => {
@@ -186,7 +200,7 @@ describe('canned reports', () => {
   it('assets by site', async () => {
     const rows = (await t.api.get('/api/inventory/reports/assets-by-site')).body.rows;
     expect(rows.map((r: any) => [r.site, r.assets, r.in_use, r.funder_interest, r.cost])).toEqual([
-      ['North Garage', 2, 2, 1, 750], ['South Office', 1, 0, 0, 0], ['No site recorded', 1, 0, 0, 0],
+      ['North Workshop', 2, 2, 1, 750], ['South Office', 1, 0, 0, 0], ['No site recorded', 1, 0, 0, 0],
     ]);
   });
 

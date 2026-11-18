@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { SESSION_COOKIE, sha256 } from '../../core/auth.ts';
 import { totpCode } from '../../core/totp.ts';
+import { DEFAULT_ROLES } from '../../core/services.ts';
 import { ADMIN, testApp } from '../../test/helpers.ts';
 import { ADMIN_ROUTES } from './shared.ts';
 
@@ -32,6 +33,15 @@ async function call(cookie: string | undefined, method: 'GET' | 'POST' | 'PATCH'
 }
 const signIn = (username: string, password: string, extra: object = {}) =>
   call(undefined, 'POST', '/api/auth/login', { username, password, ...extra });
+
+/**
+ * A current authenticator code for a user. Each code is accepted once only, so tests that need
+ * several codes inside one 30-second step first forget the last accepted step.
+ */
+async function freshCode(userId: string, secret: string): Promise<string> {
+  await t.db.query('update users set totp_last_step = null where id = $1', [userId]);
+  return totpCode(secret);
+}
 
 const tokenOf = (link: string) => new URL(link, 'http://x').searchParams.get('token')!;
 
@@ -212,7 +222,7 @@ describe('second factor', () => {
     const none = await signIn('tess', PASSWORD);
     expect(none.status).toBe(401);
     expect(none.body.error.code).toBe('mfa_required');
-    expect((await signIn('tess', PASSWORD, { totp: totpCode(secret) })).status).toBe(200);
+    expect((await signIn('tess', PASSWORD, { totp: await freshCode(id, secret) })).status).toBe(200);
 
     expect((await signIn('tess', PASSWORD, { totp: codes[0].toLowerCase() })).status).toBe(200);
     expect((await signIn('tess', PASSWORD, { totp: codes[0] })).status).toBe(401);
@@ -224,7 +234,7 @@ describe('second factor', () => {
   });
 
   it('regenerates recovery codes and turns off only with the password and a valid code', async () => {
-    const session = (await signIn('tess', PASSWORD, { totp: totpCode(secret) })).cookie;
+    const session = (await signIn('tess', PASSWORD, { totp: await freshCode(id, secret) })).cookie;
     expect((await call(session, 'POST', '/api/auth/totp/recovery-codes', { password: 'not my password at all' })).status).toBe(400);
     const fresh = await call(session, 'POST', '/api/auth/totp/recovery-codes', { password: PASSWORD });
     expect(fresh.body.recoveryCodes).toHaveLength(10);
@@ -386,5 +396,234 @@ describe('access', () => {
     }
     for (const url of ['/api/auth/security', '/api/auth/sessions']) expect((await t.anon.get(url)).status).toBe(401);
     expect((await t.anon.post('/api/auth/totp/begin')).status).toBe(401);
+  });
+});
+
+describe('replay protection (E02-06)', () => {
+  it('refuses an authenticator code that has already been used to sign in', async () => {
+    const id = (await makeUser('replay')).id;
+    const session = (await signIn('replay', PASSWORD)).cookie;
+    const secret = (await call(session, 'POST', '/api/auth/totp/begin')).body.secret;
+    // The key is not kept in the clear.
+    const stored = (await t.db.one<{ totp_secret: string }>('select totp_secret from users where id = $1', [id]))!.totp_secret;
+    expect(stored).toMatch(/^enc:v1:/);
+    expect(stored).not.toContain(secret);
+
+    const code = totpCode(secret);
+    expect((await call(session, 'POST', '/api/auth/totp/confirm', { code })).status).toBe(200);
+    // The code that confirmed enrolment cannot also sign in...
+    expect((await signIn('replay', PASSWORD, { totp: code })).status).toBe(401);
+    // ...and a code accepted at sign-in is refused the second time.
+    const next = await freshCode(id, secret);
+    expect((await signIn('replay', PASSWORD, { totp: next })).status).toBe(200);
+    const again = await signIn('replay', PASSWORD, { totp: next });
+    expect(again.status).toBe(401);
+    expect(again.body.error.code).toBe('invalid_credentials');
+    expect((await t.db.one<{ s: number }>('select totp_last_step as s from users where id = $1', [id]))!.s).toBeGreaterThan(0);
+  });
+});
+
+describe('re-authentication (E01-21)', () => {
+  const stale = () => t.db.query(`update sessions set confirmed_at = now() - interval '11 minutes' where user_id = (select id from users where username = 'admin')`);
+
+  it('refuses sensitive administrative actions until the password is confirmed again, and audits the refusal', async () => {
+    const target = (await makeUser('reauth')).id;
+    const role = (await t.api.post('/api/admin/roles', { name: 'Reauth probe', grants: ['tickets.view'] })).body;
+    await stale();
+    const before = await audited('reauth.required');
+
+    const sensitive: [string, () => Promise<{ status: number; body: any }>][] = [
+      ['role grants', () => t.api.patch(`/api/admin/roles/${role.id}`, { grants: ['tickets.*'] })],
+      ['role switch', () => t.api.post(`/api/admin/roles/${role.id}/disable`)],
+      ['role second-factor flag', () => t.api.patch(`/api/admin/roles/${role.id}`, { requiresMfa: true })],
+      ['new role', () => t.api.post('/api/admin/roles', { name: 'Another probe', grants: ['tickets.view'] })],
+      ['default grants', () => t.api.post('/api/admin/roles/sync-default-grants')],
+      ['user roles', () => t.api.patch(`/api/admin/users/${target}`, { roles: ['agent', 'project_manager'] })],
+      ['new user', () => t.api.post('/api/admin/users', { username: 'reauth2', email: 'reauth2@example.test', displayName: 'Reauth Two', roles: [] })],
+      ['second-factor reset', () => t.api.post(`/api/admin/users/${target}/reset-mfa`)],
+      ['reset link', () => t.api.post(`/api/admin/users/${target}/reset-link`)],
+      ['security setting', () => t.api.patch('/api/admin/settings', { 'auth.idle_minutes': 45 })],
+    ];
+    for (const [name, attempt] of sensitive) {
+      const res = await attempt();
+      expect([name, res.status, res.body?.error?.code]).toEqual([name, 403, 'reauth_required']);
+    }
+    expect(await audited('reauth.required')).toBe(before + sensitive.length);
+    // Nothing was changed.
+    expect((await t.api.get(`/api/admin/roles/${role.id}`)).body).toMatchObject({ grants: ['tickets.view'], enabled: true, requires_mfa: false });
+    expect((await t.api.get(`/api/admin/users/${target}`)).body.roles.map((r: any) => r.key)).toEqual(['agent']);
+    expect((await t.api.get('/api/admin/settings')).body.values['auth.idle_minutes']).toBe(30);
+
+    // Ordinary administration is not interrupted: reading, profile edits, non-security settings, renaming a role.
+    expect((await t.api.get('/api/admin/users')).status).toBe(200);
+    expect((await t.api.patch(`/api/admin/users/${target}`, { displayName: 'Renamed Person', roles: ['agent'] })).status).toBe(200);
+    expect((await t.api.patch('/api/admin/settings', { pilot_mode: true, 'auth.idle_minutes': 30 })).status).toBe(200);
+    expect((await t.api.patch(`/api/admin/roles/${role.id}`, { description: 'Only a description' })).status).toBe(200);
+
+    // Confirming: a wrong password is refused and audited; the right one opens the window.
+    const wrong = await t.api.post('/api/auth/confirm', { password: 'not the password at all' });
+    expect(wrong.status).toBe(400);
+    expect(wrong.body.error.fields.password).toBeTruthy();
+    expect(await audited('reauth.failure')).toBe(1);
+    expect((await t.api.patch(`/api/admin/roles/${role.id}`, { grants: ['tickets.*'] })).status).toBe(403);
+    const ok = await t.api.post('/api/auth/confirm', { password: ADMIN.password });
+    expect(ok.body).toEqual({ ok: true, minutes: 10 });
+    expect(await audited('reauth.success')).toBe(1);
+    for (const [name, attempt] of sensitive) {
+      const res = await attempt();
+      expect([name, res.status < 300]).toEqual([name, true]);
+    }
+    await t.api.patch('/api/admin/settings', { 'auth.idle_minutes': 30 });
+    expect((await t.anon.post('/api/auth/confirm', { password: ADMIN.password })).status).toBe(401);
+  });
+
+  it('limits password confirmation attempts, and the window length is a setting', async () => {
+    const lead = await t.as('security_lead');
+    for (let i = 0; i < 8; i++) expect((await lead.post('/api/auth/confirm', { password: 'wrong wrong wrong' })).status).toBe(400);
+    expect((await lead.post('/api/auth/confirm', { password: 'wrong wrong wrong' })).status).toBe(429);
+
+    expect((await t.api.patch('/api/admin/settings', { 'auth.reauth_minutes': 0 })).status).toBe(400);
+    await t.api.patch('/api/admin/settings', { 'auth.reauth_minutes': 30 });
+    await stale(); // 11 minutes old: inside a 30-minute window
+    expect((await t.api.patch('/api/admin/settings', { 'auth.reauth_minutes': 10 })).status).toBe(200);
+    await t.api.post('/api/auth/confirm', { password: ADMIN.password });
+  });
+});
+
+describe('default role grants (E18-21)', () => {
+  it('gives the Approver exactly what its description promises', () => {
+    const approver = DEFAULT_ROLES.find((r) => r.key === 'approver')!;
+    // Each kind of approval named in the description is granted, and nothing is promised that is not.
+    for (const [word, grant] of [['changes', 'changes.approve'], ['requests', 'tickets.approve'], ['asset', 'assets.approve'], ['project gates', 'projects.approve']]) {
+      expect(approver.description).toContain(word);
+      expect(approver.grants).toContain(grant);
+      expect(approver.grants).toContain(`${grant.split('.')[0]}.view`);
+    }
+    expect(approver.description).not.toMatch(/risk/i);
+    expect(approver.grants.some((g) => g.startsWith('risks.') || g.startsWith('security.'))).toBe(false);
+    // No default description names a job title or a kind of employer.
+    for (const r of DEFAULT_ROLES) expect(r.description).not.toMatch(/\b(staff|managers?|executives?|employees?)\b/i);
+  });
+
+  it('adds new default grants to an existing database only through an explicit, audited sync that removes nothing', async () => {
+    const roles = async () => (await t.api.get('/api/admin/roles')).body.roles as any[];
+    const agent = (await roles()).find((r) => r.key === 'agent');
+    // A fresh database is already in step.
+    expect((await t.api.get('/api/admin/roles/default-grants')).body).toEqual({ roles: [], pending: 0 });
+
+    // An older database: the agent role predates two default grants and still has an earlier description;
+    // the administrator has also added a grant of their own.
+    await t.db.query(`delete from role_permissions where role_id = $1 and permission in ('frameworks.view', 'policies.view')`, [agent.id]);
+    await t.db.query(`delete from role_default_grants where role_key = 'agent' and permission in ('frameworks.view', 'policies.view')`);
+    await t.db.query(`update roles set description = 'IT staff: tickets, assets and changes.' where id = $1`, [agent.id]);
+    await t.db.query(`insert into role_permissions (role_id, permission) values ($1, 'audit.view')`, [agent.id]);
+    const user = await t.as('agent');
+    expect((await user.get('/api/audit')).status).toBe(200);
+
+    const preview = (await t.api.get('/api/admin/roles/default-grants')).body;
+    expect(preview.pending).toBe(2);
+    expect(preview.roles).toEqual([expect.objectContaining({ key: 'agent', missing: ['frameworks.view', 'policies.view'] })]);
+    expect(preview.roles[0].description).toMatch(/^Service desk/);
+    // Looking changes nothing.
+    expect((await roles()).find((r) => r.key === 'agent').grants).not.toContain('frameworks.view');
+
+    const done = await t.api.post('/api/admin/roles/sync-default-grants');
+    expect(done.body).toMatchObject({ ok: true, added: 2 });
+    const after = (await roles()).find((r) => r.key === 'agent');
+    expect(after.grants).toEqual(expect.arrayContaining(['frameworks.view', 'policies.view', 'audit.view', 'tickets.*']));
+    expect(after.description).toMatch(/^Service desk/);
+    const ev = await t.db.one<any>(`select actor_name, after from audit_events where action = 'role.sync_defaults' and record_id = $1`, [agent.id]);
+    expect(ev.actor_name).toBe('Test Admin');
+    expect(ev.after.added).toEqual(['frameworks.view', 'policies.view']);
+
+    // A default grant the administrator removes afterwards is not put back, and their wording is kept.
+    await t.api.patch(`/api/admin/roles/${agent.id}`, { grants: after.grants.filter((g: string) => g !== 'policies.view'), description: 'Our own words' });
+    expect((await t.api.get('/api/admin/roles/default-grants')).body.pending).toBe(0);
+    expect((await t.api.post('/api/admin/roles/sync-default-grants')).body.added).toBe(0);
+    const kept = (await roles()).find((r) => r.key === 'agent');
+    expect(kept.grants).not.toContain('policies.view');
+    expect(kept.grants).toContain('audit.view');
+    expect(kept.description).toBe('Our own words');
+    expect(await audited('role.sync_defaults', agent.id)).toBe(1);
+    await t.api.patch(`/api/admin/roles/${agent.id}`, { grants: DEFAULT_ROLES.find((r) => r.key === 'agent')!.grants });
+  });
+});
+
+describe('enforced second factor (E02-05)', () => {
+  it('is a notice by default, and can be switched off', async () => {
+    const lead = await t.as('security_lead'); // the role expects a second factor; this user has none
+    expect((await t.api.get('/api/admin/settings')).body.values['auth.mfa_enforcement']).toBe('notice');
+    expect((await lead.get('/api/auth/state')).body).toMatchObject({ mfaEnrollmentRequired: true, mfaEnrollmentBlocked: false, mfaEnforcement: 'notice' });
+    expect((await lead.get('/api/meta')).status).toBe(200);
+    expect((await t.api.patch('/api/admin/settings', { 'auth.mfa_enforcement': 'sometimes' })).status).toBe(400);
+    await t.api.patch('/api/admin/settings', { 'auth.mfa_enforcement': 'off' });
+    expect((await lead.get('/api/auth/state')).body).toMatchObject({ mfaEnrollmentRequired: false, mfaEnrollmentBlocked: false, mfaEnforcement: 'off' });
+    await t.api.patch('/api/admin/settings', { 'auth.mfa_enforcement': 'notice' });
+  });
+
+  it('when required, limits a person who has not enrolled to enrolment and signing out', async () => {
+    // The administrator must enrol first, so that switching it on cannot lock them out.
+    const refused = await t.api.patch('/api/admin/settings', { 'auth.mfa_enforcement': 'required' });
+    expect(refused.body.error.fields['auth.mfa_enforcement']).toMatch(/your own second factor/);
+    const adminSecret = (await t.api.post('/api/auth/totp/begin')).body.secret;
+    expect((await t.api.post('/api/auth/totp/confirm', { code: totpCode(adminSecret) })).status).toBe(200);
+    expect((await t.api.patch('/api/admin/settings', { 'auth.mfa_enforcement': 'required' })).status).toBe(200);
+    try {
+      const lead = await t.as('security_lead');
+      const agent = await t.as('agent'); // the Agent role does not require a second factor
+      expect((await agent.get('/api/meta')).status).toBe(200);
+      expect((await t.api.get('/api/meta')).status).toBe(200); // enrolled
+
+      // Blocked: everything that is not enrolment.
+      for (const [method, url] of [['get', '/api/meta'], ['get', '/api/tickets'], ['get', '/api/risks'], ['get', '/api/audit'], ['get', '/api/search?q=ab'],
+        ['get', '/api/users/options'], ['post', '/api/auth/sessions/end-others'], ['post', '/api/comments'], ['post', '/api/auth/totp/recovery-codes']] as const) {
+        const res = await lead[method](url);
+        expect([url, res.status, res.body?.error?.code]).toEqual([url, 403, 'mfa_enrolment_required']);
+      }
+      // Allowed: own state and security page, password change, and enrolment itself.
+      const state = (await lead.get('/api/auth/state')).body;
+      expect(state).toMatchObject({ mfaEnrollmentRequired: true, mfaEnrollmentBlocked: true, mfaEnforcement: 'required' });
+      expect(state.user.id).toBe(lead.userId);
+      expect((await lead.get('/api/auth/security')).body).toMatchObject({ totpEnabled: false, mfaEnrollmentRequired: true, mfaEnrollmentBlocked: true });
+      expect((await lead.post('/api/auth/change-password', { currentPassword: 'x', newPassword: 'y' })).status).toBe(400); // reached, and refused on its merits
+      const secret = (await lead.post('/api/auth/totp/begin')).body.secret;
+      expect(secret).toMatch(/^[A-Z2-7]{32}$/);
+      expect((await lead.get('/api/meta')).status).toBe(403); // a pending key is not enrolment
+      expect((await lead.post('/api/auth/totp/confirm', { code: totpCode(secret) })).status).toBe(200);
+      // Enrolled: everything works again.
+      expect((await lead.get('/api/meta')).status).toBe(200);
+      expect((await lead.get('/api/auth/state')).body).toMatchObject({ mfaEnrollmentRequired: false, mfaEnrollmentBlocked: false });
+
+      // "Everyone" extends the requirement to roles that do not ask for it.
+      await t.api.patch('/api/admin/settings', { 'auth.mfa_required_for_all': true });
+      expect((await agent.get('/api/meta')).body.error.code).toBe('mfa_enrolment_required');
+      // Signing out is always possible.
+      expect((await agent.post('/api/auth/logout')).status).toBe(200);
+      expect((await agent.get('/api/auth/state')).body.user).toBeNull();
+      await t.api.patch('/api/admin/settings', { 'auth.mfa_required_for_all': false });
+
+      // An administrator reset puts the person back to enrolment.
+      await t.api.post(`/api/admin/users/${lead.userId}/reset-mfa`);
+      expect((await lead.get('/api/meta')).body.error.code).toBe('mfa_enrolment_required');
+    } finally {
+      await t.api.patch('/api/admin/settings', { 'auth.mfa_enforcement': 'notice', 'auth.mfa_required_for_all': false });
+    }
+  });
+
+  it('allows a configurable grace period, counted from the first request made while required', async () => {
+    expect((await t.api.patch('/api/admin/settings', { 'auth.mfa_grace_days': 31 })).status).toBe(400);
+    await t.api.patch('/api/admin/settings', { 'auth.mfa_enforcement': 'required', 'auth.mfa_grace_days': 7 });
+    try {
+      const lead = await t.as('security_lead');
+      expect((await lead.get('/api/meta')).status).toBe(200); // inside the grace period
+      const state = (await lead.get('/api/auth/state')).body;
+      expect(state).toMatchObject({ mfaEnrollmentRequired: true, mfaEnrollmentBlocked: false });
+      expect(new Date(state.mfaGraceEndsAt).getTime()).toBeGreaterThan(Date.now() + 6 * 86400_000);
+      await t.db.query(`update users set mfa_required_since = now() - interval '8 days' where id = $1`, [lead.userId]);
+      expect((await lead.get('/api/meta')).body.error.code).toBe('mfa_enrolment_required');
+      expect((await lead.get('/api/auth/state')).body.mfaEnrollmentBlocked).toBe(true);
+    } finally {
+      await t.api.patch('/api/admin/settings', { 'auth.mfa_enforcement': 'notice', 'auth.mfa_grace_days': 0 });
+    }
   });
 });

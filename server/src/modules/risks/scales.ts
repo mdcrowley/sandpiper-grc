@@ -69,7 +69,7 @@ function fiveByFive(): ScaleSeed {
   };
 }
 
-/** Safety hazard scale (key `asp`), laid out as the standard hazard risk-assessment matrix. */
+/** Safety hazard scale (key `hazard_4x5`), laid out as the standard hazard risk-assessment matrix. */
 function hazardMatrix(): ScaleSeed {
   // Rows: likelihood. Columns: severity Negligible (1) to Catastrophic (4).
   const rows: [number, string, string, string[]][] = [
@@ -82,7 +82,7 @@ function hazardMatrix(): ScaleSeed {
   const matrix: Scale['matrix'] = {};
   for (const [value, , , cells] of rows) matrix[value] = { 1: cells[0], 2: cells[1], 3: cells[2], 4: cells[3] };
   return {
-    key: 'asp', name: HAZARD_SCALE_NAME, sort: 20,
+    key: 'hazard_4x5', name: HAZARD_SCALE_NAME, sort: 20,
     description: HAZARD_SCALE_DESCRIPTION,
     likelihood_label: 'Likelihood', impact_label: 'Severity',
     likelihood_levels: rows.map(([value, label, description]) => ({ value, label, description })).reverse(),
@@ -102,7 +102,7 @@ function hazardMatrix(): ScaleSeed {
   };
 }
 
-const DEFAULT_THRESHOLDS: Record<string, string> = { cyber_5x5: 'high', asp: 'serious' };
+const DEFAULT_THRESHOLDS: Record<string, string> = { cyber_5x5: 'high', hazard_4x5: 'serious' };
 
 export interface Scored { rating: string | null; score: number | null; summary_level: string | null }
 
@@ -114,11 +114,11 @@ export function makeScales(ctx: ModuleContext) {
    */
   async function renameLegacy(): Promise<void> {
     const scale = await ctx.db.one<Row>(
-      `update risk_scales set name = $2, description = $3, updated_at = now() where key = 'asp' and name = $1 returning key`,
+      `update risk_scales set name = $2, description = $3, updated_at = now() where key = 'hazard_4x5' and name = $1 returning key`,
       [LEGACY_HAZARD_SCALE_NAME, HAZARD_SCALE_NAME, HAZARD_SCALE_DESCRIPTION]);
     if (scale) {
       await ctx.audit(null, {
-        action: 'risk_scale.update', recordType: 'risk_scale', recordId: 'asp',
+        action: 'risk_scale.update', recordType: 'risk_scale', recordId: 'hazard_4x5',
         summary: `Risk scale renamed: ${HAZARD_SCALE_NAME}`,
         before: { name: LEGACY_HAZARD_SCALE_NAME }, after: { name: HAZARD_SCALE_NAME },
       });

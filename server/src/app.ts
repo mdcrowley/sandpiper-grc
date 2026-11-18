@@ -88,6 +88,7 @@ export async function buildApp(opts: BuildOptions) {
   const ctx: ModuleContext = {
     app,
     db,
+    dataDir: opts.dataDir,
     requirePerm,
     can,
     audit: (req, ev) => audit(req, ev),

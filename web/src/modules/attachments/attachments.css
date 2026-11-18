@@ -1,0 +1,116 @@
+/* Attachments panel and pages. Colours come from the design tokens so both themes work. */
+
+.att { display: grid; gap: var(--s-4); min-width: 0; }
+
+/* ---------- add files ---------- */
+
+.att-add { display: grid; gap: var(--s-3); }
+
+.att-drop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2) var(--s-3);
+  padding: var(--s-5) var(--s-4);
+  border: 1.5px dashed var(--border-control);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  text-align: center;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+.att-drop-over { border-color: var(--brand); border-style: solid; background: var(--brand-soft); }
+.att-drop-icon { color: var(--text-muted); }
+.att-drop-over .att-drop-icon { color: var(--link); }
+.att-drop-text { margin: 0; font-weight: 600; }
+.att-drop-hint { flex-basis: 100%; margin: 0; color: var(--text-muted); font-size: var(--fs-sm); overflow-wrap: anywhere; }
+
+.att-evidence {
+  display: grid;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+.att-evidence-dates { display: grid; gap: var(--s-3); grid-template-columns: repeat(auto-fit, minmax(200px, 260px)); }
+
+/* ---------- uploads in progress and refusals ---------- */
+
+.att-queue { display: grid; gap: var(--s-2); margin: 0; padding: 0; list-style: none; }
+.att-queue-item { padding: var(--s-3); border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.att-queue-failed { border-color: transparent; background: var(--c-red-bg); color: var(--c-red-fg); }
+.att-queue-error { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: var(--s-2); }
+.att-queue-error > div { display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.att-queue-error svg { margin-top: 1px; }
+
+/* ---------- list ---------- */
+
+.att-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+.att-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+  padding: var(--s-3) var(--s-4);
+}
+.att-item + .att-item { border-top: 1px solid var(--border); }
+
+.att-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius);
+  flex: none;
+}
+
+.att-main { display: grid; gap: 2px; min-width: 0; }
+.att-name {
+  justify-self: start;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--link);
+  font: inherit;
+  font-weight: 600;
+  text-align: start;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.att-name:hover { text-decoration: underline; }
+.att-name:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 2px; }
+.att-description { margin: 0; overflow-wrap: anywhere; }
+/* A dot sits before every item, in its left padding; the first item on each line starts at the
+   clipped edge, so a wrapped line never begins with a stray dot. */
+.att-meta { display: flex; flex-wrap: wrap; margin: 0 0 0 -18px; clip-path: inset(0 0 0 18px); color: var(--text-muted); font-size: var(--fs-sm); }
+.att-meta > * { position: relative; max-width: 100%; padding-inline-start: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.att-meta > *::before { content: "\00b7"; position: absolute; inset-inline-start: 7px; }
+
+.att-chips { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--s-1) var(--s-2); }
+.att-actions { display: flex; gap: 2px; }
+
+.att-hash { font-family: var(--font-mono); font-size: var(--fs-xs); overflow-wrap: anywhere; }
+
+@media (max-width: 720px) {
+  .att-item { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .att-chips { grid-column: 2 / -1; grid-row: 2; justify-content: flex-start; }
+}
+
+/* ---------- pages ---------- */
+
+.att-toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--s-3); }
+.att-toolbar > * { min-width: 220px; }
+.att-file-cell { display: flex; align-items: center; gap: var(--s-2); min-width: 240px; }
+.att-file-cell .att-name { white-space: normal; overflow-wrap: break-word; word-break: normal; }
+.att-settings { max-width: 720px; }
+.att-facts { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); }

@@ -23,7 +23,7 @@ const mod: ModuleDef = {
   key: 'secincidents',
   nav: [
     { group: 'Cybersecurity', label: 'Security incidents', path: '/security-incidents', icon: 'alert', permission: view, order: 30 },
-    { group: 'Cybersecurity', label: 'Notification rules', path: '/security-incidents/rules', icon: 'clock', permission: view, order: 31 },
+    { group: 'Cybersecurity', label: 'Notification rules and checklists', path: '/security-incidents/rules', icon: 'clock', permission: view, order: 31 },
     { group: 'Cybersecurity', label: 'Offline incident kit', path: '/security-incidents/kit', icon: 'clipboard', permission: view, order: 32 },
   ],
   routes: [

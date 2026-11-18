@@ -353,3 +353,13 @@ describe('sample data', () => {
     expect((await t.api.get(`/api/projects/${goLive.id}/status-trend`)).body.series.length).toBe(4);
   });
 });
+
+describe('configurable lists', () => {
+  it('ties every project list to the projects module (E01-23)', async () => {
+    const rows = await t.db.query<{ list_key: string; module: string | null }>(
+      `select distinct l.list_key, o.module from lookups l left join lookup_lists o on o.list_key = l.list_key
+       where l.list_key like 'project\_%' or l.list_key = 'rag_rating'`);
+    expect(rows.length).toBe(9);
+    expect(rows.filter((r) => r.module !== 'projects')).toEqual([]);
+  });
+});

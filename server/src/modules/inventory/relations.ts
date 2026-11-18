@@ -281,7 +281,8 @@ export function registerRelations(ctx: ModuleContext) {
       if (s.vendor_id) {
         key = s.vendor_id;
         if (!nodes.has(key!)) {
-          const label = (vendorDef ? await ctx.resources.labelFor('vendor', s.vendor_id) : null) ?? (name || 'Vendor');
+          // The vendor record's own name needs vendors.view; otherwise the name recorded on the system is shown.
+          const label = (vendorRoute ? await ctx.resources.labelFor('vendor', s.vendor_id) : null) ?? (name || 'Vendor');
           nodes.set(key!, { id: key!, type: 'vendor', label, group: 'Vendors', route: vendorRoute ? `${vendorRoute}/${s.vendor_id}` : null });
         }
       } else if (name && !NO_VENDOR.test(name)) {

@@ -53,3 +53,18 @@
 @media print {
   .adm-no-print, .sidebar, .topbar, .notice { display: none !important; }
 }
+
+/* Password confirmation before sensitive actions (reauth.ts): a native dialog, tokens only. */
+.adm-reauth { border: 1px solid var(--border); border-radius: 12px; padding: 0; width: min(420px, calc(100vw - 2 * var(--s-4))); background: var(--surface); color: var(--text, inherit); box-shadow: 0 12px 40px rgb(0 0 0 / 25%); }
+.adm-reauth::backdrop { background: rgb(0 0 0 / 45%); }
+.adm-reauth-form { display: grid; gap: var(--s-3); padding: var(--s-5); margin: 0; }
+.adm-reauth-form h2 { margin: 0; font-size: 1.1rem; }
+.adm-reauth-form p { margin: 0; }
+.adm-reauth-label { font-weight: 600; }
+.adm-reauth-input { font: inherit; padding: var(--s-2) var(--s-3); border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: inherit; width: 100%; box-sizing: border-box; }
+.adm-reauth-input:focus-visible, .adm-reauth-button:focus-visible { outline: 2px solid var(--c-blue-solid); outline-offset: 2px; }
+.adm-reauth-error { color: var(--c-red-fg); min-height: 1.2em; }
+.adm-reauth-actions { display: flex; justify-content: flex-end; gap: var(--s-2); flex-wrap: wrap; }
+.adm-reauth-button { font: inherit; padding: var(--s-2) var(--s-4); border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: inherit; cursor: pointer; }
+.adm-reauth-primary { background: var(--c-blue-solid); border-color: var(--c-blue-solid); color: #fff; font-weight: 600; }
+.adm-reauth-button:disabled { opacity: 0.6; cursor: progress; }

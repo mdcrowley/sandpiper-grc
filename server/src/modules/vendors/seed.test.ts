@@ -104,6 +104,22 @@ describe('reading register text', () => {
     expect(parseTotalValue('$48,000 a year')).toBeUndefined();
   });
 
+  it('reads a total in the configured currency, not only dollars (E18-20)', () => {
+    // Tests run with the default currency (USD).
+    expect(parseTotalValue('USD 12,500.50')).toBe(12500.5);
+    expect(parseTotalValue('12 500 USD')).toBe(12500);
+    expect(parseTotalValue('48000')).toBe(48000);
+    expect(parseTotalValue('£48,000.00')).toBeUndefined(); // another currency: kept as text only
+    expect(parseTotalValue('£48,000.00', 'GBP')).toBe(48000);
+    expect(parseTotalValue('GBP 1,200', 'GBP')).toBe(1200);
+    expect(parseTotalValue('$1,200', 'GBP')).toBeUndefined();
+    expect(parseTotalValue('12.500,00 €', 'EUR')).toBe(12500);
+    expect(parseTotalValue('€ 12 500,5', 'EUR')).toBe(12500.5);
+    expect(parseTotalValue('1’250’000 CHF', 'CHF')).toBe(1250000);
+    expect(parseTotalValue('About €9,000 a year', 'EUR')).toBeUndefined();
+    expect(parseTotalValue(null)).toBeUndefined();
+  });
+
   it('matches system vendor names loosely but not wildly', () => {
     const vendors = [
       { id: 'a', name: 'Ironbridge Data, Inc. (Tallow as subcontractor)' },

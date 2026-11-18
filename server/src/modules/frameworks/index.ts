@@ -1,10 +1,13 @@
 import type { FastifyRequest } from 'fastify';
+import { todayInZone } from '../../core/config.ts';
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
 import { seedFrameworks } from './seed.ts';
 import { COLOURS, DEFAULT_STATUS, saveStructure } from './structure.ts';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
+/** Earliest date an assessment snapshot may carry. */
+export const EARLIEST_SNAPSHOT = '2000-01-01';
 
 /** Setting: the status every priority outcome is expected to reach (the "target profile" line on charts). */
 export const TARGET_SETTING = 'frameworks.target_status';
@@ -68,12 +71,12 @@ const mod: ModuleDef = {
       { value: 'partial', label: 'Partial', color: 'amber', sort: 20, meta: { weight: 0.33 } },
       { value: 'largely_met', label: 'Largely met', color: 'blue', sort: 30, meta: { weight: 0.67 } },
       { value: 'met', label: 'Met', color: 'green', sort: 40, meta: { weight: 1 } },
-    ]);
+    ], { module: 'frameworks' });
     await ctx.lookups.ensure('outcome_phase', [
       { value: 'now', label: 'Now', color: 'purple', sort: 10 },
       { value: 'next', label: 'Next', color: 'blue', sort: 20 },
       { value: 'later', label: 'Later', color: 'gray', sort: 30 },
-    ]);
+    ], { module: 'frameworks' });
   },
 
   async register(ctx) {
@@ -210,25 +213,43 @@ const mod: ModuleDef = {
           } else if (!(await db.one('select 1 from frameworks where id = $1 and deleted_at is null', [data.framework_id]))) {
             ctx.fail(400, 'validation', 'Check the highlighted fields.', { framework_id: 'Choose a framework.' });
           }
-          if (!data.taken_on) data.taken_on = (await db.one<{ d: string }>('select current_date::text as d'))!.d;
+          if (!data.taken_on) data.taken_on = todayInZone();
+          checkSnapshotDate(data.taken_on);
           return data;
         },
         // A snapshot is the status of every outcome at the moment it is taken.
-        afterCreate: async (_req, row) => {
-          await db.query(
+        afterCreate: async (req, row) => {
+          const captured = await db.query(
             `insert into snapshot_statuses (snapshot_id, outcome_id, code, title, function_code, category_code, priority, status)
              select $1, id, code, title, function_code, category_code, priority, status
-             from framework_outcomes where framework_id = $2 and deleted_at is null`,
+             from framework_outcomes where framework_id = $2 and deleted_at is null returning 1`,
             [row.id, row.framework_id],
           );
+          await ctx.audit(req, {
+            action: 'assessment_snapshot.capture', recordType: 'assessment_snapshot', recordId: row.id,
+            summary: `Status of ${captured.length} outcome(s) captured in snapshot "${row.name}"`,
+          });
         },
         // The framework and the captured statuses never change after the snapshot is taken.
         beforeUpdate: async (_req, _existing, patch) => {
           delete patch.framework_id;
+          if (patch.taken_on === null) delete patch.taken_on;
+          if (patch.taken_on !== undefined) checkSnapshotDate(patch.taken_on);
           return patch;
         },
       },
     });
+
+    /** A snapshot records what was true on its date: a real calendar day, not in the future and not before 2000. */
+    function checkSnapshotDate(value: unknown): void {
+      const text = String(value);
+      const parsed = new Date(`${text}T00:00:00Z`);
+      const real = DATE.test(text) && !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === text;
+      const problem = !real ? 'Date must be a real calendar date (YYYY-MM-DD).'
+        : text > todayInZone() ? 'Date cannot be in the future.'
+        : text < EARLIEST_SNAPSHOT ? `Date cannot be before ${EARLIEST_SNAPSHOT}.` : null;
+      if (problem) ctx.fail(400, 'validation', 'Check the highlighted fields.', { taken_on: problem });
+    }
 
     // ---------- shared queries ----------
 

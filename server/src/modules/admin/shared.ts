@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import type { FastifyReply, FastifyRequest, HTTPMethods } from 'fastify';
 import type { Queryable } from '../../core/db.ts';
+import { requireRecentAuth } from '../../core/auth.ts';
 import { fail, UUID_RE } from '../../core/errors.ts';
 import type { ModuleContext } from '../../core/module.ts';
 
@@ -42,20 +43,13 @@ export function invalid(fields: Record<string, string>): never {
   return fail(400, 'validation', 'Check the highlighted fields.', fields);
 }
 
-/** In-memory sliding-window limiter. Callers record failures only. */
-export function makeLimiter(max: number, windowMs: number) {
-  const hits = new Map<string, number[]>();
-  const recent = (key: string) => {
-    const now = Date.now();
-    const list = (hits.get(key) ?? []).filter((t) => now - t < windowMs);
-    hits.set(key, list);
-    return list;
-  };
-  return {
-    blocked: (key: string) => recent(key).length >= max,
-    hit: (key: string) => { recent(key).push(Date.now()); },
-    clear: (key: string) => { hits.delete(key); },
-  };
+/**
+ * Sensitive administrative actions: the password must have been confirmed in this session within
+ * the last few minutes (`auth.reauth_minutes`), or the request is refused with 403 `reauth_required`
+ * and audited. Listed in docs/security.md; keep the two in step.
+ */
+export function sensitive(ctx: ModuleContext, req: FastifyRequest, what: string): Promise<void> {
+  return requireRecentAuth({ db: ctx.db, audit: ctx.audit, settings: ctx.settings }, req, what);
 }
 
 /** Ids of users who can administer right now: active, holding an enabled role that grants it. */

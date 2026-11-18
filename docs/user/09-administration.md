@@ -10,6 +10,18 @@ This page is for administrators. It explains how to add people and give them acc
 
 The first administrator is created by the setup wizard the first time the application is opened. There is no default account.
 
+### Confirming your password
+
+Some changes decide who can do what, so the application checks it is really you before making them. If you have not given your password in the last 10 minutes, a **Confirm your password** box appears when you:
+
+- add a role, change a role's permissions, switch a role on or off, or change **Members must use a second factor**;
+- select **Apply default permissions**;
+- add a user or change a person's roles;
+- reset a person's second factor, or issue a setup or password-reset link;
+- change anything under **Sign-in and passwords** in **Settings**.
+
+Enter your password and select **Confirm and continue**. The change you asked for is then made; you do not need to repeat it. Select **Cancel** and nothing is changed. You are not asked again for the next 10 minutes (an administrator can change this under **Settings**). Signing in counts, so you will not see the box straight after signing in.
+
 ## Users
 
 Open **Administration > Users**. People are added by an administrator; nobody can register themself.
@@ -111,15 +123,24 @@ A role is a named set of permissions. People get access only through the roles t
 | Role | Intended for | Starts |
 |---|---|---|
 | **Administrator** | Configuration, users and roles. Holds every permission. | On |
-| **Agent** | IT staff: tickets, knowledge, inventory and actions, with read access to most other areas. | On |
+| **Agent** | Service desk and inventory work: tickets, knowledge, inventory and actions, with read access to most other areas. | On |
 | **Security lead** | Risks, frameworks, security incidents, vendors and contracts, and the audit log. | On |
 | **Project manager** | Projects, gates, status reports and actions. | On |
-| **Approver** | Managers and executives who approve requests and project gates. | Off |
+| **Approver** | People who approve changes, service requests, asset decisions and project gates. It does not include risks: a risk acceptance is recorded by someone who can see the risk, naming the approver. | Off |
 | **Executive viewer** | Read-only dashboards, projects and framework outcomes. | Off |
 | **Auditor** | Read-only access to chosen areas, with export of framework evidence. | Off |
-| **Requester** | Any employee submitting their own requests. | Off |
+| **Requester** | Anyone in the organisation submitting their own requests. | Off |
 
 The list shows each role's **Access** (for example "12 permissions in 5 areas", or "Everything"), the number of **Members**, whether a **Second factor** is Required or Optional, and a **Switched on** switch. Treat the supplied roles as a starting point and check each one's permissions against how your organisation works.
+
+### Applying default permissions after an upgrade
+
+A new version of the application may add permissions to the supplied roles. Your roles are never changed without you: when there is something to apply, the **Roles** page shows a notice listing, role by role, what would be added.
+
+1. Read the list.
+2. Select **Apply default permissions** and confirm your password if asked.
+
+Applying only adds permissions. It never removes one, and it replaces a role's description only if you have never edited it. If you later remove one of the added permissions, it is not offered again. The first time you do this on an installation that was set up before this feature existed, the list may include permissions you removed on purpose in the past: remove them again afterwards. Each role changed is recorded in the audit log.
 
 ### Switching roles on and off
 
@@ -179,7 +200,17 @@ A second factor means a stolen password is not enough to sign in. After setting 
 - Members of any role that has **Members must use a second factor** ticked. **Administrator** and **Security lead** have it to begin with.
 - Everyone, if **Second factor for everyone** is switched on under **Settings**.
 
-In this version the expectation is a reminder, not a block. A person who is expected to use a second factor and has not set one up sees a notice at the top of every page with a **Set it up now** link, but can still sign in and work. Use the **Second factor** column on the **Users** list to see who has not done it.
+What happens to a person who is expected to use a second factor and has not set one up depends on **When a second factor is expected** under **Settings**:
+
+| Choice | What the person sees |
+|---|---|
+| **Off: no reminder** | Nothing. |
+| **Reminder only** (the starting value) | A notice at the top of every page with a **Set it up now** link. They can still sign in and work. |
+| **Required** | After signing in, nothing works except **Account security** (to set the second factor up or change their password) and signing out, until they have set it up. |
+
+The application starts on **Reminder only** so that nobody is locked out by surprise. **Switch to Required before you put real records in.** You must set up your own second factor first; the application refuses the change otherwise. Use the **Second factor** column on the **Users** list to see who has not done it. If you want to give people time, set **Grace period (days)**: each person can keep working for that many days from their first visit, then the block applies.
+
+A 6-digit code works once. If you have just used a code, wait for the app to show the next one.
 
 ### Setting it up for yourself
 
@@ -269,7 +300,12 @@ The audience roles (Requester, Approver, Executive viewer, Auditor) are not here
 | **Minimum password length** | 14 | 12 to 128 | Never below 12. There are no rules about capitals, numbers or symbols and no forced periodic change. Commonly used passwords, and passwords containing the username, are always refused. |
 | **Password history** | 5 | 0 to 24 | How many of a person's previous passwords may not be reused. 0 turns the check off. |
 | **Idle time-out (minutes)** | 30 | 5 to 480 | A session ends after this long without activity. Every session also ends 8 hours after sign-in, whatever this is set to. |
-| **Second factor for everyone** | Off | On or off | Expects every user, not only certain roles, to set up a second factor. People without one see a reminder. |
+| **Second factor for everyone** | Off | On or off | Expects every user, not only certain roles, to set up a second factor. |
+| **When a second factor is expected** | Reminder only | Off, Reminder only, Required | What happens to people who are expected to have a second factor and do not. See "Second factor" above. You need your own second factor before choosing **Required**. |
+| **Grace period (days)** | 0 | 0 to 30 | With **Required**, how long a person may keep working before the block applies, counted from their first visit. 0 means no grace period. |
+| **Password confirmation (minutes)** | 10 | 1 to 60 | How long after giving your password you can make sensitive changes without being asked again. See "Confirming your password". |
+
+Changing any setting in this table asks you to confirm your password.
 
 ### Departments
 
@@ -299,7 +335,7 @@ Events are listed newest first, 50 to a page. Use **Older** and **Newer** to mov
 
 Select **Clear filters** to start again.
 
-Each row shows **When**, **Who**, **Action**, **What happened**, the **Record** type and **From** (the network address). "Not signed in" under **Who** means no signed-in person did it: for example a failed sign-in, or something the application did by itself.
+Each row shows **When**, **Who**, **Action**, **What happened**, the **Record** type and **From** (the network address). "System" under **Who** means the application did it by itself: for example loading sample data or a timed check. "Not signed in" means a request from somebody who was not signed in, such as a failed sign-in or a refused one-time link; **From** shows where it came from.
 
 ### Before and after
 
@@ -346,8 +382,9 @@ If you do not recognise a session, end it and change your password.
 
 - Sign-in is by username and password held in the application only. There is no single sign-on, no passkeys and no emergency access account.
 - The application sends no email. Setup and reset links must be passed on by hand, and there are no email or in-app notifications of any kind.
-- The second factor is a reminder, not a requirement: sign-in is not blocked for people who have not set one up.
-- You are not asked for your password again before sensitive administrative actions.
+- When the second factor is **Required**, a person who has not set one up is not taken to **Account security** automatically after signing in. They see pages that fail to load until they open **Account security** from the menu under their name. Tell people this when you switch it on.
+- Confirming your password does not also ask for your second factor.
+- The **Dashboards**, **Reports** and **Portal** permissions can be ticked on a role but do not control anything yet.
 - Roles cannot be deleted and user accounts cannot be removed; switch off or disable them instead.
 - New lists cannot be created on screen, and the special behaviour of supplied values cannot be given to values you add.
 - The self-service portal is not built, although its switch appears under **Settings**.

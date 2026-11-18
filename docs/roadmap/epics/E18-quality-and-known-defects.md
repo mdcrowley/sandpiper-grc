@@ -33,21 +33,27 @@ has never been checked, so nobody relies on something untested.
 | E18-10 | Automated API test suite | done | P1 |
 | E18-11 | One-off browser pass of every screen | done | P2 |
 | E18-12 | Automated browser tests | open | P2 |
-| E18-13 | Remove sector-specific wording left in built-in text | open | P1 |
+| E18-13 | Remove sector-specific wording left in built-in text | in progress | P1 |
 | E18-14 | Tests for the web code | open | P3 |
-| E18-15 | A ticket can be closed without a resolution code | open | P2 |
-| E18-16 | Missed-target dashboard tile and its list disagree | open | P3 |
-| E18-17 | Knowledge feedback can be given repeatedly | open | P3 |
-| E18-18 | Evidence contract picker offers other vendors' contracts | open | P3 |
-| E18-19 | Security incident pilot notice ignores the pilot-mode setting | open | P2 |
-| E18-20 | Money shown with a hard-coded dollar sign in places | open | P2 |
-| E18-21 | Approver role cannot accept risks | open | P2 |
-| E18-22 | Audit log labels system events "Not signed in" | open | P3 |
-| E18-23 | Assessment snapshot date is not validated | open | P3 |
-| E18-24 | Navigation labels differ from page titles | open | P3 |
+| E18-15 | A ticket can be closed without a resolution code | done | P2 |
+| E18-16 | Missed-target dashboard tile and its list disagree | done | P3 |
+| E18-17 | Knowledge feedback can be given repeatedly | done | P3 |
+| E18-18 | Evidence contract picker offers other vendors' contracts | done | P3 |
+| E18-19 | Security incident pilot notice ignores the pilot-mode setting | done | P2 |
+| E18-20 | Money shown with a hard-coded dollar sign in places | done | P2 |
+| E18-21 | Approver role cannot accept risks | done | P2 |
+| E18-22 | Audit log labels system events "Not signed in" | done | P3 |
+| E18-23 | Assessment snapshot date is not validated | done | P3 |
+| E18-24 | Navigation labels differ from page titles | done | P3 |
 | E18-25 | Permissions granted but never checked | open | P2 |
 | E18-26 | Only risks have an Actions tab | open | P2 |
 | E18-27 | Dev mode ignored a custom port | done | P3 |
+| E18-28 | Sector-leaning features that cannot be configured away | open | P2 |
+| E18-29 | Reading a ticket list runs the service-level sweep | open | P3 |
+| E18-30 | Escalating a project item creates a risk without a risk permission | open | P3 |
+| E18-31 | Review the newer modules for permission and restricted-record checks | open | P1 |
+| E18-32 | Hand-written routes: findings of the permission review | done | P1 |
+| E18-33 | Web bundle is a single 1.8 MB script | open | P2 |
 
 ---
 
@@ -248,7 +254,7 @@ every change, so a broken screen is caught before a user finds it.
 
 ### E18-13 Remove sector-specific wording left in built-in text
 
-**Status:** open · **Priority:** P1 · **Type:** debt
+**Status:** in progress · **Priority:** P1 · **Type:** debt
 
 As a maintainer about to publish the repository, I want every built-in label,
 description and notice to be sector-neutral, as the hard rules require. A read of the
@@ -256,13 +262,13 @@ code found a few places that still carry wording from one kind of organisation.
 
 **Acceptance criteria**
 
-- [ ] The pilot-mode notice in `web/src/core/Shell.tsx` names no particular kind of data or client
-- [ ] Default role descriptions in `server/src/core/services.ts` name no particular job titles
-- [ ] The second risk scale's short key in `server/src/modules/risks/scales.ts` is checked and, if it is an abbreviation from one sector, given a self-explanatory name (with a migration for existing data)
-- [ ] The built-in yes/no questions on a security incident (`server/src/modules/secincidents/index.ts`) are reviewed: kinds of data that only some organisations hold should come from the organisation profile
-- [ ] The example in the code comment in `server/src/modules/frameworks/seed.ts` uses an invented framework name
-- [ ] Default list values, field labels and seed text in every module are re-read for sector terms and either made neutral or moved to the organisation profile
-- [ ] A search of the tracked files for the installation's own name, places and people finds nothing
+- [ ] The pilot-mode notice in `web/src/core/Shell.tsx` names no particular kind of data or client (still reads "health information or card data"; the same sentence is quoted in `docs/user/01-getting-started.md`)
+- [x] Default role descriptions in `server/src/core/services.ts` name no particular job titles, with a test; existing databases get the new wording through "Apply default permissions" where the old wording was never edited
+- [x] The second risk scale's short key was an abbreviation from one sector; it is now `hazard_4x5`, with a migration for scales, ratings, risks, the category list and the acceptance thresholds (`server/src/modules/risks/migrations/002_action_restriction_and_scale_key.sql`)
+- [x] The built-in yes/no questions on a security incident keep only "cyber incident" and "personal information"; other kinds of data are values of the `incident_data_kind` list, which an administrator or the organisation profile fills (`server/src/modules/secincidents/migrations/002_data_kinds.sql`)
+- [x] The example in the code comment in `server/src/modules/frameworks/seed.ts` uses an invented framework name
+- [ ] Default list values, field labels and seed text in every module are re-read for sector terms and either made neutral or moved to the organisation profile: done for the service desk, inventory, vendors, frameworks, risks, security incidents and projects modules and for administration. Not done for the newer modules, and see E18-28 for features that are sector-leaning by design. `examples/organisation.example.json` still uses the old trigger name `card_data_involved` (it still loads)
+- [x] A search of the tracked files for the installation's own name, places and people finds nothing
 
 ### E18-14 Tests for the web code
 
@@ -279,103 +285,135 @@ are on the server.
 
 ### E18-15 A ticket can be closed without a resolution code
 
-**Status:** open · **Priority:** P2 · **Type:** bug
+**Status:** done · **Priority:** P2 · **Type:** bug
 
-Resolving a ticket requires a resolution code, but setting the status straight to Closed does not.
+Resolving a ticket required a resolution code, but setting the status straight to Closed did not.
 
 **Acceptance criteria**
 
-- [ ] Closing a ticket requires a resolution code, or closes only from Resolved
+- [x] Closing a ticket requires a resolution code, on create and on update, and the code cannot be cleared while the ticket is closed
+- [x] Cancelling does not (any status whose list value carries `resolution_code: false` is exempt)
+- [x] The Close dialog asks for the code
+
+**Implemented in:** `server/src/modules/tickets/index.ts`; `web/src/modules/tickets/TicketActions.tsx`; `server/src/modules/tickets/tickets.test.ts`
 
 ### E18-16 Missed-target dashboard tile and its list disagree
 
-**Status:** open · **Priority:** P3 · **Type:** bug
+**Status:** done · **Priority:** P3 · **Type:** bug
 
-The service desk dashboard tile counts tickets that missed either target, but opens a list filtered on resolution breaches only.
+The service desk dashboard tile counted tickets that missed either target, but opened a list filtered on resolution breaches only.
 
 **Acceptance criteria**
 
-- [ ] The tile and the list it opens show the same tickets
+- [x] The tile and the list it opens show the same tickets (a read-only `target_missed` field; the tile links to `f.target_missed=true`)
+
+**Implemented in:** `server/src/modules/tickets/migrations/002_feedback_and_missed_target.sql`, `index.ts`; `web/src/modules/tickets/Dashboard.tsx`
 
 ### E18-17 Knowledge feedback can be given repeatedly
 
-**Status:** open · **Priority:** P3 · **Type:** bug
+**Status:** done · **Priority:** P3 · **Type:** bug
 
-One person can click "was this helpful" any number of times on the same article.
+One person could click "was this helpful" any number of times on the same article.
 
 **Acceptance criteria**
 
-- [ ] One vote per person per article version
+- [x] One vote per person per article version; answering again replaces the earlier answer and is not counted twice
+
+**Implemented in:** `server/src/modules/tickets/migrations/002_feedback_and_missed_target.sql`, `index.ts`
 
 ### E18-18 Evidence contract picker offers other vendors' contracts
 
-**Status:** open · **Priority:** P3 · **Type:** bug
+**Status:** done · **Priority:** P3 · **Type:** bug
 
-When adding evidence for a vendor, the contract picker lists every contract; the server then rejects the wrong ones.
+When adding evidence for a vendor, the contract picker listed every contract; the server then rejected the wrong ones.
 
 **Acceptance criteria**
 
-- [ ] The picker lists only the chosen vendor's contracts
+- [x] The picker lists only the chosen vendor's contracts
+
+**Implemented in:** `web/src/modules/vendors/EvidenceForm.tsx`, `EvidencePages.tsx`, `VendorPages.tsx`
 
 ### E18-19 Security incident pilot notice ignores the pilot-mode setting
 
-**Status:** open · **Priority:** P2 · **Type:** bug
+**Status:** done · **Priority:** P2 · **Type:** bug
 
-The notice on the incident workspace always shows, even when an administrator has switched pilot mode off.
+The notice on the incident workspace always showed, even when an administrator had switched pilot mode off.
 
 **Acceptance criteria**
 
-- [ ] The notice follows the pilot-mode setting
+- [x] The notice follows the pilot-mode setting
+
+**Implemented in:** `web/src/modules/secincidents/Workspace.tsx`
 
 ### E18-20 Money shown with a hard-coded dollar sign in places
 
-**Status:** open · **Priority:** P2 · **Type:** bug
+**Status:** done · **Priority:** P2 · **Type:** bug
 
-Project settings, the budget chart and the contract import assume dollars whatever GRC_CURRENCY is.
+Project settings, the budget chart and the contract import assumed dollars whatever GRC_CURRENCY is.
 
 **Acceptance criteria**
 
-- [ ] Every money value and input uses the configured currency; the contract import reads amounts in it
+- [x] Every money value and input in the projects, vendors, inventory and service desk screens uses the configured currency
+- [x] The contract import and the asset import read amounts in the configured currency and reject another currency's symbol
+- [x] Typed amounts in any record accept any currency symbol and the configured code
+
+**Implemented in:** `web/src/modules/projects/bits.tsx`, `PortfolioBudget.tsx`, `SettingsPage.tsx`; `parseTotalValue` (`server/src/modules/vendors/seed.ts`); `parseAmount` (`server/src/modules/inventory/importer.ts`); `validate` (`server/src/core/resource.ts`)
 
 ### E18-21 Approver role cannot accept risks
 
-**Status:** open · **Priority:** P2 · **Type:** bug
+**Status:** done · **Priority:** P2 · **Type:** bug
 
-The Approver role description promises risk acceptance but the role has no risks permission.
+The Approver role description promised risk acceptance but the role has no risks permission.
+
+Decision: the description changed, not the grants. Seeing a risk needs `security.view`,
+which would also open every security incident to approvers. An acceptance is recorded by
+someone who can see the risk and names the approver.
 
 **Acceptance criteria**
 
-- [ ] The default Approver grants match its description, with a test
+- [x] The default Approver grants match its description, with a test
+- [x] Changes to default roles reach existing databases through an explicit, audited step (Administration > Roles > "Apply default permissions") that only adds grants and never removes an administrator's edits; a default grant removed after a sync is not offered again
+- [x] The limit is documented: on a database from before this step, the first run offers every default grant the role lacks
+
+**Implemented in:** `DEFAULT_ROLES`, `defaultGrantDifferences`, `syncDefaultGrants` (`server/src/core/services.ts`); `GET /api/admin/roles/default-grants`, `POST /api/admin/roles/sync-default-grants` (`server/src/modules/admin/roles.ts`); `web/src/modules/admin/Roles.tsx`; tests "default role grants" in `server/src/modules/admin/admin.test.ts`
 
 ### E18-22 Audit log labels system events "Not signed in"
 
-**Status:** open · **Priority:** P3 · **Type:** bug
+**Status:** done · **Priority:** P3 · **Type:** bug
 
 Events written by the system (seeding, timers) read as if someone was not signed in.
 
 **Acceptance criteria**
 
-- [ ] System events show "System" as the actor
+- [x] System events show "System" as the actor, including older events stored with no actor name and no address
+- [x] A failed sign-in, which is a request from nobody signed in, shows "Not signed in" with its source address rather than "System"
+
+**Implemented in:** `makeAudit` (`server/src/core/services.ts`); `server/src/core/auth.ts`; `web/src/modules/admin/AuditLog.tsx`, `UserDetail.tsx`; test "audit actor" in `server/src/core/core.test.ts`
 
 ### E18-23 Assessment snapshot date is not validated
 
-**Status:** open · **Priority:** P3 · **Type:** bug
+**Status:** done · **Priority:** P3 · **Type:** bug
 
-A snapshot can be created with an invalid or far-future date.
+A snapshot could be created with an invalid or far-future date.
 
 **Acceptance criteria**
 
-- [ ] The date is validated on the server and in the dialog
+- [x] The date is validated on the server (a real day, not in the future, not before 2000) and in the dialog
+
+**Implemented in:** `server/src/modules/frameworks/index.ts`; `web/src/modules/frameworks/Assessments.tsx`
 
 ### E18-24 Navigation labels differ from page titles
 
-**Status:** open · **Priority:** P3 · **Type:** improvement
+**Status:** done · **Priority:** P3 · **Type:** improvement
 
 For example Catalogue / Service catalogue and Security terms / Security terms matrix.
 
 **Acceptance criteria**
 
-- [ ] Each navigation item and its page title match
+- [x] Each navigation item and its page title match in the service desk, inventory, vendors, frameworks, security incidents and projects modules (now "Service catalogue", "Security terms matrix", "Notification rules and checklists", "Project portfolio", "New project request")
+- [ ] The newer modules are checked too
+
+**Implemented in:** each module's `web/src/modules/<key>/index.tsx`
 
 ### E18-25 Permissions granted but never checked
 
@@ -383,10 +421,18 @@ For example Catalogue / Service catalogue and Security terms / Security terms ma
 
 The dashboards, reports and portal permissions appear in role grants but no route checks them.
 
+Not changed yet, on purpose. The overview shows each panel by its own module's
+permission, the inventory reports check the permissions of the records they read, and
+there is no report builder or portal. Removing the three keys from the default roles
+would break whichever module arrives next to use them; enforcing them belongs to the
+overview screen and the reporting epic.
+
 **Acceptance criteria**
 
 - [ ] Each is either enforced by the screens and routes it names, or removed
+- [ ] The role editor says which permission areas nothing checks yet
 
+**Where:** `web/src/modules/home`, [E12](E12-dashboards-and-reporting.md); `DEFAULT_ROLES` (`server/src/core/services.ts`); `MODULE_KEYS` (`server/src/modules/admin/shared.ts`)
 ### E18-26 Only risks have an Actions tab
 
 **Status:** open · **Priority:** P2 · **Type:** improvement
@@ -406,3 +452,97 @@ The web dev server proxied to port 8080 whatever GRC_PORT was.
 **Acceptance criteria**
 
 - [x] The proxy follows GRC_PORT
+
+### E18-28 Sector-leaning features that cannot be configured away
+
+**Status:** open · **Priority:** P2 · **Type:** debt
+
+A few built-in features, not just words, come from one kind of organisation: the asset
+"funder interest" flag and its disposal rule, the contract "approval or resolution
+number", and the governing-body approval on a ransom decision.
+
+**Acceptance criteria**
+
+- [ ] Each is either made a setting that an installation can switch off or rename, or confirmed as general enough to keep
+- [ ] The user guide follows
+
+**Where:** `server/src/modules/inventory/index.ts`, `server/src/modules/vendors/index.ts`, `server/src/modules/secincidents/index.ts`
+
+### E18-29 Reading a ticket list runs the service-level sweep
+
+**Status:** open · **Priority:** P3 · **Type:** debt
+
+A `GET` on the ticket routes also runs the sweep that writes breach flags and system
+audit events, so a read request changes data. It cannot be triggered from another site
+in a harmful way (the change is the same one a timer would make), but reads should not write.
+
+**Acceptance criteria**
+
+- [ ] The sweep runs on a timer only
+
+**Where:** `server/src/modules/tickets/index.ts`
+
+### E18-30 Escalating a project item creates a risk without a risk permission
+
+**Status:** open · **Priority:** P3 · **Type:** debt
+
+A person with `projects.edit` can escalate a project item into a risk they cannot then
+see. By design, and they get back only the new risk's id and reference, but it lets
+someone without `risks.create` add to the risk register.
+
+**Acceptance criteria**
+
+- [ ] Decide: keep (and say so in the user guide), or require `risks.create`
+
+**Where:** `POST /api/projects/:id/items/:itemId/escalate` (`server/src/modules/projects/routes.ts`)
+
+### E18-31 Review the newer modules for permission and restricted-record checks
+
+**Status:** open · **Priority:** P1 · **Type:** debt
+
+The review recorded in E18-32 covered core, administration and the seven original
+modules. Change enablement, policies, training and exercises, vulnerabilities,
+attachments, notifications and the operations commands were being written at the time
+and were not reviewed.
+
+**Acceptance criteria**
+
+- [ ] Every hand-written route checks a permission and, where it returns titles, labels or counts of other records, the restricted-record rules (`ctx.resources.find(type, id, user)` or `ctx.resources.visibleWhere`)
+- [ ] Every list they create names its owning module (`ctx.lookups.ensure(list, values, { module })`)
+- [ ] Every data change writes an audit event
+- [ ] Their tests pass with all modules loaded, not only alone
+
+### E18-32 Hand-written routes: findings of the permission review
+
+**Status:** done · **Priority:** P1 · **Type:** bug
+
+A read of every hand-written route in core, administration and the seven original
+modules for missing permission or restricted-record checks, leaked counts, missing audit
+events, unvalidated SQL identifiers and state-changing `GET` requests.
+
+**Acceptance criteria**
+
+- [x] `GET /api/actions/summary` counted restricted actions for everyone: now filtered ([E08-16](E08-risks-actions-and-obligations.md))
+- [x] `GET /api/audit` showed events about flagged records: now hidden (E01-27)
+- [x] `GET /api/meta` and `GET /api/lookups/:list` returned every list: now limited (E01-23)
+- [x] Reference labels ignored the target module's view permission: fixed (E01-28)
+- [x] `GET /api/contracts/renewals` showed vendor names without `vendors.view`: now blank
+- [x] `GET /api/systems/graph` showed the linked vendor record's name without `vendors.view`: the name recorded on the system is used
+- [x] `POST /api/assets/:id/check-in` closed the assignment before rejecting a bad status: validated first
+- [x] `POST /api/assets/:id/check-out` did not check `site_id`: it must exist and be visible
+- [x] Security incident role copy and checklist changes on scenario change, and assessment status capture, wrote no audit event: added
+- [x] A resource's default sort field and inherited-restriction fields are checked against the identifier pattern like every other column name
+- [x] `GET /api/audit` answered a malformed date with a server error: now 400
+- [x] No state-changing `GET` that another site could abuse; see E18-29 for the one read that writes
+- [ ] Left open and raised separately: E18-29, E18-30, E18-31
+
+### E18-33 Web bundle is a single 1.8 MB script
+
+**Status:** open · **Priority:** P2 · **Type:** debt
+
+Every module loads at start. Split the bundle by route so the first page loads quickly.
+
+**Acceptance criteria**
+
+- [ ] Each module's pages load on demand
+- [ ] The initial script is under 500 kB

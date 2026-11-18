@@ -1,6 +1,6 @@
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
-import { ensureDefaults, FLAG_FIELDS, loadOrganisationRules } from './defaults.ts';
+import { ensureDefaults, FLAG_FIELDS, incidentQuestions, KIND_LIST, loadOrganisationRules, triggerApplies, triggerOptions } from './defaults.ts';
 import { seedSample } from './seed.ts';
 
 // Security incidents with regulatory clocks. Everything in this module is
@@ -11,7 +11,6 @@ const HOUR = 3_600_000;
 /** Statuses at or after declaration; reaching one stamps `declared_at` and starts the clocks. */
 const DECLARED_STATES = ['declared', 'contained', 'recovering', 'closed'];
 const PHASES = ['containment', 'recovery'];
-const TRIGGERS = ['any', ...FLAG_FIELDS] as string[];
 /** A clock turns amber when this fraction (or less) of its window remains. Setting: security.clock_amber_fraction. */
 export const DEFAULT_AMBER_FRACTION = 0.25;
 
@@ -24,6 +23,8 @@ interface ColSpec {
   /** Lookup list the value must belong to. */
   list?: string;
   oneOf?: string[];
+  /** Allowed values worked out at request time. */
+  allowed?: () => Promise<string[]>;
 }
 
 export interface IncidentService {
@@ -46,7 +47,7 @@ export function makeService(ctx: ModuleContext): IncidentService & {
     const rules = await db.query<Row>(
       `select * from notification_rules where deleted_at is null and active and deadline_hours is not null order by sort, party`,
     );
-    return rules.filter((r) => r.trigger_attribute === 'any' || flags[r.trigger_attribute] === true);
+    return rules.filter((r) => triggerApplies(r.trigger_attribute, flags));
   }
 
   /**
@@ -108,11 +109,18 @@ export function makeService(ctx: ModuleContext): IncidentService & {
   /** Copies the scenario's checklist onto the incident (once per scenario). Unticked steps of a previous scenario are removed. */
   async function applyChecklist(incident: Row, req: Req): Promise<number> {
     if (!incident.scenario) return 0;
-    await db.query(
+    const dropped = await db.query<Row>(
       `update incident_checklist_items set deleted_at = now(), updated_by = $3
-       where incident_id = $1 and deleted_at is null and not done and template_id is not null and scenario is distinct from $2`,
+       where incident_id = $1 and deleted_at is null and not done and template_id is not null and scenario is distinct from $2
+       returning id`,
       [incident.id, incident.scenario, req?.user?.id ?? null],
     );
+    if (dropped.length) {
+      await ctx.audit(req, {
+        action: 'security_incident.checklist_cleared', recordType: 'security_incident', recordId: incident.id,
+        summary: `${dropped.length} unticked checklist step(s) of the previous scenario removed`,
+      });
+    }
     const has = await db.one(
       `select 1 from incident_checklist_items where incident_id = $1 and scenario = $2 and template_id is not null and deleted_at is null limit 1`,
       [incident.id, incident.scenario],
@@ -135,11 +143,18 @@ export function makeService(ctx: ModuleContext): IncidentService & {
 
   /** Starts the incident's role list from the standing contact list. */
   async function copyRoster(incident: Row, req: Req): Promise<void> {
-    await db.query(
+    const made = await db.query<Row>(
       `insert into incident_roles (incident_id, role, person_name, contact, sort, created_by, updated_by)
-       select $1, role, person_name, contact, sort, $2, $2 from incident_contacts where deleted_at is null order by sort`,
+       select $1, role, person_name, contact, sort, $2, $2 from incident_contacts where deleted_at is null order by sort
+       returning id`,
       [incident.id, req?.user?.id ?? null],
     );
+    if (made.length) {
+      await ctx.audit(req, {
+        action: 'security_incident.roles_copied', recordType: 'security_incident', recordId: incident.id,
+        summary: `${made.length} role(s) copied from the standing contact list`,
+      });
+    }
   }
 
   return { matchingRules, syncTasks, resyncOpenIncidents, addLog, applyChecklist, copyRoster };
@@ -207,6 +222,7 @@ const mod: ModuleDef = {
           const s = String(v);
           if (s.length > 10000) errors[name] = `${c.label} is too long.`;
           else if (c.oneOf && !c.oneOf.includes(s)) errors[name] = `${c.label}: "${s}" is not an allowed value.`;
+          else if (c.allowed && !(await c.allowed()).includes(s)) errors[name] = `${c.label}: "${s}" is not an allowed value.`;
           else if (c.list && !(await ctx.lookups.values(c.list)).some((x) => x.value === s)) errors[name] = `${c.label}: "${s}" is not an allowed value.`;
           else out[name] = s;
         }
@@ -275,9 +291,9 @@ const mod: ModuleDef = {
         affected_systems: { label: 'Affected systems', type: 'longtext' },
         affected_data: { label: 'Affected data', type: 'longtext' },
         is_cyber_incident: { label: 'Cybersecurity or ransomware incident', type: 'boolean', default: true },
-        health_data_involved: { label: 'Health information involved', type: 'boolean', default: false },
-        card_data_involved: { label: 'Payment card data involved', type: 'boolean', default: false },
         personal_info_involved: { label: 'Personal information involved', type: 'boolean', default: false },
+        // Values of the incident_data_kind list (configurable; see defaults.ts).
+        data_kinds: { label: 'Other kinds of data involved', type: 'json' },
         what_happened: { label: 'What happened', type: 'longtext' },
         went_well: { label: 'What went well', type: 'longtext' },
         to_improve: { label: 'What to improve', type: 'longtext' },
@@ -285,18 +301,20 @@ const mod: ModuleDef = {
         board_resolution_ref: { label: 'Governing body approval reference', type: 'text' },
       },
       hooks: {
-        beforeCreate: (_req, data) => {
+        beforeCreate: async (_req, data) => {
           const now = new Date().toISOString();
           for (const f of FLAG_FIELDS) if (data[f] === null || data[f] === undefined) data[f] = f === 'is_cyber_incident';
+          data.data_kinds = await cleanKinds(data.data_kinds, []);
           if (!data.discovered_at) data.discovered_at = now;
           checkTimes(data, {});
           checkRansom(data.ransom_payment_status, data.board_resolution_ref);
           stampStatus(data.status, {}, data, now);
           return data;
         },
-        beforeUpdate: (_req, existing, patch) => {
+        beforeUpdate: async (_req, existing, patch) => {
           const now = new Date().toISOString();
           for (const f of FLAG_FIELDS) if (patch[f] === null) patch[f] = false;
+          if (patch.data_kinds !== undefined) patch.data_kinds = await cleanKinds(patch.data_kinds, existing.data_kinds ?? []);
           if (patch.discovered_at === null) {
             ctx.fail(400, 'validation', 'Check the highlighted fields.', { discovered_at: 'Discovered is required: the notification deadlines count from it.' });
           }
@@ -333,6 +351,17 @@ const mod: ModuleDef = {
         },
       },
     });
+
+    /** Kinds of data must come from the configurable list; a kind already on the incident may stay after it is retired. */
+    async function cleanKinds(value: unknown, held: string[]): Promise<string[]> {
+      if (value === null || value === undefined) return [];
+      const bad = () => ctx.fail(400, 'validation', 'Check the highlighted fields.', { data_kinds: 'Choose kinds of data from the list.' });
+      if (!Array.isArray(value) || value.some((v) => typeof v !== 'string')) bad();
+      const allowed = new Set([...(await ctx.lookups.values(KIND_LIST)).map((k) => k.value), ...held]);
+      const out = [...new Set(value as string[])];
+      if (out.some((v) => !allowed.has(v))) bad();
+      return out.sort();
+    }
 
     function checkTimes(patch: Row, existing: Row) {
       const fields: Record<string, string> = {};
@@ -540,10 +569,11 @@ const mod: ModuleDef = {
       const b = (req.body ?? {}) as Row;
       const flags: Row = {};
       for (const f of FLAG_FIELDS) flags[f] = b[f] === true;
+      flags.data_kinds = Array.isArray(b.data_kinds) ? b.data_kinds.filter((k: unknown) => typeof k === 'string') : [];
       const discovered = b.discovered_at ? new Date(String(b.discovered_at)) : new Date();
       if (Number.isNaN(discovered.getTime())) ctx.fail(400, 'validation', 'Check the highlighted fields.', { discovered_at: 'Discovered must be a date and time.' });
       const all = await db.query<Row>(`select * from notification_rules where deleted_at is null order by sort, party`);
-      const applies = (r: Row) => r.trigger_attribute === 'any' || flags[r.trigger_attribute] === true;
+      const applies = (r: Row) => triggerApplies(r.trigger_attribute, flags);
       const shape = (r: Row) => ({
         rule_id: r.id, party: r.party, trigger_attribute: r.trigger_attribute, deadline_hours: r.deadline_hours, required: r.required, guidance: r.guidance,
         due_at: r.deadline_hours === null ? null : new Date(discovered.getTime() + Number(r.deadline_hours) * HOUR).toISOString(),
@@ -556,6 +586,12 @@ const mod: ModuleDef = {
       };
     });
 
+    /** The yes/no questions of the declare flow and the triggers a notification rule may use. */
+    app.get('/api/security-incidents/questions', view, async () => ({
+      questions: await incidentQuestions(ctx),
+      triggers: await triggerOptions(ctx),
+    }));
+
     // ---------- offline incident kit ----------
 
     app.get('/api/security-incidents/kit', view, async (req) => {
@@ -563,7 +599,7 @@ const mod: ModuleDef = {
         `select id, trigger_attribute, party, deadline_hours, required, guidance, active from notification_rules
          where deleted_at is null order by sort, party`,
       );
-      const triggers = await ctx.lookups.values('notification_trigger');
+      const triggers = await triggerOptions(ctx);
       const contacts = await db.query<Row>(
         `select id, role, person_name, contact, notes from incident_contacts where deleted_at is null order by sort, role`,
       );
@@ -581,6 +617,7 @@ const mod: ModuleDef = {
         generated_at: new Date().toISOString(),
         generated_by: req.user!.displayName,
         rules: rules.map((r) => ({ ...r, trigger_label: triggers.find((t) => t.value === r.trigger_attribute)?.label ?? r.trigger_attribute })),
+        questions: await incidentQuestions(ctx),
         contacts,
         checklists,
         severities: await ctx.lookups.values('security_incident_severity'),
@@ -798,7 +835,7 @@ const mod: ModuleDef = {
       path: '/api/security-notification-rules', table: 'notification_rules', noun: 'Notification rule', recordType: 'notification_rule',
       order: 'sort, party',
       spec: {
-        trigger_attribute: { label: 'Trigger', required: true, oneOf: TRIGGERS },
+        trigger_attribute: { label: 'Trigger', required: true, allowed: async () => (await triggerOptions(ctx)).map((t) => t.value) },
         party: { label: 'Party to notify', required: true },
         deadline_hours: { label: 'Deadline (hours from discovery)', type: 'number' },
         required: { label: 'Required', type: 'boolean' },

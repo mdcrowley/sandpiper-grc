@@ -9,8 +9,8 @@ import './projects.css';
 const mod: ModuleDef = {
   key: 'projects',
   nav: [
-    { group: 'Projects', label: 'Portfolio', path: '/projects', icon: 'folder', permission: 'projects.view', order: 10 },
-    { group: 'Projects', label: 'New request', path: '/projects/new', icon: 'plus', permission: 'projects.create', order: 20 },
+    { group: 'Projects', label: 'Project portfolio', path: '/projects', icon: 'folder', permission: 'projects.view', order: 10 },
+    { group: 'Projects', label: 'New project request', path: '/projects/new', icon: 'plus', permission: 'projects.create', order: 20 },
     { group: 'Projects', label: 'Project settings', path: '/projects/settings', icon: 'settings', permission: 'projects.administer', order: 90 },
   ],
   routes: [

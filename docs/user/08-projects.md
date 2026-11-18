@@ -18,7 +18,7 @@ Roles are managed by an administrator; see [Administration](09-administration.md
 
 Every project starts as a one-page request.
 
-1. Open **Projects > New request**, or select **New project request** on the portfolio.
+1. Open **Projects > New project request**, or select **New project request** on the portfolio.
 2. Enter a **Name**.
 3. In **What is needed and why**, describe the problem. In **Expected benefits**, say what will be better afterwards.
 4. Enter the **Sponsor** and **Department**.
@@ -230,7 +230,7 @@ Administrators can change the criteria and weights. The score appears on the pro
 
 ## The portfolio
 
-Open **Projects > Portfolio**. The top of the page summarises every project that is not cancelled.
+Open **Projects > Project portfolio**. The top of the page summarises every project that is not cancelled.
 
 - **Projects**: how many there are.
 - **In delivery**: active projects in the Deliver stage against the limit, for example "4 of 3".

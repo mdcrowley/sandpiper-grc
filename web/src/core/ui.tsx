@@ -1,8 +1,11 @@
-// Design-system building blocks. Styles live in base.css.
+// Design-system building blocks, built on Mantine. Interactive pieces (buttons, tabs, tooltips,
+// skeletons) are Mantine components; purely presentational ones render the documented helper
+// classes (`card`, `chip chip-<colour>` ...) so a component and its CSS class are one thing.
 import {
-  useEffect, useId, useRef, useState,
-  type ButtonHTMLAttributes, type KeyboardEvent, type ReactNode,
+  useEffect, useState,
+  type ButtonHTMLAttributes, type ReactNode,
 } from 'react';
+import { ActionIcon, Button as MButton, Skeleton, Tabs as MTabs, Tooltip } from '@mantine/core';
 import { Link } from 'react-router-dom';
 import { errorMessage } from './api';
 import { formatDateTime, formatDuration } from './format';
@@ -25,20 +28,30 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   loading?: boolean;
 }
 
+/** How each of our variants maps onto Mantine's. Shared with Menu targets and icon buttons. */
+export const BUTTON_LOOK: Record<ButtonVariant, { variant: string; color?: string }> = {
+  primary: { variant: 'filled' },
+  secondary: { variant: 'default' },
+  ghost: { variant: 'subtle', color: 'gray' },
+  danger: { variant: 'filled', color: 'red' },
+};
+
 export function Button({
-  variant = 'secondary', size = 'md', icon, loading, className, children, type = 'button', disabled, ...rest
+  variant = 'secondary', size = 'md', icon, loading, className, children, type = 'button', ...rest
 }: ButtonProps) {
   return (
-    <button
+    <MButton
       type={type}
-      className={cx('btn', `btn-${variant}`, size === 'sm' && 'btn-sm', className)}
-      disabled={disabled || loading}
+      {...BUTTON_LOOK[variant]}
+      size={size === 'sm' ? 'xs' : 'sm'}
+      leftSection={icon ? <Icon name={icon} size={16} /> : undefined}
+      loading={loading}
       aria-busy={loading || undefined}
+      className={cx('ui-btn', `ui-btn-${variant}`, className)}
       {...rest}
     >
-      {icon && <Icon name={icon} size={16} />}
       {children}
-    </button>
+    </MButton>
   );
 }
 
@@ -54,15 +67,18 @@ export function IconButton({
   icon, label, variant = 'ghost', size = 'md', className, type = 'button', ...rest
 }: IconButtonProps) {
   return (
-    <button
-      type={type}
-      className={cx('btn', 'btn-icon', `btn-${variant}`, size === 'sm' && 'btn-sm', className)}
-      aria-label={label}
-      title={label}
-      {...rest}
-    >
-      <Icon name={icon} size={size === 'sm' ? 16 : 18} />
-    </button>
+    <Tooltip label={label}>
+      <ActionIcon
+        type={type}
+        {...BUTTON_LOOK[variant]}
+        size={size === 'sm' ? 28 : 36}
+        aria-label={label}
+        className={cx('ui-btn', 'ui-icon-btn', `ui-btn-${variant}`, className)}
+        {...rest}
+      >
+        <Icon name={icon} size={size === 'sm' ? 16 : 18} />
+      </ActionIcon>
+    </Tooltip>
   );
 }
 
@@ -102,7 +118,7 @@ export function Card({ title, actions, children, flush, className }: CardProps) 
           {actions && <div className="card-actions">{actions}</div>}
         </header>
       )}
-      <div className={flush ? undefined : 'card-body'}>{children}</div>
+      <div className={flush ? 'card-flush' : 'card-body'}>{children}</div>
     </section>
   );
 }
@@ -112,17 +128,24 @@ export interface StatProps {
   value: ReactNode;
   /** Change against the previous period. `tone` says whether the movement is good news. */
   trend?: { direction: 'up' | 'down' | 'flat'; label: string; tone?: 'good' | 'bad' | 'neutral' };
-  /** Accent bar colour. */
+  /** Accent colour. */
   color?: ColorName;
   /** Makes the whole tile a link (drill-down). */
   to?: string;
+  /** Small icon beside the label. */
+  icon?: IconName;
+  /** A short line under the value (when there is no trend to show). */
+  hint?: ReactNode;
 }
 
-export function Stat({ label, value, trend, color, to }: StatProps) {
+export function Stat({ label, value, trend, color, to, icon, hint }: StatProps) {
   const trendIcon = trend && ({ up: 'arrow-up', down: 'arrow-down', flat: 'minus' } as const)[trend.direction];
   const body = (
     <>
-      <span className="stat-label">{label}</span>
+      <span className="stat-label">
+        {icon && <Icon name={icon} size={15} />}
+        {label}
+      </span>
       <span className="stat-value">{value}</span>
       {trend && trendIcon && (
         <span className={cx('stat-trend', trend.tone && trend.tone !== 'neutral' && `stat-trend-${trend.tone}`)}>
@@ -130,6 +153,8 @@ export function Stat({ label, value, trend, color, to }: StatProps) {
           {trend.label}
         </span>
       )}
+      {hint && <span className="stat-trend">{hint}</span>}
+      {to && <Icon name="arrow-right" size={16} className="stat-go" />}
     </>
   );
   const className = cx('stat', color && `stat-${color}`);
@@ -157,58 +182,36 @@ export interface TabsProps {
 
 export function Tabs({ tabs, active, onChange, label }: TabsProps) {
   const [own, setOwn] = useState(tabs[0]?.key);
-  const baseId = useId();
-  const listRef = useRef<HTMLDivElement>(null);
   const current = tabs.find((t) => t.key === (active ?? own)) ?? tabs[0];
   if (!current) return null;
 
-  const select = (key: string) => {
-    setOwn(key);
-    onChange?.(key);
-  };
-  const onKeyDown = (e: KeyboardEvent) => {
-    const i = tabs.indexOf(current);
-    const next = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: tabs.length - 1 }[e.key];
-    if (next === undefined) return;
-    e.preventDefault();
-    const target = tabs[(next + tabs.length) % tabs.length];
-    select(target.key);
-    listRef.current?.querySelector<HTMLElement>(`[data-tab="${target.key}"]`)?.focus();
-  };
-
   return (
-    <div className="tabs">
-      <div className="tablist" role="tablist" aria-label={label} ref={listRef} onKeyDown={onKeyDown}>
+    <MTabs
+      className="tabs"
+      value={current.key}
+      keepMounted={false}
+      onChange={(key) => {
+        if (!key) return;
+        setOwn(key);
+        onChange?.(key);
+      }}
+    >
+      <MTabs.List className="ui-tablist" aria-label={label}>
         {tabs.map((t) => (
-          <button
+          <MTabs.Tab
             key={t.key}
-            type="button"
-            role="tab"
-            id={`${baseId}-tab-${t.key}`}
-            data-tab={t.key}
-            aria-selected={t === current}
-            aria-controls={`${baseId}-panel-${t.key}`}
-            tabIndex={t === current ? 0 : -1}
-            className="tab"
-            onClick={() => select(t.key)}
+            value={t.key}
+            className="ui-tab"
+            rightSection={t.count !== undefined ? <span className="tab-count">{t.count}</span> : undefined}
           >
             {t.label}
-            {t.count !== undefined && <span className="tab-count">{t.count}</span>}
-          </button>
+          </MTabs.Tab>
         ))}
-      </div>
-      {current.content !== undefined && (
-        <div
-          className="tabpanel"
-          role="tabpanel"
-          id={`${baseId}-panel-${current.key}`}
-          aria-labelledby={`${baseId}-tab-${current.key}`}
-          tabIndex={0}
-        >
-          {current.content}
-        </div>
-      )}
-    </div>
+      </MTabs.List>
+      {tabs.filter((t) => t.content !== undefined).map((t) => (
+        <MTabs.Panel key={t.key} value={t.key} className="tabpanel">{t.content}</MTabs.Panel>
+      ))}
+    </MTabs>
   );
 }
 
@@ -225,10 +228,10 @@ export interface EmptyStateProps {
 export function EmptyState({ icon = 'folder', title, message, action }: EmptyStateProps) {
   return (
     <div className="state">
-      <Icon name={icon} size={28} className="state-icon" />
+      <span className="state-icon"><Icon name={icon} size={22} /></span>
       <p className="state-title">{title}</p>
       {message && <p className="state-message">{message}</p>}
-      {action}
+      {action && <div className="state-action">{action}</div>}
     </div>
   );
 }
@@ -239,7 +242,7 @@ export function Loading({ lines = 4, label = 'Loading' }: { lines?: number; labe
     <div className="skeleton" role="status" aria-live="polite">
       <span className="sr-only">{label}…</span>
       {Array.from({ length: lines }, (_, i) => (
-        <span key={i} className="skeleton-line" style={{ width: `${92 - ((i * 17) % 40)}%` }} />
+        <Skeleton key={i} className="skeleton-line" height={12} radius="xl" width={`${92 - ((i * 17) % 40)}%`} />
       ))}
     </div>
   );
@@ -254,11 +257,11 @@ export interface ErrorStateProps {
 
 export function ErrorState({ title = 'This could not be loaded', error, onRetry }: ErrorStateProps) {
   return (
-    <div className="state" role="alert">
-      <Icon name="alert" size={28} className="state-icon state-icon-error" />
+    <div className="state error-state" role="alert">
+      <span className="state-icon state-icon-error"><Icon name="alert" size={22} /></span>
       <p className="state-title">{title}</p>
       {error !== undefined && error !== null && <p className="state-message">{errorMessage(error)}</p>}
-      {onRetry && <Button icon="refresh" onClick={onRetry}>Try again</Button>}
+      {onRetry && <div className="state-action"><Button icon="refresh" onClick={onRetry}>Try again</Button></div>}
     </div>
   );
 }
@@ -289,6 +292,8 @@ export interface StepperProps {
 
 const STEP_WORD: Record<StepState, string> = { done: 'Done', current: 'Current', todo: 'Not started', blocked: 'Blocked' };
 
+// An ordered list rather than Mantine's Stepper: it needs per-step state overrides, a blocked
+// state and hints, and reads as a real list of stages to assistive technology.
 export function Stepper({ steps, current, blocked, onStepClick, label = 'Progress' }: StepperProps) {
   const at = steps.findIndex((s) => s.key === current);
   return (

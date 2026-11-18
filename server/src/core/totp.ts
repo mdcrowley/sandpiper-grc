@@ -50,9 +50,23 @@ export function totpCode(secret: string, atMs = Date.now()): string {
 
 /** Accepts the current step and one step either side for clock drift. */
 export function verifyTotp(secret: string, code: string, atMs = Date.now()): boolean {
+  return matchTotpStep(secret, code, atMs) !== null;
+}
+
+/**
+ * The 30-second time step whose code matches, or null. Callers that accept a code must store
+ * the step and refuse any code from that step or an earlier one (see acceptTotpCode in auth.ts).
+ */
+export function matchTotpStep(secret: string, code: string, atMs = Date.now()): number | null {
   const given = Buffer.from(String(code).replace(/\s/g, '').padStart(6, '0'));
-  if (given.length !== 6) return false;
-  return [-1, 0, 1].some((d) => timingSafeEqual(given, Buffer.from(totpCode(secret, atMs + d * 30000))));
+  if (given.length !== 6) return null;
+  let matched: number | null = null;
+  for (const d of [-1, 0, 1]) { // every candidate is compared, so timing does not show which one matched
+    if (timingSafeEqual(given, Buffer.from(totpCode(secret, atMs + d * 30000))) && matched === null) {
+      matched = Math.floor(atMs / 30000) + d;
+    }
+  }
+  return matched;
 }
 
 export function totpUri(secret: string, account: string, issuer: string): string {

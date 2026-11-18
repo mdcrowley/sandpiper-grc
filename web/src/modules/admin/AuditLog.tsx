@@ -108,7 +108,7 @@ export function AuditLogPage() {
                                 label={expanded ? 'Hide details' : 'Show details'} aria-expanded={expanded} onClick={() => toggle(e.id)} />
                             </td>
                             <td style={{ whiteSpace: 'nowrap' }}>{formatDateTime(e.at)}</td>
-                            <td>{e.actor_name ?? <span className="muted">Not signed in</span>}</td>
+                            <td>{e.actor_name ?? (e.ip ? <span className="muted">Not signed in</span> : 'System')}</td>
                             <td><code>{e.action}</code></td>
                             <td>{e.summary ?? '—'}</td>
                             <td>{e.record_type ? (resources?.[e.record_type]?.label ?? humanize(e.record_type)) : '—'}</td>

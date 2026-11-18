@@ -90,34 +90,37 @@ export interface Kit {
   generated_at: string;
   generated_by: string;
   rules: Rule[];
+  questions: Question[];
   contacts: Contact[];
   checklists: { scenario: string; label: string; containment: string[]; recovery: string[] }[];
   severities: { value: string; label: string; meta?: { level?: number; guide?: string } }[];
 }
 
-/** The four plain-language questions that drive the notification rules. */
-export const FLAG_QUESTIONS: { field: string; question: string; hint: string }[] = [
-  {
-    field: 'is_cyber_incident',
-    question: 'Is this a cybersecurity or ransomware incident?',
-    hint: 'Yes for any attack on, or unauthorised access to, the organisation\'s systems, accounts or data.',
-  },
-  {
-    field: 'health_data_involved',
-    question: 'Could health information be involved?',
-    hint: 'Medical, care or other health-related details of identifiable people.',
-  },
-  {
-    field: 'card_data_involved',
-    question: 'Could payment card data be involved?',
-    hint: 'Card numbers or the systems and devices that take card payments.',
-  },
-  {
-    field: 'personal_info_involved',
-    question: 'Could personal information be involved?',
-    hint: 'Names with identifiers such as national identity, licence or account numbers.',
-  },
-];
+/**
+ * A plain-language yes/no question that drives the notification rules: a built-in flag
+ * (`kind: 'flag'`, `value` is the field) or a kind of data from the configurable
+ * `incident_data_kind` list (`kind: 'data_kind'`, `value` goes into `data_kinds`).
+ */
+export interface Question {
+  key: string;
+  kind: 'flag' | 'data_kind';
+  value: string;
+  question: string;
+  hint: string;
+}
+
+/** GET /api/security-incidents/questions */
+export interface Questions {
+  questions: Question[];
+  triggers: { value: string; label: string }[];
+}
+
+/** Turns the answers (keyed by question key) into incident fields. */
+export function answersToFields(questions: Question[], answers: Record<string, boolean>): Record<string, unknown> {
+  const out: Record<string, unknown> = { data_kinds: questions.filter((q) => q.kind === 'data_kind' && answers[q.key]).map((q) => q.value) };
+  for (const q of questions) if (q.kind === 'flag') out[q.value] = answers[q.key] ?? false;
+  return out;
+}
 
 /** "24 hours", "7 days", "Immediately", or "Not set". */
 export function deadlineText(hours: number | null | undefined): string {

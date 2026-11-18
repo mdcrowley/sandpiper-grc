@@ -40,13 +40,10 @@ export function KitPage() {
             <li>Write down the time the organisation first became aware. Every notification deadline counts from that discovery time.</li>
             <li>Call the incident lead. If they cannot be reached, call the next person on the contact list.</li>
             <li>Start a paper log: time, what happened, what was decided, who did it. Copy it into the system when it is available.</li>
-            <li>Answer the four questions below, then work the checklist for the scenario.</li>
+            <li>Answer the questions below, then work the checklist for the scenario.</li>
           </ol>
-          <h3>Four questions that decide who must be told</h3>
-          <p><span className="si-kit-box" />Is this a cybersecurity or ransomware incident?</p>
-          <p><span className="si-kit-box" />Could health information be involved?</p>
-          <p><span className="si-kit-box" />Could payment card data be involved?</p>
-          <p><span className="si-kit-box" />Could personal information be involved?</p>
+          <h3>Questions that decide who must be told</h3>
+          {data.questions.map((q) => <p key={q.key}><span className="si-kit-box" />{q.question}</p>)}
           <p>Discovered (date and time): <span className="si-kit-blank">&nbsp;</span></p>
         </section>
 

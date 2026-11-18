@@ -77,7 +77,7 @@ The contract gets a reference such as `CON-00015`.
 
 The record has two cards of fields. **Details** holds the structured fields above plus **Parties**, **Term**, **Total value**, **Value by year**, **Approval or resolution number** and **Notes**. **As recorded in the contract register** holds free-text notes carried over from an earlier register, such as **Document on file** and **Term and renewal (as recorded)**.
 
-**Value by year** is entered as JSON with a year and an amount, for example `{"2026": 12000, "2027": 12500}`.
+**Value by year** is entered as JSON with a year and an amount, for example `{"2026": 12000, "2027": 12500}`. Amounts are in the organisation's currency. When contracts are loaded from a register file, a total is read only when it is written in that currency.
 
 The tabs are **Security terms** and **Evidence**, described below.
 
@@ -130,7 +130,7 @@ Every change is recorded in the contract's history.
 
 ## The security-terms matrix
 
-The matrix shows every vendor against every clause on one page. Open **Security terms** in the **Vendors** group, or select **Security terms matrix** on the vendor list. The page is titled **Security terms matrix**.
+The matrix shows every vendor against every clause on one page. Open **Security terms matrix** in the **Vendors** group, or select **Security terms matrix** on the vendor list.
 
 - Vendors run down the page, most critical first. Clauses run across.
 - Each cell shows a letter and a colour: **P** for present, **Pt** for partial, **A** for absent and a dash for not assessed.
@@ -158,7 +158,7 @@ Evidence is what a vendor sends to show its security is in order. Each item belo
 5. Summarise what the evidence shows in **Note**, and say where the document itself is kept.
 6. Select **Create evidence item**.
 
-If you choose a **Contract**, it must belong to the same vendor.
+The **Contract** list shows only the chosen vendor's contracts, so choose the vendor first.
 
 The evidence item records that the document exists and when it runs out. The document itself cannot be uploaded.
 

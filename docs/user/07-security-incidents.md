@@ -24,7 +24,7 @@ The incident list, the declare page and every incident carry this notice:
 
 Take it literally. This version of the application is a prototype that has not been hardened for real incident data. Use it to rehearse, to run exercises and to prepare your rules, contacts and checklists. During a real incident, work from the printed offline kit and your organisation's own incident procedure until your administrator confirms the application is approved for live use.
 
-The notice on these pages is always shown in this version. It is separate from the pilot banner at the top of every page, which an administrator can switch off.
+The notice is shown only while pilot mode is on. An administrator switches pilot mode off under **Administration**, **Settings**, which also removes the pilot label at the top of every page.
 
 ## Declaring an incident
 
@@ -37,7 +37,7 @@ Open **Cybersecurity > Security incidents** and select **Declare incident**, or 
 3. Choose a **Scenario** if one fits: **Ransomware**, **Account compromise**, **Payment fraud**, **Vendor compromise**, **Lost device** or **Other**. The scenario brings the matching containment and recovery checklists.
 4. Choose a **Severity** (see the severity guide below). It starts as **Moderate**.
 5. Set **Discovered**: the date and time the organisation first became aware. It starts as the present moment. Correct it if the incident was noticed earlier. It cannot be in the future. Every notification deadline counts from this time.
-6. Answer the **four questions that decide who must be told** (see the table below). If unsure, answer yes. An answer can be changed later and the clocks follow.
+6. Answer the **questions that decide who must be told** (see the table below). If unsure, answer yes. An answer can be changed later and the clocks follow.
 7. Select **Review notifications**.
 
 The severity guide:
@@ -49,14 +49,16 @@ The severity guide:
 | **Moderate** | Limited to a few accounts or devices and contained quickly. |
 | **Low** | Attempt or near miss with no confirmed impact. |
 
-The four questions:
+The questions:
 
 | Question | Tick it when |
 |---|---|
 | **Is this a cybersecurity or ransomware incident?** | There is any attack on, or unauthorised access to, the organisation's systems, accounts or data. Ticked to begin with. |
-| **Could health information be involved?** | Medical, care or other health-related details of identifiable people may be affected. |
-| **Could payment card data be involved?** | Card numbers, or the systems and devices that take card payments, may be affected. |
 | **Could personal information be involved?** | Names with identifiers such as national identity, licence or account numbers may be affected. |
+| **Could financial or payment information be involved?** | Bank, payment or account details of the organisation or of other people may be affected. |
+| **Could confidential business information be involved?** | Contracts, plans, credentials or anything else the organisation keeps confidential may be affected. |
+
+The first two questions are built in. After them, one question is asked for each value of the **Incident data kind** list, so the last two rows are only the values supplied to begin with. An administrator adds the kinds of data your organisation holds, or retires ones it does not, under **Administration > Lists**; see [Administration](09-administration.md).
 
 ### Step 2: Notifications this will require
 
@@ -95,7 +97,7 @@ The **Regulatory clocks** strip sits near the top of every declared incident. Th
 
 ### How deadlines are worked out
 
-Each clock comes from a notification rule that is active, has a deadline, and whose trigger matches the incident's answers to the four questions. The due time is:
+Each clock comes from a notification rule that is active, has a deadline, and whose trigger matches the incident's answers to the questions. The due time is:
 
 **discovery time + the rule's deadline in hours**
 
@@ -139,7 +141,7 @@ The reason is written to the incident log as a Decision. If things change, selec
 
 ### When the answers change
 
-The four questions can be changed on the **Affected** tab. After the incident is declared:
+The answers to the questions can be changed on the **Affected** tab. After the incident is declared:
 
 - changing an answer to yes adds the matching clocks;
 - changing an answer to no stands down the matching clocks that are still pending, marking them not required;
@@ -199,8 +201,8 @@ The register records descriptions only. The items themselves stay where you hold
 
 The **Affected** tab has three parts:
 
-- **What is involved**: the four yes/no answers, plus free text for **Affected systems** and **Affected data**. Select **Edit** to change them.
-- A reminder that the four answers decide which notifications are required.
+- **What is involved**: the yes/no answers, plus free text for **Affected systems** and **Affected data**. Select **Edit** to change them.
+- A reminder that the answers decide which notifications are required.
 - **Linked systems, data categories and other records**: choose the **Record type**, find the **Record**, choose the **Relation** and select **Add link** to connect the incident to records elsewhere, such as entries in the [Inventory](03-inventory.md) or a vendor in [Vendors and contracts](04-vendors-and-contracts.md).
 
 ## The ransom-payment control
@@ -232,22 +234,21 @@ The **Related** tab lists linked records, and the **History** tab shows every ch
 
 ## Notification rules, checklists and contacts
 
-Open **Cybersecurity > Notification rules**. The page is titled **Notification rules and checklists** and has three tabs. Everyone who can see security incidents can read it. Only people with **Administer** can change it.
+Open **Cybersecurity > Notification rules and checklists**. The page has three tabs. Everyone who can see security incidents can read it. Only people with **Administer** can change it.
 
 ### Why the built-in rules start inactive
 
-Six starter rules are supplied:
+Five starter rules are supplied:
 
 | Notify | Triggered by |
 |---|---|
 | National cyber security agency or CSIRT | Any cybersecurity or ransomware incident |
 | Data protection or sector regulator | Personal information involved |
-| Health data partner or regulator | Health information involved |
-| Card acquirer and card brands | Payment card data involved |
+| Partners whose data is held under an agreement | Personal information involved |
 | Cyber insurer | Any incident |
 | Affected individuals | Personal information involved |
 
-All six are **Switched off** and have **no deadline**. This is deliberate. Who must be told, and how quickly, depends on the law where you operate, your sector, your contracts and your insurance policy. The application cannot know these, and a wrong deadline is worse than none. Until you set the rules up, declaring an incident starts no clocks.
+All five are **Switched off** and have **no deadline**. This is deliberate. Who must be told, and how quickly, depends on the law where you operate, your sector, your contracts and your insurance policy. The application cannot know these, and a wrong deadline is worse than none. Until you set the rules up, declaring an incident starts no clocks.
 
 Set each rule with legal advice:
 
@@ -259,7 +260,7 @@ Set each rule with legal advice:
 ### Setting up a rule
 
 1. On the **Notification rules** tab, select the pencil icon on a rule, or **Add notification rule**.
-2. Choose the **Trigger**: **Any incident**, or one of the four questions.
+2. Choose the **Trigger**: **Any incident**, or one of the questions. A rule for a kind of data can be added once that kind is in the **Incident data kind** list.
 3. In **Notify**, name the party.
 4. In **Deadline from discovery**, enter the number of hours: 24, 72 (3 days), 168 (7 days), 720 (30 days), or 0 for immediately. The longest allowed is one year.
 5. Leave **Required by law or contract** ticked, or untick it for a notification that is only recommended.
@@ -287,7 +288,7 @@ An incident may take down the network or this application. The kit is a printabl
 
 The kit contains:
 
-- **First hour**: the first steps, the four questions with tick boxes, and a space to write the discovery time.
+- **First hour**: the first steps, the questions with tick boxes, and a space to write the discovery time.
 - **Who must be told, and by when**: every notification rule with its deadline, with rules that are active listed first and a column to write in when each was done.
 - **Incident roles and contacts**.
 - **Severity guide**.

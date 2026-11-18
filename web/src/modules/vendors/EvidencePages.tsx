@@ -1,14 +1,16 @@
 // Evidence: full list, record, and the expiring-evidence page.
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Card, cx, EmptyState, ErrorState, formatDate, Loading, PageHeader, RecordPage, ResourceList, Select, Stat, StatusChip,
   toColorName, useFetch,
 } from '../../core';
+import { AddEvidence, EvidenceContractCard } from './EvidenceForm';
 import { ExpiryChip, daysPhrase } from './shared';
 import type { ExpiringEvidence } from './shared';
 
 export function EvidenceList() {
+  const navigate = useNavigate();
   return (
     <ResourceList
       type="evidence_item"
@@ -18,8 +20,7 @@ export function EvidenceList() {
         { field: 'expires_on', label: 'Expiry', sortable: true, render: (row) => <ExpiryChip date={row.expires_on} /> },
       ]}
       filters={['type', 'vendor_id', 'expires_on', 'received_on']}
-      createFields={['title', 'vendor_id', 'contract_id', 'type', 'received_on', 'expires_on', 'note']}
-      actions={<Link className="btn btn-secondary" to="/evidence/expiring">Expiring evidence</Link>}
+      actions={<><Link className="btn btn-secondary" to="/evidence/expiring">Expiring evidence</Link><AddEvidence watchNew onCreated={(row) => navigate(`/evidence/${row.id}`)} /></>}
     />
   );
 }
@@ -34,7 +35,8 @@ export function EvidenceDetail() {
           ? <>Vendor: <Link to={`/vendors/${row.vendor_id}?tab=evidence`}>{row._display?.vendor_id ?? 'Open vendor'}</Link></>
           : null
       )}
-      summaryFields={['title', 'type', 'vendor_id', 'contract_id', 'received_on', 'expires_on', 'note']}
+      summaryFields={['title', 'type', 'received_on', 'expires_on', 'note']}
+      banner={({ row, canEdit, save }) => <EvidenceContractCard row={row} canEdit={canEdit} save={save} />}
     />
   );
 }

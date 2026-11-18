@@ -37,7 +37,7 @@ module; and a register of the obligations the organisation must meet.
 | E08-13 | Screen for editing risk scales | open | P2 |
 | E08-14 | Revoke a risk acceptance | open | P2 |
 | E08-15 | Act on expired acceptances | open | P2 |
-| E08-16 | Hide actions that come from a restricted risk | open | P1 |
+| E08-16 | Hide actions that come from a restricted risk | done | P1 |
 | E08-17 | Risk review reminders | open | P3 |
 
 ---
@@ -283,17 +283,25 @@ and appears on a list of acceptances to renew. Today expiry does not change the 
 
 ### E08-16 Hide actions that come from a restricted risk
 
-**Status:** open · **Priority:** P1 · **Type:** bug
+**Status:** done · **Priority:** P1 · **Type:** bug
 
 As a security lead, I do not want the title of an action that was raised from a
 restricted risk (or security incident) to be visible to everyone who can see actions.
-Today such titles are visible to anyone with `actions.view`.
+
+Solved generally: actions are `restricted: 'flag'` and inherit the flag from their source
+record ([E01-26](E01-platform-foundations.md)). The flag is set by the server, follows the
+action when its source changes and the source when its restriction changes, and is
+repaired for existing actions at every start.
 
 **Acceptance criteria**
 
-- [ ] An action whose source record is restricted is hidden from people who cannot see that source
-- [ ] This holds in lists, counts, the summary, search, exports and links
-- [ ] A test covers an agent with `actions.view` but without `security.view`
+- [x] An action whose source record is restricted is hidden from people without `security.view`
+- [x] This holds in lists, counts, statistics, the summary, single reads, search, pickers, exports, links, comments, history and the audit search
+- [x] A person cannot raise an action on, or move one to, a record they cannot see
+- [x] A test covers an agent with `actions.view` but without `security.view`
+- [ ] Not done: sharing one restricted action with one person who lacks `security.view` (for example its owner)
+
+**Implemented in:** the `action` resource and `GET /api/actions/summary` (`server/src/modules/risks/index.ts`); `server/src/modules/risks/migrations/002_action_restriction_and_scale_key.sql`; `restrictedFrom` (`server/src/core/resource.ts`); tests in `server/src/modules/risks/risks.test.ts` and `server/src/core/core.test.ts`
 
 ### E08-17 Risk review reminders
 

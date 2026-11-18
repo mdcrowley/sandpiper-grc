@@ -103,7 +103,7 @@ An asset is a piece of equipment, a licence or a subscription. Open **Assets** i
 2. Enter the **Name** and choose the **Type**, for example **Workstation**, **Server** or **Software licence**.
 3. Choose the **Status**: **Ordered**, **In stock**, **In use**, **In repair** or **Retired**. Do not choose **Disposed** here; use the disposal step below.
 4. Enter **Make**, **Model** and **Serial number**, the **Site** and **Location**.
-5. Enter the **Purchase date**, **Cost** and **Funding source**.
+5. Enter the **Purchase date**, **Cost** and **Funding source**. Costs are in the organisation's currency, here and in an import; an amount written with another currency's symbol is refused.
 6. If an outside funder paid for some or all of it and keeps an interest, tick **Funder interest** and enter **Funder interest (%)**.
 7. Select **Create asset**.
 

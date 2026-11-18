@@ -12,8 +12,8 @@ everything else fails.
 ## Scope notes
 
 - Passwords, lockout and sessions are in [E01](E01-platform-foundations.md).
-- The second factor exists today (authenticator app and recovery codes) but is a notice
-  only; nothing here is enforced yet.
+- The second factor (authenticator app and recovery codes) can be enforced, but ships as
+  a notice only (`auth.mfa_enforcement` = `notice`) so an upgrade locks nobody out.
 - Single sign-on needs outbound network access, which the local prototype does not
   have. Those issues depend on [E16](E16-hosting-operations-and-hardening.md).
 
@@ -25,16 +25,19 @@ everything else fails.
 | E02-02 | Recovery codes | done | P1 |
 | E02-03 | Administrator reset of a second factor | done | P1 |
 | E02-04 | "Second factor expected" flag and notice | done | P1 |
-| E02-05 | Enforce the second factor | open | P1 |
-| E02-06 | Replay protection for authenticator codes | open | P1 |
-| E02-07 | Encrypt second-factor secrets at rest | open | P1 |
+| E02-05 | Enforce the second factor | done | P1 |
+| E02-06 | Replay protection for authenticator codes | done | P1 |
+| E02-07 | Encrypt second-factor secrets at rest | done | P1 |
 | E02-08 | Passkeys and security keys (WebAuthn) | open | P3 |
 | E02-09 | Single sign-on with OpenID Connect | open | P2 |
 | E02-10 | Single sign-on with SAML | open | P3 |
 | E02-11 | Link local accounts to single sign-on identities | open | P3 |
 | E02-12 | Personal API tokens | open | P2 |
 | E02-13 | Break-glass account | open | P2 |
-| E02-14 | Secure session cookie when served over HTTPS | open | P1 |
+| E02-14 | Secure session cookie when served over HTTPS | in progress | P1 |
+| E02-15 | Send a blocked person straight to second-factor set-up | open | P1 |
+| E02-16 | Keep the secret key out of the data folder by default | open | P2 |
+| E02-17 | Enforce the second factor by default on new installations | open | P2 |
 
 ---
 
@@ -104,45 +107,62 @@ factor. People who have not set one up see a notice until they do.
 
 ### E02-05 Enforce the second factor
 
-**Status:** open · **Priority:** P1 · **Type:** improvement
+**Status:** done · **Priority:** P1 · **Type:** improvement
 
 As an administrator, when I require a second factor I want it enforced: a person who
 has not enrolled can do nothing except enrol.
 
+Setting `auth.mfa_enforcement`: `off`, `notice` (default) or `required`. With `required`,
+a person expected to have a second factor (their role says so, or
+`auth.mfa_required_for_all` is on) who has none can call only: their own state, the
+account security routes (begin and confirm set-up, change password, list own sessions,
+confirm password) and sign-out. Everything else answers `403 mfa_enrolment_required`.
+
 **Acceptance criteria**
 
-- [ ] A user for whom the factor is required and missing is limited to the enrolment routes
-- [ ] The web app sends them to enrolment after sign-in
-- [ ] A grace period is configurable (default none)
-- [ ] The Administrator and Security lead roles are enforced by default
-- [ ] Tests cover blocked and allowed requests
+- [x] A user for whom the factor is required and missing is limited to the enrolment routes
+- [ ] The web app sends them to enrolment after sign-in (the Account security page shows the reason, but the shell does not redirect: E02-15)
+- [x] A grace period is configurable (`auth.mfa_grace_days`, default none)
+- [x] The Administrator and Security lead roles are the ones enforced when the setting is `required` (they carry the "requires second factor" flag by default). The setting itself defaults to `notice`, by decision, so existing installations keep working; see E02-17
+- [x] An administrator cannot switch to `required` before setting up their own second factor
+- [x] Tests cover blocked and allowed requests
+
+**Implemented in:** `mfaEnforcement`, `mfaStatus`, `MFA_ENROLMENT_ROUTES` and the request hook (`server/src/core/auth.ts`); `auth.mfa_enforcement`, `auth.mfa_grace_days` (`server/src/modules/admin/settings.ts`); `users.mfa_required_since` (`server/src/core/migrations/002_hardening.sql`); `web/src/modules/admin/Settings.tsx`, `AccountSecurity.tsx`; tests "enforced second factor" in `server/src/modules/admin/admin.test.ts`
 
 ### E02-06 Replay protection for authenticator codes
 
-**Status:** open · **Priority:** P1 · **Type:** bug
+**Status:** done · **Priority:** P1 · **Type:** bug
 
-As a security lead, I want a 6-digit code to work once only. Today the same code is
-accepted again for as long as its time window lasts.
+As a security lead, I want a 6-digit code to work once only.
 
 **Acceptance criteria**
 
-- [ ] The last accepted time step is stored per user
-- [ ] A code from that step or earlier is refused
-- [ ] A test proves a code cannot be used twice
+- [x] The last accepted time step is stored per user (`users.totp_last_step`)
+- [x] A code from that step or earlier is refused, at sign-in, at enrolment and when turning the factor off
+- [x] A test proves a code cannot be used twice
+
+**Implemented in:** `matchTotpStep` (`server/src/core/totp.ts`); `acceptTotpCode` (`server/src/core/auth.ts`); tests in `server/src/core/core.test.ts` and "replay protection" in `server/src/modules/admin/admin.test.ts`
 
 ### E02-07 Encrypt second-factor secrets at rest
 
-**Status:** open · **Priority:** P1 · **Type:** debt
+**Status:** done · **Priority:** P1 · **Type:** debt
 
 As a security lead, I want authenticator keys encrypted in the database with a key held
 outside it, so a copy of the database or a backup does not reveal them.
 
+AES-256-GCM, stored as `enc:v1:<iv>:<tag>:<ciphertext>` and bound to the user. The key
+comes from `GRC_SECRET_KEY`, else the file named by `GRC_SECRET_KEY_FILE`, else
+`secret.key` generated in the data folder on first start.
+
 **Acceptance criteria**
 
-- [ ] Keys are encrypted with an application key supplied by configuration
-- [ ] Existing keys are migrated on start-up
-- [ ] Key rotation is documented
-- [ ] Backups contain no usable authenticator keys
+- [x] Keys are encrypted with an application key supplied by configuration (or generated on first start)
+- [x] Existing keys are migrated on start-up, audited
+- [x] Key rotation is documented and works (`GRC_SECRET_KEY_PREVIOUS`; re-encrypted at start-up) in [Security](../../security.md)
+- [x] Key backup is documented
+- [ ] Backups contain no usable authenticator keys: true only when the key is supplied through `GRC_SECRET_KEY` or a `GRC_SECRET_KEY_FILE` outside the data folder. With the default key file, `backup` copies the key with the database (E02-16)
+
+**Implemented in:** `server/src/core/secretbox.ts`; `secretBox`, `storeTotpSecret`, `readTotpSecret`, `encryptStoredSecrets` (`server/src/core/auth.ts`); `Db.dataDir` (`server/src/core/db.ts`); tests in `server/src/core/core.test.ts`
 
 ### E02-08 Passkeys and security keys (WebAuthn)
 
@@ -230,14 +250,61 @@ sign-on or second factors are unavailable, and every use of it raises an alarm.
 
 ### E02-14 Secure session cookie when served over HTTPS
 
-**Status:** open · **Priority:** P1 · **Type:** debt
+**Status:** in progress · **Priority:** P1 · **Type:** debt
 
 As a security lead, I want the session cookie marked "secure" whenever the application
-is not on the local loopback address. The flag is off today because the prototype is
-served over plain HTTP on the local machine.
+is not on the local loopback address. The flag is off by default because the prototype
+is served over plain HTTP on the local machine.
 
 **Acceptance criteria**
 
-- [ ] The cookie carries the secure flag when the application is served over HTTPS
-- [ ] The application refuses to start on a non-loopback address without HTTPS
+- [x] The cookie carries the secure flag when the application is served over HTTPS: `GRC_COOKIE_SECURE=auto` (with `GRC_TRUST_PROXY=1` behind a proxy) or `always`; default `off`
+- [x] A forwarded-protocol header is believed only when the proxy is declared trusted, with tests
+- [ ] The application refuses to start on a non-loopback address without HTTPS (the listen address is fixed to 127.0.0.1 in `server/src/main.ts` today)
 - [ ] Depends on [E16-07](E16-hosting-operations-and-hardening.md)
+
+**Implemented in:** `server/src/core/request.ts`; `setSessionCookie` (`server/src/core/auth.ts`); tests "session cookie" in `server/src/core/core.test.ts`
+
+### E02-15 Send a blocked person straight to second-factor set-up
+
+**Status:** open · **Priority:** P1 · **Type:** bug
+
+When the second factor is required and missing, the server refuses everything but
+enrolment, and `GET /api/auth/state` says so (`mfaEnrollmentBlocked: true`). The web shell
+does not act on it: after sign-in it still loads the overview, whose requests fail, and
+the person has to find Account security themselves.
+
+**Acceptance criteria**
+
+- [ ] With `mfaEnrollmentBlocked`, the shell skips loading list metadata and shows only the Account security page and sign-out
+- [ ] A `403 mfa_enrolment_required` from any request leads there too
+- [ ] Checked in a browser as a blocked user
+
+**Where:** `web/src/core/auth.tsx`, `Shell.tsx`, `api.ts`
+
+### E02-16 Keep the secret key out of the data folder by default
+
+**Status:** open · **Priority:** P2 · **Type:** debt
+
+The generated key file sits beside the database, so a copy of the data folder (and every
+`backup`) holds both the encrypted authenticator keys and the key that opens them.
+
+**Acceptance criteria**
+
+- [ ] `backup` leaves the key file out, or the key is generated outside the data folder
+- [ ] A command shows where the key comes from and writes a new one
+- [ ] `restore` documents how the key is brought back
+
+### E02-17 Enforce the second factor by default on new installations
+
+**Status:** open · **Priority:** P2 · **Type:** improvement
+
+`auth.mfa_enforcement` defaults to `notice` everywhere so that upgrades lock nobody out.
+A new installation should start at `required`, with the setup wizard taking the first
+administrator through set-up.
+
+**Acceptance criteria**
+
+- [ ] The setup wizard enrols the first administrator and sets `required`
+- [ ] Existing installations keep their current value
+- [ ] Depends on E02-15

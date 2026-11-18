@@ -27,12 +27,12 @@ const mod: ModuleDef = {
       { value: 'high', label: 'High', color: 'amber', sort: 20 },
       { value: 'medium', label: 'Medium', color: 'blue', sort: 30 },
       { value: 'low', label: 'Low', color: 'gray', sort: 40 },
-    ]);
+    ], { module: 'vendors' });
     await ctx.lookups.ensure('vendor_status', [
       { value: 'active', label: 'Active', color: 'green', sort: 10 },
       { value: 'prospective', label: 'Prospective', color: 'blue', sort: 20 },
       { value: 'former', label: 'Former', color: 'gray', sort: 30 },
-    ]);
+    ], { module: 'vendors' });
     await ctx.lookups.ensure('contract_document_type', [
       { value: 'agreement', label: 'Agreement', sort: 10 },
       { value: 'master_agreement', label: 'Master agreement', sort: 20 },
@@ -40,34 +40,34 @@ const mod: ModuleDef = {
       { value: 'statement_of_work', label: 'Statement of work', sort: 40 },
       { value: 'amendment', label: 'Amendment', sort: 50 },
       { value: 'renewal', label: 'Renewal', sort: 60 },
-      { value: 'acknowledgement', label: 'Acknowledgement by the governing body only', sort: 70 },
+      { value: 'acknowledgement', label: 'Acknowledgement of approval only', sort: 70 },
       { value: 'data_agreement', label: 'Data protection agreement', sort: 80 },
       { value: 'none_on_file', label: 'Nothing on file', color: 'red', sort: 90 },
       { value: 'other', label: 'Other', sort: 100 },
-    ]);
+    ], { module: 'contracts' });
     await ctx.lookups.ensure('contract_renewal', [
       { value: 'auto_renew', label: 'Renews automatically', color: 'amber', sort: 10 },
       { value: 'fixed', label: 'Fixed term', color: 'blue', sort: 20 },
       { value: 'option', label: 'Option to extend', color: 'teal', sort: 30 },
       { value: 'evergreen', label: 'Runs until ended', color: 'purple', sort: 40 },
       { value: 'unknown', label: 'Not known', color: 'gray', sort: 50 },
-    ]);
+    ], { module: 'contracts' });
     await ctx.lookups.ensure('contract_status', [
       { value: 'draft', label: 'Draft', color: 'gray', sort: 10 },
       { value: 'active', label: 'Active', color: 'green', sort: 20 },
       { value: 'not_on_file', label: 'Not on file', color: 'red', sort: 30 },
       { value: 'expired', label: 'Expired', color: 'amber', sort: 40 },
       { value: 'terminated', label: 'Ended', color: 'gray', sort: 50 },
-    ]);
-    await ctx.lookups.ensure('contract_clause', DEFAULT_CLAUSES);
-    await ctx.lookups.ensure('clause_status', CLAUSE_STATUSES);
+    ], { module: 'contracts' });
+    await ctx.lookups.ensure('contract_clause', DEFAULT_CLAUSES, { module: 'contracts' });
+    await ctx.lookups.ensure('clause_status', CLAUSE_STATUSES, { module: 'contracts' });
     await ctx.lookups.ensure('evidence_type', [
       { value: 'assurance_report', label: 'Assurance report', color: 'blue', sort: 10 },
       { value: 'insurance_certificate', label: 'Insurance certificate', color: 'teal', sort: 20 },
       { value: 'card_data_attestation', label: 'Card-data attestation', color: 'purple', sort: 30 },
       { value: 'questionnaire', label: 'Questionnaire', color: 'amber', sort: 40 },
       { value: 'other', label: 'Other', color: 'gray', sort: 50 },
-    ]);
+    ], { module: 'vendors' });
     if ((await ctx.settings.get<unknown>(REMINDER_SETTING, null)) === null) {
       await ctx.settings.set(REMINDER_SETTING, DEFAULT_REMINDER_DAYS);
     }
@@ -478,8 +478,9 @@ const mod: ModuleDef = {
 
     // ---------- renewal calendar ----------
 
-    ctx.app.get('/api/contracts/renewals', { preHandler: ctx.requirePerm('contracts.view') }, async () => {
+    ctx.app.get('/api/contracts/renewals', { preHandler: ctx.requirePerm('contracts.view') }, async (req) => {
       const today = localDate();
+      const seesVendors = ctx.can(req.user, 'vendors.view');
       const thresholds = await reminderThresholds(ctx);
       const statuses = await lookupMap('contract_status');
       const renewals = await lookupMap('contract_renewal');
@@ -498,6 +499,8 @@ const mod: ModuleDef = {
       const ascending = [...thresholds].sort((a, b) => a - b);
       const decorate = (c: Row) => ({
         ...c,
+        // Vendor names need vendors.view, as they do everywhere else.
+        vendor_name: seesVendors ? c.vendor_name : null,
         status_label: statuses.get(c.status)?.label ?? c.status,
         status_color: statuses.get(c.status)?.color ?? 'gray',
         renewal_label: renewals.get(c.renewal_mechanism)?.label ?? c.renewal_mechanism,

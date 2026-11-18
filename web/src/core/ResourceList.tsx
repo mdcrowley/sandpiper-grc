@@ -1,18 +1,29 @@
-// Generic list for any registered record type: server-side search, sort, filter and paging,
-// saved views, CSV export and an optional New dialog.
-import { useEffect, useMemo, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+// Generic list for any registered record type: server-side search, sort, filter and paging kept
+// in the page address, saved views, column chooser, density, CSV export, row selection with bulk
+// edit, and an optional New dialog.
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { ActionIcon, Alert, Button, CloseButton, Menu, Pagination, Select as MSelect, Text, TextInput, Tooltip } from '@mantine/core';
+import {
+  IconBaselineDensityMedium, IconBaselineDensitySmall, IconBookmark, IconCheck, IconChevronDown, IconDownload,
+  IconPlus, IconSearch, IconTrash,
+} from '@tabler/icons-react';
 import { api, errorMessage, listQuery, type ListResult, type Row } from './api';
 import { useAuth } from './auth';
-import { DateField, MultiSelect, RecordPicker, Select, TextField, UserPicker } from './fields';
-import { fieldMeta, FieldValue } from './FieldValue';
+import { TextField } from './fields';
+import { fieldMeta } from './FieldValue';
 import { formatNumber } from './format';
 import { useDebounced, useFetch } from './hooks';
-import { Icon } from './Icon';
-import { recordHref, useLookup, useResource, type ResourceMeta } from './meta';
-import { Menu, Modal, useToast, type MenuItem } from './overlay';
+import { knownLabel, rememberLabel } from './labels';
+import { BULK_TYPES, BulkBar, BulkEditDialog, downloadRowsCsv } from './ListBulk';
+import { FilterButton, FilterPills } from './ListFilters';
+import { EMPTY_VIEW, loadViews, sameView, storeViews, useListState, usePref, type SavedView, type View } from './listState';
+import { ColumnChooser, ListTable, TableSkeleton, type ListColumn } from './ListTable';
+import { recordHref, useResource } from './meta';
+import { ConfirmDialog, Modal, useToast } from './overlay';
 import { ResourceForm } from './ResourceForm';
-import { Button, EmptyState, ErrorState, IconButton, Loading, PageHeader, cx } from './ui';
+import { EmptyState, ErrorState, PageHeader } from './ui';
+import './records.css';
 
 export type ColumnDef =
   | string
@@ -24,13 +35,17 @@ export type ColumnDef =
       render?: (row: Row) => ReactNode;
       /** Defaults to true for real fields, false for render-only columns. */
       sortable?: boolean;
+      /** Defaults to right for number and currency fields. */
+      align?: 'left' | 'right';
+      /** Start hidden; the user can turn the column on in the column chooser. */
+      hidden?: boolean;
     };
 
 export interface ResourceListProps {
   /** Record type key, e.g. "ticket". */
   type: string;
   columns: ColumnDef[];
-  /** Fields offered in the filter bar (lookup, boolean, user, ref, date and datetime fields). */
+  /** Fields offered in the Filters popover (lookup, boolean, user, ref, date and datetime fields). */
   filters?: string[];
   /** Filters always applied and not shown, keyed like the list contract without the `f.` prefix. */
   baseFilter?: Record<string, string>;
@@ -46,119 +61,56 @@ export interface ResourceListProps {
   createInitial?: Record<string, unknown>;
   /** Default: go to the new record's page. */
   onCreated?: (row: Row) => void;
-  /** Rows per page (default 25). */
+  /** Rows per page to start with (default 25); the user's own choice is remembered. */
   pageSize?: number;
-  // TODO: selection?: { selected: string[]; onChange: (ids: string[]) => void } for bulk actions.
+  /**
+   * Fields that can be changed for many rows at once (lookup, user, ref, boolean, date).
+   * Default: the lookup and user fields among `columns` and `filters`. `[]` turns row selection off.
+   */
+  bulkFields?: string[];
+  /**
+   * Keep search, filters, sort and page in the page address. Default: on when the list is the
+   * page (`title` is given, or the page address is the record type's own route), off for lists
+   * embedded elsewhere (a tab of a record, a card), which only read the address once.
+   */
+  urlState?: boolean;
+  /** Sort used until the user picks one, e.g. `{ field: 'due_at', dir: 'asc' }`. Default: the server's. */
+  defaultSort?: { field: string; dir?: 'asc' | 'desc' };
 }
 
-interface View {
-  q: string;
-  sort: string;
-  dir: 'asc' | 'desc';
-  /** Keyed like the list contract without `f.`: `status`, `due_at.gt`. */
-  filters: Record<string, string[]>;
-  /** Labels of picked users and records, so a restored view can show them. */
-  labels: Record<string, string>;
-}
-
-interface SavedView {
-  name: string;
-  view: View;
-}
-
-const EMPTY_VIEW: View = { q: '', sort: '', dir: 'asc', filters: {}, labels: {} };
-const sameView = (a: View, b: View) => JSON.stringify(a) === JSON.stringify(b);
-
-/** Starting view from the page address, so dashboards can link to `/tickets?f.status=new,open&q=printer`. */
-function viewFromParams(params: URLSearchParams): View {
-  const filters: Record<string, string[]> = {};
-  for (const [key, value] of params) {
-    if (key.startsWith('f.') && value) filters[key.slice(2)] = value.split(',');
-  }
-  return { ...EMPTY_VIEW, q: params.get('q') ?? '', filters };
-}
-
-function loadViews(type: string): SavedView[] {
-  try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(`grc.views.${type}`) ?? '[]');
-    return Array.isArray(parsed) ? (parsed as SavedView[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function storeViews(type: string, views: SavedView[]): void {
-  try {
-    localStorage.setItem(`grc.views.${type}`, JSON.stringify(views));
-  } catch {
-    // Storage unavailable: views last for this page only.
-  }
-}
-
-interface FilterProps {
-  resource: ResourceMeta;
-  field: string;
-  view: View;
-  setFilter: (key: string, values: string[], label?: string) => void;
-}
-
-function LookupFilter({ label, list, value, onChange }: { label: string; list: string; value: string[]; onChange: (v: string[]) => void }) {
-  return <MultiSelect label={label} options={useLookup(list)} value={value} onChange={onChange} />;
-}
-
-function FilterControl({ resource, field, view, setFilter }: FilterProps) {
-  const meta = fieldMeta(resource, field);
-  const value = view.filters[field] ?? [];
-  const pick = (id: string | null, option?: { label: string }) => setFilter(field, id ? [id] : [], option?.label);
-  switch (meta.type) {
-    case 'lookup':
-      return <LookupFilter label={meta.label} list={meta.list ?? ''} value={value} onChange={(v) => setFilter(field, v)} />;
-    case 'boolean':
-      return (
-        <Select
-          hideLabel
-          className="filter-field"
-          label={meta.label}
-          placeholder={`${meta.label}: any`}
-          options={[{ value: 'true', label: `${meta.label}: yes` }, { value: 'false', label: `${meta.label}: no` }]}
-          value={value[0] ?? ''}
-          onChange={(v) => setFilter(field, v ? [v] : [])}
-        />
-      );
-    case 'user':
-      return <UserPicker hideLabel className="filter-field" label={meta.label} placeholder={meta.label} value={value[0] ?? null} display={view.labels[field]} onChange={pick} />;
-    case 'ref':
-      return <RecordPicker hideLabel className="filter-field" type={meta.to ?? ''} label={meta.label} placeholder={meta.label} value={value[0] ?? null} display={view.labels[field]} onChange={pick} />;
-    case 'date':
-    case 'datetime':
-      return (
-        <>
-          <DateField className="filter-field filter-date" label={`${meta.label} after`} value={view.filters[`${field}.gt`]?.[0] ?? ''} onChange={(v) => setFilter(`${field}.gt`, v ? [v] : [])} />
-          <DateField className="filter-field filter-date" label={`${meta.label} before`} value={view.filters[`${field}.lt`]?.[0] ?? ''} onChange={(v) => setFilter(`${field}.lt`, v ? [v] : [])} />
-        </>
-      );
-    default:
-      return null; // text fields are covered by the search box
-  }
-}
+const PAGE_SIZES = [10, 25, 50, 100];
 
 export function ResourceList({
-  type, columns, filters = [], baseFilter, title, actions, onRowClick, createFields, createInitial, onCreated, pageSize = 25,
+  type, columns, filters = [], baseFilter, title, actions, onRowClick, createFields, createInitial, onCreated,
+  pageSize: defaultPageSize = 25, bulkFields, urlState, defaultSort,
 }: ResourceListProps) {
   const resource = useResource(type);
-  const { can } = useAuth();
+  const { can, user } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
+  // The list owns the address when it is the page: it has the page title, or sits at its type's own route.
+  const atHome = useLocation().pathname.replace(/\/$/, '') === resource?.route;
+  const { view, page, change, setPage } = useListState(urlState ?? (Boolean(title) || atHome));
 
-  const [view, setView] = useState<View>(() => viewFromParams(params));
-  const [page, setPage] = useState(1);
+  const prefKey = `grc.u.${user?.id ?? 'anon'}`;
+  const [hidden, setHidden] = usePref<string[] | null>(`${prefKey}.cols.${type}`, null);
+  const [density, setDensity] = usePref<'comfortable' | 'compact'>(`${prefKey}.density`, 'comfortable');
+  const [pageSize, setPageSize] = usePref<number>(`${prefKey}.pageSize.${type}`, defaultPageSize);
+
   const [views, setViews] = useState<SavedView[]>(() => loadViews(type));
   const [naming, setNaming] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [confirmClose, setConfirmClose] = useState(false);
+  const formDirty = useRef(false);
   const [exporting, setExporting] = useState(false);
+  const [selected, setSelected] = useState<Map<string, Row>>(() => new Map());
+  const [bulkEditing, setBulkEditing] = useState(false);
+  const bulkChanged = useRef(false);
 
   const canCreate = Boolean(createFields && resource && can(`${resource.module}.create`));
+  const canEdit = Boolean(resource && can(`${resource.module}.edit`));
+  const canExport = Boolean(resource && can(`${resource.module}.export`));
 
   // The global Create menu links here with ?new=1.
   const wantsNew = params.get('new') === '1';
@@ -171,50 +123,111 @@ export function ResourceList({
     }, { replace: true });
   }, [wantsNew, canCreate, setParams]);
 
-  const q = useDebounced(view.q, 300);
+  // Search box: typed text is local, the view follows after a pause; Back/Forward flow the other way.
+  const [text, setText] = useState(view.q);
+  const typed = useDebounced(text, 300);
+  const viewQ = useRef(view.q);
+  const written = useRef(view.q);
+  useEffect(() => {
+    viewQ.current = view.q;
+    if (view.q !== written.current) {
+      written.current = view.q;
+      setText(view.q);
+    }
+  }, [view.q]);
+  useEffect(() => {
+    if (typed.trim() !== viewQ.current.trim()) {
+      written.current = typed.trim();
+      change({ q: typed.trim() }, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [typed]);
+
+  const sort = view.sort || defaultSort?.field || '';
+  const dir = view.sort ? view.dir : defaultSort?.dir ?? 'asc';
   const query = useMemo(() => ({
-    q: q.trim(),
-    sort: view.sort || undefined,
-    dir: view.sort ? view.dir : undefined,
+    q: view.q.trim(),
+    sort: sort || undefined,
+    dir: sort ? dir : undefined,
     filters: { ...Object.fromEntries(Object.entries(view.filters).filter(([, v]) => v.length > 0)), ...baseFilter },
-  }), [q, view.sort, view.dir, view.filters, baseFilter]);
+  }), [view.q, sort, dir, view.filters, baseFilter]);
+  const queryKey = JSON.stringify(query);
   const url = resource ? `${resource.path}${listQuery({ ...query, page, pageSize })}` : null;
-  const { data, loading, error, reload } = useFetch<ListResult>(url);
+  const { data, loading, error, reload } = useFetch<ListResult>(url, { keepPrevious: true });
+
+  // A different search or filter is a different set of rows: start the selection again.
+  useEffect(() => setSelected(new Map()), [queryKey]);
+
+  // If rows were removed and this page no longer exists, step back to the last one.
+  const total = data?.total ?? 0;
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  useEffect(() => {
+    if (data && !loading && page > pages) setPage(pages);
+  }, [data, loading, page, pages, setPage]);
+
+  const cols = useMemo<ListColumn[]>(() => {
+    if (!resource) return [];
+    return columns.map((c) => {
+      const def = typeof c === 'string' ? { field: c } : c;
+      const meta = fieldMeta(resource, def.field);
+      const known = def.field in resource.fields || ['created_at', 'updated_at'].includes(def.field);
+      const numeric = !def.render && ['number', 'currency'].includes(meta.type);
+      return {
+        field: def.field,
+        label: def.label ?? meta.label,
+        render: def.render,
+        sortable: def.sortable ?? (known && !['json', 'longtext'].includes(meta.type)),
+        align: def.align ?? (numeric ? 'right' : 'left'),
+        known,
+        startHidden: Boolean(def.hidden),
+      };
+    });
+  }, [columns, resource]);
 
   if (!resource) return <ErrorState title={`Unknown record type "${type}"`} />;
 
-  const change = (patch: Partial<View>) => {
-    setView((v) => ({ ...v, ...patch }));
-    setPage(1);
-  };
-  const setFilter = (key: string, values: string[], label?: string) => {
-    const nextFilters = { ...view.filters };
-    const nextLabels = { ...view.labels };
-    if (values.length > 0) nextFilters[key] = values; else delete nextFilters[key];
-    if (label && values.length > 0) nextLabels[key] = label; else delete nextLabels[key];
-    change({ filters: nextFilters, labels: nextLabels });
-  };
-  const toggleSort = (field: string) =>
-    change(view.sort === field ? { dir: view.dir === 'asc' ? 'desc' : 'asc' } : { sort: field, dir: 'asc' });
+  const noun = (n: number) => (n === 1 ? resource.label : resource.plural).toLowerCase();
+  const plural = resource.plural.toLowerCase();
 
-  const cols = columns.map((c) => {
-    const def = typeof c === 'string' ? { field: c } : c;
-    const known = def.field in resource.fields || ['created_at', 'updated_at'].includes(def.field);
-    return {
-      ...def,
-      label: def.label ?? fieldMeta(resource, def.field).label,
-      sortable: def.sortable ?? (known && !['json', 'longtext'].includes(fieldMeta(resource, def.field).type)),
-      numeric: !def.render && ['number', 'currency'].includes(fieldMeta(resource, def.field).type),
-    };
-  });
+  const hiddenNow = hidden ?? cols.filter((c) => c.startHidden).map((c) => c.field);
+  const shownCols = cols.filter((c) => !hiddenNow.includes(c.field));
+  const visible = shownCols.length > 0 ? shownCols : cols.slice(0, 1);
+
+  const bulkList = (bulkFields ?? [...cols.map((c) => c.field), ...filters].filter((f) => ['lookup', 'user'].includes(fieldMeta(resource, f).type)))
+    .filter((f, i, all) => all.indexOf(f) === i && f in resource.fields && !resource.fields[f].readOnly && BULK_TYPES.includes(resource.fields[f].type));
+  const selectable = canEdit && bulkList.length > 0;
+
+  const setFilter = (key: string, values: string[], label?: string) => {
+    if (key === '__q') {
+      setText('');
+      written.current = '';
+      change({ q: '' });
+      return;
+    }
+    const meta = fieldMeta(resource, key);
+    if (label && values[0]) rememberLabel(meta.type === 'user' ? 'user' : meta.to ?? '', values[0], label);
+    const next = { ...view.filters };
+    if (values.length > 0) next[key] = values; else delete next[key];
+    change({ filters: next });
+  };
+  const applyView = (next: View) => {
+    for (const [key, label] of Object.entries(next.labels ?? {})) {
+      const meta = fieldMeta(resource, key);
+      rememberLabel(meta.type === 'user' ? 'user' : meta.to ?? '', next.filters[key]?.[0], label);
+    }
+    written.current = next.q;
+    setText(next.q);
+    change({ q: next.q, sort: next.sort, dir: next.dir, filters: next.filters });
+  };
+  const clearAll = () => applyView({ ...EMPTY_VIEW, sort: view.sort, dir: view.dir });
+  const toggleSort = (field: string) => {
+    if (view.sort !== field) change({ sort: field, dir: 'asc' });
+    else if (view.dir === 'asc') change({ dir: 'desc' });
+    else change({ sort: '', dir: 'asc' });
+  };
 
   const open = (row: Row) => (onRowClick ? onRowClick(row) : navigate(recordHref(resource.route, row.id)));
-  const onRowMouse = (e: MouseEvent, row: Row) => {
-    if (!(e.target as HTMLElement).closest('a, button, input, select, label')) open(row);
-  };
-  const onRowKey = (e: KeyboardEvent, row: Row) => {
-    if (e.key === 'Enter' && e.target === e.currentTarget) open(row);
-  };
+  const fileName = `${plural.replace(/\s+/g, '-')}.csv`;
 
   const exportCsv = async () => {
     setExporting(true);
@@ -223,7 +236,7 @@ export function ResourceList({
       const href = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = href;
-      a.download = `${resource.plural.toLowerCase().replace(/\s+/g, '-')}.csv`;
+      a.download = fileName;
       a.click();
       URL.revokeObjectURL(href);
     } catch (err) {
@@ -232,127 +245,213 @@ export function ResourceList({
       setExporting(false);
     }
   };
+  const exportSelected = () => {
+    const fields = visible.filter((c) => c.known).map((c) => c.field);
+    downloadRowsCsv(resource, fields.length > 0 ? fields : [resource.titleField], [...selected.values()], fileName.replace('.csv', '-selected.csv'));
+    toast.success(`${selected.size} ${noun(selected.size)} exported.`);
+  };
 
+  /* Saved views */
   const activeView = views.find((v) => sameView(v.view, view));
-  const filtered = !sameView(view, EMPTY_VIEW);
+  const isAll = sameView(view, EMPTY_VIEW);
+  const filtered = Boolean(view.q) || Object.values(view.filters).some((v) => v.length > 0);
   const saveView = (name: string) => {
-    const next = [...views.filter((v) => v.name !== name), { name, view }].sort((a, b) => a.name.localeCompare(b.name));
+    const labels: Record<string, string> = {};
+    for (const [key, values] of Object.entries(view.filters)) {
+      const meta = fieldMeta(resource, key);
+      const label = values[0] && knownLabel(meta.type === 'user' ? 'user' : meta.to ?? '', values[0]);
+      if (label) labels[key] = label;
+    }
+    const next = [...views.filter((v) => v.name !== name), { name, view: { ...view, labels } }].sort((a, b) => a.name.localeCompare(b.name));
     setViews(next);
     storeViews(type, next);
     setNaming(null);
     toast.success(`View "${name}" saved.`);
   };
-  const viewItems: MenuItem[] = [
-    ...views.map((v) => ({ label: v.name, icon: v === activeView ? 'check' as const : undefined, onSelect: () => { setView(v.view); setPage(1); } })),
-    { label: 'Save current view…', icon: 'star', separated: views.length > 0, onSelect: () => setNaming(activeView?.name ?? '') },
-    ...(activeView ? [{
-      label: `Delete view "${activeView.name}"`, icon: 'trash' as const, danger: true,
-      onSelect: () => {
-        const next = views.filter((v) => v !== activeView);
-        setViews(next);
-        storeViews(type, next);
-      },
-    }] : []),
-  ];
+  const deleteView = (target: SavedView) => {
+    const next = views.filter((v) => v !== target);
+    setViews(next);
+    storeViews(type, next);
+    toast.info(`View "${target.name}" deleted.`);
+  };
+  const viewName = activeView ? activeView.name : isAll ? `All ${plural}` : 'Unsaved view';
 
-  const headerActions = (
-    <>
-      {actions}
-      {canCreate && <Button variant="primary" icon="plus" onClick={() => setCreating(true)}>New {resource.label.toLowerCase()}</Button>}
-    </>
+  const newButton = canCreate && (
+    <Button leftSection={<IconPlus size={16} aria-hidden="true" />} onClick={() => setCreating(true)}>
+      New {resource.label.toLowerCase()}
+    </Button>
   );
+  const headerActions = <>{actions}{newButton}</>;
 
-  const total = data?.total ?? 0;
-  const pages = Math.max(1, Math.ceil(total / pageSize));
   const first = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const last = Math.min(total, page * pageSize);
-  const titleLink = (field: string) => !onRowClick && (field === resource.titleField || field === resource.refField);
+  const closeCreate = () => {
+    if (formDirty.current) setConfirmClose(true);
+    else setCreating(false);
+  };
 
   return (
-    <div className="rlist">
+    <div className={`rc-list${title ? ' rc-list-page' : ''}`}>
       {title && <PageHeader title={title} actions={headerActions} />}
 
-      <div className="rlist-toolbar" role="search" aria-label={`Filter ${resource.plural.toLowerCase()}`}>
-        <TextField hideLabel className="filter-field rlist-search" type="search" label={`Search ${resource.plural.toLowerCase()}`} placeholder={`Search ${resource.plural.toLowerCase()}`} value={view.q} onChange={(v) => change({ q: v })} />
-        {filters.map((f) => <FilterControl key={f} resource={resource} field={f} view={view} setFilter={setFilter} />)}
-        {filtered && <Button variant="ghost" size="sm" icon="x" onClick={() => change(EMPTY_VIEW)}>Clear</Button>}
-        <div className="rlist-tools">
-          <Menu label={activeView ? activeView.name : 'Views'} icon="star" size="sm" align="end" items={viewItems} />
-          {can(`${resource.module}.export`) && (
-            <Button size="sm" icon="download" loading={exporting} onClick={() => void exportCsv()}>Export CSV</Button>
+      <div className="rc-toolbar" role="search" aria-label={`Search and filter ${plural}`}>
+        <TextInput
+          className="rc-search"
+          type="search"
+          aria-label={`Search ${plural}`}
+          placeholder={`Search ${plural}`}
+          value={text}
+          leftSection={<IconSearch size={16} aria-hidden="true" />}
+          rightSection={text ? <CloseButton size="sm" aria-label="Clear search" onClick={() => setFilter('__q', [])} /> : undefined}
+          onChange={(e) => setText(e.currentTarget.value)}
+        />
+        <FilterButton resource={resource} fields={filters} view={view} setFilter={setFilter} onClear={() => change({ filters: {} })} />
+
+        <div className="rc-tools">
+          <Menu position="bottom-end" shadow="md" width={260}>
+            <Menu.Target>
+              <Button variant="default" className="rc-view-button" leftSection={<IconBookmark size={16} aria-hidden="true" />} rightSection={<IconChevronDown size={14} aria-hidden="true" />}>
+                <span className="rc-sr-only">View: </span>
+                <span className="rc-view-name">{viewName}</span>
+              </Button>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <Menu.Label>Views</Menu.Label>
+              <Menu.Item leftSection={isAll ? <IconCheck size={16} /> : <span className="rc-menu-gap" />} onClick={() => applyView(EMPTY_VIEW)}>
+                All {plural}
+              </Menu.Item>
+              {views.map((v) => (
+                <Menu.Item key={v.name} leftSection={v === activeView ? <IconCheck size={16} /> : <span className="rc-menu-gap" />} onClick={() => applyView(v.view)}>
+                  {v.name}
+                </Menu.Item>
+              ))}
+              <Menu.Divider />
+              <Menu.Item leftSection={<IconBookmark size={16} />} disabled={isAll} onClick={() => setNaming(activeView?.name ?? '')}>
+                Save current view…
+              </Menu.Item>
+              {activeView && (
+                <Menu.Item color="red" leftSection={<IconTrash size={16} />} onClick={() => deleteView(activeView)}>
+                  Delete “{activeView.name}”
+                </Menu.Item>
+              )}
+            </Menu.Dropdown>
+          </Menu>
+          <ColumnChooser
+            columns={cols}
+            hidden={hiddenNow}
+            onChange={setHidden}
+            onReset={() => setHidden(null)}
+          />
+          <Tooltip label={density === 'compact' ? 'Comfortable rows' : 'Compact rows'}>
+            <ActionIcon
+              variant="default"
+              size="lg"
+              aria-label="Compact rows"
+              aria-pressed={density === 'compact'}
+              onClick={() => setDensity(density === 'compact' ? 'comfortable' : 'compact')}
+            >
+              {density === 'compact' ? <IconBaselineDensitySmall size={18} /> : <IconBaselineDensityMedium size={18} />}
+            </ActionIcon>
+          </Tooltip>
+          {canExport && (
+            <Tooltip label={`Export ${filtered ? 'the filtered' : 'all'} ${plural} as CSV`}>
+              <Button variant="default" className="rc-icon-label" loading={exporting} leftSection={<IconDownload size={16} aria-hidden="true" />} onClick={() => void exportCsv()}>
+                <span className="rc-btn-label">Export</span>
+                <span className="rc-sr-only"> CSV</span>
+              </Button>
+            </Tooltip>
           )}
           {!title && headerActions}
         </div>
       </div>
 
+      <FilterPills resource={resource} view={view} setFilter={setFilter} onClear={clearAll} />
+
+      {selectable && selected.size > 0 && (
+        <BulkBar
+          count={selected.size}
+          noun={noun(selected.size)}
+          canEdit={canEdit}
+          canExport={canExport}
+          onEdit={() => setBulkEditing(true)}
+          onExport={exportSelected}
+          onClear={() => setSelected(new Map())}
+        />
+      )}
+
       {error && !data ? (
-        <ErrorState title={`${resource.plural} could not be loaded`} error={error} onRetry={reload} />
+        <div className="rc-panel"><ErrorState title={`${resource.plural} could not be loaded`} error={error} onRetry={reload} /></div>
       ) : !data ? (
-        <Loading label={`Loading ${resource.plural.toLowerCase()}`} lines={6} />
+        <TableSkeleton columns={visible} density={density} label={`Loading ${plural}`} selectable={selectable} />
       ) : data.rows.length === 0 ? (
-        filtered ? (
-          <EmptyState icon="filter" title="Nothing matches these filters" message="Try a different search or clear the filters."
-            action={<Button onClick={() => change(EMPTY_VIEW)}>Clear filters</Button>} />
-        ) : (
-          <EmptyState title={`No ${resource.plural.toLowerCase()} yet`}
-            message={canCreate ? `Create the first ${resource.label.toLowerCase()} to get started.` : undefined}
-            action={canCreate ? <Button variant="primary" icon="plus" onClick={() => setCreating(true)}>New {resource.label.toLowerCase()}</Button> : undefined} />
-        )
+        <div className="rc-panel" aria-busy={loading}>
+          {filtered ? (
+            <EmptyState icon="filter" title={`No ${plural} match`} message="Try a different search, or remove a filter."
+              action={<Button variant="default" onClick={clearAll}>Clear search and filters</Button>} />
+          ) : (
+            <EmptyState title={`No ${plural} yet`}
+              message={canCreate ? `Create the first ${resource.label.toLowerCase()} to get started.` : `When ${plural} are added they will be listed here.`}
+              action={newButton || undefined} />
+          )}
+        </div>
       ) : (
         <>
-          {error !== undefined && error !== null && <p className="form-error" role="alert">{errorMessage(error)}</p>}
-          <div className="table-wrap" aria-busy={loading}>
-            <table className={cx('table', loading && 'table-loading')}>
-              <caption className="sr-only">{title ?? resource.plural}</caption>
-              <thead>
-                <tr>
-                  {cols.map((c) => (
-                    <th key={c.field} scope="col" className={c.numeric ? 'num' : undefined}
-                      aria-sort={view.sort === c.field ? (view.dir === 'asc' ? 'ascending' : 'descending') : undefined}>
-                      {c.sortable ? (
-                        <button type="button" className="th-sort" onClick={() => toggleSort(c.field)}>
-                          {c.label}
-                          {view.sort === c.field && <Icon name={view.dir === 'asc' ? 'arrow-up' : 'arrow-down'} size={13} />}
-                        </button>
-                      ) : c.label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {data.rows.map((row) => (
-                  <tr key={row.id} tabIndex={0} className="row-link" onClick={(e) => onRowMouse(e, row)} onKeyDown={(e) => onRowKey(e, row)}>
-                    {cols.map((c) => {
-                      const cell = c.render ? c.render(row) : <FieldValue resource={resource} field={c.field} row={row} compact />;
-                      return (
-                        <td key={c.field} className={c.numeric ? 'num' : undefined}>
-                          {!c.render && titleLink(c.field) && row[c.field]
-                            ? <Link className={c.field === resource.refField ? 'ref' : 'row-title'} to={recordHref(resource.route, row.id)}>{String(row[c.field])}</Link>
-                            : cell}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="rlist-foot">
-            <span className="muted" role="status">{formatNumber(first)}–{formatNumber(last)} of {formatNumber(total)}</span>
-            <div className="rlist-pager">
-              <IconButton icon="chevron-left" label="Previous page" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)} />
-              <span className="muted">Page {page} of {pages}</span>
-              <IconButton icon="chevron-right" label="Next page" size="sm" disabled={page >= pages} onClick={() => setPage(page + 1)} />
+          {error !== undefined && error !== null && (
+            <Alert color="red" variant="light" role="alert" mb="xs">{errorMessage(error)} Showing the last loaded results.</Alert>
+          )}
+          <ListTable
+            resource={resource}
+            caption={title ?? resource.plural}
+            columns={visible}
+            rows={data.rows}
+            busy={loading}
+            density={density}
+            sort={view.sort}
+            dir={view.dir}
+            onSort={toggleSort}
+            onOpen={open}
+            linkTitles={!onRowClick}
+            selectable={selectable}
+            selected={selected}
+            onSelect={setSelected}
+          />
+          <div className="rc-foot">
+            <Text size="sm" c="dimmed" role="status">
+              {formatNumber(first)}–{formatNumber(last)} of {formatNumber(total)} {noun(total)}
+            </Text>
+            <div className="rc-foot-right">
+              <MSelect
+                className="rc-page-size"
+                size="xs"
+                aria-label="Rows per page"
+                data={[...new Set([...PAGE_SIZES, pageSize])].sort((a, b) => a - b).map((n) => ({ value: String(n), label: `${n} per page` }))}
+                value={String(pageSize)}
+                allowDeselect={false}
+                onChange={(v) => { if (v) { setPageSize(Number(v)); setPage(1); } }}
+              />
+              {pages > 1 && (
+                <Pagination
+                  size="sm"
+                  total={pages}
+                  value={Math.min(page, pages)}
+                  onChange={setPage}
+                  siblings={1}
+                  boundaries={1}
+                  getControlProps={(control) => ({ 'aria-label': `${control.charAt(0).toUpperCase()}${control.slice(1)} page` })}
+                  getItemProps={(n) => ({ 'aria-label': `Page ${n}` })}
+                />
+              )}
             </div>
           </div>
         </>
       )}
 
-      <Modal open={creating} title={`New ${resource.label.toLowerCase()}`} size="lg" onClose={() => setCreating(false)}>
+      <Modal open={creating} title={`New ${resource.label.toLowerCase()}`} size="lg" onClose={closeCreate}>
         <ResourceForm
           type={type}
           fields={createFields ?? []}
           initial={createInitial}
+          onDirtyChange={(d) => { formDirty.current = d; }}
           onCancel={() => setCreating(false)}
           onSaved={(row) => {
             setCreating(false);
@@ -366,20 +465,48 @@ export function ResourceList({
           }}
         />
       </Modal>
+      <ConfirmDialog
+        open={confirmClose}
+        title="Discard this draft?"
+        message={`The new ${resource.label.toLowerCase()} has not been saved. Closing now loses what you have entered.`}
+        confirmLabel="Discard"
+        danger
+        onConfirm={() => { setConfirmClose(false); setCreating(false); }}
+        onCancel={() => setConfirmClose(false)}
+      />
+
+      <BulkEditDialog
+        open={bulkEditing}
+        resource={resource}
+        rows={[...selected.values()]}
+        fields={bulkList}
+        onClose={() => {
+          setBulkEditing(false);
+          if (bulkChanged.current) setSelected(new Map());
+          bulkChanged.current = false;
+        }}
+        onDone={(changed) => {
+          if (changed > 0) {
+            bulkChanged.current = true;
+            reload();
+          }
+        }}
+      />
 
       <Modal open={naming !== null} title="Save view" size="sm" onClose={() => setNaming(null)}>
         <form
-          className="form"
+          className="rc-form"
           onSubmit={(e) => {
             e.preventDefault();
+            e.stopPropagation();
             if (naming?.trim()) saveView(naming.trim());
           }}
         >
-          <TextField label="View name" required autoFocus value={naming ?? ''} onChange={setNaming}
-            hint="Saves the current search, filters and sort order in this browser." />
-          <div className="form-actions">
-            <Button onClick={() => setNaming(null)}>Cancel</Button>
-            <Button type="submit" variant="primary" disabled={!naming?.trim()}>Save view</Button>
+          <TextField label="View name" required autoFocus maxLength={60} value={naming ?? ''} onChange={setNaming}
+            hint={views.some((v) => v.name === naming?.trim()) ? 'A view with this name exists and will be replaced.' : 'Saves the current search, filters and sort order in this browser.'} />
+          <div className="rc-form-actions">
+            <Button variant="default" onClick={() => setNaming(null)}>Cancel</Button>
+            <Button type="submit" disabled={!naming?.trim()}>Save view</Button>
           </div>
         </form>
       </Modal>

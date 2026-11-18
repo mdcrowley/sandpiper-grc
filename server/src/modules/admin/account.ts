@@ -1,11 +1,14 @@
 import type { FastifyRequest } from 'fastify';
 import {
-  checkPasswordPolicy, consumeRecoveryCode, mfaEnrollmentRequired, recoveryCodeHash, setPassword, sha256, verifyPassword,
+  acceptTotpCode, checkPasswordPolicy, consumeRecoveryCode, mfaStatus, recoveryCodeHash, setPassword, sha256,
+  storeTotpSecret, verifyPassword,
 } from '../../core/auth.ts';
 import { DEFAULT_APP_NAME } from '../../core/config.ts';
 import type { ModuleContext } from '../../core/module.ts';
-import { generateTotpSecret, totpUri, verifyTotp } from '../../core/totp.ts';
-import { body, generateRecoveryCodes, makeLimiter } from './shared.ts';
+import { makeDbLimiter } from '../../core/ratelimit.ts';
+import { clientIp } from '../../core/request.ts';
+import { generateTotpSecret, totpUri } from '../../core/totp.ts';
+import { body, generateRecoveryCodes } from './shared.ts';
 
 const BAD_LINK = 'This link is not valid or has expired. Ask an administrator for a new one.';
 const BAD_CODE = 'That code was not accepted. Check it and try again.';
@@ -14,8 +17,9 @@ const BAD_CODE = 'That code was not accepted. Check it and try again.';
 export function registerAccount(ctx: ModuleContext) {
   const { db, app } = ctx;
   const deps = { db, audit: ctx.audit, settings: ctx.settings };
-  const linkFailures = makeLimiter(20, 5 * 60_000); // by source address
-  const codeFailures = makeLimiter(8, 5 * 60_000); // by user
+  // Kept in the database, so a restart does not reset them.
+  const linkFailures = makeDbLimiter(db, 'link', 20, 5 * 60_000); // by source address
+  const codeFailures = makeDbLimiter(db, 'mfa_change', 8, 5 * 60_000); // by user
 
   // ---------- one-time setup and reset links ----------
 
@@ -30,10 +34,10 @@ export function registerAccount(ctx: ModuleContext) {
   const minLength = () => ctx.settings.get('auth.password_min_length', 14);
 
   app.get('/api/auth/redeem', { config: { public: true } }, async (req) => {
-    if (linkFailures.blocked(req.ip)) ctx.fail(429, 'rate_limited', BAD_LINK);
+    if (await linkFailures.blocked(clientIp(req))) ctx.fail(429, 'rate_limited', BAD_LINK);
     const t = await findToken((req.query as Record<string, string>).token);
     if (!t) {
-      linkFailures.hit(req.ip);
+      await linkFailures.hit(clientIp(req));
       return { valid: false, minLength: await minLength() };
     }
     return { valid: true, username: t.username, purpose: t.purpose, minLength: await minLength() };
@@ -41,9 +45,9 @@ export function registerAccount(ctx: ModuleContext) {
 
   app.post('/api/auth/redeem', { config: { public: true } }, async (req) => {
     const b = body(req);
-    if (linkFailures.blocked(req.ip)) ctx.fail(429, 'rate_limited', BAD_LINK);
+    if (await linkFailures.blocked(clientIp(req))) ctx.fail(429, 'rate_limited', BAD_LINK);
     const reject = async (userId?: string): Promise<never> => {
-      linkFailures.hit(req.ip);
+      await linkFailures.hit(clientIp(req));
       await ctx.audit(req, {
         action: 'link.redeem_failure', recordType: 'user', recordId: userId,
         summary: `A one-time link was refused (invalid, used or expired) from ${req.ip}`,
@@ -73,21 +77,22 @@ export function registerAccount(ctx: ModuleContext) {
   // ---------- second factor (authenticator app) ----------
 
   const me = (req: FastifyRequest) =>
-    db.one<{ id: string; username: string; password_hash: string | null; totp_secret: string | null; totp_enabled: boolean; codes: number; password_changed_at: string }>(
-      `select id, username, password_hash, totp_secret, totp_enabled, jsonb_array_length(recovery_codes) as codes, password_changed_at
+    db.one<{ id: string; username: string; password_hash: string | null; has_secret: boolean; totp_enabled: boolean; codes: number; password_changed_at: string }>(
+      `select id, username, password_hash, (totp_secret is not null) as has_secret, totp_enabled,
+              jsonb_array_length(recovery_codes) as codes, password_changed_at
        from users where id = $1`,
       [req.user!.id],
     ).then((u) => u!);
 
-  const limited = (req: FastifyRequest) => {
-    if (codeFailures.blocked(req.user!.id)) ctx.fail(429, 'rate_limited', 'Too many attempts. Wait a few minutes and try again.');
+  const limited = async (req: FastifyRequest) => {
+    if (await codeFailures.blocked(req.user!.id)) ctx.fail(429, 'rate_limited', 'Too many attempts. Wait a few minutes and try again.');
   };
 
   /** Checks the current password; counts and audits a failure. */
   async function requirePassword(req: FastifyRequest, u: { password_hash: string | null }, password: unknown, what: string) {
-    limited(req);
+    await limited(req);
     if (!u.password_hash || !(await verifyPassword(u.password_hash, String(password ?? '')))) {
-      codeFailures.hit(req.user!.id);
+      await codeFailures.hit(req.user!.id);
       await ctx.audit(req, { action: 'mfa.change_refused', recordType: 'user', recordId: req.user!.id, summary: `${what} refused: wrong password` });
       ctx.fail(400, 'validation', 'Check the highlighted fields.', { password: 'That is not your current password.' });
     }
@@ -101,10 +106,13 @@ export function registerAccount(ctx: ModuleContext) {
 
   app.get('/api/auth/security', async (req) => {
     const u = await me(req);
+    const mfa = await mfaStatus(deps, u.id);
     return {
       totpEnabled: u.totp_enabled,
       recoveryCodesLeft: u.totp_enabled ? u.codes : 0,
-      mfaEnrollmentRequired: await mfaEnrollmentRequired(deps, u.id),
+      mfaEnrollmentRequired: mfa.required,
+      mfaEnrollmentBlocked: mfa.blocked,
+      mfaGraceEndsAt: mfa.graceEndsAt,
       passwordChangedAt: u.password_changed_at,
       minLength: await minLength(),
     };
@@ -115,7 +123,8 @@ export function registerAccount(ctx: ModuleContext) {
     if (u.totp_enabled) ctx.fail(409, 'already_enabled', 'A second factor is already set up. Turn it off first to replace it.');
     const secret = generateTotpSecret();
     // Held as pending (totp_enabled stays false) until a code proves the app has the key.
-    await db.query('update users set totp_secret = $2, updated_at = now() where id = $1', [u.id, secret]);
+    // Stored encrypted (core/secretbox.ts); this response is the only time the key is shown.
+    await storeTotpSecret(db, u.id, secret);
     await ctx.audit(req, { action: 'mfa.enrol_begin', recordType: 'user', recordId: u.id, summary: 'Second-factor set-up started' });
     const issuer = await ctx.settings.get('app.name', DEFAULT_APP_NAME);
     return { secret, uri: totpUri(secret, u.username, issuer) };
@@ -124,13 +133,13 @@ export function registerAccount(ctx: ModuleContext) {
   app.post('/api/auth/totp/confirm', async (req) => {
     const u = await me(req);
     if (u.totp_enabled) ctx.fail(409, 'already_enabled', 'A second factor is already set up.');
-    if (!u.totp_secret) ctx.fail(409, 'not_started', 'Start the set-up again to get a new key.');
-    limited(req);
-    if (!verifyTotp(u.totp_secret!, String(body(req).code ?? ''))) {
-      codeFailures.hit(u.id);
+    if (!u.has_secret) ctx.fail(409, 'not_started', 'Start the set-up again to get a new key.');
+    await limited(req);
+    if (!(await acceptTotpCode(db, u.id, String(body(req).code ?? '')))) {
+      await codeFailures.hit(u.id);
       ctx.fail(400, 'validation', 'Check the highlighted fields.', { code: BAD_CODE });
     }
-    await db.query('update users set totp_enabled = true, updated_at = now() where id = $1', [u.id]);
+    await db.query('update users set totp_enabled = true, mfa_required_since = null, updated_at = now() where id = $1', [u.id]);
     const recoveryCodes = await storeNewCodes(u.id);
     await ctx.audit(req, {
       action: 'mfa.enable', recordType: 'user', recordId: u.id, summary: 'Second factor (authenticator app) turned on; recovery codes issued',
@@ -145,12 +154,12 @@ export function registerAccount(ctx: ModuleContext) {
     const b = body(req);
     await requirePassword(req, u, b.password, 'Turning off the second factor');
     const code = String(b.code ?? '').trim();
-    if (!verifyTotp(u.totp_secret!, code) && !(await consumeRecoveryCode(db, u.id, code))) {
-      codeFailures.hit(u.id);
+    if (!(await acceptTotpCode(db, u.id, code)) && !(await consumeRecoveryCode(db, u.id, code))) {
+      await codeFailures.hit(u.id);
       await ctx.audit(req, { action: 'mfa.change_refused', recordType: 'user', recordId: u.id, summary: 'Turning off the second factor refused: wrong code' });
       ctx.fail(400, 'validation', 'Check the highlighted fields.', { code: BAD_CODE });
     }
-    await db.query(`update users set totp_enabled = false, totp_secret = null, recovery_codes = '[]', updated_at = now() where id = $1`, [u.id]);
+    await db.query(`update users set totp_enabled = false, totp_secret = null, totp_last_step = null, recovery_codes = '[]', updated_at = now() where id = $1`, [u.id]);
     await ctx.audit(req, {
       action: 'mfa.disable', recordType: 'user', recordId: u.id, summary: 'Second factor turned off by the user',
       before: { totp_enabled: true }, after: { totp_enabled: false },

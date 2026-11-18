@@ -148,11 +148,11 @@ describe('evidence and cross-mappings', () => {
     expect((await t.api.post(`/api/framework-outcomes/${id}/mappings`, { reference: '1.2' })).status).toBe(400);
     const a = await t.api.post(`/api/framework-outcomes/${id}/mappings`, { framework_name: 'PCI DSS', reference: '12.1' });
     expect(a.status).toBe(201);
-    await t.api.post(`/api/framework-outcomes/${id}/mappings`, { framework_name: 'HIPAA Security Rule', reference: '164.308' });
+    await t.api.post(`/api/framework-outcomes/${id}/mappings`, { framework_name: 'Harbour Privacy Rule', reference: '164.308' });
     await t.api.post(`/api/framework-outcomes/${id}/mappings`, { framework_name: 'Insurer conditions' });
     expect((await t.api.post(`/api/framework-outcomes/${id}/mappings`, { framework_name: 'pci dss', reference: '12.1' })).status).toBe(400);
     const list = await t.api.get(`/api/framework-outcomes/${id}/mappings`);
-    expect(list.body.map((m: any) => m.framework_name)).toEqual(['HIPAA Security Rule', 'Insurer conditions', 'PCI DSS']);
+    expect(list.body.map((m: any) => m.framework_name)).toEqual(['Harbour Privacy Rule', 'Insurer conditions', 'PCI DSS']);
     expect((await t.api.get('/api/framework-mappings/names')).body).toContain('PCI DSS');
     expect((await t.api.del(`/api/framework-outcomes/${id}/mappings/${a.body.id}`)).status).toBe(200);
     expect((await t.api.get(`/api/framework-outcomes/${id}/mappings`)).body.length).toBe(2);
@@ -171,10 +171,10 @@ describe('assessments', () => {
   let second: string;
 
   it('takes a snapshot of every outcome status', async () => {
-    expect((await t.api.post('/api/assessments', { date: '2031-01-10' })).body.error.fields.name).toBeTruthy();
-    const res = await t.api.post('/api/assessments', { name: 'Winter', date: '2031-01-10', notes: 'Starting point' });
+    expect((await t.api.post('/api/assessments', { date: '2025-01-10' })).body.error.fields.name).toBeTruthy();
+    const res = await t.api.post('/api/assessments', { name: 'Winter', date: '2025-01-10', notes: 'Starting point' });
     expect(res.status).toBe(201);
-    expect(res.body).toMatchObject({ name: 'Winter', taken_on: '2031-01-10', framework_id: fw });
+    expect(res.body).toMatchObject({ name: 'Winter', taken_on: '2025-01-10', framework_id: fw });
     expect(res.body.all).toMatchObject({ total: 4, counts: { not_evidenced: 4 }, score: 0 });
     first = res.body.id;
     const got = await t.api.get(`/api/assessments/${first}`);
@@ -182,20 +182,36 @@ describe('assessments', () => {
     expect(got.body.functions.map((f: any) => [f.code, f.total])).toEqual([['AA', 3], ['BB', 1]]);
     expect(got.body.framework_name).toBe('Tiny Framework');
     const audit = await t.api.get(`/api/history?record_type=assessment_snapshot&record_id=${first}`);
-    expect(audit.body[0].action).toBe('assessment_snapshot.create');
+    expect(audit.body.map((e: any) => e.action).sort()).toEqual(['assessment_snapshot.capture', 'assessment_snapshot.create']);
+    expect(audit.body.find((e: any) => e.action === 'assessment_snapshot.capture').summary).toMatch(/4 outcome/);
+  });
+
+  it('refuses a snapshot date that is not a real day, is in the future or is absurdly old', async () => {
+    const tomorrow = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10);
+    for (const date of ['2025-02-30', 'not-a-date', tomorrow, '2031-01-10', '1899-12-31']) {
+      const res = await t.api.post('/api/assessments', { name: 'Bad date', date });
+      expect(res.status, date).toBe(400);
+      expect(res.body.error.fields.taken_on, date).toBeTruthy();
+    }
+    expect((await t.api.patch(`/api/assessment-snapshots/${first}`, { taken_on: tomorrow })).status).toBe(400);
+    expect((await t.api.get('/api/assessment-snapshots')).body.total).toBe(1);
+    // With no date given, the snapshot is dated today in the organisation's time zone.
+    const today = await t.api.post('/api/assessments', { name: 'Undated' });
+    expect(today.body.taken_on).toBe(new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date()));
+    expect((await t.api.del(`/api/assessment-snapshots/${today.body.id}`)).status).toBe(200);
   });
 
   it('shows change over time between two snapshots', async () => {
     await t.api.patch(`/api/framework-outcomes/${ids['AA.XX-01']}`, { status: 'largely_met' });
     await t.api.patch(`/api/framework-outcomes/${ids['BB.ZZ-01']}`, { status: 'partial' });
-    second = (await t.api.post('/api/assessments', { name: 'Spring', date: '2031-04-10', framework_id: fw })).body.id;
+    second = (await t.api.post('/api/assessments', { name: 'Spring', date: '2025-04-10', framework_id: fw })).body.id;
     // A later change must not leak into either snapshot.
     await t.api.patch(`/api/framework-outcomes/${ids['AA.YY-01']}`, { status: 'met' });
 
     const cmp = await t.api.get(`/api/assessments/compare?from=${first}&to=${second}`);
     expect(cmp.status).toBe(200);
-    expect(cmp.body.from).toMatchObject({ name: 'Winter', date: '2031-01-10' });
-    expect(cmp.body.to).toMatchObject({ name: 'Spring', date: '2031-04-10' });
+    expect(cmp.body.from).toMatchObject({ name: 'Winter', date: '2025-01-10' });
+    expect(cmp.body.to).toMatchObject({ name: 'Spring', date: '2025-04-10' });
     expect(cmp.body.overall.from.all.counts).toEqual({ not_evidenced: 4, partial: 0, largely_met: 0, met: 0 });
     expect(cmp.body.overall.to.all.counts).toEqual({ not_evidenced: 2, partial: 1, largely_met: 1, met: 0 });
     expect(cmp.body.overall.to.all.score).toBe(25);
@@ -243,5 +259,13 @@ describe('assessments', () => {
     const res = await t.api.get(`/api/frameworks/${fw}/progress`);
     expect(res.body.target).toMatchObject({ status: 'met', score: 100 });
     expect(res.body.series[1].all.atTarget).toBe(1);
+  });
+});
+
+describe('configurable lists', () => {
+  it('ties the outcome lists to the frameworks module (E01-23)', async () => {
+    const rows = await t.db.query<{ list_key: string; module: string }>(
+      `select list_key, module from lookup_lists where list_key in ('outcome_status', 'outcome_phase') order by list_key`);
+    expect(rows).toEqual([{ list_key: 'outcome_phase', module: 'frameworks' }, { list_key: 'outcome_status', module: 'frameworks' }]);
   });
 });

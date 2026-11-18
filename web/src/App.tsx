@@ -1,6 +1,7 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './core/auth';
 import { LoginPage, SetupPage } from './core/AuthPages';
+import { UiProvider } from './core/mantine';
 import { MetaProvider } from './core/meta';
 import { modules } from './core/module';
 import { ToastProvider } from './core/overlay';
@@ -29,17 +30,20 @@ function SignedInApp() {
   );
 }
 
+/** UiProvider (Mantine theme, toasts) wraps everything, so public pages and the shell share one look. */
 export function App() {
   return (
-    <BrowserRouter>
-      <ToastProvider>
-        <AuthProvider>
-          <Routes>
-            {publicRoutes.map((r) => <Route key={r.path} path={r.path} element={r.element} />)}
-            <Route path="*" element={<SignedInApp />} />
-          </Routes>
-        </AuthProvider>
-      </ToastProvider>
-    </BrowserRouter>
+    <UiProvider>
+      <BrowserRouter>
+        <ToastProvider>
+          <AuthProvider>
+            <Routes>
+              {publicRoutes.map((r) => <Route key={r.path} path={r.path} element={r.element} />)}
+              <Route path="*" element={<SignedInApp />} />
+            </Routes>
+          </AuthProvider>
+        </ToastProvider>
+      </BrowserRouter>
+    </UiProvider>
   );
 }

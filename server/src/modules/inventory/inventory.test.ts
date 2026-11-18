@@ -108,6 +108,15 @@ describe('assignment history', () => {
     expect((await t.api.get(`/api/assets/${asset.id}`)).body).toMatchObject({ status: 'in_use', assigned_to_name: 'Sam Invented', department: 'Planning' });
     expect((await t.api.post(`/api/assets/${asset.id}/check-out`, { assignee_name: 'Someone else' })).status).toBe(409);
 
+    // A status that is not in the list is refused before anything is written: the asset stays checked out.
+    expect((await t.api.post(`/api/assets/${asset.id}/check-in`, { status: 'made_up' })).status).toBe(400);
+    expect((await t.api.get(`/api/assets/${asset.id}/assignments`)).body[0].open).toBe(true);
+    // A check-out to a site that does not exist is refused.
+    const other = (await t.api.post('/api/assets', { name: 'Pool phone' })).body;
+    const noSite = await t.api.post(`/api/assets/${other.id}/check-out`, { assignee_name: 'Sam Invented', site_id: '00000000-0000-4000-8000-000000000000' });
+    expect(noSite.status).toBe(400);
+    expect(noSite.body.error.fields.site_id).toBeTruthy();
+
     expect((await t.api.post(`/api/assets/${asset.id}/check-in`, { notes: 'Screen scratched' })).status).toBe(200);
     expect((await t.api.get(`/api/assets/${asset.id}`)).body).toMatchObject({ status: 'in_stock', assigned_to_name: null });
 

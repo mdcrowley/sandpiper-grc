@@ -41,11 +41,17 @@ user should find every list and record behaving the same way.
 | E01-18 | Organisation time zone and currency | done | P2 |
 | E01-19 | Application shell, navigation and themes | done | P1 |
 | E01-20 | Request protection: security header check and response headers | done | P1 |
-| E01-21 | Re-authentication before administrative actions | open | P2 |
-| E01-22 | Rate limiters that survive a restart | open | P3 |
-| E01-23 | Limit list metadata to what the user may see | open | P2 |
+| E01-21 | Re-authentication before administrative actions | done | P2 |
+| E01-22 | Rate limiters that survive a restart | done | P3 |
+| E01-23 | Limit list metadata to what the user may see | done | P2 |
 | E01-24 | Saved views stored on the server | open | P3 |
 | E01-25 | Spreadsheet (XLSX) export | open | P3 |
+| E01-26 | Records inherit restriction from their source record | done | P1 |
+| E01-27 | Audit search hides events about flagged records | done | P2 |
+| E01-28 | Reference labels respect the target module's view permission | done | P2 |
+| E01-29 | Password confirmation should also ask for the second factor | open | P3 |
+| E01-30 | Password confirmation outside the administration screens | open | P3 |
+| E01-31 | Trusted-proxy handling in the server itself | open | P2 |
 
 ---
 
@@ -394,46 +400,64 @@ the browser not to load outside content.
 
 ### E01-21 Re-authentication before administrative actions
 
-**Status:** open · **Priority:** P2 · **Type:** improvement
+**Status:** done · **Priority:** P2 · **Type:** improvement
 
-As an administrator, I am asked for my password (or second factor) again before a
-sensitive action such as changing a role, resetting someone's second factor or changing
-sign-in settings, so an unattended signed-in browser cannot be misused.
+As an administrator, I am asked for my password again before a sensitive action such as
+changing a role, resetting someone's second factor or changing sign-in settings, so an
+unattended signed-in browser cannot be misused.
+
+The password must have been proved in the same session within `auth.reauth_minutes`
+(default 10; signing in counts). The list of sensitive actions is in
+[Security](../../security.md). The second factor is not asked for (E01-29).
 
 **Acceptance criteria**
 
-- [ ] A recent re-authentication is required for a defined list of sensitive actions
-- [ ] The prompt appears in place and the action continues afterwards
-- [ ] Refused attempts are audited
-- [ ] Tests cover the refused and allowed paths
+- [x] A recent re-authentication is required for a defined list of sensitive actions: creating a role, changing a role's grants, switch or second-factor flag, applying default grants, creating a user, changing a user's roles, resetting a second factor, issuing a setup or reset link, changing any `auth.` setting
+- [x] The prompt appears in place and the action continues afterwards
+- [x] Refused attempts are audited (`reauth.required`, `reauth.failure`)
+- [x] Tests cover the refused and allowed paths
+- [x] Confirmation attempts are rate-limited per user
+
+**Implemented in:** `requireRecentAuth`, `POST /api/auth/confirm` (`server/src/core/auth.ts`); `sensitive` (`server/src/modules/admin/shared.ts`) used in `roles.ts`, `users.ts`, `settings.ts`; `sessions.confirmed_at` (`server/src/core/migrations/002_hardening.sql`); `web/src/modules/admin/reauth.ts`; tests in `server/src/modules/admin/admin.test.ts`
 
 ### E01-22 Rate limiters that survive a restart
 
-**Status:** open · **Priority:** P3 · **Type:** debt
+**Status:** done · **Priority:** P3 · **Type:** debt
 
 As an administrator, I want sign-in and link rate limits to hold across a restart and
-across more than one server process. Today they are counters in memory.
+across more than one server process.
 
 **Acceptance criteria**
 
-- [ ] Limiter state is kept in the database or another shared store
-- [ ] Limits apply across processes
-- [ ] Old entries are cleaned up
+- [x] Limiter state is kept in the database (table `rate_limit_hits`)
+- [x] Limits apply across processes that share the database
+- [x] Old entries are cleaned up (removed when a new failure is recorded in the same limiter)
+- [x] A test restarts the application and finds the limit still in force
+
+**Implemented in:** `server/src/core/ratelimit.ts`; used in `server/src/core/auth.ts` (sign-in, password confirmation) and `server/src/modules/admin/account.ts` (one-time links, second-factor changes); test "across a restart" in `server/src/core/core.test.ts`
 
 ### E01-23 Limit list metadata to what the user may see
 
-**Status:** open · **Priority:** P2 · **Type:** bug
+**Status:** done · **Priority:** P2 · **Type:** bug
 
 As a security lead, I do not want the names and labels of lists that belong to modules a
 person cannot use (for example security incident scenarios) to be visible to every
-signed-in user. Today `GET /api/meta` and `GET /api/lookups/:list` return all lists.
+signed-in user.
+
+A list is readable by people who may view a record type with a field that uses it, by
+people who hold view on its owning module, by everyone when marked public, and by
+administrators. A list with no owner that no record type uses is administrator-only, and
+the server log names such lists at start-up.
 
 **Acceptance criteria**
 
-- [ ] Each list is tied to the module that owns it
-- [ ] `GET /api/meta` returns only lists the caller may use
-- [ ] `GET /api/lookups/:list` refuses lists the caller may not use
-- [ ] A test proves an ordinary agent cannot read a restricted module's lists
+- [x] Each list is tied to the module that owns it: `ctx.lookups.ensure(list, values, { module })` or `{ public: true }` (table `lookup_lists`); the old two-argument call still works
+- [x] `GET /api/meta` returns only lists the caller may use
+- [x] `GET /api/lookups/:list` refuses lists the caller may not use (403, the same whether or not the list exists)
+- [x] A test proves an ordinary agent cannot read a restricted module's lists (core, and the security incident lists by name)
+- [x] Every list of the service desk, inventory, vendors, frameworks, risks, security incidents and projects modules names its owner
+
+**Implemented in:** `makeLookups` (`server/src/core/services.ts`); `listReader`, `GET /api/meta`, `GET /api/lookups/:list` (`server/src/core/routes.ts`); `server/src/core/migrations/002_hardening.sql`; each module's `ensure` calls; tests in `server/src/core/core.test.ts` and `server/src/modules/secincidents/secincidents.test.ts`
 
 ### E01-24 Saved views stored on the server
 
@@ -461,3 +485,88 @@ as CSV.
 - [ ] Dates, numbers and currency are typed cells
 - [ ] The export respects filters, permissions and restricted records
 - [ ] The export is audited
+
+### E01-26 Records inherit restriction from their source record
+
+**Status:** done · **Priority:** P1 · **Type:** feature
+
+As a security lead, anything raised on a restricted record is restricted with it, without
+each module writing its own filter. Raised by [E08-16](E08-risks-actions-and-obligations.md).
+
+**Acceptance criteria**
+
+- [x] A record type declares `restrictedFrom: { typeField, idField }` with `restricted: 'flag'`
+- [x] The flag is set by the server on create and when the source fields change; a caller cannot set or clear it
+- [x] It follows the source when the source's own restriction changes, with an audit event per record
+- [x] Existing rows are brought in line at every start, with one audit event
+- [x] A person cannot point a record at a source they cannot see; the refusal does not reveal whether the source exists
+- [x] Hand-written queries get the same condition from `ctx.resources.visibleWhere(type, user, alias?)`
+- [x] Tests in core (a throwaway record type) and for actions
+
+**Implemented in:** `sourceRestricted`, `checkSourceVisible`, `propagateRestriction`, `syncInheritedRestriction`, `visibleWhere` (`server/src/core/resource.ts`); `ResourceDef.restrictedFrom`, `ResourceRegistry.visibleWhere` (`server/src/core/module.ts`)
+
+### E01-27 Audit search hides events about flagged records
+
+**Status:** done · **Priority:** P2 · **Type:** bug
+
+The audit search left out events about restricted record types but not events about
+individual records flagged restricted, whose summaries carry the record's title.
+
+**Acceptance criteria**
+
+- [x] Without `security.view`, events about a flagged record are absent from the audit search and its CSV export
+- [x] `from` and `to` are validated (400 rather than a server error)
+
+**Implemented in:** `GET /api/audit` (`server/src/core/routes.ts`)
+
+### E01-28 Reference labels respect the target module's view permission
+
+**Status:** done · **Priority:** P2 · **Type:** bug
+
+The display label of a referenced record was returned to anyone who could see the record
+pointing at it, even without view on the referenced record's module.
+
+**Acceptance criteria**
+
+- [x] Without view on the target's module the label is "Restricted", in rows, statistics and links
+
+**Implemented in:** `labelsFor` (`server/src/core/resource.ts`)
+
+### E01-29 Password confirmation should also ask for the second factor
+
+**Status:** open · **Priority:** P3 · **Type:** improvement
+
+As a security lead, a person who has a second factor is asked for it, not only the
+password, before a sensitive action.
+
+**Acceptance criteria**
+
+- [ ] `POST /api/auth/confirm` needs a current code (or passkey) when the user has a second factor
+- [ ] The prompt asks for it
+
+### E01-30 Password confirmation outside the administration screens
+
+**Status:** open · **Priority:** P3 · **Type:** improvement
+
+Only administration routes ask for a recent password confirmation. Other high-impact
+actions (module settings, bulk export of restricted records, editing notification rules)
+do not, and the prompt lives in the administration module rather than the shared web code.
+
+**Acceptance criteria**
+
+- [ ] The list of sensitive actions is reviewed module by module
+- [ ] The prompt moves into the shared web code so any screen can use it
+
+### E01-31 Trusted-proxy handling in the server itself
+
+**Status:** open · **Priority:** P2 · **Type:** debt
+
+`GRC_TRUST_PROXY` is honoured by core helpers (`clientIp`, `isHttps`) used for the
+session cookie, rate limits, sessions and the audit log. Modules that read `req.ip`
+directly still see the proxy's address, and no `Strict-Transport-Security` header is sent.
+
+**Acceptance criteria**
+
+- [ ] The web server is built with the matching trust-proxy option, so `req.ip` is right everywhere (`server/src/app.ts`)
+- [ ] A `Strict-Transport-Security` header is sent when served over HTTPS
+- [ ] Depends on [E16-07](E16-hosting-operations-and-hardening.md)

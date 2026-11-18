@@ -6,7 +6,7 @@ import {
 import { CopyBox, copyText } from './common';
 import { SessionsCard } from './Sessions';
 
-interface Security { totpEnabled: boolean; recoveryCodesLeft: number; mfaEnrollmentRequired: boolean; passwordChangedAt: string | null; minLength: number }
+interface Security { totpEnabled: boolean; recoveryCodesLeft: number; mfaEnrollmentRequired: boolean; mfaEnrollmentBlocked?: boolean; passwordChangedAt: string | null; minLength: number }
 
 /** Base32 key in groups of four, easier to type into an authenticator app. */
 const grouped = (secret: string) => secret.replace(/(.{4})/g, '$1 ').trim();
@@ -22,6 +22,13 @@ export function AccountSecurityPage() {
     <>
       <PageHeader title="Account security" subtitle={auth.user ? `Signed in as ${auth.user.displayName} (${auth.user.username})` : undefined} />
       {error ? <ErrorState error={error} onRetry={reload} /> : !data ? <Loading lines={8} label="Loading your security settings" /> : (
+        <>
+        {data.mfaEnrollmentBlocked && !data.totpEnabled && (
+          <p className="notice" role="alert">
+            <strong>Set up your second factor to continue.</strong> Your organisation requires it for your account.
+            Until it is set up, the rest of the application is not available to you. You can still change your password or sign out.
+          </p>
+        )}
         <div className="grid-2">
           <div className="stack">
             {codes
@@ -41,6 +48,7 @@ export function AccountSecurityPage() {
             <SessionsCard />
           </div>
         </div>
+        </>
       )}
       <ChangePasswordDialog open={changing} onClose={() => { setChanging(false); reload(); }} />
     </>

@@ -7,7 +7,7 @@ import type { Row } from '../../core';
 import type { Mapping } from './types';
 
 /** Starting suggestions; names already used elsewhere are added from the server. */
-const COMMON = ['PCI DSS', 'HIPAA Security Rule', 'ISO/IEC 27001', 'CIS Controls', 'SOC 2'];
+const COMMON = ['ISO/IEC 27001', 'CIS Controls', 'SOC 2', 'PCI DSS'];
 
 export function MappingsTab({ outcome, canEdit }: { outcome: Row; canEdit: boolean }) {
   const toast = useToast();
@@ -80,7 +80,7 @@ export function MappingsTab({ outcome, canEdit }: { outcome: Row; canEdit: boole
         <form className="form" onSubmit={add} noValidate>
           <div className="form-grid">
             <TextField label="Framework or requirement" required value={name} onChange={setName} error={errors.framework_name}
-              placeholder="For example: PCI DSS" />
+              placeholder="For example: ISO/IEC 27001" />
             <TextField label="Reference" value={reference} onChange={setReference} error={errors.reference}
               placeholder="For example: 12.10.1" hint="The section, clause or control number, if there is one." />
           </div>

@@ -1,4 +1,6 @@
 // Light/dark theme: stored choice wins, otherwise the operating system preference.
+// One switch drives both the design tokens (<html data-theme>) and Mantine
+// (<html data-mantine-color-scheme>; UiProvider in mantine.tsx forces the same scheme).
 import { useSyncExternalStore } from 'react';
 
 export type Theme = 'light' | 'dark';
@@ -23,7 +25,9 @@ let current: Theme = 'light';
 
 function apply(theme: Theme): void {
   current = theme;
-  document.documentElement.dataset.theme = theme;
+  const root = document.documentElement;
+  root.dataset.theme = theme;
+  root.setAttribute('data-mantine-color-scheme', theme);
   listeners.forEach((fn) => fn());
 }
 

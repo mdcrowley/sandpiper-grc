@@ -11,7 +11,7 @@ const mod: ModuleDef = {
   key: 'vendors',
   nav: [
     { group: 'Vendors', label: 'Vendors', path: '/vendors', icon: 'building', permission: 'vendors.view', order: 10 },
-    { group: 'Vendors', label: 'Security terms', path: '/vendors/terms', icon: 'shield', permission: 'contracts.view', order: 20 },
+    { group: 'Vendors', label: 'Security terms matrix', path: '/vendors/terms', icon: 'shield', permission: 'contracts.view', order: 20 },
     { group: 'Vendors', label: 'Contracts', path: '/contracts', icon: 'file-text', permission: 'contracts.view', order: 30 },
     { group: 'Vendors', label: 'Renewal calendar', path: '/contracts/renewals', icon: 'calendar', permission: 'contracts.view', order: 40 },
     { group: 'Vendors', label: 'Evidence', path: '/evidence', icon: 'clipboard', permission: 'vendors.view', order: 50 },

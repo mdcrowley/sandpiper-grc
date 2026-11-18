@@ -177,7 +177,7 @@ interface ObligationSeed { title: string; source?: string; requirement?: string;
 /** Invented, sector-neutral examples for the dev profile. */
 const DEV_OBLIGATIONS: ObligationSeed[] = [
   {
-    title: 'Annual card payment self-assessment', source: 'PCI DSS',
+    title: 'Annual payment security self-assessment', source: 'Payment provider agreement (invented example)',
     requirement: 'Complete the self-assessment questionnaire every 12 months and keep service provider attestations on file',
   },
   {

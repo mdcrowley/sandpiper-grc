@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   api, ApiError, Button, Card, errorMessage, ErrorState, IconButton, Loading, NumberField, PageHeader, TextField, useFetch, useToast,
 } from '../../core';
+import { currencySymbol } from './bits';
 import { GateTemplates } from './GateTemplates';
 import type { Criterion, ProjectSettings } from './types';
 
@@ -86,8 +87,8 @@ export function SettingsPage() {
             Saving recalculates the tier of every project.
           </p>
           <div className="form-grid">
-            <NumberField label="Tier 3 is below" prefix="$" min={0} step={1000} value={tier3Below} onChange={setTier3Below} error={fields['tiers.tier3Below']} />
-            <NumberField label="Tier 1 is above" prefix="$" min={0} step={1000} value={tier1Above} onChange={setTier1Above} error={fields['tiers.tier1Above']} />
+            <NumberField label="Tier 3 is below" prefix={currencySymbol()} min={0} step={1000} value={tier3Below} onChange={setTier3Below} error={fields['tiers.tier3Below']} />
+            <NumberField label="Tier 1 is above" prefix={currencySymbol()} min={0} step={1000} value={tier1Above} onChange={setTier1Above} error={fields['tiers.tier1Above']} />
           </div>
           <div className="form-actions">
             <Button variant="primary" loading={busy === 'tiers'} onClick={saveTiers}>Save thresholds</Button>

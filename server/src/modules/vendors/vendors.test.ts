@@ -222,6 +222,11 @@ describe('evidence', () => {
     const contract = (await t.api.post('/api/contracts', { title: 'Elm hosting', vendor_id: other })).body.id;
     const wrong = await t.api.post('/api/evidence', { title: 'Mismatch', vendor_id: vendorId, contract_id: contract });
     expect(wrong.body.error.fields.contract_id).toMatch(/different vendor/);
+    // E18-18: the contract picker on the evidence form asks for the chosen vendor's contracts only.
+    const mine = (await t.api.post('/api/contracts', { title: 'Dovecote checks', vendor_id: vendorId })).body.id;
+    const offered = (await t.api.get(`/api/contracts?f.vendor_id=${vendorId}&sort=title&pageSize=200`)).body.rows.map((r: any) => r.id);
+    expect(offered).toEqual([mine]);
+    expect(offered).not.toContain(contract);
     const dates = await t.api.post('/api/evidence', { title: 'Backwards', vendor_id: vendorId, received_on: '2030-02-01', expires_on: '2030-01-01' });
     expect(dates.body.error.fields.expires_on).toBeDefined();
   });
@@ -319,5 +324,13 @@ describe('renewal reminders', () => {
     expect(b).toMatchObject({ days_to_notice: -20, window: 'passed' });
     expect(res.body.undated.map((c: any) => c.title)).toContain('Hazel undated');
     expect((await (await t.as('requester')).get('/api/contracts/renewals')).status).toBe(403);
+
+    // Someone who may see contracts but not vendors gets the contracts without vendor names.
+    const role = await t.db.one<{ id: string }>(`insert into roles (key, name, enabled) values ('contracts_only', 'Contracts only', true) returning id`);
+    await t.db.query(`insert into role_permissions (role_id, permission) values ($1, 'contracts.view')`, [role!.id]);
+    const limited = await (await t.as('contracts_only')).get('/api/contracts/renewals');
+    expect(limited.status).toBe(200);
+    expect(limited.body.contracts.find((c: any) => c.id === soon.body.id)).toMatchObject({ title: 'Hazel soon', vendor_name: null });
+    expect(limited.body.undated.every((c: any) => c.vendor_name === null)).toBe(true);
   });
 });

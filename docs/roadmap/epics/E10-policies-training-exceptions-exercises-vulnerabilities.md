@@ -23,20 +23,27 @@ capture what they show, and track vulnerabilities from discovery to fix.
 
 | ID | Title | Status | Priority |
 |---|---|---|---|
-| E10-01 | Policy register with versions and review dates | open | P2 |
-| E10-02 | Policy acknowledgements | open | P2 |
-| E10-03 | Training records and assignments | open | P3 |
-| E10-04 | Exceptions register | open | P2 |
-| E10-05 | Exercises with findings | open | P3 |
-| E10-06 | Vulnerability register | open | P2 |
-| E10-07 | Import scanner findings | open | P3 |
-| E10-08 | Fix-by dates by severity for vulnerabilities | open | P3 |
+| E10-01 | Policy register with versions and review dates | done | P2 |
+| E10-02 | Policy acknowledgements | done | P2 |
+| E10-03 | Training records and assignments | done | P3 |
+| E10-04 | Exceptions register | done | P2 |
+| E10-05 | Exercises with findings | in progress | P3 |
+| E10-06 | Vulnerability register | done | P2 |
+| E10-07 | Import scanner findings | done | P3 |
+| E10-08 | Fix-by dates by severity for vulnerabilities | in progress | P3 |
+| E10-09 | Send acknowledgement and training reminders through notifications | open | P2 |
+| E10-10 | A failed training result still counts as complete | open | P2 |
+| E10-11 | Let people mark their own training complete | open | P3 |
+| E10-12 | Vulnerability deduplication misses port and host aliases | open | P2 |
+| E10-13 | Asset or system criticality should shorten fix-by dates | open | P3 |
+| E10-14 | Reuse an incident scenario checklist in an exercise | open | P3 |
+| E10-15 | Discard a draft policy version and set the reminder interval in Settings | open | P3 |
 
 ---
 
 ### E10-01 Policy register with versions and review dates
 
-**Status:** open · **Priority:** P2 · **Type:** feature
+**Status:** done · **Priority:** P2 · **Type:** feature
 
 As a security lead, I keep each policy with its owner, approver, effective date and
 next review date, and each approved change becomes a new version.
@@ -52,7 +59,7 @@ next review date, and each approved change becomes a new version.
 
 ### E10-02 Policy acknowledgements
 
-**Status:** open · **Priority:** P2 · **Type:** feature
+**Status:** done · **Priority:** P2 · **Type:** feature
 
 As a security lead, I ask a group of people to read and acknowledge a policy version,
 and see who has and has not.
@@ -66,7 +73,7 @@ and see who has and has not.
 
 ### E10-03 Training records and assignments
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 As a security lead, I record which training each person has completed and when it must
 be repeated, and assign courses to groups.
@@ -81,7 +88,7 @@ be repeated, and assign courses to groups.
 
 ### E10-04 Exceptions register
 
-**Status:** open · **Priority:** P2 · **Type:** feature
+**Status:** done · **Priority:** P2 · **Type:** feature
 
 As a security lead, I record each agreed exception to a policy or control with its
 reason, the compensating measures, who approved it and when it expires.
@@ -96,7 +103,7 @@ reason, the compensating measures, who approved it and when it expires.
 
 ### E10-05 Exercises with findings
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** in progress · **Priority:** P3 · **Type:** feature
 
 As a security lead, I plan a tabletop or technical exercise, record who took part and
 what was learned, and turn the findings into actions.
@@ -110,7 +117,7 @@ what was learned, and turn the findings into actions.
 
 ### E10-06 Vulnerability register
 
-**Status:** open · **Priority:** P2 · **Type:** feature
+**Status:** done · **Priority:** P2 · **Type:** feature
 
 As a security lead, I track each vulnerability with its severity, the assets or systems
 it affects, who will fix it and by when.
@@ -125,7 +132,7 @@ it affects, who will fix it and by when.
 
 ### E10-07 Import scanner findings
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 As a security lead, I load the output of a vulnerability scanner and get new findings
 added, known ones updated and fixed ones closed.
@@ -140,7 +147,7 @@ added, known ones updated and fixed ones closed.
 
 ### E10-08 Fix-by dates by severity for vulnerabilities
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** in progress · **Priority:** P3 · **Type:** feature
 
 As a security lead, each vulnerability gets a fix-by date from its severity and the
 criticality of what it affects, and overdue ones are reported.
@@ -150,3 +157,77 @@ criticality of what it affects, and overdue ones are reported.
 - [ ] Days allowed per severity held as a setting
 - [ ] The due date is computed and can be overridden with a reason
 - [ ] An overdue report by system owner
+
+## Delivered in
+
+Policies and exceptions: `server/src/modules/policies`, `web/src/modules/policies` (E10-01, E10-02, E10-04). Training and exercises: `server/src/modules/training`, `web/src/modules/training` (E10-03, E10-05). Vulnerabilities: `server/src/modules/vulnerabilities`, `web/src/modules/vulnerabilities` (E10-06, E10-07, E10-08). User guide pages 11, 12 and 13.
+
+### E10-09 Send acknowledgement and training reminders through notifications
+
+**Status:** open · **Priority:** P2 · **Type:** feature
+
+Policy acknowledgement and overdue-training reminders are recorded but nobody is told. Send them through the in-app notification service.
+
+**Acceptance criteria**
+
+- [ ] People with an outstanding acknowledgement or overdue training get a notification, once per reminder interval
+
+### E10-10 A failed training result still counts as complete
+
+**Status:** open · **Priority:** P2 · **Type:** bug
+
+A completion recorded with the result "Did not pass" is counted as complete in rates and clears the assignment.
+
+**Acceptance criteria**
+
+- [ ] A failed result does not count as complete and the record stays due
+
+### E10-11 Let people mark their own training complete
+
+**Status:** open · **Priority:** P3 · **Type:** feature
+
+Users can see My training but cannot record a completion themselves.
+
+**Acceptance criteria**
+
+- [ ] A user can record completion of a course that allows self-certification, with an evidence note
+
+### E10-12 Vulnerability deduplication misses port and host aliases
+
+**Status:** open · **Priority:** P2 · **Type:** bug
+
+The same finding on two ports of one host merges into one, and a host seen first by address and later by name is duplicated.
+
+**Acceptance criteria**
+
+- [ ] Findings are keyed by host, port and finding identifier, and host name and address are reconciled
+
+### E10-13 Asset or system criticality should shorten fix-by dates
+
+**Status:** open · **Priority:** P3 · **Type:** improvement
+
+The fix-by date uses severity only; the overdue report groups by finding owner, not system owner.
+
+**Acceptance criteria**
+
+- [ ] Criticality feeds the date by policy, and the report can group by system owner
+
+### E10-14 Reuse an incident scenario checklist in an exercise
+
+**Status:** open · **Priority:** P3 · **Type:** feature
+
+An exercise cannot start from a security incident scenario checklist.
+
+**Acceptance criteria**
+
+- [ ] An exercise can copy a scenario checklist and record how each step went
+
+### E10-15 Discard a draft policy version and set the reminder interval in Settings
+
+**Status:** open · **Priority:** P3 · **Type:** improvement
+
+A draft version cannot be discarded, and the reminder interval is a setting with no screen.
+
+**Acceptance criteria**
+
+- [ ] Both can be done from the policy screens

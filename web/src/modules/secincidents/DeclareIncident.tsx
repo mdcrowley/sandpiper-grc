@@ -2,11 +2,11 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ApiError, api, Badge, Button, Card, Checkbox, DateTimeField, EmptyState, ErrorState, errorMessage, formatDateTime,
-  LookupSelect, PageHeader, TextArea, TextField, useToast,
+  LookupSelect, PageHeader, TextArea, TextField, useFetch, useToast,
 } from '../../core';
 import type { Row } from '../../core';
-import type { PreviewResult } from './types';
-import { deadlineText, FLAG_QUESTIONS } from './types';
+import type { PreviewResult, Questions } from './types';
+import { answersToFields, deadlineText } from './types';
 import { PilotNotice } from './Workspace';
 
 /**
@@ -21,9 +21,10 @@ export function DeclareIncident() {
   const [scenario, setScenario] = useState('');
   const [severity, setSeverity] = useState('moderate');
   const [discovered, setDiscovered] = useState(() => new Date().toISOString());
-  const [flags, setFlags] = useState<Record<string, boolean>>({
-    is_cyber_incident: true, health_data_involved: false, card_data_involved: false, personal_info_involved: false,
-  });
+  const asked = useFetch<Questions>('/api/security-incidents/questions');
+  const questions = asked.data?.questions ?? [];
+  const [answers, setFlags] = useState<Record<string, boolean>>({ is_cyber_incident: true });
+  const flags = answersToFields(questions, answers);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [previewError, setPreviewError] = useState<unknown>(null);
@@ -90,16 +91,17 @@ export function DeclareIncident() {
                 hint="When the organisation first became aware. Every deadline counts from this time" />
             </div>
             <fieldset className="si-questions">
-              <legend><strong>Four questions that decide who must be told</strong></legend>
-              {FLAG_QUESTIONS.map((q) => (
-                <Checkbox key={q.field} label={q.question} hint={q.hint} checked={flags[q.field]} error={errors[q.field]}
-                  onChange={(v) => { setFlags((old) => ({ ...old, [q.field]: v })); setPreview(null); }} />
+              <legend><strong>Questions that decide who must be told</strong></legend>
+              {asked.error ? <ErrorState title="The questions could not be loaded" error={asked.error} onRetry={asked.reload} /> : null}
+              {questions.map((q) => (
+                <Checkbox key={q.key} label={q.question} hint={q.hint} checked={!!answers[q.key]} error={errors[q.value]}
+                  onChange={(v) => { setFlags((old) => ({ ...old, [q.key]: v })); setPreview(null); }} />
               ))}
               <p className="muted">If unsure, answer yes. An answer can be changed later and the clocks follow.</p>
             </fieldset>
             <div className="form-actions">
               <Button onClick={() => navigate('/security-incidents')}>Cancel</Button>
-              <Button variant="primary" type="submit" loading={busy === 'preview'}>Review notifications</Button>
+              <Button variant="primary" type="submit" loading={busy === 'preview'} disabled={!asked.data}>Review notifications</Button>
             </div>
           </form>
         </Card>

@@ -195,7 +195,7 @@ Before you start, make sure outcome statuses are up to date, because the snapsho
 
 1. Select **Take snapshot**.
 2. Enter a **Name**, for example "Quarter 1 review".
-3. Leave **Date** empty to use today, or enter the date the assessment relates to.
+3. Leave **Date** empty to use today, or enter the date the assessment relates to. The date cannot be in the future or before 2000.
 4. Add any **Notes**.
 5. Select **Take snapshot**.
 

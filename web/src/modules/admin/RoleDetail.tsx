@@ -6,6 +6,7 @@ import {
 } from '../../core';
 import type { Role, RolesResponse } from './common';
 import { AUDIENCE_ROLES } from './Roles';
+import { adminApi } from './reauth';
 import { Switch } from './Switch';
 
 const MODULE_LABELS: Record<string, string> = {
@@ -70,7 +71,7 @@ export function RoleDetailPage() {
     setBusy(true);
     setErrors({});
     try {
-      await api.patch(`/api/admin/roles/${role.id}`, { ...form, name: form.name.trim(), grants: [...grants] });
+      await adminApi.patch(`/api/admin/roles/${role.id}`, { ...form, name: form.name.trim(), grants: [...grants] });
       toast.success('Role saved. Changes apply at once.');
       reload();
       vocab.reload();

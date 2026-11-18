@@ -12,7 +12,7 @@ export function IncidentList() {
         type="security_incident"
         title="Security incidents"
         columns={['ref', 'title', 'severity', 'status', 'scenario', 'lead_id', 'discovered_at', 'declared_at']}
-        filters={['status', 'severity', 'scenario', 'lead_id', 'health_data_involved', 'card_data_involved', 'personal_info_involved', 'discovered_at']}
+        filters={['status', 'severity', 'scenario', 'lead_id', 'is_cyber_incident', 'personal_info_involved', 'discovered_at']}
         actions={(
           <>
             <Link className="btn btn-secondary" to="/security-incidents/kit">Offline incident kit</Link>

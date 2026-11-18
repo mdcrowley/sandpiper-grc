@@ -3,7 +3,7 @@ import type { Queryable } from '../../core/db.ts';
 import { UUID_RE } from '../../core/errors.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import type { FastifyRequest } from 'fastify';
-import { adminRoute, body, guardAdministrators, idParam, invalid } from './shared.ts';
+import { adminRoute, body, guardAdministrators, idParam, invalid, sensitive } from './shared.ts';
 
 // Never selects password_hash, totp_secret or recovery_codes.
 const USER_SELECT = `
@@ -123,6 +123,8 @@ export function registerUsers(ctx: ModuleContext) {
     // Least privilege: a new user holds only the roles the administrator picks (none by default).
     const roles = await roleIds(b.roles ?? [], fields);
     if (Object.keys(fields).length) invalid(fields);
+    // Creating a user hands out roles and issues a one-time link.
+    await sensitive(ctx, req, 'creating a user');
 
     const id = await db.tx(async (tx) => {
       const row = await tx.one<{ id: string }>(
@@ -157,6 +159,11 @@ export function registerUsers(ctx: ModuleContext) {
       else status = b.status === 'active' && !before.has_password ? 'pending' : b.status;
     }
     if (Object.keys(fields).length) invalid(fields);
+    if (roles) {
+      const wanted = roles.map((r) => r.key).sort();
+      const held = (before.roles as { key: string }[]).map((r) => r.key).sort();
+      if (JSON.stringify(wanted) !== JSON.stringify(held)) await sensitive(ctx, req, `changing the roles of ${before.username}`);
+    }
 
     await db.tx(async (tx) => {
       await tx.query(
@@ -207,6 +214,7 @@ export function registerUsers(ctx: ModuleContext) {
   adminRoute(ctx, 'POST', '/api/admin/users/:id/setup-link', async (req) => {
     const u = await getUser(idParam(req, 'User'));
     if (u.status !== 'pending') ctx.fail(409, 'not_pending', 'This person has already set a password. Issue a password-reset link instead.');
+    await sensitive(ctx, req, `issuing a setup link for ${u.username}`);
     const link = await issueLink(req, u.id, 'setup');
     await ctx.audit(req, { action: 'user.setup_link', recordType: 'user', recordId: u.id, summary: `New one-time setup link issued for ${u.username}` });
     return link;
@@ -215,6 +223,7 @@ export function registerUsers(ctx: ModuleContext) {
   adminRoute(ctx, 'POST', '/api/admin/users/:id/reset-link', async (req) => {
     const u = await getUser(idParam(req, 'User'));
     if (u.status === 'disabled') ctx.fail(409, 'disabled', 'This account is disabled. Enable it before issuing a link.');
+    await sensitive(ctx, req, `issuing a password-reset link for ${u.username}`);
     const link = await issueLink(req, u.id, u.status === 'pending' ? 'setup' : 'reset');
     await ctx.audit(req, { action: 'user.reset_link', recordType: 'user', recordId: u.id, summary: `One-time password-reset link issued for ${u.username}` });
     return link;
@@ -245,7 +254,10 @@ export function registerUsers(ctx: ModuleContext) {
 
   adminRoute(ctx, 'POST', '/api/admin/users/:id/reset-mfa', async (req) => {
     const u = await getUser(idParam(req, 'User'));
-    await db.query(`update users set totp_enabled = false, totp_secret = null, recovery_codes = '[]', updated_at = now() where id = $1`, [u.id]);
+    await sensitive(ctx, req, `resetting the second factor of ${u.username}`);
+    await db.query(
+      `update users set totp_enabled = false, totp_secret = null, totp_last_step = null, mfa_required_since = null,
+         recovery_codes = '[]', updated_at = now() where id = $1`, [u.id]);
     await ctx.audit(req, {
       action: 'mfa.reset', recordType: 'user', recordId: u.id,
       summary: `Second factor of ${u.username} reset by an administrator`,

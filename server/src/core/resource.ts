@@ -1,10 +1,13 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { CURRENCY } from './config.ts';
 import type { Db } from './db.ts';
 import { fail, UUID_RE } from './errors.ts';
 import type { FieldDef, ResourceDef, ResourceRegistry, Row, SessionUser } from './module.ts';
 import { can, type makeAudit, type makeLookups } from './services.ts';
 
 const IDENT = /^[a-z_][a-z0-9_]*$/;
+const CODE = CURRENCY.replace(/[^A-Z]/g, '') || 'USD';
+const CURRENCY_CODE_RE = new RegExp(`^${CODE}|${CODE}$`, 'i');
 const STD_FIELDS: Record<string, FieldDef> = {
   id: { label: 'ID', type: 'text' },
   created_at: { label: 'Created', type: 'datetime' },
@@ -35,12 +38,86 @@ export function makeResources({ app, db, audit, lookups }: Deps) {
     if (!mayAccess(req.user, def, action)) fail(403, 'forbidden', 'You do not have permission to do that.');
   }
 
-  function visibilitySql(def: ResourceDef, user: SessionUser | null | undefined): string {
+  function visibilitySql(def: ResourceDef, user: SessionUser | null | undefined, alias?: string): string {
+    if (alias !== undefined && !IDENT.test(alias)) throw new Error(`Bad table alias: ${alias}`);
     if (seesRestricted(user)) return 'true';
     if (def.restricted === true) return 'false';
-    if (def.restricted === 'flag') return 'coalesce(restricted, false) = false';
+    if (def.restricted === 'flag') return `coalesce(${alias ? `${alias}.` : ''}restricted, false) = false`;
     return 'true';
   }
+
+  // ---------- inherited restriction ----------
+
+  /** Whether the record a row points at (see ResourceDef.restrictedFrom) is restricted. */
+  async function sourceRestricted(def: ResourceDef, row: Row): Promise<boolean> {
+    const type = row[def.restrictedFrom!.typeField];
+    const id = row[def.restrictedFrom!.idField];
+    const src = typeof type === 'string' ? defs.get(type) : undefined;
+    if (!src || !id || !UUID_RE.test(String(id))) return false;
+    if (src.restricted === true) return true;
+    if (src.restricted !== 'flag') return false;
+    const s = await db.one<{ restricted: boolean }>(`select coalesce(restricted, false) as restricted from ${src.table} where id = $1`, [id]);
+    return Boolean(s?.restricted);
+  }
+
+  /** A person may only point a row at a source record they can see; otherwise the row would vanish from their view. */
+  async function checkSourceVisible(def: ResourceDef, row: Row, req: FastifyRequest | null): Promise<void> {
+    if (!req) return;
+    const { typeField, idField } = def.restrictedFrom!;
+    const type = row[typeField];
+    const id = row[idField];
+    const src = typeof type === 'string' ? defs.get(type) : undefined;
+    if (!src || !id) return;
+    if (!mayAccess(req.user, src, 'view') || !(await find(src.type, String(id), req.user))) {
+      fail(400, 'validation', 'Check the highlighted fields.', { [idField]: `${def.fields[idField]?.label ?? 'Source record'} was not found.` });
+    }
+  }
+
+  /** Copies a changed restriction to every row that inherits from this record, and on to their dependants. */
+  async function propagateRestriction(type: string, id: string, restricted: boolean, depth = 0): Promise<void> {
+    if (depth > 5) return;
+    for (const d of defs.values()) {
+      if (!d.restrictedFrom) continue;
+      const rows = await db.query<{ id: string }>(
+        `update ${d.table} set restricted = $3 where ${d.restrictedFrom.typeField} = $1 and ${d.restrictedFrom.idField}::text = $2
+           and coalesce(restricted, false) <> $3 returning id`,
+        [type, id, restricted],
+      );
+      for (const r of rows) {
+        await audit(null, {
+          action: `${d.type}.restriction`, recordType: d.type, recordId: r.id,
+          summary: `${d.label} ${restricted ? 'restricted' : 'no longer restricted'}: follows its source record`,
+          before: { restricted: !restricted }, after: { restricted },
+        });
+        await propagateRestriction(d.type, r.id, restricted, depth + 1);
+      }
+    }
+  }
+
+  /** Start-up repair: brings every inherited flag in line with its source (covers rows written before the rule existed). */
+  async function syncInheritedRestriction(): Promise<void> {
+    for (const d of defs.values()) {
+      if (!d.restrictedFrom) continue;
+      const { typeField, idField } = d.restrictedFrom;
+      let changed = 0;
+      for (const s of defs.values()) {
+        const sql = s.restricted === true
+          ? `update ${d.table} set restricted = true where ${typeField} = $1 and coalesce(restricted, false) = false returning id`
+          : s.restricted === 'flag'
+            ? `update ${d.table} t set restricted = coalesce(s.restricted, false) from ${s.table} s
+               where t.${typeField} = $1 and t.${idField}::text = s.id::text and coalesce(t.restricted, false) <> coalesce(s.restricted, false) returning t.id`
+            : `update ${d.table} set restricted = false where ${typeField} = $1 and coalesce(restricted, false) = true returning id`;
+        changed += (await db.query(sql, [s.type])).length;
+      }
+      if (changed) {
+        await audit(null, {
+          action: `${d.type}.restriction_sync`, recordType: d.type,
+          summary: `${changed} ${d.plural.toLowerCase()} brought in line with the restriction of their source records`,
+        });
+      }
+    }
+  }
+  app.addHook('onReady', syncInheritedRestriction);
 
   const need = (type: string): ResourceDef => defs.get(type) ?? fail(404, 'unknown_type', `Unknown record type "${type}".`);
 
@@ -69,7 +146,9 @@ export function makeResources({ app, db, audit, lookups }: Deps) {
           out[name] = String(v);
           break;
         case 'number': case 'currency': {
-          const n = typeof v === 'number' ? v : Number(String(v).replace(/[$,\s]/g, ''));
+          // Typed amounts may carry a currency symbol, the configured currency code and thousands separators.
+          const n = typeof v === 'number' ? v
+            : Number(String(v).replace(/[\p{Sc},\s]/gu, '').replace(CURRENCY_CODE_RE, '') || NaN);
           if (Number.isFinite(n)) out[name] = n; else errors[name] = `${f.label} must be a number.`;
           break;
         }
@@ -148,6 +227,10 @@ export function makeResources({ app, db, audit, lookups }: Deps) {
     const def = need(type);
     let data = await validate(def, input, 'create', !req);
     if (def.hooks?.beforeCreate) data = await def.hooks.beforeCreate(req, data);
+    if (def.restrictedFrom) {
+      await checkSourceVisible(def, data, req);
+      data.restricted = await sourceRestricted(def, data);
+    }
     if (def.ref && !data[def.ref.field]) data[def.ref.field] = await nextRef(def.ref.prefix);
     data.created_by = data.updated_by = req?.user?.id ?? null;
     const { cols, marks, params } = sqlValues(data);
@@ -167,6 +250,11 @@ export function makeResources({ app, db, audit, lookups }: Deps) {
     const existing = (await find(type, id, req?.user)) ?? fail(404, 'not_found', `${def.label} not found.`);
     let patch = await validate(def, input, 'update', !req);
     if (def.hooks?.beforeUpdate) patch = await def.hooks.beforeUpdate(req, existing, patch);
+    if (def.restrictedFrom && (def.restrictedFrom.typeField in patch || def.restrictedFrom.idField in patch)) {
+      const merged = { ...existing, ...patch };
+      await checkSourceVisible(def, merged, req);
+      patch.restricted = await sourceRestricted(def, merged);
+    }
     const before: Row = {};
     const after: Row = {};
     for (const [k, v] of Object.entries(patch)) {
@@ -187,6 +275,7 @@ export function makeResources({ app, db, audit, lookups }: Deps) {
       summary: `${def.label} updated: ${labelOf(def, row)} (${Object.keys(after).map((k) => def.fields[k]?.label ?? k).join(', ')})`,
       before, after,
     });
+    if (def.restricted === 'flag' && 'restricted' in after) await propagateRestriction(type, id, row.restricted === true);
     await def.hooks?.afterUpdate?.(req, existing, row);
     return row;
   }
@@ -205,6 +294,8 @@ export function makeResources({ app, db, audit, lookups }: Deps) {
     const clean = [...new Set(ids.filter((i) => typeof i === 'string' && UUID_RE.test(i)))];
     if (!def || !clean.length) return out;
     const sees = seesRestricted(user);
+    // A label is a piece of the other record: people without view on its module do not get it either.
+    const mayView = !user || can(user, `${def.module}.view`);
     const rows = await db.query<Row>(
       `select id, ${def.titleField}::text as label, ${def.ref ? def.ref.field : 'null'} as ref,
               ${def.restricted === 'flag' ? 'coalesce(restricted, false)' : 'false'} as flagged
@@ -212,7 +303,7 @@ export function makeResources({ app, db, audit, lookups }: Deps) {
       [clean],
     );
     for (const r of rows) {
-      const hidden = !sees && (def.restricted === true || r.flagged);
+      const hidden = !mayView || (!sees && (def.restricted === true || r.flagged));
       out.set(r.id, hidden ? { label: 'Restricted', ref: null, hidden } : { label: r.label ?? '', ref: r.ref, hidden });
     }
     return out;
@@ -302,7 +393,9 @@ export function makeResources({ app, db, audit, lookups }: Deps) {
   // ---------- registration ----------
 
   function defineResource(def: ResourceDef) {
-    for (const name of [def.table, def.titleField, def.ref?.field, ...Object.keys(def.fields), ...(def.searchable ?? [])]) {
+    if (def.restrictedFrom && def.restricted !== 'flag') throw new Error(`Resource ${def.type}: restrictedFrom needs restricted: 'flag'`);
+    for (const name of [def.table, def.titleField, def.ref?.field, def.restrictedFrom?.typeField, def.restrictedFrom?.idField,
+      ...Object.keys(def.fields), ...(def.searchable ?? []), ...(def.defaultSort ? [def.defaultSort.field] : [])]) {
       if (name !== undefined && !IDENT.test(name)) throw new Error(`Resource ${def.type}: bad identifier "${name}"`);
     }
     for (const [name, f] of Object.entries(def.fields)) {
@@ -417,6 +510,10 @@ export function makeResources({ app, db, audit, lookups }: Deps) {
     find,
     create,
     update,
+    visibleWhere: (type, user, alias) => {
+      const def = defs.get(type);
+      return def ? visibilitySql(def, user, alias) : 'false';
+    },
   };
 
   return { registry, defineResource, labelsFor, mayAccess, visibilitySql, decorate };

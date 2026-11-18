@@ -13,7 +13,7 @@ const mod: ModuleDef = {
   nav: [
     { group: 'Service desk', label: 'Tickets', path: '/tickets', icon: 'ticket', permission: 'tickets.view', order: 10 },
     { group: 'Service desk', label: 'Service desk dashboard', path: '/tickets/dashboard', icon: 'chart', permission: 'tickets.view', order: 15 },
-    { group: 'Service desk', label: 'Catalogue', path: '/catalogue', icon: 'folder', permission: 'tickets.view', order: 20 },
+    { group: 'Service desk', label: 'Service catalogue', path: '/catalogue', icon: 'folder', permission: 'tickets.view', order: 20 },
     { group: 'Service desk', label: 'Problems', path: '/problems', icon: 'bug', permission: 'tickets.view', order: 30 },
     { group: 'Service desk', label: 'Knowledge base', path: '/knowledge', icon: 'book', permission: 'knowledge.view', order: 40 },
   ],

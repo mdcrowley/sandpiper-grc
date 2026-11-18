@@ -1,15 +1,15 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Badge, Card, PageHeader, Select, Tabs, useAuth, useLookup } from '../../core';
+import { Badge, Card, PageHeader, Select, Tabs, useAuth, useFetch, useLookup } from '../../core';
 import { EditableTable } from './EditableTable';
-import type { Rule } from './types';
+import type { Questions, Rule } from './types';
 import { deadlineText } from './types';
 
 /** Notification rules, checklist templates and the standing contact list. Everyone with access can read; administrators edit. */
 export function RulesPage() {
   const { can } = useAuth();
   const admin = can('security.administer');
-  const triggers = useLookup('notification_trigger');
+  const triggers = useFetch<Questions>('/api/security-incidents/questions').data?.triggers ?? [];
   const scenarios = useLookup('security_incident_scenario');
   const [scenario, setScenario] = useState('ransomware');
   const options = (list: { value: string; label: string }[]) => list.map((x) => ({ value: x.value, label: x.label }));
@@ -24,7 +24,10 @@ export function RulesPage() {
       <EditableTable url="/api/security-notification-rules" noun="Notification rule" canEdit={admin}
         emptyIcon="clock" emptyTitle="No notification rules" emptyMessage="Without rules, declaring an incident starts no clocks."
         columns={[
-          { field: 'trigger_attribute', label: 'Trigger', type: 'select', options: options(triggers), required: true },
+          {
+            field: 'trigger_attribute', label: 'Trigger', type: 'select', options: options(triggers), required: true,
+            render: (r: Rule) => triggers.find((x) => x.value === r.trigger_attribute)?.label ?? r.trigger_attribute,
+          },
           { field: 'party', label: 'Notify', required: true },
           {
             field: 'deadline_hours', label: 'Deadline from discovery', type: 'number', hint: 'In hours: 24, 72 (3 days), 168 (7 days), 720 (30 days); 0 = immediately',

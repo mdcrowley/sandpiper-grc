@@ -24,15 +24,15 @@ const DEV_CATEGORIES: Row[] = [
 ];
 
 const DEV_SYSTEMS: Row[] = [
-  { name: 'Example Operations System', system_group: 'Operations', vendor_name: 'Northwind Software', function: 'Day-to-day service delivery', users: 'Operations staff', hosting_type: 'vendor_hosted', criticality_tier: 'tier_1', rto_hours: 4, rpo_hours: 1, mfa_status: 'enforced', manual_fallback: 'Phone and paper job sheets' },
-  { name: 'Example Scheduling System', system_group: 'Operations', vendor_name: 'Northwind Software', function: 'Rotas and work schedules', users: 'Planners', hosting_type: 'on_premises', criticality_tier: 'tier_2', rto_hours: 24, rpo_hours: 24, mfa_status: 'none' },
+  { name: 'Example Operations System', system_group: 'Operations', vendor_name: 'Northfold Software', function: 'Day-to-day service delivery', users: 'Operations staff', hosting_type: 'vendor_hosted', criticality_tier: 'tier_1', rto_hours: 4, rpo_hours: 1, mfa_status: 'enforced', manual_fallback: 'Phone and paper job sheets' },
+  { name: 'Example Scheduling System', system_group: 'Operations', vendor_name: 'Northfold Software', function: 'Rotas and work schedules', users: 'Planners', hosting_type: 'on_premises', criticality_tier: 'tier_2', rto_hours: 24, rpo_hours: 24, mfa_status: 'none' },
   { name: 'Example Public Website', system_group: 'Public', vendor_name: 'Bluebird Web', function: 'Public information and notices', users: 'Public', hosting_type: 'cloud', hosting_provider: 'Example Cloud', criticality_tier: 'tier_3', mfa_status: 'not_applicable' },
   { name: 'Example Payments System', system_group: 'Customer', vendor_name: 'Copperline Payments', function: 'Card payments and reconciliation', users: 'Finance, front desk', hosting_type: 'hybrid', criticality_tier: 'tier_2', rto_hours: 48, mfa_status: 'optional' },
   { name: 'Example Customer Portal', system_group: 'Customer', vendor_name: 'Copperline Payments', function: 'Online accounts and orders', users: 'Public', hosting_type: 'vendor_hosted', criticality_tier: 'tier_3', mfa_status: 'optional' },
   { name: 'Example Finance System', system_group: 'Finance and HR', vendor_name: 'Ledgerworks', function: 'General ledger, purchasing and payroll', users: 'Finance', hosting_type: 'vendor_hosted', criticality_tier: 'tier_1', rto_hours: 24, rpo_hours: 4, mfa_status: 'none' },
   { name: 'Example Timekeeping System', system_group: 'Finance and HR', vendor_name: 'Ledgerworks', function: 'Clocking and leave', users: 'All staff', hosting_type: 'on_premises', criticality_tier: 'tier_3', mfa_status: 'unknown' },
   { name: 'Example Facilities System', system_group: 'Facilities', vendor_name: 'Wrenchbook', function: 'Work orders and parts', users: 'Facilities', hosting_type: 'cloud', criticality_tier: 'tier_2', rto_hours: 24, rpo_hours: 24, mfa_status: 'enforced' },
-  { name: 'Example Security Cameras', system_group: 'Facilities', vendor_name: 'Clearview Cameras', function: 'Building camera recording', users: 'Facilities', hosting_type: 'on_premises', criticality_tier: 'tier_3', mfa_status: 'none' },
+  { name: 'Example Security Cameras', system_group: 'Facilities', vendor_name: 'Lanternview Cameras', function: 'Building camera recording', users: 'Facilities', hosting_type: 'on_premises', criticality_tier: 'tier_3', mfa_status: 'none' },
   { name: 'Example Directory', system_group: 'Infrastructure', vendor_name: 'Not known', function: 'Sign-in and email', users: 'All staff', hosting_type: 'cloud', criticality_tier: 'tier_1', rto_hours: 8, rpo_hours: 1, mfa_status: 'enforced' },
 ];
 

@@ -1,6 +1,7 @@
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
-import { ACTIONS, adminRoute, body, guardAdministrators, idParam, invalid, isValidGrant, MODULE_KEYS } from './shared.ts';
+import { defaultGrantDifferences, syncDefaultGrants } from '../../core/services.ts';
+import { ACTIONS, adminRoute, body, guardAdministrators, idParam, invalid, isValidGrant, MODULE_KEYS, sensitive } from './shared.ts';
 
 const ROLE_SELECT = `
   select r.id, r.key, r.name, r.description, r.enabled, r.requires_mfa, r.created_at, r.updated_at,
@@ -69,6 +70,7 @@ export function registerRoles(ctx: ModuleContext) {
     }
     if (out.grants?.includes('*')) fields.grants = 'Only the Administrator role may hold every permission.';
     if (Object.keys(fields).length) invalid(fields);
+    await sensitive(ctx, req, 'creating a role');
 
     const id = await db.tx(async (tx) => {
       const row = await tx.one<{ id: string }>(
@@ -100,6 +102,8 @@ export function registerRoles(ctx: ModuleContext) {
       fields.name = 'A role with that name already exists.';
     }
     if (Object.keys(fields).length) invalid(fields);
+    // Grants, the on/off switch and the second-factor flag decide what people can do.
+    if (out.grants || out.enabled !== undefined || out.requires_mfa !== undefined) await sensitive(ctx, req, `changing the role "${before.name}"`);
 
     await db.tx(async (tx) => {
       await tx.query(
@@ -137,6 +141,22 @@ export function registerRoles(ctx: ModuleContext) {
     }
     return after;
   }
+
+  // ---------- default grants ----------
+  // A new version may add grants to a default role. Existing databases get them only here: the
+  // administrator sees what would be added, then applies it. Nothing is removed, and a default
+  // grant removed by an administrator after a sync is not offered again.
+
+  adminRoute(ctx, 'GET', '/api/admin/roles/default-grants', async () => {
+    const roles = (await defaultGrantDifferences(db)).filter((d) => d.missing.length || d.description !== null);
+    return { roles, pending: roles.reduce((n, d) => n + d.missing.length, 0) };
+  });
+
+  adminRoute(ctx, 'POST', '/api/admin/roles/sync-default-grants', async (req) => {
+    await sensitive(ctx, req, 'synchronising default grants');
+    const changed = await syncDefaultGrants(db, ctx.audit, req);
+    return { ok: true, roles: changed, added: changed.reduce((n, d) => n + d.missing.length, 0) };
+  });
 
   adminRoute(ctx, 'PATCH', '/api/admin/roles/:id', async (req) => updateRole(req, idParam(req, 'Role'), body(req)));
   adminRoute(ctx, 'POST', '/api/admin/roles/:id/enable', async (req) => updateRole(req, idParam(req, 'Role'), { enabled: true }));

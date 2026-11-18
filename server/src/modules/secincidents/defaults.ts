@@ -39,9 +39,16 @@ export const LOOKUPS: Record<string, LookupValue[]> = {
   notification_trigger: [
     { value: 'any', label: 'Any incident', sort: 10 },
     { value: 'is_cyber_incident', label: 'Any cybersecurity or ransomware incident', sort: 20 },
-    { value: 'health_data_involved', label: 'Health information involved', sort: 30 },
-    { value: 'card_data_involved', label: 'Payment card data involved', sort: 40 },
     { value: 'personal_info_involved', label: 'Personal information involved', sort: 50 },
+  ],
+  // Kinds of data an incident may involve, beyond personal information. Each value becomes a
+  // yes/no question when an incident is declared and can trigger notification rules
+  // (trigger "kind:<value>"). Only neutral starters ship here: kinds that only some
+  // organisations hold belong in the organisation profile (`lookups.incident_data_kind`)
+  // or are added by an administrator under Administration > Lists.
+  incident_data_kind: [
+    { value: 'financial_data', label: 'Financial or payment information', sort: 10, meta: { hint: 'Bank, payment or account details of the organisation or of other people.' } },
+    { value: 'confidential_business', label: 'Confidential business information', sort: 20, meta: { hint: 'Contracts, plans, credentials or anything else the organisation keeps confidential.' } },
   ],
   incident_log_kind: [
     { value: 'note', label: 'Note', color: 'gray', sort: 10 },
@@ -56,8 +63,67 @@ export const LOOKUPS: Record<string, LookupValue[]> = {
   ],
 };
 
-/** Incident flags a notification rule can be triggered by ("any" always applies). */
-export const FLAG_FIELDS = ['is_cyber_incident', 'health_data_involved', 'card_data_involved', 'personal_info_involved'] as const;
+/** Built-in incident flags a notification rule can be triggered by ("any" always applies). */
+export const FLAG_FIELDS = ['is_cyber_incident', 'personal_info_involved'] as const;
+
+/** Lookup list of the configurable kinds of data; a rule is triggered by one with "kind:<value>". */
+export const KIND_LIST = 'incident_data_kind';
+export const KIND_PREFIX = 'kind:';
+
+/**
+ * Trigger names used before kinds of data became configurable. Profiles and databases that
+ * still use them are mapped to a kind of data (see migrations/002_data_kinds.sql).
+ */
+export const LEGACY_TRIGGERS: Record<string, { value: string; label: string }> = {
+  health_data_involved: { value: 'health_information', label: 'Health information' },
+  card_data_involved: { value: 'payment_card_data', label: 'Payment card data' },
+};
+
+/** True when a rule's trigger applies to an incident (or to a set of answers shaped like one). */
+export function triggerApplies(trigger: string, incident: Record<string, unknown>): boolean {
+  if (trigger === 'any') return true;
+  if (trigger.startsWith(KIND_PREFIX)) {
+    return Array.isArray(incident.data_kinds) && incident.data_kinds.includes(trigger.slice(KIND_PREFIX.length));
+  }
+  return (FLAG_FIELDS as readonly string[]).includes(trigger) && incident[trigger] === true;
+}
+
+export interface IncidentQuestion { key: string; kind: 'flag' | 'data_kind'; value: string; question: string; hint: string; trigger: string; trigger_label: string }
+
+const FLAG_QUESTIONS: Record<(typeof FLAG_FIELDS)[number], { question: string; hint: string }> = {
+  is_cyber_incident: {
+    question: 'Is this a cybersecurity or ransomware incident?',
+    hint: 'Yes for any attack on, or unauthorised access to, the organisation\'s systems, accounts or data.',
+  },
+  personal_info_involved: {
+    question: 'Could personal information be involved?',
+    hint: 'Details of identifiable people, such as names with identity, licence or account numbers.',
+  },
+};
+
+/** The yes/no questions asked when an incident is declared: the built-in flags, then one per kind of data. */
+export async function incidentQuestions(ctx: ModuleContext): Promise<IncidentQuestion[]> {
+  const triggers = await ctx.lookups.values('notification_trigger');
+  const out: IncidentQuestion[] = FLAG_FIELDS.map((f) => ({
+    key: f, kind: 'flag', value: f, ...FLAG_QUESTIONS[f], trigger: f,
+    trigger_label: triggers.find((t) => t.value === f)?.label ?? f,
+  }));
+  for (const k of await ctx.lookups.values(KIND_LIST)) {
+    out.push({
+      key: `${KIND_PREFIX}${k.value}`, kind: 'data_kind', value: k.value,
+      question: `Could ${k.label.charAt(0).toLowerCase()}${k.label.slice(1)} be involved?`,
+      hint: typeof k.meta?.hint === 'string' ? k.meta.hint : '',
+      trigger: `${KIND_PREFIX}${k.value}`, trigger_label: `${k.label} involved`,
+    });
+  }
+  return out;
+}
+
+/** Every trigger a notification rule may use, with its label. */
+export async function triggerOptions(ctx: ModuleContext): Promise<{ value: string; label: string }[]> {
+  const any = (await ctx.lookups.values('notification_trigger')).find((t) => t.value === 'any');
+  return [{ value: 'any', label: any?.label ?? 'Any incident' }, ...(await incidentQuestions(ctx)).map((q) => ({ value: q.trigger, label: q.trigger_label }))];
+}
 
 export interface RuleSeed {
   key: string; trigger: string; party: string; hours: number | null; required: boolean; active: boolean; guidance: string;
@@ -82,12 +148,8 @@ export const RULES: RuleSeed[] = [
     guidance: SET_UP,
   },
   {
-    key: 'health_data_partner', trigger: 'health_data_involved', party: 'Health data partner or regulator', hours: null, required: true, active: false,
+    key: 'data_sharing_partners', trigger: 'personal_info_involved', party: 'Partners whose data is held under an agreement', hours: null, required: true, active: false,
     guidance: `${SET_UP} Data sharing and processing agreements often set their own notice period.`,
-  },
-  {
-    key: 'card_acquirer', trigger: 'card_data_involved', party: 'Card acquirer and card brands', hours: null, required: true, active: false,
-    guidance: `${SET_UP} The acquirer agreement usually asks for notice straight away (0 hours).`,
   },
   {
     key: 'insurer', trigger: 'any', party: 'Cyber insurer', hours: null, required: true, active: false,
@@ -155,7 +217,7 @@ export const CHECKLISTS: Record<string, Steps> = {
       'Stop any further payments or bank detail changes for the supplier or employee involved',
       'Keep the emails, invoices and call records exactly as received',
       'Check whether a mailbox or supplier account was compromised to make the request look real',
-      'Tell Finance leadership and the cyber insurer contact',
+      'Tell the person responsible for finance and the cyber insurer contact',
     ],
     recovery: [
       'File a report with law enforcement and keep the report number for the bank and the insurer',
@@ -192,14 +254,14 @@ export const CHECKLISTS: Record<string, Steps> = {
       'List the data that was stored on or reachable from the device and decide whether regulated data was exposed',
       'Remove the device from device management and mark the asset record as lost or stolen',
       'Issue a replacement device set up from a clean image',
-      'Check whether insurance or funder reporting applies to the asset',
+      'Check whether insurance or other reporting applies to the asset',
     ],
   },
 };
 
 /** Adds missing default rows. Safe at every start. */
 export async function ensureDefaults(ctx: ModuleContext): Promise<void> {
-  for (const [list, values] of Object.entries(LOOKUPS)) await ctx.lookups.ensure(list, values);
+  for (const [list, values] of Object.entries(LOOKUPS)) await ctx.lookups.ensure(list, values, { module: 'security' });
 
   for (const [i, r] of RULES.entries()) {
     await ctx.db.query(
@@ -239,7 +301,10 @@ const MAX_DEADLINE_HOURS = 24 * 366;
 export async function loadOrganisationRules(ctx: ModuleContext, input: unknown): Promise<number> {
   if (input === undefined || input === null) return 0;
   if (!Array.isArray(input)) throw new Error('Organisation profile: notificationRules must be a list.');
-  const triggers = ['any', ...FLAG_FIELDS] as string[];
+  const kinds = new Set((await ctx.lookups.values(KIND_LIST)).map((k) => k.value));
+  const fixed = ['any', ...FLAG_FIELDS] as string[];
+  const describe = `any, ${FLAG_FIELDS.join(', ')} or ${KIND_PREFIX}<a value of the ${KIND_LIST} list>`;
+  const newKinds = new Map<string, string>();
 
   const rules: RuleSeed[] = input.map((raw, i) => {
     const r = (raw ?? {}) as Record<string, unknown>;
@@ -248,8 +313,14 @@ export async function loadOrganisationRules(ctx: ModuleContext, input: unknown):
     const party = typeof r.party === 'string' ? r.party.trim() : '';
     if (!key) throw new Error(`${where} needs a key.`);
     if (!party) throw new Error(`${where} (${key}) needs a party.`);
-    if (typeof r.trigger !== 'string' || !triggers.includes(r.trigger)) {
-      throw new Error(`${where} (${key}): trigger must be one of ${triggers.join(', ')}.`);
+    let trigger = typeof r.trigger === 'string' ? r.trigger : '';
+    // Older profiles name a kind of data by its former built-in flag: the kind is added to the list.
+    const legacy = LEGACY_TRIGGERS[trigger];
+    if (legacy) {
+      trigger = `${KIND_PREFIX}${legacy.value}`;
+      if (!kinds.has(legacy.value)) newKinds.set(legacy.value, legacy.label);
+    } else if (!fixed.includes(trigger) && !(trigger.startsWith(KIND_PREFIX) && kinds.has(trigger.slice(KIND_PREFIX.length)))) {
+      throw new Error(`${where} (${key}): trigger must be ${describe}.`);
     }
     const hours = r.hours === undefined || r.hours === null ? null : Number(r.hours);
     if (hours !== null && !(hours >= 0 && hours <= MAX_DEADLINE_HOURS)) {
@@ -258,11 +329,15 @@ export async function loadOrganisationRules(ctx: ModuleContext, input: unknown):
     const active = r.active === undefined ? hours !== null : r.active === true;
     if (active && hours === null) throw new Error(`${where} (${key}): an active rule needs a deadline in hours.`);
     return {
-      key, party, trigger: r.trigger, hours, active,
+      key, party, trigger, hours, active,
       required: r.required !== false,
       guidance: typeof r.guidance === 'string' ? r.guidance : '',
     };
   });
+
+  if (newKinds.size) {
+    await ctx.lookups.ensure(KIND_LIST, [...newKinds].map(([value, label], i) => ({ value, label, sort: 100 + i * 10 })), { module: 'security' });
+  }
 
   let added = 0;
   for (const r of rules) {

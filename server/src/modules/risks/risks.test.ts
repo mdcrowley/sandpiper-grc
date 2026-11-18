@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { buildApp } from '../../app.ts';
 import { testApp } from '../../test/helpers.ts';
 import mod from './index.ts';
 import { HAZARD_SCALE_NAME, LEGACY_HAZARD_SCALE_NAME } from './scales.ts';
@@ -22,29 +23,29 @@ describe('risk scales', () => {
   it('seeds the 5 by 5 scale and the safety hazard scale', async () => {
     const res = await t.api.get('/api/risks/scales');
     expect(res.status).toBe(200);
-    expect(res.body.map((s: any) => s.key)).toEqual(['cyber_5x5', 'asp']);
-    const [five, asp] = res.body;
+    expect(res.body.map((s: any) => s.key)).toEqual(['cyber_5x5', 'hazard_4x5']);
+    const [five, hazard] = res.body;
     expect(five.likelihood_levels.length).toBe(5);
     expect(five.impact_levels.length).toBe(5);
     expect(five.matrix['5']['5']).toBe('extreme');
     expect(five.matrix['1']['1']).toBe('low');
-    expect(asp.name).toBe('Safety hazard matrix (4 by 5)');
-    expect(asp.impact_label).toBe('Severity');
-    expect(asp.impact_levels.map((l: any) => l.label)).toEqual(['Negligible', 'Marginal', 'Critical', 'Catastrophic']);
-    expect(asp.likelihood_levels.map((l: any) => l.label)).toEqual(['Improbable', 'Remote', 'Occasional', 'Probable', 'Frequent']);
-    expect(asp.ratings.map((r: any) => r.label)).toEqual(['Low', 'Medium', 'Serious', 'High']);
+    expect(hazard.name).toBe('Safety hazard matrix (4 by 5)');
+    expect(hazard.impact_label).toBe('Severity');
+    expect(hazard.impact_levels.map((l: any) => l.label)).toEqual(['Negligible', 'Marginal', 'Critical', 'Catastrophic']);
+    expect(hazard.likelihood_levels.map((l: any) => l.label)).toEqual(['Improbable', 'Remote', 'Occasional', 'Probable', 'Frequent']);
+    expect(hazard.ratings.map((r: any) => r.label)).toEqual(['Low', 'Medium', 'Serious', 'High']);
     // Corners and a middle cell of the standard hazard matrix.
-    expect(asp.matrix['5']['4']).toBe('high');      // Frequent / Catastrophic
-    expect(asp.matrix['5']['1']).toBe('medium');    // Frequent / Negligible
-    expect(asp.matrix['1']['4']).toBe('medium');    // Improbable / Catastrophic
-    expect(asp.matrix['1']['1']).toBe('low');       // Improbable / Negligible
-    expect(asp.matrix['3']['3']).toBe('serious');   // Occasional / Critical
-    expect(asp.matrix['2']['4']).toBe('serious');   // Remote / Catastrophic
+    expect(hazard.matrix['5']['4']).toBe('high');      // Frequent / Catastrophic
+    expect(hazard.matrix['5']['1']).toBe('medium');    // Frequent / Negligible
+    expect(hazard.matrix['1']['4']).toBe('medium');    // Improbable / Catastrophic
+    expect(hazard.matrix['1']['1']).toBe('low');       // Improbable / Negligible
+    expect(hazard.matrix['3']['3']).toBe('serious');   // Occasional / Critical
+    expect(hazard.matrix['2']['4']).toBe('serious');   // Remote / Catastrophic
     // Every rating maps to a common summary level.
-    expect(asp.ratings.find((r: any) => r.key === 'serious').summary_level).toBe('high');
+    expect(hazard.ratings.find((r: any) => r.key === 'serious').summary_level).toBe('high');
     expect(five.ratings.find((r: any) => r.key === 'extreme').summary_level).toBe('critical');
     expect(five.acceptance_threshold).toBe('high');
-    expect(asp.acceptance_threshold).toBe('serious');
+    expect(hazard.acceptance_threshold).toBe('serious');
   });
 
   it('lets only risks.administer edit a scale, validates it and re-rates risks', async () => {
@@ -93,7 +94,7 @@ describe('risks', () => {
       title: 'Invented safety hazard', category: 'safety',
       inherent_likelihood: 5, inherent_impact: 4, residual_likelihood: 2, residual_impact: 4,
     });
-    expect(safety.body.scale_key).toBe('asp');
+    expect(safety.body.scale_key).toBe('hazard_4x5');
     expect(safety.body.inherent_rating).toBe('high');
     expect(safety.body.residual_rating).toBe('serious');
     expect(safety.body.summary_level).toBe('high');
@@ -123,7 +124,7 @@ describe('risks', () => {
     const risk = await t.api.post('/api/risks', { title: 'Category mover', inherent_likelihood: 2, inherent_impact: 5 });
     expect((await t.api.patch(`/api/risks/${risk.body.id}`, { category: 'safety' })).status).toBe(400);
     const moved = await t.api.patch(`/api/risks/${risk.body.id}`, { category: 'safety', inherent_impact: 4 });
-    expect(moved.body.scale_key).toBe('asp');
+    expect(moved.body.scale_key).toBe('hazard_4x5');
     expect(moved.body.inherent_rating).toBe('serious');
     await t.api.del(`/api/risks/${risk.body.id}`);
   });
@@ -148,17 +149,17 @@ describe('risks', () => {
     expect(inherent.body.cells.find((c: any) => c.likelihood === 4 && c.impact === 5).count).toBe(1);
     expect(inherent.body.cells.find((c: any) => c.likelihood === 1 && c.impact === 1).count).toBe(1);
 
-    const asp = await t.api.get('/api/risks/heatmap?scale=asp');
-    expect(asp.body.cells.length).toBe(20);
-    expect(asp.body.cells.find((c: any) => c.likelihood === 2 && c.impact === 4).count).toBe(1);
+    const hazard = await t.api.get('/api/risks/heatmap?scale=hazard_4x5');
+    expect(hazard.body.cells.length).toBe(20);
+    expect(hazard.body.cells.find((c: any) => c.likelihood === 2 && c.impact === 4).count).toBe(1);
     expect((await t.api.get('/api/risks/heatmap?scale=nope')).status).toBe(404);
 
     const summary = await t.api.get('/api/risks/summary');
     expect(summary.body.total).toBe(3);
     const level = (v: string) => summary.body.levels.find((l: any) => l.value === v);
     expect(level('medium').count).toBe(2);
-    expect(level('medium').by_scale).toEqual({ cyber_5x5: 2, asp: 0 });
-    expect(level('high').by_scale).toEqual({ cyber_5x5: 0, asp: 1 });
+    expect(level('medium').by_scale).toEqual({ cyber_5x5: 2, hazard_4x5: 0 });
+    expect(level('high').by_scale).toEqual({ cyber_5x5: 0, hazard_4x5: 1 });
     expect(summary.body.top[0].title).toBe('Invented safety hazard');
     expect(summary.body.top[0].rating_label).toBe('Serious');
   });
@@ -212,9 +213,9 @@ describe('risks', () => {
     expect(expired.body[0]).toMatchObject({ risk_id: high.id, expired: true, days_left: -5 });
 
     // The threshold is configuration: raise it and the same rating no longer needs an executive.
-    await t.api.patch('/api/risks/scales/asp', { acceptance_threshold: 'high' });
+    await t.api.patch('/api/risks/scales/hazard_4x5', { acceptance_threshold: 'high' });
     expect((await t.api.get(`/api/risks/${high.id}/acceptances`)).body.rule.executive_required).toBe(false);
-    await t.api.patch('/api/risks/scales/asp', { acceptance_threshold: 'serious' });
+    await t.api.patch('/api/risks/scales/hazard_4x5', { acceptance_threshold: 'serious' });
   });
 
   it('keeps risks invisible to an agent without security.view, everywhere', async () => {
@@ -235,8 +236,9 @@ describe('risks', () => {
     expect((await agent.post(`/api/risks/${risk.id}/acceptances`, { expires_on: plus(30), rationale: 'x' })).status).toBe(403);
     expect((await agent.get(`/api/history?record_type=risk&record_id=${risk.id}`)).status).toBe(404);
     expect((await agent.get('/api/meta')).body.resources.risk).toBeUndefined();
-    // The agent can work the action but learns nothing about the risk beyond the action itself.
-    expect((await agent.get(`/api/actions/${linked.body.id}`)).status).toBe(200);
+    // An action raised on the risk is restricted with it (E08-16): see the actions tests.
+    expect(linked.body.restricted).toBe(true);
+    expect((await agent.get(`/api/actions/${linked.body.id}`)).status).toBe(404);
 
     // A role with risks.view but not security.view is still shut out of the hand-written routes.
     const role = await t.db.one<{ id: string }>(`insert into roles (key, name) values ('risk_reader', 'Risk reader') returning id`);
@@ -318,8 +320,101 @@ describe('actions', () => {
 
     expect((await (await t.as('executive_viewer')).get('/api/actions/summary')).status).toBe(403);
   });
-});
 
+  it('hides an action raised on a restricted record from people without security.view, everywhere', async () => {
+    const agent = await t.as('agent');
+    const lead = await t.as('security_lead');
+    const risk = (await t.api.post('/api/risks', { title: 'Invented risk with a follow-up' })).body;
+    const before = (await agent.get('/api/actions/summary')).body;
+    const beforeTotal = (await agent.get('/api/actions')).body.total;
+
+    const hidden = await lead.post('/api/actions', {
+      title: 'Quokka follow-up on the hidden risk', source: 'risk', source_type: 'risk', source_id: risk.id,
+      due_on: plus(-5), owner_id: agent.userId, department: 'Quokka department',
+    });
+    expect(hidden.status).toBe(201);
+    expect(hidden.body.restricted).toBe(true);
+    const open = await agent.post('/api/actions', { title: 'Quokka ordinary action', source: 'audit', due_on: plus(-5) });
+    expect(open.body.restricted).toBe(false);
+    // The flag is derived from the source record: a caller cannot set or clear it.
+    expect((await lead.patch(`/api/actions/${hidden.body.id}`, { restricted: false, notes: 'x' })).body.restricted).toBe(true);
+    expect((await agent.post('/api/actions', { title: 'Tries to flag', restricted: true })).body.restricted).toBe(false);
+
+    // list, get, edit, delete
+    const list = await agent.get('/api/actions?q=Quokka');
+    expect(list.body.rows.map((r: any) => r.title)).toEqual(['Quokka ordinary action']);
+    expect(list.body.total).toBe(1);
+    expect((await agent.get('/api/actions')).body.total).toBe(beforeTotal + 2); // the two unrestricted ones
+    expect((await agent.get(`/api/actions/${hidden.body.id}`)).status).toBe(404);
+    expect((await agent.patch(`/api/actions/${hidden.body.id}`, { title: 'x' })).status).toBe(404);
+    expect((await agent.del(`/api/actions/${hidden.body.id}`)).status).toBe(404);
+    expect((await agent.get(`/api/actions?f.source_type=risk&f.source_id=${risk.id}`)).body.total).toBe(0);
+    // search, pickers, statistics, export
+    expect((await agent.get('/api/search?q=Quokka')).body.map((r: any) => r.label)).toEqual(['Quokka ordinary action']);
+    expect((await agent.get('/api/records/lookup?type=action&q=Quokka')).body.map((r: any) => r.label)).toEqual(['Quokka ordinary action']);
+    const stats = (await agent.get('/api/actions/stats?group=source')).body;
+    expect(stats.groups.find((g: any) => g.value === 'risk')).toBeUndefined();
+    expect((await agent.get('/api/actions/stats?group=department')).body.groups.some((g: any) => g.value === 'Quokka department')).toBe(false);
+    const csv = await (await t.as('security_lead')).get('/api/actions?format=csv&q=Quokka');
+    expect(csv.text).toContain('Quokka follow-up on the hidden risk');
+    expect(csv.text).toMatch(/Restricted export by/);
+    const auditorCsv = await t.api.get('/api/actions?format=csv&q=Quokka ordinary');
+    expect(auditorCsv.text).not.toMatch(/Restricted export by/);
+    // summaries: the restricted action is in no count for the agent, and in every count for the lead
+    const after = (await agent.get('/api/actions/summary')).body;
+    expect(after.open).toBe(before.open + 2);
+    expect(after.overdue).toBe(before.overdue + 1);
+    expect(after.by_department.some((d: any) => d.value === 'Quokka department')).toBe(false);
+    expect(after.by_source.find((s: any) => s.value === 'risk')).toBeUndefined();
+    const leadSummary = (await lead.get('/api/actions/summary')).body;
+    expect(leadSummary.open).toBe(after.open + 1);
+    expect(leadSummary.by_department.some((d: any) => d.value === 'Quokka department')).toBe(true);
+    // history, comments, links and the audit search
+    expect((await agent.get(`/api/history?record_type=action&record_id=${hidden.body.id}`)).status).toBe(404);
+    expect((await agent.post('/api/comments', { record_type: 'action', record_id: hidden.body.id, body: 'hello' })).status).toBe(404);
+    expect((await agent.post('/api/links', { from_type: 'action', from_id: open.body.id, to_type: 'action', to_id: hidden.body.id })).status).toBe(404);
+    const auditor = await t.as('auditor'); // audit.view without security.view
+    const events = (await auditor.get('/api/audit?q=Quokka')).body.rows.map((e: any) => e.summary);
+    expect(events.some((s: string) => s.includes('Quokka ordinary action'))).toBe(true);
+    expect(events.some((s: string) => s.includes('hidden risk'))).toBe(false);
+    expect((await lead.get('/api/audit?q=Quokka')).body.rows.some((e: any) => e.summary.includes('hidden risk'))).toBe(true);
+
+    // A person who cannot see a record cannot raise or move an action onto it (and learns nothing from trying).
+    const probe = await agent.post('/api/actions', { title: 'Probe', source_type: 'risk', source_id: risk.id });
+    expect(probe.status).toBe(400);
+    const missing = await agent.post('/api/actions', { title: 'Probe', source_type: 'risk', source_id: '11111111-2222-4333-8444-555555555555' });
+    expect(missing.body).toEqual(probe.body);
+    expect((await agent.patch(`/api/actions/${open.body.id}`, { source_type: 'risk', source_id: risk.id })).status).toBe(400);
+
+    // Moving an action onto, or off, a restricted record changes its restriction with it.
+    const moved = await lead.patch(`/api/actions/${open.body.id}`, { source_type: 'risk', source_id: risk.id });
+    expect(moved.body.restricted).toBe(true);
+    expect((await agent.get(`/api/actions/${open.body.id}`)).status).toBe(404);
+    const back = await lead.patch(`/api/actions/${open.body.id}`, { source_type: null, source_id: null });
+    expect(back.body.restricted).toBe(false);
+    expect((await agent.get(`/api/actions/${open.body.id}`)).status).toBe(200);
+    expect((await lead.del(`/api/actions/${hidden.body.id}`)).status).toBe(200);
+  });
+
+  it('brings existing actions in line with their source at start-up', async () => {
+    // A database from before the rule: an action linked to a risk but not flagged.
+    const dir = mkdtempSync(join(tmpdir(), 'grc-risks-'));
+    try {
+      const first = await buildApp({ dataDir: dir, serveWeb: false });
+      const risk = await first.ctx.resources.create('risk', { title: 'Invented older risk' });
+      const old = (await first.db.one<{ id: string }>(
+        `insert into actions (title, status, source_type, source_id, restricted) values ('Older follow-up', 'open', 'risk', $1, false) returning id`, [risk.id]))!;
+      await first.close();
+
+      const second = await buildApp({ dataDir: dir, serveWeb: false });
+      expect((await second.db.one<{ restricted: boolean }>('select restricted from actions where id = $1', [old.id]))!.restricted).toBe(true);
+      expect((await second.db.query(`select 1 from audit_events where action = 'action.restriction_sync'`)).length).toBe(1);
+      await second.close();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
 describe('obligations', () => {
   it('has no obligations on a fresh app', async () => {
     expect((await t.api.get('/api/obligations')).body.total).toBe(0);
@@ -368,7 +463,7 @@ describe('seed', () => {
 
       const samples = await t.api.get('/api/risks?q=[Sample]');
       expect(samples.body.total).toBe(8);
-      expect(new Set(samples.body.rows.map((r: any) => r.scale_key))).toEqual(new Set(['cyber_5x5', 'asp']));
+      expect(new Set(samples.body.rows.map((r: any) => r.scale_key))).toEqual(new Set(['cyber_5x5', 'hazard_4x5']));
       const accepted = samples.body.rows.filter((r: any) => r.status === 'accepted');
       expect(accepted.length).toBe(1);
       expect((await t.api.get(`/api/risks/${accepted[0].id}/acceptances`)).body.acceptances.length).toBe(1);
@@ -439,21 +534,21 @@ describe('seed', () => {
 
   it('renames the hazard scale and safety category left by an earlier version, once', async () => {
     const names = async () => ({
-      scale: (await t.db.one<{ name: string }>(`select name from risk_scales where key = 'asp'`))!.name,
+      scale: (await t.db.one<{ name: string }>(`select name from risk_scales where key = 'hazard_4x5'`))!.name,
       category: (await t.db.one<{ label: string }>(`select label from lookups where list_key = 'risk_category' and value = 'safety'`))!.label,
     });
     expect(await names()).toEqual({ scale: HAZARD_SCALE_NAME, category: 'Safety' });
 
-    await t.db.query(`update risk_scales set name = $1, description = 'Old text' where key = 'asp'`, [LEGACY_HAZARD_SCALE_NAME]);
+    await t.db.query(`update risk_scales set name = $1, description = 'Old text' where key = 'hazard_4x5'`, [LEGACY_HAZARD_SCALE_NAME]);
     await t.db.query(`update lookups set label = $1 where list_key = 'risk_category' and value = 'safety'`, [`Safety (${LEGACY_HAZARD_SCALE_NAME})`]);
     await mod.seedDefaults!(t.ctx);
     expect(await names()).toEqual({ scale: HAZARD_SCALE_NAME, category: 'Safety' });
-    const scale = (await t.api.get('/api/risks/scales/asp')).body;
+    const scale = (await t.api.get('/api/risks/scales/hazard_4x5')).body;
     expect(scale.description).toMatch(/standard hazard risk-assessment matrix/);
     expect(scale.ratings.length).toBe(4);
 
     // Names an administrator chose are left alone.
-    await t.db.query(`update risk_scales set name = 'Our hazard scale' where key = 'asp'`);
+    await t.db.query(`update risk_scales set name = 'Our hazard scale' where key = 'hazard_4x5'`);
     await t.db.query(`update lookups set label = 'Health and safety' where list_key = 'risk_category' and value = 'safety'`);
     await mod.seedDefaults!(t.ctx);
     expect(await names()).toEqual({ scale: 'Our hazard scale', category: 'Health and safety' });

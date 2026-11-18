@@ -135,27 +135,27 @@ Counts as at the creation of this tracker. "Done / total" counts issues with sta
 
 | ID | Epic | Status | Done / total |
 |---|---|---|---|
-| [E01](epics/E01-platform-foundations.md) | Platform foundations | in progress | 20 / 25 |
-| [E02](epics/E02-account-security.md) | Account security | in progress | 4 / 14 |
+| [E01](epics/E01-platform-foundations.md) | Platform foundations | in progress | 26 / 31 |
+| [E02](epics/E02-account-security.md) | Account security | in progress | 7 / 17 |
 | [E03](epics/E03-service-desk.md) | Service desk | in progress | 10 / 17 |
 | [E04](epics/E04-inventory-and-relationship-map.md) | Inventory and relationship map | in progress | 11 / 13 |
-| [E05](epics/E05-change-enablement.md) | Change enablement | open | 0 / 7 |
+| [E05](epics/E05-change-enablement.md) | Change enablement | in progress | 7 / 11 |
 | [E06](epics/E06-vendors-and-contracts.md) | Vendors and contracts | in progress | 11 / 17 |
 | [E07](epics/E07-framework-outcomes-and-assessments.md) | Framework outcomes and assessments | in progress | 11 / 14 |
-| [E08](epics/E08-risks-actions-and-obligations.md) | Risks, actions and obligations | in progress | 12 / 17 |
+| [E08](epics/E08-risks-actions-and-obligations.md) | Risks, actions and obligations | in progress | 13 / 17 |
 | [E09](epics/E09-security-incidents-and-notification-clocks.md) | Security incidents and notification clocks | in progress | 15 / 17 |
-| [E10](epics/E10-policies-training-exceptions-exercises-vulnerabilities.md) | Policies, training, exceptions, exercises and vulnerabilities | open | 0 / 8 |
+| [E10](epics/E10-policies-training-exceptions-exercises-vulnerabilities.md) | Policies, training, exceptions, exercises and vulnerabilities | in progress | 6 / 15 |
 | [E11](epics/E11-projects-and-portfolio.md) | Projects and portfolio | in progress | 13 / 17 |
 | [E12](epics/E12-dashboards-and-reporting.md) | Dashboards and reporting | in progress | 2 / 8 |
 | [E13](epics/E13-imports-api-integrations.md) | Imports, API and integrations | in progress | 3 / 7 |
-| [E14](epics/E14-platform-services.md) | Platform services not yet built | open | 0 / 12 |
+| [E14](epics/E14-platform-services.md) | Platform services | in progress | 2 / 18 |
 | [E15](epics/E15-self-service-portal.md) | Self-service portal | in progress | 1 / 8 |
-| [E16](epics/E16-hosting-operations-and-hardening.md) | Hosting, operations and hardening | in progress | 4 / 16 |
+| [E16](epics/E16-hosting-operations-and-hardening.md) | Hosting, operations and hardening | in progress | 10 / 25 |
 | [E17](epics/E17-documentation.md) | Documentation | in progress | 6 / 13 |
-| [E18](epics/E18-quality-and-known-defects.md) | Quality and known defects | in progress | 3 / 27 |
-| | **Total** | | **126 / 257** |
+| [E18](epics/E18-quality-and-known-defects.md) | Quality and known defects | in progress | 14 / 33 |
+| | **Total** | | **168 / 298** |
 
-Of the 131 issues not done, 6 are in progress (all in E17) and 125 are open.
+Of the 130 issues not done, 13 are in progress and 117 are open.
 
 ## Next up
 

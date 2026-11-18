@@ -51,6 +51,13 @@ export interface ResourceDef {
   ref?: { field: string; prefix: string };
   /** true: whole type needs security.view. 'flag': rows with restricted = true need it. */
   restricted?: boolean | 'flag';
+  /**
+   * Rows inherit their `restricted` flag from the record they arose from: `typeField` holds that
+   * record's type and `idField` its id. Needs `restricted: 'flag'` and a boolean `restricted`
+   * column. Core sets the flag on create, when the source fields change, and when the source
+   * record's own restriction changes; people who cannot see the source cannot point a row at it.
+   */
+  restrictedFrom?: { typeField: string; idField: string };
   searchable?: string[];
   defaultSort?: { field: string; dir: 'asc' | 'desc' };
   fields: Record<string, FieldDef>;
@@ -79,6 +86,13 @@ export interface LookupValue {
   meta?: Record<string, unknown>;
 }
 
+export interface LookupListOptions {
+  /** Permission module that owns the list, e.g. 'tickets' or 'security'. */
+  module?: string;
+  /** Readable by every signed-in user. */
+  public?: boolean;
+}
+
 export interface SeedOptions {
   profile: 'pilot' | 'dev';
   seedDir: string;
@@ -102,17 +116,33 @@ export interface ResourceRegistry {
   create(type: string, data: Row, req?: FastifyRequest | null): Promise<Row>;
   /** Validated partial update with hooks and audit. */
   update(type: string, id: string, patch: Row, req?: FastifyRequest | null): Promise<Row>;
+  /**
+   * SQL condition (no parameters) that is true for the rows of `type` that `user` may see under the
+   * restricted-record rules. Hand-written queries over a resource table must include it:
+   * `where deleted_at is null and ${ctx.resources.visibleWhere('action', req.user)}`.
+   * `alias` is the table alias used in the query, if any. Unknown type: 'false'.
+   */
+  visibleWhere(type: string, user: SessionUser | null | undefined, alias?: string): string;
 }
 
 export interface ModuleContext {
   app: FastifyInstance;
   db: Db;
+  /** Folder holding the database and stored files, or 'memory' in tests. */
+  dataDir: string;
   requirePerm(perm: string): (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
   can(user: SessionUser | null, perm: string): boolean;
   audit(req: FastifyRequest | null, ev: AuditInput): Promise<void>;
   lookups: {
-    /** Adds missing values; never overwrites values an administrator has edited. */
-    ensure(list: string, values: LookupValue[]): Promise<void>;
+    /**
+     * Adds missing values; never overwrites values an administrator has edited.
+     * `opts.module` names the permission module that owns the list (for example 'security'):
+     * people who hold `<module>.view` may read it. `opts.public` lets every signed-in user read it.
+     * A list is also readable by anyone who may view a record type with a field that uses it, so
+     * the option is only needed for lists used by hand-written routes and pages alone.
+     * A list with neither can be read only by administrators.
+     */
+    ensure(list: string, values: LookupValue[], opts?: LookupListOptions): Promise<void>;
     values(list: string): Promise<LookupValue[]>;
   };
   settings: {

@@ -3,7 +3,7 @@ import type { FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ApiError, Button, Card, DateField, EmptyState, ErrorState, Loading, Modal, PageHeader, Select, TextArea, TextField,
-  api, errorMessage, formatDate, useAuth, useFetch, useToast,
+  api, errorMessage, formatDate, todayInZone, useAuth, useFetch, useToast,
 } from '../../core';
 import { useFrameworkChoice } from './Board';
 import { ComparePanel } from './Compare';
@@ -22,6 +22,9 @@ function TakeSnapshot({ frameworkId, onDone, onCancel }: { frameworkId: string; 
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (!name.trim()) { setErrors({ name: 'Name is required.' }); return; }
+    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) { setErrors({ date: 'Enter a date.' }); return; }
+    if (date > todayInZone()) { setErrors({ date: 'Date cannot be in the future.' }); return; }
+    if (date && date < '2000-01-01') { setErrors({ date: 'Date cannot be before 2000-01-01.' }); return; }
     setBusy(true);
     setErrors({});
     try {

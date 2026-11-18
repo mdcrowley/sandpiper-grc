@@ -139,7 +139,10 @@ export const CATALOGUE = [
 ];
 
 export async function seedDefaults(ctx: ModuleContext): Promise<void> {
-  for (const [list, values] of Object.entries(LOOKUPS)) await ctx.lookups.ensure(list, values);
+  // The owning permission module lets hand-written pages read the list (see core lookups).
+  for (const [list, values] of Object.entries(LOOKUPS)) {
+    await ctx.lookups.ensure(list, values, { module: list.startsWith('kb_') ? 'knowledge' : 'tickets' });
+  }
 
   await ctx.db.query(
     `insert into calendars (key, name, timezone, always_open, hours) values

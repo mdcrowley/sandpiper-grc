@@ -1,4 +1,15 @@
-import { formatCurrency, formatDate, Icon, LookupChip, StatusChip } from '../../core';
+import { currency, formatCurrency, formatDate, Icon, LookupChip, StatusChip } from '../../core';
+
+/** The symbol of the configured currency (GRC_CURRENCY), for money inputs. */
+export function currencySymbol(): string {
+  const parts = new Intl.NumberFormat(undefined, { style: 'currency', currency: currency() }).formatToParts(0);
+  return parts.find((p) => p.type === 'currency')?.value ?? currency();
+}
+
+/** A short amount in the configured currency for chart axes, for example "€12K". */
+export function compactCurrency(value: number): string {
+  return new Intl.NumberFormat(undefined, { style: 'currency', currency: currency(), notation: 'compact', maximumFractionDigits: 1 }).format(value);
+}
 import { RAG_COLOR, RAG_LABEL, type RagTrend, type TrendPoint } from './types';
 
 /** Red / amber / green chip. The word is always shown, so colour is never the only signal. */

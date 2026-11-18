@@ -5,6 +5,7 @@ import {
   TextField, useFetch, useToast,
 } from '../../core';
 import type { Role, RolesResponse } from './common';
+import { adminApi } from './reauth';
 import { Switch } from './Switch';
 
 /** Wider-audience roles that ship switched off; an administrator switches each on when ready. */
@@ -23,11 +24,26 @@ export function RolesPage() {
   const { data, error, reload } = useFetch<RolesResponse>('/api/admin/roles');
   const [saving, setSaving] = useState('');
   const [creating, setCreating] = useState(false);
+  // Default permissions added by a newer version are applied only when an administrator asks (never silently).
+  const defaults = useFetch<{ pending: number; roles: { key: string; name: string; missing: string[]; description: string | null }[] }>('/api/admin/roles/default-grants');
+  const syncDefaults = async () => {
+    setSaving('defaults');
+    try {
+      const res = await adminApi.post<{ added: number }>('/api/admin/roles/sync-default-grants');
+      toast.success(`Default permissions synchronised: ${res.added} added.`);
+      reload();
+      defaults.reload();
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setSaving('');
+    }
+  };
 
   const toggle = async (role: Role, on: boolean) => {
     setSaving(role.id);
     try {
-      await api.post(`/api/admin/roles/${role.id}/${on ? 'enable' : 'disable'}`);
+      await adminApi.post(`/api/admin/roles/${role.id}/${on ? 'enable' : 'disable'}`);
       toast.success(`${role.name} switched ${on ? 'on' : 'off'}.`);
       reload();
     } catch (err) {
@@ -49,6 +65,22 @@ export function RolesPage() {
         switched off until you open the application to those audiences. While a role is off its members keep the role but get none of its permissions;
         switching it on takes effect at once, with no restart. Every switch is recorded in the audit log.
       </p>
+      {defaults.data && defaults.data.roles.length > 0 && (
+        <div className="notice" role="note">
+          <p>
+            <strong>This version has newer defaults for some built-in roles.</strong> Nothing changes until you apply them.
+            Applying only adds permissions (and replaces a description you have not edited); it never removes anything.
+          </p>
+          <ul>
+            {defaults.data.roles.map((r) => (
+              <li key={r.key}>
+                {r.name}: {r.missing.length ? `adds ${r.missing.join(', ')}` : 'no new permissions'}{r.description ? '; new description' : ''}
+              </li>
+            ))}
+          </ul>
+          <Button size="sm" loading={saving === 'defaults'} onClick={() => void syncDefaults()}>Apply default permissions</Button>
+        </div>
+      )}
       <Card flush>
         {error ? <ErrorState error={error} onRetry={reload} />
           : !data ? <div className="card-body"><Loading lines={8} label="Loading roles" /></div>
@@ -100,7 +132,7 @@ function NewRoleDialog({ open, onClose, onCreated }: { open: boolean; onClose: (
     if (!name.trim()) { setErrors({ name: 'Enter a name.' }); return; }
     setBusy(true);
     try {
-      const role = await api.post<Role>('/api/admin/roles', { name: name.trim(), description: description.trim(), grants: [] });
+      const role = await adminApi.post<Role>('/api/admin/roles', { name: name.trim(), description: description.trim(), grants: [] });
       toast.success('Role created. Now choose its permissions.');
       setName(''); setDescription(''); setErrors({});
       onClose();

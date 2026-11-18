@@ -7,10 +7,15 @@ import { ResourceList, RecordPage, useFetch, Chart, Stepper, Countdown /* ... */
 import type { ModuleDef } from '../../core';
 ```
 
-Styles are global (`tokens.css`, `base.css`) and already loaded. Do not add CSS frameworks or
-web fonts. Put module-specific CSS in your module folder and import it from your `index.tsx`;
-use the tokens (`var(--surface)`, `var(--border)`, `var(--text-muted)`, `var(--s-4)`, ...) so
-both themes work.
+The interface is built on **Mantine 9** (`@mantine/core`, `hooks`, `dates`, `notifications`)
+with a Sandpiper theme (`mantine.tsx`) driven by design tokens (`tokens.css`). The core
+components below are the normal way to build a screen; for a richer layout a module may also
+import Mantine components directly (`import { Group, Popover } from '@mantine/core'`): they
+pick up the same theme. Styles are global (`tokens.css`, `base.css`, `shell.css`) and already
+loaded. Do not add another CSS framework or web fonts. Put module-specific CSS in your module
+folder and import it from your `index.tsx`; use the tokens (`var(--surface)`, `var(--border)`,
+`var(--text-muted)`, `var(--s-4)`, ...) so both themes work. Section 11 explains the theme,
+the tokens and how to re-brand.
 
 ## Contents
 
@@ -76,6 +81,33 @@ export default mod;
 Every screen needs loading, empty and error states: `ResourceList`, `RecordPage` and the
 panels have them built in; for your own data use `useFetch` with `Loading`, `EmptyState` and
 `ErrorState`.
+
+### What the shell does with a module
+
+`Shell.tsx` is a Mantine `AppShell`. Nothing in a module needs to know about it, but it helps
+to know what happens to `nav` and `create`:
+
+- **Sidebar.** `nav` entries appear under their group heading. Headings fold and unfold (the
+  choice is kept per user in `localStorage`); the entry whose `path` is the longest prefix of
+  the address is the current one, and its group opens by itself. From 1200px wide the sidebar is
+  full width (the user can fold it to a rail); from 768px to 1199px it is a rail of one icon per
+  group with a fly-out menu of that group's pages; below 768px it is a drawer opened from the
+  top bar. Up/Down move between entries, Left/Right fold and open a group.
+- **Search.** `/` or Ctrl+K opens the command palette (`CommandPalette.tsx`): every `nav`
+  entry is offered under "Go to", every `create` entry under "Create" (as "New <label>"), and
+  `/api/search` results are grouped by record type. Recent searches are kept per user.
+- **Top bar.** Search, a "Pilot" label with a popover while `pilot` is on, the Create menu
+  (`create` entries, alphabetical), the notification bell, Help (`/help`), the theme toggle and the user menu (Notifications, Account
+  security, Change password, Help, Sign out). The second-factor reminder is a slim bar under the
+  top bar that stays until the factor is set up. The bell is `NotificationBell` from the
+  notifications module: the shell finds it with `import.meta.glob` and loads it lazily, so the core
+  has no hard dependency on that module and shows no bell when it is absent.
+- **Content.** Routes render inside `<main id="main" class="content">`, which is the page's
+  one scrolling region (so `position: sticky; top: 0` inside a page sticks under the top bar)
+  and centres its children at up to 1400px. Design for a content width of about 700px upwards:
+  at 820px wide the rail is showing.
+- **Print.** The sidebar, top bar, toasts and `PageHeader` actions are hidden and the content
+  flows over as many pages as it needs. Add your own `@media print` rules for anything else.
 
 ## 2. Data
 
@@ -149,8 +181,12 @@ recordHref('/tickets', id);            // "/tickets/<id>"
 
 ## 3. ResourceList
 
-A complete list screen for a record type: search, server-side sort/filter/paging, saved views,
-CSV export, New dialog, and loading/empty/error states.
+A complete list screen for a record type, built on Mantine: search, a Filters popover with
+removable pills, server-side sort and paging (with a page-size choice), saved views, a column
+chooser, row density, CSV export, row selection with bulk edit, a New dialog, and
+loading (skeleton), empty and error states. The table scrolls inside its own frame with a
+sticky header, so the page never scrolls sideways. Rows are keyboard operable: Tab to the
+table, arrow keys (and Home/End) to move, Enter to open, Space to select.
 
 ```tsx
 <ResourceList
@@ -169,8 +205,8 @@ CSV export, New dialog, and loading/empty/error states.
 | Prop | Type | Notes |
 |---|---|---|
 | `type` | `string` | Record type key (required) |
-| `columns` | `(string \| { field, label?, render?, sortable? })[]` | A string is a field name, rendered by type: lookup as chip, user/ref from `_display` (ref links to the target record), date `18 Nov 2026`, datetime `18 Nov 2026, 14:05` (organisation time zone), boolean Yes/No, currency in the organisation's currency. `created_at` and `updated_at` work too. The title and reference columns link to the detail page. `render(row)` replaces the cell; render-only columns are not sortable unless `sortable: true` and `field` is a real column |
-| `filters` | `string[]` | Fields offered in the filter bar. lookup: multi-select; boolean: any/yes/no; user and ref: pickers; date and datetime: after/before. Other types are ignored (the search box covers text) |
+| `columns` | `(string \| { field, label?, render?, sortable?, align?, hidden? })[]` | A string is a field name, rendered by type: lookup as chip, user/ref from `_display` (ref links to the target record), date `18 Nov 2026`, datetime `18 Nov 2026, 14:05` (organisation time zone), boolean Yes/No, currency in the organisation's currency. `created_at` and `updated_at` work too. The title and reference columns link to the detail page. Long text is cut to one line with the full text as a tooltip; numbers are right-aligned (`align` overrides). `render(row)` replaces the cell; render-only columns are not sortable unless `sortable: true` and `field` is a real column. `hidden: true` starts the column switched off in the column chooser |
+| `filters` | `string[]` | Fields offered in the Filters popover. lookup: chips (any of); boolean: any/yes/no; user and ref: pickers (user fields also offer "Me"); date and datetime: after/before. Other types are ignored (the search box covers text). Active filters show as removable pills under the toolbar |
 | `baseFilter` | `Record<string, string>` | Always applied, not shown. Keys as in `listQuery` filters: `{ project_id: id }`, `{ 'due_at.lt': '2026-12-01' }`, `{ status: 'open,pending' }` |
 | `title` | `string` | Renders a `PageHeader`. Leave out when embedding the list in a tab or card (New and `actions` then sit in the toolbar) |
 | `actions` | `ReactNode` | Extra buttons beside New |
@@ -178,17 +214,39 @@ CSV export, New dialog, and loading/empty/error states.
 | `createFields` | `string[]` | Shows "New ..." (needs `<module>.create`), opening a `ResourceForm` with these fields. Also opened by `?new=1` |
 | `createInitial` | `Record<string, unknown>` | Hidden values for new records, e.g. `{ project_id: id }` |
 | `onCreated` | `(row) => void` | Default: navigate to the new record. When given, the list reloads and stays |
-| `pageSize` | `number` | Default 25 |
+| `pageSize` | `number` | Rows per page to start with (default 25). The user can pick 10, 25, 50 or 100; the choice is remembered per record type |
+| `bulkFields` | `string[]` | Fields that can be changed for many rows at once (lookup, user, ref, boolean, date; never `readOnly` ones). Default: the lookup and user fields among `columns` and `filters`. `[]` turns row selection off |
+| `urlState` | `boolean` | Keep search, filters, sort and page in the page address. Default: on when the list is the page (`title` is given, or the address is the record type's own `route`), off for lists embedded elsewhere |
+| `defaultSort` | `{ field, dir? }` | Sort used until the user picks one. Default: the server's `defaultSort` |
 
-Drill-down links: a list reads its starting search and filters from the page address, using
-the API's own names: `/tickets?f.status=new,open&f.priority=high&q=printer`. (It reads them
-once, when the list mounts; it does not write filters back to the address.)
+**Address bar.** A list that is the page keeps its state in the address, using the API's own
+names, and reads it back, so a view can be bookmarked or sent to a colleague and the browser's
+Back button undoes a filter: `/tickets?q=printer&f.status=new,open&f.due_at.lt=2026-12-01&sort=due_at&dir=desc&page=2`.
+Typing in the search box replaces the current history entry; filters, sort and page add one.
+Dashboards can link straight to such an address. An embedded list (`urlState` off) reads `q`
+and `f.*` once when it mounts and then keeps its state to itself.
 
-Saved views (name, search, filters, sort) are kept in `localStorage` per record type. The
-Export button appears with `<module>.export`. Row selection for bulk actions is not built yet.
+**Saved views** (name, search, filters, sort) are kept in `localStorage` per record type
+(`grc.views.<type>`); "All <plural>" is built in. **Column choice, density and page size** are
+kept in `localStorage` per user (`grc.u.<userId>.*`).
+
+**Export.** The Export button (needs `<module>.export`) downloads every row that matches the
+current search and filters from the server (`format=csv`), not just the page on screen.
+
+**Selection and bulk actions.** Users with `<module>.edit` get a checkbox column when there is
+at least one bulk field. The header checkbox selects the page; a selection is kept while
+paging and cleared when the search or filters change. The bulk bar offers "Edit selected…"
+(one field, one new value or "clear"; sent as one `PATCH {path}/:id` per row, so validation,
+hooks and audit apply to each; rows that already hold the value are skipped; the dialog shows
+progress and then how many were updated and why any failed) and, with `<module>.export`,
+"Export selected" (a CSV of the selected rows with the columns on screen, built in the browser).
 
 To show cell values yourself: `<FieldValue resource={resource} field="status" row={row} />`
-(`compact` truncates long text), and `fieldMeta(resource, field)` for the label and type.
+(`compact` keeps it to one line with the full text as a tooltip), and
+`fieldMeta(resource, field)` for the label and type.
+
+`useFetch(url, { keepPrevious: true })` is what keeps the table in place between pages and
+filters: the last result stays visible (with `loading` true) while a different URL loads.
 
 ## 4. ResourceForm
 
@@ -206,17 +264,27 @@ To show cell values yourself: `<FieldValue resource={resource} field="status" ro
 | Prop | Type | Notes |
 |---|---|---|
 | `type` | `string` | Record type key |
-| `fields` | `string[]` | Field names in order. Control by type: text, longtext (textarea), number, currency ($), date, datetime (organisation time zone), boolean (checkbox), lookup (select), user and ref (search pickers), json (textarea, validated). `readOnly` fields are shown disabled and never sent |
+| `fields` | `string[]` | Field names in order. Control by type: text, longtext (a text area that grows), number, currency (organisation currency code, two decimals), date, datetime (organisation time zone), boolean (checkbox), lookup (select with colour dots), user and ref (search pickers), json (text area, validated). `readOnly` fields are shown disabled and never sent |
 | `initial` | `Record<string, unknown>` | Starting values. Pass the whole row when editing so pickers show `_display` labels. On create, keys **not** in `fields` are sent as hidden values (e.g. a parent id) |
 | `id` | `string` | Edit mode: only changed fields are PATCHed |
 | `onSaved` | `(row: Row) => void` | Receives the server's row |
 | `onCancel` | `() => void` | Shows a Cancel button |
 | `submitLabel` | `string` | Default "Create <label>" / "Save changes" |
+| `sections` | `{ title?, description?, fields }[]` | Groups fields under headings. Fields not named in a section come first, without a heading |
+| `hints` | `Record<string, string>` | Help text under individual fields, by field name |
+| `onDirtyChange` | `(dirty: boolean) => void` | Told when the form gains or loses unsaved changes, e.g. to guard a dialog's own close button (as `ResourceList` does for its New dialog) |
 
-Required fields are checked before sending (same rule as the server); server `error.fields`
-messages are shown beside the fields and any other message above the form. On create, empty
-fields are left out so server defaults apply. The form has no title: wrap it in a `Modal`,
-`Drawer` or `Card`.
+- **Layout.** Two columns that collapse to one when the form's own container is narrow (it
+  measures the dialog or card, not the window). Long text, JSON and the title field span the
+  full width.
+- **Validation.** Required fields are checked before sending (same rule as the server); server
+  `error.fields` messages are shown under their fields and any other message above the form.
+  Either way focus moves to the first field with a problem and it is scrolled into view.
+- **Unsaved changes.** Cancel on a changed form first asks "Discard your unsaved changes?"
+  (Keep editing / Discard changes) in the action bar.
+- **Action bar.** Sticks to the bottom of the scrolling dialog or page, so Save is always in reach.
+- On create, empty fields are left out so server defaults apply. The form has no title: wrap
+  it in a `Modal`, `Drawer` or `Card`.
 
 ## 5. RecordPage and panels
 
@@ -243,42 +311,61 @@ function ChangeDetail() {
 
 `RecordPage` loads the record (id from the `:id` route parameter unless `id` is given), shows
 loading, not-found/no-access and error states, then: breadcrumbs, header (reference + title +
-status chip + actions), `banner`, summary, tabs. The active tab is kept in `?tab=`.
+status chip + actions), `banner`, summary, tabs. The active tab is kept in `?tab=`, and the
+Activity and Related tabs show a count (comments, linked records).
 
 | Prop | Type | Notes |
 |---|---|---|
 | `type` | `string` | Record type key |
 | `id` | `string` | Default: `useParams().id` |
 | `title` | `(row) => string` | Default: the resource's `titleField` |
-| `subtitle` | `(row) => ReactNode` | |
+| `subtitle` | `(row) => ReactNode` | Default: "Updated 3 hours ago" |
 | `status` | `(row) => ReactNode` | Default: a `LookupChip` of the `status` field when it is a lookup |
 | `actions` | `(rec) => ReactNode` | Header buttons |
 | `banner` | `(rec) => ReactNode` | Between header and summary: `Stepper`, `Countdown`s |
 | `summaryFields` | `string[]` | Default summary: an `EditableSummary` of these fields |
 | `summary` | `(rec) => ReactNode` | Replaces the default summary |
 | `tabs` | `{ key, label, count?, content: (rec) => ReactNode }[]` | Shown before the built-in tabs |
-| `defaultTabs` | `('activity' \| 'links' \| 'history')[]` | Built-in tabs to include; default all three ("Activity", "Related", "History"). Every record must keep its history visible |
+| `defaultTabs` | `('activity' \| 'attachments' \| 'links' \| 'history')[]` | Built-in tabs to include; default all four, in this order: "Activity", "Attachments", "Related", "History". Every record must keep its history visible |
 | `breadcrumbs` | `{ label, to? }[]` | Default: plural (link to the list) / reference or title |
 
 `rec` is a `RecordContext`: `{ row, resource, reload, save(patch), canEdit }`.
 
+The **Attachments** tab shows the attachments module's `AttachmentsPanel`
+(`web/src/modules/attachments/AttachmentsPanel.tsx`, props `recordType`, `recordId`,
+`evidence?`) for the record, with the number of files on the tab (from
+`GET /api/attachments?record_type=&record_id=`, refreshed when the user changes tab). The
+panel's code is loaded the first time the tab is opened. The tab is left out when the
+attachments module is not part of the build or not loaded on the server, when `defaultTabs`
+omits `'attachments'`, and when the page passes a tab of its own with the key `attachments`
+or `files` (do that to show the panel with `evidence`).
+
 The panels and helpers also work on their own (e.g. on a custom page):
 
 ```tsx
-<ActivityPanel type="ticket" id={id} />            // props: type, id, defaultInternal? (true), internalOnly?
-<HistoryPanel type="ticket" id={id} />             // props: type, id
+<ActivityPanel type="ticket" id={id} />            // props: type, id, defaultInternal? (true), internalOnly?, row?
+<HistoryPanel type="ticket" id={id} />             // props: type, id, row?
 <LinksPanel type="ticket" id={id} />               // props: type, id, editable? (default: <module>.edit)
 <EditableSummary type="ticket" row={row} fields={['title', 'status']} onSaved={reload} />
-                                                   // props: type, row, fields, onSaved?, title? ("Details"), editable?
+                                                   // props: type, row, fields, onSaved?, title? ("Details"), editable?, sections?
 ```
 
-- `ActivityPanel`: comments (`/api/comments`) merged with history, newest first, with an
-  add-comment box and an "Internal note" tick box.
-- `HistoryPanel`: `/api/history`: who, when, summary and each changed field as before → after.
-  User and ref fields show "set" rather than a name, because history stores ids.
-- `LinksPanel`: `/api/links` grouped by record type, each linking to its page; add with a
-  record type + record picker + relation, remove with confirmation. If a lookup list named
-  `link_relation` exists it supplies the relation choices, otherwise relation is free text.
+- `EditableSummary`: a card of label/value pairs (long text takes the full width only when
+  there is enough of it) with an Edit button that turns the card into a `ResourceForm` in place.
+- `ActivityPanel`: a composer (internal note / public comment switch, internal by default;
+  Ctrl+Enter posts) above one timeline of comments (`/api/comments`) and changes, newest
+  first, with initials avatars and relative times (exact time on hover). "Everything /
+  Comments / Changes" narrows the timeline.
+- `HistoryPanel`: `/api/history`: who, when, summary and each changed field as
+  ~~before~~ → after, using the field labels and lookup labels. History stores ids for user
+  and record fields; the panel shows names where it can find them (the record's own
+  `_display` labels when `row` is passed, otherwise a lookup of the user or record) and
+  "Another user" / "Another <type>" where it cannot. A creation lists the fields that were
+  given a value; long lists fold behind "Show more".
+- `LinksPanel`: `/api/links` grouped by record type, each linking to its page, with the
+  relation as a badge; "Add link" opens a dialog (record type, relation, record picker),
+  remove asks for confirmation. If a lookup list named `link_relation` exists it supplies the
+  relation choices, otherwise relation is free text.
 
 ## 6. Chart
 
@@ -305,12 +392,27 @@ const option = useMemo(() => ({
 | Prop | Type | Notes |
 |---|---|---|
 | `option` | `ChartOption` (ECharts option) | **Memoise it** (`useMemo`): a new object redraws the chart |
-| `label` | `string` | Required description for screen readers |
+| `label` | `string` | Required name of the chart for screen readers |
 | `height` | `number` | Pixels, default 280. Width follows the container and resizes |
 | `onSegmentClick` | `(seg: { name, value, seriesName?, dataIndex, data }) => void` | Click on a bar, slice, point, cell or node |
+| `loading` | `boolean` | Shows the chart skeleton (use while your data loads: `loading={!data}`) |
+| `emptyMessage` | `string` | Text of the empty state. Default "No data to show yet" |
+| `empty` | `boolean` | Forces the empty state on or off. Default: worked out from the option (every series has no data, or a pie is all zeros) |
+| `description` | `string` | A longer description read out after the label (what the chart shows, the main finding) |
 
-- The chart follows the light/dark theme: text, axes, grid, tooltip and the eight-colour series
-  palette come from the design tokens. Do not set those colours yourself.
+- The chart follows the light/dark theme: fonts, text, axes, grid, tooltip and the eight-colour
+  series palette come from the design tokens and the Mantine theme. Do not set those colours
+  yourself. The series palette is used in its fixed order and has been checked for colour-vision
+  deficiency separation in both themes; with more than eight series, group the rest as "Other".
+- States are built in: a bar skeleton while the chart code or your data loads, and one empty
+  state ("No data to show yet") whenever there is nothing to draw.
+- Accessibility: the chart is an image named by `label`; for bar, line and pie charts the
+  numbers are also written into a visually hidden table that screen readers reach from the
+  chart. Animations are short and are switched off for people who ask for reduced motion.
+- A tooltip on hover is on by default (`tooltip: { trigger: 'item' }`); for line charts pass
+  `tooltip: { trigger: 'axis' }`.
+- A legend (`legend: {}`) is placed above the plot and the default margins make room for it.
+  Give `legend.top` or `legend.bottom` to place it yourself.
 - For status/priority colours use `chartColor('red')` (any colour name from section 11), or
   `statsToData(groups)` which turns a stats response into `{ name, value, key, itemStyle }[]`
   using each group's configured colour. Any `var(--token)` string inside the option is resolved
@@ -318,8 +420,9 @@ const option = useMemo(() => ({
 - The ECharts code loads on first use (a skeleton shows meanwhile). The default plot margins
   are `grid: { top: 24, right: 16, bottom: 32, left: 48 }`; pass your own `grid` to change them
   (e.g. more `left` for long category names on a horizontal bar chart).
-- Bars get rounded top corners by default; for horizontal bars set
-  `itemStyle: { borderRadius: [0, 4, 4, 0] }` on the series.
+- Mark defaults: bars at most 24px thick with rounded top corners (for horizontal bars set
+  `itemStyle: { borderRadius: [0, 4, 4, 0] }` on the series), 2px lines with 8px round
+  markers, and a 2px gap in the surface colour between pie slices and heatmap cells.
 - One y-axis per chart. For two or more series add `legend: {}`. Wrap charts in a `Card` and
   give the page a table or list alternative where the numbers matter.
 
@@ -356,6 +459,10 @@ const option = useMemo(() => ({
 
 Green "2d 4h left", amber when close, red "Overdue by 3h 12m". It ticks by itself.
 
+`Stepper` is an ordered list of stages (not Mantine's `Stepper`, which has no blocked state or
+per-step override): done steps show a tick, the current one the brand colour with a halo, a
+blocked one a cross in red. It scrolls sideways inside its own box when the stages do not fit.
+
 ```tsx
 <ProgressBar label="Outcomes at target" value={31} max={53} color="green" valueText="31 of 53" />
 // props: value, max? (100), label, hideLabel?, color? ('blue'), valueText?
@@ -365,28 +472,28 @@ Green "2d 4h left", amber when close, red "Overdue by 3h 12m". It ticks by itsel
 
 | Component | Props | Notes |
 |---|---|---|
-| `Button` | `variant?: 'primary' \| 'secondary' \| 'ghost' \| 'danger'`, `size?: 'sm' \| 'md'`, `icon?`, `loading?`, plus `<button>` attributes | Default `secondary`, `type="button"` |
-| `IconButton` | `icon`, `label` (required accessible name), `variant?`, `size?` | |
+| `Button` | `variant?: 'primary' \| 'secondary' \| 'ghost' \| 'danger'`, `size?: 'sm' \| 'md'`, `icon?`, `loading?`, plus `<button>` attributes | A Mantine `Button`. Default `secondary`, `type="button"`. `loading` shows a spinner and blocks clicks. For a link that looks like a button use the classes: `<Link className="btn btn-primary">` |
+| `IconButton` | `icon`, `label` (required accessible name), `variant?`, `size?` | The label is also shown as a tooltip |
 | `Icon` | `name`, `size?` (18), `label?` | Decorative unless `label` is given |
 | `Badge` | `color?`, `children` | Plain coloured chip |
 | `StatusChip` | `color?`, `label` | Chip with a dot; use for status and priority |
 | `LookupChip` | `list`, `value` | Label and colour from the lookup list |
-| `Card` | `title?`, `actions?`, `flush?`, `className?`, `children` | `flush` removes body padding (tables) |
-| `Stat` | `label`, `value`, `trend?: { direction: 'up' \| 'down' \| 'flat', label, tone?: 'good' \| 'bad' \| 'neutral' }`, `color?`, `to?` | Number tile; `to` makes it a drill-down link. Lay several out with `<div className="grid-stats">` |
-| `Tabs` | `tabs: { key, label, count?, content? }[]`, `active?`, `onChange?`, `label?` | Uncontrolled unless `active` is passed |
-| `Modal` (alias `Dialog`) | `open`, `title`, `onClose`, `footer?`, `size?: 'sm' \| 'md' \| 'lg'`, `children` | Focus trap, Esc and backdrop close |
-| `Drawer` | as `Modal`, plus `side?: 'left' \| 'right'` | Side panel |
-| `ConfirmDialog` | `open`, `title`, `message`, `confirmLabel?`, `danger?`, `busy?`, `onConfirm`, `onCancel` | |
-| `Menu` | `label`, `items: { label, icon?, onSelect?, to?, danger?, disabled?, separated? }[]`, `icon?`, `iconOnly?`, `variant?`, `size?`, `align?: 'start' \| 'end'` | Button with a dropdown menu |
-| `useToast()` | returns `{ success(msg), error(msg), info(msg) }` | e.g. `toast.error(errorMessage(err))` |
-| `EmptyState` | `title`, `message?`, `icon?`, `action?` | |
-| `Loading` | `lines?` (4), `label?` | Skeleton |
+| `Card` | `title?`, `actions?`, `flush?`, `className?`, `children` | `flush` removes body padding; a `table-wrap` directly inside a flush card loses its own border |
+| `Stat` | `label`, `value`, `trend?: { direction: 'up' \| 'down' \| 'flat', label, tone?: 'good' \| 'bad' \| 'neutral' }`, `color?`, `to?`, `icon?`, `hint?` | Number tile; `to` makes it a drill-down link, `icon` sits beside the label, `hint` is a short line under the value. Lay several out with `<div className="grid-stats">` |
+| `Tabs` | `tabs: { key, label, count?, content? }[]`, `active?`, `onChange?`, `label?` | Mantine `Tabs`: arrow keys, Home and End move between tabs. Uncontrolled unless `active` is passed; only the active panel is mounted |
+| `Modal` (alias `Dialog`) | `open`, `title`, `onClose`, `footer?`, `size?: 'sm' \| 'md' \| 'lg'`, `children` | Mantine `Modal`: focus trap, Esc and backdrop close, focus returns to the opener. Focus starts in the first form control. With several open, Esc closes only the top one, and never while a dropdown inside it is open. `footer` stays visible while the body scrolls |
+| `Drawer` | as `Modal`, plus `side?: 'left' \| 'right'` | Side panel (Mantine `Drawer`), same behaviour |
+| `ConfirmDialog` | `open`, `title`, `message`, `confirmLabel?`, `danger?`, `busy?`, `onConfirm`, `onCancel` | Focus starts on Cancel when `danger`, otherwise on the confirm button |
+| `Menu` | `label`, `items: { label, icon?, onSelect?, to?, danger?, disabled?, separated? }[]`, `icon?`, `iconOnly?`, `variant?`, `size?`, `align?: 'start' \| 'end'` | Button with a dropdown menu (Mantine `Menu`): arrow keys, Esc, type-ahead. Items with `to` are real links |
+| `useToast()` | returns `{ success(msg), error(msg), info(msg) }` | Mantine notifications at the bottom right; errors stay 9 seconds, others 5. Works anywhere inside the app, e.g. `toast.error(errorMessage(err))` |
+| `EmptyState` | `title`, `message?`, `icon?`, `action?` | Icon in a soft circle, title, message, then the action (usually a `Button`) |
+| `Loading` | `lines?` (4), `label?` | Skeleton lines (Mantine `Skeleton`); `label` is announced to screen readers |
 | `ErrorState` | `title?`, `error?`, `onRetry?` | Shows the error's message and a Try again button |
 | `PageHeader` | `title`, `reference?`, `subtitle?`, `status?`, `actions?`, `breadcrumbs?: { label, to? }[]` | Renders the page `<h1>` and sets the tab title. One per page (`ResourceList` with `title` and `RecordPage` already render it) |
 | `DefinitionList` | `items: { label, value, wide? }[]` | Label/value grid |
-| `NotFound`, `Forbidden` | none | Full-page states |
-| `ChangePasswordDialog` | `open`, `onClose` | |
-| `useTheme()` | returns `{ theme: 'light' \| 'dark', toggle }` | |
+| `NotFound`, `Forbidden` | none | Full-page states with their own heading and links to the overview and Help |
+| `ChangePasswordDialog` | `open`, `onClose` | Password boxes have a show/hide button and a length meter |
+| `useTheme()` | returns `{ theme: 'light' \| 'dark', toggle }` | Also `setTheme(theme)` and `cssVar('--text')`. Mantine's colour scheme follows it |
 | `useDebounced(value, ms?)`, `useMediaQuery(query)`, `cx(...classes)` | | Small helpers |
 
 ```tsx
@@ -406,20 +513,23 @@ const [open, setOpen] = useState(false);
 
 ## 9. Form controls
 
-All controlled (`value` + `onChange(value)`), all take the common props
-`label` (required), `required?`, `disabled?`, `error?`, `hint?`, `hideLabel?`, `className?`.
+Built on the Mantine inputs, so they follow the theme. All controlled (`value` +
+`onChange(value)`), all take the common props `label` (required), `required?` (adds the
+marker), `disabled?`, `error?` (message under the control), `hint?` (help text under the
+control), `hideLabel?` (the label becomes the accessible name only), `className?`,
+`size?` (`xs`, `sm` default, `md`).
 
 | Control | Value | Extra props |
 |---|---|---|
-| `TextField` | `string` | `type?` (`text`, `email`, `password`, `url`, `search`, `tel`), `placeholder?`, `autoComplete?`, `autoFocus?`, `maxLength?`, `inputMode?` |
-| `TextArea` | `string` | `rows?` (4), `placeholder?` |
-| `Select` | `string` (`''` = none) | `options: { value, label }[]`, `placeholder?` |
-| `LookupSelect` | `string` | `list` (lookup list name) |
-| `MultiSelect` | `string[]` | `label`, `options` (compact dropdown of tick boxes; no `error`/`hint`) |
-| `Checkbox` | `checked: boolean`, `onChange(checked)` | `label`, `hint?`, `error?`, `disabled?` |
-| `DateField` | `'YYYY-MM-DD'` or `''` | `min?`, `max?` |
-| `DateTimeField` | ISO instant or `''` | Edited as wall-clock time in the organisation's time zone |
-| `NumberField` | `number \| null` | `min?`, `max?`, `step?`, `prefix?` |
+| `TextField` | `string` | `type?` (`text`, `email`, `password`, `url`, `search`, `tel`), `placeholder?`, `autoComplete?`, `autoFocus?`, `maxLength?`, `inputMode?`, `leftSection?`, `rightSection?` |
+| `TextArea` | `string` | `rows?` (4, the starting height: the box grows with its content), `maxRows?` (16), `placeholder?` |
+| `Select` | `string` (`''` = none) | `options: { value, label, color? }[]`, `placeholder?`, `searchable?` (default: on above eight options). Can be cleared unless `required`. Option values must be unique; an option with value `''` is used as the placeholder |
+| `LookupSelect` | `string` | `list` (lookup list name). Shows each value's colour dot |
+| `MultiSelect` | `string[]` | `label`, `options`, `disabled?`, `size?` (compact button with a dropdown of tick boxes, for toolbars; no `error`/`hint`) |
+| `Checkbox`, `Switch` | `checked: boolean`, `onChange(checked)` | `label`, `hint?`, `error?`, `disabled?`. `Switch` is the same contract drawn as an on/off switch, for settings that apply at once |
+| `DateField` | `'YYYY-MM-DD'` or `''` | `min?`, `max?`, `placeholder?`. Calendar, or type `18 Nov 2026`, `18/11/2026` or `2026-11-18` |
+| `DateTimeField` | ISO instant or `''` | `placeholder?`. Edited as wall-clock time in the organisation's time zone (named in the hint); the browser's own zone plays no part |
+| `NumberField` | `number \| null` | `min?`, `max?`, `step?`, `prefix?` (shown inside the control, e.g. `currency()`), `thousands?` (group digits), `decimals?`, `placeholder?` |
 | `UserPicker` | `string \| null` (user id) | `display?` (label of the current value, e.g. `row._display?.owner_id`), `placeholder?`; `onChange(id, option?)` |
 | `RecordPicker` | `string \| null` (record id) | `type` (record type key), `display?`, `placeholder?`; `onChange(id, option?)` |
 
@@ -427,6 +537,15 @@ All controlled (`value` + `onChange(value)`), all take the common props
 <UserPicker label="Owner" value={ownerId} display={row._display?.owner_id} onChange={(id) => setOwnerId(id)} />
 <RecordPicker label="System" type="system" value={systemId} onChange={(id) => setSystemId(id)} />
 ```
+
+The pickers are search-as-you-type comboboxes: the list opens on focus, typing searches after
+a short pause, arrow keys and Enter choose, Escape closes the list (not the dialog), and the
+cross clears. Record options show reference and title.
+
+Dropdowns and calendars work inside `Modal` and `Drawer`. If you put controls inside a Mantine
+`Popover` of your own, wrap the content in `<InlinePopups>` so that choosing from a dropdown
+does not count as a click outside the popover. `ColorDot` (`color`) is the dot used for lookup
+colours.
 
 Lay hand-built forms out with `<form className="form">`, `<div className="form-grid">` (two
 columns, one on narrow screens; `form-cell-wide` spans both) and `<div className="form-actions">`.
@@ -447,15 +566,72 @@ All in the organisation's time zone (`timeZone()`, set by the server's `GRC_TIME
 
 ## 11. Colour names, icon names, CSS helpers
 
-**Colours** (`ColorName`, `COLOR_NAMES`), the one scale for every status and priority chip;
-lookup values carry one of these in `color`:
+### Theme and tokens
+
+Three files decide how everything looks:
+
+| File | Holds |
+|---|---|
+| `tokens.css` | The design tokens (CSS variables) for the light theme and, under `:root[data-theme="dark"]`, the dark theme. The single source of colour |
+| `mantine.tsx` | The Mantine theme: brand and neutral colour scales, type, radius, spacing, shadows and component defaults (sizes, radius, focus ring), set once. Its CSS-variable resolver points Mantine's own variables (`--mantine-color-body`, `-text`, `-default-border`, `-dimmed`, `-anchor`, `-error`, the primary colour and the light variants of the eight named colours) at the tokens, so a Mantine component and hand-written CSS cannot disagree in either theme |
+| `base.css`, `shell.css` | The helper classes and core component classes; the shell, command palette, sign-in pages and print rules |
+
+`theme.ts` switches the theme: it sets `data-theme` (tokens) and `data-mantine-color-scheme`
+(Mantine) on `<html>` together, and `UiProvider` forces Mantine to the same scheme.
+
+Cascade order is the `reset` layer, then the `mantine` layer, then everything unlayered.
+Mantine's styles are loaded as `styles.layer.css`, so any ordinary rule in the core or in a
+module wins over them without `!important`.
+
+Tokens (all defined for both themes):
+
+| Group | Tokens |
+|---|---|
+| Brand | `--brand`, `--brand-hover`, `--brand-contrast` (text on brand), `--brand-soft` (tinted background), `--brand-strong`, `--accent` |
+| Surfaces | `--bg` (page), `--surface` (cards, dialogs, inputs), `--surface-2` (table heads, wells), `--surface-hover` |
+| Lines | `--border` (cards, dividers), `--border-control` (buttons), `--border-strong` (inputs; 3:1 against the surface) |
+| Text | `--text`, `--text-muted`, `--link`, `--danger`, `--danger-contrast`, `--danger-text` |
+| Feedback | `--focus` (focus ring), `--overlay`, `--shadow-1` (resting), `--shadow-2` (raised), `--shadow-3` (dialogs) |
+| Navigation | `--nav-bg`, `--nav-text`, `--nav-muted`, `--nav-hover`, `--nav-active`, `--nav-accent`, `--nav-focus` |
+| Type | `--font`, `--font-mono` (system fonts only), `--fs-xs` 12px, `--fs-sm` 13px, `--fs-md` 14px (body), `--fs-lg` 16px, `--fs-xl` 20px, `--fs-2xl` 26px (page title), `--fs-3xl` 32px |
+| Space | `--s-1` 4px, `--s-2` 8, `--s-3` 12, `--s-4` 16, `--s-5` 24, `--s-6` 32, `--s-7` 48 |
+| Shape and layout | `--radius-sm` 6px, `--radius` 8px, `--radius-lg` 12px, `--control-height` 36px, `--topbar-height`, `--nav-width`, `--rail-width` |
+| Charts | `--series-1` to `--series-8`, `--chart-grid`, `--chart-axis` |
+
+Text and its background are chosen to meet WCAG 2.1 AA (4.5:1) in both themes: keep to the
+pairs above (`--text` or `--text-muted` on a surface, `--brand-contrast` on `--brand`,
+`--c-<name>-fg` on `--c-<name>-bg`). In the dark theme `--brand` is a light tone with dark
+text on it; never put white text on `--brand`.
+
+Every interactive element shows a 2px `--focus` ring for keyboard users; inputs add a soft
+glow. Animations and transitions are switched off under `prefers-reduced-motion`.
+
+### Re-branding
+
+1. In `tokens.css` change the `--brand*` and `--accent` values in both themes (and the `--nav-*`
+   values if the sidebar should change). Check contrast: `--brand-contrast` on `--brand` and
+   `--link` on `--surface` need 4.5:1.
+2. In `mantine.tsx` change the ten-step `brand` scale to match (index 7 is the light theme's
+   `--brand`, index 4 the dark theme's).
+3. Replace the mark in `Logo.tsx` and the same drawing in `web/public/favicon.svg`. The
+   application's name comes from the organisation profile (`appName`), not from code.
+
+### Colours
+
+`ColorName`, `COLOR_NAMES`: the one scale for every status and priority chip; lookup values
+carry one of these in `color`:
 
 `gray`, `blue`, `teal`, `green`, `amber`, `orange`, `red`, `purple`
 
 Tokens per colour: `--c-<name>-bg`, `--c-<name>-fg` (chip background and text) and
-`--c-<name>-solid` (bars, charts, accents).
+`--c-<name>-solid` (bars, charts, accents). All eight are also Mantine colours, so a Mantine
+`<Badge color="amber" variant="light">` uses the same pair.
 
-**Icons** (`IconName`, `ICON_NAMES`):
+### Icons
+
+`Icon` draws from the open-source Tabler set (`@tabler/icons-react`); each icon is imported on
+its own in `Icon.tsx`, so only these reach the bundle. To add one, import it there and add a
+line to the map. Names (`IconName`, `ICON_NAMES`):
 
 `home`, `ticket`, `book`, `server`, `box`, `map-pin`, `database`, `refresh`, `building`,
 `file-text`, `shield`, `alert`, `bug`, `clipboard`, `graduation`, `clock`, `scale`, `target`,
@@ -463,9 +639,21 @@ Tokens per colour: `--c-<name>-bg`, `--c-<name>-fg` (chip background and text) a
 `check`, `chevron-down`, `chevron-up`, `chevron-left`, `chevron-right`, `chevrons-left`,
 `chevrons-right`, `arrow-up`, `arrow-down`, `external`, `download`, `upload`, `filter`, `sun`,
 `moon`, `menu`, `more`, `edit`, `trash`, `link`, `lock`, `info`, `calendar`, `message`,
-`history`, `eye`, `star`, `logout`
+`history`, `eye`, `star`, `logout`, `help`, `eye-off`, `arrow-right`, `check-circle`,
+`alert-circle`, `key`, `flask`, `bell`, `enter`, `sidebar-collapse`, `sidebar-expand`
 
-**CSS helpers**: `stack` (vertical flow with gaps), `row` (horizontal, wrapping, centred),
-`grid-stats` (responsive tiles for `Stat`), `grid-2` (two columns, one when narrow), `muted`,
-`num` (right-aligned tabular numbers), `ref` (record reference style), `truncate`, `prose`
-(keeps line breaks), `sr-only`, `table` (inside `<div className="table-wrap">`), `chip chip-<colour>`.
+### CSS helpers
+
+| Class | Use |
+|---|---|
+| `stack`, `row` | Vertical flow with gaps; horizontal, wrapping, centred |
+| `grid-stats`, `grid-2` | Responsive tiles for `Stat`; two columns, one when narrow |
+| `muted`, `num`, `ref`, `truncate`, `prose`, `sr-only` | Muted text; right-aligned tabular numbers; record reference; one-line ellipsis; keeps line breaks; screen-reader only |
+| `table` inside `<div className="table-wrap">` | Data table with a scrolling, bordered wrapper |
+| `chip chip-<colour>` | The chip that `Badge` and `StatusChip` render |
+| `card`, `card-head`, `card-title`, `card-body` | The markup `Card` renders, for hand-built cards |
+| `btn` with `btn-primary`, `btn-secondary`, `btn-ghost` or `btn-danger` (and `btn-sm`) | Button look for links and other non-button elements |
+| `notice` (and `notice-warn`, `notice-pilot`, `notice-success`) | A short message box inside a page: blue information by default, or red, amber, green |
+| `form`, `form-grid`, `form-cell-wide`, `form-actions`, `field`, `field-label`, `field-hint`, `field-error`, `form-error`, `input` | Hand-built forms and plain inputs that match the Mantine controls |
+| `kbd` | A keyboard key: `<kbd className="kbd">Ctrl K</kbd>` |
+| `auth-page`, `auth-card`, `auth-brand`, `auth-title` | Centred card for pages outside the shell |
