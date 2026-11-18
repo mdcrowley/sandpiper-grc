@@ -188,7 +188,7 @@ describe('second factor', () => {
     const begin = await call(session, 'POST', '/api/auth/totp/begin');
     secret = begin.body.secret;
     expect(secret).toMatch(/^[A-Z2-7]{32}$/);
-    expect(begin.body.uri).toContain(`otpauth://totp/GRC%20Platform:tess?secret=${secret}`);
+    expect(begin.body.uri).toContain(`otpauth://totp/Sandpiper%20GRC:tess?secret=${secret}`);
     expect((await signIn('tess', PASSWORD)).status).toBe(200); // pending secret is not yet enforced
 
     const wrong = await call(session, 'POST', '/api/auth/totp/confirm', { code: '000000' });
@@ -341,7 +341,7 @@ describe('roles', () => {
 describe('settings and departments', () => {
   it('validates settings and audits each change', async () => {
     const before = await t.api.get('/api/admin/settings');
-    expect(before.body.values).toMatchObject({ 'app.name': 'GRC Platform', pilot_mode: true, 'auth.password_min_length': 14, features: { portal: false } });
+    expect(before.body.values).toMatchObject({ 'app.name': 'Sandpiper GRC', pilot_mode: true, 'auth.password_min_length': 14, features: { portal: false } });
     const bad = await t.api.patch('/api/admin/settings', {
       'auth.password_min_length': 8, 'auth.idle_minutes': 'soon', pilot_mode: 'yes', 'app.name': ' ', features: { rockets: true }, 'made.up': 1,
     });
@@ -357,7 +357,7 @@ describe('settings and departments', () => {
     expect(await audited('setting.change', 'pilot_mode')).toBe(0); // unchanged values are not rewritten
     const short = await t.api.post('/api/auth/change-password', { currentPassword: ADMIN.password, newPassword: 'fifteen chars..' });
     expect(short.body.error.fields.newPassword).toMatch(/at least 16/);
-    await t.api.patch('/api/admin/settings', { 'auth.password_min_length': 14, 'app.name': 'GRC Platform' });
+    await t.api.patch('/api/admin/settings', { 'auth.password_min_length': 14, 'app.name': 'Sandpiper GRC' });
   });
 
   it('manages departments', async () => {

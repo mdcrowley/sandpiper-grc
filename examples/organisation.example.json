@@ -22,7 +22,7 @@
   ],
   "notificationRules": [
     {
-      "key": "national_cyber_agency",
+      "key": "example_cyber_agency",
       "trigger": "is_cyber_incident",
       "party": "National cyber security agency",
       "hours": 72,
@@ -31,7 +31,7 @@
       "guidance": "Report through the agency's incident portal and record the reference number."
     },
     {
-      "key": "card_acquirer",
+      "key": "example_card_acquirer",
       "trigger": "card_data_involved",
       "party": "Card acquirer",
       "hours": 0,
@@ -40,7 +40,7 @@
       "guidance": "Call the acquirer's incident line straight away."
     },
     {
-      "key": "cyber_insurer",
+      "key": "example_cyber_insurer",
       "trigger": "any",
       "party": "Cyber insurer",
       "hours": null,

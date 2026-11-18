@@ -1,4 +1,4 @@
-# GRC Platform
+# Sandpiper GRC
 
 An IT governance, risk and compliance platform for a small IT team, in one application:
 
@@ -27,7 +27,14 @@ Windows, no admin rights, no Docker.
 The first visit shows a setup wizard that creates the administrator. There is no default
 account. The server listens on 127.0.0.1 only and makes no outbound connections.
 
-Other commands: `stop`, `restart`, `health`, `dev`, `test`, `typecheck`, `backup`.
+Other commands: `stop`, `restart`, `health`, `dev`, `build`, `test`, `typecheck`, `backup`.
+
+## Documentation
+
+- **User guide**: [docs/user](docs/user/01-getting-started.md), also inside the application under **Help**
+- **Installation, operations, architecture, security**: [docs](docs/README.md)
+- **Roadmap** (epics and issues): [docs/roadmap](docs/roadmap/README.md)
+- **Known gaps**: [docs/known-gaps.md](docs/known-gaps.md)
 
 ## Make it yours
 

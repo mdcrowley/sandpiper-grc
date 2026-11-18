@@ -79,7 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const granted = state.permissions ?? [];
     return {
       user: state.user,
-      appName: state.appName || 'GRC Platform',
+      appName: state.appName || 'Sandpiper GRC',
       setupRequired: state.setupRequired,
       features: state.features ?? {},
       pilot: Boolean(state.pilot),

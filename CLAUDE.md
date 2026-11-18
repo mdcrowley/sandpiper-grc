@@ -1,4 +1,4 @@
-# GRC Platform
+# Sandpiper GRC
 
 An IT governance, risk and compliance platform for a small IT team: service desk, asset and
 system inventory, vendors and contracts, cybersecurity framework outcomes, risks, security
@@ -18,6 +18,17 @@ not built.
   send it to an external service, never paste its content into code, logs, tests or docs.
 - **Local only.** The server binds to 127.0.0.1. No telemetry, no CDN fonts or scripts, no
   calls to outside services from application code.
+- **Documentation and the roadmap change with the code, always.** A change is not finished
+  until every place that describes it is updated in the same piece of work:
+  - `docs/user/*.md` - the user guide. These same files are bundled into the application's
+    Help section (`web/src/modules/help`), so there is one source; rebuild the web app.
+  - `docs/` - `installation.md`, `operations.md`, `architecture.md`, `security.md`,
+    `known-gaps.md`, and the index `docs/README.md`.
+  - `docs/roadmap/` - the epics and issues. Mark the issue done (tick its acceptance
+    criteria), add issues for anything new or newly found, and keep the epic table and
+    the summary in `docs/roadmap/README.md` in step.
+  - `README.md` when what the product does, or how to run it, changes.
+  - This file when structure, commands or conventions change.
 - **Do not copy any commercial product's branding, text, icons or screens.**
 - Every data change writes an audit event. Every feature ships with a test.
 - Configuration over code: statuses, priorities, categories, scales and so on are rows in
@@ -289,7 +300,7 @@ export default mod;
 ```
 
 Nav groups, in order: Home, Service desk, Inventory, Change, Vendors, Cybersecurity,
-Projects, Reports, Administration.
+Projects, Reports, Administration, Help.
 
 Quality bar: every screen has empty, loading and error states; every list
 has filter, sort, saved view and export; every record shows its history.
@@ -307,6 +318,7 @@ has filter, sort, saved view and export; every record shows its history.
 | `projects` | `project` → projects |
 | `admin` | users, roles, second factor, audit viewer, lookups, settings |
 | `home` | dashboards |
+| `help` | the user guide, rendered from `docs/user/*.md` (web only) |
 
 Permission module per type: ticket, problem, catalog_item → `tickets`; knowledge_article →
 `knowledge`; system → `systems`; asset → `assets`; site → `sites`; data_category → `data`;

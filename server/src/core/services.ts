@@ -39,7 +39,7 @@ export const DEFAULT_ROLES: {
   },
   {
     key: 'security_lead', name: 'Security lead', enabled: true, requiresMfa: true,
-    description: 'Cybersecurity Coordinator and alternate: risks, controls, security incidents, vendors, policies.',
+    description: 'Security staff: risks, controls, security incidents, vendors, policies.',
     grants: [
       'security.*', 'risks.*', 'frameworks.*', 'vulnerabilities.*', 'policies.*', 'training.*', 'exceptions.*',
       'obligations.*', 'exercises.*', 'vendors.*', 'contracts.*', 'actions.*',
@@ -57,7 +57,7 @@ export const DEFAULT_ROLES: {
   },
   {
     key: 'approver', name: 'Approver', enabled: false, requiresMfa: false,
-    description: 'Department heads, CFO, CEO: approve changes, access requests, project gates and risk acceptance.',
+    description: 'Managers and executives: approve changes, access requests, project gates and risk acceptance.',
     grants: [
       'changes.view', 'changes.approve', 'projects.view', 'projects.approve', 'tickets.view', 'tickets.approve',
       'assets.view', 'assets.approve', 'dashboards.view',

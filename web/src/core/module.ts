@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import type { IconName } from './Icon';
 
 export const NAV_GROUPS = [
-  'Home', 'Service desk', 'Inventory', 'Change', 'Vendors', 'Cybersecurity', 'Projects', 'Reports', 'Administration',
+  'Home', 'Service desk', 'Inventory', 'Change', 'Vendors', 'Cybersecurity', 'Projects', 'Reports', 'Administration', 'Help',
 ] as const;
 export type NavGroup = (typeof NAV_GROUPS)[number];
 

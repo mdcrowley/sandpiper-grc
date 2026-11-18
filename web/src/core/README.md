@@ -68,7 +68,7 @@ export default mod;
 | Key | Shape | Notes |
 |---|---|---|
 | `key` | `string` | Module folder name |
-| `nav` | `{ group, label, path, icon, permission?, order? }[]` | `group` is one of `Home`, `Service desk`, `Inventory`, `Change`, `Vendors`, `Cybersecurity`, `Projects`, `Reports`, `Administration`. `icon` is an icon name (section 11). Items are sorted by `order` (default 100) and hidden without `permission`; empty groups are hidden |
+| `nav` | `{ group, label, path, icon, permission?, order? }[]` | `group` is one of `Home`, `Service desk`, `Inventory`, `Change`, `Vendors`, `Cybersecurity`, `Projects`, `Reports`, `Administration`, `Help`. `icon` is an icon name (section 11). Items are sorted by `order` (default 100) and hidden without `permission`; empty groups are hidden |
 | `routes` | `{ path, element, permission? }[]` | React Router paths rendered inside the shell. With `permission`, users without it see a "no access" page |
 | `create` | `{ label, path, permission?, icon? }[]` | Entries in the global Create menu. Use `path: '/things?new=1'`: a `ResourceList` with `createFields` opens its New dialog when it sees `?new=1` |
 | `publicRoutes` | `{ path, element }[]` | Rendered **without** the shell and **without** sign-in (e.g. `/redeem` for a one-time link). They work with or without a session and win over the sign-in screen. Inside them `useAuth()` and `useToast()` work; `useResource`, `useLookup`, `ResourceList` and other metadata-driven pieces do not (metadata loads only after sign-in). Wrap the page in `<div className="auth-page"><div className="auth-card">...</div></div>` to match the sign-in screen |

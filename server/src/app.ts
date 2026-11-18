@@ -118,7 +118,7 @@ export async function buildApp(opts: BuildOptions) {
   for (const m of modules) await m.seedDefaults?.(ctx);
   for (const m of modules) await m.register?.(ctx);
 
-  const webDir = join(repoRoot, 'dist/web');
+  const webDir = process.env.GRC_WEB_DIST ? resolve(process.env.GRC_WEB_DIST) : join(repoRoot, 'dist/web');
   const serveWeb = (opts.serveWeb ?? true) && existsSync(join(webDir, 'index.html'));
   if (serveWeb) await app.register(fastifyStatic, { root: webDir });
   app.setNotFoundHandler((req, reply) => {

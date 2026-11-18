@@ -711,7 +711,7 @@ export function makeService(ctx: ModuleContext) {
     await put('source_type', 'project');
     await put('source_id', project.id);
     await put('project_id', project.id);
-    await put('review_date', item.due_on);
+    await put('review_on', item.due_on);
     return data;
   }
 

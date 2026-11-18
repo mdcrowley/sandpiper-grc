@@ -15,7 +15,7 @@ if (pidFile) {
   mkdirSync(dataDir, { recursive: true });
   writeFileSync(pidFile, String(process.pid));
 }
-console.log(`GRC Platform running at http://127.0.0.1:${port}  (modules: ${modules.map((m) => m.key).join(', ') || 'none'})`);
+console.log(`Sandpiper GRC running at http://127.0.0.1:${port}  (modules: ${modules.map((m) => m.key).join(', ') || 'none'})`);
 
 let stopping = false;
 async function shutdown() {

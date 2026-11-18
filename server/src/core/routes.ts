@@ -190,7 +190,8 @@ export function registerCoreRoutes({ app, db, audit, lookups, res }: Deps) {
     if (query.format === 'csv') {
       const rows = await db.query<Row>(`select * from audit_events where ${w} order by id desc limit 50000`, params);
       const esc = (v: unknown) => {
-        const s = v === null || v === undefined ? '' : v instanceof Date ? v.toISOString() : typeof v === 'object' ? JSON.stringify(v) : String(v);
+        let s = v === null || v === undefined ? '' : v instanceof Date ? v.toISOString() : typeof v === 'object' ? JSON.stringify(v) : String(v);
+        if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`; // stop spreadsheet formula injection
         return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
       };
       await audit(req, { action: 'audit.export', summary: `Exported ${rows.length} audit events to CSV` });

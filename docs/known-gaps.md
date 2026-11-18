@@ -20,7 +20,6 @@ What the local prototype does not do yet. Update with every change.
 - **Hosting**: runs on embedded Postgres (PGlite) under portable Node, not a PostgreSQL
   server in containers. No HTTPS, no scheduled backup, no `restore`, `upgrade`, `export-all`
   or `import-all` commands, no continuous integration.
-- **Documentation**: no administrator guide, user guide or operations runbook.
 
 ## Built but incomplete
 

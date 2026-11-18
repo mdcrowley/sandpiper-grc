@@ -194,7 +194,7 @@ export function Shell({ children }: { children: ReactNode }) {
         {pilot && (
           <p className="notice notice-pilot" role="note">
             <Icon name="info" size={16} />
-            Pilot mode: use seed and test data only. Do not record live incident details, client health information or card data.
+            Pilot mode: use seed and test data only. Do not record live incident details, health information or card data.
           </p>
         )}
         {mfaEnrollmentRequired && (
@@ -221,7 +221,9 @@ export function Shell({ children }: { children: ReactNode }) {
               variant="ghost"
               align="end"
               items={[
-                { label: 'Change password', icon: 'lock', onSelect: () => setChangingPassword(true) },
+                { label: 'Account security', icon: 'shield', to: '/account/security' },
+    { label: 'Change password', icon: 'lock', onSelect: () => setChangingPassword(true) },
+    { label: 'Help', icon: 'book', to: '/help' },
                 { label: 'Sign out', icon: 'logout', separated: true, onSelect: () => void logout() },
               ]}
             />

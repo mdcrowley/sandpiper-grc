@@ -1,5 +1,5 @@
 {
-  "name": "grc-platform",
+  "name": "sandpiper-grc",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -18,9 +18,16 @@
     "@electric-sql/pglite": "^0.5.16",
     "@fastify/cookie": "^11.1.5",
     "@fastify/static": "^10.1.11",
+    "@mantine/core": "^9.8.1",
+    "@mantine/dates": "^9.8.1",
+    "@mantine/hooks": "^9.8.1",
+    "@mantine/notifications": "^9.8.1",
     "@node-rs/argon2": "^2.2.2",
+    "@tabler/icons-react": "^3.52.0",
+    "dayjs": "^1.11.23",
     "echarts": "^6.1.0",
     "fastify": "^5.12.8",
+    "marked": "^18.2.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-router-dom": "^7.18.6"

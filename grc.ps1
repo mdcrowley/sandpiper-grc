@@ -1,5 +1,5 @@
 <#
-  GRC Platform - one-command operations for the local prototype.
+  Sandpiper GRC - one-command operations for the local prototype.
   Usage: .\grc.ps1 <start|stop|restart|health|dev|seed|test|typecheck|build|backup|npm> [args]
   If scripts are blocked: powershell -ExecutionPolicy Bypass -File .\grc.ps1 start
 #>
@@ -67,7 +67,7 @@ function Start-Server {
   Start-Process -FilePath "$root\.tools\node\node.exe" -ArgumentList "`"$tsx`"", 'server/src/main.ts' `
     -WorkingDirectory $root -WindowStyle Hidden -RedirectStandardOutput $log -RedirectStandardError "$log.err" | Out-Null
   foreach ($i in 1..60) { if (Test-Health) { break }; Start-Sleep -Milliseconds 500 }
-  if (Test-Health) { Write-Host "GRC Platform is running at $url" -ForegroundColor Green }
+  if (Test-Health) { Write-Host "Sandpiper GRC is running at $url" -ForegroundColor Green }
   else { Write-Host "Server did not become healthy. See $log.err" -ForegroundColor Red; exit 1 }
 }
 
