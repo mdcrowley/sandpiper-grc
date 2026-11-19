@@ -20,7 +20,7 @@ and usable by everyone.
   TypeScript under `server/src/ops/` and called through `server/src/cli.ts`, so they are
   tested and run on any operating system. `grc.ps1` is a thin Windows wrapper that stops
   and starts the server around them.
-- Continuous integration is defined in `tools/ci/github-actions-ci.yml` (switched off; local CI is `.\grc.ps1 ci`) for the repository's
+- Continuous integration is defined in `.github/workflows/ci.yml` (and locally `.\grc.ps1 ci`) for the repository's
   home on GitHub.
 - Hardening of sign-in is in [E02](E02-account-security.md). The licence, contributing
   guide and security policy are tracked in [E17-13](E17-documentation.md).
@@ -282,9 +282,9 @@ Windows-only path handling, and nothing was found.
 - [x] The private seed folder is never needed or read
 - [ ] The first run passes on both operating systems
 - [ ] The main branch is protected by the checks (a repository setting)
-- [ ] A status badge in the README
+- [x] A status badge in the README
 
-**Implemented in:** `tools/ci/github-actions-ci.yml` (switched off; local CI is `.\grc.ps1 ci`); `tools/node-version.txt`
+**Implemented in:** `.github/workflows/ci.yml` (and locally `.\grc.ps1 ci`); `tools/node-version.txt`
 
 ### E16-13 Dependency scanning
 
@@ -295,12 +295,12 @@ date.
 
 **Acceptance criteria**
 
-- [ ] Update proposals are raised automatically (a Dependabot configuration is written but switched off, because it runs on GitHub Actions and the project uses no hosted automation)
-- [ ] An audit of dependencies runs in continuous integration
+- [x] Update proposals are raised automatically: weekly, grouped, for npm packages and for the workflow's actions
+- [x] An audit of dependencies runs in continuous integration (reporting only for now)
 - [ ] The lock file is committed and checked. Today `package-lock.json` is git-ignored, so the workflow falls back from `npm ci` to `npm install` and builds are not reproducible
 - [ ] A policy says how quickly each severity must be dealt with
 
-**Kept, switched off, in:** `tools/ci/dependabot.yml`
+**Implemented in:** `.github/dependabot.yml`
 
 ### E16-14 Load testing
 

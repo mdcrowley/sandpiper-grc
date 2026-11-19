@@ -96,8 +96,8 @@ Everything goes through `grc.ps1` (it puts the portable Node on PATH):
 
 **Continuous integration is local.** Run `.\grc.ps1 ci` before every commit and push: it
 runs the typecheck, the tests (server and web) and the web build, and fails if any step
-fails. There is no hosted CI yet; a switched-off GitHub Actions workflow is kept in
-`tools/ci/` (see its README).
+fails. GitHub Actions runs the same checks on Windows and Linux for every push and pull
+request (`.github/workflows/ci.yml`), plus a non-blocking dependency audit.
 
 The API description: `npx tsx server/src/core/openapi-cli.ts <file>` writes the whole
 OpenAPI document (every record type and route) to a file, or to standard output with no
@@ -522,7 +522,7 @@ Not yet built: OpenID Connect or SAML single sign-on, account linking, passkeys 
 break-glass account; email delivery (notifications, scheduled reports and links are
 in-app only); PDF and XLSX files generated on the server, and XLSX import; the
 self-service portal and email-to-ticket; a general workflow designer; a PostgreSQL server,
-containers, HTTPS and hosted CI. See [Known gaps](known-gaps.md) and the
+containers and HTTPS. See [Known gaps](known-gaps.md) and the
 [roadmap](roadmap/README.md).
 
 ## Known gaps

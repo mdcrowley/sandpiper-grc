@@ -16,9 +16,7 @@ What the local prototype does not do yet. Update with every change. The roadmap
 - **Workflow engine**: lifecycles are per-module code plus configurable lists, not a
   general workflow designer.
 - **Hosting**: runs on embedded Postgres (PGlite) under portable Node, not a PostgreSQL
-  server in containers. No HTTPS. Continuous integration is local only (`.\grc.ps1 ci`);
-  no GitHub Actions or Dependabot are in use (their files are kept switched off in
-  `tools/ci`), so dependency updates are checked by hand.
+  server in containers. No HTTPS. The dependency audit in CI reports but does not yet fail the build.
 
 ## Built but incomplete
 

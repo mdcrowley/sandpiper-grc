@@ -79,9 +79,10 @@ The pull request template repeats this as a checklist.
 ```
 
 Continuous integration is local for now: run `.\grc.ps1 ci` (typecheck, tests and web
-build) before every commit and push. The project uses no GitHub Actions or other hosted automation. A workflow is kept, switched off, in
-[`tools/ci/github-actions-ci.yml`](tools/ci/github-actions-ci.yml); copy it to
-`.github/workflows/ci.yml` to turn hosted CI on.
+build) before every commit and push. The same checks run on GitHub Actions for every push
+and pull request, on Windows and Linux ([`.github/workflows/ci.yml`](.github/workflows/ci.yml));
+a pull request must pass them before it is merged. Dependabot proposes dependency
+updates weekly ([`.github/dependabot.yml`](.github/dependabot.yml)).
 
 - Tests live beside the code as `*.test.ts` and use `testApp()` from
   `server/src/test/helpers.ts`: an in-memory application with a signed-in administrator,

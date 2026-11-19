@@ -1,5 +1,7 @@
 # Sandpiper GRC
 
+[![CI](https://github.com/mdcrowley/sandpiper-grc/actions/workflows/ci.yml/badge.svg)](https://github.com/mdcrowley/sandpiper-grc/actions/workflows/ci.yml)
+
 **Governance, risk and compliance for transit organisations, in one open-source application.**
 
 ## Who it is for

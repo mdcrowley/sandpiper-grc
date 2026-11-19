@@ -25,7 +25,7 @@ powershell -ExecutionPolicy Bypass -File .\tools\install-node.ps1
 The script:
 
 1. Reads the Node.js major version from `tools\node-version.txt`. That file is the one
-   place the version is pinned; the hosted CI workflow (switched off, in `tools/ci`) reads it too.
+   place the version is pinned; the CI workflow (`.github/workflows/ci.yml`) reads it too.
 2. Downloads `SHASUMS256.txt` for the newest release of that major version from
    nodejs.org, then the Windows x64 zip named in it.
 3. Computes the zip's SHA-256 and compares it with the published value. On a mismatch it

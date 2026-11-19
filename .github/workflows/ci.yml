@@ -37,15 +37,13 @@ jobs:
           node-version-file: tools/node-version.txt
 
       - name: Install packages
-        shell: bash
-        # `npm ci` installs exactly what the lock file says. Until the lock file is
-        # committed (it is git-ignored today) fall back to `npm install`.
-        run: |
-          if [ -f package-lock.json ]; then
-            npm ci --no-audit --no-fund
-          else
-            npm install --no-audit --no-fund
-          fi
+        # Installs exactly what the committed lock file says.
+        run: npm ci --no-audit --no-fund
+
+      - name: Audit dependencies
+        # Reports known vulnerabilities in production dependencies; does not fail the build yet.
+        continue-on-error: true
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Type check (server and web)
         run: npm run typecheck
