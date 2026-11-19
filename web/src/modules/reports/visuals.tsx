@@ -1,5 +1,5 @@
 // Small visual pieces the Chart component does not cover: a gauge, a month calendar and safely
-// rendered text. All colours come from the design tokens, so both themes work.
+// rendered text. All colors come from the design tokens, so both themes work.
 import { Fragment, useMemo, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { Icon, cx, formatNumber } from '../../core';

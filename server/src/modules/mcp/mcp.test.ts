@@ -107,7 +107,7 @@ describe('switched off by default', () => {
 });
 
 describe('the endpoint', () => {
-  it('initialises and lists read-only tools, resources and prompts', async () => {
+  it('initializes and lists read-only tools, resources and prompts', async () => {
     const c = await connect(adminRead);
     expect(c.getServerVersion()?.name).toBe('sandpiper-grc');
     const tools = (await c.listTools()).tools;
@@ -142,9 +142,9 @@ describe('the endpoint', () => {
     expect((found.structuredContent as any).results.map((r: any) => r.ref)).toContain(widgetRef);
     // The administrator holds security.view: the restricted record is there for them.
     expect((await c.callTool({ name: 'search', arguments: { query: 'Zebrafish' } })).structuredContent).toMatchObject({ results: [expect.objectContaining({ type: 'mcpsecret' })] });
-    const bad = await c.callTool({ name: 'list_records', arguments: { type: 'mcpwidget', filters: { colour: 'red' } } });
+    const bad = await c.callTool({ name: 'list_records', arguments: { type: 'mcpwidget', filters: { color: 'red' } } });
     expect(bad.isError).toBe(true);
-    expect(text(bad)).toMatch(/colour/);
+    expect(text(bad)).toMatch(/color/);
     const res = await c.readResource({ uri: `sandpiper://record/mcpwidget/${widgetRef}` });
     expect(JSON.parse((res.contents[0] as any).text)).toMatchObject({ ref: widgetRef });
   });

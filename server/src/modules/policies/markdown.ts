@@ -86,7 +86,7 @@ function rebuildTag(close: string, rawName: string, attrs: string): string | nul
 }
 
 /** Layer 2: keeps allow-listed tags (rebuilt with allow-listed attributes); everything else becomes text. */
-export function sanitiseHtml(html: string): string {
+export function sanitizeHtml(html: string): string {
   return html.replace(/<(\/?)([a-zA-Z][a-zA-Z0-9-]*)((?:"[^"]*"|[^<>"])*)>|</g, (m, close?: string, name?: string, attrs?: string) => {
     if (name === undefined) return '&lt;';
     return rebuildTag(close ?? '', name, attrs ?? '') ?? escapeHtml(m);
@@ -97,5 +97,5 @@ export function sanitiseHtml(html: string): string {
 export function renderPolicyMarkdown(source: unknown): string {
   const text = typeof source === 'string' ? source : '';
   if (!text.trim()) return '';
-  return sanitiseHtml(md.parse(text, { async: false }) as string);
+  return sanitizeHtml(md.parse(text, { async: false }) as string);
 }

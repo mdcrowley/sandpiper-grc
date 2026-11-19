@@ -1,6 +1,6 @@
 // Design-system building blocks, built on Mantine. Interactive pieces (buttons, tabs, tooltips,
 // skeletons) are Mantine components; purely presentational ones render the documented helper
-// classes (`card`, `chip chip-<colour>` ...) so a component and its CSS class are one thing.
+// classes (`card`, `chip chip-<color>` ...) so a component and its CSS class are one thing.
 import {
   useEffect, useState,
   type ButtonHTMLAttributes, type ReactNode,
@@ -109,13 +109,13 @@ export function Badge({ color = 'gray', children }: { color?: ColorName; childre
   return <span className={`chip chip-${color}`}>{children}</span>;
 }
 
-/** A status or priority chip: coloured dot plus label, so colour never carries the meaning alone. */
+/** A status or priority chip: colored dot plus label, so color never carries the meaning alone. */
 export interface StatusChipProps {
   color?: ColorName;
   label: ReactNode;
   /** Mantine's Badge sizes: `sm` is the compact chip used inside dense tables. Default `md`. */
   size?: 'sm' | 'md';
-  /** Mantine's Badge variants: `light` (default, tinted), `filled` (solid colour), `outline`. */
+  /** Mantine's Badge variants: `light` (default, tinted), `filled` (solid color), `outline`. */
   variant?: 'light' | 'filled' | 'outline';
   /** Hide the leading dot (for chips that sit next to their own icon). */
   withDot?: boolean;
@@ -174,7 +174,7 @@ export interface StatProps {
   value: ReactNode;
   /** Change against the previous period. `tone` says whether the movement is good news. */
   trend?: { direction: 'up' | 'down' | 'flat'; label: string; tone?: 'good' | 'bad' | 'neutral' };
-  /** Accent colour. */
+  /** Accent color. */
   color?: ColorName;
   /** Makes the whole tile a link (drill-down). */
   to?: string;

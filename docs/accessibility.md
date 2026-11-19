@@ -1,11 +1,11 @@
 # Accessibility statement (draft)
 
-Sandpiper GRC aims to be usable by everyone who works in a transit organisation's IT,
+Sandpiper GRC aims to be usable by everyone who works in a transit organization's IT,
 cybersecurity, safety and project teams, including people who use a keyboard instead of a
 mouse, a screen reader, speech recognition, screen magnification, or high-contrast and dark
-colour schemes.
+color schemes.
 
-This is a draft for each installation to adapt: an organisation publishing the application to
+This is a draft for each installation to adapt: an organization publishing the application to
 its own staff should add its contact details and its own testing, and review the statement
 at least once a year.
 
@@ -21,8 +21,8 @@ below.
   dialog and the search window are checked with the open-source axe-core engine against the
   WCAG 2.1 A and AA rules, in the light and dark themes, at desktop (1440 pixels) and tablet
   (820 pixels) widths: `node tools/a11y/audit.mjs` (see the developer guide, "Testing").
-- **Colour contrast of the design tokens** in both themes: `node tools/contrast.mjs`. Text
-  meets 4.5:1 and controls, focus rings and chart colours 3:1 against their backgrounds.
+- **Color contrast of the design tokens** in both themes: `node tools/contrast.mjs`. Text
+  meets 4.5:1 and controls, focus rings and chart colors 3:1 against their backgrounds.
 - **Keyboard-only use**, checked automatically by the browser tests
   (`tools/e2e/suites/05-keyboard.mjs`): the "Skip to content" link, a visible focus indicator
   on every stop, the order of Tab stops (top bar, then navigation, then the page), arrow keys
@@ -34,16 +34,16 @@ below.
 
 ## What works
 
-- Every page has one main heading, a "Skip to content" link, labelled navigation, and a
+- Every page has one main heading, a "Skip to content" link, labeled navigation, and a
   page title that names the page.
 - Form controls have labels (visible ones, except search boxes, whose name is given to
   assistive technology); required fields are marked, and a refused form says what is wrong
   beside the field and moves focus to it.
-- Status is never shown by colour alone: chips carry their label, charts have a text
+- Status is never shown by color alone: chips carry their label, charts have a text
   alternative, and the risk heat map and framework board say each cell's rating in words.
 - Light and dark themes follow the operating system, and either can be chosen. Motion is
   reduced when the operating system asks for it.
-- Pages work at 820 pixels wide and when zoomed to 200 per cent without scrolling sideways;
+- Pages work at 820 pixels wide and when zoomed to 200 percent without scrolling sideways;
   wide tables scroll inside their own frame.
 
 ## Known limitations
@@ -60,6 +60,6 @@ below.
 
 ## Reporting a problem
 
-Tell the people who run the application in your organisation, or raise an issue in the
+Tell the people who run the application in your organization, or raise an issue in the
 project's public repository with the page address, what you were trying to do, and the
 browser and assistive technology you use. Do not include personal or confidential data.

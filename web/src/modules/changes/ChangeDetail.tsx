@@ -49,7 +49,7 @@ function Lifecycle({ row }: { row: Row }) {
       <div className="chg-lifecycle">
         <Stepper label="Change lifecycle" steps={steps} current={row.status === 'rejected' ? 'submitted' : row.status === 'cancelled' ? undefined : row.status} />
       </div>
-      {row.status === 'cancelled' && <Banner>This change was cancelled{row.outcome_notes ? `: ${row.outcome_notes}` : '.'}</Banner>}
+      {row.status === 'cancelled' && <Banner>This change was canceled{row.outcome_notes ? `: ${row.outcome_notes}` : '.'}</Banner>}
       {row.status === 'rejected' && <Banner tone="danger">This change was rejected. Return it to draft to revise and resubmit it; see the Approvals tab for the reason.</Banner>}
       {!off && open > 0 && (
         <Banner tone="warn">

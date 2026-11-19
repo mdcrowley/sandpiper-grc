@@ -4,7 +4,7 @@ import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
 import { registerExtras } from './extras.ts';
 import { DEFAULT_NAMES, NAMES_LIST, mappingProblem, rowsFromText, textFromRows } from './mappings.ts';
 import { seedFrameworks } from './seed.ts';
-import { COLOURS, DEFAULT_STATUS, saveStructure } from './structure.ts';
+import { COLORS, DEFAULT_STATUS, saveStructure } from './structure.ts';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -79,7 +79,7 @@ const mod: ModuleDef = {
       { value: 'next', label: 'Next', color: 'blue', sort: 20 },
       { value: 'later', label: 'Later', color: 'gray', sort: 30 },
     ], { module: 'frameworks' });
-    // Other frameworks' names offered when mapping an outcome, and recognised by the "also satisfies" parser.
+    // Other frameworks' names offered when mapping an outcome, and recognized by the "also satisfies" parser.
     await ctx.lookups.ensure(NAMES_LIST, DEFAULT_NAMES.map((label, i) => ({
       value: label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''), label, color: 'gray', sort: (i + 1) * 10,
     })), { module: 'frameworks' });
@@ -344,7 +344,7 @@ const mod: ModuleDef = {
       if (!list.length) errors.functions = 'Give at least one function.';
       list.forEach((f, i) => {
         if (!String(f?.code ?? '').trim() || !String(f?.name ?? '').trim()) errors[`functions.${i}`] = 'Each function needs a code and a name.';
-        if (f?.color && !COLOURS.includes(f.color)) errors[`functions.${i}.color`] = `Colour must be one of: ${COLOURS.join(', ')}.`;
+        if (f?.color && !COLORS.includes(f.color)) errors[`functions.${i}.color`] = `Color must be one of: ${COLORS.join(', ')}.`;
         (Array.isArray(f?.categories) ? f.categories : []).forEach((c: Row, j: number) => {
           if (!String(c?.code ?? '').trim() || !String(c?.name ?? '').trim()) errors[`functions.${i}.categories.${j}`] = 'Each category needs a code and a name.';
         });

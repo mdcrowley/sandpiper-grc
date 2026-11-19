@@ -1,4 +1,4 @@
-// The requester's own requests: raise one (from the catalogue or "report a problem"), list them,
+// The requester's own requests: raise one (from the catalog or "report a problem"), list them,
 // read one with its public messages, reply, reopen and rate.
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
@@ -94,7 +94,7 @@ export function registerRequests(ctx: ModuleContext, access: Access, files: { fo
   });
   ctx.describeRoute({
     method: 'POST', path: '/api/portal/requests', permission: 'portal.create',
-    summary: 'Raise a request from the portal: a catalogue item with its answers, or a short problem report',
+    summary: 'Raise a request from the portal: a catalog item with its answers, or a short problem report',
     body: '{ catalog_item_id?, answers?: { key: value }, title?, details?, where?, affects?: me|team|service, how_urgent?: stopped|slowed|can_wait }',
   });
 

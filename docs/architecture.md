@@ -16,14 +16,19 @@ rather than repeating its tables.
 | Database | PGlite: PostgreSQL compiled to WebAssembly, embedded in the process | Real PostgreSQL SQL with nothing to install. Moving to a server is a change to one file |
 | Password hashing | `@node-rs/argon2` | Argon2id |
 | Web | React 19, React Router, Vite | Familiar, quick builds |
-| Styling | Plain CSS with design tokens (`web/src/core/tokens.css`) | No UI framework to track |
+| Components and styling | Mantine 9, wrapped by the core design system, plus plain CSS with design tokens (`web/src/core/tokens.css`) | Accessible components (focus traps, keyboard menus) without writing them; modules import from the core, so the library can be swapped in one place |
 | Charts | ECharts | Covers the heat map and dashboard charts |
-| Tests | Vitest | Runs the server in memory, quickly |
+| Tests | Vitest; a browser suite and an axe-core audit driving a real browser (`tools/e2e`, `tools/a11y`) | Vitest runs the server in memory, quickly; the browser suite checks the screens end to end |
 
-There is no ORM: SQL is written by hand with parameters. There is no general job queue:
-scheduled work (for example the service-level sweep and the daily retention check) uses
-in-process timers. Webhook deliveries are the exception: they are rows in a table that a
-timer works through, so a restart loses none.
+There is no ORM: SQL is written by hand with parameters. Background work goes through a
+table-backed job queue (`server/src/core/jobs`, `app.jobs`): jobs are rows that a poller
+claims with a lease, so two processes on one database never run the same job and a job
+whose process died is taken up again; failures are retried with back-off. Email, the
+notification digests and the queue's own clean-up run there. Some older scheduled work
+(for example the service-level sweep, the daily retention check and several modules'
+reminders) still uses in-process timers until it moves onto the queue (E14-22). Webhook
+deliveries are rows in their own table that a timer works through, so a restart loses
+none.
 
 ## Layers
 
@@ -140,7 +145,7 @@ permission module, title field, optional auto-number) and provides:
 - **Filters, search, sort and paging** on the list route, built from declared fields only;
   field names are checked against an identifier pattern before they reach SQL.
 - **CSV export** (`format=csv`), limited to 50,000 rows, audited, with cells that start
-  with a formula character neutralised.
+  with a formula character neutralized.
 - **`_display` labels.** Each row carries `_display: { field: label }` for user, reference
   and lookup fields, so the web never has to resolve identifiers itself.
 - **Auto-numbering** such as `TKT-00001`, from the `counters` table.
@@ -259,7 +264,7 @@ Local accounts only, plus personal access tokens for scripts. Details and limits
 - **One-time links.** New users and password resets use single-use links valid for 24
   hours, which the administrator passes on by hand (`server/src/modules/admin`).
 
-## Authorisation
+## Authorization
 
 - **Permissions** are strings `<module>.<action>`. The fixed module keys and actions are
   listed in [the developer guide](development.md#permissions).
@@ -277,9 +282,9 @@ Local accounts only, plus personal access tokens for scripts. Details and limits
 - **The web hides what the user cannot do**, using the permissions in `/api/auth/state`,
   but the server is the control: every route checks again.
 
-## Organisation profile and seed profiles
+## Organization profile and seed profiles
 
-Nothing in the repository is specific to one organisation. What differs between
+Nothing in the repository is specific to one organization. What differs between
 installations arrives in one of three ways:
 
 1. **Defaults** (`seedDefaults`): generic lookup values, starter rules and checklists,
@@ -287,8 +292,8 @@ installations arrives in one of three ways:
 2. **The seed command** (`server/src/cli.ts`), with two profiles:
    - `dev`: generated, invented data; reads no files.
    - `pilot`: reads the private seed folder. Core applies `appName` and `lookups` from
-     `organisation.json`; each module's `seed(ctx, opts)` reads its own section from
-     `opts.organisation` and its own optional import files with `ctx.readSeed`.
+     `organization.json`; each module's `seed(ctx, opts)` reads its own section from
+     `opts.organization` and its own optional import files with `ctx.readSeed`.
    Seeds are idempotent and never overwrite later edits.
 3. **The application itself**: everything in the profile can be entered or changed there.
 
@@ -299,7 +304,7 @@ File formats are documented in [Installation](installation.md#5-load-data).
 - **Time zone.** `GRC_TIMEZONE` (default: the machine's zone) is validated at start
   (`server/src/core/timezone.ts`). It is set as the database session time zone, used by
   server code for "today" (`todayInZone`) and business-hours arithmetic, and reported to
-  the web in `/api/auth/state` so that every user sees times in the organisation's zone,
+  the web in `/api/auth/state` so that every user sees times in the organization's zone,
   not their browser's.
 - **Currency.** `GRC_CURRENCY` (default `USD`) is an ISO 4217 code reported the same way
   and used only to format `currency` fields. Amounts are stored as plain numbers; there is
@@ -368,7 +373,7 @@ How the one process is reached and where its data lives. Operator's view:
     JSON; `pg` would send a Postgres array, so for a statement with an array parameter the
     driver asks the server once for the parameter types (`PREPARE` and
     `pg_prepared_statements`) and JSON-encodes those arrays. Cached per statement.
-  - *Sessions*: every pooled connection gets the organisation's time zone, a statement
+  - *Sessions*: every pooled connection gets the organization's time zone, a statement
     timeout, an idle-in-transaction timeout and an optional `search_path` before first use.
   - *Transactions*: `tx` takes one connection for `begin` ... `commit`/`rollback`. Unlike
     PGlite, other queries on the outer handle are not held back meanwhile; they run on
@@ -414,11 +419,11 @@ built; see [Known gaps](known-gaps.md).
 - **Database.** Still to design: a transaction-per-request story, and a database role for
   the application that cannot alter the audit trigger (today the role owns its tables).
   Backups in server mode use `pg_dump`; `grc.ps1 backup` covers the embedded database only.
-- **Single sign-on.** Add OpenID Connect or SAML beside local accounts, with account
-  linking and a break-glass local administrator. Decide where the second factor is
-  enforced.
-- **More than one process.** Move timers, the per-token request count and the webhook
-  queue's single worker out of process memory (a shared store and a job queue with row
-  locking) before running several instances.
-- **Operations.** Scheduled backups with tested restores, an upgrade procedure, log
-  retention, monitoring and continuous integration.
+- **Single sign-on.** OpenID Connect, account linking and a break-glass administrator are
+  built. Still to decide: SAML (it needs an XML-signature library) and whether a
+  provider's own second factor can stand in for this application's.
+- **More than one process.** The job queue already works across processes. Still to do:
+  move the remaining timers onto it, and move the per-token request count, the `If-Match`
+  lock and the webhook worker out of process memory, before running several instances.
+- **Operations.** Scheduled, verified backups, an upgrade with automatic rollback and
+  continuous integration are built. Still to do: log retention and monitoring.

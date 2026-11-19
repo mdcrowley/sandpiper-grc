@@ -1,7 +1,7 @@
 // Seeds the standard dashboards, reports and starter pack. Idempotent: an item is created once,
 // found again by its key, and never overwritten, so edits made in the application are kept (and a
 // standard item someone deleted stays deleted). The same in both profiles: nothing here is
-// specific to an organisation.
+// specific to an organization.
 import type { ModuleContext } from '../../core/module.ts';
 import { STANDARD_DASHBOARDS, STANDARD_PACK, STANDARD_REPORTS } from './standard.ts';
 

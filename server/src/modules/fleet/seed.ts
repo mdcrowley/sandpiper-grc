@@ -44,7 +44,7 @@ for (const [route_code, name, depot, service_type, description] of [
   ['1', 'Harbour - Northgate', 'Example Depot North', 'fixed_route', 'Frequent cross-town route every 10 minutes in the day.'],
   ['2', 'Riverside Loop', 'Example Depot North', 'fixed_route', 'Circular route in both directions.'],
   ['4', 'College - Hospital', 'Example Depot North', 'fixed_route', 'Links the college campus with the hospital.'],
-  ['7', 'Eastfield - City Centre', 'Example Depot South', 'fixed_route', 'Radial route from the eastern estates.'],
+  ['7', 'Eastfield - City Center', 'Example Depot South', 'fixed_route', 'Radial route from the eastern estates.'],
   ['12', 'Airport Link', 'Example Depot South', 'fixed_route', 'Limited stops between the interchange and the airport.'],
   ['15', 'Westmoor - Central Interchange', 'Example Depot South', 'fixed_route', 'Radial route from the western suburbs.'],
   ['30', 'Night Bus', 'Example Depot North', 'fixed_route', 'Overnight service on the busiest corridors.'],

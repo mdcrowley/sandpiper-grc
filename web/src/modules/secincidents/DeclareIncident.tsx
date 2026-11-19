@@ -166,7 +166,7 @@ export function DeclareIncident() {
                   hint="What is known so far. It can be added to later" />
                 <div className="form-grid">
                   <DateTimeField label="Discovered" required value={discovered} onChange={setDiscovered} error={errors.discovered_at}
-                    hint={`When the organisation first became aware (${zoneName()}). Every deadline counts from this time`} />
+                    hint={`When the organization first became aware (${zoneName()}). Every deadline counts from this time`} />
                   <LookupSelect label="Scenario" list="security_incident_scenario" value={scenario} onChange={setScenario} error={errors.scenario}
                     hint="Brings the matching containment and recovery checklists" />
                 </div>

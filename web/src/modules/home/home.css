@@ -1,4 +1,4 @@
-/* Overview page. Colours come from the design tokens only, so both themes work. */
+/* Overview page. Colors come from the design tokens only, so both themes work. */
 
 .home { gap: var(--s-5); }
 
@@ -153,7 +153,7 @@
 .home-chip-link { border-radius: 999px; text-decoration: none; }
 .home-chip-link:hover .chip { box-shadow: 0 0 0 1px var(--border-strong); }
 
-/* Customise panel */
+/* Customize panel */
 .home-cz { display: grid; gap: var(--s-4); }
 .home-cz-group { margin-bottom: var(--s-2); color: var(--text-muted); font-size: var(--fs-sm); font-weight: 650; letter-spacing: 0.06em; text-transform: uppercase; }
 .home-cz-list { display: grid; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }

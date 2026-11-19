@@ -84,7 +84,7 @@ export function makeSharing(ctx: ModuleContext) {
     q['f.id'] = asked.length ? asked.join(',') : NIL;
   }
 
-  /** Normalises the sharing fields on a create or update and refuses unknown roles. */
+  /** Normalizes the sharing fields on a create or update and refuses unknown roles. */
   async function cleanSharing(data: Row): Promise<void> {
     if (data.shared_roles !== undefined && data.shared_roles !== null) {
       if (!Array.isArray(data.shared_roles)) ctx.fail(400, 'validation', 'Check the highlighted fields.', { shared_roles: 'Choose roles from the list.' });

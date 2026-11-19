@@ -39,7 +39,7 @@ A change moves through these statuses. The bar at the top of a change shows wher
 | **Completed** | Work has finished and the outcome is recorded. |
 | **Reviewed** | The post-implementation review has been recorded. |
 | **Closed** | Finished. Nothing more can be edited. |
-| **Cancelled** | Abandoned. It stays in the register but cannot be edited or reopened. |
+| **Canceled** | Abandoned. It stays in the register but cannot be edited or reopened. |
 
 The application enforces the order. A change cannot be scheduled or started until it has its approvals and its conflicts are resolved or acknowledged, and it cannot be closed while a required review is missing.
 
@@ -58,7 +58,7 @@ The **View** menu beside **Filters** holds ready-made saved views, which you can
 - **Review due**
 - **Emergency**
 
-**All changes** shows every change. You can search, use **Filters** (including **Main system**), sort by a column, save your own view and export the list. The address in the browser keeps the search and filters, so a view can be bookmarked or sent to a colleague. To give many changes a new **Owner** or **Implementer** at once, tick them and select **Edit selected…**. See [Getting started](01-getting-started.md) for how lists work.
+**All changes** shows every change. You can search, use **Filters** (including **Main system**), sort by a column, save your own view and export the list. The address in the browser keeps the search and filters, so a view can be bookmarked or sent to a colleague. To give many changes a new **Owner** or **Implementer** at once, check them and select **Edit selected…**. See [Getting started](01-getting-started.md) for how lists work.
 
 ## Raising a change
 
@@ -182,7 +182,7 @@ A change is flagged when its planned window:
 - falls in a **blackout period**, a time when changes should not be made (a blackout period for chosen systems flags only changes that affect one of them; one that repeats flags each repeat); or
 - overlaps another change that is awaiting approval, approved, scheduled or in progress and affects one of the same systems.
 
-Conflicts are shown in the **New change** flow, in a notice and on the **Conflicts** tab of the change, and on the calendar. Drafts, and changes that are finished, rejected or cancelled, do not count against other changes.
+Conflicts are shown in the **New change** flow, in a notice and on the **Conflicts** tab of the change, and on the calendar. Drafts, and changes that are finished, rejected or canceled, do not count against other changes.
 
 A change with an unresolved conflict cannot be scheduled or started. There are two ways forward:
 
@@ -192,7 +192,7 @@ A change with an unresolved conflict cannot be scheduled or started. There are t
   2. Enter the **Reason**. This is required.
   3. Select **Acknowledge and override**.
 
-The name of the person and the reason are shown beside the conflict and recorded in the history. An acknowledgement applies only to the planned window it was given for: if the change is moved, any conflict must be looked at again.
+The name of the person and the reason are shown beside the conflict and recorded in the history. An acknowledgment applies only to the planned window it was given for: if the change is moved, any conflict must be looked at again.
 
 ## The change calendar
 
@@ -201,9 +201,9 @@ Open **Change > Change calendar**.
 - Switch between **Month** and **Week**. Use the arrows to move, and **Today** to come back.
 - To see one system, search for it in the box beside **Month** and **Week** (it shows **All systems** until you choose one). The calendar then shows only the changes that affect that system (as main system or as another affected system) and the blackout periods that apply to it. Select **Show all systems** in the notice to go back. The address can be bookmarked or sent from a system's page.
 - In the month view, select a day number to open that week.
-- Each change is coloured by type. Finished changes are faded and drafts have a dashed outline.
+- Each change is colored by type. Finished changes are faded and drafts have a dashed outline.
 - Blackout periods are shaded with stripes and named.
-- A warning triangle marks a change with an unresolved conflict. A tick marks a change whose conflict has been acknowledged.
+- A warning triangle marks a change with an unresolved conflict. A check mark shows a change whose conflict has been acknowledged.
 - Select a change to open it.
 
 Under the calendar, **Conflicts in this period** lists every change with an unresolved conflict and what it clashes with, and **Blackout periods in this period** lists the blackout periods shown, with whether each repeats and which systems it applies to. **Show on calendar** on a change's **Conflicts** tab opens the calendar at that change's week.
@@ -214,7 +214,7 @@ A review records what happened, why, and what will be done differently. It is re
 
 - every **Emergency** change;
 - any change whose outcome was **Failed** or **Backed out**;
-- any change whose approval rule has **Review required** ticked.
+- any change whose approval rule has **Review required** checked.
 
 A review can be recorded for any other completed change too.
 
@@ -246,7 +246,7 @@ A template describes routine work that has been approved in advance.
 5. Choose the **Risk** and the **Usual duration in minutes**. Optionally choose a **Main system**.
 6. Select **Save template**.
 
-To stop a template being used without deleting it, edit it and untick **In use**.
+To stop a template being used without deleting it, edit it and clear **In use**.
 
 The table shows how often each template was **Used, last 90 days** and **Used in total**, and when it was **Last used**. A template raised far more often than expected may be covering work it was not approved for.
 
@@ -291,4 +291,4 @@ Select **Save questionnaire** when finished. Drafts are rescored at once. Change
 
 ### Lists
 
-The names and colours of the change types, statuses, risk levels and outcomes can be changed under **Administration > Lists**; see [Administration](09-administration.md).
+The names and colors of the change types, statuses, risk levels and outcomes can be changed under **Administration > Lists**; see [Administration](09-administration.md).

@@ -195,7 +195,7 @@ describe('assessments', () => {
     }
     expect((await t.api.patch(`/api/assessment-snapshots/${first}`, { taken_on: tomorrow })).status).toBe(400);
     expect((await t.api.get('/api/assessment-snapshots')).body.total).toBe(1);
-    // With no date given, the snapshot is dated today in the organisation's time zone.
+    // With no date given, the snapshot is dated today in the organization's time zone.
     const today = await t.api.post('/api/assessments', { name: 'Undated' });
     expect(today.body.taken_on).toBe(new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date()));
     expect((await t.api.del(`/api/assessment-snapshots/${today.body.id}`)).status).toBe(200);

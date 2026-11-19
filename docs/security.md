@@ -253,7 +253,7 @@ added to responses sent over HTTPS (see "Network exposure").
 - CSV exports of records and of the audit log prefix cells that begin with `=`, `+`, `-`,
   `@`, tab or carriage return, to stop spreadsheet formula injection.
 
-### Authorisation and restricted records
+### Authorization and restricted records
 
 `server/src/core/services.ts`, `server/src/core/resource.ts`, `server/src/core/routes.ts`
 
@@ -294,7 +294,7 @@ and a report on a wholly restricted record type needs `security.view`.
 
 Why: two people in the same meeting reading different totals for the same thing (open
 actions, safety events this month) is worse than useless; it undermines every figure
-the organisation reports. Restriction exists to protect what a record *says* and *who*
+the organization reports. Restriction exists to protect what a record *says* and *who*
 it concerns, not the fact that it is there: a safety manager may not read a restricted
 event, but the monthly count of events must still be right. This rule replaces the
 earlier one that left restricted records out of counts for people without
@@ -392,9 +392,9 @@ separate, tamper-evident copy.
   in constant time.
 - **Each code works once.** The time step of the last accepted code is stored per user
   (`users.totp_last_step`); a code from that step or an earlier one is refused, at
-  sign-in, at enrolment and when turning the factor off.
-- Enrolment is confirmed with a code before it takes effect.
-- Ten single-use recovery codes are issued at enrolment and shown once. Only their
+  sign-in, at enrollment and when turning the factor off.
+- Enrollment is confirmed with a code before it takes effect.
+- Ten single-use recovery codes are issued at enrollment and shown once. Only their
   SHA-256 hashes are stored. A used code is removed.
 - Turning the second factor off needs the password and a current code (or a recovery
   code). Issuing new recovery codes needs the password. An administrator can reset a
@@ -432,7 +432,9 @@ separate, tamper-evident copy.
   `GRC_SECRET_KEY_FILE`; or a file **beside** the data folder, named after it and
   generated on first start: for the data folder `C:\grc\data` it is
   `C:\grc\data.secret.key`. A copy of the data folder, or a `grc.ps1 backup`, therefore
-  holds the encrypted values but not their key.
+  holds the encrypted values but not their key. In the container image the key is generated
+  in its own volume at `/var/lib/sandpiper-key`, separate from the data volume (see
+  [Docker](docker.md)).
 - An installation from before this change kept the key at `secret.key` inside the data
   folder. At start-up that file is moved beside the data folder (copied, read back and
   compared, then deleted).
@@ -490,7 +492,7 @@ separate, tamper-evident copy.
   other outbound call is **Test connection**, made when an administrator selects it. Calls go
   over `https` only (plain `http` only to the loopback address), never follow redirects, time
   out after 10 seconds and are size-limited.
-- **The flow.** Authorisation code with PKCE (S256), a random `state` bound to the browser by a
+- **The flow.** Authorization code with PKCE (S256), a random `state` bound to the browser by a
   short-lived `HttpOnly`, `SameSite=Lax` cookie (needed because the provider sends the browser
   back cross-site) and single-use in the database, and a `nonce` checked in the ID token. The
   nonce and PKCE verifier are stored encrypted with the application key and expire after 10

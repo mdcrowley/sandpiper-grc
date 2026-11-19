@@ -1,13 +1,13 @@
 # Developer guide
 
-Sandpiper GRC is a governance, risk and compliance platform for transit organisations (bus,
+Sandpiper GRC is a governance, risk and compliance platform for transit organizations (bus,
 rail and paratransit operators) and their IT, cybersecurity and safety teams: service desk,
 asset and system inventory, change enablement, vendors and contracts, cybersecurity
 framework outcomes, risks, security incidents with notification clocks, policies,
 training, vulnerabilities, projects, fleet and services, safety management and reporting.
-This repository is a **prototype**: it runs on one Windows machine with no Docker, no
-admin rights and no outbound network access, and can also run on a server with
-PostgreSQL, HTTPS or in a container. See the [project README](../README.md) for an
+This repository is a **prototype**. It runs on Windows (`grc.ps1`), macOS and Linux
+(`grc.sh`) with a portable Node.js and no admin rights, or in Docker (`compose.yaml`), with
+no outbound network access; it can also run on a server with PostgreSQL and HTTPS. See the [project README](../README.md) for an
 introduction and [Known gaps](known-gaps.md) for what is not built.
 
 This guide is the reference for contributors: the hard rules, commands, layout, the module
@@ -17,12 +17,12 @@ version for a first pull request.
 
 ## Hard rules
 
-- **Nothing that identifies one organisation in the repository.** The product is for
-  transit organisations in general, so transit terms (depots, vehicles, dispatch, fares,
-  safety hazards) are expected; but no real organisation, agency, regulator, person,
+- **Nothing that identifies one organization in the repository.** The product is for
+  transit organizations in general, so transit terms (depots, vehicles, dispatch, fares,
+  safety hazards) are expected; but no real organization, agency, regulator, person,
   place, vendor or product names, and no law, regulator or contract of one jurisdiction
   as a built-in default. Everything specific to one installation lives in the
-  **organisation profile** (`seed/organisation.json`, see below) or is entered in the
+  **organization profile** (`seed/organization.json`, see below) or is entered in the
   application. Samples and tests use invented data.
 - **`seed/` is private** to each installation and is git-ignored. Never commit it, never
   send it to an external service, never paste its content into code, logs, tests or docs.
@@ -37,7 +37,7 @@ version for a first pull request.
     Help section (`web/src/modules/help`), so there is one source; rebuild the web app.
   - `docs/` - `installation.md`, `operations.md`, `architecture.md`, `security.md`,
     `known-gaps.md`, this guide, and the index `docs/README.md`.
-  - `docs/roadmap/` - the epics and issues. Mark the issue done (tick its acceptance
+  - `docs/roadmap/` - the epics and issues. Mark the issue done (check its acceptance
     criteria), add issues for anything new or newly found, and keep the epic table and
     the summary in `docs/roadmap/README.md` in step.
   - `README.md` when what the product does, or how to run it, changes.
@@ -54,10 +54,10 @@ version for a first pull request.
 | Production target | Prototype default | Notes |
 |---|---|---|
 | PostgreSQL server | PGlite (Postgres compiled to WASM, embedded, data in `data/pg`) | Runs with no install. `GRC_DATABASE_URL` switches to a PostgreSQL server; both drivers are in `server/src/core/db.ts` |
-| Containers | `grc.ps1` + portable Node in `.tools/node` | `Dockerfile` and `compose.yaml` build and run the container image |
+| Containers | `grc.ps1` (Windows) or `grc.sh` (macOS, Linux) with portable Node in `.tools/node` | `Dockerfile`, `compose.yaml` and `compose.postgres.yaml`; images published to `ghcr.io/mdcrowley/sandpiper-grc` ([Docker](docker.md)) |
 | Job queue | Table-backed job queue (`app.jobs`) | Some modules still use in-process timers (E14-22) |
 
-## Organisation profile and seed data
+## Organization profile and seed data
 
 `.\grc.ps1 seed` loads data into the database; it is idempotent. Two profiles:
 
@@ -65,17 +65,18 @@ version for a first pull request.
   light-rail operator). Needs no files.
 - `pilot` (default): reads the private `seed/` folder. Every file is optional; a missing
   file is skipped.
-  - `organisation.json`: the organisation profile. Shape and an invented example are in
-    `examples/organisation.example.json`: `appName`, `lookups` (extra values for any
+  - `organization.json`: the organization profile (a file still named
+    `organisation.json` is read too). Shape and an invented example are in
+    `examples/organization.example.json`: `appName`, `lookups` (extra values for any
     configurable list), `obligations`, `notificationRules`. Core applies `appName` and
-    `lookups`; modules read their own sections from `opts.organisation`.
+    `lookups`; modules read their own sections from `opts.organization`.
   - Optional pipe-delimited import files (first line is the header): `systems.psv`,
     `sites.psv`, `data_categories.psv`, `vendor_contracts.psv`, `csf_target_profile.psv`,
     `information_requests.psv`, and `csf_subcategory_designations.csv`. The expected
     headers are in each module's `seed.ts`.
 
 Environment: `GRC_TIMEZONE` (IANA name; default is the machine's zone) and `GRC_CURRENCY`
-(ISO code, default `USD`) set the organisation's time zone and currency.
+(ISO code, default `USD`) set the organization's time zone and currency.
 
 ## Commands
 
@@ -140,10 +141,10 @@ In a plain shell: `$env:Path = "$PWD\.tools\node;$env:Path"` then `npm run <scri
 | `GRC_WEB_DIST` | `./dist/web` | Where the web build is written and served from |
 | `GRC_MODULES` | all | Comma-separated server modules to load (server, CLI and tests) |
 | `GRC_WEB_MODULES` | all | Comma-separated web module folders to build |
-| `GRC_TIMEZONE` | the machine's zone | Organisation time zone (IANA name) |
-| `GRC_CURRENCY` | `USD` | Organisation currency (ISO code) |
+| `GRC_TIMEZONE` | the machine's zone | Organization time zone (IANA name) |
+| `GRC_CURRENCY` | `USD` | Organization currency (ISO code) |
 | `GRC_SEARCH_LANGUAGE` | `english` | PostgreSQL text-search configuration used for full-text search |
-| `GRC_ANALYSE` | off | `1` makes the web build report what each package weighs |
+| `GRC_ANALYZE` | off | `1` makes the web build report what each package weighs (`GRC_ANALYSE` is still accepted) |
 | `GRC_JOBS` | on | `off` stops the job queue's poller in this process (jobs are still queued) |
 | `GRC_JOBS_POLL_MS` | `10000` | How often the job queue looks for due work (at least 1000) |
 
@@ -180,7 +181,7 @@ Read them in code with `ctx.settings.get(key, fallback)`, using the same fallbac
 | `auth.idle_minutes` | `30` | Session idle time-out |
 | `auth.mfa_required_for_all` | `false` | Second factor required for everyone |
 | `auth.mfa_enforcement` | `notice` | `off`, `notice` or `required` |
-| `auth.mfa_grace_days` | `0` | Days to enrol before enforcement |
+| `auth.mfa_grace_days` | `0` | Days to enroll before enforcement |
 | `auth.reauth_minutes` | `10` | How long a password confirmation lasts |
 | `auth.passkey_sign_in` | `true` | A passkey alone may sign a person in |
 | `auth.passkey_user_verification` | `preferred` | `preferred` or `required` (every passkey use checks a PIN or biometric) |
@@ -305,7 +306,7 @@ const mod: ModuleDef = {
     ctx.app.get('/api/tickets/:id/sla', { preHandler: ctx.requirePerm('tickets.view') }, async (req) => { ... });
     ctx.describeRoute({ method: 'GET', path: '/api/tickets/:id/sla', summary: 'Service-level clocks of one ticket', permission: 'tickets.view' });
   },
-  async seed(ctx, opts) { ... },      // `grc.ps1 seed`; opts = { profile: 'pilot' | 'dev', seedDir, organisation }
+  async seed(ctx, opts) { ... },      // `grc.ps1 seed`; opts = { profile: 'pilot' | 'dev', seedDir, organization }
 };
 export default mod;
 ```
@@ -317,7 +318,7 @@ export default mod;
   `req.apiToken` is `{ id, name }` when the request was made with a personal access token,
   otherwise `null`.
 - `ctx.db.query<T>(sql, params) => T[]`, `ctx.db.one<T>(sql, params) => T | undefined`,
-  `ctx.db.tx(async (tx) => ...)`. Parameterised queries only (`$1`, `$2`).
+  `ctx.db.tx(async (tx) => ...)`. Parameterized queries only (`$1`, `$2`).
 - `ctx.dataDir` - the folder holding the database and stored files, or `memory` in tests.
 - `ctx.requirePerm('tickets.edit')` - preHandler. `ctx.can(user, perm)` - boolean.
 - `ctx.audit(req, { action, recordType, recordId, summary, before, after })`. When the
@@ -349,7 +350,7 @@ export default mod;
   under `MASKED_SQL` from `core/resource.ts` instead of their value, and never match a
   restricted row by such a field. Lists, their totals and drill-downs keep `visibleWhere`.
 - `ctx.readSeed(opts, 'systems.psv', '|')` - parses a delimited seed file into objects keyed by header.
-  `opts.organisation` is the organisation profile (`{}` when there is none).
+  `opts.organization` is the organization profile (`{}` when there is none).
 - `ctx.fail(status, code, message, fields?)` - throws an API error.
 - `ctx.describeRoute({ method, path, summary, permission?, public?, query?, body?, response? })`
   (also `description` and `tag`) describes a hand-written route for
@@ -514,7 +515,11 @@ Module keys (fixed, `MODULE_KEYS` in `server/src/modules/admin/shared.ts`): `tic
 `knowledge`, `assets`, `systems`, `sites`, `data`, `changes`, `vendors`, `contracts`,
 `frameworks`, `risks`, `security`, `vulnerabilities`, `policies`, `training`,
 `exceptions`, `obligations`, `exercises`, `actions`, `projects`, `dashboards`, `reports`,
-`audit`, `admin`, `portal`. A new key is added there and here.
+`audit`, `admin`, `portal`, `fleet`, `safety`. A new key is added there and here.
+
+Default roles (`server/src/core/services.ts`): Administrator, Agent, Security lead,
+Project manager and Safety manager are enabled; Approver, Executive viewer, Auditor and
+Requester are present but switched off until an administrator enables them.
 
 Restricted records (security incidents, risks, vulnerabilities, anything flagged) are
 invisible without `security.view` in lists, counts, search, links, exports and stats.
@@ -537,12 +542,35 @@ modules (for example a minimal `action` type) so a module can be tested alone. N
 Run one module's tests in isolation (other modules not loaded):
 `$env:GRC_MODULES='tickets'; npx vitest run server/src/modules/tickets`.
 `GRC_MODULES` (comma-separated) also limits which modules the server and CLI load.
+`$env:GRC_TEST_DATABASE='pg'; npm test` runs the suite through the PostgreSQL server
+driver (over the wire protocol) instead of the embedded database.
+
+The test commands:
+
+- `npm test` (or `.\grc.ps1 test`): server and web unit tests. `.\grc.ps1 ci` runs them
+  twice, the second time with the clock on UTC.
+- `npm run test:e2e`: the browser suite (`tools/e2e/suites`). It builds the web app (or
+  serves the build in `E2E_WEB_DIST`), starts a throw-away instance and drives a real
+  browser through every route, every role, every record type and the keyboard. Options
+  after `--`: `--only smoke,roles` (some suites), `--grep ticket` (tests whose name
+  contains it), `--headed` (show the browser), `--keep` (keep the scratch data folder).
+  Logs and screenshots go to `tools/e2e/out`. `node tools/e2e/serve.mjs` keeps an
+  instance running, and `E2E_BASE` points the tests at it; `E2E_BROWSER` picks the
+  browser and `E2E_PORT` the port.
+- `npm run test:a11y`: the accessibility audit. It runs axe-core (WCAG 2.1 A and AA) on
+  every route, in light and dark at 1440 and 820 pixels wide (`--quick`: light at 1440
+  only; `--routes /a,/b`; `--no-fail`), and writes `tools/a11y/out/report.md`. See
+  [Accessibility](accessibility.md).
+
+GitHub Actions runs the typecheck, tests and build on Windows and Linux, the tests through
+the PostgreSQL wire protocol, the container build and smoke test, and the browser suite
+followed by the accessibility audit, which does not yet fail the build.
 
 ### Actions (shared contract)
 
 The `action` record type (module folder `risks`, API `/api/actions`) is the one cross-module
 to-do list. Fields: `title`, `description`, `status` (`action_status`: open, in_progress,
-blocked, done, cancelled), `priority` (`action_priority`: high, medium, low), `owner_id`,
+blocked, done, canceled), `priority` (`action_priority`: high, medium, low), `owner_id`,
 `due_on`, `source` (`action_source`: risk, assessment, incident, audit, exercise,
 information_request, project, change, vulnerability, policy, training, vendor, problem,
 other), `source_type` + `source_id` (the record it arose
@@ -561,7 +589,7 @@ React 19 + React Router + Vite, TypeScript, plain CSS with design tokens
 (`web/src/core/tokens.css`), ECharts for charts. The component library is Mantine 9,
 wrapped by the core design system: import from `'../../core'` first, and use
 `@mantine/core` directly only for layouts the core does not cover. See
-`web/src/core/README.md` for the component catalogue.
+`web/src/core/README.md` for the component catalog.
 
 ```tsx
 // web/src/modules/tickets/index.tsx
@@ -581,8 +609,8 @@ export default mod;
 The build reads each module's `key`, `nav`, `create` and route paths at build time, so
 keep them literal; the rest of the module is loaded when one of its routes is first opened.
 
-Nav groups, in order: Home, Service desk, Inventory, Change, Vendors, Cybersecurity,
-Projects, Reports, Administration, Help.
+Nav groups, in order (`web/src/core/module.ts`): Home, Service desk, Inventory, Change,
+Vendors, Cybersecurity, Safety, Projects, Reports, Administration, Help.
 
 Quality bar: every screen has empty, loading and error states; every list
 has filter, sort, saved view and export; every record shows its history.
@@ -602,8 +630,12 @@ has filter, sort, saved view and export; every record shows its history.
 | `training` | `course` → courses, `exercise` → exercises |
 | `vulnerabilities` | `vulnerability` → vulnerability_records (restricted) |
 | `projects` | `project` → projects |
+| `fleet` | `vehicle` → vehicles, `service` → services |
+| `safety` | `hazard` → hazards, `safety_event` → safety_events (flag), `safety_indicator` → safety_indicators |
 | `reports` | `report_definition` → report_definitions, `dashboard` → dashboards, `report_schedule` → report_schedules, `report_pack` → report_packs |
 | `attachments` | no record type: files on any record (table `attachments`; `AttachmentsPanel`; stored in `<data>/files`) |
+| `portal` | no record type: the self-service portal's settings and pages (portal requests are tickets, scoped to their requester) |
+| `mcp` | no record type: the `/mcp` endpoint for AI assistants and its settings |
 | `notifications` | no record type: in-app notifications (tables `notifications`, `notification_preferences`; `app.notify(...)`, `NotificationBell`) |
 | `admin` | users, roles, second factor, audit viewer, lookups, settings, custom fields, tokens, webhooks, retention screens |
 | `home` | the Overview page (web only) |
@@ -616,13 +648,12 @@ framework_outcome, assessment_snapshot → `frameworks`; risk → `risks`; actio
 `actions`; obligation → `obligations`; security_incident, notification_task → `security`;
 policy → `policies`; policy_exception → `exceptions`; course → `training`; exercise →
 `exercises`; vulnerability → `vulnerabilities`; project → `projects`; report_definition,
-report_schedule, report_pack → `reports`; dashboard → `dashboards`.
+report_schedule, report_pack → `reports`; dashboard → `dashboards`; vehicle, service →
+`fleet`; hazard, safety_event, safety_indicator → `safety`.
 
-Not yet built: OpenID Connect or SAML single sign-on, account linking, passkeys and a
-break-glass account; email delivery (notifications, scheduled reports and links are
-in-app only); PDF and XLSX files generated on the server, and XLSX import; the
-self-service portal and email-to-ticket; a general workflow designer; a PostgreSQL server,
-containers and HTTPS. See [Known gaps](known-gaps.md) and the
+Not yet built: SAML single sign-on (blocked: it needs an XML-signature library) and LDAP
+sign-in; another mail provider; email-to-ticket; a general workflow designer; OAuth for
+remote MCP connectors. See [Known gaps](known-gaps.md) and the
 [roadmap](roadmap/README.md).
 
 ## Known gaps

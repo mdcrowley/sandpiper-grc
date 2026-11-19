@@ -21,7 +21,7 @@ export interface PortalConfig {
 
 export interface PlainStatus { key: string; label: string; hint: string; tone: string; done: boolean; waiting_on_you: boolean }
 export interface Question { key: string; label: string; type: 'text' | 'longtext' | 'choice' | 'date' | 'yes_no'; required: boolean; options?: string[]; hint?: string }
-export interface CatalogueItem {
+export interface CatalogItem {
   id: string; name: string; description: string | null; category: string | null; category_label: string;
   questions: Question[]; requires_approval: boolean; type: 'incident' | 'request';
 }

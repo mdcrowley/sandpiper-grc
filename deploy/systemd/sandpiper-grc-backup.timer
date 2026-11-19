@@ -1,0 +1,10 @@
+# Runs sandpiper-grc-backup.service every day at 02:30 (a missed run happens at the next boot).
+[Unit]
+Description=Daily Sandpiper GRC backup
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

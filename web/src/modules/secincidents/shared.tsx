@@ -76,20 +76,20 @@ const fmt = (options: Intl.DateTimeFormatOptions) => {
   try { return new Intl.DateTimeFormat('en-GB', { ...options, timeZone: timeZone() }); } catch { return new Intl.DateTimeFormat('en-GB', options); }
 };
 
-/** "14:05" in the organisation's time zone. */
+/** "14:05" in the organization's time zone. */
 export function formatTime(value: string | number | Date): string {
   return fmt({ hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(value));
 }
 
-/** "Wednesday 18 November 2026" in the organisation's time zone. */
+/** "Wednesday 18 November 2026" in the organization's time zone. */
 export function formatDay(value: string | number | Date): string {
   return fmt({ weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(value));
 }
 
-/** "2026-11-18" in the organisation's time zone: a key to group entries by day. */
+/** "2026-11-18" in the organization's time zone: a key to group entries by day. */
 export function dayKey(value: string | number | Date): string {
   try { return new Intl.DateTimeFormat('en-CA', { timeZone: timeZone() }).format(new Date(value)); } catch { return String(value).slice(0, 10); }
 }
 
-/** Short name of the organisation's time zone for labels, e.g. "Europe/London". */
+/** Short name of the organization's time zone for labels, e.g. "Europe/London". */
 export const zoneName = (): string => timeZone().replace(/_/g, ' ');

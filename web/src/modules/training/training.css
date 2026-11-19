@@ -1,4 +1,4 @@
-/* Training and exercises. Colours come from the design tokens so both themes work. */
+/* Training and exercises. Colors come from the design tokens so both themes work. */
 
 .trn-late { color: var(--c-red-fg); font-weight: 600; }
 .trn-tag { margin-inline-start: var(--s-2); font-size: var(--fs-xs); font-weight: 400; }

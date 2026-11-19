@@ -43,7 +43,7 @@ async function inject(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', url: string, 
 }
 const cookieOf = (res: { cookies: { name: string; value: string }[] }, name: string) => res.cookies.find((c) => c.name === name && c.value)?.value;
 
-/** Follows the authorisation request at the provider and returns the callback path it sends back to. */
+/** Follows the authorization request at the provider and returns the callback path it sends back to. */
 async function atProvider(redirectUrl: string): Promise<string> {
   const res = await fetch(redirectUrl, { redirect: 'manual' });
   expect(res.status).toBe(302);

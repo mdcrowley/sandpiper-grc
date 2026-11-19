@@ -42,7 +42,7 @@ export function RatingChip({ scale, rating }: { scale: Scale | null; rating: str
 
 /**
  * The matrix as a grid of buttons: worst likelihood at the top, worst severity on the right. Each
- * cell names its rating in text, so colour never carries it alone. With `onPick` the cells choose
+ * cell names its rating in text, so color never carries it alone. With `onPick` the cells choose
  * a likelihood and severity; with `counts` they show how many hazards sit there.
  */
 export function HazardMatrix({ scale, value, onPick, counts, label }: {

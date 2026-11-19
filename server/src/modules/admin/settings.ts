@@ -39,7 +39,7 @@ export const SETTINGS: Record<string, { fallback: unknown; check: Check }> = {
   'auth.idle_minutes': { fallback: 30, check: int(5, 480, 'Idle time-out') },
   'auth.mfa_required_for_all': { fallback: false, check: bool },
   // off: no reminder. notice: a reminder only (default, so an existing installation is not locked out
-  // by an upgrade). required: a person who must enrol can reach nothing but enrolment until they do.
+  // by an upgrade). required: a person who must enroll can reach nothing but enrollment until they do.
   'auth.mfa_enforcement': {
     fallback: 'notice',
     check: (v) => (v === 'off' || v === 'notice' || v === 'required' ? { value: v } : 'Choose off, notice or required.'),

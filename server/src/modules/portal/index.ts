@@ -67,9 +67,9 @@ const mod: ModuleDef = {
     });
     ctx.describeRoute({ method: 'GET', path: '/api/portal/config', summary: 'Whether the portal is on for me, and its title, banner and options' });
 
-    // ---------- catalogue ----------
+    // ---------- catalog ----------
 
-    app.get('/api/portal/catalogue', view, async () => {
+    app.get('/api/portal/catalog', view, async () => {
       const cats = await ctx.lookups.values('catalog_category');
       const rows = await db.query<Row>(
         `select id, name, description, category, questions, requires_approval, defaults->>'type' as type
@@ -80,7 +80,7 @@ const mod: ModuleDef = {
         questions: r.questions ?? [], requires_approval: r.requires_approval, type: r.type === 'incident' ? 'incident' : 'request',
       }));
     });
-    ctx.describeRoute({ method: 'GET', path: '/api/portal/catalogue', permission: 'portal.view', summary: 'Catalogue items offered in the portal' });
+    ctx.describeRoute({ method: 'GET', path: '/api/portal/catalog', permission: 'portal.view', summary: 'Catalog items offered in the portal' });
 
     // ---------- knowledge for staff ----------
 

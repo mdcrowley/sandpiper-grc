@@ -1,5 +1,5 @@
 -- E15: the self-service portal.
--- A catalogue item appears in the portal only when it is marked for it.
+-- A catalog item appears in the portal only when it is marked for it.
 alter table catalog_items add column portal boolean not null default false;
 
 -- The person affected, when that is a signed-in user (the portal shows them the ticket too).

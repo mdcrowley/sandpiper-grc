@@ -38,7 +38,7 @@ export interface Criterion {
 export const MAX_SCORE = 5;
 
 export const DEFAULT_CRITERIA: Criterion[] = [
-  { key: 'strategic_alignment', label: 'Strategic alignment', weight: 25, description: 'How directly it supports the strategic plan and the organisation\'s goals.' },
+  { key: 'strategic_alignment', label: 'Strategic alignment', weight: 25, description: 'How directly it supports the strategic plan and the organization\'s goals.' },
   { key: 'risk_reduction', label: 'Risk and compliance', weight: 25, description: 'How much safety, security, legal or audit risk it removes.' },
   { key: 'customer_benefit', label: 'Benefit to customers and staff', weight: 20, description: 'How many people benefit and by how much.' },
   { key: 'financial_return', label: 'Financial return', weight: 15, description: 'Savings, avoided cost or outside funding.' },

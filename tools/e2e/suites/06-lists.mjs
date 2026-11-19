@@ -59,7 +59,7 @@ export const tests = [
         if (!chosen) throw new Error('no field is offered');
         await page.click(`#${chosen.id}`);
         await sleep(300);
-        // The value control is labelled "New <field>".
+        // The value control is labeled "New <field>".
         const valueLabel = `New ${chosen.label.toLowerCase()}`;
         await page.click({ label: valueLabel });
         await sleep(400);

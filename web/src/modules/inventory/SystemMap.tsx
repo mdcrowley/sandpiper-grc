@@ -102,7 +102,7 @@ export function MapExplorer({ data, label, initialId = null, toolbar, compact }:
   const [group, setGroup] = useState('');
   const [mode, setMode] = useState<'map' | 'table'>('map');
   const [selectedId, setSelectedId] = useState<string | null>(initialId);
-  const [centre, setCentre] = useState<{ id: string; n: number } | null>(initialId && !compact ? { id: initialId, n: 0 } : null);
+  const [center, setCenter] = useState<{ id: string; n: number } | null>(initialId && !compact ? { id: initialId, n: 0 } : null);
   const [impacted, setImpacted] = useState<Set<string>>(new Set());
   const [full, setFull] = useState(false);
   const tiers = useLookup('criticality_tier');
@@ -140,7 +140,7 @@ export function MapExplorer({ data, label, initialId = null, toolbar, compact }:
   const selected = view.nodes.find((n) => n.id === selectedId) ?? null;
   const select = (id: string | null) => {
     setSelectedId(id);
-    if (id) setCentre((c) => ({ id, n: (c?.n ?? 0) + 1 }));
+    if (id) setCenter((c) => ({ id, n: (c?.n ?? 0) + 1 }));
   };
   // While full screen the page behind must not scroll, and Escape leaves.
   useEffect(() => {
@@ -201,7 +201,7 @@ export function MapExplorer({ data, label, initialId = null, toolbar, compact }:
         <>
           <div className="inv-map-body">
             <MapCanvas layout={layout} label={label} selectedId={selected ? selectedId : null} onSelect={select}
-              impacted={impacted} centre={centre} full={full} onToggleFull={() => setFull((f) => !f)} />
+              impacted={impacted} center={center} full={full} onToggleFull={() => setFull((f) => !f)} />
             <MapPanel data={view} selected={selected} onSelect={select} onImpact={setImpacted} />
           </div>
           <Legend criticality={view.nodes.some((n) => n.attrs?.criticality && lookupColor('criticality_tier', n.attrs.criticality))} />

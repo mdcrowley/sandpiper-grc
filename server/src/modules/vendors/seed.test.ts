@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { ModuleDef } from '../../core/module.ts';
 import { testApp } from '../../test/helpers.ts';
 import {
-  matchVendor, normaliseVendorName, parseNoticeDays, parseRenewal, parseResolution, parseTermDates, parseTotalValue,
+  matchVendor, normalizeVendorName, parseNoticeDays, parseRenewal, parseResolution, parseTermDates, parseTotalValue,
 } from './seed.ts';
 
 // A stand-in for the inventory and actions modules, so the cross-module steps can be tested without them.
@@ -126,7 +126,7 @@ describe('reading register text', () => {
       { id: 'b', name: 'Juniper Lane Radio' },
       { id: 'c', name: 'Tallow' },
     ];
-    expect(normaliseVendorName('Ironbridge Data, Inc.')).toBe('ironbridge data');
+    expect(normalizeVendorName('Ironbridge Data, Inc.')).toBe('ironbridge data');
     expect(matchVendor('IRONBRIDGE DATA', vendors)).toBe('a');
     expect(matchVendor('Ironbridge', vendors)).toBe('a');
     expect(matchVendor('Juniper Lane Radio LLC; someone else (maintenance)', vendors)).toBe('b');

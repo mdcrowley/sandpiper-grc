@@ -27,11 +27,11 @@ Open **Courses** in the **Cybersecurity** group.
 4. Enter the **Provider** and the **Duration (minutes)**.
 5. Enter **Repeat every (months)** if the course must be taken again, for example `12` for a yearly course. Leave it empty for a course taken once.
 6. Enter **Days allowed to complete**: how long a person has from the day the course is given to them. The default is 30.
-7. Tick **Mandatory** if everyone it is assigned to must complete it, and choose the **Owner**.
-8. Tick **People may mark it complete themselves** for a course people can certify on their own, such as a document to read (see [My training](#my-training)). Leave it unticked when the completion must be recorded by someone else, for example after an assessed test.
+7. Check **Mandatory** if everyone it is assigned to must complete it, and choose the **Owner**.
+8. Check **People may mark it complete themselves** for a course people can certify on their own, such as a document to read (see [My training](#my-training)). Leave it unchecked when the completion must be recorded by someone else, for example after an assessed test.
 9. Select **Create course**.
 
-On the course list, tick several courses and select **Edit selected…** to change their **Category**, **Mandatory**, **People may mark it complete themselves**, **Owner** or **Status** at once.
+On the course list, check several courses and select **Edit selected…** to change their **Category**, **Mandatory**, **People may mark it complete themselves**, **Owner** or **Status** at once.
 
 The course gets a reference such as `CRS-00004` and its status starts as **Active**. Change the status to **Retired** when the course is no longer used: its records are kept, but it no longer counts in the overview and no new records are raised for it.
 
@@ -56,9 +56,9 @@ An assignment rule gives a course to people who have an account.
 
 Each active user the rule matches gets a record at once, due after the course's days allowed. The rules are checked again every day and when the application starts, so a new starter, or someone who joins the role or department, is picked up without anyone doing anything. A person who already has a record for the course is never given a second one by a rule.
 
-Removing a rule with the bin button stops new records being raised. Records already raised are kept.
+Removing a rule with the trash button stops new records being raised. Records already raised are kept.
 
-To give a course to a few people without a rule, or to people who have no account, open the **People** tab, select **Record training**, add the people, untick **They have completed the course** and select **Assign**.
+To give a course to a few people without a rule, or to people who have no account, open the **People** tab, select **Record training**, add the people, clear **They have completed the course** and select **Assign**.
 
 ### Courses that repeat
 
@@ -79,7 +79,7 @@ A result of **Did not pass** is not a completion. When you choose it, the dialog
 
 ### Several people at once
 
-For people already listed as outstanding, tick their rows, or select **Select all**, then select **Record completion for N selected**.
+For people already listed as outstanding, check their rows, or select **Select all**, then select **Record completion for N selected**.
 
 For anyone else:
 
@@ -90,7 +90,7 @@ For anyone else:
 
 A person whose email address matches an account is recorded against that account. Someone who already has the same completion (same course and date) is skipped, and the message tells you how many were skipped.
 
-To remove a record entered by mistake, select the bin button on its row. The removal is kept in the course's history.
+To remove a record entered by mistake, select the trash button on its row. The removal is kept in the course's history.
 
 ## Import completions
 
@@ -175,13 +175,13 @@ The **Steps** tab holds the steps of the exercise and how each one went. When se
 
 1. Under **Rehearse an incident checklist**, choose the **Incident scenario** (the number of steps is shown beside each) and select **Copy checklist**. The steps are copied from the scenario's checklist in Security incidents and grouped by phase. Each scenario can be copied once per exercise.
 2. As the exercise runs, choose for each step **How it went**: **Went well**, **Done, with issues**, **Not done** or **Not tested**, and type a note of what happened, then select **Save note**.
-3. To add a step of your own, type it in **Add a step** and select **Add step**. Remove a step with the bin button.
+3. To add a step of your own, type it in **Add a step** and select **Add step**. Remove a step with the trash button.
 
 The bar at the top of **Steps** shows how many steps have been recorded and how they went. Every copy, change and removal is kept in the exercise's history. Steps that went badly are good candidates for findings.
 
 ### Participants
 
-On the **Participants** tab, select **Add participants**, type one name per line, enter their **Role in the exercise** and select **Add participants**. Untick **Attended** on the row of anyone who was invited but did not take part.
+On the **Participants** tab, select **Add participants**, type one name per line, enter their **Role in the exercise** and select **Add participants**. Clear **Attended** on the row of anyone who was invited but did not take part.
 
 ### Findings and follow-up actions
 
@@ -203,4 +203,4 @@ Open **Exercise calendar** in the **Cybersecurity** group.
 | **Overdue** | Planned exercises whose date has passed, and completed exercises whose **Next due** date has passed |
 | Month by month | What is coming up: planned exercises, and the next run of each completed exercise that has a **Next due** date |
 
-A **Next run due** entry disappears once a later exercise of the same type is on record, because the newer exercise takes its place. Cancelled exercises are not shown.
+A **Next run due** entry disappears once a later exercise of the same type is on record, because the newer exercise takes its place. Canceled exercises are not shown.

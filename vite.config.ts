@@ -260,9 +260,9 @@ function grcModules(): Plugin {
   };
 }
 
-// GRC_ANALYSE=1 puts every npm package and every core file in a chunk of its own, so the build
+// GRC_ANALYZE=1 (or the older GRC_ANALYSE=1) puts every npm package and every core file in a chunk of its own, so the build
 // output lists what each one weighs. For looking at sizes only: never serve such a build.
-const analyse = process.env.GRC_ANALYSE === '1';
+const analyse = (process.env.GRC_ANALYZE ?? process.env.GRC_ANALYSE) === '1';
 const analyseGroup = (id: string): string | null => {
   const pkg = /node_modules[\\/]((?:@[^\\/]+[\\/])?[^\\/]+)/.exec(id);
   if (pkg) return `pkg-${pkg[1].replace(/[\\/@]/g, '_')}`;

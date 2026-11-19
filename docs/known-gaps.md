@@ -36,13 +36,14 @@ What the prototype does not do yet. Update with every change. The roadmap
   the object store are not in backups. Restoring a backup and moving files between the
   disk and the object store are done from the command line only.
 - **Exports and imports**: PDFs made by the server use the standard fonts, so characters
-  outside the Western European set print as "?". The check before an import does not run
-  record hooks, so a hook can still refuse a row on the real import.
+  outside the Western European set print as "?" (E12-14). The check before an import does
+  not run record hooks, so a hook can still refuse a row on the real import (E13-10).
 - **API**: the `If-Match` check takes its lock in one server process only; several
   processes on one database do not share it.
-- **Background jobs**: other modules' timers have not yet moved onto the job queue. The
-  queue and email are started by the notifications module, so a server built without that
-  module has neither.
+- **Background jobs**: other modules' timers have not yet moved onto the job queue
+  (E14-22), nor have file housekeeping and rescans (E14-27). The queue and email are
+  started by the notifications module, so a server built without that module has neither
+  (E14-23).
 - **Webhooks**: receivers' addresses are checked by host name only, not after name
   resolution.
 - **Change enablement**: changes cannot yet be dragged on the calendar.
@@ -70,7 +71,7 @@ What the prototype does not do yet. Update with every change. The roadmap
   a non-blocking run on PostgreSQL 17.
 - Accessibility: an automated axe-core audit runs (`npm run test:a11y`; see
   [Accessibility](accessibility.md)). Open findings: the grid roles of the dashboard
-  calendar widget and the faded empty cells of the safety hazard matrix. There has been no
-  screen-reader walkthrough, and keyboard-only use and hand-written dialogs are only partly
-  checked.
-- Not done: load testing, an independent security review or penetration test.
+  calendar widget and the faded empty cells of the safety hazard matrix (E18-39). There
+  has been no screen-reader walkthrough, and keyboard-only use (E18-06) and submitting
+  every form in the browser (E18-08) are only partly checked.
+- Not done: load testing (E16-14), an independent security review or penetration test.

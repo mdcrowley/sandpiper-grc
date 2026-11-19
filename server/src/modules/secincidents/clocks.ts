@@ -54,7 +54,7 @@ export const byUrgency = (a: Row, b: Row) =>
 const stampFmt = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: TIME_ZONE,
 });
-/** "18 Nov 2026, 14:05" in the organisation's time zone, for text written into the log and notifications. */
+/** "18 Nov 2026, 14:05" in the organization's time zone, for text written into the log and notifications. */
 export function stamp(value: unknown): string {
   const d = value instanceof Date ? value : new Date(String(value));
   return Number.isNaN(d.getTime()) ? '' : stampFmt.format(d);

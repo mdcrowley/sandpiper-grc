@@ -20,7 +20,7 @@ export async function seedChangeDefaults(ctx: ModuleContext): Promise<void> {
     { value: 'completed', label: 'Completed', color: 'green', sort: 70, meta: next('completed') },
     { value: 'reviewed', label: 'Reviewed', color: 'green', sort: 80, meta: next('reviewed') },
     { value: 'closed', label: 'Closed', color: 'gray', sort: 90, meta: next('closed') },
-    { value: 'cancelled', label: 'Cancelled', color: 'gray', sort: 100, meta: next('cancelled') },
+    { value: 'cancelled', label: 'Canceled', color: 'gray', sort: 100, meta: next('cancelled') },
   ]);
   await ctx.lookups.ensure('change_risk', [
     { value: 'low', label: 'Low', color: 'green', sort: 10 },
@@ -33,6 +33,6 @@ export async function seedChangeDefaults(ctx: ModuleContext): Promise<void> {
     { value: 'successful_with_issues', label: 'Successful with issues', color: 'amber', sort: 20 },
     { value: 'failed', label: 'Failed', color: 'red', sort: 30, meta: { pir: true } },
     { value: 'backed_out', label: 'Backed out', color: 'orange', sort: 40, meta: { pir: true } },
-    { value: 'cancelled', label: 'Cancelled', color: 'gray', sort: 50 },
+    { value: 'cancelled', label: 'Canceled', color: 'gray', sort: 50 },
   ]);
 }

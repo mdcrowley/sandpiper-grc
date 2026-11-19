@@ -51,7 +51,7 @@ bulk edit) that make daily use quicker.
 | E14-16 | Notifications from the other modules | done | P1 |
 | E14-17 | Notification housekeeping | open | P3 |
 | E14-18 | Evidence files on evidence-bearing records | open | P2 |
-| E14-19 | Anonymise a record at the end of its retention period | open | P3 |
+| E14-19 | Anonymize a record at the end of its retention period | open | P3 |
 | E14-20 | Retention review counts follow row-level restriction | open | P3 |
 | E14-21 | Comment search follows the search language setting | open | P3 |
 | E14-22 | Move the other modules' timers onto the job queue | open | P2 |
@@ -189,7 +189,7 @@ application.
 - [x] Per person and per kind: bell, email, both or off (`notification_preferences.channels`);
   "email" falls back to the bell while email is off or the person has no address
 - [x] The daily-digest choice sends one summary a day (from `notifications.digest_hour`,
-  default 7, organisation time zone) instead of a message per notification
+  default 7, organization time zone) instead of a message per notification
 - [x] Templates are data (`mail_templates`): subject, plain text and simple HTML with
   placeholders, validated (allowed tags and links only, values escaped), with preview and
   "put back the default"
@@ -285,7 +285,7 @@ As a user, I add free-form tags to any record and filter lists by them.
 
 **Acceptance criteria**
 
-- [x] Add and remove tags on any record the caller may edit (normalised to lower case,
+- [x] Add and remove tags on any record the caller may edit (normalized to lower case,
   at most 30 per record, audited as `tag.change`); reading needs view on the record
 - [x] Existing tags are suggested as I type, counted only over records the caller may see
 - [x] Lists can be filtered by tag: `f.tags=a,b` (any), `f.tags.all=a,b`,
@@ -358,7 +358,7 @@ age are flagged for review rather than deleted silently.
   for review; an extension that runs out flags the record again
 - [x] A reviewer can extend (to a date or by months) or remove each one, with a reason;
   removal needs confirmation and a recent password confirmation, is refused while files
-  are attached, and is the only hard delete in the application (anonymising: E14-19)
+  are attached, and is the only hard delete in the application (anonymizing: E14-19)
 - [x] Nothing is removed automatically
 - [x] The audit log has its own, longer period (`retention.audit_months`, default 84),
   recorded only: audit events are never deleted
@@ -427,7 +427,7 @@ object store instead of on the server's disk.
   database": the encrypted setting is the same protection the email password has.)
 - [x] Uploads and downloads stream; uploads go in 8 MB parts (multipart upload above that),
   so at most one part is held in memory
-- [x] Each attachment's `storage_driver` is honoured, so files stored on disk before the
+- [x] Each attachment's `storage_driver` is honored, so files stored on disk before the
   change stay readable; `grc.ps1 move-files -To s3|disk` moves them across, checking each
   copy's SHA-256 before deleting the original
 - [x] Documented as an outbound connection that is off by default; settings are tested
@@ -450,7 +450,7 @@ As a security lead, every attached file is checked for malware before it is acce
 
 - [x] A scanner that registers with `app.fileScanner.use(...)`: a ClamAV daemon reached
   over TCP (`INSTREAM`, chunked, with a time limit and a size limit), switched on by an
-  administrator and off by default; run on the same machine or one the organisation controls
+  administrator and off by default; run on the same machine or one the organization controls
 - [x] An infected file is refused, its bytes removed, and the refusal audited (tested with a
   fake `clamd` that answers clean, infected and errors)
 - [x] A setting decides whether uploads are refused or accepted as "Not scanned" (with a
@@ -508,7 +508,7 @@ owns the record (usage is documented at the top of
   approvers (`approval`)
 - [x] Project gate decision due: the project's sponsor or manager (`due`)
 - [x] Contract reminder fired: the contract's owner (`reminder`)
-- [x] Policy or training acknowledgement requested: each person asked (`acknowledgement`)
+- [x] Policy or training acknowledgment requested: each person asked (`acknowledgement`)
 - [x] Incident notification clock turns amber or red: the incident lead and everyone
   holding `security.edit` (`clock`)
 - [x] Each call is covered by a test in its own module, with the notifications module
@@ -544,14 +544,14 @@ yet: every page gets the plain **Attachments** tab.
 
 **Acceptance criteria**
 
-- [ ] Vendor evidence items, framework outcomes, policy acknowledgements, exercises and
+- [ ] Vendor evidence items, framework outcomes, policy acknowledgments, exercises and
   risk treatments show the panel in evidence mode
 - [ ] The vendor **Expiring evidence** page and the **Expiring evidence files** page link
   to each other, or are merged
 - [ ] An expiring evidence file raises a `reminder` notification to the record's owner
 - [ ] Closes E06-17, E07-12 and E11-17 where they only waited for attachments
 
-### E14-19 Anonymise a record at the end of its retention period
+### E14-19 Anonymize a record at the end of its retention period
 
 **Status:** open · **Priority:** P3 · **Type:** feature
 
@@ -562,7 +562,7 @@ from E14-11.
 **Acceptance criteria**
 
 - [ ] Each record type declares which fields are personal (people, names, free text)
-- [ ] Anonymising blanks or replaces those fields and the record's comments, and is audited
+- [ ] Anonymizing blanks or replaces those fields and the record's comments, and is audited
 - [ ] The review entry records the decision and reason
 
 ### E14-20 Retention review counts follow row-level restriction

@@ -156,9 +156,9 @@ describe('report packs', () => {
 });
 
 describe('scheduled delivery', () => {
-  it('works out the next run on the organisation\'s clock', () => {
+  it('works out the next run on the organization\'s clock', () => {
     const at = (iso: string) => new Date(iso);
-    // Wednesday 18 November 2026, 12:00 UTC = 07:00 in the organisation.
+    // Wednesday 18 November 2026, 12:00 UTC = 07:00 in the organization.
     expect(zoned(at('2026-11-18T12:00:00Z'))).toEqual({ y: 2026, m: 11, d: 18, h: 7, weekday: 3 });
     expect(nextRun({ cadence: 'daily', hour: 7 }, at('2026-11-18T11:59:00Z')).toISOString()).toBe('2026-11-18T12:00:00.000Z');
     expect(nextRun({ cadence: 'daily', hour: 7 }, at('2026-11-18T12:00:00Z')).toISOString()).toBe('2026-11-19T12:00:00.000Z');

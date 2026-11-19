@@ -1,0 +1,19 @@
+#!/bin/sh
+# `grc` inside the container image: the operations commands of server/src/cli.ts (seed, status,
+# backup, backups, verify-backup, restore, export-all, import-all, decrypt, new-key, move-files,
+# migrate), run by Node.js's built-in type transformation. Examples (see docs/docker.md):
+#
+#   docker compose exec app grc status
+#   docker compose stop app && docker compose run --rm app grc seed --profile dev && docker compose start app
+#
+# `grc secret-key show|rotate` runs the secret key tool (server/src/core/secretkey-cli.ts).
+set -e
+cd /app
+node_flags="--experimental-transform-types --disable-warning=ExperimentalWarning"
+if [ "$1" = secret-key ]; then
+  shift
+  # shellcheck disable=SC2086
+  exec node $node_flags server/src/core/secretkey-cli.ts "$@"
+fi
+# shellcheck disable=SC2086
+exec node $node_flags server/src/cli.ts "$@"

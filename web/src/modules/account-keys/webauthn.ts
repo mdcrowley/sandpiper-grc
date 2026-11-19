@@ -75,7 +75,7 @@ export function browserKeyError(err: unknown): string | null {
   switch (err.name) {
     case 'NotAllowedError':
     case 'AbortError':
-      return 'Nothing happened: the request was cancelled or timed out. Try again when you are ready to use your key.';
+      return 'Nothing happened: the request was canceled or timed out. Try again when you are ready to use your key.';
     case 'InvalidStateError':
       return 'That key is already registered to your account.';
     case 'SecurityError':

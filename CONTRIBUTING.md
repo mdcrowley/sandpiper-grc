@@ -1,10 +1,10 @@
 # Contributing to Sandpiper GRC
 
-Thank you for helping build GRC for transit organisations. This page is the short
+Thank you for helping build GRC for transit organizations. This page is the short
 version; the detail is in the [developer guide](docs/development.md) (structure, conventions and the full hard rules) and
 [`docs/architecture.md`](docs/architecture.md) (how the pieces fit together).
 
-> **Licence.** Sandpiper GRC is released under the [MIT License](LICENSE). By contributing,
+> **License.** Sandpiper GRC is released under the [MIT License](LICENSE). By contributing,
 > you agree that your contribution is licensed under the same terms. Please open an issue
 > before starting anything substantial.
 
@@ -34,11 +34,11 @@ Full instructions: [`docs/installation.md`](docs/installation.md).
 
 These are not style preferences. A change that breaks one will not be merged.
 
-1. **Nothing that identifies one organisation in the repository.** Transit terms are
-   welcome; real organisation, agency, regulator, person, place, vendor or product names
+1. **Nothing that identifies one organization in the repository.** Transit terms are
+   welcome; real organization, agency, regulator, person, place, vendor or product names
    are not, nor is the law, regulator or contract of one jurisdiction as a built-in
    default. Samples and tests use invented data. Anything specific to one installation belongs in that installation's private
-   organisation profile or is entered in the application.
+   organization profile or is entered in the application.
 2. **`seed/` is private.** It is git-ignored. Never commit it, send it anywhere, or paste
    its content into code, logs, tests, issues or documentation.
 3. **Local only.** No telemetry, no externally hosted fonts or scripts, no calls to
@@ -48,8 +48,8 @@ These are not style preferences. A change that breaks one will not be merged.
 6. **Every data change writes an audit event. Every feature ships with a test.**
 7. **Configuration over code.** Statuses, priorities, categories and scales are rows in
    the lookup and settings tables, not constants.
-8. **Plain English in the interface, British spelling** ("catalogue", "authorisation",
-   "organisation").
+8. **Plain English in the interface, American spelling** ("catalog", "authorization",
+   "organization").
 
 ## Documentation and the roadmap
 
@@ -92,7 +92,7 @@ updates weekly ([`.github/dependabot.yml`](.github/dependabot.yml)).
 - Look at your screens in a real browser, in light and dark, wide and narrow, before
   calling them done.
 
-## How the code is organised: the module pattern
+## How the code is organized: the module pattern
 
 The application is a small core plus modules. A module is two folders and nothing else:
 

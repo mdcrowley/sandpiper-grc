@@ -287,7 +287,7 @@ describe('actions', () => {
     expect(history.body.total).toBeGreaterThan(1);
   });
 
-  it('summarises open, overdue and due-this-week actions by owner and source', async () => {
+  it('summarizes open, overdue and due-this-week actions by owner and source', async () => {
     await t.db.query('update actions set deleted_at = now() where deleted_at is null');
     const agent = await t.as('agent');
     await t.api.post('/api/actions', { title: 'Overdue one', due_on: plus(-10), source: 'audit', owner_id: agent.userId, department: 'Finance' });
@@ -295,7 +295,7 @@ describe('actions', () => {
     await t.api.post('/api/actions', { title: 'Far off', due_on: plus(60), source: 'exercise' });
     await t.api.post('/api/actions', { title: 'No date', source: 'exercise', status: 'blocked' });
     await t.api.post('/api/actions', { title: 'Overdue but finished', due_on: plus(-10), source: 'audit', status: 'done' });
-    await t.api.post('/api/actions', { title: 'Overdue but cancelled', due_on: plus(-10), source: 'audit', status: 'cancelled' });
+    await t.api.post('/api/actions', { title: 'Overdue but canceled', due_on: plus(-10), source: 'audit', status: 'cancelled' });
 
     const s = (await agent.get('/api/actions/summary')).body;
     expect(s.open).toBe(4);
@@ -537,18 +537,18 @@ describe('seed', () => {
     }
   });
 
-  it('loads obligations from the organisation profile once and never overwrites an edit', async () => {
+  it('loads obligations from the organization profile once and never overwrites an edit', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'grc-risks-org-'));
     try {
       await t.db.query('update obligations set deleted_at = now() where deleted_at is null');
-      const organisation = {
+      const organization = {
         obligations: [
           { title: 'Invented widget return', source: 'Invented widget law', requirement: 'File the widget return every year', how_met: 'Finance files it', evidence: 'Receipt', next_due_on: plus(90) },
           { title: 'Invented supplier terms', source: 'Invented contract', requirement: 'Keep widget records for six years' },
           { source: 'No title, so ignored' },
         ],
       };
-      const first = await mod.seed!(t.ctx, { profile: 'pilot', seedDir: dir, organisation });
+      const first = await mod.seed!(t.ctx, { profile: 'pilot', seedDir: dir, organization });
       expect(first).toMatch(/2 obligations added \(2 in the register\)/);
       const rows = (await t.api.get('/api/obligations?sort=ref')).body.rows;
       expect(rows.map((r: any) => r.title)).toEqual(['Invented widget return', 'Invented supplier terms']);
@@ -559,7 +559,7 @@ describe('seed', () => {
       expect(edited.status).toBe(200);
       await t.api.del(`/api/obligations/${rows[1].id}`);
 
-      const again = await mod.seed!(t.ctx, { profile: 'pilot', seedDir: dir, organisation });
+      const again = await mod.seed!(t.ctx, { profile: 'pilot', seedDir: dir, organization });
       expect(again).toMatch(/0 obligations added \(1 in the register\)/);
       const after = (await t.api.get('/api/obligations')).body.rows;
       expect(after.length).toBe(1);

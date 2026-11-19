@@ -1,7 +1,7 @@
 import { fromZonedInput, todayInZone, toZonedInput } from '../../core';
 import { ANY, type ApprovalRule, type Questionnaire } from './types';
 
-// ---------- calendar days, in the organisation's time zone ----------
+// ---------- calendar days, in the organization's time zone ----------
 
 /** The calendar day (YYYY-MM-DD) an instant falls on. */
 export const dayOf = (iso: string | Date): string => toZonedInput(iso).slice(0, 10);
@@ -80,7 +80,7 @@ export function matchRule(rules: ApprovalRule[], changeType: string, riskLevel: 
   return rule;
 }
 
-/** The main line of the lifecycle, for the stepper. Rejected and cancelled are shown as a blocked step. */
+/** The main line of the lifecycle, for the stepper. Rejected and canceled are shown as a blocked step. */
 export const LIFECYCLE = ['draft', 'submitted', 'approved', 'scheduled', 'in_progress', 'completed', 'reviewed', 'closed'];
 
 export const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;

@@ -111,7 +111,7 @@ describe('routed disposal approval', () => {
 });
 
 describe('department list on assets', () => {
-  it('offers the organisation departments, spells a match their way and refuses anything else', async () => {
+  it('offers the organization departments, spells a match their way and refuses anything else', async () => {
     // No departments yet: free text is kept, as before.
     expect((await t.api.post('/api/assets', { name: 'Free text desk', department: 'Wherever' })).body.department).toBe('Wherever');
     await t.db.query(`insert into departments (name) values ('Planning'), ('Customer Service')`);

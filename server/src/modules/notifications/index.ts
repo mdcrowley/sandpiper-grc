@@ -30,8 +30,8 @@ const mod: ModuleDef = {
       { value: 'due', label: 'Due dates', color: 'amber', sort: 30, meta: { description: 'Your actions and decisions that are due soon or overdue.' } },
       { value: 'sla', label: 'Service-level targets', color: 'orange', sort: 40, meta: { description: 'Your tickets that are close to their target time.' } },
       { value: 'reminder', label: 'Reminders', color: 'teal', sort: 50, meta: { description: 'Dates set on records, such as contract notice dates.' } },
-      { value: 'acknowledgement', label: 'Acknowledgements', color: 'green', sort: 60, meta: { description: 'You have been asked to read and acknowledge something.' } },
-      { value: 'clock', label: 'Notification clocks', color: 'red', sort: 70, meta: { description: 'A deadline to notify someone outside the organisation is close or has passed.' } },
+      { value: 'acknowledgement', label: 'Acknowledgments', color: 'green', sort: 60, meta: { description: 'You have been asked to read and acknowledge something.' } },
+      { value: 'clock', label: 'Notification clocks', color: 'red', sort: 70, meta: { description: 'A deadline to notify someone outside the organization is close or has passed.' } },
       { value: 'watch', label: 'Records I watch', color: 'gray', sort: 80, meta: { description: 'A record you watch has changed status or has a new comment.' } },
       { value: 'general', label: 'Other', color: 'gray', sort: 90, meta: { description: 'Anything that does not fit the kinds above.' } },
     ], { public: true }); // everyone has notifications, so everyone may read the kinds

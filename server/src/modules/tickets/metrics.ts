@@ -18,7 +18,7 @@ const pct = (met: number, measured: number) => (measured ? Math.round((met / mea
 function parseBound(ctx: ModuleContext, name: string, raw: unknown, endOfDay: boolean): Date | null {
   if (raw === undefined || raw === null || raw === '') return null;
   const s = String(raw);
-  // A bare date means the whole local day; the database session runs in the organisation's time zone.
+  // A bare date means the whole local day; the database session runs in the organization's time zone.
   const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(s) ? `${s}T${endOfDay ? '23:59:59.999' : '00:00:00'}` : s);
   if (Number.isNaN(d.getTime())) ctx.fail(400, 'validation', `"${name}" must be a date or a date and time.`, { [name]: 'Not a valid date.' });
   return d;

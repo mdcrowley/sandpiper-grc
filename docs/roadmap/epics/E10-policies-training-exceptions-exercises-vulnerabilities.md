@@ -15,7 +15,7 @@ capture what they show, and track vulnerabilities from discovery to fix.
   default roles already carry grants for them.
 - Each area is expected to be its own small module under `server/src/modules/` and
   `web/src/modules/`, built on the generic resource.
-- Acknowledgements and training assigned to all staff need the portal
+- Acknowledgments and training assigned to all staff need the portal
   ([E15](E15-self-service-portal.md)) and notifications
   ([E14](E14-platform-services.md)) to be useful beyond IT.
 
@@ -24,14 +24,14 @@ capture what they show, and track vulnerabilities from discovery to fix.
 | ID | Title | Status | Priority |
 |---|---|---|---|
 | E10-01 | Policy register with versions and review dates | done | P2 |
-| E10-02 | Policy acknowledgements | done | P2 |
+| E10-02 | Policy acknowledgments | done | P2 |
 | E10-03 | Training records and assignments | done | P3 |
 | E10-04 | Exceptions register | done | P2 |
 | E10-05 | Exercises with findings | done | P3 |
 | E10-06 | Vulnerability register | done | P2 |
 | E10-07 | Import scanner findings | done | P3 |
 | E10-08 | Fix-by dates by severity for vulnerabilities | done | P3 |
-| E10-09 | Send acknowledgement and training reminders through notifications | done | P2 |
+| E10-09 | Send acknowledgment and training reminders through notifications | done | P2 |
 | E10-10 | A failed training result still counts as complete | done | P2 |
 | E10-11 | Let people mark their own training complete | done | P3 |
 | E10-12 | Vulnerability deduplication misses port and host aliases | done | P2 |
@@ -60,7 +60,7 @@ next review date, and each approved change becomes a new version.
 - [x] Policies can be mapped to framework outcomes and obligations through links
 - [x] Tests for create, version, permissions and audit
 
-### E10-02 Policy acknowledgements
+### E10-02 Policy acknowledgments
 
 **Status:** done · **Priority:** P2 · **Type:** feature
 
@@ -69,9 +69,9 @@ and see who has and has not.
 
 **Acceptance criteria**
 
-- [x] An acknowledgement request targets roles, departments or everyone
+- [x] An acknowledgment request targets roles, departments or everyone
 - [x] Each person acknowledges a specific version, with a time stamp
-- [x] A new version can require fresh acknowledgement
+- [x] A new version can require fresh acknowledgment
 - [x] A completion report by department, with export
 
 ### E10-03 Training records and assignments
@@ -165,15 +165,15 @@ criticality of what it affects, and overdue ones are reported.
 
 Policies and exceptions: `server/src/modules/policies`, `web/src/modules/policies` (E10-01, E10-02, E10-04). Training and exercises: `server/src/modules/training`, `web/src/modules/training` (E10-03, E10-05). Vulnerabilities: `server/src/modules/vulnerabilities`, `web/src/modules/vulnerabilities` (E10-06, E10-07, E10-08). User guide pages 11, 12 and 13.
 
-### E10-09 Send acknowledgement and training reminders through notifications
+### E10-09 Send acknowledgment and training reminders through notifications
 
 **Status:** done · **Priority:** P2 · **Type:** feature
 
-Policy acknowledgement and overdue-training reminders are recorded but nobody is told. Send them through the in-app notification service.
+Policy acknowledgment and overdue-training reminders are recorded but nobody is told. Send them through the in-app notification service.
 
 **Acceptance criteria**
 
-- [x] People with an outstanding acknowledgement or overdue training get a notification, once per reminder interval
+- [x] People with an outstanding acknowledgment or overdue training get a notification, once per reminder interval
 
 ### E10-10 A failed training result still counts as complete
 
@@ -250,7 +250,7 @@ A draft version cannot be discarded, and the reminder interval is a setting with
 
 ### E10-09 Notifications: implemented in
 
-- Policies: `server/src/modules/policies/acknowledgements.ts` (`notifyAck` on publish and in `runPolicyReminders`; the link opens the person's own reader, `/policies/acknowledgements/<request>`, so no policy permission is needed)
+- Policies: `server/src/modules/policies/acknowledgments.ts` (`notifyAck` on publish and in `runPolicyReminders`; the link opens the person's own reader, `/policies/acknowledgments/<request>`, so no policy permission is needed)
 - Training: `server/src/modules/training/notify.ts` (`notifyTraining`: assigned once per record, overdue once per `training.reminder_interval_days`; links to `/training/mine`)
 - Vulnerabilities: `server/src/modules/vulnerabilities/notify.ts` (assigned; past the fix-by date once per date; only people with `security.view`, enforced by the notification service through the record)
 - Changes (E05-09): `server/src/modules/changes/notify.ts`

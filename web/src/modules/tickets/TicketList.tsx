@@ -85,7 +85,7 @@ export function TicketList() {
   const [initial, setInitial] = useState<Record<string, unknown> | undefined>();
   const counts = useFetch<QueueCounts>('/api/tickets/queue-counts');
 
-  // "?new=1" (global Create menu) and "?catalog=<id>" (catalogue) open the dialog.
+  // "?new=1" (global Create menu) and "?catalog=<id>" (catalog) open the dialog.
   useEffect(() => {
     const wantsNew = params.get('new') === '1';
     const catalog = params.get('catalog');

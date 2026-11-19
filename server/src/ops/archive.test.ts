@@ -82,7 +82,7 @@ describe('archives', () => {
     await expect(contents(withKey, null)).rejects.toThrow(/encrypted/);
   });
 
-  it('refuses an altered, cut-off or re-labelled encrypted archive', async () => {
+  it('refuses an altered, cut-off or re-labeled encrypted archive', async () => {
     const file = join(scratch, 'enc-key.tar.sgrc');
     const raw = readFileSync(file);
     const altered = Buffer.from(raw);
@@ -96,8 +96,8 @@ describe('archives', () => {
     writeFileSync(join(scratch, 'cut.sgrc'), raw.subarray(0, cut));
     await expect(contents(join(scratch, 'cut.sgrc'), keyA)).rejects.toThrow(/altered|incomplete/);
 
-    const relabelled = Buffer.from(raw.toString('latin1').replace('"name":"test"', '"name":"tost"'), 'latin1');
-    writeFileSync(join(scratch, 'relabel.sgrc'), relabelled);
+    const relabeled = Buffer.from(raw.toString('latin1').replace('"name":"test"', '"name":"tost"'), 'latin1');
+    writeFileSync(join(scratch, 'relabel.sgrc'), relabeled);
     await expect(contents(join(scratch, 'relabel.sgrc'), keyA)).rejects.toThrow(/wrong, or the file has been altered/);
   });
 

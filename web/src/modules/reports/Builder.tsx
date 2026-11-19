@@ -7,17 +7,17 @@ import {
   api, errorMessage, useAuth, useDebounced, useFetch, useToast,
 } from '../../core';
 import { ChartPicker, FieldList, ShareFields, TypePicker, useUndo } from './BuilderParts';
-import { downloadFile, fileName, openDocument, useCatalogue, usePost } from './data';
+import { downloadFile, fileName, openDocument, useCatalog, usePost } from './data';
 import { completeFilters, defaultCondition } from './FilterEditor';
 import { ResultTable, ResultView } from './ResultView';
 import { ColumnsEditor, FiltersSection, GroupEditor, Section, SortEditor, TotalsEditor, isSummary } from './SpecEditor';
-import type { CatalogueField, CatalogueType, ChartSpec, ReportDefinition, ReportResult, ReportSpec, Sharing } from './types';
+import type { CatalogField, CatalogType, ChartSpec, ReportDefinition, ReportResult, ReportSpec, Sharing } from './types';
 
 interface Draft { name: string; description: string; spec: ReportSpec | null; chart: ChartSpec; sharing: Sharing; shared_roles: string[] }
 const BLANK: Draft = { name: '', description: '', spec: null, chart: { kind: 'table' }, sharing: 'private', shared_roles: [] };
 
 /** A useful first list for a record type: reference, title, then the fields people usually want. */
-function starterSpec(t: CatalogueType): ReportSpec {
+function starterSpec(t: CatalogType): ReportSpec {
   const has = (p: string) => t.fields.some((f) => f.path === p);
   const columns = [t.refField, t.titleField, 'status', 'priority', 'owner_id', 'assignee_id', 'created_at']
     .filter((p): p is string => Boolean(p) && has(p as string));
@@ -25,7 +25,7 @@ function starterSpec(t: CatalogueType): ReportSpec {
 }
 
 /** What is sent to the server: half-finished conditions are left out so the preview keeps working. */
-export function sendable(spec: ReportSpec, type: CatalogueType): ReportSpec {
+export function sendable(spec: ReportSpec, type: CatalogType): ReportSpec {
   const summary = isSummary(spec);
   return {
     type: spec.type,
@@ -38,7 +38,7 @@ export function sendable(spec: ReportSpec, type: CatalogueType): ReportSpec {
   };
 }
 
-function Preview({ type, spec, chart, name, onResult }: { type: CatalogueType; spec: ReportSpec; chart: ChartSpec; name: string; onResult: (r: ReportResult | undefined) => void }) {
+function Preview({ type, spec, chart, name, onResult }: { type: CatalogType; spec: ReportSpec; chart: ChartSpec; name: string; onResult: (r: ReportResult | undefined) => void }) {
   const body = useDebounced(useMemo(() => ({ spec: sendable(spec, type), limit: 50 }), [spec, type]), 350);
   const { data, error, loading, reload } = usePost<ReportResult>('/api/reports/run', body);
   useEffect(() => { onResult(data); }, [data, onResult]);
@@ -75,7 +75,7 @@ export function Builder() {
   const navigate = useNavigate();
   const toast = useToast();
   const { can } = useAuth();
-  const { types, error: catError, reload: catReload } = useCatalogue();
+  const { types, error: catError, reload: catReload } = useCatalog();
   const existing = useFetch<ReportDefinition>(id ? `/api/reports/${id}` : null);
   const draft = useUndo<Draft>(BLANK);
   const [ready, setReady] = useState(!id);
@@ -126,7 +126,7 @@ export function Builder() {
   const setChart = (chart: ChartSpec) => draft.set((prev) => ({ ...prev, chart }));
   const chosen = summary ? (spec.groupBy ?? []).map((g) => g.field) : spec.columns ?? [];
 
-  function toggleField(f: CatalogueField) {
+  function toggleField(f: CatalogField) {
     if (!summary) {
       const cols = spec.columns ?? [];
       return setSpec({ ...spec, columns: cols.includes(f.path) ? cols.filter((c) => c !== f.path) : [...cols, f.path] });
@@ -227,7 +227,7 @@ export function Builder() {
             <Section title="Order">
               <SortEditor type={type} spec={spec} onChange={setSpec} />
             </Section>
-            <Section title="Show as" hint={summary ? 'Charts that do not suit this report are greyed out; hover to see why.' : 'A list is shown as a table. Switch to Summary for charts.'}>
+            <Section title="Show as" hint={summary ? 'Charts that do not suit this report are grayed out; hover to see why.' : 'A list is shown as a table. Switch to Summary for charts.'}>
               <ChartPicker chart={d.chart} onChange={setChart} result={result} kinds={summary ? undefined : ['table']} />
             </Section>
           </Card>

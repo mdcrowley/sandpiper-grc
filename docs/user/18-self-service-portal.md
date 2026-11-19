@@ -17,12 +17,12 @@ At the top of every portal page:
 
 ## Home
 
-- **Service status banner**: when the service desk has posted a message (for example "Real-time bus arrival screens are down at the central station; we are working on it."), it is shown first, coloured by how serious it is: **Service update**, **Service warning**, **Service problem** or **Service restored**.
+- **Service status banner**: when the service desk has posted a message (for example "Real-time bus arrival screens are down at the central station; we are working on it."), it is shown first, colored by how serious it is: **Service update**, **Service warning**, **Service problem** or **Service restored**.
 - **What do you need help with?**: type a few words. Help articles that match appear below as you type; select one to read it. **Report "…" as a problem** starts a report with your words filled in.
 - **Report a problem**: something is broken or not working.
 - **Ask for something**: access, equipment, a new starter and the other requests the service desk offers.
 - **My requests**: your open requests, newest first, each with its status in plain words. A request waiting for your answer has an amber edge, and a line above the list says how many are waiting. **See all** opens the full list.
-- **Popular requests**: the first requests from the catalogue. **See all** lists every one.
+- **Popular requests**: the first requests from the catalog. **See all** lists every one.
 
 Depending on your account and on what is installed, the right-hand side (below, on a phone) also shows:
 
@@ -56,7 +56,7 @@ Select **Report a problem** and fill in:
 - **How urgent is it?** (required): **I cannot work at all**, **I can work, but it slows me down**, or **It can wait**.
 - **Add a photo or file** if it helps.
 
-Select **Send**. Your two answers set how the service desk prioritises the problem; you never choose a priority or a person yourself. For anything that affects safety, follow your local safety procedure first.
+Select **Send**. Your two answers set how the service desk prioritizes the problem; you never choose a priority or a person yourself. For anything that affects safety, follow your local safety procedure first.
 
 ## My requests
 
@@ -74,7 +74,7 @@ Each request shows its status in plain words:
 | **Not approved** | It was rejected; the reason is shown on the request |
 | **Resolved** | IT think it is sorted; reopen it if not |
 | **Closed** | Finished |
-| **Cancelled** | Cancelled; nothing more will happen |
+| **Canceled** | Canceled; nothing more will happen |
 
 You see the requests you raised and those raised for you (where you are the affected person). Nobody else's.
 
@@ -112,7 +112,7 @@ Open **Service desk settings** in the **Administration** group and choose the **
 - **Portal**: **Self-service portal switched on**. Only an administrator can switch it on or off (it is the same switch as under Administration, Settings). People use the portal with the **Requester** role, which an administrator switches on under Administration, Roles. **Open the portal** goes there.
 - **Service status banner**: write the **Message**, choose **How serious** (**Information**, **Warning: some things may not work**, **Service problem: something is down**, **Restored: back to normal**) and select **Save banner**. **Clear banner** removes it.
 - **Wording and reopening**: the **Portal title**, the **Days a requester may reopen a resolved request** (0 means never; at most 90) and the **Welcome line**. Select **Save**.
-- **What staff can ask for**: a switch for each active catalogue item. Items switched on appear in the portal with their questions; the others stay for the service desk only. **Edit item** opens the item. Changing these needs permission to edit tickets.
+- **What staff can ask for**: a switch for each active catalog item. Items switched on appear in the portal with their questions; the others stay for the service desk only. **Edit item** opens the item. Changing these needs permission to edit tickets.
 
 Every change is recorded in the audit log.
 

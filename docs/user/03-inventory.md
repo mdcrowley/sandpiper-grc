@@ -1,12 +1,12 @@
 # Inventory
 
-The inventory records what the organisation runs and owns: the systems people rely on, the physical and licensed assets, the sites they are at, and the categories of data held. It also records how these relate, so you can see what is affected if a system fails. Lists and record pages work as described in [Getting started](01-getting-started.md).
+The inventory records what the organization runs and owns: the systems people rely on, the physical and licensed assets, the sites they are at, and the categories of data held. It also records how these relate, so you can see what is affected if a system fails. Lists and record pages work as described in [Getting started](01-getting-started.md).
 
 ## Systems
 
 A system is an application or service that people use, for example the scheduling system, the fare collection back office or the email service. Equipment on the vehicles themselves, such as the fareboxes or the onboard video, can be recorded as a system too. Open **Systems** in the **Inventory** group. The list shows 50 systems per page.
 
-Use the column chooser to add **Technical owner**, **Vendor (as recorded)**, **Recovery time (h)**, **Recovery point (h)** or **Updated**. To change several systems at once, tick them and select **Edit selected…**: you can set **Status**, **Criticality**, **Hosting**, **Multi-factor**, **Business owner** or **Technical owner**.
+Use the column chooser to add **Technical owner**, **Vendor (as recorded)**, **Recovery time (h)**, **Recovery point (h)** or **Updated**. To change several systems at once, check them and select **Edit selected…**: you can set **Status**, **Criticality**, **Hosting**, **Multi-factor**, **Business owner** or **Technical owner**.
 
 ### Add a system
 
@@ -43,7 +43,7 @@ The tabs hold the rest:
 Each card on **Fact sheet** has its own **Edit** button. A card is marked **Complete**, or shows how many facts it still needs ("2 to record") with "Not recorded" against each gap.
 
 - **Vendor** and **Contract** link the system to records in [Vendors and contracts](04-vendors-and-contracts.md). **Vendor (as recorded)** is free text for when no vendor record exists yet.
-- **Recovery time objective (hours)** is how long the organisation can do without the system. **Recovery point objective (hours)** is how much recent data it can afford to lose.
+- **Recovery time objective (hours)** is how long the organization can do without the system. **Recovery point objective (hours)** is how much recent data it can afford to lose.
 - **Multi-factor** records whether sign-in to the system needs a second factor: **Enforced**, **Available, not enforced**, **Not in place**, **Not applicable** or **Not known**.
 
 Select **Show on map** to open the relationship map with this system selected.
@@ -66,7 +66,7 @@ The integration appears on both systems, as **Sends to** on one and **Receives f
 - On the **Fact sheet** tab, under **Sites served**, select **Add site** and choose the site.
 - On the **Data held** tab, select **Add data category** and choose the category.
 
-To remove a link, select the bin button on its row and confirm with **Remove**. Only the link is removed.
+To remove a link, select the trash button on its row and confirm with **Remove**. Only the link is removed.
 
 ### Changes and issues
 
@@ -79,7 +79,7 @@ The map draws systems, the integrations between them, and the vendors, sites, da
 ### Read the map
 
 - Systems sit in the middle, in a box for each group. **Vendors** are in a lane on the left; **Sites**, **Data categories** and **Assets** are in lanes on the right, each level with the systems it belongs to, or one under another when they are short, to keep the map narrow. A very large group shows its systems two or more to a row. The same estate always draws the same way.
-- Colour shows the type. The dot at the end of a system shows its criticality.
+- Color shows the type. The dot at the end of a system shows its criticality.
 - A solid line with an arrow is an integration, and the arrow shows the way data flows. A dashed line is another relationship: "supplied by" a vendor, "serves" a site, "holds" a data category, "runs on" an asset.
 - The legend under the map repeats this.
 
@@ -92,7 +92,7 @@ The map draws systems, the integrations between them, and the vendors, sites, da
 
 ### Find and filter
 
-- **Find a system, vendor, site…** searches the records on the map. Choosing one selects it and centres the map on it.
+- **Find a system, vendor, site…** searches the records on the map. Choosing one selects it and centers the map on it.
 - **Arrange systems by** groups the systems by **Group**, **Criticality** or **Hosting**.
 - The group box (showing **All groups**) limits the map to systems in one group.
 - **Show** chooses which other types are drawn. Vendors, sites and data categories are shown to start with; select **Assets** to add them. Only assets linked to a system appear.
@@ -127,20 +127,20 @@ When the fleet module is installed and you may see fleet records, the answer beh
 
 ## Assets
 
-An asset is a piece of equipment, a licence or a subscription. Open **Assets** in the **Inventory** group.
+An asset is a piece of equipment, a license or a subscription. Open **Assets** in the **Inventory** group.
 
 Equipment fitted to vehicles (onboard computers, CAD/AVL units, fareboxes, card validators, on-vehicle routers, cameras, radios and passenger information displays) is recorded here as assets with those types, and installed on a vehicle from the vehicle's **Equipment** tab. See [Fleet and services](19-fleet-and-services.md).
 
-Use the column chooser to add **Disposal approval**, **Department**, **Owner**, **System**, **Serial number**, **Cost** or **Purchase date**. To change several assets at once, tick them and select **Edit selected…**: you can set **Status**, **Type**, **Site**, **Owner**, **System**, **Funding source**, **Warranty end** or **Support end**. The disposal rules below still apply to each asset.
+Use the column chooser to add **Disposal approval**, **Department**, **Owner**, **System**, **Serial number**, **Cost** or **Purchase date**. To change several assets at once, check them and select **Edit selected…**: you can set **Status**, **Type**, **Site**, **Owner**, **System**, **Funding source**, **Warranty end** or **Support end**. The disposal rules below still apply to each asset.
 
 ### Add an asset
 
 1. Select **New asset**, or **Create** then **Asset**.
-2. Enter the **Name** and choose the **Type**, for example **Workstation**, **Server** or **Software licence**. Equipment on vehicles has its own types: **Onboard computer**, **CAD/AVL unit**, **Farebox**, **Card validator**, **On-vehicle router**, **Camera**, **Radio** and **Passenger information display**. Put the vehicle number in **Location**.
+2. Enter the **Name** and choose the **Type**, for example **Workstation**, **Server** or **Software license**. Equipment on vehicles has its own types: **Onboard computer**, **CAD/AVL unit**, **Farebox**, **Card validator**, **On-vehicle router**, **Camera**, **Radio** and **Passenger information display**. Put the vehicle number in **Location**.
 3. Choose the **Status**: **Ordered**, **In stock**, **In use**, **In repair** or **Retired**. Do not choose **Disposed** here; use the disposal step below.
 4. Enter **Make**, **Model** and **Serial number**, the **Site** and **Location**.
-5. Enter the **Purchase date**, **Cost** and **Funding source**. Costs are in the organisation's currency, here and in an import; an amount written with another currency's symbol is refused.
-6. If an outside funder paid for some or all of it and keeps an interest, tick **Funder interest** and enter **Funder interest (%)**.
+5. Enter the **Purchase date**, **Cost** and **Funding source**. Costs are in the organization's currency, here and in an import; an amount written with another currency's symbol is refused.
+6. If an outside funder paid for some or all of it and keeps an interest, check **Funder interest** and enter **Funder interest (%)**.
 7. Enter the **Warranty end** and **Support end** dates if you know them.
 8. Select **Create asset**.
 
@@ -154,7 +154,7 @@ The top of the record shows where the asset is in its life: **Ordered**, **In st
 - A **Funder interest** notice appears when an outside funder keeps an interest in the asset.
 - **Disposal awaiting approval** or **Disposal approved** appears while a disposal is in progress.
 
-The **Details** card holds what the asset is. The **Who has it and where** card shows **Assigned to**, **Owner**, **Department**, **Site** and **Location**; select **Edit** to change the owner, department, site or location. **Department** is chosen from the organisation's department list (set up under **Administration**, **Settings**); it is free text only while no departments exist.
+The **Details** card holds what the asset is. The **Who has it and where** card shows **Assigned to**, **Owner**, **Department**, **Site** and **Location**; select **Edit** to change the owner, department, site or location. **Department** is chosen from the organization's department list (set up under **Administration**, **Settings**); it is free text only while no departments exist.
 
 The tabs are **Assignment**, **Purchase and support** (purchase, funding, warranty and support dates, and technical details such as operating system and addresses), **Disposal**, **Changes and issues**, then **Activity**, **Attachments** (for purchase documents or disposal certificates), **Related** and **History**.
 
@@ -207,7 +207,7 @@ Either way, the asset is checked in if it was out, its status becomes **Disposed
 
 ### The funder-interest rule
 
-If **Funder interest** is ticked, the asset cannot be disposed of until the **Disposal approval reference** is entered. This is the reference of the funder's own approval, for example a letter or email reference. It is needed as well as the approval above.
+If **Funder interest** is checked, the asset cannot be disposed of until the **Disposal approval reference** is entered. This is the reference of the funder's own approval, for example a letter or email reference. It is needed as well as the approval above.
 
 - The asset record shows a **Funder interest** notice saying so, and the **Disposal** tab explains the rule.
 - The dispose box shows "Blocked: an outside funder keeps an interest in this asset", and **Mark as disposed** cannot be selected until the reference is filled in.
@@ -235,7 +235,7 @@ The site record has two tabs of its own:
 
 ## Data categories
 
-A data category is a kind of information the organisation holds, for example staff records or payment details. Open **Data categories** in the **Inventory** group.
+A data category is a kind of information the organization holds, for example staff records or payment details. Open **Data categories** in the **Inventory** group.
 
 To add one:
 
@@ -294,9 +294,9 @@ Use the import to load many assets at once from a spreadsheet saved as CSV. Noth
 1. Open **Assets** and select **Import**.
 2. Under **1. Choose or paste a CSV file**, drop the file on the box, select **Choose file**, or paste its text into **Or paste the CSV text**. The box confirms the file name and how many rows and columns it found. Select **Next: map columns**.
 3. Under **2. Match your columns to asset fields**, check each field. Columns are matched by name where possible, and under each choice is the value from the first row of your file. Change any that are wrong and leave unwanted fields as **Not imported**. The **Name** field must be matched.
-4. Tick **Update assets that already exist (matched by tag or serial number) instead of skipping them** if you want the file to update existing assets.
+4. Check **Update assets that already exist (matched by tag or serial number) instead of skipping them** if you want the file to update existing assets.
 5. Select **Next: preview**.
-6. Read the preview. The tiles count **Rows in file**, **Will be created**, **Will be updated**, **Duplicates** and **Rows with errors**. Each row is marked **New**, **Update**, **Duplicate, skipped** or **Error**, and the **Problems** column explains why. Tick **Only show problems** to shorten the list.
+6. Read the preview. The tiles count **Rows in file**, **Will be created**, **Will be updated**, **Duplicates** and **Rows with errors**. Each row is marked **New**, **Update**, **Duplicate, skipped** or **Error**, and the **Problems** column explains why. Check **Only show problems** to shorten the list.
 7. Select **Import** (the button shows the number of assets), or **Back** to change the mapping.
 
 A duplicate is a row whose tag or serial number matches an existing asset or an earlier row in the file. Rows with errors are never imported: fix them in the file and import again, or import the rest now. When the import finishes, select **Go to assets** or **Import another file**.

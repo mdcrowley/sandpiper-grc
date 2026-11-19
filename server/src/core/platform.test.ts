@@ -318,7 +318,7 @@ describe('full-text search', () => {
     const mk = async (key: string, body: any, api = t.api) => { ids[key] = (await api.post('/api/gadgets', body)).body.id; };
     await mk('printers', { name: 'Printers failing in the east wing', notes: 'Paper jams every morning.' });
     await mk('noteonly', { name: 'Morning checklist', notes: 'Remember that the printer needs toner replacement.' });
-    await mk('laptop', { name: 'Laptop replacement programme', notes: 'Budget approved for forty devices.' });
+    await mk('laptop', { name: 'Laptop replacement program', notes: 'Budget approved for forty devices.' });
     await mk('hidden', { name: 'Quarantined printer evidence', notes: 'Held for an investigation.', restricted: true });
     await mk('code', { name: 'Switch SW-CORE-0042 firmware', notes: 'Serial ZX81QQ7.' });
   });
@@ -445,21 +445,21 @@ describe('custom fields', () => {
   it('lets an administrator define fields of every type, with validation', async () => {
     expect((await agent.get('/api/admin/custom-fields')).status).toBe(403);
     expect((await agent.post('/api/admin/custom-fields', { record_type: 'gadget', label: 'X', type: 'text' })).status).toBe(403);
-    const bad = await t.api.post('/api/admin/custom-fields', { record_type: 'nothing', label: '', type: 'colour', key: 'Bad Key' });
+    const bad = await t.api.post('/api/admin/custom-fields', { record_type: 'nothing', label: '', type: 'color', key: 'Bad Key' });
     expect(Object.keys(bad.body.error.fields).sort()).toEqual(['key', 'label', 'record_type', 'type']);
     expect((await t.api.post('/api/admin/custom-fields', { record_type: 'gadget', label: 'Pick', type: 'select' })).body.error.fields.options).toBeTruthy();
     expect((await t.api.post('/api/admin/custom-fields', { record_type: 'gadget', label: 'Link', type: 'ref', to: 'nothing' })).body.error.fields.to).toBeTruthy();
 
-    const text = await add({ label: 'Cost centre', type: 'text', required: true, help: 'From the finance system.', section: 'Finance', position: 1 });
-    expect(text).toMatchObject({ key: 'cost_centre', name: 'cf_cost_centre', active: true, field: { label: 'Cost centre', type: 'text', custom: true, required: true, help: 'From the finance system.', section: 'Finance' } });
+    const text = await add({ label: 'Cost center', type: 'text', required: true, help: 'From the finance system.', section: 'Finance', position: 1 });
+    expect(text).toMatchObject({ key: 'cost_center', name: 'cf_cost_center', active: true, field: { label: 'Cost center', type: 'text', custom: true, required: true, help: 'From the finance system.', section: 'Finance' } });
     await add({ label: 'Score', type: 'number' });
     await add({ label: 'Budget', type: 'currency' });
     await add({ label: 'Review on', type: 'date' });
     await add({ label: 'Critical', type: 'boolean' });
     await add({ label: 'Reviewer', type: 'user' });
     await add({ label: 'Replaces', type: 'ref', to: 'gadget' });
-    const colour = await add({ label: 'Colour', type: 'select', options: [{ value: 'red', label: 'Red', color: 'red' }, 'Blue'] });
-    expect(colour.list_key).toBe('cf_gadget_colour');
+    const color = await add({ label: 'Color', type: 'select', options: [{ value: 'red', label: 'Red', color: 'red' }, 'Blue'] });
+    expect(color.list_key).toBe('cf_gadget_color');
     await add({ label: 'Zones', type: 'multiselect', options: ['North', 'South', 'East'] });
     expect((await t.api.post('/api/admin/custom-fields', { record_type: 'gadget', label: 'Score', type: 'text' })).body.error.fields.key).toMatch(/already/);
     expect((await audited('custom_field.create')).length).toBe(9);
@@ -474,44 +474,44 @@ describe('custom fields', () => {
     const meta = (await agent.get('/api/meta')).body;
     const f = meta.resources.gadget.fields;
     expect(f.name.custom).toBeUndefined();
-    expect(f.cf_cost_centre).toMatchObject({ label: 'Cost centre', type: 'text', custom: true, required: true });
-    expect(f.cf_colour).toMatchObject({ type: 'lookup', list: 'cf_gadget_colour', custom: true });
+    expect(f.cf_cost_center).toMatchObject({ label: 'Cost center', type: 'text', custom: true, required: true });
+    expect(f.cf_color).toMatchObject({ type: 'lookup', list: 'cf_gadget_color', custom: true });
     expect(f.cf_zones).toMatchObject({ type: 'lookup', list: 'cf_gadget_zones', multiple: true });
     expect(f.cf_replaces).toMatchObject({ type: 'ref', to: 'gadget' });
     expect(f.cf_budget.type).toBe('currency');
-    expect(meta.lookups.cf_gadget_colour.map((v: any) => v.value)).toEqual(['red', 'blue']);
+    expect(meta.lookups.cf_gadget_color.map((v: any) => v.value)).toEqual(['red', 'blue']);
     expect((await agent.get('/api/lookups/cf_gadget_zones')).body.map((v: any) => v.label)).toEqual(['North', 'South', 'East']);
     // Someone who cannot view the record type sees neither the fields nor their lists.
     const forViewer = (await viewer.get('/api/meta')).body;
     expect(forViewer.resources.gadget).toBeUndefined();
-    expect(forViewer.lookups.cf_gadget_colour).toBeUndefined();
+    expect(forViewer.lookups.cf_gadget_color).toBeUndefined();
     const doc = (await agent.get('/api/openapi.json')).body;
-    expect(doc.components.schemas.Gadget.properties.cf_colour).toMatchObject({ 'x-custom': true, 'x-list': 'cf_gadget_colour' });
+    expect(doc.components.schemas.Gadget.properties.cf_color).toMatchObject({ 'x-custom': true, 'x-list': 'cf_gadget_color' });
     expect(doc.paths['/api/gadgets'].get.parameters.map((p: any) => p.name)).toContain('f.cf_score');
   });
 
   it('validates values like built-in fields and returns them in rows', async () => {
-    const missing = await agent.post('/api/gadgets', { name: 'No cost centre' });
+    const missing = await agent.post('/api/gadgets', { name: 'No cost center' });
     expect(missing.status).toBe(400);
-    expect(missing.body.error.fields.cf_cost_centre).toMatch(/required/);
+    expect(missing.body.error.fields.cf_cost_center).toMatch(/required/);
     const bad = await agent.post('/api/gadgets', {
-      name: 'Bad values', cf_cost_centre: 'CC-1', cf_score: 'lots', cf_review_on: '31/12/2030', cf_critical: 'maybe',
-      cf_reviewer: 'someone', cf_colour: 'green', cf_zones: ['north', 'west'],
+      name: 'Bad values', cf_cost_center: 'CC-1', cf_score: 'lots', cf_review_on: '31/12/2030', cf_critical: 'maybe',
+      cf_reviewer: 'someone', cf_color: 'green', cf_zones: ['north', 'west'],
     });
-    expect(Object.keys(bad.body.error.fields).sort()).toEqual(['cf_colour', 'cf_critical', 'cf_review_on', 'cf_reviewer', 'cf_score', 'cf_zones']);
+    expect(Object.keys(bad.body.error.fields).sort()).toEqual(['cf_color', 'cf_critical', 'cf_review_on', 'cf_reviewer', 'cf_score', 'cf_zones']);
 
-    const other = (await agent.post('/api/gadgets', { name: 'Older gadget', cf_cost_centre: 'CC-9', cf_score: 3, cf_colour: 'blue', cf_zones: ['south'] })).body;
+    const other = (await agent.post('/api/gadgets', { name: 'Older gadget', cf_cost_center: 'CC-9', cf_score: 3, cf_color: 'blue', cf_zones: ['south'] })).body;
     const made = await agent.post('/api/gadgets', {
-      name: 'Fully described gadget', cf_cost_centre: ' CC-7 ', cf_score: '12', cf_budget: '1,250.50', cf_review_on: '2031-03-01', cf_critical: true,
-      cf_reviewer: lead.userId, cf_replaces: other.id, cf_colour: 'red', cf_zones: ['north', 'east'],
+      name: 'Fully described gadget', cf_cost_center: ' CC-7 ', cf_score: '12', cf_budget: '1,250.50', cf_review_on: '2031-03-01', cf_critical: true,
+      cf_reviewer: lead.userId, cf_replaces: other.id, cf_color: 'red', cf_zones: ['north', 'east'],
     });
     expect(made.status).toBe(201);
     gadgetId = made.body.id;
     expect(made.body).toMatchObject({
-      cf_cost_centre: 'CC-7', cf_score: 12, cf_budget: 1250.5, cf_review_on: '2031-03-01', cf_critical: true,
-      cf_reviewer: lead.userId, cf_replaces: other.id, cf_colour: 'red', cf_zones: ['north', 'east'],
+      cf_cost_center: 'CC-7', cf_score: 12, cf_budget: 1250.5, cf_review_on: '2031-03-01', cf_critical: true,
+      cf_reviewer: lead.userId, cf_replaces: other.id, cf_color: 'red', cf_zones: ['north', 'east'],
     });
-    expect(made.body._display).toMatchObject({ cf_colour: 'Red', cf_zones: 'North, East', cf_replaces: 'Older gadget' });
+    expect(made.body._display).toMatchObject({ cf_color: 'Red', cf_zones: 'North, East', cf_replaces: 'Older gadget' });
     expect(made.body._display.cf_reviewer).toMatch(/security_lead/);
     const got = (await agent.get(`/api/gadgets/${gadgetId}`)).body;
     expect(got.cf_score).toBe(12);
@@ -524,26 +524,26 @@ describe('custom fields', () => {
   });
 
   it('audits changes to custom values field by field', async () => {
-    const res = await agent.patch(`/api/gadgets/${gadgetId}`, { cf_score: 15, cf_colour: 'blue', cf_cost_centre: 'CC-7', notes: 'Edited.' });
-    expect(res.body).toMatchObject({ cf_score: 15, cf_colour: 'blue', cf_cost_centre: 'CC-7', cf_zones: ['north', 'east'] });
+    const res = await agent.patch(`/api/gadgets/${gadgetId}`, { cf_score: 15, cf_color: 'blue', cf_cost_center: 'CC-7', notes: 'Edited.' });
+    expect(res.body).toMatchObject({ cf_score: 15, cf_color: 'blue', cf_cost_center: 'CC-7', cf_zones: ['north', 'east'] });
     const ev = (await agent.get(`/api/history?record_type=gadget&record_id=${gadgetId}`)).body[0];
     expect(ev.action).toBe('gadget.update');
-    expect(ev.before).toEqual({ cf_score: 12, cf_colour: 'red', notes: null });
-    expect(ev.after).toEqual({ cf_score: 15, cf_colour: 'blue', notes: 'Edited.' });
-    expect(ev.summary).toMatch(/Notes, Colour, Score/);
+    expect(ev.before).toEqual({ cf_score: 12, cf_color: 'red', notes: null });
+    expect(ev.after).toEqual({ cf_score: 15, cf_color: 'blue', notes: 'Edited.' });
+    expect(ev.summary).toMatch(/Notes, Color, Score/);
     const created = (await agent.get(`/api/history?record_type=gadget&record_id=${gadgetId}`)).body.at(-1);
-    expect(created.after).toMatchObject({ cf_cost_centre: 'CC-7', cf_zones: ['north', 'east'] });
+    expect(created.after).toMatchObject({ cf_cost_center: 'CC-7', cf_zones: ['north', 'east'] });
     // Clearing a value, and an unchanged patch writes nothing.
     expect((await agent.patch(`/api/gadgets/${gadgetId}`, { cf_budget: null })).body.cf_budget).toBeNull();
     const count = (await agent.get(`/api/history?record_type=gadget&record_id=${gadgetId}`)).body.length;
     await agent.patch(`/api/gadgets/${gadgetId}`, { cf_score: 15 });
     expect((await agent.get(`/api/history?record_type=gadget&record_id=${gadgetId}`)).body.length).toBe(count);
-    expect((await agent.patch(`/api/gadgets/${gadgetId}`, { cf_cost_centre: '' })).body.error.fields.cf_cost_centre).toMatch(/required/);
+    expect((await agent.patch(`/api/gadgets/${gadgetId}`, { cf_cost_center: '' })).body.error.fields.cf_cost_center).toMatch(/required/);
   });
 
   it('filters, sorts, groups, exports and searches on them', async () => {
     const names = async (qs: string) => (await agent.get(`/api/gadgets?${qs}`)).body.rows.map((r: any) => r.name);
-    expect(await names('f.cf_colour=blue&sort=name')).toEqual(['Fully described gadget', 'Older gadget']);
+    expect(await names('f.cf_color=blue&sort=name')).toEqual(['Fully described gadget', 'Older gadget']);
     expect(await names('f.cf_score.gt=10')).toEqual(['Fully described gadget']);
     expect(await names('f.cf_score.lte=4&sort=cf_score&dir=desc')).toEqual(['System with a value', 'Older gadget']);
     expect(await names('f.cf_zones=east,west')).toEqual(['Fully described gadget']);
@@ -552,15 +552,15 @@ describe('custom fields', () => {
     expect((await names('f.cf_score.null=false&sort=cf_score')).length).toBe(3);
     expect(await names(`f.cf_reviewer=${lead.userId}`)).toEqual(['Fully described gadget']);
     expect((await agent.get('/api/gadgets?f.cf_nothing=1')).status).toBe(400);
-    expect((await agent.get('/api/gadgets?f.cf_colour.gt=1')).status).toBe(400);
+    expect((await agent.get('/api/gadgets?f.cf_color.gt=1')).status).toBe(400);
 
-    const stats = (await agent.get('/api/gadgets/stats?group=cf_colour&f.cf_score.null=false')).body;
+    const stats = (await agent.get('/api/gadgets/stats?group=cf_color&f.cf_score.null=false')).body;
     expect(stats.groups.find((g: any) => g.value === 'blue')).toMatchObject({ label: 'Blue', count: 2 });
     expect((await agent.get('/api/gadgets/stats?group=cf_zones')).status).toBe(400);
 
     const csv = (await agent.get('/api/gadgets?format=csv&f.cf_score.gt=10')).text;
     const [header, line] = csv.replace(/^﻿/, '').split('\r\n');
-    expect(header).toMatch(/Restricted,Budget,Colour,Critical,Replaces,Review on,Reviewer,Score,Zones,Cost centre$/); // by position, then label
+    expect(header).toMatch(/Restricted,Budget,Color,Critical,Replaces,Review on,Reviewer,Score,Zones,Cost center$/); // by position, then label
     expect(line).toMatch(/,,Blue,true,Older gadget,2031-03-01,Test security_lead \d+,15,"North, East",CC-7$/);
 
     // Text custom fields are searched.
@@ -589,10 +589,10 @@ describe('custom fields', () => {
     expect((await agent.get(`/api/gadgets/${gadgetId}`)).body.cf_score).toBe(15);
     expect((await audited('custom_field.retire')).length).toBe(1);
     // Options are added here; existing values are managed with the other lists.
-    await t.api.patch(`/api/admin/custom-fields/${field.colour.id}`, { options: ['Green'] });
-    expect((await agent.patch(`/api/gadgets/${gadgetId}`, { cf_colour: 'green' })).body._display.cf_colour).toBe('Green');
+    await t.api.patch(`/api/admin/custom-fields/${field.color.id}`, { options: ['Green'] });
+    expect((await agent.patch(`/api/gadgets/${gadgetId}`, { cf_color: 'green' })).body._display.cf_color).toBe('Green');
     // Make the required field optional so later tests can create gadgets freely.
-    await t.api.patch(`/api/admin/custom-fields/${field.cost_centre.id}`, { required: false });
+    await t.api.patch(`/api/admin/custom-fields/${field.cost_center.id}`, { required: false });
   });
 });
 
@@ -606,7 +606,7 @@ describe('tags and watchers', () => {
     secret = (await lead.post('/api/gadgets', { name: 'Tagged restricted gadget', restricted: true })).body.id;
   });
 
-  it('tags any record the caller may edit, normalised, audited and shown on rows', async () => {
+  it('tags any record the caller may edit, normalized, audited and shown on rows', async () => {
     const set = await agent.put('/api/tags', { record_type: 'gadget', record_id: open, tags: [' Urgent ', 'urgent', 'Site  Visit', 'q3,review', ''] });
     expect(set.body.tags).toEqual(['q3 review', 'site visit', 'urgent']);
     expect((await agent.post('/api/tags', { record_type: 'gadget', record_id: open, tag: 'Legacy' })).body.tags).toContain('legacy');
@@ -702,12 +702,12 @@ describe('tags and watchers', () => {
 
 describe('labels by id and per-user preferences', () => {
   it('returns record labels for ids, leaving out what the caller may not see', async () => {
-    const a = (await agent.post('/api/gadgets', { name: 'Labelled gadget' })).body;
-    const b = (await lead.post('/api/gadgets', { name: 'Hidden labelled gadget', restricted: true })).body;
+    const a = (await agent.post('/api/gadgets', { name: 'Labeled gadget' })).body;
+    const b = (await lead.post('/api/gadgets', { name: 'Hidden labeled gadget', restricted: true })).body;
     const v = (await lead.post('/api/vaults', { title: 'A vault' })).body;
     const body = { records: { gadget: [a.id, b.id, 'not-an-id', '00000000-0000-4000-8000-000000000000'], vault: [v.id], nothing: [a.id] } };
     const forAgent = (await agent.post('/api/records/labels', body)).body;
-    expect(forAgent).toEqual({ gadget: { [a.id]: { label: 'Labelled gadget', ref: a.ref, route: '/gadgets' } }, vault: {}, nothing: {} });
+    expect(forAgent).toEqual({ gadget: { [a.id]: { label: 'Labeled gadget', ref: a.ref, route: '/gadgets' } }, vault: {}, nothing: {} });
     const forLead = (await lead.post('/api/records/labels', body)).body;
     expect(Object.keys(forLead.gadget).sort()).toEqual([a.id, b.id].sort());
     expect(forLead.vault[v.id].label).toBe('A vault');

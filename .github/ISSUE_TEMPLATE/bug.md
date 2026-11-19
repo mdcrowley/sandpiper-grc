@@ -8,7 +8,7 @@ labels: ['type:bug']
 <!--
 Security problems do NOT go here: report them privately (see SECURITY.md).
 
-Nothing organisation-specific, please: no real organisation, person, place, law,
+Nothing organization-specific, please: no real organization, person, place, law,
 regulator or vendor names, and no real data. Reproduce with the sample data
 (.\grc.ps1 seed -Profile dev) where you can.
 -->

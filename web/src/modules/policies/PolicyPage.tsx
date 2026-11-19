@@ -1,4 +1,4 @@
-// The policy page: the published text for reading, with versions, acknowledgement tracking,
+// The policy page: the published text for reading, with versions, acknowledgment tracking,
 // mapped outcomes and exceptions behind tabs.
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
@@ -131,7 +131,7 @@ export function PolicyDetail() {
       tabs={[
         { key: 'policy', label: 'Policy', content: (rec) => <Summary rec={rec} versions={versions} /> },
         { key: 'versions', label: 'Versions', count: list.length || undefined, content: () => (versions.data ? <VersionsPanel versions={versions.data} /> : <Card><Loading /></Card>) },
-        { key: 'acknowledgements', label: 'Acknowledgements', content: ({ row }) => (versions.data ? <AckTracking row={row} versions={versions.data} /> : <Card><Loading /></Card>) },
+        { key: 'acknowledgements', label: 'Acknowledgments', content: ({ row }) => (versions.data ? <AckTracking row={row} versions={versions.data} /> : <Card><Loading /></Card>) },
         { key: 'outcomes', label: 'Mapped outcomes', content: ({ row }) => <OutcomesPanel row={row} /> },
         { key: 'exceptions', label: 'Exceptions', content: ({ row }) => <PolicyExceptions row={row} /> },
       ]}

@@ -1,9 +1,9 @@
 // Overview: the landing page. A greeting, the person's own work, then the dashboard widgets
-// their role allows, in the order and selection they chose under Customise.
+// their role allows, in the order and selection they chose under Customize.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button, Icon, cx, modules, useAuth, useFetch, useMeta, useToast } from '../../core';
-import { CustomiseDialog, type CustomiseResult } from './CustomiseDialog';
+import { CustomizeDialog, type CustomizeResult } from './CustomizeDialog';
 import { fetchLayout, loadLayout, resolveOrder, storeLayout } from './layoutStore';
 import { WorkTally } from './parts';
 import { DASHBOARD_PERMISSION, DEFAULT_ORDER, availableWidgets } from './registry';
@@ -41,7 +41,7 @@ export function OverviewPage() {
     if (userId) void fetchLayout(userId).then((saved) => { if (live && saved) setLayout(saved); });
     return () => { live = false; };
   }, [userId]);
-  const [customising, setCustomising] = useState(false);
+  const [customizing, setCustomizing] = useState(false);
 
   useEffect(() => {
     const before = document.title;
@@ -74,7 +74,7 @@ export function OverviewPage() {
   const allCounted = myWork.length > 0 && known.every((n) => typeof n === 'number');
   const waiting = known.reduce<number>((sum, n) => sum + (n ?? 0), 0);
 
-  function save(result: CustomiseResult) {
+  function save(result: CustomizeResult) {
     // Widgets this person cannot have keep their saved place, in case their role changes.
     const queue = [...result.order];
     const order = fullOrder.map((id) => (byId.has(id) ? queue.shift() ?? id : id));
@@ -82,7 +82,7 @@ export function OverviewPage() {
     const next = { order, hidden };
     const isDefault = hidden.length === 0 && order.join('|') === DEFAULT_ORDER.join('|');
     setLayout(next);
-    setCustomising(false);
+    setCustomizing(false);
     void storeLayout(userId, isDefault ? null : next).then((where) => {
       if (where === 'server') toast.success('Overview layout saved.');
       else if (where === 'browser') toast.success('Overview layout saved in this browser only.');
@@ -92,8 +92,8 @@ export function OverviewPage() {
 
   const today = new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date());
   const firstName = user?.displayName.trim().split(/\s+/)[0];
-  const customise = (label: string) => (
-    <Button icon="settings" onClick={() => setCustomising(true)} disabled={available.length === 0}>{label}</Button>
+  const customize = (label: string) => (
+    <Button icon="settings" onClick={() => setCustomizing(true)} disabled={available.length === 0}>{label}</Button>
   );
   const cell = (w: WidgetDef) => (
     <div key={w.id} className={cx('home-cell', w.wide && 'home-cell-wide')} data-widget={w.id}>{w.render()}</div>
@@ -113,7 +113,7 @@ export function OverviewPage() {
             </p>
           </div>
           <div className="home-hero-actions">
-            <p className="home-tagline">Governance, risk and compliance for transit organisations</p>
+            <p className="home-tagline">Governance, risk and compliance for transit organizations</p>
             <div className="home-hero-buttons">
               {myDashboard && (
                 <Link to={myDashboard.to} className="btn btn-primary home-mydash" title={`Open your home dashboard: ${myDashboard.name}`}>
@@ -121,7 +121,7 @@ export function OverviewPage() {
                   <span>Your dashboard: {myDashboard.name}</span>
                 </Link>
               )}
-              {customise('Customise')}
+              {customize('Customize')}
             </div>
           </div>
         </header>
@@ -141,7 +141,7 @@ export function OverviewPage() {
           ) : (
             <p className="notice">
               {ordered.some((w) => w.group === 'mywork')
-                ? 'Every list in My work is switched off. Select Customise to bring one back.'
+                ? 'Every list in My work is switched off. Select Customize to bring one back.'
                 : 'Your role does not include any of the areas that give people work here, so there is nothing to list.'}
             </p>
           )}
@@ -152,26 +152,26 @@ export function OverviewPage() {
           {!dashboards ? (
             <p className="notice" data-overview="no-dashboards">
               Your role does not include dashboards, so this page shows your own work only.
-              Ask an administrator if you need to see the figures for the whole organisation.
+              Ask an administrator if you need to see the figures for the whole organization.
             </p>
           ) : dashboard.length > 0 ? (
             <div className="home-grid">{dashboard.map(cell)}</div>
           ) : (
             <p className="notice">
               {ordered.some((w) => w.group === 'dashboard')
-                ? 'Every dashboard widget is switched off. Select Customise to bring one back.'
+                ? 'Every dashboard widget is switched off. Select Customize to bring one back.'
                 : 'There are no dashboard widgets for the areas your role can see.'}
             </p>
           )}
         </section>
 
-        <CustomiseDialog
-          open={customising}
+        <CustomizeDialog
+          open={customizing}
           widgets={available}
           order={ordered.map((w) => w.id)}
           hidden={layout.hidden.filter((id) => byId.has(id))}
           onSave={save}
-          onClose={() => setCustomising(false)}
+          onClose={() => setCustomizing(false)}
         />
       </div>
     </SourcesProvider>

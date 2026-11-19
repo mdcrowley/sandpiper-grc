@@ -232,7 +232,7 @@ export function Workspace() {
       <Modal open={editing} title="Edit incident details" onClose={() => setEditing(false)} size="lg">
         <ResourceForm type="security_incident" id={row.id} initial={row} fields={DETAIL_FIELDS}
           hints={{
-            discovered_at: 'When the organisation first became aware. Changing it moves every pending notification deadline',
+            discovered_at: 'When the organization first became aware. Changing it moves every pending notification deadline',
             scenario: 'Brings the matching containment and recovery checklists',
           }}
           onCancel={() => setEditing(false)}

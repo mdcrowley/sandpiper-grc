@@ -34,7 +34,7 @@ export const DEFAULT_QUESTIONNAIRE: Questionnaire = {
       options: [
         { value: 'few', label: 'A few people', score: 0 },
         { value: 'team', label: 'One team or site', score: 1 },
-        { value: 'most', label: 'Most of the organisation', score: 2 },
+        { value: 'most', label: 'Most of the organization', score: 2 },
         { value: 'everyone', label: 'Everyone, including customers', score: 3 },
       ],
     },

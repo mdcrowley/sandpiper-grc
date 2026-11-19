@@ -4,7 +4,7 @@
 
 ## Goal
 
-Track where the organisation stands against a cybersecurity framework, outcome by
+Track where the organization stands against a cybersecurity framework, outcome by
 outcome: the current status, the target, the owner, the evidence, and how the picture
 changes from one assessment to the next. NIST CSF 2.0 is included; other frameworks can
 be added as data.
@@ -35,7 +35,7 @@ be added as data.
 | E07-08 | Assessment snapshots | done | P1 |
 | E07-09 | Compare two assessments | done | P2 |
 | E07-10 | Progress over time against a target status | done | P2 |
-| E07-11 | Load an organisation's designations and target profile | done | P2 |
+| E07-11 | Load an organization's designations and target profile | done | P2 |
 | E07-12 | Attach evidence files to outcomes | done | P2 |
 | E07-13 | Screen for editing a framework's structure | done | P3 |
 | E07-14 | Add another framework from a reference file | done | P3 |
@@ -198,7 +198,7 @@ stayed the same.
 **Status:** done · **Priority:** P2 · **Type:** feature
 
 As a security lead, a chart shows the score at each snapshot and now, for priority
-outcomes and for all outcomes, against the status the organisation is aiming for.
+outcomes and for all outcomes, against the status the organization is aiming for.
 
 **Acceptance criteria**
 
@@ -208,11 +208,11 @@ outcomes and for all outcomes, against the status the organisation is aiming for
 
 **Implemented in:** `GET /api/frameworks/:id/progress` (`server/src/modules/frameworks/index.ts`); `web/src/modules/frameworks/ProgressChart.tsx`
 
-### E07-11 Load an organisation's designations and target profile
+### E07-11 Load an organization's designations and target profile
 
 **Status:** done · **Priority:** P2 · **Type:** feature
 
-As the person setting up an installation, I load which outcomes my organisation has
+As the person setting up an installation, I load which outcomes my organization has
 designated as priorities, with their targets and first actions, from private files.
 
 **Acceptance criteria**
@@ -246,7 +246,7 @@ is met, alongside the written evidence notes.
 
 **Status:** done · **Priority:** P3 · **Type:** feature
 
-As a security lead, I add, rename, recolour, reorder and remove functions and categories
+As a security lead, I add, rename, recolor, reorder and remove functions and categories
 on a screen.
 
 **Acceptance criteria**
@@ -284,7 +284,7 @@ included one, without a code change.
 - [x] Keyboard navigation between tiles (arrows, Home, End, Enter; S opens the status menu)
 - [x] Quick status change from a tile for people with Edit
 - [x] Priority focus counts only priority outcomes in the bands and summary
-- [x] Smooth with the full 106-outcome framework (memoised tiles, no per-tile requests)
+- [x] Smooth with the full 106-outcome framework (memoized tiles, no per-tile requests)
 - [x] Print layout (More > Print this board)
 
 **Implemented in:** `web/src/modules/frameworks/Board.tsx`, `BoardView.tsx`, `StatusBar.tsx`, `boardState.ts`, `frameworks.css`
@@ -304,7 +304,7 @@ included one, without a code change.
 
 - [x] Adding, changing or removing a mapping rewrites the outcome's "also satisfies" text
 - [x] Changing the text through the API adds and removes mapping rows to match; audited
-- [x] Names containing numbers are no longer split: an explicit colon, the configurable `mapping_framework` list and names already used are recognised before the general rule (E18-09)
+- [x] Names containing numbers are no longer split: an explicit colon, the configurable `mapping_framework` list and names already used are recognized before the general rule (E18-09)
 
 **Implemented in:** `server/src/modules/frameworks/mappings.ts`, hooks in `index.ts`, `seed.ts`; tests in `extras.test.ts`
 

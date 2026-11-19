@@ -624,7 +624,7 @@ export function makeService(ctx: ModuleContext) {
   async function rollbackStage(req: Req, project: Row, body: Row) {
     const reason = String(body.reason ?? '').trim();
     if (!reason) ctx.fail(400, 'validation', 'Check the highlighted fields.', { reason: 'Say why the project is moving back.' });
-    if (project.status === 'cancelled') ctx.fail(409, 'project_cancelled', 'A cancelled project cannot be moved between stages.');
+    if (project.status === 'cancelled') ctx.fail(409, 'project_cancelled', 'A canceled project cannot be moved between stages.');
     const gate = await db.one<Row>(
       `select * from project_gates where project_id = $1 and to_stage = $2 and status = 'approved' order by sort desc limit 1`,
       [project.id, project.stage]);

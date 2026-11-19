@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { EmptyState, Icon, MultiSelect, NumberField, Select, TextField, cx, useFetch } from '../../core';
 import type { FieldType } from '../../core';
 import { chartFit } from './charts';
-import type { CatalogueField, CatalogueType, ChartKind, ChartSpec, ReportResult, Sharing } from './types';
+import type { CatalogField, CatalogType, ChartKind, ChartSpec, ReportResult, Sharing } from './types';
 
 // ---------- undo ----------
 
@@ -33,7 +33,7 @@ export function useUndo<T>(initial: T) {
 
 // ---------- record type ----------
 
-export function TypePicker({ types, onPick, current }: { types: CatalogueType[]; onPick: (t: CatalogueType) => void; current?: string }) {
+export function TypePicker({ types, onPick, current }: { types: CatalogType[]; onPick: (t: CatalogType) => void; current?: string }) {
   const [q, setQ] = useState('');
   const shown = types.filter((t) => `${t.plural} ${t.description}`.toLowerCase().includes(q.trim().toLowerCase()));
   return (
@@ -65,14 +65,14 @@ const TYPE_WORD: Record<FieldType, string> = {
 };
 
 export function FieldList({ type, chosen, onToggle, onFilter, verb }: {
-  type: CatalogueType; chosen: string[]; onToggle: (f: CatalogueField) => void; onFilter: (f: CatalogueField) => void; verb: string;
+  type: CatalogType; chosen: string[]; onToggle: (f: CatalogField) => void; onFilter: (f: CatalogField) => void; verb: string;
 }) {
   const [q, setQ] = useState('');
   const groups = useMemo(() => {
     const match = type.fields.filter((f) => f.label.toLowerCase().includes(q.trim().toLowerCase()));
-    const out = new Map<string, CatalogueField[]>();
+    const out = new Map<string, CatalogField[]>();
     for (const f of match) {
-      const k = f.via ? `From ${f.via.toLowerCase()}` : f.custom ? 'Added by your organisation' : type.label;
+      const k = f.via ? `From ${f.via.toLowerCase()}` : f.custom ? 'Added by your organization' : type.label;
       out.set(k, [...(out.get(k) ?? []), f]);
     }
     return [...out];

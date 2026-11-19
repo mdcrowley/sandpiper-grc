@@ -1,4 +1,4 @@
-# Web core: component catalogue
+# Web core: component catalog
 
 Everything is exported from one place:
 
@@ -29,7 +29,7 @@ the tokens and how to re-brand.
 8. [Other components](#8-other-components)
 9. [Form controls](#9-form-controls)
 10. [Formatting](#10-formatting)
-11. [Colour names, icon names, CSS helpers](#11-colour-names-icon-names-css-helpers)
+11. [Color names, icon names, CSS helpers](#11-color-names-icon-names-css-helpers)
 12. [Custom fields, tags, watching, preferences, labels](#12-custom-fields-tags-watching-preferences-labels)
 
 ## 1. Writing a module
@@ -145,16 +145,16 @@ to know what happens to `nav` and `create`:
   has no hard dependency on that module and shows no bell when it is absent.
 - **Second factor required.** When `/api/auth/state` reports `mfaEnrollmentBlocked` (setting
   `auth.mfa_enforcement` = `required` and the user has no factor), the shell is not drawn at all:
-  `EnrolmentGate.tsx` shows only the `/account/security` page with a Sign out button, and no
-  metadata is requested. That page must call `useAuth().refresh()` after enrolment.
+  `EnrollmentGate.tsx` shows only the `/account/security` page with a Sign out button, and no
+  metadata is requested. That page must call `useAuth().refresh()` after enrollment.
 - **Keyboard.** `?` opens the list of shortcuts (`Shortcuts.tsx`; add a line there when a core
   component gains one); `g` then `o`, `n` or `h` goes to the overview, notifications or Help for
   the current page. Single keys are ignored while typing and while a dialog is open.
 - **Content.** Routes render inside `<main id="main" class="content">`, which is the page's
   one scrolling region (so `position: sticky; top: 0` inside a page sticks under the top bar)
-  and centres its children at up to 1400px. Design for a content width of about 700px upwards:
+  and centers its children at up to 1400px. Design for a content width of about 700px upwards:
   at 820px wide the rail is showing.
-- **Print.** Paper is always white: the light colours are used whatever the theme on screen.
+- **Print.** Paper is always white: the light colors are used whatever the theme on screen.
   The sidebar, top bar, toasts, `PageHeader` and card actions, list toolbars, paging, row
   checkboxes, comment composers and form buttons are left out. Lists print every column with
   wrapped text and the header row repeated on each sheet (they print the page on screen: raise
@@ -210,7 +210,7 @@ const { user, appName, features, pilot, mfaEnrollmentRequired, mfaEnrollmentBloc
 if (can('tickets.edit')) { /* ... */ }
 ```
 
-`user` is `{ id, username, displayName, email, roles } | null`. `can(perm)` honours wildcard
+`user` is `{ id, username, displayName, email, roles } | null`. `can(perm)` honors wildcard
 grants (`*`, `tickets.*`) and returns true for `undefined`. `features` is the feature-switch
 map. `mfaEnrollmentRequired` is true when the user's role needs a second factor that is not set
 up yet (the shell then shows a notice linking to `/account/security`); `mfaGraceEndsAt` is the
@@ -240,7 +240,8 @@ recordHref('/tickets', id);            // "/tickets/<id>"
 
 A complete list screen for a record type, built on Mantine: search, a Filters popover with
 removable pills, server-side sort and paging (with a page-size choice), saved views, a column
-chooser, row density, CSV export, row selection with bulk edit, a New dialog, and
+chooser, row density, export (CSV, Excel or PDF), import from CSV or Excel, row selection
+with bulk edit, a New dialog, and
 loading (skeleton), empty and error states. The table scrolls inside its own frame with a
 sticky header, so the page never scrolls sideways. Rows are keyboard operable: Tab to the
 table, arrow keys (and Home/End) to move, Enter to open, Space to select.
@@ -262,7 +263,7 @@ table, arrow keys (and Home/End) to move, Enter to open, Space to select.
 | Prop | Type | Notes |
 |---|---|---|
 | `type` | `string` | Record type key (required) |
-| `columns` | `(string \| { field, label?, render?, sortable?, align?, hidden? })[]` | A string is a field name, rendered by type: lookup as chip, user/ref from `_display` (ref links to the target record), date `18 Nov 2026`, datetime `18 Nov 2026, 14:05` (organisation time zone), boolean Yes/No, currency in the organisation's currency. `created_at` and `updated_at` work too. The title and reference columns link to the detail page. Long text is cut to one line with the full text as a tooltip; numbers are right-aligned (`align` overrides). `render(row)` replaces the cell; render-only columns are not sortable unless `sortable: true` and `field` is a real column. `hidden: true` starts the column switched off in the column chooser |
+| `columns` | `(string \| { field, label?, render?, sortable?, align?, hidden? })[]` | A string is a field name, rendered by type: lookup as chip, user/ref from `_display` (ref links to the target record), date `18 Nov 2026`, datetime `18 Nov 2026, 14:05` (organization time zone), boolean Yes/No, currency in the organization's currency. `created_at` and `updated_at` work too. The title and reference columns link to the detail page. Long text is cut to one line with the full text as a tooltip; numbers are right-aligned (`align` overrides). `render(row)` replaces the cell; render-only columns are not sortable unless `sortable: true` and `field` is a real column. `hidden: true` starts the column switched off in the column chooser |
 | `filters` | `string[]` | Fields offered in the Filters popover. lookup: chips (any of); boolean: any/yes/no; user and ref: pickers (user fields also offer "Me"); date and datetime: after/before. Other types are ignored (the search box covers text). Active filters show as removable pills under the toolbar |
 | `baseFilter` | `Record<string, string>` | Always applied, not shown. Keys as in `listQuery` filters: `{ project_id: id }`, `{ 'due_at.lt': '2026-12-01' }`, `{ status: 'open,pending' }` |
 | `title` | `string` | Renders a `PageHeader`. Leave out when embedding the list in a tab or card (New and `actions` then sit in the toolbar) |
@@ -287,8 +288,21 @@ and `f.*` once when it mounts and then keeps its state to itself.
 (`grc.views.<type>`); "All <plural>" is built in. **Column choice, density and page size** are
 kept in `localStorage` per user (`grc.u.<userId>.*`).
 
-**Export.** The Export button (needs `<module>.export`) downloads every row that matches the
-current search and filters from the server (`format=csv`), not just the page on screen.
+**Export.** The Export menu (`ExportMenu`, needs `<module>.export`) offers Excel, CSV and
+PDF. Each downloads from the server every row that matches the current search, filters and
+sort, not just the page on screen, with the columns on screen in their order
+(`format=xlsx|csv|pdf&columns=a,b`). The server applies the same permissions and
+restricted-record rule to every format and audits each export. To put the menu on a
+hand-built list: `<ExportMenu resource={resource} query={query} columns={['ref', 'title']} filtered={false} />`.
+
+**Import.** A list that is the page (`title` given, or the record type's own `route`)
+shows an Import button to people who may create or edit the record type (and, for a wholly
+restricted type, have `security.view`). It opens the import wizard (`core/ImportWizard.tsx`,
+loaded only when first opened): choose a CSV or Excel file (and a sheet), match its columns
+to fields, choose whether to create, update or both, check every row in a dry run that
+writes nothing, map values that matched nothing, then import. The server does the work
+(`core/import`). `?import=1` in the address opens
+it too, as `?new=1` opens the New dialog.
 
 **Selection and bulk actions.** Users with `<module>.edit` get a checkbox column when there is
 at least one bulk field. The header checkbox selects the page; a selection is kept while
@@ -321,7 +335,7 @@ filters: the last result stays visible (with `loading` true) while a different U
 | Prop | Type | Notes |
 |---|---|---|
 | `type` | `string` | Record type key |
-| `fields` | `string[]` | Field names in order. Control by type: text, longtext (a text area that grows), number, currency (organisation currency code, two decimals), date, datetime (organisation time zone), boolean (checkbox), lookup (select with colour dots), user and ref (search pickers), json (text area, validated). `readOnly` fields are shown disabled and never sent |
+| `fields` | `string[]` | Field names in order. Control by type: text, longtext (a text area that grows), number, currency (organization currency code, two decimals), date, datetime (organization time zone), boolean (checkbox), lookup (select with color dots), user and ref (search pickers), json (text area, validated). `readOnly` fields are shown disabled and never sent |
 | `initial` | `Record<string, unknown>` | Starting values. Pass the whole row when editing so pickers show `_display` labels. On create, keys **not** in `fields` are sent as hidden values (e.g. a parent id) |
 | `id` | `string` | Edit mode: only changed fields are PATCHed |
 | `onSaved` | `(row: Row) => void` | Receives the server's row |
@@ -369,7 +383,11 @@ function ChangeDetail() {
 `RecordPage` loads the record (id from the `:id` route parameter unless `id` is given), shows
 loading, not-found/no-access and error states, then: breadcrumbs, header (reference + title +
 status chip + actions), `banner`, summary, tabs. The active tab is kept in `?tab=`, and the
-Activity and Related tabs show a count (comments, linked records).
+Activity and Related tabs show a count (comments, linked records). Every record page's
+header also carries a **PDF** button (`RecordPdfButton`, shown only with
+`<module>.export`) that downloads the record's fact sheet (its fields, tags and recent
+history); put `<RecordPdfButton resource={resource} id={id} label={reference} />` among the
+header buttons of a hand-built record page.
 
 | Prop | Type | Notes |
 |---|---|---|
@@ -451,7 +469,7 @@ const option = useMemo(() => ({
 
 | Prop | Type | Notes |
 |---|---|---|
-| `option` | `ChartOption` (ECharts option) | **Memoise it** (`useMemo`): a new object redraws the chart |
+| `option` | `ChartOption` (ECharts option) | **Memoize it** (`useMemo`): a new object redraws the chart |
 | `label` | `string` | Required name of the chart for screen readers |
 | `height` | `number` | Pixels, default 280. Width follows the container and resizes |
 | `onSegmentClick` | `(seg: { name, value, seriesName?, dataIndex, data }) => void` | Click on a bar, slice, point, cell or node |
@@ -460,9 +478,9 @@ const option = useMemo(() => ({
 | `empty` | `boolean` | Forces the empty state on or off. Default: worked out from the option (every series has no data, or a pie is all zeros) |
 | `description` | `string` | A longer description read out after the label (what the chart shows, the main finding) |
 
-- The chart follows the light/dark theme: fonts, text, axes, grid, tooltip and the eight-colour
-  series palette come from the design tokens and the Mantine theme. Do not set those colours
-  yourself. The series palette is used in its fixed order and has been checked for colour-vision
+- The chart follows the light/dark theme: fonts, text, axes, grid, tooltip and the eight-color
+  series palette come from the design tokens and the Mantine theme. Do not set those colors
+  yourself. The series palette is used in its fixed order and has been checked for color-vision
   deficiency separation in both themes; with more than eight series, group the rest as "Other".
 - States are built in: a bar skeleton while the chart code or your data loads, and one empty
   state ("No data to show yet") whenever there is nothing to draw.
@@ -473,16 +491,16 @@ const option = useMemo(() => ({
   `tooltip: { trigger: 'axis' }`.
 - A legend (`legend: {}`) is placed above the plot and the default margins make room for it.
   Give `legend.top` or `legend.bottom` to place it yourself.
-- For status/priority colours use `chartColor('red')` (any colour name from section 11), or
+- For status/priority colors use `chartColor('red')` (any color name from section 11), or
   `statsToData(groups)` which turns a stats response into `{ name, value, key, itemStyle }[]`
-  using each group's configured colour. Any `var(--token)` string inside the option is resolved
+  using each group's configured color. Any `var(--token)` string inside the option is resolved
   for the current theme.
 - The ECharts code loads on first use (a skeleton shows meanwhile). The default plot margins
   are `grid: { top: 24, right: 16, bottom: 32, left: 48 }`; pass your own `grid` to change them
   (e.g. more `left` for long category names on a horizontal bar chart).
 - Mark defaults: bars at most 24px thick with rounded top corners (for horizontal bars set
   `itemStyle: { borderRadius: [0, 4, 4, 0] }` on the series), 2px lines with 8px round
-  markers, and a 2px gap in the surface colour between pie slices and heatmap cells.
+  markers, and a 2px gap in the surface color between pie slices and heatmap cells.
 - One y-axis per chart. For two or more series add `legend: {}`. Wrap charts in a `Card` and
   give the page a table or list alternative where the numbers matter.
 
@@ -514,13 +532,13 @@ const option = useMemo(() => ({
 | `start` | `string \| Date \| null` | With it, amber starts when under a quarter of the window is left |
 | `warnMs` | `number` | Amber threshold in ms when there is no `start` (default 24 hours) |
 | `completedAt` | `string \| Date \| null` | Stops the clock: "Met" (green) or "Missed by ..." (red) |
-| `paused` | `boolean` | Shows "Paused" (grey) |
+| `paused` | `boolean` | Shows "Paused" (gray) |
 | `label` | `string` | Text before the time |
 
 Green "2d 4h left", amber when close, red "Overdue by 3h 12m". It ticks by itself.
 
 `Stepper` is an ordered list of stages (not Mantine's `Stepper`, which has no blocked state or
-per-step override): done steps show a tick, the current one the brand colour with a halo, a
+per-step override): done steps show a check mark, the current one the brand color with a halo, a
 blocked one a cross in red. It scrolls sideways inside its own box when the stages do not fit,
 wherever it is placed (it is its own positioned, shrinkable box: no wrapper or `position` rule
 is needed around it).
@@ -537,14 +555,14 @@ is needed around it).
 | `Button` | `variant?: 'primary' \| 'secondary' \| 'ghost' \| 'danger'`, `size?: 'sm' \| 'md'`, `icon?`, `loading?`, plus `<button>` attributes | A Mantine `Button`. Default `secondary`, `type="button"`. `loading` shows a spinner and blocks clicks. For a link that looks like a button use the classes: `<Link className="btn btn-primary">` |
 | `IconButton` | `icon`, `label` (required accessible name), `variant?`, `size?` | The label is also shown as a tooltip |
 | `Icon` | `name`, `size?` (18), `label?` | Decorative unless `label` is given |
-| `Badge` | `color?`, `children` | Plain coloured chip |
+| `Badge` | `color?`, `children` | Plain colored chip |
 | `StatusChip` | `color?`, `label` | Chip with a dot; use for status and priority |
-| `LookupChip` | `list`, `value` | Label and colour from the lookup list |
+| `LookupChip` | `list`, `value` | Label and color from the lookup list |
 | `Card` | `title?`, `actions?`, `flush?`, `className?`, `children` | `flush` removes body padding; a `table-wrap` directly inside a flush card loses its own border |
 | `Stat` | `label`, `value`, `trend?: { direction: 'up' \| 'down' \| 'flat', label, tone?: 'good' \| 'bad' \| 'neutral' }`, `color?`, `to?`, `icon?`, `hint?` | Number tile; `to` makes it a drill-down link, `icon` sits beside the label, `hint` is a short line under the value. Lay several out with `<div className="grid-stats">` |
 | `Tabs` | `tabs: { key, label, count?, content? }[]`, `active?`, `onChange?`, `label?` | Mantine `Tabs`: arrow keys, Home and End move between tabs. Uncontrolled unless `active` is passed; only the active panel is mounted |
 | `Modal` (alias `Dialog`) | `open`, `title`, `onClose`, `footer?`, `size?: 'sm' \| 'md' \| 'lg'`, `children` | Mantine `Modal`: focus trap, Esc and backdrop close, focus returns to the opener. Focus starts in the first form control. With several open, Esc closes only the top one, and never while a dropdown inside it is open. `footer` stays visible while the body scrolls |
-| `Drawer` | as `Modal`, plus `side?: 'left' \| 'right'` | Side panel (Mantine `Drawer`), same behaviour |
+| `Drawer` | as `Modal`, plus `side?: 'left' \| 'right'` | Side panel (Mantine `Drawer`), same behavior |
 | `ConfirmDialog` | `open`, `title`, `message`, `confirmLabel?`, `danger?`, `busy?`, `onConfirm`, `onCancel` | Focus starts on Cancel when `danger`, otherwise on the confirm button |
 | `Menu` | `label`, `items: { label, icon?, onSelect?, to?, danger?, disabled?, separated? }[]`, `icon?`, `iconOnly?`, `variant?`, `size?`, `align?: 'start' \| 'end'` | Button with a dropdown menu (Mantine `Menu`): arrow keys, Esc, type-ahead. Items with `to` are real links |
 | `useToast()` | returns `{ success(msg), error(msg), info(msg) }` | Mantine notifications at the bottom right; errors stay 9 seconds, others 5. Works anywhere inside the app, e.g. `toast.error(errorMessage(err))` |
@@ -554,12 +572,16 @@ is needed around it).
 | `PageHeader` | `title`, `reference?`, `subtitle?`, `status?`, `actions?`, `breadcrumbs?: { label, to? }[]` | Renders the page `<h1>` and sets the tab title. One per page (`ResourceList` with `title` and `RecordPage` already render it) |
 | `DefinitionList` | `items: { label, value, wide? }[]` | Label/value grid |
 | `KeyValue` (alias `FactSheet`) | `items: { label, value, icon?, hint?, wide? }[]`, `layout?: 'rows' \| 'columns'`, `compact?`, `title?` | A fact sheet. `rows` (default) puts one fact per line with the label at the left and a rule between lines, for cards and side panels; `columns` is a responsive grid with the label above. Empty values show a dash |
-| `Timeline` | `items: { key, title, time?, timeText?, meta?, icon?, color?, body? }[]`, `label?`, `compact?`, `empty?` | Events down a line, each with a coloured marker (an icon, or a dot). `time` shows as relative time with the exact time on hover. Pass the items already sorted. For a record's comments and changes use `ActivityPanel` instead |
-| `AgendaList` | `items: { key, date, title, to?, reference?, timeText?, meta?, color? }[]`, `label?`, `empty?`, `limit?`, `moreTo?` | Dated items grouped under a heading per day, each with a coloured bar: upcoming changes, renewals, exercises. Sort by date first; `limit` cuts the list and adds "and N more" |
+| `Timeline` | `items: { key, title, time?, timeText?, meta?, icon?, color?, body? }[]`, `label?`, `compact?`, `empty?` | Events down a line, each with a colored marker (an icon, or a dot). `time` shows as relative time with the exact time on hover. Pass the items already sorted. For a record's comments and changes use `ActivityPanel` instead |
+| `AgendaList` | `items: { key, date, title, to?, reference?, timeText?, meta?, color? }[]`, `label?`, `empty?`, `limit?`, `moreTo?` | Dated items grouped under a heading per day, each with a colored bar: upcoming changes, renewals, exercises. Sort by date first; `limit` cuts the list and adds "and N more" |
 | `RouteLoading` | `bare?` | The loading state the shell shows while a page's code is fetched; use it as the `Suspense` fallback for a lazy page of your own |
 | `NotFound`, `Forbidden` | none | Full-page states with their own heading and links to the overview and Help |
 | `ChangePasswordDialog` | `open`, `onClose` | Password boxes have a show/hide button and a length meter |
-| `useTheme()` | returns `{ theme: 'light' \| 'dark', toggle }` | Also `setTheme(theme)` and `cssVar('--text')`. Mantine's colour scheme follows it |
+| `useTheme()` | returns `{ theme: 'light' \| 'dark', toggle }` | Also `setTheme(theme)` and `cssVar('--text')`. Mantine's color scheme follows it |
+| `ExportMenu` | `resource`, `query`, `columns`, `filtered` | The Export menu of a list (Excel, CSV, PDF); see [ResourceList](#3-resourcelist) |
+| `RecordPdfButton` | `resource`, `id`, `label?` | Downloads one record's PDF fact sheet; renders nothing without `<module>.export` |
+| `useScrollFocus<T>()` | returns a ref callback | Makes a box with `overflow: auto` a Tab stop only while its content overflows, so a keyboard user can scroll it (WCAG 2.1.1): `const ref = useScrollFocus<HTMLDivElement>(); <div ref={ref}>` |
+| `BreakGlassBanner` | none | Not exported: the shell (`Shell.tsx`) places it with its other notices above the page. It shows a warning for the whole session when someone signs in with the break-glass account, and nothing otherwise |
 | `useDebounced(value, ms?)`, `useMediaQuery(query)`, `cx(...classes)` | | Small helpers |
 
 ```tsx
@@ -590,11 +612,11 @@ control), `hideLabel?` (the label becomes the accessible name only), `className?
 | `TextField` | `string` | `type?` (`text`, `email`, `password`, `url`, `search`, `tel`), `placeholder?`, `autoComplete?`, `autoFocus?`, `maxLength?`, `inputMode?`, `leftSection?`, `rightSection?` |
 | `TextArea` | `string` | `rows?` (4, the starting height: the box grows with its content), `maxRows?` (16), `placeholder?` |
 | `Select` | `string` (`''` = none) | `options: { value, label, color? }[]`, `placeholder?`, `searchable?` (default: on above eight options). Can be cleared unless `required`. Option values must be unique; an option with value `''` is used as the placeholder |
-| `LookupSelect` | `string` | `list` (lookup list name). Shows each value's colour dot |
-| `MultiSelect` | `string[]` | `label`, `options`, `disabled?`, `size?` (compact button with a dropdown of tick boxes, for toolbars; no `error`/`hint`) |
+| `LookupSelect` | `string` | `list` (lookup list name). Shows each value's color dot |
+| `MultiSelect` | `string[]` | `label`, `options`, `disabled?`, `size?` (compact button with a dropdown of checkboxes, for toolbars; no `error`/`hint`) |
 | `Checkbox`, `Switch` | `checked: boolean`, `onChange(checked)` | `label`, `hint?`, `error?`, `disabled?`. `Switch` is the same contract drawn as an on/off switch, for settings that apply at once |
 | `DateField` | `'YYYY-MM-DD'` or `''` | `min?`, `max?`, `placeholder?`. Calendar, or type `18 Nov 2026`, `18/11/2026` or `2026-11-18` |
-| `DateTimeField` | ISO instant or `''` | `placeholder?`. Edited as wall-clock time in the organisation's time zone (named in the hint); the browser's own zone plays no part |
+| `DateTimeField` | ISO instant or `''` | `placeholder?`. Edited as wall-clock time in the organization's time zone (named in the hint); the browser's own zone plays no part |
 | `NumberField` | `number \| null` | `min?`, `max?`, `step?`, `prefix?` (shown inside the control, e.g. `currency()`), `thousands?` (group digits), `decimals?`, `placeholder?` |
 | `UserPicker` | `string \| null` (user id) | `display?` (label of the current value, e.g. `row._display?.owner_id`), `placeholder?`; `onChange(id, option?)` |
 | `RecordPicker` | `string \| null` (record id) | `type` (record type key), `display?`, `placeholder?`; `onChange(id, option?)` |
@@ -611,14 +633,14 @@ cross clears. Record options show reference and title.
 Dropdowns and calendars work inside `Modal` and `Drawer`. If you put controls inside a Mantine
 `Popover` of your own, wrap the content in `<InlinePopups>` so that choosing from a dropdown
 does not count as a click outside the popover. `ColorDot` (`color`) is the dot used for lookup
-colours.
+colors.
 
 Lay hand-built forms out with `<form className="form">`, `<div className="form-grid">` (two
 columns, one on narrow screens; `form-cell-wide` spans both) and `<div className="form-actions">`.
 
 ## 10. Formatting
 
-All in the organisation's time zone (`timeZone()`, set by the server's `GRC_TIMEZONE`); empty values give "—".
+All in the organization's time zone (`timeZone()`, set by the server's `GRC_TIMEZONE`); empty values give "—".
 
 | Function | Example |
 |---|---|
@@ -630,7 +652,7 @@ All in the organisation's time zone (`timeZone()`, set by the server's `GRC_TIME
 | `formatNumber(v)` | `1,234.5` |
 | `humanize('review_date')` | `Review date` |
 
-## 11. Colour names, icon names, CSS helpers
+## 11. Color names, icon names, CSS helpers
 
 ### Theme and tokens
 
@@ -638,8 +660,8 @@ Three files decide how everything looks:
 
 | File | Holds |
 |---|---|
-| `tokens.css` | The design tokens (CSS variables) for the light theme and, under `:root[data-theme="dark"]`, the dark theme. The single source of colour |
-| `mantine.tsx` | The Mantine theme: brand and neutral colour scales, type, radius, spacing, shadows and component defaults (sizes, radius, focus ring), set once. Its CSS-variable resolver points Mantine's own variables (`--mantine-color-body`, `-text`, `-default-border`, `-dimmed`, `-anchor`, `-error`, the primary colour and the light variants of the eight named colours) at the tokens, so a Mantine component and hand-written CSS cannot disagree in either theme |
+| `tokens.css` | The design tokens (CSS variables) for the light theme and, under `:root[data-theme="dark"]`, the dark theme. The single source of color |
+| `mantine.tsx` | The Mantine theme: brand and neutral color scales, type, radius, spacing, shadows and component defaults (sizes, radius, focus ring), set once. Its CSS-variable resolver points Mantine's own variables (`--mantine-color-body`, `-text`, `-default-border`, `-dimmed`, `-anchor`, `-error`, the primary color and the light variants of the eight named colors) at the tokens, so a Mantine component and hand-written CSS cannot disagree in either theme |
 | `base.css`, `shell.css` | The helper classes and core component classes; the shell, command palette, sign-in pages and print rules |
 
 `theme.ts` switches the theme: it sets `data-theme` (tokens) and `data-mantine-color-scheme`
@@ -676,9 +698,9 @@ glow. Animations and transitions are switched off under `prefers-reduced-motion`
 
 **Checking contrast.** `node tools/contrast.mjs` reads `tokens.css` and works out the WCAG 2.1
 contrast ratio of every token pair in both themes (text on each surface, chip text on chip
-background, navigation text, and 3:1 for borders, focus rings, solid colours and chart series).
+background, navigation text, and 3:1 for borders, focus rings, solid colors and chart series).
 It lists the pairs under AA and exits 1 if there are any (`--fails` shows only those, `--json`
-for a machine). Run it after changing a colour; at the time of writing every pair passes.
+for a machine). Run it after changing a color; at the time of writing every pair passes.
 
 ### Re-branding
 
@@ -688,17 +710,17 @@ for a machine). Run it after changing a colour; at the time of writing every pai
 2. In `mantine.tsx` change the ten-step `brand` scale to match (index 7 is the light theme's
    `--brand`, index 4 the dark theme's).
 3. Replace the mark in `Logo.tsx` and the same drawing in `web/public/favicon.svg`. The
-   application's name comes from the organisation profile (`appName`), not from code.
+   application's name comes from the organization profile (`appName`), not from code.
 
-### Colours
+### Colors
 
 `ColorName`, `COLOR_NAMES`: the one scale for every status and priority chip; lookup values
 carry one of these in `color`:
 
 `gray`, `blue`, `teal`, `green`, `amber`, `orange`, `red`, `purple`
 
-Tokens per colour: `--c-<name>-bg`, `--c-<name>-fg` (chip background and text) and
-`--c-<name>-solid` (bars, charts, accents). All eight are also Mantine colours, so a Mantine
+Tokens per color: `--c-<name>-bg`, `--c-<name>-fg` (chip background and text) and
+`--c-<name>-solid` (bars, charts, accents). All eight are also Mantine colors, so a Mantine
 `<Badge color="amber" variant="light">` uses the same pair.
 
 ### Icons
@@ -720,11 +742,11 @@ line to the map. Names (`IconName`, `ICON_NAMES`):
 
 | Class | Use |
 |---|---|
-| `stack`, `row` | Vertical flow with gaps; horizontal, wrapping, centred |
+| `stack`, `row` | Vertical flow with gaps; horizontal, wrapping, centered |
 | `grid-stats`, `grid-2` | Responsive tiles for `Stat`; two columns, one when narrow |
 | `muted`, `num`, `ref`, `truncate`, `prose`, `sr-only` | Muted text; right-aligned tabular numbers; record reference; one-line ellipsis; keeps line breaks; screen-reader only |
 | `table` inside `<div className="table-wrap">` | Data table with a scrolling, bordered wrapper |
-| `chip chip-<colour>` | The chip that `Badge` and `StatusChip` render |
+| `chip chip-<color>` | The chip that `Badge` and `StatusChip` render |
 | `card`, `card-head`, `card-title`, `card-body` | The markup `Card` renders, for hand-built cards |
 | `btn` with `btn-primary`, `btn-secondary`, `btn-ghost` or `btn-danger` (and `btn-sm`) | Button look for links and other non-button elements |
 | `notice` (and `notice-warn`, `notice-pilot`, `notice-success`) | A short message box inside a page: blue information by default, or red, amber, green |
@@ -733,7 +755,7 @@ line to the map. Names (`IconName`, `ICON_NAMES`):
 | `no-print`, `print-only` | Left off paper; shown on paper only |
 | `ui-timeline`, `facts` (`facts-rows`, `facts-columns`), `agenda` | The markup `Timeline`, `KeyValue` and `AgendaList` render |
 | `route-loading` | Present while a page's code is loading (useful to wait on in browser scripts) |
-| `auth-page`, `auth-card`, `auth-brand`, `auth-title` | Centred card for pages outside the shell |
+| `auth-page`, `auth-card`, `auth-brand`, `auth-title` | Centered card for pages outside the shell |
 
 ## 12. Custom fields, tags, watching, preferences, labels
 

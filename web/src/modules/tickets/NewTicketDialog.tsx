@@ -1,5 +1,5 @@
 // New ticket dialog: IT staff log a ticket on a colleague's behalf. Built to be fast: sensible
-// defaults, catalogue shortcuts, likely duplicates and articles while the title is typed, and
+// defaults, catalog shortcuts, likely duplicates and articles while the title is typed, and
 // the priority and due times that impact and urgency will give, shown before anything is saved.
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { SegmentedControl } from '@mantine/core';
@@ -15,7 +15,7 @@ export interface NewTicketDialogProps {
   onClose: () => void;
   /** `another` is true when the agent chose to log another straight away: the dialog stays open. */
   onCreated: (row: Row, another: boolean) => void;
-  /** Starting values, for example `{ catalog_item_id }` from the catalogue or a parent ticket. */
+  /** Starting values, for example `{ catalog_item_id }` from the catalog or a parent ticket. */
   initial?: Record<string, unknown>;
   title?: string;
 }
@@ -40,7 +40,7 @@ export function NewTicketDialog({ open, onClose, onCreated, initial, title = 'Ne
   const another = useRef(false);
 
   const matrix = useFetch<PriorityMatrix>(open ? '/api/tickets/priority-matrix' : null);
-  const catalogue = useFetch<ListResult>(open ? '/api/catalog-items?f.active=true&sort=name&pageSize=100' : null);
+  const catalog = useFetch<ListResult>(open ? '/api/catalog-items?f.active=true&sort=name&pageSize=100' : null);
   const computed = priorityFor(matrix.data, String(v.impact ?? ''), String(v.urgency ?? ''));
   const priority = override ? v.priority : computed;
   const preview = useFetch<Preview>(open && priority ? `/api/tickets/sla/preview?priority=${encodeURIComponent(priority)}` : null);
@@ -134,10 +134,10 @@ export function NewTicketDialog({ open, onClose, onCreated, initial, title = 'Ne
       <form className="form sd-new" onSubmit={submit} onKeyDown={onKeyDown} noValidate>
         {formError && <p className="notice notice-warn" role="alert">{formError}</p>}
 
-        {(catalogue.data?.rows.length ?? 0) > 0 && (
-          <div className="sd-shortcuts" role="group" aria-label="Start from the catalogue">
-            <span className="muted">Start from the catalogue:</span>
-            {catalogue.data!.rows.map((c) => (
+        {(catalog.data?.rows.length ?? 0) > 0 && (
+          <div className="sd-shortcuts" role="group" aria-label="Start from the catalog">
+            <span className="muted">Start from the catalog:</span>
+            {catalog.data!.rows.map((c) => (
               <button key={c.id} type="button" className={`sd-pick${item?.id === c.id ? ' is-on' : ''}`} aria-pressed={item?.id === c.id}
                 onClick={() => applyItem(item?.id === c.id ? null : c)}>{c.name}</button>
             ))}
@@ -205,7 +205,7 @@ export function NewTicketDialog({ open, onClose, onCreated, initial, title = 'Ne
             {(item?.requires_approval || (item?.tasks ?? []).length > 0) && (
               <p className="muted">
                 {item?.requires_approval ? 'This request needs approval before work starts. ' : ''}
-                {(item?.tasks ?? []).length > 0 ? `${item!.tasks.length} fulfilment tasks will be added to the ticket.` : ''}
+                {(item?.tasks ?? []).length > 0 ? `${item!.tasks.length} fulfillment tasks will be added to the ticket.` : ''}
               </p>
             )}
           </fieldset>

@@ -1,5 +1,5 @@
 // Service desk settings, "Self-service portal" tab: the switch, the title and welcome line, the
-// service status banner, the reopen window and which catalogue items staff can ask for.
+// service status banner, the reopen window and which catalog items staff can ask for.
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -21,12 +21,12 @@ const TONES = [
   { value: 'resolved', label: 'Restored: back to normal' },
 ];
 
-function CatalogueChoice({ canEdit }: { canEdit: boolean }) {
+function CatalogChoice({ canEdit }: { canEdit: boolean }) {
   const toast = useToast();
   const { data, error, reload } = useFetch<ListResult>('/api/catalog-items?f.active=true&sort=name&pageSize=200');
   const [busy, setBusy] = useState<string | null>(null);
   if (error) return <ErrorState error={error} onRetry={reload} />;
-  if (!data) return <Loading lines={4} label="Loading the catalogue" />;
+  if (!data) return <Loading lines={4} label="Loading the catalog" />;
   async function flip(id: string, on: boolean) {
     setBusy(id);
     try {
@@ -41,18 +41,18 @@ function CatalogueChoice({ canEdit }: { canEdit: boolean }) {
   const shown = data.rows.filter((r) => r.portal).length;
   return (
     <Card title="What staff can ask for" actions={<Badge color="blue">{shown} of {data.rows.length} shown</Badge>}>
-      <p className="muted">Active catalogue items marked here appear as tiles in the portal, with their own questions. Everything else stays for the service desk only. Staff can always use “Report a problem”.</p>
+      <p className="muted">Active catalog items marked here appear as tiles in the portal, with their own questions. Everything else stays for the service desk only. Staff can always use “Report a problem”.</p>
       {data.rows.length ? (
         <ul className="sd-portal-items">
           {data.rows.map((r) => (
             <li key={r.id}>
               <Switch label={r.name} hint={r.description ?? undefined} checked={!!r.portal} disabled={!canEdit || busy === r.id}
                 onChange={(on) => void flip(r.id, on)} />
-              <Link to={`/catalogue/${r.id}`} className="muted">Edit item</Link>
+              <Link to={`/catalog/${r.id}`} className="muted">Edit item</Link>
             </li>
           ))}
         </ul>
-      ) : <p className="muted">The catalogue has no active items. Add them under Service catalogue.</p>}
+      ) : <p className="muted">The catalog has no active items. Add them under Service catalog.</p>}
     </Card>
   );
 }
@@ -92,7 +92,7 @@ export function PortalSettingsTab() {
   return (
     <div className="stack">
       <Card title="Portal">
-        <p className="muted">A simple page where any member of staff reports a problem, asks for something from the catalogue and follows their own requests. They see public comments only, never internal notes.</p>
+        <p className="muted">A simple page where any member of staff reports a problem, asks for something from the catalog and follows their own requests. They see public comments only, never internal notes.</p>
         <Switch label="Self-service portal switched on" checked={f.enabled} disabled={!data.can_switch || busy}
           hint={data.can_switch ? 'Also under Administration, Settings, Feature switches.' : 'Only an administrator can switch the portal on or off.'}
           onChange={(on) => void save({ enabled: on }, on ? 'The portal is switched on.' : 'The portal is switched off.')} />
@@ -141,7 +141,7 @@ export function PortalSettingsTab() {
         </div>
       </Card>
 
-      <CatalogueChoice canEdit={can('tickets.edit')} />
+      <CatalogChoice canEdit={can('tickets.edit')} />
     </div>
   );
 }

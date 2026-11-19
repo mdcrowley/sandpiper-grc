@@ -97,7 +97,7 @@ function themeFromTokens() {
       extraCssText: 'border-radius: 8px; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.16);',
     },
     visualMap: { textStyle: { color: muted, fontFamily } },
-    // Mark specs: thin bars with a rounded data end, 2px lines, 8px markers ringed in the surface colour,
+    // Mark specs: thin bars with a rounded data end, 2px lines, 8px markers ringed in the surface color,
     // and a 2px surface gap between touching fills.
     bar: { barMaxWidth: 24, barGap: '15%', itemStyle: { borderRadius: [4, 4, 0, 0] } },
     line: { lineStyle: { width: 2, cap: 'round', join: 'round' }, symbol: 'circle', symbolSize: 8, itemStyle: { borderColor: surface, borderWidth: 2 } },
@@ -107,7 +107,7 @@ function themeFromTokens() {
   };
 }
 
-/** Changes whenever the colour scheme changes, whichever attribute carries it. */
+/** Changes whenever the color scheme changes, whichever attribute carries it. */
 function useSchemeVersion(): number {
   const [version, setVersion] = useState(0);
   useEffect(() => {
@@ -126,7 +126,7 @@ export default function ChartImpl({ option, label, height = 280, onSegmentClick,
   const scheme = useSchemeVersion();
   const clickable = Boolean(onSegmentClick);
 
-  // (Re)create the chart when the colour scheme changes, so every colour follows it.
+  // (Re)create the chart when the color scheme changes, so every color follows it.
   useEffect(() => {
     const el = elRef.current;
     if (!el) return;

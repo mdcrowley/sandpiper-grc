@@ -5,7 +5,7 @@ import { disposalProblem } from './lifecycle.ts';
 
 /**
  * Asset import (CSV text + column mapping, with a dry run) and the generic JSON ingest
- * endpoint. Values are normalised here so a dry run can report every problem without
+ * endpoint. Values are normalized here so a dry run can report every problem without
  * writing anything; a real run still goes through `ctx.resources.create/update`.
  */
 
@@ -50,7 +50,7 @@ export function parseDate(v: string): string | null {
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === out ? out : null;
 }
 
-/** The ways the organisation's currency (GRC_CURRENCY) is written beside an amount: its code and symbols. */
+/** The ways the organization's currency (GRC_CURRENCY) is written beside an amount: its code and symbols. */
 function currencyMarkers(code: string): string[] {
   const out = new Set<string>([code.toUpperCase()]);
   for (const currencyDisplay of ['symbol', 'narrowSymbol'] as const) {
@@ -64,7 +64,7 @@ function currencyMarkers(code: string): string[] {
 }
 
 /**
- * An amount in the organisation's currency: a number, optionally with that currency's code or
+ * An amount in the organization's currency: a number, optionally with that currency's code or
  * symbol and comma thousands separators ("1,200.50", "$1,200.50" when the currency is USD).
  * Another currency's symbol is not accepted. Returns null when the text is not such an amount.
  */
@@ -78,10 +78,10 @@ export function parseAmount(text: string, code: string = CURRENCY): number | nul
   return /^-?\d+(\.\d+)?$/.test(s) ? Number(s) : null;
 }
 
-interface Normaliser { normalise(raw: Row): Promise<{ data: Row; errors: Record<string, string> }> }
+interface Normalizer { normalize(raw: Row): Promise<{ data: Row; errors: Record<string, string> }> }
 
-/** Builds a normaliser for asset input with lookups, sites, systems and users loaded once. */
-async function assetNormaliser(ctx: ModuleContext): Promise<Normaliser> {
+/** Builds a normalizer for asset input with lookups, sites, systems and users loaded once. */
+async function assetNormalizer(ctx: ModuleContext): Promise<Normalizer> {
   const def = ctx.resources.get('asset')!;
   const lists = new Map<string, { value: string; label: string }[]>();
   for (const f of Object.values(def.fields)) {
@@ -106,7 +106,7 @@ async function assetNormaliser(ctx: ModuleContext): Promise<Normaliser> {
   );
 
   return {
-    async normalise(raw) {
+    async normalize(raw) {
       const data: Row = {};
       const errors: Record<string, string> = {};
       for (const [name, f] of Object.entries(def.fields)) {
@@ -223,7 +223,7 @@ export function registerImport(ctx: ModuleContext) {
     if (!columns.some(([f]) => f === 'name') && !mapErrors.name) mapErrors.name = 'Map a column to Name; every asset needs one.';
     if (Object.keys(mapErrors).length) ctx.fail(400, 'mapping', 'Check the column mapping.', mapErrors);
 
-    const normaliser = await assetNormaliser(ctx);
+    const normalizer = await assetNormalizer(ctx);
     const existing = await existingIndex(ctx);
     const seenTag = new Map<string, number>();
     const seenSerial = new Map<string, number>();
@@ -234,7 +234,7 @@ export function registerImport(ctx: ModuleContext) {
       const line = i + 2; // line 1 is the header
       const raw: Row = {};
       for (const [field, at] of columns) raw[field] = cells[at] ?? '';
-      const { data, errors } = await normaliser.normalise(raw);
+      const { data, errors } = await normalizer.normalize(raw);
       const tag = data.tag ? String(data.tag).toLowerCase() : null;
       const serial = data.serial ? String(data.serial).toLowerCase() : null;
 
@@ -299,7 +299,7 @@ export function registerImport(ctx: ModuleContext) {
     if (!Array.isArray(items)) ctx.fail(400, 'validation', 'Send an array of assets, or an object with an "assets" array.');
     if (items.length > MAX_ROWS) ctx.fail(400, 'validation', `Send at most ${MAX_ROWS} assets at a time.`);
 
-    const normaliser = await assetNormaliser(ctx);
+    const normalizer = await assetNormalizer(ctx);
     const existing = await existingIndex(ctx);
     const result = { received: items.length, created: 0, updated: 0, unchanged: 0, errors: [] as Row[] };
     for (const [index, item] of items.entries()) {
@@ -307,7 +307,7 @@ export function registerImport(ctx: ModuleContext) {
         result.errors.push({ index, errors: { _row: 'Each asset must be an object.' } });
         continue;
       }
-      const { data, errors } = await normaliser.normalise(item as Row);
+      const { data, errors } = await normalizer.normalize(item as Row);
       const serial = data.serial ? String(data.serial).toLowerCase() : null;
       const tag = data.tag ? String(data.tag).toLowerCase() : null;
       const id = (serial && existing.bySerial.get(serial)) || (tag && existing.byTag.get(tag)) || null;

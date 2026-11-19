@@ -31,7 +31,7 @@ export function AuditLogPage() {
   const search = useDebounced(q.trim(), 300);
   const actionSearch = useDebounced(action.trim(), 300);
 
-  // Dates are whole days in the organisation's time zone.
+  // Dates are whole days in the organization's time zone.
   const filters = {
     q: search, action: actionSearch, record_type: recordType, record_id: recordId, actor_id: actor?.id,
     from: from ? `${from} 00:00:00` : '', to: to ? `${to} 23:59:59.999` : '',

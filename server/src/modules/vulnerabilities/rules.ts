@@ -9,7 +9,7 @@ const text = (v: unknown) => String(v ?? '').trim();
 const lower = (v: unknown) => text(v).toLowerCase();
 
 /** "cve-2030-0001; CVE-2030-0002" -> "CVE-2030-0001, CVE-2030-0002" (unique, sorted). */
-export function normaliseCves(v: unknown): string {
+export function normalizeCves(v: unknown): string {
   const parts = text(v).toUpperCase().split(/[\s,;|]+/).filter(Boolean);
   return [...new Set(parts)].sort().join(', ');
 }
@@ -17,7 +17,7 @@ export function normaliseCves(v: unknown): string {
 /** The finding identifier: scanner id, else the CVE list, else the title. */
 export function findingKey(f: Row): string {
   const plugin = text(f.plugin_id);
-  const cves = normaliseCves(f.cves);
+  const cves = normalizeCves(f.cves);
   return (plugin ? `id:${plugin}` : cves ? `cve:${cves}` : `title:${text(f.title)}`).toLowerCase();
 }
 
@@ -153,7 +153,7 @@ async function applyRules(ctx: ModuleContext, req: FastifyRequest | null, existi
   const merged: Row = { ...(existing ?? {}), ...patch };
   await checkRefs(ctx, req, patch);
 
-  if (patch.cves !== undefined && patch.cves !== null) patch.cves = merged.cves = normaliseCves(patch.cves) || null;
+  if (patch.cves !== undefined && patch.cves !== null) patch.cves = merged.cves = normalizeCves(patch.cves) || null;
   if (patch.cvss !== undefined && patch.cvss !== null && (patch.cvss < 0 || patch.cvss > 10)) {
     ctx.fail(400, 'validation', 'Check the highlighted fields.', { cvss: 'A CVSS score is between 0 and 10.' });
   }

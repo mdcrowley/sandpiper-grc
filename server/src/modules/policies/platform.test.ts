@@ -4,7 +4,7 @@ import { addDays, localDate } from './dates.ts';
 import { runPolicyReminders } from './index.ts';
 
 // Separation of duties on versions, discarding a draft, the reminder interval setting,
-// notifications for acknowledgement requests and reminders, and what the expiring-exceptions
+// notifications for acknowledgment requests and reminders, and what the expiring-exceptions
 // list shows to someone who may not read policies. Runs with whichever modules are loaded;
 // without the notification service the notification checks confirm nothing breaks.
 // Invented data only.
@@ -88,11 +88,11 @@ describe('notifications', () => {
     const pub = await approver.post(`/api/policies/${p.id}/versions/${v.id}/publish`);
     expect(pub.body.requested).toBe(1);
     const ack = await t.db.one<{ id: string }>('select id from policy_acknowledgements where policy_id = $1 and user_id = $2', [p.id, staff.userId]);
-    const mine = (await inbox(staff.userId)).filter((n) => n.route === `/policies/acknowledgements/${ack!.id}`);
+    const mine = (await inbox(staff.userId)).filter((n) => n.route === `/policies/acknowledgments/${ack!.id}`);
     if (notifications) {
       expect(mine).toEqual([expect.objectContaining({ kind: 'acknowledgement', record_type: null, title: expect.stringMatching(/^Please read and acknowledge POL-/) })]);
       // The person can open what the link points at, without any policy permission.
-      expect((await staff.get(`/api/policies/acknowledgements/${ack!.id}`)).status).toBe(200);
+      expect((await staff.get(`/api/policies/acknowledgments/${ack!.id}`)).status).toBe(200);
     } else {
       expect(mine).toEqual([]);
     }
@@ -106,7 +106,7 @@ describe('notifications', () => {
       expect(reminders[0].body).toMatch(/was due on/);
     }
     // Acknowledged: no more reminders.
-    await staff.post(`/api/policies/acknowledgements/${ack!.id}/acknowledge`);
+    await staff.post(`/api/policies/acknowledgments/${ack!.id}/acknowledge`);
     expect((await runPolicyReminders(t.ctx, new Date(later.getTime() + 30 * 86_400_000))).map((r) => r.policy_id)).not.toContain(p.id);
   });
 });

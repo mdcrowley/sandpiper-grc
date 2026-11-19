@@ -23,15 +23,15 @@ function usageByList(resources: Record<string, ResourceMeta> | undefined): Recor
   return out;
 }
 
-/** The eight colours as a row of swatches. Radio buttons underneath, so the arrow keys move between them. */
+/** The eight colors as a row of swatches. Radio buttons underneath, so the arrow keys move between them. */
 function ColorPicker({ value, onChange }: { value: ColorName; onChange: (c: ColorName) => void }) {
   return (
     <fieldset className="adm-fieldset">
-      <legend className="field-label">Colour</legend>
+      <legend className="field-label">Color</legend>
       <div className="adm-swatches">
         {COLOR_NAMES.map((c) => (
           <label key={c} className="adm-swatch">
-            <input type="radio" name="adm-colour" value={c} checked={c === value} onChange={() => onChange(c)} />
+            <input type="radio" name="adm-color" value={c} checked={c === value} onChange={() => onChange(c)} />
             <span className="adm-swatch-dot" style={{ background: `var(--c-${c}-solid)` }} aria-hidden="true">
               {c === value && <Icon name="check" size={14} />}
             </span>

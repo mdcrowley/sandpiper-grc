@@ -1,4 +1,4 @@
-// Service catalogue: tiles that start a request, a list for managing the items, and the item
+// Service catalog: tiles that start a request, a list for managing the items, and the item
 // page with its form designer.
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -7,7 +7,7 @@ import {
   useAuth, useFetch,
 } from '../../core';
 import type { IconName, ListResult, Row } from '../../core';
-import { CatalogueDesigner } from './CatalogueDesigner';
+import { CatalogDesigner } from './CatalogDesigner';
 
 const FIELDS = ['name', 'description', 'category', 'active', 'requires_approval', 'portal'];
 const ICONS: Record<string, IconName> = { people: 'users', access: 'key', equipment: 'box', software: 'file-text', vendors: 'building' };
@@ -29,15 +29,15 @@ function Tiles() {
   }, [data, q]);
 
   if (error) return <ErrorState error={error} onRetry={reload} />;
-  if (!data) return <Loading lines={4} label="Loading the catalogue" />;
+  if (!data) return <Loading lines={4} label="Loading the catalog" />;
   if (!data.rows.length) {
-    return <EmptyState title="The catalogue is empty" message="Add items under Manage items, or switch an existing item back to active." icon="folder" />;
+    return <EmptyState title="The catalog is empty" message="Add items under Manage items, or switch an existing item back to active." icon="folder" />;
   }
   return (
     <div className="stack">
-      <TextField className="sd-catalogue-search" label="Find a request" hideLabel type="search" placeholder="Find a request" value={q} onChange={setQ}
+      <TextField className="sd-catalog-search" label="Find a request" hideLabel type="search" placeholder="Find a request" value={q} onChange={setQ}
         leftSection={<Icon name="search" size={16} />} />
-      {groups.length === 0 && <EmptyState icon="search" title="Nothing in the catalogue matches" message="Try a different word, or log an ordinary ticket." />}
+      {groups.length === 0 && <EmptyState icon="search" title="Nothing in the catalog matches" message="Try a different word, or log an ordinary ticket." />}
       {groups.map(([group, items]) => (
         <section key={group} aria-label={group}>
           <h2 className="sd-group-title">{group}</h2>
@@ -49,7 +49,7 @@ function Tiles() {
                 <li key={item.id} className="sd-tile">
                   <span className="sd-tile-icon" aria-hidden="true"><Icon name={ICONS[item.category] ?? 'folder'} size={20} /></span>
                   <div className="sd-tile-body">
-                    <h3><Link to={`/catalogue/${item.id}`}>{item.name}</Link></h3>
+                    <h3><Link to={`/catalog/${item.id}`}>{item.name}</Link></h3>
                     <p className="muted">{item.description || 'No description.'}</p>
                     <div className="row sd-tile-meta">
                       {item.requires_approval && <Badge color="amber">Needs approval</Badge>}
@@ -73,7 +73,7 @@ function Tiles() {
   );
 }
 
-export function CatalogueList() {
+export function CatalogList() {
   const { can } = useAuth();
   const manage = (
     <ResourceList
@@ -92,15 +92,15 @@ export function CatalogueList() {
   );
   return (
     <>
-      <PageHeader title="Service catalogue" subtitle="Standard requests. Choosing one starts a ticket with its details filled in, its questions asked and its tasks added." />
+      <PageHeader title="Service catalog" subtitle="Standard requests. Choosing one starts a ticket with its details filled in, its questions asked and its tasks added." />
       {can('tickets.edit')
-        ? <Tabs label="Catalogue views" tabs={[{ key: 'tiles', label: 'Catalogue', content: <Tiles /> }, { key: 'manage', label: 'Manage items', content: manage }]} />
+        ? <Tabs label="Catalog views" tabs={[{ key: 'tiles', label: 'Catalog', content: <Tiles /> }, { key: 'manage', label: 'Manage items', content: manage }]} />
         : <Tiles />}
     </>
   );
 }
 
-export function CatalogueDetail() {
+export function CatalogDetail() {
   const navigate = useNavigate();
   return (
     <RecordPage
@@ -118,10 +118,10 @@ export function CatalogueDetail() {
       )}
       summary={({ row, reload }) => (
         <EditableSummary type="catalog_item" row={row} fields={FIELDS} onSaved={reload}
-          sections={[{ fields: ['name', 'description', 'category'] }, { title: 'Behaviour', fields: ['active', 'requires_approval', 'portal'] }]} />
+          sections={[{ fields: ['name', 'description', 'category'] }, { title: 'Behavior', fields: ['active', 'requires_approval', 'portal'] }]} />
       )}
       tabs={[
-        { key: 'form', label: 'Form and tasks', content: (rec) => <CatalogueDesigner rec={rec} /> },
+        { key: 'form', label: 'Form and tasks', content: (rec) => <CatalogDesigner rec={rec} /> },
         {
           key: 'tickets', label: 'Tickets created',
           content: ({ row }) => (

@@ -9,7 +9,7 @@ import type { ModuleContext, Row, SessionUser } from '../../core/module.ts';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type NodeType = 'system' | 'vendor' | 'site' | 'asset' | 'data_category';
-/** `attrs` carries what the map groups and colours by: criticality, hosting and status of a system; sensitivity of a data category. */
+/** `attrs` carries what the map groups and colors by: criticality, hosting and status of a system; sensitivity of a data category. */
 export interface GraphNode { id: string; type: NodeType; label: string; group: string; route: string | null; ref?: string | null; attrs?: Record<string, string | null> }
 export interface GraphEdge { from: string; to: string; kind: string; label: string; direction?: string }
 

@@ -1,4 +1,4 @@
-/* Help: the user guide. Colours come from the design tokens, so both themes work. */
+/* Help: the user guide. Colors come from the design tokens, so both themes work. */
 
 /* Home: search and page cards */
 .help-search { max-width: 560px; }
@@ -141,7 +141,7 @@
 .api-op .api-path { background: none; padding: 0; color: var(--text); }
 .api-summary { color: var(--text-muted); font-size: var(--fs-sm); min-width: 0; }
 
-/* Method chips: the chip colour pairs, so both themes have enough contrast. */
+/* Method chips: the chip color pairs, so both themes have enough contrast. */
 .api-method { flex: none; display: inline-block; min-width: 4.4em; padding: 1px 6px; border-radius: var(--radius-sm); font: 700 var(--fs-xs)/1.6 var(--font-mono); text-align: center; letter-spacing: 0.03em; background: var(--c-gray-bg); color: var(--c-gray-fg); }
 .api-method-get { background: var(--c-blue-bg); color: var(--c-blue-fg); }
 .api-method-post { background: var(--c-green-bg); color: var(--c-green-fg); }

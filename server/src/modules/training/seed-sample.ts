@@ -27,7 +27,7 @@ export const SAMPLE_COURSES: {
   },
   {
     key: 'incident', audience: ['agent', 'security_lead'], title: '[Sample] Incident response for IT staff',
-    description: 'A workshop for the IT team: recognising an incident, first steps, keeping evidence, who to call and when.',
+    description: 'A workshop for the IT team: recognizing an incident, first steps, keeping evidence, who to call and when.',
     category: 'technical', provider: 'External trainer', format: 'classroom', duration_minutes: 180, recurrence_months: 12, due_days: 60, mandatory: false,
   },
   {

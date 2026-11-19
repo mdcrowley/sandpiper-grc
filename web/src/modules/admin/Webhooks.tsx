@@ -235,7 +235,7 @@ export function WebhooksPage() {
       />
       <ConfirmDialog
         open={removing !== null} danger busy={busy === 'remove'} title="Remove this webhook?" confirmLabel="Remove webhook"
-        message={<p>Nothing more is sent to <strong>{removing ? hostOf(removing.url) : ''}</strong> for <strong>{removing?.name}</strong>, and deliveries still waiting are cancelled. Its delivery log is kept for the audit trail. To pause it instead, switch it off.</p>}
+        message={<p>Nothing more is sent to <strong>{removing ? hostOf(removing.url) : ''}</strong> for <strong>{removing?.name}</strong>, and deliveries still waiting are canceled. Its delivery log is kept for the audit trail. To pause it instead, switch it off.</p>}
         onConfirm={() => void remove()} onCancel={() => setRemoving(null)}
       />
       {log && <DeliveriesDrawer hook={log} data={data} onClose={() => { setLog(null); reload(); }} />}

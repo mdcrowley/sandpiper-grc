@@ -52,7 +52,7 @@ const mod: ModuleDef = {
     await ctx.lookups.ensure('exercise_status', [
       { value: 'planned', label: 'Planned', color: 'blue', sort: 10 },
       { value: 'completed', label: 'Completed', color: 'green', sort: 20 },
-      { value: 'cancelled', label: 'Cancelled', color: 'gray', sort: 30 },
+      { value: 'cancelled', label: 'Canceled', color: 'gray', sort: 30 },
     ]);
     await ctx.lookups.ensure('exercise_result', [
       { value: 'met', label: 'Objectives met', color: 'green', sort: 10 },

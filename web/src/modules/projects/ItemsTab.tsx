@@ -25,7 +25,7 @@ export function ItemsTab({ projectId, onChanged }: { projectId: string; onChange
   const [removing, setRemoving] = useState<ProjectItem | null>(null);
   const [busy, setBusy] = useState(false);
   const canEdit = can('projects.edit');
-  // Escalating adds to the organisation's risk register, so it needs create on risks as well.
+  // Escalating adds to the organization's risk register, so it needs create on risks as well.
   const riskRegister = Boolean(useResource('risk'));
   const mayEscalate = can('risks.create');
   const today = todayIso();
@@ -71,7 +71,7 @@ export function ItemsTab({ projectId, onChanged }: { projectId: string; onChange
       </Group>
       {riskRegister && !mayEscalate && data.some((i) => i.kind === 'risk' && !i.escalated_risk_id) && (
         <Text size="sm" c="dimmed">
-          Escalating a risk adds it to the organisation's risk register, which needs permission to create risks there. Ask someone who manages the risk register.
+          Escalating a risk adds it to the organization's risk register, which needs permission to create risks there. Ask someone who manages the risk register.
         </Text>
       )}
 
@@ -158,7 +158,7 @@ export function ItemsTab({ projectId, onChanged }: { projectId: string; onChange
       <ConfirmDialog
         open={Boolean(escalating)}
         title="Escalate this risk?"
-        message={`"${escalating?.title ?? ''}" will be copied to the organisation's risk register, where whoever manages risks takes it on. The project risk stays here and is marked as escalated.`}
+        message={`"${escalating?.title ?? ''}" will be copied to the organization's risk register, where whoever manages risks takes it on. The project risk stays here and is marked as escalated.`}
         confirmLabel="Escalate"
         busy={busy}
         onConfirm={() => run(() => api.post(`/api/projects/${projectId}/items/${escalating!.id}/escalate`, {}), 'Risk escalated to the risk register.', () => setEscalating(null))}

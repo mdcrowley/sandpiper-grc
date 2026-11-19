@@ -94,7 +94,7 @@ export function parseDate(v: string): string | null {
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === out ? out : null;
 }
 
-/** A date and time: an ISO instant, or a date and optional "HH:MM" read in the organisation's time zone. */
+/** A date and time: an ISO instant, or a date and optional "HH:MM" read in the organization's time zone. */
 export function parseDateTime(v: string): string | null {
   const s = v.trim();
   if (/^\d{4}-\d{2}-\d{2}T.*(Z|[+-]\d{2}:?\d{2})$/i.test(s)) {
@@ -120,7 +120,7 @@ function currencyMarkers(code: string): string[] {
 }
 const MARKERS = currencyMarkers(CURRENCY);
 
-/** A number, optionally with thousands separators, a percent sign or the organisation's currency. */
+/** A number, optionally with thousands separators, a percent sign or the organization's currency. */
 export function parseNumber(text: string, currency = false): number | null {
   let s = text.trim().toUpperCase();
   let negative = false;
@@ -141,7 +141,7 @@ const cellText = (v: CellValue): string => (v === null || v === undefined ? '' :
 interface Resolver { byKey: Map<string, string | null> }
 
 /** Turns raw cells into field values, resolving lookups, people and records. */
-export async function makeNormaliser(deps: ImportDeps, def: ResourceDef, user: SessionUser | null, valueMap: Record<string, Record<string, unknown>> = {}) {
+export async function makeNormalizer(deps: ImportDeps, def: ResourceDef, user: SessionUser | null, valueMap: Record<string, Record<string, unknown>> = {}) {
   const custom = await deps.customDefs(def.type);
   const fields: Record<string, FieldDef> = { ...def.fields, ...custom };
   const lists = new Map<string, { value: string; label: string }[]>();
@@ -186,7 +186,7 @@ export async function makeNormaliser(deps: ImportDeps, def: ResourceDef, user: S
   }
 
   /** `unmatched` collects values of lookup, person and record columns that matched nothing. */
-  async function normalise(raw: Record<string, CellValue>, unmatched: Map<string, Set<string>>): Promise<{ data: Row; errors: Record<string, string> }> {
+  async function normalize(raw: Record<string, CellValue>, unmatched: Map<string, Set<string>>): Promise<{ data: Row; errors: Record<string, string> }> {
     const data: Row = {};
     const errors: Record<string, string> = {};
     const miss = (name: string, value: string) => {
@@ -269,7 +269,7 @@ export async function makeNormaliser(deps: ImportDeps, def: ResourceDef, user: S
     }
     return { data, errors };
   }
-  return { normalise, fields };
+  return { normalize, fields };
 }
 
 // ---------- running an import ----------
@@ -353,7 +353,7 @@ export async function runImport(deps: ImportDeps, def: ResourceDef, req: Fastify
   const fields = await importableFields(deps, def);
   const matchKey = input.matchKey || null;
   const columns = checkMapping(def, fields, input.table.headers, input.mapping, input.mode, matchKey);
-  const { normalise } = await makeNormaliser(deps, def, user, input.valueMap);
+  const { normalize } = await makeNormalizer(deps, def, user, input.valueMap);
   const existing = matchKey ? await existingByKey(deps, def, matchKey, user) : new Map<string, string>();
   const seenKeys = new Map<string, number>();
   const unmatched = new Map<string, Set<string>>();
@@ -367,7 +367,7 @@ export async function runImport(deps: ImportDeps, def: ResourceDef, req: Fastify
     const raw: Record<string, CellValue> = {};
     for (const [at, field] of columns) raw[field] = cells[at] ?? null;
     const keyText = matchKey ? cellText(raw[matchKey]).trim() : '';
-    const { data, errors } = await normalise(raw, unmatched);
+    const { data, errors } = await normalize(raw, unmatched);
     const result: RowResult = { line, action: 'create', errors, ...(keyText ? { key: keyText } : {}) };
 
     // Duplicates: an earlier row of the same file, or an existing record with the same key.

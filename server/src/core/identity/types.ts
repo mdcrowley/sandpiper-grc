@@ -50,7 +50,7 @@ export interface OidcConfig extends CommonProviderConfig {
   groupsClaim: string;
   /** Signature algorithms accepted on ID tokens. */
   algorithms: ('RS256' | 'ES256' | 'PS256')[];
-  /** Extra parameters for the authorisation request (for example a domain hint). Never `client_id`, `state` and so on. */
+  /** Extra parameters for the authorization request (for example a domain hint). Never `client_id`, `state` and so on. */
   extraParams: Record<string, string>;
 }
 

@@ -21,7 +21,7 @@ On an open report you can:
 1. Select **New report** on the **Reports** page, or **Create** then **Report**.
 2. **Choose what the report is about.** Each kind of record is listed with a one-line description, for example **Tickets** ("Requests and faults raised with the service desk") or **Assets**. You can only choose kinds of record your role lets you see. Type in the search box to narrow the list.
 3. The builder opens in three panes:
-   - **1 · What it is about** (left): every field you can use, with its kind (text, choice, date, money and so on). Fields of linked records are listed under "From …", for example **From vendor**, and fields your organisation added are under **Added by your organisation**. Select a field to add it; select the funnel beside it to filter by it.
+   - **1 · What it is about** (left): every field you can use, with its kind (text, choice, date, money and so on). Fields of linked records are listed under "From …", for example **From vendor**, and fields your organization added are under **Added by your organization**. Select a field to add it; select the funnel beside it to filter by it.
    - **2 · Shape it** (middle): the columns or groups, totals, filters, order and the chart.
    - **Preview** (right): the answer, updated a moment after every change. It shows what *your* role allows; other people see what theirs allows.
 4. Choose **List** (one row for each record) or **Summary** (counts and totals, grouped).
@@ -35,7 +35,7 @@ Under **Columns**, the chosen fields are listed in the order they will appear. U
 
 ### Summaries
 
-- **Group**: choose a field under **Group by**, and optionally a second one under **Then by**. Records with the same value are counted together. A date field can be grouped **by day**, **by week**, **by month**, **by quarter** or **by year**, always in the organisation's time zone. With two groups, **Show as a pivot table** puts the first field down the side and the second across the top, with totals.
+- **Group**: choose a field under **Group by**, and optionally a second one under **Then by**. Records with the same value are counted together. A date field can be grouped **by day**, **by week**, **by month**, **by quarter** or **by year**, always in the organization's time zone. With two groups, **Show as a pivot table** puts the first field down the side and the second across the top, with totals.
 - **Totals**: **Count of records**, **Total of**, **Average of**, **Lowest (or earliest)**, **Highest (or latest)** or **Share of total (%)**. Select **Add another total** for more than one.
 
 ### Filters
@@ -54,7 +54,7 @@ With two or more conditions, choose whether records must match **all of these** 
 
 Under **Order**, choose what to **Sort by** and the direction.
 
-Under **Show as**, pick how the result is drawn: **Table**, **Number**, **Gauge** (a figure against a **Target**, with a **Full scale**), **Bars**, **Ranked bars**, **Stacked bars**, **Line**, **Area**, **Doughnut**, **Pie**, **Heat map** or **Calendar**. Charts that do not suit the report are greyed out; hover over one to see why (for example, a heat map needs two fields to group by). When the report has several totals, **Figure to draw** chooses which one the chart shows; the table keeps them all.
+Under **Show as**, pick how the result is drawn: **Table**, **Number**, **Gauge** (a figure against a **Target**, with a **Full scale**), **Bars**, **Ranked bars**, **Stacked bars**, **Line**, **Area**, **Doughnut**, **Pie**, **Heat map** or **Calendar**. Charts that do not suit the report are grayed out; hover over one to see why (for example, a heat map needs two fields to group by). When the report has several totals, **Figure to draw** chooses which one the chart shows; the table keeps them all.
 
 Every bar, slice, point, cell and figure can be selected to open the list of records behind it, with the matching filters in the address, so you can bookmark or send it. When a filter has no equivalent on the list page, the report says the list uses the closest filters it can.
 
@@ -82,13 +82,13 @@ The application comes with these reports, shared with everyone (each shows only 
 | Security incidents by severity and status | Every recorded incident |
 | Open vulnerabilities by severity | What is still open, with how old the oldest is |
 | Project budget and spend by stage | Money committed and spent at each stage |
-| Changes by month and type | How much change the organisation is making |
+| Changes by month and type | How much change the organization is making |
 
 ## Dashboards
 
 Open **Dashboards** to see the dashboards you can use, with a small drawing of each layout. **Your home** marks the one you chose as home.
 
-Seven standard dashboards come with the application: **IT leadership overview**, **Service desk**, **Cybersecurity programme**, **Assets and systems**, **Vendors and contracts**, **Project portfolio** and **Board summary** (one page in plain language, where each line is a sentence such as "21 requests and faults are open with the IT team" with an arrow comparing the last 30 days with the 30 days before). A widget whose part of the application is not switched on says so in its place.
+Seven standard dashboards come with the application: **IT leadership overview**, **Service desk**, **Cybersecurity program**, **Assets and systems**, **Vendors and contracts**, **Project portfolio** and **Board summary** (one page in plain language, where each line is a sentence such as "21 requests and faults are open with the IT team" with an arrow comparing the last 30 days with the 30 days before). A widget whose part of the application is not switched on says so in its place.
 
 ### Looking at a dashboard
 
@@ -140,7 +140,7 @@ To start a new pack, select **New report pack** on the **Report packs** page, or
 Select **Schedule** on a report (or **Schedule…** on a dashboard) to send it regularly.
 
 1. Enter a **Name**.
-2. Choose **How often** (**Every day**, **Every week** **On** a weekday, or **Every month** on a **Day of the month**: in shorter months, the last day) and **At** what hour, in the organisation's time zone.
+2. Choose **How often** (**Every day**, **Every week** **On** a weekday, or **Every month** on a **Day of the month**: in shorter months, the last day) and **At** what hour, in the organization's time zone.
 3. Choose **As**: **Document (print or save as PDF)**, **PDF file**, **Excel file (XLSX)** or, for a report, **Spreadsheet file (CSV)**. Anyone whose role may not export receives the document instead of a file. When an administrator has switched email on, each person is also emailed a link to their copy, with the PDF or Excel file attached when they may export it; the attachment is recorded in the audit log. Without email, delivery is in the application only.
 4. Under **Send to**, add people with **Add a person…** and whole roles with **Everyone in a role…**.
 5. Select **Schedule**.

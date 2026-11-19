@@ -1,13 +1,13 @@
 // Every widget the Overview can show, in its default order. To add one: write the component in
 // one of the widgets*.tsx files, give it a definition there, and it appears here, in the
-// Customise dialog and (at its default position) in every saved layout.
+// Customize dialog and (at its default position) in every saved layout.
 import type { WidgetCtx, WidgetDef, WidgetGroup } from './types';
 import { MY_WORK_WIDGETS } from './widgetsMyWork';
 import { NEWER_WIDGETS } from './widgetsNewer';
 import { OPERATIONS_WIDGETS } from './widgetsOperations';
 import { SUMMARY_WIDGETS } from './widgetsSummary';
 
-/** Charts, figures and tables about the organisation as a whole need this as well as their own area's permission. */
+/** Charts, figures and tables about the organization as a whole need this as well as their own area's permission. */
 export const DASHBOARD_PERMISSION = 'dashboards.view';
 
 const DASHBOARD_ORDER = [

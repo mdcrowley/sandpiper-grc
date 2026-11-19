@@ -1,6 +1,6 @@
 # Getting started
 
-This is a governance, risk and compliance application for transit organisations: bus, rail and paratransit operators and their IT, cybersecurity and safety teams. This page explains what the application is for, how to set it up the first time, how to sign in, and how the screens are laid out. It also describes the two things you will use everywhere: lists of records and record pages. Read this page first; the other pages of the guide assume you know it.
+This is a governance, risk and compliance application for transit organizations: bus, rail and paratransit operators and their IT, cybersecurity and safety teams. This page explains what the application is for, how to set it up the first time, how to sign in, and how the screens are laid out. It also describes the two things you will use everywhere: lists of records and record pages. Read this page first; the other pages of the guide assume you know it.
 
 ## What the application is for
 
@@ -8,14 +8,14 @@ The application keeps the records an IT team needs for governance, risk and comp
 
 | Area | What you record there | Guide page |
 |---|---|---|
-| Service desk | Tickets, problems, knowledge articles and a catalogue of standard requests | [Service desk](02-service-desk.md) |
+| Service desk | Tickets, problems, knowledge articles and a catalog of standard requests | [Service desk](02-service-desk.md) |
 | Inventory | Systems, assets, sites, data categories and how they relate | [Inventory](03-inventory.md) |
 | Vendors | Vendors, contracts, security terms, evidence and renewals | [Vendors and contracts](04-vendors-and-contracts.md) |
 | Cybersecurity | Framework outcomes and assessments | [Cybersecurity frameworks](05-cybersecurity-frameworks.md) |
 | Cybersecurity | Risks, actions and obligations | [Risks, actions and obligations](06-risks-actions-obligations.md) |
 | Cybersecurity | Security incidents and notification deadlines | [Security incidents](07-security-incidents.md) |
 | Change | Planned changes, their approvals and the change calendar | [Change enablement](10-change-enablement.md) |
-| Cybersecurity | Policies, acknowledgements and exceptions | [Policies and exceptions](11-policies-and-exceptions.md) |
+| Cybersecurity | Policies, acknowledgments and exceptions | [Policies and exceptions](11-policies-and-exceptions.md) |
 | Cybersecurity | Training courses and exercises | [Training and exercises](12-training-and-exercises.md) |
 | Cybersecurity | Vulnerabilities and their fix-by dates | [Vulnerabilities](13-vulnerabilities.md) |
 | Projects | Project requests, stage gates and status reports | [Projects](08-projects.md) |
@@ -84,7 +84,7 @@ If you are expected to use a second factor and have not set one up, what happens
 4. Type the code your app now shows into **Enter the 6-digit code your app now shows** and select **Turn on**.
 5. The page shows **Your recovery codes**. Select **Copy codes** or **Print**, store them safely, then select **I have saved them**.
 
-The **Account security** page also shows when your password was last changed and a list titled **Where you are signed in**, where you can end a session you do not recognise.
+The **Account security** page also shows when your password was last changed and a list titled **Where you are signed in**, where you can end a session you do not recognize.
 
 ### Recovery codes
 
@@ -107,17 +107,17 @@ The menu on the left is divided into groups. You see only the items your role al
 | Group | Items |
 |---|---|
 | (top) | **Overview**, **My actions**, **Notifications** |
-| Service desk | **Tickets**, **Service desk dashboard**, **Service catalogue**, **Problems**, **Knowledge base** |
+| Service desk | **Tickets**, **Service desk dashboard**, **Service catalog**, **Problems**, **Knowledge base** |
 | Inventory | **Systems**, **Relationship map**, **Assets**, **Disposal approvals**, **Sites**, **Data categories**, **Inventory reports** |
 | Change | **Changes**, **Change calendar**, **New change**, **Change settings** |
 | Vendors | **Vendors**, **Security terms matrix**, **Contracts**, **Renewal calendar**, **Evidence**, **Expiring evidence** |
-| Cybersecurity | **Framework outcomes**, **Assessments**, **Risk register**, **Risk reviews**, **Security incidents**, **Notification deadlines**, **Rules and checklists**, **Offline incident kit**, **Vulnerabilities**, **Vulnerability dashboard**, **Action tracker**, **Obligations**, **Policies**, **Training overview**, **Courses**, **My training**, **My acknowledgements**, **Exercises**, **Exercise calendar**, **Exceptions** |
+| Cybersecurity | **Framework outcomes**, **Assessments**, **Risk register**, **Risk reviews**, **Security incidents**, **Notification deadlines**, **Rules and checklists**, **Offline incident kit**, **Vulnerabilities**, **Vulnerability dashboard**, **Action tracker**, **Obligations**, **Policies**, **Training overview**, **Courses**, **My training**, **My acknowledgments**, **Exercises**, **Exercise calendar**, **Exceptions** |
 | Projects | **Project portfolio**, **New project request**, **Project settings** |
 | Reports | **Dashboards**, **Reports**, **Report packs**, **Schedules**, **Risk report**, **Delivered to me**, **Expiring evidence files** |
 | Administration | **Users**, **Roles**, **Lists**, **Settings**, **Custom fields**, **Retention**, **API tokens**, **Webhooks**, **Audit log**, **Risk scales**, **Service desk settings**, **File settings** |
 | Help | **User guide**, **API reference** |
 
-A few entries are for everyone and have no permission of their own: **Overview**, **Notifications**, **My training**, **My acknowledgements**, **Expiring evidence files** and **User guide**. The settings entries (**Change settings**, **Project settings**, **File settings**) appear only for people who administer that area.
+A few entries are for everyone and have no permission of their own: **Overview**, **Notifications**, **My training**, **My acknowledgments**, **Expiring evidence files** and **User guide**. The settings entries (**Change settings**, **Project settings**, **File settings**) appear only for people who administer that area.
 
 Each group heading is a button: select it to fold that group away or open it again. A folded group shows how many pages it holds, and the application remembers which groups you folded. The page you are on is highlighted, and its group opens by itself when you go there.
 
@@ -131,7 +131,7 @@ With the keyboard, `Tab` reaches the menu; the up and down arrow keys then move 
 
 ### Overview
 
-**Overview** is the home page. Under a greeting with today's date (and the line "Governance, risk and compliance for transit organisations") it has two parts: **My work**, which is about you, and **Dashboard**, which is about the organisation. Each part is made of boxes called widgets. You only ever see widgets for areas your role can open.
+**Overview** is the home page. Under a greeting with today's date (and the line "Governance, risk and compliance for transit organizations") it has two parts: **My work**, which is about you, and **Dashboard**, which is about the organization. Each part is made of boxes called widgets. You only ever see widgets for areas your role can open.
 
 #### My work
 
@@ -140,9 +140,9 @@ Short lists of what is waiting for you. Each list shows a count beside its title
 | List | What it holds |
 |---|---|
 | **My tickets** | Open tickets assigned to you, with the time left to resolve each one |
-| **My actions** | Actions you own that are not done or cancelled, soonest due date first |
+| **My actions** | Actions you own that are not done or canceled, soonest due date first |
 | **My approvals** | Things waiting for an approval your role can give: changes awaiting approval (not ones you raised yourself), exception requests and policies in review |
-| **My acknowledgements** | Policies you have been asked to read and acknowledge |
+| **My acknowledgments** | Policies you have been asked to read and acknowledge |
 | **My training** | Courses assigned to you that you have not completed |
 | **My notifications** | Your unread notifications; opening one from here marks it as read |
 | **Watching** | Records you watch (the **Watch** button on a record page), newest first. They are not counted as work waiting |
@@ -169,7 +169,7 @@ If you have chosen one of the dashboards as your home dashboard (see [Dashboards
 
 #### Choosing what the overview shows
 
-1. Select **Customise** at the top right of the page. A panel opens listing every widget you can have, under **My work** and **Dashboard**.
+1. Select **Customize** at the top right of the page. A panel opens listing every widget you can have, under **My work** and **Dashboard**.
 2. Turn the switch beside a widget off to hide it, or on to show it.
 3. Select the up or down arrow beside a widget (**Move up**, **Move down**) to change its place. Widgets move within their own part of the page.
 4. Select **Save**. **Cancel** closes the panel and leaves the page as it was.
@@ -290,7 +290,7 @@ Saved views are kept in your browser only. They are not shared with colleagues a
 
 ### Columns and row height
 
-- Select the **Choose columns** button (three upright bars) and untick the columns you do not need. **Reset** brings back the usual columns.
+- Select the **Choose columns** button (three upright bars) and clear the columns you do not need. **Reset** brings back the usual columns.
 - Select the **Compact rows** button beside it to fit more rows on the screen. Select it again for the roomier rows.
 
 Both choices, and the number of rows per page, are remembered for you in this browser.
@@ -307,17 +307,17 @@ Lists show 25 records per page unless stated otherwise. The foot of the list sho
 
 ### Selecting rows and changing several records at once
 
-If your role allows editing that kind of record, each row starts with a tick box.
+If your role allows editing that kind of record, each row starts with a checkbox.
 
-1. Tick the rows you want. The tick box in the heading selects or clears every row on the page. Your selection is kept while you move between pages, and is cleared when you change the search or a filter.
+1. Check the rows you want. The checkbox in the heading selects or clears every row on the page. Your selection is kept while you move between pages, and is cleared when you change the search or a filter.
 2. A bar appears above the table showing how many records are selected.
-3. Select **Edit selected…**. Choose the **Field to change** and the new value, or tick the box to leave the field empty instead.
+3. Select **Edit selected…**. Choose the **Field to change** and the new value, or check the box to leave the field empty instead.
 4. Select **Apply**. A bar shows the progress. When it finishes you are told how many records were updated, how many already had that value, and which ones could not be changed and why (for example, a rule of that kind of record does not allow the change).
 5. Select **Done**.
 
 Each record is changed separately, exactly as if you had edited it by hand, so every change appears in that record's history under your name. Only some fields can be changed this way: mostly choice fields such as status or priority, and people such as the assignee.
 
-**Export selected** downloads only the ticked rows, with the columns currently shown, as a CSV file (if your role allows exporting). **Clear selection** unticks everything.
+**Export selected** downloads only the checked rows, with the columns currently shown, as a CSV file (if your role allows exporting). **Clear selection** unticks everything.
 
 ### Opening and creating records
 
@@ -334,13 +334,13 @@ Press `Tab` until a row of the table is outlined. Then:
 | `Down` and `Up` arrows | Move to the next or previous row |
 | `Home`, `End` | Move to the first or last row on the page |
 | `Enter` | Open the record |
-| `Space` | Tick or untick the row (when rows can be selected) |
+| `Space` | Select or clear the row (when rows can be selected) |
 
 The search box, filters, column headings and page buttons are all reached with `Tab` and worked with `Enter` or `Space`. `Esc` closes a menu or panel.
 
 ## How every record page works
 
-Opening a record shows its page. The top of the page has the title, the reference (for example `TKT-00042`), coloured chips for status and similar values, and buttons for the things you can do to that record. A trail of links above the title takes you back to the list. Under the title a line says when the record was last changed.
+Opening a record shows its page. The top of the page has the title, the reference (for example `TKT-00042`), colored chips for status and similar values, and buttons for the things you can do to that record. A trail of links above the title takes you back to the list. Under the title a line says when the record was last changed.
 
 ### Summary and editing
 
@@ -350,14 +350,14 @@ Below the header is a **Details** card showing the main fields. Some records hav
 2. Change the fields you need.
 3. Select **Save changes**, or **Cancel** to leave the record as it was. If you have changed something, **Cancel** first asks whether to discard your changes: choose **Keep editing** or **Discard changes**.
 
-If a value is not allowed, the message appears under the field and the cursor moves to the first such field. **Edit** is shown only if your role allows editing that kind of record. Some fields are worked out by the application and cannot be typed in; they appear greyed out in the form.
+If a value is not allowed, the message appears under the field and the cursor moves to the first such field. **Edit** is shown only if your role allows editing that kind of record. Some fields are worked out by the application and cannot be typed in; they appear grayed out in the form.
 
 In forms:
 
-- **Choice fields** open a list; a coloured dot shows the colour used for that value elsewhere. Long lists can be narrowed by typing.
+- **Choice fields** open a list; a colored dot shows the color used for that value elsewhere. Long lists can be narrowed by typing.
 - **Person and record fields** search as you type. Use the arrow keys and `Enter` to choose, and the cross to clear.
 - **Date fields** take a day from the calendar or typed in, for example `18 Nov 2026` or `18/11/2026`.
-- **Date and time fields** are in your organisation's time zone, which is named under the field.
+- **Date and time fields** are in your organization's time zone, which is named under the field.
 
 ### Tabs
 
@@ -389,7 +389,7 @@ The **Related** tab links a record to any other record, for example a ticket to 
 4. In **Record**, start typing a reference or title and choose the record.
 5. Select **Add link**.
 
-The link appears on both records. The relation is shown beside each link; on the other record it is marked with a "←" arrow, meaning the link was made from the first record. To remove a link, select the bin button beside it and confirm with **Remove link**. Removing a link never deletes either record.
+The link appears on both records. The relation is shown beside each link; on the other record it is marked with a "←" arrow, meaning the link was made from the first record. To remove a link, select the trash button beside it and confirm with **Remove link**. Removing a link never deletes either record.
 
 ### History
 
@@ -397,11 +397,11 @@ The **History** tab is the audit trail of the record: each change, who made it, 
 
 ## Moving between pages
 
-The application downloads each area the first time you open it. On a slow connection you may see a thin moving bar under the top bar and grey placeholder lines for a moment; the page then appears. If a page cannot be downloaded (for example because the application was updated while you had it open), a message offers **Reload the page**.
+The application downloads each area the first time you open it. On a slow connection you may see a thin moving bar under the top bar and gray placeholder lines for a moment; the page then appears. If a page cannot be downloaded (for example because the application was updated while you had it open), a message offers **Reload the page**.
 
 ## Printing
 
-Use your browser's print command (`Ctrl+P`) on any page. The printout is always on white, whatever theme you use on screen, and leaves out the menu, the top bar, buttons, search and filter controls and tick boxes.
+Use your browser's print command (`Ctrl+P`) on any page. The printout is always on white, whatever theme you use on screen, and leaves out the menu, the top bar, buttons, search and filter controls and checkboxes.
 
 - **A list** prints the rows on screen with every column, long text wrapped rather than cut short, and the column headings repeated on each sheet. To print more rows, choose a larger number of rows per page first; for everything, use **Export**.
 - **A record page** prints its header, summary and the tab you have open, under that tab's name. Open the tab you want (for example **History**) before printing.
@@ -425,7 +425,7 @@ The label is there so nobody mistakes a trial installation for the system of rec
 
 ## Not available yet
 
-- Signing in with your organisation's single sign-on, or with a passkey. Accounts are local to the application.
+- Signing in with your organization's single sign-on, or with a passkey. Accounts are local to the application.
 - A separate page for signing in with a recovery code. Type the code into the **6-digit code** box instead.
 - Notifications by email. Notifications are shown in the application only (the bell at the top right).
 - Tags, watchers and custom fields.

@@ -49,7 +49,7 @@ create table report_schedules (
   cadence text not null default 'weekly',       -- daily | weekly | monthly
   weekday numeric,                              -- 1 (Monday) to 7 (Sunday), weekly
   month_day numeric,                            -- 1 to 31, monthly (clamped to the month's length)
-  hour numeric not null default 7,              -- hour of the day in the organisation time zone
+  hour numeric not null default 7,              -- hour of the day in the organization time zone
   format text not null default 'html',          -- html | csv
   recipient_users jsonb not null default '[]',
   recipient_roles jsonb not null default '[]',

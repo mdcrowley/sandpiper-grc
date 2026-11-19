@@ -127,7 +127,7 @@ export async function startSmtpSink(opts: { auth?: { user: string; pass: string 
             return send('334 ');
           }
           if (method?.toUpperCase() === 'LOGIN') { mode = 'auth-user'; return send(`334 ${Buffer.from('Username:').toString('base64')}`); }
-          return send('504 5.5.4 Unrecognised authentication type');
+          return send('504 5.5.4 Unrecognized authentication type');
         }
         case 'MAIL':
           if (opts.auth && !user) return send('530 5.7.0 Authentication required');
@@ -142,7 +142,7 @@ export async function startSmtpSink(opts: { auth?: { user: string; pass: string 
         case 'RSET': from = ''; to = []; data = []; return send('250 2.0.0 Ok');
         case 'NOOP': return send('250 2.0.0 Ok');
         case 'QUIT': send('221 2.0.0 Bye'); socket.end(); return;
-        default: return send('502 5.5.2 Command not recognised');
+        default: return send('502 5.5.2 Command not recognized');
       }
     };
 

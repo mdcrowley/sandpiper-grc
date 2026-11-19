@@ -1,6 +1,6 @@
 # Security incidents
 
-A security incident is a suspected or confirmed attack on, loss of, or unauthorised access to your organisation's systems, accounts or data. For a transit operator that includes an outage of dispatch or vehicle tracking caused by an attack, a compromised fare system, or an intrusion into the network on board vehicles. This page explains how to declare an incident, how the notification clocks work, and how to use the incident workspace: the log, checklists, roles, evidence, what is affected, the ransom-payment control and the post-incident review. It also covers the notification rules an administrator must set up, the page of notification deadlines across incidents, the printable incident report, and the printable kit for when the system itself is unavailable.
+A security incident is a suspected or confirmed attack on, loss of, or unauthorized access to your organization's systems, accounts or data. For a transit operator that includes an outage of dispatch or vehicle tracking caused by an attack, a compromised fare system, or an intrusion into the network on board vehicles. This page explains how to declare an incident, how the notification clocks work, and how to use the incident workspace: the log, checklists, roles, evidence, what is affected, the ransom-payment control and the post-incident review. It also covers the notification rules an administrator must set up, the page of notification deadlines across incidents, the printable incident report, and the printable kit for when the system itself is unavailable.
 
 The screens are in the **Cybersecurity** group of the menu: **Security incidents**, **Notification deadlines**, **Rules and checklists** and **Offline incident kit**.
 
@@ -24,7 +24,7 @@ While pilot mode is on, the incident pages carry this notice:
 
 "Pilot mode: do not record live incident details here yet. Use exercise or invented data only."
 
-Take it literally. Use the application to rehearse, to run exercises and to prepare your rules, contacts and checklists. During a real incident, work from the printed offline kit and your organisation's own incident procedure until your administrator confirms the application is approved for live use. An administrator switches pilot mode off under **Administration**, **Settings**. The notice is never printed.
+Take it literally. Use the application to rehearse, to run exercises and to prepare your rules, contacts and checklists. During a real incident, work from the printed offline kit and your organization's own incident procedure until your administrator confirms the application is approved for live use. An administrator switches pilot mode off under **Administration**, **Settings**. The notice is never printed.
 
 ## The incident list
 
@@ -38,9 +38,9 @@ Select **Declare incident** on the list, or **Create > Security incident** from 
 
 ### Step 1: What happened
 
-1. Enter a **Title**: a short plain description, such as "Dispatch screens frozen at the control centre".
+1. Enter a **Title**: a short plain description, such as "Dispatch screens frozen at the control center".
 2. Add a **Summary** if you have more detail.
-3. Set **Discovered**: the date and time the organisation first became aware, in the organisation's time zone. It starts as the present moment. Correct it if the incident was noticed earlier. It cannot be in the future. Every notification deadline counts from this time.
+3. Set **Discovered**: the date and time the organization first became aware, in the organization's time zone. It starts as the present moment. Correct it if the incident was noticed earlier. It cannot be in the future. Every notification deadline counts from this time.
 4. Choose a **Scenario** if one fits: **Ransomware**, **Account compromise**, **Payment fraud**, **Vendor compromise**, **Lost device**, **Dispatch or CAD/AVL outage**, **Fare system compromise**, **Onboard network compromise** or **Other**. The scenario brings the matching containment and recovery checklists.
 5. Choose a **Severity** by selecting one of the four cards. It starts as **Moderate**.
 6. Select **Continue**.
@@ -60,12 +60,12 @@ Answer the **Questions that decide who must be told** with the switches. If unsu
 
 | Question | Switch it on when |
 |---|---|
-| **Is this a cybersecurity or ransomware incident?** | There is any attack on, or unauthorised access to, the organisation's systems, accounts or data. On to begin with. |
-| **Could personal information be involved?** | Details of identifiable people, such as names with identity, licence or account numbers, may be affected. |
-| **Could financial or payment information be involved?** | Bank, payment or account details of the organisation or of other people may be affected. |
-| **Could confidential business information be involved?** | Contracts, plans, credentials or anything else the organisation keeps confidential may be affected. |
+| **Is this a cybersecurity or ransomware incident?** | There is any attack on, or unauthorized access to, the organization's systems, accounts or data. On to begin with. |
+| **Could personal information be involved?** | Details of identifiable people, such as names with identity, license or account numbers, may be affected. |
+| **Could financial or payment information be involved?** | Bank, payment or account details of the organization or of other people may be affected. |
+| **Could confidential business information be involved?** | Contracts, plans, credentials or anything else the organization keeps confidential may be affected. |
 | **Could rider account information be involved?** | Fare accounts, concession eligibility, journey history or contact details of riders may be affected. |
-| **Could operational and safety information be involved?** | Vehicle locations, schedules, signalling or dispatch records, or safety reports may be affected. |
+| **Could operational and safety information be involved?** | Vehicle locations, schedules, signaling or dispatch records, or safety reports may be affected. |
 
 The first two questions are built in. After them, one question is asked for each **kind of data** on the list an administrator keeps on the **Kinds of data** tab of **Rules and checklists**, so the last four rows are only the kinds supplied to begin with.
 
@@ -125,7 +125,7 @@ Each clock comes from a notification rule that is active, has a deadline, and wh
 
 For example, with a 72-hour rule and a discovery time of 09:30 on a Monday, the notification is due at 09:30 on the Thursday. A deadline of 0 hours means immediately. The time you declared the incident does not affect the deadline, so an incident declared late may open with clocks that are already amber or red.
 
-### Colours
+### Colors
 
 Each card shows the party, **Required** or **Recommended**, the time left, a bar showing how much of the time allowed has gone, the due date and time, and **Guidance**.
 
@@ -193,7 +193,7 @@ The **Register** tab is the full list of notification tasks with filters, saved 
 
 ## The log
 
-The **Log** tab is the running record of the incident and the centre of the workspace.
+The **Log** tab is the running record of the incident and the center of the workspace.
 
 To add an entry:
 
@@ -202,7 +202,7 @@ To add an entry:
 3. Choose the kind: **Note**, **Action taken**, **Decision** or **Communication**.
 4. Press **Ctrl+Enter**, or select **Add to log**.
 
-The entry is stamped with your name and the time now, in the organisation's time zone (shown beside the box). If it happened earlier, select **It happened earlier** and set **When it happened**; **Use the time now** goes back.
+The entry is stamped with your name and the time now, in the organization's time zone (shown beside the box). If it happened earlier, select **It happened earlier** and set **When it happened**; **Use the time now** goes back.
 
 The log is shown newest first, grouped by day. Show only one kind with **Everything**, **Note**, **Action taken**, **Decision**, **Communication** or **System**.
 
@@ -212,10 +212,10 @@ The log is append-only. Entries cannot be edited or deleted. If an entry is wron
 
 The **Checklists** tab shows overall progress (**All steps**, "… of … done") and one card per phase: **Containment** and **Recovery**, each with its own count. The number on the tab is the steps still to do. When a scenario is chosen, the steps of that scenario's template are copied onto the incident. Starter checklists are supplied for Ransomware, Account compromise, Payment fraud, Vendor compromise, Lost device, Dispatch or CAD/AVL outage, Fare system compromise and Onboard network compromise.
 
-- Tick a step when it is done. Your name and the time are shown beneath it. Untick it if it was ticked by mistake.
+- Check a step when it is done. Your name and the time are shown beneath it. Clear it if it was checked by mistake.
 - To add a step for this incident only, type it in **Add a step for this incident**, choose the **Phase** and select **Add step**.
 
-If you change the scenario, the new scenario's steps are copied in. Unticked steps of the old scenario are removed; ticked ones are kept and labelled with the checklist they came from. Steps you added yourself are always kept. If no scenario is chosen, the tab says so: choose one with **Edit details**.
+If you change the scenario, the new scenario's steps are copied in. Unchecked steps of the old scenario are removed; checked ones are kept and labeled with the checklist they came from. Steps you added yourself are always kept. If no scenario is chosen, the tab says so: choose one with **Edit details**.
 
 ## Roles and the team
 
@@ -224,7 +224,7 @@ The **Team** panel beside the clocks lists each role, the person and their conta
 The **Roles** tab lists who is doing what on this incident. A new incident starts with a copy of the standing contact list, supplied with these roles: Incident lead, Technical lead, Communications, Scribe, Executive sponsor, Legal counsel, Cyber insurer contact and Operations control liaison.
 
 - Select **Add role** to add one. Enter the **Role**, the **Person** and a **Contact**: a phone number that works if email is down.
-- Use the pencil icon to change a row and the bin icon to remove it.
+- Use the pencil icon to change a row and the trash icon to remove it.
 
 Changes here affect this incident only.
 
@@ -250,7 +250,7 @@ The **Affected** tab has three parts:
 
 ## The ransom-payment control
 
-The **Ransom** tab records whether paying a ransom is being considered and what was decided. Your organisation's policy or the law may require formal approval before a ransom is paid, so the application enforces one rule:
+The **Ransom** tab records whether paying a ransom is being considered and what was decided. Your organization's policy or the law may require formal approval before a ransom is paid, so the application enforces one rule:
 
 **The status cannot be set to "Approved by the governing body" until a governing body approval reference is entered.**
 
@@ -259,7 +259,7 @@ The **Ransom** tab records whether paying a ransom is being considered and what 
 3. If the status is approved, enter the **Governing body approval reference**: for example the resolution or decision number and the meeting date, as recorded in the minutes.
 4. Select **Save decision**.
 
-Every change is written to the history and to the log as a Decision. Recording a status here is a record of a decision; it does not itself authorise anything.
+Every change is written to the history and to the log as a Decision. Recording a status here is a record of a decision; it does not itself authorize anything.
 
 ## Lessons learned and the post-incident review
 
@@ -287,14 +287,14 @@ The **History** tab shows every change to the incident, including changes to rol
 
 ## The incident report
 
-Select **Incident report** at the top of an incident. The report is generated from the incident as it stands, in the organisation's time zone, and laid out for printing:
+Select **Incident report** at the top of an incident. The report is generated from the incident as it stands, in the organization's time zone, and laid out for printing:
 
 1. **Summary**: severity, status, scenario, lead and the key times, with how long after discovery each came.
 2. **What was involved**: the answers, affected systems and affected data.
 3. **Notifications**: each party, its deadline, what was done and whether it was in time.
 4. **Decisions**: every Decision entry in the log, and the ransom-payment position.
 5. **Timeline**: the whole log, oldest first.
-6. **Response**: the checklists with who ticked each step and when, the roles and the evidence register.
+6. **Response**: the checklists with who checked each step and when, the roles and the evidence register.
 7. **Lessons learned**: the review and its findings, and the follow-up actions.
 
 It ends with spaces to sign. Select **Print or save as PDF** and use your browser's print window. Opening the report is recorded in the audit log.
@@ -321,7 +321,7 @@ All of them are switched off and have **no deadline**; the table shows them as *
 
 Set each rule with legal advice:
 
-1. Go through the starter rules with your legal adviser and decide which apply to your organisation.
+1. Go through the starter rules with your legal adviser and decide which apply to your organization.
 2. For each one that applies, take the deadline from the law, contract or policy concerned and note where it comes from.
 3. Add rules for any other party you must tell, such as a key customer.
 4. Review the rules whenever the law, a contract or your insurance changes.
@@ -332,8 +332,8 @@ Set each rule with legal advice:
 2. In **Notify**, name the party.
 3. Choose the **Trigger**: **Any incident**, or one of the questions (for a kind of data, "… involved").
 4. In **Deadline from discovery**, enter the number of hours: 24, 72 (3 days), 168 (7 days), 720 (30 days), or 0 for immediately. The longest allowed is one year.
-5. Leave **Required by law or contract** ticked, or untick it for a notification that is only recommended.
-6. Tick **Active**. A rule cannot be active without a deadline.
+5. Leave **Required by law or contract** checked, or clear it for a notification that is only recommended.
+6. Check **Active**. A rule cannot be active without a deadline.
 7. In **Guidance**, write what the person making the notification needs to know: how to report, what to have ready and where the requirement comes from.
 8. Select **Save**.
 
@@ -341,7 +341,7 @@ Changes apply to open incidents straight away: a new or changed rule adds or upd
 
 ### Kinds of data
 
-The **Kinds of data** tab lists the kinds of data your organisation holds. Each becomes a yes/no question when an incident is declared (shown under **Question asked**) and can trigger notification rules. Personal information is built in. Supplied to begin with: Financial or payment information, Confidential business information, Rider account information, and Operational and safety information.
+The **Kinds of data** tab lists the kinds of data your organization holds. Each becomes a yes/no question when an incident is declared (shown under **Question asked**) and can trigger notification rules. Personal information is built in. Supplied to begin with: Financial or payment information, Confidential business information, Rider account information, and Operational and safety information.
 
 - **Add kind of data**: enter the **Name** and an **Explanation** shown under the question.
 - The pencil icon changes a kind; **Order** sets its position.
@@ -366,7 +366,7 @@ The **Incident statuses** tab sets the steps of the status bar. Each status has 
 | Contained: spread has stopped | The containment time is stamped. |
 | Closed | The closure time is stamped and the review due date is set. |
 
-Select **Add status** to add one, or the pencil icon to rename, recolour, reorder or change its meaning. **Retire** removes a status from the bar; a status that an incident still holds cannot be retired, and there must always be at least one status meaning before declaration, one meaning declared and one meaning closed.
+Select **Add status** to add one, or the pencil icon to rename, recolor, reorder or change its meaning. **Retire** removes a status from the bar; a status that an incident still holds cannot be retired, and there must always be at least one status meaning before declaration, one meaning declared and one meaning closed.
 
 ## The offline incident kit
 
@@ -383,7 +383,7 @@ The kit contains, each part starting on a new page:
 - **Incident roles and contacts**, with blank lines for any detail not yet filled in;
 - **Who must be told, and by when**: every notification rule with its trigger and deadline ("No deadline set" for those switched off) and its guidance;
 - **Severity guide and ransom rule**;
-- **one checklist per scenario**, with a tick box and a time line for every step;
+- **one checklist per scenario**, with a checkbox and a time line for every step;
 - a **notification record sheet** to fill in by hand;
 - **incident log sheets** for a paper log.
 

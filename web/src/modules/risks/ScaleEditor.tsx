@@ -9,7 +9,7 @@ import { useScales, type Scale, type ScaleLevel, type ScaleRating } from './scal
 interface Preview { total: number | null; rerated: number | null; level_in_use: boolean | null }
 type LevelList = 'likelihood_levels' | 'impact_levels';
 
-const COLOUR_OPTIONS = COLOR_NAMES.map((c) => ({ value: c, label: c.charAt(0).toUpperCase() + c.slice(1), color: c }));
+const COLOR_OPTIONS = COLOR_NAMES.map((c) => ({ value: c, label: c.charAt(0).toUpperCase() + c.slice(1), color: c }));
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 const keyFrom = (label: string) => label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^[^a-z]+|_+$/g, '').slice(0, 30);
 
@@ -179,7 +179,7 @@ export function ScaleEditor() {
         {fields.ratings && <p role="alert" className="form-error">{fields.ratings}</p>}
         <div className="table-wrap">
           <table className="table rk-edit-table">
-            <thead><tr><th scope="col" className="rk-col-label">Label</th><th scope="col">Key</th><th scope="col">Colour</th><th scope="col" className="rk-col-num">Order</th><th scope="col">Common level</th><th scope="col" aria-label="Remove" /></tr></thead>
+            <thead><tr><th scope="col" className="rk-col-label">Label</th><th scope="col">Key</th><th scope="col">Color</th><th scope="col" className="rk-col-num">Order</th><th scope="col">Common level</th><th scope="col" aria-label="Remove" /></tr></thead>
             <tbody>
               {draft.ratings.map((r, i) => (
                 <tr key={i}>
@@ -188,7 +188,7 @@ export function ScaleEditor() {
                       onChange={(v) => patchRating(i, isNewRating(r) ? { label: v, key: keyFrom(v) } : { label: v })} />
                   </td>
                   <td><code className="rk-key">{r.key || '—'}</code></td>
-                  <td><Select hideLabel required size="xs" label={`Colour of ${r.label || 'rating'}`} value={r.color} options={COLOUR_OPTIONS} onChange={(v) => patchRating(i, { color: v || 'gray' })} /></td>
+                  <td><Select hideLabel required size="xs" label={`Color of ${r.label || 'rating'}`} value={r.color} options={COLOR_OPTIONS} onChange={(v) => patchRating(i, { color: v || 'gray' })} /></td>
                   <td className="rk-col-num"><NumberField hideLabel size="xs" label={`Order of ${r.label || 'rating'}`} step={1} value={r.sort} onChange={(v) => patchRating(i, { sort: v ?? 0 })} /></td>
                   <td>
                     <Select hideLabel required size="xs" label={`Common level of ${r.label || 'rating'}`} value={r.summary_level}

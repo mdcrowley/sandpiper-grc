@@ -100,7 +100,7 @@ export interface ImportResult {
   not_in_file: string[];
 }
 
-/** The custom properties a status-coloured element reads (see frameworks.css). */
+/** The custom properties a status-colored element reads (see frameworks.css). */
 export const statusVars = (color: ColorName) => ({
   '--fw-solid': `var(--c-${color}-solid)`,
   '--fw-bg': `var(--c-${color}-bg)`,

@@ -180,7 +180,7 @@ function readSheet(xml: string, shared: string[], styleKind: ('date' | 'datetime
   return rows;
 }
 
-/** A date serial as text: "YYYY-MM-DD" for a date, an ISO instant (organisation time zone) for a date and time. */
+/** A date serial as text: "YYYY-MM-DD" for a date, an ISO instant (organization time zone) for a date and time. */
 function dateValue(serial: number, kind: 'date' | 'datetime' | 'time'): CellValue {
   const w = serialToWall(serial);
   if (kind === 'time') return `${String(w.h).padStart(2, '0')}:${String(w.mi).padStart(2, '0')}`;

@@ -79,14 +79,14 @@ export const DOCS: RouteDoc[] = [
   }),
   route('POST', '/api/policies/:id/versions/:vid/publish', 'Publish an approved version and ask its audience to acknowledge it', {
     tag: P, permission: 'policies.approve',
-    description: `${ONE_VERSION} The previous published version is superseded and its outstanding acknowledgements closed; each person in the audience is asked to acknowledge by the due date and notified. 409 \`retired\`, \`already_published\` or \`not_approved\`. Audited.`,
+    description: `${ONE_VERSION} The previous published version is superseded and its outstanding acknowledgments closed; each person in the audience is asked to acknowledge by the due date and notified. 409 \`retired\`, \`already_published\` or \`not_approved\`. Audited.`,
     body: '{ effective_on?: date | null "Default the approved effective date, else today" }',
     response: `{ version: ${VERSION}, requested: integer "People asked to acknowledge", due_on: date, status: string "The policy's status afterwards" }`,
   }),
   route('POST', '/api/policies/:id/retire', 'Retire a policy', {
     tag: P, permission: 'policies.approve',
-    description: `${ONE_POLICY} Closes outstanding acknowledgement requests. 409 \`retired\` when already retired. Audited.`,
-    response: "{ ok: boolean, status: 'retired', closed: integer \"Acknowledgement requests closed\" }",
+    description: `${ONE_POLICY} Closes outstanding acknowledgment requests. 409 \`retired\` when already retired. Audited.`,
+    response: "{ ok: boolean, status: 'retired', closed: integer \"Acknowledgment requests closed\" }",
   }),
 
   // ---- framework outcomes
@@ -107,22 +107,22 @@ export const DOCS: RouteDoc[] = [
     response: '{ ok: boolean }',
   }),
 
-  // ---- acknowledgements
-  route('GET', '/api/policies/acknowledgements/mine', 'Your acknowledgement requests', {
+  // ---- acknowledgments
+  route('GET', '/api/policies/acknowledgments/mine', 'Your acknowledgment requests', {
     tag: P, description: `${SIGNED_IN} Closed requests you never acknowledged are left out.`,
     response: `{ today: date, awaiting: [${MY_ACK}] "Outstanding and overdue, soonest due first", acknowledged: [${MY_ACK}] "Newest first" }`,
   }),
-  route('GET', '/api/policies/acknowledgements/:ackId', 'One of your acknowledgement requests, with the text to acknowledge', {
+  route('GET', '/api/policies/acknowledgments/:ackId', 'One of your acknowledgment requests, with the text to acknowledge', {
     tag: P, description: `${SIGNED_IN} Only the caller's own requests; 404 \`not_found\` otherwise. The text is exactly the version named in the request.`,
     response: `{ id: uuid, policy_id: uuid, policy_ref: string | null, policy_title: string, policy_summary: string | null,
       version: integer, effective_on: date | null, requested_at: datetime, due_on: date, acknowledged_at: datetime | null,
       state: ${ACK_STATE}, days_left: integer, change_summary: string | null, body_html: string }`,
   }),
-  route('POST', '/api/policies/acknowledgements/:ackId/acknowledge', 'Acknowledge a policy version', {
+  route('POST', '/api/policies/acknowledgments/:ackId/acknowledge', 'Acknowledge a policy version', {
     tag: P, description: `${SIGNED_IN} Only the caller's own requests (404 \`not_found\` otherwise). Repeating it changes nothing. 409 \`superseded\` when the version was replaced or the policy retired. Audited.`,
     response: MY_ACK,
   }),
-  route('GET', '/api/policies/:id/acknowledgements', 'Who has and has not acknowledged a version of a policy', {
+  route('GET', '/api/policies/:id/acknowledgments', 'Who has and has not acknowledged a version of a policy', {
     tag: P, permission: 'policies.view',
     description: `${ONE_POLICY} Without \`version\`, the version published now (null when there is none). \`format=csv\` downloads the rows as CSV instead, needs \`policies.export\` as well (403 \`forbidden\` otherwise) and is audited.`,
     query: {

@@ -46,7 +46,7 @@ export function isOverdue(row: Row, today: string, openStatuses?: string[]): boo
   return openStatuses ? openStatuses.includes(row.status) : !row.completed_on && row.status !== 'cancelled';
 }
 
-/** Today in the organisation's time zone, as the server counts it. */
+/** Today in the organization's time zone, as the server counts it. */
 export function localToday(): string {
   return todayInZone();
 }

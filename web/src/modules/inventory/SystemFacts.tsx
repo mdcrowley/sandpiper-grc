@@ -24,7 +24,7 @@ export const FACT_SECTIONS: FactSection[] = [
   { key: 'ownership', title: 'Ownership', icon: 'users', fields: ['business_owner_id', 'technical_owner_id'],
     hints: { business_owner_id: 'Decides what the system must do and accepts its risks.', technical_owner_id: 'Keeps it running and is called when it fails.' } },
   { key: 'recovery', title: 'Criticality and recovery', icon: 'clock', fields: ['criticality_tier', 'rto_hours', 'rpo_hours', 'manual_fallback'],
-    hints: { rto_hours: 'How long the organisation can do without the system.', rpo_hours: 'How much recent data it can afford to lose.', manual_fallback: 'How work carries on while the system is down.' } },
+    hints: { rto_hours: 'How long the organization can do without the system.', rpo_hours: 'How much recent data it can afford to lose.', manual_fallback: 'How work carries on while the system is down.' } },
   { key: 'hosting', title: 'Hosting', icon: 'server', fields: ['hosting_type', 'hosting_provider', 'hosting_region', 'hosting_notes'] },
   { key: 'signin', title: 'Sign-in', icon: 'key', fields: ['authentication_method', 'mfa_status'],
     hints: { authentication_method: 'For example single sign-on, or its own user names and passwords.', mfa_status: 'Whether sign-in needs a second factor.' } },

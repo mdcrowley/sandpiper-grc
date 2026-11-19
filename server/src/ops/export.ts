@@ -94,7 +94,7 @@ export async function exportAll(db: Queryable, opts: ExportOptions): Promise<Exp
   const includeSecrets = opts.includeSecrets ?? true;
   await mkdir(join(opts.outDir, 'tables'), { recursive: true });
 
-  // The catalogue is read once for every table: one query per table is slow on the embedded
+  // The catalog is read once for every table: one query per table is slow on the embedded
   // database and an online backup holds its transaction open while this runs.
   const columnsByTable = new Map<string, string[]>();
   for (const r of await db.query<{ table_name: string; column_name: string }>(

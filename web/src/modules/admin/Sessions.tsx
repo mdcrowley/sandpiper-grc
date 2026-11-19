@@ -69,7 +69,7 @@ export function SessionsCard() {
             ))}
           </ul>
         )}
-      <p className="card-body adm-card-foot muted">Sessions end after 8 hours, or sooner when idle. If you do not recognise one, end it and change your password.</p>
+      <p className="card-body adm-card-foot muted">Sessions end after 8 hours, or sooner when idle. If you do not recognize one, end it and change your password.</p>
     </Card>
   );
 }

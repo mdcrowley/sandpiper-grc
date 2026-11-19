@@ -166,7 +166,7 @@ export function registerSso(ctx: ModuleContext) {
     const fresh = await db.one('select 1 from sessions where token_hash = $1 and confirmed_at > now() - interval \'5 minutes\'', [req.sessionHash]);
     if (!fresh) ctx.fail(403, 'reauth_required', 'Confirm your password to continue.');
     const claimed = await db.one('update identity_flows set used_at = now() where state_hash = $1 and used_at is null returning 1', [pending!.state_hash]);
-    if (!claimed) ctx.fail(409, 'used', 'That sign-in has already been linked or cancelled.');
+    if (!claimed) ctx.fail(409, 'used', 'That sign-in has already been linked or canceled.');
     const identity: ExternalIdentity = { subject: pending!.subject, email: pending!.email, emailVerified: true, displayName: null, groups: [] };
     const problem = await linkProblem(ctx, me.id, p!, identity);
     if (problem) {

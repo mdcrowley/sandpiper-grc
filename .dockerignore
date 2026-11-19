@@ -1,40 +1,24 @@
-# Only what the image needs goes to the build. Private and local-only material never does.
+# The build context is an allowlist: only what the image needs is sent to the builder.
+# Everything else (data, backups, private seed files, secrets, local tools, notes, builds)
+# never leaves this machine, whatever it is called.
+*
+!package.json
+!package-lock.json
+!vite.config.ts
+!web/
+!server/
+!docs/user/
+!deploy/healthcheck.mjs
+!deploy/grc
 
-# Private to each installation, internal documents and assistant notes
-seed/
-**/seed/
-*Build Specification*
-**/*Build Specification*
-CLAUDE.md
-**/CLAUDE.md
-
-# Runtime data, backups, local tools and builds
-data/
-backups/
-.tools/
-node_modules/
-**/node_modules/
-dist/
-*.log
-
-# Secrets and certificates
-.env
-.env.*
-secret.key
-*.secret.key
-*.pem
-*.key
-*.pfx
-deploy/secrets/
-
-# Not needed in the image
-.git/
-.github/
-.vscode/
-.idea/
-examples/
-tools/
-grc.ps1
+# Inside the allowed folders: tests and anything that looks like a secret stay out too.
 server/src/**/*.test.ts
 server/src/test/
 web/src/**/*.test.ts
+web/src/**/*.test.tsx
+**/*.pem
+**/*.key
+**/*.pfx
+**/.env
+**/.env.*
+**/node_modules/

@@ -1,7 +1,7 @@
-// Turns a report result into a Chart option. Colour rules (see the core README, section 6):
-// one series = one colour; several series take the fixed palette in order and never more than
-// eight (the rest fold into "Other"); a lookup's own configured colours are used when they tell
-// the groups apart, because those colours already mean something to the reader (red = critical).
+// Turns a report result into a Chart option. Color rules (see the core README, section 6):
+// one series = one color; several series take the fixed palette in order and never more than
+// eight (the rest fold into "Other"); a lookup's own configured colors are used when they tell
+// the groups apart, because those colors already mean something to the reader (red = critical).
 import { chartColor, formatCurrency, formatNumber } from '../../core';
 import type { ChartOption } from '../../core';
 import type { ChartKind, ReportResult, ResultColumn, ResultRow } from './types';
@@ -30,7 +30,7 @@ export function chartFit(kind: ChartKind, result: Pick<ReportResult, 'mode' | 'c
 }
 
 const numberOf = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
-const distinctColours = (colours: (string | undefined)[]) => colours.every(Boolean) && new Set(colours).size === colours.length;
+const distinctColors = (colors: (string | undefined)[]) => colors.every(Boolean) && new Set(colors).size === colors.length;
 
 export function buildChart(kind: ChartKind, result: ReportResult, measureIndex = 0): BuiltChart | null {
   if (chartFit(kind, result) || result.mode !== 'groups') return null;
@@ -52,12 +52,12 @@ export function buildChart(kind: ChartKind, result: ReportResult, measureIndex =
       rows = [...sorted.slice(0, MAX_SERIES - 1), { v: { [measure.key]: rest }, d: { g0: OTHER } } as ResultRow];
     }
     const names = rows.map((r) => r.d.g0);
-    // "None" (no value) and "Other" are grey, so a lookup's own colours still apply to the rest.
-    const colours = rows.map((r) => r.c?.g0 ?? (r.v.g0 === null || r.v.g0 === undefined || r.d.g0 === OTHER ? 'gray' : undefined));
-    const meaningful = distinctColours(colours) || (colours.every(Boolean) && new Set(colours).size > 1 && kind !== 'pie' && kind !== 'donut');
+    // "None" (no value) and "Other" are gray, so a lookup's own colors still apply to the rest.
+    const colors = rows.map((r) => r.c?.g0 ?? (r.v.g0 === null || r.v.g0 === undefined || r.d.g0 === OTHER ? 'gray' : undefined));
+    const meaningful = distinctColors(colors) || (colors.every(Boolean) && new Set(colors).size > 1 && kind !== 'pie' && kind !== 'donut');
     const data = rows.map((r, i) => ({
       name: r.d.g0, value: numberOf(r.v[measure.key]),
-      ...(meaningful ? { itemStyle: { color: chartColor(colours[i]!) } } : {}),
+      ...(meaningful ? { itemStyle: { color: chartColor(colors[i]!) } } : {}),
     }));
     const drillFor: BuiltChart['drillFor'] = (seg) => rows[seg.dataIndex]?.drill ?? null;
 
@@ -113,15 +113,15 @@ export function buildChart(kind: ChartKind, result: ReportResult, measureIndex =
 
   // ---------- two fields ----------
   const rowKeys: string[] = [];
-  const colKeys: { name: string; colour?: string }[] = [];
+  const colKeys: { name: string; color?: string }[] = [];
   const cell = new Map<string, ResultRow>();
   if (result.pivot) {
     rowKeys.push(...result.pivot.rows.map((r) => r.label));
-    colKeys.push(...result.pivot.cols.map((c) => ({ name: c.label, colour: c.color })));
+    colKeys.push(...result.pivot.cols.map((c) => ({ name: c.label, color: c.color })));
   }
   for (const r of result.rows) {
     if (!rowKeys.includes(r.d.g0)) rowKeys.push(r.d.g0);
-    if (!colKeys.some((c) => c.name === r.d.g1)) colKeys.push({ name: r.d.g1, colour: r.c?.g1 });
+    if (!colKeys.some((c) => c.name === r.d.g1)) colKeys.push({ name: r.d.g1, color: r.c?.g1 });
     cell.set(`${r.d.g0}\u0001${r.d.g1}`, r);
   }
   const at = (row: string, col: string) => cell.get(`${row}\u0001${col}`);
@@ -149,14 +149,14 @@ export function buildChart(kind: ChartKind, result: ReportResult, measureIndex =
   }
 
   // Bars and lines by the first field, one series per value of the second.
-  let series = colKeys.map((ck) => ({ name: ck.name, colour: ck.colour, values: rowKeys.map((rk) => { const r = at(rk, ck.name); return r ? numberOf(r.v[measure.key]) : 0; }) }));
+  let series = colKeys.map((ck) => ({ name: ck.name, color: ck.color, values: rowKeys.map((rk) => { const r = at(rk, ck.name); return r ? numberOf(r.v[measure.key]) : 0; }) }));
   if (series.length > MAX_SERIES) {
     const ranked = [...series].sort((a, b) => b.values.reduce((n, v) => n + v, 0) - a.values.reduce((n, v) => n + v, 0));
     const keep = new Set(ranked.slice(0, MAX_SERIES - 1).map((s) => s.name));
     const rest = series.filter((s) => !keep.has(s.name));
-    series = [...series.filter((s) => keep.has(s.name)), { name: OTHER, colour: 'gray', values: rowKeys.map((_, i) => rest.reduce((n, s) => n + s.values[i], 0)) }];
+    series = [...series.filter((s) => keep.has(s.name)), { name: OTHER, color: 'gray', values: rowKeys.map((_, i) => rest.reduce((n, s) => n + s.values[i], 0)) }];
   }
-  const meaningful = distinctColours(series.map((s) => s.colour));
+  const meaningful = distinctColors(series.map((s) => s.color));
   const line = kind === 'line' || kind === 'area';
   const stacked = kind === 'stacked' || kind === 'area';
   return {
@@ -169,7 +169,7 @@ export function buildChart(kind: ChartKind, result: ReportResult, measureIndex =
       series: series.map((s) => ({
         type: line ? 'line' : 'bar', name: s.name, data: s.values,
         ...(stacked ? { stack: 'total' } : {}),
-        ...(kind === 'stacked' ? { itemStyle: { borderRadius: 0, borderColor: 'var(--surface)', borderWidth: 1, ...(meaningful ? { color: chartColor(s.colour!) } : {}) } } : meaningful ? { itemStyle: { color: chartColor(s.colour!) }, lineStyle: { color: chartColor(s.colour!) } } : {}),
+        ...(kind === 'stacked' ? { itemStyle: { borderRadius: 0, borderColor: 'var(--surface)', borderWidth: 1, ...(meaningful ? { color: chartColor(s.color!) } : {}) } } : meaningful ? { itemStyle: { color: chartColor(s.color!) }, lineStyle: { color: chartColor(s.color!) } } : {}),
         ...(kind === 'area' ? { areaStyle: { opacity: 0.2 }, showSymbol: false } : {}),
         emphasis: { focus: 'series' },
       })),

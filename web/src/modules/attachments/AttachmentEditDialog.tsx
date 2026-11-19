@@ -7,7 +7,7 @@ import { formatBytes, type Attachment } from './shared';
 
 interface Props {
   attachment: Attachment;
-  /** The organisation's date today (YYYY-MM-DD), from the server. */
+  /** The organization's date today (YYYY-MM-DD), from the server. */
   today: string;
   onClose: () => void;
   onSaved: () => void;

@@ -1,5 +1,5 @@
-// Wall-clock time in the organisation's time zone, for files that carry dates without a zone
-// (spreadsheets): a date and time is written as the organisation's clocks read it, and read back
+// Wall-clock time in the organization's time zone, for files that carry dates without a zone
+// (spreadsheets): a date and time is written as the organization's clocks read it, and read back
 // the same way.
 import { TIME_ZONE } from '../timezone.ts';
 
@@ -10,13 +10,13 @@ const partsFmt = new Intl.DateTimeFormat('en-CA', {
 
 export interface WallClock { y: number; m: number; d: number; h: number; mi: number; s: number }
 
-/** The organisation's wall-clock reading of an instant. */
+/** The organization's wall-clock reading of an instant. */
 export function wallClock(at: Date): WallClock {
   const p = Object.fromEntries(partsFmt.formatToParts(at).map((x) => [x.type, x.value]));
   return { y: Number(p.year), m: Number(p.month), d: Number(p.day), h: Number(p.hour) % 24, mi: Number(p.minute), s: Number(p.second) };
 }
 
-/** The instant at which the organisation's clocks read this date and time. */
+/** The instant at which the organization's clocks read this date and time. */
 export function wallToInstant(w: WallClock): Date {
   const target = Date.UTC(w.y, w.m - 1, w.d, w.h, w.mi, w.s);
   let guess = target;
@@ -44,7 +44,7 @@ export function serialToWall(serial: number): WallClock {
 const pad = (n: number) => String(n).padStart(2, '0');
 export const wallDate = (w: WallClock) => `${w.y}-${pad(w.m)}-${pad(w.d)}`;
 
-/** "18 Nov 2026, 14:05" in the organisation's time zone. */
+/** "18 Nov 2026, 14:05" in the organization's time zone. */
 const stampFmt = new Intl.DateTimeFormat('en-GB', { timeZone: TIME_ZONE, day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
 const dateFmt = new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' });
 export const formatStamp = (v: unknown) => { const d = v instanceof Date ? v : new Date(String(v)); return Number.isNaN(d.getTime()) ? String(v ?? '') : stampFmt.format(d); };

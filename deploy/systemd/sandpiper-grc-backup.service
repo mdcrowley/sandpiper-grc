@@ -1,0 +1,32 @@
+# Verified backup of a Sandpiper GRC installed with sandpiper-grc.service. Started by
+# sandpiper-grc-backup.timer. The service is stopped for the few seconds the copy takes and
+# started again afterwards, whatever the result. Results: journalctl -u sandpiper-grc-backup
+#
+#   sudo cp deploy/systemd/sandpiper-grc-backup.* /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now sandpiper-grc-backup.timer
+#
+# With a PostgreSQL server, back the database up with its own tools instead (docs/operations.md).
+
+[Unit]
+Description=Sandpiper GRC backup
+After=sandpiper-grc.service
+
+[Service]
+Type=oneshot
+User=sandpiper
+Group=sandpiper
+WorkingDirectory=/opt/sandpiper-grc
+Environment=GRC_DATA_DIR=/var/lib/sandpiper-grc/data
+Environment=GRC_BACKUP_DIR=/var/lib/sandpiper-grc/backups
+EnvironmentFile=-/etc/sandpiper-grc/env
+# "+" runs these as root, which stopping and starting a system service needs.
+ExecStartPre=+/bin/systemctl stop sandpiper-grc.service
+# Keeps the newest 14. Add --encrypt --key-file <file outside the data folder> to encrypt.
+ExecStart=/opt/sandpiper-grc/grc.sh backup --label scheduled --prune 14
+ExecStopPost=+/bin/systemctl start sandpiper-grc.service
+StateDirectory=sandpiper-grc
+UMask=0027
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true

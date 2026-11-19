@@ -1,6 +1,6 @@
 # Cybersecurity frameworks and assessments
 
-A framework is a published list of security outcomes that an organisation works towards; NIST CSF 2.0 is included, and others can be added from a file. This page explains how to read the outcomes board, how to record where you stand on each outcome and the evidence for it, and how to take assessment snapshots so that progress can be shown between two dates. The screens are in the **Cybersecurity** group of the menu: **Framework outcomes** and **Assessments**.
+A framework is a published list of security outcomes that an organization works towards; NIST CSF 2.0 is included, and others can be added from a file. This page explains how to read the outcomes board, how to record where you stand on each outcome and the evidence for it, and how to take assessment snapshots so that progress can be shown between two dates. The screens are in the **Cybersecurity** group of the menu: **Framework outcomes** and **Assessments**.
 
 Transit operators often map framework outcomes to the security guidance issued for their sector, or to the conditions of a grant, an insurer or a contract. The **Also satisfies** tab and the **Coverage of other frameworks** page are made for this: record the mapping once on each outcome, then see the other document's requirements with the outcomes that meet them.
 
@@ -9,10 +9,10 @@ Transit operators often map framework outcomes to the security guidance issued f
 | Word | Meaning |
 |---|---|
 | Framework | The whole standard, for example NIST CSF 2.0. |
-| Function | The top-level grouping in a framework. Each function has a short code and its own colour band. |
+| Function | The top-level grouping in a framework. Each function has a short code and its own color band. |
 | Category | A group of related outcomes inside a function. |
 | Outcome | One thing the framework expects to be true, identified by a code such as `GV.OC-01`. |
-| Priority outcome | An outcome your organisation has chosen to concentrate on first. It carries a star. |
+| Priority outcome | An outcome your organization has chosen to concentrate on first. It carries a star. |
 | Target | The status every outcome is expected to reach. It is **Largely met** unless your installation has been set up differently. |
 | Snapshot | A saved copy of every outcome's status on one date. |
 
@@ -24,11 +24,11 @@ Transit operators often map framework outcomes to the security guidance issued f
 
 If a button described here is missing, your role does not include that permission. Ask an administrator (see [Administration](09-administration.md)).
 
-## Status colours
+## Status colors
 
-Every outcome has one status. The colours are the same on every screen, and a key is always shown beside any coloured bar.
+Every outcome has one status. The colors are the same on every screen, and a key is always shown beside any colored bar.
 
-| Status | Colour | Counts towards the score as |
+| Status | Color | Counts towards the score as |
 |---|---|---|
 | Not evidenced | Red | 0 |
 | Partial | Amber | 33 |
@@ -37,7 +37,7 @@ Every outcome has one status. The colours are the same on every screen, and a ke
 
 An outcome is "at target" when its status is the target status or better. With the usual target, that means **Largely met** or **Met**.
 
-Administrators can rename statuses and change their colours under **Lists** (the list is called **Outcome status**).
+Administrators can rename statuses and change their colors under **Lists** (the list is called **Outcome status**).
 
 ## The outcomes board
 
@@ -55,9 +55,9 @@ The summary card at the top shows:
 
 Below the filters the board is laid out as follows:
 
-- Each **function** is a section with a coloured band. The band shows the function's code, name and description, a ring with the share of its outcomes at target, a line such as "7 of 31 outcomes at "Largely met" or better", and a bar split by status with the counts written under it.
+- Each **function** is a section with a colored band. The band shows the function's code, name and description, a ring with the share of its outcomes at target, a line such as "7 of 31 outcomes at "Largely met" or better", and a bar split by status with the counts written under it.
 - Inside a function, each **category** has a heading with its code, name and number of outcomes. Hover over a category name to read its description.
-- Each **outcome** is a tile edged in the colour of its status. A tile shows:
+- Each **outcome** is a tile edged in the color of its status. A tile shows:
   - the outcome code;
   - a star if it is a priority outcome;
   - the status in words;
@@ -78,7 +78,7 @@ The **Detailed**, **Compact** and **Map** buttons at the right of the filter bar
 
 - **Detailed**: everything listed above.
 - **Compact**: one line per outcome: code, star, text and status.
-- **Map**: a small coloured block per outcome with its code and star. Useful for seeing the whole framework at a glance. Hover over a block to read the outcome.
+- **Map**: a small colored block per outcome with its code and star. Useful for seeing the whole framework at a glance. Hover over a block to read the outcome.
 
 Your choice is remembered in this browser.
 
@@ -171,7 +171,7 @@ There is no separate save button. The change is recorded in the outcome's **Hist
 The first card shows where the outcome sits (framework, function, category and, if one was loaded, its designation) and two blocks side by side:
 
 - **Official text**: the framework's own wording, for reference.
-- **In plain language**: what the outcome means for your organisation, in your own words. Write it with **Edit** on the card below.
+- **In plain language**: what the outcome means for your organization, in your own words. Write it with **Edit** on the card below.
 
 ### Where we are going
 
@@ -180,12 +180,12 @@ This card holds the plan for the outcome: **Target**, **First action**, **Phase*
 | Field | What to put in it |
 |---|---|
 | **Plain-language description** | The outcome in your own words. This becomes the page title and the text on the tile. |
-| **Target** | What "done" looks like for your organisation. |
+| **Target** | What "done" looks like for your organization. |
 | **First action** | The next concrete step. |
 | **Phase** | When you plan to work on it: **Now**, **Next** or **Later**. |
 | **Owner** | The person responsible. |
 | **Review date** | When the status should next be checked. |
-| **Priority outcome** | Tick to give the outcome a star. |
+| **Priority outcome** | Check to give the outcome a star. |
 | **Evidence summary** | A sentence or two on what evidence exists overall. It is shown at the top of the **Evidence** tab. |
 
 ### Review-date reminders
@@ -208,10 +208,10 @@ The **Evidence** tab has two parts.
 **Evidence files** holds the documents, screenshots and exports that show the outcome is met:
 
 1. Drag files onto the box, or select **Choose files**.
-2. Leave **Record new files as evidence** ticked. Check **Collected on** (today by default) and, if the evidence goes out of date, enter **Expires on**.
+2. Leave **Record new files as evidence** checked. Check **Collected on** (today by default) and, if the evidence goes out of date, enter **Expires on**.
 3. The files are uploaded straight away and listed with an **Evidence** label and their expiry.
 
-Use the download, pencil and bin icons on a file's row to download it, change its dates, or remove it. Files follow the outcome's permissions: anyone who can see the outcome can download them.
+Use the download, pencil and trash icons on a file's row to download it, change its dates, or remove it. Files follow the outcome's permissions: anyone who can see the outcome can download them.
 
 **Evidence notes** describe evidence that is kept somewhere else. To add one:
 
@@ -222,7 +222,7 @@ Use the download, pencil and bin icons on a file's row to download it, change it
 5. Enter **Collected on** and, if the item goes out of date, **Expires on**. The expiry date cannot be earlier than the collected date.
 6. Select **Add evidence**.
 
-To change a note, select the pencil icon on its row, make the change and select **Save changes**. To remove one, select the bin icon and confirm. Both are recorded in the history.
+To change a note, select the pencil icon on its row, make the change and select **Save changes**. To remove one, select the trash icon and confirm. Both are recorded in the history.
 
 Each note shows an expiry label:
 
@@ -246,9 +246,9 @@ To add a mapping:
 3. Enter the **Reference**: the section, clause or control number, if there is one. For example, framework "PCI DSS" with reference "12.10.1".
 4. Select **Add mapping**.
 
-The same framework and reference cannot be added twice to one outcome. A name cannot contain a colon or a semicolon, and a reference cannot contain a semicolon: add a separate mapping for each reference. To change a mapping, select the pencil icon, edit it and select **Save changes**. To remove one, select the bin icon; it is removed immediately, without a confirmation step. Select a framework's name to open its coverage.
+The same framework and reference cannot be added twice to one outcome. A name cannot contain a colon or a semicolon, and a reference cannot contain a semicolon: add a separate mapping for each reference. To change a mapping, select the pencil icon, edit it and select **Save changes**. To remove one, select the trash icon; it is removed immediately, without a confirmation step. Select a framework's name to open its coverage.
 
-An outcome also has an **Also satisfies** text field, which is filled when your organisation's designations are loaded at setup (entries separated by semicolons, for example `ISO/IEC 27001 A.5.1; Example Standard 2: 4.1`). The text and the mappings are kept in step: adding, changing or removing a mapping rewrites the text, and changing the text adds and removes mappings to match. In the text, a colon marks where a name ends and its reference begins. Without a colon, a name from the **Mapping framework** list, or one already used in a mapping, is recognised even when it contains a number; otherwise the reference starts at the first word that contains a digit. Administrators can add names to the **Mapping framework** list under **Lists**.
+An outcome also has an **Also satisfies** text field, which is filled when your organization's designations are loaded at setup (entries separated by semicolons, for example `ISO/IEC 27001 A.5.1; Example Standard 2: 4.1`). The text and the mappings are kept in step: adding, changing or removing a mapping rewrites the text, and changing the text adds and removes mappings to match. In the text, a colon marks where a name ends and its reference begins. Without a colon, a name from the **Mapping framework** list, or one already used in a mapping, is recognized even when it contains a number; otherwise the reference starts at the first word that contains a digit. Administrators can add names to the **Mapping framework** list under **Lists**.
 
 ### Risks, policies and actions
 
@@ -280,12 +280,12 @@ Open **Framework outcomes > More > Frameworks and structure**. The page lists th
 
 With **Edit**, the functions and categories of the chosen framework can be changed on this page:
 
-- Change a function's **Function name**, **Colour** or description, or a category's name, in place.
+- Change a function's **Function name**, **Color** or description, or a category's name, in place.
 - Use the up and down arrows to reorder functions, or categories within a function.
 - **Add function** adds a function at the end; **Add category** adds a category to that function. Enter a code and a name. The code of a saved function or category cannot be changed.
-- The bin icon removes a function or category after you confirm. A category that still has outcomes, or a function that still has categories or outcomes, cannot be removed: move or delete those first.
+- The trash icon removes a function or category after you confirm. A category that still has outcomes, or a function that still has categories or outcomes, cannot be removed: move or delete those first.
 
-Changes to names, colours and order are kept until you select **Save structure**; **Discard changes** goes back to what is saved. Removing is done at once. Every change is recorded in the framework's history.
+Changes to names, colors and order are kept until you select **Save structure**; **Discard changes** goes back to what is saved. Removing is done at once. Every change is recorded in the framework's history.
 
 ### Adding a framework from a file
 
@@ -367,7 +367,7 @@ The **Progress over time** card starts with a sentence saying how the score for 
 
 Hover over a point to read the snapshot's name, date and scores.
 
-The **score** is a number from 0 to 100. Each outcome counts as 0, 33, 67 or 100 according to its status (see "Status colours" above) and the score is the average. A rising line means outcomes are moving up the scale.
+The **score** is a number from 0 to 100. Each outcome counts as 0, 33, 67 or 100 according to its status (see "Status colors" above) and the score is the average. A rising line means outcomes are moving up the scale.
 
 The **Snapshots** table below the chart gives the same figures in numbers. For each snapshot, and for "Now (not saved)", it shows the date, a bar of outcomes by status, **Score, priority**, **Score, all** and **Priority at target**. Select a snapshot's name to open it, or **Report** to open its printable report.
 

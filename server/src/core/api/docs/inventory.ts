@@ -21,7 +21,7 @@ const ASSET_INPUT = `{
   site_id?: string "Site id or site name",
   location?: string,
   purchase_date?: string "YYYY-MM-DD, YYYY/MM/DD or month/day/year",
-  cost?: number | string "Amount in the organisation's currency; its code or symbol and thousands commas are allowed",
+  cost?: number | string "Amount in the organization's currency; its code or symbol and thousands commas are allowed",
   funding_source?: string "Value or label of the funding_source list",
   funder_interest?: boolean | string "true/false, yes/no, y/n or 1/0",
   funder_interest_pct?: number | string "0 to 100",
@@ -128,7 +128,7 @@ export const DOCS: RouteDoc[] = [
   }),
 
   // ---- inventory settings, departments, reminders, reports ----
-  route('GET', '/api/inventory/departments', 'The organisation\'s departments, for the asset department choice', {
+  route('GET', '/api/inventory/departments', 'The organization\'s departments, for the asset department choice', {
     tag: 'Inventory', permission: 'assets.view', response: '[{ name: string }]',
   }),
   route('GET', '/api/inventory/settings', 'Inventory settings', {

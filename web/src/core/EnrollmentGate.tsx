@@ -13,7 +13,7 @@ import { Button, EmptyState } from './ui';
 /** The route every installation uses for a person's own sign-in security (the admin module's page). */
 export const ACCOUNT_SECURITY_PATH = '/account/security';
 
-export function EnrolmentGate() {
+export function EnrollmentGate() {
   const { user, appName, logout } = useAuth();
   const { theme, toggle } = useTheme();
   const page = modules.flatMap((m) => m.routes ?? []).find((r) => r.path === ACCOUNT_SECURITY_PATH);
@@ -39,7 +39,7 @@ export function EnrolmentGate() {
           <div>
             <strong>Set up a second sign-in factor to continue.</strong>
             <p>
-              Your organisation requires one for your account. Until it is set up, the rest of the
+              Your organization requires one for your account. Until it is set up, the rest of the
               application is not available. It takes about two minutes and needs an authenticator app or a passkey.
             </p>
           </div>

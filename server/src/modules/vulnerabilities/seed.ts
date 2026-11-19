@@ -43,7 +43,7 @@ const FINDINGS: [string, string, string, number, string, string, string, string]
   ['900113', 'Weak key exchange algorithms on remote shell', 'medium', 4.8, '22/tcp', 'ssh', '', 'Remove legacy key exchange algorithms from the configuration.'],
   ['900114', 'Firmware update available with security fixes', 'medium', 6.8, '', '', 'CVE-2099-0114', 'Schedule the firmware update in a maintenance window.'],
   ['900115', 'Directory listing enabled on web server', 'low', 3.7, '80/tcp', 'http', '', 'Turn off directory listing.'],
-  ['900116', 'Self-signed certificate in use', 'low', 3.1, '443/tcp', 'https', '', 'Install a certificate from the organisation\'s certificate authority.'],
+  ['900116', 'Self-signed certificate in use', 'low', 3.1, '443/tcp', 'https', '', 'Install a certificate from the organization\'s certificate authority.'],
   ['900117', 'Web server discloses its version', 'low', 2.6, '80/tcp', 'http', '', 'Hide the version banner.'],
   ['900118', 'Clickjacking protection header missing', 'low', 3.1, '443/tcp', 'https', '', 'Send a frame-ancestors policy.'],
   ['900119', 'Anonymous file transfer enabled', 'low', 3.9, '21/tcp', 'ftp', '', 'Disable anonymous access or the service.'],

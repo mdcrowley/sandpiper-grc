@@ -132,7 +132,9 @@ export function serverPid(dataDir: string): number | null {
   const pidFile = join(dataDir, 'grc.pid');
   if (!existsSync(pidFile)) return null;
   const pid = Number(readFileSync(pidFile, 'utf8').trim());
-  if (!Number.isInteger(pid) || pid <= 0) return null;
+  // Our own process id means the file is left over from an earlier process that had the same id
+  // (common in containers, where every one-off command starts with a low id).
+  if (!Number.isInteger(pid) || pid <= 0 || pid === process.pid) return null;
   try {
     process.kill(pid, 0); // signal 0 tests for existence without sending anything
     return pid;

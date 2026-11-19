@@ -3,7 +3,7 @@ import { clock } from './clock.ts';
 
 /**
  * Invented sample data for demonstrations. There is no seed file for the service desk, so
- * both profiles get the same clearly labelled "[Sample]" records. Nothing here describes
+ * both profiles get the same clearly labeled "[Sample]" records. Nothing here describes
  * a real person, device or event.
  */
 
@@ -99,7 +99,7 @@ export async function seedSamples(ctx: ModuleContext, sla: { sweep(now?: Date): 
       body: 'In version 1 only IT staff sign in, so every ticket is logged for someone else.\n\nAlways record the requester name, department and a way to reach them. Choose impact and urgency honestly: the priority and the service-level targets follow from them.' },
   ]) await ctx.resources.create('knowledge_article', { ...a, status: 'published', owner_id: someone(), review_on: reviewOn });
 
-  // ----- a catalogue item with its own questions and fulfilment tasks -----
+  // ----- a catalog item with its own questions and fulfillment tasks -----
   if (!(await db.one(`select 1 from catalog_items where name like '[Sample]%' limit 1`))) {
     await ctx.resources.create('catalog_item', {
       name: '[Sample] Vehicle equipment fault', category: 'equipment', active: true,
@@ -206,5 +206,5 @@ export async function seedSamples(ctx: ModuleContext, sla: { sweep(now?: Date): 
   const breached = await sla.sweep(now);
   const total = (await db.one<{ n: number }>(
     `select count(*)::int as n from tickets where title like '[Sample]%' and (response_breached or resolve_breached)`))!.n;
-  return `${made} sample tickets (${total} with a missed target, ${breached} flagged by the sweep), ${problems.length} problems, 4 knowledge articles, 1 catalogue item`;
+  return `${made} sample tickets (${total} with a missed target, ${breached} flagged by the sweep), ${problems.length} problems, 4 knowledge articles, 1 catalog item`;
 }

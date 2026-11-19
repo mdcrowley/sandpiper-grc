@@ -45,7 +45,7 @@ export function ContractList() {
   );
 }
 
-/* ---------- the notice date, front and centre ---------- */
+/* ---------- the notice date, front and center ---------- */
 
 const REMINDER_WORD: Record<ReminderState['state'], string> = { fired: 'sent', superseded: 'skipped', due: 'due now', scheduled: 'planned' };
 

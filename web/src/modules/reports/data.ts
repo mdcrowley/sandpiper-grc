@@ -1,10 +1,10 @@
 // Data helpers for the reporting screens.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError, formatCurrency, formatNumber, useFetch } from '../../core';
-import type { CatalogueType, ResultColumn, ResultRow } from './types';
+import type { CatalogType, ResultColumn, ResultRow } from './types';
 
-export function useCatalogue() {
-  const state = useFetch<{ types: CatalogueType[] }>('/api/reports/catalogue');
+export function useCatalog() {
+  const state = useFetch<{ types: CatalogType[] }>('/api/reports/catalog');
   return { ...state, types: state.data?.types };
 }
 

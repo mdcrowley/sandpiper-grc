@@ -1,4 +1,4 @@
-// Invented sample data for the portal (dev profile only): catalogue items offered to staff and
+// Invented sample data for the portal (dev profile only): catalog items offered to staff and
 // a few knowledge articles written for everyone. Added once each, by name.
 import type { ModuleContext, Row, SeedOptions } from '../../core/module.ts';
 
@@ -84,5 +84,5 @@ export async function seedPortal(ctx: ModuleContext, opts: SeedOptions): Promise
       articles += 1;
     }
   }
-  return `${items} portal catalogue items, ${articles} staff articles`;
+  return `${items} portal catalog items, ${articles} staff articles`;
 }

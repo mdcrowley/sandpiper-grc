@@ -8,7 +8,7 @@ The Projects area takes a technology project from a one-page request through a f
 |---|---|
 | See the portfolio and open projects | **View** on Projects |
 | Submit a project request | Whatever your administrator chose under **Who may submit a project request** (see [Project settings](#project-settings)). By default, **Create** on Projects |
-| Edit a project, tick checklist items, mark documents received, attach files, add reports, items and milestones, save scores | **Edit** on Projects |
+| Edit a project, check checklist items, mark documents received, attach files, add reports, items and milestones, save scores | **Edit** on Projects |
 | Record a gate decision, waive a required document, move a project back a stage | **Approve** on Projects |
 | Escalate a project risk to the risk register | **Edit** on Projects and **Create** on Risks |
 | Change project settings and gate templates | **Administer** on Projects |
@@ -24,7 +24,7 @@ Every project starts as a one-page request.
 3. In **What is needed and why**, describe the problem. In **Expected benefits**, say what will be better afterwards.
 4. Enter the **Sponsor** and **Department**.
 5. Enter a rough **Budget**, choose the **Funding source** (**Operating budget**, **Capital budget**, **Grant or outside funder** or **Other**; leave it as **Not known yet** if you do not know) and enter a **Target date**.
-6. Under **Does it touch any of these?**, tick any that apply: **Touches payment**, **Touches personal data**, **Touches operational systems**.
+6. Under **Does it touch any of these?**, check any that apply: **Touches payment**, **Touches personal data**, **Touches operational systems**.
 7. Where the system inventory is in use and you may view it, name any **Systems affected**: existing systems the project would change, replace or depend on.
 8. A box under the form says which tier the request looks like and why. Select **Submit request**.
 
@@ -42,8 +42,8 @@ The tier says how much scrutiny a project gets. It decides who approves each gat
 | Tier | Assigned when |
 |---|---|
 | **Tier 1** | The project touches payment, personal data or operational systems, whatever its budget; or the budget is above the upper threshold. |
-| **Tier 2** | None of the three questions is ticked and the budget is between the two thresholds, including a budget exactly equal to either one. |
-| **Tier 3** | None of the three questions is ticked and the budget is below the lower threshold. A project with no budget entered is Tier 3. |
+| **Tier 2** | None of the three questions is checked and the budget is between the two thresholds, including a budget exactly equal to either one. |
+| **Tier 3** | None of the three questions is checked and the budget is below the lower threshold. A project with no budget entered is Tier 3. |
 
 The thresholds are 50,000 and 100,000 unless your administrator has changed them. The **New project request** page shows the amounts in force under **How the tier is set**.
 
@@ -73,22 +73,22 @@ A project moves through six stages. Between each pair is a gate.
 
 The stage cannot be edited directly. A project moves forward only when its current gate is approved, and moves back only through **Move back a stage** (see below). When the **Go-live** gate is approved the project reaches **Close** and its status becomes **Completed** by itself.
 
-Separately, a project has a **Status**: **Active**, **On hold**, **Cancelled** or **Completed**. Change it with **Edit** on the **Project** card. Gate decisions can be recorded only while the project is **Active**.
+Separately, a project has a **Status**: **Active**, **On hold**, **Canceled** or **Completed**. Change it with **Edit** on the **Project** card. Gate decisions can be recorded only while the project is **Active**.
 
 ### The stage bar
 
-The bar at the top of a project page shows the six stages with the gates between them. Completed stages are ticked and the current stage is highlighted. Each gate shows its state:
+The bar at the top of a project page shows the six stages with the gates between them. Completed stages are checked and the current stage is highlighted. Each gate shows its state:
 
 | Gate shows | Meaning |
 |---|---|
 | **Not reached** | The project has not got to this gate yet. |
 | **Blocked: N to do** | Checklist items or required documents are still outstanding. |
-| **Ready for a decision** | Every checklist item is ticked and every required document is received or waived. |
+| **Ready for a decision** | Every checklist item is checked and every required document is received or waived. |
 | **Deferred · …** | A decision to defer was recorded. The gate is still open. |
 | **Approved** with a date | The gate was passed. |
 | **Rejected** | A decision to reject was recorded. |
 
-The line under the bar names the current gate and its state. Select a gate on the bar to open its record in a side panel: its status, who approved it and when, the checklist with who ticked each item, the documents, any change record and every decision. On the current gate, **Work this gate** takes you to the **Gate** tab.
+The line under the bar names the current gate and its state. Select a gate on the bar to open its record in a side panel: its status, who approved it and when, the checklist with who checked each item, the documents, any change record and every decision. On the current gate, **Work this gate** takes you to the **Gate** tab.
 
 Under the bar, a strip shows the latest **Schedule**, **Budget** and **Risk** ratings, **Spend against budget**, the **Target date** with the days to go (or past it), and the project manager, sponsor and priority score.
 
@@ -102,9 +102,9 @@ A box at the top says where the gate stands: "Approval is blocked" followed by w
 
 Each gate has a checklist copied from the gate template at the moment the gate opened. A progress bar shows how many items are done.
 
-1. Tick an item when it is done. Your name and the time are shown under it.
+1. Check an item when it is done. Your name and the time are shown under it.
 2. Select **Add note** on an item to record a **Note** and an **Evidence reference**, such as a document or ticket number, then select **Save**.
-3. Untick an item if it was ticked by mistake.
+3. Clear an item if it was checked by mistake.
 
 Once a gate is approved its checklist and documents can no longer be changed.
 
@@ -112,7 +112,7 @@ Once a gate is approved its checklist and documents can no longer be changed.
 
 The **Required documents** card lists the documents expected at this gate. Each is marked **Required** or **Optional**, with a state chip: **Missing**, **Received**, **Waived** or **Optional**.
 
-- Tick a document when it has been received, and type where it is filed in the box under it.
+- Check a document when it has been received, and type where it is filed in the box under it.
 - Or select **Attach file** to upload the document itself. The file is kept on the project (it also appears on the **Attachments** tab) and the document is marked as received. **Replace file** swaps it. Attaching needs the attachments feature to be in use.
 - An approver can select **Waive** on a missing required document, give a **Reason** and select **Waive document**. A waived document no longer blocks the gate; who waived it, when and why are shown on the gate and kept in the history. **Withdraw waiver** puts it back.
 
@@ -142,7 +142,7 @@ What happens next depends on the decision:
 
 - **Approved**: the gate closes, the project moves to the next stage and the next gate opens with a fresh checklist. Approving **Go-live** completes the project.
 - **Deferred**: the gate stays open and the project appears under **Gate decisions due** on the portfolio. Record another decision later.
-- **Rejected**: the gate is marked rejected and the project stays in its stage. The project's status does not change by itself; set it to **Cancelled** or **On hold** if that is the outcome. A further decision can still be recorded on the gate.
+- **Rejected**: the gate is marked rejected and the project stays in its stage. The project's status does not change by itself; set it to **Canceled** or **On hold** if that is the outcome. A further decision can still be recorded on the gate.
 
 Every decision is kept under **Decisions** on the **Gate** tab, newest first, with the date, approver, reference, notes and who recorded it.
 
@@ -150,10 +150,10 @@ Every decision is kept under **Decisions** on the **Gate** tab, newest first, wi
 
 In the decision window, choosing **Approved** while something is outstanding shows "This gate cannot be approved yet" and lists exactly what blocks it, one line each:
 
-- **Checklist:** each item still unticked.
+- **Checklist:** each item still unchecked.
 - **Required document:** each required document that is neither received nor waived.
 
-**Record decision** stays disabled until the list is empty. Tick the items and deal with the documents first, or record the decision as **Deferred**. A project that is on hold, cancelled or completed cannot have any gate decision recorded ("No decision can be recorded yet"): make it **Active** again first.
+**Record decision** stays disabled until the list is empty. Check the items and deal with the documents first, or record the decision as **Deferred**. A project that is on hold, canceled or completed cannot have any gate decision recorded ("No decision can be recorded yet"): make it **Active** again first.
 
 ### Moving a project back a stage
 
@@ -199,7 +199,7 @@ Beside the overall rating an arrow shows the direction of travel, found by compa
 
 ### The trend chart and the reports timeline
 
-The **Trend** card draws one line for each of the four ratings over up to the last twelve reports, oldest on the left: green at the top of each line's band, amber in the middle, red at the bottom. Each point carries the letter G, A or R, so the chart can be read without relying on colour; hover over a point for the rating and period.
+The **Trend** card draws one line for each of the four ratings over up to the last twelve reports, oldest on the left: green at the top of each line's band, amber in the middle, red at the bottom. Each point carries the letter G, A or R, so the chart can be read without relying on color; hover over a point for the rating and period.
 
 Below it, **Reports** lists every report on a timeline, newest first, with its author, its four ratings and its text.
 
@@ -222,7 +222,7 @@ To change or remove an item, open the menu at the end of its row and choose **Ed
 
 ### Escalating a risk
 
-A project risk that matters beyond the project can be copied to the organisation's risk register. Because this adds a risk to the register, you need **Create** on **Risks** as well as **Edit** on **Projects**; without it the menu entry is greyed out and the tab explains why.
+A project risk that matters beyond the project can be copied to the organization's risk register. Because this adds a risk to the register, you need **Create** on **Risks** as well as **Edit** on **Projects**; without it the menu entry is grayed out and the tab explains why.
 
 1. On the risk's row, open the menu and choose **Escalate to risk register**.
 2. Confirm with **Escalate**.
@@ -267,7 +267,7 @@ Where the action tracker is in use, the **Actions** tab lists the to-dos raised 
 
 ## The portfolio
 
-Open **Projects > Project portfolio**. The strip at the top summarises every project that is not cancelled:
+Open **Projects > Project portfolio**. The strip at the top summarizes every project that is not canceled:
 
 - **Projects**: how many there are and how many are active.
 - **Overall rating**: how many are red, amber and green, with a bar of the split.
@@ -290,8 +290,8 @@ Use **Table**, **Board**, **Timeline** and **Budget** to switch views. The view,
 | View | What it shows |
 |---|---|
 | **Table** | Every project in rows: **Reference**, **Name**, **Tier**, **Stage**, **Status**, **Overall** rating with trend arrow, **Score**, **Budget**, **Spend against budget**, **Project manager** and **Target date**. Search, filter, sort, save views and export here. Filters include tier, stage, status, overall rating, trend, funding source, project manager, the three impact questions and target date. |
-| **Board** | One column per stage with a card for each project: reference, tier, name, overall rating with trend, target date, project manager, a budget bar, the next gate with how much is left to do, and a button: **Work the gate**, **See the gate** when it is ready, or **Move to** the next stage for an approver when it is ready (this opens the decision window). Cards cannot be dragged. Cancelled projects are not shown. |
-| **Timeline** | One row per project, the project names staying in view as you scroll sideways. Each project has a bar from start date to target date coloured by stage, a diamond for each milestone (done, to do or overdue) and a line for today. Choose **Quarter** or **Year** to zoom. Projects with no dates and no milestones are left out, with a note saying how many. Open **Show milestones as a table** for the same information as text. |
+| **Board** | One column per stage with a card for each project: reference, tier, name, overall rating with trend, target date, project manager, a budget bar, the next gate with how much is left to do, and a button: **Work the gate**, **See the gate** when it is ready, or **Move to** the next stage for an approver when it is ready (this opens the decision window). Cards cannot be dragged. Canceled projects are not shown. |
+| **Timeline** | One row per project, the project names staying in view as you scroll sideways. Each project has a bar from start date to target date colored by stage, a diamond for each milestone (done, to do or overdue) and a line for today. Choose **Quarter** or **Year** to zoom. Projects with no dates and no milestones are left out, with a note saying how many. Open **Show milestones as a table** for the same information as text. |
 | **Budget** | Tiles for the total **Budget**, **Spend to date**, **Remaining** and how many projects are **Over budget**; a **Budget versus actual** chart for each project with a budget or spend (spend beyond the budget is drawn in red; select a bar to open the project); and a **Figures** table with the remaining amount and totals. |
 
 The **Board**, **Timeline** and **Budget** views have their own search box and **Tier**, **Stage**, **Status** and **Rating** filters; **Clear filters** removes them. Filters set in the table view that these views do not offer are named under the filters and apply only to the table.
@@ -328,8 +328,8 @@ Open **Projects > Project settings**, or select **Settings** on the portfolio. Y
 | **Tier thresholds** | **Tier 3 is below** and **Tier 1 is above**. The second amount cannot be lower than the first. Select **Save thresholds**; the tier of every project is recalculated. |
 | **Work-in-progress limit** | **Active projects in delivery**: a whole number of 1 or more. Select **Save limit**. |
 | **Requests and reminders** | **Who may submit a project request**: **People who can create projects** (the default), **Everyone who can view projects** or **Everyone who can sign in**. **Status report due after (days)**: 1 to 366, counted from the period end of the last report. Select **Save requests and reminders**. |
-| **Scoring criteria** | For each criterion, its name (**Criterion**), **What it means** and **Weight**. Use **Add criterion** or the bin icon, then **Save criteria**. At least one criterion must have a weight above zero. Every project's score is recalculated. |
-| **Gates** | For each gate, select **Edit** to change the **Gate name**, the **Checklist** (one item per line), the **Documents** (a name each, with a **Required** switch; **Add document** adds one, the bin removes one), **Ask for a change record at this gate**, and the **Approvers** for each tier (one role per line). Select **Save gate**. |
+| **Scoring criteria** | For each criterion, its name (**Criterion**), **What it means** and **Weight**. Use **Add criterion** or the trash icon, then **Save criteria**. At least one criterion must have a weight above zero. Every project's score is recalculated. |
+| **Gates** | For each gate, select **Edit** to change the **Gate name**, the **Checklist** (one item per line), the **Documents** (a name each, with a **Required** switch; **Add document** adds one, the trash button removes one), **Ask for a change record at this gate**, and the **Approvers** for each tier (one role per line). Select **Save gate**. |
 
 Changes to a gate template apply to gates opened from then on. A gate already open on a project keeps the checklist and documents it started with.
 

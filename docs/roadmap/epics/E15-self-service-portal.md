@@ -25,7 +25,7 @@ needing an IT account with wider access, and let requests arrive by email.
 | E15-01 | Portal feature switch and Requester role | done | P2 |
 | E15-02 | Portal home and "raise a request" | done | P2 |
 | E15-03 | Track my own requests | done | P2 |
-| E15-04 | Catalogue in the portal | done | P2 |
+| E15-04 | Catalog in the portal | done | P2 |
 | E15-05 | Knowledge base for requesters | done | P3 |
 | E15-06 | Email-to-ticket | open | P3 |
 | E15-07 | Satisfaction answer from the requester | done | P3 |
@@ -86,27 +86,27 @@ can add a reply.
 - [x] Internal comments are never shown
 - [x] My replies are added as public comments; a reply to "waiting on requester" hands the ticket back to IT
 - [x] I can reopen a resolved ticket within a set number of days (setting; default 7), giving a reason
-- [x] Status in plain words (Received, Being worked on, Waiting for you, On hold, Waiting for approval, Not approved, Resolved, Closed, Cancelled; a status's lookup `meta.portal_label` overrides the label)
+- [x] Status in plain words (Received, Being worked on, Waiting for you, On hold, Waiting for approval, Not approved, Resolved, Closed, Canceled; a status's lookup `meta.portal_label` overrides the label)
 - [x] I add files to my request and see only the files I added
 - [x] I am notified of public replies and when IT need me or resolve the request (links into the portal)
 
 **Implemented in:** `server/src/modules/portal/requests.ts`, `files.ts`; `tellRequester` in `server/src/modules/tickets/index.ts`; `web/src/modules/portal/MyRequests.tsx`, `RequestDetail.tsx`
 
-### E15-04 Catalogue in the portal
+### E15-04 Catalog in the portal
 
 **Status:** done · **Priority:** P2 · **Type:** feature
 
-As a requester, I browse the service catalogue and pick what I need, which opens the
+As a requester, I browse the service catalog and pick what I need, which opens the
 right request form.
 
 **Acceptance criteria**
 
-- [x] Active catalogue items are listed by category
+- [x] Active catalog items are listed by category
 - [x] Choosing one pre-fills the request (its type, category, impact, urgency and group; title from "Title starts with" and the first answer)
-- [x] Items can be marked as agent-only (items appear only when **Show in the self-service portal** is ticked; `catalog_items.portal`)
+- [x] Items can be marked as agent-only (items appear only when **Show in the self-service portal** is checked; `catalog_items.portal`)
 - [x] Works with item-specific questions (text, long text, choice, date, yes or no), and approval
 
-**Implemented in:** `server/src/modules/tickets/migrations/004_portal.sql`; `web/src/modules/portal/CataloguePage.tsx`, `RequestForm.tsx`; `web/src/modules/tickets/Catalogue.tsx`; invented transit samples in `server/src/modules/portal/seed.ts`
+**Implemented in:** `server/src/modules/tickets/migrations/004_portal.sql`; `web/src/modules/portal/CatalogPage.tsx`, `RequestForm.tsx`; `web/src/modules/tickets/Catalog.tsx`; invented transit samples in `server/src/modules/portal/seed.ts`
 
 ### E15-05 Knowledge base for requesters
 
@@ -166,7 +166,7 @@ click. Today an agent asks and records the answer.
 
 **Status:** done · **Priority:** P1 · **Type:** security
 
-As the organisation, I am sure that someone with only the Requester role sees their own
+As the organization, I am sure that someone with only the Requester role sees their own
 tickets and nothing else.
 
 **Acceptance criteria**
@@ -198,7 +198,7 @@ tickets and nothing else.
 **Acceptance criteria**
 
 - [x] On or off (administrators only; the shared `portal` feature switch), title, welcome line, banner, reopen window
-- [x] Which catalogue items appear, switched per item
+- [x] Which catalog items appear, switched per item
 - [x] Changes audited
 
 **Implemented in:** `server/src/modules/portal/settings.ts`; `web/src/modules/tickets/SettingsPortal.tsx` (Service desk settings, **Self-service portal** tab)

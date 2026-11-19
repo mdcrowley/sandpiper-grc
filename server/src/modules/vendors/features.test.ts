@@ -329,7 +329,7 @@ describe('vendor profile summary', () => {
     const v = await vendor('Pinewood Systems', { criticality: 'critical' });
     await t.api.post(`/api/vendors/${v}/contacts`, { name: 'Sorrel Vane', role: 'Duty manager', phone: '555-0142', is_incident_contact: true });
     await t.api.post(`/api/vendors/${v}/contacts`, { name: 'Account person' });
-    const c = (await t.api.post('/api/contracts', { title: 'Pinewood licence', vendor_id: v, end_date: addDays(today, 200), notice_days: 60, renewal_mechanism: 'auto_renew' })).body;
+    const c = (await t.api.post('/api/contracts', { title: 'Pinewood license', vendor_id: v, end_date: addDays(today, 200), notice_days: 60, renewal_mechanism: 'auto_renew' })).body;
     await t.api.post('/api/contracts', { title: 'Pinewood old', vendor_id: v, status: 'terminated' });
     await t.api.post('/api/contracts', { title: 'Pinewood undated', vendor_id: v });
     await t.api.post('/api/evidence', { title: 'Report', vendor_id: v, received_on: addDays(today, -30), expires_on: addDays(today, 335) });
@@ -339,7 +339,7 @@ describe('vendor profile summary', () => {
     expect(s).toMatchObject({
       sees_contracts: true, contracts: 3, contracts_open: 2, contracts_undated: 1,
       next_notice_date: addDays(today, 140),
-      next_notice_contract: { id: c.id, title: 'Pinewood licence', renewal_mechanism: 'auto_renew' },
+      next_notice_contract: { id: c.id, title: 'Pinewood license', renewal_mechanism: 'auto_renew' },
       evidence: 2, evidence_current: 1, evidence_expired: 1, evidence_latest_received: addDays(today, -30),
       assessment: { id: null, score: null, draft_id: null },
     });

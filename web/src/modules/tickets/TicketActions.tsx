@@ -80,7 +80,7 @@ export function TicketActions({ rec }: { rec: RecordContext }) {
   const openTasks = ((row.fulfilment_tasks ?? []) as { done: boolean }[]).filter((t) => !t.done).length;
   const tasksNote = openTasks > 0 && (
     <p className="notice notice-pilot">
-      {openTasks === 1 ? 'One fulfilment task is' : `${openTasks} fulfilment tasks are`} not ticked yet. You can still go ahead.
+      {openTasks === 1 ? 'One fulfillment task is' : `${openTasks} fulfillment tasks are`} not ticked yet. You can still go ahead.
     </p>
   );
   const footer = (onSave: () => void, label: string) => (

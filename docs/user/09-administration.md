@@ -1,6 +1,6 @@
 # Administration
 
-This page is for administrators. It explains how to add people and give them access, how roles and permissions work, how to manage the second sign-in factor, how to change the choices offered in drop-down lists, the application settings, and how to read the audit log. The last section, on the **Account security** page, applies to every user. It also covers single sign-on with your organisation's identity provider and the break-glass account (**Sign-in providers**), your own fields on records (**Custom fields**), how long records are kept (**Retention**), **API tokens**, **Webhooks** and the **API reference**. The administration screens are in the **Administration** group of the menu: **Users**, **Roles**, **Sign-in providers**, **Lists**, **Settings**, **Custom fields**, **Retention**, **API tokens**, **Webhooks** and **Audit log**.
+This page is for administrators. It explains how to add people and give them access, how roles and permissions work, how to manage the second sign-in factor, how to change the choices offered in drop-down lists, the application settings, and how to read the audit log. The last section, on the **Account security** page, applies to every user. It also covers single sign-on with your organization's identity provider and the break-glass account (**Sign-in providers**), your own fields on records (**Custom fields**), how long records are kept (**Retention**), **API tokens**, **Webhooks** and the **API reference**. The administration screens are in the **Administration** group of the menu: **Users**, **Roles**, **Sign-in providers**, **Lists**, **Settings**, **Custom fields**, **Retention**, **API tokens**, **Webhooks** and **Audit log**.
 
 ## What you need
 
@@ -45,7 +45,7 @@ The list shows each person's **Name** and email, **Username**, **Status**, **Rol
 1. Select **New user**.
 2. Enter the **Name**, a **Username** (3 to 64 letters, numbers, dots, dashes or underscores; this is what they sign in with) and an **Email**.
 3. Choose a **Department** if you use them.
-4. Under **Roles**, tick only what this person needs. With no role they can sign in but see nothing.
+4. Under **Roles**, check only what this person needs. With no role they can sign in but see nothing.
 5. Select **Create user**.
 
 You do not set a password. Instead, the window changes to show a **one-time setup link** for the person.
@@ -80,7 +80,7 @@ A reset link does not change the current password until it is used. A link canno
 Open the person from the **Users** list.
 
 - On the **Details** card, change the **Name**, **Username**, **Email** or **Department** and select **Save details**.
-- On the **Roles** card, tick or untick roles and select **Save roles**. A role marked "(switched off)" can be given but grants nothing until it is switched on. A role marked "needs a second factor" expects its members to set one up.
+- On the **Roles** card, select or clear roles and select **Save roles**. A role marked "(switched off)" can be given but grants nothing until it is switched on. A role marked "needs a second factor" expects its members to set one up.
 
 Role changes take effect immediately.
 
@@ -129,7 +129,7 @@ The **Single sign-on** card has four parts:
 
 - **Linked identities**: each provider the person can sign in with, the email it gave, how and when it was linked, and when it was last used. **Unlink** removes one; the person's account, roles and history stay. The last way a person can sign in cannot be unlinked.
 - **Link at next sign-in**: for someone who cannot link a provider themselves (for example when passwords are switched off). Choose the **Provider** and select **Allow**. The person's next sign-in with that provider links it, provided the provider gives the same, verified email address as the account here. The permission lasts 7 days; **Withdraw** cancels it.
-- **Ways to sign in**: tick **Allow only the ways ticked below**, then tick **Password** and the providers this person may use, and select **Save**. Untick the box and save to allow every way again.
+- **Ways to sign in**: check **Allow only the ways checked below**, then check **Password** and the providers this person may use, and select **Save**. Clear the box and save to allow every way again.
 - **Break-glass account**: see "The break-glass account" below.
 
 ## Roles and permissions
@@ -147,9 +147,9 @@ A role is a named set of permissions. People get access only through the roles t
 | **Approver** | People who approve changes, service requests, asset decisions and project gates. It does not include risks: a risk acceptance is recorded by someone who can see the risk, naming the approver. | Off |
 | **Executive viewer** | Read-only dashboards, projects and framework outcomes. | Off |
 | **Auditor** | Read-only access to chosen areas, with export of framework evidence. | Off |
-| **Requester** | Anyone in the organisation submitting their own requests. | Off |
+| **Requester** | Anyone in the organization submitting their own requests. | Off |
 
-The list shows each role's **Access** (for example "12 permissions in 5 areas", or "Everything"), the number of **Members**, whether a **Second factor** is Required or Optional, and a **Switched on** switch. Treat the supplied roles as a starting point and check each one's permissions against how your organisation works.
+The list shows each role's **Access** (for example "12 permissions in 5 areas", or "Everything"), the number of **Members**, whether a **Second factor** is Required or Optional, and a **Switched on** switch. Treat the supplied roles as a starting point and check each one's permissions against how your organization works.
 
 ### Applying default permissions after an upgrade
 
@@ -177,9 +177,9 @@ You can switch off any other role in the same way, which is the quickest way to 
 Open a role. The **Permissions** card is a grid with one row for each area of the application and one column for each kind of action. Every area the application knows about is listed. The grid scrolls inside its own frame: the column headings and the area names stay in view while you scroll, so you always know which box you are looking at.
 
 - Type in **Find an area** to show only the areas whose name matches, for example "risk".
-- Tick **Only areas this role can use** to hide the areas where the role has nothing.
+- Check **Only areas this role can use** to hide the areas where the role has nothing.
 - The top right of the card shows how many areas the role reaches.
-- With the keyboard, Tab moves from box to box and Space ticks or unticks.
+- With the keyboard, Tab moves from box to box and Space checks or unchecks.
 
 | Action | Lets members |
 |---|---|
@@ -193,15 +193,15 @@ Open a role. The **Permissions** card is a grid with one row for each area of th
 
 To change a role:
 
-1. Tick or untick the boxes. Ticking **All** on a row grants every action in that area, including any added in future.
-2. On the **About this role** card you can also change the **Name** and **Description**, and tick **Members must use a second factor**.
+1. Select or clear the boxes. Checking **All** on a row grants every action in that area, including any added in future.
+2. On the **About this role** card you can also change the **Name** and **Description**, and check **Members must use a second factor**.
 3. Select **Save role**. Changes apply at once. Until you save, **Unsaved changes** is shown beside the buttons; select **Undo changes** to go back to what was saved.
 
 The **Members** card lists who holds the role. To give a role to someone, or take it away, go to that person's page.
 
-The **Administrator** role holds every permission (stored as a single star), so every box is ticked and cannot be changed.
+The **Administrator** role holds every permission (stored as a single star), so every box is checked and cannot be changed.
 
-An area that nothing checks yet carries a small **not yet used** label. Its boxes can be ticked, but ticking them has no effect today. **Self-service portal** is marked this way because the portal is not built; **Reports** is marked only on an installation where the reports part of the application is not installed. **View** on **Dashboards and overview** decides who sees the dashboards on the overview page.
+An area that nothing checks yet carries a small **not yet used** label. Its boxes can be checked, but checking them has no effect today. **Self-service portal** is marked this way because the portal is not built; **Reports** is marked only on an installation where the reports part of the application is not installed. **View** on **Dashboards and overview** decides who sees the dashboards on the overview page.
 
 ### Restricted records
 
@@ -212,7 +212,7 @@ Risks and security incidents are restricted. To see them a person needs **View**
 1. Select **New role**.
 2. Enter a **Name** and a **Description** saying who holds the role and what it is for.
 3. Select **Create role**. The role starts with no permissions and opens on its own page.
-4. Tick its permissions and select **Save role**.
+4. Check its permissions and select **Save role**.
 
 ## Second factor
 
@@ -220,7 +220,7 @@ A second factor means a stolen password is not enough to sign in. After setting 
 
 ### Who is expected to use one
 
-- Members of any role that has **Members must use a second factor** ticked. **Administrator** and **Security lead** have it to begin with.
+- Members of any role that has **Members must use a second factor** checked. **Administrator** and **Security lead** have it to begin with.
 - Everyone, if **Expect a second factor from every user** is switched on under **Settings > Security**.
 
 What happens to a person who is expected to use a second factor and has not set one up depends on **Enforcement** under **Settings > Security**:
@@ -268,7 +268,7 @@ Their authenticator app and recovery codes stop working. They sign in with a pas
 
 ## Sign-in providers (single sign-on)
 
-Single sign-on lets people sign in with their organisation account, at your organisation's identity provider, instead of a password kept here. Any provider that supports **OpenID Connect** works. Open **Administration > Sign-in providers**.
+Single sign-on lets people sign in with their organization account, at your organization's identity provider, instead of a password kept here. Any provider that supports **OpenID Connect** works. Open **Administration > Sign-in providers**.
 
 **Nothing is contacted until you switch a provider on.** A provider you have added but not switched on is never called, except when you select **Test connection**. Nobody can register themself: people sign in through a provider only to an account an administrator has added or linked, unless you switch on **Create an account at first sign-in**.
 
@@ -276,7 +276,7 @@ The list shows each provider's name (with **Default** beside the default one) an
 
 ### Registering the application with your provider
 
-At your identity provider, register this application as a web application (a confidential client) using the **authorisation code** flow. Give it the **redirect address** shown on the **Redirect address** card, with the provider's short name in place of `<short name>`, for example `https://grc.example.org/api/auth/sso/staff-directory/callback`. The provider gives you a **client ID** and a **client secret**, and states its **issuer** address.
+At your identity provider, register this application as a web application (a confidential client) using the **authorization code** flow. Give it the **redirect address** shown on the **Redirect address** card, with the provider's short name in place of `<short name>`, for example `https://grc.example.org/api/auth/sso/staff-directory/callback`. The provider gives you a **client ID** and a **client secret**, and states its **issuer** address.
 
 If people reach the application through an address other than the one your browser uses now (for example behind a reverse proxy), enter it under **Application address** on the **Redirect address** card and select **Save address**. It must be an `https` address with no path, such as `https://grc.example.org`.
 
@@ -293,14 +293,14 @@ The issuer must match the provider's discovery document exactly, including any t
 ### Adding a provider
 
 1. Select **Add provider**.
-2. Under **About**, enter the **Name** shown on the sign-in button ("Sign in with …") and a **Short name** (lower-case letters, numbers and dashes; it is part of the redirect address and cannot be changed later). Tick **Default provider** to make its button come first. Leave **Switched on** off until you have tested it.
-3. Under **Connection**, enter the **Issuer** and **Client ID**, choose the **Client authentication** (most providers: **Client secret, sent in the Authorization header**) and enter the **Client secret**. The secret is stored encrypted and never shown again; to replace it later, type a new one. **Scopes** start as `openid email profile`. **Accepted signature algorithms** are RS256, ES256 and PS256; untick any you do not want. **Extra sign-in parameters** (one `name=value` to a line, for example a domain hint) are optional.
-4. Under **Who the person is**, the **Email claim** is usually `email`. Tick **Treat the provider's email address as verified** only for a directory that controls every address it issues but does not send `email_verified`: matching accounts by email relies on it.
+2. Under **About**, enter the **Name** shown on the sign-in button ("Sign in with …") and a **Short name** (lower-case letters, numbers and dashes; it is part of the redirect address and cannot be changed later). Check **Default provider** to make its button come first. Leave **Switched on** off until you have tested it.
+3. Under **Connection**, enter the **Issuer** and **Client ID**, choose the **Client authentication** (most providers: **Client secret, sent in the Authorization header**) and enter the **Client secret**. The secret is stored encrypted and never shown again; to replace it later, type a new one. **Scopes** start as `openid email profile`. **Accepted signature algorithms** are RS256, ES256 and PS256; clear any you do not want. **Extra sign-in parameters** (one `name=value` to a line, for example a domain hint) are optional.
+4. Under **Who the person is**, the **Email claim** is usually `email`. Check **Treat the provider's email address as verified** only for a directory that controls every address it issues but does not send `email_verified`: matching accounts by email relies on it.
 5. Select **Add provider**. You are asked for your password if you have not given it recently.
 6. Open the provider again (select its name) and select **Test connection**. The result says whether the discovery document and key set were read, and lists the **Sign-in address**, **Token address**, **Key set address**, the algorithms the provider signs with, the number of **Signing keys** and whether it **Offers PKCE (S256)**.
 7. Switch it on with the **On** switch. Its button appears on the sign-in page at once.
 
-The sign-in uses the authorisation code flow with PKCE, a one-time `state` and a `nonce`; the ID token's signature, issuer, audience, expiry and nonce are all checked. A provider whose discovery document is not on `https` is refused (plain `http` is accepted only on the same machine, for trials).
+The sign-in uses the authorization code flow with PKCE, a one-time `state` and a `nonce`; the ID token's signature, issuer, audience, expiry and nonce are all checked. A provider whose discovery document is not on `https` is refused (plain `http` is accepted only on the same machine, for trials).
 
 ### Role mapping (off unless you switch it on)
 
@@ -312,7 +312,7 @@ Under **New people**, switch on **Create an account at first sign-in** and list 
 
 ### How people's accounts are matched
 
-- A person who has signed in through a provider before is recognised by the provider's identifier for them, whatever their email says now.
+- A person who has signed in through a provider before is recognized by the provider's identifier for them, whatever their email says now.
 - A first sign-in whose verified email matches an existing account is **not** linked straight away. The sign-in page asks the person to sign in once with that account's password ("Link your sign-in"); only then are the two linked. They can also choose **Do not link**. An administrator's **Link at next sign-in** permission skips the password step.
 - People can link and unlink providers themselves on **Account security**.
 - The break-glass account is never linked and never signs in through a provider.
@@ -350,14 +350,14 @@ Above the values, a **Used by** line names each record type and field that offer
 1. Select the list, for example **Risk category**.
 2. Select **Add value**.
 3. In **Shown as**, type the text people will see. The stored value is made from it and shown underneath.
-4. Choose a **Colour** by selecting one of the eight swatches: Gray, Blue, Teal, Green, Amber, Orange, Red or Purple. With the keyboard, the arrow keys move between them. The **Preview** shows how the value will look as a chip.
+4. Choose a **Color** by selecting one of the eight swatches: Gray, Blue, Teal, Green, Amber, Orange, Red or Purple. With the keyboard, the arrow keys move between them. The **Preview** shows how the value will look as a chip.
 5. Select **Add value**.
 
 The new value is available in the relevant drop-downs at once.
 
-### Renaming, recolouring and reordering
+### Renaming, recoloring and reordering
 
-- Select **Edit** on a value to change the text or the colour. The stored value never changes, so renaming is safe: existing records simply show the new text.
+- Select **Edit** on a value to change the text or the color. The stored value never changes, so renaming is safe: existing records simply show the new text.
 - Select **Move up** or **Move down** in the **Order** column to change the order in which values are offered. The value moves one place and the new order is saved at once; there is nothing to drag and no separate save.
 
 ### Retiring a value
@@ -369,7 +369,7 @@ Values are retired, never deleted, so that existing records keep their meaning.
 
 ### What to be careful about
 
-Some values carry behaviour as well as a name, and that behaviour belongs to the values supplied with the application. For example, an action counts as finished when its status is **Done** or **Cancelled**, and a framework outcome's status decides how much it counts towards the score. A value you add yourself is an ordinary value with none of this behaviour: a new action status is treated as open, and a new outcome status counts as zero. A few lists are fixed steps in a process, such as the project stages, the incident statuses and the notification triggers; add to or retire from those only after testing the effect.
+Some values carry behavior as well as a name, and that behavior belongs to the values supplied with the application. For example, an action counts as finished when its status is **Done** or **Canceled**, and a framework outcome's status decides how much it counts towards the score. A value you add yourself is an ordinary value with none of this behavior: a new action status is treated as open, and a new outcome status counts as zero. A few lists are fixed steps in a process, such as the project stages, the incident statuses and the notification triggers; add to or retire from those only after testing the effect.
 
 Rename supplied values freely, but be cautious about retiring them. You cannot create a new list on this screen.
 
@@ -475,9 +475,9 @@ A custom field appears on the record type's forms and record pages, can be chose
 1. Choose the **Record type** and select **Add field**.
 2. Enter the **Label** people will see. The **Key** is made from it; change it now if you want, because it cannot be changed later.
 3. Choose the **Type**: **Text**, **Long text**, **Number**, **Currency**, **Date**, **Checkbox**, **Single choice**, **Multiple choice**, **User** or **Record link**. The type cannot be changed later either.
-4. For **Single choice** and **Multiple choice**, under **Options** choose **New options** and type one option to a line, or **An existing list** and pick one of the lists from **Lists**. New options get a list of their own, whose colours, order and retired values you change under **Lists**.
+4. For **Single choice** and **Multiple choice**, under **Options** choose **New options** and type one option to a line, or **An existing list** and pick one of the lists from **Lists**. New options get a list of their own, whose colors, order and retired values you change under **Lists**.
 5. For **Record link**, choose what it **Links to**, for example systems.
-6. Optionally give a **Section** (a heading the field is grouped under on forms), a **Position** (lower numbers come first) and **Help** (shown under the field). Tick **Required** if people must fill it in.
+6. Optionally give a **Section** (a heading the field is grouped under on forms), a **Position** (lower numbers come first) and **Help** (shown under the field). Check **Required** if people must fill it in.
 7. Select **Add field**.
 
 If something is wrong, for example the key is already used, the reason is shown under the field and nothing is added.
@@ -513,7 +513,7 @@ The **Review** tab lists the records past their period. **Show** switches betwee
 For each record waiting for a decision:
 
 - **Keep longer**: choose **For a number of months** or **Until a date**, give a **Reason** and select **Keep longer**. The record leaves the list and is flagged again once that date has passed.
-- **Remove…**: give a **Reason**, tick **I understand that this record will be deleted permanently** and select **Remove for good**. You are asked for your password if you have not given it recently. The record, its comments, tags and links are deleted and cannot be brought back. A record with files attached cannot be removed until its files are. The audit log keeps the record's history and a note of the removal with your reason.
+- **Remove…**: give a **Reason**, check **I understand that this record will be deleted permanently** and select **Remove for good**. You are asked for your password if you have not given it recently. The record, its comments, tags and links are deleted and cannot be brought back. A record with files attached cannot be removed until its files are. The audit log keeps the record's history and a note of the removal with your reason.
 
 ## API tokens
 
@@ -539,15 +539,15 @@ A webhook tells another system, straight away, when records are added, changed o
 
 1. Select **Add webhook**.
 2. Enter a **Name** and the **Address** the receiving system gave you (an `https` address with no user name or password in it).
-3. Under **Events**, tick **Every change to every record type**, or choose the record types and changes (added, changed, deleted or any change) to send.
-4. Tick **Include restricted records** only if the receiver should get security incidents, risks and records flagged restricted. Only someone holding **View** on **Security incidents and restricted records** can switch this on, and those records stop being sent if that person loses it.
+3. Under **Events**, check **Every change to every record type**, or choose the record types and changes (added, changed, deleted or any change) to send.
+4. Check **Include restricted records** only if the receiver should get security incidents, risks and records flagged restricted. Only someone holding **View** on **Security incidents and restricted records** can switch this on, and those records stop being sent if that person loses it.
 5. Leave **Secret** empty to have a strong one made for you, and select **Add webhook**.
 
 The **signing secret** is then shown once. Select **Copy secret** and give it to whoever runs the receiving system; it cannot be shown again, only replaced.
 
 ### What is sent
 
-Each event is sent as a JSON `POST`: the record's type, reference, title and fields, and for a change the values before and after. Every delivery is signed: the header `X-GRC-Signature` holds `sha256=` and the HMAC-SHA256, made with the secret, of the `X-GRC-Timestamp` header, a full stop and the body. A delivery that fails (no answer within 10 seconds, or an answer other than 2xx) is tried again after 1, 5, 30, 120 and 720 minutes, then marked failed. Redirects are never followed.
+Each event is sent as a JSON `POST`: the record's type, reference, title and fields, and for a change the values before and after. Every delivery is signed: the header `X-GRC-Signature` holds `sha256=` and the HMAC-SHA256, made with the secret, of the `X-GRC-Timestamp` header, a period and the body. A delivery that fails (no answer within 10 seconds, or an answer other than 2xx) is tried again after 1, 5, 30, 120 and 720 minutes, then marked failed. Redirects are never followed.
 
 ### Managing webhooks
 
@@ -627,7 +627,7 @@ This card lists every browser you are signed in from, with its **Address**, when
 - Select **End all other sessions** to keep only the one you are using.
 - Select **Sign out** on your current session to sign out here.
 
-If you do not recognise a session, end it and change your password.
+If you do not recognize a session, end it and change your password.
 
 ### Passkeys and security keys
 
@@ -645,7 +645,7 @@ You can also link a provider from the sign-in page: if you sign in through a pro
 
 If you are signed in with the break-glass account, a red notice at the top of the page says so: every administrator has been alerted.
 
-On the sign-in page, a provider's button (**Sign in with …**) sends you to your organisation's sign-in and back. Under the password form are **Sign in with a passkey** and **Forgot your password?**. When passwords are switched off, the password form is folded away under **Emergency access with a password**, for the break-glass account only, and neither of those is shown.
+On the sign-in page, a provider's button (**Sign in with …**) sends you to your organization's sign-in and back. Under the password form are **Sign in with a passkey** and **Forgot your password?**. When passwords are switched off, the password form is folded away under **Emergency access with a password**, for the break-glass account only, and neither of those is shown.
 
 ### API tokens on your account
 
@@ -669,11 +669,11 @@ The token is shown once. Select **Copy token** and keep it somewhere safe, such 
 - Signing out here does not sign you out of your provider.
 - The application sends no email. Setup and reset links must be passed on by hand, and there are no email or in-app notifications of any kind.
 - Confirming your password does not also ask for your second factor.
-- The **Self-service portal** permissions can be ticked on a role but do not control anything yet. They are marked **not yet used** on the role page.
+- The **Self-service portal** permissions can be checked on a role but do not control anything yet. They are marked **not yet used** on the role page.
 - The audit log's filters are not kept in the page address, so a filtered view cannot be bookmarked.
 - Roles cannot be deleted and user accounts cannot be removed; switch off or disable them instead.
-- New lists cannot be created on screen, and the special behaviour of supplied values cannot be given to values you add.
+- New lists cannot be created on screen, and the special behavior of supplied values cannot be given to values you add.
 - The self-service portal is not built, although its switch appears under **Settings**.
-- Retention only flags whole records for a decision; records cannot yet be anonymised instead of removed.
+- Retention only flags whole records for a decision; records cannot yet be anonymized instead of removed.
 - Webhooks are sent for record changes only, not for other events such as a notification clock turning red.
 - Risk scales and the framework target status have no settings screen.

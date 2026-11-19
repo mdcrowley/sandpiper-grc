@@ -8,7 +8,8 @@ prototype. Start with the [project README](../README.md) for a one-page introduc
 
 | Document | What it covers |
 |---|---|
-| [Installation](installation.md) | Requirements, portable Node.js, first start, the setup wizard, sample data, loading your own data, environment variables, and server installation: PostgreSQL server, HTTPS, reverse proxy, containers |
+| [Installation](installation.md) | Requirements on Windows, macOS and Linux, portable Node.js, first start, the setup wizard, sample data, loading your own data, environment variables, and server installation: PostgreSQL server, HTTPS, reverse proxy, containers |
+| [Docker](docker.md) | Running the published container image with Docker or the compose file: quick start, data volume, secrets, upgrades |
 | [Operations](operations.md) | Every `grc.ps1` command, data and logs, backup (scheduled and encrypted) and restore, upgrading and automatic rollback, health check, troubleshooting |
 | [Security](security.md) | What protects the application today, what is not yet built, how to report a vulnerability |
 | [AI assistant access (MCP)](mcp.md) | The MCP endpoint, tokens and scopes, settings, tools, connecting Claude Desktop, Claude Code and other clients, and the security model |
@@ -60,6 +61,8 @@ The user guide is in [`user/`](user/) and is also shown inside the application u
 
 ## Conventions in these documents
 
-- Commands are for Windows PowerShell, run from the repository root.
-- `.\grc.ps1` is the single entry point; it puts the portable Node.js on the path for you.
+- Commands are shown for Windows PowerShell, run from the repository root. On macOS and
+  Linux, `./grc.sh` takes the same commands (see [Installation](installation.md)).
+- `.\grc.ps1` (or `./grc.sh`) is the single entry point; it puts the portable Node.js on
+  the path for you.
 - Nothing here is specific to one organization or jurisdiction. Examples use invented data.

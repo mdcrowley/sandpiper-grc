@@ -1,5 +1,5 @@
 /* Styles of the record layer: form controls, ResourceForm, ResourceList, RecordPage panels, Chart.
-   Colours come from the design tokens, falling back to the Mantine theme, so both themes work. */
+   Colors come from the design tokens, falling back to the Mantine theme, so both themes work. */
 
 :root {
   --rc-surface: var(--surface, var(--mantine-color-body));

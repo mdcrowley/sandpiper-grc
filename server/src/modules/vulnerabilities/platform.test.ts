@@ -283,7 +283,7 @@ describe('the overdue report', () => {
   });
 });
 
-describe('restricted behaviour of the newer routes', () => {
+describe('restricted behavior of the newer routes', () => {
   it('gives nothing to a user without security.view, whatever vulnerabilities permissions they hold', async () => {
     const made = await create({ title: 'Quokka gateway exposure', first_seen: d(-90) });
     const blocked = await withGrants('vuln_no_security_3', ['vulnerabilities.*', 'systems.view']);

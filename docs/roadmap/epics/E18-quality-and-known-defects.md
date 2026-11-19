@@ -33,7 +33,7 @@ has never been checked, so nobody relies on something untested.
 | E18-10 | Automated API test suite | done | P1 |
 | E18-11 | One-off browser pass of every screen | done | P2 |
 | E18-12 | Automated browser tests | in progress | P2 |
-| E18-13 | Transit positioning: nothing in built-in text identifies one organisation | done | P1 |
+| E18-13 | Transit positioning: nothing in built-in text identifies one organization | done | P1 |
 | E18-14 | Tests for the web code | open | P3 |
 | E18-15 | A ticket can be closed without a resolution code | done | P2 |
 | E18-16 | Missed-target dashboard tile and its list disagree | done | P3 |
@@ -48,7 +48,7 @@ has never been checked, so nobody relies on something untested.
 | E18-25 | Permissions granted but never checked | in progress | P2 |
 | E18-26 | Only risks have an Actions tab | done | P2 |
 | E18-27 | Dev mode ignored a custom port | done | P3 |
-| E18-28 | Features that suit some transit organisations but not all | open | P2 |
+| E18-28 | Features that suit some transit organizations but not all | open | P2 |
 | E18-29 | Reading a ticket list runs the service-level sweep | open | P3 |
 | E18-30 | Escalating a project item creates a risk without a risk permission | open | P3 |
 | E18-31 | Review the newer modules for permission and restricted-record checks | done | P1 |
@@ -130,8 +130,8 @@ been exercised in a browser.
 **Acceptance criteria**
 
 - [x] Every route loaded in the dark theme with seeded data
-- [x] No unreadable text, invisible borders or hard-coded light colours
-- [x] Charts, the heat map, the relationship map and status colours are legible
+- [x] No unreadable text, invisible borders or hard-coded light colors
+- [x] Charts, the heat map, the relationship map and status colors are legible
 - [x] Each problem found is fixed or raised as its own issue here
 
 **Done:** every static route and one record of each type was loaded in the dark theme at 820px on 18 Nov 2026 with no script errors, failed calls or sideways scrolling (tools/browse.mjs --all-routes).
@@ -236,7 +236,7 @@ knows.
 
 **Status:** done · **Priority:** P1 · **Type:** feature
 
-As a developer, I run one command and every module's API behaviour is checked against
+As a developer, I run one command and every module's API behavior is checked against
 an in-memory database.
 
 **Acceptance criteria**
@@ -277,7 +277,7 @@ every change, so a broken screen is caught before a user finds it.
 **Acceptance criteria**
 
 - [x] A smoke test loads every route and fails on a script error or failed request
-- [x] One journey per module: create, edit, and one module-specific action (per record type: create, an empty form refused, edit, status, comment, attachment; plus sign-in and sign-out, second-factor enrolment, search, bulk edit and export)
+- [x] One journey per module: create, edit, and one module-specific action (per record type: create, an empty form refused, edit, status, comment, attachment; plus sign-in and sign-out, second-factor enrollment, search, bulk edit and export)
 - [x] Run as an administrator and as one non-administrator role (every default role, in `04-roles.mjs`)
 - [x] Run in both themes (the smoke test runs light at 1440 and dark at 820)
 - [ ] Part of continuous integration ([E16-12](E16-hosting-operations-and-hardening.md)): the job is written (development guide, "Testing") and waits for the workflow file
@@ -288,14 +288,14 @@ starts a throw-away instance on a free port with the dev seed, drives headless E
 Chrome over the DevTools protocol, logs every step to `tools/e2e/out/log.txt`, saves a
 screenshot of each failure and exits non-zero on any failure.
 
-### E18-13 Transit positioning: nothing in built-in text identifies one organisation
+### E18-13 Transit positioning: nothing in built-in text identifies one organization
 
 **Status:** done · **Priority:** P1 · **Type:** debt
 
 As a maintainer about to publish the repository, I want every built-in label,
-description and notice to suit any transit organisation (bus, rail or paratransit
-operator), with nothing that identifies one organisation and no single jurisdiction's
-law as a default. Transit terms are expected; names of real organisations, agencies,
+description and notice to suit any transit organization (bus, rail or paratransit
+operator), with nothing that identifies one organization and no single jurisdiction's
+law as a default. Transit terms are expected; names of real organizations, agencies,
 regulators, people, places and vendors are not.
 
 **Acceptance criteria**
@@ -303,12 +303,12 @@ regulators, people, places and vendors are not.
 - [x] The pilot-mode notice in `web/src/core/Shell.tsx` names no particular kind of data or client (now: "Use sample and test data only. Do not enter real records, personal details or anything confidential while this label is showing.")
 - [x] Default role descriptions in `server/src/core/services.ts` name no particular job titles, with a test; existing databases get the new wording through "Apply default permissions" where the old wording was never edited
 - [x] The second risk scale's short key was an abbreviation from one sector; it is now `hazard_4x5`, with a migration for scales, ratings, risks, the category list and the acceptance thresholds (`server/src/modules/risks/migrations/002_action_restriction_and_scale_key.sql`)
-- [x] The built-in yes/no questions on a security incident keep only "cyber incident" and "personal information"; other kinds of data are values of the `incident_data_kind` list, which an administrator or the organisation profile fills (`server/src/modules/secincidents/migrations/002_data_kinds.sql`)
+- [x] The built-in yes/no questions on a security incident keep only "cyber incident" and "personal information"; other kinds of data are values of the `incident_data_kind` list, which an administrator or the organization profile fills (`server/src/modules/secincidents/migrations/002_data_kinds.sql`)
 - [x] The example in the code comment in `server/src/modules/frameworks/seed.ts` uses an invented framework name
-- [x] Default list values, field labels and seed text in every module use general transit terms or invented names, and nothing that identifies one organisation; see E18-28 for features that suit some transit organisations but not all. `examples/organisation.example.json` uses the current trigger `kind:payment_card_data`
+- [x] Default list values, field labels and seed text in every module use general transit terms or invented names, and nothing that identifies one organization; see E18-28 for features that suit some transit organizations but not all. `examples/organization.example.json` uses the current trigger `kind:payment_card_data`
 - [x] A search of the tracked files for the installation's own name, places and people finds nothing
-- [x] The README, documentation index, getting-started page, contributing guide and `package.json` present the product as GRC for transit organisations
-- [x] A scan of every tracked file before publishing (18 Nov 2026) found no organisation identifiers, street addresses or phone numbers other than invented ones, no private keys, credentials or API keys, and no private, generated or screenshot files
+- [x] The README, documentation index, getting-started page, contributing guide and `package.json` present the product as GRC for transit organizations
+- [x] A scan of every tracked file before publishing (18 Nov 2026) found no organization identifiers, street addresses or phone numbers other than invented ones, no private keys, credentials or API keys, and no private, generated or screenshot files
 
 **Implemented in:** `README.md`, `docs/README.md`, `docs/user/01-getting-started.md`, `CONTRIBUTING.md`, `package.json`, `docs/development.md`
 
@@ -334,7 +334,7 @@ Resolving a ticket required a resolution code, but setting the status straight t
 **Acceptance criteria**
 
 - [x] Closing a ticket requires a resolution code, on create and on update, and the code cannot be cleared while the ticket is closed
-- [x] Cancelling does not (any status whose list value carries `resolution_code: false` is exempt)
+- [x] Canceling does not (any status whose list value carries `resolution_code: false` is exempt)
 - [x] The Close dialog asks for the code
 
 **Implemented in:** `server/src/modules/tickets/index.ts`; `web/src/modules/tickets/TicketActions.tsx`; `server/src/modules/tickets/tickets.test.ts`
@@ -448,11 +448,11 @@ A snapshot could be created with an invalid or far-future date.
 
 **Status:** done · **Priority:** P3 · **Type:** improvement
 
-For example Catalogue / Service catalogue and Security terms / Security terms matrix.
+For example Catalog / Service catalog and Security terms / Security terms matrix.
 
 **Acceptance criteria**
 
-- [x] Each navigation item and its page title match in the service desk, inventory, vendors, frameworks, security incidents and projects modules (now "Service catalogue", "Security terms matrix", "Notification rules and checklists", "Project portfolio", "New project request")
+- [x] Each navigation item and its page title match in the service desk, inventory, vendors, frameworks, security incidents and projects modules (now "Service catalog", "Security terms matrix", "Notification rules and checklists", "Project portfolio", "New project request")
 - [ ] The newer modules are checked too
 
 **Implemented in:** each module's `web/src/modules/<key>/index.tsx`
@@ -497,7 +497,7 @@ The web dev server proxied to port 8080 whatever GRC_PORT was.
 
 - [x] The proxy follows GRC_PORT
 
-### E18-28 Features that suit some transit organisations but not all
+### E18-28 Features that suit some transit organizations but not all
 
 **Status:** open · **Priority:** P2 · **Type:** debt
 
@@ -506,12 +506,12 @@ works: the asset "funder interest" flag and its disposal rule (equipment part-pa
 outside funder), the contract "approval or resolution number", and the governing-body
 approval on a ransom decision. Privately owned operators and contractors running service
 for an agency may have no funder interest, board resolution or governing body in that
-sense. Whatever is decided, nothing may identify one organisation or assume one
+sense. Whatever is decided, nothing may identify one organization or assume one
 jurisdiction's funding rules.
 
 **Acceptance criteria**
 
-- [ ] Each is either made a setting that an installation can switch off or rename, or confirmed as general enough for the range of transit organisations
+- [ ] Each is either made a setting that an installation can switch off or rename, or confirmed as general enough for the range of transit organizations
 - [ ] The user guide follows
 
 **Where:** `server/src/modules/inventory/index.ts`, `server/src/modules/vendors/index.ts`, `server/src/modules/secincidents/index.ts`
@@ -677,7 +677,7 @@ outside the audit's own changes. Each line names the file and the fix.
 **Acceptance criteria**
 
 - [ ] Dashboard calendar widget: `role="grid"` holds column headers and cells without rows (axe `aria-required-children`, `aria-required-parent`, critical). In `web/src/modules/reports/visuals.tsx` (line 79), wrap each week in `role="row"` (with `display: contents`, as the change calendar now does) or use `role="table"` with rows
-- [ ] Safety overview (`/safety`) hazard matrix: empty cells are faded with `opacity: 0.55`, taking their rating text ("Medium", "High") to about 2.5:1 (axe `color-contrast`, serious, both themes). In `web/src/modules/safety/safety.css` (`.sf-cell.is-empty`), mark empty cells another way (a dashed border, or a lighter background with the full-strength text colour)
+- [ ] Safety overview (`/safety`) hazard matrix: empty cells are faded with `opacity: 0.55`, taking their rating text ("Medium", "High") to about 2.5:1 (axe `color-contrast`, serious, both themes). In `web/src/modules/safety/safety.css` (`.sf-cell.is-empty`), mark empty cells another way (a dashed border, or a lighter background with the full-strength text color)
 - [ ] The audit reports no serious or critical violation on any route in either theme at 1440 and 820
 
 **Fixed in the audit itself (for the record):** combobox pickers now always state
@@ -714,6 +714,6 @@ reasoning are in `docs/security.md`, "Figures are the same for everyone".
 
 **Left as it is, deliberately:** statistics about saved reports and dashboards themselves
 (`/api/reports/stats`) still follow sharing, because a private report is a person's own
-work, not an organisational record. Revisit if anyone shows those counts.
+work, not an organizational record. Revisit if anyone shows those counts.
 
 **Implemented in:** `server/src/core/resource.ts`, `server/src/modules/reports/spec.ts`, `query.ts`, `server/src/modules/risks/index.ts`, `server/src/modules/vendors/index.ts`, `server/src/modules/vulnerabilities/summary.ts`, `server/src/modules/tickets/audience.ts`; `docs/security.md`

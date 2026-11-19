@@ -32,7 +32,7 @@ create table projects (
   contract_id uuid,                   -- vendors module
   scoring jsonb,                      -- { <criterion key>: score 0 to 5 }
   priority_score numeric,
-  rag_overall text,                   -- latest status report, denormalised
+  rag_overall text,                   -- latest status report, denormalized
   rag_schedule text,
   rag_budget text,
   rag_risk text,

@@ -11,7 +11,7 @@ import { AccessError } from './query.ts';
 import type { Snapshots } from './snapshots.ts';
 import { SpecError } from './spec.ts';
 
-// ---------- the organisation's wall clock ----------
+// ---------- the organization's wall clock ----------
 
 const partsFmt = new Intl.DateTimeFormat('en-CA', { timeZone: TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23', weekday: 'short' });
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -21,7 +21,7 @@ export function zoned(at: Date): { y: number; m: number; d: number; h: number; w
   return { y: Number(p.year), m: Number(p.month), d: Number(p.day), h: Number(p.hour), weekday: WEEKDAYS.indexOf(p.weekday) + 1 };
 }
 
-/** The instant at which the organisation's clocks read this date and hour. */
+/** The instant at which the organization's clocks read this date and hour. */
 export function zonedToUtc(y: number, m: number, d: number, h: number): Date {
   let guess = Date.UTC(y, m - 1, d, h);
   for (let i = 0; i < 3; i++) {

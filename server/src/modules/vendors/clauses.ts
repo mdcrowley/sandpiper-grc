@@ -4,14 +4,14 @@ import type { LookupValue, ModuleContext, Row } from '../../core/module.ts';
 /** Clauses of the contract security addendum. Stored as the `contract_clause` lookup list. */
 export const DEFAULT_CLAUSES: LookupValue[] = [
   { value: 'independent_assurance', label: 'Independent assurance', sort: 10, meta: { description: 'An independent assurance report or certification, provided each year.' } },
-  { value: 'mfa', label: 'Multi-factor sign-in', sort: 20, meta: { description: 'Multi-factor authentication for vendor staff and for the organisation\'s users.' } },
-  { value: 'breach_notice', label: 'Breach notice time', sort: 30, meta: { description: 'A fixed deadline for telling the organisation about a security incident.' } },
-  { value: 'data_ownership', label: 'Data ownership and return', sort: 40, meta: { description: 'The organisation owns its data and gets it back, or has it destroyed, on exit.' } },
+  { value: 'mfa', label: 'Multi-factor sign-in', sort: 20, meta: { description: 'Multi-factor authentication for vendor staff and for the organization\'s users.' } },
+  { value: 'breach_notice', label: 'Breach notice time', sort: 30, meta: { description: 'A fixed deadline for telling the organization about a security incident.' } },
+  { value: 'data_ownership', label: 'Data ownership and return', sort: 40, meta: { description: 'The organization owns its data and gets it back, or has it destroyed, on exit.' } },
   { value: 'recovery_sla', label: 'Recovery times and service levels', sort: 50, meta: { description: 'Stated recovery time and recovery point, uptime and remedies.' } },
   { value: 'cyber_insurance', label: 'Cyber insurance', sort: 60, meta: { description: 'Cyber liability cover with stated limits.' } },
   { value: 'liability', label: 'Liability carve-out', sort: 70, meta: { description: 'Data breach and confidentiality losses sit outside the liability cap.' } },
   { value: 'subcontractors', label: 'Subcontractors', sort: 80, meta: { description: 'Subcontractors are disclosed and held to the same security terms.' } },
-  { value: 'security_standard', label: 'Named security standard', sort: 90, meta: { description: 'The vendor commits to a named, recognised security standard.' } },
+  { value: 'security_standard', label: 'Named security standard', sort: 90, meta: { description: 'The vendor commits to a named, recognized security standard.' } },
 ];
 
 export const CLAUSE_STATUSES: LookupValue[] = [

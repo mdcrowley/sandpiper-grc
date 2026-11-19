@@ -4,9 +4,9 @@
 
 ## Goal
 
-Keep a risk register that scores risks on scales the organisation chooses, shows them
+Keep a risk register that scores risks on scales the organization chooses, shows them
 on a heat map, and records formal acceptance; one action tracker shared by every
-module; and a register of the obligations the organisation must meet.
+module; and a register of the obligations the organization must meet.
 
 ## Scope notes
 
@@ -16,8 +16,8 @@ module; and a register of the obligations the organisation must meet.
 - The `action` type is the shared to-do list for all modules (see `docs/development.md`,
   "Actions (shared contract)"). `web/src/modules/risks/ActionsPanel.tsx`
   (`{ sourceType, sourceId, source? }`) is embedded by other modules.
-- Obligations are organisation data. None ship with the application; they come from the
-  organisation profile or are entered by hand (the dev profile adds four invented examples).
+- Obligations are organization data. None ship with the application; they come from the
+  organization profile or are entered by hand (the dev profile adds four invented examples).
 - Transit operators are the target sector: the safety hazard matrix (`hazard_4x5`) is the
   matrix used in transit safety management, and the sample risks are invented transit examples.
 
@@ -117,7 +117,7 @@ either the inherent or the residual basis, and click a cell to list its risks.
 - [x] Inherent or residual basis
 - [x] Closed risks left out unless asked for (`include_closed=true`; "Include closed risks")
 - [x] Totals per rating in a legend, and a count of unscored risks
-- [x] Each cell names its rating in words, so colour never carries it alone; keyboard navigation with the arrow keys
+- [x] Each cell names its rating in words, so color never carries it alone; keyboard navigation with the arrow keys
 - [x] Optional movement arrows from each risk's inherent cell to its residual cell
 - [x] A ranked list of the highest risks beside the matrix
 - [x] Choosing a cell filters the register; scale, basis, cell, movement and closed are kept in the address
@@ -190,7 +190,7 @@ them, and I can update them without leaving the page.
 - [x] Marking an action done stamps the completion date; reopening clears it
 - [x] Tiles for open, overdue, due this week and unassigned
 - [x] Grouped by due week (overdue first), by owner or by source, or a plain list
-- [x] Inline completion, status change and owner change; overdue rows emphasised
+- [x] Inline completion, status change and owner change; overdue rows emphasized
 - [x] Quick add (press N); bulk change of status, priority, owner or due date
 - [x] "My actions" for the signed-in person
 
@@ -231,7 +231,7 @@ tracker with a pointer back to where it came from.
 
 **Status:** done · **Priority:** P1 · **Type:** feature
 
-As a compliance lead, I list each obligation the organisation must meet, where it comes
+As a compliance lead, I list each obligation the organization must meet, where it comes
 from, who owns it, how it is met, the evidence, and when it is next due.
 
 **Acceptance criteria**
@@ -248,7 +248,7 @@ from, who owns it, how it is met, the evidence, and when it is next due.
 
 **Status:** done · **Priority:** P2 · **Type:** feature
 
-As the person setting up an installation, I list my organisation's obligations in the
+As the person setting up an installation, I list my organization's obligations in the
 private profile and load them once, and load a file of information requests as actions.
 
 **Acceptance criteria**

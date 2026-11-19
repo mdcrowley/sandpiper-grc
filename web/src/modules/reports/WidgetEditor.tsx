@@ -7,7 +7,7 @@ import type { IconName, ListResult } from '../../core';
 import { ChartPicker } from './BuilderParts';
 import { completeFilters } from './FilterEditor';
 import { ColumnsEditor, FiltersSection, GroupEditor, Section, SortEditor, TotalsEditor } from './SpecEditor';
-import type { CatalogueType, ReportDefinition, ReportSpec, Widget, WidgetKind } from './types';
+import type { CatalogType, ReportDefinition, ReportSpec, Widget, WidgetKind } from './types';
 import { Markdown } from './visuals';
 
 export const WIDGET_LIBRARY: { kind: WidgetKind; label: string; hint: string; icon: IconName; w: number; h: number }[] = [
@@ -74,7 +74,7 @@ const KIND_NEEDS: Record<WidgetKind, { type: boolean; group?: number; totals?: '
   calendar: { type: true, filters: true },
 };
 
-export function WidgetEditor({ widget, types, onClose, onSave }: { widget: Widget | null; types: CatalogueType[]; onClose: () => void; onSave: (w: Widget) => void }) {
+export function WidgetEditor({ widget, types, onClose, onSave }: { widget: Widget | null; types: CatalogType[]; onClose: () => void; onSave: (w: Widget) => void }) {
   const [w, setW] = useState<Widget | null>(widget);
   const reports = useFetch<ListResult<ReportDefinition>>(widget?.kind === 'report' ? '/api/reports?pageSize=200&sort=name' : null);
   useEffect(() => setW(widget), [widget]);

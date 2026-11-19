@@ -192,7 +192,7 @@ describe('second factor', () => {
   let secret: string;
   let codes: string[];
 
-  it('enrols with an authenticator code and returns recovery codes once, stored as hashes', async () => {
+  it('enrolls with an authenticator code and returns recovery codes once, stored as hashes', async () => {
     id = (await makeUser('tess')).id;
     const session = (await signIn('tess', PASSWORD)).cookie;
     const begin = await call(session, 'POST', '/api/auth/totp/begin');
@@ -411,7 +411,7 @@ describe('replay protection (E02-06)', () => {
 
     const code = totpCode(secret);
     expect((await call(session, 'POST', '/api/auth/totp/confirm', { code })).status).toBe(200);
-    // The code that confirmed enrolment cannot also sign in...
+    // The code that confirmed enrollment cannot also sign in...
     expect((await signIn('replay', PASSWORD, { totp: code })).status).toBe(401);
     // ...and a code accepted at sign-in is refused the second time.
     const next = await freshCode(id, secret);
@@ -561,8 +561,8 @@ describe('enforced second factor (E02-05)', () => {
     await t.api.patch('/api/admin/settings', { 'auth.mfa_enforcement': 'notice' });
   });
 
-  it('when required, limits a person who has not enrolled to enrolment and signing out', async () => {
-    // The administrator must enrol first, so that switching it on cannot lock them out.
+  it('when required, limits a person who has not enrolled to enrollment and signing out', async () => {
+    // The administrator must enroll first, so that switching it on cannot lock them out.
     const refused = await t.api.patch('/api/admin/settings', { 'auth.mfa_enforcement': 'required' });
     expect(refused.body.error.fields['auth.mfa_enforcement']).toMatch(/your own second factor/);
     const adminSecret = (await t.api.post('/api/auth/totp/begin')).body.secret;
@@ -574,13 +574,13 @@ describe('enforced second factor (E02-05)', () => {
       expect((await agent.get('/api/meta')).status).toBe(200);
       expect((await t.api.get('/api/meta')).status).toBe(200); // enrolled
 
-      // Blocked: everything that is not enrolment.
+      // Blocked: everything that is not enrollment.
       for (const [method, url] of [['get', '/api/meta'], ['get', '/api/tickets'], ['get', '/api/risks'], ['get', '/api/audit'], ['get', '/api/search?q=ab'],
         ['get', '/api/users/options'], ['post', '/api/auth/sessions/end-others'], ['post', '/api/comments'], ['post', '/api/auth/totp/recovery-codes']] as const) {
         const res = await lead[method](url);
         expect([url, res.status, res.body?.error?.code]).toEqual([url, 403, 'mfa_enrolment_required']);
       }
-      // Allowed: own state and security page, password change, and enrolment itself.
+      // Allowed: own state and security page, password change, and enrollment itself.
       const state = (await lead.get('/api/auth/state')).body;
       expect(state).toMatchObject({ mfaEnrollmentRequired: true, mfaEnrollmentBlocked: true, mfaEnforcement: 'required' });
       expect(state.user.id).toBe(lead.userId);
@@ -588,7 +588,7 @@ describe('enforced second factor (E02-05)', () => {
       expect((await lead.post('/api/auth/change-password', { currentPassword: 'x', newPassword: 'y' })).status).toBe(400); // reached, and refused on its merits
       const secret = (await lead.post('/api/auth/totp/begin')).body.secret;
       expect(secret).toMatch(/^[A-Z2-7]{32}$/);
-      expect((await lead.get('/api/meta')).status).toBe(403); // a pending key is not enrolment
+      expect((await lead.get('/api/meta')).status).toBe(403); // a pending key is not enrollment
       expect((await lead.post('/api/auth/totp/confirm', { code: totpCode(secret) })).status).toBe(200);
       // Enrolled: everything works again.
       expect((await lead.get('/api/meta')).status).toBe(200);
@@ -602,7 +602,7 @@ describe('enforced second factor (E02-05)', () => {
       expect((await agent.get('/api/auth/state')).body.user).toBeNull();
       await t.api.patch('/api/admin/settings', { 'auth.mfa_required_for_all': false });
 
-      // An administrator reset puts the person back to enrolment.
+      // An administrator reset puts the person back to enrollment.
       await t.api.post(`/api/admin/users/${lead.userId}/reset-mfa`);
       expect((await lead.get('/api/meta')).body.error.code).toBe('mfa_enrolment_required');
     } finally {

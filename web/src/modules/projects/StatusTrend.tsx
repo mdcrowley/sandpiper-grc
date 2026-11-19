@@ -7,7 +7,7 @@ const MAX_POINTS = 12;
 
 /**
  * The four ratings over time, one line each: green at the top of a lane, amber in the middle,
- * red at the bottom. Each point carries the letter of its rating, so the chart reads without colour.
+ * red at the bottom. Each point carries the letter of its rating, so the chart reads without color.
  */
 export function StatusTrend({ points }: { points: TrendPoint[] }) {
   const shown = points.slice(-MAX_POINTS);

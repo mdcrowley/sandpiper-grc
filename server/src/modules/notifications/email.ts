@@ -1,7 +1,7 @@
 // The daily email summary, for people who chose "one summary a day" (E14-04).
 //
 // Notifications they asked to receive by email wait with email_state = 'digest'. Once a day,
-// from the hour set in `notifications.digest_hour` (organisation time zone, default 7), this
+// from the hour set in `notifications.digest_hour` (organization time zone, default 7), this
 // job sends each such person one message listing them. Each item is checked again: a record
 // the person can no longer open is left out, and a restricted one is listed only as "a new
 // security notification" with no title. The job runs hourly on the queue; running it more

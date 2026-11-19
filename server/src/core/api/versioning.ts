@@ -56,6 +56,11 @@ export function installVersioning(app: FastifyInstance): void {
     // Inside a plugin with a prefix the url cannot be expressed relative to it: use the root instead.
     const owner = opts.prefix ? app : this;
     owner.route({ ...opts, method: methods.length === 1 ? methods[0] : methods, url: target, path: target } as RouteOptions);
+    // A renamed route is also served at its old, deprecated path (which then gets its own /api/v1 alias).
+    for (const dep of DEPRECATIONS) {
+      if (dep.replacement !== url || !methods.some((m) => String(m).toUpperCase() === dep.method)) continue;
+      owner.route({ ...opts, method: dep.method, url: dep.path, path: dep.path } as RouteOptions);
+    }
   });
 
   app.addHook('onRequest', async (req, reply) => {

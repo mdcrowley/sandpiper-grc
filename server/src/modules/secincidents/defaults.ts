@@ -58,11 +58,11 @@ export const LOOKUPS: Record<string, LookupValue[]> = {
   // Kinds of data an incident may involve, beyond personal information. Each value becomes a
   // yes/no question when an incident is declared and can trigger notification rules
   // (trigger "kind:<value>"). Only neutral starters ship here: kinds that only some
-  // organisations hold belong in the organisation profile (`lookups.incident_data_kind`)
+  // organizations hold belong in the organization profile (`lookups.incident_data_kind`)
   // or are added by an administrator under Administration > Lists.
   incident_data_kind: [
-    { value: 'financial_data', label: 'Financial or payment information', sort: 10, meta: { hint: 'Bank, payment or account details of the organisation or of other people.' } },
-    { value: 'confidential_business', label: 'Confidential business information', sort: 20, meta: { hint: 'Contracts, plans, credentials or anything else the organisation keeps confidential.' } },
+    { value: 'financial_data', label: 'Financial or payment information', sort: 10, meta: { hint: 'Bank, payment or account details of the organization or of other people.' } },
+    { value: 'confidential_business', label: 'Confidential business information', sort: 20, meta: { hint: 'Contracts, plans, credentials or anything else the organization keeps confidential.' } },
     { value: 'rider_account_data', label: 'Rider account information', sort: 30, meta: { hint: 'Fare accounts, concession eligibility, journey history or contact details of riders.' } },
     { value: 'operational_data', label: 'Operational and safety information', sort: 40, meta: { hint: 'Vehicle locations, schedules, signalling or dispatch records, and safety reports.' } },
   ],
@@ -147,11 +147,11 @@ export interface IncidentQuestion { key: string; kind: 'flag' | 'data_kind'; val
 const FLAG_QUESTIONS: Record<(typeof FLAG_FIELDS)[number], { question: string; hint: string }> = {
   is_cyber_incident: {
     question: 'Is this a cybersecurity or ransomware incident?',
-    hint: 'Yes for any attack on, or unauthorised access to, the organisation\'s systems, accounts or data.',
+    hint: 'Yes for any attack on, or unauthorized access to, the organization\'s systems, accounts or data.',
   },
   personal_info_involved: {
     question: 'Could personal information be involved?',
-    hint: 'Details of identifiable people, such as names with identity, licence or account numbers.',
+    hint: 'Details of identifiable people, such as names with identity, license or account numbers.',
   },
 };
 
@@ -183,14 +183,14 @@ export interface RuleSeed {
   key: string; trigger: string; party: string; hours: number | null; required: boolean; active: boolean; guidance: string;
 }
 
-const SET_UP = 'Starter rule, switched off. Check whether this applies to your organisation, set the deadline (in hours from discovery) '
+const SET_UP = 'Starter rule, switched off. Check whether this applies to your organization, set the deadline (in hours from discovery) '
   + 'from the applicable law or contract, then switch the rule on.';
 
 /**
- * Generic starter rules. Who must be told, and by when, depends on the organisation's
+ * Generic starter rules. Who must be told, and by when, depends on the organization's
  * country, sector and contracts, so none of these carries a deadline and all are switched
- * off: every organisation must review them. An organisation's own rules are loaded from
- * its profile (`notificationRules`) by `loadOrganisationRules`.
+ * off: every organization must review them. An organization's own rules are loaded from
+ * its profile (`notificationRules`) by `loadOrganizationRules`.
  */
 export const RULES: RuleSeed[] = [
   {
@@ -232,7 +232,7 @@ export const CONTACTS: { key: string; role: string; notes: string }[] = [
   { key: 'executive_sponsor', role: 'Executive sponsor', notes: 'Links the response team to the executive team and the governing body.' },
   { key: 'legal_counsel', role: 'Legal counsel', notes: 'Advises on notification duties, privilege and contracts.' },
   { key: 'insurer_contact', role: 'Cyber insurer contact', notes: 'First call for coverage and approved response firms.' },
-  { key: 'operations_control', role: 'Operations control liaison', notes: 'Links the response team to the control centre: service impact, fallback working and safety decisions.' },
+  { key: 'operations_control', role: 'Operations control liaison', notes: 'Links the response team to the control center: service impact, fallback working and safety decisions.' },
 ];
 
 type Steps = { containment: string[]; recovery: string[] };
@@ -268,7 +268,7 @@ export const CHECKLISTS: Record<string, Steps> = {
       'Check whether the same password or sign-in approval was used on other accounts',
     ],
     recovery: [
-      'Re-enrol the second sign-in factor with the account holder in person or by a known phone number',
+      'Re-enroll the second sign-in factor with the account holder in person or by a known phone number',
       'List what the account could reach (mail, files, systems) and decide whether regulated data was exposed',
       'Return the account to its owner and confirm that normal work is possible',
       'Give the account holder a short refresher on how the compromise happened',
@@ -322,8 +322,8 @@ export const CHECKLISTS: Record<string, Steps> = {
   },
   dispatch_outage: {
     containment: [
-      'Tell the control centre to switch to the paper or radio fallback procedure for dispatch and vehicle tracking',
-      'Confirm that voice radio and emergency alarms from vehicles still reach the control centre',
+      'Tell the control center to switch to the paper or radio fallback procedure for dispatch and vehicle tracking',
+      'Confirm that voice radio and emergency alarms from vehicles still reach the control center',
       'Decide whether the outage is a fault or an attack: look for unusual sign-ins, changed configuration or ransom notes',
       'If an attack is suspected, isolate the dispatch servers and their links to other networks; keep them powered on',
       'Stop data feeds from the dispatch system to rider information screens and apps if they may show wrong times',
@@ -409,15 +409,15 @@ export async function ensureDefaults(ctx: ModuleContext): Promise<void> {
 const MAX_DEADLINE_HOURS = 24 * 366;
 
 /**
- * Loads the organisation's own notification rules (the `notificationRules` section of the
- * organisation profile): an array of `{ key, trigger, party, hours, required, active, guidance }`.
+ * Loads the organization's own notification rules (the `notificationRules` section of the
+ * organization profile): an array of `{ key, trigger, party, hours, required, active, guidance }`.
  * A rule is added when no rule with its key exists (removed ones included); an existing rule
  * is left exactly as it is, so an administrator's edits survive a repeat of the seed.
  * Returns the number of rules added.
  */
-export async function loadOrganisationRules(ctx: ModuleContext, input: unknown): Promise<number> {
+export async function loadOrganizationRules(ctx: ModuleContext, input: unknown): Promise<number> {
   if (input === undefined || input === null) return 0;
-  if (!Array.isArray(input)) throw new Error('Organisation profile: notificationRules must be a list.');
+  if (!Array.isArray(input)) throw new Error('Organization profile: notificationRules must be a list.');
   const kinds = new Set((await ctx.lookups.values(KIND_LIST)).map((k) => k.value));
   const fixed = ['any', ...FLAG_FIELDS] as string[];
   const describe = `any, ${FLAG_FIELDS.join(', ')} or ${KIND_PREFIX}<a value of the ${KIND_LIST} list>`;
@@ -425,7 +425,7 @@ export async function loadOrganisationRules(ctx: ModuleContext, input: unknown):
 
   const rules: RuleSeed[] = input.map((raw, i) => {
     const r = (raw ?? {}) as Record<string, unknown>;
-    const where = `Organisation profile: notificationRules[${i}]`;
+    const where = `Organization profile: notificationRules[${i}]`;
     const key = typeof r.key === 'string' ? r.key.trim() : '';
     const party = typeof r.party === 'string' ? r.party.trim() : '';
     if (!key) throw new Error(`${where} needs a key.`);
@@ -468,7 +468,7 @@ export async function loadOrganisationRules(ctx: ModuleContext, input: unknown):
     added += 1;
     await ctx.audit(null, {
       action: 'notification_rule.create', recordType: 'notification_rule', recordId: row.id,
-      summary: `Notification rule added from the organisation profile: ${r.party}`,
+      summary: `Notification rule added from the organization profile: ${r.party}`,
       after: { key: r.key, trigger_attribute: r.trigger, party: r.party, deadline_hours: r.hours, required: r.required, active: r.active },
     });
   }

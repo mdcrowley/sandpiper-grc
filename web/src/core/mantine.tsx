@@ -1,5 +1,5 @@
 // Mantine set-up: the component library under the design system.
-// Colours are decided in tokens.css; the resolver below points Mantine's variables at those
+// Colors are decided in tokens.css; the resolver below points Mantine's variables at those
 // tokens so the two never disagree. Mantine's styles load in the `mantine` cascade layer, so any
 // ordinary (unlayered) CSS in the core or in a module wins over them without `!important`.
 import '@mantine/core/styles.layer.css';
@@ -18,7 +18,7 @@ import { useTheme } from './theme';
 const brand: MantineColorsTuple = [
   '#edf7f7', '#d8ecec', '#b3dadb', '#86c9cc', '#5fb3b8', '#3f9aa1', '#267f88', '#17656f', '#0f525b', '#0a3d45',
 ];
-/** Neutrals with a slight blue-green cast, so greys sit comfortably beside the brand. */
+/** Neutrals with a slight blue-green cast, so grays sit comfortably beside the brand. */
 const gray: MantineColorsTuple = [
   '#f3f6f6', '#edf2f3', '#e3e9eb', '#dbe3e5', '#b9c5c9', '#9aa8ad', '#7b8a90', '#50626a', '#33434a', '#14252b',
 ];

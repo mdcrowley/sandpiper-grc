@@ -49,7 +49,7 @@ export function ChangeActions({ row, reload, canEdit, onOpenTab }: Props) {
       await api.post(`/api/changes/${row.id}/transition`, { to, ...body });
       toast.success({
         submitted: 'Change submitted.', scheduled: 'Change scheduled.', in_progress: 'Work started.', completed: 'Change completed.',
-        closed: 'Change closed.', draft: 'Change returned to draft.', approved: 'Change taken off the schedule.', cancelled: 'Change cancelled.',
+        closed: 'Change closed.', draft: 'Change returned to draft.', approved: 'Change taken off the schedule.', cancelled: 'Change canceled.',
       }[to] ?? 'Saved.');
       setDialog('');
       refresh();
@@ -118,7 +118,7 @@ export function ChangeActions({ row, reload, canEdit, onOpenTab }: Props) {
 
       <Modal open={dialog === 'cancel'} title="Cancel this change" onClose={() => setDialog('')} size="sm">
         <form className="form" noValidate onSubmit={(e) => { e.preventDefault(); void move('cancelled', { reason }, true); }}>
-          <p className="muted">A cancelled change stays in the register but can no longer be edited or reopened.</p>
+          <p className="muted">A canceled change stays in the register but can no longer be edited or reopened.</p>
           <TextArea label="Reason" value={reason} onChange={setReason} rows={3} />
           {formError && <p className="form-error" role="alert">{formError}</p>}
           <div className="form-actions">

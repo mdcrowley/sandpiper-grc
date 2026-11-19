@@ -82,7 +82,7 @@ const DAY = 86_400_000;
 export const daysBetween = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY);
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
-/** Colour and wording for an expiry date, relative to the organisation's "today". */
+/** Color and wording for an expiry date, relative to the organization's "today". */
 export function expiryState(expiresOn: string | null, today: string): { color: ColorName; label: string } | null {
   if (!expiresOn) return null;
   const days = daysBetween(today, expiresOn);

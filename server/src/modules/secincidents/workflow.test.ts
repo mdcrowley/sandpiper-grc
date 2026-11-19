@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { testApp } from '../../test/helpers.ts';
-import { loadOrganisationRules, RULES } from './defaults.ts';
+import { loadOrganizationRules, RULES } from './defaults.ts';
 
 // Alerts, lifecycle as data, kinds of data, notifications across incidents, the incident
 // report and the post-incident review. Invented data only. Runs alone (GRC_MODULES=secincidents)
@@ -15,7 +15,7 @@ beforeAll(async () => {
   t = await testApp();
   lead = await t.as('security_lead');
   agent = await t.as('agent');
-  await loadOrganisationRules(t.ctx, [
+  await loadOrganizationRules(t.ctx, [
     { key: 'wf_agency', trigger: 'is_cyber_incident', party: 'Agency W', hours: 24, required: true, active: true, guidance: 'Invented.' },
     { key: 'wf_partner', trigger: 'personal_info_involved', party: 'Partner X', hours: 72, required: false, active: true, guidance: 'Invented.' },
   ]);
@@ -337,7 +337,7 @@ describe('incident report (E09-20)', () => {
   });
 });
 
-describe('restricted behaviour of the new routes', () => {
+describe('restricted behavior of the new routes', () => {
   it('shows an agent nothing and lets them change nothing', async () => {
     const incident = (await t.api.get('/api/security-incidents?pageSize=1')).body.rows[0];
     const kind = ((await t.api.get('/api/security-incidents/lists/kinds')).body as any[])[0];

@@ -11,7 +11,7 @@ A passkey or a security key lets you sign in without typing a 6-digit code. It c
 
 Either one can stand in for the 6-digit code after your password. A passkey (or a security key with a PIN) can also sign you in **on its own**, without your password.
 
-A passkey counts as your second factor. If your organisation requires a second factor, adding a passkey or security key is enough: you do not also need the authenticator app.
+A passkey counts as your second factor. If your organization requires a second factor, adding a passkey or security key is enough: you do not also need the authenticator app.
 
 ## Before you start
 
@@ -37,16 +37,16 @@ The same card is also on its own page at **/account/passkeys**.
 
 | Message | What it means |
 |---|---|
-| "Nothing happened: the request was cancelled or timed out." | You closed the browser's window, or did not use the key in time. Select **Continue** again |
+| "Nothing happened: the request was canceled or timed out." | You closed the browser's window, or did not use the key in time. Select **Continue** again |
 | "That key is already registered to your account." | The key is already in your list |
 | "You already have a key with that name." | Choose another name |
 | "This address cannot use passkeys…" | Open the application by its host name, not a numeric address |
-| "The request came from … which is not this application's address." | The page was opened at an address the application does not recognise; ask your administrator |
+| "The request came from … which is not this application's address." | The page was opened at an address the application does not recognize; ask your administrator |
 
 ## Rename or remove a key
 
 - **Rename**: select **Rename** beside the key, change the **Name** and select **Save**.
-- **Remove**: select **Remove**, then **Remove key**. The key stops working at once. You may be asked to confirm your password first. If it was your only second factor and your organisation requires one, you will be asked to set one up again.
+- **Remove**: select **Remove**, then **Remove key**. The key stops working at once. You may be asked to confirm your password first. If it was your only second factor and your organization requires one, you will be asked to set one up again.
 
 Remove a key straight away if the device or security key is lost or stolen.
 

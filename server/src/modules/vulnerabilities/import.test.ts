@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { testApp } from '../../test/helpers.ts';
-import { detectDelimiter, normaliseSeverity, parseCsv, parseDate, pickCves } from './csv.ts';
+import { detectDelimiter, normalizeSeverity, parseCsv, parseDate, pickCves } from './csv.ts';
 import { addDays, today } from './policy.ts';
 
 // An invented scanner export. Nothing here comes from a real scan.
@@ -35,9 +35,9 @@ describe('reading files', () => {
     expect(detectDelimiter('a;b;c\n1;2;3')).toBe(';');
   });
 
-  it('normalises severity, dates and CVE lists', () => {
+  it('normalizes severity, dates and CVE lists', () => {
     const list = ['critical', 'high', 'medium', 'low', 'informational'].map((value) => ({ value, label: value[0].toUpperCase() + value.slice(1) }));
-    expect(['CRITICAL', 'High', 'moderate', 'low', 'Info', 'none', '4', '3', '2', '1', '0', 'purple', ''].map((s) => normaliseSeverity(s, list)))
+    expect(['CRITICAL', 'High', 'moderate', 'low', 'Info', 'none', '4', '3', '2', '1', '0', 'purple', ''].map((s) => normalizeSeverity(s, list)))
       .toEqual(['critical', 'high', 'medium', 'low', 'informational', 'informational', 'critical', 'high', 'medium', 'low', 'informational', null, null]);
     expect(parseDate('2030-03-05T10:00:00Z')).toBe('2030-03-05');
     expect(parseDate('05/03/2030')).toBe('2030-03-05');

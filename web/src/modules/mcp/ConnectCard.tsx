@@ -154,7 +154,7 @@ function NewConnectionDialog({ open, status, onClose, onCreated }: { open: boole
         <Select
           label="What it may do" required value={access} onChange={(v) => setAccess(v === 'write' ? 'write' : 'read')} error={errors.access}
           options={[
-            { value: 'read', label: 'Read only: look things up and summarise' },
+            { value: 'read', label: 'Read only: look things up and summarize' },
             ...(status.canWrite ? [{ value: 'write', label: 'Read and write: also create, update, comment and link' }] : []),
           ]}
           hint={access === 'write' && !status.writeEnabled
@@ -202,7 +202,7 @@ export function ConnectAssistantCard() {
     >
       <div className="card-body stack">
         <p className="muted">
-          Let an AI assistant such as Claude Desktop, Claude Code or another MCP client look things up and summarise them for you, as you.
+          Let an AI assistant such as Claude Desktop, Claude Code or another MCP client look things up and summarize them for you, as you.
           It sees only what you can see. See <Link to="/help/ai-assistants-and-mcp">AI assistants and MCP</Link>.
         </p>
         {error ? <ErrorState error={error} onRetry={reload} />

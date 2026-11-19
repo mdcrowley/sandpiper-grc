@@ -49,15 +49,15 @@ Each file is shown with an icon for its kind, its name, its size, who attached i
 
 - Select the file's name, or the download button on its row, to download it. Files always download; they never open inside the application.
 - Select the pencil button to edit its details.
-- Select the bin button to remove it.
+- Select the trash button to remove it.
 
-The pencil and bin buttons appear only if your role allows editing the record.
+The pencil and trash buttons appear only if your role allows editing the record.
 
 ### Edit a file's details
 
 1. Select the pencil button on the file's row.
 2. Type a **Description**: what the file is and why it is attached.
-3. Tick **This file is evidence** if it is evidence (see [Evidence files](#evidence-files)), and set the dates.
+3. Check **This file is evidence** if it is evidence (see [Evidence files](#evidence-files)), and set the dates.
 4. Select **Save changes**.
 
 The same window shows the file's **Size**, when and by whom it was **Attached**, the result of the **Malware scan**, and its **Checksum (SHA-256)**. The checksum is a fingerprint of the file's content. The application checks it every time the file is downloaded, and refuses to send a file whose content has changed since it was attached.
@@ -68,7 +68,7 @@ You cannot rename a file or replace its content. To replace a file, attach the n
 
 ### Remove a file
 
-1. Select the bin button on the file's row.
+1. Select the trash button on the file's row.
 2. Read the confirmation and select **Remove file**.
 
 The file disappears from the list and can no longer be downloaded. The removal is kept in the record's history, with the file's name and checksum. The file itself is kept for a while (30 days unless your administrator has changed it), so an administrator can put it back if it was removed by mistake; after that it is deleted for good.
@@ -88,16 +88,16 @@ Evidence is a file that shows something was done or was true on a date: a signed
 
 ### Attach evidence
 
-On pages whose **Attachments** tab is set up for evidence, a box under the upload area offers **Record new files as evidence**, ticked to begin with.
+On pages whose **Attachments** tab is set up for evidence, a box under the upload area offers **Record new files as evidence**, checked to begin with.
 
 1. Check the **Collected on** date, and enter **Expires on** if the evidence goes out of date.
 2. Drag the files in, or select **Choose files**. Every file you add takes those dates.
 
-On any other record, attach the file first, then select the pencil button, tick **This file is evidence** and set the dates.
+On any other record, attach the file first, then select the pencil button, check **This file is evidence** and set the dates.
 
 ### How evidence is shown
 
-An evidence file has an **Evidence** badge and its collection date in the list, and a coloured chip for its expiry:
+An evidence file has an **Evidence** badge and its collection date in the list, and a colored chip for its expiry:
 
 | Chip | Meaning |
 |---|---|
@@ -105,7 +105,7 @@ An evidence file has an **Evidence** badge and its collection date in the list, 
 | Orange, "Expires in … days" | It expires within 30 days |
 | Amber, "Expires in … days" | It expires within 90 days |
 | Green, "Expires" and a date | It expires later than that |
-| Grey, **No expiry date** | No expiry date was given |
+| Gray, **No expiry date** | No expiry date was given |
 
 ### Expiring evidence files
 
@@ -131,7 +131,7 @@ This page is separate from **Expiring evidence** in the **Vendors** group, which
 
 Select **Save upload limits**. The new limits apply to files attached from then on; files already attached are not affected.
 
-- A file is checked twice: its extension must be on the list, and its content must be what that extension says. For a type the application does not recognise, only the extension is checked.
+- A file is checked twice: its extension must be on the list, and its content must be what that extension says. For a type the application does not recognize, only the extension is checked.
 - Programs and scripts (for example `.exe`, `.bat`, `.ps1`, `.js` and documents with macros such as `.docm`) cannot be added to the list.
 - Web pages and vector images (`.html`, `.svg`) are not on the list to begin with. If you add them, they are still only ever downloaded, never shown in the browser.
 
@@ -165,7 +165,7 @@ New files are kept on the server's disk, in the data folder, unless you choose a
    | **Endpoint** | The service address, without the bucket, for example `https://s3.example.net` |
    | **Region** and **Bucket** | As your provider gave them |
    | **Prefix** | Optional: a folder inside the bucket, such as `grc/` |
-   | **Path-style addresses** | Ticked (the starting choice) for most self-hosted stores; clear it for addresses of the form `bucket.endpoint` |
+   | **Path-style addresses** | Checked (the starting choice) for most self-hosted stores; clear it for addresses of the form `bucket.endpoint` |
    | **Server-side encryption** | **Store default**, **AES256** (keys managed by the store) or **aws:kms** with an optional **Key ID** |
    | **Credentials** | **Entered here** (the **Secret key** is stored encrypted and never shown again; leave it empty to keep the saved one), **A credentials file on the server** (a JSON file with `accessKeyId` and `secretAccessKey`), or **The server's environment** (`GRC_S3_ACCESS_KEY_ID` and `GRC_S3_SECRET_ACCESS_KEY`) |
 
@@ -195,7 +195,7 @@ The tiles show the **Last good backup** (red when there is none or it is more th
 
 ### Schedule and destination
 
-1. Switch on **Take a backup every day**, and choose the **Time of day** (in the organisation's time zone; choose a quiet time, as the application pauses for a few seconds while the database is read).
+1. Switch on **Take a backup every day**, and choose the **Time of day** (in the organization's time zone; choose a quiet time, as the application pauses for a few seconds while the database is read).
 2. Set **Backups to keep**: the newest ones at the destination are kept and older ones are deleted after each good backup (14 to begin with).
 3. Under **Write backups to**, choose **A folder (another disk, or a network share)** and enter the full **Folder** path, for example `D:\Backups\Sandpiper` or `\\fileserver\backups\sandpiper`, or choose the object store set up on the **File settings** page and a **Prefix in the object store**. A folder inside the data folder is refused.
 4. Switch on **Encrypt each backup** if the server has a backup key (the page says which; the person running the server sets it, see the operations guide). Keep a copy of that key somewhere safe and separate: without it the backups cannot be read.
@@ -217,7 +217,7 @@ A notification is a short message telling you that something needs your attentio
 The bell at the top right of every page shows a red number when you have unread notifications.
 
 1. Select the bell. A list of your eight most recent notifications opens, newest first.
-2. Unread notifications are in bold with a dot beside them. Each one shows a coloured chip for its kind and how long ago it arrived.
+2. Unread notifications are in bold with a dot beside them. Each one shows a colored chip for its kind and how long ago it arrived.
 3. Select a notification to open the record it is about. It is marked as read.
 4. Select **Mark all as read** to clear the number without opening anything.
 5. Select **See all notifications** for the full list, or **Preferences** to choose what you are told about.
@@ -247,14 +247,14 @@ Notifications are not deleted in this version; read ones stay in the **All** tab
 | **Due dates** | An action you own is overdue or is due within three days |
 | **Service-level targets** | A ticket assigned to you is within four hours of its resolution target |
 | **Reminders** | Dates set on records, such as contract notice dates |
-| **Acknowledgements** | You have been asked to read and acknowledge something |
-| **Notification clocks** | A deadline to notify someone outside the organisation is close or has passed |
+| **Acknowledgments** | You have been asked to read and acknowledge something |
+| **Notification clocks** | A deadline to notify someone outside the organization is close or has passed |
 | **Records I watch** | A record you watch has changed status or has a new comment |
 | **Other** | Anything that does not fit the kinds above |
 
 Other parts of the application may add kinds of their own, and an administrator can add more under **Lists** (the list `notification_kind`). They appear in everyone's preferences.
 
-In this version the application raises two of these by itself, once a day for each record: **Due dates** for the owners of actions, and **Service-level targets** for the assignees of tickets. Paused and resolved tickets, and actions that are done or cancelled, are left out. The other kinds appear as each part of the application starts sending them.
+In this version the application raises two of these by itself, once a day for each record: **Due dates** for the owners of actions, and **Service-level targets** for the assignees of tickets. Paused and resolved tickets, and actions that are done or canceled, are left out. The other kinds appear as each part of the application starts sending them.
 
 ### Records you watch
 
@@ -287,7 +287,7 @@ If email is not switched on in your installation, the page says so, and anything
 Messages go to the email address on your account, shown under **Email** on the **Preferences** tab. Only an administrator can change it.
 
 - **One message for each notification.** Each email has the notification's title and text, a link that opens the record in the application, and a link to your preferences.
-- **One summary a day.** Tick **Send me one summary a day instead of a message for each notification**. Notifications you get by email then wait, and once a day (from the hour your administrator has set, 07:00 unless changed) you receive one message listing them, each with its link. Nothing is sent on a day with nothing new. The bell is not affected: it always shows notifications as they happen.
+- **One summary a day.** Check **Send me one summary a day instead of a message for each notification**. Notifications you get by email then wait, and once a day (from the hour your administrator has set, 07:00 unless changed) you receive one message listing them, each with its link. Nothing is sent on a day with nothing new. The bell is not affected: it always shows notifications as they happen.
 
 **Restricted records are never described in an email.** If a notification is about a restricted record, such as a security incident, the email says only "You have a new security notification — open the application to view it" and links to your notifications page; in the daily summary it is listed the same way, without its title. Whether you may still see a record is checked again when the email is sent: if you have lost access in the meantime, nothing is sent about it.
 
@@ -315,7 +315,7 @@ Requests are limited: five from one place in 15 minutes, and at most three links
    | **Mail server** | The host name or address, such as `smtp.example.org` |
    | **Port** | Usually 587 for STARTTLS or 465 for TLS |
    | **Secure connection** | **STARTTLS (port 587)**, **TLS (port 465)**, or **None (plain connection)**. Use None only for a mail relay on your own network |
-   | **User name** and **Password** | Leave empty if the server does not ask for a sign-in. The password is kept encrypted and is never shown again; leave the box empty to keep the saved one, or tick **Remove the saved password** |
+   | **User name** and **Password** | Leave empty if the server does not ask for a sign-in. The password is kept encrypted and is never shown again; leave the box empty to keep the saved one, or check **Remove the saved password** |
    | **From address** and **From name** | Who messages come from |
    | **Reply-to address** | Optional: where replies go, such as the service desk |
    | **Application address** | The address people use to open the application, such as `https://grc.example.org`. Links in messages start with it |

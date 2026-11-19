@@ -66,7 +66,7 @@ export function chartKind(kind: string | undefined): 'bar' | 'line' | 'pie' | nu
   return 'bar';
 }
 
-/** Labelled values for a chart: one dimension and its first measure, or a pivot's row totals. */
+/** Labeled values for a chart: one dimension and its first measure, or a pivot's row totals. */
 export function chartPoints(r: ReportResult): ChartPoint[] {
   if (r.pivot) return r.pivot.rows.map((row, i) => ({ label: row.label, value: r.pivot!.rowTotals[i] ?? 0 }));
   const dims = r.columns.filter((c) => c.role === 'dim');

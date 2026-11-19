@@ -48,7 +48,7 @@ interface Report {
 
 const days = (n: number) => `${n} ${n === 1 ? 'day' : 'days'}`;
 
-/** Movement in words and a symbol, so it reads in black and white as well as in colour. */
+/** Movement in words and a symbol, so it reads in black and white as well as in color. */
 function Movement({ r }: { r: ReportRisk }) {
   if (r.movement === 'up') return <span className="rk-move rk-move-up"><Icon name="arrow-up" size={14} /> Up from {r.previous_label}</span>;
   if (r.movement === 'down') return <span className="rk-move rk-move-down"><Icon name="arrow-down" size={14} /> Down from {r.previous_label}</span>;

@@ -6,7 +6,7 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { UUID_RE } from '../../core/errors.ts';
 import type { ModuleDef, Row, SessionUser } from '../../core/module.ts';
-import { catalogue } from './catalogue.ts';
+import { catalog } from './catalog.ts';
 import { makeDocuments, type Allow, type BuiltDocument } from './documents.ts';
 import { EXPORT_KINDS, FILE_TYPES, FORMAT_NAMES, renderFile } from './files.ts';
 import { AccessError, runReport } from './query.ts';
@@ -102,7 +102,7 @@ const mod: ModuleDef = {
 
     const viewer = anyOf('reports.view', 'dashboards.view');
 
-    app.get('/api/reports/catalogue', { preHandler: viewer }, async (req) => ({ types: await catalogue(ctx, req.user) }));
+    app.get('/api/reports/catalog', { preHandler: viewer }, async (req) => ({ types: await catalog(ctx, req.user) }));
 
     app.get('/api/reports/roles', { preHandler: viewer }, async () =>
       db.query('select key, name from roles where enabled order by name'));

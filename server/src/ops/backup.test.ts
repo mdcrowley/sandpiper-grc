@@ -130,7 +130,7 @@ describe('backup and restore', () => {
   it('refuses to run while the server is up', async () => {
     const { dataDir, backupsDir } = fakeData('running');
     const backup = await createBackup({ dataDir, backupsDir, migrations: null, now: at(0) });
-    writeFileSync(join(dataDir, 'grc.pid'), String(process.pid)); // a process that exists
+    writeFileSync(join(dataDir, 'grc.pid'), String(process.ppid)); // a process that exists (not this one: our own id is treated as a leftover)
     await expect(createBackup({ dataDir, backupsDir, migrations: null, now: at(1) })).rejects.toThrow(/server is running/);
     await expect(
       restoreBackup({ backupDir: backup.dir, dataDir, backupsDir, codeMigrations: [], currentMigrations: null }),

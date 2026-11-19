@@ -32,7 +32,7 @@ export function guidePages() {
 
 export interface CallLog { (tool: string, ok: boolean, error: string | null, ms: number): Promise<void> }
 
-const INSTRUCTIONS = 'Sandpiper GRC: governance, risk and compliance for a transit organisation (service desk, inventory, changes, vendors and contracts, '
+const INSTRUCTIONS = 'Sandpiper GRC: governance, risk and compliance for a transit organization (service desk, inventory, changes, vendors and contracts, '
   + 'cybersecurity frameworks, risks, security incidents, policies, vulnerabilities, projects, safety and reports). '
   + 'Every call acts as the person who owns the access token, with no more rights than they have; records they may not see do not exist for you. '
   + 'Start with list_record_types or search; use my_work for "what should I do". Cite references (e.g. TKT-00012) and the url of each record you mention. '

@@ -228,7 +228,7 @@ export function compile(
   };
   const shift = (date: string, days: number) => new Date(Date.parse(`${date}T00:00:00Z`) + days * 86400000).toISOString().slice(0, 10);
 
-  /** A date condition as a half-open range of calendar days in the organisation time zone. */
+  /** A date condition as a half-open range of calendar days in the organization time zone. */
   function dateRange(c: Condition, f: ResolvedField): { from?: string; to?: string } | null {
     const [y, m] = [Number(today.slice(0, 4)), Number(today.slice(5, 7))];
     const ymd = (yy: number, mm: number) => `${yy + Math.floor((mm - 1) / 12)}-${String(((mm - 1) % 12 + 12) % 12 + 1).padStart(2, '0')}-01`;
@@ -376,7 +376,7 @@ export function compile(
     if (gs.bucket !== undefined && (!isDate || !BUCKETS.includes(gs.bucket))) throw new SpecError(`${f.label}: that date grouping is not available.`, f.path);
     if (isDate && !bucket) bucket = 'day';
     const expr = isDate
-      // Bucket boundaries fall on the organisation's calendar, not the server's or the browser's.
+      // Bucket boundaries fall on the organization's calendar, not the server's or the browser's.
       ? `date_trunc('${bucket}', ${t === 'datetime' ? `(${f.sql} at time zone ${tz()})` : `${f.sql}::timestamp`})`
       : f.mask ? `case when ${f.mask} and ${f.sql} is not null then ${MASKED_SQL} else ${f.sql}::text end`
       : `${f.sql}::text`;

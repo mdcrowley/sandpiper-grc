@@ -1,6 +1,6 @@
 import type { ModuleContext, Row } from '../../core/module.ts';
 
-export const COLOURS = ['gray', 'blue', 'teal', 'green', 'amber', 'orange', 'red', 'purple'];
+export const COLORS = ['gray', 'blue', 'teal', 'green', 'amber', 'orange', 'red', 'purple'];
 export const DEFAULT_STATUS = 'not_evidenced';
 
 /** Inserts or updates functions and their categories for one framework. */
@@ -11,7 +11,7 @@ export async function saveStructure(ctx: ModuleContext, frameworkId: string, fun
       `insert into framework_functions (framework_id, code, name, description, color, sort) values ($1,$2,$3,$4,$5,$6)
        on conflict (framework_id, code) do update set name = excluded.name, description = excluded.description,
          color = excluded.color, sort = excluded.sort`,
-      [frameworkId, code, String(f.name).trim(), f.description ?? null, COLOURS.includes(f.color) ? f.color : 'gray', Number(f.sort) || (i + 1) * 10],
+      [frameworkId, code, String(f.name).trim(), f.description ?? null, COLORS.includes(f.color) ? f.color : 'gray', Number(f.sort) || (i + 1) * 10],
     );
     for (const [j, c] of (Array.isArray(f.categories) ? (f.categories as Row[]) : []).entries()) {
       await ctx.db.query(

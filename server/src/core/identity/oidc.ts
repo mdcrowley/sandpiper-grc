@@ -1,4 +1,4 @@
-// OpenID Connect sign-in (authorisation code flow with PKCE, `state` and `nonce`), for any compliant
+// OpenID Connect sign-in (authorization code flow with PKCE, `state` and `nonce`), for any compliant
 // identity provider. Issuer, client and claims are configuration; endpoints come from the provider's
 // discovery document. Nothing here runs until a provider is switched on, or an administrator selects
 // "Test connection".
@@ -241,7 +241,7 @@ export const oidcDriver: ProviderDriver = {
     const doc = await discover(config.issuer);
     // RFC 9207: when the provider names itself in the response, it must be the one we asked.
     if (params.iss !== undefined && params.iss !== doc.issuer) throw new IdentityError('wrong issuer in response');
-    if (!params.code || params.code.length > 4096) throw new IdentityError('no authorisation code');
+    if (!params.code || params.code.length > 4096) throw new IdentityError('no authorization code');
     const form: Record<string, string> = {
       grant_type: 'authorization_code', code: params.code, redirect_uri: redirectUri, code_verifier: remember.codeVerifier,
     };

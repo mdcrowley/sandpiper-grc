@@ -267,7 +267,7 @@ export function DisposalTab({ row, version, onChanged }: { row: Row; version: nu
         <Text size="sm" c="dimmed">
           Every disposal needs an approval: who approved it and when. Ask for it with the Dispose button; the people who may
           approve are told, and the one who asked cannot approve it. An approval given outside the application can be recorded
-          as a name and date instead, unless your organisation has switched that off.
+          as a name and date instead, unless your organization has switched that off.
         </Text>
         {row.funder_interest ? (
           <Callout color={gone ? 'gray' : 'amber'} title="The funder-interest rule applies to this asset">

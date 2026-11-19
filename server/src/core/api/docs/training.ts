@@ -144,7 +144,7 @@ export const DOCS: RouteDoc[] = [
   // ---------- exercises: calendar ----------
   route('GET', '/api/exercises/calendar', 'Exercises coming up and overdue, and when each type was last run', {
     tag: EXERCISES, permission: 'exercises.view',
-    description: 'An entry is a planned exercise (by its date) or the next run of a completed one (by its next due date) unless a later exercise of the same type is on record. Cancelled exercises are left out.',
+    description: 'An entry is a planned exercise (by its date) or the next run of a completed one (by its next due date) unless a later exercise of the same type is on record. Canceled exercises are left out.',
     response: `{ today: date, overdue: [${CAL_ENTRY}], upcoming: [${CAL_ENTRY}], undated: [${CAL_ENTRY}],
       by_type: [{ type: string, label: string, color: string, completed: integer, last_run: date | null, last_id: uuid | null, last_result: string | null,
         next_due: date | null, next_id: uuid | null, overdue: boolean }] }`,

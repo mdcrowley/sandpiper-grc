@@ -1,6 +1,6 @@
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
-import { CsvError, detectDelimiter, normaliseSeverity, parseBoolean, parseCsv, parseDate, pickCves, severityFromCvss } from './csv.ts';
+import { CsvError, detectDelimiter, normalizeSeverity, parseBoolean, parseCsv, parseDate, pickCves, severityFromCvss } from './csv.ts';
 import { UUID_RE } from '../../core/errors.ts';
 import { notifyImportAssigned } from './notify.ts';
 import { secured, today } from './policy.ts';
@@ -194,7 +194,7 @@ export function registerImport(ctx: ModuleContext) {
         if (Number.isFinite(n) && n >= 0 && n <= 10) data.cvss = n; else errors.cvss = `CVSS score: "${raw.cvss}" is not a number between 0 and 10.`;
       }
       if (raw.severity) {
-        const s = normaliseSeverity(raw.severity, severities);
+        const s = normalizeSeverity(raw.severity, severities);
         if (s) data.severity = s; else errors.severity = `Severity: "${raw.severity}" is not understood.`;
       } else if (data.cvss !== undefined && severities.some((s) => s.value === severityFromCvss(data.cvss))) {
         data.severity = severityFromCvss(data.cvss);

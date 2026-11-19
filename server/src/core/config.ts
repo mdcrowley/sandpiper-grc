@@ -1,4 +1,4 @@
-/** Installation-wide defaults. Nothing here is specific to one organisation. */
+/** Installation-wide defaults. Nothing here is specific to one organization. */
 
 /** Shown until an administrator sets a name under Administration > Settings. */
 export const DEFAULT_APP_NAME = 'Sandpiper GRC';

@@ -1,7 +1,7 @@
 // A stand-in OpenID Connect provider for tests and local trials. NEVER used by the application itself.
 //
 // An in-process HTTP server on 127.0.0.1 (port 0 = any free port) that serves a discovery document,
-// a key set, an authorisation endpoint that approves at once (or shows a one-button page), and a token
+// a key set, an authorization endpoint that approves at once (or shows a one-button page), and a token
 // endpoint that checks the client, the redirect address and PKCE, then signs an ID token with a key
 // generated at start. Test controls: `user`, `overrides`, `badSignature`, `alg`, `rotateKeys()`.
 import { createHash, generateKeyPairSync, randomBytes, sign as cryptoSign, constants, type KeyObject } from 'node:crypto';

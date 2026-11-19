@@ -11,7 +11,7 @@ import { UUID_RE } from '../../core/errors.ts';
 import type { ModuleDef, ResourceDef, Row } from '../../core/module.ts';
 import { todayInZone } from '../../core/timezone.ts';
 import {
-  BLOCKED_EXTENSIONS, checkContent, contentDisposition, contentTypeFor, downloadContentType, extensionOf, sanitiseFileName,
+  BLOCKED_EXTENSIONS, checkContent, contentDisposition, contentTypeFor, downloadContentType, extensionOf, sanitizeFileName,
 } from './filetypes.ts';
 import { registerFileAdmin } from './admin.ts';
 import { registerBackups } from './backups.ts';
@@ -196,7 +196,7 @@ const mod: ModuleDef = {
         // Everything that can be decided without the content is decided before reading it.
         const parent = await needParent(req, q.record_type, q.record_id, 'edit');
         const settings = await readSettings(ctx);
-        const fileName = sanitiseFileName(q.name);
+        const fileName = sanitizeFileName(q.name);
         const extension = extensionOf(fileName);
         const refuse = async (status: number, code: string, message: string, reason: string): Promise<never> => {
           await ctx.audit(req, {

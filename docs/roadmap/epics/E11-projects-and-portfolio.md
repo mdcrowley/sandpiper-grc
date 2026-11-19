@@ -85,13 +85,13 @@ much governance it gets. I can override the tier with a reason.
 **Status:** done · **Priority:** P1 · **Type:** feature
 
 As a project manager, each stage ends in a gate with a checklist copied from a
-template, and I tick items off as they are met.
+template, and I check items off as they are met.
 
 **Acceptance criteria**
 
 - [x] A gate is opened for the project's current stage
 - [x] The checklist is copied from the template for that gate and tier
-- [x] Ticking an item records who and when
+- [x] Checking an item records who and when
 - [x] A stepper shows the stages and where the project is
 
 **Implemented in:** `openGate`, `setChecklistItem` (`server/src/modules/projects/service.ts`); `GET /api/projects/:id/gates`, `PATCH .../gates/:gateId/items/:itemId` (`routes.ts`); `web/src/modules/projects/GateTab.tsx`, `GateChecklist.tsx`, `GateStepper.tsx`
@@ -101,12 +101,12 @@ template, and I tick items off as they are met.
 **Status:** done · **Priority:** P1 · **Type:** feature
 
 As an approver, I approve or reject a gate. A gate cannot be approved while any
-checklist item is unticked, and approval moves the project to the next stage.
+checklist item is unchecked, and approval moves the project to the next stage.
 
 **Acceptance criteria**
 
 - [x] Deciding needs `projects.approve`
-- [x] Approval is blocked while an item is unticked
+- [x] Approval is blocked while an item is unchecked
 - [x] Approval advances the stage and opens the next gate
 - [x] The decision, the decider and any comment are recorded and audited
 
@@ -179,7 +179,7 @@ change requests.
 **Status:** done · **Priority:** P2 · **Type:** feature
 
 As a project manager, I can escalate a project risk so that it also appears in the
-organisation's risk register.
+organization's risk register.
 
 **Acceptance criteria**
 
@@ -396,12 +396,12 @@ As any user, the projects screens look and behave like the rest of the rebuilt a
 
 - [x] Portfolio: summary strip (count, rating split, spend against budget, gate decisions due, work in progress), clickable stage boxes, view switcher (table, board, timeline, budget) with view and filters in the address
 - [x] Board cards with tier, rating and trend, manager, next gate and budget bar
-- [x] Milestone-level timeline coloured by stage, with a today line, quarter and year zoom and sticky names, legible in both themes
-- [x] Budget versus actual chart in the organisation's currency
-- [x] Project page with the gate stepper as centrepiece, a gate record drawer, the checklist with progress, required documents and a decision dialog that lists exactly what blocks approval
+- [x] Milestone-level timeline colored by stage, with a today line, quarter and year zoom and sticky names, legible in both themes
+- [x] Budget versus actual chart in the organization's currency
+- [x] Project page with the gate stepper as centerpiece, a gate record drawer, the checklist with progress, required documents and a decision dialog that lists exactly what blocks approval
 - [x] Status reports as a timeline with a four-line trend chart; one register for risks, issues, decisions and change requests; scoring explained; Actions tab (source `project`)
 - [x] Short request form; most of the bespoke stylesheet replaced by core and Mantine components
-- [x] Checked in a browser, light and dark, 1440 and 820 wide; transit-flavoured invented samples
+- [x] Checked in a browser, light and dark, 1440 and 820 wide; transit-flavored invented samples
 
 **Implemented in:** `web/src/modules/projects/*`; samples in `server/src/modules/projects/seed.ts`
 

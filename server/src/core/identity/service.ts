@@ -21,7 +21,7 @@ export interface IdentityDeps {
 
 /**
  * The kinds of provider. SAML 2.0 is not here: verifying signed XML safely needs an XML-signature
- * implementation (canonicalisation, reference checks, wrapping defences), which Node does not have and
+ * implementation (canonicalisation, reference checks, wrapping defenses), which Node does not have and
  * this project does not carry. See docs/roadmap/epics/E02-account-security.md, E02-10.
  */
 export const DRIVERS: Record<string, ProviderDriver> = { oidc: oidcDriver };

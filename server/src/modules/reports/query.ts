@@ -18,7 +18,7 @@ export interface ResultRow {
   v: Record<string, unknown>;
   /** Display labels by column key, where the raw value is not what a person should read. */
   d: Record<string, string>;
-  /** Configured colour names (lookup values) by column key. */
+  /** Configured color names (lookup values) by column key. */
   c?: Record<string, string>;
   /** Address parameters of the generic list that show the records behind this row. */
   drill?: string;

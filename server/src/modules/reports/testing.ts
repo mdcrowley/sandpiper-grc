@@ -10,7 +10,7 @@ export const fixtureModule: ModuleDef = {
       updated_at timestamptz not null default now(), updated_by uuid, deleted_at timestamptz`;
     await ctx.db.exec(`
       create table if not exists rt_sites (${std}, name text not null, region text);
-      create table if not exists rt_boxes (${std}, name text not null, colour text);
+      create table if not exists rt_boxes (${std}, name text not null, color text);
       create table if not exists rt_things (${std}, name text not null, status text, amount numeric, qty numeric,
         opened_on date, opened_at timestamptz, owner_id uuid, site_id uuid, box_id uuid, department text,
         active boolean, notes jsonb, restricted boolean not null default false);`);
@@ -30,7 +30,7 @@ export const fixtureModule: ModuleDef = {
     ctx.defineResource({
       type: 'rt_box', table: 'rt_boxes', module: 'risks', label: 'Test box', plural: 'Test boxes', restricted: true,
       path: '/api/rt-boxes', route: '/rt-boxes', titleField: 'name',
-      fields: { name: { label: 'Name', type: 'text', required: true }, colour: { label: 'Colour', type: 'text' } },
+      fields: { name: { label: 'Name', type: 'text', required: true }, color: { label: 'Color', type: 'text' } },
     });
     ctx.defineResource({
       type: 'rt_thing', table: 'rt_things', module: 'tickets', label: 'Test thing', plural: 'Test things', restricted: 'flag',
@@ -61,7 +61,7 @@ export const fixtureModule: ModuleDef = {
 export async function loadFixture(ctx: ModuleContext, ownerId: string) {
   const s1 = await ctx.resources.create('rt_site', { name: 'North', region: 'Upland' });
   const s2 = await ctx.resources.create('rt_site', { name: 'South', region: 'Coast' });
-  const box = await ctx.resources.create('rt_box', { name: 'Sealed box', colour: 'red' });
+  const box = await ctx.resources.create('rt_box', { name: 'Sealed box', color: 'red' });
   const rows: [string, string, number | null, number, string, string, string | null, string | null, boolean][] = [
     ['A', 'new', 100, 1, '2026-01-05', '2026-01-05T15:00:00Z', s1.id, 'Finance', false],
     ['B', 'open', 200, 2, '2026-01-20', '2026-02-01T03:00:00Z', s1.id, 'Finance', false],

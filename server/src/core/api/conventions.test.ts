@@ -16,7 +16,7 @@ const widgets: ModuleDef = {
     await ctx.db.exec(`
       create table if not exists test_widgets (
         id uuid primary key default gen_random_uuid(),
-        ref text, name text not null, colour text,
+        ref text, name text not null, color text,
         created_at timestamptz not null default now(), created_by uuid,
         updated_at timestamptz not null default now(), updated_by uuid, deleted_at timestamptz);`);
   },
@@ -27,7 +27,7 @@ const widgets: ModuleDef = {
       fields: {
         ref: { label: 'Reference', type: 'text', readOnly: true },
         name: { label: 'Name', type: 'text', required: true },
-        colour: { label: 'Colour', type: 'text' },
+        color: { label: 'Color', type: 'text' },
       },
     });
     // A hand-written route that answers an error without the envelope, to show it is added.
@@ -159,28 +159,28 @@ describe('ETag and If-Match', () => {
     expect(first).toBeTruthy();
     expect((await call('GET', `/api/v1/widgets/${made.body.id}`)).headers.etag).toBe(first);
 
-    const ok = await call('PATCH', `/api/v1/widgets/${made.body.id}`, { body: { colour: 'blue' }, headers: { 'if-match': first } });
+    const ok = await call('PATCH', `/api/v1/widgets/${made.body.id}`, { body: { color: 'blue' }, headers: { 'if-match': first } });
     expect(ok.status).toBe(200);
     const second = ok.headers.etag as string;
     expect(second).not.toBe(first);
 
-    const stale = await call('PATCH', `/api/v1/widgets/${made.body.id}`, { body: { colour: 'red' }, headers: { 'if-match': first } });
+    const stale = await call('PATCH', `/api/v1/widgets/${made.body.id}`, { body: { color: 'red' }, headers: { 'if-match': first } });
     expect([stale.status, stale.body.error.code]).toEqual([409, 'version_conflict']);
     expect(stale.headers.etag).toBe(second);
-    expect((await call('GET', `/api/widgets/${made.body.id}`)).body.colour).toBe('blue');
+    expect((await call('GET', `/api/widgets/${made.body.id}`)).body.color).toBe('blue');
 
     // Without If-Match, as the web application sends it, nothing changes.
-    expect((await t.api.patch(`/api/widgets/${made.body.id}`, { colour: 'green' })).status).toBe(200);
+    expect((await t.api.patch(`/api/widgets/${made.body.id}`, { color: 'green' })).status).toBe(200);
     expect((await call('DELETE', `/api/v1/widgets/${made.body.id}`, { headers: { 'if-match': second } })).status).toBe(409);
     expect((await call('DELETE', `/api/v1/widgets/${made.body.id}`, { headers: { 'if-match': '*' } })).status).toBe(200);
     // A record that is not there answers 404, not 409.
-    expect((await call('PATCH', `/api/v1/widgets/${made.body.id}`, { body: { colour: 'x' }, headers: { 'if-match': first } })).status).toBe(404);
+    expect((await call('PATCH', `/api/v1/widgets/${made.body.id}`, { body: { color: 'x' }, headers: { 'if-match': first } })).status).toBe(404);
   });
 
   it('takes concurrent changes to one record one at a time', async () => {
     const made = await call('POST', '/api/widgets', { body: { name: 'Platform display' } });
     const tag = made.headers.etag as string;
-    const results = await Promise.all([1, 2, 3].map((n) => call('PATCH', `/api/widgets/${made.body.id}`, { body: { colour: `c${n}` }, headers: { 'if-match': tag } })));
+    const results = await Promise.all([1, 2, 3].map((n) => call('PATCH', `/api/widgets/${made.body.id}`, { body: { color: `c${n}` }, headers: { 'if-match': tag } })));
     expect(results.map((r) => r.status).sort()).toEqual([200, 409, 409]);
   });
 });
@@ -208,9 +208,9 @@ describe('Idempotency-Key', () => {
 
   it('does not remember a refused request, so it can be corrected and sent again', async () => {
     const key = 'retry-after-fix';
-    const bad = await call('POST', '/api/widgets', { body: { colour: 'no name' }, headers: { 'idempotency-key': key } });
+    const bad = await call('POST', '/api/widgets', { body: { color: 'no name' }, headers: { 'idempotency-key': key } });
     expect(bad.status).toBe(400);
-    const good = await call('POST', '/api/widgets', { body: { name: 'Fixed', colour: 'no name' }, headers: { 'idempotency-key': key } });
+    const good = await call('POST', '/api/widgets', { body: { name: 'Fixed', color: 'no name' }, headers: { 'idempotency-key': key } });
     expect(good.status).toBe(201);
     expect((await call('POST', '/api/widgets', { body: { name: 'x' }, headers: { 'idempotency-key': ' ' } })).body.error.code).toBe('bad_idempotency_key');
   });
@@ -226,11 +226,11 @@ describe('Idempotency-Key', () => {
 
 describe('paging links', () => {
   it('adds Link and X-Total-Count to a page of a list, keeping the filters and the path used', async () => {
-    for (let i = 0; i < 5; i += 1) await call('POST', '/api/widgets', { body: { name: `Paged ${i}`, colour: 'paged' } });
-    const res = await call('GET', '/api/v1/widgets?f.colour=paged&pageSize=2&page=2');
+    for (let i = 0; i < 5; i += 1) await call('POST', '/api/widgets', { body: { name: `Paged ${i}`, color: 'paged' } });
+    const res = await call('GET', '/api/v1/widgets?f.color=paged&pageSize=2&page=2');
     expect(res.headers['x-total-count']).toBe('5');
     const link = res.headers.link as string;
-    expect(link).toContain('</api/v1/widgets?f.colour=paged&pageSize=2&page=1>; rel="first"');
+    expect(link).toContain('</api/v1/widgets?f.color=paged&pageSize=2&page=1>; rel="first"');
     expect(link).toContain('page=1>; rel="prev"');
     expect(link).toContain('page=3>; rel="next"');
     expect(link).toContain('page=3>; rel="last"');
@@ -281,7 +281,7 @@ describe('deprecations and errors', () => {
       expect(op.description).toMatch(/Use GET \/api\/widgets instead/);
       expect((await call('GET', '/api/widgets')).headers.deprecation).toBeUndefined();
     } finally {
-      DEPRECATIONS.length = 0;
+      DEPRECATIONS.splice(DEPRECATIONS.findIndex((d) => d.path === '/api/widgets-echo'), 1);
     }
   });
 

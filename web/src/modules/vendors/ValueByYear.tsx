@@ -1,5 +1,5 @@
 // Contract value year by year: a small table with add and remove, a total in the
-// organisation's currency, and a comparison with the contract's recorded total value.
+// organization's currency, and a comparison with the contract's recorded total value.
 import { useState } from 'react';
 import {
   Button, Card, currency, errorMessage, formatCurrency, IconButton, NumberField, useToast,

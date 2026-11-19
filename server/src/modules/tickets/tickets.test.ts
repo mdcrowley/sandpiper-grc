@@ -10,7 +10,7 @@ afterAll(async () => { clock.set(null); await t.close(); });
 const base = { title: 'Test ticket', requester_name: 'Pat Example', requester_department: 'Finance' };
 
 describe('priority matrix', () => {
-  it('computes priority from impact and urgency, and honours an override', async () => {
+  it('computes priority from impact and urgency, and honors an override', async () => {
     clock.set('2026-11-18T15:00:00Z');
     const p1 = await t.api.post('/api/tickets', { ...base, impact: 'organisation', urgency: 'high' });
     expect(p1.status).toBe(201);
@@ -314,7 +314,7 @@ describe('permissions', () => {
   });
 });
 
-describe('problems, knowledge and catalogue', () => {
+describe('problems, knowledge and catalog', () => {
   it('records a problem and drafts a known error in the knowledge base', async () => {
     const p = await t.api.post('/api/problems', { title: 'Printer jams', workaround: 'Use tray 2', root_cause: 'Worn roller' });
     expect(p.body.ref).toMatch(/^PRB-/);
@@ -361,7 +361,7 @@ describe('problems, knowledge and catalogue', () => {
     expect((await agent.post(`/api/knowledge/${id}/feedback`, { helpful: false })).body).toMatchObject({ helpful_yes: 1, helpful_no: 2, changed: true });
   });
 
-  it('starts with the default catalogue', async () => {
+  it('starts with the default catalog', async () => {
     const items = (await t.api.get('/api/catalog-items?sort=name')).body.rows;
     expect(items.map((i: any) => i.name)).toEqual([
       'Access request', 'Equipment fault', 'Hardware', 'Leaver', 'New starter', 'Software', 'Vendor access',
@@ -376,7 +376,7 @@ describe('problems, knowledge and catalogue', () => {
 });
 
 describe('sample data', () => {
-  it('seeds about 40 labelled tickets once', async () => {
+  it('seeds about 40 labeled tickets once', async () => {
     clock.set('2026-12-10T17:00:00Z');
     const mod = t.modules.find((m) => m.key === 'tickets')!;
     const note = await mod.seed!(t.ctx, { profile: 'dev', seedDir: '' });

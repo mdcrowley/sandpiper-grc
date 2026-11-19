@@ -9,7 +9,7 @@ const ROUTED_ONLY = 'inventory.disposal_routed_only'; // same key as disposal.ts
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-/** Today in the organisation's time zone. */
+/** Today in the organization's time zone. */
 export function today(): string {
   return dayInZone();
 }

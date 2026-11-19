@@ -4,7 +4,7 @@
 
 ## Goal
 
-Hold one trustworthy picture of what the organisation runs: its systems, the assets
+Hold one trustworthy picture of what the organization runs: its systems, the assets
 people use, the sites they are in, the kinds of data held, and how these depend on each
 other. Other modules (tickets, risks, vendors, incidents) point at these records.
 
@@ -68,7 +68,7 @@ hosting, criticality, recovery targets and how people sign in to it.
 
 **Status:** done · **Priority:** P1 · **Type:** feature
 
-As an agent, I record each device, licence or subscription with its tag, who has it,
+As an agent, I record each device, license or subscription with its tag, who has it,
 where it is, what it cost and when its warranty and support end.
 
 **Acceptance criteria**
@@ -101,7 +101,7 @@ and physical protection, and its network links.
 
 **Status:** done · **Priority:** P2 · **Type:** feature
 
-As a security lead, I list the kinds of data the organisation holds, how sensitive each
+As a security lead, I list the kinds of data the organization holds, how sensitive each
 is, who looks after it, who it is shared with and how long it is kept.
 
 **Acceptance criteria**
@@ -147,7 +147,7 @@ it.
 **Status:** done · **Priority:** P2 · **Type:** feature
 
 As anyone planning a change or handling an incident, I can see systems, vendors, sites
-and data categories as a map and focus on one system's neighbourhood.
+and data categories as a map and focus on one system's neighborhood.
 
 **Acceptance criteria**
 
@@ -267,7 +267,7 @@ records without it turning into a tangle.
 
 - [x] A stable layout worked out from the data (no simulation): systems in boxes by group, criticality or hosting; vendors on the left; sites, data and assets on the right, level with their systems or stacked when short; large groups show several systems to a row
 - [x] Zoom, pan, fit and full screen, by mouse, buttons and keyboard
-- [x] Search to select and centre a record; filters by group and record type
+- [x] Search to select and center a record; filters by group and record type
 - [x] A side panel with the selected record's details, connections and, for a system, what is affected if it fails (outlined on the map)
 - [x] A legend; a searchable table of the same relationships for keyboard and screen-reader use
 - [x] Themed for light and dark; checked with an invented estate of about 160 records and 290 relationships
@@ -378,7 +378,7 @@ store.
 
 **Status:** open · **Priority:** P3 · **Type:** feature
 
-As an IT lead, I save the map, or the neighbourhood of one system, as an image for a report.
+As an IT lead, I save the map, or the neighborhood of one system, as an image for a report.
 
 **Acceptance criteria**
 

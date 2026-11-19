@@ -101,7 +101,7 @@ describe('dashboards: permissions, sharing, widgets and the home choice', () => 
     expect((await agent.post('/api/dashboards', { name: 'Mine', widgets })).status).toBe(403);
     expect((await lead.post('/api/dashboards', { name: 'Bad', widgets: [{ kind: 'explode' }] })).status).toBe(400);
     expect((await lead.post('/api/dashboards', { name: 'Bad', widgets: [{ kind: 'chart', config: { spec: { type: 'rt_thing', groupBy: [{ field: 'nope' }] } } }] })).status).toBe(400);
-    expect((await lead.post('/api/dashboards', { name: 'Bad', filters: [{ kind: 'colour' }] })).status).toBe(400);
+    expect((await lead.post('/api/dashboards', { name: 'Bad', filters: [{ kind: 'color' }] })).status).toBe(400);
     const made = await lead.post('/api/dashboards', { name: 'Team board', widgets: [...widgets, { id: 'n', kind: 'text', x: 99, y: -4, w: 40, h: 99, config: { markdown: 'hi' } }], filters: [{ kind: 'department', label: 'Department' }] });
     expect(made.status).toBe(201);
     const last = made.body.widgets[3];
@@ -137,7 +137,7 @@ describe('dashboards: permissions, sharing, widgets and the home choice', () => 
     expect((await lead.post('/api/dashboards/run-widget', widget(widgets[0]))).body.value).toBe(6);
     expect((await agent.post('/api/dashboards/run-widget', widget(widgets[0], { globals: { department: 'Operations' } }))).body.value).toBe(2);
     expect((await agent.post('/api/dashboards/run-widget', widget(widgets[2]))).body.status).toBe('unavailable');
-    expect((await agent.post('/api/dashboards/run-widget', widget({ kind: 'chart', config: { spec: { type: 'rt_box', groupBy: [{ field: 'colour' }] } } }))).body.status).toBe('forbidden');
+    expect((await agent.post('/api/dashboards/run-widget', widget({ kind: 'chart', config: { spec: { type: 'rt_box', groupBy: [{ field: 'color' }] } } }))).body.status).toBe('forbidden');
     expect((await (await t.as('auditor')).post('/api/dashboards/run-widget', widget(widgets[0]))).status).toBe(403);
 
     // Gauge: a share of a wider set. Progress: one figure out of another.

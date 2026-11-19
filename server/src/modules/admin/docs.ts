@@ -21,7 +21,7 @@ const DOCS: [RouteDoc['method'], string, string, Extra?][] = [
   // Single sign-on (sso.ts, providers.ts; protocol in core/identity)
   ['GET', '/api/auth/providers', 'Sign-in providers shown on the sign-in page', { tag: 'Session', public: true, response: '{ providers: [{ key, name, isDefault }], localSignIn }' }],
   ['POST', '/api/auth/sso/:key/start', 'Start signing in through a provider', { tag: 'Session', public: true, response: '{ redirectUrl } and a short-lived state cookie' }],
-  ['GET', '/api/auth/sso/:key/callback', 'Where the provider sends the browser back', { tag: 'Session', public: true, query: { code: 'Authorisation code.', state: 'The state sent at the start.' }, response: '302 redirect into the application' }],
+  ['GET', '/api/auth/sso/:key/callback', 'Where the provider sends the browser back', { tag: 'Session', public: true, query: { code: 'Authorization code.', state: 'The state sent at the start.' }, response: '302 redirect into the application' }],
   ['GET', '/api/auth/sso/pending', 'A provider sign-in waiting for the password to link it', { tag: 'Session', public: true, response: '{ pending, provider?, email? (masked) }' }],
   ['POST', '/api/auth/sso/pending/cancel', 'Do not link the waiting provider sign-in', { tag: 'Session', public: true }],
   ['POST', '/api/auth/sso/pending/complete', 'Link the waiting provider sign-in to the account just signed in with its password', { tag: 'Account security', description: SESSION, response: '{ ok, provider }' }],

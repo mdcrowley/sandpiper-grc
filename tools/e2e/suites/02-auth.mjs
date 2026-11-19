@@ -56,7 +56,7 @@ export const tests = [
     },
   },
   {
-    name: 'second-factor enrolment and sign-in with a code',
+    name: 'second-factor enrollment and sign-in with a code',
     async run(t) {
       const user = await t.step('make a new agent account', () => t.app.newUser(`e2e.mfa-${Date.now() % 100000}`, ['agent']));
       await t.page.setSession(user.token);

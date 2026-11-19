@@ -32,13 +32,13 @@ function RequestDetails({ row }: { row: Row }) {
   const answers = (row.catalog_answers ?? []) as Answer[];
   if (!answers.length) return null;
   return (
-    <Card title="Request details" actions={row._display?.catalog_item_id ? <Link to={`/catalogue/${row.catalog_item_id}`}>{row._display.catalog_item_id}</Link> : undefined}>
+    <Card title="Request details" actions={row._display?.catalog_item_id ? <Link to={`/catalog/${row.catalog_item_id}`}>{row._display.catalog_item_id}</Link> : undefined}>
       <DefinitionList items={answers.map((a) => ({ label: a.label, value: <span className="prose">{/^\d{4}-\d{2}-\d{2}$/.test(a.value) ? formatDate(a.value) : a.value}</span>, wide: a.value.length > 70 || a.value.includes('\n') }))} />
     </Card>
   );
 }
 
-function FulfilmentTasks({ rec }: { rec: RecordContext }) {
+function FulfillmentTasks({ rec }: { rec: RecordContext }) {
   const { row, save, canEdit } = rec;
   const toast = useToast();
   const [busy, setBusy] = useState(false);
@@ -56,8 +56,8 @@ function FulfilmentTasks({ rec }: { rec: RecordContext }) {
     }
   }
   return (
-    <Card title="Fulfilment tasks" actions={<span className="muted">{done} of {tasks.length} done</span>}>
-      <ProgressBar hideLabel label="Fulfilment tasks done" value={done} max={tasks.length} color={done === tasks.length ? 'green' : 'blue'} valueText={`${done} of ${tasks.length}`} />
+    <Card title="Fulfillment tasks" actions={<span className="muted">{done} of {tasks.length} done</span>}>
+      <ProgressBar hideLabel label="Fulfillment tasks done" value={done} max={tasks.length} color={done === tasks.length ? 'green' : 'blue'} valueText={`${done} of ${tasks.length}`} />
       <ul className="sd-tasks">
         {tasks.map((t, i) => (
           <li key={`${i}:${t.title}`} className={t.done ? 'is-done' : undefined}>
@@ -164,7 +164,7 @@ function Summary({ rec }: { rec: RecordContext }) {
       <div className="sd-main">
         <Description rec={rec} />
         <RequestDetails row={row} />
-        <FulfilmentTasks rec={rec} />
+        <FulfillmentTasks rec={rec} />
         {(row.resolved_at || row.resolution_code || row.resolution_notes) && (
           <EditableSummary type="ticket" row={row} onSaved={reload} title="Resolution" fields={['resolution_code', 'resolution_notes']} />
         )}
@@ -188,7 +188,7 @@ function Summary({ rec }: { rec: RecordContext }) {
             { label: 'Opened', value: formatDateTime(row.opened_at) },
             { label: 'First response', value: row.first_responded_at ? formatDateTime(row.first_responded_at) : 'Not yet' },
             { label: 'Resolved', value: row.resolved_at ? formatDateTime(row.resolved_at) : 'Not yet' },
-            ...(row.closed_at ? [{ label: row.status === 'cancelled' ? 'Cancelled' : 'Closed', value: formatDateTime(row.closed_at) }] : []),
+            ...(row.closed_at ? [{ label: row.status === 'cancelled' ? 'Canceled' : 'Closed', value: formatDateTime(row.closed_at) }] : []),
           ]} />
         </Card>
       </aside>

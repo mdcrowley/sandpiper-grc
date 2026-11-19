@@ -23,7 +23,7 @@ function AuthLayout({ title, intro, children }: { title: string; intro?: string;
     <main className="auth-page" id="main">
       <div className="auth-card">
         <p className="auth-brand"><Wordmark name={appName} size={32} /></p>
-        <p className="auth-tagline">Governance, risk and compliance for transit organisations</p>
+        <p className="auth-tagline">Governance, risk and compliance for transit organizations</p>
         <h1 className="auth-title">{title}</h1>
         {intro && <p className="muted">{intro}</p>}
         {children}
@@ -142,7 +142,7 @@ interface PendingLink { pending: boolean; provider?: string; email?: string }
 
 const SSO_MESSAGES: Record<string, string> = {
   failed: 'Single sign-on did not work. Try again, or ask an administrator if it keeps happening.',
-  no_account: 'You signed in at your organisation, but there is no account here for you. Ask an administrator to add you.',
+  no_account: 'You signed in at your organization, but there is no account here for you. Ask an administrator to add you.',
 };
 
 /** Reads `?sso=` once (the result of a trip to an identity provider) and takes it out of the address. */
@@ -168,7 +168,7 @@ function ProviderButtons({ options, onError }: { options: SignInOptions; onError
     }
   };
   return (
-    <div className="stack" style={{ gap: 'var(--s-2)' }} role="group" aria-label="Sign in with your organisation">
+    <div className="stack" style={{ gap: 'var(--s-2)' }} role="group" aria-label="Sign in with your organization">
       {options.providers.map((p, i) => (
         <Button
           key={p.key} variant={p.isDefault || (i === 0 && !options.providers.some((x) => x.isDefault)) ? 'primary' : 'secondary'}
@@ -297,7 +297,7 @@ export function LoginPage() {
   const passwordFolded = Boolean(options && !options.localSignIn && !linking && !showPassword && !needsCode);
   const intro = needsCode ? 'One more step: enter the code from your authenticator app.'
     : linking ? undefined
-    : providers.length ? 'Use your organisation account.' : undefined;
+    : providers.length ? 'Use your organization account.' : undefined;
 
   return (
     <AuthLayout title={linking ? 'Link your sign-in' : 'Sign in'} intro={intro}>

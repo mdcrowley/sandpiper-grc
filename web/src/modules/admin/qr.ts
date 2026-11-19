@@ -79,7 +79,7 @@ const BLOCKS_M: Record<number, [ec: number, n1: number, d1: number, n2: number, 
   16: [28, 7, 45, 3, 46], 17: [28, 10, 46, 1, 47], 18: [26, 9, 43, 4, 44], 19: [26, 3, 44, 11, 45], 20: [26, 3, 41, 13, 42],
 };
 
-/** Centres of the alignment patterns, per version (version 1 has none). */
+/** Centers of the alignment patterns, per version (version 1 has none). */
 const ALIGNMENT: Record<number, number[]> = {
   1: [], 2: [6, 18], 3: [6, 22], 4: [6, 26], 5: [6, 30], 6: [6, 34], 7: [6, 22, 38], 8: [6, 24, 42], 9: [6, 26, 46],
   10: [6, 28, 50], 11: [6, 30, 54], 12: [6, 32, 58], 13: [6, 34, 62], 14: [6, 26, 46, 66], 15: [6, 26, 48, 70],
@@ -188,7 +188,7 @@ function functionPatterns(version: number): Grid {
   for (const [top, left] of [[0, 0], [0, size - 7], [size - 7, 0]]) {
     for (let dy = -1; dy <= 7; dy++) {
       for (let dx = -1; dx <= 7; dx++) {
-        const ring = Math.max(Math.abs(dx - 3), Math.abs(dy - 3)); // distance from the centre
+        const ring = Math.max(Math.abs(dx - 3), Math.abs(dy - 3)); // distance from the center
         set(top + dy, left + dx, ring === 3 || ring <= 1);
       }
     }
@@ -199,9 +199,9 @@ function functionPatterns(version: number): Grid {
     set(i, 6, i % 2 === 0);
   }
   // Alignment patterns, except where a finder is.
-  const centres = ALIGNMENT[version];
-  const last = centres.length - 1;
-  centres.forEach((row, i) => centres.forEach((col, j) => {
+  const centers = ALIGNMENT[version];
+  const last = centers.length - 1;
+  centers.forEach((row, i) => centers.forEach((col, j) => {
     if ((i === 0 && j === 0) || (i === 0 && j === last) || (i === last && j === 0)) return;
     for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) set(row + dy, col + dx, Math.max(Math.abs(dx), Math.abs(dy)) !== 1);
   }));
@@ -295,7 +295,7 @@ export function qrPenalty(cells: ArrayLike<number>, size: number): number {
   for (let pass = 0; pass < 2; pass++) {
     const get = pass === 0 ? at : (line: number, i: number) => at(i, line);
     for (let line = 0; line < size; line++) {
-      // Rule 1: runs of five or more of one colour.
+      // Rule 1: runs of five or more of one color.
       let run = 1;
       for (let i = 1; i <= size; i++) {
         if (i < size && get(line, i) === get(line, i - 1)) { run++; continue; }
@@ -316,7 +316,7 @@ export function qrPenalty(cells: ArrayLike<number>, size: number): number {
       }
     }
   }
-  // Rule 2: two-by-two squares of one colour.
+  // Rule 2: two-by-two squares of one color.
   for (let row = 0; row < size - 1; row++) {
     for (let col = 0; col < size - 1; col++) {
       const v = at(row, col);

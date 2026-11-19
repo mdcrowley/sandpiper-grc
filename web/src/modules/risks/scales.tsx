@@ -37,7 +37,7 @@ export function RatingChip({ scale, rating, prefix }: { scale: Scale | undefined
   return <Badge color={r.color as ColorName}>{prefix ? `${prefix}: ${r.label}` : r.label}</Badge>;
 }
 
-/** A rating chip from a label and colour the server has already worked out. */
+/** A rating chip from a label and color the server has already worked out. */
 export function RatedChip({ label, color }: { label: string | null | undefined; color?: string | null }) {
   if (!label) return <span className="muted">Not scored</span>;
   return <Badge color={(color ?? 'gray') as ColorName}>{label}</Badge>;
@@ -81,7 +81,7 @@ export function MiniMatrix({ scale, inherent, residual, label }: { scale: Scale;
   );
 }
 
-/** Whole days from today (organisation time zone) to a `YYYY-MM-DD` date; negative when past. */
+/** Whole days from today (organization time zone) to a `YYYY-MM-DD` date; negative when past. */
 export function daysUntil(date: string | null | undefined): number | null {
   if (!date) return null;
   const ms = Date.parse(`${date.slice(0, 10)}T00:00:00Z`) - Date.parse(`${todayInZone()}T00:00:00Z`);
@@ -100,7 +100,7 @@ export function dayDistance(days: number): string {
 
 /**
  * A due date as a countdown chip: red once past ("Overdue by 3 days"), amber inside the warning
- * window, green beyond it. `done` shows a quiet grey chip instead.
+ * window, green beyond it. `done` shows a quiet gray chip instead.
  */
 export function DueChip({ date, warnDays = 14, done, overdueWord = 'Overdue by' }: { date: string | null | undefined; warnDays?: number; done?: boolean; overdueWord?: string }) {
   const days = daysUntil(date);

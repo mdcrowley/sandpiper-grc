@@ -1,4 +1,4 @@
-// Acknowledgement requests: who is asked, publishing a version, tracking and the reminder run.
+// Acknowledgment requests: who is asked, publishing a version, tracking and the reminder run.
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { addDays, daysBetween, localDate } from './dates.ts';
@@ -19,7 +19,7 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 const plainDate = (iso: string) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso); return m ? `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]} ${m[1]}` : iso; };
 
 /**
- * Tells one person about their acknowledgement request. The link opens their own reader for
+ * Tells one person about their acknowledgment request. The link opens their own reader for
  * that request, which they may always open, so no record permission is needed to follow it.
  */
 async function notifyAck(
@@ -31,7 +31,7 @@ async function notifyAck(
     userIds: [a.user_id], kind: 'acknowledgement',
     title: reminder ? `Reminder: please read and acknowledge ${name}` : `Please read and acknowledge ${name}`,
     body: reminder ? `Version ${version} was due on ${plainDate(dueOn)}.` : `Version ${version}. Please acknowledge it by ${plainDate(dueOn)}.`,
-    route: `/policies/acknowledgements/${a.id}`,
+    route: `/policies/acknowledgments/${a.id}`,
   });
   return res.sent;
 }
@@ -176,7 +176,7 @@ export async function ackTracking(ctx: ModuleContext, policy: Row, version: Row 
 export interface PolicyReminder { policy_id: string; ref: string | null; title: string; version: number; user_ids: string[] }
 
 /**
- * The reminder run. For each published policy it finds acknowledgements that are past their
+ * The reminder run. For each published policy it finds acknowledgments that are past their
  * due date and not yet reminded (or last reminded at least the configured interval ago),
  * stamps `reminded_at`, writes one audit event per policy and, when the notification service
  * is loaded, sends each person a reminder that opens their reader. Running it again within the
@@ -222,7 +222,7 @@ export async function runPolicyReminders(ctx: ModuleContext, now: Date = new Dat
     };
     await ctx.audit(null, {
       action: 'policy.ack_reminder', recordType: 'policy', recordId: policyId,
-      summary: `Acknowledgement reminder: ${item.user_ids.length} ${item.user_ids.length === 1 ? 'person is' : 'people are'} overdue for version ${item.version} of ${[first.ref, first.title].filter(Boolean).join(' ')}`,
+      summary: `Acknowledgment reminder: ${item.user_ids.length} ${item.user_ids.length === 1 ? 'person is' : 'people are'} overdue for version ${item.version} of ${[first.ref, first.title].filter(Boolean).join(' ')}`,
       after: { version: item.version, user_ids: item.user_ids },
     });
     out.push(item);

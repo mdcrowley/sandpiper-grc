@@ -4,7 +4,7 @@ This page covers the risk register, the action tracker and the obligations regis
 
 - The **Risk register** records what could go wrong, how serious it is and what is being done about it.
 - The **Action tracker** is the single to-do list for follow-up work arising anywhere in the application.
-- **Obligations** lists the things your organisation is required to do, how each is met and when it is next due.
+- **Obligations** lists the things your organization is required to do, how each is met and when it is next due.
 
 ## Who can see risks
 
@@ -72,7 +72,7 @@ The difference between the two shows how much your controls are doing. The regis
 
 ### Reading the heat map
 
-The **Heat map** card shows one scale at a time as a grid, with the worst likelihood at the top and the worst impact (or severity) on the right. The level names run down the side and along the bottom. Each cell is coloured by the rating it gives, shows that rating's name in its top corner, and shows in large figures the number of risks in it. Cells with risks in them have a solid edge; empty cells are paler. The legend under the grid gives each rating's colour and total, and **Not yet scored** counts risks on that scale with no score for the view you chose.
+The **Heat map** card shows one scale at a time as a grid, with the worst likelihood at the top and the worst impact (or severity) on the right. The level names run down the side and along the bottom. Each cell is colored by the rating it gives, shows that rating's name in its top corner, and shows in large figures the number of risks in it. Cells with risks in them have a solid edge; empty cells are paler. The legend under the grid gives each rating's color and total, and **Not yet scored** counts risks on that scale with no score for the view you chose.
 
 The controls at the top of the card:
 
@@ -97,7 +97,7 @@ Changing the scale, the residual or inherent choice or **Include closed risks** 
 
 ### Printing the register for a board pack
 
-Select **Print**. The printout keeps the colours of the heat map, leaves out the menus and buttons, and shows the summary strip and the heat map as set on screen (scale, residual or inherent, movement, chosen cell) with its ranked list. The full list of risks is left out. For a fuller board report, use the **Risk report** (below).
+Select **Print**. The printout keeps the colors of the heat map, leaves out the menus and buttons, and shows the summary strip and the heat map as set on screen (scale, residual or inherent, movement, chosen cell) with its ranked list. The full list of risks is left out. For a fuller board report, use the **Risk report** (below).
 
 ### The list of risks
 
@@ -107,7 +107,7 @@ The list shows **Reference**, **Title**, **Category**, **Inherent**, **Residual*
 - filter by **Category**, **Summary level** (the common level), **Status**, **Treatment**, **Owner**, **Due** and **Next review**;
 - sort by selecting a column heading;
 - save a search and filter combination as a view;
-- tick several risks and change their **Owner**, **Treatment**, **Category**, **Next review** or **Due** date together;
+- check several risks and change their **Owner**, **Treatment**, **Category**, **Next review** or **Due** date together;
 - download the rows as a CSV file (needs **Export** on **Risks**).
 
 ## Adding a risk
@@ -189,7 +189,7 @@ Each scale has a threshold rating. A risk rated at or above the threshold can be
 | Cyber and enterprise risk (5 by 5) | High or Extreme |
 | Safety hazard matrix (4 by 5) | Serious or High |
 
-When the rule applies, **Approver name**, **Approver title** and **Reference** are all required, and the acceptance is refused without them. The acceptance is then labelled **Executive approval**. The rating tested is the residual rating, or the inherent rating if the residual risk has not been scored. An administrator can change the threshold on the **Risk scales** page.
+When the rule applies, **Approver name**, **Approver title** and **Reference** are all required, and the acceptance is refused without them. The acceptance is then labeled **Executive approval**. The rating tested is the residual rating, or the inherent rating if the residual risk has not been scored. An administrator can change the threshold on the **Risk scales** page.
 
 The application records who approved; it does not ask the approver to sign in and confirm. Keep the memo or email the reference points to.
 
@@ -201,7 +201,7 @@ Every acceptance has an expiry date. The **Acceptance** card shows the acceptanc
 - **Expires in N days** (amber): 60 days or fewer remain.
 - **Expired** (red): the expiry date has passed.
 
-Older acceptances are listed under **N earlier acceptances**; select it to show them, each labelled **Revoked**, **Replaced by a later acceptance** or with its expiry.
+Older acceptances are listed under **N earlier acceptances**; select it to show them, each labeled **Revoked**, **Replaced by a later acceptance** or with its expiry.
 
 The application checks every few hours:
 
@@ -219,7 +219,7 @@ When circumstances change you can withdraw an acceptance. You need **Approve** o
 3. Enter **Revoked on**, or leave it empty for today. It cannot be in the future or before the approval date.
 4. Select **Revoke acceptance**.
 
-The acceptance is never deleted: it stays on record, labelled **Revoked**, with the date, who revoked it and why. The risk goes back to **Open** unless an earlier acceptance still stands, the change is written to the risk's history, and the risk's owner is notified.
+The acceptance is never deleted: it stays on record, labeled **Revoked**, with the date, who revoked it and why. The risk goes back to **Open** unless an earlier acceptance still stands, the change is written to the risk's history, and the risk's owner is notified.
 
 ## Risk reviews
 
@@ -261,9 +261,9 @@ Select **Print or save as PDF** to print it, or to save it as a PDF from the pri
 Open **Administration > Risk scales** (needs **Administer** on **Risks**). Choose the scale at the top. The page has these cards:
 
 - **Name and axes**: the **Name**, **Description**, **Name of the likelihood axis** and **Name of the impact axis** (for example Impact or Severity).
-- **Levels**: a table for each axis with each level's **Value**, **Label** and **What it means**. A higher value is more likely, or worse. Use **Add level** and the bin icon to add and remove levels; each axis needs at least two.
-- **Ratings**: each rating's **Label**, **Key**, **Colour**, **Order** (least to most severe) and **Common level**.
-- **Matrix**: a grid with a rating picker in each cell, coloured as on the heat map.
+- **Levels**: a table for each axis with each level's **Value**, **Label** and **What it means**. A higher value is more likely, or worse. Use **Add level** and the trash icon to add and remove levels; each axis needs at least two.
+- **Ratings**: each rating's **Label**, **Key**, **Color**, **Order** (least to most severe) and **Common level**.
+- **Matrix**: a grid with a rating picker in each cell, colored as on the heat map.
 - **Acceptance threshold**: **Executive approval is needed from** a chosen rating and above, or never.
 
 As you edit, the bar at the bottom says what saving would do, for example how many risks would be re-rated, and warns when a level you removed is still used by a risk (save is then refused: re-score those risks first). Select **Save scale** to save, or **Discard changes**. Saving re-rates every risk on the scale and is written to the audit log.
@@ -293,7 +293,7 @@ Select a group's name to fold it away or open it again. Overdue actions have a r
 
 Each row lets you act without leaving the page (needs **Edit** on **Actions**):
 
-- select the round tick to mark the action **Done**; select it again to reopen it;
+- select the round check to mark the action **Done**; select it again to reopen it;
 - select the owner's name to give the action to someone else (people are notified when an action is assigned to them);
 - change the **Status** with its drop-down;
 - select the title to open the action, or **Open risk** (or the matching record) to go to where it came from.
@@ -302,19 +302,19 @@ Each row lets you act without leaving the page (needs **Edit** on **Actions**):
 
 ### Changing several actions at once
 
-1. Tick the actions to change (the tick box in a group's heading selects the whole group).
+1. Check the actions to change (the checkbox in a group's heading selects the whole group).
 2. In the bar that appears, choose the **Field to change**: **Status**, **Priority**, **Owner** or **Due date**.
 3. Choose the new value. For **Owner** and **Due date** you can leave it empty to clear the field.
 4. Select **Apply** (or **Clear owner** / **Clear date**). Each action is saved and audited separately; any that cannot be changed are reported.
 
-Select **Clear selection** to untick them all. The **List** grouping has its own bulk change for **Status**, **Priority**, **Owner**, **Due** and **Source**.
+Select **Clear selection** to clear them all. The **List** grouping has its own bulk change for **Status**, **Priority**, **Owner**, **Due** and **Source**.
 
 ### What an action holds
 
 | Field | Notes |
 |---|---|
 | **Title**, **Description** | What has to be done. |
-| **Status** | **Open**, **In progress**, **Blocked**, **Done** or **Cancelled**. |
+| **Status** | **Open**, **In progress**, **Blocked**, **Done** or **Canceled**. |
 | **Priority** | **High**, **Medium** or **Low**. New actions start as Medium. |
 | **Owner** | The person responsible. An action with no owner shows as Unassigned. |
 | **Due** | The date it should be finished. |
@@ -338,7 +338,7 @@ A risk's **Treatment plan** card, and the pages of other records that offer it (
 
 - type a title in **Add an action and press Enter**, with an optional **Due date**, to add one at once;
 - select **Add action** to add one with a priority, owner, due date and department;
-- tick an action done, reassign it or change its status in place;
+- check an action done, reassign it or change its status in place;
 - select **Action tracker** to see every action.
 
 The action is tied to the record: its own page says "Arose from risk record" with a link back. An action raised on a restricted record is itself restricted.
@@ -361,15 +361,15 @@ An action raised from a restricted record is hidden from people without access t
 2. Under **Share with**, find the person, or select **Choose the owner**.
 3. Select **Share**.
 
-That person is notified that a restricted action has been shared with them, and sees the action under **Shared with you** on **My actions**: its title, description, due date, priority and notes. They can change its status (including ticking it done) and nothing else, and they never see the record it arose from. Select the cross beside a name to stop sharing. Sharing and unsharing are written to the action's history.
+That person is notified that a restricted action has been shared with them, and sees the action under **Shared with you** on **My actions**: its title, description, due date, priority and notes. They can change its status (including checking it done) and nothing else, and they never see the record it arose from. Select the cross beside a name to stop sharing. Sharing and unsharing are written to the action's history.
 
 ## Information requests
 
-If your organisation profile includes an `information_requests.psv` file, the seed command loads each row as an action with the source **Information request**. Running the seed command again adds new rows and brings changed rows up to date, field by field. A field you have edited in the application keeps your edit, and a request you have deleted is not brought back.
+If your organization profile includes an `information_requests.psv` file, the seed command loads each row as an action with the source **Information request**. Running the seed command again adds new rows and brings changed rows up to date, field by field. A field you have edited in the application keeps your edit, and a request you have deleted is not brought back.
 
 ## The obligations register
 
-Open **Cybersecurity > Obligations**. An obligation is something the organisation must do because of a law, a regulation, a contract, a funding condition or an insurance policy. None are supplied with the application: they are loaded from your organisation's profile when the application is set up, or entered by hand.
+Open **Cybersecurity > Obligations**. An obligation is something the organization must do because of a law, a regulation, a contract, a funding condition or an insurance policy. None are supplied with the application: they are loaded from your organization's profile when the application is set up, or entered by hand.
 
 The tiles at the top count all **Obligations**, those **Not met** and **Partly met**, those **Overdue** (next due date passed) and those **Due in 30 days**. Select a tile to filter the list. The list is sorted by **Next due**, soonest first, and each date carries a countdown: "18 days left" (amber within 30 days, green beyond), or "Overdue by 5 days" in red.
 

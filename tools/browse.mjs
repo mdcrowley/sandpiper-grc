@@ -67,7 +67,7 @@
 //   { "signOut": true }                 remove the session cookie from the browser (the server-side
 //                                       session stays, so signInAs can bring it back). Follow with a goto
 //   { "media": "print" }                emulate print media; "screen" switches back
-//   { "theme": "dark" }                 switch the emulated colour scheme ("light" | "dark")
+//   { "theme": "dark" }                 switch the emulated color scheme ("light" | "dark")
 //   { "viewport": 820 }                 change the window width (height stays 900)
 //   { "shot": "name" }                  screenshot <name>-<theme>-<width>[-print].png
 //   { "pdf": "name" }                   save the page as <name>.pdf, paginated as the print window would
@@ -130,7 +130,7 @@ const api = async (u) => (await fetch(base + u, { headers: { cookie: `grc_sessio
 const first = async (u) => (await api(u)).rows?.[0]?.id;
 
 let routes = flags.allRoutes ? [] : process.env.ROUTES ? process.env.ROUTES.split(',') : [
-  '/', '/tickets', `/tickets/${await first('/api/tickets?pageSize=1')}`, '/tickets/dashboard', '/problems', '/knowledge', '/catalogue',
+  '/', '/tickets', `/tickets/${await first('/api/tickets?pageSize=1')}`, '/tickets/dashboard', '/problems', '/knowledge', '/catalog',
   '/systems', `/systems/${await first('/api/systems?pageSize=1')}`, '/systems/map', '/assets', `/assets/${await first('/api/assets?pageSize=1')}`,
   '/sites', '/data-categories', '/inventory/reports',
   '/vendors', `/vendors/${await first('/api/vendors?pageSize=1')}`, '/vendors/terms', '/contracts', '/contracts/renewals',
@@ -194,7 +194,7 @@ const savePdf = async (name) => {
   if (!pdf.data) throw new Error('the browser did not produce a PDF');
   writeFileSync(join(outDir, `${name}.pdf`), Buffer.from(pdf.data, 'base64'));
 };
-// Media type and colour scheme are set by one call, so always send both.
+// Media type and color scheme are set by one call, so always send both.
 const applyMedia = () => send('Emulation.setEmulatedMedia', { media: media === 'print' ? 'print' : '', features: [{ name: 'prefers-color-scheme', value: theme }] }, s);
 const useSession = (value) => send('Network.setCookie', { name: 'grc_session', value, url: base, httpOnly: true }, s);
 const dropSession = () => send('Network.deleteCookies', { name: 'grc_session', url: base }, s);
@@ -260,7 +260,7 @@ if (process.env.SCRIPT) {
         await click(`[...(${step.within ? `document.querySelector(${JSON.stringify(step.within)})` : 'document'})?.querySelectorAll(${JSON.stringify(step.tag ?? 'button, a, [role=option], [role=menuitem], [role=tab], label, [role=radio]')}) ?? []].filter((e) => e.getClientRects().length).find((e) => e.innerText.trim().replace(/\\s+/g, ' ').includes(${JSON.stringify(step.clickText)}))`, `text "${step.clickText}"`);
       }
       else if (step.clickLabel) {
-        await click(`(() => { const all = [...document.querySelectorAll('label')].filter((l) => l.getClientRects().length); const want = ${JSON.stringify(step.clickLabel)}; return (all.find((l) => l.innerText.replace(/\\s*\\*\\s*$/, '').trim() === want) ?? all.find((l) => l.innerText.trim().startsWith(want)))?.control; })()`, `the control labelled "${step.clickLabel}"`);
+        await click(`(() => { const all = [...document.querySelectorAll('label')].filter((l) => l.getClientRects().length); const want = ${JSON.stringify(step.clickLabel)}; return (all.find((l) => l.innerText.replace(/\\s*\\*\\s*$/, '').trim() === want) ?? all.find((l) => l.innerText.trim().startsWith(want)))?.control; })()`, `the control labeled "${step.clickLabel}"`);
       }
       else if (step.type !== undefined) {
         if (step.into) await click(`document.querySelector(${JSON.stringify(step.into)})`, step.into);

@@ -96,7 +96,7 @@ and share it with my team.
 - [x] Each widget respects the viewer's permissions, not the author's; a widget whose module is absent or whose records the viewer cannot see says so in place
 - [x] Private, chosen roles or everyone; a saved report on a dashboard runs only for people it is shared with
 - [x] Per-user home dashboard (`GET/POST /api/dashboards/home`)
-- [x] Seven standard dashboards seeded idempotently: IT leadership overview, service desk, cybersecurity programme, assets and systems, vendors and contracts, project portfolio, board summary
+- [x] Seven standard dashboards seeded idempotently: IT leadership overview, service desk, cybersecurity program, assets and systems, vendors and contracts, project portfolio, board summary
 - [x] Checked by `dashboards.*` permissions
 
 **Implemented in:** `server/src/modules/reports/` (`resources.ts`, `widgets.ts`, `sharing.ts`, `standard.ts`, `seed.ts`, `index.ts`); `web/src/modules/reports/` (`DashboardPages.tsx`, `DashboardGrid.tsx`, `layout.ts`, `FilterBar.tsx`, `Widget.tsx`, `WidgetEditor.tsx`, `visuals.tsx`). Tests: `sharing.test.ts`, `delivery.test.ts`.
@@ -111,7 +111,7 @@ the result as a named report, and run it whenever I need it.
 **Acceptance criteria**
 
 - [x] Any registered record type the caller may view can be reported on, in plain words with a description
-- [x] Columns (add, remove, reorder), AND/OR filter groups, sort, one or two groupings, date buckets (day, week, month, quarter, year in the organisation time zone), count, sum, average, minimum, maximum and share of total, pivot
+- [x] Columns (add, remove, reorder), AND/OR filter groups, sort, one or two groupings, date buckets (day, week, month, quarter, year in the organization time zone), count, sum, average, minimum, maximum and share of total, pivot
 - [x] One-hop related fields through `ref` and `user` fields; custom fields (`cf_<key>`, single-value types)
 - [x] Everything validated against declared fields; values travel only as parameters; row, group and time limits
 - [x] Live preview, undo/redo, chart choice with reasons when a chart does not fit
@@ -120,7 +120,7 @@ the result as a named report, and run it whenever I need it.
 - [x] Restricted records stay hidden from people who may not see them, in rows, counts, groups, totals and joined records
 - [x] Checked by `reports.*` permissions; every export is audited and watermarked when restricted
 
-**Implemented in:** `server/src/modules/reports/` (`spec.ts`, `query.ts`, `catalogue.ts`, `custom.ts`, `documents.ts`, `render.ts`); `POST /api/reports/run`, `GET /api/reports/:id/run`, `POST /api/reports/export`, `GET /api/reports/:id/export`; `web/src/modules/reports/` (`Builder.tsx`, `BuilderParts.tsx`, `SpecEditor.tsx`, `FilterEditor.tsx`, `ResultView.tsx`, `charts.ts`, `ReportPages.tsx`). Nineteen standard reports, including on-vehicle equipment past support and critical systems without recovery targets. Tests: `query.test.ts`.
+**Implemented in:** `server/src/modules/reports/` (`spec.ts`, `query.ts`, `catalog.ts`, `custom.ts`, `documents.ts`, `render.ts`); `POST /api/reports/run`, `GET /api/reports/:id/run`, `POST /api/reports/export`, `GET /api/reports/:id/export`; `web/src/modules/reports/` (`Builder.tsx`, `BuilderParts.tsx`, `SpecEditor.tsx`, `FilterEditor.tsx`, `ResultView.tsx`, `charts.ts`, `ReportPages.tsx`). Nineteen standard reports, including on-vehicle equipment past support and critical systems without recovery targets. Tests: `query.test.ts`.
 
 ### E12-05 Scheduled delivery of reports
 
@@ -131,7 +131,7 @@ or month.
 
 **Acceptance criteria**
 
-- [x] A schedule has a report or dashboard, a frequency, an hour in the organisation time zone, a format and recipients (people and roles)
+- [x] A schedule has a report or dashboard, a frequency, an hour in the organization time zone, a format and recipients (people and roles)
 - [x] Each recipient receives only what their own permissions allow (restricted rows filtered by the recipient's permissions, never the creator's); people who may not view the item or its records, or are not shared it, are skipped with the reason logged
 - [x] Each delivery is logged and stored as a snapshot linked from an in-app notification
 - [x] Reading a snapshot in the application is viewing: it needs view permission and continued sight of the source and every saved report in it. Downloading it (CSV, or HTML with `?download=1`) is an export: it needs `reports.export` / `dashboards.export` and is audited. A CSV schedule sends the document to recipients who may not export
@@ -192,7 +192,7 @@ server, and schedule them in those formats.
 
 **Acceptance criteria**
 
-- [x] XLSX written with `fflate` alone: shared strings, bold frozen header, auto-filter, column widths, typed numbers, currency, percentages and dates (organisation time zone)
+- [x] XLSX written with `fflate` alone: shared strings, bold frozen header, auto-filter, column widths, typed numbers, currency, percentages and dates (organization time zone)
 - [x] PDF with `pdfkit` standard fonts: title, the report's filters in words, generated time, a table that continues over pages with its header repeated, a vector chart (bar, line or pie) drawn from the figures, page numbers
 - [x] Dashboards: a group of widgets with a chart or table starts a new page; packs: cover page, one section per page, page numbers
 - [x] Restricted content watermarked on every page (PDF) and under the table (XLSX); exports audited with the format; export permission on every record type as for CSV

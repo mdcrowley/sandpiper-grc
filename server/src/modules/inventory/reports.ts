@@ -262,7 +262,7 @@ export function registerReports(ctx: ModuleContext) {
   });
 }
 
-/** Whole days from `from` to `to`; a null end means today in the organisation's time zone. Dates are 'YYYY-MM-DD'. */
+/** Whole days from `from` to `to`; a null end means today in the organization's time zone. Dates are 'YYYY-MM-DD'. */
 function daysBetween(from: string | Date | null, to: string | Date | null): number {
   const midnight = (s: string | Date | null) => {
     const ymd = s === null ? todayInZone() : s instanceof Date ? s.toISOString().slice(0, 10) : String(s).slice(0, 10);

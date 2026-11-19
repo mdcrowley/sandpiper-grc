@@ -1,6 +1,6 @@
-// Service desk: tickets, problems, knowledge base, catalogue, the dashboard and the settings.
+// Service desk: tickets, problems, knowledge base, catalog, the dashboard and the settings.
 import type { ModuleDef } from '../../core';
-import { CatalogueDetail, CatalogueList } from './Catalogue';
+import { CatalogDetail, CatalogList } from './Catalog';
 import { ServiceDeskDashboard } from './Dashboard';
 import { KnowledgeArticle, KnowledgeList } from './Knowledge';
 import { ProblemDetail, ProblemList } from './Problems';
@@ -14,7 +14,7 @@ const mod: ModuleDef = {
   nav: [
     { group: 'Service desk', label: 'Tickets', path: '/tickets', icon: 'ticket', permission: 'tickets.view', order: 10 },
     { group: 'Service desk', label: 'Service desk dashboard', path: '/tickets/dashboard', icon: 'chart', permission: 'tickets.view', order: 15 },
-    { group: 'Service desk', label: 'Service catalogue', path: '/catalogue', icon: 'folder', permission: 'tickets.view', order: 20 },
+    { group: 'Service desk', label: 'Service catalog', path: '/catalog', icon: 'folder', permission: 'tickets.view', order: 20 },
     { group: 'Service desk', label: 'Problems', path: '/problems', icon: 'bug', permission: 'tickets.view', order: 30 },
     { group: 'Service desk', label: 'Knowledge base', path: '/knowledge', icon: 'book', permission: 'knowledge.view', order: 40 },
     { group: 'Administration', label: 'Service desk settings', path: '/tickets/settings', icon: 'clock', permission: 'tickets.view', order: 60 },
@@ -29,8 +29,8 @@ const mod: ModuleDef = {
     { path: '/knowledge', element: <KnowledgeList />, permission: 'knowledge.view' },
     { path: '/knowledge/:id', element: <KnowledgeArticle />, permission: 'knowledge.view' },
     { path: '/knowledge/:id/edit', element: <KnowledgeArticle editing />, permission: 'knowledge.edit' },
-    { path: '/catalogue', element: <CatalogueList />, permission: 'tickets.view' },
-    { path: '/catalogue/:id', element: <CatalogueDetail />, permission: 'tickets.view' },
+    { path: '/catalog', element: <CatalogList />, permission: 'tickets.view' },
+    { path: '/catalog/:id', element: <CatalogDetail />, permission: 'tickets.view' },
   ],
   create: [
     { label: 'Ticket', path: '/tickets?new=1', permission: 'tickets.create', icon: 'ticket' },

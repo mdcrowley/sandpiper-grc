@@ -1,4 +1,4 @@
-# Feature tracker
+ open | 0 / 563 || 0 / 454 || 0 / 450 || 0 / 1666 || 0 / 649 || 0 / 1602 || 0 / 535 || 0 / 1760 || 0 / 818 || 0 / 582 || 0 / 952 || 0 / 714 || 0 / 1022 || 0 / 966 || 0 / 858 || 0 / 907 || 0 / 818 || 0 / 909 || 0 / 886 || 0 / 1210 || 0 / 1426 |# Feature tracker
 
 This folder is the project's feature tracker. It lists everything the application does
 and everything it does not do yet, as **epics** (areas of work) made up of **issues**
@@ -14,7 +14,7 @@ rewriting (see [Moving to GitHub Issues](#moving-to-github-issues)).
 - `docs/known-gaps.md` stays the short, honest summary for evaluators. This tracker is
   the detailed, actionable version of the same facts. The two must agree.
 
-## How it is organised
+## How it is organized
 
 ```
 docs/roadmap/README.md          this file: rules, summary of epics, what to do next
@@ -43,8 +43,8 @@ section per issue.
 | **Acceptance criteria** | checklist | `- [x]` met, `- [ ]` not met |
 | **Implemented in** | files and endpoints | Required once an issue is `done` |
 
-A `done` issue may still show an unticked criterion when a later improvement is tracked
-by another issue; the unticked line names that issue.
+A `done` issue may still show an unchecked criterion when a later improvement is tracked
+by another issue; the unchecked line names that issue.
 
 An epic's status is `done` when all its issues are done, `open` when none are started,
 and `in progress` otherwise.
@@ -52,8 +52,8 @@ and `in progress` otherwise.
 ## Rules
 
 1. **Every code change updates the tracker in the same change.** If a commit adds,
-   changes or removes behaviour, the same commit edits the affected issue (status,
-   ticked criteria, "Implemented in") and its epic (the issues table, and the epic's
+   changes or removes behavior, the same commit edits the affected issue (status,
+   checked criteria, "Implemented in") and its epic (the issues table, and the epic's
    status if it changed), and the counts in the table below. A change with no issue
    gets one first.
 2. **`docs/known-gaps.md` is updated in the same change too.** Closing an issue that
@@ -63,7 +63,7 @@ and `in progress` otherwise.
    and you have confirmed it. If you cannot confirm it, it is `open`.
 4. **Keep issues small.** If an issue cannot be finished in one sitting, split it into
    new issues with new IDs and say so in the original.
-5. **Nothing organisation-specific.** No real organisation, person, place, law,
+5. **Nothing organization-specific.** No real organization, person, place, law,
    regulator or vendor names in any issue, as in the rest of the repository.
 6. Plain English and American English spelling.
 
@@ -94,8 +94,8 @@ and `in progress` otherwise.
 
 ### Closing an issue
 
-1. Tick the acceptance criteria that are met. Anything deliberately left out becomes a
-   new issue, and the unticked line names it.
+1. Check the acceptance criteria that are met. Anything deliberately left out becomes a
+   new issue, and the unchecked line names it.
 2. Set **Status** to `done` in both the issue section and the epic's table.
 3. Add an **Implemented in** line naming the main files and endpoints.
 4. Update the counts in the summary table below, remove the issue from "Next up" if it
@@ -112,7 +112,7 @@ When the repository has a remote, the tracker can move across mechanically.
 - **One GitHub issue per entry.** The title is the ID and title together, for example
   `E03-11 Screen for the priority matrix`, so existing cross-references still read
   correctly. The body is the description, the acceptance criteria checklist (GitHub
-  renders `- [ ]` as tick boxes) and, for done issues, the "Implemented in" line.
+  renders `- [ ]` as checkboxes) and, for done issues, the "Implemented in" line.
 - **Epic as a label or a milestone.** Use a label per epic (`epic:E03-service-desk`)
   when epics run in parallel and never "finish"; use a milestone per epic when you want
   GitHub's progress bar. Do not use both for the same thing. Optionally also create one
@@ -150,15 +150,15 @@ status `done`; issues in progress, open or blocked are counted in the total only
 | [E13](epics/E13-imports-api-integrations.md) | Imports, API and integrations | in progress | 14 / 18 |
 | [E14](epics/E14-platform-services.md) | Platform services | in progress | 10 / 27 |
 | [E15](epics/E15-self-service-portal.md) | Self-service portal | in progress | 10 / 14 |
-| [E16](epics/E16-hosting-operations-and-hardening.md) | Hosting, operations and hardening | in progress | 15 / 29 |
-| [E17](epics/E17-documentation.md) | Documentation | in progress | 6 / 13 |
+| [E16](epics/E16-hosting-operations-and-hardening.md) | Hosting, operations and hardening | in progress | 18 / 30 |
+| [E17](epics/E17-documentation.md) | Documentation | in progress | 6 / 14 |
 | [E18](epics/E18-quality-and-known-defects.md) | Quality and known defects | in progress | 25 / 40 |
 | [E19](epics/E19-fleet-and-services.md) | Fleet and services | in progress | 8 / 13 |
 | [E20](epics/E20-safety-management.md) | Safety management | in progress | 10 / 14 |
 | [E21](epics/E21-mcp-server.md) | MCP server (AI assistant access) | in progress | 13 / 20 |
-| | **Total** | | **328 / 451** |
+| | **Total** | | **331 / 453** |
 
-Of the 123 issues not done, 34 are in progress, 88 are open and 1 is blocked (E02-10,
+Of the 122 issues not done, 34 are in progress and 88 are open or blocked.
 SAML single sign-on).
 
 ## Next up
@@ -181,6 +181,7 @@ with real data, then those that close the main known gaps.
 | 11 | [E18-28](epics/E18-quality-and-known-defects.md) Features that suit some transit organizations but not all | Nothing may assume one kind of transit organization |
 | 12 | [E15-06](epics/E15-self-service-portal.md) Email-to-ticket | The last missing piece of the self-service portal |
 | 13 | [E21-16](epics/E21-mcp-server.md) OAuth for remote connectors | Lets hosted AI assistants connect without a pasted token |
+| 14 | [E17-14](epics/E17-documentation.md) American English throughout | The screens, file names and web addresses still use some British spellings; renames keep the old names working |
 
 ## Known gaps coverage
 
@@ -211,7 +212,7 @@ table in step with that file.
 | Backups cover the embedded database only; object-store files not in backups | E16-08 |
 | Non-Latin text in server-made PDFs | E12-14 |
 | The import check does not run record hooks | E13-10 |
-| Other modules' timers not on the job queue; queue and email started by a module | E14-22, E14-23 |
+| Other modules' timers and file housekeeping not on the job queue; queue and email started by a module | E14-22, E14-23, E14-27 |
 | The If-Match lock is per process | E13-12 (done; the limit is recorded there) |
 | Webhook addresses checked by host name only | E13-08 |
 | Changes cannot be dragged on the calendar | E05-12 |

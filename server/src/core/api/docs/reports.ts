@@ -29,7 +29,7 @@ const VIEWER = 'Needs `reports.view` or `dashboards.view`.';
 
 export const DOCS: RouteDoc[] = [
   // ---------- builder support ----------
-  route('GET', '/api/reports/catalogue', 'Record types and fields the caller may report on', {
+  route('GET', '/api/reports/catalog', 'Record types and fields the caller may report on', {
     tag: 'Reports', description: VIEWER,
     response: '{ types: [{ type: string, label: string, plural: string, route: string, module: string, description: string, restricted: boolean, titleField: string, refField: string | null, canExport: boolean, fields: [{ path: string, label: string, type: string, list?: string, to?: string, via?: string, custom?: boolean, group: boolean, sum: boolean, column: boolean }], globals: { [kind]: string } }] }',
   }),

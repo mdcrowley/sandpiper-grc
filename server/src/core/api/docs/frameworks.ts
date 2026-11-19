@@ -24,7 +24,7 @@ export const DOCS: RouteDoc[] = [
   }),
   route('POST', '/api/frameworks/:id/structure', 'Add or update functions and categories', {
     tag: 'Frameworks', permission: 'frameworks.edit',
-    description: 'Never removes anything (outcomes may still point at it). 400 `validation` with field errors when a function or category lacks a code or name, or a colour is not one of the allowed names. Recorded in the audit trail.',
+    description: 'Never removes anything (outcomes may still point at it). 400 `validation` with field errors when a function or category lacks a code or name, or a color is not one of the allowed names. Recorded in the audit trail.',
     body: '{ functions: [{ code: string, name: string, description?: string, color?: string, sort?: integer, categories?: [{ code: string, name: string, description?: string, sort?: integer }] }] }',
     response: '{ ok: boolean, functions: integer, categories: integer }',
   }),

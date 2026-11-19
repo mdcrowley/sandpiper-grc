@@ -35,7 +35,7 @@ const TYPE_NAMES: Record<CustomType, string> = {
   select: 'Single choice', multiselect: 'Multiple choice', user: 'User', ref: 'Record link',
 };
 const TYPE_HINTS: Record<CustomType, string> = {
-  text: 'One line of text.', longtext: 'Several lines of text.', number: 'A number.', currency: 'An amount of money in the organisation’s currency.',
+  text: 'One line of text.', longtext: 'Several lines of text.', number: 'A number.', currency: 'An amount of money in the organization’s currency.',
   date: 'A day.', boolean: 'Yes or no.', select: 'One value from a list.', multiselect: 'Any number of values from a list.',
   user: 'A person who uses the application.', ref: 'Another record, such as a system or a vendor.',
 };
@@ -108,7 +108,7 @@ export function CustomFieldsPage() {
           : fields.length === 0 ? (
             <EmptyState
               icon="edit" title={`No custom fields on ${current?.plural.toLowerCase() ?? 'this record type'} yet`}
-              message="Add a field for anything your organisation records that the built-in fields do not cover."
+              message="Add a field for anything your organization records that the built-in fields do not cover."
               action={current && <Button variant="primary" icon="plus" onClick={() => setEditing('new')}>Add field</Button>}
             />
           ) : (
@@ -272,7 +272,7 @@ function FieldDialog({ field, recordType, types, recordTypes, nextPosition, onCl
               <TextArea
                 label="Options" hideLabel rows={4} value={options} onChange={(v) => { setOptions(v); clearError('options'); }} error={errors.options}
                 placeholder={'One option to a line, for example:\nLow\nMedium\nHigh'}
-                hint="A new list is made for this field. Colours, order and retiring options are changed under Lists afterwards."
+                hint="A new list is made for this field. Colors, order and retiring options are changed under Lists afterwards."
               />
             ) : lists.error ? <ErrorState error={lists.error} onRetry={lists.reload} /> : (
               <Select

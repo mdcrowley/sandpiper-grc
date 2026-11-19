@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Icon, type IconName } from './Icon';
 
-/** A centred full-page message with its own heading and ways onward. */
+/** A centered full-page message with its own heading and ways onward. */
 function FullPage({ icon, code, title, message }: { icon: IconName; code: string; title: string; message: string }) {
   useEffect(() => {
     const before = document.title;

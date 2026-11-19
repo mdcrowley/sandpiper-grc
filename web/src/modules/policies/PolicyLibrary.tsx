@@ -11,7 +11,7 @@ import { ensureStarterViews } from './views';
 
 const NOT_RETIRED = 'draft,in_review,approved,published';
 
-/** The acknowledgement reminder interval (`policies.reminder_interval_days`). */
+/** The acknowledgment reminder interval (`policies.reminder_interval_days`). */
 function ReminderSettings({ onClose }: { onClose: () => void }) {
   const toast = useToast();
   const { data } = useFetch<{ reminder_interval_days: number }>('/api/policies/settings');
@@ -33,11 +33,11 @@ function ReminderSettings({ onClose }: { onClose: () => void }) {
     }
   };
   return (
-    <Modal open title="Acknowledgement reminders" onClose={onClose} size="sm"
+    <Modal open title="Acknowledgment reminders" onClose={onClose} size="sm"
       footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" loading={busy} disabled={days === null} onClick={() => void save()}>Save</Button></>}>
       <div className="stack">
         <p className="muted">
-          Once an acknowledgement is past its due date, the person is reminded through their notifications, then again after this many days
+          Once an acknowledgment is past its due date, the person is reminded through their notifications, then again after this many days
           until they acknowledge. Each reminder is recorded in the policy's history.
         </p>
         <NumberField label="Days between reminders" value={days} min={1} max={90} step={1} onChange={setValue} error={error} hint="From 1 to 90." />
@@ -67,7 +67,7 @@ export function PolicyLibrary() {
         subtitle="The policy library: what is in force, what is being written, and what is due for review."
         actions={(
           <>
-            <Link className="btn btn-secondary" to="/policies/acknowledgements">My acknowledgements</Link>
+            <Link className="btn btn-secondary" to="/policies/acknowledgments">My acknowledgments</Link>
             {can('policies.administer') && <Button icon="settings" onClick={() => setSettings(true)}>Reminder settings</Button>}
           </>
         )}

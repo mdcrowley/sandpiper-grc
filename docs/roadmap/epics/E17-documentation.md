@@ -17,7 +17,7 @@ user guide should be readable on GitHub and inside the application.
   bundles those files at build time.
 - `docs/known-gaps.md` and this tracker must be updated with every change (see the
   [tracker rules](../README.md)).
-- Nothing organisation-specific belongs in any of these files.
+- Nothing organization-specific belongs in any of these files.
 
 ## Issues
 
@@ -25,9 +25,9 @@ user guide should be readable on GitHub and inside the application.
 |---|---|---|---|
 | E17-01 | README | done | P1 |
 | E17-02 | Developer conventions | done | P1 |
-| E17-03 | Web component catalogue | done | P2 |
+| E17-03 | Web component catalog | done | P2 |
 | E17-04 | Known gaps list | done | P1 |
-| E17-05 | Example organisation profile | done | P1 |
+| E17-05 | Example organization profile | done | P1 |
 | E17-06 | Feature tracker | done | P1 |
 | E17-07 | Documentation index | in progress | P2 |
 | E17-08 | User guide | in progress | P1 |
@@ -35,7 +35,8 @@ user guide should be readable on GitHub and inside the application.
 | E17-10 | Installation and administrator guide | in progress | P1 |
 | E17-11 | Operations runbook | in progress | P1 |
 | E17-12 | Architecture and security notes | in progress | P2 |
-| E17-13 | Licence, contributing guide and security policy | in progress | P1 |
+| E17-13 | License, contributing guide and security policy | in progress | P1 |
+| E17-14 | American English throughout | in progress | P2 |
 
 ---
 
@@ -51,8 +52,8 @@ is a prototype, how to run it and how to make it my own.
 - [x] What it is, by area
 - [x] A clear "prototype" status with a pointer to the known gaps
 - [x] Steps to run it on a new machine
-- [x] How the organisation profile works
-- [x] A warning that incident notification rules must be set by each organisation
+- [x] How the organization profile works
+- [x] A warning that incident notification rules must be set by each organization
 - [ ] Links to the user guide, the documentation index and this tracker
 
 **Implemented in:** `README.md`
@@ -66,7 +67,7 @@ write a module, the generated API, permissions, tests and web conventions in one
 
 **Acceptance criteria**
 
-- [x] Hard rules, including "nothing organisation-specific" and "local only"
+- [x] Hard rules, including "nothing organization-specific" and "local only"
 - [x] Commands and environment variables
 - [x] Module shape, migrations, resources and generated routes
 - [x] Permissions, restricted records and the shared actions contract
@@ -74,7 +75,7 @@ write a module, the generated API, permissions, tests and web conventions in one
 
 **Implemented in:** `docs/development.md`
 
-### E17-03 Web component catalogue
+### E17-03 Web component catalog
 
 **Status:** done · **Priority:** P2 · **Type:** docs
 
@@ -84,7 +85,7 @@ with an example.
 **Acceptance criteria**
 
 - [x] Writing a module, data hooks, list, form, record page, charts
-- [x] Form controls, formatting, colour and icon names
+- [x] Form controls, formatting, color and icon names
 
 **Implemented in:** `web/src/core/README.md`
 
@@ -103,12 +104,12 @@ what is built but incomplete, and what has and has not been verified.
 
 **Implemented in:** `docs/known-gaps.md`
 
-### E17-05 Example organisation profile
+### E17-05 Example organization profile
 
 **Status:** done · **Priority:** P1 · **Type:** docs
 
 As the person setting up an installation, I copy an invented example of the
-organisation profile and edit it, rather than working out its shape from the code.
+organization profile and edit it, rather than working out its shape from the code.
 
 **Acceptance criteria**
 
@@ -116,7 +117,7 @@ organisation profile and edit it, rather than working out its shape from the cod
 - [x] Covers the application name, extra list values, obligations and notification rules
 - [x] The README says where to copy it
 
-**Implemented in:** `examples/organisation.example.json`
+**Implemented in:** `examples/organization.example.json`
 
 ### E17-06 Feature tracker
 
@@ -162,7 +163,7 @@ for, the main tasks step by step, and what each term means.
 - [ ] Each page has been checked against the running application
 - [ ] No page describes a feature that is not built without saying so
 - [ ] British spelling and plain English throughout
-- [ ] Nothing organisation-specific
+- [ ] Nothing organization-specific
 
 **Files:** `docs/user/01-getting-started.md` to `docs/user/09-administration.md`
 
@@ -192,14 +193,14 @@ application, with search and links between pages.
 
 As the person installing the application and looking after its users, I can follow one
 guide from an empty machine to a configured installation with users, roles, lists and
-my organisation's profile loaded.
+my organization's profile loaded.
 
 **Acceptance criteria**
 
 - [x] An installation document and an administration page in the user guide exist
 - [ ] Installation steps tested on a clean machine
 - [ ] First-run setup, users, roles, second factor, lists and settings are covered
-- [ ] The organisation profile and seed files are explained with the example
+- [ ] The organization profile and seed files are explained with the example
 - [ ] Says clearly what must be set before a pilot (notification rules, service-level targets, risk scales)
 
 **Files:** `docs/installation.md`, `docs/user/09-administration.md`
@@ -237,7 +238,7 @@ its security model is, including what is deliberately left for later.
 
 **Files:** `docs/architecture.md`, `docs/security.md`
 
-### E17-13 Licence, contributing guide and security policy
+### E17-13 License, contributing guide and security policy
 
 **Status:** in progress · **Priority:** P1 · **Type:** docs
 
@@ -247,8 +248,29 @@ files exist yet, and the repository is about to be published.
 
 **Acceptance criteria**
 
-- [x] A licence file chosen by the owner: MIT (`LICENSE`)
+- [x] A license file chosen by the owner: MIT (`LICENSE`)
 - [x] A contributing guide: how to run tests, the hard rules, the "update the tracker" rule (`CONTRIBUTING.md`)
 - [x] A security policy saying how to report a vulnerability (`SECURITY.md`)
 - [x] Issue templates that match this tracker's issue format (`.github/ISSUE_TEMPLATE/`)
 - [ ] A check that no private or internal file is tracked before the first push
+
+### E17-14 American English throughout
+
+**Status:** in progress · **Priority:** P2 · **Type:** improvement
+
+As a reader in the United States, the product's main audience, I see one spelling
+throughout: American English in the documentation, the user guide, the screens, messages
+and code comments ("organization", "catalog", "authorization", "color", "license"). Names
+that other systems or stored data depend on change only with a way back: an old file name,
+web address or API path keeps working, and stored lookup values stay as they are while
+their labels change.
+
+**Acceptance criteria**
+
+- [x] The documentation (`docs/**`, `web/src/core/README.md`) uses American spelling, and the developer guide states the rule
+- [ ] The README uses American spelling
+- [ ] Screens, messages, labels and code comments use American spelling
+- [ ] `seed/organization.json` and `examples/organization.example.json` replace the `organisation` names; a seed file with the old name is still read, and the seed option is `organization`
+- [ ] The web address `/catalog` replaces `/catalogue`, and the old address redirects
+- [ ] API paths with a British spelling gain an American one; the old path stays as a deprecated alias, marked as such in the OpenAPI document
+- [ ] Help links into the user guide still reach their sections after headings changed

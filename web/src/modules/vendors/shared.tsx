@@ -122,7 +122,7 @@ export interface ExpiringEvidence {
   expired: boolean;
 }
 
-/** One vocabulary for clause status everywhere: colour plus a word and a mark, never colour alone. */
+/** One vocabulary for clause status everywhere: color plus a word and a mark, never color alone. */
 export const CLAUSE_STATUS: Record<ClauseKey, { label: string; color: ColorName }> = {
   present: { label: 'Present', color: 'green' },
   partial: { label: 'Partial', color: 'amber' },
@@ -159,7 +159,7 @@ export function daysPhrase(left: number): string {
   return left > 0 ? `in ${days(left)}` : `${days(-left)} ago`;
 }
 
-/** Whole days from today (in the organisation's time zone) to a calendar date. */
+/** Whole days from today (in the organization's time zone) to a calendar date. */
 export function daysUntil(date: string, today: string = todayInZone()): number {
   return Math.round((Date.parse(`${date.slice(0, 10)}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000);
 }
@@ -168,7 +168,7 @@ export function addDays(date: string, n: number): string {
   return new Date(Date.parse(`${date.slice(0, 10)}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 }
 
-/** Expiry chip for evidence: red when expired, amber inside 90 days, green beyond, grey with no date. */
+/** Expiry chip for evidence: red when expired, amber inside 90 days, green beyond, gray with no date. */
 export function ExpiryChip({ date }: { date: string | null | undefined }) {
   if (!date) return <StatusChip color="gray" label="No expiry" />;
   const left = daysUntil(date);
@@ -177,7 +177,7 @@ export function ExpiryChip({ date }: { date: string | null | undefined }) {
   return <StatusChip color="green" label={`Valid to ${formatDate(date)}`} />;
 }
 
-/** Colour of a notice date: red when passed or inside 30 days, amber inside 120, green beyond. */
+/** Color of a notice date: red when passed or inside 30 days, amber inside 120, green beyond. */
 export function noticeTone(date: string | null | undefined): ColorName {
   if (!date) return 'gray';
   const left = daysUntil(date);

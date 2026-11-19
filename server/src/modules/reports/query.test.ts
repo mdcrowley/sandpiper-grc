@@ -146,18 +146,18 @@ describe('report query: permissions and restricted records', () => {
   it('does not join, label or group by related records the caller may not see', async () => {
     const agent = await t.as('agent');
     // Fields of a restricted related type are refused outright.
-    expect((await run(agent, { type: 'rt_thing', columns: ['name', 'box_id.colour'] })).status).toBe(400);
-    expect((await run(agent, { type: 'rt_thing', groupBy: [{ field: 'box_id.colour' }] })).status).toBe(400);
+    expect((await run(agent, { type: 'rt_thing', columns: ['name', 'box_id.color'] })).status).toBe(400);
+    expect((await run(agent, { type: 'rt_thing', groupBy: [{ field: 'box_id.color' }] })).status).toBe(400);
     // Someone with security.view but without the other module is refused too.
     const lead = await t.as('security_lead');
-    const ok = await run(lead, { type: 'rt_thing', columns: ['name', 'box_id', 'box_id.colour'], filters: { op: 'and', items: [{ field: 'name', op: 'eq', value: 'R' }] } });
+    const ok = await run(lead, { type: 'rt_thing', columns: ['name', 'box_id', 'box_id.color'], filters: { op: 'and', items: [{ field: 'name', op: 'eq', value: 'R' }] } });
     expect(ok.status).toBe(200);
     expect(ok.body.rows[0].d.c1).toBe('Sealed box');
     expect(ok.body.rows[0].v.c2).toBe('red');
     expect(ok.body.restricted).toBe(true);
     expect(ok.body.recordTypes.sort()).toEqual(['rt_box', 'rt_thing']);
-    // The catalogue offers only what the caller may use.
-    const cat = (await agent.get('/api/reports/catalogue')).body.types;
+    // The catalog offers only what the caller may use.
+    const cat = (await agent.get('/api/reports/catalog')).body.types;
     expect(cat.find((x: any) => x.type === 'rt_box')).toBeUndefined();
     const thing = cat.find((x: any) => x.type === 'rt_thing');
     expect(thing.fields.some((f: any) => f.path === 'site_id.region')).toBe(true);
@@ -170,7 +170,7 @@ describe('report query: grouping, buckets and aggregates on the fixed data set',
   it('counts, sums, averages, minimum, maximum and share of total', async () => {
     const r = await run(t.api, { type: 'rt_thing', groupBy: [{ field: 'status' }], aggregates: [{ fn: 'count' }, { fn: 'sum', field: 'amount' }, { fn: 'avg', field: 'amount' }, { fn: 'min', field: 'amount' }, { fn: 'max', field: 'amount' }, { fn: 'pct' }] });
     expect(r.status).toBe(200);
-    // Lookup groups come back in the list's configured order, with labels and colours.
+    // Lookup groups come back in the list's configured order, with labels and colors.
     expect(r.body.rows.map((x: any) => x.d.g0)).toEqual(['Brand new', 'In hand', 'Finished']);
     expect(r.body.rows[1].c.g0).toBe('amber');
     expect(r.body.rows[1].v).toEqual({ g0: 'open', a0: 3, a1: 1500, a2: 500, a3: 200, a4: 1000, a5: 50 });
@@ -182,9 +182,9 @@ describe('report query: grouping, buckets and aggregates on the fixed data set',
     expect(byLabel(share.body)).toEqual({ Finance: 15, Operations: 35, None: null, 'Restricted records': 50 });
   });
 
-  it('buckets dates by day, week, month, quarter and year in the organisation time zone', async () => {
+  it('buckets dates by day, week, month, quarter and year in the organization time zone', async () => {
     const by = async (field: string, bucket: string) => (await run(t.api, { type: 'rt_thing', groupBy: [{ field, bucket }] })).body;
-    // "B" (03:00 UTC on 1 February) belongs to January where the organisation is.
+    // "B" (03:00 UTC on 1 February) belongs to January where the organization is.
     expect(byLabel(await by('opened_at', 'month'))).toEqual({ 'Jan 2026': 2, 'Feb 2026': 2, 'Apr 2026': 2 });
     expect(byLabel(await by('opened_on', 'month'))).toEqual({ 'Jan 2026': 2, 'Feb 2026': 2, 'Apr 2026': 2 });
     expect(byLabel(await by('opened_at', 'quarter'))).toEqual({ 'Q1 2026': 4, 'Q2 2026': 2 });
@@ -272,7 +272,7 @@ describe('report query: custom fields', () => {
       await t.ctx.resources.update('rt_thing', th.id, { cf_zone: i % 2 ? 'south' : 'north', cf_score: (i + 1) * 10 });
     }
 
-    const cat = (await t.api.get('/api/reports/catalogue')).body.types.find((x: any) => x.type === 'rt_thing');
+    const cat = (await t.api.get('/api/reports/catalog')).body.types.find((x: any) => x.type === 'rt_thing');
     expect(cat.fields.find((f: any) => f.path === 'cf_zone')).toMatchObject({ label: 'Zone', type: 'lookup', custom: true, group: true });
     expect(cat.fields.find((f: any) => f.path === 'cf_score')).toMatchObject({ type: 'number', sum: true });
 

@@ -9,7 +9,7 @@ This part of the application holds the policy library: each policy with its owne
 | Read the policy library and the published text | **View** on **Policies** |
 | Add a policy, edit its details, write a version, map outcomes | **Create** or **Edit** on **Policies** |
 | Approve a version, publish it, retire a policy | **Approve** on **Policies** |
-| Export the acknowledgement list | **Export** on **Policies** |
+| Export the acknowledgment list | **Export** on **Policies** |
 | See the exceptions register | **View** on **Exceptions** |
 | Record or edit an exception, withdraw it | **Create** or **Edit** on **Exceptions** |
 | Approve or reject an exception, or change the expiry date of an approved one | **Approve** on **Exceptions** |
@@ -30,7 +30,7 @@ The tiles above the list each open the policies they count:
 | **Due for review** | Policies that are not retired and whose review date has passed or falls in the next 60 days, soonest first |
 | **Retired** | Policies no longer in use |
 
-The **View** menu beside **Filters** holds ready-made saved views (**Published**, **Being written or approved**, **Owned by me** and **Retired**), which you can keep, rename or delete like your own. **All policies** shows everything. The address in the browser keeps the search, filters and sort, so a view can be bookmarked. To give many policies a new **Category**, **Owner** or **Review date**, tick them and select **Edit selected…**.
+The **View** menu beside **Filters** holds ready-made saved views (**Published**, **Being written or approved**, **Owned by me** and **Retired**), which you can keep, rename or delete like your own. **All policies** shows everything. The address in the browser keeps the search, filters and sort, so a view can be bookmarked. To give many policies a new **Category**, **Owner** or **Review date**, check them and select **Edit selected…**.
 
 The **Review** column is green when the review date is more than 60 days away, amber when it is closer, and red once it has passed.
 
@@ -66,7 +66,7 @@ The page has these tabs:
 |---|---|
 | **Policy** | The text readers see, the **Details** card and **Who must acknowledge** |
 | **Versions** | Every version, and two versions side by side |
-| **Acknowledgements** | Who has and has not acknowledged a version |
+| **Acknowledgments** | Who has and has not acknowledged a version |
 | **Mapped outcomes** | The framework outcomes this policy supports |
 | **Exceptions** | Exceptions recorded against this policy |
 | **Activity**, **Attachments**, **Related**, **History** | Comments, files such as a signed approval, linked records, and every change made to the policy |
@@ -86,7 +86,7 @@ The text of a policy is written in plain text with a few simple marks. Each vers
 | 1 | **Write the first version**, **New version** or **Edit draft** | Edit | Opens the editor |
 | 2 | **Send for review** | Edit | The version becomes **In review** and can no longer be edited |
 | 3 | **Approve** | Approve | Records who approved it and when. The text is now fixed |
-| 4 | **Publish** | Approve | The version becomes the one readers see, and acknowledgements are requested |
+| 4 | **Publish** | Approve | The version becomes the one readers see, and acknowledgments are requested |
 
 Step 2 is optional: a person who can approve may approve a draft directly. Nobody can approve a version they wrote themselves: the **Approve** button is not offered to the author, and someone else with **Approve** on **Policies** must approve it.
 
@@ -135,7 +135,7 @@ The earlier published version is kept and marked **Superseded**.
 
 ### Retire a policy
 
-Select the **More actions** button (three dots), then **Retire policy**, and confirm. The policy is marked **Retired**, outstanding acknowledgement requests are closed, and no new version can be written. The text and history stay available.
+Select the **More actions** button (three dots), then **Retire policy**, and confirm. The policy is marked **Retired**, outstanding acknowledgment requests are closed, and no new version can be written. The text and history stay available.
 
 ## Compare versions
 
@@ -143,13 +143,13 @@ Open the **Versions** tab. The table lists every version with its status, what c
 
 Below it, two versions are shown side by side so you can read what changed. Choose which with **Earlier version** and **Later version**, or select **Read** on a row. Old versions are kept exactly as they were approved.
 
-## Acknowledgement
+## Acknowledgment
 
 ### Choose who must acknowledge
 
 On the **Policy** tab, in **Who must acknowledge**, select **Change**.
 
-- Tick **Everyone** to ask every active user, or
+- Check **Everyone** to ask every active user, or
 - choose one or more **Roles** and **Departments**. A person is asked if they hold any of the roles or belong to any of the departments.
 - Set **Days to acknowledge** (14 unless changed).
 
@@ -165,16 +165,16 @@ When a version is published:
 
 ### Acknowledge a policy
 
-1. Open **Cybersecurity > My acknowledgements**, or the notification. The tiles count what is **Waiting for me**, what is **Overdue** and what you have **Acknowledged**. **Awaiting my acknowledgement** lists what you have been asked to read, most urgent first, each with its due date.
+1. Open **Cybersecurity > My acknowledgments**, or the notification. The tiles count what is **Waiting for me**, what is **Overdue** and what you have **Acknowledged**. **Awaiting my acknowledgment** lists what you have been asked to read, most urgent first, each with its due date.
 2. Select **Read and acknowledge**. The policy opens in a page of its own, with its summary, what changed in this version, and the text.
-3. Read it. At the bottom, tick **I have read and understood this policy**.
+3. Read it. At the bottom, check **I have read and understood this policy**.
 4. Select **Acknowledge**. **Not now** goes back to your list without recording anything.
 
-The policy moves to **Already acknowledged**; select its name to read the same text again. The date and time of your acknowledgement are recorded against the version you read.
+The policy moves to **Already acknowledged**; select its name to read the same text again. The date and time of your acknowledgment are recorded against the version you read.
 
-### Track acknowledgement
+### Track acknowledgment
 
-Open the policy's **Acknowledgements** tab.
+Open the policy's **Acknowledgments** tab.
 
 - The bar and tiles show how many people have **Acknowledged**, how many are **Outstanding**, and how many are **Overdue** (outstanding and past the due date), each with a percentage.
 - **People** lists who was asked. Use **Show** to switch between outstanding, overdue only, acknowledged and everyone.
@@ -184,7 +184,7 @@ Open the policy's **Acknowledgements** tab.
 
 ### Reminders
 
-Once a day the application looks for acknowledgements that are past their due date. Each person who is overdue gets a notification (**Reminder: please read and acknowledge** and the policy) that opens the policy for them. The reminder is recorded in the policy's **History** and its date is shown under **Last reminder**. A person is reminded again every 7 days until they acknowledge.
+Once a day the application looks for acknowledgments that are past their due date. Each person who is overdue gets a notification (**Reminder: please read and acknowledge** and the policy) that opens the policy for them. The reminder is recorded in the policy's **History** and its date is shown under **Last reminder**. A person is reminded again every 7 days until they acknowledge.
 
 To change the 7 days, someone with **Administer** on **Policies** selects **Reminder settings** at the top of the policy library, enters **Days between reminders** (1 to 90) and selects **Save**. The change is recorded in the audit log.
 

@@ -6,7 +6,7 @@
 
 Make sign-in strong enough for a system that holds risk and incident records: a second
 factor that is enforced, phishing-resistant options, single sign-on with the
-organisation's identity provider, tokens for automation, and a safe way back in when
+organization's identity provider, tokens for automation, and a safe way back in when
 everything else fails.
 
 ## Scope notes
@@ -110,7 +110,7 @@ factor. People who have not set one up see a notice until they do.
 
 - [x] Each role has a "requires second factor" flag
 - [x] A site-wide setting expects it of everyone
-- [x] The application state reports when the signed-in user still needs to enrol
+- [x] The application state reports when the signed-in user still needs to enroll
 - [x] The shell shows a notice linking to account security
 
 **Implemented in:** `mfaEnrollmentRequired` (`server/src/core/auth.ts`); `auth.mfa_required_for_all` (`server/src/modules/admin/settings.ts`); `web/src/core/Shell.tsx`
@@ -120,7 +120,7 @@ factor. People who have not set one up see a notice until they do.
 **Status:** done · **Priority:** P1 · **Type:** improvement
 
 As an administrator, when I require a second factor I want it enforced: a person who
-has not enrolled can do nothing except enrol.
+has not enrolled can do nothing except enroll.
 
 Setting `auth.mfa_enforcement`: `off`, `notice` (default) or `required`. With `required`,
 a person expected to have a second factor (their role says so, or
@@ -130,14 +130,14 @@ confirm password) and sign-out. Everything else answers `403 mfa_enrolment_requi
 
 **Acceptance criteria**
 
-- [x] A user for whom the factor is required and missing is limited to the enrolment routes
-- [ ] The web app sends them to enrolment after sign-in (the Account security page shows the reason, but the shell does not redirect: E02-15)
+- [x] A user for whom the factor is required and missing is limited to the enrollment routes
+- [ ] The web app sends them to enrollment after sign-in (the Account security page shows the reason, but the shell does not redirect: E02-15)
 - [x] A grace period is configurable (`auth.mfa_grace_days`, default none)
 - [x] The Administrator and Security lead roles are the ones enforced when the setting is `required` (they carry the "requires second factor" flag by default). The setting itself defaults to `notice`, by decision, so existing installations keep working; see E02-17
 - [x] An administrator cannot switch to `required` before setting up their own second factor
 - [x] Tests cover blocked and allowed requests
 
-**Implemented in:** `mfaEnforcement`, `mfaStatus`, `MFA_ENROLMENT_ROUTES` and the request hook (`server/src/core/auth.ts`); `auth.mfa_enforcement`, `auth.mfa_grace_days` (`server/src/modules/admin/settings.ts`); `users.mfa_required_since` (`server/src/core/migrations/002_hardening.sql`); `web/src/modules/admin/Settings.tsx`, `AccountSecurity.tsx`; tests "enforced second factor" in `server/src/modules/admin/admin.test.ts`
+**Implemented in:** `mfaEnforcement`, `mfaStatus`, `MFA_ENROLLMENT_ROUTES` and the request hook (`server/src/core/auth.ts`); `auth.mfa_enforcement`, `auth.mfa_grace_days` (`server/src/modules/admin/settings.ts`); `users.mfa_required_since` (`server/src/core/migrations/002_hardening.sql`); `web/src/modules/admin/Settings.tsx`, `AccountSecurity.tsx`; tests "enforced second factor" in `server/src/modules/admin/admin.test.ts`
 
 ### E02-06 Replay protection for authenticator codes
 
@@ -148,7 +148,7 @@ As a security lead, I want a 6-digit code to work once only.
 **Acceptance criteria**
 
 - [x] The last accepted time step is stored per user (`users.totp_last_step`)
-- [x] A code from that step or earlier is refused, at sign-in, at enrolment and when turning the factor off
+- [x] A code from that step or earlier is refused, at sign-in, at enrollment and when turning the factor off
 - [x] A test proves a code cannot be used twice
 
 **Implemented in:** `matchTotpStep` (`server/src/core/totp.ts`); `acceptTotpCode` (`server/src/core/auth.ts`); tests in `server/src/core/core.test.ts` and "replay protection" in `server/src/modules/admin/admin.test.ts`
@@ -202,19 +202,19 @@ password, a touch-only security key is enough unless `auth.passkey_user_verifica
 - [ ] The card is on the Account security page and on an administrator's user page, and the sign-in page offers **Sign in with a passkey** and **Use a passkey or security key instead** (components are ready in `web/src/modules/account-keys`; the embeds belong to the administration and sign-in screens)
 - [ ] An administrator's second-factor reset also removes the person's passkeys (`revokeAllPasskeys`), and the "set up your own second factor first" check on `auth.mfa_enforcement` counts a passkey
 
-**Implemented in:** `server/src/core/webauthn/` (`cbor.ts`, `cose.ts`, `ceremony.ts`, `config.ts`, `store.ts`, `routes.ts`, `apidocs.ts`, `softauthn.ts` test authenticator, `webauthn.test.ts`); hooks in `server/src/core/auth.ts` (`registerWebAuthn`, `passkeySecondFactor`, `hasActivePasskey`, `WEBAUTHN_ENROLMENT_ROUTES`); `server/src/core/migrations/004_webauthn.sql`; web `web/src/modules/account-keys/` (`PasskeysCard`, `PasskeySignIn`, `PasskeySecondFactorButton`, pages `/account/passkeys` and `/sign-in/passkey`); `tools/browse.mjs` (`VIRTUAL_AUTHENTICATOR=1`); [user guide](../../user/16-passkeys-and-security-keys.md)
+**Implemented in:** `server/src/core/webauthn/` (`cbor.ts`, `cose.ts`, `ceremony.ts`, `config.ts`, `store.ts`, `routes.ts`, `apidocs.ts`, `softauthn.ts` test authenticator, `webauthn.test.ts`); hooks in `server/src/core/auth.ts` (`registerWebAuthn`, `passkeySecondFactor`, `hasActivePasskey`, `WEBAUTHN_ENROLLMENT_ROUTES`); `server/src/core/migrations/004_webauthn.sql`; web `web/src/modules/account-keys/` (`PasskeysCard`, `PasskeySignIn`, `PasskeySecondFactorButton`, pages `/account/passkeys` and `/sign-in/passkey`); `tools/browse.mjs` (`VIRTUAL_AUTHENTICATOR=1`); [user guide](../../user/16-passkeys-and-security-keys.md)
 
 ### E02-09 Single sign-on with OpenID Connect
 
 **Status:** done · **Priority:** P2 · **Type:** feature
 
-As a user, I sign in with my organisation account. As an administrator, I configure the
+As a user, I sign in with my organization account. As an administrator, I configure the
 identity provider in settings and map its groups to roles.
 
 **Acceptance criteria**
 
 - [x] Provider details are entered in settings, not in code (Administration > Sign-in providers; issuer and every endpoint from the discovery document, so commercial, government-cloud and self-hosted providers are configured alike)
-- [x] Authorisation-code flow with proof key (PKCE S256), `state` bound to the browser and single-use, `nonce`
+- [x] Authorization-code flow with proof key (PKCE S256), `state` bound to the browser and single-use, `nonce`
 - [x] ID token signature (RS256, ES256, PS256) and claims (iss, aud/azp, exp, iat, nbf, nonce) checked with Node's crypto; key set cached, refetched on an unknown key id (rotation)
 - [x] Client secret stored encrypted with the application key
 - [x] Groups or claims map to roles (off by default); just-in-time accounts for allowed email domains (off by default)
@@ -236,11 +236,11 @@ same way as OpenID Connect.
 
 **Why it is not built.** Verifying a SAML response safely needs a complete XML Signature
 implementation: a hardened XML parser (no DTDs or external entities), Exclusive XML
-Canonicalisation 1.0 (with and without comments, in-scope namespaces), resolving each
+Canonicalization 1.0 (with and without comments, in-scope namespaces), resolving each
 `Reference` by ID and applying only the enveloped-signature and exc-c14n transforms, digest
 and signature checks against the configured certificate only (never a `KeyInfo` key), and
-defences against signature wrapping (the signed element must be exactly the assertion that is
-then read; one assertion; IDs unique). Node has no XML parser or canonicaliser, and writing
+defenses against signature wrapping (the signed element must be exactly the assertion that is
+then read; one assertion; IDs unique). Node has no XML parser or canonicalizer, and writing
 one here would be the riskiest code in the application. It needs either an approved, maintained
 XML-signature package, or a decision to support SAML only through an OpenID Connect bridge
 (many identity providers offer both).
@@ -347,7 +347,7 @@ machine.
 **Status:** done · **Priority:** P1 · **Type:** bug
 
 When the second factor is required and missing, the server refuses everything but
-enrolment, and `GET /api/auth/state` says so (`mfaEnrollmentBlocked: true`). The web shell
+enrollment, and `GET /api/auth/state` says so (`mfaEnrollmentBlocked: true`). The web shell
 does not act on it: after sign-in it still loads the overview, whose requests fail, and
 the person has to find Account security themselves.
 
@@ -359,7 +359,7 @@ the person has to find Account security themselves.
 
 **Where:** `web/src/core/auth.tsx`, `Shell.tsx`, `api.ts`
 
-**Done:** the web shell shows only second-factor enrolment and sign out when /api/auth/state reports mfaEnrollmentBlocked.
+**Done:** the web shell shows only second-factor enrollment and sign out when /api/auth/state reports mfaEnrollmentBlocked.
 
 ### E02-16 Keep the secret key out of the data folder by default
 
@@ -395,13 +395,13 @@ administrator through set-up.
 
 `POST /api/setup` takes `secondFactor: 'required' | 'notice'`. With `required` the setting is
 stored (audited as `setup.second_factor`), the first administrator is blocked until enrolled,
-and the web shell's enrolment gate (E02-15) takes them straight to Account security, where an
-authenticator app or a passkey both enrol them. The wizard's choice (`SecondFactorChoice`)
+and the web shell's enrollment gate (E02-15) takes them straight to Account security, where an
+authenticator app or a passkey both enroll them. The wizard's choice (`SecondFactorChoice`)
 starts at `required`.
 
 **Acceptance criteria**
 
-- [x] Setup with `secondFactor: 'required'` sets `required` and leads the first administrator to enrolment (tests)
+- [x] Setup with `secondFactor: 'required'` sets `required` and leads the first administrator to enrollment (tests)
 - [x] Existing installations keep their current value (setup runs only once)
 - [x] Depends on E02-15
 - [ ] The setup wizard shows `SecondFactorChoice` and sends its value (component ready in `web/src/modules/account-keys`; the wizard belongs to the sign-in screens)

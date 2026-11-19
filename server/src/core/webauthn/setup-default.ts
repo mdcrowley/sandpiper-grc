@@ -8,8 +8,8 @@ import type { WebAuthnDeps } from './routes.ts';
  *
  * `secondFactor` in the setup body:
  *   `required` - sets `auth.mfa_enforcement` to `required`. The roles that carry "requires second
- *                factor" (Administrator and Security lead by default) must enrol before they can work;
- *                the first administrator is taken straight to enrolment.
+ *                factor" (Administrator and Security lead by default) must enroll before they can work;
+ *                the first administrator is taken straight to enrollment.
  *   `notice`   - leaves the setting at its fallback, `notice` (a reminder only).
  * The wizard sends `required` unless the person chooses otherwise. A setup call that names neither
  * (scripts, the test helper) keeps `notice` for now: see E02-19.

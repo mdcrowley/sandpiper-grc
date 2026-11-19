@@ -1,8 +1,8 @@
 // Seed loader. Both profiles get the same invented "[Sample]" policies and exceptions; the
-// dev profile also gets a few sample people so that acknowledgement tracking has something
+// dev profile also gets a few sample people so that acknowledgment tracking has something
 // to show. Idempotent: a sample whose title already exists is left alone.
 import type { ModuleContext, Row, SeedOptions } from '../../core/module.ts';
-import { audienceUserIds, publishVersion, syncPolicyStatus } from './acknowledgements.ts';
+import { audienceUserIds, publishVersion, syncPolicyStatus } from './acknowledgments.ts';
 import { addDays, localDate } from './dates.ts';
 import { runExceptionExpiry } from './exceptions.ts';
 import { OUTCOME_RELATION, OUTCOME_TYPE } from './outcomes.ts';
@@ -34,7 +34,7 @@ async function samplePeople(ctx: ModuleContext): Promise<number> {
  * something to show. Everyone acknowledges, except that half of them leave the newest
  * acceptable use policy outstanding. Real accounts are never answered for.
  */
-async function sampleAcknowledgements(ctx: ModuleContext, topUp: boolean): Promise<number> {
+async function sampleAcknowledgments(ctx: ModuleContext, topUp: boolean): Promise<number> {
   const sample = await ctx.db.query<Row>(`select id, username from users where username like 'sample.%' and password_hash is null order by username`);
   if (!sample.length) return 0;
   const usernames = new Map(sample.map((u) => [u.id as string, u.username as string]));
@@ -67,7 +67,7 @@ async function sampleAcknowledgements(ctx: ModuleContext, topUp: boolean): Promi
     if (answer.length) {
       await ctx.audit(null, {
         action: 'policy.acknowledge', recordType: 'policy', recordId: policy.id,
-        summary: `Sample data: ${answer.length} acknowledgement${answer.length === 1 ? '' : 's'} recorded for version ${version.version} of ${policy.ref}`,
+        summary: `Sample data: ${answer.length} acknowledgment${answer.length === 1 ? '' : 's'} recorded for version ${version.version} of ${policy.ref}`,
         after: { version: Number(version.version), acknowledged: answer.length },
       });
     }
@@ -119,7 +119,7 @@ export async function seedPolicies(ctx: ModuleContext, opts: SeedOptions): Promi
     }
   }
 
-  const acknowledged = opts.profile === 'dev' ? await sampleAcknowledgements(ctx, people > 0) : 0;
+  const acknowledged = opts.profile === 'dev' ? await sampleAcknowledgments(ctx, people > 0) : 0;
 
   // Map the first two policies to a few framework outcomes, when that module is loaded and has any.
   const outcomes = ctx.resources.get(OUTCOME_TYPE);
@@ -154,7 +154,7 @@ export async function seedPolicies(ctx: ModuleContext, opts: SeedOptions): Promi
   const notes = [
     `${policies} sample policies`, `${exceptions} sample exceptions (${expired.length} marked expired)`,
     ...(people ? [`${people} sample people`] : []),
-    ...(acknowledged ? [`${acknowledged} sample acknowledgements`] : []),
+    ...(acknowledged ? [`${acknowledged} sample acknowledgments`] : []),
     ...(opts.profile === 'dev' && !anyone ? ['sample people skipped until the first administrator exists (run the seed again after setup)'] : []),
   ];
   return notes.join(', ');

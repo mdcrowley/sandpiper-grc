@@ -1,7 +1,7 @@
 # AI assistant access (MCP server)
 
 Sandpiper GRC is a **Model Context Protocol (MCP)** server, so AI assistants such as Claude
-Desktop, Claude Code and other MCP clients can look things up, summarise and (when allowed)
+Desktop, Claude Code and other MCP clients can look things up, summarize and (when allowed)
 make changes, always **as the person who owns the token** and never with more rights. The
 task-oriented guide is [AI assistants and MCP](user/21-ai-assistants-and-mcp.md); this page is
 the technical reference.
@@ -33,7 +33,7 @@ deliberate choice. Each request to `/mcp`:
 
 1. **Origin.** A request with an `Origin` header is refused (`403`) unless that origin is listed
    in **Browser origins** (setting `mcp.allowed_origins`, empty by default). MCP clients send no
-   Origin; browsers always do. This is the MCP specification's DNS-rebinding defence and, with
+   Origin; browsers always do. This is the MCP specification's DNS-rebinding defense and, with
    point 2, makes the endpoint CSRF-proof.
 2. **Bearer token only.** No `Authorization` header: `401` with `WWW-Authenticate: Bearer`. A
    cookie is ignored, so a web page cannot drive the endpoint even for a signed-in person.
@@ -87,7 +87,7 @@ loaded `risk` type the caller can see, `fleet_equipment_gaps` the fleet module a
 ## Tools
 
 Every tool returns a short readable summary (`content[0].text`) and the same answer as
-`structuredContent`. Records carry `id`, `ref`, `title`, labelled field values (people's names
+`structuredContent`. Records carry `id`, `ref`, `title`, labeled field values (people's names
 and list labels rather than ids and codes) and a `url` to open them. Failures come back as a
 tool error (`isError: true`) with `structuredContent.error = { code, status, message, fields? }`;
 validation failures name each field. Annotations: read tools `readOnlyHint: true`; all tools
@@ -116,7 +116,7 @@ reference (`TKT-00012`).
 
 | Tool | Offered when | Source |
 |---|---|---|
-| `my_work` | always | Open tickets assigned to you, your open actions, `GET /api/changes/waiting`, `GET /api/policies/acknowledgements/mine`, unread `GET /api/notifications` (each part only where visible) |
+| `my_work` | always | Open tickets assigned to you, your open actions, `GET /api/changes/waiting`, `GET /api/policies/acknowledgments/mine`, unread `GET /api/notifications` (each part only where visible) |
 | `overdue_summary` (`per_kind?`) | always | Actions, tickets past resolution target, vulnerabilities past fix-by, pending incident notifications past deadline, obligations and exercises past due, risk reviews due, late safety investigations |
 | `risk_heatmap` (`scale?`, `basis?`) | can see `risk` | `GET /api/risks/heatmap`: grid, totals by rating, top ten |
 | `framework_progress` (`framework?`) | can see `framework` | `GET /api/frameworks/:id/progress`: at target, score, by status, assessments |
@@ -126,7 +126,7 @@ reference (`TKT-00012`).
 | `service_desk_metrics` (`from?`, `to?`) | can see `ticket` | `GET /api/tickets/metrics` |
 | `fleet_equipment_gaps` (`mode?`) | fleet module loaded, `fleet.view` | `GET /api/fleet/coverage?gaps=true` |
 | `safety_summary` | safety module loaded, `safety.view` | `GET /api/safety/summary` |
-| `run_report` (`report?`, `max_rows?` ≤ 200) | can see `report_definition` | Without `report`: the saved reports you can run. With an id or name: `GET /api/reports/:id/run` as labelled rows |
+| `run_report` (`report?`, `max_rows?` ≤ 200) | can see `report_definition` | Without `report`: the saved reports you can run. With an id or name: `GET /api/reports/:id/run` as labeled rows |
 
 ## Resources and prompts
 
@@ -235,6 +235,6 @@ It has no dependencies and runs on any Node.js 18 or later, including the portab
   read-only token limits what a manipulated assistant could do; write access is off by default,
   and nothing can be deleted.
 - Data read by an assistant goes to that assistant's provider. Restricted records only reach
-  people who may see them, but organisations should decide which roles may connect assistants.
+  people who may see them, but organizations should decide which roles may connect assistants.
 - Not built (see the epic E21): OAuth for remote connectors, per-role permission to connect,
   streaming progress for long tools, a per-tool permission list per token.

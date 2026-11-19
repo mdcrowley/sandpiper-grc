@@ -104,7 +104,7 @@ export interface BoardViewProps {
   onStatus: (outcome: BoardOutcome, status: string) => void;
 }
 
-/** Functions as colour-banded sections, categories inside, one tile per outcome. */
+/** Functions as color-banded sections, categories inside, one tile per outcome. */
 export function BoardView({ board, filters, density, canEdit, savingId, onClear, onStatus }: BoardViewProps) {
   const root = useRef<HTMLDivElement>(null);
   const [editing, setEditing] = useState<string | null>(null);

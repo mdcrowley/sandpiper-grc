@@ -12,7 +12,7 @@ import { Switch } from './Switch';
 /** Wider-audience roles that ship switched off; an administrator switches each on when ready. */
 export const AUDIENCE_ROLES = ['requester', 'approver', 'executive_viewer', 'auditor'];
 
-export function summariseGrants(grants: string[]): string {
+export function summarizeGrants(grants: string[]): string {
   if (grants.includes('*')) return 'Everything';
   if (grants.length === 0) return 'Nothing';
   const modules = new Set(grants.map((g) => g.split('.')[0]));
@@ -31,7 +31,7 @@ export function RolesPage() {
     setSaving('defaults');
     try {
       const res = await adminApi.post<{ added: number }>('/api/admin/roles/sync-default-grants');
-      toast.success(`Default permissions synchronised: ${res.added} added.`);
+      toast.success(`Default permissions synchronized: ${res.added} added.`);
       reload();
       defaults.reload();
     } catch (err) {
@@ -102,7 +102,7 @@ export function RolesPage() {
                         {AUDIENCE_ROLES.includes(r.key) && <Badge color="purple">Audience switch</Badge>}
                         {r.description && <div className="muted">{r.description}</div>}
                       </td>
-                      <td>{summariseGrants(r.grants)}</td>
+                      <td>{summarizeGrants(r.grants)}</td>
                       <td className="num">{r.members}</td>
                       <td>{r.requires_mfa ? <StatusChip color="blue" label="Required" /> : <span className="muted">Optional</span>}</td>
                       <td onClick={(e) => e.stopPropagation()}>

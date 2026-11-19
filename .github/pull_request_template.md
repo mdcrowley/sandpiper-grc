@@ -15,7 +15,7 @@ piece of work (see the hard rules in `docs/development.md`).
 
 - [ ] Every data change writes an audit event
 - [ ] Every new feature has a test; `.\grc.ps1 ci` (typecheck, tests and web build) passes
-- [ ] Nothing organisation-specific: no real organisation, person, place, vendor or product names, no law or regulator of one jurisdiction as a built-in default, invented data only in samples and tests
+- [ ] Nothing organization-specific: no real organization, person, place, vendor or product names, no law or regulator of one jurisdiction as a built-in default, invented data only in samples and tests
 - [ ] Nothing from `seed/` is committed, logged or pasted anywhere
 - [ ] No calls to outside services from application code; no telemetry, no externally hosted fonts or scripts
 - [ ] Statuses, priorities, categories and scales are configuration (rows in lookups or settings), not constants
@@ -29,4 +29,4 @@ piece of work (see the hard rules in `docs/development.md`).
 - [ ] `docs/roadmap/`: the issue is marked done with its acceptance criteria ticked and an "Implemented in" line; new issues are added for anything left out or newly found; the epic table and the summary in `docs/roadmap/README.md` agree
 - [ ] `README.md`, if what the product does or how to run it changed
 - [ ] `docs/development.md`, if structure, commands or conventions changed
-- [ ] Not applicable: this change alters no behaviour, structure or command (say why above)
+- [ ] Not applicable: this change alters no behavior, structure or command (say why above)

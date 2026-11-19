@@ -27,7 +27,7 @@ describe('reading values', () => {
   });
   it('accepts common date, number and amount forms', () => {
     expect(['2026-03-04', '2026/3/4', '3/4/2026', '4 Mar 2026', '2026-02-30'].map(parseDate)).toEqual(['2026-03-04', '2026-03-04', '2026-03-04', '2026-03-04', null]);
-    expect(parseDateTime('2026-03-04 09:30')).toBe('2026-03-04T14:30:00.000Z'); // organisation time zone (tests: New York)
+    expect(parseDateTime('2026-03-04 09:30')).toBe('2026-03-04T14:30:00.000Z'); // organization time zone (tests: New York)
     expect(parseDateTime('2026-03-04T09:30:00Z')).toBe('2026-03-04T09:30:00.000Z');
     expect([parseNumber('1,234.5'), parseNumber('(12)'), parseNumber('$1,200', true), parseNumber('12 apples')]).toEqual([1234.5, -12, 1200, null]);
   });

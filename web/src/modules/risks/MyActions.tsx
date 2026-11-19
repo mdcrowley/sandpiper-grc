@@ -41,7 +41,7 @@ export function MyActions() {
         actions={<Link className="btn btn-secondary" to="/actions">All actions</Link>}
       />
       <div className="grid-stats">
-        <Stat label="Open" value={s.mine.open} color="blue" hint="Yours, not done or cancelled" />
+        <Stat label="Open" value={s.mine.open} color="blue" hint="Yours, not done or canceled" />
         <Stat label="Overdue" value={s.mine.overdue} color={s.mine.overdue > 0 ? 'red' : 'green'} hint="Past the due date" />
         <Stat label="Due this week" value={s.mine.due_this_week} color="amber" hint={`By ${formatDate(s.week_end)}`} />
       </div>

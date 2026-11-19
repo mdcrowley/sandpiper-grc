@@ -8,7 +8,7 @@ type Family = 'pdf' | 'png' | 'jpeg' | 'gif' | 'webp' | 'bmp' | 'tiff' | 'zip' |
 
 interface KnownType { mime: string; family: Family; group: string }
 
-/** Types whose content the server can recognise. `group` drives the icon in the web panel. */
+/** Types whose content the server can recognize. `group` drives the icon in the web panel. */
 const KNOWN: Record<string, KnownType> = {
   pdf: { mime: 'application/pdf', family: 'pdf', group: 'pdf' },
   png: { mime: 'image/png', family: 'png', group: 'image' },
@@ -70,7 +70,7 @@ const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|$)/i;
  * characters, no characters that are special in a path, at most 180 characters.
  * The result is for display. It is never used to decide where the file is stored.
  */
-export function sanitiseFileName(raw: unknown): string {
+export function sanitizeFileName(raw: unknown): string {
   let name = String(raw ?? '').normalize('NFC');
   name = name.split(/[\\/]/).pop() ?? '';
   name = name
@@ -89,7 +89,7 @@ export function sanitiseFileName(raw: unknown): string {
   return name || 'file';
 }
 
-/** Lower-case extension of a sanitised name, or '' when it has none worth the name. */
+/** Lower-case extension of a sanitized name, or '' when it has none worth the name. */
 export function extensionOf(fileName: string): string {
   const dot = fileName.lastIndexOf('.');
   if (dot <= 0) return '';
@@ -98,7 +98,7 @@ export function extensionOf(fileName: string): string {
 }
 
 /** Cleans a list of extensions from a setting or a request: lower case, no dots, no repeats. */
-export function normaliseExtensions(input: unknown): string[] {
+export function normalizeExtensions(input: unknown): string[] {
   const parts = Array.isArray(input) ? input : String(input ?? '').split(/[\s,;]+/);
   const out = new Set<string>();
   for (const p of parts) {

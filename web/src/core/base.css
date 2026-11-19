@@ -1,4 +1,4 @@
-/* Base styles, CSS helpers and the core component classes. Colours and sizes come from tokens.css.
+/* Base styles, CSS helpers and the core component classes. Colors and sizes come from tokens.css.
    Cascade order: `reset` layer < `mantine` layer < everything unlayered (this file, module CSS).
    The shell, command palette, sign-in pages and print rules are in shell.css. */
 
@@ -45,7 +45,7 @@ body {
 .ui-input:focus, .ui-input:focus-within { box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 26%, transparent); }
 .ui-input[data-error] { --input-bd: var(--danger); }
 .ui-input:disabled, .ui-input[data-disabled] { background: var(--surface-2); color: var(--text-muted); opacity: 1; }
-/* Marks drawn on the brand colour (ticks, the current page number) use the brand's contrast colour in both themes. */
+/* Marks drawn on the brand color (ticks, the current page number) use the brand's contrast color in both themes. */
 .mantine-Checkbox-root { --checkbox-icon-color: var(--brand-contrast) !important; }
 .mantine-Radio-root { --radio-icon-color: var(--brand-contrast) !important; }
 .mantine-Pagination-root { --pagination-active-color: var(--brand-contrast) !important; }

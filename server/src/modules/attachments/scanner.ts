@@ -26,7 +26,7 @@
 import type { Readable } from 'node:stream';
 
 export interface ScanInput {
-  /** Sanitised display name. */
+  /** Sanitized display name. */
   fileName: string;
   extension: string;
   size: number;
@@ -50,7 +50,7 @@ export interface FileScanner {
 export interface ScannerRegistry {
   /** Installs the scanner used for every later upload, replacing any earlier one. */
   use(scanner: FileScanner): void;
-  /** Goes back to the built-in "not scanned" behaviour. */
+  /** Goes back to the built-in "not scanned" behavior. */
   reset(): void;
   current(): FileScanner;
 }

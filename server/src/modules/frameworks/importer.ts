@@ -6,7 +6,7 @@ import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import type { ReferenceFramework } from './reference.ts';
 import { flattenReference } from './reference.ts';
-import { COLOURS, saveStructure } from './structure.ts';
+import { COLORS, saveStructure } from './structure.ts';
 
 const KEY = /^[a-z0-9][a-z0-9._-]{1,59}$/i;
 const MAX_ERRORS = 40;
@@ -42,7 +42,7 @@ export function validateReference(input: unknown): { ref?: ReferenceFramework; e
     const label = code || at;
     if (code && fnCodes.has(code.toLowerCase())) say(`Function code ${code} is used more than once.`);
     fnCodes.add(code.toLowerCase());
-    if (f?.color !== undefined && !COLOURS.includes(f.color)) say(`${label}: "color" must be one of ${COLOURS.join(', ')}.`);
+    if (f?.color !== undefined && !COLORS.includes(f.color)) say(`${label}: "color" must be one of ${COLORS.join(', ')}.`);
     if (f && 'outcomes' in f) say(`${label}: outcomes are listed directly under the function. Every outcome must sit under a category.`);
     if (f?.categories !== undefined && !Array.isArray(f.categories)) say(`${label}: "categories" must be a list.`);
     const categories = (Array.isArray(f?.categories) ? (f.categories as Row[]) : []).map((c, j) => {

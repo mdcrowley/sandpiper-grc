@@ -1,4 +1,4 @@
-/* Attachments panel and pages. Colours come from the design tokens so both themes work. */
+/* Attachments panel and pages. Colors come from the design tokens so both themes work. */
 
 .att { display: grid; gap: var(--s-4); min-width: 0; }
 

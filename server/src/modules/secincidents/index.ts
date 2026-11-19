@@ -4,7 +4,7 @@ import { TIME_ZONE, todayInZone } from '../../core/timezone.ts';
 import { notifyPerson, notifyViewers, sweepClocks } from './alerts.ts';
 import { amberFraction as readAmberFraction, byUrgency, clockOf, stamp } from './clocks.ts';
 import {
-  ensureDefaults, FLAG_FIELDS, incidentQuestions, KIND_LIST, lifecycle, loadOrganisationRules, reviewLifecycle, STAGE_LABELS, STAGES,
+  ensureDefaults, FLAG_FIELDS, incidentQuestions, KIND_LIST, lifecycle, loadOrganizationRules, reviewLifecycle, STAGE_LABELS, STAGES,
   triggerApplies, triggerOptions,
 } from './defaults.ts';
 import type { ReviewStage, Stage } from './defaults.ts';
@@ -506,7 +506,7 @@ const mod: ModuleDef = {
     }
 
     /**
-     * Ransom payment control: the organisation's policy or the law may require formal approval
+     * Ransom payment control: the organization's policy or the law may require formal approval
      * before a ransom is paid, so "approved" is refused until an approval reference is recorded.
      */
     function checkRansom(status: unknown, resolution: unknown) {
@@ -1038,11 +1038,11 @@ const mod: ModuleDef = {
 
   async seed(ctx, opts) {
     const svc = makeService(ctx);
-    // The organisation's own rules first, so that open incidents and the sample pick them up.
-    const added = await loadOrganisationRules(ctx, opts?.organisation?.notificationRules);
+    // The organization's own rules first, so that open incidents and the sample pick them up.
+    const added = await loadOrganizationRules(ctx, opts?.organization?.notificationRules);
     if (added) await svc.resyncOpenIncidents(null);
     const sample = await seedSample(ctx, svc);
-    return `${added} notification rule${added === 1 ? '' : 's'} added from the organisation profile; ${sample}`;
+    return `${added} notification rule${added === 1 ? '' : 's'} added from the organization profile; ${sample}`;
   },
 };
 

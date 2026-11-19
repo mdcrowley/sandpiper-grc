@@ -1,5 +1,5 @@
 /* Self-service portal: a light layout for any member of staff. Larger type and touch targets
-   (at least 44px) than the agent screens; one centred column; works from 320px wide. */
+   (at least 44px) than the agent screens; one centered column; works from 320px wide. */
 
 .pt-app {
   min-height: 100vh;
@@ -146,7 +146,7 @@
 .pt-col-side .pt-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--s-4); margin-bottom: var(--s-4); }
 .pt-col-side h2 { font-size: var(--fs-lg); }
 
-/* catalogue tiles */
+/* catalog tiles */
 .pt-tiles { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-3); }
 .pt-page .pt-tiles { grid-template-columns: minmax(0, 1fr); }
 @media (max-width: 640px) { .pt-tiles { grid-template-columns: minmax(0, 1fr); } }

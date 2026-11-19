@@ -6,7 +6,7 @@ import { repoRoot } from './files.ts';
 
 // What the code on disk expects of the database, and what a database has had applied.
 // The discovery rule mirrors buildApp() in app.ts: core first, then each module folder
-// in alphabetical order, honouring GRC_MODULES.
+// in alphabetical order, honoring GRC_MODULES.
 
 /** Names of the migrations shipped with this copy of the code, as recorded in schema_migrations. */
 export function migrationsOnDisk(srcDir: string = join(repoRoot, 'server/src')): string[] {

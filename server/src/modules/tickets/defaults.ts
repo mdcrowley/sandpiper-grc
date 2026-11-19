@@ -16,10 +16,10 @@ export const LOOKUPS: Record<string, LookupValue[]> = {
     { value: 'waiting_vendor', label: 'Waiting on vendor', color: 'orange', meta: { category: 'paused' } },
     { value: 'resolved', label: 'Resolved', color: 'green', meta: { category: 'resolved' } },
     { value: 'closed', label: 'Closed', color: 'gray', meta: { category: 'closed' } },
-    { value: 'cancelled', label: 'Cancelled', color: 'gray', meta: { category: 'closed' } },
+    { value: 'cancelled', label: 'Canceled', color: 'gray', meta: { category: 'closed' } },
   ],
   ticket_impact: [
-    { value: 'organisation', label: 'Whole organisation or safety', color: 'red' },
+    { value: 'organisation', label: 'Whole organization or safety', color: 'red' },
     { value: 'department', label: 'A department or site', color: 'amber' },
     { value: 'individual', label: 'One person', color: 'gray' },
   ],
@@ -118,9 +118,9 @@ const POLICIES = [
   { priority: 'p4', respond: DAY, resolve: 5 * DAY, calendar: 'business' },
 ];
 
-/** Starting catalogue entries. `defaults` pre-fill the request each one creates. */
-export const CATALOGUE = [
-  { name: 'New starter', category: 'people', description: 'Set up accounts, equipment and access for someone joining the organisation.',
+/** Starting catalog entries. `defaults` pre-fill the request each one creates. */
+export const CATALOG = [
+  { name: 'New starter', category: 'people', description: 'Set up accounts, equipment and access for someone joining the organization.',
     defaults: { type: 'request', category: 'access', title: 'New starter: ', impact: 'individual', urgency: 'medium',
       description: 'Anything else IT should know:' },
     questions: [
@@ -135,16 +135,16 @@ export const CATALOGUE = [
   { name: 'Leaver', category: 'people', description: 'Remove access and recover equipment when someone leaves.',
     defaults: { type: 'request', category: 'access', title: 'Leaver: ', impact: 'individual', urgency: 'medium',
       description: 'Name:\nLast working day:\nManager:\nEquipment to return:\nMailbox and files to hand over to:' },
-    tasks: ['Disable the account at the end of the last day', 'Recover equipment', 'Hand over mailbox and files', 'Remove licences'] },
+    tasks: ['Disable the account at the end of the last day', 'Recover equipment', 'Hand over mailbox and files', 'Remove licenses'] },
   { name: 'Access request', category: 'access', description: 'Ask for access to a system, shared folder or mailbox.',
     defaults: { type: 'request', category: 'access', title: 'Access request: ', impact: 'individual', urgency: 'low',
       description: 'Who needs access:\nSystem or folder:\nLevel of access:\nBusiness reason:\nApproved by:' } },
   { name: 'Hardware', category: 'equipment', description: 'Request a computer, monitor, phone or other equipment.',
     defaults: { type: 'request', category: 'hardware', title: 'Hardware request: ', impact: 'individual', urgency: 'low',
       description: 'What is needed:\nFor whom:\nLocation:\nFunding source or budget code:' } },
-  { name: 'Software', category: 'software', description: 'Request software to be installed or a licence to be assigned.',
+  { name: 'Software', category: 'software', description: 'Request software to be installed or a license to be assigned.',
     defaults: { type: 'request', category: 'software', title: 'Software request: ', impact: 'individual', urgency: 'low',
-      description: 'Software and version:\nFor whom:\nBusiness reason:\nLicence held or to be bought:' } },
+      description: 'Software and version:\nFor whom:\nBusiness reason:\nLicense held or to be bought:' } },
   { name: 'Vendor access', category: 'vendors', description: 'Arrange supervised or time-limited access for a vendor.',
     defaults: { type: 'request', category: 'access', title: 'Vendor access: ', impact: 'department', urgency: 'medium',
       description: 'Vendor and contact:\nSystem:\nReason for access:\nStart and end time:\nInternal sponsor:' },

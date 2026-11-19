@@ -1,8 +1,11 @@
 name: CI
 
 # Type check, tests and a production build of the web application, on every push and
-# pull request; the tests again through the PostgreSQL server driver; and the container
-# image, built and started. Nothing here needs the private seed/ folder or any secret.
+# pull request; the tests again through the PostgreSQL server driver; installation on macOS
+# and Linux with tools/install-node.sh and grc.sh; the container image, built and started,
+# and compose.yaml run with both databases; the browser suite. On pushes to main and on
+# version tags, once the checks pass, the image is published to ghcr.io for amd64 and arm64.
+# Nothing here needs the private seed/ folder or any secret other than the built-in token.
 
 on:
   push:
@@ -116,14 +119,63 @@ jobs:
           GRC_TEST_DATABASE_URL: postgres://grc:grc-ci-only@127.0.0.1:5432/grc
         run: npm test
 
-  # Builds the container image and proves it starts and answers its health check (E16-06).
-  container:
-    name: Container image
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+  # macOS and Linux installation as a person would do it: the pinned Node.js fetched by
+  # tools/install-node.sh, then grc.sh for everything (the counterpart of grc.ps1).
+  unix-install:
+    name: Install and run with grc.sh (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    env:
+      GRC_SEED_DIR: ${{ github.workspace }}/no-seed-folder
+      GRC_DATA_DIR: ${{ github.workspace }}/../grc-data
+      GRC_BACKUP_DIR: ${{ github.workspace }}/../grc-backups
+      GRC_PORT: '8170'
     steps:
       - name: Check out
         uses: actions/checkout@v5
+
+      - name: Fetch the pinned Node.js into .tools/node (checksum verified)
+        run: ./tools/install-node.sh
+
+      - name: Install packages
+        run: ./grc.sh install
+
+      - name: Local continuous integration (typecheck, tests, tests on UTC, web build)
+        run: ./grc.sh ci
+
+      - name: Start, health, sample data, backup, stop
+        run: |
+          set -eu
+          ./grc.sh start
+          ./grc.sh health
+          ./grc.sh seed --profile dev
+          ./grc.sh backup --prune 2
+          ./grc.sh verify-backup
+          ./grc.sh status
+          ./grc.sh stop
+          if ./grc.sh health; then echo "still answering after stop"; exit 1; fi
+
+      - name: Server logs
+        if: failure()
+        run: ./grc.sh logs --lines 200 || true
+
+  # Builds the container image and proves it starts and answers its health check (E16-06), then
+  # runs compose.yaml as the quick start describes, with the embedded database and with PostgreSQL.
+  container:
+    name: Container image and compose
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Node.js major version
+        id: node
+        run: echo "major=$(head -n 1 tools/node-version.txt | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -135,43 +187,47 @@ jobs:
           load: true
           push: false
           tags: sandpiper-grc:ci
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          build-args: NODE_MAJOR=${{ steps.node.outputs.major }}
+          cache-from: type=gha,scope=ci-amd64
+          cache-to: type=gha,scope=ci-amd64,mode=max
 
-      - name: Nothing private is in the image
+      - name: Only the application is in the image
         run: |
           set -eu
+          # /app holds exactly these; anything else (data, seed files, notes, tools) is a leak.
+          top=$(docker run --rm --entrypoint sh sandpiper-grc:ci -c 'ls -A /app' | tr '\n' ' ')
+          [ "$top" = "deploy dist node_modules package.json server " ] || { echo "Unexpected /app contents: $top"; exit 1; }
           found=$(docker run --rm --entrypoint sh sandpiper-grc:ci -c '
-            ls -d /app/seed /app/data /app/.tools /app/backups /app/CLAUDE.md 2>/dev/null
-            find /app -name "*Build Specification*" 2>/dev/null
             find /app/server -name "*.test.ts" 2>/dev/null
-            find /app /var/lib/sandpiper -path /app/node_modules -prune -o \( -name "*.pem" -o -name "*.secret.key" -o -name "secret.key" \) -print 2>/dev/null
+            ls -A /var/lib/sandpiper /var/lib/sandpiper-key 2>/dev/null
+            find /app -path /app/node_modules -prune -o \( -name "*.pem" -o -name "*.key" -o -name ".env*" \) -print 2>/dev/null
           ' || true)
           if [ -n "$found" ]; then echo "Unexpected files in the image:"; echo "$found"; exit 1; fi
 
-      - name: Start (embedded database, read-only root filesystem, as in compose.yaml)
+      - name: Start (embedded database, read-only root filesystem)
         run: |
-          openssl rand -hex 32 > secret_key.txt && chmod 644 secret_key.txt
           docker run -d --name grc --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges:true \
-            -e GRC_ALLOW_INSECURE=1 -e GRC_SECRET_KEY_FILE=/run/secrets/key \
-            -v "$PWD/secret_key.txt:/run/secrets/key:ro" -p 127.0.0.1:8080:8080 sandpiper-grc:ci
+            -e GRC_ALLOW_INSECURE=1 -v grc-ci-data:/var/lib/sandpiper -v grc-ci-key:/var/lib/sandpiper-key \
+            -p 127.0.0.1:8080:8080 sandpiper-grc:ci
 
       - name: Health check answers
         run: |
-          for i in $(seq 1 60); do
-            status=$(docker inspect --format '{{.State.Health.Status}}' grc 2>/dev/null || echo missing)
-            if curl -fsS http://127.0.0.1:8080/api/health | grep -q '"ok":true'; then echo "health ok (container: $status)"; break; fi
+          for _ in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8080/api/health | grep -q '"ok":true'; then echo "health ok"; break; fi
             if [ "$(docker inspect --format '{{.State.Running}}' grc)" != "true" ]; then docker logs grc; exit 1; fi
             sleep 2
           done
           curl -fsS http://127.0.0.1:8080/api/health | grep -q '"ok":true'
           curl -fsS http://127.0.0.1:8080/ | grep -qi '<div id="root"' || { echo "web application not served"; exit 1; }
           # The image's own HEALTHCHECK must turn healthy too.
-          for i in $(seq 1 60); do
-            [ "$(docker inspect --format '{{.State.Health.Status}}' grc)" = healthy ] && exit 0
+          for _ in $(seq 1 60); do
+            [ "$(docker inspect --format '{{.State.Health.Status}}' grc)" = healthy ] && break
             sleep 3
           done
-          docker inspect --format '{{json .State.Health}}' grc; exit 1
+          [ "$(docker inspect --format '{{.State.Health.Status}}' grc)" = healthy ] || { docker inspect --format '{{json .State.Health}}' grc; exit 1; }
+          # The secret key was generated in its own volume, not in the data volume.
+          docker exec grc sh -c 'test -s /var/lib/sandpiper-key/secret.key && ! ls /var/lib/sandpiper/*.key /var/lib/sandpiper/data/*.key 2>/dev/null'
+          docker exec grc grc status
 
       - name: Refuses plain HTTP on every interface without GRC_ALLOW_INSECURE
         run: |
@@ -183,6 +239,107 @@ jobs:
         run: |
           docker logs grc || true
           docker stop -t 30 grc || true
+          docker rm grc || true
+
+      - name: Compose quick start (embedded database), setup and sample data
+        env:
+          GRC_IMAGE: sandpiper-grc:ci
+        run: |
+          set -eu
+          docker compose up -d --wait --wait-timeout 180
+          curl -fsS -X POST -H 'content-type: application/json' -H 'x-grc-csrf: 1' \
+            -d '{"username":"admin","email":"admin@example.test","displayName":"Administrator","password":"ci-only-Passw0rd-long-enough"}' \
+            http://127.0.0.1:8080/api/setup > /dev/null
+          docker compose stop app
+          docker compose run --rm --no-deps app grc seed --profile dev
+          docker compose up -d --wait --wait-timeout 180
+          docker compose exec app grc status
+          docker compose stop app
+          docker compose run --rm --no-deps app grc backup
+          docker compose up -d --wait --wait-timeout 180
+          curl -fsS http://127.0.0.1:8080/api/health | grep -q '"ok":true'
+          docker compose down -v
+
+      - name: Compose with PostgreSQL
+        env:
+          GRC_IMAGE: sandpiper-grc:ci
+        run: |
+          set -eu
+          openssl rand -hex 24 > deploy/secrets/db_password.txt
+          docker compose -f compose.yaml -f compose.postgres.yaml up -d --wait --wait-timeout 240
+          docker compose -f compose.yaml -f compose.postgres.yaml logs app | grep -q 'PostgreSQL server'
+          curl -fsS http://127.0.0.1:8080/api/health | grep -q '"ok":true'
+          docker compose -f compose.yaml -f compose.postgres.yaml down -v
+
+      - name: Compose logs
+        if: failure()
+        run: docker compose -f compose.yaml -f compose.postgres.yaml logs || true
+
+  # Publishes the image for linux/amd64 and linux/arm64 to the GitHub Container Registry, once the
+  # checks have passed: "edge" for every push to main; x.y.z, x.y and latest for a version tag vX.Y.Z.
+  publish:
+    name: Publish the container image
+    needs: [check, container]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Node.js major version
+        id: node
+        run: echo "major=$(head -n 1 tools/node-version.txt | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU (to build for arm64)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Sign in to the GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tags and labels
+        id: meta
+        uses: docker/metadata-action@v5
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
+        with:
+          images: ghcr.io/${{ github.repository }}
+          flavor: latest=false
+          tags: |
+            type=edge,branch=main
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-') }}
+          labels: |
+            org.opencontainers.image.title=Sandpiper GRC
+            org.opencontainers.image.description=Governance, risk and compliance for transit organizations
+            org.opencontainers.image.licenses=MIT
+          annotations: |
+            org.opencontainers.image.description=Governance, risk and compliance for transit organizations
+            org.opencontainers.image.licenses=MIT
+
+      - name: Build and push (linux/amd64, linux/arm64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: NODE_MAJOR=${{ steps.node.outputs.major }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+          cache-from: type=gha,scope=publish
+          cache-to: type=gha,scope=publish,mode=max
 
   browser:
     name: Browser tests and accessibility (ubuntu-latest)

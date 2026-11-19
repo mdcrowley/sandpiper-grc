@@ -19,7 +19,7 @@ export type { FieldProps } from './fieldShell';
 export { UserPicker, RecordPicker, type PickOption, type PickerProps } from './pickers';
 export { InlinePopups } from './popups';
 
-/** The small coloured dot that marks a lookup value. */
+/** The small colored dot that marks a lookup value. */
 export function ColorDot({ color }: { color?: string | null }) {
   return <span className="rc-dot" style={{ background: `var(--c-${toColorName(color)}-solid)` }} aria-hidden="true" />;
 }
@@ -90,7 +90,7 @@ export function TextArea({ value, onChange, rows = 4, maxRows = 16, placeholder,
 export interface Option {
   value: string;
   label: string;
-  /** Colour name (section 11 of the README): shows a dot beside the label. */
+  /** Color name (section 11 of the README): shows a dot beside the label. */
   color?: string;
 }
 
@@ -194,7 +194,7 @@ export function LookupChoices({ list, ...rest }: Omit<ChoicesFieldProps, 'option
   return <ChoicesField {...rest} options={useLookup(list)} />;
 }
 
-/** A Select filled from a configured lookup list, showing each value's colour. */
+/** A Select filled from a configured lookup list, showing each value's color. */
 export function LookupSelect({ list, ...rest }: LookupSelectProps) {
   return <Select {...rest} options={useLookup(list)} />;
 }
@@ -344,7 +344,7 @@ export function DateField({ value, onChange, min, max, placeholder = 'Day Month 
 }
 
 export interface DateTimeFieldProps extends FieldProps {
-  /** ISO instant, or '' when empty. Edited as wall-clock time in the organisation's time zone. */
+  /** ISO instant, or '' when empty. Edited as wall-clock time in the organization's time zone. */
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
@@ -356,7 +356,7 @@ export interface DateTimeFieldProps extends FieldProps {
  */
 export function DateTimeField({ value, onChange, hint, placeholder = 'Pick a date and time', ...field }: DateTimeFieldProps) {
   const host = usePopupHost();
-  const local = toZonedInput(value); // "YYYY-MM-DDTHH:mm" in the organisation's zone
+  const local = toZonedInput(value); // "YYYY-MM-DDTHH:mm" in the organization's zone
   return (
     <DateTimePicker
       {...fieldShell({ ...field, hint: hint ?? `Time zone: ${timeZone().replace(/_/g, ' ')}` })}

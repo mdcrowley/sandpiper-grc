@@ -14,7 +14,7 @@ export async function seedProjectDefaults(ctx: ModuleContext): Promise<void> {
   await ctx.lookups.ensure('project_status', [
     { value: 'active', label: 'Active', color: 'blue', sort: 10 },
     { value: 'on_hold', label: 'On hold', color: 'amber', sort: 20 },
-    { value: 'cancelled', label: 'Cancelled', color: 'gray', sort: 30 },
+    { value: 'cancelled', label: 'Canceled', color: 'gray', sort: 30 },
     { value: 'completed', label: 'Completed', color: 'green', sort: 40 },
   ], { module: 'projects' });
   await ctx.lookups.ensure('project_tier', [

@@ -29,7 +29,7 @@ function IncidentClocks() {
   return (
     <Panel title="Incident notification clocks" state={clocks} to="/security-incidents" linkLabel="Security incidents"
       empty={(d) => d.clocks.length === 0} emptyTitle="No notification clocks are running"
-      emptyMessage="Deadlines to notify people outside the organisation appear here when a security incident is declared.">
+      emptyMessage="Deadlines to notify people outside the organization appear here when a security incident is declared.">
       {(d) => (
         <ul className="home-clocks">
           {d.clocks.slice(0, 8).map((c) => (

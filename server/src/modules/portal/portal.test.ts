@@ -55,7 +55,7 @@ afterAll(async () => { await t.close(); });
 describe('portal switch', () => {
   it('is off by default, and every portal route says so', async () => {
     expect((await pat.get('/api/portal/config')).body).toEqual({ enabled: false, allowed: true });
-    for (const url of ['/api/portal/requests', '/api/portal/catalogue', '/api/portal/knowledge', '/api/portal/assets', '/api/portal/approvals']) {
+    for (const url of ['/api/portal/requests', '/api/portal/catalog', '/api/portal/knowledge', '/api/portal/assets', '/api/portal/approvals']) {
       const r = await pat.get(url);
       expect(r.status, url).toBe(404);
       expect(r.body.error.code).toBe('portal_off');
@@ -92,16 +92,16 @@ describe('portal switch', () => {
 });
 
 describe('raising requests', () => {
-  it('lists only catalogue items marked for the portal', async () => {
-    const items = (await pat.get('/api/portal/catalogue')).body;
+  it('lists only catalog items marked for the portal', async () => {
+    const items = (await pat.get('/api/portal/catalog')).body;
     expect(items.map((i: any) => i.id)).toContain(itemId);
     expect(items.map((i: any) => i.id)).not.toContain(plainItemId);
     expect(items.find((i: any) => i.id === itemId)).toMatchObject({ type: 'incident', category_label: 'Equipment', questions: [{ key: 'vehicle' }, { key: 'in_service' }] });
-    // The agent catalogue can flag the item off again.
+    // The agent catalog can flag the item off again.
     expect((await t.api.get(`/api/catalog-items/${itemId}`)).body.portal).toBe(true);
   });
 
-  it('raises a request from a catalogue item, with me as the requester and nothing I should not set', async () => {
+  it('raises a request from a catalog item, with me as the requester and nothing I should not set', async () => {
     const missing = await pat.post('/api/portal/requests', { catalog_item_id: itemId, answers: {} });
     expect(missing.status).toBe(400);
     expect(missing.body.error.fields).toHaveProperty('catalog_answers.vehicle');
@@ -262,7 +262,7 @@ describe('requester scoping', () => {
     expect((await pat.post(`/api/portal/requests/${mine}/reopen`, { reason: 'again' })).status).toBe(409);
   });
 
-  it('hides a cancelled request\'s rating and reopen', async () => {
+  it('hides a canceled request\'s rating and reopen', async () => {
     await t.api.patch(`/api/tickets/${affected}`, { status: 'cancelled' });
     expect((await pat.get(`/api/portal/requests/${affected}`)).body).toMatchObject({ can_rate: false, can_reopen: false, status: { key: 'cancelled' } });
   });

@@ -7,7 +7,7 @@ import {
 } from '../../core';
 import type { ColorName, IconName, ListResult, Row } from '../../core';
 
-/** Today as YYYY-MM-DD in the organisation's time zone. */
+/** Today as YYYY-MM-DD in the organization's time zone. */
 export function todayIso(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: timeZone() }).format(new Date());
 }
@@ -33,7 +33,7 @@ export function daysPhrase(days: number): string {
 
 const CALLOUT_ICON: Record<string, IconName> = { blue: 'info', amber: 'alert', red: 'lock', green: 'check-circle', gray: 'info' };
 
-/** A short message box in one of the status colours. */
+/** A short message box in one of the status colors. */
 export function Callout({ color = 'blue', title, children, action }: { color?: ColorName; title: string; children?: ReactNode; action?: ReactNode }) {
   return (
     <Alert role="note" color={color} variant="light" title={title} icon={<Icon name={CALLOUT_ICON[color] ?? 'info'} size={18} />} className="inv-callout">

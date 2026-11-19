@@ -1,7 +1,7 @@
 // Policy versions and the policy life cycle: write, send for review, approve, publish, retire.
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
-import { audienceUserIds, publishVersion, syncPolicyStatus } from './acknowledgements.ts';
+import { audienceUserIds, publishVersion, syncPolicyStatus } from './acknowledgments.ts';
 import { isDate, localDate } from './dates.ts';
 import { renderPolicyMarkdown } from './markdown.ts';
 
@@ -204,7 +204,7 @@ export function registerVersionRoutes(ctx: ModuleContext) {
     );
     await ctx.audit(req, {
       action: 'policy.retire', recordType: 'policy', recordId: policy.id,
-      summary: `${label(policy)} retired; ${closed.length} outstanding acknowledgement request${closed.length === 1 ? '' : 's'} closed`,
+      summary: `${label(policy)} retired; ${closed.length} outstanding acknowledgment request${closed.length === 1 ? '' : 's'} closed`,
       before: { status: policy.status }, after: { status: 'retired' },
     });
     return { ok: true, status: 'retired', closed: closed.length };

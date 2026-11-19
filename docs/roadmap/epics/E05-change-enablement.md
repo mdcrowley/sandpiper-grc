@@ -70,7 +70,7 @@ and everyone can see the register of planned and past changes.
 
 - Owner, actual start and end, outcome and outcome notes
 - The status moves only through `POST /api/changes/:id/transition`; the allowed moves are
-  enforced on the server, and a closed or cancelled change cannot be edited
+  enforced on the server, and a closed or canceled change cannot be edited
 - Register with count tiles and ready-made views: All changes, My changes, Awaiting
   approval, This week, Emergency
 - A guided "New change" flow: type, template or details, risk, plans, schedule
@@ -103,7 +103,7 @@ questions that give it a risk level, which decides how much approval it needs.
 - Questions, weights, answer scores and the score at which each level ends are edited on
   **Change settings > Risk questionnaire**; saving rescores drafts
 - The type and the risk assessment are fixed once a change is submitted
-- The behaviour of the built-in values `standard` (needs a template, no approval) and
+- The behavior of the built-in values `standard` (needs a template, no approval) and
   `emergency` (one approver, review compulsory) is in code; other types follow the rules
 
 **Implemented in**
@@ -259,7 +259,7 @@ and status, and on the relationship map I can see what else a change may affect.
       system (main system or `affects` link) with the blackout periods that apply to it; the
       change calendar takes `?system=<id>` so a system page can link to it
 - [ ] The relationship map can start from a change and highlight the systems it affects
-      and their neighbours
+      and their neighbors
 - [ ] Assets get the same panel
 
 ### E05-09 Route approvals to named approvers
@@ -336,4 +336,4 @@ Split out of E05-11.
 - **Actions** tab on a change (the shared Actions panel; review follow-ups appear there)
 - Changing the main system or asset writes its own link event in the change's history (`base.ts` `syncPrimaryLink`)
 - `/changes/new?start=<ISO>&end=<ISO>` fills the planned window
-- Transit-flavoured sample data, including a monthly month-end fare reconciliation blackout
+- Transit-flavored sample data, including a monthly month-end fare reconciliation blackout

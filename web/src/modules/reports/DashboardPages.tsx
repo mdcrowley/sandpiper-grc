@@ -9,7 +9,7 @@ import {
 import type { ApiError, ListResult } from '../../core';
 import { useUndo } from './BuilderParts';
 import { DashboardGrid } from './DashboardGrid';
-import { downloadFile, fileName, openDocument, useCatalogue } from './data';
+import { downloadFile, fileName, openDocument, useCatalog } from './data';
 import { ScheduleDialog, ShareDialog, useCanChange } from './dialogs';
 import { FilterBar, readGlobals, writeGlobals } from './FilterBar';
 import { readingOrder, settle } from './layout';
@@ -134,7 +134,7 @@ export function DashboardPage() {
   const [wall, setWall] = useState(false);
   const wallRef = useRef<HTMLDivElement>(null);
   const draft = useUndo<Draft>({ name: '', description: '', widgets: [], filters: [], refresh_seconds: null });
-  const { types } = useCatalogue();
+  const { types } = useCatalog();
 
   // Each time edit mode starts, the draft starts from the saved dashboard.
   useEffect(() => {

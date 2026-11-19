@@ -100,7 +100,7 @@ export function mappingProblem(m: MappingPair): Record<string, string> | null {
   return Object.keys(errors).length ? errors : null;
 }
 
-/** Names the parser should recognise: the configurable list, then every name already in use. */
+/** Names the parser should recognize: the configurable list, then every name already in use. */
 export async function knownNames(ctx: ModuleContext): Promise<string[]> {
   const listed = (await ctx.lookups.values(NAMES_LIST)).map((v) => v.label);
   const used = (await ctx.db.query<{ framework_name: string }>('select distinct framework_name from outcome_mappings')).map((r) => r.framework_name);

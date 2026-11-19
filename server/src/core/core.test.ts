@@ -37,7 +37,7 @@ const widgets: ModuleDef = {
       { value: 'done', label: 'Done', color: 'green' },
     ]);
     // Lists used by hand-written pages only: one owned by a module, one by a restricted module, one public, one untagged.
-    await ctx.lookups.ensure('widget_colour', [{ value: 'red', label: 'Red' }], { module: 'tickets' });
+    await ctx.lookups.ensure('widget_color', [{ value: 'red', label: 'Red' }], { module: 'tickets' });
     await ctx.lookups.ensure('secret_scenario', [{ value: 'zebra', label: 'Zebra scenario' }], { module: 'testsecrets' });
     await ctx.lookups.ensure('risk_only', [{ value: 'r', label: 'Risk-only value' }], { module: 'risks' });
     await ctx.lookups.ensure('everyone_list', [{ value: 'e', label: 'For everyone' }], { public: true });
@@ -256,7 +256,7 @@ describe('permissions and restricted records', () => {
       expect((await agent.get(`/api/widgets/stats?group=status&${q}`)).body.total).toBe(0);
       expect((await t.api.get(`/api/widgets/stats?group=status&${q}`)).body.total).toBe(0);
     }
-    // The pointer's reference to it is labelled "Restricted" for the agent; the count is the same.
+    // The pointer's reference to it is labeled "Restricted" for the agent; the count is the same.
     const byParent = (await agent.get('/api/widgets/stats?group=parent_id')).body;
     expect(byParent.groups.find((g: any) => g.value === hidden.body.id)).toMatchObject({ label: 'Restricted', count: 1 });
     expect(byParent.total).toBe((await t.api.get('/api/widgets/stats?group=parent_id')).body.total);
@@ -367,7 +367,7 @@ describe('list metadata (E01-23)', () => {
     const agent = await t.as('agent'); // tickets.*, no security.view, no risks.view
     const mine = await lists(agent);
     expect(mine).toContain('widget_status'); // a field of a record type they may view
-    expect(mine).toContain('widget_colour'); // owned by a module they hold view on
+    expect(mine).toContain('widget_color'); // owned by a module they hold view on
     expect(mine).toContain('everyone_list'); // public
     expect(mine).not.toContain('secret_scenario'); // owner module is restricted
     expect(mine).not.toContain('risk_only'); // no view on the owner module
@@ -376,16 +376,16 @@ describe('list metadata (E01-23)', () => {
     const viewer = await t.as('executive_viewer'); // no tickets permission at all
     const theirs = await lists(viewer);
     expect(theirs).toContain('everyone_list');
-    for (const l of ['widget_status', 'widget_colour', 'secret_scenario', 'risk_only', 'orphan_list']) expect(theirs).not.toContain(l);
+    for (const l of ['widget_status', 'widget_color', 'secret_scenario', 'risk_only', 'orphan_list']) expect(theirs).not.toContain(l);
 
     const all = await lists(t.api);
-    for (const l of ['widget_status', 'widget_colour', 'everyone_list', 'secret_scenario', 'risk_only', 'orphan_list']) expect(all).toContain(l);
+    for (const l of ['widget_status', 'widget_color', 'everyone_list', 'secret_scenario', 'risk_only', 'orphan_list']) expect(all).toContain(l);
   });
 
   it('applies the same rule to GET /api/lookups/:list', async () => {
     const agent = await t.as('agent');
     expect((await agent.get('/api/lookups/widget_status')).body.map((v: any) => v.value)).toContain('open');
-    expect((await agent.get('/api/lookups/widget_colour')).status).toBe(200);
+    expect((await agent.get('/api/lookups/widget_color')).status).toBe(200);
     expect((await agent.get('/api/lookups/everyone_list')).status).toBe(200);
     for (const l of ['secret_scenario', 'risk_only', 'orphan_list', 'no_such_list']) {
       const res = await agent.get(`/api/lookups/${l}`);
@@ -397,9 +397,9 @@ describe('list metadata (E01-23)', () => {
   });
 
   it('keeps the owner of a list when values are added later without one', async () => {
-    await t.ctx.lookups.ensure('widget_colour', [{ value: 'blue', label: 'Blue' }]); // as the organisation profile does
+    await t.ctx.lookups.ensure('widget_color', [{ value: 'blue', label: 'Blue' }]); // as the organization profile does
     const agent = await t.as('agent');
-    expect((await agent.get('/api/lookups/widget_colour')).body.map((v: any) => v.value).sort()).toEqual(['blue', 'red']);
+    expect((await agent.get('/api/lookups/widget_color')).body.map((v: any) => v.value).sort()).toEqual(['blue', 'red']);
   });
 });
 
@@ -468,7 +468,11 @@ describe('secret key and authenticator codes (E02-06, E02-07)', () => {
     expect(box.decrypt(sealed, 'totp:user-1')).toBe('JBSWY3DPEHPK3PXP');
     expect(() => box.decrypt(sealed, 'totp:user-2')).toThrow(); // copied onto another row
     expect(() => makeSecretBox(randomBytes(32)).decrypt(sealed, 'totp:user-1')).toThrow(); // wrong key
-    expect(() => box.decrypt(`${sealed.slice(0, -2)}AA`, 'totp:user-1')).toThrow(); // altered
+    // Altered: change the first character of the last part. (Changing the very last characters
+    // can leave the decoded bytes unchanged, because base64's final character is partly padding.)
+    const cut = sealed.lastIndexOf(':') + 1;
+    const altered = sealed.slice(0, cut) + (sealed[cut] === 'A' ? 'B' : 'A') + sealed.slice(cut + 1);
+    expect(() => box.decrypt(altered, 'totp:user-1')).toThrow();
     expect(box.decrypt('PLAINOLDSECRET', 'totp:user-1')).toBe('PLAINOLDSECRET'); // data from before encryption
     // A retired key still opens old values, which are then not "current".
     const next = makeSecretBox(randomBytes(32), [key]);

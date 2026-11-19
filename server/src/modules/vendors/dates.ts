@@ -1,9 +1,9 @@
-// Calendar-date helpers. Dates are 'YYYY-MM-DD' strings throughout; a day is a day in the organisation's time zone.
+// Calendar-date helpers. Dates are 'YYYY-MM-DD' strings throughout; a day is a day in the organization's time zone.
 import { todayInZone } from '../../core/timezone.ts';
 
 const DAY = 86_400_000;
 
-/** The calendar date in the organisation's time zone at the given instant. */
+/** The calendar date in the organization's time zone at the given instant. */
 export function localDate(now: Date = new Date()): string {
   return todayInZone(now);
 }

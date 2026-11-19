@@ -1,12 +1,12 @@
 -- Files attached to any record. The bytes live outside the database (see storage.ts);
--- this table holds what is needed to find, describe, check and authorise them.
+-- this table holds what is needed to find, describe, check and authorize them.
 
 create table attachments (
   id uuid primary key default gen_random_uuid(),
   -- The record the file belongs to. No foreign key: record types belong to other modules.
   record_type text not null,
   record_id uuid not null,
-  -- Display name, sanitised. Never used to build a storage path.
+  -- Display name, sanitized. Never used to build a storage path.
   file_name text not null,
   extension text not null default '',
   -- Decided by the server from the extension, never taken from the browser.

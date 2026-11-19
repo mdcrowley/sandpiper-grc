@@ -73,7 +73,7 @@ function Approval({ rec }: { rec: RecordContext }) {
       {row.approval_status === 'pending' ? (
         <div className="notice notice-pilot sd-cockpit-note">
           <Icon name="lock" size={16} />
-          <span className="sd-grow"><strong>Waiting for approval.</strong> Work can start once this request is approved. It can be assigned, paused or cancelled meanwhile.</span>
+          <span className="sd-grow"><strong>Waiting for approval.</strong> Work can start once this request is approved. It can be assigned, paused or canceled meanwhile.</span>
           {can('tickets.approve') && (
             <span className="row">
               <Button size="sm" variant="primary" icon="check" onClick={() => { setNote(''); setError(''); setDecision('approved'); }}>Approve</Button>

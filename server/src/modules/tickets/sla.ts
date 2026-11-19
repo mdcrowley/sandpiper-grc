@@ -68,7 +68,7 @@ const pad = (n: number) => String(n).padStart(2, '0');
 /** Opening window (as instants) for one local calendar day, or null when closed. */
 function windowFor(cal: CalendarDef, holidays: Set<string>, y: number, m: number, d: number): [number, number] | null {
   const noon = new Date(Date.UTC(y, m - 1, d, 12));
-  // Normalise overflow such as day 32.
+  // Normalize overflow such as day 32.
   const yy = noon.getUTCFullYear(), mo = noon.getUTCMonth() + 1, dd = noon.getUTCDate();
   if (holidays.has(`${yy}-${pad(mo)}-${pad(dd)}`)) return null;
   const hours = cal.hours?.[DAY_KEYS[noon.getUTCDay()]];

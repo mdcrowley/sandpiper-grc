@@ -3,7 +3,7 @@ import { Chart, statsToData } from '../../core';
 import type { StatsResult } from '../../core';
 
 /**
- * Horizontal bars, one per group of a stats response, in each group's configured colour and
+ * Horizontal bars, one per group of a stats response, in each group's configured color and
  * with the count written at the end of the bar. `onPick` receives the group's value.
  */
 export function GroupBars({ label, description, groups, onPick }: {

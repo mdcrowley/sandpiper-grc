@@ -121,13 +121,13 @@ export function ticketListHref(filters: Record<string, string | null | undefined
   return s ? `/tickets?${s}` : '/tickets';
 }
 
-/* ---------- catalogue ---------- */
+/* ---------- catalog ---------- */
 
 export interface Question { key: string; label: string; type: 'text' | 'longtext' | 'choice' | 'date' | 'yes_no'; required: boolean; options?: string[]; hint?: string }
 export interface Answer { key: string; label: string; value: string }
 export interface Task { title: string; done: boolean; done_at?: string | null; done_by_name?: string | null }
 
-/** The ticket fields a catalogue item may pre-fill (the same list as the server). */
+/** The ticket fields a catalog item may pre-fill (the same list as the server). */
 export const PREFILL_FIELDS = ['type', 'category', 'subcategory', 'title', 'description', 'impact', 'urgency', 'assignment_group', 'channel'];
 
 /* ---------- queue ---------- */
@@ -169,7 +169,7 @@ export const splitMinutes = (minutes: number) => ({ h: Math.floor(minutes / 60),
 export function nextStep(row: Row, cat: StatusCategory): string {
   if (row.approval_status === 'pending') return 'Waiting for approval before work can start.';
   if (row.approval_status === 'rejected' && cat !== 'closed') return 'Rejected: cancel it or ask for the decision to be changed.';
-  if (cat === 'closed') return row.status === 'cancelled' ? 'Cancelled. Nothing more to do.' : row.satisfaction_score ? 'Finished.' : 'Finished. Record the requester\u2019s satisfaction if you have it.';
+  if (cat === 'closed') return row.status === 'cancelled' ? 'Canceled. Nothing more to do.' : row.satisfaction_score ? 'Finished.' : 'Finished. Record the requester\u2019s satisfaction if you have it.';
   if (cat === 'resolved') return 'Close it once the requester confirms.';
   if (cat === 'paused') return 'Clock paused. Resume when you have what you need.';
   if (!row.assignee_id) return 'Nobody has it yet. Assign it to meet the response target.';

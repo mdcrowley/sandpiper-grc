@@ -2,7 +2,7 @@
 
 -- One row per registered authenticator credential. The public key is not secret; the private key
 -- never leaves the authenticator. A removed key keeps its row (revoked_at) so history stays readable
--- and a revoked credential is recognised and refused rather than treated as unknown.
+-- and a revoked credential is recognized and refused rather than treated as unknown.
 create table webauthn_credentials (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null,

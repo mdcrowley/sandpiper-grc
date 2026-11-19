@@ -111,7 +111,7 @@ export function currencyMarkers(code: string = CURRENCY): string[] {
 }
 
 /**
- * A total only when the whole cell is one amount in the organisation's currency (GRC_CURRENCY):
+ * A total only when the whole cell is one amount in the organization's currency (GRC_CURRENCY):
  * a bare number, or a number with that currency's code or symbol before or after it, such as
  * "$12,500.00", "12 500,00 EUR" or "£1,200". Thousands may be separated by commas, spaces,
  * apostrophes or full stops. Anything else, including another currency's symbol, gives nothing
@@ -147,7 +147,7 @@ const nothingOnFile = (documentText: string | null) =>
 const LEGAL_SUFFIX = new Set(['inc', 'incorporated', 'llc', 'ltd', 'limited', 'corp', 'corporation', 'co', 'company', 'plc', 'lp', 'llp']);
 
 /** Lower-case, no punctuation, no bracketed text, no trailing "Inc." and the like. */
-export function normaliseVendorName(name: string): string {
+export function normalizeVendorName(name: string): string {
   const tokens = name.toLowerCase().replace(/\([^)]*\)/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim().split(' ').filter(Boolean);
   while (tokens.length > 1 && LEGAL_SUFFIX.has(tokens[tokens.length - 1])) tokens.pop();
   return tokens.join(' ');
@@ -158,7 +158,7 @@ function vendorAliases(name: string): string[] {
   const out: string[] = [];
   for (const m of name.matchAll(/\(([^)]*)\)/g)) {
     for (const part of m[1].split(/,|;|\band\b/)) {
-      const n = normaliseVendorName(part.replace(/\s+as\s+.*$/i, ''));
+      const n = normalizeVendorName(part.replace(/\s+as\s+.*$/i, ''));
       if (n.length >= 3) out.push(n);
     }
   }
@@ -170,9 +170,9 @@ const sameName = (a: string, b: string) => a !== '' && b !== '' && (a === b || a
 /** The vendor that a system's free-text vendor name points at, if any. */
 export function matchVendor(systemVendorName: string, vendors: { id: string; name: string }[]): string | null {
   const primary = systemVendorName.split(/[;/]/)[0].replace(/\([^)]*\)/g, ' ').split(/\s+(?:through|via)\s+/i)[0];
-  const wanted = normaliseVendorName(primary);
+  const wanted = normalizeVendorName(primary);
   if (wanted.length < 3) return null;
-  const main = vendors.map((v) => ({ id: v.id, n: normaliseVendorName(v.name) }));
+  const main = vendors.map((v) => ({ id: v.id, n: normalizeVendorName(v.name) }));
   const exact = main.find((v) => v.n === wanted);
   if (exact) return exact.id;
   const close = main.filter((v) => sameName(v.n, wanted));
@@ -385,7 +385,7 @@ const DEV_VENDORS: DevVendor[] = [
     name: 'Harbour Signal Systems', services: 'Operations and scheduling software', criticality: 'critical',
     remote: 'Standing site-to-site VPN',
     contact: { name: 'Tomasz Zielinski', role: 'Support lead', email: 'support@harboursignal.example', phone: '555-0102' },
-    contract: { title: 'Harbour Signal support and licence agreement', type: 'agreement', renewal: 'option', startOffset: -400, endOffset: 110, noticeDays: 90, term: '2 years with three one-year options', total: 1250000, resolution: '2099-02', hosting: 'Vendor cloud' },
+    contract: { title: 'Harbour Signal support and license agreement', type: 'agreement', renewal: 'option', startOffset: -400, endOffset: 110, noticeDays: 90, term: '2 years with three one-year options', total: 1250000, resolution: '2099-02', hosting: 'Vendor cloud' },
     clauses: {
       breach_notice: ['present', 'Within 24 hours of discovery.'],
       data_ownership: ['partial', 'Customer owns its data; return on exit not covered.'],
@@ -441,7 +441,7 @@ const DEV_VENDORS: DevVendor[] = [
     name: 'Redbrick Managed IT', services: 'Managed firewalls, patching, monitoring and backups', criticality: 'critical',
     remote: 'Remote management tool with privileged access',
     contact: { name: 'Sam Achterberg', role: 'Service desk manager', email: 'servicedesk@redbrick.example', phone: '555-0106' },
-    contract: { title: 'Redbrick managed services agreement', type: 'none_on_file', renewal: 'unknown', startOffset: -1100, endOffset: 40, noticeDays: 90, term: 'Year to year', total: null, resolution: null, hosting: 'Vendor datacentre' },
+    contract: { title: 'Redbrick managed services agreement', type: 'none_on_file', renewal: 'unknown', startOffset: -1100, endOffset: 40, noticeDays: 90, term: 'Year to year', total: null, resolution: null, hosting: 'Vendor datacenter' },
     clauses: {},
     evidence: [
       { title: 'Certificate of insurance', type: 'insurance_certificate', receivedOffset: -400, expiresOffset: -35 },
@@ -474,7 +474,7 @@ async function seedDev(ctx: ModuleContext, stats: Stats): Promise<number> {
     const none = c.type === 'none_on_file';
     const contract = await upsertContract(ctx, vendor.id, 'dev-sample', { hosting: c.hosting }, {
       title: c.title, document_type: c.type, status: none ? 'not_on_file' : 'active', renewal_mechanism: c.renewal,
-      parties: `Sample Organisation; ${v.name}`, term: c.term,
+      parties: `Sample Organization; ${v.name}`, term: c.term,
       start_date: addDays(today, c.startOffset), end_date: addDays(today, c.endOffset),
       notice_days: c.noticeDays, total_value: c.total, resolution_number: c.resolution,
     }, stats);

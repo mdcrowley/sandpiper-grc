@@ -1,8 +1,8 @@
-// Policies and exceptions: the policy library with versions and acknowledgements, and the
+// Policies and exceptions: the policy library with versions and acknowledgments, and the
 // register of time-limited exceptions.
 import type { ModuleDef } from '../../core';
 import { ExceptionDetail, ExceptionList } from './ExceptionPages';
-import { MyAcknowledgements } from './MyAcknowledgements';
+import { MyAcknowledgments } from './MyAcknowledgments';
 import { PolicyEditor } from './PolicyEditor';
 import { PolicyLibrary } from './PolicyLibrary';
 import { PolicyDetail } from './PolicyPage';
@@ -14,13 +14,13 @@ const mod: ModuleDef = {
   nav: [
     { group: 'Cybersecurity', label: 'Policies', path: '/policies', icon: 'file-text', permission: 'policies.view', order: 80 },
     // No permission: everyone who is asked to acknowledge a policy needs to reach their own list.
-    { group: 'Cybersecurity', label: 'My acknowledgements', path: '/policies/acknowledgements', icon: 'check-square', order: 85 },
+    { group: 'Cybersecurity', label: 'My acknowledgments', path: '/policies/acknowledgments', icon: 'check-square', order: 85 },
     { group: 'Cybersecurity', label: 'Exceptions', path: '/exceptions', icon: 'clock', permission: 'exceptions.view', order: 90 },
   ],
   routes: [
     { path: '/policies', element: <PolicyLibrary />, permission: 'policies.view' },
-    { path: '/policies/acknowledgements', element: <MyAcknowledgements /> },
-    { path: '/policies/acknowledgements/:ackId', element: <PolicyReader /> },
+    { path: '/policies/acknowledgments', element: <MyAcknowledgments /> },
+    { path: '/policies/acknowledgments/:ackId', element: <PolicyReader /> },
     { path: '/policies/:id', element: <PolicyDetail />, permission: 'policies.view' },
     { path: '/policies/:id/edit', element: <PolicyEditor />, permission: 'policies.edit' },
     { path: '/exceptions', element: <ExceptionList />, permission: 'exceptions.view' },

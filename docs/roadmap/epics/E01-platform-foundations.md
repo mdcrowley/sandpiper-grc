@@ -38,8 +38,8 @@ user should find every list and record behaving the same way.
 | E01-14 | Comments on any record | done | P2 |
 | E01-15 | Links between records | done | P2 |
 | E01-16 | Global search | done | P2 |
-| E01-17 | Organisation profile and seed command | done | P1 |
-| E01-18 | Organisation time zone and currency | done | P2 |
+| E01-17 | Organization profile and seed command | done | P1 |
+| E01-18 | Organization time zone and currency | done | P2 |
 | E01-19 | Application shell, navigation and themes | done | P1 |
 | E01-20 | Request protection: security header check and response headers | done | P1 |
 | E01-21 | Re-authentication before administrative actions | done | P2 |
@@ -221,7 +221,7 @@ and export the result. Nobody can edit or delete audit events.
 
 **Status:** done · **Priority:** P1 · **Type:** feature
 
-As an administrator, I can add, rename, recolour, reorder and retire the values of any
+As an administrator, I can add, rename, recolor, reorder and retire the values of any
 list (statuses, priorities, categories and so on) without a code change.
 
 **Acceptance criteria**
@@ -334,13 +334,13 @@ records of any type I am allowed to see.
 Search is now full-text, ranked, with snippets, comments and file names: see
 [E14-07](E14-platform-services.md).
 
-### E01-17 Organisation profile and seed command
+### E01-17 Organization profile and seed command
 
 **Status:** done · **Priority:** P1 · **Type:** feature
 
-As the person setting up an installation, I describe my organisation in one private
+As the person setting up an installation, I describe my organization in one private
 file (name, extra list values, obligations, notification rules) and load it with one
-command, so nothing about my organisation lives in the code.
+command, so nothing about my organization lives in the code.
 
 **Acceptance criteria**
 
@@ -351,13 +351,13 @@ command, so nothing about my organisation lives in the code.
 - [x] Seeding can be run repeatedly without duplicating or overwriting edits
 - [x] An invented example profile ships in `examples/`
 
-**Implemented in:** `server/src/cli.ts`; each module's `seed.ts`; `examples/organisation.example.json`
+**Implemented in:** `server/src/cli.ts`; each module's `seed.ts`; `examples/organization.example.json`
 
-### E01-18 Organisation time zone and currency
+### E01-18 Organization time zone and currency
 
 **Status:** done · **Priority:** P2 · **Type:** feature
 
-As an administrator, I set the organisation's time zone and currency once and dates and
+As an administrator, I set the organization's time zone and currency once and dates and
 amounts are shown accordingly.
 
 **Acceptance criteria**
@@ -570,7 +570,7 @@ do not, and the prompt lives in the administration module rather than the shared
 
 **Status:** done · **Priority:** P2 · **Type:** debt
 
-`GRC_TRUST_PROXY` is honoured by core helpers (`clientIp`, `isHttps`) used for the
+`GRC_TRUST_PROXY` is honored by core helpers (`clientIp`, `isHttps`) used for the
 session cookie, rate limits, sessions and the audit log, and now by the web server
 itself, so modules that read `req.ip`, `req.protocol` or `req.hostname` get the same
 answer. It also accepts a list of proxy addresses, ranges and keywords

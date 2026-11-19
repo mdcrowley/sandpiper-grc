@@ -30,7 +30,7 @@ let editor: Client;  // may record and edit exceptions, may not approve
 let policyId: string;
 let id: string;
 
-// Days in the organisation's time zone, as the server counts them (a UTC date is a day out in the evening).
+// Days in the organization's time zone, as the server counts them (a UTC date is a day out in the evening).
 const day = (offset: number) => addDays(localDate(), offset);
 const events = (recordId: string) =>
   t.db.query<any>(`select * from audit_events where record_type = 'policy_exception' and record_id = $1 order by id`, [recordId]);

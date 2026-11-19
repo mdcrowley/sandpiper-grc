@@ -14,7 +14,7 @@ Open **Vehicles**. The list shows each vehicle's **Fleet number**, **Mode**, **S
 2. Enter the **Fleet number** (it must be unique) and choose the **Mode**: **Bus**, **Trolleybus**, **Light rail**, **Heavy rail**, **Paratransit / demand-responsive** or **Ferry**.
 3. Choose the **Status**: **In service**, **Spare**, **In maintenance**, **Out of service** or **Retired**.
 4. Choose the **Depot or garage** (a site from the inventory), and enter the **Make**, **Model**, **Model year** (four digits), **Registration or vehicle number**, **In service since** and **Passenger capacity** if you know them.
-5. If an outside funder paid for part of the vehicle, choose the **Funding source**, tick **Funder interest** and enter the **Funder interest (%)**, as for assets.
+5. If an outside funder paid for part of the vehicle, choose the **Funding source**, check **Funder interest** and enter the **Funder interest (%)**, as for assets.
 6. Select **Create vehicle**.
 
 A vehicle that still has equipment installed cannot be set to **Retired**: remove the equipment first.
@@ -53,7 +53,7 @@ Open **Equipment coverage**. The tiles count the vehicles (retired ones are left
 
 | Mark | Meaning |
 |---|---|
-| Tick | **Working**: equipment of that kind is installed and in use |
+| Check mark | **Working**: equipment of that kind is installed and in use |
 | Exclamation mark | **Installed, not working**: installed, but the asset is in repair or otherwise not in use |
 | Cross | **Missing**: nothing of that kind is installed |
 | Dash | **Not needed for this mode** |
@@ -62,7 +62,7 @@ Each column heading says how many gaps it has, and the **Gaps** column counts th
 
 ### Required equipment
 
-Administrators (`fleet.administer`) select **Required equipment** to tick the kinds of equipment each mode should carry, and **Save**. The kinds are the asset types of the inventory, so a new type added under **Administration > Lookups** appears here too.
+Administrators (`fleet.administer`) select **Required equipment** to check the kinds of equipment each mode should carry, and **Save**. The kinds are the asset types of the inventory, so a new type added under **Administration > Lookups** appears here too.
 
 ## Services
 

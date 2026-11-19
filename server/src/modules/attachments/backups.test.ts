@@ -50,7 +50,9 @@ afterAll(async () => {
   rmSync(scratch, { recursive: true, force: true });
 });
 
-describe('backups taken by the running server', () => {
+// The server's own backups copy the embedded database; with a PostgreSQL server they are refused
+// and pg_dump is used instead, so these tests do not apply to a real server (GRC_TEST_DATABASE_URL).
+describe.skipIf(Boolean(process.env.GRC_TEST_DATABASE_URL))('backups taken by the running server', () => {
   it('starts switched off, and checks the settings', async () => {
     const o = (await t.api.get('/api/backups')).body;
     expect(o.settings).toMatchObject({ enabled: false, time: '02:00', keep: 14, destination: 'folder', encrypt: false });

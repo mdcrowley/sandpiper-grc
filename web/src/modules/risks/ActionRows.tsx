@@ -75,7 +75,7 @@ function OwnerCell({ row, editable, onChanged }: { row: Row; editable: boolean; 
 
 export interface ActionRowsProps {
   rows: Row[];
-  /** Today as `YYYY-MM-DD` in the organisation's time zone. */
+  /** Today as `YYYY-MM-DD` in the organization's time zone. */
   today: string;
   openStatuses?: string[];
   /** Called after any row changes, to reload. */

@@ -35,7 +35,7 @@ function Diamond({ state }: { state: 'done' | 'late' | 'todo' }) {
 
 /**
  * Milestone-level Gantt chart: one row per project, a bar from start to target date in the
- * colour of the project's stage, a diamond per milestone and a line for today.
+ * color of the project's stage, a diamond per milestone and a line for today.
  */
 export function PortfolioTimeline({ rows, today }: { rows: PortfolioRow[]; today: string }) {
   const stages = useLookup('project_stage');

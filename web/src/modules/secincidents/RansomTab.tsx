@@ -45,7 +45,7 @@ export function RansomTab({ rec }: { rec: RecordContext }) {
         <div>
           <strong>A ransom payment needs a recorded approval.</strong>
           <p>
-            Your organisation's policy or the law may require formal approval before a ransom is paid. This record cannot be
+            Your organization's policy or the law may require formal approval before a ransom is paid. This record cannot be
             set to "Approved" until the governing body approval reference is entered. Every change here is written to the history and to the incident log.
           </p>
         </div>

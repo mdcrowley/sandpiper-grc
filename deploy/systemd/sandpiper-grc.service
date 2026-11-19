@@ -1,0 +1,72 @@
+# Sandpiper GRC as a systemd service (Linux). See docs/installation.md, "Linux".
+#
+# Assumes the application in /opt/sandpiper-grc, owned by root and readable by everyone, with
+# Node.js in /opt/sandpiper-grc/.tools/node (tools/install-node.sh) and the web application
+# built (./grc.sh install && ./grc.sh build), and a system user to run it:
+#
+#   sudo useradd --system --home-dir /var/lib/sandpiper-grc --shell /usr/sbin/nologin sandpiper
+#   sudo install -d -m 750 -o root -g sandpiper /etc/sandpiper-grc
+#   sudo install -m 640 -o root -g sandpiper /dev/null /etc/sandpiper-grc/env   # then edit it
+#   sudo cp deploy/systemd/sandpiper-grc.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now sandpiper-grc
+#   journalctl -u sandpiper-grc -f
+#
+# Everything the application writes is under /var/lib/sandpiper-grc (StateDirectory): the data
+# folder, the secret key beside it (data.secret.key) and backups. Run operations commands as the
+# same user with the same environment, with the service stopped, for example:
+#   sudo systemctl stop sandpiper-grc
+#   sudo -u sandpiper sh -c 'set -a; . /etc/sandpiper-grc/env; GRC_DATA_DIR=/var/lib/sandpiper-grc/data \
+#     GRC_BACKUP_DIR=/var/lib/sandpiper-grc/backups; exec /opt/sandpiper-grc/grc.sh seed --profile dev'
+#   sudo systemctl start sandpiper-grc
+# Daily backups: sandpiper-grc-backup.service and .timer in this folder.
+
+[Unit]
+Description=Sandpiper GRC
+Documentation=https://github.com/mdcrowley/sandpiper-grc/blob/main/docs/installation.md
+After=network-online.target
+Wants=network-online.target
+# With a PostgreSQL server on the same machine, also:
+# After=postgresql.service
+
+[Service]
+Type=simple
+User=sandpiper
+Group=sandpiper
+WorkingDirectory=/opt/sandpiper-grc
+Environment=NODE_ENV=production
+Environment=GRC_DATA_DIR=/var/lib/sandpiper-grc/data
+Environment=GRC_BACKUP_DIR=/var/lib/sandpiper-grc/backups
+Environment=GRC_SEED_DIR=/var/lib/sandpiper-grc/seed
+Environment=GRC_PORT=8080
+# Behind a reverse proxy on this machine (docs/installation.md, "Reverse proxy"):
+Environment=GRC_TRUST_PROXY=loopback
+# Your settings: GRC_TIMEZONE, GRC_CURRENCY, GRC_DATABASE_URL, GRC_DATABASE_PASSWORD_FILE, ...
+EnvironmentFile=-/etc/sandpiper-grc/env
+# The server is TypeScript run by Node.js's built-in type transformation, as in the container.
+ExecStart=/opt/sandpiper-grc/.tools/node/bin/node --experimental-transform-types --disable-warning=ExperimentalWarning server/src/main.ts
+# A terminate signal makes the server finish requests in progress and close the database.
+KillSignal=SIGTERM
+TimeoutStopSec=30
+Restart=on-failure
+RestartSec=5
+
+StateDirectory=sandpiper-grc
+StateDirectoryMode=0750
+UMask=0027
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

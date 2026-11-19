@@ -1,5 +1,5 @@
 // The portal's own layout: a light header with the way home, "My requests" and the person's menu,
-// and one centred column. No agent navigation. App.tsx renders this for every /portal address.
+// and one centered column. No agent navigation. App.tsx renders this for every /portal address.
 import { lazy, Suspense, useEffect, useState, type ComponentType } from 'react';
 import { Link, NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import { ActionIcon, Menu as MMenu, UnstyledButton } from '@mantine/core';
@@ -9,7 +9,7 @@ import {
 import { Logo } from '../../core/Logo';
 import { ConfigProvider, type PortalConfig } from './parts';
 import { PortalHome } from './Home';
-import { CataloguePage } from './CataloguePage';
+import { CatalogPage } from './CatalogPage';
 import { RequestForm, ReportProblem } from './RequestForm';
 import { MyRequests } from './MyRequests';
 import { RequestDetail } from './RequestDetail';
@@ -107,7 +107,7 @@ export function PortalApp() {
       <ConfigProvider value={config}>
         <Routes>
           <Route path="/portal" element={<PortalHome />} />
-          <Route path="/portal/catalogue" element={<CataloguePage />} />
+          <Route path="/portal/catalog" element={<CatalogPage />} />
           <Route path="/portal/new/:itemId" element={<RequestForm />} />
           <Route path="/portal/report" element={<ReportProblem />} />
           <Route path="/portal/requests" element={<MyRequests />} />

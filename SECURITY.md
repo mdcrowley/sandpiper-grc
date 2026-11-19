@@ -45,13 +45,13 @@ report and need a private channel. Put no detail in it.
   (a different port, a proxy in front).
 - Any suggestion for a fix, if you have one.
 
-Please **do not include real data**: no real organisation, people, records, passwords or
+Please **do not include real data**: no real organization, people, records, passwords or
 tokens. Use the invented sample data, and remove anything real from logs and
 screenshots.
 
 ### What to expect
 
-- This is a small, volunteer-maintained project. You will get an acknowledgement and an
+- This is a small, volunteer-maintained project. You will get an acknowledgment and an
   honest assessment as soon as the maintainers can manage; no response time is
   guaranteed.
 - If the report is accepted, the fix is developed in the private advisory, released,

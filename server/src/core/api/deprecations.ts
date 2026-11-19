@@ -5,6 +5,10 @@
  * first: every answer from the route then carries `Deprecation: @<unix time>` (RFC 9745), a
  * `Sunset` date when one is set, and a `Link` to the notice; the OpenAPI document marks the
  * operation `deprecated: true` and gives the notice in its description.
+ *
+ * A renamed route sets `replacement`: the route is registered at its new path only, and
+ * versioning.ts serves it at the old `path` too (same handler, hooks and permissions), so
+ * integrations that use the old path keep working while they are told to move.
  */
 export interface Deprecation {
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -18,6 +22,21 @@ export interface Deprecation {
   notice: string;
   /** A page explaining the change. */
   link?: string;
+  /** For a renamed route: the new path (unversioned, as registered). The old `path` is served as an alias of it. */
+  replacement?: string;
 }
 
-export const DEPRECATIONS: Deprecation[] = [];
+/** A route renamed to American spelling; the British path stays as a deprecated alias. */
+const renamed = (method: Deprecation['method'], path: string, replacement: string): Deprecation => ({
+  method, path, replacement, since: '2026-11-19',
+  notice: `Renamed to American spelling: use ${method} ${replacement} instead (same request and answer).`,
+});
+
+export const DEPRECATIONS: Deprecation[] = [
+  renamed('GET', '/api/policies/acknowledgements/mine', '/api/policies/acknowledgments/mine'),
+  renamed('GET', '/api/policies/acknowledgements/:ackId', '/api/policies/acknowledgments/:ackId'),
+  renamed('POST', '/api/policies/acknowledgements/:ackId/acknowledge', '/api/policies/acknowledgments/:ackId/acknowledge'),
+  renamed('GET', '/api/policies/:id/acknowledgements', '/api/policies/:id/acknowledgments'),
+  renamed('GET', '/api/portal/catalogue', '/api/portal/catalog'),
+  renamed('GET', '/api/reports/catalogue', '/api/reports/catalog'),
+];

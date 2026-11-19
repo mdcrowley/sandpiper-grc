@@ -1,0 +1,53 @@
+# Adds a PostgreSQL server to compose.yaml and points the application at it. See docs/docker.md.
+#
+# Before the first start, write the database password to a file (it is git-ignored):
+#   openssl rand -hex 24 > deploy/secrets/db_password.txt
+# then:
+#   docker compose -f compose.yaml -f compose.postgres.yaml up -d
+#
+# The password reaches both containers as a secret file under /run/secrets, never as an
+# environment variable. Attached files, backups and the secret key stay in the application's
+# volumes; the database lives in the grc-pg volume.
+#
+# To avoid typing both files every time, put COMPOSE_FILE=compose.yaml:compose.postgres.yaml in
+# .env (with ; instead of : on Windows).
+
+services:
+  app:
+    depends_on:
+      db:
+        condition: service_healthy
+    secrets:
+      - db_password
+    environment:
+      GRC_DATABASE_URL: postgres://grc@db:5432/grc
+      GRC_DATABASE_PASSWORD_FILE: /run/secrets/db_password
+      # The database is on the compose network only. Use require or verify for a server elsewhere.
+      GRC_DATABASE_SSL: "off"
+
+  db:
+    image: postgres:17-bookworm
+    restart: unless-stopped
+    shm_size: 128mb
+    environment:
+      POSTGRES_USER: grc
+      POSTGRES_DB: grc
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+      # Byte-order sorting and UTF-8, the same as the embedded database.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale-provider=builtin --locale=C.UTF-8"
+    secrets:
+      - db_password
+    volumes:
+      - grc-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U grc -d grc"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+secrets:
+  db_password:
+    file: ./deploy/secrets/db_password.txt
+
+volumes:
+  grc-pg:

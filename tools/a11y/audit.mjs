@@ -67,7 +67,7 @@ async function audit(target, theme, width) {
     await page.type('risk');
     await sleep(600);
   }
-  await sleep(250); // let transitions finish so colours are measured at rest
+  await sleep(250); // let transitions finish so colors are measured at rest
   page.takeProblems();
   const result = await page.eval(`(async () => {
     if (!window.axe) { ${axeSource}\n }

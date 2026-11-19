@@ -4,7 +4,7 @@
 
 ## Goal
 
-Let a small IT team log, prioritise and resolve incidents and requests against agreed
+Let a small IT team log, prioritize and resolve incidents and requests against agreed
 service levels, learn from repeated faults through problems and known errors, and share
 what they know in a knowledge base.
 
@@ -29,12 +29,12 @@ what they know in a knowledge base.
 | E03-07 | Major incidents with child tickets and review | done | P2 |
 | E03-08 | Problems and known errors | done | P2 |
 | E03-09 | Knowledge base with versions and feedback | done | P2 |
-| E03-10 | Service catalogue | done | P2 |
+| E03-10 | Service catalog | done | P2 |
 | E03-11 | Screen for the priority matrix | done | P1 |
 | E03-12 | Screen for targets, calendars and holidays | done | P1 |
 | E03-13 | Warnings before and at a missed target | done | P2 |
 | E03-14 | Escalation rules | done | P2 |
-| E03-15 | Catalogue items with their own form and fulfilment steps | done | P2 |
+| E03-15 | Catalog items with their own form and fulfillment steps | done | P2 |
 | E03-16 | Enforce the "agents only" article audience | done | P2 |
 | E03-17 | Add and remove working calendars | done | P3 |
 | E03-18 | Agent workspace: ticket cockpit, quick actions, fast logging, queues | done | P1 |
@@ -193,21 +193,21 @@ version, and readers can say whether an article helped.
 
 **Implemented in:** `knowledge_article` resource, `GET /api/knowledge/:id/versions`, `POST /api/knowledge/:id/feedback` (`server/src/modules/tickets/index.ts`); `web/src/modules/tickets/Knowledge.tsx`
 
-### E03-10 Service catalogue
+### E03-10 Service catalog
 
 **Status:** done · **Priority:** P2 · **Type:** feature
 
-As an agent, I pick a catalogue item (for example "new starter") and get a ticket with
+As an agent, I pick a catalog item (for example "new starter") and get a ticket with
 the type, category and other values already filled in.
 
 **Acceptance criteria**
 
-- [x] Catalogue items with name, description, category and active flag
+- [x] Catalog items with name, description, category and active flag
 - [x] Each item carries the values it pre-fills on the ticket
-- [x] A starter catalogue is added once and then belongs to administrators
-- [x] Catalogue list and detail pages
+- [x] A starter catalog is added once and then belongs to administrators
+- [x] Catalog list and detail pages
 
-**Implemented in:** `catalog_item` resource (`server/src/modules/tickets/index.ts`), `CATALOGUE` in `defaults.ts`; `web/src/modules/tickets/Catalogue.tsx`. The tiles and the shortcuts in the new-ticket dialog were added with E03-18.
+**Implemented in:** `catalog_item` resource (`server/src/modules/tickets/index.ts`), `CATALOG` in `defaults.ts`; `web/src/modules/tickets/Catalog.tsx`. The tiles and the shortcuts in the new-ticket dialog were added with E03-18.
 
 ### E03-11 Screen for the priority matrix
 
@@ -274,22 +274,22 @@ escalated by rule to a named person or group.
 
 **Implemented in:** `escalate` and `registerAutomation` in `server/src/modules/tickets/automation.ts` (`/api/tickets/escalation-rules`, `GET /api/tickets/:id/escalations`); `EscalationSettings` in `web/src/modules/tickets/SettingsAutomation.tsx`
 
-### E03-15 Catalogue items with their own form and fulfilment steps
+### E03-15 Catalog items with their own form and fulfillment steps
 
 **Status:** done · **Priority:** P2 · **Type:** feature
 
-As a requester or agent, choosing a catalogue item shows the questions that item needs
-and creates the tasks to fulfil it.
+As a requester or agent, choosing a catalog item shows the questions that item needs
+and creates the tasks to fulfill it.
 
 **Acceptance criteria**
 
 - [x] Each item can define extra questions (short text, long text, one of a list, date, yes or no; required or not)
 - [x] Answers are stored on the ticket (`catalog_answers`, shown as Request details)
 - [x] An item can require approval before work starts (`POST /api/tickets/:id/approval`, `tickets.approve`; the ticket cannot start or resolve until approved)
-- [x] An item can create a checklist of fulfilment tasks (who ticked each and when is kept)
+- [x] An item can create a checklist of fulfillment tasks (who checked each and when is kept)
 - [x] The raw-JSON "values" field is replaced by a form
 
-**Implemented in:** `server/src/modules/tickets/catalogue.ts`; `web/src/modules/tickets/CatalogueDesigner.tsx`, `Catalogue.tsx`, `NewTicketDialog.tsx`, the approval notice in `Cockpit.tsx` and the checklist in `TicketDetail.tsx`
+**Implemented in:** `server/src/modules/tickets/catalog.ts`; `web/src/modules/tickets/CatalogDesigner.tsx`, `Catalog.tsx`, `NewTicketDialog.tsx`, the approval notice in `Cockpit.tsx` and the checklist in `TicketDetail.tsx`
 
 ### E03-16 Enforce the "agents only" article audience
 
@@ -333,7 +333,7 @@ queues are one click away.
 
 - [x] The ticket page shows status with the next step, both clocks with time used, and the assignee in one strip under the header
 - [x] One-click actions: assign to me, start work, pause, resume, resolve, close, reopen; the rest under More actions
-- [x] New ticket: sensible defaults, catalogue shortcuts, the priority and due times from impact and urgency shown live, likely duplicates and knowledge articles while the title is typed, "Log and add another", Ctrl+Enter, the N shortcut
+- [x] New ticket: sensible defaults, catalog shortcuts, the priority and due times from impact and urgency shown live, likely duplicates and knowledge articles while the title is typed, "Log and add another", Ctrl+Enter, the N shortcut
 - [x] Queue presets with live counts (`GET /api/tickets/queue-counts`), kept in the address and added to the saved views
 - [x] A dashboard of the desk now and in a period, every tile and bar drilling down to the list
 - [x] Bulk edit of assignee, group, status, priority, category and type

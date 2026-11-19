@@ -22,7 +22,7 @@ export const PROMPTS: PromptSpec[] = [
       '1. Call risk_heatmap (residual) and list the ten highest-rated open risks with owner and score.',
       '2. Call overdue_summary and list overdue actions, oldest first, grouped by owner.',
       '3. Call list_records for type "action" with filters {"status": ["open","in_progress","blocked"], "due_on.lt": <date two weeks from today>} sorted by due_on for what falls due soon.',
-      '4. For any blocked action or any risk whose review is due, call get_record and summarise why.',
+      '4. For any blocked action or any risk whose review is due, call get_record and summarize why.',
       'Finish with three to five decisions or follow-ups for this week.',
       CLOSING,
     ].join('\n'),

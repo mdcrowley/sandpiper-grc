@@ -27,7 +27,7 @@ export const SETTING_BACKUPS = 'backups.schedule';
 
 export interface BackupSettings {
   enabled: boolean;
-  /** Time of day, HH:mm, in the organisation's time zone. */
+  /** Time of day, HH:mm, in the organization's time zone. */
   time: string;
   /** Archives kept at the destination. */
   keep: number;
@@ -53,7 +53,7 @@ export async function readBackupSettings(ctx: ModuleContext): Promise<BackupSett
   return { ...DEFAULT_BACKUPS, ...(raw && typeof raw === 'object' ? raw as Row : {}) } as BackupSettings;
 }
 
-/** Hour and minute now in the organisation's time zone, as HH:mm. */
+/** Hour and minute now in the organization's time zone, as HH:mm. */
 export function nowInZone(at = new Date()): string {
   return new Intl.DateTimeFormat('en-GB', { timeZone: TIME_ZONE, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(at);
 }

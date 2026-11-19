@@ -140,7 +140,7 @@ function Summary({ row, reload }: RecordContext) {
           {row.import_batch_id
             ? <>Last reported by an <Link to={`/vulnerabilities/imports/${row.import_batch_id}`}>import</Link>. </>
             : null}
-          An import recognises this finding by its host, port and finding ID, and updates it rather than adding another.
+          An import recognizes this finding by its host, port and finding ID, and updates it rather than adding another.
         </p>
       </div>
     </div>

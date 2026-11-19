@@ -184,7 +184,7 @@ describe('stages and gates', () => {
 });
 
 describe('status reports', () => {
-  it('denormalises the latest ratings and returns the trend', async () => {
+  it('denormalizes the latest ratings and returns the trend', async () => {
     const p = await make({ name: 'Reported' });
     const base = { accomplishments: 'Done things', next_steps: 'More things' };
     expect((await t.api.post(`/api/projects/${p.id}/status-reports`, { period_end: '2026-09-30', overall: 'purple' })).status).toBe(400);

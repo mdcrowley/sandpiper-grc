@@ -1,5 +1,5 @@
 // Frameworks and their structure: add a framework from a reference file, download one as a
-// file, and add, rename, recolour, reorder and remove functions and categories.
+// file, and add, rename, recolor, reorder and remove functions and categories.
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -13,8 +13,8 @@ import { rememberFramework } from './boardState';
 import type { ImportResult, Structure, StructureCategory, StructureFunction } from './types';
 import { frameworkTitle } from './types';
 
-const COLOURS: ColorName[] = ['purple', 'blue', 'teal', 'green', 'amber', 'orange', 'red', 'gray'];
-const COLOUR_OPTIONS = COLOURS.map((c) => ({ value: c, label: c[0].toUpperCase() + c.slice(1), color: c }));
+const COLORS: ColorName[] = ['purple', 'blue', 'teal', 'green', 'amber', 'orange', 'red', 'gray'];
+const COLOR_OPTIONS = COLORS.map((c) => ({ value: c, label: c[0].toUpperCase() + c.slice(1), color: c }));
 
 interface DraftCategory extends StructureCategory { isNew?: boolean }
 interface DraftFunction extends Omit<StructureFunction, 'categories'> { isNew?: boolean; categories: DraftCategory[] }
@@ -196,7 +196,7 @@ function StructureEditor({ frameworkId, canEdit }: { frameworkId: string; canEdi
           <div className="fw-edit-row fw-edit-row-fn">
             <TextField label="Code" size="xs" className="fw-edit-code" value={f.code} disabled={!canEdit || !f.isNew} onChange={(v) => setFn(i, { code: v })} />
             <TextField label="Function name" size="xs" className="fw-edit-name" value={f.name} disabled={!canEdit} onChange={(v) => setFn(i, { name: v })} />
-            <Select label="Colour" size="xs" className="fw-edit-colour" required value={f.color} disabled={!canEdit} options={COLOUR_OPTIONS}
+            <Select label="Color" size="xs" className="fw-edit-color" required value={f.color} disabled={!canEdit} options={COLOR_OPTIONS}
               onChange={(v) => v && setFn(i, { color: v as ColorName })} />
             {canEdit && (
               <div className="fw-edit-tools">

@@ -56,7 +56,7 @@ async function ensureBaseline(ctx: ModuleContext, frameworkId: string): Promise<
   return true;
 }
 
-// ---------- pilot: the organisation's own files (each is optional) ----------
+// ---------- pilot: the organization's own files (each is optional) ----------
 
 async function seedPilot(ctx: ModuleContext, opts: SeedOptions): Promise<string> {
   const ref = loadCsf2();

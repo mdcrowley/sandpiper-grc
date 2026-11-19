@@ -5,8 +5,8 @@ import { initials } from './types';
 
 /**
  * One horizontal bar split by status, widths in proportion to the counts. Each segment
- * carries its own hover text; the counts or the legend name the colours, so meaning is never
- * carried by colour alone.
+ * carries its own hover text; the counts or the legend name the colors, so meaning is never
+ * carried by color alone.
  */
 export function StatusBar({ tally, scale, label, showCounts, thick }: {
   tally: Tally; scale: ScaleValue[]; label: string; showCounts?: boolean; thick?: boolean;
@@ -39,7 +39,7 @@ export function StatusBar({ tally, scale, label, showCounts, thick }: {
 
 export function StatusLegend({ scale }: { scale: ScaleValue[] }) {
   return (
-    <ul className="fw-legend" aria-label="Status colours">
+    <ul className="fw-legend" aria-label="Status colors">
       {scale.map((s) => (
         <li key={s.value}>
           <span className="fw-swatch" style={{ background: `var(--c-${s.color}-solid)` }} />

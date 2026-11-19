@@ -1,4 +1,4 @@
-// The Customise panel: which widgets show and in what order. No dragging: every row has a
+// The Customize panel: which widgets show and in what order. No dragging: every row has a
 // switch and Move up / Move down buttons, so it works the same with a keyboard.
 import { useEffect, useRef, useState } from 'react';
 import { Button, Drawer, IconButton, Switch } from '../../core';
@@ -7,21 +7,21 @@ import type { WidgetDef, WidgetGroup } from './types';
 
 const GROUPS: WidgetGroup[] = ['mywork', 'dashboard'];
 
-export interface CustomiseResult {
+export interface CustomizeResult {
   /** The ids of the widgets offered, in the order chosen. */
   order: string[];
   /** Those of them switched off. */
   hidden: string[];
 }
 
-export function CustomiseDialog({ open, widgets, order, hidden, onSave, onClose }: {
+export function CustomizeDialog({ open, widgets, order, hidden, onSave, onClose }: {
   open: boolean;
   /** The widgets this person can have, in default order. */
   widgets: WidgetDef[];
   /** Their ids in the order now on screen. */
   order: string[];
   hidden: string[];
-  onSave: (result: CustomiseResult) => void;
+  onSave: (result: CustomizeResult) => void;
   onClose: () => void;
 }) {
   const [draft, setDraft] = useState<string[]>(order);
@@ -81,7 +81,7 @@ export function CustomiseDialog({ open, widgets, order, hidden, onSave, onClose 
   return (
     <Drawer
       open={open}
-      title="Customise the overview"
+      title="Customize the overview"
       onClose={onClose}
       footer={(
         <div className="home-cz-foot">

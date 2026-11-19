@@ -6,7 +6,7 @@ import { useLifecycle } from './shared';
 import type { Questions, Rule } from './types';
 import { deadlineText } from './types';
 
-const COLOURS = ['gray', 'blue', 'teal', 'green', 'amber', 'orange', 'red', 'purple'].map((c) => ({ value: c, label: c.charAt(0).toUpperCase() + c.slice(1) }));
+const COLORS = ['gray', 'blue', 'teal', 'green', 'amber', 'orange', 'red', 'purple'].map((c) => ({ value: c, label: c.charAt(0).toUpperCase() + c.slice(1) }));
 const options = (list: { value: string; label: string }[]) => list.map((x) => ({ value: x.value, label: x.label }));
 const muted = (r: { active: boolean }) => (r.active ? undefined : 'si-row-off');
 
@@ -74,7 +74,7 @@ function KindsTab({ admin }: { admin: boolean }) {
   const meta = useMeta();
   return (
     <EditableTable url="/api/security-incidents/lists/kinds" noun="Kind of data" canEdit={admin} onChanged={meta.reload}
-      intro="Each kind of data your organisation holds becomes a yes/no question when an incident is declared, and can trigger notification rules. Personal information is built in."
+      intro="Each kind of data your organization holds becomes a yes/no question when an incident is declared, and can trigger notification rules. Personal information is built in."
       emptyIcon="database" emptyTitle="No kinds of data" emptyMessage="Add the kinds of data whose loss would mean telling someone."
       removeLabel="Retire" removeMessage="It is no longer asked about on new incidents. Incidents that already carry it keep it."
       canRemoveRow={(r) => r.active} rowClass={muted}
@@ -107,7 +107,7 @@ function StatusesTab({ admin }: { admin: boolean }) {
           field: 'stage', label: 'What it means', type: 'select', required: true, options: options(stages),
           render: (r) => stages.find((s) => s.value === r.stage)?.label ?? <span className="si-unset">Not set: takes the meaning of the status before it</span>,
         },
-        { field: 'color', label: 'Colour', type: 'select', options: COLOURS, initial: 'gray', formOnly: true },
+        { field: 'color', label: 'Color', type: 'select', options: COLORS, initial: 'gray', formOnly: true },
         { field: 'sort', label: 'Order', type: 'number', hint: 'Lower numbers come first' },
         {
           field: 'active', label: 'In use', type: 'boolean', initial: true, editOnly: true,

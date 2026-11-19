@@ -22,7 +22,7 @@ export function ProgressChart({ progress, height = 320 }: { progress: Progress; 
       name, type: 'line', symbol: 'circle', symbolSize: 9, lineStyle: { width: 2 }, emphasis: { focus: 'series' },
       data: points.map((p, i) => ({
         value: [p.date, pick(i), p.name],
-        // The last point is today's position, not a saved snapshot: drawn hollow, and labelled with its value.
+        // The last point is today's position, not a saved snapshot: drawn hollow, and labeled with its value.
         ...(i === last ? { symbol: 'emptyCircle', symbolSize: 11, label: { show: true, position: top ? 'top' : 'bottom', distance: 8, fontWeight: 700, fontSize: 13, color: 'var(--text)', textBorderWidth: 0, formatter: `${pick(i)}` } } : {}),
       })),
     });

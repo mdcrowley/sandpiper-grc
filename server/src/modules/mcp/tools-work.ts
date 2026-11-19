@@ -35,7 +35,7 @@ async function typeMeta(t: ToolContext, key: string) { return (await t.meta()).r
 const myWork: ToolSpec = {
   name: 'my_work', title: 'My work', group: 'Work and insight', idempotent: true,
   description: 'What is waiting for you: open tickets assigned to you, your open actions, changes waiting for your approval, '
-    + 'policies waiting for your acknowledgement and unread notifications, soonest due first.',
+    + 'policies waiting for your acknowledgment and unread notifications, soonest due first.',
   input: {},
   async run(_args, t) {
     const sections: Section[] = [];
@@ -55,10 +55,10 @@ const myWork: ToolSpec = {
         });
       }
     }
-    const acks = await t.api.tryGet<{ awaiting: any[] }>('/api/policies/acknowledgements/mine');
+    const acks = await t.api.tryGet<{ awaiting: any[] }>('/api/policies/acknowledgments/mine');
     if (acks) {
       sections.push({
-        key: 'acknowledgements', label: 'Policies waiting for your acknowledgement', total: acks.awaiting.length,
+        key: 'acknowledgements', label: 'Policies waiting for your acknowledgment', total: acks.awaiting.length,
         rows: acks.awaiting.slice(0, 10).map((a) => ({ id: a.id, ref: a.policy_ref, title: `${a.policy_title} (version ${a.version})`, due_on: a.due_on, state: a.state, url: `${t.baseUrl}/my-policies` })),
       });
     }
@@ -257,7 +257,7 @@ const contractsNearingNotice: ToolSpec = {
 
 const vulnerabilitySummary: ToolSpec = {
   name: 'vulnerability_summary', title: 'Vulnerability summary', group: 'Work and insight', idempotent: true,
-  description: 'Open and overdue vulnerabilities by severity, known-exploited and unassigned counts, ageing, mean time to fix, the worst hosts and who holds the overdue ones. '
+  description: 'Open and overdue vulnerabilities by severity, known-exploited and unassigned counts, aging, mean time to fix, the worst hosts and who holds the overdue ones. '
     + 'Vulnerabilities are restricted records: this needs permission to see them.',
   available: (a) => a.sees('vulnerability'),
   input: {},
@@ -367,7 +367,7 @@ const safetySummary: ToolSpec = {
 
 const runReportTool: ToolSpec = {
   name: 'run_report', title: 'Run a saved report', group: 'Work and insight', idempotent: true,
-  description: 'Runs a saved report (by id or name) shared with you and returns its result as rows of labelled values, with the total number of matching records. '
+  description: 'Runs a saved report (by id or name) shared with you and returns its result as rows of labeled values, with the total number of matching records. '
     + 'Without "report", lists the saved reports you can run.',
   available: (a) => a.sees('report_definition'),
   input: {

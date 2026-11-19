@@ -10,7 +10,7 @@ This mirrors the issue format in docs/roadmap/README.md. If the roadmap already 
 entry for this, use its ID and title as the issue title (for example
 "E03-11 Screen for the priority matrix").
 
-Nothing organisation-specific, please: no real organisation, person, place, law,
+Nothing organization-specific, please: no real organization, person, place, law,
 regulator or vendor names, and no real data.
 -->
 

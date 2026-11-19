@@ -23,7 +23,7 @@ export const ROUTE_HELP: RouteHelp[] = [
   { prefix: '/tickets/dashboard', page: '02-service-desk', section: 'service-desk-dashboard' },
   { prefix: '/problems', page: '02-service-desk', section: 'problems-and-known-errors' },
   { prefix: '/knowledge', page: '02-service-desk', section: 'knowledge-base' },
-  { prefix: '/catalogue', page: '02-service-desk', section: 'catalogue' },
+  { prefix: '/catalog', page: '02-service-desk', section: 'catalog' },
 
   // Inventory
   { prefix: '/systems', exact: true, page: '03-inventory', section: 'systems' },
@@ -77,7 +77,7 @@ export const ROUTE_HELP: RouteHelp[] = [
   { prefix: '/vulnerabilities/settings', page: '13-vulnerabilities', section: 'the-severity-policy' },
   { prefix: '/policies', exact: true, page: '11-policies-and-exceptions', section: 'the-policy-library' },
   { prefix: '/policies', page: '11-policies-and-exceptions', section: 'the-policy-page' },
-  { prefix: '/policies/acknowledgements', page: '11-policies-and-exceptions', section: 'track-acknowledgement' },
+  { prefix: '/policies/acknowledgments', page: '11-policies-and-exceptions', section: 'track-acknowledgment' },
   { prefix: '/exceptions', page: '11-policies-and-exceptions', section: 'exceptions' },
   { prefix: '/training', page: '12-training-and-exercises', section: 'training-overview' },
   { prefix: '/training/courses', page: '12-training-and-exercises', section: 'courses' },

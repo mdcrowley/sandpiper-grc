@@ -35,7 +35,7 @@ export function uploadFile(file: File, params: UploadParams, onProgress: (fracti
     xhr.setRequestHeader('Accept', 'application/json');
     xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(e.loaded / e.total); };
     xhr.onerror = () => reject(new ApiError(0, 'network', 'The upload was interrupted. Check that the server is running and try again.'));
-    xhr.onabort = () => reject(new ApiError(0, 'aborted', 'The upload was cancelled.'));
+    xhr.onabort = () => reject(new ApiError(0, 'aborted', 'The upload was canceled.'));
     xhr.onload = () => {
       let body: { error?: { code?: string; message?: string; fields?: Record<string, string> } } & Partial<Attachment> = {};
       try { body = JSON.parse(xhr.responseText); } catch { /* not JSON */ }

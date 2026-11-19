@@ -5,7 +5,7 @@ import { dayInZone } from '../../core/timezone.ts';
 
 // Seed loader. Pilot: information requests from the seed folder, when the file is there (read
 // at run time, never copied into the repository). Dev: invented actions and example
-// obligations. Both: obligations from the organisation profile and clearly invented sample risks.
+// obligations. Both: obligations from the organization profile and clearly invented sample risks.
 
 const day = (offset: number): string => dayInZone(offset);
 
@@ -121,7 +121,7 @@ async function sampleRisks(ctx: ModuleContext): Promise<number> {
       affected: 'Fare back office; ticket vending machines', existing_controls: 'Email filtering; off-site backups of the fare database',
       inherent: [5, 3], residual: [3, 3], treatment: 'mitigate', status: 'open', due_on: day(60), review_on: day(-4),
       reviewed: [95, 'low', 116],
-      actions: [{ title: 'Enrol every fare system administrator in the second factor', priority: 'high', due_on: day(-3) }],
+      actions: [{ title: 'Enroll every fare system administrator in the second factor', priority: 'high', due_on: day(-3) }],
     },
     {
       title: '[Sample] Scheduling software supplier fails with no exit plan', category: 'third_party',
@@ -149,10 +149,10 @@ async function sampleRisks(ctx: ModuleContext): Promise<number> {
       inherent: [3, 4], residual: [3, 2], treatment: 'mitigate', status: 'open', due_on: day(200),
     },
     {
-      title: '[Sample] Total loss of the operations control centre data room', category: 'enterprise',
-      description: 'Invented example. Fire or flood destroys the equipment in the control centre.',
-      cause: 'Building incident', consequence: 'All control centre systems unavailable until rebuilt elsewhere',
-      affected: 'All control centre systems', existing_controls: 'Off-site backups',
+      title: '[Sample] Total loss of the operations control center data room', category: 'enterprise',
+      description: 'Invented example. Fire or flood destroys the equipment in the control center.',
+      cause: 'Building incident', consequence: 'All control center systems unavailable until rebuilt elsewhere',
+      affected: 'All control center systems', existing_controls: 'Off-site backups',
       inherent: [1, 5], residual: null, treatment: 'avoid', status: 'open', review_on: day(365),
     },
     {
@@ -241,7 +241,7 @@ const devObligations = (): ObligationSeed[] => [
     status: 'not_met', next_due_on: day(-5),
   },
   {
-    title: 'Software licence true-up', source: 'Enterprise licence agreement (invented example)',
+    title: 'Software license true-up', source: 'Enterprise license agreement (invented example)',
     requirement: 'Report the number of users to the supplier once a year', next_due_on: day(64),
   },
 ];
@@ -286,7 +286,7 @@ export async function seedRisksModule(ctx: ModuleContext, opts: SeedOptions): Pr
     parts.push(`${await devActions(ctx)} invented actions added`);
   }
   parts.push(`${await sampleRisks(ctx)} sample risks added`);
-  let obligationsAdded = await loadObligations(ctx, opts.organisation?.obligations);
+  let obligationsAdded = await loadObligations(ctx, opts.organization?.obligations);
   if (opts.profile === 'dev') obligationsAdded += await loadObligations(ctx, devObligations(), await firstUser(ctx));
   const obligations = (await ctx.db.one<{ c: number }>('select count(*)::int as c from obligations where deleted_at is null'))!.c;
   parts.push(`${obligationsAdded} obligations added (${obligations} in the register)`);

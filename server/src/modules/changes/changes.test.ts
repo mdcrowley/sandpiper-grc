@@ -4,7 +4,7 @@ import { testApp, type TestApi } from '../../test/helpers.ts';
 import mod from './index.ts';
 import { computeRisk, DEFAULT_APPROVAL_RULES, DEFAULT_QUESTIONNAIRE, matchRule } from './rules.ts';
 
-// Stand-ins for the inventory and actions modules, so cross-module behaviour is tested without them.
+// Stand-ins for the inventory and actions modules, so cross-module behavior is tested without them.
 const standIns: ModuleDef = {
   key: 'changestandins',
   async seedDefaults(ctx) {

@@ -153,7 +153,7 @@ export function registerRoles(ctx: ModuleContext) {
   });
 
   adminRoute(ctx, 'POST', '/api/admin/roles/sync-default-grants', async (req) => {
-    await sensitive(ctx, req, 'synchronising default grants');
+    await sensitive(ctx, req, 'synchronizing default grants');
     const changed = await syncDefaultGrants(db, ctx.audit, req);
     return { ok: true, roles: changed, added: changed.reduce((n, d) => n + d.missing.length, 0) };
   });

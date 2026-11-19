@@ -3,7 +3,7 @@
 // one more level of groups, which is enough for "A and (B or C)".
 import { Button, DateField, IconButton, MultiSelect, NumberField, RecordPicker, Select, TextField, UserPicker, useLookup } from '../../core';
 import type { FieldType } from '../../core';
-import { isGroup, type CatalogueField, type Condition, type FilterGroup } from './types';
+import { isGroup, type CatalogField, type Condition, type FilterGroup } from './types';
 
 type Input = 'none' | 'text' | 'number' | 'numbers' | 'date' | 'dates' | 'days' | 'options' | 'user' | 'record';
 interface Op { op: string; label: string; input: Input }
@@ -41,14 +41,14 @@ const family = (t: FieldType) => (t === 'longtext' ? 'text' : t === 'currency' ?
 export const opsFor = (t: FieldType): Op[] => OPS[family(t)] ?? EMPTY;
 
 /** A sensible first condition for a field, so a new row already says something. */
-export function defaultCondition(f: CatalogueField): Condition {
+export function defaultCondition(f: CatalogField): Condition {
   const first = opsFor(f.type)[0];
   return { field: f.path, op: first.op, value: first.input === 'days' ? 30 : first.input === 'options' ? [] : undefined };
 }
 
-type Labelled = Condition & { label?: string };
+type Labeled = Condition & { label?: string };
 
-function ValueControl({ field, cond, input, onChange }: { field: CatalogueField; cond: Labelled; input: Input; onChange: (c: Labelled) => void }) {
+function ValueControl({ field, cond, input, onChange }: { field: CatalogField; cond: Labeled; input: Input; onChange: (c: Labeled) => void }) {
   const options = useLookup(field.list ?? '');
   const set = (value: unknown, label?: string) => onChange({ ...cond, value, label });
   const pair = (Array.isArray(cond.value) ? cond.value : [undefined, undefined]) as [unknown, unknown];
@@ -80,7 +80,7 @@ function ValueControl({ field, cond, input, onChange }: { field: CatalogueField;
   }
 }
 
-function Row({ fields, cond, onChange, onRemove }: { fields: CatalogueField[]; cond: Labelled; onChange: (c: Labelled) => void; onRemove: () => void }) {
+function Row({ fields, cond, onChange, onRemove }: { fields: CatalogField[]; cond: Labeled; onChange: (c: Labeled) => void; onRemove: () => void }) {
   const field = fields.find((f) => f.path === cond.field);
   const ops = field ? opsFor(field.type) : [];
   const op = ops.find((o) => o.op === cond.op) ?? ops[0];
@@ -101,7 +101,7 @@ function Row({ fields, cond, onChange, onRemove }: { fields: CatalogueField[]; c
 }
 
 export interface FilterEditorProps {
-  fields: CatalogueField[];
+  fields: CatalogField[];
   value: FilterGroup | undefined;
   onChange: (next: FilterGroup | undefined) => void;
   /** Inner groups may not hold groups of their own. */
@@ -149,7 +149,7 @@ export function FilterEditor({ fields, value, onChange, nested }: FilterEditorPr
 }
 
 /** Conditions that still need a value are left out of what is sent, so a half-typed row never breaks the preview. */
-export function completeFilters(group: FilterGroup | undefined, fields: CatalogueField[]): FilterGroup | undefined {
+export function completeFilters(group: FilterGroup | undefined, fields: CatalogField[]): FilterGroup | undefined {
   if (!group) return undefined;
   const items = group.items.flatMap((item): (Condition | FilterGroup)[] => {
     if (isGroup(item)) { const g = completeFilters(item, fields); return g ? [g] : []; }

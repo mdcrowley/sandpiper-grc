@@ -4,7 +4,7 @@
 
 ## Goal
 
-Know who the organisation depends on, what has been agreed with each vendor, which
+Know who the organization depends on, what has been agreed with each vendor, which
 security terms are in each contract, what evidence they have supplied, and when each
 contract must be renewed or ended, with enough warning to act.
 
@@ -272,7 +272,7 @@ As a contract owner, I enter the value for each year in a small table instead of
 
 - [x] A year-and-amount table with add and remove
 - [x] The total is shown and compared with "total value", with an option to set the total from it
-- [x] Amounts use the organisation's currency (`currency()`, `formatCurrency`)
+- [x] Amounts use the organization's currency (`currency()`, `formatCurrency`)
 - [x] The server accepts only four-digit years with numeric amounts
 
 **Implemented in:** `web/src/modules/vendors/ValueByYear.tsx`; validation in

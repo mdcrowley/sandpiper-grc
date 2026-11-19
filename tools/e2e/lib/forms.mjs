@@ -3,7 +3,7 @@
 // number, date, choice list, person or record picker), submit, and read the inline messages.
 import { sleep } from './browser.mjs';
 
-/** Describes every visible labelled control inside `scope`: label, kind, required, invalid, message. */
+/** Describes every visible labeled control inside `scope`: label, kind, required, invalid, message. */
 export function controls(page, scope) {
   return page.fn((scopeSel) => {
     const root = document.querySelector(scopeSel);

@@ -12,7 +12,7 @@ interface DialogProps { asset: Row; onClose: (changed: boolean) => void }
 const fieldErrors = (err: unknown): Record<string, string> =>
   err instanceof ApiError && err.fields && Object.keys(err.fields).length ? { ...err.fields, _form: err.message } : { _form: errorMessage(err) };
 
-/** Department from the organisation's list; free text while no departments have been set up. */
+/** Department from the organization's list; free text while no departments have been set up. */
 export function DepartmentInput({ value, onChange, error }: { value: string; onChange: (v: string) => void; error?: string }) {
   const { data } = useFetch<{ name: string }[]>('/api/inventory/departments');
   if (data && data.length) {
@@ -112,7 +112,7 @@ export function CheckInDialog({ asset, onClose }: DialogProps) {
   );
 }
 
-/** Owner, department, site and location in one small form (department comes from the organisation's list). */
+/** Owner, department, site and location in one small form (department comes from the organization's list). */
 export function WhereDialog({ asset, onClose }: DialogProps) {
   const toast = useToast();
   const { can } = useAuth();
@@ -160,7 +160,7 @@ export function WhereDialog({ asset, onClose }: DialogProps) {
 
 /**
  * Disposal. Every disposal needs an approval: asked for here and decided by an approver, or
- * (unless the organisation has switched that off) recorded as a name and date given elsewhere.
+ * (unless the organization has switched that off) recorded as a name and date given elsewhere.
  * An asset with a funder interest is blocked until the funder's approval reference is entered.
  */
 export function DisposeDialog({ asset, onClose }: DialogProps) {

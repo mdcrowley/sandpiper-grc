@@ -1,7 +1,7 @@
-// Acknowledgement routes: a person's own list and acknowledgement, and the tracking view per policy.
+// Acknowledgment routes: a person's own list and acknowledgment, and the tracking view per policy.
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
-import { ackState, ackTracking } from './acknowledgements.ts';
+import { ackState, ackTracking } from './acknowledgments.ts';
 import { daysBetween, localDate } from './dates.ts';
 import { renderPolicyMarkdown } from './markdown.ts';
 
@@ -40,7 +40,7 @@ export function registerAckRoutes(ctx: ModuleContext) {
 
   // A person's own requests. Needs only a session: the people asked to acknowledge a policy
   // are often not people who can open the policy library.
-  ctx.app.get('/api/policies/acknowledgements/mine', async (req) => {
+  ctx.app.get('/api/policies/acknowledgments/mine', async (req) => {
     const today = localDate();
     const rows = await db.query<Row>(
       `${MINE} and (a.acknowledged_at is not null or a.superseded_at is null)
@@ -58,17 +58,17 @@ export function registerAckRoutes(ctx: ModuleContext) {
   async function needOwn(req: FastifyRequest): Promise<Row> {
     const id = (req.params as Row).ackId;
     const row = typeof id === 'string' && UUID.test(id) ? await db.one<Row>(`${MINE} and a.id = $2`, [req.user!.id, id]) : undefined;
-    return row ?? ctx.fail(404, 'not_found', 'Acknowledgement request not found.');
+    return row ?? ctx.fail(404, 'not_found', 'Acknowledgment request not found.');
   }
 
   /** The text a person is asked to acknowledge: exactly the version named in their request. */
-  ctx.app.get('/api/policies/acknowledgements/:ackId', async (req) => {
+  ctx.app.get('/api/policies/acknowledgments/:ackId', async (req) => {
     const a = await needOwn(req);
     const v = (await db.one<Row>('select body, change_summary from policy_versions where id = $1', [a.version_id]))!;
     return { ...mineView(a, localDate()), change_summary: v.change_summary, body_html: renderPolicyMarkdown(v.body) };
   });
 
-  ctx.app.post('/api/policies/acknowledgements/:ackId/acknowledge', async (req) => {
+  ctx.app.post('/api/policies/acknowledgments/:ackId/acknowledge', async (req) => {
     const a = await needOwn(req);
     const today = localDate();
     if (a.acknowledged_at) return mineView(a, today);
@@ -87,7 +87,7 @@ export function registerAckRoutes(ctx: ModuleContext) {
 
   // ---------- tracking ----------
 
-  ctx.app.get('/api/policies/:id/acknowledgements', { preHandler: ctx.requirePerm('policies.view') }, async (req, reply) => {
+  ctx.app.get('/api/policies/:id/acknowledgments', { preHandler: ctx.requirePerm('policies.view') }, async (req, reply) => {
     const policy = (await ctx.resources.find('policy', (req.params as Row).id, req.user)) ?? ctx.fail(404, 'not_found', 'Policy not found.');
     const query = req.query as Record<string, string>;
     const wanted = Number(query.version);
@@ -112,10 +112,10 @@ export function registerAckRoutes(ctx: ModuleContext) {
     }
     await ctx.audit(req, {
       action: 'policy.ack_export', recordType: 'policy', recordId: policy.id,
-      summary: `Exported ${data.rows.length} acknowledgement record${data.rows.length === 1 ? '' : 's'} for ${[policy.ref, policy.title].filter(Boolean).join(' ')} to CSV`,
+      summary: `Exported ${data.rows.length} acknowledgment record${data.rows.length === 1 ? '' : 's'} for ${[policy.ref, policy.title].filter(Boolean).join(' ')} to CSV`,
     });
     reply.header('content-type', 'text/csv; charset=utf-8');
-    reply.header('content-disposition', `attachment; filename="policy-acknowledgements.csv"`);
+    reply.header('content-disposition', `attachment; filename="policy-acknowledgments.csv"`);
     return '﻿' + lines.join('\r\n');
   });
 }

@@ -1,4 +1,4 @@
-// Acknowledgement tracking for one policy: progress, who is outstanding, and export.
+// Acknowledgment tracking for one policy: progress, who is outstanding, and export.
 import { useState } from 'react';
 import {
   api, Button, Card, EmptyState, ErrorState, errorMessage, formatDate, formatDateTime, Loading, ProgressBar, Select, Stat, StatusChip,
@@ -22,7 +22,7 @@ export function AckTracking({ row, versions }: { row: Row; versions: PolicyVersi
   const [show, setShow] = useState('outstanding');
   const [exporting, setExporting] = useState(false);
   const versionNumber = chosen || String(issued.find((v) => v.status === 'published')?.version ?? issued[0]?.version ?? '');
-  const url = `/api/policies/${row.id}/acknowledgements${versionNumber ? `?version=${versionNumber}` : ''}`;
+  const url = `/api/policies/${row.id}/acknowledgments${versionNumber ? `?version=${versionNumber}` : ''}`;
   const { data, error, reload } = useFetch<Tracking>(issued.length ? url : null);
 
   if (!issued.length) {
@@ -30,13 +30,13 @@ export function AckTracking({ row, versions }: { row: Row; versions: PolicyVersi
       <Card>
         <EmptyState
           icon="check-square" title="Nothing to acknowledge yet"
-          message="Acknowledgements are requested when a version is published. Publish a version to start tracking."
+          message="Acknowledgments are requested when a version is published. Publish a version to start tracking."
         />
       </Card>
     );
   }
   if (error) return <Card><ErrorState error={error} onRetry={reload} /></Card>;
-  if (!data) return <Card><Loading lines={6} label="Loading acknowledgements" /></Card>;
+  if (!data) return <Card><Loading lines={6} label="Loading acknowledgments" /></Card>;
 
   const { counts } = data;
   const match = (r: AckRow) => show === 'all' || (show === 'outstanding' ? r.state === 'outstanding' || r.state === 'overdue' : r.state === show);
@@ -48,7 +48,7 @@ export function AckTracking({ row, versions }: { row: Row; versions: PolicyVersi
       const blob = await api.blob(`${url}${url.includes('?') ? '&' : '?'}format=csv`);
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `${row.ref ?? 'policy'}-acknowledgements-v${versionNumber}.csv`;
+      a.download = `${row.ref ?? 'policy'}-acknowledgments-v${versionNumber}.csv`;
       a.click();
       URL.revokeObjectURL(a.href);
     } catch (err) {
@@ -61,7 +61,7 @@ export function AckTracking({ row, versions }: { row: Row; versions: PolicyVersi
   return (
     <div className="stack">
       <Card
-        title={`Acknowledgement of version ${data.version?.version ?? versionNumber}`}
+        title={`Acknowledgment of version ${data.version?.version ?? versionNumber}`}
         actions={can('policies.export') && counts.total > 0 && <Button size="sm" icon="download" loading={exporting} onClick={exportCsv}>Export CSV</Button>}
       >
         <div className="stack">
@@ -135,7 +135,7 @@ export function AckTracking({ row, versions }: { row: Row; versions: PolicyVersi
         <Card title="By department" flush>
           <div className="table-wrap pol-tw">
             <table className="table">
-              <caption className="sr-only">Acknowledgement by department</caption>
+              <caption className="sr-only">Acknowledgment by department</caption>
               <thead>
                 <tr>
                   <th scope="col">Department</th><th scope="col" className="num">Asked</th><th scope="col" className="num">Acknowledged</th>

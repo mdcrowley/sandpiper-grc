@@ -1,6 +1,6 @@
 // The standard dashboards, saved reports and starter pack the seed creates. They are data, not
 // code: plain specifications that are resolved when someone opens them, so a widget whose module
-// is not loaded simply says so. Nothing here names an organisation, a person or a product.
+// is not loaded simply says so. Nothing here names an organization, a person or a product.
 import type { Row } from '../../core/module.ts';
 import type { Condition, FilterGroup, ReportSpec } from './spec.ts';
 
@@ -67,7 +67,7 @@ export const STANDARD_DASHBOARDS: StandardDashboard[] = [
     ],
   },
   {
-    key: 'cyber_programme', name: 'Cybersecurity programme',
+    key: 'cyber_programme', name: 'Cybersecurity program',
     description: 'Framework progress, risk, vulnerabilities, incidents and the policies behind them.',
     filters: [...DATE, { kind: 'system', label: 'System' }, { kind: 'owner', label: 'Owner' }],
     widgets: [
@@ -85,7 +85,7 @@ export const STANDARD_DASHBOARDS: StandardDashboard[] = [
   },
   {
     key: 'assets_systems', name: 'Assets and systems',
-    description: 'What the organisation runs, where it is, and what is coming up for renewal.',
+    description: 'What the organization runs, where it is, and what is coming up for renewal.',
     filters: [{ kind: 'site', label: 'Site' }, { kind: 'department', label: 'Department' }, { kind: 'owner', label: 'Owner' }],
     widgets: [
       number('n1', 0, 0, 'Assets', 'asset', undefined, { icon: 'box' }),
@@ -103,7 +103,7 @@ export const STANDARD_DASHBOARDS: StandardDashboard[] = [
   },
   {
     key: 'vendors', name: 'Vendors and contracts',
-    description: 'Who the organisation depends on, what the agreements are worth and which dates are close.',
+    description: 'Who the organization depends on, what the agreements are worth and which dates are close.',
     filters: [...DATE, { kind: 'owner', label: 'Contract owner' }],
     widgets: [
       number('n1', 0, 0, 'Active vendors', 'vendor', all(c('status', 'in', ['active'])), { icon: 'building' }),
@@ -173,7 +173,7 @@ export const STANDARD_REPORTS: StandardReport[] = [
   { key: 'open_incidents', name: 'Security incidents by severity and status', description: 'Every recorded incident.', spec: { type: 'security_incident', groupBy: [{ field: 'severity' }, { field: 'status' }] }, chart: { kind: 'stacked' } },
   { key: 'vulnerabilities_by_severity', name: 'Open vulnerabilities by severity', description: 'What is still open, with how old the oldest is.', spec: { type: 'vulnerability', filters: openVulns, groupBy: [{ field: 'severity' }], aggregates: [{ fn: 'count' }, { fn: 'max', field: 'age_days' }, { fn: 'avg', field: 'age_days' }] }, chart: { kind: 'bar' } },
   { key: 'project_budget', name: 'Project budget and spend by stage', description: 'Money committed and spent at each stage.', spec: { type: 'project', filters: activeProjects, groupBy: [{ field: 'stage' }], aggregates: [{ fn: 'sum', field: 'budget' }, { fn: 'sum', field: 'spend_to_date' }, { fn: 'count' }] }, chart: { kind: 'bar' } },
-  { key: 'changes_by_month', name: 'Changes by month and type', description: 'How much change the organisation is making.', spec: { type: 'change', groupBy: [{ field: 'planned_start', bucket: 'month' }, { field: 'change_type' }] }, chart: { kind: 'stacked' } },
+  { key: 'changes_by_month', name: 'Changes by month and type', description: 'How much change the organization is making.', spec: { type: 'change', groupBy: [{ field: 'planned_start', bucket: 'month' }, { field: 'change_type' }] }, chart: { kind: 'stacked' } },
   // Fleet and depot equipment.
   { key: 'on_vehicle_past_support', name: 'On-vehicle equipment past its support date', description: 'Onboard computers, fare equipment, validators, routers, cameras, radios and displays still in service after the supplier stops supporting them.', spec: { type: 'asset', columns: ['tag', 'name', 'asset_type', 'site_id', 'make', 'model', 'support_end', 'owner_id'], filters: all(c('asset_type', 'in', ON_VEHICLE), c('support_end', 'past'), c('status', 'nin', ['retired', 'disposed'])), sort: [{ by: 'support_end', dir: 'asc' }] }, chart: { kind: 'table' } },
   { key: 'critical_systems_no_recovery', name: 'Critical systems without recovery targets', description: 'Tier 1 and tier 2 systems with no recovery time or recovery point objective recorded.', spec: { type: 'system', columns: ['ref', 'name', 'criticality_tier', 'hosting_type', 'technical_owner_id', 'rto_hours', 'rpo_hours'], filters: all(c('criticality_tier', 'in', ['tier_1', 'tier_2']), c('status', 'nin', ['retired']), { op: 'or', items: [c('rto_hours', 'empty'), c('rpo_hours', 'empty')] }), sort: [{ by: 'criticality_tier', dir: 'asc' }] }, chart: { kind: 'table' } },

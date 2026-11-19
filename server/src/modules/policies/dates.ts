@@ -1,4 +1,4 @@
-// Calendar-date helpers. Dates are 'YYYY-MM-DD' strings; a day is a day in the organisation's time zone.
+// Calendar-date helpers. Dates are 'YYYY-MM-DD' strings; a day is a day in the organization's time zone.
 import { todayInZone } from '../../core/timezone.ts';
 
 const DAY = 86_400_000;

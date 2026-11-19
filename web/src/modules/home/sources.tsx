@@ -20,7 +20,7 @@ export const SOURCE_TYPE: Record<SourceKey, string> = {
 
 export const sourceAllowed = (ctx: WidgetCtx, key: SourceKey): boolean => ctx.sees(SOURCE_TYPE[key]);
 
-/** Monday to Monday around today, in the organisation's time zone. */
+/** Monday to Monday around today, in the organization's time zone. */
 export function thisWeek(): { from: string; to: string; fromDay: string; toDay: string } {
   const shift = (day: string, n: number) => {
     const d = new Date(`${day}T00:00:00Z`);

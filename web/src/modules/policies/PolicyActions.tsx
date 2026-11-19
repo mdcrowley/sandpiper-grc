@@ -115,19 +115,19 @@ export function PolicyActions({ rec, versions, onChanged }: Props) {
           + (people === undefined
             ? 'Everyone in the audience will be asked to acknowledge it.'
             : people === 0
-              ? 'Nobody is in the audience, so no acknowledgements will be requested.'
+              ? 'Nobody is in the audience, so no acknowledgments will be requested.'
               : `${people} ${people === 1 ? 'person' : 'people'} will be asked to acknowledge it within ${audience.data!.ack_days} days, including anyone who acknowledged an earlier version.`)
         }
         confirmLabel="Publish" onCancel={() => setStep(null)}
         onConfirm={() => run(
           () => api.post(`${base}/versions/${latest!.id}/publish`),
-          (r) => `Version ${latest!.version} published. ${r.requested} acknowledgement ${r.requested === 1 ? 'request' : 'requests'} sent.`,
+          (r) => `Version ${latest!.version} published. ${r.requested} acknowledgment ${r.requested === 1 ? 'request' : 'requests'} sent.`,
         )}
       />
 
       <ConfirmDialog
         open={step === 'retire'} busy={busy} danger title="Retire this policy?"
-        message="The policy will be marked as retired and any outstanding acknowledgement requests will be closed. Its text and history are kept. This cannot be undone here."
+        message="The policy will be marked as retired and any outstanding acknowledgment requests will be closed. Its text and history are kept. This cannot be undone here."
         confirmLabel="Retire policy" onCancel={() => setStep(null)}
         onConfirm={() => run(() => api.post(`${base}/retire`), () => 'Policy retired.')}
       />

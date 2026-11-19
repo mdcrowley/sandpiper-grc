@@ -1,5 +1,5 @@
 // "My work": personal lists. These need only the permission of their own area, never
-// `dashboards.view`, and the two "mine" endpoints (acknowledgements, training) need no
+// `dashboards.view`, and the two "mine" endpoints (acknowledgments, training) need no
 // permission at all because they return the signed-in person's own records.
 import {
   ApiError, Countdown, StatusChip, api, listQuery, lookupColor, relativeTime, useAuth, useFetch, useLookup,
@@ -37,7 +37,7 @@ function MyTickets() {
 function MyActions() {
   const { user } = useAuth();
   const statuses = useLookup('action_status');
-  // Everything except done and cancelled. The list of statuses is configurable, so read it.
+  // Everything except done and canceled. The list of statuses is configurable, so read it.
   const open = statuses
     .filter((s) => !['done', 'cancelled'].includes(s.value) && (s as { meta?: { closed?: boolean } }).meta?.closed !== true)
     .map((s) => s.value);
@@ -113,14 +113,14 @@ function MyApprovals() {
 
 interface MineAcks { awaiting: { id: string; policy_ref: string | null; policy_title: string; due_on: string | null }[] }
 
-function MyAcknowledgements() {
-  const { data, error, reload } = useFetch<MineAcks>('/api/policies/acknowledgements/mine');
+function MyAcknowledgments() {
+  const { data, error, reload } = useFetch<MineAcks>('/api/policies/acknowledgments/mine');
   if (absent(error)) return null;
   const items = data?.awaiting.slice(0, ROWS).map((ack): WorkItem => ({
-    key: ack.id, to: '/policies/acknowledgements', title: ack.policy_title, reference: ack.policy_ref, meta: <DueChip date={ack.due_on} />,
+    key: ack.id, to: '/policies/acknowledgments', title: ack.policy_title, reference: ack.policy_ref, meta: <DueChip date={ack.due_on} />,
   }));
   return (
-    <WorkCard id="my-acknowledgements" title="My acknowledgements" icon="file-text" to="/policies/acknowledgements"
+    <WorkCard id="my-acknowledgments" title="My acknowledgments" icon="file-text" to="/policies/acknowledgments"
       items={items} count={data?.awaiting.length} error={error} reload={reload} emptyText="You have no policies to acknowledge." />
   );
 }
@@ -190,7 +190,7 @@ export const MY_WORK_WIDGETS: WidgetDef[] = [
     visible: (ctx) => ctx.sees('ticket'), render: () => <MyTickets />,
   },
   {
-    id: 'my-actions', title: 'My actions', group: 'mywork', description: 'Actions you own that are not done or cancelled.',
+    id: 'my-actions', title: 'My actions', group: 'mywork', description: 'Actions you own that are not done or canceled.',
     visible: (ctx) => ctx.sees('action'), render: () => <MyActions />,
   },
   {
@@ -199,8 +199,8 @@ export const MY_WORK_WIDGETS: WidgetDef[] = [
     visible: (ctx) => Object.values(approvalRights(ctx)).some(Boolean), render: () => <MyApprovals />,
   },
   {
-    id: 'my-acknowledgements', title: 'My acknowledgements', group: 'mywork', description: 'Policies you have been asked to read and acknowledge.',
-    visible: (ctx) => ctx.hasModule('policies'), render: () => <MyAcknowledgements />,
+    id: 'my-acknowledgments', title: 'My acknowledgments', group: 'mywork', description: 'Policies you have been asked to read and acknowledge.',
+    visible: (ctx) => ctx.hasModule('policies'), render: () => <MyAcknowledgments />,
   },
   {
     id: 'my-training', title: 'My training', group: 'mywork', description: 'Courses assigned to you that you have not completed.',

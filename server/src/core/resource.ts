@@ -54,7 +54,7 @@ export const MASKED_VALUE = '\u0001restricted';
 export const MASKED_LABEL = 'Restricted records';
 
 /** Tags as stored: trimmed, lower case, single spaces, no commas, at most 40 characters. */
-export const normaliseTag = (raw: unknown) => String(raw ?? '').toLowerCase().replace(/[\s,]+/g, ' ').trim().slice(0, 40);
+export const normalizeTag = (raw: unknown) => String(raw ?? '').toLowerCase().replace(/[\s,]+/g, ' ').trim().slice(0, 40);
 
 export interface RecordLabel { label: string; ref: string | null; hidden: boolean }
 
@@ -363,7 +363,7 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
     const before: Row = {};
     const after: Row = {};
     for (const [k, v] of Object.entries(patch)) {
-      if (JSON.stringify(normalise(existing[k])) !== JSON.stringify(normalise(v))) {
+      if (JSON.stringify(normalize(existing[k])) !== JSON.stringify(normalize(v))) {
         before[k] = existing[k];
         after[k] = v;
       }
@@ -403,7 +403,7 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
     return row;
   }
 
-  const normalise = (v: unknown) => (v instanceof Date ? v.toISOString() : v ?? null);
+  const normalize = (v: unknown) => (v instanceof Date ? v.toISOString() : v ?? null);
   const labelOf = (def: ResourceDef, row: Row) =>
     [def.ref && row[def.ref.field], row[def.titleField]].filter(Boolean).join(' ') || row.id;
   const pickFields = (def: ResourceDef, row: Row) =>
@@ -539,7 +539,7 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
       if (name === 'tags' && !def.fields.tags) {
         // Tags (core/tags.ts): f.tags=a,b is any of; f.tags.all=a,b is every one; f.tags.null=true is untagged.
         const tagged = `select 1 from record_tags rt where rt.record_type = ${add(def.type)} and rt.record_id = ${def.table}.id`;
-        const tags = [...new Set(value.split(',').map(normaliseTag).filter(Boolean))];
+        const tags = [...new Set(value.split(',').map(normalizeTag).filter(Boolean))];
         if (!op) where.push(guard(`exists (${tagged} and rt.tag = any(${add(tags)}::text[]))`));
         else if (op === 'all') for (const t of tags) where.push(guard(`exists (${tagged} and rt.tag = ${add(t)})`));
         else if (op === 'null') where.push(`${value === 'true' ? 'not ' : ''}exists (${tagged})`);
@@ -641,7 +641,7 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
 
     // A figure: the same counts for everyone who may view the type, restricted records included
     // (buildWhere, figures). A restricted record is grouped under "Restricted records" when the
-    // grouping field is one of its details; a restricted related record is labelled "Restricted".
+    // grouping field is one of its details; a restricted related record is labeled "Restricted".
     app.get(`${def.path}/stats`, async (req) => {
       authorize(req, def, 'view');
       const query = req.query as Record<string, string>;

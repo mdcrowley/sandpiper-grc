@@ -28,7 +28,7 @@ create table ticket_escalations (
 );
 alter table tickets add column escalated_at timestamptz;
 
--- E03-15: catalogue items carry their own questions, fulfilment tasks and an approval switch;
+-- E03-15: catalog items carry their own questions, fulfillment tasks and an approval switch;
 -- the ticket keeps the answers, its own copy of the tasks and the approval decision.
 alter table catalog_items add column questions jsonb;
 alter table catalog_items add column tasks jsonb;

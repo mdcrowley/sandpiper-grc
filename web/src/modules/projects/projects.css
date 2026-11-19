@@ -1,6 +1,6 @@
 /* Projects module. Layout comes from the core components and Mantine; what is left here is the
    handful of drawings they do not have: the gate stepper, the board columns, the Gantt chart and
-   the rating lanes. Every colour is a design token, so both themes work. */
+   the rating lanes. Every color is a design token, so both themes work. */
 
 .prj-trend { display: inline-flex; color: var(--text-muted); }
 .prj-trend-improving { color: var(--c-green-fg); }

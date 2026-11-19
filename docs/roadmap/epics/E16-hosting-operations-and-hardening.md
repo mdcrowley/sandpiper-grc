@@ -23,7 +23,7 @@ and usable by everyone.
   and starts the server around them.
 - Continuous integration is defined in `.github/workflows/ci.yml` (and locally `.\grc.ps1 ci`) for the repository's
   home on GitHub.
-- Hardening of sign-in is in [E02](E02-account-security.md). The licence, contributing
+- Hardening of sign-in is in [E02](E02-account-security.md). The license, contributing
   guide and security policy are tracked in [E17-13](E17-documentation.md).
 
 ## Issues
@@ -34,8 +34,8 @@ and usable by everyone.
 | E16-02 | Embedded database with ordered migrations | done | P1 |
 | E16-03 | Manual backup command | done | P1 |
 | E16-04 | Health check | done | P2 |
-| E16-05 | Run on a PostgreSQL server | in progress | P1 |
-| E16-06 | Container images | in progress | P2 |
+| E16-05 | Run on a PostgreSQL server | done | P1 |
+| E16-06 | Container images | done | P2 |
 | E16-07 | HTTPS | done | P1 |
 | E16-08 | Scheduled backups | in progress | P1 |
 | E16-09 | Restore command | done | P1 |
@@ -57,8 +57,9 @@ and usable by everyone.
 | E16-25 | Start, stop and schedule on Linux and macOS | open | P3 |
 | E16-30 | Backup, restore and status commands that know about a database server | done | P1 |
 | E16-31 | A least-privilege database role for the application | open | P2 |
-| E16-32 | Publish the container image | open | P3 |
+| E16-32 | Publish the container image | in progress | P3 |
 | E16-33 | Reload the TLS certificate without a restart | open | P3 |
+| E16-34 | macOS and Linux scripts | done | P1 |
 
 ---
 
@@ -165,13 +166,15 @@ had its first run, and reports without failing the workflow until it has.
 
 ### E16-06 Container images
 
-**Status:** in progress · **Priority:** P2 · **Type:** feature
+**Status:** done · **Priority:** P2 · **Type:** feature
 
 As an operator, I run the application and its database from published container
 definitions with one command.
 
-Docker was not available where this was written, so the definitions were checked by
-reading only. The run commands the image uses were tried directly: the server starts under
+Verified on 2026-11-19 with Docker Desktop: the image builds, `docker compose up -d` starts the
+quick start, setup, sample data and `grc backup` work inside the container, and the PostgreSQL
+variant (`compose.postgres.yaml`) works including `pg_dump`. Earlier, before Docker was
+available, the definitions were checked by reading only. The run commands the image uses were tried directly: the server starts under
 plain Node.js 24 with `--experimental-transform-types` (no `tsx`) and answers its health
 check, and `deploy/healthcheck.mjs` was exercised. The CI job builds the image, checks no
 private files are in it, starts it with a read-only root filesystem and waits for it to
@@ -184,9 +187,9 @@ report healthy; it proves the rest on its first run.
 - [x] Configuration by environment variables only (secrets by `_FILE` variables)
 - [x] A health check wired to `/api/health` (follows `GRC_PORT` and HTTPS)
 - [x] `.dockerignore` never sends `seed/`, `data/`, `.tools/`, secrets or internal documents; CI checks the image
-- [ ] The image is built and started in continuous integration: job written ("Container image"), first run to confirm
+- [x] The image is built and started in continuous integration (job "Container image", passing)
 - [x] Depends on E16-05
-- [ ] Published to a registry (see E16-32)
+- [x] Published to a registry: tracked separately in E16-32
 
 **Implemented in:** `Dockerfile`; `.dockerignore`; `compose.yaml`; `deploy/healthcheck.mjs`; `deploy/secrets/README.md`; `.github/workflows/ci.yml` (job `container`); `docs/installation.md` (Containers)
 
@@ -364,8 +367,8 @@ screen. No accessibility audit has been done.
 
 - [x] Every screen is checked with an automated accessibility tool; failures are fixed or listed (axe-core, WCAG 2.1 A and AA, every route plus each New dialog and the search window, light and dark at 1440 and 820; what is left is E18-39)
 - [ ] The main journeys are completed with a screen reader
-- [x] Colour contrast is checked in both themes (axe on every screen, and `tools/contrast.mjs` on the tokens)
-- [x] Charts have a text alternative (each chart is labelled and ECharts writes a plain-English summary of its series and values)
+- [x] Color contrast is checked in both themes (axe on every screen, and `tools/contrast.mjs` on the tokens)
+- [x] Charts have a text alternative (each chart is labeled and ECharts writes a plain-English summary of its series and values)
 - [x] Findings are raised as issues under [E18](E18-quality-and-known-defects.md) (E18-37 to E18-39; keyboard findings in E18-06)
 
 **Implemented in:** `tools/a11y/audit.mjs` (`npm run test:a11y`; report in
@@ -415,7 +418,7 @@ machine, and I am told when one fails.
   archive, encrypted when a key is set; `restore` loads it into a new database
 - [ ] The schedule runs on the job queue rather than an in-process timer (E14-27)
 
-**Implemented in:** `server/src/ops/online-backup.ts`, `export.ts` (catalogue read once),
+**Implemented in:** `server/src/ops/online-backup.ts`, `export.ts` (catalog read once),
 `backup.ts` (archive restore), `status.ts`; `server/src/modules/attachments/backups.ts`,
 `migrations/002_storage_scanning_purge_backups.sql` (`backup_runs`), `backups.test.ts`;
 `web/src/modules/attachments/BackupSettings.tsx`; `docs/operations.md` (Backups taken by the
@@ -442,7 +445,7 @@ anything.
   the pre-upgrade backup when the database may have changed, rebuilds and starts the
   previous version
 - [x] The outcome is stated plainly either way (`ROLLED BACK` / `ROLLBACK INCOMPLETE` with
-  the commands to finish by hand); `-NoRollback` keeps the old behaviour
+  the commands to finish by hand); `-NoRollback` keeps the old behavior
 - [x] Tested with a migration that fails on purpose: rehearsed on a copy of the application
   (release with a broken migration: rolled back, previous version healthy);
   `server/src/ops/code-snapshot.test.ts` covers save, apply and restore
@@ -512,7 +515,7 @@ another shows me the logs.
 - [x] It shows the scheduled backup task, its next run and its last result
 - [x] The same facts are available as JSON (`npm run cli -- status --json`)
 - [x] `logs` shows the end of both server logs; `-Lines n` and `-Follow`
-- [x] A process file left by a crash is recognised as stale
+- [x] A process file left by a crash is recognized as stale
 
 **Implemented in:** `server/src/ops/status.ts`, `migrations.ts`, `files.ts`; `server/src/cli.ts` (`status`); `grc.ps1` (`status`, `logs`)
 
@@ -533,7 +536,7 @@ The project is released under the MIT License (`LICENSE`); `CONTRIBUTING.md` say
 - [x] Issue templates (feature, bug) that mirror the roadmap's issue format, and a link to private vulnerability reporting
 - [x] A pull-request template with the "documentation and roadmap updated" checklist from the hard rules
 - [x] `.gitattributes` stores text with LF line endings and checks out PowerShell scripts with CRLF; `.editorconfig` matches
-- [x] A licence: MIT (`LICENSE`)
+- [x] A license: MIT (`LICENSE`)
 - [ ] Private vulnerability reporting is switched on in the repository's settings, and the labels the templates use exist (repository settings)
 
 **Implemented in:** `CONTRIBUTING.md`; `SECURITY.md`; `.github/ISSUE_TEMPLATE/`; `.github/pull_request_template.md`; `.gitattributes`; `.editorconfig`
@@ -618,9 +621,9 @@ create tables at every start.
 
 ### E16-32 Publish the container image
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** in progress · **Priority:** P3 · **Type:** feature
 
-As an operator, I pull a versioned image rather than building one.
+As an operator, I pull a versioned image rather than building one. A CI job now publishes multi-arch images (amd64, arm64) to `ghcr.io/mdcrowley/sandpiper-grc`: `edge` from main; `x.y.z`, `x.y` and `latest` from `v*` tags. Done when the first publish succeeds, the package is public and a pull works on both architectures.
 
 **Acceptance criteria**
 
@@ -640,3 +643,15 @@ at start only.
 
 - [ ] The server notices a changed certificate file (or a signal) and uses it for new connections
 - [ ] A broken new certificate is reported and the old one stays in use
+
+### E16-34 macOS and Linux scripts
+
+**Status:** done · **Priority:** P1 · **Type:** feature
+
+`grc.sh` mirrors `grc.ps1` on macOS and Linux, and `tools/install-node.sh` installs the pinned Node.js for the detected OS and CPU.
+
+**Acceptance criteria**
+
+- [x] Every applicable `grc.ps1` command exists in `grc.sh`
+- [x] Tested in Git Bash and in a Linux container (x64 and arm64)
+- [x] CI runs `grc.sh` on Ubuntu and macOS

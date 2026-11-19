@@ -20,7 +20,7 @@ export interface ChartSegment {
 }
 
 export interface ChartProps {
-  /** A normal ECharts option. Colours may be given as `var(--token)`; they are resolved for the current theme. */
+  /** A normal ECharts option. Colors may be given as `var(--token)`; they are resolved for the current theme. */
   option: ChartOption;
   /** Names the chart for screen-reader users. */
   label: string;
@@ -38,12 +38,12 @@ export interface ChartProps {
   description?: string;
 }
 
-/** Chart colour for a named colour, as a token reference the Chart resolves per theme. */
+/** Chart color for a named color, as a token reference the Chart resolves per theme. */
 export function chartColor(name: ColorName | string): string {
   return `var(--c-${toColorName(name)}-solid)`;
 }
 
-/** Turn a stats response into series data coloured by each group's configured colour. */
+/** Turn a stats response into series data colored by each group's configured color. */
 export function statsToData(groups: StatsResult['groups']) {
   return groups.map((g) => ({ name: g.label, value: g.count, key: g.value, itemStyle: { color: chartColor(g.color) } }));
 }

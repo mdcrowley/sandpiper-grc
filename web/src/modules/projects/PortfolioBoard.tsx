@@ -68,7 +68,7 @@ export function PortfolioBoard({ data, rows }: { data: Portfolio; rows: Portfoli
   const { can } = useAuth();
   const canApprove = can('projects.approve');
   const shown = rows.filter((p) => p.status !== 'cancelled');
-  const cancelled = rows.length - shown.length;
+  const canceled = rows.length - shown.length;
   return (
     <Stack gap="xs">
       <div className="prj-board" role="list" aria-label="Projects by stage">
@@ -101,7 +101,7 @@ export function PortfolioBoard({ data, rows }: { data: Portfolio; rows: Portfoli
       </div>
       <Text size="sm" c="dimmed">
         A project moves to the next column when its gate is approved.
-        {cancelled > 0 ? ` ${cancelled} cancelled ${cancelled === 1 ? 'project is' : 'projects are'} not shown.` : ' Cancelled projects are not shown.'}
+        {canceled > 0 ? ` ${canceled} canceled ${canceled === 1 ? 'project is' : 'projects are'} not shown.` : ' Canceled projects are not shown.'}
       </Text>
     </Stack>
   );

@@ -16,7 +16,7 @@ export function plainStatus(ticket: Row, statuses: LookupValue[]): PlainStatus {
   const make = (key: string, label: string, hint: string, tone: Tone, extra: Partial<PlainStatus> = {}): PlainStatus =>
     ({ key, label: own ?? label, hint, tone, done: false, waiting_on_you: false, ...extra });
 
-  if (ticket.status === 'cancelled') return make('cancelled', 'Cancelled', 'This request was cancelled. Nothing more will happen.', 'gray', { done: true });
+  if (ticket.status === 'cancelled') return make('cancelled', 'Canceled', 'This request was canceled. Nothing more will happen.', 'gray', { done: true });
   if (cat === 'closed') return make('closed', 'Closed', 'This request is finished.', 'gray', { done: true });
   if (cat === 'resolved') return make('resolved', 'Resolved', 'IT think this is sorted. If it is not, reopen it.', 'green', { done: true });
   if (ticket.approval_status === 'pending') return make('approval', 'Waiting for approval', 'A manager needs to approve this before work can start.', 'amber');

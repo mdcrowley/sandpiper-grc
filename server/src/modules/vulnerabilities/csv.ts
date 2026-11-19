@@ -1,4 +1,4 @@
-/** CSV reading and value normalisation for the findings import. Pure functions, no database. */
+/** CSV reading and value normalization for the findings import. Pure functions, no database. */
 
 export class CsvError extends Error {}
 
@@ -106,7 +106,7 @@ export function severityFromCvss(score: number): string {
  * Words in any letter case, the list's own values and labels, and the numbers 0 (informational)
  * to 4 (critical) are understood. Returns null when it cannot tell.
  */
-export function normaliseSeverity(raw: string, allowed: { value: string; label: string }[]): string | null {
+export function normalizeSeverity(raw: string, allowed: { value: string; label: string }[]): string | null {
   const v = raw.trim().toLowerCase();
   if (!v) return null;
   const own = allowed.find((a) => a.value.toLowerCase() === v || a.label.toLowerCase() === v);

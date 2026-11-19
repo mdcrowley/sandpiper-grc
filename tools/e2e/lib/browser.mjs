@@ -299,7 +299,7 @@ export class Page {
     })()`;
   }
 
-  /** The element's centre, scrolled into view, or null. */
+  /** The element's center, scrolled into view, or null. */
   async locate(target) {
     return this.eval(`(() => { const el = ${Page.finder(target)}; if (!el) return null;
       el.scrollIntoView({ block: 'center', inline: 'nearest' }); const r = el.getBoundingClientRect();
@@ -420,7 +420,7 @@ function roleSelector(role) {
 function describe(target) {
   if (typeof target === 'function') return 'a condition';
   if (typeof target === 'string') return `"${target}"`;
-  if (target.label !== undefined) return `the field labelled "${target.label}"`;
+  if (target.label !== undefined) return `the field labeled "${target.label}"`;
   if (target.role) return `${target.role} "${target.name ?? ''}"`;
   if (target.css) return `"${target.css}"`;
   return `"${target.text}"${target.within ? ` in ${target.within}` : ''}`;

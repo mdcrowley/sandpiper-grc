@@ -14,8 +14,8 @@ export interface MapCanvasProps {
   onSelect: (id: string | null) => void;
   /** Records affected if the selected system fails: outlined in red. */
   impacted?: Set<string>;
-  /** Centre the view on this node; change `n` to ask again for the same node. */
-  centre?: { id: string; n: number } | null;
+  /** Center the view on this node; change `n` to ask again for the same node. */
+  center?: { id: string; n: number } | null;
   full: boolean;
   onToggleFull: () => void;
 }
@@ -35,7 +35,7 @@ const short = (s: string, n = 22) => {
   return `${space >= n / 2 ? cut.slice(0, space) : cut}…`;
 };
 
-export function MapCanvas({ layout, label, selectedId, onSelect, impacted, centre, full, onToggleFull }: MapCanvasProps) {
+export function MapCanvas({ layout, label, selectedId, onSelect, impacted, center, full, onToggleFull }: MapCanvasProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [{ width, height }, setSize] = useState({ width: 0, height: 0 });
   useEffect(() => {
@@ -84,13 +84,13 @@ export function MapCanvas({ layout, label, selectedId, onSelect, impacted, centr
   }, [zoomAt]);
 
   useEffect(() => {
-    if (!centre || !width || !height) return;
-    const n = layout.byId.get(centre.id);
+    if (!center || !width || !height) return;
+    const n = layout.byId.get(center.id);
     if (!n) return;
     const k = Math.max(viewRef.current.k, 0.9);
     setView({ k, x: width / 2 - (n.x + n.w / 2) * k, y: height / 2 - (n.y + n.h / 2) * k });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [centre?.id, centre?.n, width > 0 && height > 0]);
+  }, [center?.id, center?.n, width > 0 && height > 0]);
 
   function onPointerDown(e: ReactPointerEvent) {
     if (e.button !== 0) return;

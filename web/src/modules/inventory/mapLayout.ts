@@ -1,5 +1,5 @@
 // Relationship map: types and the layout. The layout is worked out from the data alone (no
-// simulation), so the same estate always draws the same way: systems sit in labelled boxes in
+// simulation), so the same estate always draws the same way: systems sit in labeled boxes in
 // the middle, vendors in a lane on the left, sites, data categories and assets in lanes on the
 // right, each placed level with the systems it belongs to (or, when they are short, stacked in
 // one column so the map stays narrow enough to read).
@@ -121,7 +121,7 @@ export function computeLayout(
       slots.push({ key: k, col, top: colHeights[col] });
       colHeights[col] += boxH(buckets.get(k)!.length, inner) + BOX_GAP;
     }
-    return { slots, centreH: Math.max(0, ...colHeights) - (keys.length ? BOX_GAP : 0) };
+    return { slots, centerH: Math.max(0, ...colHeights) - (keys.length ? BOX_GAP : 0) };
   };
   // Lanes on the right (sites, data, assets) share one column, one under another, when they are
   // short enough to fit beside the systems: the map is then narrower and easier to read.
@@ -140,29 +140,29 @@ export function computeLayout(
   const largest = Math.max(1, ...[...buckets.values()].map((b) => b.length));
   for (let i = 1; i <= Math.min(4, largest); i++) {
     for (let c = 1; c <= Math.min(8, Math.max(1, keys.length)); c++) {
-      const h = pack(c, i).centreH;
+      const h = pack(c, i).centerH;
       const w = c * (boxW(i) + BOX_GAP) + laneW(vendors.length, h) + rightW(h);
       const off = Math.abs(Math.log(w / Math.max(h + LANE_HEAD, 1) / aspect)) + (i - 1) * 0.12;
       if (off < best - 1e-6) { best = off; columns = c; inner = i; }
     }
   }
-  const { slots, centreH } = pack(columns, inner);
+  const { slots, centerH } = pack(columns, inner);
 
   const lanes: Lane[] = [];
-  const vendorCols = vendors.length ? laneCols(vendors.length, centreH) : 0;
+  const vendorCols = vendors.length ? laneCols(vendors.length, centerH) : 0;
   const vendorW = vendorCols ? vendorCols * NODE_W + (vendorCols - 1) * GAP_X : 0;
-  const centreX = vendorW ? vendorW + LANE_GAP : 0;
-  const centreW = columns * boxW(inner) + (columns - 1) * BOX_GAP;
+  const centerX = vendorW ? vendorW + LANE_GAP : 0;
+  const centerW = columns * boxW(inner) + (columns - 1) * BOX_GAP;
 
   const groups: GroupBox[] = [];
   for (const slot of slots) {
     const members = buckets.get(slot.key)!;
-    const x = centreX + slot.col * (boxW(inner) + BOX_GAP);
+    const x = centerX + slot.col * (boxW(inner) + BOX_GAP);
     const y = LANE_HEAD + slot.top;
     groups.push({ key: slot.key, label: groupInfo(slot.key).label, x, y, w: boxW(inner), h: boxH(members.length, inner), count: members.length });
     members.forEach((s, i) => put(s, x + PAD + (i % inner) * (NODE_W + GAP_X), y + BOX_HEAD + Math.floor(i / inner) * STEP));
   }
-  if (systems.length) lanes.push({ type: 'system', label: 'Systems', x: centreX, y: 0, w: centreW });
+  if (systems.length) lanes.push({ type: 'system', label: 'Systems', x: centerX, y: 0, w: centerW });
 
   // ----- lanes around the systems -----
   const neighbours = new Map<string, string[]>();
@@ -175,14 +175,14 @@ export function computeLayout(
   /** Average height of the already-placed records a node is tied to. */
   const level = (n: GraphNode): number => {
     const ys = (neighbours.get(n.id) ?? []).map((id) => byId.get(id)).filter((p): p is PlacedNode => !!p).map((p) => p.y + p.h / 2);
-    return ys.length ? ys.reduce((s, y) => s + y, 0) / ys.length : LANE_HEAD + centreH / 2;
+    return ys.length ? ys.reduce((s, y) => s + y, 0) / ys.length : LANE_HEAD + centerH / 2;
   };
   /**
    * One lane. Alone in its column (`packed` false), each record sits level with the records it is
    * tied to; stacked with other lanes, the lane is packed tight in that order instead.
    */
   function placeLane(type: NodeType, items: GraphNode[], x: number, top = 0, packed = false): { right: number; bottom: number } {
-    const cols = packed ? 1 : laneCols(items.length, centreH);
+    const cols = packed ? 1 : laneCols(items.length, centerH);
     const first = top + LANE_HEAD;
     const sorted = items.map((n) => ({ n, at: level(n) })).sort((a, b) => a.at - b.at || byLabel(a.n, b.n));
     let bottom = first;
@@ -192,7 +192,7 @@ export function computeLayout(
       const ys: number[] = [];
       let y = first;
       for (const s of sorted) { y = Math.max(y, s.at - NODE_H / 2); ys.push(y); y += STEP; }
-      let limit = first + Math.max(centreH, sorted.length * STEP - GAP_Y) - NODE_H;
+      let limit = first + Math.max(centerH, sorted.length * STEP - GAP_Y) - NODE_H;
       for (let i = ys.length - 1; i >= 0; i--) { if (ys[i] > limit) ys[i] = limit; limit = ys[i] - STEP; }
       sorted.forEach((s, i) => put(s.n, x, Math.max(first, ys[i])));
     } else {
@@ -205,8 +205,8 @@ export function computeLayout(
     return { right: x + w, bottom };
   }
   if (vendors.length) placeLane('vendor', vendors, 0);
-  let x = centreX + (systems.length ? centreW : 0);
-  if (stacks(centreH)) {
+  let x = centerX + (systems.length ? centerW : 0);
+  if (stacks(centerH)) {
     x += LANE_GAP;
     let top = 0;
     for (const l of right) top = placeLane(l.t, l.items, x, top, true).bottom + LANE_STACK_GAP;

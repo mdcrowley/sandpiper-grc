@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { Db } from './db.ts';
 import { fail } from './errors.ts';
 import type { Row } from './module.ts';
-import { normaliseTag, type makeResources } from './resource.ts';
+import { normalizeTag, type makeResources } from './resource.ts';
 import { requirePerm, type makeAudit, type makeLookups } from './services.ts';
 
 interface Deps {
@@ -28,7 +28,7 @@ export function registerTagsAndWatchers({ app, db, audit, lookups, res }: Deps) 
 
   const cleanTags = (raw: unknown): string[] => {
     if (!Array.isArray(raw)) fail(400, 'validation', 'Check the highlighted fields.', { tags: 'Send a list of tags.' });
-    const tags = [...new Set((raw as unknown[]).map(normaliseTag).filter(Boolean))];
+    const tags = [...new Set((raw as unknown[]).map(normalizeTag).filter(Boolean))];
     if (tags.length > MAX_TAGS) fail(400, 'validation', 'Check the highlighted fields.', { tags: `A record can have at most ${MAX_TAGS} tags.` });
     return tags;
   };
@@ -66,7 +66,7 @@ export function registerTagsAndWatchers({ app, db, audit, lookups, res }: Deps) 
   app.post('/api/tags', async (req, reply) => {
     const b = (req.body ?? {}) as Row;
     const { def } = await visibleRecord(req, b.record_type, b.record_id, 'edit');
-    const tag = normaliseTag(b.tag);
+    const tag = normalizeTag(b.tag);
     if (!tag) fail(400, 'validation', 'Check the highlighted fields.', { tag: 'Type a tag first.' });
     const tags = await setTags(req, b.record_type, b.record_id, def.label, cleanTags([...(await tagsOf(b.record_type, b.record_id)), tag]));
     reply.code(201);
@@ -76,7 +76,7 @@ export function registerTagsAndWatchers({ app, db, audit, lookups, res }: Deps) 
   app.delete('/api/tags', async (req) => {
     const q = req.query as Record<string, string>;
     const { def } = await visibleRecord(req, q.record_type, q.record_id, 'edit');
-    const tag = normaliseTag(q.tag);
+    const tag = normalizeTag(q.tag);
     return { tags: await setTags(req, q.record_type, q.record_id, def.label, (await tagsOf(q.record_type, q.record_id)).filter((t) => t !== tag)) };
   });
 
@@ -89,15 +89,15 @@ export function registerTagsAndWatchers({ app, db, audit, lookups, res }: Deps) 
       `select rt.tag, count(*)::int as count from record_tags rt join ${def.table} t on t.id = rt.record_id
        where rt.record_type = $1 and t.deleted_at is null and ${visibilitySql(def, req.user, 't')} and rt.tag like $2
        group by rt.tag order by count(*) desc, rt.tag limit 200`,
-      [def.type, `%${normaliseTag(q).replace(/[%_\\]/g, '\\$&')}%`],
+      [def.type, `%${normalizeTag(q).replace(/[%_\\]/g, '\\$&')}%`],
     );
   });
 
   // Rename a tag on one record type; when the new name already exists the two are merged.
   app.post('/api/admin/tags/rename', { preHandler: requirePerm('admin.administer') }, async (req) => {
     const b = (req.body ?? {}) as Row;
-    const from = normaliseTag(b.from);
-    const to = normaliseTag(b.to);
+    const from = normalizeTag(b.from);
+    const to = normalizeTag(b.to);
     const fields: Record<string, string> = {};
     if (!registry.get(b.record_type)) fields.record_type = 'Choose a record type.';
     if (!from) fields.from = 'Choose the tag to rename.';

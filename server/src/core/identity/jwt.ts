@@ -121,8 +121,8 @@ export function checkIdTokenClaims(payload: Record<string, any>, rules: ClaimRul
   const audiences = Array.isArray(aud) ? aud : [aud];
   if (!audiences.includes(rules.audience)) throw new IdentityError('wrong audience');
   // With several audiences the token must say it was issued to us (azp).
-  if (audiences.length > 1 && payload.azp !== rules.audience) throw new IdentityError('wrong authorised party');
-  if (payload.azp !== undefined && payload.azp !== rules.audience) throw new IdentityError('wrong authorised party');
+  if (audiences.length > 1 && payload.azp !== rules.audience) throw new IdentityError('wrong authorized party');
+  if (payload.azp !== undefined && payload.azp !== rules.audience) throw new IdentityError('wrong authorized party');
   if (typeof payload.exp !== 'number') throw new IdentityError('no expiry');
   if (payload.exp <= now - skew) throw new IdentityError('token expired');
   if (typeof payload.iat !== 'number') throw new IdentityError('no issue time');

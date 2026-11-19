@@ -225,7 +225,7 @@ describe('reading', () => {
 });
 
 describe('preferences', () => {
-  it('lets each person switch kinds off, and honours the choice', async () => {
+  it('lets each person switch kinds off, and honors the choice', async () => {
     const agent = await t.as('agent');
     const other = await t.as('agent');
     const before = (await agent.get('/api/notifications/preferences')).body;
@@ -277,7 +277,7 @@ describe('daily digest', () => {
     const actionTable = t.ctx.resources.get('action')!.table;
     const ticketTable = t.ctx.resources.get('ticket')!.table;
 
-    const overdue = await make('action', { title: 'Renew the lighthouse licence', owner_id: owner.userId, due_on: day(-4) });
+    const overdue = await make('action', { title: 'Renew the lighthouse license', owner_id: owner.userId, due_on: day(-4) });
     const soon = await make('action', { title: 'Review harbour access list', owner_id: owner.userId, due_on: day(2) });
     await make('action', { title: 'Far-off action', owner_id: owner.userId, due_on: day(20) });
     await make('action', { title: 'Nobody owns this', due_on: day(-1) });
@@ -303,7 +303,7 @@ describe('daily digest', () => {
 
     const forOwner = await mineOnly(owner);
     expect(forOwner.map((r: any) => r.record_id).sort()).toEqual([overdue.id, soon.id].sort());
-    expect(forOwner.find((r: any) => r.record_id === overdue.id).title).toMatch(/^Action overdue since \d{1,2} \w{3} \d{4}: Renew the lighthouse licence$/);
+    expect(forOwner.find((r: any) => r.record_id === overdue.id).title).toMatch(/^Action overdue since \d{1,2} \w{3} \d{4}: Renew the lighthouse license$/);
     expect(forOwner.find((r: any) => r.record_id === soon.id).title).toMatch(/^Action due on .*: Review harbour access list$/);
     expect(forOwner[0].route).toBe(`${t.ctx.resources.get('action')!.route}/${forOwner[0].record_id}`);
     const forAssignee = await mineOnly(assignee);

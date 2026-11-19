@@ -87,7 +87,7 @@ export const DEFAULT_ROLES: {
   },
   {
     key: 'requester', name: 'Requester', enabled: false, requiresMfa: false,
-    description: 'Anyone in the organisation: submit and track own requests through the portal.',
+    description: 'Anyone in the organization: submit and track own requests through the portal.',
     grants: ['portal.view', 'portal.create'],
   },
 ];
@@ -172,7 +172,7 @@ export async function syncDefaultGrants(
     changed.push(d);
     await audit(req, {
       action: 'role.sync_defaults', recordType: 'role', recordId: role.id,
-      summary: `Default grants synchronised for role "${d.name}": ${d.missing.length} permission(s) added`
+      summary: `Default grants synchronized for role "${d.name}": ${d.missing.length} permission(s) added`
         + (d.description !== null ? '; description updated' : ''),
       before: d.description !== null ? { description: role.description } : undefined,
       after: { added: d.missing, ...(d.description !== null ? { description: d.description } : {}) },

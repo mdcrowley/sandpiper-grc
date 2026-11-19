@@ -1,6 +1,6 @@
 # Service desk
 
-The service desk is where the IT team logs and works on incidents and service requests, tracks the problems behind repeated incidents, keeps a knowledge base, and offers a catalogue of standard requests. This page covers each of those, the service desk dashboard and the service desk settings. Lists and record pages work as described in [Getting started](01-getting-started.md).
+The service desk is where the IT team logs and works on incidents and service requests, tracks the problems behind repeated incidents, keeps a knowledge base, and offers a catalog of standard requests. This page covers each of those, the service desk dashboard and the service desk settings. Lists and record pages work as described in [Getting started](01-getting-started.md).
 
 ## Tickets
 
@@ -30,7 +30,7 @@ Press **N** anywhere on the list to start a new ticket.
 
 ### Change many tickets at once
 
-1. Tick the tickets in the list (the box in the header ticks the whole page).
+1. Check the tickets in the list (the box in the header selects the whole page).
 2. Select **Edit selected…**.
 3. Choose the **Field to change**: **Assignee**, **Assignment group**, **Status**, **Priority**, **Category** or **Type**, and the new value.
 4. Select **Apply to** (for example **Apply to 3 tickets**).
@@ -40,7 +40,7 @@ Each ticket is changed on its own, so the usual rules apply: for example a ticke
 ### Log a ticket on someone's behalf
 
 1. Select **New ticket** on the ticket list (or press **N**), or **Create** then **Ticket**.
-2. To start from a standard request, select it under **Start from the catalogue**. Its values are filled in and its questions are added to the form (see [Catalogue](#catalogue)).
+2. To start from a standard request, select it under **Start from the catalog**. Its values are filled in and its questions are added to the form (see [Catalog](#catalog)).
 3. Choose the **Type** and, if you can, a **Category**.
 4. Enter a **Title**: a short description of what is wrong or what is needed. As you type, the form lists open tickets that look the same under **Possibly already logged**, and published articles under **Knowledge articles that may help**. These links open in a new browser tab, so nothing you have typed is lost.
 5. Add detail in **Description**.
@@ -61,7 +61,7 @@ The header shows the reference, title and priority, then the buttons for the nex
 - **Respond** and **Resolve**: the two service-level clocks, with the time left, a bar showing how much of the time has been used, and when each is due.
 - **Assignee** and the assignment group.
 
-Below the strip are the **Description** (select **Edit** to change the title or description), **Request details** and **Fulfilment tasks** for a catalogue request, the **Resolution** once there is one, and on the right the **Details**, **Requester**, **Vendor** and **Dates** cards. A **May help** card lists published knowledge articles and other open tickets that share words with the title. The tabs at the bottom hold **Activity** (comments and changes), **Attachments**, **Related** records and **History**.
+Below the strip are the **Description** (select **Edit** to change the title or description), **Request details** and **Fulfillment tasks** for a catalog request, the **Resolution** once there is one, and on the right the **Details**, **Requester**, **Vendor** and **Dates** cards. A **May help** card lists published knowledge articles and other open tickets that share words with the title. The tabs at the bottom hold **Activity** (comments and changes), **Attachments**, **Related** records and **History**.
 
 ### Quick actions
 
@@ -85,13 +85,13 @@ Priority is worked out from impact and urgency. As installed, the table is:
 
 | Impact | High - work has stopped | Medium - work is slowed | Low - can wait |
 |---|---|---|---|
-| Whole organisation or safety | P1 Critical | P2 High | P3 Normal |
+| Whole organization or safety | P1 Critical | P2 High | P3 Normal |
 | A department or site | P2 High | P3 Normal | P4 Low |
 | One person | P3 Normal | P4 Low | P4 Low |
 
 Your administrator may have changed this table (see [Service desk settings](#service-desk-settings)).
 
-To choose a priority yourself when logging a ticket, tick **Set the priority by hand** and pick a **Priority**. On an existing ticket, select **Edit** on the **Details** card and change **Priority**.
+To choose a priority yourself when logging a ticket, check **Set the priority by hand** and pick a **Priority**. On an existing ticket, select **Edit** on the **Details** card and change **Priority**.
 
 A priority set by hand stays as it is when impact or urgency change later. To go back to the worked-out value, set **Priority** to the value in the table.
 
@@ -106,9 +106,9 @@ A priority set by hand stays as it is when impact or urgency change later. To go
 | **Waiting on vendor** | A vendor has to act | Paused |
 | **Resolved** | Fixed or fulfilled, awaiting confirmation | Stopped |
 | **Closed** | Finished | Stopped |
-| **Cancelled** | Not needed after all | Stopped |
+| **Canceled** | Not needed after all | Stopped |
 
-Use the quick actions above, or **More actions** then **Set status** for any other move. To cancel a ticket, select **More actions**, then **Set status: Cancelled**. It is cancelled at once, with no further questions.
+Use the quick actions above, or **More actions** then **Set status** for any other move. To cancel a ticket, select **More actions**, then **Set status: Canceled**. It is canceled at once, with no further questions.
 
 ### Assign a ticket
 
@@ -126,12 +126,12 @@ To resolve:
 3. Enter **Resolution notes**: what fixed it, or what was provided. This helps the next person with the same problem.
 4. Select **Resolve**.
 
-A **Resolution** card then appears on the ticket, where the code and notes can be corrected. If a catalogue request still has fulfilment tasks that are not ticked, the **Resolve ticket** and **Close ticket** boxes say how many; you can still go ahead.
+A **Resolution** card then appears on the ticket, where the code and notes can be corrected. If a catalog request still has fulfillment tasks that are not checked, the **Resolve ticket** and **Close ticket** boxes say how many; you can still go ahead.
 
 To close:
 
 1. Select **Close ticket**.
-2. If the ticket has no **Resolution code** yet, choose one. Closing a ticket needs a resolution code, as resolving does; cancelling does not.
+2. If the ticket has no **Resolution code** yet, choose one. Closing a ticket needs a resolution code, as resolving does; canceling does not.
 3. Record the requester's satisfaction if you have it (see below).
 4. Select **Close ticket**.
 
@@ -142,7 +142,7 @@ A requester who uses the [self-service portal](18-self-service-portal.md) answer
 - When closing, the **Close ticket** box asks **How satisfied was the requester? (optional)**. Choose from **1** (Very poor) to **5** (Very good) and add a **Comment** if you wish.
 - If you closed without a score, the closed ticket shows a **Requester satisfaction** card. Choose a score there and select **Save**.
 
-Once a score is saved, the card shows it, for example "4 out of 5". Cancelled tickets are not asked.
+Once a score is saved, the card shows it, for example "4 out of 5". Canceled tickets are not asked.
 
 ### Comments and files
 
@@ -166,7 +166,7 @@ Business hours are Monday to Friday, 08:00 to 17:00, so a working day is 9 hours
 ### What stops each clock
 
 - **Respond** is met the first time the ticket is assigned to someone or moved out of **New**, whichever comes first.
-- **Resolve** is met when the ticket moves to **Resolved**, **Closed** or **Cancelled**.
+- **Resolve** is met when the ticket moves to **Resolved**, **Closed** or **Canceled**.
 
 ### What pauses the clock
 
@@ -201,9 +201,9 @@ Your administrator can set escalation rules, for example "tell the service desk 
 
 ## Requests that need approval
 
-Some catalogue items need approval before work starts (as installed, **Vendor access**). A ticket raised from one shows **Waiting for approval** in the strip and sits in the **Awaiting approval** queue. Meanwhile it can be assigned, paused or cancelled, but not started or resolved.
+Some catalog items need approval before work starts (as installed, **Vendor access**). A ticket raised from one shows **Waiting for approval** in the strip and sits in the **Awaiting approval** queue. Meanwhile it can be assigned, paused or canceled, but not started or resolved.
 
-People allowed to approve (the `tickets.approve` permission) are told, and see **Approve** and **Reject** on the ticket. Rejecting needs a **Reason**. The decision, who made it and when are shown on the ticket and kept in its history. A rejected request can be cancelled, or approved later with **Approve after all**.
+People allowed to approve (the `tickets.approve` permission) are told, and see **Approve** and **Reject** on the ticket. Rejecting needs a **Reason**. The decision, who made it and when are shown on the ticket and kept in its history. A rejected request can be canceled, or approved later with **Approve after all**.
 
 ## Vendor-held tickets
 
@@ -214,7 +214,7 @@ To hand a ticket to a vendor:
 1. On the ticket, select **More actions**, then **Mark as with vendor**.
 2. Choose the **Vendor** and enter the **Vendor reference** (the vendor's own case number).
 3. Leave **Raised with vendor** empty to use the time now, or enter when you raised it.
-4. Leave **Set status to waiting on vendor (pauses the clock)** ticked if the ticket cannot move until the vendor acts.
+4. Leave **Set status to waiting on vendor (pauses the clock)** checked if the ticket cannot move until the vendor acts.
 5. Select **Save**.
 
 The ticket shows a **With vendor** badge and a **Vendor** card with the reference, when it was raised, and how long you have been waiting.
@@ -313,33 +313,33 @@ Every time the article text changes, the previous text is kept. The **Versions**
 
 A published article ends with **Was this helpful?** Select **Yes** or **No**. Each person has one answer per version of the article; answering again replaces your earlier answer. The totals appear under the article and in the **Helpful** column of the list. Use low scores and overdue review dates to decide what to rewrite.
 
-## Catalogue
+## Catalog
 
-The catalogue holds standard requests. Choosing one starts a new ticket with the details already filled in, asks the questions that request needs, and adds the tasks to fulfil it. Open **Service catalogue** in the **Service desk** group.
+The catalog holds standard requests. Choosing one starts a new ticket with the details already filled in, asks the questions that request needs, and adds the tasks to fulfill it. Open **Service catalog** in the **Service desk** group.
 
 As installed it contains **New starter**, **Leaver**, **Access request**, **Hardware**, **Software**, **Vendor access** and **Equipment fault**, grouped by category. Tiles show when an item **Needs approval** and how many questions and tasks it has. Type in **Find a request** to narrow the tiles.
 
 To use an item:
 
-1. Select **Create request** (or **Create incident**) on its tile, or pick it under **Start from the catalogue** in the **New ticket** form.
+1. Select **Create request** (or **Create incident**) on its tile, or pick it under **Start from the catalog** in the **New ticket** form.
 2. The form opens with the item's values filled in and its questions under **request details**. Answer the questions (those marked are required) and add the requester's details.
 3. Select **Log ticket**.
 
-The answers are kept on the ticket under **Request details**. The item's tasks appear as a **Fulfilment tasks** checklist: tick each one as it is done; the ticket records who ticked it and when.
+The answers are kept on the ticket under **Request details**. The item's tasks appear as a **Fulfillment tasks** checklist: check each one as it is done; the ticket records who checked it and when.
 
-### Manage catalogue items
+### Manage catalog items
 
 If your role allows editing tickets, a **Manage items** tab is shown.
 
-- To add an item, select **New catalogue item** and enter a **Name**, **Description** and **Category**. Tick **Needs approval before work starts** if someone must approve each request.
-- To hide an item without losing it, edit it and untick **Active**.
-- To offer an item to staff in the self-service portal, tick **Show in the self-service portal** (or use the switches on the **Self-service portal** tab of the service desk settings). The **Portal** column shows **Shown** for those items, and their tiles say **In the portal**.
+- To add an item, select **New catalog item** and enter a **Name**, **Description** and **Category**. Check **Needs approval before work starts** if someone must approve each request.
+- To hide an item without losing it, edit it and clear **Active**.
+- To offer an item to staff in the self-service portal, check **Show in the self-service portal** (or use the switches on the **Self-service portal** tab of the service desk settings). The **Portal** column shows **Shown** for those items, and their tiles say **In the portal**.
 
 Open an item to design its form on the **Form and tasks** tab:
 
 - **What it fills in on the ticket**: the **Type**, **Category**, **Title starts with**, **Description template**, **Impact**, **Urgency**, **Assignment group** and **How it arrived** given to each new ticket.
-- **Questions**: select **Add question**, write the question, choose the **Answer** (**Short text**, **Long text**, **One of a list**, **Date** or **Yes or no**), list the **Choices** for a list (one on each line), add **Help text** if useful, and tick **An answer is required** where needed. The arrows change the order.
-- **Fulfilment tasks**: select **Add task** for each step.
+- **Questions**: select **Add question**, write the question, choose the **Answer** (**Short text**, **Long text**, **One of a list**, **Date** or **Yes or no**), list the **Choices** for a list (one on each line), add **Help text** if useful, and check **An answer is required** where needed. The arrows change the order.
+- **Fulfillment tasks**: select **Add task** for each step.
 
 Select **Save form and tasks**. Changes apply to tickets logged afterwards. The **Tickets created** tab lists every ticket started from the item.
 
@@ -385,7 +385,7 @@ Choose a **Calendar** to edit it:
 - **Open 24 hours, 7 days**: every minute counts and holidays are ignored.
 - Otherwise switch each weekday on or off and set its opening and closing times.
 
-Select **Save calendar**. Under **Holidays**, choose a **Date**, optionally a **Name**, and select **Add holiday**; the bin removes one. On a holiday the clock does not run for targets counted on that calendar.
+Select **Save calendar**. Under **Holidays**, choose a **Date**, optionally a **Name**, and select **Add holiday**; the trash button removes one. On a holiday the clock does not run for targets counted on that calendar.
 
 To add a calendar, for example an out-of-hours rota, select **New calendar**, give it a **Name** and select **Add calendar**; it starts as Monday to Friday, 08:00 to 17:00 for you to change. **Retire calendar** removes one that no target uses; a calendar still used by a target says which, and cannot be retired until those targets use another.
 
@@ -399,7 +399,7 @@ Select **New rule** and give it a **Name**, what it waits for (**When an open ti
 
 ### Self-service portal
 
-Switch the portal on and off, set its title, welcome line, service status banner and reopen window, and choose which catalogue items staff can ask for. See [Self-service portal](18-self-service-portal.md#settings-for-the-service-desk).
+Switch the portal on and off, set its title, welcome line, service status banner and reopen window, and choose which catalog items staff can ask for. See [Self-service portal](18-self-service-portal.md#settings-for-the-service-desk).
 
 ## Not available yet
 

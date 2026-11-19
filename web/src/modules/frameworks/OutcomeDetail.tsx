@@ -91,7 +91,7 @@ function Summary({ rec }: { rec: RecordContext }) {
           </div>
           <div className="fw-panes">
             <Pane label="Official text" tone="official" empty="No official text recorded.">{row.official_text}</Pane>
-            <Pane label="In plain language" empty="Not written yet. Say what this outcome means for your organisation, in your own words.">{row.description}</Pane>
+            <Pane label="In plain language" empty="Not written yet. Say what this outcome means for your organization, in your own words.">{row.description}</Pane>
           </div>
         </section>
 
@@ -129,7 +129,7 @@ function Summary({ rec }: { rec: RecordContext }) {
           type="framework_outcome" id={row.id} initial={row} fields={PLAN_FIELDS}
           hints={{
             description: 'The outcome in your own words. It becomes the page title and the text on the board.',
-            target: 'What “done” looks like for your organisation.',
+            target: 'What “done” looks like for your organization.',
             first_action: 'The next concrete step.',
             review_on: 'The owner is reminded two weeks before this date and again on the day.',
             evidence_summary: 'A sentence or two on what evidence exists overall. Shown at the top of the Evidence tab.',

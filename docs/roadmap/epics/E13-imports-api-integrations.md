@@ -183,7 +183,7 @@ types from CSV through the same mapping and dry-run screen that assets have.
 
 **Acceptance criteria**
 
-- [x] The importer is generalised to any registered record type
+- [x] The importer is generalized to any registered record type
 - [x] Each list page offers "Import" to people who can create that type
 - [x] Validation, hooks and audit run exactly as for records created by hand (the check runs the engine's validation; hooks run on the real import)
 - [x] A match key can be chosen for updating existing rows (create, update only, or update and create)

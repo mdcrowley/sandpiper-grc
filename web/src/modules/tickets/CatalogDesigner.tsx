@@ -1,5 +1,5 @@
-// The form that replaces the raw JSON of a catalogue item: the values it fills in on the
-// ticket, the questions it asks, and the fulfilment tasks it adds.
+// The form that replaces the raw JSON of a catalog item: the values it fills in on the
+// ticket, the questions it asks, and the fulfillment tasks it adds.
 import { useEffect, useState } from 'react';
 import {
   Button, Card, Checkbox, errorMessage, IconButton, LookupSelect, Select, TextArea, TextField, useToast,
@@ -35,7 +35,7 @@ function move<T>(list: T[], index: number, by: number): T[] {
   return next;
 }
 
-export function CatalogueDesigner({ rec }: { rec: RecordContext }) {
+export function CatalogDesigner({ rec }: { rec: RecordContext }) {
   const { row, save, canEdit } = rec;
   const toast = useToast();
   const [d, setD] = useState<Draft>(() => draftOf(row));
@@ -60,7 +60,7 @@ export function CatalogueDesigner({ rec }: { rec: RecordContext }) {
         })),
         tasks: d.tasks.map((t) => t.trim()).filter(Boolean),
       });
-      toast.success('Catalogue item saved.');
+      toast.success('Catalog item saved.');
     } catch (err) {
       setErrors(fieldErrors(err));
       toast.error(fieldErrors(err).questions ?? fieldErrors(err).tasks ?? errorMessage(err));
@@ -117,7 +117,7 @@ export function CatalogueDesigner({ rec }: { rec: RecordContext }) {
         )}
       </Card>
 
-      <Card title="Fulfilment tasks" actions={<span className="muted">{d.tasks.length} added to each ticket as a checklist</span>}>
+      <Card title="Fulfillment tasks" actions={<span className="muted">{d.tasks.length} added to each ticket as a checklist</span>}>
         {errors.tasks && <p className="notice notice-warn" role="alert">{errors.tasks}</p>}
         {d.tasks.length === 0 && <p className="muted">No tasks. Tasks appear on the ticket as a checklist the agent ticks off.</p>}
         <ol className="sd-builder sd-builder-tasks">

@@ -107,12 +107,12 @@ export interface SeedOptions {
   profile: 'pilot' | 'dev';
   seedDir: string;
   /**
-   * The organisation profile: `<seedDir>/organisation.json` when it exists, else {}.
-   * It holds everything specific to one organisation (see examples/organisation.example.json),
-   * so that nothing organisation-specific lives in code. Core applies `appName` and `lookups`;
+   * The organization profile: `<seedDir>/organization.json` when it exists, else {}.
+   * It holds everything specific to one organization (see examples/organization.example.json),
+   * so that nothing organization-specific lives in code. Core applies `appName` and `lookups`;
    * modules read their own sections (for example `obligations`, `notificationRules`).
    */
-  organisation?: Row;
+  organization?: Row;
 }
 
 export interface ResourceRegistry {

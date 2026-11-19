@@ -30,13 +30,13 @@ export function Panel<T>({ title, state, to, linkLabel, empty, emptyTitle, empty
   );
 }
 
-/** Whole days from today (organisation time zone) to a calendar date; negative when it has passed. */
+/** Whole days from today (organization time zone) to a calendar date; negative when it has passed. */
 export function daysUntil(date: string): number {
   const day = (v: string) => Date.parse(`${v.slice(0, 10)}T00:00:00Z`);
   return Math.round((day(date) - day(todayInZone())) / 86_400_000);
 }
 
-/** A due date as a chip: red once late, amber within a week, grey otherwise. */
+/** A due date as a chip: red once late, amber within a week, gray otherwise. */
 export function DueChip({ date }: { date: string | null | undefined }) {
   if (!date) return <span className="muted">No due date</span>;
   const days = daysUntil(String(date));

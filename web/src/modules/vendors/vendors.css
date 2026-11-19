@@ -1,4 +1,4 @@
-/* Vendors and contracts. Colours come from the design tokens so both themes work.
+/* Vendors and contracts. Colors come from the design tokens so both themes work.
    Lists, forms, record pages, tabs, chips and tiles are the core's; only the layouts that are
    particular to this module live here: the profile, the heat grid, the notice-date banner,
    the agenda, the checklist and the assessment. */
@@ -133,7 +133,7 @@ a.vnd-cell:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px;
 .vnd-tip-status { font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.8; }
 .vnd-tip-ref { font-weight: 600; }
 
-/* ---- contract: the notice date, front and centre ---- */
+/* ---- contract: the notice date, front and center ---- */
 .vnd-hero { display: grid; grid-template-columns: minmax(220px, 280px) minmax(0, 1fr); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-1); overflow: hidden; }
 .vnd-hero-date { display: grid; align-content: center; gap: var(--s-1); padding: var(--s-5); background: var(--surface-2); border-inline-end: 1px solid var(--border); }
 .vnd-hero-big { font-size: var(--fs-3xl); font-weight: 700; line-height: 1.1; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }

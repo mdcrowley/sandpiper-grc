@@ -16,7 +16,7 @@ import { registerTokens } from './tokens.ts';
 import { matchTotpStep } from './totp.ts';
 // Passkeys and security keys, and the new-installation second-factor default (E02-08, E02-17).
 import { applySetupSecondFactor, hasActivePasskey, passkeySecondFactor, registerWebAuthn } from './webauthn/index.ts';
-import { WEBAUTHN_ENROLMENT_ROUTES } from './webauthn/paths.ts';
+import { WEBAUTHN_ENROLLMENT_ROUTES } from './webauthn/paths.ts';
 
 export const SESSION_COOKIE = 'grc_session';
 const GENERIC_SIGNIN_ERROR = 'Sign-in failed. Check your details, or wait a few minutes and try again.';
@@ -113,7 +113,7 @@ export async function storeTotpSecret(db: Db, userId: string, secret: string | n
   );
 }
 
-/** The user's authenticator key in the clear, or null. Never return it from an API after enrolment. */
+/** The user's authenticator key in the clear, or null. Never return it from an API after enrollment. */
 export async function readTotpSecret(db: Db, userId: string): Promise<string | null> {
   const row = await db.one<{ totp_secret: string | null }>('select totp_secret from users where id = $1', [userId]);
   if (!row?.totp_secret) return null;
@@ -190,18 +190,18 @@ export type MfaEnforcement = 'off' | 'notice' | 'required';
 /**
  * How a required second factor is applied (setting `auth.mfa_enforcement`):
  * `off` - nothing; `notice` - a reminder only (the default, so existing installations keep working);
- * `required` - a person who must enrol and has not can reach only the enrolment routes.
+ * `required` - a person who must enroll and has not can reach only the enrollment routes.
  */
 export async function mfaEnforcement(deps: Deps): Promise<MfaEnforcement> {
   const v = await deps.settings.get<string>('auth.mfa_enforcement', 'notice');
   return v === 'off' || v === 'required' ? v : 'notice';
 }
 
-/** What a person who must enrol may still call: their own state, enrolment, password and sign-out. */
-export const MFA_ENROLMENT_ROUTES = [
+/** What a person who must enroll may still call: their own state, enrollment, password and sign-out. */
+export const MFA_ENROLLMENT_ROUTES = [
   '/api/health', '/api/auth/state', '/api/auth/logout', '/api/auth/security', '/api/auth/confirm',
   '/api/auth/totp/begin', '/api/auth/totp/confirm', '/api/auth/change-password', '/api/auth/sessions',
-  ...WEBAUTHN_ENROLMENT_ROUTES,
+  ...WEBAUTHN_ENROLLMENT_ROUTES,
 ];
 
 /**
@@ -346,8 +346,8 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
       }
     }
     if (!req.user && !req.routeOptions?.config?.public) fail(401, 'unauthenticated', 'Sign in to continue.');
-    // A required second factor that is missing limits the person to enrolment (and signing out).
-    if (req.user && !req.routeOptions?.config?.public && !MFA_ENROLMENT_ROUTES.includes(req.url.split('?')[0])) {
+    // A required second factor that is missing limits the person to enrollment (and signing out).
+    if (req.user && !req.routeOptions?.config?.public && !MFA_ENROLLMENT_ROUTES.includes(req.url.split('?')[0])) {
       if ((await mfaEnforcement(deps)) === 'required' && (await mfaStatus(deps, req.user.id)).blocked) {
         fail(403, 'mfa_enrolment_required', 'Set up your second factor to continue. Open Account security to do it.');
       }
@@ -375,8 +375,8 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
     permissions: req.user?.permissions ?? [],
     features: await settings.get('features', { portal: false }),
     pilot: await settings.get('pilot_mode', true),
-    // `mfaEnrollmentRequired`: show the reminder. `mfaEnrollmentBlocked`: nothing but enrolment works
-    // until the person enrols (setting auth.mfa_enforcement = required; see docs/security.md).
+    // `mfaEnrollmentRequired`: show the reminder. `mfaEnrollmentBlocked`: nothing but enrollment works
+    // until the person enrolls (setting auth.mfa_enforcement = required; see docs/security.md).
     mfaEnrollmentRequired: mfa.required,
     mfaEnrollmentBlocked: mfa.blocked,
     mfaGraceEndsAt: mfa.graceEndsAt,

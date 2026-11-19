@@ -10,7 +10,7 @@ import type { ChartOption, ChartSegment } from '../../core';
 import { minutesText, ticketListHref, type Group, type Metrics, type QueueCounts } from './util';
 
 const DAY = 86_400_000;
-/** Today's date in the organisation's time zone. */
+/** Today's date in the organization's time zone. */
 const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: timeZone() }).format(new Date());
 const shift = (day: string, days: number) => new Date(Date.parse(`${day}T00:00:00Z`) + days * DAY).toISOString().slice(0, 10);
 const PRESETS = ['7', '30', '90'];

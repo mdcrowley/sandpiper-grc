@@ -49,7 +49,7 @@ const HOST_RE = /^(\*\.)?[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?(:\d{1,5})?$/;
 const FEATURES: Record<string, { title: string; text: string }> = {
   portal: {
     title: 'Self-service portal',
-    text: 'The simpler pages where anyone in the organisation submits and tracks their own requests. Off by default: agents enter tickets on behalf of others. Switch on together with the Requester role when you open the application to everyone.',
+    text: 'The simpler pages where anyone in the organization submits and tracks their own requests. Off by default: agents enter tickets on behalf of others. Switch on together with the Requester role when you open the application to everyone.',
   },
 };
 

@@ -116,7 +116,7 @@ export function shiftDay(day: string, days: number): string {
   return new Date(Date.parse(`${day}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
 }
 
-/** Findings fixed since the first day of this month (organisation time zone). */
+/** Findings fixed since the first day of this month (organization time zone). */
 export const fixedThisMonthLink = () => listLink({ closed: 'true', 'fixed_on.gt': shiftDay(`${todayInZone().slice(0, 7)}-01`, -1) });
 
 /** Open findings first seen between `min` and `max` days ago (`max` null = no upper limit), as date filters the list can show. */

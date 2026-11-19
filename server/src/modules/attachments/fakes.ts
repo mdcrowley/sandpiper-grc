@@ -28,11 +28,14 @@ export async function startFakeClamd(opts: { streamMaxBytes?: number } = {}): Pr
     sockets.add(socket);
     socket.on('close', () => sockets.delete(socket));
     socket.on('error', () => undefined);
+    // After a refused stream the client closes its side once it has read the answer.
+    socket.on('end', () => socket.end());
     let buf = Buffer.alloc(0);
     let mode: 'command' | 'stream' = 'command';
     const body: Buffer[] = [];
     let size = 0;
     socket.on('data', (d: Buffer) => {
+      if ((mode as string) === 'discard') return;
       buf = Buffer.concat([buf, d]);
       if (mode === 'command') {
         const end = buf.indexOf(0);
@@ -59,7 +62,14 @@ export async function startFakeClamd(opts: { streamMaxBytes?: number } = {}): Pr
         body.push(Buffer.from(buf.subarray(4, 4 + len)));
         size += len;
         buf = buf.subarray(4 + len);
-        if (size > max) { socket.end('INSTREAM size limit exceeded. ERROR\0'); return; }
+        if (size > max) {
+          // Answer, then keep reading (and discarding) until the client finishes, like clamd. Closing
+          // with unread data makes Windows reset the connection, and the client would lose the answer.
+          socket.write('INSTREAM size limit exceeded. ERROR\0');
+          mode = 'discard' as typeof mode;
+          buf = Buffer.alloc(0);
+          return;
+        }
       }
     });
   });

@@ -178,7 +178,7 @@ describe('working calendars (E03-17)', () => {
   });
 });
 
-describe('catalogue items with questions, tasks and approval (E03-15)', () => {
+describe('catalog items with questions, tasks and approval (E03-15)', () => {
   it('asks the questions, copies the tasks and holds work until approved', async () => {
     clock.set('2026-12-02T15:00:00Z');
     const bad = await t.api.post('/api/catalog-items', { name: 'Bad', questions: [{ label: 'Pick', type: 'choice', options: ['Only one'] }] });
@@ -209,7 +209,7 @@ describe('catalogue items with questions, tasks and approval (E03-15)', () => {
     expect(made.body.approval_status).toBe('pending');
     expect(await notices('approval', /Approval needed: .*Door access: stores/)).toBeGreaterThanOrEqual(1);
 
-    // Work cannot start, but the ticket can be assigned, wait or be cancelled.
+    // Work cannot start, but the ticket can be assigned, wait or be canceled.
     const url = `/api/tickets/${made.body.id}`;
     const blocked = await agent.patch(url, { status: 'in_progress' });
     expect(blocked.status).toBe(400);
@@ -236,7 +236,7 @@ describe('catalogue items with questions, tasks and approval (E03-15)', () => {
     expect(ticked.body.fulfilment_tasks[1]).toEqual({ title: 'Record the card number', done: false });
     expect((await agent.patch(url, { fulfilment_tasks: [{ title: '' }] })).status).toBe(400);
 
-    // A ticket with no catalogue item ignores answers, and an unknown item is refused.
+    // A ticket with no catalog item ignores answers, and an unknown item is refused.
     const plain = await agent.post('/api/tickets', { ...base, title: 'No item', catalog_answers: { x: 'y' } });
     expect(plain.body.catalog_answers).toBeNull();
     expect(plain.body.approval_status).toBeNull();

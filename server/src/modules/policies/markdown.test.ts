@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isSafeHref, renderPolicyMarkdown, sanitiseHtml } from './markdown.ts';
+import { isSafeHref, renderPolicyMarkdown, sanitizeHtml } from './markdown.ts';
 
 // Anything that could run code if it reached the page as markup.
 // An event-handler attribute on a tag (text inside a quoted attribute value is inert, so values are blanked first).
@@ -102,7 +102,7 @@ describe('safe rendering of policy text', () => {
   });
 
   it('the second layer alone strips markup the first layer never saw', () => {
-    const html = sanitiseHtml('<p onclick="x()">ok</p><script>bad()</script><a href="javascript:x()" title="t">l</a><img src=x><b>bold</b>');
+    const html = sanitizeHtml('<p onclick="x()">ok</p><script>bad()</script><a href="javascript:x()" title="t">l</a><img src=x><b>bold</b>');
     expect(html).toBe('<p>ok</p>&lt;script&gt;bad()&lt;/script&gt;<a>l</a>&lt;img src=x&gt;&lt;b&gt;bold&lt;/b&gt;');
   });
 });

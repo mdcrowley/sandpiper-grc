@@ -5,7 +5,7 @@
 ## Goal
 
 Let people use Sandpiper GRC from AI assistants such as Claude Desktop, Claude Code and other
-Model Context Protocol (MCP) clients: look things up, summarise their work, risks, incidents
+Model Context Protocol (MCP) clients: look things up, summarize their work, risks, incidents
 and service levels, and (when allowed) make changes, always as themselves and never with more
 rights than they have.
 
@@ -39,7 +39,7 @@ rights than they have.
 | E21-13 | Documentation | done | P1 |
 | E21-14 | Core: let `scopeCovered` accept the `mcp` scope family | open | P2 |
 | E21-15 | "Connect an AI assistant" card on Account security and a Settings link | open | P2 |
-| E21-16 | OAuth 2.1 authorisation for remote connectors | open | P3 |
+| E21-16 | OAuth 2.1 authorization for remote connectors | open | P3 |
 | E21-17 | Who may connect an assistant (role permission) | open | P2 |
 | E21-18 | Help for this page: route map entries | open | P3 |
 | E21-19 | Tool-level choice per token and per role | open | P3 |
@@ -102,7 +102,7 @@ rights than they have.
 
 **Acceptance criteria**
 
-- [x] `list_record_types`, `search`, `list_records`, `get_record`, `get_related`, `get_history` with zod inputs, labelled values, links, paged (≤ 50)
+- [x] `list_record_types`, `search`, `list_records`, `get_record`, `get_related`, `get_history` with zod inputs, labeled values, links, paged (≤ 50)
 - [x] Records by id or reference; types by key, label or plural
 - [x] Readable summary plus structured content; clear errors for unknown types and fields
 
@@ -186,7 +186,7 @@ rights than they have.
 
 **Acceptance criteria**
 
-- [x] SDK client over HTTP on port 0: initialise, list tools, read-only calls, every insight tool offered
+- [x] SDK client over HTTP on port 0: initialize, list tools, read-only calls, every insight tool offered
 - [x] Agent token cannot see restricted records through any tool, resource or search
 - [x] Writes refused when off, allowed when on with scopes; audit names the token; allowed-tool list
 - [x] Origin, cookie-only, wrong token, no `mcp.use`, settings out of a token's reach, rate limit
@@ -220,7 +220,7 @@ then the pages are reached at `/account/ai-assistant` and from Administration.
 
 **Status:** open · **Priority:** P3 · **Type:** feature
 
-Remote connectors (for example Claude's custom connectors) expect the MCP authorisation flow
+Remote connectors (for example Claude's custom connectors) expect the MCP authorization flow
 (OAuth 2.1 with protected resource metadata). Needs HTTPS and a reachable address.
 
 ### E21-17 Who may connect an assistant

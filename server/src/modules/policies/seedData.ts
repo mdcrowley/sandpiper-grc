@@ -24,7 +24,7 @@ export interface SamplePolicy {
 
 const ACCEPTABLE_USE_V1 = `## Purpose
 
-This sample policy sets out how people may use the organisation's computers, accounts and network.
+This sample policy sets out how people may use the organization's computers, accounts and network.
 
 ## What we expect
 
@@ -40,7 +40,7 @@ Tell the service desk straight away if you lose a device or think an account has
 
 const ACCEPTABLE_USE_V2 = `## Purpose
 
-This sample policy sets out how people may use the organisation's computers, accounts and network.
+This sample policy sets out how people may use the organization's computers, accounts and network.
 
 ## What we expect
 
@@ -49,7 +49,7 @@ This sample policy sets out how people may use the organisation's computers, acc
 - Use the **second factor** wherever it is offered.
 - Lock your screen when you step away.
 - Do not install software that IT has not agreed.
-- Do not paste confidential information into online tools the organisation has not approved.
+- Do not paste confidential information into online tools the organization has not approved.
 
 ## Personal devices
 
@@ -63,7 +63,7 @@ Tell the service desk straight away if you lose a device or think an account has
 export const SAMPLE_POLICIES: SamplePolicy[] = [
   {
     key: 'acceptable_use', title: '[Sample] Acceptable use policy', category: 'acceptable_use',
-    summary: 'Invented example. How people may use the organisation\'s computers, accounts and network.',
+    summary: 'Invented example. How people may use the organization\'s computers, accounts and network.',
     approver_name: 'Sample Approver', approver_role: 'Head of IT', reviewInDays: 200,
     audience: { everyone: true }, ack_days: 14,
     versions: [
@@ -107,7 +107,7 @@ System owners check who has access to their system twice a year and record the r
       stage: 'approved', change_summary: 'First issue.',
       body: `## Scope
 
-Every system in the inventory that holds information the organisation could not easily recreate.
+Every system in the inventory that holds information the organization could not easily recreate.
 
 ## Rules
 
@@ -138,7 +138,7 @@ Anyone who suspects a security incident reports it to the service desk at once, 
 1. The security lead decides whether it is an incident and how serious it is.
 2. An incident lead is named and keeps a timeline.
 3. Affected systems are contained before they are cleaned up.
-4. People outside the organisation are told when the rules in force require it.
+4. People outside the organization are told when the rules in force require it.
 
 ## Learn from it
 
@@ -148,7 +148,7 @@ Every incident ends with a short review: what happened, what worked, and the act
   },
   {
     key: 'remote_working', title: '[Sample] Remote working policy', category: 'acceptable_use',
-    summary: 'Invented example. Working safely away from the organisation\'s premises.',
+    summary: 'Invented example. Working safely away from the organization\'s premises.',
     approver_name: 'Sample Approver', approver_role: 'Head of IT', reviewInDays: 365,
     audience: { everyone: true },
     versions: [{
@@ -156,7 +156,7 @@ Every incident ends with a short review: what happened, what worked, and the act
       body: `## Before you work remotely
 
 - Use a device issued or approved by IT, with disk encryption turned on.
-- Connect through the organisation's remote access service, not by forwarding files to personal accounts.
+- Connect through the organization's remote access service, not by forwarding files to personal accounts.
 
 ## While you work
 
@@ -170,7 +170,7 @@ Every incident ends with a short review: what happened, what worked, and the act
   },
   {
     key: 'supplier_security', title: '[Sample] Supplier security policy', category: 'third_party',
-    summary: 'Invented example. The security checks made before and while a supplier handles the organisation\'s information.',
+    summary: 'Invented example. The security checks made before and while a supplier handles the organization\'s information.',
     approver_name: 'Sample Approver', approver_role: 'Head of IT', reviewInDays: 25,
     audience: { roles: ['security_lead'] },
     versions: [{
@@ -188,7 +188,7 @@ Every incident ends with a short review: what happened, what worked, and the act
 
 ## At the end
 
-Confirm in writing that the organisation's information has been returned or destroyed.
+Confirm in writing that the organization's information has been returned or destroyed.
 `,
     }],
   },

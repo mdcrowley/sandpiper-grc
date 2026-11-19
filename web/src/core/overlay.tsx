@@ -29,7 +29,7 @@ function onEscape(e: KeyboardEvent): void {
   openSheets[openSheets.length - 1].close();
 }
 
-/** Shared behaviour: Escape handling, and starting in the first form control rather than on Close. */
+/** Shared behavior: Escape handling, and starting in the first form control rather than on Close. */
 function useSheet(open: boolean, onClose: () => void) {
   const id = useId();
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -74,7 +74,7 @@ function SheetContent({ bodyRef, children, footer }: { bodyRef: React.RefObject<
   );
 }
 
-/** A centred dialog: focus is trapped, Escape and a press on the backdrop close it. */
+/** A centered dialog: focus is trapped, Escape and a press on the backdrop close it. */
 export function Modal({ open, title, onClose, children, footer, size = 'md' }: ModalProps) {
   const bodyRef = useSheet(open, onClose);
   return (

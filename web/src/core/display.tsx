@@ -22,7 +22,7 @@ export interface TimelineItem {
   meta?: ReactNode;
   /** Icon inside the marker; a plain dot when left out. */
   icon?: IconName;
-  /** Marker colour (default grey). */
+  /** Marker color (default gray). */
   color?: ColorName;
   /** Longer content under the title: a comment, a list of changes. */
   body?: ReactNode;
@@ -38,7 +38,7 @@ export interface TimelineProps {
   empty?: ReactNode;
 }
 
-/** Events in order down a line, each with a coloured marker. Pass the items already sorted. */
+/** Events in order down a line, each with a colored marker. Pass the items already sorted. */
 export function Timeline({ items, label = 'Timeline', compact, empty }: TimelineProps) {
   if (items.length === 0) return empty ? <p className="muted">{empty}</p> : null;
   return (
@@ -136,7 +136,7 @@ export interface AgendaItem {
   timeText?: string;
   /** A chip or short note at the right: status, owner. */
   meta?: ReactNode;
-  /** Colour of the bar at the left of the item. */
+  /** Color of the bar at the left of the item. */
   color?: ColorName;
 }
 

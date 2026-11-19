@@ -26,7 +26,7 @@ export interface NotifyInput {
   userIds?: (string | null | undefined)[];
   /** Also notify everyone holding this permission, for example "security.view". */
   permission?: string;
-  /** A value of the `notification_kind` list: assignment, approval, due, sla, reminder, acknowledgement, clock, watch, general. */
+  /** A value of the `notification_kind` list: assignment, approval, due, sla, reminder, acknowledgment, clock, watch, general. */
   kind: string;
   /** One line, shown in the bell and the list. Write it for the recipient. */
   title: string;

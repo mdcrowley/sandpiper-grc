@@ -1,14 +1,14 @@
-// Policies and exceptions: a policy library with versions, acknowledgement tracking,
+// Policies and exceptions: a policy library with versions, acknowledgment tracking,
 // mapping to framework outcomes, and a register of time-limited exceptions.
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
-import { DEFAULT_REMINDER_INTERVAL, REMINDER_SETTING, reminderInterval, runPolicyReminders } from './acknowledgements.ts';
+import { DEFAULT_REMINDER_INTERVAL, REMINDER_SETTING, reminderInterval, runPolicyReminders } from './acknowledgments.ts';
 import { registerAckRoutes } from './ackRoutes.ts';
 import { registerExceptions, runExceptionExpiry } from './exceptions.ts';
 import { registerOutcomeRoutes } from './outcomes.ts';
 import { seedPolicies } from './seed.ts';
 import { registerVersionRoutes } from './versions.ts';
 
-export { runPolicyReminders } from './acknowledgements.ts';
+export { runPolicyReminders } from './acknowledgments.ts';
 export { runExceptionExpiry } from './exceptions.ts';
 export { renderPolicyMarkdown } from './markdown.ts';
 
@@ -111,7 +111,7 @@ const mod: ModuleDef = {
     registerOutcomeRoutes(ctx);
     registerExceptions(ctx);
 
-    // ---------- settings: the acknowledgement reminder interval ----------
+    // ---------- settings: the acknowledgment reminder interval ----------
 
     ctx.app.get('/api/policies/settings', { preHandler: ctx.requirePerm('policies.view') }, async () => ({
       reminder_interval_days: await reminderInterval(ctx),
@@ -127,7 +127,7 @@ const mod: ModuleDef = {
       return { reminder_interval_days: n };
     });
 
-    // ---------- daily checks: acknowledgement reminders and exception expiry ----------
+    // ---------- daily checks: acknowledgment reminders and exception expiry ----------
 
     const safeRun = async () => {
       try {

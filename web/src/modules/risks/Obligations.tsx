@@ -24,7 +24,7 @@ export function ObligationList() {
 
   return (
     <div className="stack">
-      <PageHeader title="Obligations" subtitle="What the organisation is required to do, who owns each requirement, how it is met and when it is next due." />
+      <PageHeader title="Obligations" subtitle="What the organization is required to do, who owns each requirement, how it is met and when it is next due." />
       <div className="grid-stats">
         <Stat label="Obligations" value={stats.data?.total ?? '–'} color="blue" icon="scale" />
         <Stat label={count('not_met')?.label ?? 'Not met'} value={count('not_met')?.count ?? 0} color={(count('not_met')?.count ?? 0) > 0 ? 'red' : 'green'} to="/obligations?f.status=not_met" />

@@ -64,7 +64,7 @@ declare module 'fastify' {
   }
 }
 
-type Normalised = Omit<SendMailInput, 'to' | 'attachments'> & { to?: string[]; attachments?: MailAttachment[] };
+type Normalized = Omit<SendMailInput, 'to' | 'attachments'> & { to?: string[]; attachments?: MailAttachment[] };
 
 export const EMAIL_RE =/^[^\s@<>"',;]+@[^\s@<>"',;]+\.[^\s@<>"',;]+$/;
 const MAX_ATTACH_BYTES = 10 * 1024 * 1024;
@@ -222,8 +222,8 @@ export function makeMail(ctx: ModuleContext, jobs: JobQueue) {
    * Also accepts the plain shape `{ to: 'a@b' | ['a@b'], subject, text, link?, attachments: [{ filename, content: Buffer, contentType }] }`
    * (the "General message" template), so a caller written against a simple mailer works unchanged.
    */
-  function normalise(input: SendMailInput): Normalised {
-    const out: Normalised = {
+  function normalize(input: SendMailInput): Normalized {
+    const out: Normalized = {
       ...input, to: typeof input.to === 'string' ? [input.to] : input.to, attachments: undefined,
     };
     if (!out.template && (typeof input.subject === 'string' || typeof input.text === 'string')) {
@@ -282,7 +282,7 @@ export function makeMail(ctx: ModuleContext, jobs: JobQueue) {
   async function sendMail(raw: SendMailInput): Promise<SendMailResult> {
     const none = (on: boolean, skipped = 0): SendMailResult => ({ queued: 0, skipped, enabled: on, logIds: [] });
     try {
-      const input = normalise(raw);
+      const input = normalize(raw);
       if (!(await enabled())) return none(false);
       const size = (input.attachments ?? []).reduce((n, a) => n + Math.floor(String(a.contentBase64 ?? '').length * 3 / 4), 0);
       if (size > MAX_ATTACH_BYTES) {

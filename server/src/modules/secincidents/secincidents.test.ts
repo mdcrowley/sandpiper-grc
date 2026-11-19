@@ -1,11 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { testApp } from '../../test/helpers.ts';
-import { loadOrganisationRules, RULES } from './defaults.ts';
+import { loadOrganizationRules, RULES } from './defaults.ts';
 import mod from './index.ts';
 
 // Invented data only. Run alone with GRC_MODULES=secincidents.
 
-/** An invented organisation's notification rules, in the shape of the organisation profile. */
+/** An invented organization's notification rules, in the shape of the organization profile. */
 const ORG_RULES = [
   { key: 'test_agency_a', trigger: 'is_cyber_incident', party: 'Agency A', hours: 24, required: false, active: true, guidance: 'Invented: recommended within 24 hours.' },
   { key: 'test_agency_b', trigger: 'is_cyber_incident', party: 'Agency B', hours: 168, required: true, active: true, guidance: 'Invented: required within 7 days.' },
@@ -20,7 +20,7 @@ const DEFAULT_PARTIES = RULES.map((r) => r.party);
 let t: Awaited<ReturnType<typeof testApp>>;
 beforeAll(async () => {
   t = await testApp();
-  // Kinds of data that this invented organisation holds; in an installation they come from the organisation profile.
+  // Kinds of data that this invented organization holds; in an installation they come from the organization profile.
   await t.ctx.lookups.ensure('incident_data_kind', [
     { value: 'special_records', label: 'Special records', meta: { hint: 'Invented kind.' } },
     { value: 'card_payments', label: 'Card payments' },
@@ -59,7 +59,7 @@ describe('regulatory clocks', () => {
     expect(rules.map((r) => r.party).sort()).toEqual([...DEFAULT_PARTIES].sort());
     expect(new Set(rules.map((r) => r.trigger_attribute))).toEqual(
       new Set(['any', 'is_cyber_incident', 'personal_info_involved']));
-    // No built-in rule, question or list value names a kind of data that only some organisations hold.
+    // No built-in rule, question or list value names a kind of data that only some organizations hold.
     const builtIn = JSON.stringify([RULES, (await import('./defaults.ts')).LOOKUPS]).toLowerCase();
     expect(builtIn).not.toMatch(/health|card|patient|student/);
 
@@ -69,8 +69,8 @@ describe('regulatory clocks', () => {
     await t.api.patch(`/api/security-incidents/${quiet.id}`, { status: 'closed' });
   });
 
-  it('loads the organisation\'s own rules from its profile', async () => {
-    expect(await loadOrganisationRules(t.ctx, ORG_RULES)).toBe(ORG_RULES.length);
+  it('loads the organization\'s own rules from its profile', async () => {
+    expect(await loadOrganizationRules(t.ctx, ORG_RULES)).toBe(ORG_RULES.length);
     const rules = (await t.api.get('/api/security-notification-rules')).body as any[];
     expect(rules.length).toBe(RULES.length + ORG_RULES.length);
     const by = (party: string) => rules.find((r) => r.party === party);
@@ -87,12 +87,12 @@ describe('regulatory clocks', () => {
 
   it('refuses a profile rule that could not work', async () => {
     const base = { key: 'test_bad', trigger: 'any', party: 'Nobody', hours: 1, required: true, active: true, guidance: '' };
-    await expect(loadOrganisationRules(t.ctx, [{ ...base, trigger: 'no_such_flag' }])).rejects.toThrow(/trigger/);
-    await expect(loadOrganisationRules(t.ctx, [{ ...base, trigger: 'kind:no_such_kind' }])).rejects.toThrow(/trigger/);
-    await expect(loadOrganisationRules(t.ctx, [{ ...base, hours: null }])).rejects.toThrow(/deadline/);
-    await expect(loadOrganisationRules(t.ctx, [{ ...base, key: '' }])).rejects.toThrow(/key/);
-    await expect(loadOrganisationRules(t.ctx, { not: 'a list' })).rejects.toThrow(/list/);
-    expect(await loadOrganisationRules(t.ctx, undefined)).toBe(0);
+    await expect(loadOrganizationRules(t.ctx, [{ ...base, trigger: 'no_such_flag' }])).rejects.toThrow(/trigger/);
+    await expect(loadOrganizationRules(t.ctx, [{ ...base, trigger: 'kind:no_such_kind' }])).rejects.toThrow(/trigger/);
+    await expect(loadOrganizationRules(t.ctx, [{ ...base, hours: null }])).rejects.toThrow(/deadline/);
+    await expect(loadOrganizationRules(t.ctx, [{ ...base, key: '' }])).rejects.toThrow(/key/);
+    await expect(loadOrganizationRules(t.ctx, { not: 'a list' })).rejects.toThrow(/list/);
+    expect(await loadOrganizationRules(t.ctx, undefined)).toBe(0);
     expect(((await t.api.get('/api/security-notification-rules')).body as any[]).some((r) => r.party === 'Nobody')).toBe(false);
   });
 
@@ -221,7 +221,7 @@ describe('regulatory clocks', () => {
     expect(res.status).toBe(200);
     expect(res.body.notifications.map((n: any) => n.party).sort()).toEqual(['Agency A', 'Agency B', 'Agency C', 'Partner D']);
     expect(res.body.notifications.find((n: any) => n.party === 'Agency A').due_at).toBe(plus(24));
-    // Rules that apply but are switched off: the organisation's two, and every starter rule.
+    // Rules that apply but are switched off: the organization's two, and every starter rule.
     expect(res.body.not_configured.map((n: any) => n.party).sort()).toEqual(
       ['Individuals G', 'Insurer F', ...RULES.map((r) => r.party)].sort());
     expect((await t.api.get('/api/security-incidents')).body.total).toBe(before);
@@ -255,7 +255,7 @@ describe('regulatory clocks', () => {
   });
 
   it('maps the former built-in triggers of an older profile to kinds of data', async () => {
-    expect(await loadOrganisationRules(t.ctx, [
+    expect(await loadOrganizationRules(t.ctx, [
       { key: 'test_legacy_x', trigger: 'card_data_involved', party: 'Legacy X', hours: 2, required: true, active: false, guidance: '' },
     ])).toBe(1);
     const rule = ((await t.api.get('/api/security-notification-rules')).body as any[]).find((r) => r.party === 'Legacy X');
@@ -391,7 +391,7 @@ describe('incident workspace', () => {
   });
 });
 
-describe('restricted behaviour', () => {
+describe('restricted behavior', () => {
   it('hides the whole module from an ordinary agent, including the hand-written routes', async () => {
     const agent = await t.as('agent');
     const incident = (await t.api.get('/api/security-incidents?q=invented scheduling')).body.rows[0];
@@ -488,20 +488,20 @@ describe('seed', () => {
     expect(((await t.api.get(`/api/security-incidents/${rows[0].id}/log`)).body as any[]).length).toBeGreaterThanOrEqual(5);
   });
 
-  it('loads notification rules from the organisation profile once and never overwrites an existing rule', async () => {
+  it('loads notification rules from the organization profile once and never overwrites an existing rule', async () => {
     const list = async () => (await t.api.get('/api/security-notification-rules')).body as any[];
     const before = await list();
-    // An administrator has changed one of the organisation's rules.
+    // An administrator has changed one of the organization's rules.
     const agencyB = before.find((r) => r.party === 'Agency B');
     expect((await t.api.patch(`/api/security-notification-rules/${agencyB.id}`, { deadline_hours: 96, guidance: 'Edited by an administrator' })).status).toBe(200);
 
-    const organisation = {
+    const organization = {
       notificationRules: [
         ...ORG_RULES,
         { key: 'test_regulator_h', trigger: 'personal_info_involved', party: 'Regulator H', hours: 48, required: true, active: true, guidance: 'Invented: 48 hours.' },
       ],
     };
-    const opts = { profile: 'dev' as const, seedDir: 'unused', organisation };
+    const opts = { profile: 'dev' as const, seedDir: 'unused', organization };
     await mod.seed!(t.ctx, opts);
     await mod.seed!(t.ctx, opts);
 
@@ -511,7 +511,7 @@ describe('seed', () => {
     expect(after.find((r) => r.party === 'Regulator H')).toMatchObject({ deadline_hours: 48, active: true, trigger_attribute: 'personal_info_involved' });
     expect(after.find((r) => r.id === agencyB.id)).toMatchObject({ party: 'Agency B', deadline_hours: 96, guidance: 'Edited by an administrator' });
     const audit = await t.db.query<any>(
-      `select 1 from audit_events where action = 'notification_rule.create' and summary like '%organisation profile: Regulator H'`);
+      `select 1 from audit_events where action = 'notification_rule.create' and summary like '%organization profile: Regulator H'`);
     expect(audit.length).toBe(1);
 
     // A rule the administrator removed is not brought back by the seed.

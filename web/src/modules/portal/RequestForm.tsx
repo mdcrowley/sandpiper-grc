@@ -1,4 +1,4 @@
-// Raising a request: from a catalogue item (its own questions) or "Report a problem" (a short
+// Raising a request: from a catalog item (its own questions) or "Report a problem" (a short
 // form in plain words). Help articles that match are offered before sending.
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -6,7 +6,7 @@ import {
   api, ApiError, Button, DateField, errorMessage, ErrorState, Icon, Loading, TextArea, TextField, useFetch, useToast,
 } from '../../core';
 import { itemIcon } from './Home';
-import { FilePicker, sendFile, Suggestions, usePortal, useSuggestions, type CatalogueItem, type Choice } from './parts';
+import { FilePicker, sendFile, Suggestions, usePortal, useSuggestions, type CatalogItem, type Choice } from './parts';
 
 /** Big tappable choices (radio buttons drawn as cards). */
 function ChoiceCards({ name, label, options, value, onChange, error, required, hint }: {
@@ -89,7 +89,7 @@ function FormEnd({ busy, label, files, setFiles }: { busy: boolean; label: strin
 
 export function RequestForm() {
   const { itemId } = useParams();
-  const { data: items, error, reload } = useFetch<CatalogueItem[]>('/api/portal/catalogue');
+  const { data: items, error, reload } = useFetch<CatalogItem[]>('/api/portal/catalog');
   const item = items?.find((i) => i.id === itemId);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [details, setDetails] = useState('');
@@ -104,7 +104,7 @@ export function RequestForm() {
     return (
       <div className="pt-empty-page">
         <h1>That request is not offered here</h1>
-        <p className="muted">It may have been withdrawn. <Link to="/portal/catalogue">See what you can ask for</Link>.</p>
+        <p className="muted">It may have been withdrawn. <Link to="/portal/catalog">See what you can ask for</Link>.</p>
       </div>
     );
   }

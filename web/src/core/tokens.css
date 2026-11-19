@@ -1,5 +1,5 @@
-/* Design tokens: the one place colours, type sizes, spacing and shape are decided.
-   Themes switch on <html data-theme="light|dark"> (kept in step with Mantine's colour scheme
+/* Design tokens: the one place colors, type sizes, spacing and shape are decided.
+   Themes switch on <html data-theme="light|dark"> (kept in step with Mantine's color scheme
    by theme.ts). The Mantine theme in mantine.tsx points its own variables at these tokens, so
    Mantine components and hand-written CSS can never disagree.
    To re-brand: change the --brand* values here and the `brand` scale in mantine.tsx. */
@@ -48,7 +48,7 @@
   --nav-accent: #7fd0d2;
   --nav-focus: #a5e3e4;
 
-  /* Named colour scale: chips use -bg/-fg, charts and bars use -solid */
+  /* Named color scale: chips use -bg/-fg, charts and bars use -solid */
   --c-gray-bg: #e9eef0;   --c-gray-fg: #3c4b52;   --c-gray-solid: #6a7a81;
   --c-blue-bg: #e1edfb;   --c-blue-fg: #164e8c;   --c-blue-solid: #2a78d6;
   --c-teal-bg: #d8f1ee;   --c-teal-fg: #0c5753;   --c-teal-solid: #14908a;
@@ -59,7 +59,7 @@
   --c-purple-bg: #ebe5fa; --c-purple-fg: #50309a; --c-purple-solid: #6f52d0;
 
   /* Chart series (fixed order, never cycled) and chrome. Each is at least 3:1 against the surface
-     (checked by tools/contrast.mjs); change them only together with a colour-vision check. */
+     (checked by tools/contrast.mjs); change them only together with a color-vision check. */
   --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1aa976; --series-4: #c88800;
   --series-5: #e56c9a; --series-6: #008300; --series-7: #6250d6; --series-8: #e34948;
   --chart-grid: #e3e9eb;

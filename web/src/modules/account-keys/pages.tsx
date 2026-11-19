@@ -30,7 +30,7 @@ export function PasskeySignInPage() {
     <main className="auth-page" id="main">
       <div className="auth-card">
         <p className="auth-brand"><Wordmark name={appName} size={32} /></p>
-        <p className="auth-tagline">Governance, risk and compliance for transit organisations</p>
+        <p className="auth-tagline">Governance, risk and compliance for transit organizations</p>
         <h1 className="auth-title">Sign in with a passkey</h1>
         <p className="muted">Your browser asks you to choose a passkey saved for this site, then to confirm with your fingerprint, face or device PIN.</p>
         <PasskeySignIn divider={false} primary />

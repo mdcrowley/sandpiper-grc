@@ -7,5 +7,5 @@ export async function isRetired(ctx: ModuleContext, status: unknown): Promise<bo
   return (await ctx.lookups.values('vehicle_status')).some((v) => v.value === status && v.meta?.retired === true);
 }
 
-/** Today's date in the organisation's time zone, as YYYY-MM-DD. */
+/** Today's date in the organization's time zone, as YYYY-MM-DD. */
 export const todayIso = () => dayInZone();

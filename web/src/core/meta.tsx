@@ -119,17 +119,17 @@ export function lookupLabel(list: string, value: unknown): string {
   return find(list, value)?.label ?? String(value);
 }
 
-/** Colour name for a lookup value; `gray` when unknown. */
+/** Color name for a lookup value; `gray` when unknown. */
 export function lookupColor(list: string, value: unknown): ColorName {
   return toColorName(find(list, value)?.color);
 }
 
-/** Coerce any string to a valid colour name. */
+/** Coerce any string to a valid color name. */
 export function toColorName(color: string | null | undefined): ColorName {
   return (COLOR_NAMES as readonly string[]).includes(color ?? '') ? (color as ColorName) : 'gray';
 }
 
-/** A chip showing a lookup value with its configured label and colour. */
+/** A chip showing a lookup value with its configured label and color. */
 export function LookupChip({ list, value }: { list: string; value: string | null | undefined }) {
   useMeta(); // re-render when lookups are reloaded
   if (value === null || value === undefined || value === '') return <span className="muted">{'—'}</span>;

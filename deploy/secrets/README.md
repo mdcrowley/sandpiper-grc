@@ -1,15 +1,15 @@
-# Secrets for compose.yaml
+# Secrets for Docker Compose
 
-Create these files here before the first `docker compose up`. They are git-ignored and are
-never copied into the image.
+Files here are git-ignored and never copied into the image. See `docs/docker.md`.
 
 | File | Contents | Needed by |
 |---|---|---|
-| `secret_key.txt` | 64 hexadecimal characters: `openssl rand -hex 32` | both profiles |
-| `db_password.txt` | the database password: `openssl rand -base64 32 \| tr -d '/+='` | `server` profile (create it for `embedded` too; it is not used) |
+| `db_password.txt` | the database password: `openssl rand -hex 24 > deploy/secrets/db_password.txt` | `compose.postgres.yaml` |
+| `secret_key.txt` | optional: your own secret key, 64 hex characters (`openssl rand -hex 32`) | a `compose.override.yaml` that mounts it (example in `docs/docker.md`, "Configuration") |
 
-The application runs as user 1000 inside the container and must be able to read them:
-`chmod 644 *.txt` on a single-user host, or `chown 1000 *.txt && chmod 400 *.txt`.
+Without `secret_key.txt`, the application generates its key on first start in the `grc-key`
+volume, apart from the data. Either way, keep a copy of the key somewhere safe and separate
+from backups: without it, the authenticator keys in the database cannot be read.
 
-Keep a copy of `secret_key.txt` somewhere safe and separate from backups: without it, the
-authenticator keys in the database cannot be read. See `docs/installation.md`, "Containers".
+The application runs as uid 1000 inside the container and must be able to read these files:
+`chmod 644 *.txt` on a single-user host.

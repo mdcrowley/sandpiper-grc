@@ -42,14 +42,14 @@ export interface ReportResult {
   restricted: boolean; recordTypes: string[]; generatedAt: string;
 }
 
-export interface CatalogueField {
+export interface CatalogField {
   path: string; label: string; type: FieldType; list?: string; to?: string; via?: string; custom?: boolean;
   group: boolean; sum: boolean; column: boolean;
 }
-export interface CatalogueType {
+export interface CatalogType {
   type: string; label: string; plural: string; route: string; module: string; description: string;
   restricted: boolean; titleField: string; refField: string | null; canExport: boolean;
-  fields: CatalogueField[]; globals: Record<string, string>;
+  fields: CatalogField[]; globals: Record<string, string>;
 }
 
 export type Sharing = 'private' | 'roles' | 'everyone';

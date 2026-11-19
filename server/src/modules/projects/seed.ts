@@ -50,7 +50,7 @@ const SAMPLES: Sample[] = [
   {
     stage: 'plan', ticks: 2,
     project: {
-      name: '[Sample] Driver records digitisation', description: 'Scan and index paper driver and operator files (licences, medicals, training) and retire the filing room.',
+      name: '[Sample] Driver records digitisation', description: 'Scan and index paper driver and operator files (licenses, medicals, training) and retire the filing room.',
       expected_benefits: 'Faster retrieval, controlled access and a record of who viewed what.', sponsor: 'Sample sponsor: Human Resources', department: 'Human Resources',
       budget: 85000, spend_to_date: 9500, funding_source: 'capital', start_on: day(-90), target_on: day(270),
       touches_personal_data: true, data_impact: 'Holds personnel records, including some health information.',
@@ -66,7 +66,7 @@ const SAMPLES: Sample[] = [
   {
     stage: 'procure', ticks: 1,
     project: {
-      name: '[Sample] Fare payment system replacement', description: 'Replace the ageing on-board ticket machines, station validators and fare back office.',
+      name: '[Sample] Fare payment system replacement', description: 'Replace the aging on-board ticket machines, station validators and fare back office.',
       expected_benefits: 'Contactless fares, less cash handling on vehicles, better ridership data.', sponsor: 'Sample sponsor: Finance', department: 'Finance',
       budget: 480000, spend_to_date: 36000, funding_source: 'grant', start_on: day(-200), target_on: day(420),
       touches_payment: true, touches_personal_data: true, touches_operational_systems: true,

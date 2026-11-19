@@ -53,7 +53,7 @@ describe('XLSX writer', () => {
     expect(sheet.rows[0]).toEqual(['Name', 'Due', 'Seen', 'Cost', 'Ok']);
     expect(sheet.rows[1][0]).toBe('Bus <1> & "two"');
     expect(sheet.rows[1][1]).toBe('2026-03-14');
-    // The date and time is written as the organisation's clocks read it, and read back to the same instant.
+    // The date and time is written as the organization's clocks read it, and read back to the same instant.
     expect(sheet.rows[1][2]).toBe('2026-03-14T15:30:00.000Z');
     expect(sheet.rows[1][3]).toBe(12.5);
     expect(sheet.rows[1][4]).toBe('Yes');

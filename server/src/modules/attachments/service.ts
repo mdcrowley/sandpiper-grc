@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { todayInZone } from '../../core/timezone.ts';
 import {
-  BLOCKED_EXTENSIONS, DEFAULT_ALLOWED_EXTENSIONS, HEAD_BYTES, isValidExtension, normaliseExtensions, typeGroup,
+  BLOCKED_EXTENSIONS, DEFAULT_ALLOWED_EXTENSIONS, HEAD_BYTES, isValidExtension, normalizeExtensions, typeGroup,
 } from './filetypes.ts';
 
 export const SETTING_MAX_BYTES = 'attachments.max_bytes';
@@ -37,7 +37,7 @@ export async function readSettings(ctx: ModuleContext): Promise<FileSettings> {
   const maxBytes = Number.isFinite(rawMax) && rawMax >= 1 ? Math.min(rawMax, MAX_MB_CEILING * MB) : DEFAULT_MAX_BYTES;
   const raw = await ctx.settings.get<unknown>(SETTING_EXTENSIONS, DEFAULT_ALLOWED_EXTENSIONS);
   // A blocked type stays blocked even if the stored setting has been edited by hand.
-  const allowedExtensions = normaliseExtensions(raw).filter((e) => isValidExtension(e) && !BLOCKED_EXTENSIONS.has(e));
+  const allowedExtensions = normalizeExtensions(raw).filter((e) => isValidExtension(e) && !BLOCKED_EXTENSIONS.has(e));
   return { maxBytes, allowedExtensions };
 }
 
@@ -51,7 +51,7 @@ export function validateSettings(ctx: ModuleContext, body: Row): Partial<{ maxBy
     else out.maxBytes = mb * MB;
   }
   if (body.allowedExtensions !== undefined) {
-    const list = normaliseExtensions(body.allowedExtensions);
+    const list = normalizeExtensions(body.allowedExtensions);
     const bad = list.filter((e) => !isValidExtension(e));
     const blocked = list.filter((e) => BLOCKED_EXTENSIONS.has(e));
     if (!list.length) fields.allowedExtensions = 'List at least one file type.';

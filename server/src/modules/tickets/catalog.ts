@@ -1,4 +1,4 @@
-// E03-15: catalogue items with their own questions, fulfilment tasks and approval.
+// E03-15: catalog items with their own questions, fulfillment tasks and approval.
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import type { TicketNotify } from './notify.ts';
@@ -9,12 +9,12 @@ export interface Question { key: string; label: string; type: (typeof QUESTION_T
 export interface Answer { key: string; label: string; value: string }
 export interface Task { title: string; done: boolean; done_at?: string | null; done_by_name?: string | null }
 
-/** The ticket fields a catalogue item may pre-fill. */
+/** The ticket fields a catalog item may pre-fill. */
 export const PREFILL_FIELDS = ['type', 'category', 'subcategory', 'title', 'description', 'impact', 'urgency', 'assignment_group', 'channel'];
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40) || 'question';
 
-export function makeCatalogue(ctx: ModuleContext, notify: TicketNotify) {
+export function makeCatalog(ctx: ModuleContext, notify: TicketNotify) {
   const { db } = ctx;
   const bad = (field: string, message: string): never => ctx.fail(400, 'validation', 'Check the highlighted fields.', { [field]: message });
 
@@ -24,7 +24,7 @@ export function makeCatalogue(ctx: ModuleContext, notify: TicketNotify) {
     try { return JSON.parse(value); } catch { return bad(field, 'This is not valid JSON.'); }
   }
 
-  /** Validates and tidies the structured parts of a catalogue item (create or patch). */
+  /** Validates and tidies the structured parts of a catalog item (create or patch). */
   function checkItem(data: Row): Row {
     if ('defaults' in data) {
       const d = parse('defaults', data.defaults);
@@ -55,9 +55,9 @@ export function makeCatalogue(ctx: ModuleContext, notify: TicketNotify) {
     }
     if ('tasks' in data) {
       const t = parse('tasks', data.tasks);
-      if (t !== null && t !== undefined && !Array.isArray(t)) bad('tasks', 'Fulfilment tasks must be a list.');
+      if (t !== null && t !== undefined && !Array.isArray(t)) bad('tasks', 'Fulfillment tasks must be a list.');
       const out = ((t ?? []) as unknown[]).map((x) => String((x as Row)?.title ?? x ?? '').trim()).filter(Boolean);
-      if (out.length > 30) bad('tasks', 'An item can have at most 30 fulfilment tasks.');
+      if (out.length > 30) bad('tasks', 'An item can have at most 30 fulfillment tasks.');
       data.tasks = out.length ? out : null;
     }
     return data;
@@ -71,7 +71,7 @@ export function makeCatalogue(ctx: ModuleContext, notify: TicketNotify) {
     const item = data.catalog_item_id
       ? await db.one<Row>('select * from catalog_items where id = $1 and deleted_at is null', [data.catalog_item_id])
       : undefined;
-    if (data.catalog_item_id && !item) bad('catalog_item_id', 'Catalogue item was not found.');
+    if (data.catalog_item_id && !item) bad('catalog_item_id', 'Catalog item was not found.');
     if (!item) return;
     const questions = (item.questions ?? []) as Question[];
     const byKey: Record<string, unknown> = Array.isArray(given)
@@ -100,7 +100,7 @@ export function makeCatalogue(ctx: ModuleContext, notify: TicketNotify) {
   function checkTasks(req: FastifyRequest | null, existing: Row, patch: Row): void {
     if (!('fulfilment_tasks' in patch)) return;
     const next = parse('fulfilment_tasks', patch.fulfilment_tasks);
-    if (next !== null && next !== undefined && !Array.isArray(next)) bad('fulfilment_tasks', 'Fulfilment tasks must be a list.');
+    if (next !== null && next !== undefined && !Array.isArray(next)) bad('fulfilment_tasks', 'Fulfillment tasks must be a list.');
     const before = (existing.fulfilment_tasks ?? []) as Task[];
     const now = new Date().toISOString();
     const out: Task[] = [];
@@ -119,7 +119,7 @@ export function makeCatalogue(ctx: ModuleContext, notify: TicketNotify) {
 
   /**
    * While a request waits for approval (or was rejected) work cannot start: the ticket may sit in
-   * its first statuses, wait on someone, or be cancelled, and nothing else.
+   * its first statuses, wait on someone, or be canceled, and nothing else.
    */
   async function checkApprovalGate(req: FastifyRequest | null, existing: Row, status: unknown): Promise<void> {
     if (!req || status === existing.status) return;

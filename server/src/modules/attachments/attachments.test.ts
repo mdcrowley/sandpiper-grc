@@ -8,7 +8,7 @@ import { createSession, SESSION_COOKIE } from '../../core/auth.ts';
 import type { ModuleDef } from '../../core/module.ts';
 import { todayInZone } from '../../core/timezone.ts';
 import { testApp } from '../../test/helpers.ts';
-import { checkContent, contentDisposition, extensionOf, sanitiseFileName } from './filetypes.ts';
+import { checkContent, contentDisposition, extensionOf, sanitizeFileName } from './filetypes.ts';
 import { diskStorage, newStorageKey } from './storage.ts';
 
 // Invented record types: an ordinary one whose rows can be flagged restricted, and a wholly restricted one.
@@ -263,18 +263,18 @@ describe('file types', () => {
 
 describe('file names and storage paths', () => {
   it('reduces hostile and odd names to a safe display name', async () => {
-    expect(sanitiseFileName('..\\..\\Windows\\System32\\evil.pdf')).toBe('evil.pdf');
-    expect(sanitiseFileName('../../etc/passwd')).toBe('passwd');
-    expect(sanitiseFileName('C:\\fakepath\\Report.PDF')).toBe('Report.PDF');
-    expect(sanitiseFileName('a\r\nSet-Cookie: x=1.pdf')).toBe('aSet-Cookie_ x=1.pdf');
-    expect(sanitiseFileName('invoice\u202Efdp.exe')).toBe('invoicefdp.exe');
-    expect(sanitiseFileName('nul\u0000byte.txt')).toBe('nulbyte.txt');
-    expect(sanitiseFileName('  report.pdf. . ')).toBe('report.pdf');
-    expect(sanitiseFileName('.htaccess')).toBe('htaccess');
-    expect(sanitiseFileName('CON.pdf')).toBe('_CON.pdf');
-    expect(sanitiseFileName('')).toBe('file');
-    expect(sanitiseFileName('...')).toBe('file');
-    const long = sanitiseFileName(`${'x'.repeat(400)}.pdf`);
+    expect(sanitizeFileName('..\\..\\Windows\\System32\\evil.pdf')).toBe('evil.pdf');
+    expect(sanitizeFileName('../../etc/passwd')).toBe('passwd');
+    expect(sanitizeFileName('C:\\fakepath\\Report.PDF')).toBe('Report.PDF');
+    expect(sanitizeFileName('a\r\nSet-Cookie: x=1.pdf')).toBe('aSet-Cookie_ x=1.pdf');
+    expect(sanitizeFileName('invoice\u202Efdp.exe')).toBe('invoicefdp.exe');
+    expect(sanitizeFileName('nul\u0000byte.txt')).toBe('nulbyte.txt');
+    expect(sanitizeFileName('  report.pdf. . ')).toBe('report.pdf');
+    expect(sanitizeFileName('.htaccess')).toBe('htaccess');
+    expect(sanitizeFileName('CON.pdf')).toBe('_CON.pdf');
+    expect(sanitizeFileName('')).toBe('file');
+    expect(sanitizeFileName('...')).toBe('file');
+    const long = sanitizeFileName(`${'x'.repeat(400)}.pdf`);
     expect(long.length).toBe(180);
     expect(extensionOf(long)).toBe('pdf');
     expect(extensionOf('archive.tar.GZ')).toBe('gz');

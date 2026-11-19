@@ -89,7 +89,7 @@ export function KitPage() {
 
         <Sheet title="First hour" n={1}>
           <ol className="si-kit-steps">
-            <li><strong>Write down the time</strong> the organisation first became aware. Every notification deadline counts from that discovery time.</li>
+            <li><strong>Write down the time</strong> the organization first became aware. Every notification deadline counts from that discovery time.</li>
             <li><strong>Call the incident lead.</strong> If they cannot be reached, call the next person on the contact list.</li>
             <li><strong>Start a paper log</strong> on the sheets at the back: time, what happened, what was decided, who did it.</li>
             <li><strong>Answer the questions</strong> below, then work the checklist for the scenario.</li>

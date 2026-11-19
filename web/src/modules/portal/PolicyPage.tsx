@@ -12,15 +12,15 @@ export function PolicyPage() {
   const { ackId } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
-  const { data: a, error, reload } = useFetch<Ack>(`/api/policies/acknowledgements/${ackId}`);
+  const { data: a, error, reload } = useFetch<Ack>(`/api/policies/acknowledgments/${ackId}`);
   const [busy, setBusy] = useState(false);
   useEffect(() => { if (a) document.title = a.policy_title; }, [a]);
 
   async function acknowledge() {
     setBusy(true);
     try {
-      await api.post(`/api/policies/acknowledgements/${ackId}/acknowledge`);
-      toast.success('Thank you. Your acknowledgement is recorded.');
+      await api.post(`/api/policies/acknowledgments/${ackId}/acknowledge`);
+      toast.success('Thank you. Your acknowledgment is recorded.');
       navigate('/portal');
     } catch (err) {
       toast.error(errorMessage(err));

@@ -29,7 +29,7 @@ You can search, select **Filters**, sort by a column, save a view and select **E
 
 The columns are the reference, title, **Severity**, **Host** (with the IP address and port beneath), **Status**, **Owner**, **Fix by** and **Age (days)**. A red **Overdue** label follows a fix-by date that has passed. More columns, such as **CVSS**, **Finding ID**, **System** and **Last seen**, can be switched on with the column button.
 
-To change many findings at once, tick them and select **Edit selected…**: you can set the **Owner**, **Status**, **Severity**, **Known exploited**, **System** or **Asset** of all of them. Each finding is checked and recorded in its history as if you had changed it on its own page.
+To change many findings at once, check them and select **Edit selected…**: you can set the **Owner**, **Status**, **Severity**, **Known exploited**, **System** or **Asset** of all of them. Each finding is checked and recorded in its history as if you had changed it on its own page.
 
 ## Add a finding by hand
 
@@ -39,7 +39,7 @@ Most findings arrive by import. To record one from a penetration test, a supplie
 2. Enter the **Title** and choose the **Severity**.
 3. Enter the **Host name**, the **IP address**, or both. Optionally enter the **Port**, the **Protocol** (such as `tcp` or `udp`) and the **Service**.
 4. Enter what identifies the finding: the **Finding ID** from the tool that reported it, or the **CVE** identifiers separated by commas.
-5. Optionally enter the **CVSS score** (0 to 10), tick **Known exploited**, set **First seen** (today when left empty), and choose the **Owner**, **System** and **Asset**.
+5. Optionally enter the **CVSS score** (0 to 10), check **Known exploited**, set **First seen** (today when left empty), and choose the **Owner**, **System** and **Asset**.
 6. Select **Create vulnerability**.
 
 The finding gets a reference such as `VUL-00042`, the status **Open** and a fix-by date. When you enter only a host name or only an address that is already recorded for a host, the finding joins that host.
@@ -114,7 +114,7 @@ To change the policy, you need the permission to administer vulnerabilities:
 
 1. Enter the days for each severity. Leave a severity empty for no fix-by date.
 2. In **Known-exploited findings use the period for**, choose the severity whose period those findings borrow, or clear it for no shortening.
-3. Optionally, under **Shorter periods for critical systems**, give a criticality a share of the period in per cent (see below).
+3. Optionally, under **Shorter periods for critical systems**, give a criticality a share of the period in percent (see below).
 4. Select **Save policy**. **Discard changes** puts back what was saved.
 
 Saving recalculates the fix-by date of every open finding, except those with a date set by hand. Closed findings keep the date they had. The change is recorded in the audit log.
@@ -138,7 +138,7 @@ The import reads a CSV export from any scanner or assessment tool. You tell it w
 5. Optionally choose an **Owner for new findings**. Findings this import adds are assigned to that person, who is told once when the import finishes. Findings already recorded keep their owner.
 6. Select **Next: map columns**. With a saved mapping chosen you can instead select **Dry run with** and the mapping's name, which skips step 2.
 
-Commas, semicolons, tabs and vertical bars are recognised as separators without being asked.
+Commas, semicolons, tabs and vertical bars are recognized as separators without being asked.
 
 ### Step 2: map the columns
 
@@ -180,7 +180,7 @@ Under the tiles, the tabs **Problems**, **New**, **Updated**, **No change**, **M
 
 How duplicates are avoided:
 
-- A finding is recognised by its **host**, its **port** and its **identifier**. The identifier is the finding ID, or the CVE list when there is no ID, or the title when there is neither.
+- A finding is recognized by its **host**, its **port** and its **identifier**. The identifier is the finding ID, or the CVE list when there is no ID, or the title when there is neither.
 - The same weakness on two ports of one host (say 443 and 8443), or on the same port over two protocols (`53/tcp` and `53/udp`), is two findings. A port written without its protocol (`443`) matches the same port written with one (`443/tcp`). A finding with no port belongs to the host as a whole.
 - Host names and addresses are reconciled. A host first reported only by its address and later by its name and address (or the other way round) is one host, and its findings are updated, not added again; the name is filled in. Two hosts with different names are never merged just because they share an address, because addresses are reused.
 - A row that matches a known finding updates it: **Last seen** moves forward, and a change of severity, score or text is saved and shown in the finding's **History**. No second record is created.
@@ -188,7 +188,7 @@ How duplicates are avoided:
 
 Findings recorded before the port was part of the match keep working: the upgrade worked out their port and host from what was stored, and merged or removed nothing.
 
-**Missing from file** lists the open findings from earlier imports of the same source that are absent. Tick **Close missing findings** (on the column step, or on this tab) to mark them fixed, dated today; the dry run runs again and shows the new totals. Leave it unticked unless the file is a complete scan of the same scope as before. Findings added by hand and findings from other sources are never closed this way.
+**Missing from file** lists the open findings from earlier imports of the same source that are absent. Check **Close missing findings** (on the column step, or on this tab) to mark them fixed, dated today; the dry run runs again and shows the new totals. Leave it unchecked unless the file is a complete scan of the same scope as before. Findings added by hand and findings from other sources are never closed this way.
 
 **Unmatched hosts** lists hosts not found in the asset register, when the inventory is in use. A host is linked to an asset when its name matches the asset's name, tag or serial number, or its IP address matches. Findings for unmatched hosts are imported without an asset.
 

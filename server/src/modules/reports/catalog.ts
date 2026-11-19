@@ -10,10 +10,10 @@ const DESCRIPTIONS: Record<string, string> = {
   problem: 'Underlying causes behind repeated faults.',
   knowledge_article: 'How-to articles and known fixes.',
   catalog_item: 'The things people can ask the service desk for.',
-  system: 'Applications and services the organisation runs.',
+  system: 'Applications and services the organization runs.',
   asset: 'Equipment: computers, phones, network devices and the like.',
   site: 'Buildings and locations.',
-  data_category: 'Kinds of information the organisation holds.',
+  data_category: 'Kinds of information the organization holds.',
   vendor: 'Suppliers and service providers.',
   contract: 'Agreements with vendors, with their dates and value.',
   evidence_item: 'Documents received from vendors, such as certificates.',
@@ -22,7 +22,7 @@ const DESCRIPTIONS: Record<string, string> = {
   assessment_snapshot: 'Dated assessments of framework progress.',
   risk: 'Entries on the risk register.',
   action: 'Agreed follow-up actions from any part of the application.',
-  obligation: 'Things the organisation must do by law, contract or policy.',
+  obligation: 'Things the organization must do by law, contract or policy.',
   security_incident: 'Security incidents and how they were handled.',
   notification_task: 'People who must be told about an incident, with deadlines.',
   project: 'Projects, their stage, rating and money.',
@@ -34,7 +34,7 @@ const DESCRIPTIONS: Record<string, string> = {
   vulnerability: 'Known weaknesses found in systems.',
 };
 
-export interface CatalogueField {
+export interface CatalogField {
   path: string; label: string; type: FieldType; list?: string; to?: string;
   /** Label of the related record this field is reached through. */
   via?: string;
@@ -49,8 +49,8 @@ const usable = (type: FieldType) => ({
   column: true,
 });
 
-export function fieldsOf(ctx: ModuleContext, user: SessionUser | null, def: ResourceDef, custom: CustomDefs = {}): CatalogueField[] {
-  const out: CatalogueField[] = [];
+export function fieldsOf(ctx: ModuleContext, user: SessionUser | null, def: ResourceDef, custom: CustomDefs = {}): CatalogField[] {
+  const out: CatalogField[] = [];
   for (const [name, f] of Object.entries({ ...def.fields, ...STD_FIELDS })) {
     out.push({ path: name, label: f.label, type: f.type, list: f.list, to: f.to, ...usable(f.type) });
   }
@@ -75,7 +75,7 @@ export function fieldsOf(ctx: ModuleContext, user: SessionUser | null, def: Reso
   return out;
 }
 
-export async function catalogue(ctx: ModuleContext, user: SessionUser | null) {
+export async function catalog(ctx: ModuleContext, user: SessionUser | null) {
   const defs = ctx.resources.all()
     .filter((d) => reportable(d) && mayView(ctx, user, d))
     .sort((a, b) => a.plural.localeCompare(b.plural));

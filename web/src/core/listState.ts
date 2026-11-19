@@ -98,7 +98,7 @@ export function useListState(urlSync: boolean): ListState {
 
 /* ---------- localStorage ---------- */
 
-function normaliseViews(parsed: unknown): SavedView[] {
+function normalizeViews(parsed: unknown): SavedView[] {
   return Array.isArray(parsed)
     ? (parsed as SavedView[]).filter((v) => v && typeof v.name === 'string' && v.view).map((v) => ({ name: v.name, view: { ...EMPTY_VIEW, ...v.view } }))
     : [];
@@ -106,7 +106,7 @@ function normaliseViews(parsed: unknown): SavedView[] {
 
 /** The saved views kept in this browser (see useSavedViews for the copy that follows the person). */
 export function loadViews(type: string): SavedView[] {
-  return normaliseViews(readLocal<unknown>(`grc.views.${type}`, []));
+  return normalizeViews(readLocal<unknown>(`grc.views.${type}`, []));
 }
 
 export function storeViews(type: string, views: SavedView[]): void {
@@ -127,6 +127,6 @@ export function usePref<T>(key: string, fallback: T): [T, (value: T) => void] {
 /** Saved views of a record type: on the server as `views:<type>`, mirrored in this browser. */
 export function useSavedViews(type: string): [SavedView[], (views: SavedView[]) => void] {
   const [raw, set] = useSyncedPreference<unknown>(`views:${type}`, `grc.views.${type}`, []);
-  const views = useMemo(() => normaliseViews(raw), [raw]);
+  const views = useMemo(() => normalizeViews(raw), [raw]);
   return [views, set as (views: SavedView[]) => void];
 }

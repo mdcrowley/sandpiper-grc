@@ -1,4 +1,4 @@
-// Formatting helpers. All times are shown in the organisation's time zone, which the server
+// Formatting helpers. All times are shown in the organization's time zone, which the server
 // reports in /api/auth/state (GRC_TIMEZONE); until then the browser's own zone is used.
 
 export const EMPTY = '—';
@@ -24,9 +24,9 @@ function build() {
 }
 build();
 
-/** The organisation's IANA time zone, e.g. "Europe/London". */
+/** The organization's IANA time zone, e.g. "Europe/London". */
 export const timeZone = (): string => zone;
-/** The organisation's ISO 4217 currency code, e.g. "USD". */
+/** The organization's ISO 4217 currency code, e.g. "USD". */
 export const currency = (): string => currencyCode;
 
 /** Called by AuthProvider when the server reports its settings. Invalid values are ignored. */
@@ -42,7 +42,7 @@ export function setLocaleSettings(next: { timeZone?: string; currency?: string }
   }
 }
 
-/** Today's calendar date (YYYY-MM-DD) in the organisation's time zone. */
+/** Today's calendar date (YYYY-MM-DD) in the organization's time zone. */
 export const todayInZone = (): string => new Intl.DateTimeFormat('en-CA', { timeZone: zone }).format(new Date());
 
 const calendarFmt = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
@@ -68,7 +68,7 @@ export function formatDate(value: DateInput): string {
   return d ? dateFmt.format(d) : EMPTY;
 }
 
-/** "18 Nov 2026, 14:05" (24-hour, organisation time zone). */
+/** "18 Nov 2026, 14:05" (24-hour, organization time zone). */
 export function formatDateTime(value: DateInput): string {
   const d = toDate(value);
   return d ? dateTimeFmt.format(d) : EMPTY;
@@ -127,7 +127,7 @@ function zonedParts(d: Date): Record<string, string> {
   return out;
 }
 
-/** ISO instant to the "YYYY-MM-DDTHH:mm" wall-clock value a datetime-local input needs, in the organisation's time zone. */
+/** ISO instant to the "YYYY-MM-DDTHH:mm" wall-clock value a datetime-local input needs, in the organization's time zone. */
 export function toZonedInput(value: DateInput): string {
   const d = toDate(value);
   if (!d) return '';
@@ -135,7 +135,7 @@ export function toZonedInput(value: DateInput): string {
   return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
 }
 
-/** Organisation-zone wall-clock "YYYY-MM-DDTHH:mm" back to an ISO instant. */
+/** Organization-zone wall-clock "YYYY-MM-DDTHH:mm" back to an ISO instant. */
 export function fromZonedInput(local: string): string {
   if (!local) return '';
   const asUtc = new Date(`${local}:00Z`).getTime();

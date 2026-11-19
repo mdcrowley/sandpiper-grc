@@ -93,7 +93,7 @@ export function RiskResult({ preview, total }: { preview: RiskPreview; total: nu
   );
 }
 
-/** A labelled block of free text that keeps its line breaks. */
+/** A labeled block of free text that keeps its line breaks. */
 export function TextBlock({ label, value, empty = 'Not written yet.' }: { label: string; value: unknown; empty?: string }) {
   const text = String(value ?? '').trim();
   return (

@@ -24,7 +24,7 @@ export interface WidgetDef {
   title: string;
   /** `mywork` widgets are personal lists; `dashboard` widgets also need `dashboards.view`. */
   group: WidgetGroup;
-  /** One line for the Customise dialog. */
+  /** One line for the Customize dialog. */
   description: string;
   /** Spans the full width of the dashboard grid. */
   wide?: boolean;

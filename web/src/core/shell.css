@@ -307,7 +307,7 @@
   .route-loading-body { animation: none; }
 }
 
-/* ---------- Second-factor set-up only (EnrolmentGate) ---------- */
+/* ---------- Second-factor set-up only (EnrollmentGate) ---------- */
 
 .gate { display: flex; flex-direction: column; min-height: 100dvh; background: var(--bg); }
 .gate-bar {

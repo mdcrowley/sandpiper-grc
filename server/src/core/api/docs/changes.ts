@@ -59,7 +59,7 @@ export const DOCS: RouteDoc[] = [
   }),
   route('GET', '/api/changes/calendar', 'Changes and blackout windows in a date range', {
     tag: CAL, permission: 'changes.view',
-    description: 'At most 100 days at a time (400 `validation` otherwise); rejected and cancelled changes are left out, at most 500 changes. A repeating blackout period gives one entry per window.',
+    description: 'At most 100 days at a time (400 `validation` otherwise); rejected and canceled changes are left out, at most 500 changes. A repeating blackout period gives one entry per window.',
     query: {
       from: q('datetime', 'Start of the range.'),
       to: q('datetime', 'End of the range (exclusive).'),
@@ -163,7 +163,7 @@ export const DOCS: RouteDoc[] = [
     description: `409 \`bad_transition\` for a move the status table does not allow (approval and rejection come from recording decisions). Submitting needs the plans, window and risk answers (400 \`incomplete\`); scheduling and starting need the approvals (409 \`approvals_missing\`) and no unacknowledged conflicts (409 \`conflicts\`); closing needs a required review (409 \`review_missing\`). Completing needs \`outcome\`. Audited; submitting notifies the approvers. ${NOT_FOUND}`,
     body: `{ to: string "The new status",
       actual_start?: datetime "When moving to in_progress", outcome?: string "Required when moving to completed",
-      outcome_notes?: string, actual_end?: datetime, reason?: string "When cancelling" }`,
+      outcome_notes?: string, actual_end?: datetime, reason?: string "When canceling" }`,
     response: '@change',
   }),
   route('GET', '/api/changes/:id/approvals', 'Approval state and decisions of a change', {
@@ -178,7 +178,7 @@ export const DOCS: RouteDoc[] = [
   }),
   route('GET', '/api/changes/:id/conflicts', 'Conflicts of a change with blackout periods and other changes', {
     tag: T, permission: 'changes.view',
-    description: `Each conflict carries its acknowledgement when one holds for the current planned window. Empty for settled changes or without a window. ${NOT_FOUND}`,
+    description: `Each conflict carries its acknowledgment when one holds for the current planned window. Empty for settled changes or without a window. ${NOT_FOUND}`,
     response: `{ conflicts: [${CONFLICT}] }`,
   }),
   route('POST', '/api/changes/:id/conflicts/acknowledge', 'Acknowledge conflicts and go ahead anyway', {

@@ -1,13 +1,13 @@
 # Vendors and contracts
 
-This part of the application records the organisations that supply you (scheduling software, fare collection, vehicle location services and so on), the contracts you hold with them, the security terms those contracts contain, the assurance evidence vendors send, your own security assessment of each vendor, and the dates by which you must decide whether to renew. Lists and record pages work as described in [Getting started](01-getting-started.md).
+This part of the application records the organizations that supply you (scheduling software, fare collection, vehicle location services and so on), the contracts you hold with them, the security terms those contracts contain, the assurance evidence vendors send, your own security assessment of each vendor, and the dates by which you must decide whether to renew. Lists and record pages work as described in [Getting started](01-getting-started.md).
 
 ## Vendors
 
 Open **Vendors** in the **Vendors** group. Besides the usual columns, the list shows:
 
-- **Security terms**: a small bar for the vendor's contracts, green for clauses present, amber for partial, red for absent and grey for not assessed, with the number present out of the number of clauses. Point at it to read the counts. "No contract" means nothing is recorded yet.
-- **Next notice date**: the nearest notice date still to come (or the latest one that has passed), coloured as on the contract list.
+- **Security terms**: a small bar for the vendor's contracts, green for clauses present, amber for partial, red for absent and gray for not assessed, with the number present out of the number of clauses. Point at it to read the counts. "No contract" means nothing is recorded yet.
+- **Next notice date**: the nearest notice date still to come (or the latest one that has passed), colored as on the contract list.
 
 These two columns appear only if you may view contracts. **Security terms matrix** opens the matrix; **Assessment questions** (for people who administer vendors) opens the questions used in vendor assessments.
 
@@ -16,7 +16,7 @@ These two columns appear only if you may view contracts. **Security terms matrix
 1. Select **New vendor**, or **Create** then **Vendor**.
 2. Enter the **Name**. Two vendors cannot have the same name.
 3. Describe what they supply in **Services**.
-4. Choose the **Criticality**: **Critical**, **High**, **Medium** or **Low**. This is how much the organisation depends on the vendor.
+4. Choose the **Criticality**: **Critical**, **High**, **Medium** or **Low**. This is how much the organization depends on the vendor.
 5. Enter the **Remote access method** if the vendor connects to your systems.
 6. Enter the **Incident contact**, **Incident contact phone** and **Incident contact email**: the person to reach when something goes wrong.
 7. Add any **Notes** and select **Create vendor**.
@@ -29,7 +29,7 @@ The top of a vendor's page is a profile of the facts that matter most, one panel
 
 | Panel | Shows |
 |---|---|
-| **In an incident, call** | The incident contact from the **Details** card and any contacts ticked as incident contacts, with phone and email links. "Nobody recorded" if there is none. **All contacts** opens the **Contacts** tab |
+| **In an incident, call** | The incident contact from the **Details** card and any contacts checked as incident contacts, with phone and email links. "Nobody recorded" if there is none. **All contacts** opens the **Contacts** tab |
 | **Contracts and next notice date** | The nearest notice date still to come, how long is left, which contract it belongs to and what happens if nobody acts. It also says how many notice dates have passed and how many open contracts have no notice date. Shown only if you may view contracts |
 | **Security terms** | How many clauses are present across the vendor's contracts, with a bar and counts for present, partial, absent and not assessed. **Open the checklist** opens the **Security terms** tab |
 | **Evidence** | How many evidence items are current, how many have expired or expire within 90 days, and when the newest was received |
@@ -56,16 +56,16 @@ To add a contact:
 1. Open the vendor and its **Contacts** tab.
 2. Select **Add contact**.
 3. Enter the **Name**, and optionally the **Role**, **Email** and **Phone**.
-4. Tick **Incident contact** if this is the person to reach when there is a security incident involving the vendor.
+4. Check **Incident contact** if this is the person to reach when there is a security incident involving the vendor.
 5. Select **Add contact**.
 
 Incident contacts are listed first with a red **Incident contact** badge, and appear in the profile's **In an incident, call** panel. Email addresses and phone numbers are links you can select to start a message or call.
 
-To change a contact, select the pencil button on its row, then **Save changes**. To remove one, select the bin button and confirm with **Remove**. Changes are kept in the vendor's history.
+To change a contact, select the pencil button on its row, then **Save changes**. To remove one, select the trash button and confirm with **Remove**. Changes are kept in the vendor's history.
 
 ## Contracts
 
-Open **Contracts** in the **Vendors** group. The list is sorted by notice date, soonest first, and the **Notice date** column is a coloured chip: red when the date has passed or is within 30 days, amber within 120 days, green beyond that, and grey ("No notice date") when there is none.
+Open **Contracts** in the **Vendors** group. The list is sorted by notice date, soonest first, and the **Notice date** column is a colored chip: red when the date has passed or is within 30 days, amber within 120 days, green beyond that, and gray ("No notice date") when there is none.
 
 When open contracts are missing an end date or notice period, the list shows a **Complete the dates** button with how many there are; see [Complete the dates](#complete-the-dates).
 
@@ -105,7 +105,7 @@ The tabs are **Security terms**, **Evidence**, **Actions** (when the action trac
 ### Value by year
 
 1. On the **Value by year** card, select **Add years** (or **Edit** once there are figures).
-2. Enter a **Year** and an **Amount** in the organisation's currency. Select **Add year** for each further year, or the bin button to remove one.
+2. Enter a **Year** and an **Amount** in the organization's currency. Select **Add year** for each further year, or the trash button to remove one.
 3. The card shows the **Total of the years** and compares it with the contract's **Total value**: "Matches the total value", or how much more or less it is.
 4. Select **Save years**. If the total differs, **Save and set total value to …** saves the years and makes their total the contract's total value.
 
@@ -140,14 +140,14 @@ Each contract has a checklist of security clauses. For every clause you record w
 | Clause | What to look for |
 |---|---|
 | **Independent assurance** | An independent assurance report or certification, provided each year |
-| **Multi-factor sign-in** | Multi-factor authentication for vendor staff and for the organisation's users |
-| **Breach notice time** | A fixed deadline for telling the organisation about a security incident |
-| **Data ownership and return** | The organisation owns its data and gets it back, or has it destroyed, on exit |
+| **Multi-factor sign-in** | Multi-factor authentication for vendor staff and for the organization's users |
+| **Breach notice time** | A fixed deadline for telling the organization about a security incident |
+| **Data ownership and return** | The organization owns its data and gets it back, or has it destroyed, on exit |
 | **Recovery times and service levels** | Stated recovery time and recovery point, uptime and remedies |
 | **Cyber insurance** | Cyber liability cover with stated limits |
 | **Liability carve-out** | Data breach and confidentiality losses sit outside the liability cap |
 | **Subcontractors** | Subcontractors are disclosed and held to the same security terms |
-| **Named security standard** | The vendor commits to a named, recognised security standard |
+| **Named security standard** | The vendor commits to a named, recognized security standard |
 
 Your administrator can change this list.
 
@@ -171,7 +171,7 @@ Every change is recorded in the contract's history.
 The matrix shows every vendor against every clause on one page. Open **Security terms matrix** in the **Vendors** group, or select **Security terms matrix** on the vendor list.
 
 - Vendors run down the page, most critical first. Clauses run across. The vendor column and the clause headings stay in view as you scroll.
-- Each cell is coloured and marked: a tick on green for **Present**, a half-filled circle on amber for **Partial**, a cross on red for **Absent**, and a dot in a dashed box for **Not assessed**. The legend at the top repeats this.
+- Each cell is colored and marked: a check mark on green for **Present**, a half-filled circle on amber for **Partial**, a cross on red for **Absent**, and a dot in a dashed box for **Not assessed**. The legend at the top repeats this.
 - When a vendor has several contracts, the cell shows the weakest position among them: absent outranks partial, which outranks present. Contracts with the status **Ended** are left out.
 - The **Coverage** column gives each vendor's bar and the number of clauses present. The bottom row, **Vendors with the term**, gives each clause's bar and how many of the vendors shown have it.
 - Tiles above the grid count the **Vendors shown**, the share of **Terms present**, the cells **Absent** (with the number partial) and the cells **Not assessed**.
@@ -197,21 +197,21 @@ Evidence is what a vendor sends to show its security is in order. Each item belo
 3. Choose the **Type**: **Assurance report**, **Insurance certificate**, **Card-data attestation**, **Questionnaire** or **Other**.
 4. Choose the **Vendor** if it is not already filled in, then the **Contract** if the evidence belongs to one. The **Contract** list shows only the chosen vendor's contracts.
 5. Enter **Received on** and **Expires on**. The expiry cannot be before the date received.
-6. Summarise what the evidence shows in **Note**.
+6. Summarize what the evidence shows in **Note**.
 7. Select **Save and attach the document**.
-8. In **Attach the document**, drag the file onto the box or select **Choose files**. **Record new files as evidence** is ticked, so enter the **Collected on** date and, if the document has one, its **Expires on** date. The file is listed once it has been uploaded and checked.
+8. In **Attach the document**, drag the file onto the box or select **Choose files**. **Record new files as evidence** is checked, so enter the **Collected on** date and, if the document has one, its **Expires on** date. The file is listed once it has been uploaded and checked.
 9. Select **Done**. You can also attach the document later from the evidence item's **Files** tab.
 
 ### Expiry
 
-The **Expiry** column shows a coloured chip:
+The **Expiry** column shows a colored chip:
 
 | Chip | Meaning |
 |---|---|
 | Red, "Expired … ago" | The expiry date has passed |
 | Amber, "Expires in …" | Expires within 90 days |
 | Green, "Valid to …" | More than 90 days left |
-| Grey, "No expiry" | No expiry date recorded |
+| Gray, "No expiry" | No expiry date recorded |
 
 To see everything that needs chasing, open **Expiring evidence** in the **Vendors** group.
 
@@ -233,7 +233,7 @@ A vendor assessment is a set of security questions that you work through for a v
 5. You can select **Close and carry on later** at any time; the tab then shows **Continue assessment**. **Discard draft** throws the draft away.
 6. When every question is answered, set **Assessed on** and select **Complete assessment**.
 
-If **Save as an evidence item** is ticked (it is, unless you cannot add evidence), a **Questionnaire** evidence item is added for the vendor with the score and the number of gaps. **Evidence expires on** is optional: use it for when the vendor should be assessed again, so the expiry reminders prompt you.
+If **Save as an evidence item** is checked (it is, unless you cannot add evidence), a **Questionnaire** evidence item is added for the vendor with the score and the number of gaps. **Evidence expires on** is optional: use it for when the vendor should be assessed again, so the expiry reminders prompt you.
 
 ### Scores and gaps
 
@@ -248,7 +248,7 @@ Completed assessments cannot be changed or removed. They are listed under **Hist
 Open **Assessment questions** on the vendor list, or on the **Assessment** tab. Everyone who can view vendors can read them; people who administer vendors can change them.
 
 1. Edit the **Name of the question set**, and for each question its text, its section, guidance for the person asking, and its weight, from **Weight 1** (counts least) to **Weight 5** (counts most).
-2. Use the arrow buttons to reorder questions, the bin button to remove one, and **Add question** to add one.
+2. Use the arrow buttons to reorder questions, the trash button to remove one, and **Add question** to add one.
 3. Select **Save as version …**.
 
 Each save makes a new version. New assessments use the latest version; completed assessments keep the version they were answered against. The **Versions** card lists every version.
@@ -258,7 +258,7 @@ Each save makes a new version. New assessments use the latest version; completed
 Open **Renewal calendar** in the **Vendors** group, or select **Renewal calendar** on the contract list. Contracts with the status **Expired** or **Ended** are left out.
 
 - Tiles at the top count the contracts in each window, and **Cannot be placed** counts the open contracts with no notice date (select it to open [Complete the dates](#complete-the-dates)).
-- **Notice dates in the next twelve months** marks each notice date in its month, coloured by how close it is. Point at a mark to see the contract; select it to open the contract.
+- **Notice dates in the next twelve months** marks each notice date in its month, colored by how close it is. Point at a mark to see the contract; select it to open the contract.
 - Below, an agenda lists the contracts window by window, each with its notice date, vendor, owner, value, how long is left, its reminders and an **If we do nothing** line.
 
 With the reminder days as installed (120, 90, 60 and 30), the windows are:
@@ -288,7 +288,7 @@ The reminders of a contract are shown as small badges on the calendar and on the
 |---|---|
 | Plain, for example **60d** | Planned: its date is still to come |
 | Highlighted | Due: its date has arrived and it is sent within the hour |
-| With a tick | Sent |
+| With a check mark | Sent |
 | Struck through | Skipped: several reminders were already overdue when the contract was entered, so only the nearest was sent |
 
 Point at a badge, or move to it with the `Tab` key, to see its date.

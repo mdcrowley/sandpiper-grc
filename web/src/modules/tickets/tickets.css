@@ -128,9 +128,9 @@
 .sd-versions > li { padding: var(--s-3) 0; border-bottom: 1px solid var(--border); }
 .sd-versions > li:last-child { border-bottom: 0; }
 
-/* ---------- Catalogue ---------- */
+/* ---------- Catalog ---------- */
 
-.sd-catalogue-search { max-width: 380px; }
+.sd-catalog-search { max-width: 380px; }
 .sd-group-title { margin: 0 0 var(--s-3); font-size: var(--fs-lg); font-weight: 650; }
 .sd-tiles { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--s-4); }
 .sd-tile {

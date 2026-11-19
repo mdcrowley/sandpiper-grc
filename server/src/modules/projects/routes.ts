@@ -140,7 +140,7 @@ export function registerProjectRoutes(ctx: ModuleContext, svc: ProjectService): 
 
   app.post('/api/projects/:id/items/:itemId/escalate', edit, async (req, reply) => {
     const p = params(req);
-    // Escalating adds a risk to the organisation's register, so it needs the right to create one
+    // Escalating adds a risk to the organization's register, so it needs the right to create one
     // there as well as the right to edit the project (E18-30).
     if (ctx.resources.get('risk') && !ctx.can(req.user, 'risks.create')) {
       ctx.fail(403, 'forbidden', 'Escalating adds a risk to the risk register, so you need permission to create risks. Ask someone who manages the risk register to escalate it.');

@@ -1,4 +1,4 @@
--- Service desk: tickets, SLA calendars and policies, problems, knowledge base, catalogue.
+-- Service desk: tickets, SLA calendars and policies, problems, knowledge base, catalog.
 
 create table calendars (
   id uuid primary key default gen_random_uuid(),

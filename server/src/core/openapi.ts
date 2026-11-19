@@ -144,7 +144,9 @@ export function makeOpenApi(app: FastifyInstance) {
 
     for (const r of routes) {
       if (generated.has(key(r.method, r.url))) continue;
-      const doc = docs.get(key(r.method, r.url));
+      // A deprecated alias of a renamed route is described like the route it stands for.
+      const renamedTo = deprecationFor(r.method, r.url)?.replacement;
+      const doc = docs.get(key(r.method, r.url)) ?? (renamedTo ? docs.get(key(r.method, renamedTo)) : undefined);
       // A route under a record type's path belongs to that type; one under /api/admin to administrators.
       const owner = res.registry.all().filter((d) => r.url === d.path || r.url.startsWith(`${d.path}/`)).sort((a, b) => b.path.length - a.path.length)[0];
       if (owner && hidden.includes(owner)) continue;

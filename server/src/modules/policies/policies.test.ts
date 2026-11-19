@@ -90,7 +90,7 @@ describe('policy register', () => {
     expect((await agentA.post(`/api/policies/${policyId}/versions`, { body: 'x' })).status).toBe(403);
     expect((await agentA.post(`/api/policies/${policyId}/retire`)).status).toBe(403);
     expect((await outsider.get(`/api/policies/${policyId}/versions`)).status).toBe(403);
-    expect((await outsider.get(`/api/policies/${policyId}/acknowledgements`)).status).toBe(403);
+    expect((await outsider.get(`/api/policies/${policyId}/acknowledgments`)).status).toBe(403);
     expect((await outsider.post('/api/policies/preview', { body: 'x' })).status).toBe(403);
   });
 });
@@ -150,7 +150,7 @@ describe('versions', () => {
 describe('acknowledgement', () => {
   let ackA: string;
 
-  it('a policy is published and acknowledgements are tracked', async () => {
+  it('a policy is published and acknowledgments are tracked', async () => {
     // A disabled account in the audience is not asked.
     const gone = await t.as('agent');
     await t.db.query(`update users set status = 'disabled' where id = $1`, [gone.userId]);
@@ -168,38 +168,38 @@ describe('acknowledgement', () => {
     expect((await agentA.get(`/api/policies/${policyId}/versions`)).body.map((v: any) => v.version)).toEqual([1]);
 
     // Each person in the audience has a request; people outside it do not.
-    const mine = await agentA.get('/api/policies/acknowledgements/mine');
+    const mine = await agentA.get('/api/policies/acknowledgments/mine');
     expect(mine.body.awaiting).toHaveLength(1);
     expect(mine.body.awaiting[0]).toMatchObject({ policy_ref: 'POL-00001', version: 1, state: 'outstanding', days_left: 10 });
     ackA = mine.body.awaiting[0].id;
-    expect((await pm.get('/api/policies/acknowledgements/mine')).body.awaiting).toHaveLength(1); // by department, with no policy permissions
-    expect((await outsider.get('/api/policies/acknowledgements/mine')).body.awaiting).toEqual([]);
-    expect((await lead.get('/api/policies/acknowledgements/mine')).body.awaiting).toEqual([]);
-    expect((await t.anon.get('/api/policies/acknowledgements/mine')).status).toBe(401);
+    expect((await pm.get('/api/policies/acknowledgments/mine')).body.awaiting).toHaveLength(1); // by department, with no policy permissions
+    expect((await outsider.get('/api/policies/acknowledgments/mine')).body.awaiting).toEqual([]);
+    expect((await lead.get('/api/policies/acknowledgments/mine')).body.awaiting).toEqual([]);
+    expect((await t.anon.get('/api/policies/acknowledgments/mine')).status).toBe(401);
 
     // The person reads exactly the version they are asked about, rendered safely.
-    const read = await agentA.get(`/api/policies/acknowledgements/${ackA}`);
+    const read = await agentA.get(`/api/policies/acknowledgments/${ackA}`);
     expect(read.body.body_html).toContain('<h2>Purpose</h2>');
     expect(read.body.body_html).not.toContain('<script');
 
     // Nobody can acknowledge for someone else.
-    expect((await agentB.get(`/api/policies/acknowledgements/${ackA}`)).status).toBe(404);
-    expect((await agentB.post(`/api/policies/acknowledgements/${ackA}/acknowledge`)).status).toBe(404);
-    expect((await lead.post(`/api/policies/acknowledgements/${ackA}/acknowledge`)).status).toBe(404);
+    expect((await agentB.get(`/api/policies/acknowledgments/${ackA}`)).status).toBe(404);
+    expect((await agentB.post(`/api/policies/acknowledgments/${ackA}/acknowledge`)).status).toBe(404);
+    expect((await lead.post(`/api/policies/acknowledgments/${ackA}/acknowledge`)).status).toBe(404);
 
-    const done = await agentA.post(`/api/policies/acknowledgements/${ackA}/acknowledge`);
+    const done = await agentA.post(`/api/policies/acknowledgments/${ackA}/acknowledge`);
     expect(done.body.state).toBe('acknowledged');
     expect(done.body.acknowledged_at).toBeTruthy();
     // Acknowledging twice changes nothing and writes no second event.
-    expect((await agentA.post(`/api/policies/acknowledgements/${ackA}/acknowledge`)).body.state).toBe('acknowledged');
+    expect((await agentA.post(`/api/policies/acknowledgments/${ackA}/acknowledge`)).body.state).toBe('acknowledged');
     const events = await audit('policy.acknowledge');
     expect(events).toHaveLength(1);
     expect(events[0].after).toMatchObject({ version: 1, user_id: agentA.userId, late: false });
-    const after = await agentA.get('/api/policies/acknowledgements/mine');
+    const after = await agentA.get('/api/policies/acknowledgments/mine');
     expect(after.body.awaiting).toEqual([]);
     expect(after.body.acknowledged).toHaveLength(1);
 
-    const track = await lead.get(`/api/policies/${policyId}/acknowledgements`);
+    const track = await lead.get(`/api/policies/${policyId}/acknowledgments`);
     expect(track.body.version.version).toBe(1);
     expect(track.body.counts).toEqual({
       total: 3, acknowledged: 1, outstanding: 2, overdue: 0, acknowledged_pct: 33.3, outstanding_pct: 66.7, overdue_pct: 0,
@@ -211,14 +211,14 @@ describe('acknowledgement', () => {
     ]);
   });
 
-  it('counts overdue acknowledgements and exports the list', async () => {
+  it('counts overdue acknowledgments and exports the list', async () => {
     await t.db.query(`update policy_acknowledgements set due_on = current_date - 3 where policy_id = $1 and acknowledged_at is null`, [policyId]);
-    const track = await agentA.get(`/api/policies/${policyId}/acknowledgements`);
+    const track = await agentA.get(`/api/policies/${policyId}/acknowledgments`);
     expect(track.body.counts).toMatchObject({ outstanding: 2, overdue: 2, overdue_pct: 66.7 });
-    expect((await agentB.get('/api/policies/acknowledgements/mine')).body.awaiting[0].state).toBe('overdue');
+    expect((await agentB.get('/api/policies/acknowledgments/mine')).body.awaiting[0].state).toBe('overdue');
 
-    expect((await agentA.get(`/api/policies/${policyId}/acknowledgements?format=csv`)).status).toBe(403); // view but not export
-    const csv = await lead.get(`/api/policies/${policyId}/acknowledgements?format=csv`);
+    expect((await agentA.get(`/api/policies/${policyId}/acknowledgments?format=csv`)).status).toBe(403); // view but not export
+    const csv = await lead.get(`/api/policies/${policyId}/acknowledgments?format=csv`);
     expect(csv.status).toBe(200);
     const lines = csv.text.split('\r\n');
     expect(lines).toHaveLength(4);
@@ -228,7 +228,7 @@ describe('acknowledgement', () => {
     expect(await audit('policy.ack_export')).toHaveLength(1);
   });
 
-  it('the reminder run stamps overdue acknowledgements and writes an audit event', async () => {
+  it('the reminder run stamps overdue acknowledgments and writes an audit event', async () => {
     const now = new Date();
     const fired = await runPolicyReminders(t.ctx, now);
     expect(fired).toHaveLength(1);
@@ -252,7 +252,7 @@ describe('acknowledgement', () => {
     expect((await lead.get(`/api/history?record_type=policy&record_id=${policyId}`)).body.map((h: any) => h.action)).toContain('policy.ack_reminder');
   });
 
-  it('a new published version keeps the old one and re-requests acknowledgement', async () => {
+  it('a new published version keeps the old one and re-requests acknowledgment', async () => {
     const draft = await lead.post(`/api/policies/${policyId}/versions`, { body: '## Purpose\n\nRevised invented text.', change_summary: 'Second issue' });
     expect(draft.body.version).toBe(2);
     v2 = draft.body.id;
@@ -267,17 +267,17 @@ describe('acknowledgement', () => {
     expect(versions[1].body).toContain('Invented policy text.'); // the old text is kept
     expect((await lead.get(`/api/policies/${policyId}`)).body.current_version).toBe(2);
 
-    const mine = await agentA.get('/api/policies/acknowledgements/mine');
+    const mine = await agentA.get('/api/policies/acknowledgments/mine');
     expect(mine.body.awaiting.map((a: any) => a.version)).toEqual([2]);
     expect(mine.body.acknowledged.map((a: any) => a.version)).toEqual([1]);
     // The unanswered request for version 1 is closed, not left overdue.
-    const b = await agentB.get('/api/policies/acknowledgements/mine');
+    const b = await agentB.get('/api/policies/acknowledgments/mine');
     expect(b.body.awaiting.map((a: any) => [a.version, a.state])).toEqual([[2, 'outstanding']]);
     const old = await t.db.one<any>('select id from policy_acknowledgements where version_id = $1 and user_id = $2', [v1, agentB.userId]);
-    expect((await agentB.post(`/api/policies/acknowledgements/${old.id}/acknowledge`)).body.error.code).toBe('superseded');
+    expect((await agentB.post(`/api/policies/acknowledgments/${old.id}/acknowledge`)).body.error.code).toBe('superseded');
 
-    expect((await lead.get(`/api/policies/${policyId}/acknowledgements`)).body.counts).toMatchObject({ total: 3, acknowledged: 0, outstanding: 3 });
-    const previous = await lead.get(`/api/policies/${policyId}/acknowledgements?version=1`);
+    expect((await lead.get(`/api/policies/${policyId}/acknowledgments`)).body.counts).toMatchObject({ total: 3, acknowledged: 0, outstanding: 3 });
+    const previous = await lead.get(`/api/policies/${policyId}/acknowledgments?version=1`);
     expect(previous.body.counts).toMatchObject({ total: 3, acknowledged: 1 });
     expect(await runPolicyReminders(t.ctx, new Date(Date.now() + 30 * 86_400_000))).toHaveLength(1); // only version 2 is chased
   });
@@ -312,7 +312,7 @@ describe('retiring', () => {
     const res = await lead.post(`/api/policies/${policyId}/retire`);
     expect(res.body).toMatchObject({ status: 'retired', closed: 3 });
     expect((await lead.get(`/api/policies/${policyId}`)).body.status).toBe('retired');
-    expect((await agentA.get('/api/policies/acknowledgements/mine')).body.awaiting).toEqual([]);
+    expect((await agentA.get('/api/policies/acknowledgments/mine')).body.awaiting).toEqual([]);
     expect((await lead.post(`/api/policies/${policyId}/versions`, { body: 'x' })).body.error.code).toBe('retired');
     expect((await lead.post(`/api/policies/${policyId}/retire`)).status).toBe(409);
     expect((await audit('policy.retire'))[0]).toMatchObject({ before: { status: 'published' }, after: { status: 'retired' } });

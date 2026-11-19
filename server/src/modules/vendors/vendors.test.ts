@@ -83,7 +83,7 @@ describe('contracts and the notice date', () => {
 
   it('computes the notice date on create and ignores a supplied one', async () => {
     const made = await t.api.post('/api/contracts', {
-      title: 'Birchfield licence', vendor_id: vendorId, start_date: '2030-01-01', end_date: '2030-12-31',
+      title: 'Birchfield license', vendor_id: vendorId, start_date: '2030-01-01', end_date: '2030-12-31',
       notice_days: 90, notice_date: '1999-01-01', total_value: '12,500', value_by_year: { 2030: 12500 },
     });
     expect(made.status).toBe(201);
@@ -196,7 +196,7 @@ describe('security terms', () => {
     expect(filtered.body.vendors.find((v: any) => v.id === vendorId)).toBeUndefined();
   });
 
-  it('summarises a vendor', async () => {
+  it('summarizes a vendor', async () => {
     const res = await t.api.get(`/api/vendors/${vendorId}/summary`);
     expect(res.body.contracts).toBe(2);
     expect(res.body.terms).toEqual({ present: 0, partial: 1, absent: 1, not_assessed: 7 });

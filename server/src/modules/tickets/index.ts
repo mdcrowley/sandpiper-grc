@@ -3,11 +3,11 @@ import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
 import { registerAssist } from './assist.ts';
 import { AGENT_AUDIENCE, makeAudience } from './audience.ts';
 import { makeAutomation, registerAutomation } from './automation.ts';
-import { makeCatalogue } from './catalogue.ts';
+import { makeCatalog } from './catalog.ts';
 import { recordArticleFeedback } from './feedback.ts';
 import { clock } from './clock.ts';
 import { makeTicketNotify } from './notify.ts';
-import { CATALOGUE, seedDefaults } from './defaults.ts';
+import { CATALOG, seedDefaults } from './defaults.ts';
 import { registerMetrics } from './metrics.ts';
 import { seedSamples } from './seed.ts';
 import {
@@ -107,7 +107,7 @@ const mod: ModuleDef = {
     const sla = makeSla(ctx);
     const notify = sla.notify;
     const audience = makeAudience(ctx);
-    const catalogue = makeCatalogue(ctx, notify);
+    const catalog = makeCatalog(ctx, notify);
     const view ={ preHandler: ctx.requirePerm('tickets.view') };
     const administer = { preHandler: ctx.requirePerm('tickets.administer') };
 
@@ -155,7 +155,7 @@ const mod: ModuleDef = {
 
     async function beforeCreate(req: FastifyRequest | null, data: Row): Promise<Row> {
       checkCommon(data);
-      await catalogue.applyToNewTicket(req, data);
+      await catalog.applyToNewTicket(req, data);
       const opened =(!req && toDate(data.opened_at)) || clock.now();
       const at = opened.toISOString();
       data.opened_at = at;
@@ -201,8 +201,8 @@ const mod: ModuleDef = {
           }
         }
       }
-      catalogue.checkTasks(req, existing, patch);
-      await catalogue.checkApprovalGate(req, existing, m.status);
+      catalog.checkTasks(req, existing, patch);
+      await catalog.checkApprovalGate(req, existing, m.status);
 
       // Priority follows the matrix unless someone has chosen one by hand.
       const computed = priorityFor(await sla.matrix(), m.impact, m.urgency);
@@ -288,7 +288,7 @@ const mod: ModuleDef = {
         affected_user_id: { label: 'Affected person account', type: 'user' },
         category: { label: 'Category', type: 'lookup', list: 'ticket_category' },
         subcategory: { label: 'Subcategory', type: 'text' },
-        catalog_item_id: { label: 'Catalogue item', type: 'ref', to: 'catalog_item' },
+        catalog_item_id: { label: 'Catalog item', type: 'ref', to: 'catalog_item' },
         system_id: { label: 'Affected system', type: 'ref', to: 'system' },
         asset_id: { label: 'Affected asset', type: 'ref', to: 'asset' },
         impact: { label: 'Impact', type: 'lookup', list: 'ticket_impact', default: 'individual' },
@@ -332,7 +332,7 @@ const mod: ModuleDef = {
         resolve_warned: { label: 'Close to resolution target', type: 'boolean', readOnly: true },
         escalated_at: { label: 'Escalated', type: 'datetime', readOnly: true },
         catalog_answers: { label: 'Request details', type: 'json' },
-        fulfilment_tasks: { label: 'Fulfilment tasks', type: 'json' },
+        fulfilment_tasks: { label: 'Fulfillment tasks', type: 'json' },
         approval_status: { label: 'Approval', type: 'lookup', list: 'ticket_approval', readOnly: true },
         approval_by: { label: 'Decided by', type: 'user', readOnly: true },
         approval_at: { label: 'Decided', type: 'datetime', readOnly: true },
@@ -362,7 +362,7 @@ const mod: ModuleDef = {
       // Seeding and other system work stays quiet.
       if (!req) return;
       await tellAssignee(req, null, row);
-      await catalogue.afterCreate(row);
+      await catalog.afterCreate(row);
     }
     async function afterUpdate(req: FastifyRequest | null, before: Row, after: Row): Promise<void> {
       if (req) await tellAssignee(req, before, after);
@@ -438,8 +438,8 @@ const mod: ModuleDef = {
     });
 
     ctx.defineResource({
-      type: 'catalog_item', table: 'catalog_items', module: 'tickets', label: 'Catalogue item', plural: 'Catalogue items',
-      path: '/api/catalog-items', route: '/catalogue', titleField: 'name',
+      type: 'catalog_item', table: 'catalog_items', module: 'tickets', label: 'Catalog item', plural: 'Catalog items',
+      path: '/api/catalog-items', route: '/catalog', titleField: 'name',
       searchable: ['name', 'description'],
       defaultSort: { field: 'name', dir: 'asc' },
       fields: {
@@ -449,13 +449,13 @@ const mod: ModuleDef = {
         active: { label: 'Active', type: 'boolean', default: true },
         defaults: { label: 'Values for the request it creates', type: 'json' },
         questions: { label: 'Questions', type: 'json' },
-        tasks: { label: 'Fulfilment tasks', type: 'json' },
+        tasks: { label: 'Fulfillment tasks', type: 'json' },
         requires_approval: { label: 'Needs approval before work starts', type: 'boolean', default: false },
         portal: { label: 'Show in the self-service portal', type: 'boolean', default: false },
       },
       hooks: {
-        beforeCreate: (_req, data) => catalogue.checkItem(data),
-        beforeUpdate: (_req, _existing, patch) => catalogue.checkItem(patch),
+        beforeCreate: (_req, data) => catalog.checkItem(data),
+        beforeUpdate: (_req, _existing, patch) => catalog.checkItem(patch),
       },
     });
 
@@ -466,14 +466,14 @@ const mod: ModuleDef = {
       }
     }
     audience.register();
-    catalogue.register();
+    catalog.register();
     registerAutomation(ctx, notify);
     registerAssist(ctx, audience.isAgent);
 
-    // Starter catalogue, added once; administrators own it afterwards.
+    // Starter catalog, added once; administrators own it afterwards.
     if (!(await ctx.settings.get('tickets.catalogue_seeded', false))) {
       if (!(await db.one('select 1 from catalog_items limit 1'))) {
-        for (const item of CATALOGUE) await ctx.resources.create('catalog_item', { ...item, active: true });
+        for (const item of CATALOG) await ctx.resources.create('catalog_item', { ...item, active: true });
       }
       await ctx.settings.set('tickets.catalogue_seeded', true);
     }

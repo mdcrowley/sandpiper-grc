@@ -80,7 +80,7 @@ describe('exercises', () => {
 
   it('records findings and raises a follow-up action from one', async () => {
     const f = await t.api.post(`/api/exercises/${id}/findings`, {
-      finding: 'Nobody knew how to start a remote wipe.', severity: 'high', recommendation: 'Write the steps down and practise them.',
+      finding: 'Nobody knew how to start a remote wipe.', severity: 'high', recommendation: 'Write the steps down and practice them.',
     });
     expect(f.status).toBe(201);
     expect((await t.api.post(`/api/exercises/${id}/findings`, { severity: 'catastrophic' })).body.error.fields).toMatchObject({
@@ -116,7 +116,7 @@ describe('exercises', () => {
   it('lists what is upcoming and overdue, and when each kind was last run', async () => {
     const late = (await t.api.post('/api/exercises', { title: 'Restore test: payroll', type: 'restore_test', exercise_date: addDays(today, -5) })).body;
     const soon = (await t.api.post('/api/exercises', { title: 'Continuity test: second site', type: 'continuity_test', exercise_date: addDays(today, 14) })).body;
-    await t.api.post('/api/exercises', { title: 'Cancelled one', type: 'restore_test', status: 'cancelled', exercise_date: addDays(today, -90) });
+    await t.api.post('/api/exercises', { title: 'Canceled one', type: 'restore_test', status: 'cancelled', exercise_date: addDays(today, -90) });
     const cal = (await t.api.get('/api/exercises/calendar')).body;
     expect(cal.overdue.map((e: any) => [e.id, e.kind])).toEqual([[late.id, 'planned']]);
     expect(cal.upcoming.map((e: any) => [e.id, e.kind, e.date])).toEqual([

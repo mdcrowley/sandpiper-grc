@@ -216,7 +216,7 @@ export function ActionTracker() {
       />
 
       <div className="grid-stats" role="group" aria-label="Show">
-        {tile('open', data.open, 'blue', 'Everything not done or cancelled')}
+        {tile('open', data.open, 'blue', 'Everything not done or canceled')}
         {tile('overdue', data.overdue, data.overdue > 0 ? 'red' : 'green', 'Open and past the due date')}
         {tile('week', data.due_this_week, 'amber', `Due by ${formatDate(data.week_end)}`)}
         {tile('unassigned', data.unassigned, 'gray', 'No owner yet')}

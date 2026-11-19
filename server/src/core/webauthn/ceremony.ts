@@ -127,7 +127,7 @@ export interface NewCredential {
 
 /**
  * Attestation: the statement is NOT verified, whatever its format. Options ask for "none", which
- * browsers honour by replacing any statement with format "none". Checking a statement would need the
+ * browsers honor by replacing any statement with format "none". Checking a statement would need the
  * makers' root certificates (an outside metadata service, which the application does not reach) and
  * would only tell us the make of the key; it says nothing about who holds it. The security of the
  * ceremony rests on the challenge, origin, RP ID and the signatures at every later sign-in.

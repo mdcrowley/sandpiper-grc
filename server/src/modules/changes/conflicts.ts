@@ -76,7 +76,7 @@ export function makeConflicts(ctx: ModuleContext, base: Base) {
     return rows.filter((b) => blackoutWindows(b, from, to).length > 0);
   }
 
-  /** Everything that clashes with a planned window. Pure detection: no acknowledgements. */
+  /** Everything that clashes with a planned window. Pure detection: no acknowledgments. */
   async function detect(input: { id?: string | null; start: Date; end: Date; systemIds: string[] }): Promise<Conflict[]> {
     const out: Conflict[] = [];
     const systemIds = input.systemIds.filter((s) => UUID_RE.test(s));
@@ -123,7 +123,7 @@ export function makeConflicts(ctx: ModuleContext, base: Base) {
     return out;
   }
 
-  /** Conflicts of a saved change, each with its acknowledgement if one holds for the current window. */
+  /** Conflicts of a saved change, each with its acknowledgment if one holds for the current window. */
   async function conflictsFor(change: Row): Promise<Conflict[]> {
     if (!change.planned_start || !change.planned_end || SETTLED_STATUSES.includes(change.status)) return [];
     const start = new Date(change.planned_start);

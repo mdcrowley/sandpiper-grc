@@ -2,7 +2,7 @@
 // Used whole by the report builder and in part by the dashboard widget editor.
 import { Button, Icon, IconButton, Select, Switch } from '../../core';
 import { FilterEditor } from './FilterEditor';
-import type { AggFn, Bucket, CatalogueField, CatalogueType, ReportSpec } from './types';
+import type { AggFn, Bucket, CatalogField, CatalogType, ReportSpec } from './types';
 
 const BUCKETS: { value: Bucket; label: string }[] = [
   { value: 'day', label: 'by day' }, { value: 'week', label: 'by week' }, { value: 'month', label: 'by month' },
@@ -16,8 +16,8 @@ const AGGS: { value: AggFn; label: string; needsField: boolean }[] = [
   { value: 'max', label: 'Highest (or latest)', needsField: true },
   { value: 'pct', label: 'Share of total (%)', needsField: false },
 ];
-const isDate = (f?: CatalogueField) => f?.type === 'date' || f?.type === 'datetime';
-const opt = (fields: CatalogueField[]) => fields.map((f) => ({ value: f.path, label: f.label }));
+const isDate = (f?: CatalogField) => f?.type === 'date' || f?.type === 'datetime';
+const opt = (fields: CatalogField[]) => fields.map((f) => ({ value: f.path, label: f.label }));
 
 export const isSummary = (spec: ReportSpec) => Boolean(spec.groupBy?.length || spec.aggregates?.length);
 
@@ -31,7 +31,7 @@ export function Section({ title, hint, children, step }: { title: string; hint?:
   );
 }
 
-export function ColumnsEditor({ type, spec, onChange }: { type: CatalogueType; spec: ReportSpec; onChange: (s: ReportSpec) => void }) {
+export function ColumnsEditor({ type, spec, onChange }: { type: CatalogType; spec: ReportSpec; onChange: (s: ReportSpec) => void }) {
   const cols = spec.columns ?? [];
   const label = (path: string) => type.fields.find((f) => f.path === path)?.label ?? path;
   const move = (i: number, by: number) => { const next = [...cols]; const [c] = next.splice(i, 1); next.splice(i + by, 0, c); onChange({ ...spec, columns: next }); };
@@ -57,7 +57,7 @@ export function ColumnsEditor({ type, spec, onChange }: { type: CatalogueType; s
   );
 }
 
-export function GroupEditor({ type, spec, onChange, maxGroups = 2, pivot = true }: { type: CatalogueType; spec: ReportSpec; onChange: (s: ReportSpec) => void; maxGroups?: number; pivot?: boolean }) {
+export function GroupEditor({ type, spec, onChange, maxGroups = 2, pivot = true }: { type: CatalogType; spec: ReportSpec; onChange: (s: ReportSpec) => void; maxGroups?: number; pivot?: boolean }) {
   const groups = spec.groupBy ?? [];
   const groupable = type.fields.filter((f) => f.group);
   const set = (i: number, path: string) => {
@@ -89,7 +89,7 @@ export function GroupEditor({ type, spec, onChange, maxGroups = 2, pivot = true 
   );
 }
 
-export function TotalsEditor({ type, spec, onChange, single }: { type: CatalogueType; spec: ReportSpec; onChange: (s: ReportSpec) => void; single?: boolean }) {
+export function TotalsEditor({ type, spec, onChange, single }: { type: CatalogType; spec: ReportSpec; onChange: (s: ReportSpec) => void; single?: boolean }) {
   const aggs = spec.aggregates?.length ? spec.aggregates : [{ fn: 'count' as AggFn }];
   const fieldsFor = (fn: AggFn) => type.fields.filter((f) => f.sum || ((fn === 'min' || fn === 'max') && isDate(f)));
   const set = (i: number, patch: Partial<{ fn: AggFn; field?: string }>) => {
@@ -125,7 +125,7 @@ export function TotalsEditor({ type, spec, onChange, single }: { type: Catalogue
   );
 }
 
-export function SortEditor({ type, spec, onChange }: { type: CatalogueType; spec: ReportSpec; onChange: (s: ReportSpec) => void }) {
+export function SortEditor({ type, spec, onChange }: { type: CatalogType; spec: ReportSpec; onChange: (s: ReportSpec) => void }) {
   const summary = isSummary(spec);
   const aggs = spec.aggregates?.length ? spec.aggregates : [{ fn: 'count' as AggFn }];
   const label = (path?: string) => type.fields.find((f) => f.path === path)?.label ?? path ?? '';
@@ -146,7 +146,7 @@ export function SortEditor({ type, spec, onChange }: { type: CatalogueType; spec
   );
 }
 
-export function FiltersSection({ type, spec, onChange }: { type: CatalogueType; spec: ReportSpec; onChange: (s: ReportSpec) => void }) {
+export function FiltersSection({ type, spec, onChange }: { type: CatalogType; spec: ReportSpec; onChange: (s: ReportSpec) => void }) {
   return (
     <>
       {!spec.filters?.items.length && <p className="rp-empty-hint"><Icon name="filter" size={14} /> No filters: every {type.label.toLowerCase()} you can see is included.</p>}

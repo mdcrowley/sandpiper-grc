@@ -115,6 +115,24 @@ the date after which it may stop working once that date is set, and a `Link` to 
 what to use instead. Watch for the header in your integration's logs. A change that cannot be
 made compatibly would come as `/api/v2`, with v1 kept alongside it for a stated period.
 
+### Deprecated paths
+
+These paths were renamed to American spelling on 2026-11-19. The old paths still answer (also
+under `/api/v1`) and carry the `Deprecation` header; use the new ones.
+
+| Deprecated | Use instead |
+|---|---|
+| `/api/policies/acknowledgements/mine` | `/api/policies/acknowledgments/mine` |
+| `/api/policies/acknowledgements/:ackId` | `/api/policies/acknowledgments/:ackId` |
+| `/api/policies/acknowledgements/:ackId/acknowledge` | `/api/policies/acknowledgments/:ackId/acknowledge` |
+| `/api/policies/:id/acknowledgements` | `/api/policies/:id/acknowledgments` |
+| `/api/portal/catalogue` | `/api/portal/catalog` |
+| `/api/reports/catalogue` | `/api/reports/catalog` |
+
+Some stored values and field names keep their original spelling because data and integrations
+depend on them, for example the status value `cancelled`, the asset type `software_licence`
+and the error code `mfa_enrolment_required`. Treat them as identifiers.
+
 Custom fields an administrator adds appear on records as `cf_<key>`; they are data, not part
 of the compatibility promise, and can be switched off by an administrator.
 

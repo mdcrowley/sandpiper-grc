@@ -1,5 +1,5 @@
 // Administration > Sign-in providers (/admin/sign-in-providers): single sign-on with the
-// organisation's identity provider, the password switch and the break-glass account.
+// organization's identity provider, the password switch and the break-glass account.
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -72,7 +72,7 @@ export function ProvidersPage() {
     <>
       <PageHeader
         title="Sign-in providers"
-        subtitle="Let people sign in with their organisation account. Nothing is contacted until a provider is switched on."
+        subtitle="Let people sign in with their organization account. Nothing is contacted until a provider is switched on."
         actions={<Button variant="primary" icon="plus" disabled={!data} onClick={() => setEditing('new')}>Add provider</Button>}
       />
       {error ? <ErrorState error={error} onRetry={reload} />
@@ -83,7 +83,7 @@ export function ProvidersPage() {
               {data.providers.length === 0 ? (
                 <EmptyState
                   icon="lock" title="No sign-in providers yet"
-                  message="Everyone signs in with a password. Add your organisation's OpenID Connect provider to offer single sign-on."
+                  message="Everyone signs in with a password. Add your organization's OpenID Connect provider to offer single sign-on."
                   action={<Button variant="primary" icon="plus" onClick={() => setEditing('new')}>Add provider</Button>}
                 />
               ) : (

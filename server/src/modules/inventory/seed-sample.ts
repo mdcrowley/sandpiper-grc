@@ -4,17 +4,17 @@ import { upsertByName } from './seed.ts';
 
 /** Invented data only: the `dev` estate and the "[Sample]" assets added in every profile. */
 
-/** A date `days` from today, in the organisation's time zone. */
+/** A date `days` from today, in the organization's time zone. */
 const dayOffset = (days: number): string => dayInZone(days);
 
 // An invented bus and light-rail operator. Every name, place and vendor is made up.
 const DEV_SITES: Row[] = [
   { name: 'Example Head Office', address: '1 Example Street', function: 'Administration, finance and customer service', power_protection: 'Generator and battery backup', physical_security: 'Badge access, cameras', network_links: 'Two fibre links' },
-  { name: 'Example Operations Control Centre', address: '5 Example Street', function: 'Service control, radio dispatch and incident handling around the clock', power_protection: 'Generator, battery backup and a second supply', physical_security: 'Badge access, staffed at all times', network_links: 'Two fibre links on separate routes, radio backhaul' },
+  { name: 'Example Operations Control Center', address: '5 Example Street', function: 'Service control, radio dispatch and incident handling around the clock', power_protection: 'Generator, battery backup and a second supply', physical_security: 'Badge access, staffed at all times', network_links: 'Two fibre links on separate routes, radio backhaul' },
   { name: 'Example Depot North', address: '20 Sample Road', function: 'Bus garage: vehicle parking, fuelling, cleaning and maintenance', power_protection: 'Battery backup for the network room', physical_security: 'Fenced yard, gate barrier, cameras', network_links: 'One fibre link, cellular backup; yard wireless for vehicle uploads', third_parties: 'Fuel delivery contractor' },
   { name: 'Example Depot South', address: '80 Sample Road', function: 'Bus garage and stores warehouse', power_protection: 'Battery backup only', physical_security: 'Fenced yard, gate code', network_links: 'One fibre link; yard wireless for vehicle uploads' },
   { name: 'Example Rail Yard', address: '2 Demo Lane', function: 'Light-rail vehicle stabling and maintenance', power_protection: 'Generator', physical_security: 'Fenced, patrolled at night', network_links: 'Fibre link, trackside radio' },
-  { name: 'Example Central Interchange', address: '300 Demo Avenue', function: 'Passenger interchange with a travel centre and ticket office', third_parties: 'Retail tenants, cleaning contractor', network_links: 'One fibre link, cellular backup' },
+  { name: 'Example Central Interchange', address: '300 Demo Avenue', function: 'Passenger interchange with a travel center and ticket office', third_parties: 'Retail tenants, cleaning contractor', network_links: 'One fibre link, cellular backup' },
 ];
 
 const DEV_CATEGORIES: Row[] = [
@@ -23,7 +23,7 @@ const DEV_CATEGORIES: Row[] = [
   { name: 'Fare card transactions', contains: 'Taps, top-ups and journeys by card number', custodian: 'Revenue manager', retention_period: '2 years', sensitivity_level: 'confidential' },
   { name: 'Vehicle location history', contains: 'Where each vehicle was, and when, from the location units', custodian: 'Head of operations', retention_period: '13 months', sensitivity_level: 'internal' },
   { name: 'Onboard and station video', contains: 'Recordings from vehicle and station cameras', custodian: 'Security manager', retention_period: '31 days unless kept for an incident', sensitivity_level: 'confidential' },
-  { name: 'Driver and operator records', contains: 'Licences, training, duty hours and medical fitness', custodian: 'HR manager', retention_period: '6 years after leaving', sensitivity_level: 'restricted' },
+  { name: 'Driver and operator records', contains: 'Licenses, training, duty hours and medical fitness', custodian: 'HR manager', retention_period: '6 years after leaving', sensitivity_level: 'restricted' },
   { name: 'Safety incident reports', contains: 'Collisions, passenger injuries and near misses', custodian: 'Safety manager', retention_period: '10 years', sensitivity_level: 'confidential' },
   { name: 'Published service information', contains: 'Timetables, routes, fares and disruption notices', custodian: 'Communications manager', retention_period: 'Until replaced', sensitivity_level: 'public' },
 ];
@@ -39,7 +39,7 @@ const DEV_SYSTEMS: Row[] = [
   // Passengers and fares
   { name: 'Example Fare Collection System', system_group: 'Passengers and fares', vendor_name: 'Copperline Fare Systems', function: 'Fare rules, card accounts and back office for fareboxes and validators', users: 'Revenue team', hosting_type: 'vendor_hosted', criticality_tier: 'tier_1', rto_hours: 8, rpo_hours: 1, mfa_status: 'enforced' },
   { name: 'Example Onboard Fare Equipment', system_group: 'Passengers and fares', vendor_name: 'Copperline Fare Systems', function: 'Fareboxes and card validators on each vehicle', users: 'Drivers, passengers', hosting_type: 'on_vehicle', criticality_tier: 'tier_2', rto_hours: 24, mfa_status: 'not_applicable', manual_fallback: 'Paper tickets and cash fares' },
-  { name: 'Example Payments System', system_group: 'Passengers and fares', vendor_name: 'Copperline Fare Systems', function: 'Card payments and settlement', users: 'Revenue team, travel centre', hosting_type: 'hybrid', criticality_tier: 'tier_2', rto_hours: 48, mfa_status: 'optional' },
+  { name: 'Example Payments System', system_group: 'Passengers and fares', vendor_name: 'Copperline Fare Systems', function: 'Card payments and settlement', users: 'Revenue team, travel center', hosting_type: 'hybrid', criticality_tier: 'tier_2', rto_hours: 48, mfa_status: 'optional' },
   { name: 'Example Customer Portal', system_group: 'Passengers and fares', vendor_name: 'Copperline Fare Systems', function: 'Online travel card accounts and top-ups', users: 'Public', hosting_type: 'vendor_hosted', criticality_tier: 'tier_3', mfa_status: 'optional' },
   { name: 'Example Real-Time Information System', system_group: 'Passengers and fares', vendor_name: 'Bluebird Passenger Info', function: 'Predicted arrival times for stops, displays and the website', users: 'Public', hosting_type: 'cloud', hosting_provider: 'Example Cloud', criticality_tier: 'tier_2', rto_hours: 4, mfa_status: 'enforced' },
   { name: 'Example Onboard Information Displays', system_group: 'Passengers and fares', vendor_name: 'Bluebird Passenger Info', function: 'Next-stop announcements and screens inside vehicles', users: 'Passengers', hosting_type: 'on_vehicle', criticality_tier: 'tier_3', mfa_status: 'not_applicable' },
@@ -52,7 +52,7 @@ const DEV_SYSTEMS: Row[] = [
   // Corporate
   { name: 'Example Finance System', system_group: 'Corporate', vendor_name: 'Ledgerworks', function: 'General ledger, purchasing and payroll', users: 'Finance', hosting_type: 'vendor_hosted', criticality_tier: 'tier_1', rto_hours: 24, rpo_hours: 4, mfa_status: 'none' },
   { name: 'Example Timekeeping System', system_group: 'Corporate', vendor_name: 'Ledgerworks', function: 'Clocking, leave and overtime', users: 'All staff', hosting_type: 'on_premises', criticality_tier: 'tier_3', mfa_status: 'unknown' },
-  { name: 'Example HR System', system_group: 'Corporate', vendor_name: 'Ledgerworks', function: 'Staff records, licences and training', users: 'HR, depot managers', hosting_type: 'vendor_hosted', criticality_tier: 'tier_2', rto_hours: 48, mfa_status: 'optional' },
+  { name: 'Example HR System', system_group: 'Corporate', vendor_name: 'Ledgerworks', function: 'Staff records, licenses and training', users: 'HR, depot managers', hosting_type: 'vendor_hosted', criticality_tier: 'tier_2', rto_hours: 48, mfa_status: 'optional' },
   { name: 'Example Safety Reporting System', system_group: 'Corporate', vendor_name: 'Fieldnote Safety', function: 'Incident, accident and near-miss reports', users: 'All staff', hosting_type: 'cloud', criticality_tier: 'tier_2', mfa_status: 'enforced' },
   // Infrastructure
   { name: 'Example Directory', system_group: 'Infrastructure', vendor_name: 'Not known', function: 'Sign-in and email', users: 'All staff', hosting_type: 'cloud', criticality_tier: 'tier_1', rto_hours: 8, rpo_hours: 1, mfa_status: 'enforced' },
@@ -109,10 +109,10 @@ const DEV_DATA: [string, string][] = [
   ['Example Real-Time Information System', 'Published service information'],
 ];
 const DEV_SERVES: [string, string][] = [
-  ['Example CAD/AVL System', 'Example Operations Control Centre'],
-  ['Example Radio Dispatch System', 'Example Operations Control Centre'],
-  ['Example Operations System', 'Example Operations Control Centre'],
-  ['Example Rail Signalling Interface', 'Example Operations Control Centre'],
+  ['Example CAD/AVL System', 'Example Operations Control Center'],
+  ['Example Radio Dispatch System', 'Example Operations Control Center'],
+  ['Example Operations System', 'Example Operations Control Center'],
+  ['Example Rail Signalling Interface', 'Example Operations Control Center'],
   ['Example Crew Rostering System', 'Example Depot North'],
   ['Example Crew Rostering System', 'Example Depot South'],
   ['Example Fleet Maintenance System', 'Example Depot North'],

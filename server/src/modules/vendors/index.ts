@@ -42,7 +42,7 @@ const mod: ModuleDef = {
       { value: 'statement_of_work', label: 'Statement of work', sort: 40 },
       { value: 'amendment', label: 'Amendment', sort: 50 },
       { value: 'renewal', label: 'Renewal', sort: 60 },
-      { value: 'acknowledgement', label: 'Acknowledgement of approval only', sort: 70 },
+      { value: 'acknowledgement', label: 'Acknowledgment of approval only', sort: 70 },
       { value: 'data_agreement', label: 'Data protection agreement', sort: 80 },
       { value: 'none_on_file', label: 'Nothing on file', color: 'red', sort: 90 },
       { value: 'other', label: 'Other', sort: 100 },

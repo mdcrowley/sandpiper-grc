@@ -31,7 +31,7 @@ export function makeLifecycle(ctx: ModuleContext, deps: LifecycleDeps) {
   const hasCurrentAcceptance = async (riskId: string) => Boolean(await db.one(
     'select 1 from risk_acceptances where risk_id = $1 and revoked_on is null and expires_on >= current_date', [riskId]));
 
-  /** Label and colour of a rating on its own scale. */
+  /** Label and color of a rating on its own scale. */
   async function rater() {
     const all = await scales.all();
     return (scaleKey: unknown, ratingKey: unknown) => {

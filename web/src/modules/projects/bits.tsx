@@ -14,7 +14,7 @@ export function compactCurrency(value: number): string {
   return new Intl.NumberFormat(undefined, { style: 'currency', currency: currency(), notation: 'compact', maximumSignificantDigits: 3 }).format(value);
 }
 
-/** Red / amber / green chip. The word is always shown, so colour is never the only signal. */
+/** Red / amber / green chip. The word is always shown, so color is never the only signal. */
 export function RagChip({ value, label }: { value: string | null | undefined; label?: string }) {
   if (!value) return label ? <StatusChip color="gray" label={`${label}: no report`} /> : <span className="muted">No report</span>;
   const text = RAG_LABEL[value] ?? value;

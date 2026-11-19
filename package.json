@@ -4,7 +4,7 @@
   "private": true,
   "license": "MIT",
   "type": "module",
-  "description": "Governance, risk and compliance for transit organisations: service desk, inventory, change, vendors, cybersecurity, safety risks and projects (local prototype)",
+  "description": "Governance, risk and compliance for transit organizations: service desk, inventory, change, vendors, cybersecurity, safety risks and projects (local prototype)",
   "scripts": {
     "start": "tsx server/src/main.ts",
     "server": "tsx watch server/src/main.ts",

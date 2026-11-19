@@ -29,7 +29,7 @@ async function seedDefaults(ctx: ModuleContext) {
     { value: 'camera', label: 'Camera', sort: 56 },
     { value: 'radio', label: 'Radio', sort: 57 },
     { value: 'passenger_info_display', label: 'Passenger information display', sort: 58 },
-    { value: 'software_licence', label: 'Software licence', sort: 60 },
+    { value: 'software_licence', label: 'Software license', sort: 60 },
     { value: 'subscription', label: 'Subscription', sort: 70 },
     { value: 'other', label: 'Other', sort: 80 },
   ], { module: 'assets' });
@@ -46,7 +46,7 @@ async function seedDefaults(ctx: ModuleContext) {
     { value: 'approved', label: 'Disposal approved', color: 'green' },
     { value: 'refused', label: 'Disposal refused', color: 'red' },
   ], { module: 'assets' });
-  // Asset departments use the organisation's department list: bring text that agrees into its spelling.
+  // Asset departments use the organization's department list: bring text that agrees into its spelling.
   await ctx.db.query(
     `update assets a set department = d.name from departments d
      where d.deleted_at is null and lower(trim(a.department)) = lower(d.name) and a.department <> d.name`,
@@ -244,7 +244,7 @@ async function register(ctx: ModuleContext) {
     },
   });
 
-  /** The organisation's departments, for the asset department choice (the admin list needs admin rights). */
+  /** The organization's departments, for the asset department choice (the admin list needs admin rights). */
   ctx.app.get('/api/inventory/departments', { preHandler: ctx.requirePerm('assets.view') }, async () =>
     ctx.db.query<{ name: string }>('select name from departments where deleted_at is null order by lower(name)'));
 
@@ -268,7 +268,7 @@ function checkSystem(ctx: ModuleContext, merged: Row, patch: Row): Row {
 
 /** Rules that hold however an asset is written: unique tag, sensible percentage, and the disposal gate. */
 async function checkAsset(ctx: ModuleContext, merged: Row, patch: Row, existing: Row | null, byPerson: boolean) {
-  // Department: the organisation's department list when there is one. A person must choose from
+  // Department: the organization's department list when there is one. A person must choose from
   // it; system work (seeding) keeps its text, written the list's way where the two agree.
   if (typeof patch.department === 'string' && patch.department.trim()) {
     const wanted = patch.department.trim();

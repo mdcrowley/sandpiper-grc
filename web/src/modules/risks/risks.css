@@ -1,4 +1,4 @@
-/* Risks, actions and obligations. Colours come from the design tokens so both themes work;
+/* Risks, actions and obligations. Colors come from the design tokens so both themes work;
    everything the core already draws (cards, chips, tiles, tables, forms) is left to the core. */
 
 /* ---------- shared bits ---------- */
@@ -68,9 +68,9 @@
 .rk-heat-rowlabel { padding-right: var(--s-2); text-align: right; }
 .rk-heat-collabel { padding-top: 2px; text-align: center; }
 .rk-heat-cells { position: relative; display: grid; gap: 4px; grid-auto-rows: 1fr; }
-/* A cell is the rating's colour; cells holding risks carry a solid edge in that colour and a large
+/* A cell is the rating's color; cells holding risks carry a solid edge in that color and a large
    count, empty ones recede so the eye goes to where the risks are. The rating name sits in the
-   top-left corner, clear of the count and of the movement arrows that run between centres. */
+   top-left corner, clear of the count and of the movement arrows that run between centers. */
 .rk-cell {
   position: relative;
   display: grid;

@@ -1,4 +1,4 @@
-// The policy reader: one acknowledgement request, opened from My acknowledgements or from a
+// The policy reader: one acknowledgment request, opened from My acknowledgments or from a
 // notification. Comfortable reading width and type, what changed, the due date, and an
 // acknowledge bar that stays in reach at the bottom. Anyone may open their own request.
 import { useState } from 'react';
@@ -12,10 +12,10 @@ export function PolicyReader() {
   const { ackId } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
-  const { data, error, reload } = useFetch<MyAck>(ackId ? `/api/policies/acknowledgements/${ackId}` : null);
+  const { data, error, reload } = useFetch<MyAck>(ackId ? `/api/policies/acknowledgments/${ackId}` : null);
   const [read, setRead] = useState(false);
   const [busy, setBusy] = useState(false);
-  const crumbs = [{ label: 'My acknowledgements', to: '/policies/acknowledgements' }, { label: data ? `${data.policy_ref ?? ''} version ${data.version}`.trim() : 'Policy' }];
+  const crumbs = [{ label: 'My acknowledgments', to: '/policies/acknowledgments' }, { label: data ? `${data.policy_ref ?? ''} version ${data.version}`.trim() : 'Policy' }];
 
   if (error) {
     return (
@@ -34,9 +34,9 @@ export function PolicyReader() {
   const acknowledge = async () => {
     setBusy(true);
     try {
-      await api.post(`/api/policies/acknowledgements/${data.id}/acknowledge`);
-      toast.success('Thank you. Your acknowledgement has been recorded.');
-      navigate('/policies/acknowledgements');
+      await api.post(`/api/policies/acknowledgments/${data.id}/acknowledge`);
+      toast.success('Thank you. Your acknowledgment has been recorded.');
+      navigate('/policies/acknowledgments');
     } catch (err) {
       toast.error(errorMessage(err));
     } finally {
@@ -69,22 +69,22 @@ export function PolicyReader() {
         )}
         <PolicyBody html={data.body_html} />
       </article>
-      <div className="pol-reader-bar" role="region" aria-label="Acknowledgement">
+      <div className="pol-reader-bar" role="region" aria-label="Acknowledgment">
         {done ? (
           <>
             <span className="row"><Icon name="check-circle" size={18} /> You acknowledged this version on {formatDateTime(data.acknowledged_at)}.</span>
-            <Link className="btn btn-secondary" to="/policies/acknowledgements">Back to my acknowledgements</Link>
+            <Link className="btn btn-secondary" to="/policies/acknowledgments">Back to my acknowledgments</Link>
           </>
         ) : closed ? (
           <>
-            <span>A newer version replaced this one. Open My acknowledgements to read the current version.</span>
-            <Link className="btn btn-primary" to="/policies/acknowledgements">My acknowledgements</Link>
+            <span>A newer version replaced this one. Open My acknowledgments to read the current version.</span>
+            <Link className="btn btn-primary" to="/policies/acknowledgments">My acknowledgments</Link>
           </>
         ) : (
           <>
             <Checkbox label="I have read and understood this policy" checked={read} onChange={setRead} />
             <span className="row">
-              <Link className="btn btn-secondary" to="/policies/acknowledgements">Not now</Link>
+              <Link className="btn btn-secondary" to="/policies/acknowledgments">Not now</Link>
               <Button variant="primary" icon="check" disabled={!read} loading={busy} onClick={() => void acknowledge()}>Acknowledge</Button>
             </span>
           </>

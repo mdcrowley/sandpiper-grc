@@ -280,7 +280,7 @@ export class PdfBuilder {
     doc.moveDown(0.6);
   }
 
-  /** A vector chart drawn from labelled values: horizontal bars, a line over time, or a pie. */
+  /** A vector chart drawn from labeled values: horizontal bars, a line over time, or a pie. */
   chart(kind: 'bar' | 'line' | 'pie', points: ChartPoint[], label: string) {
     const data = points.filter((p) => Number.isFinite(p.value)).slice(0, kind === 'pie' ? 8 : kind === 'line' ? 60 : 24);
     if (!data.length || data.every((p) => p.value === 0)) return;

@@ -1,8 +1,10 @@
 # Operations
 
-The runbook for the local prototype. Everything goes through `grc.ps1`, run from the
-repository root in Windows PowerShell. For first-time installation see
-[Installation](installation.md).
+The runbook for the prototype. On Windows everything goes through `grc.ps1`, run from the
+repository root in Windows PowerShell; on macOS and Linux through `grc.sh`, which has the
+same commands ([below](#macos-and-linux-grcsh)); in a container through `docker compose`
+and the image's `grc` command ([Docker](#docker)). The examples in this runbook use
+`grc.ps1`. For first-time installation see [Installation](installation.md).
 
 ## Commands
 
@@ -42,17 +44,63 @@ themselves. Each one stops a running server, does its work and starts the server
 stopped.
 
 The work of `status`, `backup`, `restore`, `export-all` and `import-all` is done by
-`server/src/cli.ts` (the code is in `server/src/ops/`); `grc.ps1` only stops and starts
-the server around it. On a machine without PowerShell, stop the server yourself and run
-the same commands directly:
+`server/src/cli.ts` (the code is in `server/src/ops/`); `grc.ps1` and `grc.sh` only stop
+and start the server around it. With the server stopped, the same commands also run
+directly: `npm run cli -- status`, `npm run cli -- backup --prune 14`, and `npm run cli`
+for the list.
 
-```
-npm run cli -- status
-npm run cli -- backup --prune 14
-npm run cli -- restore latest
-npm run cli -- export-all --out /some/folder
-npm run cli                      # lists every command
-```
+### macOS and Linux: `grc.sh`
+
+`./grc.sh` has every command of `grc.ps1` that makes sense off Windows, with the same
+behavior. Options are written in either style: `--prune 14`, `--prune=14` or `-Prune 14`.
+It uses Node.js from `.tools/node` (put there by `./tools/install-node.sh`) when present,
+otherwise the `node` on `PATH`, and refuses a major version other than the one in
+`tools/node-version.txt` (set `GRC_SKIP_NODE_CHECK=1` to try another anyway).
+
+| Windows | macOS and Linux |
+|---|---|
+| `powershell -ExecutionPolicy Bypass -File .\tools\install-node.ps1` | `./tools/install-node.sh` |
+| `.\grc.ps1 npm install` | `./grc.sh install` (also fetches Node.js when no suitable one is found) |
+| `.\grc.ps1 start`, `stop`, `restart`, `health`, `status` | `./grc.sh start`, `stop`, `restart`, `health`, `status` |
+| `.\grc.ps1 logs -Lines 100 -Follow` | `./grc.sh logs --lines 100 --follow` |
+| `.\grc.ps1 seed -Profile dev` | `./grc.sh seed --profile dev` |
+| `.\grc.ps1 backup -Prune 14 -Encrypt -KeyFile <file>` | `./grc.sh backup --prune 14 --encrypt --key-file <file>` |
+| `.\grc.ps1 backups`, `verify-backup`, `restore latest -Force` | `./grc.sh backups`, `verify-backup`, `restore latest --force` |
+| `.\grc.ps1 export-all -Out <dir> -NoSecrets`, `import-all <dir>` | `./grc.sh export-all --out <dir> --no-secrets`, `import-all <dir>` |
+| `.\grc.ps1 decrypt <file> -Out <tar>`, `new-key <file>`, `move-files -To s3` | `./grc.sh decrypt <file> --out <tar>`, `new-key <file>`, `move-files --to s3` |
+| `.\grc.ps1 upgrade -From <zip> -SkipInstall -NoRollback`, `-Pull`, `save-code` | `./grc.sh upgrade --from <folder, .zip or .tar.gz> --skip-install --no-rollback`, `--pull`, `save-code` |
+| `.\grc.ps1 schedule-backup -At 02:30 -Prune 14` (a Windows scheduled task) | `./grc.sh schedule-backup --at 02:30 --prune 14` prints a cron line, a systemd user timer and a launchd agent to add; `unschedule-backup` says how to remove them ([Scheduled backups](#scheduled-backups)) |
+| `.\grc.ps1 dev`, `build`, `test`, `typecheck`, `ci` | `./grc.sh dev`, `build`, `test`, `typecheck`, `ci` (`ci` includes the pass with the clock on UTC) |
+| `.\grc.ps1 npm <args>` | `./grc.sh npm <args>` |
+
+Differences: `start` runs the server in the background with `nohup`, writing the same
+`data/server.log` and `data/server.log.err`; `stop` asks for a clean shutdown the same way
+and sends a terminate signal if that does not work within 15 seconds; `status` reports a
+cron entry for this folder (it does not look at systemd or launchd); and `upgrade --from`
+also takes a `.tar.gz`. On a server run by systemd (`deploy/systemd/`), use `systemctl
+start|stop|status sandpiper-grc` and `journalctl -u sandpiper-grc` instead of `start`, `stop`
+and `logs`, and stop the service before `seed`, `backup`, `restore` or `import-all` (they then
+leave it stopped, and you start it again with `systemctl`).
+
+### Docker
+
+In a container, `docker compose` replaces `start`, `stop` and `logs`, and the image's `grc`
+command runs the operations commands of `server/src/cli.ts`. Commands that need the database
+to itself run in a one-off container with the application stopped. Full details in
+[Docker](docker.md).
+
+| Task | Command |
+|---|---|
+| Start, stop, restart | `docker compose up -d`, `docker compose stop`, `docker compose restart app` |
+| Health and status | `docker compose ps` (health), `docker compose exec app grc status` |
+| Logs | `docker compose logs -f app` (the server writes to the container's output, not to files) |
+| Sample data | `docker compose stop app && docker compose run --rm app grc seed --profile dev && docker compose start app` |
+| Backup | `docker compose stop app && docker compose run --rm app grc backup --prune 14 && docker compose start app` |
+| List, verify, restore | `docker compose exec app grc backups`; `... run --rm app grc verify-backup`; `... run --rm app grc restore latest` (stopped) |
+| Copy backups or the key off the host | `docker compose cp app:/var/lib/sandpiper/backups ./grc-backups`, `docker compose cp app:/var/lib/sandpiper-key/secret.key ./sandpiper-secret.key` |
+| Export and import | `docker compose run --rm app grc export-all --out /var/lib/sandpiper/backups/export`, `... grc import-all <path in the volume>` (stopped) |
+| Upgrade | `docker compose pull && docker compose up -d` (take a backup first) |
+| Secret key | `docker compose exec app grc secret-key show`; `rotate` with the application stopped |
 
 ## Where things live
 
@@ -207,7 +255,7 @@ Things to know:
   written with. To restore on another machine, put the key file beside the restored data
   folder under the same name, or set `GRC_SECRET_KEY` (or `GRC_SECRET_KEY_FILE`) before
   starting.
-- If you would rather the key travelled with the data, `-Encrypt -IncludeSecretKey`
+- If you would rather the key traveled with the data, `-Encrypt -IncludeSecretKey`
   puts it **inside the encrypted file** (never in a plain backup). A restore then puts it in
   place: where there is no key file yet it is written there; where a different key is in
   use it is added to `<key file>.previous`, so values written with it are re-encrypted with
@@ -215,7 +263,7 @@ Things to know:
 - By default `backups\` is on the same disk as the data. Set `GRC_BACKUP_DIR` to a folder
   on another disk, or copy backups elsewhere as well, and run `verify-backup` on a copy
   now and then.
-- The checksums detect damage and incomplete copies. They are not a defence against
+- The checksums detect damage and incomplete copies. They are not a defense against
   someone who can rewrite both the files and the manifest.
 - The private `seed\` folder is not included.
 - Files kept in an S3-compatible object store (Administration > File settings > Storage)
@@ -247,7 +295,7 @@ the backups.
   unencrypted is written on the way, and the file is decrypted and checked against the
   manifest before the command reports success. (An encrypted export is written to a
   working folder beside the output first, then packed and the folder deleted.)
-- `restore`, `verify-backup` and `import-all` recognise an encrypted file and ask for the
+- `restore`, `verify-backup` and `import-all` recognize an encrypted file and ask for the
   key; the safety copy `restore` keeps is encrypted with the same key.
 - `backups` lists encrypted backups (their name, time, size and version are readable
   without the key) and `-Prune` counts them.
@@ -309,36 +357,8 @@ with the current code's migrations and loads the export into it; the backup must
 from newer code. Everything else is as described under [Restore](#restore). On a
 PostgreSQL server, load it with `import-all <file>` into an empty database instead.
 
-**Without Windows.** On Linux or macOS there is no `grc.ps1`; the server's own daily backup
-works the same, and the stop-and-copy backup can be scheduled with cron or a systemd timer
-running the command line directly (the server must be stopped around it):
-
-```
-# crontab -e: every day at 02:30, encrypted, keep 14
-30 2 * * * cd /opt/sandpiper && GRC_DATA_DIR=/var/lib/sandpiper/data GRC_BACKUP_DIR=/srv/backups/grc GRC_BACKUP_KEY_FILE=/etc/sandpiper/backup.key npm run --silent cli -- backup --label scheduled --encrypt --prune 14 >> /srv/backups/grc/scheduled-backup.log 2>&1
-```
-
-```
-# /etc/systemd/system/grc-backup.service
-[Service]
-Type=oneshot
-WorkingDirectory=/opt/sandpiper
-Environment=GRC_DATA_DIR=/var/lib/sandpiper/data GRC_BACKUP_DIR=/srv/backups/grc GRC_BACKUP_KEY_FILE=/etc/sandpiper/backup.key
-ExecStartPre=/bin/systemctl stop sandpiper
-ExecStart=/usr/bin/npm run --silent cli -- backup --label scheduled --encrypt --prune 14
-ExecStopPost=/bin/systemctl start sandpiper
-
-# /etc/systemd/system/grc-backup.timer
-[Timer]
-OnCalendar=*-*-* 02:30
-Persistent=true
-[Install]
-WantedBy=timers.target
-```
-
-`systemctl enable --now grc-backup.timer`; `systemctl list-timers` and
-`journalctl -u grc-backup` show when it ran and what it said. The service name `sandpiper`
-is whatever unit runs the server on that machine.
+**On macOS, Linux and in containers** the server's own daily backup works the same. For a
+stop-and-copy backup on a schedule, see [Scheduled backups](#scheduled-backups).
 
 ### Scheduled backups
 
@@ -367,6 +387,33 @@ administrator rights.
   last backup. The server's own backups ([above](#backups-taken-by-the-server)) do alert
   administrators, and need nobody signed in; the task remains useful for a full
   stop-and-copy of the database files.
+
+**macOS and Linux.** `./grc.sh schedule-backup --at 02:30 --prune 14` changes nothing on the
+system: it prints, with this folder's paths and the `GRC_*` settings in force written in,
+a cron line, a systemd user service and timer (Linux) and a launchd agent (macOS). Add one
+of them as the user that runs the server. Each run calls `grc.sh backup --label scheduled`,
+which stops the server for a few seconds, takes a verified backup, starts the server again
+and adds a line to `backups/scheduled-backup.log`; `./grc.sh status` reports a cron entry
+for this folder. For example, with cron:
+
+```
+30 2 * * * /opt/sandpiper-grc/grc.sh backup --label scheduled --prune 14 >/dev/null 2>&1
+```
+
+With `--encrypt` it needs `--key-file` or `--passphrase-file` (a passphrase is never written
+into a schedule). For the systemd service in `deploy/systemd/`, use
+`sandpiper-grc-backup.service` and `.timer` from the same folder instead: they stop the
+service with `systemctl`, run the backup as the service's user and start it again;
+`systemctl list-timers` and `journalctl -u sandpiper-grc-backup` show when it ran and what
+it said.
+
+**Docker.** Schedule the three commands on the host, for example with cron:
+
+```
+30 2 * * * cd /opt/sandpiper-grc && docker compose stop app && docker compose run --rm app grc backup --label scheduled --prune 14; docker compose start app
+```
+
+and copy `/var/lib/sandpiper/backups` off the machine ([Docker](docker.md#volumes-and-backups)).
 
 ### PostgreSQL server backups
 
@@ -402,7 +449,8 @@ tar -czf grc-files-$(date +%Y%m%d-%H%M%S).tar.gz -C /var/lib/sandpiper data
   The append-only audit log has a trigger that refuses updates and deletes; `pg_restore`
   only inserts, so it is not affected.
 - In the container setup: `docker compose exec db pg_dump -U grc --format=custom grc > grc.dump`,
-  and the files with `docker run --rm -v <project>_grc-files:/v -v "$PWD":/out busybox tar -czf /out/grc-files.tar.gz -C /v .`
+  and the files with `docker run --rm -v sandpiper-grc_grc-data:/v:ro -v "$PWD":/out busybox tar -czf /out/grc-files.tar.gz -C /v .`
+  ([Docker](docker.md#postgresql-variant)).
 - `export-all` and `import-all` also work against a server, and remain the way to move
   between the embedded database and a server, or between versions.
 - A managed database service's own scheduled snapshots and point-in-time recovery are a
@@ -632,7 +680,7 @@ previous version again:
 It then says plainly either `ROLLED BACK: the upgrade failed at '<step>', and version
 <previous> is running again with the data as it was before.` (exit code 1), or
 `ROLLBACK INCOMPLETE` with the step that failed and the commands to finish by hand (exit
-code 2, server stopped). `-NoRollback` keeps the old behaviour: stop, leave the server
+code 2, server stopped). `-NoRollback` keeps the old behavior: stop, leave the server
 stopped and print those commands. `data\server.log.err` (or `.\grc.ps1 logs`) names a
 migration that failed at start (`Migration <module>/<file> failed: ...`).
 
@@ -641,18 +689,22 @@ migration: the migration failed, the code and the data were put back and the pre
 version started healthy.
 
 To move to a newer Node.js patch release within the same major version, stop the server
-and run `powershell -ExecutionPolicy Bypass -File .\tools\install-node.ps1 -Force`.
+and run `powershell -ExecutionPolicy Bypass -File .\tools\install-node.ps1 -Force`
+(`./tools/install-node.sh --force` on macOS and Linux). A container gets it with the next
+image.
 
 ### Upgrading a server or container installation
 
-`grc.ps1 upgrade` backs up the embedded database only. With a database server or
-containers, do the same steps by hand:
+`grc.ps1 upgrade` and `grc.sh upgrade` back up the embedded database only. With a database
+server or containers, do the same steps by hand:
 
 1. **Back up** the database with `pg_dump` and the files
    ([PostgreSQL server backups](#postgresql-server-backups)), or, with the embedded
-   database in a container, stop it and copy the volume.
-2. **Replace the code**: `git pull` then `npm ci && npm run build`, or
-   `docker compose build` (or pull a newer image).
+   database in a container, `docker compose stop app && docker compose run --rm app grc backup`.
+2. **Replace the code**: `git pull` then `npm ci && npm run build` (for the systemd
+   service: `sudo systemctl stop sandpiper-grc`, then `git pull`, `./grc.sh install`,
+   `./grc.sh build`), or `docker compose pull` for the published image (`docker compose
+   build` for one built from source).
 3. **Restart**: `docker compose up -d` replaces the container. Migrations run at start-up;
    a failure stops the server with `Migration <module>/<file> failed: ...` in its output
    (`docker compose logs app`), and the container restarts and fails again until fixed.
@@ -670,6 +722,14 @@ go back together with the code.
 `powershell -ExecutionPolicy Bypass -File .\tools\install-node.ps1`; see
 [Installation](installation.md#1-put-the-portable-nodejs-in-toolsnode).
 
+### "Node.js 24 is needed" or "Node.js is not installed" (grc.sh)
+
+`grc.sh` found no `node`, or one of another major version. Run `./tools/install-node.sh`
+(the pinned version in `.tools/node`, used ahead of any other), or install Node.js 24 and
+open a new terminal ([Installation](installation.md#macos)). "Permission denied" on
+`./grc.sh` means the files lost their executable mark (a downloaded zip):
+`chmod +x grc.sh tools/install-node.sh`.
+
 ### The script is blocked
 
 "Running scripts is disabled on this system." Run it as
@@ -683,6 +743,7 @@ Run `.\grc.ps1 logs`. The usual causes:
 - **Port in use** (the log mentions `EADDRINUSE`). Something else is using port 8080. Find
   it with `Get-NetTCPConnection -LocalPort 8080 -State Listen` (the `OwningProcess` column
   is the process id), or use another port: `$env:GRC_PORT = '8081'; .\grc.ps1 start`.
+  On macOS and Linux: `lsof -nP -iTCP:8080 -sTCP:LISTEN`, or `GRC_PORT=8081 ./grc.sh start`.
 - **A second process on the data folder.** Make sure no other copy of the server, no
   `dev` session and no command-line task is running against the same folder.
 - **A failed migration.** See Upgrading above.
@@ -784,7 +845,7 @@ at least these must change:
 3. Backups that run when nobody is signed in, are copied off the machine, are encrypted,
    and raise an alert when one fails. (Verified backups, a daily schedule, pruning and a
    tested restore command exist today.)
-4. Second factor switched to **Required** (it ships as a reminder); single sign-on if your organisation uses it.
+4. Second factor switched to **Required** (it ships as a reminder); single sign-on if your organization uses it.
 5. Monitoring and retained logs.
 
 The full list is in [Known gaps](known-gaps.md). The route there is sketched in

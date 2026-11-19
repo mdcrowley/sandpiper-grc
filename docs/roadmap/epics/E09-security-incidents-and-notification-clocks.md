@@ -15,7 +15,7 @@ for every party that must be told, counting down from the moment of discovery.
 - The whole module is restricted: every route needs `security.view` as well as its own
   permission.
 - Notification rules ship as generic, inactive placeholders with no deadline. Who must
-  be told and by when depends on each organisation's law, regulators, contracts and
+  be told and by when depends on each organization's law, regulators, contracts and
   insurer, so each installation sets its own rules, with legal advice.
 
 ## Issues
@@ -44,7 +44,7 @@ for every party that must be told, counting down from the moment of discovery.
 | E09-20 | Printable incident report | done | P2 |
 | E09-21 | Kinds of data editable on the rules screen | done | P2 |
 | E09-22 | Post-incident review workflow | done | P2 |
-| E09-23 | Command-centre workspace and calm declare flow | done | P1 |
+| E09-23 | Command-center workspace and calm declare flow | done | P1 |
 | E09-24 | Transit starter scenarios and kinds of data | done | P2 |
 | E09-25 | Alerts by email or text message | open | P3 |
 
@@ -94,7 +94,7 @@ long. The rules that ship are generic placeholders, switched off, with no deadli
 
 - [x] Rules are rows with a trigger, a recipient and a deadline
 - [x] Shipped rules are inactive and carry no deadline
-- [x] Rules can be loaded from the organisation profile; a rule that could not work is refused
+- [x] Rules can be loaded from the organization profile; a rule that could not work is refused
 - [x] The profile never overwrites an existing rule
 - [x] Setting a deadline switches a rule on, and open incidents pick it up
 
@@ -166,14 +166,14 @@ the open notifications are brought up to date.
 **Status:** done · **Priority:** P2 · **Type:** feature
 
 As an incident lead, choosing a scenario copies its containment and recovery checklist
-onto the incident, and I tick steps off as they are done.
+onto the incident, and I check steps off as they are done.
 
 **Acceptance criteria**
 
 - [x] Checklist templates per scenario and phase, held as data
 - [x] The template is copied onto the incident when the scenario is set
-- [x] Ticking a step records who and when
-- [x] Ticked steps are kept when the scenario changes; unticked ones are replaced
+- [x] Checking a step records who and when
+- [x] Checked steps are kept when the scenario changes; unchecked ones are replaced
 - [x] Extra steps can be added to one incident
 
 **Implemented in:** `applyChecklist`, `/api/security-incidents/:id/checklist`, `/api/security-checklist-templates` (`server/src/modules/secincidents/index.ts`); `web/src/modules/secincidents/ChecklistTab.tsx`
@@ -400,7 +400,7 @@ completed, with its findings frozen and its follow-up actions tracked.
 
 **Implemented in:** `checkReview`, `reviewChanged` (`server/src/modules/secincidents/index.ts`); `web/src/modules/secincidents/ReviewTab.tsx`
 
-### E09-23 Command-centre workspace and calm declare flow
+### E09-23 Command-center workspace and calm declare flow
 
 **Status:** done · **Priority:** P1 · **Type:** feature
 
@@ -409,8 +409,8 @@ declare flow is short and reassuring.
 
 **Acceptance criteria**
 
-- [x] Status stepper, key times and severity at the top; clocks rail with a "next deadline" headline, colour state, required or recommended, one-click record, done state with who, when and reference, sorted by urgency
-- [x] Log as the central timeline with a fast composer (L to write, Ctrl+Enter to add), entry kinds, back-dating and times in the organisation time zone
+- [x] Status stepper, key times and severity at the top; clocks rail with a "next deadline" headline, color state, required or recommended, one-click record, done state with who, when and reference, sorted by urgency
+- [x] Log as the central timeline with a fast composer (L to write, Ctrl+Enter to add), entry kinds, back-dating and times in the organization time zone
 - [x] Checklists with progress per phase; team panel with one-click contact details
 - [x] Three-step declare wizard with a live notification preview
 - [x] Offline kit as a printed document: cover, contacts, rules table, scenario checklists, notification record sheet and blank log sheets, with an on-screen print preview

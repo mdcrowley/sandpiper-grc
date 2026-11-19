@@ -19,7 +19,7 @@ import { StatusReportsTab } from './StatusReportsTab';
 import { SystemsCard } from './SystemsCard';
 import { daysBetween, todayIso, type Gate } from './types';
 
-/** The centrepiece: stages and gates, with one line saying where the project stands. */
+/** The centerpiece: stages and gates, with one line saying where the project stands. */
 function StepperBanner() {
   const { data, error, reload } = useGates();
   const [search, setSearch] = useSearchParams();

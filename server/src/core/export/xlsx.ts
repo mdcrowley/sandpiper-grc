@@ -1,5 +1,5 @@
 // A small Office Open XML spreadsheet (XLSX) writer: shared strings, a bold header row, typed
-// cells (numbers, currency, dates and date-times as real spreadsheet dates in the organisation's
+// cells (numbers, currency, dates and date-times as real spreadsheet dates in the organization's
 // time zone, yes/no), a frozen header, an auto-filter and column widths. The package is zipped
 // with fflate; nothing else is needed.
 import { strToU8, zipSync, type Zippable } from 'fflate';

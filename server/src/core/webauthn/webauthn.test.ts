@@ -257,14 +257,14 @@ describe('second factor on a new installation (E02-17)', () => {
     return { built, cookie: setup.cookie!, setup: setup.body };
   };
 
-  it('the wizard\'s "required" applies at once and leads the administrator to enrolment', async () => {
+  it('the wizard\'s "required" applies at once and leads the administrator to enrollment', async () => {
     const { built, cookie, setup } = await fresh('required');
     try {
       expect(setup.secondFactor).toBe('required');
       const state = await raw(built, 'GET', '/api/auth/state', undefined, cookie);
       expect(state.body).toMatchObject({ mfaEnforcement: 'required', mfaEnrollmentBlocked: true });
       expect((await raw(built, 'GET', '/api/meta', undefined, cookie)).status).toBe(403);
-      // A passkey enrols them.
+      // A passkey enrolls them.
       const auth = new SoftAuthenticator({ origin: ORIGIN });
       const opts = await raw(built, 'POST', '/api/auth/webauthn/register/options', {}, cookie);
       await raw(built, 'POST', '/api/auth/webauthn/register', { name: 'Admin key', credential: auth.create(opts.body.publicKey) }, cookie);

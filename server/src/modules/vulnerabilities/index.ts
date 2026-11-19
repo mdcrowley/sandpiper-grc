@@ -9,7 +9,7 @@ import { registerSummary, takeSnapshot } from './summary.ts';
 /**
  * Vulnerabilities: findings from scanners and assessments, tracked from first seen to fixed,
  * with a fix-by date from the severity policy (and system criticality), CSV import that
- * recognises a finding by host, port and identifier, a dashboard with an overdue report,
+ * recognizes a finding by host, port and identifier, a dashboard with an overdue report,
  * and notifications to owners (assignment, past the fix-by date).
  * Findings are security records: every route also needs `security.view`.
  */

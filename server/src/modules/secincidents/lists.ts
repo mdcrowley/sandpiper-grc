@@ -2,7 +2,7 @@ import type { FastifyRequest, RouteShorthandOptions } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { KIND_LIST, KIND_PREFIX, STAGES } from './defaults.ts';
 
-// The two configurable lists that drive this module's behaviour, editable on the rules screen
+// The two configurable lists that drive this module's behavior, editable on the rules screen
 // by people with security.administer (Administration > Lists needs admin.administer):
 //   kinds     incident_data_kind        each value is a yes/no question and a rule trigger
 //   statuses  security_incident_status  the incident lifecycle; `stage` says what a status means
@@ -74,7 +74,7 @@ export function registerLists(
       else out.label = label;
     }
     if (b.color !== undefined && b.color !== null && b.color !== '') {
-      if (COLORS.includes(String(b.color))) out.color = String(b.color); else fields.color = 'Choose a colour from the list.';
+      if (COLORS.includes(String(b.color))) out.color = String(b.color); else fields.color = 'Choose a color from the list.';
     }
     if (b.sort !== undefined && b.sort !== null && b.sort !== '') {
       const n = Number(b.sort);

@@ -1,5 +1,5 @@
 /**
- * The organisation's time zone: business hours, "today" and due dates are worked out in it.
+ * The organization's time zone: business hours, "today" and due dates are worked out in it.
  * Set GRC_TIMEZONE to an IANA name (for example Europe/London); the default is the zone of
  * the machine the server runs on.
  */
@@ -13,15 +13,15 @@ export const TIME_ZONE: string = (() => {
   }
 })();
 
-/** Today's calendar date (YYYY-MM-DD) in the organisation's time zone. */
+/** Today's calendar date (YYYY-MM-DD) in the organization's time zone. */
 export function todayInZone(at: Date = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: TIME_ZONE }).format(at);
 }
 
 /**
- * The calendar date (YYYY-MM-DD) `offsetDays` days from today, in the organisation's time zone.
+ * The calendar date (YYYY-MM-DD) `offsetDays` days from today, in the organization's time zone.
  * Use this, never `new Date().getDate()` or `toISOString().slice(0, 10)`: those give the
- * machine's or UTC's date, which differs from the organisation's for part of every day.
+ * machine's or UTC's date, which differs from the organization's for part of every day.
  */
 export function dayInZone(offsetDays = 0, at: Date = new Date()): string {
   const base = Date.parse(`${todayInZone(at)}T00:00:00Z`);

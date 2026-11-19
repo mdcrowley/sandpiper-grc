@@ -112,7 +112,7 @@ export function LinkedIdentitiesCard() {
             )}
             {data.available.length > 0 && (
               <>
-                <p>{data.identities.length ? 'You can also link:' : 'Link your organisation account to sign in with it instead of a password.'} You will be asked to sign in at the provider; it must give the same email address as your account here.</p>
+                <p>{data.identities.length ? 'You can also link:' : 'Link your organization account to sign in with it instead of a password.'} You will be asked to sign in at the provider; it must give the same email address as your account here.</p>
                 <div className="row">
                   {data.available.map((p) => (
                     <Button key={p.key} icon="link" loading={busy === p.key} disabled={Boolean(busy)} onClick={() => void go(`/api/auth/sso/${encodeURIComponent(p.key)}/link`, p.key)}>Link {p.name}</Button>

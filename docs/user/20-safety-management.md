@@ -34,7 +34,7 @@ The event gets a reference such as `SE-00101`.
 
 ### Restricted events
 
-Events that hold personal information are **restricted**: only people who may see restricted records (`security.view`) can see them in lists, search, links and exports. They still count in the dashboard and the indicators, which are the same for everyone and show no event's details. **Passenger injury** and **Assault on an operator** events start restricted unless you untick **Restricted (holds personal information)**; any other event can be restricted by ticking it. Corrective actions of a restricted event are restricted too. Someone without `security.view` who restricts an event can no longer open it.
+Events that hold personal information are **restricted**: only people who may see restricted records (`security.view`) can see them in lists, search, links and exports. They still count in the dashboard and the indicators, which are the same for everyone and show no event's details. **Passenger injury** and **Assault on an operator** events start restricted unless you clear **Restricted (holds personal information)**; any other event can be restricted by checking it. Corrective actions of a restricted event are restricted too. Someone without `security.view` who restricts an event can no longer open it.
 
 ### Notifications
 
@@ -46,7 +46,7 @@ The event page shows the progress (**Reported**, **Under investigation**, **Corr
 
 The buttons at the top move the event on: **Start investigation**, **Corrective actions raised**, **Close event** and, on a closed event, **Reopen**.
 
-An event can be closed only when its **Root cause** is recorded and every corrective action is finished or cancelled. **Closed on** is filled in for you, and cleared if the event is reopened.
+An event can be closed only when its **Root cause** is recorded and every corrective action is finished or canceled. **Closed on** is filled in for you, and cleared if the event is reopened.
 
 ### Corrective actions
 
@@ -71,7 +71,7 @@ Open **Hazard log**. The list shows each hazard's **Rating** now and **After mit
 
 Hazards are scored on the **Safety hazard matrix (4 by 5)**: five likelihood levels (**Improbable**, **Remote**, **Occasional**, **Probable**, **Frequent**) by four severity levels (**Negligible**, **Marginal**, **Critical**, **Catastrophic**), giving **Low**, **Medium**, **Serious** or **High**. It is the same matrix the risk register uses, kept under the risk scales, so an administrator's change to it applies here too.
 
-On the hazard page, the **Current risk** card scores the hazard with its existing controls and the **After mitigation** card scores it once the mitigations are in place. Choose a cell to score it; the chosen cell is outlined and ticked, and the rating appears in the card's heading. A cell names its rating in words, so the colour is never the only clue.
+On the hazard page, the **Current risk** card scores the hazard with its existing controls and the **After mitigation** card scores it once the mitigations are in place. Choose a cell to score it; the chosen cell is outlined and checked, and the rating appears in the card's heading. A cell names its rating in words, so the color is never the only clue.
 
 Set the **Status** as the work goes on: **Identified**, **Being mitigated**, **Controlled** or **Closed**. Closed hazards are left off the dashboard's matrix.
 
@@ -90,7 +90,7 @@ Open **Safety indicators**. Each indicator is worked out month by month from the
 3. Choose which events count: **Event types counted**, **Severities counted** and **Modes counted** (by the event's vehicle or service). Leave a choice empty to count all.
 4. Choose the **Measure**: **Number of events in the month**, or **Rate: events per amount of exposure**. For a rate, choose what it is **Per** (**Vehicle-miles**, **Vehicle-hours** or **Boardings**) and **Per how many** (for example 100,000).
 5. Choose whether the **Target is** **At most (lower is better)** or **At least (higher is better)**, and enter the **Target**.
-6. Leave **Shown on the safety dashboard** ticked to show it there.
+6. Leave **Shown on the safety dashboard** checked to show it there.
 7. Select **Add indicator**.
 
 ### The indicator page

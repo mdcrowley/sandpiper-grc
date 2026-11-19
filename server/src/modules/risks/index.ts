@@ -44,7 +44,7 @@ async function seedLookups(ctx: ModuleContext): Promise<void> {
     { value: 'in_progress', label: 'In progress', color: 'amber', sort: 20 },
     { value: 'blocked', label: 'Blocked', color: 'red', sort: 30 },
     { value: 'done', label: 'Done', color: 'green', sort: 40, meta: { closed: true, done: true } },
-    { value: 'cancelled', label: 'Cancelled', color: 'gray', sort: 50, meta: { closed: true } },
+    { value: 'cancelled', label: 'Canceled', color: 'gray', sort: 50, meta: { closed: true } },
   ], { module: 'actions' });
   await ctx.lookups.ensure('action_priority', [
     { value: 'high', label: 'High', color: 'red', sort: 10 },
@@ -571,8 +571,8 @@ const mod: ModuleDef = {
       },
     });
 
-    // Obligations are organisation data: none are created here. They come from the
-    // organisation profile at seed time (see seed.ts) or are entered by hand.
+    // Obligations are organization data: none are created here. They come from the
+    // organization profile at seed time (see seed.ts) or are entered by hand.
   },
 
   seed: (ctx, opts) => seedRisksModule(ctx, opts),

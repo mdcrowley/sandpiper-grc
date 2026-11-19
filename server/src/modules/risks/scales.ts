@@ -18,7 +18,7 @@ export interface Scale {
   acceptance_threshold: string | null;
 }
 
-export const COLOURS = ['gray', 'blue', 'teal', 'green', 'amber', 'orange', 'red', 'purple'];
+export const COLORS = ['gray', 'blue', 'teal', 'green', 'amber', 'orange', 'red', 'purple'];
 export const THRESHOLD_SETTING = 'risks.acceptance_thresholds';
 export const DEFAULT_SCALE = 'cyber_5x5';
 
@@ -251,7 +251,7 @@ export function makeScales(ctx: ModuleContext) {
       for (const r of s.ratings) {
         if (!/^[a-z][a-z0-9_]*$/.test(String(r?.key ?? '')) || !String(r?.label ?? '').trim()) f.ratings = 'Each rating needs a key and a label.';
         else if (ratingKeys.has(r.key)) f.ratings = 'Rating keys must be different.';
-        else if (!COLOURS.includes(r.color)) f.ratings = `Rating colour must be one of: ${COLOURS.join(', ')}.`;
+        else if (!COLORS.includes(r.color)) f.ratings = `Rating color must be one of: ${COLORS.join(', ')}.`;
         else if (!levelKeys.includes(r.summary_level)) f.ratings = `Each rating must map to a summary level (${levelKeys.join(', ')}).`;
         else if (!Number.isFinite(Number(r.sort))) f.ratings = 'Each rating needs an order number.';
         ratingKeys.add(r?.key);

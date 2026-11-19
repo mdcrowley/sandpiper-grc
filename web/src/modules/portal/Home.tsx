@@ -1,13 +1,13 @@
-// Portal home: the service banner, search, the two main actions, the catalogue, my requests,
+// Portal home: the service banner, search, the two main actions, the catalog, my requests,
 // and whatever else is waiting for me (approvals, policies, training, equipment).
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ErrorState, formatDate, Icon, Loading, relativeTime, useAuth, useFetch, type IconName } from '../../core';
 import { Approvals } from './Approvals';
-import { ServiceBanner, Section, StatusPill, usePortal, useSuggestions, type CatalogueItem, type PlainStatus } from './parts';
+import { ServiceBanner, Section, StatusPill, usePortal, useSuggestions, type CatalogItem, type PlainStatus } from './parts';
 
 const CAT_ICON: Record<string, IconName> = { people: 'users', access: 'key', equipment: 'box', software: 'file-text', vendors: 'building' };
-export const itemIcon = (item: CatalogueItem): IconName => (item.type === 'incident' ? 'alert' : CAT_ICON[item.category ?? ''] ?? 'folder');
+export const itemIcon = (item: CatalogItem): IconName => (item.type === 'incident' ? 'alert' : CAT_ICON[item.category ?? ''] ?? 'folder');
 
 export interface RequestRow {
   id: string; ref: string; title: string; item_name: string | null; opened_at: string; updated_at: string;
@@ -51,7 +51,7 @@ function Search() {
   );
 }
 
-export function CatalogueTiles({ items }: { items: CatalogueItem[] }) {
+export function CatalogTiles({ items }: { items: CatalogItem[] }) {
   return (
     <ul className="pt-tiles">
       {items.map((item) => (
@@ -104,7 +104,7 @@ function MyRequestsCard() {
 
 interface Ack { id: string; policy_title: string; policy_ref: string; due_on: string; state: string; days_left: number }
 function PoliciesCard() {
-  const { data, error } = useFetch<{ awaiting: Ack[] }>('/api/policies/acknowledgements/mine');
+  const { data, error } = useFetch<{ awaiting: Ack[] }>('/api/policies/acknowledgments/mine');
   if (error || !data) return null;
   return (
     <Section id="pt-policies" title="Policies to acknowledge">
@@ -176,7 +176,7 @@ function AssetsCard() {
 export function PortalHome() {
   const config = usePortal();
   const { user } = useAuth();
-  const { data: items, error, reload } = useFetch<CatalogueItem[]>('/api/portal/catalogue');
+  const { data: items, error, reload } = useFetch<CatalogItem[]>('/api/portal/catalog');
   useEffect(() => { document.title = config.title; }, [config.title]);
   const first = (user?.displayName ?? '').split(/\s+/)[0];
   const shown = (items ?? []).slice(0, 6);
@@ -193,7 +193,7 @@ export function PortalHome() {
               <Icon name="alert" size={26} />
               <span><strong>Report a problem</strong><span>Something is broken or not working</span></span>
             </Link>
-            <Link to="/portal/catalogue" className="pt-action">
+            <Link to="/portal/catalog" className="pt-action">
               <Icon name="plus" size={26} />
               <span><strong>Ask for something</strong><span>Access, equipment, a new starter</span></span>
             </Link>
@@ -205,10 +205,10 @@ export function PortalHome() {
         <div className="pt-col-main">
           <MyRequestsCard />
           {config.can_create && (
-            <Section id="pt-cat" title="Popular requests" action={items && items.length > shown.length ? <Link to="/portal/catalogue" className="pt-more">See all ({items.length})</Link> : undefined}>
+            <Section id="pt-cat" title="Popular requests" action={items && items.length > shown.length ? <Link to="/portal/catalog" className="pt-more">See all ({items.length})</Link> : undefined}>
               {error ? <ErrorState error={error} onRetry={reload} />
-                : !items ? <Loading lines={3} label="Loading the catalogue" />
-                  : shown.length ? <CatalogueTiles items={shown} />
+                : !items ? <Loading lines={3} label="Loading the catalog" />
+                  : shown.length ? <CatalogTiles items={shown} />
                     : <p className="muted pt-none">Nothing to ask for here yet. Use “Report a problem” and describe what you need.</p>}
             </Section>
           )}

@@ -6,7 +6,7 @@ Every list of records (tickets, systems, vendors, contracts, risks and the rest)
 
 1. Open the list and narrow it down as you like: search, **Filters**, sort order and the columns chosen under the column button.
 2. Select **Export** in the toolbar and choose a format:
-   - **Excel (XLSX)**: a spreadsheet with a bold, frozen header row and a filter on every column. Dates and times are real dates (in the organisation's time zone), amounts carry the organisation's currency, and numbers are numbers, so the spreadsheet can sort and add them up.
+   - **Excel (XLSX)**: a spreadsheet with a bold, frozen header row and a filter on every column. Dates and times are real dates (in the organization's time zone), amounts carry the organization's currency, and numbers are numbers, so the spreadsheet can sort and add them up.
    - **CSV**: plain text that any program can open.
    - **PDF**: a printable table with the list's name, the time it was made, who it was made for and the filters applied, with the header row repeated on every page and page numbers. A PDF prints at most 2,000 rows; use Excel for more.
 
@@ -59,8 +59,8 @@ Values are read like this:
 - **Lists** (status, priority and so on): the value or its label, in any capitals.
 - **People**: user name, email address or name. A name that two people share matches neither.
 - **Records** (a system, a vendor, a site...): the reference or the title, among the records you can see.
-- **Dates**: `2026-03-14`, `2026/3/14`, `14 Mar 2026` or `3/14/2026` (month first, unless the first number cannot be a month, as in `14/3/2026`). Dates and times are read in the organisation's time zone.
-- **Numbers and amounts**: thousands separators, a percent sign, brackets for a negative amount, and the organisation's currency symbol or code are accepted.
+- **Dates**: `2026-03-14`, `2026/3/14`, `14 Mar 2026` or `3/14/2026` (month first, unless the first number cannot be a month, as in `14/3/2026`). Dates and times are read in the organization's time zone.
+- **Numbers and amounts**: thousands separators, a percent sign, brackets for a negative amount, and the organization's currency symbol or code are accepted.
 - **Yes/no**: yes, no, true, false, y, n, 1, 0.
 
 **Values that matched nothing** lists every list value, person or record name in the file that could not be matched. Choose what each one stands for, then select **Check again**.

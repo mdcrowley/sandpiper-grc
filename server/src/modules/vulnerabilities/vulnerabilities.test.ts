@@ -153,7 +153,7 @@ describe('status rules', () => {
   });
 });
 
-describe('restricted behaviour', () => {
+describe('restricted behavior', () => {
   let id: string;
   beforeAll(async () => {
     id = (await t.api.post('/api/vulnerabilities', finding({ title: 'Zebra crossing exposure', host_name: 'zebra-host', plugin_id: '700040' }))).body.id;

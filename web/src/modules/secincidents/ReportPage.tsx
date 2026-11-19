@@ -82,7 +82,7 @@ export function ReportPage() {
           <p className="si-doc-kicker">{appName} · Security incident report</p>
           <h2 className="si-doc-title"><span className="ref">{i.ref}</span> {i.title}</h2>
           <p className="si-doc-meta">
-            Produced {formatDateTime(data.generated_at)} by {data.generated_by}. Times are shown in the organisation's time zone ({zoneName()}).
+            Produced {formatDateTime(data.generated_at)} by {data.generated_by}. Times are shown in the organization's time zone ({zoneName()}).
           </p>
         </header>
 

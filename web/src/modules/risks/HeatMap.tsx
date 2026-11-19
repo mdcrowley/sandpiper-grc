@@ -56,7 +56,7 @@ export const cellKey = (c: { likelihood: number; impact: number }) => `${c.likel
 
 /**
  * The scale's matrix: worst likelihood at the top, worst impact on the right. Each cell is a
- * button showing how many risks sit in it and the rating the cell gives, so colour never carries
+ * button showing how many risks sit in it and the rating the cell gives, so color never carries
  * the rating alone. Arrow keys move between cells; Enter or Space chooses one.
  */
 export function HeatMap({ data, selected, onSelect, showMovement }: Props) {
@@ -77,8 +77,8 @@ export function HeatMap({ data, selected, onSelect, showMovement }: Props) {
     if (next) { e.preventDefault(); next.focus(); }
   };
 
-  // Centre of a cell in pixels, for the movement arrows drawn over the grid.
-  const centre = (p: { likelihood: number; impact: number }) => {
+  // Center of a cell in pixels, for the movement arrows drawn over the grid.
+  const center = (p: { likelihood: number; impact: number }) => {
     const r = rows.findIndex((l) => l.value === p.likelihood);
     const c = cols.findIndex((i) => i.value === p.impact);
     return { x: ((c + 0.5) * width) / cols.length, y: ((r + 0.5) * height) / rows.length };
@@ -136,10 +136,10 @@ export function HeatMap({ data, selected, onSelect, showMovement }: Props) {
                   </marker>
                 </defs>
                 {data.movements.map((m) => {
-                  const a = centre(m.from);
-                  const b = centre(m.to);
+                  const a = center(m.from);
+                  const b = center(m.to);
                   const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
-                  // Start and stop short of the cell centres so the counts stay readable.
+                  // Start and stop short of the cell centers so the counts stay readable.
                   const pad = Math.min(18, len / 4);
                   const ux = (b.x - a.x) / len;
                   const uy = (b.y - a.y) / len;

@@ -1,4 +1,4 @@
-// Checks the colour contrast of the design tokens against WCAG 2.1 AA, in both themes.
+// Checks the color contrast of the design tokens against WCAG 2.1 AA, in both themes.
 //
 // Usage:
 //   node tools/contrast.mjs [path/to/tokens.css] [--json] [--fails]
@@ -13,7 +13,7 @@
 // What it does: reads the custom properties of the light theme (`:root`) and the dark theme
 // (`:root[data-theme="dark"]`, which falls back to the light value for anything it does not
 // redefine), follows var() references, and understands hex, rgb()/rgba() and hsl()/hsla()
-// colours. A see-through colour is laid over what is behind it before measuring: a
+// colors. A see-through color is laid over what is behind it before measuring: a
 // see-through background over the surface it sits on (the navigation tints over --nav-bg,
 // anything else over --surface), then a see-through foreground over that background.
 //
@@ -41,7 +41,7 @@ const asJson = args.includes('--json');
 const failsOnly = args.includes('--fails');
 const file = args.find((a) => !a.startsWith('--')) ?? join(dirname(fileURLToPath(import.meta.url)), '..', 'web', 'src', 'core', 'tokens.css');
 
-const COLOURS = ['gray', 'blue', 'teal', 'green', 'amber', 'orange', 'red', 'purple'];
+const COLORS = ['gray', 'blue', 'teal', 'green', 'amber', 'orange', 'red', 'purple'];
 const SURFACES = ['--bg', '--surface', '--surface-2', '--surface-hover'];
 const NAV = ['--nav-bg', '--nav-hover', '--nav-active'];
 const TEXT = 4.5;
@@ -55,13 +55,13 @@ const PAIRS = [
   ['--danger-contrast', '--danger', TEXT],
   ['--text', '--brand-soft', TEXT],
   ['--brand-strong', '--brand-soft', TEXT],
-  ...COLOURS.map((c) => [`--c-${c}-fg`, `--c-${c}-bg`, TEXT]),
-  ...COLOURS.map((c) => [`--c-${c}-bg`, '--surface', 0]),
+  ...COLORS.map((c) => [`--c-${c}-fg`, `--c-${c}-bg`, TEXT]),
+  ...COLORS.map((c) => [`--c-${c}-bg`, '--surface', 0]),
   ...['--nav-text', '--nav-muted'].flatMap((fg) => NAV.map((bg) => [fg, bg, TEXT, '--nav-bg'])),
   ...['--border-strong', '--focus'].flatMap((fg) => ['--surface', '--bg'].map((bg) => [fg, bg, NON_TEXT])),
   ['--nav-focus', '--nav-bg', NON_TEXT, '--nav-bg'],
   ['--nav-accent', '--nav-bg', NON_TEXT, '--nav-bg'],
-  ...COLOURS.map((c) => [`--c-${c}-solid`, '--surface', NON_TEXT]),
+  ...COLORS.map((c) => [`--c-${c}-solid`, '--surface', NON_TEXT]),
   ...[1, 2, 3, 4, 5, 6, 7, 8].map((n) => [`--series-${n}`, '--surface', NON_TEXT]),
 ];
 
@@ -116,8 +116,8 @@ function rgbToHsl({ r, g, b }) {
   return { h: (h * 60 + 360) % 360, s, l };
 }
 
-/** A CSS colour to { r, g, b (0-255), a (0-1) }, or null when it is not a colour we read. */
-function parseColour(text) {
+/** A CSS color to { r, g, b (0-255), a (0-1) }, or null when it is not a color we read. */
+function parseColor(text) {
   if (!text) return null;
   let v = text.trim().toLowerCase();
   v = NAMED[v] ?? v;
@@ -160,11 +160,11 @@ function ratio(a, b) {
 const toHex = (c) => '#' + [c.r, c.g, c.b].map((x) => Math.round(Math.max(0, Math.min(255, x))).toString(16).padStart(2, '0')).join('');
 
 function measure(tokens, [fg, bg, need, under = '--surface'], override) {
-  const colour = (name) => (override && name === override.name ? override.colour : parseColour(resolve(tokens, tokens[name])));
-  const f = colour(fg);
-  const b = colour(bg);
+  const color = (name) => (override && name === override.name ? override.color : parseColor(resolve(tokens, tokens[name])));
+  const f = color(fg);
+  const b = color(bg);
   if (!f || !b) return { fg, bg, need, missing: [!f && fg, !b && bg].filter(Boolean) };
-  const base = colour(under) ?? { r: 255, g: 255, b: 255, a: 1 };
+  const base = color(under) ?? { r: 255, g: 255, b: 255, a: 1 };
   const solidBase = base.a < 1 ? over(base, { r: 255, g: 255, b: 255, a: 1 }) : base;
   const back = b.a < 1 ? over(b, solidBase) : b;
   const front = f.a < 1 ? over(f, back) : f;
@@ -174,7 +174,7 @@ function measure(tokens, [fg, bg, need, under = '--surface'], override) {
 
 /** The nearest lightness of `name` (same hue and saturation) at which all its pairs pass. */
 function suggest(tokens, name, pairs) {
-  const start = parseColour(resolve(tokens, tokens[name]));
+  const start = parseColor(resolve(tokens, tokens[name]));
   if (!start || start.a < 1) return null;
   const mine = pairs.filter((p) => p[0] === name && p[2] > 0);
   const measured = mine.map((p) => measure(tokens, p)).filter((m) => !m.missing);
@@ -183,9 +183,9 @@ function suggest(tokens, name, pairs) {
   const backs = measured.reduce((sum, m) => sum + luminance(m.back), 0) / measured.length;
   const step = backs > luminance(start) ? -0.0025 : 0.0025;
   for (let next = l + step; next >= 0 && next <= 1; next += step) {
-    const colour = { ...hslToRgb(h, s, next), a: 1 };
-    const rounded = parseColour(toHex(colour));
-    if (mine.every((p) => { const m = measure(tokens, p, { name, colour: rounded }); return m.missing || m.ratio >= p[2]; })) return toHex(rounded);
+    const color = { ...hslToRgb(h, s, next), a: 1 };
+    const rounded = parseColor(toHex(color));
+    if (mine.every((p) => { const m = measure(tokens, p, { name, color: rounded }); return m.missing || m.ratio >= p[2]; })) return toHex(rounded);
   }
   return null;
 }
@@ -206,7 +206,7 @@ for (const [theme, tokens] of Object.entries(themes)) {
     const row = { theme, kind, fg: m.fg, bg: m.bg, need: m.need };
     if (m.missing) rows.push({ ...row, missing: m.missing });
     else {
-      rows.push({ ...row, fgColour: m.fgHex, bgColour: m.bgHex, ratio: m.ratio, pass: m.pass, ...(m.pass ? {} : { suggestion: suggest(tokens, m.fg, PAIRS) }) });
+      rows.push({ ...row, fgColor: m.fgHex, bgColor: m.bgHex, ratio: m.ratio, pass: m.pass, ...(m.pass ? {} : { suggestion: suggest(tokens, m.fg, PAIRS) }) });
     }
   }
 }
@@ -217,10 +217,10 @@ if (asJson) {
   console.log(JSON.stringify({ file, pairs: rows, failures, missing }, null, 2));
 } else {
   const shown = failsOnly ? failures : rows;
-  const head = ['Theme', 'Kind', 'Foreground', 'Background', 'Colours', 'Ratio', 'Need', 'Result'];
+  const head = ['Theme', 'Kind', 'Foreground', 'Background', 'Colors', 'Ratio', 'Need', 'Result'];
   const table = shown.map((r) => [
     r.theme, r.kind, r.fg, r.bg,
-    r.missing ? '' : `${r.fgColour} on ${r.bgColour}`,
+    r.missing ? '' : `${r.fgColor} on ${r.bgColor}`,
     r.missing ? '' : r.ratio.toFixed(2),
     r.need ? `${r.need}:1` : '-',
     r.missing ? `missing ${r.missing.join(', ')}` : r.need === 0 ? 'info' : r.pass ? 'pass' : 'FAIL',
@@ -238,7 +238,7 @@ if (asJson) {
     console.log('\nBelow AA (4.5:1 for text, 3:1 for non-text):');
     for (const r of failures) {
       console.log(`  ${r.theme.padEnd(5)} ${r.fg} on ${r.bg}: ${r.ratio.toFixed(2)}:1, needs ${r.need}:1`
-        + (r.suggestion ? `. Try ${r.fg}: ${r.suggestion} (now ${r.fgColour})` : ''));
+        + (r.suggestion ? `. Try ${r.fg}: ${r.suggestion} (now ${r.fgColor})` : ''));
     }
   }
 }

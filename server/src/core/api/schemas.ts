@@ -81,7 +81,7 @@ export function sharedComponents(): { schemas: Json; headers: Json; parameters: 
               properties: {
                 value: { type: ['string', 'null'], description: 'The stored value (null: records with no value).' },
                 label: { type: 'string', description: 'Its display label.' },
-                color: { type: 'string', description: 'Its colour in the configurable list, or `gray`.' },
+                color: { type: 'string', description: 'Its color in the configurable list, or `gray`.' },
                 count: { type: 'integer' },
               },
             },
