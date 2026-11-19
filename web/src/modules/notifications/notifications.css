@@ -1,0 +1,69 @@
+/* Notifications: the bell's list, the full page and preferences. Colours come from the design tokens. */
+
+.ntf-bell { display: inline-flex; }
+
+/* ---------- list rows (bell and page) ---------- */
+
+.ntf-list { margin: 0; padding: 0; list-style: none; }
+.ntf-item + .ntf-item { border-top: 1px solid var(--border); }
+
+.ntf-button {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--s-3);
+  width: 100%;
+  padding: var(--s-3) var(--s-4);
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.ntf-compact .ntf-button { padding: var(--s-2) var(--s-3); gap: var(--s-2); }
+.ntf-button:hover { background: var(--surface-hover); }
+.ntf-button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+
+.ntf-dot { width: 8px; height: 8px; margin-top: 6px; border-radius: 50%; background: transparent; }
+.ntf-unread .ntf-dot { background: var(--brand); }
+
+.ntf-text { display: grid; gap: 2px; min-width: 0; }
+.ntf-title { overflow-wrap: anywhere; color: var(--text-muted); }
+.ntf-unread .ntf-title { color: var(--text); font-weight: 600; }
+.ntf-body { color: var(--text-muted); font-size: var(--fs-sm); overflow-wrap: anywhere; }
+.ntf-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); margin-top: 2px; color: var(--text-muted); font-size: var(--fs-xs); }
+
+/* ---------- bell popover ---------- */
+
+.ntf-popover { padding: 0; max-width: calc(100vw - 16px); }
+.ntf-popover-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-2) var(--s-2) var(--s-3);
+  border-bottom: 1px solid var(--border);
+}
+.ntf-popover-title { margin: 0; font-size: var(--fs-lg); font-weight: 600; }
+.ntf-popover-body { max-height: min(60vh, 460px); overflow-y: auto; }
+.ntf-popover-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-2) var(--s-3);
+  border-top: 1px solid var(--border);
+  font-size: var(--fs-sm);
+}
+
+/* ---------- page ---------- */
+
+.ntf-page { max-width: 880px; }
+.ntf-pager { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--s-2); }
+.ntf-pager .muted { margin-inline-end: auto; }
+
+.ntf-kinds { display: grid; margin: 0; padding: 0; list-style: none; }
+.ntf-kind { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s-3); padding: var(--s-3) 0; }
+.ntf-kind + .ntf-kind { border-top: 1px solid var(--border); }
+.ntf-kind:first-child { padding-top: 0; }
+.ntf-kind:last-child { padding-bottom: 0; }

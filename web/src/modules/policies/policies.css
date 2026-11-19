@@ -1,0 +1,79 @@
+/* Policies and exceptions. Colours come from the design tokens so both themes work. */
+
+/* ---- rendered policy text ---- */
+.pol-body { max-width: 76ch; line-height: 1.6; overflow-wrap: anywhere; }
+.pol-body > :first-child { margin-top: 0; }
+.pol-body > :last-child { margin-bottom: 0; }
+.pol-body h1, .pol-body h2 { font-size: var(--fs-xl); font-weight: 600; margin: var(--s-5) 0 var(--s-2); }
+.pol-body h3 { font-size: var(--fs-lg); font-weight: 600; margin: var(--s-4) 0 var(--s-2); }
+.pol-body h4, .pol-body h5, .pol-body h6 { font-weight: 600; margin: var(--s-3) 0 var(--s-1); }
+.pol-body p { margin: 0 0 var(--s-3); }
+.pol-body ul, .pol-body ol { margin: 0 0 var(--s-3); padding-inline-start: var(--s-5); }
+.pol-body ul { list-style: disc; }
+.pol-body ol { list-style: decimal; }
+.pol-body ul ul { list-style: circle; }
+.pol-body li { margin-bottom: var(--s-1); }
+.pol-body li > ul, .pol-body li > ol { margin: var(--s-1) 0 0; }
+.pol-body input[type="checkbox"] { margin-inline-end: var(--s-1); }
+.pol-body code { font-family: var(--font-mono); font-size: 0.92em; padding: 1px 5px; border-radius: 4px; background: var(--c-gray-bg); color: var(--c-gray-fg); }
+.pol-body pre { padding: var(--s-3); border-radius: var(--radius); background: var(--c-gray-bg); overflow-x: auto; margin: 0 0 var(--s-3); }
+.pol-body pre code { padding: 0; background: none; }
+.pol-body blockquote { margin: 0 0 var(--s-3); padding: var(--s-2) var(--s-3); border-inline-start: 3px solid var(--border-strong); color: var(--text-muted); }
+.pol-body blockquote p:last-child { margin-bottom: 0; }
+.pol-body table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; margin: 0 0 var(--s-3); }
+.pol-body th, .pol-body td { padding: var(--s-2) var(--s-3); text-align: start; vertical-align: top; border: 1px solid var(--border); }
+.pol-body th { font-weight: 600; background: var(--surface-2); }
+.pol-body hr { border: 0; border-top: 1px solid var(--border); margin: var(--s-4) 0; }
+.pol-body a { color: var(--link); }
+
+/* ---- policy page ---- */
+.pol-switch { gap: var(--s-2); flex-wrap: nowrap; }
+.pol-switch .mantine-Select-root, .pol-switch > div:last-child { width: 190px; }
+.pol-old { margin: 0 0 var(--s-3); }
+.pol-linkbtn { padding: 0; border: 0; background: none; color: var(--link); text-decoration: underline; cursor: pointer; font: inherit; }
+.pol-page-body .pol-body { line-height: 1.7; }
+.pol-layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr); gap: var(--s-4); align-items: start; }
+.pol-meta { display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-4); margin: 0 0 var(--s-4); padding-bottom: var(--s-3); border-bottom: 1px solid var(--border); color: var(--text-muted); font-size: var(--fs-sm); }
+.pol-notice { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-3); padding: var(--s-3) var(--s-4); border: 1px solid var(--border); border-inline-start: 4px solid var(--c-amber-solid); border-radius: var(--radius); background: var(--surface); }
+.pol-notice-info { border-inline-start-color: var(--c-blue-solid); }
+.pol-notice p { margin: 0; }
+.pol-wrap, .table td.pol-wrap { white-space: normal; min-width: 18ch; max-width: 52ch; overflow-wrap: anywhere; }
+.pol-chips { display: flex; flex-wrap: wrap; gap: var(--s-1); }
+
+/* ---- compare by reading ---- */
+.pol-compare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-4); align-items: start; }
+.pol-pane { display: grid; gap: var(--s-3); min-width: 0; padding: var(--s-4); border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+
+/* ---- editor ---- */
+.pol-editor textarea { font-family: var(--font-mono); font-size: var(--fs-sm); line-height: 1.5; min-height: 26rem; }
+.pol-preview { min-height: 12rem; }
+.pol-help { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); }
+
+/* ---- the reader: comfortable measure and type, acknowledge bar always in reach ---- */
+.pol-reader { width: 100%; max-width: 78ch; margin: 0 auto; padding: var(--s-6) var(--s-6) var(--s-5); border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow-1); display: grid; gap: var(--s-4); }
+.pol-reader .pol-body { max-width: none; font-size: var(--fs-lg); line-height: 1.7; }
+.pol-reader .pol-body h1, .pol-reader .pol-body h2 { font-size: var(--fs-2xl); letter-spacing: -0.01em; }
+.pol-reader .pol-body h3 { font-size: var(--fs-xl); }
+.pol-reader-lead { margin: 0; font-size: var(--fs-lg); color: var(--text-muted); }
+.pol-reader-bar { position: sticky; bottom: 0; z-index: 2; width: 100%; max-width: 78ch; margin: 0 auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-3); padding: var(--s-3) var(--s-4); border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow-2); }
+.pol-reader-page { padding-bottom: var(--s-4); }
+@media (max-width: 700px) { .pol-reader { padding: var(--s-4); } }
+
+/* ---- my acknowledgements ---- */
+.pol-ack-list { list-style: none; margin: 0; padding: 0; }
+.pol-ack-list > li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-3) var(--s-5); padding: var(--s-4) var(--s-5); border-top: 1px solid var(--border); }
+.pol-ack-list > li:first-child { border-top: 0; }
+.pol-ack-main { min-width: 0; flex: 1 1 320px; display: grid; gap: 2px; }
+.pol-ack-main p { margin: 0; }
+.pol-ack-title { font-weight: 600; font-size: var(--fs-lg); }
+.pol-ack-meta { font-size: var(--fs-sm); }
+.pol-ack-side { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3); }
+
+@media (max-width: 1000px) {
+  .pol-layout, .pol-compare, .grid-2.pol-exc { grid-template-columns: minmax(0, 1fr); }
+}
+
+.table td.pol-rowhead { font-weight: 600; }
+
+/* Positioned, so screen-reader-only header text in a far-right column is clipped with the table instead of widening the page. */
+.pol-tw { position: relative; }

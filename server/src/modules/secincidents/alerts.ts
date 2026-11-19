@@ -1,0 +1,86 @@
+import type { ModuleContext, Row } from '../../core/module.ts';
+import { amberFraction, clockOf, duration, stamp } from './clocks.ts';
+
+// In-app notifications for security incidents (E09-17). Everything goes through `app.notify`
+// with the incident as the record, so the notifications module itself drops every recipient
+// who may not see that incident: nobody without security.view is ever told anything.
+
+export interface NotifyInput { kind: string; title: string; body?: string | null }
+
+/** Tells the people who can see this incident. Does nothing when the notifications module is not loaded. */
+export async function notifyViewers(ctx: ModuleContext, incident: Row, input: NotifyInput): Promise<number> {
+  if (!ctx.app.hasDecorator('notify')) return 0;
+  const notify = (ctx.app as unknown as { notify: (i: Row) => Promise<{ sent: number }> }).notify;
+  const res = await notify({
+    permission: 'security.view', userIds: [incident.lead_id], kind: input.kind, title: input.title, body: input.body ?? null,
+    recordType: 'security_incident', recordId: incident.id,
+  });
+  return res?.sent ?? 0;
+}
+
+/** Tells one person (the incident lead, say), again only if they can see the incident. */
+export async function notifyPerson(ctx: ModuleContext, incident: Row, userId: unknown, input: NotifyInput): Promise<number> {
+  if (!ctx.app.hasDecorator('notify') || typeof userId !== 'string') return 0;
+  const notify = (ctx.app as unknown as { notify: (i: Row) => Promise<{ sent: number }> }).notify;
+  const res = await notify({
+    userIds: [userId], kind: input.kind, title: input.title, body: input.body ?? null,
+    recordType: 'security_incident', recordId: incident.id,
+  });
+  return res?.sent ?? 0;
+}
+
+export interface SweepResult { amber: number; red: number }
+
+/**
+ * Raises the amber and red alerts that are due: once each per notification task. Each alert is
+ * written to the incident log, audited, and sent to the people who can see the incident.
+ * `incidentId` limits the sweep to one incident (used straight after a change to it).
+ */
+export async function sweepClocks(
+  ctx: ModuleContext,
+  addLog: (incidentId: string, entry: string) => Promise<unknown>,
+  incidentId?: string,
+): Promise<SweepResult> {
+  const now = new Date();
+  const fraction = await amberFraction(ctx);
+  const rows = await ctx.db.query<Row>(
+    `select t.*, i.discovered_at, i.ref as incident_ref, i.title as incident_title, i.lead_id
+     from notification_tasks t join security_incidents i on i.id = t.incident_id
+     where t.deleted_at is null and i.deleted_at is null and t.status = 'pending' and t.due_at is not null
+       and t.alerted_red_at is null and ($1::uuid is null or i.id = $1::uuid)
+     order by t.due_at`,
+    [incidentId ?? null],
+  );
+  const out: SweepResult = { amber: 0, red: 0 };
+  for (const t of rows) {
+    const clock = clockOf(t, t.discovered_at, now, fraction);
+    const level = clock.state === 'red' ? 'red' : clock.state === 'amber' && !t.alerted_amber_at ? 'amber' : null;
+    if (!level) continue;
+    // Stamp first, so a failure further on cannot repeat the alert every minute.
+    await ctx.db.query(
+      level === 'red'
+        ? `update notification_tasks set alerted_red_at = $2, alerted_amber_at = coalesce(alerted_amber_at, $2) where id = $1`
+        : `update notification_tasks set alerted_amber_at = $2 where id = $1`,
+      [t.id, now.toISOString()],
+    );
+    const due = stamp(t.due_at);
+    const kind = t.required ? 'required' : 'recommended';
+    const text = level === 'red'
+      ? `Alert: the deadline to notify ${t.party} has passed (${kind}; it was due ${due}).`
+      : `Alert: the deadline to notify ${t.party} is close (${kind}; due ${due}, ${duration(clock.seconds_remaining)} left).`;
+    await addLog(t.incident_id, text);
+    await ctx.audit(null, {
+      action: `notification_task.alert_${level}`, recordType: 'notification_task', recordId: t.id,
+      summary: `Notification clock turned ${level}: ${t.party}`, after: { due_at: t.due_at, level },
+    });
+    await notifyViewers(ctx, { id: t.incident_id, lead_id: t.lead_id }, {
+      kind: 'clock',
+      title: level === 'red'
+        ? `Overdue: notify ${t.party} (${t.incident_ref})`
+        : `${duration(clock.seconds_remaining)} left to notify ${t.party} (${t.incident_ref})`,
+      body: `${t.incident_title}. ${t.required ? 'Required' : 'Recommended'} notification, due ${due}.`,
+    });
+    out[level] += 1;
+  }
+  return out;
+}

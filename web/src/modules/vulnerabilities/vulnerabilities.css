@@ -1,0 +1,37 @@
+/* Vulnerabilities module styles. Tokens only, so both themes work. */
+.vuln-title-cell, .vuln-due { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }
+.vuln-sub { font-size: var(--fs-sm); }
+.vuln-wrap td.vuln-host-cell { white-space: nowrap; }
+
+/* The banner is a flex row: let the fact sheet take the width so its columns can form. */
+.vuln-banner > .facts-wrap { flex: 1; min-width: 0; }
+.vuln-banner .facts-columns { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+.vuln-summary { align-items: start; }
+
+.vuln-map-grid { display: grid; gap: var(--s-3); grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.vuln-save { display: flex; align-items: flex-start; gap: var(--s-2); }
+.vuln-save > button { margin-top: 23px; flex: none; }
+.vuln-save > :first-child { flex: 1; min-width: 0; }
+.vuln-pad { padding: var(--s-3) var(--s-4); margin: 0; }
+.vuln-wrap td { white-space: normal; }
+.vuln-clip { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; min-width: 84px; max-width: 320px; overflow-wrap: break-word; }
+.vuln-cell-error { color: var(--c-red-fg); }
+.vuln-row-error td { background: color-mix(in srgb, var(--c-red-bg) 55%, transparent); }
+.vuln-missing { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--s-2); max-height: 260px; overflow: auto; }
+.vuln-hosts { overflow-wrap: anywhere; margin: 0; }
+
+.vuln-policy { display: grid; gap: var(--s-3); }
+.vuln-policy-row { display: grid; grid-template-columns: 150px 120px 1fr; align-items: center; gap: var(--s-3); }
+.vuln-policy-row > .chip { justify-self: start; }
+.vuln-narrow { max-width: 360px; }
+.vuln-title-cell { white-space: normal; min-width: 220px; max-width: 360px; }
+@media (max-width: 560px) {
+  .vuln-policy-row { grid-template-columns: 1fr 100px; }
+  .vuln-policy-row > :last-child { grid-column: 1 / -1; }
+  .vuln-save { flex-direction: column; align-items: stretch; }
+}
+.vuln-grid { display: grid; gap: var(--s-4); grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr)); }
+.vuln-grid > * { min-width: 0; }
+
+/* Positioned, so screen-reader-only header text in a far-right column is clipped with the table instead of widening the page. */
+.vuln-tw { position: relative; }

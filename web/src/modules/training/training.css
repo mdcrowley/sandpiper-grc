@@ -1,0 +1,61 @@
+/* Training and exercises. Colours come from the design tokens so both themes work. */
+
+.trn-late { color: var(--c-red-fg); font-weight: 600; }
+.trn-tag { margin-inline-start: var(--s-2); font-size: var(--fs-xs); font-weight: 400; }
+.trn-more { margin: 0; padding: var(--s-3) var(--s-4); }
+.trn-note, .table td.trn-note { white-space: normal; min-width: 18ch; max-width: 40ch; overflow-wrap: anywhere; }
+.trn-check { width: 1%; }
+.trn-cell-error { display: block; color: var(--c-red-fg); font-weight: 600; white-space: normal; min-width: 18ch; }
+.trn-preview { max-height: 60vh; overflow: auto; }
+
+.trn-filters { display: grid; gap: var(--s-3); grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); align-items: end; }
+.trn-map-grid { display: grid; gap: var(--s-3) var(--s-4); grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+@media (max-width: 1000px) { .trn-charts { grid-template-columns: minmax(0, 1fr); } }
+
+.trn-picked { display: flex; flex-wrap: wrap; gap: var(--s-2); margin: 0; padding: 0; list-style: none; }
+.trn-picked li {
+  display: inline-flex; align-items: center; gap: var(--s-1); padding-inline-start: var(--s-3);
+  border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); font-size: var(--fs-sm);
+}
+
+/* ---- findings ---- */
+.trn-findings { display: grid; gap: var(--s-3); margin: 0; padding: 0; list-style: none; }
+.trn-findings li { display: grid; gap: var(--s-2); padding: var(--s-3) var(--s-4); border: 1px solid var(--border); border-radius: var(--radius); }
+.trn-findings p { margin: 0; }
+.trn-finding-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-2); }
+.trn-finding-text { font-weight: 600; }
+.trn-finding-action { padding-top: var(--s-2); border-top: 1px solid var(--border); }
+
+/* ---- exercise calendar ---- */
+.trn-cal { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.trn-cal li { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: var(--s-4); padding: var(--s-3) 0; }
+.trn-cal li + li { border-top: 1px solid var(--border); }
+.trn-cal-date { display: grid; align-content: start; gap: 2px; }
+.trn-cal-day { font-weight: 600; }
+.trn-cal-main { display: grid; gap: var(--s-1); min-width: 0; }
+.trn-cal-late .trn-cal-date { padding-inline-start: var(--s-3); border-inline-start: 3px solid var(--c-red-solid); }
+@media (max-width: 560px) { .trn-cal li { grid-template-columns: minmax(0, 1fr); gap: var(--s-1); } }
+.table.trn-breakdown td a.row-title { max-width: 26ch; }
+
+/* ---- My training: tables scroll inside their card, never the page ---- */
+/* Positioned, so screen-reader-only text in a far-right column is clipped with the table instead of widening the page. */
+.trn-mine .table-wrap { position: relative; max-width: 100%; overflow-x: auto; }
+
+/* ---- record status, failed attempts ---- */
+.trn-status { gap: var(--s-1); }
+.trn-failed-note { margin: 0; }
+
+/* ---- exercise steps ---- */
+.trn-copy { align-items: flex-end; gap: var(--s-3); flex-wrap: wrap; }
+.trn-copy > :first-child { flex: 1 1 280px; min-width: 0; }
+.trn-add-step { margin-top: var(--s-4); padding-top: var(--s-4); border-top: 1px solid var(--border); }
+.trn-phase { margin: var(--s-3) 0 var(--s-2); font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
+.trn-steps { display: grid; gap: var(--s-2); margin: 0; padding: 0; list-style: none; }
+.trn-step { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-4); align-items: flex-start; justify-content: space-between; padding: var(--s-3) var(--s-4); border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.trn-step-text { flex: 1 1 320px; min-width: 0; display: grid; gap: var(--s-2); }
+.trn-step-text p { margin: 0; }
+.trn-step-side { display: flex; align-items: center; gap: var(--s-2); flex: 0 0 auto; }
+.trn-step-side > :first-child { width: 200px; }
+
+/* Positioned, so screen-reader-only header text in a far-right column is clipped with the table instead of widening the page. */
+.trn-tw { position: relative; }
