@@ -11,6 +11,10 @@ import { compileWithCustom, LIMITS, mayView, SpecError, type Bucket, type Compil
 export interface ResultColumn {
   key: string; label: string; type: FieldType; role: 'column' | 'dim' | 'agg';
   field?: string; bucket?: Bucket; fn?: string; list?: string; to?: string;
+  /** A grouping's values (display labels) in their natural order. */
+  values?: string[];
+  /** A multi-choice field: a record can hold several values. */
+  multiple?: boolean;
 }
 export interface ResultRow {
   id?: string;
@@ -81,7 +85,7 @@ async function guarded<T>(work: () => Promise<T>): Promise<T> {
 
 const pad = (n: number) => String(n).padStart(2, '0');
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const dmy = (s: string) => `${Number(s.slice(8, 10))} ${MONTHS[Number(s.slice(5, 7)) - 1]} ${s.slice(0, 4)}`;
+const dmy = (s: string) => `${MONTHS[Number(s.slice(5, 7)) - 1]} ${Number(s.slice(8, 10))}, ${s.slice(0, 4)}`;
 
 export function bucketLabel(start: string, bucket: Bucket): string {
   const m = Number(start.slice(5, 7));
@@ -103,7 +107,7 @@ export function bucketEnd(start: string, bucket: Bucket): string {
   return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
 }
 
-const stamp = new Intl.DateTimeFormat('en-GB', { timeZone: TIME_ZONE, day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+const stamp = new Intl.DateTimeFormat('en-US', { timeZone: TIME_ZONE, day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
 export const formatStamp = (v: unknown) => { const d = v instanceof Date ? v : new Date(String(v)); return Number.isNaN(d.getTime()) ? String(v) : stamp.format(d); };
 
 interface Labeller {
@@ -201,7 +205,7 @@ export async function runCompiled(ctx: ModuleContext, user: SessionUser | null, 
   };
 
   if (c.mode === 'rows') {
-    result.columns = columns.map((f, i) => ({ key: `c${i}`, label: f.label, type: f.def.type, role: 'column', field: f.path, list: f.def.list, to: f.def.to }));
+    result.columns = columns.map((f, i) => ({ key: `c${i}`, label: f.label, type: f.def.type, role: 'column', field: f.path, list: f.def.list, to: f.def.to, ...(f.def.multiple ? { multiple: true } : {}) }));
     const labellers = await Promise.all(columns.map((f, i) => labeller(ctx, user, f.def, data.map((r) => r[`c${i}`]))));
     result.rows = data.map((r) => {
       const row: ResultRow = { id: r.id, v: {}, d: {} };
@@ -211,7 +215,11 @@ export async function runCompiled(ctx: ModuleContext, user: SessionUser | null, 
         row.v[k] = v ?? null;
         if (v === null || v === undefined) return;
         const lab = labellers[i];
-        if (lab) {
+        if (Array.isArray(v)) {
+          // A multi-choice field: its labels, joined.
+          if (!v.length) { row.v[k] = null; return; }
+          row.d[k] = v.map((x) => lab?.label(x) ?? String(x)).join(', ');
+        } else if (lab) {
           row.d[k] = lab.label(v) ?? String(v);
           const col = lab.color?.(v);
           if (col) (row.c ??= {})[k] = col;
@@ -272,6 +280,26 @@ export async function runCompiled(ctx: ModuleContext, user: SessionUser | null, 
   // "Restricted records" (masked details) reads best last, like "None".
   if (result.rows.some((r) => r.v.g0 === MASKED_VALUE)) {
     result.rows = [...result.rows.filter((r) => r.v.g0 !== MASKED_VALUE), ...result.rows.filter((r) => r.v.g0 === MASKED_VALUE)];
+  }
+
+  // Each grouping's values in their natural order (a list's configured order, dates in time order,
+  // words alphabetically; "None" and "Restricted records" last), so that the series of a chart and
+  // the columns of a pivot read the same way whichever value happened to come first.
+  dims.forEach((d, i) => {
+    const seen = new Map<string, { v: unknown; label: string }>();
+    for (const row of result.rows) if (!seen.has(row.d[d.key])) seen.set(row.d[d.key], { v: row.v[d.key], label: row.d[d.key] });
+    const rank = (x: { v: unknown }) => (x.v === null || x.v === undefined ? 2 : x.v === MASKED_VALUE ? 1 : 0);
+    const order = labellers[i]?.order;
+    const sorted = [...seen.values()].sort((a, b) => rank(a) - rank(b)
+      || (rank(a) ? 0 : d.bucket ? String(a.v).localeCompare(String(b.v)) : order ? order(a.v) - order(b.v) : a.label.localeCompare(b.label)));
+    result.columns[i].values = sorted.map((x) => x.label);
+  });
+  // With no sort chosen, the second grouping follows that order inside each value of the first.
+  if (dims.length === 2 && !c.order.length) {
+    const first = new Map<string, number>();
+    result.rows.forEach((r) => { if (!first.has(r.d.g0)) first.set(r.d.g0, first.size); });
+    const pos = new Map((result.columns[1].values ?? []).map((label, i) => [label, i]));
+    result.rows.sort((a, b) => first.get(a.d.g0)! - first.get(b.d.g0)! || (pos.get(a.d.g1) ?? 0) - (pos.get(b.d.g1) ?? 0));
   }
 
   if (c.spec.pivot && dims.length === 2) result.pivot = pivot(result, dims[1].bucket ? null : labellers[1], qsOf, base, dimDrill);

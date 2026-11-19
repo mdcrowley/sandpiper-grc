@@ -4,10 +4,10 @@ import {
   api, ApiError, Button, Card, errorMessage, formatDateTime, NumberField, Select, Switch, TextField, useToast,
 } from '../../core';
 import type { FilesOverview, ScannerSettings as Settings } from './adminTypes';
+import { RescanCard } from './BackgroundWork';
 import { usePasswordConfirm } from './confirm';
 
 interface TestResult { ok: boolean; engine?: string; signatures?: string | null; signatureDate?: string | null; message?: string }
-interface RescanResult { checked: number; clean: number; infected: number; errors: number; remaining: number; engine: string }
 
 export function ScannerSettings({ overview, onSaved }: { overview: FilesOverview; onSaved: () => void }) {
   const toast = useToast();
@@ -17,8 +17,6 @@ export function ScannerSettings({ overview, onSaved }: { overview: FilesOverview
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [test, setTest] = useState<TestResult | null>(null);
-  const [scanning, setScanning] = useState(false);
-  const [rescan, setRescan] = useState<RescanResult | null>(null);
 
   useEffect(() => { setForm(overview.scanner); }, [overview.scanner]);
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) => setForm((f) => ({ ...f, [key]: value }));
@@ -48,20 +46,6 @@ export function ScannerSettings({ overview, onSaved }: { overview: FilesOverview
       setTest({ ok: false, message: errorMessage(err) });
     } finally {
       setTesting(false);
-    }
-  };
-
-  const runRescan = async () => {
-    setScanning(true);
-    try {
-      const r = await api.post<RescanResult>('/api/attachments/admin/rescan', {});
-      setRescan(r);
-      if (r.infected) toast.error(`Malware found in ${r.infected} file${r.infected === 1 ? '' : 's'}: removed and reported.`);
-      onSaved();
-    } catch (err) {
-      toast.error(errorMessage(err));
-    } finally {
-      setScanning(false);
     }
   };
 
@@ -110,27 +94,7 @@ export function ScannerSettings({ overview, onSaved }: { overview: FilesOverview
           </div>
         </form>
       </Card>
-      <Card title="Files attached without a scan">
-        <div className="stack">
-          <p className="att-facts">
-            {overview.usage.notScanned === 0
-              ? 'Every file in use has been scanned.'
-              : `${overview.usage.notScanned} file${overview.usage.notScanned === 1 ? ' was' : 's were'} attached without a scan. Scanning them now removes any that contain malware and tells administrators.`}
-          </p>
-          {rescan && (
-            <div className={rescan.infected ? 'notice notice-warn' : 'notice notice-success'} role="status">
-              Checked {rescan.checked} with {rescan.engine}: {rescan.clean} clean, {rescan.infected} infected and removed
-              {rescan.errors ? `, ${rescan.errors} could not be checked` : ''}. {rescan.remaining ? `${rescan.remaining} still to scan: run it again.` : 'None left to scan.'}
-            </div>
-          )}
-          <div className="row">
-            <Button onClick={runRescan} loading={scanning} disabled={active === 'none' || overview.usage.notScanned === 0}>
-              Scan files attached earlier
-            </Button>
-            {active === 'none' && <span className="att-facts">Switch scanning on first.</span>}
-          </div>
-        </div>
-      </Card>
+      <RescanCard overview={overview} onDone={onSaved} />
     </div>
   );
 }

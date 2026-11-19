@@ -47,3 +47,20 @@
 .mcp-calls { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-2); }
 .mcp-calls li { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-3); align-items: center; font-size: var(--fs-sm); }
 .mcp-error { flex-basis: 100%; overflow-wrap: anywhere; }
+
+.mcp-token-actions { display: inline-flex; gap: var(--s-2); flex-shrink: 0; }
+@media (max-width: 640px) {
+  .mcp-token { flex-wrap: wrap; }
+}
+
+.mcp-consent { max-width: 760px; }
+.mcp-consent-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--s-4); }
+.mcp-break { overflow-wrap: anywhere; }
+
+.mcp-roles { display: grid; gap: var(--s-3); }
+.mcp-role-row { display: grid; grid-template-columns: minmax(140px, 220px) minmax(0, 1fr); gap: var(--s-3); align-items: start; }
+@media (max-width: 720px) {
+  .mcp-role-row { grid-template-columns: minmax(0, 1fr); }
+}
+.mcp-role-name { padding-top: 6px; font-weight: 600; }
+.mcp-clients td { white-space: normal; vertical-align: top; }

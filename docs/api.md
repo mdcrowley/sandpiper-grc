@@ -74,10 +74,25 @@ can read or change is still decided by its permission scopes and your own roles.
 
 | Scope | What it allows | Who may add it |
 |---|---|---|
-| `mcp.use` (or `mcp.*`) | The token may be used at the MCP endpoint (`/mcp`), once an administrator has switched that endpoint on | Anyone who holds at least one permission |
+| `mcp.use` (or `mcp.*`) | The token may be used at the MCP endpoint (`/mcp`), once an administrator has switched that endpoint on | Anyone who holds at least one permission, and, when an administrator has chosen roles under **Who may connect an assistant**, only people in those roles |
 
 `GET /api/v1/me/tokens` (from a signed-in session) lists the capability scopes you may add, in
 `scopeFamilies`. A `*` scope does not include them: they are always chosen deliberately.
+
+**Source addresses.** A token may be limited to the addresses it is used from: give
+`allowedSources` when you create it, a list of up to 20 addresses or CIDR ranges
+(`"203.0.113.7"`, `"10.20.0.0/16"`, `"2001:db8::/32"`), or fill in **Allowed source addresses**
+on the token screen. A request from anywhere else is refused with `403 token_source_not_allowed`
+and audited as `token.refused`; it counts toward the wrong-token limit for that address. An
+empty list allows every address. `GET /api/v1/me/tokens` returns each token's
+`allowed_sources` and `yourAddress` (where that request came from, as the server sees it,
+which behind a reverse proxy is the forwarded address only when the proxy is trusted).
+
+```
+POST /api/me/tokens
+{ "name": "Nightly asset import", "scopes": ["assets.view", "assets.create", "assets.edit"],
+  "expiresInDays": 90, "allowedSources": ["10.20.30.40"] }
+```
 
 **What a token cannot do.** It cannot call the sign-in, account-security, password,
 second-factor or token routes (`403 token_not_allowed`), and it cannot pass a password
@@ -270,7 +285,7 @@ Every error answer has the same shape, with a matching HTTP status:
 | 400 | `validation`, `bad_json`, `bad_group`, `bad_idempotency_key` | The request is not valid; fix it before sending it again |
 | 401 | `unauthenticated`, `invalid_token` | No token, or the token is wrong, expired or revoked |
 | 403 | `forbidden`, `token_not_allowed`, `reauth_required`, `csrf` | Not permitted |
-| 404 | `not_found` | Not there, or not visible to you (restricted records answer 404) |
+| 404 | `not_found`, `switched_off` | Not there, or not visible to you (restricted records answer 404); `switched_off`: that part of the application is switched off by an administrator (Administration > Features), and its record types are also missing from `/api/meta`, search and the OpenAPI document |
 | 409 | `version_conflict`, `idempotency_in_progress`, and route-specific conflicts | The record changed, or the request clashes with its state |
 | 422 | `idempotency_key_reused` | The `Idempotency-Key` was used for a different request |
 | 429 | `rate_limited` | Too many requests; wait for `Retry-After` seconds |
@@ -285,6 +300,11 @@ Every answer carries `X-Request-Id`. Send your own (1 to 128 letters, digits and
 example your job's run id) and it is used and sent back; otherwise one is made up. Log it beside
 your own records, and quote it when you report a problem: it ties your call to the server's
 answer.
+
+The same id is stored on every audit event the request causes (`request_id`), so you can find
+your own changes in the audit log. Requests to the MCP endpoint (`/mcp`) carry it too: every
+tool call an assistant makes in that request, and every change the tool causes, records the
+id of the `/mcp` request, and the AI assistant call log shows it.
 
 ## Rate limits
 

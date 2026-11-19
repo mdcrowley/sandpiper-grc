@@ -6,6 +6,8 @@
 //
 // It renders nothing for people without fleet.view.
 import { Link } from 'react-router-dom';
+// Its own styles, so the panel looks right when another module embeds it.
+import './fleet.css';
 import { Card, EmptyState, ErrorState, Loading, useAuth, useFetch } from '../../core';
 import type { AffectedService, AffectedVehicle } from './shared';
 
@@ -15,7 +17,7 @@ export function AffectedLists({ data }: { data: AffectedData }) {
   return (
     <div className="fl-affected">
       <Card title={<>Services affected <span className="tab-count">{data.services.length}</span></>} flush>
-        {data.services.length === 0 ? <EmptyState icon="map-pin" title="No services depend on these systems" /> : (
+        {data.services.length === 0 ? <EmptyState icon="route" title="No services depend on these systems" /> : (
           <ul className="fl-list">
             {data.services.map((s) => (
               <li key={s.id}>
@@ -27,7 +29,7 @@ export function AffectedLists({ data }: { data: AffectedData }) {
         )}
       </Card>
       <Card title={<>Vehicles affected <span className="tab-count">{data.vehicles.length}</span></>} flush>
-        {data.vehicles.length === 0 ? <EmptyState icon="box" title="No vehicle carries equipment of these systems" /> : (
+        {data.vehicles.length === 0 ? <EmptyState icon="bus" title="No vehicle carries equipment of these systems" /> : (
           <ul className="fl-list">
             {data.vehicles.map((v) => (
               <li key={v.id}>

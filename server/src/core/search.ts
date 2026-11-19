@@ -72,6 +72,21 @@ export function vectorSql(def: ResourceDef, customKeys: string[], row: string): 
   return parts.join(' || ');
 }
 
+/** Separates fields in `search_index.body`, so a substring match never spans two of them. */
+export const BODY_SEPARATOR = '';
+
+/** The fields a record is matched on by substring: its searchable fields (else its title) and its reference. */
+export const substringColumns = (def: ResourceDef) => [...(def.searchable ?? [def.titleField]), ...(def.ref ? [def.ref.field] : [])];
+
+/**
+ * The substring text of one row (`search_index.body`, E16-36): the substring fields joined by
+ * BODY_SEPARATOR. `body ILIKE '%x%'` matches exactly when one of the fields does (for a pattern
+ * without the separator), and a trigram index (migration 009) answers it without reading the table.
+ */
+export function bodySql(def: ResourceDef, row: string): string {
+  return `concat_ws(chr(31), ${substringColumns(def).map((c) => `${row}.${c}::text`).join(', ')})`;
+}
+
 /**
  * Creates or refreshes the trigger that indexes one record type, and indexes rows that are missing.
  * Does nothing when the definition has not changed since the last start. Returns false when the
@@ -80,12 +95,12 @@ export function vectorSql(def: ResourceDef, customKeys: string[], row: string): 
 export async function ensureSearchIndex(db: Db, def: ResourceDef, customKeys: string[], known?: Map<string, string>): Promise<boolean> {
   if (![def.type, def.table, def.titleField, def.ref?.field ?? 'x', ...(def.searchable ?? [])].every((n) => IDENT.test(n))) return false;
   const fn = `${def.type}_search_tg`;
-  const signature = createHash('sha256').update(`v1|${def.table}|${vectorSql(def, customKeys, 'new')}`).digest('hex');
+  const signature = createHash('sha256').update(`v2|${def.table}|${vectorSql(def, customKeys, 'new')}|${bodySql(def, 'new')}`).digest('hex');
   const backfill = (onlyMissing: boolean) => `
-    insert into search_index (record_type, record_id, vector)
-    select '${def.type}', t.id, ${vectorSql(def, customKeys, 't')} from ${def.table} t
+    insert into search_index (record_type, record_id, vector, body)
+    select '${def.type}', t.id, ${vectorSql(def, customKeys, 't')}, ${bodySql(def, 't')} from ${def.table} t
     ${onlyMissing ? `where not exists (select 1 from search_index si where si.record_type = '${def.type}' and si.record_id = t.id)` : ''}
-    on conflict (record_type, record_id) do update set vector = excluded.vector;`;
+    on conflict (record_type, record_id) do update set vector = excluded.vector, body = excluded.body;`;
   try {
     const current = known ? known.get(def.type)
       : (await db.one<{ signature: string }>('select signature from search_index_state where table_name = $1', [def.type]))?.signature;
@@ -98,10 +113,18 @@ export async function ensureSearchIndex(db: Db, def: ResourceDef, customKeys: st
       create or replace function ${fn}() returns trigger language plpgsql as $search$
       begin
         begin
-          insert into search_index (record_type, record_id, vector)
-          values ('${def.type}', new.id, ${vectorSql(def, customKeys, 'new')})
-          on conflict (record_type, record_id) do update set vector = excluded.vector;
-        exception when others then null; -- indexing must never stop a record being saved
+          insert into search_index (record_type, record_id, vector, body)
+          values ('${def.type}', new.id, ${vectorSql(def, customKeys, 'new')}, ${bodySql(def, 'new')})
+          on conflict (record_type, record_id) do update set vector = excluded.vector, body = excluded.body;
+        exception when others then
+          -- Indexing must never stop a record being saved. A text too long for a search vector
+          -- keeps its substring text, so it can still be found by part of a word.
+          begin
+            insert into search_index (record_type, record_id, vector, body)
+            values ('${def.type}', new.id, null, ${bodySql(def, 'new')})
+            on conflict (record_type, record_id) do update set vector = null, body = excluded.body;
+          exception when others then null;
+          end;
         end;
         return null;
       end $search$;
@@ -140,4 +163,42 @@ export function snippetParts(headline: string | null | undefined): SnippetPart[]
     i = end + 1;
   }
   return out.filter((p) => p.text !== '');
+}
+
+/** The comments search vector of one row, in a given configuration (`row` is `new` or a table alias). */
+export const commentVectorSql = (config: string, row: string) =>
+  `to_tsvector('${config}', coalesce(${row}.body, '')) || to_tsvector('simple', coalesce(${row}.body, ''))`;
+
+/**
+ * Builds the comments search trigger from the configured language (E14-21), as the record triggers
+ * are. Migration 003 created it with `english`; when GRC_SEARCH_LANGUAGE names another configuration
+ * the function is replaced and every comment's vector is recomputed, once, at start-up. Does nothing
+ * when the language has not changed since the last build. Returns false when it cannot (an unknown
+ * configuration), leaving the trigger as it was.
+ */
+export async function ensureCommentSearch(db: Db, config: string = SEARCH_CONFIG): Promise<boolean> {
+  if (!IDENT.test(config)) return false;
+  const signature = createHash('sha256').update(`comments-v1|${commentVectorSql(config, 'new')}`).digest('hex');
+  try {
+    const current = (await db.one<{ signature: string }>(`select signature from search_index_state where table_name = '__comments'`))?.signature;
+    // A database built by migration 003 alone is already in `english`: record that without rewriting rows.
+    if (current === undefined && config === 'english') {
+      await db.query(`insert into search_index_state (table_name, signature) values ('__comments', $1) on conflict (table_name) do nothing`, [signature]);
+      return true;
+    }
+    if (current === signature) return true;
+    await db.exec(`
+      create or replace function comments_search_tg() returns trigger language plpgsql as $cs$
+      begin
+        new.search_vector := ${commentVectorSql(config, 'new')};
+        return new;
+      end $cs$;
+      update comments c set search_vector = ${commentVectorSql(config, 'c')};
+      insert into search_index_state (table_name, signature) values ('__comments', '${signature}')
+      on conflict (table_name) do update set signature = excluded.signature, built_at = now();`);
+    return true;
+  } catch (err) {
+    if (!process.env.VITEST) console.warn(`[search] comments keep their earlier search language: ${(err as Error).message}`);
+    return false;
+  }
 }

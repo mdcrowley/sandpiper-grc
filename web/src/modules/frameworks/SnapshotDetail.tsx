@@ -3,9 +3,10 @@ import type { CSSProperties } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Chip } from '@mantine/core';
 import {
-  ApiError, Button, Card, ConfirmDialog, EmptyState, ErrorState, HistoryPanel, Icon, Loading,
-  NotFound, PageHeader, Stat, StatusChip, Tabs, api, errorMessage, formatDate, useAuth, useFetch, useToast,
+  ApiError, Button, Card, ConfirmDialog, CustomFieldsCard, customFieldNames, EmptyState, ErrorState, HistoryPanel, Icon, Loading,
+  NotFound, PageHeader, Stat, StatusChip, Tabs, api, errorMessage, formatDate, useAuth, useFetch, useResource, useToast,
 } from '../../core';
+import type { Row } from '../../core';
 import { StatusBar, StatusLegend, TargetRing } from './StatusBar';
 import type { SnapshotDetail, SnapshotExtra } from './types';
 import { statusColor, statusLabel } from './types';
@@ -22,6 +23,10 @@ export function SnapshotPage() {
   const [priorityOnly, setPriorityOnly] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
+  // The administrator's custom fields (E18-34) come with the record itself, read only when there are any.
+  const resource = useResource('assessment_snapshot');
+  const hasCustom = customFieldNames(resource).length > 0;
+  const record = useFetch<Row>(hasCustom && id ? `/api/assessment-snapshots/${id}` : null);
 
   const rows = useMemo(
     () => (data?.outcomes ?? []).filter((o) => (!priorityOnly || o.priority) && (!statuses.length || statuses.includes(o.status))),
@@ -102,6 +107,7 @@ export function SnapshotPage() {
         }
       />
       {data.notes && <div className="notice"><strong>Notes.</strong> <span className="prose">{data.notes}</span></div>}
+      {record.data && <CustomFieldsCard type="assessment_snapshot" row={record.data} onSaved={record.reload} />}
 
       <section className="fw-hero" aria-label="Summary">
         <div className="fw-hero-main">

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { SegmentedControl } from '@mantine/core';
 import {
@@ -8,7 +8,8 @@ import {
 import { Banner } from './bits';
 import { CalendarMonth } from './CalendarMonth';
 import { CalendarWeek } from './CalendarWeek';
-import type { CalendarData } from './types';
+import { MOVABLE, MoveDialog, type MoveRequest } from './MoveDialog';
+import type { CalendarChange, CalendarData } from './types';
 import { addDays, addMonths, dayLabel, monthLabel, monthStart, plural, startOfDay, weekStart } from './util';
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -37,6 +38,10 @@ export function CalendarPage() {
   const step = (n: number) => go({ date: view === 'week' ? addDays(date, 7 * n) : addMonths(date, n) });
   const title = view === 'week' ? `${dayLabel(days[0])} to ${dayLabel(days[6])} ${days[6].slice(0, 4)}` : monthLabel(date);
   const flagged = data?.changes.filter((c) => c.unacknowledged > 0) ?? [];
+  const [moving, setMoving] = useState<MoveRequest | null>(null);
+  const mayMove = can('changes.edit');
+  const canMove = (c: CalendarChange) => mayMove && MOVABLE.includes(c.status);
+  const move = mayMove ? { onMove: setMoving, canMove } : {};
 
   return (
     <div className="stack">
@@ -85,9 +90,15 @@ export function CalendarPage() {
             )}
             <Card flush>
               {view === 'week'
-                ? <CalendarWeek days={days} changes={data.changes} blackouts={data.blackouts} />
-                : <CalendarMonth days={days} month={monthStart(date)} changes={data.changes} blackouts={data.blackouts} onOpenDay={(day) => go({ view: 'week', date: day })} />}
+                ? <CalendarWeek days={days} changes={data.changes} blackouts={data.blackouts} {...move} />
+                : <CalendarMonth days={days} month={monthStart(date)} changes={data.changes} blackouts={data.blackouts} onOpenDay={(day) => go({ view: 'week', date: day })} {...move} />}
             </Card>
+            {mayMove && data.changes.some(canMove) && (
+              <p className="muted chg-move-hint">
+                <Icon name="calendar" size={14} /> Drag a change to another {view === 'week' ? 'day or time' : 'day'} to move it, or focus it and press <kbd className="kbd">M</kbd>.
+                Nothing is saved until you confirm.
+              </p>
+            )}
             {data.changes.length === 0 && data.blackouts.length === 0 && (
               <p className="muted">Nothing is planned in this period.</p>
             )}
@@ -144,6 +155,7 @@ export function CalendarPage() {
             </div>
           </>
         )}
+      <MoveDialog request={moving} onClose={() => setMoving(null)} onMoved={() => { setMoving(null); reload(); }} />
     </div>
   );
 }

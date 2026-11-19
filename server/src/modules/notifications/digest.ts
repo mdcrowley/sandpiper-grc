@@ -15,9 +15,9 @@ export const SETTING_TICKET_HOURS = 'notifications.ticket_breach_hours';
 
 type Notify = (input: NotifyInput) => Promise<NotifyResult>;
 
-const dayFormat = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+const dayFormat = new Intl.DateTimeFormat('en-US', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 const formatDay = (ymd: string) => dayFormat.format(new Date(`${ymd}T00:00:00Z`));
-const timeFormat = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: TIME_ZONE });
+const timeFormat = new Intl.DateTimeFormat('en-US', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: TIME_ZONE });
 
 const whole = (value: unknown, fallback: number, min: number, max: number) => {
   const n = Math.round(Number(value));

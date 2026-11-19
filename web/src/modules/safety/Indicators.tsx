@@ -12,7 +12,7 @@ import { SafetyTabs } from './shared';
 export interface Point { period: string; events: number; exposure: number | null; value: number | null; target: number | null; met: boolean | null }
 
 const nextMonth = (p: string) => { const [y, m] = p.split('-').map(Number); return m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`; };
-const monthLabel = (p: string) => new Date(`${p}-15T12:00:00Z`).toLocaleDateString('en-GB', { month: 'short', year: '2-digit', timeZone: 'UTC' });
+const monthLabel = (p: string) => new Date(`${p}-15T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', year: '2-digit', timeZone: 'UTC' });
 
 /** What the value means, in words: "per 100,000 vehicle-miles" or "events". */
 export function unitText(ind: { measure: string; exposure: string | null; per_units: number | null }, exposures: { value: string; label: string }[]) {

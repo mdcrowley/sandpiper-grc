@@ -25,6 +25,10 @@ export interface ChartSpec { kind: ChartKind; target?: number; max?: number; mea
 export interface ResultColumn {
   key: string; label: string; type: FieldType; role: 'column' | 'dim' | 'agg';
   field?: string; bucket?: Bucket; fn?: string; list?: string; to?: string;
+  /** A grouping's values (display labels) in their natural order. */
+  values?: string[];
+  /** A multi-choice field: a record can hold several values. */
+  multiple?: boolean;
 }
 export interface ResultRow { id?: string; v: Record<string, unknown>; d: Record<string, string>; c?: Record<string, string>; drill?: string }
 export interface Pivot {
@@ -43,7 +47,7 @@ export interface ReportResult {
 }
 
 export interface CatalogField {
-  path: string; label: string; type: FieldType; list?: string; to?: string; via?: string; custom?: boolean;
+  path: string; label: string; type: FieldType; list?: string; to?: string; via?: string; custom?: boolean; multiple?: boolean;
   group: boolean; sum: boolean; column: boolean;
 }
 export interface CatalogType {

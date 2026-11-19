@@ -1,8 +1,9 @@
 import type { FastifyRequest } from 'fastify';
 import {
-  acceptTotpCode, checkPasswordPolicy, consumeRecoveryCode, mfaStatus, recoveryCodeHash, setPassword, sha256,
+  acceptTotpCode, checkPasswordPolicy, consumeRecoveryCode, mfaStatusForSession, recoveryCodeHash, requireRecentAuth, setPassword, sha256,
   storeTotpSecret, verifyPassword,
 } from '../../core/auth.ts';
+import { activeCredentials } from '../../core/webauthn/store.ts';
 import { DEFAULT_APP_NAME } from '../../core/config.ts';
 import type { ModuleContext } from '../../core/module.ts';
 import { makeDbLimiter } from '../../core/ratelimit.ts';
@@ -104,12 +105,20 @@ export function registerAccount(ctx: ModuleContext) {
     return codes;
   }
 
+  /** Passkeys and security keys the person has (they count as a second factor). */
+  const passkeyCount = async (userId: string) => (await activeCredentials(db, userId)).length;
+
   app.get('/api/auth/security', async (req) => {
     const u = await me(req);
-    const mfa = await mfaStatus(deps, u.id);
+    const mfa = await mfaStatusForSession(deps, app, u.id, req.sessionHash);
+    const passkeys = await passkeyCount(u.id);
     return {
       totpEnabled: u.totp_enabled,
-      recoveryCodesLeft: u.totp_enabled ? u.codes : 0,
+      passkeys,
+      // Recovery codes go with any second factor: the app, or passkeys alone (E02-21).
+      recoveryCodesLeft: u.totp_enabled || passkeys ? u.codes : 0,
+      hasPassword: Boolean(u.password_hash),
+      secondFactorViaProvider: mfa.viaProvider,
       mfaEnrollmentRequired: mfa.required,
       mfaEnrollmentBlocked: mfa.blocked,
       mfaGraceEndsAt: mfa.graceEndsAt,
@@ -159,18 +168,25 @@ export function registerAccount(ctx: ModuleContext) {
       await ctx.audit(req, { action: 'mfa.change_refused', recordType: 'user', recordId: u.id, summary: 'Turning off the second factor refused: wrong code' });
       ctx.fail(400, 'validation', 'Check the highlighted fields.', { code: BAD_CODE });
     }
-    await db.query(`update users set totp_enabled = false, totp_secret = null, totp_last_step = null, recovery_codes = '[]', updated_at = now() where id = $1`, [u.id]);
+    // Recovery codes stay while a passkey is still there to recover (E02-21); otherwise they go with the app.
+    const keepCodes = (await passkeyCount(u.id)) > 0;
+    await db.query(
+      `update users set totp_enabled = false, totp_secret = null, totp_last_step = null,
+         recovery_codes = case when $2 then recovery_codes else '[]'::jsonb end, updated_at = now() where id = $1`, [u.id, keepCodes]);
     await ctx.audit(req, {
-      action: 'mfa.disable', recordType: 'user', recordId: u.id, summary: 'Second factor turned off by the user',
+      action: 'mfa.disable', recordType: 'user', recordId: u.id,
+      summary: `Authenticator app turned off by the user${keepCodes ? '; passkeys and recovery codes remain' : ''}`,
       before: { totp_enabled: true }, after: { totp_enabled: false },
     });
     return { ok: true };
   });
 
+  // New recovery codes, for the authenticator app or for passkeys alone (E02-21).
   app.post('/api/auth/totp/recovery-codes', async (req) => {
     const u = await me(req);
-    if (!u.totp_enabled) ctx.fail(409, 'not_enabled', 'Set up a second factor first.');
-    await requirePassword(req, u, body(req).password, 'New recovery codes');
+    if (!u.totp_enabled && !(await passkeyCount(u.id))) ctx.fail(409, 'not_enabled', 'Set up a second factor first.');
+    if (u.password_hash) await requirePassword(req, u, body(req).password, 'New recovery codes');
+    else await requireRecentAuth(deps, req, 'New recovery codes');
     const recoveryCodes = await storeNewCodes(u.id);
     await ctx.audit(req, { action: 'mfa.recovery_codes', recordType: 'user', recordId: u.id, summary: 'Recovery codes replaced; the old ones no longer work' });
     return { ok: true, recoveryCodes };

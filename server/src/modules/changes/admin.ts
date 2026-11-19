@@ -113,6 +113,8 @@ export function makeAdmin(ctx: ModuleContext, base: Base) {
       planned_end: d.planned_end ?? new Date(start.getTime() + Number(tpl.duration_minutes) * 60000).toISOString(),
     };
     for (const k of Object.keys(data)) if (data[k] === null || data[k] === undefined) delete data[k];
+    // The administrator's custom fields (`cf_<key>`) pass through; the resource engine validates them (E18-34).
+    for (const [k, v] of Object.entries(body)) if (k.startsWith('cf_')) data[k] = v;
     const row = await base.createWith(req, data, {
       status: 'approved', template_id: tpl.id, template_name: tpl.name,
       risk_computed: tpl.risk_level, risk_level: tpl.risk_level, submitted_at: new Date().toISOString(),

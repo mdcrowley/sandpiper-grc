@@ -1,5 +1,5 @@
 // Service desk settings: priority matrix, service-level targets, working calendars and
-// holidays, escalation rules and notifications. People without tickets.administer read only.
+// holidays, escalation rules, notifications, the portal and email to ticket. People without tickets.administer read only.
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
@@ -8,6 +8,7 @@ import {
 } from '../../core';
 import { EscalationSettings, NotificationSettings } from './SettingsAutomation';
 import { CalendarSettings } from './SettingsCalendars';
+import { EmailSettingsTab } from './SettingsEmail';
 import { PortalSettingsTab } from './SettingsPortal';
 import { fieldErrors, put, splitMinutes, workingText, type Calendar, type Policy, type PriorityMatrix } from './util';
 
@@ -227,6 +228,7 @@ export function ServiceDeskSettings() {
     { key: 'escalation', label: 'Escalation', content: <EscalationSettings canEdit={canEdit} /> },
     { key: 'notifications', label: 'Notifications', content: <NotificationSettings canEdit={canEdit} /> },
     { key: 'portal', label: 'Self-service portal', content: <PortalSettingsTab /> },
+    { key: 'email', label: 'Email to ticket', content: <EmailSettingsTab /> },
   ];
   const active = tabs.some((t) => t.key === params.get('tab')) ? (params.get('tab') as string) : 'priorities';
   return (

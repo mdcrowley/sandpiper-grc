@@ -127,6 +127,7 @@ async function seedPilot(ctx: ModuleContext, opts: SeedOptions): Promise<string>
   let applied = 0;
   let changed = 0;
   let mappingsAdded = 0;
+  let mappingsCorrected = 0;
   // Names containing a number are split correctly when they are in the configurable list or already in use.
   const names = await knownNames(ctx);
   for (const row of profile) {
@@ -154,11 +155,29 @@ async function seedPilot(ctx: ModuleContext, opts: SeedOptions): Promise<string>
     if (!o.profile_applied_at) await ctx.db.query('update framework_outcomes set profile_applied_at = now() where id = $1', [o.id]);
 
     const added: Row[] = [];
+    const removed: Row[] = [];
     for (const m of parseMappings(cell(row, 'AlsoSatisfies'), names)) {
+      // A row an earlier run split in the wrong place (the same words, another split) is
+      // replaced, so adding a name to the list and running the seed again corrects it.
+      // Only rows the seed itself wrote (no author) are touched; a person's own rows stay.
+      const wrong = await ctx.db.query<Row>(
+        `delete from outcome_mappings
+          where outcome_id = $1 and created_by is null
+            and lower(trim(framework_name || ' ' || reference)) = lower(trim($2 || ' ' || $3))
+            and not (lower(framework_name) = lower($2) and lower(reference) = lower($3))
+          returning framework_name, reference`, [o.id, m.framework_name, m.reference]);
+      removed.push(...wrong);
       const made = await ctx.db.one<Row>(
         `insert into outcome_mappings (outcome_id, framework_name, reference) values ($1,$2,$3)
          on conflict do nothing returning framework_name, reference`, [o.id, m.framework_name, m.reference]);
       if (made) added.push(made);
+    }
+    if (removed.length) {
+      mappingsCorrected += removed.length;
+      await ctx.audit(null, {
+        action: 'framework_outcome.mapping_remove', recordType: 'framework_outcome', recordId: o.id,
+        summary: `${code}: ${removed.length} cross-mapping${removed.length === 1 ? '' : 's'} split in the wrong place replaced (seed)`, before: removed,
+      });
     }
     if (added.length) {
       mappingsAdded += added.length;
@@ -180,6 +199,7 @@ async function seedPilot(ctx: ModuleContext, opts: SeedOptions): Promise<string>
     `${total!.p} priority`,
     hasProfile ? `${applied} profile rows applied (${changed} changed an outcome this run)` : `no ${PROFILE_FILE} in the seed folder, target profile skipped`,
     `${mappingsAdded} cross-mappings added`,
+    ...(mappingsCorrected ? [`${mappingsCorrected} cross-mappings split in the wrong place corrected`] : []),
     baseline ? `snapshot "${BASELINE}" created` : hasProfile ? `snapshot "${BASELINE}" already there` : `snapshot "${BASELINE}" not taken`,
     !hasDesignations ? `no ${DESIGNATIONS_FILE} in the seed folder, outcomes not loaded (add them on the framework page or run the dev profile)` : lackingText.length ? `identifiers lacking outcome text: ${lackingText.join(', ')}` : 'every identifier has outcome text',
   ];

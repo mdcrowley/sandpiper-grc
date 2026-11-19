@@ -6,15 +6,15 @@ import { EnrollmentGate } from './core/EnrollmentGate';
 import { RouteLoading } from './core/lazyRoutes';
 import { UiProvider } from './core/mantine';
 import { MetaProvider } from './core/meta';
-import { modules } from './core/module';
+import { moduleOn, modules } from './core/module';
 import { ToastProvider } from './core/overlay';
 import { renamedPath } from './core/renamedRoutes';
-import { Forbidden, NotFound } from './core/pages';
+import { Forbidden, NotFound, SwitchedOff } from './core/pages';
 import { Shell } from './core/Shell';
 
 // Paths and permissions are known at start; each element loads its module's code when first shown
 // (see core/module.ts), so nothing here pulls a module's pages into the first download.
-const routes = modules.flatMap((m) => m.routes ?? []);
+const routes = modules.flatMap((m) => (m.routes ?? []).map((r) => ({ ...r, module: m.key })));
 const publicRoutes = modules.flatMap((m) => m.publicRoutes ?? []);
 
 // The self-service portal (E15) has a layout of its own, without the shell. It belongs to the portal
@@ -33,7 +33,7 @@ const keepsShell = (path: string) => path.startsWith('/account') || path.startsW
 
 /** Everything behind sign-in: setup wizard, sign-in page, second-factor set-up, the portal, or the shell with module routes. */
 function SignedInApp() {
-  const { user, setupRequired, mfaEnrollmentBlocked, can, features } = useAuth();
+  const { user, setupRequired, mfaEnrollmentBlocked, can, areaOn, switchedOff, features } = useAuth();
   const { pathname, search, hash } = useLocation();
   // Old addresses renamed to American spelling (core/renamedRoutes.ts) go to the new ones.
   const moved = renamedPath(pathname, search, hash);
@@ -55,7 +55,7 @@ function SignedInApp() {
       <Shell>
         <Routes>
           {routes.map((r) => (
-            <Route key={r.path} path={r.path} element={can(r.permission) ? r.element : <Forbidden />} />
+            <Route key={r.path} path={r.path} element={!moduleOn(r.module, areaOn) || switchedOff(r.permission) ? <SwitchedOff /> : can(r.permission) ? r.element : <Forbidden />} />
           ))}
           <Route path="*" element={<NotFound />} />
         </Routes>

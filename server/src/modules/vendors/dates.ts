@@ -22,7 +22,7 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 /** "2 Oct 2030" for a 'YYYY-MM-DD' date, for text that people read (notifications). */
 export function displayDate(date: string): string {
   const [y, m, d] = String(date).slice(0, 10).split('-').map(Number);
-  return MONTHS[m - 1] ? `${d} ${MONTHS[m - 1]} ${y}` : String(date);
+  return MONTHS[m - 1] ? `${MONTHS[m - 1]} ${d}, ${y}` : String(date);
 }
 
 /** Notice date = end date minus the notice period. No notice period recorded counts as zero days. */

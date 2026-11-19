@@ -1,8 +1,9 @@
 # E14 Platform services not yet built
 
-**Status:** in progress (attachments, in-app notifications, email delivery, the job queue and
-full-text search built; custom fields, tags, watchers and retention built on the server, their
-screens open)
+**Status:** in progress (23 of 28 issues done)
+full-text search built; custom fields, tags and watchers built with their screens; retention
+built on the server and screens; evidence files on record pages built, their reminders open;
+feature switches for optional areas built)
 
 ## Goal
 
@@ -34,14 +35,14 @@ bulk edit) that make daily use quicker.
 | ID | Title | Status | Priority |
 |---|---|---|---|
 | E14-01 | Attachments on any record | done | P1 |
-| E14-02 | Custom fields | in progress | P3 |
+| E14-02 | Custom fields | done | P3 |
 | E14-03 | In-app notifications | done | P1 |
 | E14-04 | Email delivery | done | P2 |
-| E14-05 | Email setup and reset links | in progress | P2 |
+| E14-05 | Email setup and reset links | done | P2 |
 | E14-06 | Workflow engine with approvals | open | P3 |
 | E14-07 | Full-text search | done | P2 |
-| E14-08 | Tags | in progress | P3 |
-| E14-09 | Watchers | in progress | P3 |
+| E14-08 | Tags | done | P3 |
+| E14-09 | Watchers | done | P3 |
 | E14-10 | Bulk edit | done | P2 |
 | E14-11 | Retention settings and review flags | in progress | P2 |
 | E14-12 | Job queue for background work | done | P2 |
@@ -49,17 +50,18 @@ bulk edit) that make daily use quicker.
 | E14-14 | Malware scanner for attachments | done | P1 |
 | E14-15 | Purge and retention of removed files | done | P2 |
 | E14-16 | Notifications from the other modules | done | P1 |
-| E14-17 | Notification housekeeping | open | P3 |
-| E14-18 | Evidence files on evidence-bearing records | open | P2 |
+| E14-17 | Notification housekeeping | done | P3 |
+| E14-18 | Evidence files on evidence-bearing records | in progress | P2 |
 | E14-19 | Anonymize a record at the end of its retention period | open | P3 |
-| E14-20 | Retention review counts follow row-level restriction | open | P3 |
-| E14-21 | Comment search follows the search language setting | open | P3 |
-| E14-22 | Move the other modules' timers onto the job queue | open | P2 |
-| E14-23 | Start the job queue and email from core | open | P3 |
-| E14-24 | "Forgot your password?" link and help for the new pages | open | P2 |
+| E14-20 | Retention review counts follow row-level restriction | done | P3 |
+| E14-21 | Comment search follows the search language setting | done | P3 |
+| E14-22 | Move the other modules' timers onto the job queue | done | P2 |
+| E14-23 | Start the job queue and email from core | done | P3 |
+| E14-24 | "Forgot your password?" link and help for the new pages | done | P2 |
 | E14-25 | Another mail provider (a mail service's web interface) | open | P3 |
-| E14-26 | Other modules' tests stand in for `notify` and `sendMail` safely | open | P3 |
-| E14-27 | File housekeeping, rescans and moves as background jobs | open | P3 |
+| E14-26 | Other modules' tests stand in for `notify` and `sendMail` safely | done | P3 |
+| E14-27 | File housekeeping, rescans and moves as background jobs | done | P3 |
+| E14-28 | Switch optional parts of the application on and off | done | P2 |
 
 ---
 
@@ -101,7 +103,7 @@ can download them.
 
 ### E14-02 Custom fields
 
-**Status:** in progress (server done; screens open) · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 As an administrator, I add my own fields to a record type without a code change, and
 they appear on forms, lists, filters and exports.
@@ -118,16 +120,22 @@ they appear on forms, lists, filters and exports.
 - [x] Validated like built-in fields ("required" applies to people, not to system work)
   and included in the audit trail field by field, and in webhook payloads
 - [x] Removing a field hides it without deleting its data; switching it back on restores it
-- [ ] Generic form, record page, list columns and filters render `custom: true` fields,
-  including `multiple`, `help` and `section` (web core)
+- [x] Generic form, record page, list columns and filters render `custom: true` fields,
+  including `multiple`, `help` and `section` (web core: `ResourceForm`, `EditableSummary`,
+  `CustomFieldsCard`, `RecordPage`, `ResourceList`, `FieldValue`); hand-written forms use
+  `useCustomFieldInputs` (E18-34)
 - [x] A **Custom fields** administration page (web admin):
-  `web/src/modules/admin/CustomFields.tsx` (`/admin/custom-fields`)
+  `web/src/modules/admin/CustomFields.tsx` (`/admin/custom-fields`), with moving fields up and
+  down; a choice field's options are edited under Lists, where its list is named after the field
 
 **Implemented in:** `server/src/core/customfields.ts`, `server/src/core/customfield-routes.ts`,
 `server/src/core/resource.ts` (validation, storage in the `custom` column, filters,
-sorting, export, audit); tests in `server/src/core/platform.test.ts` ("custom fields").
-Routes: `GET /api/admin/custom-fields?record_type=`, `POST /api/admin/custom-fields`,
-`PATCH/DELETE /api/admin/custom-fields/:id` (DELETE switches the field off).
+sorting, export, audit); `web/src/core/FieldControl.tsx`, `web/src/core/CustomFieldInputs.tsx`,
+`web/src/core/ResourceForm.tsx`, `web/src/core/RecordPage.tsx`, `web/src/core/ResourceList.tsx`,
+`web/src/modules/admin/CustomFields.tsx`; tests in `server/src/core/platform.test.ts`
+("custom fields"). Routes: `GET /api/admin/custom-fields?record_type=`,
+`POST /api/admin/custom-fields`, `PATCH/DELETE /api/admin/custom-fields/:id` (DELETE switches
+the field off).
 
 ### E14-03 In-app notifications
 
@@ -208,7 +216,7 @@ channels, `email.ts` daily summary, `migrations/002_email.sql`, `email.test.ts`)
 
 ### E14-05 Email setup and reset links
 
-**Status:** in progress (the sign-in page link is E14-24) · **Priority:** P2 · **Type:** improvement
+**Status:** done · **Priority:** P2 · **Type:** improvement
 
 As a new user, I receive my setup link by email. As a user who has forgotten my
 password, I request a reset link myself. Today an administrator is shown the link and
@@ -222,7 +230,7 @@ must pass it on.
   set-up link for an account still pending); it expires after `auth.reset_link_minutes`
   (default 60) and replaces the person's earlier self-service link, never one an
   administrator issued
-- [ ] A link to that page on the sign-in screen (core: E14-24)
+- [x] A link to that page on the sign-in screen (E14-24)
 - [x] The response is the same whether or not the username or address is known
 - [x] Requests are rate-limited (5 in 15 minutes from one address, then 429; 3 links an hour
   for one account, silently) and audited (`password.reset_request`)
@@ -279,7 +287,7 @@ ranks the best matches first. Before, search was plain substring matching.
 
 ### E14-08 Tags
 
-**Status:** in progress (server done; screens open) · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 As a user, I add free-form tags to any record and filter lists by them.
 
@@ -290,19 +298,23 @@ As a user, I add free-form tags to any record and filter lists by them.
 - [x] Existing tags are suggested as I type, counted only over records the caller may see
 - [x] Lists can be filtered by tag: `f.tags=a,b` (any), `f.tags.all=a,b`,
   `f.tags.null=true`; rows carry `_tags`
-- [x] Administrators can rename and merge tags (audited)
-- [ ] Tag editor on the record page, tag column and filter on generic lists (web core)
+- [x] Administrators can rename and merge tags (audited), on the **Tags** tab of
+  Administration > Lists, which lists each record type's tags with how many records carry them
+- [x] Tag editor on the record page, tag column and filter on generic lists (web core:
+  `RecordTags`, `TagChips`, `TagsFilter` in `web/src/core/tags.tsx`)
 
 **Implemented in:** `server/src/core/tags.ts`, `server/src/core/resource.ts` (filter and
-`_tags`); tests in `server/src/core/platform.test.ts` ("tags and watchers"). Routes:
-`GET /api/tags?record_type=&record_id=`, `PUT /api/tags` (`{ record_type, record_id, tags }`
-replaces), `POST /api/tags` (adds one), `DELETE /api/tags?record_type=&record_id=&tag=`,
-`GET /api/tags/options?record_type=&q=` (`[{ tag, count }]`), `POST /api/admin/tags/rename`
-(`{ record_type, from, to }`; merges when `to` exists).
+`_tags`), `web/src/core/tags.tsx`, `web/src/core/RecordPage.tsx`, `web/src/core/ResourceList.tsx`,
+`web/src/modules/admin/Lists.tsx` (Tags tab); tests in `server/src/core/platform.test.ts`
+("tags and watchers"). Routes: `GET /api/tags?record_type=&record_id=`, `PUT /api/tags`
+(`{ record_type, record_id, tags }` replaces), `POST /api/tags` (adds one),
+`DELETE /api/tags?record_type=&record_id=&tag=`, `GET /api/tags/options?record_type=&q=`
+(`[{ tag, count }]`), `POST /api/admin/tags/rename` (`{ record_type, from, to }`; merges when
+`to` exists).
 
 ### E14-09 Watchers
 
-**Status:** in progress (server done; screens open) · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 As a user, I follow a record and am notified when it changes.
 
@@ -316,12 +328,15 @@ As a user, I follow a record and am notified when it changes.
 - [x] Only people who can see the record can watch it, and `app.notify` skips anyone who
   has since lost access
 - [x] Depends on E14-03
-- [ ] **Watch** button on the record page and a **Watching** list (web core)
+- [x] **Watch** button on the record page (with who watches on hover) and a **Watching** list
+  on the Overview (web: `WatchButton` in `web/src/core/tags.tsx`, placed by `RecordPage`;
+  `web/src/modules/home/widgetsMyWork.tsx`)
 - [x] A `watch` value ("Records I watch") in `notification_kind`, so people can switch these
   off or have them emailed (notifications module)
 
-**Implemented in:** `server/src/core/tags.ts`, comment hook in `server/src/core/routes.ts`;
-tests in `server/src/core/platform.test.ts` ("tags and watchers"). Routes:
+**Implemented in:** `server/src/core/tags.ts`, comment hook in `server/src/core/routes.ts`,
+`web/src/core/tags.tsx`, `web/src/core/RecordPage.tsx`; tests in
+`server/src/core/platform.test.ts` ("tags and watchers"). Routes:
 `GET /api/watchers?record_type=&record_id=` (`{ watching, count, watchers }`),
 `POST /api/watchers` (`{ record_type, record_id }`), `DELETE /api/watchers?record_type=&record_id=`,
 `GET /api/me/watching`.
@@ -518,7 +533,7 @@ owns the record (usage is documented at the top of
 
 ### E14-17 Notification housekeeping
 
-**Status:** open · **Priority:** P3 · **Type:** improvement
+**Status:** done · **Priority:** P3 · **Type:** improvement
 
 As a user, my notification list does not grow for ever. Today notifications are never
 deleted, there is no way to dismiss one, and marking as read is not audited (by design:
@@ -526,30 +541,51 @@ read state is a personal view setting).
 
 **Acceptance criteria**
 
-- [ ] A person can delete one notification or all read ones
-- [ ] Read notifications older than a set period are removed by a scheduled job
-- [ ] An administrator can add kinds to `notification_kind` and they appear in everyone's
-  preferences (works today through **Lists**; needs a test and a line in the guide)
-- [ ] The digest thresholds (`notifications.action_due_days`,
-  `notifications.ticket_breach_hours`, `notifications.action_closed_statuses`) are
-  editable on a settings page
+- [x] A person can delete one notification or all read ones (hidden at once, removed for good
+  by housekeeping two days later, so "once a day" reminders still see them)
+- [x] Read notifications older than a set period (`notifications.keep_read_days`, 90) are
+  removed by a scheduled job; unread ones and those waiting for a daily email are kept
+- [x] An administrator can add kinds to `notification_kind` and they appear in everyone's
+  preferences (tested; a line in the guide)
+- [x] The digest thresholds (`notifications.action_due_days`,
+  `notifications.ticket_breach_hours`, `notifications.action_closed_statuses`) and the
+  digest hour are editable on Administration > Reminders, audited
+
+**Implemented in:** `server/src/modules/notifications/` (`index.ts` `DELETE
+/api/notifications/:id`, `POST /api/notifications/delete-read`; `housekeeping.ts` job
+`notifications.housekeeping`; `reminder-settings.ts` `GET/PATCH
+/api/notifications/reminder-settings`; migration `003_housekeeping.sql`: `dismissed_at`,
+`notification_once`), `web/src/modules/notifications/` (`NotificationsPage.tsx`,
+`NotificationItem.tsx`, `ReminderSettings.tsx` at `/admin/reminders`); tests
+`notifications/housekeeping.test.ts`. Also: `app.notify({ once })` sends to each person at
+most once per occasion, and `oncePerDay` now counts the organization's day, not the
+database's.
 
 ### E14-18 Evidence files on evidence-bearing records
 
-**Status:** open · **Priority:** P2 · **Type:** improvement
+**Status:** in progress (record pages done; reminders and the two expiring pages open) · **Priority:** P2 · **Type:** improvement
 
-As a compliance lead, I attach the evidence itself where I record that it exists. The
-panel has an evidence mode (`<AttachmentsPanel evidence />`), but no record page uses it
-yet: every page gets the plain **Attachments** tab.
+As a compliance lead, I attach the evidence itself where I record that it exists.
 
 **Acceptance criteria**
 
-- [ ] Vendor evidence items, framework outcomes, policy acknowledgments, exercises and
-  risk treatments show the panel in evidence mode
+- [x] Vendor evidence items, framework outcomes, policy acknowledgments, exercises and
+  risk treatments show the panel in evidence mode: `/api/meta` marks evidence-bearing types
+  (`evidence: true`; `ResourceDef.evidence`, else core's `EVIDENCE_TYPES`: evidence items,
+  framework outcomes, obligations, policies, exercises and risks), and `RecordPage` then names
+  its files tab **Evidence files** and opens the panel with `evidence` (prop `evidence` overrides).
+  Pages with an Evidence tab of their own (framework outcomes, obligations, security incidents,
+  vendor evidence items) keep it
 - [ ] The vendor **Expiring evidence** page and the **Expiring evidence files** page link
-  to each other, or are merged
+  to each other, or are merged (vendors and attachments modules)
 - [ ] An expiring evidence file raises a `reminder` notification to the record's owner
+  (attachments module, on the job queue)
 - [ ] Closes E06-17, E07-12 and E11-17 where they only waited for attachments
+
+**Implemented in (so far):** `server/src/core/module.ts` (`evidence`), `server/src/core/resource.ts`
+(`EVIDENCE_TYPES`, `evidenceFor`), `server/src/core/routes.ts` (`/api/meta`),
+`web/src/core/RecordPage.tsx`, `web/src/core/meta.tsx`; test in
+`server/src/core/records-platform.test.ts` ("evidence files in metadata").
 
 ### E14-19 Anonymize a record at the end of its retention period
 
@@ -567,36 +603,53 @@ from E14-11.
 
 ### E14-20 Retention review counts follow row-level restriction
 
-**Status:** open · **Priority:** P3 · **Type:** defect
+**Status:** done · **Priority:** P3 · **Type:** defect
 
-The retention review list (`GET /api/admin/retention/reviews`) and the pending counts on
-`GET /api/admin/retention` count flagged records of every type the reviewer may view,
-including individual rows flagged restricted (for example a restricted action) that the
-reviewer cannot see. Their labels are hidden, but the counts are not. Low impact: the
-routes need `admin.administer`.
+The retention review list (`GET /api/admin/retention/reviews`) listed flagged records of every
+type the reviewer may view, including individual rows flagged restricted (for example a
+restricted action) that the reviewer cannot see, as "Record no longer exists", and let the
+reviewer decide them. Low impact: the routes need `admin.administer`.
+
+Resolved under the rule that figures are the same for everyone (see
+[Security](../../security.md)): the **pending counts** on `GET /api/admin/retention` are figures
+and keep counting every flagged record, restricted or not, for every administrator; the
+**review list** is a drill-down and shows only what the reviewer may see.
 
 **Acceptance criteria**
 
-- [ ] Counts and rows leave out records the reviewer cannot see (`visibleWhere`)
-- [ ] A test with an administrator role that lacks `security.view`
+- [x] The review list, and its total, leave out rows the reviewer cannot see (`visibleWhere` per
+  record type with restricted rows); a record that no longer exists stays listed
+- [x] Extending or removing a review of a row the reviewer cannot see answers 404, like a
+  missing review
+- [x] The pending counts are identical for every administrator
+- [x] A test with an administrator role that lacks `security.view`
+
+**Implemented in:** `server/src/core/retention.ts`; test in
+`server/src/core/records-platform.test.ts` ("retention reviews under row-level restriction").
 
 ### E14-21 Comment search follows the search language setting
 
-**Status:** open · **Priority:** P3 · **Type:** defect
+**Status:** done · **Priority:** P3 · **Type:** defect
 
 Record search uses `GRC_SEARCH_LANGUAGE`, but the comments trigger in
-`server/src/core/migrations/003_platform_services.sql` always uses `english`, so with
-another language comment word-ending matches are weaker.
+`server/src/core/migrations/003_platform_services.sql` always used `english`, so with
+another language comment word-ending matches were weaker.
 
 **Acceptance criteria**
 
-- [ ] The comments trigger is (re)built at start-up from the configured language, like the
-  record triggers
-- [ ] A test with a non-default language
+- [x] The comments trigger is (re)built at start-up from the configured language, like the
+  record triggers, and every comment's vector is recomputed once when the language changes
+  (remembered in `search_index_state` under `__comments`); an unknown configuration leaves
+  the trigger as it was
+- [x] A test with a non-default language (`french`)
+
+**Implemented in:** `server/src/core/search.ts` (`ensureCommentSearch`), called from
+`server/src/core/resource.ts` at start-up; test in `server/src/core/records-platform.test.ts`
+("comment search language").
 
 ### E14-22 Move the other modules' timers onto the job queue
 
-**Status:** open · **Priority:** P2 · **Type:** debt
+**Status:** done · **Priority:** P2 · **Type:** debt
 
 As an administrator, all scheduled work shows on **Background jobs** and runs once however
 many server processes there are. Split from E14-12: the notifications module's timers are
@@ -607,18 +660,30 @@ snapshot), core retention sweep and webhook deliveries.
 
 **Acceptance criteria**
 
-- [ ] Each owner replaces its timer with, in `register`:
-  `const jobs = await ensureJobs(ctx); jobs.register('<module>.<work>', () => run(), { maxAttempts: 3 });`
-  `await jobs.schedule('<module>.<work>', { type: '<module>.<work>', every: <ms>, firstRunInMs: <ms> });`
-  and removes the timer and its `onClose` hook (the queue is stopped on close)
-- [ ] Its test drives the work with `app.jobs.runDue({ types: ['<module>.<work>'] })` or the
-  existing "run now" route, and checks the schedule exists
-- [ ] Work that must run at a time of day keeps its own "is it time yet" check inside the
-  handler (the schedule only says how often to look), as `notifications.email_digest` does
+- [x] Each owner replaces its timer with one call in `register`:
+  `await scheduleWork(ctx, '<module>.<work>', () => run(), { every: <ms>, firstRunInMs: <ms> })`
+  (`core/jobs/index.ts`: registers the handler and a schedule of the same name) and removes
+  the timer and its `onClose` hook. Done for tickets (`tickets.sla_sweep`), changes
+  (`changes.starting_soon`), frameworks (`frameworks.review_reminders`), inventory
+  (`inventory.reminders`), policies (`policies.daily_checks`), projects
+  (`projects.reminders`), reports (`reports.deliver`, by the reports work), risks
+  (`risks.lifecycle`), security incidents (`secincidents.clock_sweep`), safety
+  (`safety.reminders`), training (`training.daily`), vendors (`vendors.contract_reminders`,
+  `vendors.evidence_reminders`), vulnerabilities (`vulnerabilities.overdue_sweep`,
+  `vulnerabilities.snapshot`) and attachments (E14-27). Core's own retention sweep and
+  webhook deliveries move with E14-23, which changes `app.ts`
+- [x] Tests check the schedules exist and drive the work through the queue or the existing
+  "run now" routes (`core/jobs/jobs.test.ts` covers `scheduleWork`)
+- [x] Work that must run at a time of day keeps its own "is it time yet" check inside the
+  handler (the backup schedule, report schedules)
+
+**Implemented in:** `server/src/core/jobs/index.ts` (`scheduleWork`; finished runs of a
+schedule are cleaned up after two days), `queue.ts` (`JobInfo.progress`), and the timer
+code of each module listed above.
 
 ### E14-23 Start the job queue and email from core
 
-**Status:** open · **Priority:** P3 · **Type:** debt
+**Status:** done · **Priority:** P3 · **Type:** debt
 
 Today the notifications module starts `app.jobs` and `app.sendMail` in its `seedDefaults`
 (they are core services in `server/src/core/jobs` and `server/src/core/mail`), so a server
@@ -626,25 +691,34 @@ built with `GRC_MODULES` that leaves notifications out has neither.
 
 **Acceptance criteria**
 
-- [ ] `server/src/app.ts` calls `await ensureJobs(ctx); await ensureMail(ctx);` after `ctx` is
+- [x] `server/src/app.ts` calls `await ensureJobs(ctx); await ensureMail(ctx);` after `ctx` is
   built and before the `seedDefaults` loop (both are idempotent, so the notifications module's
   calls become no-ops); the migration scopes `core.jobs` and `core.mail` stay as they are
-- [ ] A test with `GRC_MODULES=none` sees `/api/admin/jobs` and `/api/admin/mail/settings`
+- [x] Core's retention sweep (`core/retention.ts`) and webhook deliveries
+  (`core/webhooks.ts`) drop their timers and run as the schedules `core.retention_sweep` and
+  `core.webhook_deliveries` registered there (moved from E14-22)
+- [x] A test with `GRC_MODULES=none` sees `/api/admin/jobs` and `/api/admin/mail/settings`
+  and the two core schedules
+
+**Implemented in:** `server/src/app.ts` (ensureJobs, ensureMail, schedules `core.webhook_deliveries` every minute and `core.retention_sweep` daily), `server/src/core/retention.ts` and `server/src/core/webhooks.ts` (timers removed; a new delivery is still tried at once), `server/src/core/jobs/core-start.test.ts`.
 
 ### E14-24 "Forgot your password?" link and help for the new pages
 
-**Status:** open · **Priority:** P2 · **Type:** improvement
+**Status:** done · **Priority:** P2 · **Type:** improvement
 
 The `/forgot-password` page exists (E14-05) but nothing links to it.
 
 **Acceptance criteria**
 
-- [ ] The sign-in screen (`web/src/core/AuthPages.tsx`) shows a **Forgot your password?** link
+- [x] The sign-in screen (`web/src/core/AuthPages.tsx`) shows a **Forgot your password?** link
   under the password box, to `/forgot-password`, shown only when
-  `GET /api/auth/forgot-password` says `available: true`
-- [ ] The Help route map (`web/src/modules/help/routeMap.ts`) sends `/admin/email`,
+  `GET /api/auth/forgot-password` says `available: true` (and not at the code step, nor while passwords are switched off)
+- [x] The Help route map (`web/src/modules/help/routeMap.ts`) sends `/admin/email`,
   `/admin/jobs` and `/forgot-password` to `14-attachments-and-notifications` (sections
-  `email-settings`, `background-jobs`, `forgot-your-password`)
+  `email-settings`, `background-jobs`, `forgot-your-password`) (`/admin/email` and `/admin/jobs` are
+  done; `/forgot-password` still goes to `01-getting-started`: the change was handed to the Help owner in wave 4)
+
+**Implemented in:** `web/src/core/AuthPages.tsx` (the link), `web/src/modules/help/routeMap.ts`.
 
 ### E14-25 Another mail provider (a mail service's web interface)
 
@@ -663,7 +737,7 @@ provider interface is in place (`MailProvider` and `registerMailProvider` in
 
 ### E14-26 Other modules' tests stand in for `notify` and `sendMail` safely
 
-**Status:** open · **Priority:** P3 · **Type:** defect
+**Status:** done · **Priority:** P3 · **Type:** defect
 
 Some tests add their own `notify` or `sendMail` decorator to record calls. With every module
 loaded the real service is already there: `reports/files.test.ts` fails ("The decorator
@@ -673,13 +747,18 @@ present, and pass alone and with every module.)
 
 **Acceptance criteria**
 
-- [ ] Stand-ins are added only when missing (`if (!ctx.app.hasDecorator('sendMail'))`), and the
-  assertions read what the real service stored when it is present (the `notifications` table,
-  or `mail_log` for email), so the tests pass alone and with every module
+- [x] Stand-ins are added only when missing (`if (!ctx.app.hasDecorator('sendMail'))`), or
+  replace the real service for the test, so the tests pass alone and with every module.
+  Verified: every `decorate('notify' | 'sendMail')` in a test is guarded
+  (`core/platform.test.ts`, `admin/sso.test.ts`, `attachments/backups.test.ts`,
+  `attachments/storage-admin.test.ts`, `tickets/service.test.ts`, `reports/files.test.ts`),
+  and those files pass with the notifications module loaded
+
+**Implemented in:** the test files above (`reports/files.test.ts` by the reports work).
 
 ### E14-27 File housekeeping, rescans and moves as background jobs
 
-**Status:** open · **Priority:** P3 · **Type:** improvement
+**Status:** done · **Priority:** P3 · **Type:** improvement
 
 The attachments module's daily purge, the server's own backup schedule (E16-17) and the batch
 malware rescan run on in-process timers or inside one request, and moving files between the
@@ -687,7 +766,64 @@ disk and the object store is a command run with the server stopped.
 
 **Acceptance criteria**
 
-- [ ] The daily purge and the backup schedule run as job-queue schedules (E14-12), visible on
-  Administration > Background jobs
-- [ ] **Scan files attached earlier** and moving files to the other store can be started from
+- [x] The daily purge and the backup schedule run as job-queue schedules (E14-12), visible on
+  Administration > Background jobs (`attachments.housekeeping`, daily; `backups.schedule`,
+  every five minutes with the time-of-day check inside, an hour's lease)
+- [x] **Scan files attached earlier** and moving files to the other store can be started from
   File settings and run as jobs, with progress, while the application keeps running
+  (`attachments.rescan`, `attachments.move`; one of each at a time; the move needs a recent
+  password confirmation; both audited when started)
+
+**Implemented in:** `server/src/modules/attachments/` (`index.ts`, `backups.ts`,
+`background.ts`: `GET /api/attachments/admin/background`, `POST
+/api/attachments/admin/rescan/start`, `POST /api/attachments/admin/storage/move`;
+`housekeeping.ts` `moveFiles` reports progress), `web/src/modules/attachments/`
+(`BackgroundWork.tsx`, used by `ScannerSettings.tsx` and `StorageSettings.tsx`); tests
+`attachments/background.test.ts`. The `move-files` command still works with the server stopped.
+
+### E14-28 Switch optional parts of the application on and off
+
+**Status:** done · **Priority:** P2 · **Type:** feature
+
+An organization that does not run vehicles or a safety program here (or does not use the service
+desk, projects and so on) needs those parts gone for everyone, not just hidden from a menu, and
+back whole when it changes its mind.
+
+**Acceptance criteria**
+
+- [x] Administration > Features: one switch per optional area (service desk, self-service portal,
+  change enablement, vendors and contracts, framework outcomes, risks and obligations, security
+  incidents, policies and exceptions, training and exercises, vulnerabilities, projects, dashboards
+  and reports, fleet and services, safety management) with a one-line description, what it needs
+  and what needs it, a confirmation that says data is kept, a recent identity confirmation, and an
+  audit event (`features.change`). AI assistant access is shown with a link to its own page.
+  Inventory, the action tracker, notifications, files, administration, the Overview and Help are
+  always on
+- [x] Existing installations keep everything on (an area missing from the `features` setting takes
+  its default); the portal keeps its own setting and its off default
+- [x] Inconsistent combinations are refused (the portal needs the service desk), on the Features
+  page, the general settings route and the portal's own switch; the page offers to switch the
+  dependent area too
+- [x] Enforced centrally (`server/src/core/features.ts`): permissions of an off area are held by
+  nobody, `*` and tokens included; its record types leave the resource registry (metadata, search,
+  links, relationship map, report catalog, imports, custom fields, retention, webhooks, OpenAPI,
+  MCP tools); its module's routes, its types' generated routes and core routes asked about its
+  types answer 404 `switched_off`; its background jobs are skipped; sample data is not seeded. The
+  state is cached briefly and refreshed when the setting is written: no restart
+- [x] Web: menu, Create menu, command palette, pages ("switched off" page), Overview widgets,
+  impact panels (services and vehicles on system pages and the incident Affected tab), portal
+  safety reporting, role editor (areas marked switched off) and Help (pages left out of the list and
+  search, marked when opened) follow the switches
+- [x] Tests for an administrator and a token: routes, search, metadata, report catalog, MCP tools,
+  OpenAPI paths and scheduled reminders disappear and come back; dependencies, audit and identity
+  confirmation
+
+**Implemented in:** `server/src/core/features.ts` (areas, cached state, route and registry gate),
+`core/services.ts` (`can`), `core/auth.ts` (`loadUser` `off`, `/api/auth/state` `features` and
+`areasOff`), `core/openapi.ts`, `core/jobs/queue.ts`, `app.ts`, `cli.ts` (seed),
+`modules/admin/features.ts` (`GET/PATCH /api/admin/features`) and `settings.ts`,
+`modules/portal/settings.ts`; web `core/auth.tsx` (`areaOn`, `switchedOff`), `core/module.ts`
+(`MODULE_AREA`), `core/Shell.tsx`, `App.tsx`, `core/pages.tsx` (`SwitchedOff`),
+`modules/admin/Features.tsx`, `RoleDetail.tsx`, `Settings.tsx`, `modules/home/OverviewPage.tsx`,
+`modules/help/areas.ts`; tests `modules/admin/features.test.ts`. Notifications already sent about
+a switched-off area's records stay, shown as "A record you can no longer open".

@@ -1,6 +1,6 @@
 #!/bin/sh
 # `grc` inside the container image: the operations commands of server/src/cli.ts (seed, status,
-# backup, backups, verify-backup, restore, export-all, import-all, decrypt, new-key, move-files,
+# backup, backups, verify-backup, restore, export-all, import-all, decrypt, new-key, move-files, logs, version,
 # migrate), run by Node.js's built-in type transformation. Examples (see docs/docker.md):
 #
 #   docker compose exec app grc status

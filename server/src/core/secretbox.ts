@@ -4,7 +4,8 @@ import { parseKey, resolveSecretKey } from './secretkey.ts';
 export { parseKey };
 
 /**
- * Field-level encryption for secrets kept in the database (authenticator keys).
+ * Field-level encryption for secrets kept in the database (authenticator keys, webhook and sign-in
+ * provider secrets, the mail password and others: every kind is listed in secretkey-reseal.ts).
  *
  * Stored format, versioned so the scheme can change later:  enc:v1:<iv>:<tag>:<ciphertext>
  * (AES-256-GCM, 12-byte random iv, each part base64url). The `context` (for example
@@ -30,6 +31,8 @@ export interface SecretBox {
   /** True when the value is already encrypted with the CURRENT key. */
   isCurrent(stored: string, context: string): boolean;
   source: 'environment' | 'file' | 'memory';
+  /** How many retired keys are supplied (values written with them still open). */
+  retiredKeys: number;
 }
 
 export const isEncrypted = (stored: string) => stored.startsWith('enc:');
@@ -59,6 +62,7 @@ function open(key: Buffer, stored: string, context: string): string | null {
 export function makeSecretBox(key: Buffer, previous: Buffer[] = [], source: SecretBox['source'] = 'memory'): SecretBox {
   return {
     source,
+    retiredKeys: previous.length,
     encrypt: (plain, context) => seal(key, plain, context),
     decrypt(stored, context) {
       if (!isEncrypted(stored)) return stored;

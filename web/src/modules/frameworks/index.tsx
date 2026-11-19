@@ -4,6 +4,7 @@ import { BoardPage } from './Board';
 import { CoveragePage } from './Coverage';
 import { ManagePage } from './Manage';
 import { OutcomeDetail } from './OutcomeDetail';
+import { SettingsPage } from './SettingsPage';
 import { SnapshotPage } from './SnapshotDetail';
 import { SnapshotReport } from './SnapshotReport';
 import './frameworks.css';
@@ -21,6 +22,7 @@ const mod: ModuleDef = {
     { path: '/frameworks/outcomes/:id', element: <OutcomeDetail />, permission: 'frameworks.view' },
     { path: '/frameworks/coverage', element: <CoveragePage />, permission: 'frameworks.view' },
     { path: '/frameworks/manage', element: <ManagePage />, permission: 'frameworks.view' },
+    { path: '/frameworks/settings', element: <SettingsPage />, permission: 'frameworks.view' },
     { path: '/assessments', element: <AssessmentsPage />, permission: 'frameworks.view' },
     { path: '/assessments/:id', element: <SnapshotPage />, permission: 'frameworks.view' },
     { path: '/assessments/:id/report', element: <SnapshotReport />, permission: 'frameworks.view' },

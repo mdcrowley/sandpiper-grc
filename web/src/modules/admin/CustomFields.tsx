@@ -3,7 +3,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { SegmentedControl } from '@mantine/core';
 import {
-  ApiError, Button, Card, Checkbox, EmptyState, ErrorState, errorMessage, humanize, Loading, Modal, NumberField, PageHeader, Select,
+  ApiError, Button, Card, Checkbox, EmptyState, ErrorState, errorMessage, humanize, IconButton, Loading, Modal, NumberField, PageHeader, Select,
   StatusChip, TextArea, TextField, useFetch, useMeta, useToast,
 } from '../../core';
 import { Notice } from './common';
@@ -65,6 +65,26 @@ export function CustomFieldsPage() {
 
   const pick = (t: string) => setParams(t ? { type: t } : {}, { replace: false });
 
+  // Moving a field renumbers the list in tens, so positions stay distinct and easy to read.
+  const move = async (i: number, by: -1 | 1) => {
+    const next = [...fields];
+    const [f] = next.splice(i, 1);
+    next.splice(i + by, 0, f);
+    setBusy(f.id);
+    try {
+      for (const [n, field] of next.entries()) {
+        if (field.position !== (n + 1) * 10) await adminApi.patch(`/api/admin/custom-fields/${field.id}`, { position: (n + 1) * 10 });
+      }
+      toast.success(`"${f.label}" moved ${by < 0 ? 'up' : 'down'}.`);
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setBusy('');
+      reload();
+      meta.reload();
+    }
+  };
+
   const setActive = async (f: CustomField, on: boolean) => {
     setBusy(f.id);
     try {
@@ -116,14 +136,20 @@ export function CustomFieldsPage() {
               <table className="table adm-custom">
                 <thead>
                   <tr>
-                    <th scope="col" className="num">Order</th><th scope="col">Field</th><th scope="col">Type</th>
+                    <th scope="col">Order</th><th scope="col">Field</th><th scope="col">Type</th>
                     <th scope="col">Section</th><th scope="col">State</th><th scope="col"><span className="sr-only">Actions</span></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {fields.map((f) => (
+                  {fields.map((f, i) => (
                     <tr key={f.id} className={f.active ? undefined : 'adm-retired'}>
-                      <td className="num">{f.position}</td>
+                      <td>
+                        <span className="adm-order">
+                          <span className="adm-order-n">{i + 1}</span>
+                          <IconButton size="sm" icon="arrow-up" label={`Move up: ${f.label}`} disabled={Boolean(busy) || i === 0} onClick={() => void move(i, -1)} />
+                          <IconButton size="sm" icon="arrow-down" label={`Move down: ${f.label}`} disabled={Boolean(busy) || i === fields.length - 1} onClick={() => void move(i, 1)} />
+                        </span>
+                      </td>
                       <td className="adm-wrap">
                         <strong>{f.label}</strong>{f.required && <span className="muted"> (required)</span>}
                         <div className="muted adm-small"><code>{f.name}</code>{f.help ? ` · ${f.help}` : ''}</div>

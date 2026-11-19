@@ -1,5 +1,6 @@
 // Policies and exceptions: a policy library with versions, acknowledgment tracking,
 // mapping to framework outcomes, and a register of time-limited exceptions.
+import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
 import { DEFAULT_REMINDER_INTERVAL, REMINDER_SETTING, reminderInterval, runPolicyReminders } from './acknowledgments.ts';
 import { registerAckRoutes } from './ackRoutes.ts';
@@ -69,6 +70,10 @@ const mod: ModuleDef = {
         const n = Number(data.ack_days);
         if (data.ack_days === null || !Number.isInteger(n) || n < 1 || n > 365) invalid({ ack_days: 'Days to acknowledge must be a whole number from 1 to 365.' });
       }
+      if (data.reminder_interval_days !== undefined && data.reminder_interval_days !== null) {
+        const n = Number(data.reminder_interval_days);
+        if (!Number.isInteger(n) || n < 1 || n > 90) invalid({ reminder_interval_days: 'Days between reminders must be a whole number from 1 to 90, or empty for the usual interval.' });
+      }
       void merged;
     }
 
@@ -93,6 +98,8 @@ const mod: ModuleDef = {
         audience_roles: { label: 'Roles that must acknowledge', type: 'json' },
         audience_departments: { label: 'Departments that must acknowledge', type: 'json' },
         ack_days: { label: 'Days to acknowledge', type: 'number', default: 14 },
+        // E10-18: empty uses the module setting (policies.reminder_interval_days).
+        reminder_interval_days: { label: 'Days between reminders (empty: the usual interval)', type: 'number' },
       },
       hooks: {
         beforeCreate: async (_req, data) => {
@@ -129,24 +136,14 @@ const mod: ModuleDef = {
 
     // ---------- daily checks: acknowledgment reminders and exception expiry ----------
 
-    const safeRun = async () => {
-      try {
-        await runExceptionExpiry(ctx);
-        await runPolicyReminders(ctx);
-      } catch (err) {
-        console.error('[policies] daily checks failed:', (err as Error).message);
-      }
-    };
-    let timer: ReturnType<typeof setInterval> | undefined;
-    // Not under the test runner or with a throwaway database: tests call the runs directly.
-    if (!process.env.VITEST && process.env.GRC_DATA_DIR !== 'memory') ctx.app.addHook('onReady', async () => {
-      await safeRun();
-      timer = setInterval(safeRun, DAY);
-      timer.unref();
-    });
-    ctx.app.addHook('onClose', async () => {
-      if (timer) clearInterval(timer);
-    });
+    // Daily on the job queue (Administration > Background jobs); tests call the runs directly.
+    await scheduleWork(ctx, 'policies.daily_checks', async () => {
+      let failed: Error | null = null;
+      const expired = await runExceptionExpiry(ctx).catch((err: Error) => { failed = err; return []; });
+      const reminders = await runPolicyReminders(ctx);
+      if (failed) throw failed;
+      return { exceptionsExpired: expired.length, reminders: reminders.length };
+    }, { every: DAY, firstRunInMs: 60_000 });
   },
 
   seed: (ctx: ModuleContext, opts) => seedPolicies(ctx, opts),

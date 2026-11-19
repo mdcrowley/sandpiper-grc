@@ -1,4 +1,5 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import type { Scales } from './scales.ts';
 
@@ -114,20 +115,13 @@ export function makeLifecycle(ctx: ModuleContext, deps: LifecycleDeps) {
     return result;
   }
 
-  function register(): void {
+  async function register(): Promise<void> {
     const { app } = ctx;
 
     app.post('/api/risks/checks/run', { preHandler: riskPre('administer') }, async () => runChecks());
 
-    // No timers under the test runner or with a throwaway in-memory database.
-    if (!process.env.VITEST && process.env.GRC_DATA_DIR !== 'memory') {
-      const safeRun = () => { runChecks().catch((err) => console.error('[risks] daily check failed:', err)); };
-      const first = setTimeout(safeRun, 90_000);
-      const timer = setInterval(safeRun, 6 * HOUR);
-      first.unref();
-      timer.unref();
-      app.addHook('onClose', async () => { clearTimeout(first); clearInterval(timer); });
-    }
+    // Several times a day on the job queue (Administration > Background jobs); each reminder still goes out once.
+    await scheduleWork(ctx, 'risks.lifecycle', () => runChecks(), { every: 6 * HOUR, firstRunInMs: 90_000 });
 
     // ---------------------------------------------------------------- revoke an acceptance
 

@@ -59,3 +59,11 @@
 
 /* Positioned, so screen-reader-only header text in a far-right column is clipped with the table instead of widening the page. */
 .trn-tw { position: relative; }
+
+/* ---------- step outcomes (E10-17) ---------- */
+.trn-step-finding { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-sm); color: var(--c-green-fg); white-space: nowrap; }
+.trn-stepsbar-wrap { display: grid; gap: 4px; min-width: 160px; }
+.trn-stepsbar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--border); }
+.trn-stepsbar > span { display: block; height: 100%; }
+.trn-stepsbar-none { background: repeating-linear-gradient(45deg, var(--border), var(--border) 3px, transparent 3px, transparent 6px); }
+.trn-stepsbar-text { font-size: var(--fs-sm); color: var(--text-muted); }

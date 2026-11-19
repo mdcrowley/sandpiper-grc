@@ -4,6 +4,8 @@
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { displayDate, localDate } from './dates.ts';
+import { registerEvidenceExpiry } from './evidenceExpiry.ts';
+import { registerResponseLinks } from './responseLinks.ts';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -124,6 +126,9 @@ export async function latestAssessment(ctx: ModuleContext, vendorId: string) {
 
 export function registerAssessments(ctx: ModuleContext) {
   const { db } = ctx;
+  // Vendors answering through a link (E06-21) and one expiry date for evidence (E06-20).
+  registerResponseLinks(ctx);
+  registerEvidenceExpiry(ctx);
 
   const setView = (s: Row) => ({
     id: s.id, version: s.version, title: s.title, active: s.active, created_at: s.created_at, questions: s.questions as Question[],

@@ -20,7 +20,9 @@ const ALGORITHMS = [
 const DETAIL_LABELS: Record<string, string> = {
   issuer: 'Issuer', authorizationEndpoint: 'Sign-in address', tokenEndpoint: 'Token address', jwksUri: 'Key set address',
   signingAlgorithms: 'Signs ID tokens with', keys: 'Signing keys', pkce: 'Offers PKCE (S256)',
+  endSessionEndpoint: 'Sign-out address', backchannelLogout: 'Back-channel sign-out',
 };
+const words = (text: string) => text.split(/[\s,]+/).map((w) => w.trim()).filter(Boolean);
 const lines = (text: string) => text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
 
 export function ProviderEditor({ provider, data, onClose, onSaved }: {
@@ -46,6 +48,12 @@ export function ProviderEditor({ provider, data, onClose, onSaved }: {
   const [mappings, setMappings] = useState<{ value: string; role: string }[]>(c?.mappings?.length ? c.mappings : []);
   const [jitEnabled, setJitEnabled] = useState(c?.jitEnabled ?? false);
   const [domains, setDomains] = useState((c?.jitDomains ?? []).join('\n'));
+  const [providerMfa, setProviderMfa] = useState(c?.providerMfa ?? false);
+  const [mfaAmr, setMfaAmr] = useState((c?.mfaAmr ?? ['mfa']).join(' '));
+  const [mfaAcr, setMfaAcr] = useState((c?.mfaAcr ?? []).join(' '));
+  const [groupsFromUserinfo, setGroupsFromUserinfo] = useState(c?.groupsFromUserinfo ?? false);
+  const [endSession, setEndSession] = useState(c?.endSession ?? false);
+  const [backchannelLogout, setBackchannelLogout] = useState(c?.backchannelLogout ?? false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -69,6 +77,7 @@ export function ProviderEditor({ provider, data, onClose, onSaved }: {
     }
     const rules = mappings.filter((m) => m.value.trim() || m.role);
     if (rules.some((m) => !m.value.trim() || !m.role)) found.mappings = 'Give each rule a group value and a role, or remove it.';
+    if (providerMfa && !words(mfaAmr).length && !words(mfaAcr).length) found.mfaAmr = 'Name at least one amr or acr value that shows a multi-factor sign-in.';
     setErrors(found);
     setFormError('');
     if (Object.keys(found).length) return;
@@ -78,6 +87,7 @@ export function ProviderEditor({ provider, data, onClose, onSaved }: {
         issuer: issuer.trim(), clientId: clientId.trim(), tokenAuth, scopes, algorithms, extraParams, emailClaim: emailClaim.trim(), trustEmail,
         nameClaim: nameClaim.trim(), mappingEnabled, groupsClaim: groupsClaim.trim(), mappings: rules.map((m) => ({ value: m.value.trim(), role: m.role })),
         jitEnabled, jitDomains: lines(domains),
+        providerMfa, mfaAmr: words(mfaAmr), mfaAcr: words(mfaAcr), groupsFromUserinfo, endSession, backchannelLogout,
       },
     };
     if (!provider) { body.key = key; body.type = 'oidc'; }
@@ -184,6 +194,10 @@ export function ProviderEditor({ provider, data, onClose, onSaved }: {
           {mappingEnabled && (
             <>
               <TextField label="Groups claim" required value={groupsClaim} onChange={setGroupsClaim} error={err('groupsClaim')} hint="The claim that lists groups or roles, for example groups or roles. Ask the provider to include it in the ID token." />
+              <Checkbox
+                label="Also read groups from the provider's userinfo address" checked={groupsFromUserinfo} onChange={setGroupsFromUserinfo}
+                hint="For a provider that leaves groups out of the ID token. When a person is in too many groups to list, the userinfo address is asked anyway; if the groups still cannot be had, their roles are left as they are."
+              />
               <div className="adm-mapping" role="group" aria-label="Mapping rules">
                 {mappings.map((m, i) => (
                   <div key={i} className="adm-mapping-row">
@@ -198,6 +212,40 @@ export function ProviderEditor({ provider, data, onClose, onSaved }: {
               </div>
             </>
           )}
+        </fieldset>
+
+        <fieldset className="adm-fieldset">
+          <legend className="adm-legend">Second factor</legend>
+          <Switch label="The provider enforces multi-factor sign-in" checked={providerMfa} onChange={setProviderMfa} />
+          <p className="muted adm-small">
+            Off by default. When on, a sign-in through this provider whose ID token shows a multi-factor sign-in counts as the
+            second factor here, so people who must have one are not asked to set up another. A token that does not show it counts
+            for nothing.
+          </p>
+          {providerMfa && (
+            <>
+              <TextField label="Authentication methods that show it (amr)" value={mfaAmr} onChange={setMfaAmr} error={err('mfaAmr')}
+                hint="Separated by spaces. Usually mfa. Any one of them in the token's amr claim is enough." />
+              <TextField label="Authentication levels that show it (acr)" value={mfaAcr} onChange={setMfaAcr} error={err('mfaAcr')}
+                hint="Optional, separated by spaces: the acr values your provider uses for a multi-factor sign-in. They are also asked for at sign-in." />
+            </>
+          )}
+        </fieldset>
+
+        <fieldset className="adm-fieldset">
+          <legend className="adm-legend">Signing out</legend>
+          <Switch label="Signing out here also signs out at the provider" checked={endSession} onChange={setEndSession} />
+          <p className="muted adm-small">
+            Off by default. When on, signing out sends the browser to the provider's sign-out page, which then returns to this
+            application. Register this return address with the provider:
+          </p>
+          <code className="adm-code-block adm-break">{`${data.callbackBase}/`}</code>
+          <Switch label="Let the provider end sessions here (back-channel sign-out)" checked={backchannelLogout} onChange={setBackchannelLogout} />
+          <p className="muted adm-small">
+            Off by default, and only for a server installation the provider can reach. When a person signs out at the provider,
+            or their directory account is disabled, the provider calls this address and their sessions here end. Register it with the provider:
+          </p>
+          <code className="adm-code-block adm-break">{redirectAddress(data, provider?.key ?? key).replace(/\/callback$/, '/backchannel-logout')}</code>
         </fieldset>
 
         <fieldset className="adm-fieldset">

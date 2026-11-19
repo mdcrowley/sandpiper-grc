@@ -270,6 +270,16 @@ export function compile(
     const simple = !f.related;
     const key = `f.${f.path}`;
     const op = String(c.op ?? '');
+    if (f.def.multiple) {
+      // A multi-choice field (a JSON list of values): has any of, has none of, has none at all, has some.
+      if (op === 'empty' || op === 'nempty') return { sql: `jsonb_array_length(${f.sql}) ${op === 'empty' ? '=' : '>'} 0`, drill: null };
+      if (op !== 'in' && op !== 'nin') throw new SpecError(`${f.label}: that comparison is not available for a field with several values.`, f.path);
+      const values = listValue(c.value, f);
+      const any = `jsonb_exists_any(${f.sql}, ${add(values)}::text[])`;
+      return op === 'in'
+        ? { sql: any, drill: simple && !values.some((v) => v.includes(',')) ? [[key, values.join(',')]] : null }
+        : { sql: `not ${any}`, drill: null };
+    }
     if (op === 'empty' || op === 'nempty') {
       const blank = t === 'text' || t === 'longtext' ? `(${f.sql} is null or ${f.sql}::text = '')` : `${f.sql} is null`;
       return { sql: op === 'empty' ? blank : `not ${blank}`, drill: simple ? [[`${key}.null`, String(op === 'empty')]] : null };
@@ -371,6 +381,7 @@ export function compile(
     const f = resolve(gs?.field);
     const t = f.def.type;
     if (t === 'json' || t === 'longtext') throw new SpecError(`${f.label} cannot be used for grouping.`, f.path);
+    if (f.def.multiple) throw new SpecError(`${f.label} can hold several values for one record, so it cannot be used for grouping. Filter by it instead.`, f.path);
     const isDate = t === 'date' || t === 'datetime';
     let bucket = isDate ? gs.bucket ?? (t === 'datetime' ? 'month' : undefined) : undefined;
     if (gs.bucket !== undefined && (!isDate || !BUCKETS.includes(gs.bucket))) throw new SpecError(`${f.label}: that date grouping is not available.`, f.path);

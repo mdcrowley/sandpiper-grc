@@ -2,6 +2,8 @@
 
 The service desk is where the IT team logs and works on incidents and service requests, tracks the problems behind repeated incidents, keeps a knowledge base, and offers a catalog of standard requests. This page covers each of those, the service desk dashboard and the service desk settings. Lists and record pages work as described in [Getting started](01-getting-started.md).
 
+An administrator can switch the whole service desk off under **Administration > Features** (see [Administration](09-administration.md#features)); the self-service portal then goes too. Its records are kept and return when it is switched back on.
+
 ## Tickets
 
 A ticket is either an **Incident** (something is broken) or a **Service request** (someone needs something). IT staff log tickets on behalf of the colleague who asked; when the [self-service portal](18-self-service-portal.md) is switched on, staff can also raise and follow their own. A ticket raised there shows **Portal** under **How it arrived**, and the **Requester** card notes that the requester sees public comments only.
@@ -22,7 +24,7 @@ Open **Tickets** in the **Service desk** group. Above the list is a row of queue
 | **All open** | Every unresolved ticket |
 | **All** | Every ticket, open or not |
 
-Each queue is an ordinary address, so you can bookmark it or send it to a colleague. The first time you open the list, the queues are also added to your saved views (the **All tickets** menu beside the search box), where you can change them or save your own.
+Each queue is an ordinary address, so you can bookmark it or send it to a colleague. The queues are also offered to every agent as **shared views** of the list (the **All tickets** menu beside the search box), so they are there on any computer you sign in from. An administrator can rename or remove a shared view, and anyone can share a view of their own with the desk. Your own saved views are kept with your account, not only in this browser.
 
 The **Resolution target** column shows the time left on the resolution target, **Overdue by** once it has passed, **Paused** while the clock is stopped, and **Met** or **Missed by** once the ticket is resolved. Badges beside the title mark a **Major** incident, a ticket with a **Vendor**, one waiting for **Approval**, and one that has been **Escalated**. More columns (department, type, category, assignment group, last update) can be switched on with the column chooser.
 
@@ -47,7 +49,8 @@ Each ticket is changed on its own, so the usual rules apply: for example a ticke
 6. Under **Who it is for**, enter the **Requester**: the colleague you are logging this for. Add **Requester department** and **Requester email** if you have them. Use **Affected person** only if it is someone other than the requester.
 7. Under **How serious it is**, choose **Impact** and **Urgency**. The line **Priority from impact and urgency** shows the priority the ticket will get and when it must be responded to and resolved (**Respond by** and **resolve by**), and changes as you choose.
 8. Under **Who works on it**, optionally choose an **Assignment group** and an **Assignee** (**Assign to me** fills in your own name), the **Affected system** and the **Affected asset**. In **How it arrived**, choose how the request reached you, for example **Phone** or **In person**.
-9. Select **Log ticket**, or press **Ctrl** and **Enter**.
+9. If your administrator has added fields of their own to tickets (**Custom fields**), they come last, under their own headings (**More details** unless the field has a section). Fields marked with an asterisk must be filled in.
+10. Select **Log ticket**, or press **Ctrl** and **Enter**.
 
 The ticket gets a reference such as `TKT-00042` and opens. To log several tickets in a row, select **Log and add another**: the form empties and stays open.
 
@@ -148,7 +151,9 @@ Once a score is saved, the card shows it, for example "4 out of 5". Canceled tic
 
 On the **Activity** tab, type in the box and select **Add note** (an internal note, seen by staff only) or switch to **Public comment** first. **Ctrl** and **Enter** also posts. Files such as photos of a fault or a vendor's report go on the **Attachments** tab: select **Choose files**, or drop them on the panel.
 
-A requester following the ticket in the portal sees your **public comments** (and is told about each one) but never your internal notes, and sees only the files they added themselves.
+A requester following the ticket in the portal sees your **public comments** (and is told about each one) but never your internal notes. Of the ticket's files they see the ones they added themselves, and the ones you share with them: the **Files the requester sees** card beside the ticket lists every file with a switch; turn it on to show that file in the portal (the requester is told). The card appears when the ticket has a requester or affected person with an account.
+
+When a ticket arrived by email (see [Email to ticket](#email-to-ticket)), your public comments are also emailed to the requester, with the ticket reference in the subject, so they can answer by replying.
 
 ## Service-level targets
 
@@ -178,7 +183,7 @@ If you change the priority, the deadlines are worked out again from the time the
 
 ### Breaches
 
-A target that passes without being met is a breach. The clock shows **Missed by** and the ticket appears in the **Breaching** queue (for a missed resolution target). The application checks every minute, so a breach shows without reloading the page. A paused ticket is not marked as breached while it waits.
+A target that passes without being met is a breach. The clock shows **Missed by** and the ticket appears in the **Breaching** queue (for a missed resolution target). The clocks count down on the page as you watch; the breach flags that the queues and filters use are set by a check that runs every minute in the background (never by opening a list), so a ticket joins the **Breaching** queue within a minute of its target passing. The dashboard figures count a target that has just passed straight away. A paused ticket is not marked as breached while it waits.
 
 To explain a breach:
 
@@ -204,6 +209,14 @@ Your administrator can set escalation rules, for example "tell the service desk 
 Some catalog items need approval before work starts (as installed, **Vendor access**). A ticket raised from one shows **Waiting for approval** in the strip and sits in the **Awaiting approval** queue. Meanwhile it can be assigned, paused or canceled, but not started or resolved.
 
 People allowed to approve (the `tickets.approve` permission) are told, and see **Approve** and **Reject** on the ticket. Rejecting needs a **Reason**. The decision, who made it and when are shown on the ticket and kept in its history. A rejected request can be canceled, or approved later with **Approve after all**.
+
+An item can ask for more than this (see [Manage catalog items](#manage-catalog-items)):
+
+- **More than one approval.** The strip shows the progress ("1 of 2 approvals so far") and, under it, each decision with its note. The request is approved when enough people have approved, and rejected as soon as anyone rejects. Each person decides once, and may change their mind; an approval given after a rejection overturns it (the rejection stays in the list, marked as no longer counting).
+- **Named approvers.** Only the people named on the item may decide (they also need the permission to approve); others see why they cannot.
+- **Approval for some answers only.** For example, approval only when the answer to "Restricted system?" is **Yes**. Requests with other answers start work at once.
+
+Nobody can approve a request they raised themselves. Each decision is audited.
 
 ## Vendor-held tickets
 
@@ -341,7 +354,9 @@ Open an item to design its form on the **Form and tasks** tab:
 - **Questions**: select **Add question**, write the question, choose the **Answer** (**Short text**, **Long text**, **One of a list**, **Date** or **Yes or no**), list the **Choices** for a list (one on each line), add **Help text** if useful, and check **An answer is required** where needed. The arrows change the order.
 - **Fulfillment tasks**: select **Add task** for each step.
 
-Select **Save form and tasks**. Changes apply to tickets logged afterwards. The **Tickets created** tab lists every ticket started from the item.
+- **Approval**: check **Needs approval before work starts**, then set **Approvals needed** (1 to 5), add people under **Who may approve** (leave it empty for anyone who may approve requests), and, if approval depends on an answer, choose the question under **Only when a question is answered** and tick the **Answers that need approval**.
+
+Select **Save form, tasks and approval**. Changes apply to tickets logged afterwards. The **Tickets created** tab lists every ticket started from the item.
 
 ## Service desk dashboard
 
@@ -399,10 +414,26 @@ Select **New rule** and give it a **Name**, what it waits for (**When an open ti
 
 ### Self-service portal
 
-Switch the portal on and off, set its title, welcome line, service status banner and reopen window, and choose which catalog items staff can ask for. See [Self-service portal](18-self-service-portal.md#settings-for-the-service-desk).
+Switch the portal on and off, set its title, welcome line, service status banner and reopen window, who may raise a request for a colleague, whether staff can report a safety event, and choose which catalog items staff can ask for. See [Self-service portal](18-self-service-portal.md#settings-for-the-service-desk).
+
+### Email to ticket
+
+Off until an administrator sets it up on the **Email to ticket** tab. It needs the `admin.administer` permission because it signs in to a mailbox, and saving asks you to confirm it is you.
+
+1. Under **Where mail comes from**, choose the **Source**:
+   - **Read a mailbox (POP3)**: enter the **Mail server**, **Port**, **Security** (**TLS from the start**, usually port 995, or **STARTTLS**; **None** sends the password in clear text and is only for a mail server on the same machine), **User name** and **Password** (kept encrypted, never shown again), and how often to read it. Messages are removed from the mailbox once read, unless you switch on **Leave messages in the mailbox after reading them** (each is then read once). **Test the saved connection** signs in and counts the messages without reading any; **Read the mailbox now** reads it at once.
+   - **A mail relay hands each message over**: your mail server posts every message for the service desk address to the address shown, with a relay key. Select **Create a relay key** and copy the key straight away: it is shown once. See [Installation](../installation.md#email-to-ticket).
+2. Under **New tickets and replies**, enter the **Service desk address** (replies to messages about these tickets go to it), the **Type of new tickets** and **Assignment group**, what to do with **Messages from people who are not users** (create a ticket with them as an outside requester, or ignore the message), an optional list of domains outside senders must come from, and **Most messages from one sender in an hour**. Choose whether to **Acknowledge each new ticket by email** and **Email public comments to the requester**. Select **Save**.
+3. Switch **Email to ticket switched on**.
+
+What happens to a message:
+
+- A **new message** becomes a ticket with the subject as its title, the text as its description, **Email** as how it arrived, and the sender as the requester: the user with that address, or an outside requester (name and address). Its files are attached after the same checks as any upload (allowed types, content, malware scanner, size). The assignment group, or everyone who works tickets, is told.
+- A **reply** that keeps the ticket reference in its subject (for example "Re: [TKT-00042] Printer offline") is added to that ticket as a **public comment**, without the quoted earlier message, when it comes from the requester, the affected person or an agent. A reply to a ticket **Waiting on requester** hands it back to the desk.
+- **Ignored**: automatic replies (out of office), delivery reports, mailing lists, messages from the service desk's own address or sent by this application, a message received before, and a sender who writes more often than the limit (a mail loop).
+
+**Messages received** lists every message with what became of it and why, and links to the ticket. With outgoing email off (Administration, Email), nothing is emailed back, but tickets are still created.
 
 ## Not available yet
 
-- Creating tickets from email.
 - Formatting in articles.
-- Approval by more than one person, or approval steps that depend on the answers given.

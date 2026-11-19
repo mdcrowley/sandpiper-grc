@@ -12,14 +12,13 @@ import { localDate } from './dates.ts';
 
 export const TRAINING_REMINDER_SETTING = 'training.reminder_interval_days';
 export const DEFAULT_TRAINING_REMINDER = 7;
-const HOUR = 3_600_000;
 /** Above this many items for one person at once, one notification with a count is sent. */
 const ONE_BY_ONE = 3;
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const plain = (d: unknown) => {
   const s = d instanceof Date ? d.toISOString().slice(0, 10) : String(d ?? '');
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
-  return m ? `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]} ${m[1]}` : s;
+  return m ? `${MONTHS[Number(m[2]) - 1]} ${Number(m[3])}, ${m[1]}` : s;
 };
 const name = (r: Row) => [r.ref, r.title].filter(Boolean).join(' ');
 
@@ -60,18 +59,18 @@ export async function notifyTraining(ctx: ModuleContext, now: Date = new Date())
     }
   }
 
-  // Overdue, reminded once per interval.
+  // Overdue, reminded once per interval: the course's own (E10-18), else the module setting.
   const interval = await trainingReminderInterval(ctx);
-  const cutoff = new Date(now.getTime() - interval * 24 * HOUR + HOUR).toISOString();
   const late = await ctx.db.query<Row>(
     `update training_records r set overdue_reminded_at = $1
      from courses c, users u
      where r.deleted_at is null and r.completed_on is null and r.user_id is not null and r.due_on < $2::date
-       and (r.overdue_reminded_at is null or r.overdue_reminded_at <= $3::timestamptz)
+       and (r.overdue_reminded_at is null
+            or r.overdue_reminded_at <= $1::timestamptz - make_interval(days => coalesce(c.reminder_interval_days, $3::int)) + interval '1 hour')
        and c.id = r.course_id and c.deleted_at is null and coalesce(c.status, 'active') = 'active'
        and u.id = r.user_id and u.status = 'active' and u.deleted_at is null
      returning r.id, r.user_id, r.due_on, r.attempted_on, c.ref, c.title`,
-    [now.toISOString(), today, cutoff],
+    [now.toISOString(), today, interval],
   );
   for (const [userId, mine] of byUser(late)) {
     if (mine.length <= ONE_BY_ONE) {

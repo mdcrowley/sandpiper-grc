@@ -6,6 +6,7 @@ import { Section, usePortal } from './parts';
 interface TicketApproval {
   id: string; ref: string; title: string; requester_name: string | null; requester_department: string | null;
   opened_at: string; item_name: string | null; catalog_answers: { label: string; value: string }[];
+  approvals_needed?: number; approvals_given?: number;
 }
 interface ChangeApproval { id: string; ref: string; title: string; planned_start: string | null; risk_level: string | null; retrospective: boolean }
 
@@ -73,6 +74,7 @@ export function Approvals() {
       key: `t${t.id}`, kind: 'request', id: t.id, ref: t.ref, title: t.title,
       lines: [
         `Asked by ${t.requester_name ?? 'someone'}${t.requester_department ? ` (${t.requester_department})` : ''} on ${formatDate(t.opened_at)}`,
+        ...((t.approvals_needed ?? 1) > 1 ? [`Needs ${t.approvals_needed} approvals: ${t.approvals_given ?? 0} given so far`] : []),
         ...t.catalog_answers.slice(0, 4).map((a) => `${a.label}: ${a.value}`),
       ],
     })),

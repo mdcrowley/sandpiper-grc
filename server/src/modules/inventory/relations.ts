@@ -8,7 +8,7 @@ import type { ModuleContext, Row, SessionUser } from '../../core/module.ts';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export type NodeType = 'system' | 'vendor' | 'site' | 'asset' | 'data_category';
+export type NodeType = 'system' | 'vendor' | 'site' | 'asset' | 'data_category' | 'service';
 /** `attrs` carries what the map groups and colors by: criticality, hosting and status of a system; sensitivity of a data category. */
 export interface GraphNode { id: string; type: NodeType; label: string; group: string; route: string | null; ref?: string | null; attrs?: Record<string, string | null> }
 export interface GraphEdge { from: string; to: string; kind: string; label: string; direction?: string }
@@ -106,6 +106,70 @@ export function registerRelations(ctx: ModuleContext) {
     }
     reply.code(201);
     return (await integrationsOf(system.id)).find((r) => r.id === row.id);
+  });
+
+  /**
+   * Changes an integration in place. Body (all optional): { direction, method, notes }, with
+   * `direction` read from this system as on the create route (one_way, inbound, two_way). The
+   * other system cannot change: that is a different integration.
+   */
+  app.patch('/api/systems/:id/integrations/:integrationId', { preHandler: ctx.requirePerm('systems.edit') }, async (req) => {
+    const system = await systemFor(req);
+    const integrationId = (req.params as { integrationId: string }).integrationId;
+    const row = UUID.test(integrationId)
+      ? await db.one<Row>('select * from system_integrations where id = $1 and (from_system_id = $2 or to_system_id = $2)', [integrationId, system.id])
+      : undefined;
+    if (!row) ctx.fail(404, 'not_found', 'Integration not found.');
+    const otherId = row.from_system_id === system.id ? row.to_system_id : row.from_system_id;
+    const other = (await ctx.resources.find('system', otherId, req.user)) ?? ctx.fail(404, 'not_found', 'Integration not found.');
+    const body = (req.body ?? {}) as Row;
+
+    // The direction as this system sees it now, unless the body says otherwise.
+    const current = row.direction === 'two_way' ? 'two_way' : row.from_system_id === system.id ? 'one_way' : 'inbound';
+    const asked = 'direction' in body ? text(body.direction) ?? 'one_way' : current;
+    const inbound = asked === 'inbound';
+    const direction = inbound ? 'one_way' : asked;
+    const allowed = (await ctx.lookups.values('integration_direction')).map((d) => d.value);
+    if (!allowed.includes(direction)) ctx.fail(400, 'validation', 'Check the highlighted fields.', { direction: `"${asked}" is not an allowed direction.` });
+    const method = 'method' in body ? text(body.method) : row.method;
+    if (method && method !== row.method && !(await ctx.lookups.values('integration_method')).some((m) => m.value === method)) {
+      ctx.fail(400, 'validation', 'Check the highlighted fields.', { method: `"${method}" is not an allowed method.` });
+    }
+    const notes = 'notes' in body ? text(body.notes) : row.notes;
+    // A two-way integration keeps the ends it was recorded with; a one-way one runs from sender to receiver.
+    const [fromId, toId] = direction === 'two_way' ? [row.from_system_id, row.to_system_id] : inbound ? [other.id, system.id] : [system.id, other.id];
+    if (fromId === row.from_system_id && toId === row.to_system_id && direction === row.direction && method === row.method && notes === row.notes) {
+      return (await integrationsOf(system.id)).find((r) => r.id === row.id);
+    }
+    const dup = await db.one(
+      `select 1 from system_integrations
+       where id <> $4
+         and ((from_system_id = $1 and to_system_id = $2) or (from_system_id = $2 and to_system_id = $1 and (direction = 'two_way' or $5 = 'two_way')))
+         and coalesce(method, '') = coalesce($3, '')`,
+      [fromId, toId, method, row.id, direction],
+    );
+    if (dup) ctx.fail(409, 'duplicate', 'That integration is already recorded.');
+
+    await db.query(
+      'update system_integrations set from_system_id = $2, to_system_id = $3, direction = $4, method = $5, notes = $6 where id = $1',
+      [row.id, fromId, toId, direction, method, notes],
+    );
+    const before = { from_system_id: row.from_system_id, to_system_id: row.to_system_id, direction: row.direction, method: row.method, notes: row.notes };
+    const after = { from_system_id: fromId, to_system_id: toId, direction, method, notes };
+    const arrow = direction === 'two_way' ? 'both ways with' : inbound ? 'from' : 'to';
+    for (const id of [system.id, other.id]) {
+      await ctx.audit(req, {
+        action: 'system.integration_update', recordType: 'system', recordId: id,
+        summary: `Integration changed: ${system.name} ${arrow} ${other.name}` + (id === system.id ? '' : ` (changed on ${system.name})`),
+        before: { integration_id: row.id, ...before }, after: { integration_id: row.id, ...after },
+      });
+    }
+    return (await integrationsOf(system.id)).find((r) => r.id === row.id);
+  });
+  ctx.describeRoute({
+    method: 'PATCH', path: '/api/systems/:id/integrations/:integrationId', summary: 'Change an integration\'s direction, method or notes',
+    permission: 'systems.edit', body: '{ direction?: one_way | inbound | two_way (as seen from this system), method?, notes? }',
+    description: 'The other system cannot change; remove the integration and add another. Audited on both systems.',
   });
 
   app.delete('/api/systems/:id/integrations/:integrationId', { preHandler: ctx.requirePerm('systems.edit') }, async (req) => {
@@ -339,10 +403,22 @@ export function registerRelations(ctx: ModuleContext) {
         if (r.site_id && nodes.get(r.site_id)?.type === 'site') edges.push({ from: r.id, to: r.site_id, kind: 'location', label: 'located at' });
       }
     }
+    // Services (routes and lines) and the systems they depend on, when the fleet module is loaded
+    // and the caller may see fleet records. The edge runs from the system to the service it serves.
+    if (app.hasDecorator('fleet')) {
+      for (const s of await app.fleet.serviceDependencies(user)) {
+        const deps = s.dependencies.filter((d) => nodes.get(d.system_id)?.type === 'system');
+        if (!deps.length) continue;
+        nodes.set(s.id, { id: s.id, type: 'service', label: s.name, group: 'Services', route: s.route, ref: s.route_code, attrs: { mode: s.mode } });
+        for (const d of deps) {
+          edges.push({ from: d.system_id, to: s.id, kind: 'service', label: d.dependency_label ? `needed for ${d.dependency_label}` : 'needed by' });
+        }
+      }
+    }
     return { nodes: [...nodes.values()], edges };
   }
 
-  /** `focus=<system id>` narrows the graph to that system's neighbourhood (`depth` hops, default 1). */
+  /** `focus=<system id>` narrows the graph to that system's neighborhood (`depth` hops, default 1). */
   app.get('/api/systems/graph', { preHandler: ctx.requirePerm('systems.view') }, async (req) => {
     const query = req.query as Record<string, string>;
     const graph = await buildGraph(req.user);

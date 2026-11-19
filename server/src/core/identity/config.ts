@@ -48,7 +48,33 @@ export function cleanCommonConfig(
   }
   if (jitEnabled && !jitDomains.length) fields.jitDomains = 'Name at least one email domain whose people may get an account, or switch this off.';
 
-  return { config: { mappingEnabled, mappings, jitEnabled, jitDomains, trustEmail }, fields };
+  // E02-22: whether the provider's own multi-factor sign-in counts here, and how its token shows it.
+  const providerMfa = flag('providerMfa');
+  const values = (k: string, fallback: string[], label: string) => {
+    const raw = pick<unknown>(k, fallback);
+    const list = (Array.isArray(raw) ? raw : typeof raw === 'string' ? raw.split(/[\s,]+/) : [])
+      .map((v) => String(v ?? '').trim()).filter(Boolean);
+    if (!Array.isArray(raw) && typeof raw !== 'string') fields[k] = `List the ${label}.`;
+    else if (list.length > 20 || list.some((v) => !/^[\x21-\x7E]{1,200}$/.test(v))) fields[k] = `Use up to 20 ${label}, separated by spaces.`;
+    return [...new Set(list)];
+  };
+  const mfaAmr = values('mfaAmr', ['mfa'], 'authentication method values (amr)');
+  const mfaAcr = values('mfaAcr', [], 'authentication levels (acr)');
+  if (providerMfa && !mfaAmr.length && !mfaAcr.length) fields.mfaAmr = 'Name at least one amr or acr value that shows a multi-factor sign-in.';
+
+  return { config: { mappingEnabled, mappings, jitEnabled, jitDomains, trustEmail, providerMfa, mfaAmr, mfaAcr }, fields };
+}
+
+/**
+ * E02-22: whether a sign-in through this provider counts as a second factor here: the administrator
+ * says the provider enforces multi-factor sign-in AND the token shows it (amr or acr).
+ */
+export function providerMfaSatisfied(config: Partial<CommonProviderConfig>, identity: { amr?: string[]; acr?: string | null }): boolean {
+  if (config.providerMfa !== true) return false;
+  const amr = Array.isArray(identity.amr) ? identity.amr : [];
+  const wantedAmr = Array.isArray(config.mfaAmr) ? config.mfaAmr : ['mfa'];
+  if (amr.some((v) => wantedAmr.includes(v))) return true;
+  return Boolean(identity.acr && Array.isArray(config.mfaAcr) && config.mfaAcr.includes(identity.acr));
 }
 
 /** Whether an email's domain is one of the allowed ones (exact match; subdomains must be listed). */

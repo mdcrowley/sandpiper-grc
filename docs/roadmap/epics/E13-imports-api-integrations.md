@@ -1,6 +1,6 @@
 # E13 Imports, API and integrations
 
-**Status:** in progress
+**Status:** in progress (16 of 20 issues done)
 
 ## Goal
 
@@ -34,17 +34,19 @@ the application in a documented, authenticated way.
 | E13-05 | OpenAPI document | done | P2 |
 | E13-06 | Webhooks | in progress | P3 |
 | E13-07 | CSV import for other record types | done | P2 |
-| E13-08 | Webhook address checks after name resolution | open | P3 |
+| E13-08 | Webhook address checks after name resolution | done | P3 |
 | E13-09 | Describe every module's hand-written routes | done | P3 |
 | E13-10 | Import follow-ups | open | P3 |
 | E13-11 | Stable versioned base path `/api/v1` | done | P2 |
 | E13-12 | ETag and If-Match optimistic concurrency | done | P2 |
 | E13-13 | Idempotency-Key on creates | done | P2 |
-| E13-14 | Request id on every answer and in audit events | in progress | P2 |
+| E13-14 | Request id on every answer and in audit events | done | P2 |
 | E13-15 | Paging links and the error envelope everywhere | done | P3 |
 | E13-16 | Rate-limit headers on token requests | done | P3 |
 | E13-17 | API reference page and integration guide | done | P2 |
 | E13-18 | Capability scopes for tokens (`mcp.use`) | done | P2 |
+| E13-19 | Webhook events other than record changes | open | P3 |
+| E13-20 | Find audit events by request id | open | P3 |
 
 ---
 
@@ -141,7 +143,7 @@ routes), `server/src/core/openapi-cli.ts`, `server/src/modules/admin/docs.ts`,
 
 ### E13-06 Webhooks
 
-**Status:** in progress (server done; screens open) · **Priority:** P3 · **Type:** feature
+**Status:** in progress (server and screens done; events other than record changes open) · **Priority:** P3 · **Type:** feature
 
 As an administrator, I register a URL to be called when chosen events happen (for
 example a ticket is created or a notification clock turns red).
@@ -163,8 +165,9 @@ example a ticket is created or a notification clock turns red).
 - [x] **Webhooks** administration page (list, add, edit, deliveries, retry, test) and the
   two outbound settings on the settings page (web): `web/src/modules/admin/Webhooks.tsx`
   (`/admin/webhooks`), the **Outbound connections** group in `web/src/modules/admin/Settings.tsx`
-- [ ] Events for things other than record changes (for example a notification clock
-  turning red) — needs modules to publish them
+- [ ] Events for things other than record changes (moved to E13-19) (for example a notification clock
+  turning red) — needs modules to publish them; to be split into its own issue (see the
+  wave 4 report: `webhooks.ts` belongs to another work stream)
 
 **Implemented in:** `server/src/core/webhooks.ts`,
 `server/src/core/migrations/003_platform_services.sql`; tests against a local
@@ -203,7 +206,7 @@ types from CSV through the same mapping and dry-run screen that assets have.
 
 ### E13-08 Webhook address checks after name resolution
 
-**Status:** open · **Priority:** P3 · **Type:** improvement
+**Status:** done · **Priority:** P3 · **Type:** improvement
 
 As a security lead, a webhook cannot be used to reach an internal address through a
 host name on the allow-list that resolves somewhere unexpected. Today the allow-list is
@@ -211,9 +214,16 @@ checked against the host name only. Found while building E13-06.
 
 **Acceptance criteria**
 
-- [ ] The resolved address is checked at connection time, and private, loopback and
-  link-local addresses are refused unless that exact address is on the allow-list
-- [ ] The refusal is recorded on the delivery as `blocked`
+- [x] The resolved address is checked at connection time, and private, loopback and
+  link-local addresses are refused unless that exact address is on the allow-list (also
+  carrier-grade NAT, multicast, documentation and other reserved ranges, IPv4 and IPv6, IPv4
+  carried in IPv6; every address a name resolves to is checked, and the connection goes to the
+  checked addresses only)
+- [x] The refusal is recorded on the delivery as `blocked`, with the name and the address
+
+**Implemented in:** `nonPublicAddress`, `addressListed`, `addressRefusal`, `postWebhook` (`server/src/core/webhooks.ts`,
+deliveries now sent with `node:http`/`node:https` and a checking name lookup); tests "webhook addresses are checked
+after name resolution" in `server/src/modules/admin/security.test.ts`
 
 ### E13-09 Describe every module's hand-written routes
 
@@ -281,12 +291,16 @@ As an integrator, I call a documented, versioned path that will not change under
 
 ### E13-14 Request id on every answer and in audit events
 
-**Status:** in progress · **Priority:** P2 · **Type:** feature
+**Status:** done · **Priority:** P2 · **Type:** feature
 
 - [x] Every answer carries `X-Request-Id` (the caller's when it is sensible, else a UUID),
   available to code as `req.requestId`
-- [ ] Audit events record the request id: needs a `request_id` column on `audit_events` (a new
-  core migration) and `req?.requestId` in `makeAudit` (`core/services.ts`), owned by core
+- [x] Audit events record the request id (`audit_events.request_id`, core migration 005;
+  `makeAudit` in `core/services.ts`)
+- [x] The MCP endpoint answers with it too, passes it to every in-process tool call (so the
+  changes an assistant makes carry the `/mcp` request's id) and records it in the call log
+
+**Implemented in:** `server/src/core/api/versioning.ts`, `server/src/core/migrations/005_audit_request_id.sql`, `server/src/core/services.ts`; `server/src/modules/mcp/http.ts`, `caller.ts`, `migrations/002_oauth_and_tool_choice.sql`; tests `server/src/core/api/conventions.test.ts`, `server/src/modules/mcp/access.test.ts`
 
 ### E13-15 Paging links and the error envelope everywhere
 
@@ -331,3 +345,28 @@ administrators could put it in a token.
   add no access to records; `GET /api/me/tokens` lists them in `scopeFamilies`
 - [ ] The token screen offers `scopeFamilies` (web, admin module) and the MCP module may stop
   issuing its own tokens (`POST /api/mcp/tokens`)
+
+### E13-19 Webhook events other than record changes
+
+**Status:** open · **Priority:** P3 · **Type:** feature
+
+Webhooks are sent when records are created, changed or deleted. An integrator may also want
+events that are not record changes, for example a notification clock about to run out or a
+backup failing. Split from E13-06.
+
+**Acceptance criteria**
+
+- [ ] A list of non-record events a webhook can subscribe to, each with a documented payload
+- [ ] Restricted-record rules apply to them as to record events
+
+### E13-20 Find audit events by request id
+
+**Status:** open · **Priority:** P3 · **Type:** improvement
+
+Every answer carries an `X-Request-Id` and audit events store it, but the audit search cannot
+filter by it, and the CSV export leaves it out.
+
+**Acceptance criteria**
+
+- [ ] `GET /api/audit?request_id=` returns the events of one request (documented in the API description)
+- [ ] The CSV export has `token_name` and `request_id` columns

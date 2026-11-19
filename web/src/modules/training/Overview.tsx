@@ -118,7 +118,7 @@ export function TrainingOverview() {
     grid: { top: 16, right: 16, bottom: 28, left: 8, containLabel: true },
     xAxis: {
       type: 'category',
-      data: (data?.trend ?? []).map((p) => new Date(`${p.month}-01T00:00:00Z`).toLocaleDateString('en-GB', { month: 'short', year: '2-digit', timeZone: 'UTC' })),
+      data: (data?.trend ?? []).map((p) => new Date(`${p.month}-01T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', year: '2-digit', timeZone: 'UTC' })),
     },
     yAxis: { type: 'value', minInterval: 1 },
     series: [{

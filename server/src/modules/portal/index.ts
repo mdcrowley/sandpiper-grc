@@ -53,6 +53,8 @@ const mod: ModuleDef = {
       return {
         enabled, allowed, title: s.title, intro: s.intro, banner: s.banner, reopen_days: s.reopen_days,
         can_create: ctx.can(req.user, 'portal.create'),
+        // E15-12: who I may raise a request for (nobody, my department, anyone).
+        on_behalf: ctx.can(req.user, 'portal.create') ? s.on_behalf : 'nobody',
         files: files.available(),
         has: {
           assets: Boolean(ctx.resources.get('asset')),
@@ -60,6 +62,8 @@ const mod: ModuleDef = {
           policies: Boolean(ctx.resources.get('policy')),
           changes: Boolean(ctx.resources.get('change')) && ctx.can(req.user, 'changes.approve'),
           ticket_approvals: ctx.can(req.user, 'tickets.approve'),
+          // E20-13: reporting a safety event (the safety module adds the routes).
+          safety: Boolean(ctx.resources.get('safety_event')) && s.safety_reports && ctx.can(req.user, 'portal.create'),
         },
         affects: AFFECTS.map(({ value, label }) => ({ value, label })),
         urgency: URGENCY.map(({ value, label }) => ({ value, label })),
@@ -148,16 +152,25 @@ const mod: ModuleDef = {
     app.get('/api/portal/approvals', view, async (req) => {
       if (!ctx.can(req.user, 'tickets.approve')) return { rows: [] };
       const rows = await db.query<Row>(
-        `select t.id, t.ref, t.title, t.requester_name, t.requester_department, t.opened_at, t.catalog_answers, c.name as item_name
+        `select t.id, t.ref, t.title, t.requester_name, t.requester_department, t.opened_at, t.catalog_answers, c.name as item_name,
+                coalesce(t.approvals_needed, 1) as approvals_needed,
+                (select count(distinct a.user_id)::int from ticket_approvals a where a.ticket_id = t.id and not a.superseded and a.decision = 'approved'
+                   and not exists (select 1 from ticket_approvals b where b.ticket_id = t.id and b.user_id = a.user_id and not b.superseded and b.decided_at > a.decided_at)) as approvals_given
          from tickets t left join catalog_items c on c.id = t.catalog_item_id
          where t.deleted_at is null and t.approval_status = 'pending' and t.requester_id is distinct from $1
+           and (t.approver_ids is null or jsonb_array_length(t.approver_ids) = 0 or t.approver_ids ? $1::text)
+           and not exists (select 1 from ticket_approvals m where m.ticket_id = t.id and m.user_id = $1 and not m.superseded)
            and ${ctx.resources.visibleWhere('ticket', req.user, 't')}
          order by t.opened_at limit 100`, [req.user!.id]);
       return {
         rows: rows.map((r) => ({ ...r, catalog_answers: ((r.catalog_answers ?? []) as Row[]).map((a) => ({ label: a.label, value: a.value })) })),
       };
     });
-    ctx.describeRoute({ method: 'GET', path: '/api/portal/approvals', permission: 'portal.view', summary: 'Requests waiting for my approval (people who may approve service requests)' });
+    ctx.describeRoute({
+      method: 'GET', path: '/api/portal/approvals', permission: 'portal.view',
+      summary: 'Requests waiting for my approval (people who may approve service requests, named approvers only where an item names them; requests I have already decided are left out)',
+      response: '{ rows: [{ id, ref, title, requester_name, item_name, catalog_answers, approvals_needed, approvals_given }] }',
+    });
 
     registerRequests(ctx, access, files);
 

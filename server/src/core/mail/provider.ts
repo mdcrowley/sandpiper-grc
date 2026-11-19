@@ -26,6 +26,12 @@ export interface OutgoingMessage {
   text: string;
   html?: string;
   attachments?: MailAttachment[];
+  /**
+   * Extra header lines. Every message carries `Auto-Submitted: auto-generated` and
+   * `X-GRC-Mail`, so that auto-replies are suppressed and the application never takes its own
+   * messages back in as tickets (E15-06); callers may add `References` to thread a conversation.
+   */
+  headers?: Record<string, string>;
 }
 
 export interface MailResult {
@@ -107,7 +113,7 @@ registerMailProvider('smtp', (config, secret) => {
     async send(m) {
       try {
         const info = await transport.sendMail({
-          from: m.from, to: m.to, replyTo: m.replyTo || undefined, subject: m.subject, text: m.text, html: m.html,
+          from: m.from, to: m.to, replyTo: m.replyTo || undefined, subject: m.subject, text: m.text, html: m.html, headers: m.headers,
           attachments: m.attachments?.map((a) => ({ filename: a.filename, content: Buffer.from(a.contentBase64, 'base64'), contentType: a.contentType })),
           disableUrlAccess: true, disableFileAccess: true,
         });

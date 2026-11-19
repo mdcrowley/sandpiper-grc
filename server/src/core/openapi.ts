@@ -5,6 +5,7 @@ import { looseShape } from './api/shape.ts';
 import { deprecationFor, installVersioning, isVersioned, V1, versioned } from './api/versioning.ts';
 import { DEFAULT_APP_NAME } from './config.ts';
 import type { CustomFields } from './customfields.ts';
+import type { FeatureGate } from './features.ts';
 import type { FieldDef, RouteDoc, SessionUser } from './module.ts';
 import type { makeResources } from './resource.ts';
 import { can, type makeSettings } from './services.ts';
@@ -34,6 +35,8 @@ interface Deps {
   res: ReturnType<typeof makeResources>;
   custom: CustomFields;
   settings: ReturnType<typeof makeSettings>;
+  /** Feature switches: routes of switched-off parts are left out for everyone (core/features.ts). */
+  gate?: FeatureGate;
 }
 
 export interface BuildOptions {
@@ -144,6 +147,7 @@ export function makeOpenApi(app: FastifyInstance) {
 
     for (const r of routes) {
       if (generated.has(key(r.method, r.url))) continue;
+      if (deps.gate?.routeOff(r.url, deps.gate.moduleOf(r.url))) continue;
       // A deprecated alias of a renamed route is described like the route it stands for.
       const renamedTo = deprecationFor(r.method, r.url)?.replacement;
       const doc = docs.get(key(r.method, r.url)) ?? (renamedTo ? docs.get(key(r.method, renamedTo)) : undefined);

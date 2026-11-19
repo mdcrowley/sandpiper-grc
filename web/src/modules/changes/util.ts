@@ -32,8 +32,8 @@ export function addMonths(day: string, n: number): string {
 
 export const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-const monthFmt = new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
-const dayFmt = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+const monthFmt = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+const dayFmt = new Intl.DateTimeFormat('en-US', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
 export const monthLabel = (day: string): string => monthFmt.format(new Date(`${day}T00:00:00Z`));
 export const dayLabel = (day: string): string => dayFmt.format(new Date(`${day}T00:00:00Z`));
 /** "14:05" */

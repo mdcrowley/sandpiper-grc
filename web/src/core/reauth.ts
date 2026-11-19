@@ -1,0 +1,143 @@
+// Confirming who you are before sensitive actions.
+//
+// The server refuses those actions with 403 `reauth_required` unless the password was proved in this
+// session within the last few minutes. `withReauth` turns that refusal into a prompt, in place: it asks
+// for the password, confirms it with POST /api/auth/confirm, and runs the action again. A person with
+// a second factor is then asked for it too (E01-29): a code from the authenticator app, a recovery
+// code, or their passkey or security key.
+//
+// The prompt is a native <dialog> built here rather than a component, so it can be opened from any
+// event handler without a host element in every page. It is styled in reauth.css from the design tokens.
+import { api, ApiError, errorMessage } from './api';
+import { browserKeyError, getAssertion, passkeysSupported } from './webauthn';
+import './reauth.css';
+
+let open: Promise<boolean> | null = null;
+
+/** Asks for the password (and the second factor when the person has one) until confirmed (true) or canceled (false). */
+function askPassword(): Promise<boolean> {
+  if (open) return open; // one prompt at a time, shared by concurrent callers
+  open = new Promise<boolean>((resolve) => {
+    const dialog = document.createElement('dialog');
+    dialog.className = 'adm-reauth';
+    dialog.setAttribute('aria-labelledby', 'adm-reauth-title');
+    dialog.innerHTML = `
+      <form method="dialog" class="adm-reauth-form" novalidate>
+        <h2 id="adm-reauth-title">Confirm it is you</h2>
+        <p id="adm-reauth-text">This change affects who can do what, so we need to check it is really you. You will not be asked again for a few minutes.</p>
+        <label class="adm-reauth-label" for="adm-reauth-password">Your password</label>
+        <input id="adm-reauth-password" class="adm-reauth-input" type="password" autocomplete="current-password" aria-describedby="adm-reauth-text adm-reauth-error" required />
+        <div class="adm-reauth-factor" hidden>
+          <label class="adm-reauth-label" for="adm-reauth-code">6-digit code or recovery code</label>
+          <input id="adm-reauth-code" class="adm-reauth-input" type="text" autocomplete="one-time-code" spellcheck="false" aria-describedby="adm-reauth-code-hint adm-reauth-error" />
+          <p id="adm-reauth-code-hint" class="adm-reauth-hint"></p>
+          <button type="button" class="adm-reauth-button adm-reauth-key" data-act="key" hidden>Use your passkey or security key</button>
+        </div>
+        <p id="adm-reauth-error" class="adm-reauth-error" role="alert"></p>
+        <div class="adm-reauth-actions">
+          <button type="button" class="adm-reauth-button" data-act="cancel">Cancel</button>
+          <button type="submit" class="adm-reauth-button adm-reauth-primary">Confirm and continue</button>
+        </div>
+      </form>`;
+    const form = dialog.querySelector('form')!;
+    const input = dialog.querySelector<HTMLInputElement>('#adm-reauth-password')!;
+    const factor = dialog.querySelector<HTMLElement>('.adm-reauth-factor')!;
+    const code = dialog.querySelector<HTMLInputElement>('#adm-reauth-code')!;
+    const codeLabel = dialog.querySelector<HTMLLabelElement>('label[for="adm-reauth-code"]')!;
+    const codeHint = dialog.querySelector<HTMLElement>('#adm-reauth-code-hint')!;
+    const keyButton = dialog.querySelector<HTMLButtonElement>('[data-act="key"]')!;
+    const error = dialog.querySelector<HTMLElement>('#adm-reauth-error')!;
+    const submit = dialog.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+    let asking = false; // the second-factor step is showing
+    const finish = (ok: boolean) => {
+      if (!open) return;
+      open = null;
+      dialog.close();
+      dialog.remove();
+      resolve(ok);
+    };
+
+    /** The password was right; the server wants the second factor too. */
+    const askSecondFactor = (fields: Record<string, string>) => {
+      asking = true;
+      factor.hidden = false;
+      const app = fields.totp === 'available';
+      codeLabel.textContent = app ? '6-digit code or recovery code' : 'Recovery code';
+      codeHint.textContent = app
+        ? 'From your authenticator app. A recovery code also works.'
+        : 'Use your passkey or security key, or enter one of your recovery codes.';
+      keyButton.hidden = !(fields.passkey === 'available' && passkeysSupported());
+      input.readOnly = true;
+      error.textContent = '';
+      (keyButton.hidden ? code : keyButton).focus();
+    };
+
+    const confirm = (extra: Record<string, unknown>) => {
+      submit.disabled = true;
+      keyButton.disabled = true;
+      error.textContent = '';
+      return api.post('/api/auth/confirm', { password: input.value, ...extra }).then(
+        () => finish(true),
+        (err: unknown) => {
+          submit.disabled = false;
+          keyButton.disabled = false;
+          if (err instanceof ApiError && err.code === 'second_factor_required') { askSecondFactor(err.fields); return; }
+          if (err instanceof ApiError && err.fields.password) {
+            error.textContent = err.fields.password;
+            input.readOnly = false;
+            input.select();
+            return;
+          }
+          error.textContent = err instanceof ApiError && err.fields.code ? err.fields.code : errorMessage(err);
+          if (asking) code.select();
+        },
+      );
+    };
+
+    dialog.querySelector('[data-act="cancel"]')!.addEventListener('click', () => finish(false));
+    dialog.addEventListener('cancel', (e) => { e.preventDefault(); finish(false); }); // the browser's own close request
+    dialog.addEventListener('keydown', (e) => {
+      e.stopPropagation(); // keys typed here are not for a dialog underneath
+      if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+    });
+    keyButton.addEventListener('click', () => {
+      keyButton.disabled = true;
+      error.textContent = '';
+      api.post('/api/auth/webauthn/confirm/options')
+        .then((options) => getAssertion(options))
+        .then((webauthn) => confirm({ webauthn }))
+        .catch((err: unknown) => {
+          keyButton.disabled = false;
+          error.textContent = browserKeyError(err) ?? errorMessage(err);
+        });
+    });
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (!input.value) { error.textContent = 'Enter your password.'; input.focus(); return; }
+      if (asking && !code.value.trim()) { error.textContent = 'Enter a code, or use your passkey or security key.'; code.focus(); return; }
+      void confirm(asking ? { code: code.value.trim() } : {});
+    });
+    document.body.appendChild(dialog);
+    dialog.showModal(); // traps focus and returns it to the button that started the action when closed
+    input.focus();
+  });
+  return open;
+}
+
+/** Runs `action`; when the server asks for the password again, prompts in place and then continues. */
+export async function withReauth<T>(action: () => Promise<T>): Promise<T> {
+  try {
+    return await action();
+  } catch (err) {
+    if (!(err instanceof ApiError) || err.code !== 'reauth_required') throw err;
+    if (!(await askPassword())) throw new ApiError(403, 'reauth_cancelled', 'Nothing was changed: your identity was not confirmed.');
+    return action();
+  }
+}
+
+/** The api client for administration screens: the same calls, with the confirmation prompt when needed. */
+export const adminApi = {
+  post: <T = unknown>(url: string, body?: unknown) => withReauth(() => api.post<T>(url, body)),
+  patch: <T = unknown>(url: string, body?: unknown) => withReauth(() => api.patch<T>(url, body)),
+  del: <T = unknown>(url: string) => withReauth(() => api.del<T>(url)),
+};

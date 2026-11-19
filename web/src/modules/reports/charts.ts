@@ -39,7 +39,7 @@ export function buildChart(kind: ChartKind, result: ReportResult, measureIndex =
   const measure: ResultColumn = aggs[Math.min(measureIndex, aggs.length - 1)] ?? aggs[0];
   if (!measure) return null;
   const fmt = (v: unknown) => (typeof v !== 'number' ? '' : measure.fn === 'pct' ? `${formatNumber(v)}%` : measure.type === 'currency' ? formatCurrency(v) : formatNumber(v));
-  const valueAxis = { type: 'value', minInterval: measure.fn === 'count' ? 1 : undefined, axisLabel: { formatter: (v: number) => (Math.abs(v) >= 10000 ? new Intl.NumberFormat('en-GB', { notation: 'compact' }).format(v) : formatNumber(v)) } };
+  const valueAxis = { type: 'value', minInterval: measure.fn === 'count' ? 1 : undefined, axisLabel: { formatter: (v: number) => (Math.abs(v) >= 10000 ? new Intl.NumberFormat('en-US', { notation: 'compact' }).format(v) : formatNumber(v)) } };
   const tip = { valueFormatter: fmt };
   const description = `${measure.label} by ${dims.map((d) => d.label.toLowerCase()).join(' and ')}.`;
 
@@ -100,8 +100,9 @@ export function buildChart(kind: ChartKind, result: ReportResult, measureIndex =
       description, drillFor,
       option: {
         tooltip: { trigger: line ? 'axis' : 'item', ...tip },
-        grid: { top: 16, right: 16, bottom: names.some((n) => n.length > 12) && names.length > 5 ? 56 : 32, left: 52 },
-        xAxis: { type: 'category', data: names, boundaryGap: !line, axisLabel: { interval: names.length <= 12 ? 0 : 'auto', rotate: names.some((n) => n.length > 12) && names.length > 5 ? 30 : 0, width: 110, overflow: 'truncate', hideOverlap: names.length > 12 } },
+        grid: { top: 16, right: 16, bottom: 32, left: 52 },
+        // The chart fits the category labels to the room each one has (wrapped, or tilted and shortened).
+        xAxis: { type: 'category', data: names, boundaryGap: !line },
         yAxis: valueAxis,
         series: [{
           type: line ? 'line' : 'bar', name: measure.label, data: line ? data.map((d) => d.value) : data,
@@ -112,6 +113,8 @@ export function buildChart(kind: ChartKind, result: ReportResult, measureIndex =
   }
 
   // ---------- two fields ----------
+  // Series (and heat-map columns) follow the second field's natural order from the server (a list's
+  // configured order, dates in time order), not the order the values happened to be met in.
   const rowKeys: string[] = [];
   const colKeys: { name: string; color?: string }[] = [];
   const cell = new Map<string, ResultRow>();
@@ -124,6 +127,8 @@ export function buildChart(kind: ChartKind, result: ReportResult, measureIndex =
     if (!colKeys.some((c) => c.name === r.d.g1)) colKeys.push({ name: r.d.g1, color: r.c?.g1 });
     cell.set(`${r.d.g0}\u0001${r.d.g1}`, r);
   }
+  const natural = dims[1]?.values;
+  if (natural?.length && !result.pivot) colKeys.sort((a, b) => natural.indexOf(a.name) - natural.indexOf(b.name));
   const at = (row: string, col: string) => cell.get(`${row}\u0001${col}`);
   const drillFor: BuiltChart['drillFor'] = (seg) => (seg.seriesName && seg.seriesName !== OTHER ? at(seg.name, seg.seriesName)?.drill ?? null : null);
 
@@ -139,7 +144,7 @@ export function buildChart(kind: ChartKind, result: ReportResult, measureIndex =
       option: {
         tooltip: { trigger: 'item', formatter: (p: { data: [number, number, number] }) => `${rowKeys[p.data[1]]} · ${colKeys[p.data[0]].name}<br><strong>${fmt(p.data[2])}</strong>` },
         grid: { top: 8, right: 12, bottom: 44, left: Math.round(longest * 6.4) + 16 },
-        xAxis: { type: 'category', data: colKeys.map((c) => c.name), position: 'bottom', splitArea: { show: false }, axisLabel: { interval: 0, width: 90, overflow: 'truncate', rotate: colKeys.length > 6 ? 30 : 0 }, axisLine: { show: false } },
+        xAxis: { type: 'category', data: colKeys.map((c) => c.name), position: 'bottom', splitArea: { show: false }, axisLine: { show: false } },
         yAxis: { type: 'category', inverse: true, data: rowKeys, axisLine: { show: false }, axisLabel: { width: longest * 6.4, overflow: 'truncate' } },
         // Sequential: one hue from the surface up, so "more" always reads darker (lighter in the dark theme).
         visualMap: { show: false, min: 0, max, inRange: { color: ['var(--surface-2)', 'var(--series-1)'] } },
@@ -164,7 +169,7 @@ export function buildChart(kind: ChartKind, result: ReportResult, measureIndex =
     option: {
       tooltip: { trigger: 'axis', axisPointer: { type: line ? 'line' : 'shadow' }, ...tip },
       legend: {},
-      xAxis: { type: 'category', data: rowKeys, boundaryGap: !line, axisLabel: { width: 110, overflow: 'truncate', rotate: rowKeys.some((n) => n.length > 12) && rowKeys.length > 5 ? 30 : 0 } },
+      xAxis: { type: 'category', data: rowKeys, boundaryGap: !line },
       yAxis: valueAxis,
       series: series.map((s) => ({
         type: line ? 'line' : 'bar', name: s.name, data: s.values,

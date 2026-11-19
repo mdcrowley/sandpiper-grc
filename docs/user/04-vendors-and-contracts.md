@@ -2,6 +2,8 @@
 
 This part of the application records the organizations that supply you (scheduling software, fare collection, vehicle location services and so on), the contracts you hold with them, the security terms those contracts contain, the assurance evidence vendors send, your own security assessment of each vendor, and the dates by which you must decide whether to renew. Lists and record pages work as described in [Getting started](01-getting-started.md).
 
+An administrator can switch vendors and contracts off under **Administration > Features** if your organization does not use them here (see [Administration](09-administration.md#features)). Records are kept and return when it is switched back on.
+
 ## Vendors
 
 Open **Vendors** in the **Vendors** group. Besides the usual columns, the list shows:
@@ -220,9 +222,18 @@ To see everything that needs chasing, open **Expiring evidence** in the **Vendor
 3. The items are listed in those groups, soonest first, each with its date, vendor, type and how long is left. Select the evidence to open it, or the vendor to open its **Evidence** tab.
 4. Ask the vendor for a current copy. When it arrives, record it as a new evidence item so the old one remains as history.
 
+### One expiry date for the item and its file
+
+An evidence item has its own **Expires on** date, and a file attached to it as evidence may carry another. Only the item's date drives the reminders and the lists above. When the two disagree (for example, you attach a renewed certificate that runs a year longer, or the item has no date but the file does), the evidence page shows **The expiry dates do not agree**, with each date. With **Edit** on vendors:
+
+- **Use … for the item** copies that file's date onto the evidence item; its reminders are planned again from the new date.
+- **Set the file to …** (or **the files**) copies the item's date onto its evidence files.
+
+The notice appears as soon as a file with another date is attached, and both changes are recorded in the item's history.
+
 ## Vendor assessments
 
-A vendor assessment is a set of security questions that you work through for a vendor, from a call with them or from what they have sent. Each question is answered **Yes**, **Partly**, **No** or **Not applicable**, and the answers give a score out of 100 and a list of gaps. The vendor does not sign in; you record the answers.
+A vendor assessment is a set of security questions that you work through for a vendor, from a call with them or from what they have sent. Each question is answered **Yes**, **Partly**, **No** or **Not applicable**, and the answers give a score out of 100 and a list of gaps. The vendor never signs in: you record the answers, or, when an administrator has switched it on, you send the vendor a link to answer for themselves and then review what they said.
 
 ### Assess a vendor
 
@@ -234,6 +245,18 @@ A vendor assessment is a set of security questions that you work through for a v
 6. When every question is answered, set **Assessed on** and select **Complete assessment**.
 
 If **Save as an evidence item** is checked (it is, unless you cannot add evidence), a **Questionnaire** evidence item is added for the vendor with the score and the number of gaps. **Evidence expires on** is optional: use it for when the vendor should be assessed again, so the expiry reminders prompt you.
+
+### The vendor answers through a link
+
+When **Let vendors answer through a link** is on (see below), a draft assessment shows **Vendor's own answers** at the top:
+
+1. Select **Create link**. Optionally say **Who it is for**, and how many **Days it works** (the default is set by the administrator, at most 90).
+2. Copy the link with **Copy link** and send it to your contact at the vendor. It is shown **only once**; if it is lost, create a new link (the earlier one then stops working).
+3. The vendor opens the link without an account, answers each question (with a note where it helps), can **Save and finish later** while the link lasts, and finally **Send answers** with their name. Every question must be answered first.
+4. The panel shows whether the link has been opened, how many questions are answered so far, and when the answers were sent. Whoever created the link is notified when they are sent.
+5. Under **answers from the vendor to review**, each answer that differs from the assessment is listed. **Take over** copies one into the assessment, **Take over all** copies them all. Nothing the vendor says counts until you take it over, and you can still change any answer before you **Complete assessment**.
+
+**Withdraw link** stops a link at once; answers already saved stay for review. A link also stops working when it expires, when the assessment is completed or discarded, and when the feature is switched off. The vendor sees the questions, their guidance and their own answers only: never the weights, the score or your answers. Opening, sending, creating and withdrawing links, and taking answers over, are recorded in the vendor's history. The link's page refuses too many requests from one address.
 
 ### Scores and gaps
 
@@ -252,6 +275,11 @@ Open **Assessment questions** on the vendor list, or on the **Assessment** tab. 
 3. Select **Save as version …**.
 
 Each save makes a new version. New assessments use the latest version; completed assessments keep the version they were answered against. The **Versions** card lists every version.
+
+The **Vendors answering for themselves** card (people who administer vendors can change it) has:
+
+- **Let vendors answer through a link**: off as installed. Switching it off stops every open link.
+- **Days a new link works**: from 1 to 90, 14 as installed. Staff can choose another length for each link.
 
 ## The renewal calendar and reminders
 
@@ -309,4 +337,5 @@ Each value must be a whole number of days from 1 to 3650, with no repeats and at
 
 - Email delivery of reminders. They arrive as in-application notifications.
 - Approval steps for signing or renewing a contract.
-- A vendor's own sign-in. Vendors have no access and do not fill in assessments themselves; staff record everything.
+- A vendor's own sign-in. Vendors can answer an assessment through a link, but cannot see anything else; the link is not emailed by the application (staff send it).
+- A vendor attaching files (certificates, reports) through the link.

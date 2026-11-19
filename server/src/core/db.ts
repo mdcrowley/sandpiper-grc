@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { PGlite } from '@electric-sql/pglite';
+import { pg_trgm } from '@electric-sql/pglite/contrib/pg_trgm';
 import pg from 'pg';
 import { TIME_ZONE } from './timezone.ts';
 
@@ -164,20 +165,100 @@ async function prepareParams(client: pg.ClientBase, sql: string, params: unknown
 }
 
 // ---------------------------------------------------------------------------------------------
+// Slow statement log (E16-36)
+
+/**
+ * `GRC_SLOW_QUERY_MS`: statements that take this many milliseconds or longer are written to the
+ * error log with their time and text (never their parameter values, which can hold personal
+ * data). Unset or 0: off.
+ */
+export function slowQueryMs(): number {
+  const n = Number(process.env.GRC_SLOW_QUERY_MS ?? 0);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/** A wrapper that runs a statement and logs it when it was slow (see slowQueryMs). */
+export function slowStatementLog(threshold = slowQueryMs(), log: (line: string) => void = (l) => console.warn(l)) {
+  return async <T>(sql: string, work: () => Promise<T>): Promise<T> => {
+    if (!threshold) return work();
+    const started = performance.now();
+    try {
+      return await work();
+    } finally {
+      const ms = performance.now() - started;
+      if (ms >= threshold) log(`[db] slow statement, ${Math.round(ms)} ms: ${sql.replace(/\s+/g, ' ').trim().slice(0, 500)}`);
+    }
+  };
+}
+
+// ---------------------------------------------------------------------------------------------
 // Embedded driver
 
-function wrapLite(q: { query: Function; exec: Function }): Queryable {
+/** Extensions loaded into the embedded database: pg_trgm indexes substring search (migration 009). */
+const EXTENSIONS = { pg_trgm };
+
+const WRITE_RE = /^\s*(insert|update|delete)\b/i;
+
+function wrapLite(q: { query: Function; exec: Function }, onWrite?: () => void): Queryable {
+  const timed = slowStatementLog();
   return {
     async query<T>(sql: string, params: unknown[] = []) {
-      const res = await q.query(sql, params);
+      const res: any = await timed(sql, () => q.query(sql, params));
+      if (onWrite && WRITE_RE.test(sql)) onWrite();
       return res.rows as T[];
     },
     async one<T>(sql: string, params: unknown[] = []) {
-      const res = await q.query(sql, params);
+      const res: any = await timed(sql, () => q.query(sql, params));
+      if (onWrite && WRITE_RE.test(sql)) onWrite();
       return res.rows[0] as T | undefined;
     },
     async exec(sql: string) {
-      await q.exec(sql);
+      await timed(sql, () => q.exec(sql));
+      onWrite?.();
+    },
+  };
+}
+
+/**
+ * Planner statistics for the embedded database (E16-36). PGlite runs no autovacuum, so without
+ * this its tables are never analyzed and the planner guesses every row count (21 rows for a table
+ * of 6,000), choosing poor plans as the data grows. `analyze` reads a bounded sample of each
+ * table (under a second at 30,000 records). It runs shortly after the database opens, then again
+ * after every `GRC_ANALYZE_AFTER_WRITES` write statements (default 2,000; 0 switches it off), at
+ * most once every ten minutes. A PostgreSQL server does this itself (autovacuum).
+ */
+export function makeAutoAnalyze(run: () => Promise<void>, opts: { every?: number; minGapMs?: number; firstAfterMs?: number } = {}) {
+  const every = opts.every ?? intSetting('GRC_ANALYZE_AFTER_WRITES', 2000);
+  const minGapMs = opts.minGapMs ?? 10 * 60_000;
+  let writes = 0;
+  let last = 0;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let running: Promise<void> | null = null;
+  let closed = false;
+  const fire = () => {
+    timer = null;
+    if (closed || running) return;
+    writes = 0;
+    last = Date.now();
+    running = run().catch((err) => console.warn(`[db] analyze failed: ${(err as Error).message}`)).finally(() => { running = null; });
+  };
+  const schedule = (ms: number) => {
+    if (closed || timer || !every) return;
+    timer = setTimeout(fire, ms);
+    timer.unref?.();
+  };
+  schedule(opts.firstAfterMs ?? 5000);
+  return {
+    wrote() {
+      if (!every || ++writes < every) return;
+      schedule(Math.max(1000, last + minGapMs - Date.now()));
+    },
+    /** Stops the schedule and waits for a run in progress. */
+    async stop() {
+      closed = true;
+      if (timer) clearTimeout(timer);
+      timer = null;
+      await running;
     },
   };
 }
@@ -185,17 +266,23 @@ function wrapLite(q: { query: Function; exec: Function }): Queryable {
 async function openEmbedded(dataDir: string): Promise<Db> {
   let lite: PGlite;
   if (dataDir === 'memory') {
-    lite = new PGlite({ parsers });
+    lite = new PGlite({ parsers, extensions: EXTENSIONS });
   } else {
     mkdirSync(dataDir, { recursive: true });
-    lite = new PGlite(`${dataDir}/pg`, { parsers });
+    lite = new PGlite(`${dataDir}/pg`, { parsers, extensions: EXTENSIONS });
   }
   await lite.waitReady;
   await lite.exec(`set timezone to ${literal(TIME_ZONE)}`);
+  // Throw-away test databases are left alone: their plans do not matter and timers would outlive them.
+  const analyze = dataDir === 'memory' ? null : makeAutoAnalyze(async () => { await lite.exec('analyze'); });
+  const wrote = analyze ? () => analyze.wrote() : undefined;
   return {
-    ...wrapLite(lite),
-    tx: (fn) => lite.transaction((tx) => fn(wrapLite(tx))) as Promise<any>,
-    close: () => lite.close(),
+    ...wrapLite(lite, wrote),
+    tx: (fn) => lite.transaction((tx) => fn(wrapLite(tx, wrote))) as Promise<any>,
+    close: async () => {
+      await analyze?.stop();
+      await lite.close();
+    },
     dataDir,
     driver: 'embedded',
   };
@@ -207,10 +294,11 @@ async function openEmbedded(dataDir: string): Promise<Db> {
 type WithClient = <T>(work: (client: pg.ClientBase) => Promise<T>) => Promise<T>;
 
 function wrapPg(withClient: WithClient): Queryable {
+  const timed = slowStatementLog();
   const run = (sql: string, params: unknown[]) =>
     withClient(async (client) => {
       const values = params.length ? await prepareParams(client, sql, params) : undefined;
-      return client.query(values ? { text: sql, values } : sql);
+      return timed(sql, () => client.query(values ? { text: sql, values } : sql));
     });
   return {
     async query<T>(sql: string, params: unknown[] = []) {
@@ -221,7 +309,7 @@ function wrapPg(withClient: WithClient): Queryable {
     },
     async exec(sql: string) {
       // No parameters: the simple protocol, so a script of several statements runs as one.
-      await withClient((client) => client.query(sql));
+      await withClient((client) => timed(sql, () => client.query(sql)));
     },
   };
 }
@@ -324,7 +412,7 @@ export async function openServerDb(opts: ServerDbOptions): Promise<Db> {
 async function openSocketTestDb(): Promise<Db> {
   // A development dependency: imported only in this test mode.
   const { PGLiteSocketServer } = await import('@electric-sql/pglite-socket');
-  const lite = new PGlite();
+  const lite = new PGlite({ extensions: EXTENSIONS });
   await lite.waitReady;
   const server = new PGLiteSocketServer({ db: lite, host: '127.0.0.1', port: 0, maxConnections: 100 });
   await server.start();

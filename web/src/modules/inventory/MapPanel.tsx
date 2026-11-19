@@ -4,20 +4,27 @@ import { useEffect, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { Badge, CloseButton, Group, Stack, Text, UnstyledButton } from '@mantine/core';
-import { ErrorState, Icon, Loading, LookupChip, useFetch } from '../../core';
+import { ErrorState, Icon, Loading, LookupChip, useAuth, useFetch } from '../../core';
 import { plural } from './shared';
 import { NODE_TYPES, typeInfo } from './mapLayout';
 import type { GraphData, GraphEdge, GraphNode } from './mapLayout';
 
 interface ImpactItem {
   id: string; label: string; ref?: string | null; route: string; depth?: number; method?: string | null;
-  criticality_label?: string | null; sensitivity_label?: string | null;
+  criticality_label?: string | null; sensitivity_label?: string | null; mode_label?: string | null; depot_name?: string | null;
   via: { id: string; label: string; direct?: boolean };
 }
 export interface Impact {
   system: { id: string; label: string };
   downstream: ImpactItem[]; sites: ImpactItem[]; data_categories: ImpactItem[]; assets: ImpactItem[];
-  counts: { systems: number; sites: number; data_categories: number; assets: number };
+  /** Present when the fleet module is loaded; empty without `fleet.view`. */
+  vehicles?: ImpactItem[]; services?: ImpactItem[];
+  counts: { systems: number; sites: number; data_categories: number; assets: number; vehicles?: number; services?: number };
+}
+
+/** "a, b and c". */
+function joinAnd(parts: string[]): string {
+  return parts.length <= 1 ? parts.join('') : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
 }
 
 /** How an edge reads from one of its ends. */
@@ -29,6 +36,7 @@ function relation(e: GraphEdge, self: string): string {
   if (e.kind === 'data') return out ? 'Holds' : 'Held in';
   if (e.kind === 'asset') return out ? 'Runs on' : 'Supports';
   if (e.kind === 'location') return out ? 'Located at' : 'Holds equipment';
+  if (e.kind === 'service') return out ? 'Needed by services' : 'Depends on';
   return e.label;
 }
 
@@ -41,8 +49,10 @@ function Section({ title, count, children }: { title: string; count?: number; ch
   );
 }
 
-function ImpactBlock({ title, items, empty, detail, onPick }: {
+function ImpactBlock({ title, items, empty, detail, onPick, onMap }: {
   title: string; items: ImpactItem[]; empty: string; detail: (i: ImpactItem) => string; onPick: (id: string) => void;
+  /** Whether a record is drawn on the map: one that is not opens its own page instead. */
+  onMap?: (id: string) => boolean;
 }) {
   return (
     <div className="inv-impact-block">
@@ -51,7 +61,9 @@ function ImpactBlock({ title, items, empty, detail, onPick }: {
         <ul className="inv-panel-list">
           {items.map((i) => (
             <li key={`${i.id}-${i.via.id}`}>
-              <UnstyledButton className="inv-panel-pick" onClick={() => onPick(i.id)}>{i.ref ? `${i.ref} ` : ''}{i.label}</UnstyledButton>
+              {!onMap || onMap(i.id)
+                ? <UnstyledButton className="inv-panel-pick" onClick={() => onPick(i.id)}>{i.ref ? `${i.ref} ` : ''}{i.label}</UnstyledButton>
+                : <Link className="inv-panel-pick" to={i.route}>{i.ref ? `${i.ref} ` : ''}{i.label}</Link>}
               <span className="muted">{detail(i)}</span>
             </li>
           ))}
@@ -62,37 +74,55 @@ function ImpactBlock({ title, items, empty, detail, onPick }: {
 }
 
 /** "What is affected if this fails" for one system. Reports the affected ids so the map can outline them. */
-export function ImpactSummary({ systemId, name, onImpact, onPick }: {
+export function ImpactSummary({ systemId, name, onImpact, onPick, onMap }: {
   systemId: string; name: string; onImpact?: (ids: Set<string>) => void; onPick: (id: string) => void;
+  /** Whether a record is drawn on the map; records that are not (vehicles, hidden types) link to their page. */
+  onMap?: (id: string) => boolean;
 }) {
+  const { can } = useAuth();
   const { data, error, reload } = useFetch<Impact>(`/api/systems/${systemId}/impact`);
   useEffect(() => {
     if (!onImpact) return;
     onImpact(new Set(data && data.system.id === systemId
-      ? [...data.downstream, ...data.sites, ...data.data_categories, ...data.assets].map((i) => i.id) : []));
+      ? [...data.downstream, ...data.sites, ...data.data_categories, ...data.assets, ...(data.services ?? [])].map((i) => i.id) : []));
   }, [data, systemId, onImpact]);
   if (error) return <ErrorState error={error} onRetry={reload} />;
   if (!data || data.system.id !== systemId) return <Loading lines={4} label="Working out the impact" />;
   const via = (i: ImpactItem) => (i.via.direct || i.via.id === systemId ? 'directly' : `through ${i.via.label}`);
-  const total = data.counts.systems + data.counts.sites + data.counts.data_categories + data.counts.assets;
+  // Vehicles and services are shown when the fleet module answers and the reader may see fleet records.
+  const fleet = can('fleet.view') && data.counts.vehicles !== undefined;
+  const services = data.services ?? [];
+  const vehicles = data.vehicles ?? [];
+  const parts = [
+    plural(data.counts.systems, 'downstream system'), plural(data.counts.sites, 'site'),
+    plural(data.counts.data_categories, 'data category', 'data categories'), plural(data.counts.assets, 'asset'),
+    ...(fleet ? [plural(services.length, 'service'), plural(vehicles.length, 'vehicle')] : []),
+  ];
+  const total = data.counts.systems + data.counts.sites + data.counts.data_categories + data.counts.assets + (fleet ? services.length + vehicles.length : 0);
   return (
     <Stack gap="sm">
       <div className={`inv-impact-banner${total ? ' is-hot' : ''}`} role="status">
         <Icon name={total ? 'alert' : 'check-circle'} size={18} />
-        <span>
-          {total === 0 ? `Nothing recorded depends on ${name}.`
-            : `If ${name} fails: ${plural(data.counts.systems, 'downstream system')}, ${plural(data.counts.sites, 'site')}, ${plural(data.counts.data_categories, 'data category', 'data categories')} and ${plural(data.counts.assets, 'asset')} are affected.`}
-        </span>
+        <span>{total === 0 ? `Nothing recorded depends on ${name}.` : `If ${name} fails: ${joinAnd(parts)} are affected.`}</span>
       </div>
-      <ImpactBlock title="Downstream systems" items={data.downstream} empty="No other system receives data from this one." onPick={onPick}
+      <ImpactBlock title="Downstream systems" items={data.downstream} empty="No other system receives data from this one." onPick={onPick} onMap={onMap}
         detail={(i) => `${i.depth === 1 ? 'fed directly' : `fed through ${i.via.label}`}${i.method ? ` by ${i.method.toLowerCase()}` : ''}${i.criticality_label ? ` · ${i.criticality_label}` : ''}`} />
-      <ImpactBlock title="Sites" items={data.sites} empty="No sites are recorded as served." detail={via} onPick={onPick} />
-      <ImpactBlock title="Data categories" items={data.data_categories} empty="No data categories are recorded as held." onPick={onPick}
+      {fleet && (
+        <ImpactBlock title="Services" items={services} empty="No service is recorded as depending on these systems." onPick={onPick} onMap={onMap}
+          detail={(i) => [via(i), i.mode_label].filter(Boolean).join(' · ')} />
+      )}
+      {fleet && (
+        <ImpactBlock title="Vehicles" items={vehicles} empty="No vehicle carries equipment of these systems." onPick={onPick} onMap={onMap}
+          detail={(i) => [via(i), i.mode_label, i.depot_name].filter(Boolean).join(' · ')} />
+      )}
+      <ImpactBlock title="Sites" items={data.sites} empty="No sites are recorded as served." detail={via} onPick={onPick} onMap={onMap} />
+      <ImpactBlock title="Data categories" items={data.data_categories} empty="No data categories are recorded as held." onPick={onPick} onMap={onMap}
         detail={(i) => `${via(i)}${i.sensitivity_label ? ` · ${i.sensitivity_label}` : ''}`} />
-      <ImpactBlock title="Assets" items={data.assets} empty="No assets are linked." detail={via} onPick={onPick} />
+      <ImpactBlock title="Assets" items={data.assets} empty="No assets are linked." detail={via} onPick={onPick} onMap={onMap} />
       <Text size="xs" c="dimmed">
         Downstream systems receive data from this one, directly or through another system. Sites, data and assets are
-        those of this system and of every downstream system. The list is only as good as the relationships recorded.
+        those of this system and of every downstream system{fleet ? '; services depend on one of them, and vehicles carry their equipment' : ''}.
+        The list is only as good as the relationships recorded.
       </Text>
     </Stack>
   );
@@ -158,7 +188,7 @@ export function MapPanel({ data, selected, onSelect, onImpact }: {
 
       {selected.type === 'system' && (
         <Section title="If this fails">
-          <ImpactSummary systemId={selected.id} name={selected.label} onImpact={onImpact} onPick={onSelect} />
+          <ImpactSummary systemId={selected.id} name={selected.label} onImpact={onImpact} onPick={onSelect} onMap={(id) => byId.has(id)} />
         </Section>
       )}
       <Section title="Connections" count={[...groups.values()].reduce((s, g) => s + g.length, 0)}>

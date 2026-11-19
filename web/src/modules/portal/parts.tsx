@@ -14,7 +14,9 @@ export interface PortalConfig {
   reopen_days: number;
   can_create: boolean;
   files: boolean;
-  has: { assets: boolean; training: boolean; policies: boolean; changes: boolean; ticket_approvals: boolean };
+  has: { assets: boolean; training: boolean; policies: boolean; changes: boolean; ticket_approvals: boolean; safety?: boolean };
+  /** E15-12: who I may raise a request for, besides myself. */
+  on_behalf?: 'nobody' | 'department' | 'anyone';
   affects: Choice[];
   urgency: Choice[];
 }

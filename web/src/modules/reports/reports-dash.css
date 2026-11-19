@@ -137,3 +137,7 @@
   .rp-pack-section .table-wrap { max-height: none; overflow: visible; }
   .rp-table { max-height: none; overflow: visible; }
 }
+
+/* A dashboard inside the Overview (E12-07), and the note shown while editing on a narrow screen. */
+.rp-embedded { display: block; }
+.rp-grid-narrow-note { margin: 0 0 var(--s-3); }

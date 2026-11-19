@@ -2,7 +2,9 @@
 // a framework from a reference file, coverage of other frameworks, an outcome's status
 // timeline, editing evidence and mappings, and review-date reminders.
 import type { FastifyRequest } from 'fastify';
+import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { sendEvidenceReminders } from './evidence-reminders.ts';
 import { applyReference, exportReference, validateReference } from './importer.ts';
 import { mappingProblem, textFromRows } from './mappings.ts';
 import { sendReviewReminders } from './reminders.ts';
@@ -15,7 +17,7 @@ const HOUR = 3_600_000;
 /** One requirement of another framework as written in a mapping: "12.1 (note)" -> key "12.1". */
 const requirementKey = (part: string) => part.replace(/\s*\([^()]*\)\s*$/, '').trim();
 
-export function registerExtras(ctx: ModuleContext, loadScale: (ctx: ModuleContext) => Promise<Scale>) {
+export async function registerExtras(ctx: ModuleContext, loadScale: (ctx: ModuleContext) => Promise<Scale>) {
   const { db } = ctx;
   const view = { preHandler: ctx.requirePerm('frameworks.view') };
   const edit = { preHandler: ctx.requirePerm('frameworks.edit') };
@@ -235,13 +237,10 @@ export function registerExtras(ctx: ModuleContext, loadScale: (ctx: ModuleContex
 
   ctx.app.post('/api/frameworks/review-reminders/run', { preHandler: ctx.requirePerm('admin.administer') }, async () => sendReviewReminders(ctx));
 
-  // No timers under the test runner or with a throwaway in-memory database.
-  if (!process.env.VITEST && process.env.GRC_DATA_DIR !== 'memory') {
-    const safeRun = () => { sendReviewReminders(ctx).catch((err) => console.error('[frameworks] review reminders failed:', err)); };
-    const first = setTimeout(safeRun, 90_000);
-    const timer = setInterval(safeRun, HOUR);
-    first.unref();
-    timer.unref();
-    ctx.app.addHook('onClose', async () => { clearTimeout(first); clearInterval(timer); });
-  }
+  ctx.app.post('/api/frameworks/evidence-reminders/run', { preHandler: ctx.requirePerm('admin.administer') }, async () => sendEvidenceReminders(ctx));
+  ctx.describeRoute({ method: 'POST', path: '/api/frameworks/evidence-reminders/run', permission: 'admin.administer', summary: 'Send the evidence-note expiry reminders now (they also run every hour, each note at most twice)' });
+
+  // Hourly on the job queue (Administration > Background jobs); each reminder still goes out once.
+  await scheduleWork(ctx, 'frameworks.review_reminders', () => sendReviewReminders(ctx), { every: HOUR, firstRunInMs: 90_000 });
+  await scheduleWork(ctx, 'frameworks.evidence_reminders', () => sendEvidenceReminders(ctx), { every: HOUR, firstRunInMs: 120_000 });
 }

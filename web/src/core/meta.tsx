@@ -49,6 +49,8 @@ export interface ResourceMeta {
   titleField: string;
   refField?: string;
   restricted: boolean | 'flag';
+  /** Files on this type are evidence (collection and expiry dates); the record page's file tab says so. */
+  evidence?: boolean;
   fields: Record<string, FieldMeta>;
 }
 

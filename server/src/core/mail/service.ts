@@ -42,6 +42,27 @@ export interface SendMailInput {
   attachments?: (MailAttachment | { filename: string; content: Buffer; contentType?: string })[];
   /** Shown in the delivery log: "notification", "reports", "security", ... */
   purpose?: string;
+  /**
+   * Threading headers for a conversation (E15-06): only `References`, `In-Reply-To` and `X-GRC-*`
+   * names are kept, values without line breaks, at most 900 characters each.
+   */
+  headers?: Record<string, string>;
+  /** Where replies should go, instead of the reply-to address in the email settings (for example the service desk mailbox). */
+  replyTo?: string;
+}
+
+/** Marks every message the application sends, so auto-replies are suppressed and inbound mail can recognize it. */
+export const OWN_MAIL_HEADER = 'X-GRC-Mail';
+const SAFE_HEADER = /^(References|In-Reply-To|X-GRC-[A-Za-z0-9-]{1,40})$/i;
+
+export function safeHeaders(input: unknown): Record<string, string> | undefined {
+  if (!input || typeof input !== 'object') return undefined;
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(input as Record<string, unknown>)) {
+    if (!SAFE_HEADER.test(k) || typeof v !== 'string' || /[\r\n]/.test(v) || !v.trim()) continue;
+    out[k] = v.trim().slice(0, 900);
+  }
+  return Object.keys(out).length ? out : undefined;
 }
 
 export interface SendMailResult {
@@ -202,7 +223,12 @@ export function makeMail(ctx: ModuleContext, jobs: JobQueue) {
     if (!provider) return giveUp('dead', `Unknown mail provider "${config.provider}".`);
     const from = config.from_name ? `"${config.from_name.replace(/["\\\r\n]/g, '')}" <${config.from_address}>` : config.from_address;
     try {
-      const result = await provider.send({ to, from, replyTo: config.reply_to || undefined, subject: message.subject, text: message.text, html: message.html, attachments });
+      const headers = {
+        ...(safeHeaders(p.headers) ?? {}),
+        'Auto-Submitted': 'auto-generated', 'X-Auto-Response-Suppress': 'All', [OWN_MAIL_HEADER]: String(p.purpose ?? 'message'),
+      };
+      const replyTo = typeof p.replyTo === 'string' && EMAIL_RE.test(p.replyTo) ? p.replyTo : config.reply_to || undefined;
+      const result = await provider.send({ to, from, replyTo, subject: message.subject, text: message.text, html: message.html, attachments, headers });
       if (result.ok) {
         await logStatus(logId, 'sent', { attempts: job.attempt, messageId: result.messageId, provider: provider.name, subject: message.subject, to });
         return { status: 'sent', messageId: result.messageId ?? null };
@@ -273,7 +299,8 @@ export function makeMail(ctx: ModuleContext, jobs: JobQueue) {
     }
     const job = await jobs.enqueue('mail.send', {
       logId: log!.id, userId: target.userId, to: target.userId ? undefined : target.to, template,
-      data, items: input.items, record: input.record, attachments: input.attachments, ...extra, sealedLink,
+      data, items: input.items, record: input.record, attachments: input.attachments, headers: safeHeaders(input.headers),
+      replyTo: typeof input.replyTo === 'string' && EMAIL_RE.test(input.replyTo.trim()) ? input.replyTo.trim() : undefined, purpose, ...extra, sealedLink,
     }, opts);
     await db.query('update mail_log set job_id = $2 where id = $1', [log!.id, job.id]);
     return log!.id;

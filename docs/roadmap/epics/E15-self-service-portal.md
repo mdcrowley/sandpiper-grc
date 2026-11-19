@@ -1,6 +1,6 @@
 # E15 Self-service portal
 
-**Status:** in progress (portal built; email-to-ticket open)
+**Status:** done (14 of 14 issues done)
 
 ## Goal
 
@@ -16,7 +16,7 @@ needing an IT account with wider access, and let requests arrive by email.
 - People who hold only portal permissions have no `tickets.*` permission, so every agent route
   refuses them; the `/api/portal/*` routes are their only way to tickets, and each is scoped to
   tickets where they are the requester or the affected person.
-- Email-to-ticket needs inbound mail, which the local prototype cannot receive.
+- Email-to-ticket reads a mailbox over POP3 (its own client on `node:tls`, no dependency) or takes messages a mail relay posts; tests use a fake mailbox and a fake mail server, no network.
 
 ## Issues
 
@@ -27,15 +27,15 @@ needing an IT account with wider access, and let requests arrive by email.
 | E15-03 | Track my own requests | done | P2 |
 | E15-04 | Catalog in the portal | done | P2 |
 | E15-05 | Knowledge base for requesters | done | P3 |
-| E15-06 | Email-to-ticket | open | P3 |
+| E15-06 | Email-to-ticket | done | P3 |
 | E15-07 | Satisfaction answer from the requester | done | P3 |
 | E15-08 | Document the `portal` permission key | done | P3 |
 | E15-09 | Requester scoping on the server | done | P1 |
 | E15-10 | Portal home: approvals, policies, training, equipment, service banner | done | P2 |
 | E15-11 | Portal settings | done | P2 |
-| E15-12 | Raise a request on behalf of someone else from the portal | open | P3 |
-| E15-13 | Files the service desk shares with the requester | open | P3 |
-| E15-14 | Required custom fields on tickets block portal requests | open | P2 |
+| E15-12 | Raise a request on behalf of someone else from the portal | done | P3 |
+| E15-13 | Files the service desk shares with the requester | done | P3 |
+| E15-14 | Required custom fields on tickets block portal requests | done | P2 |
 
 ---
 
@@ -125,18 +125,21 @@ matching ones before I submit a request.
 
 ### E15-06 Email-to-ticket
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 As a member of staff, I email the service desk address and a ticket is created; my
 later replies are added to it as comments.
 
 **Acceptance criteria**
 
-- [ ] A mailbox is polled or a mail hook is received, by configuration
-- [ ] A new message creates a ticket with the sender as requester and channel "email"
-- [ ] A reply with the ticket reference becomes a public comment
-- [ ] Attachments are kept (depends on [E14-01](E14-platform-services.md))
-- [ ] Messages from unknown senders follow a configurable rule
+- [x] A mailbox is polled (POP3 over TLS or STARTTLS, on the job queue) or a mail relay posts each message (`POST /api/tickets/email/inbound` with a relay key), by configuration; off by default, administrators only, password kept encrypted
+- [x] A new message creates a ticket with the sender as requester (a user, or an outside requester) and channel "email"; an acknowledgment with the reference is emailed, threaded
+- [x] A reply with the ticket reference (subject, or our threading header) becomes a public comment, quoted text removed, when it comes from the requester, the affected person or an agent; agents' public comments are emailed back
+- [x] Attachments go through the attachment checks (type, content, malware scanner, size)
+- [x] Messages from unknown senders follow a configurable rule (create or ignore, accepted domains)
+- [x] Loop guards: the application's own messages (`X-GRC-Mail`, `Auto-Submitted` on every outbound message), auto-replies, bounces, mailing lists, the desk's own address, repeats and a per-sender hourly limit; every message logged with its outcome
+
+**Implemented in:** `server/src/core/mail/mime.ts`, `pop3.ts`, `pop3-fake.ts` (outbound `headers`/`replyTo` in `service.ts`, `provider.ts`); `server/src/modules/tickets/email.ts`, `mail-files.ts`, migration `005_sharing_approvals_email.sql`; `web/src/modules/tickets/SettingsEmail.tsx`; tests `server/src/core/mail/inbound.test.ts`, `server/src/modules/tickets/email.test.ts`
 
 ### E15-07 Satisfaction answer from the requester
 
@@ -205,28 +208,34 @@ tickets and nothing else.
 
 ### E15-12 Raise a request on behalf of someone else from the portal
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 A supervisor raises a request for one of their operators, who then sees it too.
 
-- [ ] Choose a colleague as the affected person in the portal form
-- [ ] Limit who may do this (for example by department)
+- [x] Choose a colleague as the affected person in the portal form ("Who is this for?"); they are told and follow it
+- [x] Limit who may do this: portal setting `on_behalf` (same department, the default; anyone; nobody)
+
+**Implemented in:** `/api/portal/colleagues`, `for_user_id` on `POST /api/portal/requests` (`server/src/modules/portal/requests.ts`, `settings.ts`); `web/src/modules/portal/RequestForm.tsx`, `RequestDetail.tsx`; `web/src/modules/tickets/SettingsPortal.tsx`; test `server/src/modules/portal/sharing.test.ts`
 
 ### E15-13 Files the service desk shares with the requester
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
-Today a requester sees only files they added, because attachments have no "public" flag.
+A requester used to see only files they added, because attachments have no "public" flag.
 
-- [ ] Agents can mark a file on a ticket as shared with the requester
-- [ ] The portal lists and downloads shared files
+- [x] Agents can mark a file on a ticket as shared with the requester (table `ticket_shared_files`; audited; the requester is told)
+- [x] The portal lists and downloads shared files ("Files from the service desk"); other files stay closed
+
+**Implemented in:** `server/src/modules/tickets/shared-files.ts` (`GET/PUT /api/tickets/:id/shared-files`); `server/src/modules/portal/files.ts`; `web/src/modules/tickets/TicketDetail.tsx`; `web/src/modules/portal/RequestDetail.tsx`; test `server/src/modules/portal/sharing.test.ts`
 
 ### E15-14 Required custom fields on tickets block portal requests
 
-**Status:** open · **Priority:** P2 · **Type:** defect
+**Status:** done · **Priority:** P2 · **Type:** defect
 
 Portal requests are created as the requester, so an administrator's **required** custom field
 on tickets would refuse them (the requester cannot see or fill it).
 
-- [ ] Portal requests skip custom fields, or custom fields can be marked "not asked in the portal"
-- [ ] A test with a required custom field
+- [x] Portal requests (and portal safety reports) skip required custom fields: created as the person with the core option `skipCustomRequired`; email tickets are system work and already skip them
+- [x] A test with a required custom field
+
+**Implemented in:** `server/src/modules/portal/create.ts`; `ResourceRegistry.create(type, data, req, { skipCustomRequired })` in `server/src/core/resource.ts`, `module.ts`; test `server/src/modules/portal/sharing.test.ts`

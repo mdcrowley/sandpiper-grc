@@ -88,7 +88,7 @@ Evidence is a file that shows something was done or was true on a date: a signed
 
 ### Attach evidence
 
-On pages whose **Attachments** tab is set up for evidence, a box under the upload area offers **Record new files as evidence**, checked to begin with.
+On records that exist to prove something, the files tab is called **Evidence files** instead of **Attachments**: vendor evidence items, framework outcomes, obligations, policies, exercises and risks (where files show that a treatment was carried out). Some pages have an **Evidence** tab of their own that works the same way, such as a framework outcome or a security incident. There a box under the upload area offers **Record new files as evidence**, checked to begin with.
 
 1. Check the **Collected on** date, and enter **Expires on** if the evidence goes out of date.
 2. Drag the files in, or select **Choose files**. Every file you add takes those dates.
@@ -151,7 +151,7 @@ Select **Test connection** to ask the scanner for its version: the page shows th
 
 - A file found to contain malware is refused and its content deleted; the refusal, with the name of what was found, is kept in the audit log.
 - A file accepted without a scan is marked **Not scanned**, and the audit log says why.
-- **Files attached without a scan** shows how many files in use were never scanned. Select **Scan files attached earlier** to scan them, up to 200 at a time (select it again for more). A file found to contain malware is removed at once, its content deleted, and every administrator is notified; the audit log names the file and its record (action `attachment.quarantine`).
+- **Files attached without a scan** shows how many files in use were never scanned. Select **Scan files attached earlier** to scan them all in the background: a progress bar shows how many have been checked, and you can leave the page and keep working; the application carries on. When it finishes, the card shows how many were clean, infected or could not be checked. Only one scan runs at a time, and it also appears under **Background jobs**. A file found to contain malware is removed at once, its content deleted, and every administrator is notified; the audit log names the file and its record (action `attachment.quarantine`).
 
 ### Storage
 
@@ -171,7 +171,7 @@ New files are kept on the server's disk, in the data folder, unless you choose a
 
 3. Select **Test connection**: a small test file is written, read back and deleted. Then select **Save storage settings**. The settings are tested again before they are saved, and nothing changes if the test fails.
 
-Files already stored stay where they are and can still be downloaded. To move them all to the other store, the person running the server stops it and runs `.\grc.ps1 move-files -To s3` (or `-To disk`): each file is copied, read back and checked against its checksum before the old copy is deleted.
+Files already stored stay where they are and can still be downloaded. To move them all to where new files now go, save the choice above, then select **Move files to …** under **Move stored files** and confirm your password. The move runs in the background while the application keeps working, with a progress bar: each file is copied, read back and checked against its checksum before the old copy is deleted, so every file stays readable throughout. A file that cannot be moved stays readable where it was, and the card says how many. The start of each move is kept in the audit log. The person running the server can still do the same with the server stopped: `.\grc.ps1 move-files -To s3` (or `-To disk`).
 
 **Storage check** compares the stored files with the records of attached files. Select **Check storage**: the page lists files missing from storage and stored files that no record refers to. Nothing is changed.
 
@@ -236,7 +236,7 @@ Open **Notifications** in the menu on the left, under **Overview**.
 
 Select a notification to open its record and mark it as read. Select **Mark all as read** at the top of the page to mark everything as read.
 
-Notifications are not deleted in this version; read ones stay in the **All** tab.
+To delete a notification, select the bin button at the end of its row. **Delete read** at the top of the page deletes every notification you have already read. Deleting only tidies your own list: it changes nothing on the record, and a reminder you deleted is not sent to you again the same day. Read notifications are also removed by themselves after a period your administrator sets (90 days unless changed); unread ones are kept.
 
 ### What you are told about
 
@@ -254,7 +254,19 @@ Notifications are not deleted in this version; read ones stay in the **All** tab
 
 Other parts of the application may add kinds of their own, and an administrator can add more under **Lists** (the list `notification_kind`). They appear in everyone's preferences.
 
-In this version the application raises two of these by itself, once a day for each record: **Due dates** for the owners of actions, and **Service-level targets** for the assignees of tickets. Paused and resolved tickets, and actions that are done or canceled, are left out. The other kinds appear as each part of the application starts sending them.
+Besides the notifications each part of the application sends as things happen, these reminders are sent by themselves. How far ahead each one goes out is set by your administrator under **Administration** > **Reminders**.
+
+| Reminder | Who is told | When |
+|---|---|---|
+| An action due or overdue (**Due dates**) | Its owner | Once a day from three days before its due date until it is done or canceled |
+| A ticket close to its resolution target (**Service-level targets**) | Its assignee | Once a day, within four hours of the target; not while paused or after it is resolved |
+| An obligation's next due date (**Due dates**) | Its owner, or everyone who may edit obligations if it has none | Once when the date is 30 days away, and once when it is reached |
+| An overdue project milestone, or an overdue risk, issue, decision or change request in a project's register (**Due dates**) | The item's owner, or the project manager | Once for each due date that passes, while the project is active or on hold |
+| An evidence note on a framework outcome about to expire, or expired (**Reminders**) | The outcome's owner, or everyone who may edit framework outcomes | Once when the expiry is 30 days away, and once when it has passed |
+| A hazard's review date (**Reminders**) | The hazard's owner, or everyone who may edit safety records | Once when the date is 14 days away, and once when it is reached; not for closed hazards |
+| Warranty and support end dates of assets, contract notice dates, review dates of framework outcomes, risk acceptances, policy acknowledgments and training due | As described in the guide for each part | |
+
+A date that passed more than 30 days before a reminder could be sent (for example on the day these reminders were first switched on) is not announced. Changing a due or review date starts its reminders again.
 
 ### Records you watch
 
@@ -356,11 +368,31 @@ The **Delivery log** tab lists every message the application tried to send, newe
 
 A message that fails is tried up to five times, waiting 1, 2, 4 and 8 minutes in between.
 
+## Reminders
+
+*Administrators.* Open **Administration** > **Reminders** to choose how far ahead reminders go out. The page shows a box for each part of the application that is installed, grouped by area, each with what it does and its starting value.
+
+| Setting | Starting value |
+|---|---|
+| **Remind action owners before the due date** | 3 days |
+| **Action statuses that need no reminder** | Done and Canceled |
+| **Warn ticket assignees before the resolution target** | 4 hours |
+| **Daily email summary goes out from** | 7:00 (organization time zone) |
+| **Remove read notifications after** | 90 days (7 to 730) |
+| **Warranty and support end reminders** | 30, 7 and 0 days before (up to six steps, separated by commas) |
+| **Remind obligation owners before the next due date** | 30 days |
+| **Remind outcome owners before the review date** | 14 days |
+| **Remind outcome owners before an evidence note expires** | 30 days |
+| **Remind risk owners before an acceptance expires** | 30 days |
+| **Remind hazard owners before the review date** | 14 days |
+
+Change the values you need and select **Save changes**; **Undo changes** puts back what is saved. Each value that changed is kept in the audit log. Reminders for policies and training have their own settings in those parts of the application, and a policy or course can set its own interval; see [Policies and exceptions](11-policies-and-exceptions.md) and [Training and exercises](12-training-and-exercises.md).
+
 ## Background jobs
 
-*Administrators.* Open **Administration** > **Background jobs** to see the work the application does by itself: sending email, the daily reminders (actions due, tickets near their target) and the daily email summaries.
+*Administrators.* Open **Administration** > **Background jobs** to see the work the application does by itself: sending email, every reminder described above, the daily email summaries, the service-level and notification-clock checks, report schedules, the daily file purge, the backup schedule, file scans and moves started from **File settings**, and the clean-up of old notifications.
 
-- The tiles count jobs that are **Waiting**, **Running**, **Failed, will retry**, **Gave up** and **Done**. Finished jobs are kept for 30 days and jobs that gave up for 90.
+- The tiles count jobs that are **Waiting**, **Running**, **Failed, will retry**, **Gave up** and **Done**. Finished jobs are kept for 30 days (two days for the regular runs of a schedule, some of which run every minute) and jobs that gave up for 90.
 - **Schedules** lists the regular work, how often it runs, when it last ran and when it runs next. **Run now** runs one straight away.
 - **Recent jobs** lists jobs newest first; choose a **Status** to narrow it. Select a job to see its details, its last error and its result. For a job that failed or gave up, **Try again now** runs it again at once, with its attempts counted from nothing.
 
@@ -370,10 +402,8 @@ Each job runs once even if more than one copy of the server is using the same da
 
 - Changing the email address on your own account: ask an administrator.
 - Sending email through anything other than a mail server (SMTP), such as a mail service's web interface.
-- Deleting notifications, or clearing old ones automatically.
 - Malware scanners other than ClamAV, or scanning through an outside service.
 - Viewing a file inside the application. Files are downloaded and opened on your computer.
 - Renaming a file, replacing its content while keeping its history, or keeping several versions of one file.
-- Moving files between the disk and the object store from the **File settings** page: it is a command for the person running the server.
 - Restoring a backup from the **Backups** page: it is a command for the person running the server.
 - Searching inside the content of attached files.

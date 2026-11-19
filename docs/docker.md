@@ -14,7 +14,9 @@ ghcr.io/mdcrowley/sandpiper-grc
 
 The image runs as an unprivileged user (uid 1000), with a read-only root filesystem, no
 compiler and no development packages, and a health check on `/api/health`. It works with
-Docker Engine, Docker Desktop (Windows, macOS, Linux) and Podman.
+Docker Engine, Docker Desktop (Windows, macOS, Linux) and Podman. Each published image
+carries a software bill of materials and signed build provenance; check an image with
+`gh attestation verify oci://ghcr.io/mdcrowley/sandpiper-grc:<tag> --owner mdcrowley`.
 
 This is a **prototype**: read [Security](security.md) and [Known gaps](known-gaps.md) before
 holding real data in it.
@@ -120,9 +122,17 @@ The image has a `grc` command for the operations of `server/src/cli.ts`:
 
 ```sh
 docker compose exec app grc status             # version, data size, last backup, migrations
+docker compose exec app grc version            # the version and the commit the image was built from
+docker compose exec app grc logs --lines 100   # the server's log, readably (--level warn, --follow)
 docker compose exec app grc backups            # list backups
 docker compose exec app grc secret-key show    # where the key comes from (fingerprint only)
 ```
+
+**Logs.** The server writes every entry to the container's output as one JSON line
+(`docker compose logs -f app`; `GRC_LOG_CONSOLE=json` in the image), one line per request
+with its request identifier, and keeps the same entries in the data volume
+(`/var/lib/sandpiper/data/logs/grc.log`, rotated at 10 MB, five old files kept). Passwords,
+tokens and query strings are never logged. Settings: [Operations](operations.md#logs).
 
 Commands that need the database to itself (`seed`, `backup`, `restore`, `export-all`,
 `import-all`, `move-files`, `migrate`, `secret-key rotate`) refuse to run while the server
@@ -218,7 +228,8 @@ docker compose up -d
 ```
 
 The new container applies database migrations at start and turns healthy when it is ready
-(`docker compose ps`, `docker compose logs app`). To go back, set `GRC_IMAGE` to the
+(`docker compose ps`, `docker compose logs app`); `grc version` and Help > About show the
+version now running. To go back, set `GRC_IMAGE` to the
 previous version and restore the pre-upgrade backup. With `GRC_IMAGE` pinned to a version,
 change it in `.env` first. A build from source upgrades with `git pull` and
 `docker compose up -d --build`.
@@ -296,7 +307,10 @@ runs in Compose too, put it on the same network and point it at `app:8080` inste
 
 To have the container serve HTTPS itself instead, mount the certificate and key, set
 `GRC_TLS_CERT` and `GRC_TLS_KEY`, remove `GRC_ALLOW_INSECURE` (in a `compose.override.yaml`,
-set it to `"0"`), and publish the port where you need it.
+set it to `"0"`), and publish the port where you need it. A renewed certificate written to
+the same files is used within `GRC_TLS_RELOAD_SECONDS` (default 60) without a restart, or at
+once with `docker compose kill -s HUP app`; a broken one is refused and the old one kept
+([Installation](installation.md#https)).
 
 ## Troubleshooting
 

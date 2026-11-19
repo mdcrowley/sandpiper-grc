@@ -1,17 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { CSSProperties, FormEvent } from 'react';
+import type { CSSProperties } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Chip, SegmentedControl } from '@mantine/core';
 import {
-  Button, ConfirmDialog, EmptyState, ErrorState, Icon, Loading, Menu, Modal, PageHeader, ResourceList, Select, TextField,
+  Button, EmptyState, ErrorState, Icon, Loading, Menu, PageHeader, ResourceList, Select, TextField,
   api, cx, errorMessage, useAuth, useDebounced, useFetch, useToast,
 } from '../../core';
 import type { ListResult, MenuItem } from '../../core';
 import {
-  NO_FILTERS, NO_PHASE, isFiltered, loadBoardViews, matches, queryFromFilters, rememberFramework, rememberedFramework,
-  storeBoardViews, useBoardFilters, useDensity,
+  NO_FILTERS, NO_PHASE, isFiltered, matches, rememberFramework, rememberedFramework, useBoardFilters, useDensity,
 } from './boardState';
-import type { BoardFilters, BoardView as SavedBoardView, Density } from './boardState';
+import type { BoardFilters, Density } from './boardState';
+import { ViewsMenu } from './BoardViews';
 import { BoardView } from './BoardView';
 import { StatusBar, TargetRing } from './StatusBar';
 import type { Board, BoardOutcome, FrameworkRef } from './types';
@@ -46,68 +46,6 @@ const DENSITY_OPTIONS: { value: Density; label: string }[] = [
 ];
 
 const toggle = (list: string[], value: string) => (list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
-
-/** Saved views: the built-in ones, the person's own, and saving the current filters under a name. */
-function ViewsMenu({ filters, onApply }: { filters: BoardFilters; onApply: (query: string) => void }) {
-  const toast = useToast();
-  const [views, setViews] = useState<SavedBoardView[]>(loadBoardViews);
-  const [naming, setNaming] = useState(false);
-  const [name, setName] = useState('');
-  const [error, setError] = useState('');
-  const [removing, setRemoving] = useState<SavedBoardView | null>(null);
-  const current = queryFromFilters(filters);
-  const active = views.find((v) => v.query === current);
-
-  function save(e: FormEvent) {
-    e.preventDefault();
-    const label = name.trim();
-    if (!label) { setError('Give the view a name.'); return; }
-    const next = [...views.filter((v) => v.name.toLowerCase() !== label.toLowerCase()), { name: label, query: current }]
-      .sort((a, b) => a.name.localeCompare(b.name));
-    setViews(next);
-    storeBoardViews(next);
-    setNaming(false);
-    setName('');
-    toast.success(`View "${label}" saved in this browser.`);
-  }
-
-  const items: MenuItem[] = [
-    { label: 'All outcomes', icon: current === '' ? 'check' : undefined, onSelect: () => onApply('') },
-    { label: 'Priority outcomes', icon: current === 'priority=1' ? 'check' : 'star', onSelect: () => onApply('priority=1') },
-    ...views.map((v, i) => ({
-      label: v.name, icon: v.query === current ? 'check' as const : undefined, separated: i === 0, onSelect: () => onApply(v.query),
-    })),
-    { label: 'Save current view…', icon: 'plus', separated: true, disabled: current === '', onSelect: () => { setError(''); setNaming(true); } },
-    ...(active ? [{ label: `Delete view "${active.name}"`, icon: 'trash' as const, danger: true, onSelect: () => setRemoving(active) }] : []),
-  ];
-
-  return (
-    <>
-      <Menu label={active ? active.name : 'Views'} icon="eye" size="sm" items={items} align="end" />
-      <Modal open={naming} title="Save current view" size="sm" onClose={() => setNaming(false)}>
-        <form className="form" onSubmit={save} noValidate>
-          <TextField label="Name" required autoFocus value={name} onChange={setName} error={error}
-            hint="Saved views are kept in this browser on this computer. A view with the same name is replaced." />
-          <div className="form-actions">
-            <Button onClick={() => setNaming(false)}>Cancel</Button>
-            <Button type="submit" variant="primary">Save view</Button>
-          </div>
-        </form>
-      </Modal>
-      <ConfirmDialog
-        open={removing !== null} title="Delete this view?" danger confirmLabel="Delete view"
-        message={`"${removing?.name ?? ''}" will be removed from your saved views. The outcomes are not affected.`}
-        onCancel={() => setRemoving(null)}
-        onConfirm={() => {
-          const next = views.filter((v) => v !== removing);
-          setViews(next);
-          storeBoardViews(next);
-          setRemoving(null);
-        }}
-      />
-    </>
-  );
-}
 
 export function BoardPage({ view = 'board' }: { view?: 'board' | 'table' }) {
   const params = useParams();
@@ -195,6 +133,7 @@ export function BoardPage({ view = 'board' }: { view?: 'board' | 'table' }) {
     { label: 'Coverage of other frameworks', icon: 'link', to: '/frameworks/coverage' },
     { label: 'Assessments', icon: 'chart', to: '/assessments' },
     { label: 'Frameworks and structure', icon: 'settings', to: '/frameworks/manage', separated: true },
+    { label: 'Framework settings', icon: 'settings', to: '/frameworks/settings' },
     ...(view === 'board' ? [{ label: 'Print this board', icon: 'file-text' as const, onSelect: () => window.print() }] : []),
   ];
 

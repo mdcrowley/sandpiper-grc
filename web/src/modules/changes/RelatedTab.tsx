@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  api, Badge, Button, Card, EmptyState, errorMessage, ErrorState, IconButton, Loading, RecordPicker, Select, useFetch, useMeta, useToast,
+  api, Badge, Button, Card, EmptyState, errorMessage, ErrorState, IconButton, Loading, RecordPicker, Select, useAuth, useFetch, useMeta, useToast,
   type Row,
 } from '../../core';
 
@@ -97,6 +97,7 @@ function LinkTable({ rows, mainIds, canEdit, onRemove, phrase }: { rows: LinkRow
 export function RelatedTab({ row, canEdit, onChanged }: { row: Row; canEdit: boolean; onChanged: () => void }) {
   const toast = useToast();
   const { resources } = useMeta();
+  const { can } = useAuth();
   const { data, error, reload: reloadLinks } = useFetch<LinkRow[]>(`/api/links?record_type=change&record_id=${row.id}`);
   // The systems a change affects decide its conflicts, so those are checked again too.
   const reload = () => { reloadLinks(); onChanged(); };
@@ -120,7 +121,10 @@ export function RelatedTab({ row, canEdit, onChanged }: { row: Row; canEdit: boo
 
   return (
     <div className="stack">
-      <Card title="Affected systems and assets" flush>
+      <Card title="Affected systems and assets" flush
+        actions={resources.system && can('systems.view') && (affected.length > 0 || row.system_id || row.asset_id) ? (
+          <Link className="btn btn-secondary btn-sm" to={`/systems/map?change=${encodeURIComponent(row.id)}`}>Show on relationship map</Link>
+        ) : undefined}>
         {affectedTypes.length === 0 ? (
           <EmptyState icon="server" title="The inventory is not available" message="Systems and assets can be linked when the inventory is switched on." />
         ) : (

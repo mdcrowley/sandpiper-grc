@@ -18,10 +18,11 @@ let report: any;
 let filtered: any;
 // Stand-in for the email service: scheduled delivery must work with and without it.
 const sent: any[] = [];
+let mailOn = true;
 const mailModule: ModuleDef = {
   key: 'testmail',
   async register(ctx) {
-    const stub: any = async (mail: any) => { sent.push(mail); };
+    const stub: any = async (mail: any) => { sent.push(mail); return { queued: mailOn ? 1 : 0, skipped: 0, enabled: mailOn, logIds: [] }; };
     // With every module loaded the email service may already be there: stand in for it.
     if (ctx.app.hasDecorator('sendMail')) (ctx.app as any).sendMail = stub;
     else ctx.app.decorate('sendMail', stub);
@@ -121,11 +122,12 @@ describe('report files', () => {
 });
 
 describe('scheduled files', () => {
-  it('stores a PDF or Excel snapshot for people who may export, and attaches it when email is available', async () => {
+  it('stores a PDF or Excel snapshot for people who may export, and attaches it when the schedule asks and email is on', async () => {
     const s = (await lead.post('/api/report-schedules', {
-      name: 'Weekly file', target_type: 'report', target_id: report.id, cadence: 'daily', hour: 7, format: 'pdf',
+      name: 'Weekly file', target_type: 'report', target_id: report.id, cadence: 'daily', hour: 7, format: 'pdf', email: 'attach',
       recipient_users: [lead.userId, reader.userId],
     })).body;
+    expect(s.email).toBe('attach');
     expect(s.format).toBe('pdf');
     await t.db.query("update report_schedules set next_run_at = now() - interval '1 minute' where id = $1", [s.id]);
     const deps = { documents: makeDocuments(t.ctx, async (_u, id) => t.db.one('select * from report_definitions where id = $1', [id])), snapshots: makeSnapshots(t.ctx) };
@@ -139,8 +141,73 @@ describe('scheduled files', () => {
     expect(got.body.subarray(0, 5).toString()).toBe('%PDF-');
     expect(sent.length).toBe(2);
     expect(sent[0].attachments[0]).toMatchObject({ contentType: 'application/pdf', filename: 'things-by-status.pdf' });
-    expect(sent[0].text).toContain('/reports/snapshots/');
+    // By user id, through the general message template, with a link and no figures in the text.
+    expect(sent[0]).toMatchObject({ template: 'message', purpose: 'reports' });
+    expect(sent.map((m) => m.userIds[0]).sort()).toEqual([lead.userId, reader.userId].sort());
+    expect(sent[0].data.link).toMatch(/^\/reports\/snapshots\//);
+    expect(sent[0].data.message).not.toMatch(/Brand new|In hand|Finished/);
+    const log = await t.db.query<any>('select detail from report_deliveries where schedule_id = $1', [s.id]);
+    expect(log.every((l) => /PDF attached is on its way/.test(l.detail))).toBe(true);
     const emailed = await t.db.query("select 1 from audit_events where action = 'report_snapshot.export' and summary like 'Emailed stored export%'");
     expect(emailed.length).toBe(2);
+  });
+});
+
+describe('scheduled email (E12-10)', () => {
+  const deps = () => ({ documents: makeDocuments(t.ctx, async (_u, id) => t.db.one('select * from report_definitions where id = $1', [id])), snapshots: makeSnapshots(t.ctx) });
+  async function deliver(body: Record<string, unknown>) {
+    const s = (await lead.post('/api/report-schedules', { name: `Email ${Math.random()}`, target_type: 'report', cadence: 'daily', hour: 7, ...body }));
+    expect(s.status).toBe(201);
+    await t.db.query("update report_schedules set next_run_at = now() - interval '1 minute' where id = $1", [s.body.id]);
+    sent.length = 0;
+    const [run] = await runDueSchedules(t.ctx, deps(), new Date());
+    const log = await t.db.query<any>('select d.detail, d.user_id from report_deliveries d where d.schedule_id = $1', [s.body.id]);
+    return { run, log, schedule: s.body };
+  }
+
+  it('emails a link by default, never the figures, and nothing when the schedule says no email', async () => {
+    const { log, schedule } = await deliver({ target_id: report.id, format: 'xlsx', recipient_users: [lead.userId] });
+    expect(schedule.email).toBe('link');
+    expect(sent).toHaveLength(1);
+    expect(sent[0].attachments).toBeUndefined();
+    expect(sent[0].data.link).toMatch(/^\/reports\/snapshots\//);
+    expect(log[0].detail).toBe('Email with a link is on its way.');
+
+    const off = await deliver({ target_id: report.id, format: 'pdf', email: 'off', recipient_users: [lead.userId] });
+    expect(sent).toHaveLength(0);
+    expect(off.run.delivered).toBe(1);
+  });
+
+  it('never attaches restricted rows, nor a file to someone who may not export', async () => {
+    const agent = await t.as('agent');
+    const { log } = await deliver({ target_id: filtered.id, format: 'pdf', email: 'attach', recipient_users: [lead.userId, agent.userId] });
+    expect(sent).toHaveLength(2);
+    expect(sent.every((m) => !m.attachments)).toBe(true);
+    const byUser = Object.fromEntries(log.map((l) => [l.user_id, l.detail]));
+    expect(byUser[lead.userId]).toMatch(/not attached: it includes restricted records/);
+    expect(byUser[agent.userId]).toMatch(/not attached: their role does not allow exporting/);
+  });
+
+  it('refuses to attach a print-ready document, and stays in the application while email is switched off', async () => {
+    const bad = await lead.post('/api/report-schedules', { name: 'Bad', target_type: 'report', target_id: report.id, cadence: 'daily', format: 'html', email: 'attach', recipient_users: [lead.userId] });
+    expect(bad.status).toBe(400);
+    expect(bad.body.error.fields.email).toMatch(/Only a PDF, Excel or CSV file/);
+    mailOn = false;
+    try {
+      const { run, log } = await deliver({ target_id: report.id, format: 'pdf', email: 'attach', recipient_users: [lead.userId] });
+      expect(run.delivered).toBe(1);
+      expect(log[0].detail ?? '').not.toMatch(/Email/);
+    } finally { mailOn = true; }
+    expect((await lead.get('/api/reports/email-status')).body).toEqual({ enabled: false });
+  });
+
+  it('runs due schedules from the job queue', async () => {
+    const s = (await lead.post('/api/report-schedules', { name: 'Queued', target_type: 'report', target_id: report.id, cadence: 'daily', hour: 7, recipient_users: [lead.userId] })).body;
+    await t.db.query("update report_schedules set next_run_at = now() - interval '1 minute' where id = $1", [s.id]);
+    expect((await t.db.one<any>(`select type from job_schedules where name = 'reports.deliver'`))?.type).toBe('reports.deliver');
+    await t.app.jobs.enqueue('reports.deliver', {});
+    await t.app.jobs.runDue();
+    const row = await t.db.one<any>('select last_status from report_schedules where id = $1', [s.id]);
+    expect(row.last_status).toBe('1 delivered, 0 skipped, 0 failed');
   });
 });

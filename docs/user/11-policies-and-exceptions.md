@@ -2,6 +2,8 @@
 
 This part of the application holds the policy library: each policy with its owner, approver, review date and every version of its text. Publishing a version asks the right people to read and acknowledge it, and a tracking view shows who has. It also holds the exceptions register, where each agreed deviation from a policy is recorded with its approver and the date it expires. Both are in the **Cybersecurity** group of the menu. Lists and record pages work as described in [Getting started](01-getting-started.md).
 
+An administrator can switch policies and exceptions off under **Administration > Features** (see [Administration](09-administration.md#features)); **My acknowledgments** then goes too. Records are kept and return when it is switched back on.
+
 ## Who can do what
 
 | To do this | You need |
@@ -187,6 +189,8 @@ Open the policy's **Acknowledgments** tab.
 Once a day the application looks for acknowledgments that are past their due date. Each person who is overdue gets a notification (**Reminder: please read and acknowledge** and the policy) that opens the policy for them. The reminder is recorded in the policy's **History** and its date is shown under **Last reminder**. A person is reminded again every 7 days until they acknowledge.
 
 To change the 7 days, someone with **Administer** on **Policies** selects **Reminder settings** at the top of the policy library, enters **Days between reminders** (1 to 90) and selects **Save**. The change is recorded in the audit log.
+
+One policy can have its own interval: on the policy, select **Change** on **Who must acknowledge** and enter **Days between reminders** (1 to 90), or leave it empty to use the setting above.
 
 ## Map a policy to framework outcomes
 

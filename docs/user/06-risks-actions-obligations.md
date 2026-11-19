@@ -2,6 +2,8 @@
 
 This page covers the risk register, the action tracker and the obligations register. The **Risk register**, **Risk reviews**, **Action tracker** and **Obligations** are in the **Cybersecurity** group of the menu; **My actions** is under **Home**, the **Risk report** under **Reports** and **Risk scales** under **Administration**.
 
+An administrator can switch the risk register and obligations off under **Administration > Features** (see [Administration](09-administration.md#features)); the action tracker always stays on. Records are kept and return when they are switched back on.
+
 - The **Risk register** records what could go wrong, how serious it is and what is being done about it.
 - The **Action tracker** is the single to-do list for follow-up work arising anywhere in the application.
 - **Obligations** lists the things your organization is required to do, how each is met and when it is next due.
@@ -298,7 +300,7 @@ Each row lets you act without leaving the page (needs **Edit** on **Actions**):
 - change the **Status** with its drop-down;
 - select the title to open the action, or **Open risk** (or the matching record) to go to where it came from.
 
-**Quick add**: type a title in **Add an action and press Enter**, optionally choose a **Due date**, and press Enter or select **Add**. Press **N** anywhere on the page to jump to that box.
+**Quick add**: type a title in **Add an action and press Enter**, optionally choose a **Due date**, and press Enter or select **Add**. Press **N** anywhere on the page to jump to that box. If your administrator has made a custom field on actions required, it appears under the box once you start typing and must be filled in; other custom fields are filled in on the action's page.
 
 ### Changing several actions at once
 
@@ -390,6 +392,8 @@ To add an obligation:
 2. Fill in the fields above and save. The obligation is given a reference beginning `OBL-`.
 
 An obligation's page shows its status, next due date with countdown and owner at the top. To review it, select **Edit** on the **Details** card, update **Status**, **How it is met**, **Evidence** and **Next due**, and save.
+
+The owner is reminded once when the next due date is 30 days away, and once more when it is reached; an obligation without an owner goes to everyone who may edit obligations. Setting a new **Next due** starts the reminders again for that date. An administrator changes the 30 days under **Administration** > **Reminders**.
 
 ### Evidence files
 

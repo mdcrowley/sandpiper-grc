@@ -5,8 +5,9 @@ import { fail, UUID_RE } from './errors.ts';
 import type { ResourceDef, Row, SessionUser } from './module.ts';
 import type { CustomFields } from './customfields.ts';
 import type { makeResources } from './resource.ts';
-import { HEADLINE_OPTIONS, parseSearch, SEARCH_CONFIG, snippetParts } from './search.ts';
+import { BODY_SEPARATOR, HEADLINE_OPTIONS, parseSearch, SEARCH_CONFIG, snippetParts, substringColumns } from './search.ts';
 import { can, requirePerm, type makeAudit, type makeLookups } from './services.ts';
+import { registerSharedViews } from './views.ts';
 
 interface Deps {
   app: FastifyInstance;
@@ -24,6 +25,8 @@ export function registerCoreRoutes({ app, db, audit, lookups, res, custom, notif
   const { registry, labelsFor, mayAccess, visibilitySql } = res;
   // Idempotency keys for the API conventions (core/api/conventions.ts): their table and database.
   registerApiStore(app, db);
+  // List views shared with everyone who can see the list (core/views.ts).
+  registerSharedViews({ app, db, audit, res });
 
   /** The record, if the caller may see it; otherwise a 404 that does not reveal whether it exists. */
   async function visibleRecord(req: FastifyRequest, type: string, id: string, action = 'view'): Promise<{ def: ResourceDef; row: Row }> {
@@ -83,6 +86,8 @@ export function registerCoreRoutes({ app, db, audit, lookups, res, custom, notif
       resources[d.type] = {
         type: d.type, label: d.label, plural: d.plural, module: d.module, path: d.path, route: d.route,
         titleField: d.titleField, refField: d.ref?.field, restricted: d.restricted ?? false,
+        // Files on this type are evidence (E14-18): the Attachments tab records new files as evidence.
+        evidence: res.evidenceFor(d),
         // Custom fields follow the built-in ones, in the same shape, marked `custom: true` (core/customfields.ts).
         fields: { ...d.fields, ...(await custom.defs(d.type)) },
         search: res.ftsTypes.has(d.type) ? 'fulltext' : 'substring',
@@ -166,17 +171,48 @@ export function registerCoreRoutes({ app, db, audit, lookups, res, custom, notif
       }
     }
 
-    for (const def of registry.all()) {
-      if (!mayAccess(req.user, def, 'view')) continue;
+    // Each type reads its own matching rows of the search index first (E16-36), through the
+    // vector and trigram indexes, and ranks only those; its record table is then read by id. A
+    // single word is matched on its substring text too (search_index.body holds exactly the
+    // fields matched by substring), so no record table is scanned for it; more words match the
+    // title and reference by substring as before.
+    const useIndex = s.fts && !s.text.includes(BODY_SEPARATOR);
+
+    /** One type's matches, in the order they are added to the results. */
+    async function searchType(def: ResourceDef): Promise<[Row, 'record' | 'comment' | 'attachment', string | null][]> {
+      const out: [Row, 'record' | 'comment' | 'attachment', string | null][] = [];
       const params: unknown[] = [];
       const add = (v: unknown) => { params.push(v); return `$${params.length}`; };
       const visible = `t.deleted_at is null and ${visibilitySql(def, req.user, 't')}`;
       const label = `t.${def.titleField}::text as label, ${def.ref ? `t.${def.ref.field}` : 'null'} as ref`;
-      const cols = [...(def.searchable ?? [def.titleField]), ...(def.ref ? [def.ref.field] : [])];
+      const cols = substringColumns(def);
       const like = add(s.like);
       const substring = cols.map((c) => `t.${c}::text ilike ${like}`).join(' or ');
+      const fts = s.fts && res.ftsTypes.has(def.type);
 
-      if (s.fts && res.ftsTypes.has(def.type)) {
+      if (fts && useIndex) {
+        const tsq = s.tsquery(add);
+        const exact = def.ref ? `lower(t.${def.ref.field}::text) = lower(${add(s.text)}::text)` : 'false';
+        const matches = `(select si.record_id as id, ts_rank(si.vector, ${tsq}) as r from search_index si
+          where si.record_type = ${add(def.type)} and (si.vector @@ ${tsq}${s.single ? ` or si.body ilike ${like}` : ''})) m`;
+        const from = s.single
+          ? `${matches} join ${def.table} t on t.id = m.id where ${visible}`
+          : `${def.table} t left join ${matches} on m.id = t.id
+             where ${visible} and (m.id is not null or ${exact} or t.${def.titleField}::text ilike ${like}${def.ref ? ` or t.${def.ref.field}::text ilike ${like}` : ''})`;
+        const body = [...new Set([def.titleField, ...(def.searchable ?? [])])].map((c) => `t.${c}::text`).join(', ');
+        // The best few are chosen on ids and ranks alone; only they are read in full for the snippet.
+        const rows = await db.query<Row>(
+          `select x.id, ${label}, x.rank, ts_headline('${SEARCH_CONFIG}', concat_ws(' - ', ${body}), ${tsq}, '${HEADLINE_OPTIONS}') as headline
+           from (select t.id, t.updated_at,
+                   (coalesce(m.r, 0) + case when ${exact} then 10 else 0 end
+                    + case when t.${def.titleField}::text ilike ${like} then 0.5 else 0 end) as rank
+                 from ${from}
+                 order by rank desc, t.updated_at desc limit ${PER_TYPE}) x
+           join ${def.table} t on t.id = x.id
+           order by x.rank desc, x.updated_at desc`, params);
+        for (const r of rows) out.push([r, 'record', r.headline]);
+      } else if (fts) {
+        // A query holding the substring separator (never typed in practice): read the type's table.
         const tsq = s.tsquery(add);
         const exact = def.ref ? `lower(t.${def.ref.field}::text) = lower(${add(s.text)}::text)` : 'false';
         const body = [...new Set([def.titleField, ...(def.searchable ?? [])])].map((c) => `t.${c}::text`).join(', ');
@@ -189,11 +225,11 @@ export function registerCoreRoutes({ app, db, audit, lookups, res, custom, notif
                  where ${visible} and (si.vector @@ ${tsq} or ${exact} or ${s.single ? substring : `t.${def.titleField}::text ilike ${like}${def.ref ? ` or t.${def.ref.field}::text ilike ${like}` : ''}`})
                  order by rank desc, t.updated_at desc limit ${PER_TYPE}) x
            order by x.rank desc`, params);
-        for (const r of rows) put(def, r, 'record', r.headline);
+        for (const r of rows) out.push([r, 'record', r.headline]);
       } else {
         const rows = await db.query<Row>(
           `select t.id, ${label}, 0.1 as rank from ${def.table} t where ${visible} and (${substring}) order by t.updated_at desc limit ${PER_TYPE}`, params);
-        for (const r of rows) put(def, r, 'record', null);
+        for (const r of rows) out.push([r, 'record', null]);
       }
 
       // A record is also found by what was said about it and by the names of its files. Both follow
@@ -208,16 +244,31 @@ export function registerCoreRoutes({ app, db, audit, lookups, res, custom, notif
                  from comments c join ${def.table} t on t.id = c.record_id
                  where c.record_type = ${addP(def.type)} and c.search_vector @@ ${tsq} and ${visible}
                  order by t.id, rank desc limit ${PER_TYPE}) x`, p);
-        for (const r of rows) put(def, r, 'comment', r.headline);
+        for (const r of rows) out.push([r, 'comment', r.headline]);
       }
       if (fileTypes.has(def.type)) {
         const rows = await db.query<Row>(
           `select distinct on (t.id) t.id, ${label}, a.file_name, 0.3 as rank
            from attachments a join ${def.table} t on t.id = a.record_id
            where a.record_type = $2 and a.deleted_at is null and a.file_name ilike $1 and ${visible} order by t.id limit ${PER_TYPE}`, [s.like, def.type]);
-        for (const r of rows) put(def, r, 'attachment', r.file_name);
+        for (const r of rows) out.push([r, 'attachment', r.file_name]);
       }
+      return out;
     }
+
+    // A few types at a time: a PostgreSQL server answers them side by side; the embedded database
+    // takes them in turn either way. Results are merged in the registry's order, so ties come out
+    // the same whatever finished first.
+    const types = registry.all().filter((def) => mayAccess(req.user, def, 'view'));
+    const results: Awaited<ReturnType<typeof searchType>>[] = new Array(types.length);
+    let next = 0;
+    await Promise.all(Array.from({ length: Math.min(4, types.length) }, async () => {
+      while (next < types.length) {
+        const i = next++;
+        results[i] = await searchType(types[i]);
+      }
+    }));
+    types.forEach((def, i) => { for (const [r, matched, headline] of results[i]) put(def, r, matched, headline); });
     return [...found.values()].sort((a, b) => b.rank - a.rank).slice(0, 60);
   });
 

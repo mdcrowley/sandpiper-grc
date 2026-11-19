@@ -2,9 +2,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { ActionIcon, Tooltip } from '@mantine/core';
-import { IconArrowsMaximize, IconArrowsMinimize, IconFocusCentered, IconMinus, IconPlus } from '@tabler/icons-react';
+import { IconArrowsMaximize, IconArrowsMinimize, IconDownload, IconFocusCentered, IconMinus, IconPlus } from '@tabler/icons-react';
 import { lookupColor, lookupLabel } from '../../core';
-import { neighbourhood, typeInfo } from './mapLayout';
+import { neighborhood, shortLabel as short, typeInfo } from './mapLayout';
 import type { Layout, PlacedNode } from './mapLayout';
 
 export interface MapCanvasProps {
@@ -18,24 +18,18 @@ export interface MapCanvasProps {
   center?: { id: string; n: number } | null;
   full: boolean;
   onToggleFull: () => void;
+  /** Opens the "save as a picture" dialog; no button without it. */
+  onSave?: () => void;
+  /** Records to point out (for example what a change affects): outlined, with their neighbors kept bright while nothing is selected. */
+  marked?: Set<string>;
 }
 
 interface View { k: number; x: number; y: number }
 const MIN_K = 0.15;
 const MAX_K = 2.5;
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
-/**
- * Shortens a label to n characters, at a word boundary where one is near, so the words drawn on a
- * node are whole words of its accessible name (speech users say what they see).
- */
-const short = (s: string, n = 22) => {
-  if (s.length <= n) return s;
-  const cut = s.slice(0, n - 1);
-  const space = cut.lastIndexOf(' ');
-  return `${space >= n / 2 ? cut.slice(0, space) : cut}…`;
-};
 
-export function MapCanvas({ layout, label, selectedId, onSelect, impacted, center, full, onToggleFull }: MapCanvasProps) {
+export function MapCanvas({ layout, label, selectedId, onSelect, impacted, center, full, onToggleFull, onSave, marked }: MapCanvasProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [{ width, height }, setSize] = useState({ width: 0, height: 0 });
   useEffect(() => {
@@ -133,13 +127,23 @@ export function MapCanvas({ layout, label, selectedId, onSelect, impacted, cente
   // Zoomed far out, the names of records are too small to read: group and lane headings grow so the shape of the estate still is.
   const headSize = clamp(9.5 / view.k, 12.5, 22);
   const activeId = selectedId ?? hoverId;
-  const near = useMemo(() => (activeId ? neighbourhood(activeId, layout.edges) : null), [activeId, layout.edges]);
+  const markedNear = useMemo(() => {
+    if (!marked?.size) return null;
+    const ids = new Set(marked);
+    const edges = new Set<number>();
+    for (const e of layout.edges) {
+      if (marked.has(e.from) || marked.has(e.to)) { ids.add(e.from); ids.add(e.to); edges.add(e.index); }
+    }
+    return { ids, edges };
+  }, [marked, layout.edges]);
+  const near = useMemo(() => (activeId ? neighborhood(activeId, layout.edges) : markedNear), [activeId, layout.edges, markedNear]);
   const hot = impacted && selectedId ? impacted : null;
 
   const nodeClass = (n: PlacedNode) => {
     const c = ['inv-node', `inv-node-${typeInfo(n.type).color}`];
     if (n.id === selectedId) c.push('is-selected');
     else if (hot?.has(n.id)) c.push('is-impacted');
+    else if (marked?.has(n.id)) c.push('is-marked');
     if (near && !near.ids.has(n.id) && !hot?.has(n.id)) c.push('is-dim');
     return c.join(' ');
   };
@@ -203,7 +207,7 @@ export function MapCanvas({ layout, label, selectedId, onSelect, impacted, cente
                 key={n.id} className={nodeClass(n)} transform={`translate(${n.x} ${n.y})`}
                 tabIndex={0} role="button" aria-pressed={n.id === selectedId}
                 // The name starts with the label drawn on the node, so speech users can say what they see.
-                aria-label={`${n.label} (${typeInfo(n.type).label.toLowerCase()})${hot?.has(n.id) ? ', affected' : ''}`}
+                aria-label={`${n.label} (${typeInfo(n.type).label.toLowerCase()})${hot?.has(n.id) ? ', affected' : marked?.has(n.id) ? ', affected by the change' : ''}`}
                 onClick={(e) => { e.stopPropagation(); if (!wasDrag()) onSelect(n.id === selectedId ? null : n.id); }}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onSelect(n.id === selectedId ? null : n.id); } }}
                 onPointerEnter={() => setHoverId(n.id)} onPointerLeave={() => setHoverId((h) => (h === n.id ? null : h))}
@@ -228,6 +232,11 @@ export function MapCanvas({ layout, label, selectedId, onSelect, impacted, cente
               {full ? <IconArrowsMinimize size={18} /> : <IconArrowsMaximize size={18} />}
             </ActionIcon>
           </Tooltip>
+          {onSave && (
+            <Tooltip label="Save as a picture" position="left">
+              <ActionIcon variant="default" size="lg" aria-label="Save as a picture" onClick={onSave}><IconDownload size={18} /></ActionIcon>
+            </Tooltip>
+          )}
         </ActionIcon.Group>
       </div>
       <span className="inv-canvas-zoom" aria-hidden="true">{Math.round(view.k * 100)}%</span>

@@ -151,3 +151,19 @@ a.chg-ev:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 
 /* Positioned, so screen-reader-only header text in a far-right column is clipped with the table instead of widening the page. */
 .chg-tw { position: relative; }
+
+/* ---------- moving a change on the calendar (E05-12) ---------- */
+.chg-ev[draggable='true'] { cursor: grab; }
+.chg-ev[draggable='true']:active { cursor: grabbing; }
+.chg-drop-target { outline: 2px dashed var(--c-blue-solid); outline-offset: -2px; background-color: var(--c-blue-bg); }
+.chg-move-hint { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0; font-size: var(--fs-sm); }
+.chg-move-title, .chg-move-from { margin: 0; }
+.chg-move-nudge { flex-wrap: wrap; }
+
+/* ---------- changes on a system or asset page (E05-08) ---------- */
+.chg-rec-list { list-style: none; margin: 0; padding: 0; }
+.chg-rec-list > li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px var(--s-3); padding: var(--s-2) var(--s-3); border-bottom: 1px solid var(--border); }
+.chg-rec-list > li:last-child { border-bottom: 0; }
+.chg-rec-title { min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
+.chg-rec-meta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px var(--s-3); font-size: var(--fs-sm); color: var(--text-muted); }
+.chg-rec-group { margin: 0; padding: var(--s-2) var(--s-3); font-size: var(--fs-xs); font-weight: 650; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); border-bottom: 1px solid var(--border); }

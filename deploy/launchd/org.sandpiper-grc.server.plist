@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Sandpiper GRC as a launchd system daemon (macOS), the counterpart of deploy/systemd/sandpiper-grc.service.
+  See docs/installation.md, "macOS service". For a service run as yourself without administrator rights,
+  use  ./grc.sh service install  instead (it writes a LaunchAgent with your current settings).
+
+  Assumes the application in /usr/local/sandpiper-grc, owned by root and readable by everyone, with
+  Node.js in /usr/local/sandpiper-grc/.tools/node (tools/install-node.sh), packages installed and the
+  web application built (./grc.sh install && ./grc.sh build), and a role account to run it, for example
+  _sandpiper with its data in /usr/local/var/sandpiper-grc (owned by _sandpiper, mode 750).
+
+    sudo cp deploy/launchd/org.sandpiper-grc.server.plist /Library/LaunchDaemons/
+    sudo chown root:wheel /Library/LaunchDaemons/org.sandpiper-grc.server.plist
+    sudo launchctl bootstrap system /Library/LaunchDaemons/org.sandpiper-grc.server.plist
+    sudo launchctl print system/org.sandpiper-grc.server        # state, process, last exit code
+
+  Stop: sudo launchctl bootout system/org.sandpiper-grc.server (a clean shutdown: SIGTERM, then up to
+  30 seconds for requests in progress and the database). Reload a renewed TLS certificate without a
+  restart: sudo launchctl kill SIGHUP system/org.sandpiper-grc.server (or wait for GRC_TLS_RELOAD_SECONDS).
+  Logs: /usr/local/var/sandpiper-grc/data/logs/grc.log (rotated by the server itself).
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>org.sandpiper-grc.server</string>
+  <key>UserName</key><string>_sandpiper</string>
+  <key>GroupName</key><string>_sandpiper</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/sandpiper-grc/.tools/node/bin/node</string>
+    <string>--experimental-transform-types</string>
+    <string>--disable-warning=ExperimentalWarning</string>
+    <string>server/src/main.ts</string>
+  </array>
+  <key>WorkingDirectory</key><string>/usr/local/sandpiper-grc</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>NODE_ENV</key><string>production</string>
+    <key>GRC_DATA_DIR</key><string>/usr/local/var/sandpiper-grc/data</string>
+    <key>GRC_BACKUP_DIR</key><string>/usr/local/var/sandpiper-grc/backups</string>
+    <key>GRC_SEED_DIR</key><string>/usr/local/var/sandpiper-grc/seed</string>
+    <key>GRC_PORT</key><string>8080</string>
+    <!-- Behind a reverse proxy on this machine (docs/installation.md, "Reverse proxy"). -->
+    <key>GRC_TRUST_PROXY</key><string>loopback</string>
+    <!-- Add your settings here: GRC_TIMEZONE, GRC_CURRENCY, GRC_DATABASE_URL, GRC_DATABASE_PASSWORD_FILE, ...
+         Never a password itself: name a file readable only by _sandpiper with a *_FILE setting. -->
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <!-- Restarted after a crash, not after a clean stop. -->
+  <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
+  <key>ThrottleInterval</key><integer>5</integer>
+  <key>ExitTimeOut</key><integer>30</integer>
+  <key>Umask</key><integer>23</integer>
+  <key>StandardOutPath</key><string>/usr/local/var/sandpiper-grc/data/server.log</string>
+  <key>StandardErrorPath</key><string>/usr/local/var/sandpiper-grc/data/server.log.err</string>
+</dict>
+</plist>

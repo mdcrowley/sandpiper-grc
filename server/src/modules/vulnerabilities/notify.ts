@@ -1,3 +1,4 @@
+import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { loadPolicy, recalculateDueDates } from './policy.ts';
 
@@ -11,7 +12,7 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 /** "2026-11-18" -> "18 Nov 2026". */
 export function plainDate(iso: unknown): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso ?? ''));
-  return m ? `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]} ${m[1]}` : '';
+  return m ? `${MONTHS[Number(m[2]) - 1]} ${Number(m[3])}, ${m[1]}` : '';
 }
 
 const hostOf = (f: Row) => String(f.host_name || f.host_ip || '').trim();
@@ -119,13 +120,7 @@ export async function sweepOverdue(ctx: ModuleContext): Promise<SweepResult> {
 
 const HOUR = 3_600_000;
 
-/** Starts the sweep timer. Not under the test runner or with a throwaway in-memory database. */
-export function registerSweep(ctx: ModuleContext): void {
-  if (process.env.VITEST || process.env.GRC_DATA_DIR === 'memory') return;
-  const safeRun = () => { sweepOverdue(ctx).catch((err) => console.error('[vulnerabilities] overdue sweep failed:', err)); };
-  const first = setTimeout(safeRun, 90_000);
-  const timer = setInterval(safeRun, HOUR);
-  first.unref();
-  timer.unref();
-  ctx.app.addHook('onClose', async () => { clearTimeout(first); clearInterval(timer); });
+/** The overdue sweep, hourly on the job queue (Administration > Background jobs). */
+export async function registerSweep(ctx: ModuleContext): Promise<void> {
+  await scheduleWork(ctx, 'vulnerabilities.overdue_sweep', () => sweepOverdue(ctx), { every: HOUR, firstRunInMs: 90_000 });
 }

@@ -170,7 +170,7 @@ describe('record fact sheet', () => {
     const text = pdfText(res.body);
     expect(text).toContain(`${row.ref} Farebox reader`);
     expect(text).toContain('Test Admin');
-    expect(text).toContain('14 Mar 2026');
+    expect(text).toContain('Mar 14, 2026');
     expect(text).toContain('Recent history');
     const audit = await t.db.one<{ summary: string }>("select summary from audit_events where action = 'gizmo.export' and record_id = $1", [row.id]);
     expect(audit!.summary).toContain('Fact sheet of gizmo');

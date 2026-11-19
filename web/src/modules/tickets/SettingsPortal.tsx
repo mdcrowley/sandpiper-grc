@@ -1,5 +1,6 @@
 // Service desk settings, "Self-service portal" tab: the switch, the title and welcome line, the
-// service status banner, the reopen window and which catalog items staff can ask for.
+// service status banner, the reopen window, who may raise a request for a colleague (E15-12),
+// safety reports from the portal (E20-13) and which catalog items staff can ask for.
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -10,6 +11,7 @@ import type { ListResult } from '../../core';
 
 interface PortalSettings {
   enabled: boolean; title: string; intro: string; reopen_days: number;
+  on_behalf: 'nobody' | 'department' | 'anyone'; safety_reports: boolean;
   banner: { message: string; tone: string; updated_at: string | null } | null;
   can_switch: boolean; can_edit: boolean;
 }
@@ -19,6 +21,12 @@ const TONES = [
   { value: 'warning', label: 'Warning: some things may not work' },
   { value: 'outage', label: 'Service problem: something is down' },
   { value: 'resolved', label: 'Restored: back to normal' },
+];
+
+const ON_BEHALF = [
+  { value: 'department', label: 'Anyone, for a colleague in their own department' },
+  { value: 'anyone', label: 'Anyone, for any colleague' },
+  { value: 'nobody', label: 'Nobody: each person raises their own' },
 ];
 
 function CatalogChoice({ canEdit }: { canEdit: boolean }) {
@@ -136,6 +144,22 @@ export function PortalSettingsTab() {
           {canEdit && (
             <div className="form-actions">
               <Button variant="primary" loading={busy} onClick={() => void save({ title: f.title, intro: f.intro, reopen_days: f.reopen_days }, 'Portal settings saved.')}>Save</Button>
+            </div>
+          )}
+        </div>
+      </Card>
+
+      <Card title="Requests for colleagues and safety reports">
+        <div className="form">
+          <Select label="Who may raise a request for a colleague" required disabled={!canEdit} options={ON_BEHALF} value={f.on_behalf}
+            error={errors.on_behalf} hint="The colleague is recorded as the affected person, is told, and follows the request in the portal too."
+            onChange={(v) => setF({ ...f, on_behalf: (v || 'department') as PortalSettings['on_behalf'] })} />
+          <Switch label="Staff can report a safety event" checked={f.safety_reports} disabled={!canEdit}
+            hint="Shown when the safety module is in use. Reports arrive as safety events with the status Reported, for the safety team to triage."
+            onChange={(on) => setF({ ...f, safety_reports: on })} />
+          {canEdit && (
+            <div className="form-actions">
+              <Button variant="primary" loading={busy} onClick={() => void save({ on_behalf: f.on_behalf, safety_reports: f.safety_reports }, 'Portal settings saved.')}>Save</Button>
             </div>
           )}
         </div>

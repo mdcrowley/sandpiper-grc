@@ -2,6 +2,8 @@
 
 The inventory records what the organization runs and owns: the systems people rely on, the physical and licensed assets, the sites they are at, and the categories of data held. It also records how these relate, so you can see what is affected if a system fails. Lists and record pages work as described in [Getting started](01-getting-started.md).
 
+Inventory is always on. When an administrator switches **Fleet and services** off under **Administration > Features**, the services and vehicles drop out of the relationship map and the impact panels (see [Administration](09-administration.md#features)).
+
 ## Systems
 
 A system is an application or service that people use, for example the scheduling system, the fare collection back office or the email service. Equipment on the vehicles themselves, such as the fareboxes or the onboard video, can be recorded as a system too. Open **Systems** in the **Inventory** group. The list shows 50 systems per page.
@@ -61,6 +63,10 @@ An integration is a flow of data between two systems.
 
 The integration appears on both systems, as **Sends to** on one and **Receives from** on the other. Removing it from one removes it from both. A system cannot be integrated with itself, and the same pair with the same method cannot be recorded twice.
 
+### Change an integration
+
+Select the pencil button (**Edit the integration with** the other system) on its row in the **Integrations** tab. Change the **Direction of data**, the **Method** or the **Notes**, and select **Save changes**. The direction is read from the system you are on, so you can turn an integration round from either end. The change shows on both systems and is recorded in the history of both. The other system cannot be changed: to connect a different system, remove the integration and add another.
+
 ### Link sites and data categories
 
 - On the **Fact sheet** tab, under **Sites served**, select **Add site** and choose the site.
@@ -70,17 +76,17 @@ To remove a link, select the trash button on its row and confirm with **Remove**
 
 ### Changes and issues
 
-The **Changes and issues** tab on a system (and on an asset) has up to three lists: **Changes**, **Open tickets** and **Open vulnerabilities**. A record is listed when its system (or asset) field names this record. Each list shows the newest six with a count; select **See all** or **Open as a list** to open the full list with that filter. A list appears only if that part of the application is in use and your role may see it.
+The **Changes and issues** tab on a system (and on an asset) starts with the **Changes** panel: every change that affects the record, as its main system or asset or linked to it as affected, grouped as **Under way**, **Planned** and **Earlier** with status and planned window (see [Change enablement](10-change-enablement.md)). Below it are **Open tickets** and **Open vulnerabilities**, listed when their system (or asset) field names this record. Each list shows the newest six with a count; select **See all** or **Open as a list** to open the full list with that filter. A list appears only if that part of the application is in use and your role may see it.
 
 ## The relationship map
 
-The map draws systems, the integrations between them, and the vendors, sites, data categories and assets around them. Open **Relationship map** in the **Inventory** group.
+The map draws systems, the integrations between them, and the vendors, sites, data categories, assets and services around them. Open **Relationship map** in the **Inventory** group.
 
 ### Read the map
 
-- Systems sit in the middle, in a box for each group. **Vendors** are in a lane on the left; **Sites**, **Data categories** and **Assets** are in lanes on the right, each level with the systems it belongs to, or one under another when they are short, to keep the map narrow. A very large group shows its systems two or more to a row. The same estate always draws the same way.
+- Systems sit in the middle, in a box for each group. **Vendors** are in a lane on the left; **Sites**, **Data categories**, **Assets** and **Services** are in lanes on the right, each level with the systems it belongs to, or one under another when they are short, to keep the map narrow. A very large group shows its systems two or more to a row. The same estate always draws the same way.
 - Color shows the type. The dot at the end of a system shows its criticality.
-- A solid line with an arrow is an integration, and the arrow shows the way data flows. A dashed line is another relationship: "supplied by" a vendor, "serves" a site, "holds" a data category, "runs on" an asset.
+- A solid line with an arrow is an integration, and the arrow shows the way data flows. A dashed line is another relationship: "supplied by" a vendor, "serves" a site, "holds" a data category, "runs on" an asset, "needed for" a service (with what the service needs the system for, such as CAD/AVL or fare collection).
 - The legend under the map repeats this.
 
 ### Move around
@@ -95,7 +101,7 @@ The map draws systems, the integrations between them, and the vendors, sites, da
 - **Find a system, vendor, site…** searches the records on the map. Choosing one selects it and centers the map on it.
 - **Arrange systems by** groups the systems by **Group**, **Criticality** or **Hosting**.
 - The group box (showing **All groups**) limits the map to systems in one group.
-- **Show** chooses which other types are drawn. Vendors, sites and data categories are shown to start with; select **Assets** to add them. Only assets linked to a system appear.
+- **Show** chooses which other types are drawn. Vendors, sites and data categories are shown to start with; select **Assets** or **Services** to add them. Only assets linked to a system appear. **Services** are routes and lines that depend on at least one system; they appear when the fleet module is installed and you may see fleet records, and discontinued services are left out. A system's **Map** tab shows every type.
 - **Reset** puts these back.
 - **Map** and **Table** switch between the drawing and a table of the same relationships, with a **Search relationships** box. Use the table if you prefer text or use a screen reader.
 
@@ -104,9 +110,9 @@ The map draws systems, the integrations between them, and the vendors, sites, da
 Select a record on the map. Everything not connected to it fades, and the panel beside the map shows:
 
 - its type, name and reference, and for a system its status, criticality and hosting;
-- **Open system** (or site, data category, asset, vendor) to go to the record;
+- **Open system** (or site, data category, asset, service, vendor) to go to the record;
 - for a system, **If this fails** (see below);
-- **Connections**, grouped by relationship: **Sends data to**, **Receives data from**, **Exchanges data with**, **Supplied by**, **Serves**, **Holds**, **Runs on**. Select a name to move to that record.
+- **Connections**, grouped by relationship: **Sends data to**, **Receives data from**, **Exchanges data with**, **Supplied by**, **Serves**, **Holds**, **Runs on**, **Needed by services**, **Depends on**. Select a name to move to that record.
 
 Select the cross, or an empty part of the map, to clear the selection.
 
@@ -119,11 +125,29 @@ Under **If this fails** the panel counts and lists:
 - **Downstream systems**: every system that receives data from this one, directly or through another system. A both-ways integration counts in each direction. Each entry says whether it is "fed directly" or through which system, and by what method.
 - **Sites**, **Data categories** and **Assets**: those of this system and of every downstream system. Each entry says "directly" or names the system it comes through. Retired and disposed assets are left out.
 
+- **Services** and **Vehicles**, when the fleet module is installed and you may see fleet records: the services (routes and lines) that depend on this system or a downstream one, and the vehicles that carry their equipment, with their mode and depot. Vehicles appear only to people who may see assets. Retired vehicles and discontinued services are left out.
+
+A name drawn on the map moves the map to that record; a name that is not drawn (a vehicle, or a type hidden under **Show**) opens its own page.
+
 On the map, everything affected is outlined with a red dashed line and the lines that carry the failure turn red.
 
 The list is only as good as the integrations, sites and data categories you have recorded. A system with none shows "Nothing recorded depends on" it.
 
-When the fleet module is installed and you may see fleet records, the answer behind this list also names the **vehicles** that carry equipment of the failing or downstream systems and the **services** (routes and lines) that depend on them. **Fleet > What is affected** shows the same for one system on its own page; see [Fleet and services](19-fleet-and-services.md).
+**What is affected**, in the **Inventory** group, shows the vehicles and services for one system on its own page; see [Fleet and services](19-fleet-and-services.md).
+
+### Start the map from a change
+
+On a change's **Systems and links** tab, **Show on relationship map** opens the map with the systems and assets the change affects outlined in amber and their neighbors kept bright; everything else fades. A note above the map names the change and links back to it; **Show the whole map** clears it. Assets the change affects are added to the map even when **Assets** is not chosen under **Show**. Selecting a record works as usual, and clearing the selection returns to the change's highlighting.
+
+### Save the map as a picture
+
+Select **Save as a picture** (the download button under the zoom buttons). The dialog shows a preview and asks:
+
+- **Format**: **PNG picture**, for documents, slides and email, or **SVG drawing**, which stays sharp at any size and opens in drawing programs.
+- **Colors**: **For printing** (light colors on a white page) or **As on screen** (the theme you are using now, light or dark).
+- **Show what is affected if** the selected system **fails**, when a system is selected: the affected records are outlined in red, as on the screen.
+
+Select **Save picture**. The picture holds the whole map as it is filtered and arranged now, whatever the zoom, with a heading, the date and time, the arrangement and group if you chose one, and a legend. The file is named after the map and the day, for example `relationship-map-2026-11-19.png`. A system's **Map** tab saves its connections the same way. Very large maps are saved at a smaller scale so that the picture stays within what browsers can draw.
 
 ## Assets
 
@@ -220,7 +244,7 @@ The application sends a notification (see the bell at the top of the page):
 - 30 days and 7 days before an asset's **Warranty end** or **Support end**, and on the day. It goes to the asset's **Owner**; if the asset has no owner, to everyone who may edit assets.
 - 3 days before a loan is **Due back**, and on the day. It goes to the person who checked the asset out and, if the asset is with a user of the application, to that user.
 
-Retired and disposed assets are left out. Each reminder is sent once. You can switch off **Reminders** or **Due dates** in your notification preferences.
+Retired and disposed assets are left out. Each reminder is sent once. You can switch off **Reminders** or **Due dates** in your notification preferences. An administrator chooses the steps for warranty and support end dates (30, 7 and 0 days unless changed) under **Administration** > **Reminders**; the change is kept in the audit log.
 
 ## Sites
 
@@ -307,7 +331,6 @@ Vendor, contract and disposal fields cannot be imported. A row with the status *
 
 - Importing spreadsheet workbooks directly; importing systems, sites or data categories from the screens.
 - Automatic discovery of assets on the network.
-- Editing an integration. Remove it and add it again.
 - Changing an asset's department for several assets at once, or filtering the asset list by department. Use the **Assets by department** report.
 - Reminders by email. Reminders appear in the application only.
-- Printing or exporting the relationship map as a picture. Use the **Table** view and your browser's print.
+- Vehicles as records on the relationship map. They are listed under **If this fails** and on the fleet pages.

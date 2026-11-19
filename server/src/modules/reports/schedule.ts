@@ -1,7 +1,8 @@
 // Scheduled delivery. A schedule renders a report or dashboard once for each recipient, with that
 // recipient's own permissions, stores the result as a snapshot and tells the recipient in the
-// application. Timers are in-process (see index.ts); every function here takes the clock as an
-// argument so that tests choose the time.
+// application. The job queue runs due schedules (the `reports.deliver` job, see index.ts) and sends
+// any email (one `mail.send` job per message); every function here takes the clock as an argument
+// so that tests choose the time.
 import { TIME_ZONE } from '../../core/config.ts';
 import { UUID_RE } from '../../core/errors.ts';
 import type { ModuleContext, Row, SessionUser } from '../../core/module.ts';
@@ -59,18 +60,38 @@ export function nextRun(s: { cadence: string; hour?: unknown; weekday?: unknown;
 /** A file that goes with a delivery: the PDF or spreadsheet of a schedule set to one of those formats. */
 export interface DeliveryAttachment { filename: string; content: Buffer; contentType: string }
 
+/** How a schedule uses email: not at all, a link to the stored copy (the default), or the file attached. */
+export type EmailMode = 'off' | 'link' | 'attach';
+export const emailMode = (v: unknown): EmailMode => (v === 'off' || v === 'attach' ? v : 'link');
+
+export interface DeliveryMessage {
+  title: string; body: string; route: string;
+  email: EmailMode;
+  /** The file, when the schedule attaches it and this recipient may take it out of the application. */
+  attachment?: DeliveryAttachment;
+}
+export interface ChannelResult {
+  ok: boolean; detail?: string;
+  /** An email was queued, and whether it carries the file. */
+  emailed?: { attached: boolean };
+}
+
 /**
  * How a finished snapshot reaches a person. The in-application notification always runs. Email
- * runs only when an email service is installed (an `app.sendMail` decorator, switched on by an
- * administrator): the message carries a link to the snapshot and, when the schedule's format is a
- * PDF or Excel file and the recipient may export, that file as an attachment.
+ * runs only when the email service is loaded and an administrator has switched it on
+ * (`app.sendMail`, which queues one job per message) and the schedule does not say "off". The
+ * message names the schedule and links to the stored copy; it never carries the figures in its
+ * text. A file is attached only when the schedule asks for it (see `runSchedule` for who gets it).
  */
 export interface DeliveryChannel {
   key: string;
-  deliver(ctx: ModuleContext, to: SessionUser, message: { title: string; body: string; route: string; attachment?: DeliveryAttachment }): Promise<{ ok: boolean; detail?: string }>;
+  deliver(ctx: ModuleContext, to: SessionUser, message: DeliveryMessage): Promise<ChannelResult>;
 }
 
-type SendMail = (mail: { to: string; subject: string; text: string; purpose?: string; attachments?: { filename: string; content: Buffer; contentType: string }[] }) => Promise<unknown>;
+type SendMail = (mail: {
+  userIds: string[]; template: string; purpose: string;
+  data: Record<string, string>; attachments?: { filename: string; content: Buffer; contentType: string }[];
+}) => Promise<{ queued?: number; enabled?: boolean } | undefined>;
 
 export const channels: DeliveryChannel[] = [{
   key: 'in_app',
@@ -84,20 +105,27 @@ export const channels: DeliveryChannel[] = [{
 }, {
   key: 'email',
   async deliver(ctx, to, message) {
+    if (message.email === 'off') return { ok: true };
     const send = ctx.app.hasDecorator('sendMail') ? (ctx.app as unknown as { sendMail?: SendMail }).sendMail : undefined;
-    if (typeof send !== 'function' || !to.email) return { ok: true };
+    if (typeof send !== 'function') return { ok: true };
+    const kind = message.attachment?.contentType === 'application/pdf' ? 'PDF' : message.attachment?.contentType === 'text/csv; charset=utf-8' ? 'CSV file' : 'spreadsheet';
     try {
+      // By user id: the mail service looks up the address and checks the person is still active when it sends.
       const sent = await send.call(ctx.app, {
-        to: to.email, subject: message.title, purpose: 'reports',
-        text: `${message.body}\n\nOpen it in the application: ${message.route}${message.attachment ? `\n\nThe ${message.attachment.contentType === 'application/pdf' ? 'PDF' : 'spreadsheet'} is attached. It holds figures as your role allows; do not pass it on.` : ''}`,
+        userIds: [to.id], template: 'message', purpose: 'reports',
+        data: {
+          subject: message.title,
+          message: `${message.body}${message.attachment ? `\n\nThe ${kind} is attached. It holds the figures your role allows; do not pass it on.` : ''}`,
+          link: message.route,
+        },
         ...(message.attachment ? { attachments: [message.attachment] } : {}),
-      }) as { enabled?: boolean; queued?: number } | undefined;
-      // Email switched off, or this person opted out: the in-application delivery stands alone.
-      if (sent && (sent.enabled === false || sent.queued === 0)) return { ok: true };
-      return { ok: true, detail: message.attachment ? 'Emailed with the file attached.' : 'Emailed a link.' };
+      });
+      // Email switched off, or no usable address: the in-application delivery stands alone.
+      if (!sent || sent.enabled === false || !sent.queued) return { ok: true };
+      return { ok: true, detail: message.attachment ? `Email with the ${kind} attached is on its way.` : 'Email with a link is on its way.', emailed: { attached: Boolean(message.attachment) } };
     } catch (err) {
       console.error('[reports] scheduled email failed:', err);
-      return { ok: false, detail: 'Stored and notified in the application; the email could not be sent.' };
+      return { ok: false, detail: 'Stored and notified in the application; the email could not be queued.' };
     }
   },
 }];
@@ -174,15 +202,24 @@ export async function runSchedule(ctx: ModuleContext, deps: ScheduleDeps, s: Row
           forUser: to, content, recordTypes: doc.recordTypes, restricted: doc.restricted,
         });
         out.snapshots.push(snapshotId);
-        const attachment = Buffer.isBuffer(content) && (format === 'pdf' || format === 'xlsx')
-          ? { filename: `${doc.title.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase().slice(0, 60) || 'report'}.${format}`, content, contentType: FILE_TYPES[format] }
+        // A file goes out only when the schedule asks for it, the recipient may export (so `format`
+        // is a file), and nothing restricted is in it: restricted figures are read after signing in.
+        const email = emailMode(s.email);
+        const attachment = email === 'attach' && format !== 'html' && !doc.restricted
+          ? { filename: `${doc.title.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase().slice(0, 60) || 'report'}.${format}`, content: Buffer.isBuffer(content) ? content : Buffer.from(content, 'utf8'), contentType: FILE_TYPES[format] }
           : undefined;
         let detail: string | undefined;
         for (const channel of channels) {
           // The message names the schedule, not the figures: the snapshot is read after signing in.
-          const r = await channel.deliver(ctx, to, { title: `Scheduled ${isDash ? 'dashboard' : 'report'} ready: ${s.name}`, body: 'Open it to see the figures as at the time it was produced.', route: `/reports/snapshots/${snapshotId}`, attachment });
+          const r = await channel.deliver(ctx, to, {
+            title: `Scheduled ${isDash ? 'dashboard' : 'report'} ready: ${s.name}`, body: 'Open it to see the figures as at the time it was produced.',
+            route: `/reports/snapshots/${snapshotId}`, email, attachment,
+          });
           detail = r.detail ?? detail;
-          if (channel.key === 'email' && attachment && r.detail === 'Emailed with the file attached.') {
+          if (channel.key === 'email' && email === 'attach' && !attachment && r.emailed) {
+            detail = `${detail} The file was not attached: ${doc.restricted ? 'it includes restricted records' : 'their role does not allow exporting'}.`;
+          }
+          if (channel.key === 'email' && attachment && r.emailed?.attached) {
             // A file sent out of the application is an export, so it is in the audit trail.
             await ctx.audit(null, {
               action: 'report_snapshot.export', recordType: 'report_snapshot', recordId: snapshotId,

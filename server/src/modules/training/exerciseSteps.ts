@@ -8,6 +8,9 @@ import { text, UUID } from './dates.ts';
  * exercise rehearses exactly what the team would do in a real incident. Steps can also be
  * added by hand. The incident module may be absent: then only hand-written steps are offered.
  */
+/** Step outcomes that can raise a finding. */
+export const FINDING_OUTCOMES = ['not_done', 'with_issues'];
+
 export function registerExerciseSteps(ctx: ModuleContext) {
   const { app, db } = ctx;
   const view = { preHandler: ctx.requirePerm('exercises.view') };
@@ -36,7 +39,9 @@ export function registerExerciseSteps(ctx: ModuleContext) {
     const phases = await ctx.lookups.values('incident_checklist_phase');
     const order = (p: unknown) => { const i = phases.findIndex((x) => x.value === p); return i < 0 ? 99 : i; };
     const rows = await db.query<Row>(
-      'select id, phase, step, sort, outcome, notes, source_scenario from exercise_steps where exercise_id = $1 and deleted_at is null order by sort, created_at',
+      `select s.id, s.phase, s.step, s.sort, s.outcome, s.notes, s.source_scenario,
+              (select f.id from exercise_findings f where f.step_id = s.id and f.deleted_at is null limit 1) as finding_id
+       from exercise_steps s where s.exercise_id = $1 and s.deleted_at is null order by s.sort, s.created_at`,
       [exerciseId],
     );
     return rows
@@ -149,6 +154,48 @@ export function registerExerciseSteps(ctx: ModuleContext) {
       before: Object.fromEntries(keys.map((k) => [k, before[k] ?? null])), after: Object.fromEntries(keys.map((k) => [k, data[k] ?? null])),
     });
     return row;
+  });
+
+  /**
+   * E10-17: raises a finding from a step recorded as "Not done" or "Done, with issues", in one
+   * action. The finding names the step, how it went and its notes; body (optional):
+   * { severity, recommendation }. One finding per step.
+   */
+  app.post('/api/exercises/:id/steps/:stepId/finding', edit, async (req, reply) => {
+    const ex = await needExercise(req);
+    const step = await needStep(req, ex);
+    if (!FINDING_OUTCOMES.includes(step.outcome)) {
+      ctx.fail(409, 'not_a_gap', 'Only a step recorded as "Not done" or "Done, with issues" can raise a finding.');
+    }
+    if (await db.one('select 1 from exercise_findings where step_id = $1 and deleted_at is null', [step.id])) {
+      ctx.fail(409, 'already_raised', 'A finding has already been raised from this step.');
+    }
+    const body = (req.body ?? {}) as Row;
+    const fields: Record<string, string> = {};
+    const severity = text(body.severity) ?? (step.outcome === 'not_done' ? 'high' : 'medium');
+    if (!(await ctx.lookups.values('exercise_finding_severity')).some((v) => v.value === severity)) fields.severity = `"${severity}" is not an allowed severity.`;
+    if (Object.keys(fields).length) ctx.fail(400, 'validation', 'Check the highlighted fields.', fields);
+    const how = await labelOf('exercise_step_outcome', step.outcome);
+    const phase = step.phase ? await labelOf('incident_checklist_phase', step.phase) : '';
+    const finding = `${phase ? `${phase}: ` : ''}"${step.step}" was recorded as ${how.toLowerCase()}.${step.notes ? ` ${step.notes}` : ''}`;
+    const row = (await db.one<Row>(
+      `insert into exercise_findings (exercise_id, finding, severity, recommendation, step_id, created_by, updated_by)
+       values ($1,$2,$3,$4,$5,$6,$6) returning id, finding, severity, recommendation, action_id, step_id`,
+      [ex.id, finding.slice(0, 4000), severity, text(body.recommendation), step.id, req.user!.id],
+    ))!;
+    await ctx.audit(req, {
+      action: 'exercise_finding.create', recordType: 'exercise', recordId: ex.id,
+      summary: `Finding raised on ${name(ex)} from a step recorded as "${how}": ${String(step.step).slice(0, 120)}`,
+      after: { finding: row.finding, severity: row.severity, step_id: step.id },
+    });
+    reply.code(201);
+    return { ...row, action: null };
+  });
+
+  ctx.describeRoute({
+    method: 'POST', path: '/api/exercises/:id/steps/:stepId/finding', tag: 'Exercises', permission: 'exercises.edit',
+    summary: 'Raise a finding from a step recorded as "Not done" or "Done, with issues" (one per step)',
+    body: { type: 'object', properties: { severity: { type: 'string', description: 'A value of exercise_finding_severity; default high for not done, medium with issues' }, recommendation: { type: 'string' } } },
   });
 
   app.delete('/api/exercises/:id/steps/:stepId', edit, async (req) => {

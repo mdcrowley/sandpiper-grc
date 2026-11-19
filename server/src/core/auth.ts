@@ -6,17 +6,26 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { CURRENCY, DEFAULT_APP_NAME, TIME_ZONE } from './config.ts';
 import type { Db } from './db.ts';
 import { fail, UUID_RE } from './errors.ts';
-import { afterSignIn, checkSignIn } from './identity/hooks.ts';
+import { featureState } from './features.ts';
+import { afterSignIn, checkSignIn, sessionSecondFactor, signOutRedirect } from './identity/hooks.ts';
 import type { SessionUser } from './module.ts';
 import { makeDbLimiter } from './ratelimit.ts';
 import { clientIp, cookieSecure } from './request.ts';
-import { isEncrypted, loadSecretBox, type SecretBox } from './secretbox.ts';
+import { loadSecretBox, type SecretBox } from './secretbox.ts';
+import { resealStoredSecrets, retiredKeyAdvice } from './secretkey-reseal.ts';
 import type { makeAudit, makeSettings } from './services.ts';
 import { registerTokens } from './tokens.ts';
 import { matchTotpStep } from './totp.ts';
 // Passkeys and security keys, and the new-installation second-factor default (E02-08, E02-17).
 import { applySetupSecondFactor, hasActivePasskey, passkeySecondFactor, registerWebAuthn } from './webauthn/index.ts';
 import { WEBAUTHN_ENROLLMENT_ROUTES } from './webauthn/paths.ts';
+
+declare module 'fastify' {
+  interface FastifyContextConfig {
+    /** With `public`: a server-to-server route that proves itself with a signed token, so no CSRF header is asked for. */
+    noCsrf?: boolean;
+  }
+}
 
 export const SESSION_COOKIE = 'grc_session';
 const GENERIC_SIGNIN_ERROR = 'Sign-in failed. Check your details, or wait a few minutes and try again.';
@@ -148,22 +157,33 @@ export async function acceptTotpCode(db: Db, userId: string, code: string, atMs 
  */
 export async function encryptStoredSecrets(deps: Pick<Deps, 'db' | 'audit'>): Promise<number> {
   const box = secretBox(deps.db);
-  const rows = await deps.db.query<{ id: string; totp_secret: string }>('select id, totp_secret from users where totp_secret is not null');
-  let changed = 0;
-  let unreadable = 0;
-  for (const r of rows) {
-    const context = totpContext(r.id);
-    if (isEncrypted(r.totp_secret) && box.isCurrent(r.totp_secret, context)) continue;
-    let plain: string;
-    try {
-      plain = box.decrypt(r.totp_secret, context);
-    } catch {
-      unreadable += 1; // written with a key we do not have: leave it, and say so below
-      continue;
-    }
-    const sealed = box.encrypt(plain, context);
-    await deps.db.query('update users set totp_secret = $2 where id = $1 and totp_secret = $3', [r.id, sealed, r.totp_secret]);
-    changed += 1;
+  // Every kind of sealed value (E02-20): authenticator keys, webhook and provider secrets, the mail
+  // password, the object store key, links waiting to be emailed (core/secretkey-reseal.ts).
+  const counts = await resealStoredSecrets(deps.db, box, { write: true });
+  const totp = counts.find((c) => c.key === 'totp') ?? { changed: 0, unreadable: 0 };
+  const changed = totp.changed;
+  const unreadable = totp.unreadable;
+  const others = counts.filter((c) => c.key !== 'totp');
+  const otherChanged = others.filter((c) => c.changed);
+  if (otherChanged.length) {
+    const n = otherChanged.reduce((s, c) => s + c.changed, 0);
+    await deps.audit(null, {
+      action: 'secret_key.reencrypted', recordType: 'setting',
+      summary: `${n} stored secret(s) re-encrypted with the current secret key: ${otherChanged.map((c) => `${c.changed} ${c.label}`).join(', ')}`,
+    });
+  }
+  const otherUnreadable = others.filter((c) => c.unreadable);
+  if (otherUnreadable.length) {
+    const what = otherUnreadable.map((c) => `${c.unreadable} ${c.label}`).join(', ');
+    console.error(`[secret key] Some stored secrets cannot be read with the current secret key (${what}). Supply the key they were written with `
+      + '(GRC_SECRET_KEY_PREVIOUS) or enter those secrets again.');
+    await deps.audit(null, {
+      action: 'secret_key.unreadable', recordType: 'setting',
+      summary: `Stored secrets that cannot be read with the current secret key: ${what}`,
+    });
+  }
+  if (box.retiredKeys > 0 && !counts.some((c) => c.unreadable)) {
+    console.log(`[secret key] ${retiredKeyAdvice(counts.map((c) => ({ ...c, changed: 0 })), box.retiredKeys)}`);
   }
   if (changed) {
     await deps.audit(null, {
@@ -220,6 +240,19 @@ export async function mfaStatus(deps: Deps, userId: string): Promise<{ required:
     [userId, graceDays],
   );
   return { required: true, blocked: row?.blocked ?? true, graceEndsAt: graceDays ? row?.ends ?? null : null };
+}
+
+/**
+ * The same, for one session: a session made through a sign-in provider trusted for multi-factor
+ * sign-in, whose token showed it, needs no second factor here (E02-22). Other sessions of the same
+ * person are judged on their own.
+ */
+export async function mfaStatusForSession(
+  deps: Deps, app: FastifyInstance, userId: string, sessionHash: string | null | undefined,
+): Promise<{ required: boolean; blocked: boolean; graceEndsAt: string | null; viaProvider: boolean }> {
+  const status = await mfaStatus(deps, userId);
+  if (status.required && (await sessionSecondFactor(app, sessionHash))) return { required: false, blocked: false, graceEndsAt: null, viaProvider: true };
+  return { ...status, viaProvider: false };
 }
 
 // ---------- re-authentication before sensitive actions ----------
@@ -292,6 +325,8 @@ export async function loadUser(db: Db, userId: string): Promise<SessionUser | nu
   return {
     id: row.id, username: row.username, displayName: row.display_name, email: row.email,
     roles: row.roles, permissions: row.permissions,
+    // Permission modules of switched-off areas: nobody holds them (core/features.ts).
+    off: [...(await featureState(db)).offPermissions],
   };
 }
 
@@ -341,14 +376,17 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
       const s = await sessionUser(db, req.cookies[SESSION_COOKIE], idle);
       req.user = s?.user ?? null;
       req.sessionHash = s?.hashed ?? null;
-      if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && req.headers['x-grc-csrf'] !== '1') {
+      // `noCsrf`: a server-to-server route that proves itself with a signed token, not a cookie
+      // (the provider's back-channel sign-out); it must also be public, so a session is never used there.
+      const serverToServer = req.routeOptions?.config?.noCsrf === true && req.routeOptions?.config?.public === true;
+      if (!serverToServer && !['GET', 'HEAD', 'OPTIONS'].includes(req.method) && req.headers['x-grc-csrf'] !== '1') {
         fail(403, 'csrf', 'Request blocked: missing security header.');
       }
     }
     if (!req.user && !req.routeOptions?.config?.public) fail(401, 'unauthenticated', 'Sign in to continue.');
     // A required second factor that is missing limits the person to enrollment (and signing out).
     if (req.user && !req.routeOptions?.config?.public && !MFA_ENROLLMENT_ROUTES.includes(req.url.split('?')[0])) {
-      if ((await mfaEnforcement(deps)) === 'required' && (await mfaStatus(deps, req.user.id)).blocked) {
+      if ((await mfaEnforcement(deps)) === 'required' && (await mfaStatusForSession(deps, app, req.user.id, req.sessionHash)).blocked) {
         fail(403, 'mfa_enrolment_required', 'Set up your second factor to continue. Open Account security to do it.');
       }
     }
@@ -362,7 +400,7 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
   app.get('/api/health', { config: { public: true } }, async () => ({ ok: true }));
 
   app.get('/api/auth/state', { config: { public: true } }, async (req) => {
-    const mfa = req.user ? await mfaStatus(deps, req.user.id) : { required: false, blocked: false, graceEndsAt: null };
+    const mfa = req.user ? await mfaStatusForSession(deps, app, req.user.id, req.sessionHash) : { required: false, blocked: false, graceEndsAt: null };
     return {
     appName: await settings.get('app.name', DEFAULT_APP_NAME),
     timeZone: TIME_ZONE,
@@ -373,7 +411,9 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
       email: req.user.email, roles: req.user.roles,
     },
     permissions: req.user?.permissions ?? [],
-    features: await settings.get('features', { portal: false }),
+    // Every area's switch (core/features.ts); `areasOff`: permission modules nobody holds while off.
+    features: (await featureState(db)).on,
+    areasOff: [...(await featureState(db)).offPermissions],
     pilot: await settings.get('pilot_mode', true),
     // `mfaEnrollmentRequired`: show the reminder. `mfaEnrollmentBlocked`: nothing but enrollment works
     // until the person enrolls (setting auth.mfa_enforcement = required; see docs/security.md).
@@ -472,10 +512,14 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
     // Passkeys and security keys (core/webauthn): an assertion in `webauthn` stands in for the code.
     const passkey = await passkeySecondFactor(deps, req, u.id, (b as Record<string, unknown>).webauthn);
     if (passkey === 'failed') return registerFailure('passkey or security key not accepted');
-    if (passkey === 'needed' && !u.totp_enabled) {
-      fail(401, 'mfa_required', 'Use your passkey or security key to finish signing in.', { passkey: 'required' });
-    }
     let usedRecoveryCode = false;
+    if (passkey === 'needed' && !u.totp_enabled) {
+      // E02-21: a person whose only second factor is a passkey can use a recovery code instead.
+      const code = String(b.recoveryCode ?? b.totp ?? '').trim();
+      if (!code) fail(401, 'mfa_required', 'Use your passkey or security key to finish signing in.', { passkey: 'required' });
+      usedRecoveryCode = await consumeRecoveryCode(db, u.id, code);
+      if (!usedRecoveryCode) return registerFailure('wrong recovery code');
+    }
     if (u.totp_enabled && passkey !== 'passed') {
       // A single-use recovery code is accepted in place of the authenticator code.
       const code = String(b.totp ?? b.recoveryCode ?? '').trim();
@@ -513,12 +557,22 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
   });
 
   app.post('/api/auth/logout', { config: { public: true } }, async (req, reply) => {
+    let redirectUrl: string | null = null;
     if (req.sessionHash) {
+      // E02-23: a session made through a provider that signs out there too gets the provider's sign-out address.
+      try {
+        redirectUrl = await signOutRedirect(app, req, req.sessionHash);
+      } catch (err) {
+        console.error('[auth] provider sign-out address could not be made:', (err as Error).message);
+      }
       await db.query('delete from sessions where token_hash = $1', [req.sessionHash]);
-      await audit(req, { action: 'signout', recordType: 'user', recordId: req.user!.id, summary: 'Signed out' });
+      await audit(req, {
+        action: 'signout', recordType: 'user', recordId: req.user!.id,
+        summary: redirectUrl ? 'Signed out, and sent to sign out at the provider too' : 'Signed out',
+      });
     }
     reply.clearCookie(SESSION_COOKIE, { path: '/' });
-    return { ok: true };
+    return redirectUrl ? { ok: true, redirectUrl } : { ok: true };
   });
 
   app.post('/api/auth/change-password', async (req, reply) => {
@@ -538,7 +592,8 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
     return { ok: true };
   });
 
-  // Proves the password again for this session, before a sensitive administrative action.
+  // Proves the password (and the second factor, when the person has one: E01-29) again for this
+  // session, before a sensitive action.
   app.post('/api/auth/confirm', async (req) => {
     const me = req.user!;
     if (await confirmFailures.blocked(me.id)) fail(429, 'rate_limited', 'Too many attempts. Wait a few minutes and try again.');
@@ -548,9 +603,42 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
       await audit(req, { action: 'reauth.failure', recordType: 'user', recordId: me.id, summary: 'Password confirmation refused: wrong password' });
       fail(400, 'validation', 'Check the highlighted fields.', { password: 'That is not your current password.' });
     }
+    // E01-29: a person with a second factor proves it too: a code from the app, a recovery code, or a passkey.
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    const factor = await db.one<{ totp_enabled: boolean }>('select totp_enabled from users where id = $1', [me.id]);
+    const hasPasskey = await hasActivePasskey(db, me.id);
+    let how = 'password';
+    if (factor?.totp_enabled || hasPasskey) {
+      const refuse = async (reason: string, field: string): Promise<never> => {
+        await confirmFailures.hit(me.id);
+        await audit(req, { action: 'reauth.failure', recordType: 'user', recordId: me.id, summary: `Password confirmation refused: ${reason}` });
+        return fail(400, 'validation', 'Check the highlighted fields.', { code: field });
+      };
+      const code = String(b.code ?? '').trim();
+      if (b.webauthn !== undefined && b.webauthn !== null && b.webauthn !== '' && hasPasskey) {
+        const result = await passkeySecondFactor(deps, req, me.id, b.webauthn);
+        if (result !== 'passed') await refuse('passkey or security key not accepted', 'That passkey or security key was not accepted. Try again, or enter a code.');
+        how = 'password and passkey';
+      } else if (code) {
+        if (factor?.totp_enabled && (await acceptTotpCode(db, me.id, code))) how = 'password and authenticator code';
+        else if (await consumeRecoveryCode(db, me.id, code)) {
+          how = 'password and a recovery code';
+          const left = await db.one<{ n: number }>('select jsonb_array_length(recovery_codes) as n from users where id = $1', [me.id]);
+          await audit(req, { action: 'mfa.recovery_code_used', recordType: 'user', recordId: me.id, summary: `Recovery code used to confirm the password; ${left?.n ?? 0} left` });
+        } else await refuse('wrong authenticator or recovery code', 'That code was not accepted. Check it and try again.');
+      } else {
+        // The password was right; now the second factor. Not counted as a failure.
+        const ask = factor?.totp_enabled
+          ? 'Enter the 6-digit code from your authenticator app, or a recovery code.'
+          : 'Use your passkey or security key, or enter a recovery code.';
+        fail(400, 'second_factor_required', ask, {
+          code: ask, ...(factor?.totp_enabled ? { totp: 'available' } : {}), ...(hasPasskey ? { passkey: 'available' } : {}),
+        });
+      }
+    }
     const minutes = Math.max(1, Number(await settings.get('auth.reauth_minutes', 10)) || 10);
     await db.query('update sessions set confirmed_at = now() where token_hash = $1', [req.sessionHash]);
-    await audit(req, { action: 'reauth.success', recordType: 'user', recordId: me.id, summary: 'Password confirmed for administrative actions' });
+    await audit(req, { action: 'reauth.success', recordType: 'user', recordId: me.id, summary: `Identity confirmed (${how}) for administrative actions` });
     return { ok: true, minutes };
   });
 

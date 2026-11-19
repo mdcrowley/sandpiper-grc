@@ -1,6 +1,6 @@
 # E11 Projects and portfolio
 
-**Status:** in progress
+**Status:** done (24 of 24 issues done)
 
 ## Goal
 
@@ -43,7 +43,7 @@ it is at, how it is going, what it costs and whether too much is running at once
 | E11-21 | Link the go-live gate to a change record | done | P3 |
 | E11-22 | Notifications for gates, reports and red projects | done | P2 |
 | E11-23 | Redesign on the Mantine foundation | done | P1 |
-| E11-24 | Reminders for overdue milestones and register items | open | P3 |
+| E11-24 | Reminders for overdue milestones and register items | done | P3 |
 
 ---
 
@@ -407,12 +407,17 @@ As any user, the projects screens look and behave like the rest of the rebuilt a
 
 ### E11-24 Reminders for overdue milestones and register items
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 As a project manager, I am reminded when a milestone or a register item passes its due
 date. Today only status reports and gates send reminders.
 
 **Acceptance criteria**
 
-- [ ] The daily sweep notifies the owner (or the manager) of an overdue milestone or item, once
-- [ ] Tests cover with and without the notifications module
+- [x] The daily sweep notifies the owner (or the manager) of an overdue milestone or item, once
+  for each due date (active and on-hold projects)
+- [x] Tests cover with and without the notifications module
+
+**Implemented in:** `server/src/modules/projects/overdue-reminders.ts` (job
+`projects.overdue_reminders`, every six hours, scheduled in `projects/index.ts`); tests
+`projects/overdue-reminders.test.ts`.

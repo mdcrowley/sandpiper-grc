@@ -1,27 +1,43 @@
 // AI assistant access through the Model Context Protocol (E21). See docs/mcp.md.
 //
-// - /mcp: the MCP endpoint (http.ts), for personal access tokens carrying the `mcp.use` scope.
+// - /mcp: the MCP endpoint (http.ts), for personal access tokens carrying the `mcp.use` scope, and
+//   for OAuth access tokens of remote connectors (oauth.ts, off by default).
+// - /.well-known/oauth-*, /oauth/token, /oauth/register, /oauth/revoke: OAuth 2.1 (oauth.ts).
 // - /api/mcp/session: who a token is, for the endpoint (tokens only).
-// - /api/mcp/status, /api/mcp/tokens: the "Connect an AI assistant" page (signed-in people).
-// - /api/mcp/admin...: settings, tools and the per-token call log (administrators, signed in).
-import { createHash, randomBytes } from 'node:crypto';
+// - /api/mcp/status, /api/mcp/tokens, /api/mcp/oauth/...: the "Connect an AI assistant" page and the
+//   consent screen (signed-in people).
+// - /api/mcp/admin...: settings, tools, connectors and the per-token call log (administrators, signed in).
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { FastifyRequest } from 'fastify';
 import { requireRecentAuth } from '../../core/auth.ts';
+import { UUID_RE } from '../../core/errors.ts';
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
-import { scopeCovered, TOKEN_PREFIX } from '../../core/tokens.ts';
+import { checkSources, issueToken, scopeCovered, tokenScopes } from '../../core/tokens.ts';
 import { registerEndpoint } from './http.ts';
-import { hasMcpScope, KEYS, MCP_SCOPE, readSettings } from './settings.ts';
+import { oauthBase, registerOAuth, secureBase } from './oauth.ts';
+import { chosenTools, hasMcpScope, KEYS, MCP_SCOPE, mayConnect, readSettings, type McpSettings } from './settings.ts';
 import type { Session } from './toolkit.ts';
 import { ALL_TOOLS, toolState } from './tools.ts';
 
 const ADMIN = 'admin.administer';
+const TOOL_NAMES = new Set(ALL_TOOLS.map((t) => t.name));
 
 /** A signed-in person (never a token) for the routes that make tokens or change settings. */
 function sessionOnly(ctx: ModuleContext, req: FastifyRequest) {
   if (req.apiToken) ctx.fail(403, 'token_not_allowed', 'This cannot be done with an API token. Sign in to do it.');
+}
+
+/** A list of tool names from a request body: null for "every tool", or an error in words. */
+function toolList(value: unknown): { tools: string[] | null } | { error: string } {
+  if (value === undefined || value === null) return { tools: null };
+  if (!Array.isArray(value)) return { error: 'Give a list of tool names, or null for every tool.' };
+  const names = [...new Set(value.map(String))];
+  const unknown = names.filter((n) => !TOOL_NAMES.has(n));
+  if (unknown.length) return { error: `Unknown tools: ${unknown.join(', ')}.` };
+  if (!names.length) return { error: 'Choose at least one tool.' };
+  return { tools: names.length === TOOL_NAMES.size ? null : names.sort() };
 }
 
 const mod: ModuleDef = {
@@ -29,31 +45,53 @@ const mod: ModuleDef = {
 
   async register(ctx) {
     const { app, db } = ctx;
+    const recentAuth = (req: FastifyRequest, what: string) => requireRecentAuth({ db, audit: ctx.audit, settings: ctx.settings }, req, what);
+
+    /** The scopes for an assistant token: what the person holds, read only or read and write (never delete). */
+    const scopesFor = (perms: string[], access: 'read' | 'write') => {
+      const modules = new Set<string>([...ctx.resources.all().map((d) => d.module), 'security', 'reports', 'dashboards']);
+      const actions = access === 'write' ? ['view', 'create', 'edit'] : ['view'];
+      const out = [...modules].sort().flatMap((m) => actions.map((a) => `${m}.${a}`)).filter((s) => scopeCovered(s, perms));
+      return [...out, MCP_SCOPE];
+    };
+
+    // Who may put mcp.use in any token (also on the API tokens card): E21-17.
+    app.registerScopeGate(MCP_SCOPE, async (user) => mayConnect(await readSettings(ctx), user));
+
+    const oauth = registerOAuth(ctx, { scopesFor });
 
     // ---------- the endpoint and its call log ----------
 
     let writes = 0;
-    registerEndpoint(ctx, async (s: Session, tool, ok, error, ms) => {
+    registerEndpoint(ctx, oauth, async (s: Session, tool, ok, error, ms, requestId) => {
       await db.query(
-        'insert into mcp_calls (token_id, token_name, user_id, tool, ok, error, duration_ms) values ($1,$2,$3,$4,$5,$6,$7)',
-        [s.token.id, s.token.name, s.user.id, tool, ok, error, Math.round(ms)],
+        'insert into mcp_calls (token_id, token_name, user_id, tool, ok, error, duration_ms, request_id) values ($1,$2,$3,$4,$5,$6,$7,$8)',
+        [s.token.id, s.token.name, s.user.id, tool, ok, error, Math.round(ms), requestId || null],
       ).catch((err) => console.error('[mcp] could not log a call:', err));
       if (++writes % 200 === 0) await db.query(`delete from mcp_calls where at < now() - interval '90 days'`).catch(() => undefined);
     });
+
+    const tokenTools = async (tokenId: string): Promise<string[] | null> => {
+      const row = await db.one<{ tools: string[] }>('select tools from mcp_token_tools where token_id = $1', [tokenId]);
+      return row ? row.tools : null;
+    };
 
     app.get('/api/mcp/session', async (req) => {
       if (!req.apiToken) ctx.fail(403, 'token_required', 'Only a personal access token can be used here.');
       const settings = await readSettings(ctx);
       if (!settings.enabled) ctx.fail(403, 'mcp_disabled', 'AI assistant access is switched off. An administrator can switch it on under Administration > AI assistant access.');
-      const row = await db.one<{ scopes: string[] }>('select scopes from api_tokens where id = $1', [req.apiToken!.id]);
-      const scopes = (row?.scopes ?? []) as string[];
+      const scopes = tokenScopes(req) ?? [];
       if (!hasMcpScope(scopes)) {
         ctx.fail(403, 'mcp_scope_missing', `This token was not made for AI assistants (it lacks the "${MCP_SCOPE}" scope). Make one under Account security > Connect an AI assistant.`);
       }
       const u = req.user!;
+      if (!mayConnect(settings, u)) ctx.fail(403, 'mcp_not_allowed', 'Your role may not connect AI assistants here. Ask an administrator.');
+      const kind = /^Bearer\s+grc_oat_/i.test(String(req.headers.authorization ?? '')) ? 'oauth' : 'token';
       return {
         user: { id: u.id, username: u.username, displayName: u.displayName, email: u.email, roles: u.roles },
-        permissions: u.permissions, token: req.apiToken, scopes, settings,
+        permissions: u.permissions, token: req.apiToken, scopes, kind,
+        tools: chosenTools(settings, u.roles, await tokenTools(req.apiToken!.id)),
+        settings,
       };
     });
     ctx.describeRoute({ method: 'GET', path: '/api/mcp/session', summary: 'Who an MCP token acts as, and whether it is accepted at /mcp (tokens only)', tag: 'AI assistants' });
@@ -64,33 +102,32 @@ const mod: ModuleDef = {
 
     app.get('/api/mcp/status', async (req) => {
       const settings = await readSettings(ctx);
+      const me = req.user!;
       const tokens = await db.query<Row>(
-        `select t.id, t.name, t.prefix, t.scopes, t.expires_at, t.last_used_at, t.created_at,
-                (select count(*)::int from mcp_calls c where c.token_id = t.id and c.at > now() - interval '30 days') as calls_30d
+        `select t.id, t.name, t.prefix, t.scopes, t.expires_at, t.last_used_at, t.created_at, coalesce(t.allowed_sources, '[]'::jsonb) as allowed_sources,
+                (select count(*)::int from mcp_calls c where c.token_id = t.id and c.at > now() - interval '30 days') as calls_30d,
+                (select tools from mcp_token_tools x where x.token_id = t.id) as tools
          from api_tokens t where t.user_id = $1 and t.revoked_at is null and t.expires_at > now()
-           and (t.scopes ? 'mcp.use' or t.scopes ? 'mcp.*') order by t.created_at desc`, [req.user!.id]);
+           and (t.scopes ? 'mcp.use' or t.scopes ? 'mcp.*') order by t.created_at desc`, [me.id]);
+      const connections = settings.oauthEnabled ? await oauth.myGrants(me.id) : [];
       return {
         enabled: settings.enabled, writeEnabled: settings.writeEnabled, endpoint: '/mcp', maxDays: await maxDays(),
-        canWrite: req.user!.permissions.some((p) => p === '*' || /\.(\*|create|edit)$/.test(p)),
-        tokens,
+        canWrite: me.permissions.some((p) => p === '*' || /\.(\*|create|edit)$/.test(p)),
+        allowed: mayConnect(settings, me),
+        oauthEnabled: settings.enabled && settings.oauthEnabled,
+        tools: ALL_TOOLS.filter((t) => toolState(t, settings, null, null).offered || t.write).map((t) => ({ name: t.name, title: t.title, write: !!t.write })),
+        tokens, connections,
       };
     });
-    ctx.describeRoute({ method: 'GET', path: '/api/mcp/status', summary: 'Whether AI assistant access is on, and your own assistant tokens', tag: 'AI assistants' });
-
-    /** The scopes for an assistant token: what the person holds, read only or read and write (never delete). */
-    const scopesFor = (perms: string[], access: 'read' | 'write') => {
-      const modules = new Set<string>([...ctx.resources.all().map((d) => d.module), 'security', 'reports', 'dashboards']);
-      const actions = access === 'write' ? ['view', 'create', 'edit'] : ['view'];
-      const out = [...modules].sort().flatMap((m) => actions.map((a) => `${m}.${a}`)).filter((s) => scopeCovered(s, perms));
-      return [...out, MCP_SCOPE];
-    };
+    ctx.describeRoute({ method: 'GET', path: '/api/mcp/status', summary: 'Whether AI assistant access is on and allowed for you, your assistant tokens and connector sign-ins', tag: 'AI assistants' });
 
     app.post('/api/mcp/tokens', async (req, reply) => {
       sessionOnly(ctx, req);
       const settings = await readSettings(ctx);
       if (!settings.enabled) ctx.fail(409, 'mcp_disabled', 'AI assistant access is switched off. Ask an administrator to switch it on.');
-      const b = (req.body ?? {}) as Row;
       const me = req.user!;
+      if (!mayConnect(settings, me)) ctx.fail(403, 'mcp_not_allowed', 'Your role may not connect AI assistants here. Ask an administrator.');
+      const b = (req.body ?? {}) as Row;
       const fields: Record<string, string> = {};
       const name = String(b.name ?? '').trim();
       if (!name || name.length > 80) fields.name = 'Give the connection a name of up to 80 characters, for example the assistant and computer it runs on.';
@@ -104,28 +141,53 @@ const mod: ModuleDef = {
       else if (days > limit) fields.expiresInDays = `A token may last at most ${limit} days.`;
       const scopes = scopesFor(me.permissions, access);
       if (scopes.length === 1) fields.access = 'You have no permissions an assistant could use.';
+      const sources = checkSources(b.allowedSources);
+      if ('error' in sources) fields.allowedSources = sources.error;
+      const tools = toolList(b.tools);
+      if ('error' in tools) fields.tools = tools.error;
       if (Object.keys(fields).length) ctx.fail(400, 'validation', 'Check the highlighted fields.', fields);
-      await requireRecentAuth({ db, audit: ctx.audit, settings: ctx.settings }, req, 'connecting an AI assistant');
+      await recentAuth(req, 'connecting an AI assistant');
 
-      // The same format and storage as core personal access tokens (core/tokens.ts): shown once, stored as SHA-256.
-      const token = TOKEN_PREFIX + randomBytes(32).toString('base64url');
+      // The same format and storage as every personal access token (core/tokens.ts): shown once, stored as SHA-256.
       const expires = new Date(Date.now() + days * 86_400_000);
-      const row = await db.one<Row>(
-        `insert into api_tokens (user_id, name, token_hash, prefix, scopes, expires_at) values ($1,$2,$3,$4,$5::jsonb,$6)
-         returning id, name, prefix, scopes, expires_at, created_at`,
-        [me.id, name, createHash('sha256').update(token).digest('hex'), token.slice(0, TOKEN_PREFIX.length + 6), JSON.stringify(scopes), expires.toISOString()],
-      );
+      const allowedSources = 'list' in sources ? sources.list : [];
+      const { row, token } = await issueToken(db, { userId: me.id, name, scopes, expires, allowedSources });
+      const chosen = 'tools' in tools ? tools.tools : null;
+      if (chosen) await db.query('insert into mcp_token_tools (token_id, tools) values ($1, $2::jsonb)', [row.id, JSON.stringify(chosen)]);
       await ctx.audit(req, {
-        action: 'token.create', recordType: 'api_token', recordId: row!.id,
-        summary: `API token "${name}" created for an AI assistant (MCP, ${access === 'write' ? 'read and write' : 'read only'}), expiring ${expires.toISOString().slice(0, 10)}`,
-        after: { name, scopes, expires_at: expires.toISOString() },
+        action: 'token.create', recordType: 'api_token', recordId: row.id,
+        summary: `API token "${name}" created for an AI assistant (MCP, ${access === 'write' ? 'read and write' : 'read only'}), expiring ${expires.toISOString().slice(0, 10)}`
+          + `${chosen ? `, limited to ${chosen.length} tools` : ''}${allowedSources.length ? `, usable from ${allowedSources.join(', ')} only` : ''}`,
+        after: { name, scopes, expires_at: expires.toISOString(), ...(chosen ? { tools: chosen } : {}), ...(allowedSources.length ? { allowed_sources: allowedSources } : {}) },
       });
       reply.code(201);
-      return { ...row, access, token };
+      return { ...row, allowed_sources: allowedSources, tools: chosen, access, token };
     });
     ctx.describeRoute({
       method: 'POST', path: '/api/mcp/tokens', summary: 'Make a personal access token for an AI assistant (signed-in session only; shown once)', tag: 'AI assistants',
-      body: '{ name, access: "read" | "write", expiresInDays }',
+      body: '{ name, access: "read" | "write", expiresInDays, tools?: string[] | null, allowedSources?: string[] }',
+    });
+
+    app.put('/api/mcp/tokens/:id/tools', async (req) => {
+      sessionOnly(ctx, req);
+      const id = String((req.params as Row).id ?? '');
+      const owned = UUID_RE.test(id) && (
+        await db.one(`select 1 from api_tokens where id = $1 and user_id = $2 and revoked_at is null and expires_at > now()`, [id, req.user!.id])
+        ?? await db.one(`select 1 from mcp_oauth_grants where id = $1 and user_id = $2 and revoked_at is null and expires_at > now()`, [id, req.user!.id]));
+      if (!owned) ctx.fail(404, 'not_found', 'Connection not found.');
+      const tools = toolList(((req.body ?? {}) as Row).tools);
+      if ('error' in tools) ctx.fail(400, 'validation', 'Check the highlighted fields.', { tools: tools.error });
+      const chosen = (tools as { tools: string[] | null }).tools;
+      if (chosen) {
+        await db.query(`insert into mcp_token_tools (token_id, tools) values ($1, $2::jsonb)
+                        on conflict (token_id) do update set tools = excluded.tools, updated_at = now()`, [id, JSON.stringify(chosen)]);
+      } else await db.query('delete from mcp_token_tools where token_id = $1', [id]);
+      await ctx.audit(req, { action: 'mcp.tools', recordType: 'api_token', recordId: id, summary: chosen ? `Assistant connection limited to ${chosen.length} tools` : 'Assistant connection may use every allowed tool', after: { tools: chosen } });
+      return { tools: chosen };
+    });
+    ctx.describeRoute({
+      method: 'PUT', path: '/api/mcp/tokens/:id/tools', tag: 'AI assistants',
+      summary: 'Choose the tools one of your assistant tokens or connector sign-ins may use (null = every allowed tool)', body: '{ tools: string[] | null }',
     });
 
     // The stdio bridge, for downloading from the "Connect an AI assistant" page.
@@ -148,19 +210,20 @@ const mod: ModuleDef = {
       const usage = await db.query<Row>(
         `select c.token_id, max(c.token_name) as token_name, c.user_id, max(u.display_name) as user_name,
                 count(*)::int as calls, count(*) filter (where not c.ok)::int as errors, max(c.at) as last_at,
-                bool_or(t.revoked_at is null and t.expires_at > now()) as active
-         from mcp_calls c left join users u on u.id = c.user_id left join api_tokens t on t.id = c.token_id
+                coalesce(bool_or(t.revoked_at is null and t.expires_at > now()), bool_or(g.revoked_at is null and g.expires_at > now())) as active
+         from mcp_calls c left join users u on u.id = c.user_id left join api_tokens t on t.id = c.token_id left join mcp_oauth_grants g on g.id = c.token_id
          where c.at > now() - make_interval(days => $1::int)
          group by c.token_id, c.user_id order by max(c.at) desc limit 500`, [days]);
       const perTool = await db.query<Row>(
         `select token_id, tool, count(*)::int as n from mcp_calls where at > now() - make_interval(days => $1::int) group by 1, 2`, [days]);
       const recent = await db.query<Row>(
-        `select c.id, c.at, c.token_name, u.display_name as user_name, c.tool, c.ok, c.error, c.duration_ms
+        `select c.id, c.at, c.token_name, u.display_name as user_name, c.tool, c.ok, c.error, c.duration_ms, c.request_id
          from mcp_calls c left join users u on u.id = c.user_id order by c.at desc, c.id desc limit 50`);
       const tokens = (await db.query<{ n: number }>(
         `select count(*)::int as n from api_tokens where revoked_at is null and expires_at > now() and (scopes ? 'mcp.use' or scopes ? 'mcp.*')`))[0]?.n ?? 0;
+      const roles = await db.query<Row>('select key, name, enabled from roles order by name');
       return {
-        settings, days, activeTokens: tokens,
+        settings, days, activeTokens: tokens, roles,
         tools: ALL_TOOLS.map((t) => ({
           name: t.name, title: t.title, group: t.group, write: !!t.write, description: t.description,
           allowed: !settings.allowedTools || settings.allowedTools.includes(t.name),
@@ -168,9 +231,11 @@ const mod: ModuleDef = {
         })),
         usage: usage.map((u) => ({ ...u, tools: Object.fromEntries(perTool.filter((p) => p.token_id === u.token_id).sort((a, b) => b.n - a.n).map((p) => [p.tool, p.n])) })),
         recent,
+        // secure: this installation was reached over HTTPS or on this computer, as OAuth requires.
+        oauth: { ...(await oauth.adminView()), secure: secureBase(await oauthBase(ctx, req)), base: await oauthBase(ctx, req) },
       };
     });
-    ctx.describeRoute({ method: 'GET', path: '/api/mcp/admin', summary: 'AI assistant access: settings, tools and the per-token call log', permission: ADMIN, tag: 'AI assistants', query: { days: 'Days of the call log to count (1 to 90, default 30)' } });
+    ctx.describeRoute({ method: 'GET', path: '/api/mcp/admin', summary: 'AI assistant access: settings, tools, roles, connectors and the per-token call log', permission: ADMIN, tag: 'AI assistants', query: { days: 'Days of the call log to count (1 to 90, default 30)' } });
 
     app.put('/api/mcp/admin/settings', adminPre, async (req) => {
       sessionOnly(ctx, req);
@@ -178,17 +243,16 @@ const mod: ModuleDef = {
       const current = await readSettings(ctx);
       const fields: Record<string, string> = {};
       const next: Partial<Record<keyof typeof KEYS, unknown>> = {};
-      if (b.enabled !== undefined) { if (typeof b.enabled !== 'boolean') fields.enabled = 'On or off.'; else next.enabled = b.enabled; }
-      if (b.writeEnabled !== undefined) { if (typeof b.writeEnabled !== 'boolean') fields.writeEnabled = 'On or off.'; else next.writeEnabled = b.writeEnabled; }
+      const flag = (key: 'enabled' | 'writeEnabled' | 'oauthEnabled' | 'oauthRegistration') => {
+        if (b[key] === undefined) return;
+        if (typeof b[key] !== 'boolean') fields[key] = 'On or off.';
+        else next[key] = b[key];
+      };
+      flag('enabled'); flag('writeEnabled'); flag('oauthEnabled'); flag('oauthRegistration');
       if (b.allowedTools !== undefined) {
-        if (b.allowedTools === null) next.allowedTools = null;
-        else if (!Array.isArray(b.allowedTools)) fields.allowedTools = 'Give a list of tool names, or null for every tool.';
-        else {
-          const names = [...new Set(b.allowedTools.map(String))] as string[];
-          const unknown = names.filter((n) => !ALL_TOOLS.some((t) => t.name === n));
-          if (unknown.length) fields.allowedTools = `Unknown tools: ${unknown.join(', ')}.`;
-          else next.allowedTools = names.length === ALL_TOOLS.length ? null : names;
-        }
+        const r = toolList(b.allowedTools);
+        if ('error' in r) fields.allowedTools = r.error;
+        else next.allowedTools = r.tools;
       }
       if (b.ratePerMinute !== undefined) {
         const n = Number(b.ratePerMinute);
@@ -202,17 +266,43 @@ const mod: ModuleDef = {
         else if (bad) fields.allowedOrigins = `"${bad}" is not an origin. Write it as scheme, host and port only, e.g. https://tools.example.org.`;
         else next.allowedOrigins = list;
       }
+      const roleKeys = new Set((await db.query<{ key: string }>('select key from roles')).map((r) => r.key));
+      if (b.allowedRoles !== undefined) {
+        if (b.allowedRoles === null) next.allowedRoles = null;
+        else if (!Array.isArray(b.allowedRoles)) fields.allowedRoles = 'Give a list of roles, or null for everyone.';
+        else {
+          const keys = [...new Set(b.allowedRoles.map(String))].sort() as string[];
+          const unknown = keys.filter((k) => !roleKeys.has(k));
+          if (unknown.length) fields.allowedRoles = `Unknown roles: ${unknown.join(', ')}.`;
+          else if (!keys.length) fields.allowedRoles = 'Choose at least one role, or allow everyone.';
+          else next.allowedRoles = keys;
+        }
+      }
+      if (b.roleTools !== undefined) {
+        if (!b.roleTools || typeof b.roleTools !== 'object' || Array.isArray(b.roleTools)) fields.roleTools = 'Give tools per role, for example { "agent": ["search"] }.';
+        else {
+          const out: Record<string, string[]> = {};
+          for (const [role, list] of Object.entries(b.roleTools as Record<string, unknown>)) {
+            if (!roleKeys.has(role)) { fields.roleTools = `Unknown role: ${role}.`; break; }
+            if (list === null) continue;
+            const r = toolList(list);
+            if ('error' in r) { fields.roleTools = `${role}: ${r.error}`; break; }
+            if (r.tools) out[role] = r.tools;
+          }
+          if (!fields.roleTools) next.roleTools = out;
+        }
+      }
       if (Object.keys(fields).length) ctx.fail(400, 'validation', 'Check the highlighted fields.', fields);
-      const changed = (Object.keys(next) as (keyof typeof KEYS)[]).filter((k) => JSON.stringify(next[k]) !== JSON.stringify(current[k]));
+      const changed = (Object.keys(next) as (keyof typeof KEYS)[]).filter((k) => JSON.stringify(next[k]) !== JSON.stringify(current[k as keyof McpSettings]));
       if (changed.length) {
-        await requireRecentAuth({ db, audit: ctx.audit, settings: ctx.settings }, req, 'changing AI assistant access');
+        await recentAuth(req, 'changing AI assistant access');
         for (const k of changed) await ctx.settings.set(KEYS[k], next[k], req);
       }
       return readSettings(ctx);
     });
     ctx.describeRoute({
       method: 'PUT', path: '/api/mcp/admin/settings', summary: 'Change AI assistant access (needs a recent password confirmation)', permission: ADMIN, tag: 'AI assistants',
-      body: '{ enabled?, writeEnabled?, allowedTools?: string[] | null, ratePerMinute?, allowedOrigins?: string[] }',
+      body: '{ enabled?, writeEnabled?, allowedTools?: string[] | null, ratePerMinute?, allowedOrigins?: string[], allowedRoles?: string[] | null, roleTools?: { [role]: string[] | null }, oauthEnabled?, oauthRegistration? }',
     });
   },
 };

@@ -1,6 +1,6 @@
 # E17 Documentation
 
-**Status:** in progress
+**Status:** in progress (7 of 14 issues done)
 
 ## Goal
 
@@ -36,7 +36,7 @@ user guide should be readable on GitHub and inside the application.
 | E17-11 | Operations runbook | in progress | P1 |
 | E17-12 | Architecture and security notes | in progress | P2 |
 | E17-13 | License, contributing guide and security policy | in progress | P1 |
-| E17-14 | American English throughout | in progress | P2 |
+| E17-14 | American English throughout | done | P2 |
 
 ---
 
@@ -256,7 +256,7 @@ files exist yet, and the repository is about to be published.
 
 ### E17-14 American English throughout
 
-**Status:** in progress · **Priority:** P2 · **Type:** improvement
+**Status:** done · **Priority:** P2 · **Type:** improvement
 
 As a reader in the United States, the product's main audience, I see one spelling
 throughout: American English in the documentation, the user guide, the screens, messages
@@ -268,9 +268,14 @@ their labels change.
 **Acceptance criteria**
 
 - [x] The documentation (`docs/**`, `web/src/core/README.md`) uses American spelling, and the developer guide states the rule
-- [ ] The README uses American spelling
-- [ ] Screens, messages, labels and code comments use American spelling
-- [ ] `seed/organization.json` and `examples/organization.example.json` replace the `organisation` names; a seed file with the old name is still read, and the seed option is `organization`
-- [ ] The web address `/catalog` replaces `/catalogue`, and the old address redirects
-- [ ] API paths with a British spelling gain an American one; the old path stays as a deprecated alias, marked as such in the OpenAPI document
-- [ ] Help links into the user guide still reach their sections after headings changed
+- [x] The README uses American spelling
+- [x] Screens, messages, labels and code comments use American spelling
+- [x] `seed/organization.json` and `examples/organization.example.json` replace the `organisation` names; a seed file with the old name is still read, and the seed option is `organization`
+- [x] The web address `/catalog` replaces `/catalogue`, and the old address redirects
+- [x] API paths with a British spelling gain an American one; the old path stays as a deprecated alias, marked as such in the OpenAPI document
+- [x] Help links into the user guide still reach their sections after headings changed
+
+Stored values that are identifiers (for example the status `cancelled`, the setting `catalogue_seeded`) keep their spelling so existing data and integrations keep working; every label shows the American spelling ("Canceled"). Dates are written the American way (Nov 18, 2026) on screen, in exports, PDFs and email.
+
+**Implemented in:** `server/src/core/migrations/006_american_labels.sql`, `server/src/core/api/deprecations.ts` (old API paths as deprecated aliases), `web/src/core/renamedRoutes.ts` (`/catalogue` redirects), `server/src/core/profile.ts` (reads `organisation` seed names too), `web/src/core/format.ts` and every server date format (`en-US`).
+

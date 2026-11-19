@@ -13,8 +13,8 @@ let partsFmt: Intl.DateTimeFormat;
 let currencyFmt: Intl.NumberFormat;
 
 function build() {
-  dateFmt = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: zone });
-  dateTimeFmt = new Intl.DateTimeFormat('en-GB', {
+  dateFmt = new Intl.DateTimeFormat('en-US', { day: 'numeric', month: 'short', year: 'numeric', timeZone: zone });
+  dateTimeFmt = new Intl.DateTimeFormat('en-US', {
     day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: zone,
   });
   partsFmt = new Intl.DateTimeFormat('en-CA', {
@@ -33,7 +33,7 @@ export const currency = (): string => currencyCode;
 export function setLocaleSettings(next: { timeZone?: string; currency?: string }) {
   const before = [zone, currencyCode];
   try {
-    if (next.timeZone) { new Intl.DateTimeFormat('en-GB', { timeZone: next.timeZone }); zone = next.timeZone; }
+    if (next.timeZone) { new Intl.DateTimeFormat('en-US', { timeZone: next.timeZone }); zone = next.timeZone; }
     if (next.currency) { new Intl.NumberFormat(undefined, { style: 'currency', currency: next.currency }); currencyCode = next.currency; }
     build();
   } catch {
@@ -45,8 +45,8 @@ export function setLocaleSettings(next: { timeZone?: string; currency?: string }
 /** Today's calendar date (YYYY-MM-DD) in the organization's time zone. */
 export const todayInZone = (): string => new Intl.DateTimeFormat('en-CA', { timeZone: zone }).format(new Date());
 
-const calendarFmt = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
-const relativeFmt = new Intl.RelativeTimeFormat('en-GB', { numeric: 'auto' });
+const calendarFmt = new Intl.DateTimeFormat('en-US', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+const relativeFmt = new Intl.RelativeTimeFormat('en-US', { numeric: 'auto' });
 const numberFmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
 
 function toDate(value: DateInput): Date | null {
@@ -137,7 +137,8 @@ export function toZonedInput(value: DateInput): string {
 
 /** Organization-zone wall-clock "YYYY-MM-DDTHH:mm" back to an ISO instant. */
 export function fromZonedInput(local: string): string {
-  if (!local) return '';
+  // Only what a datetime-local input gives (E18-46): anything else could be read as some other date.
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(local)) return '';
   const asUtc = new Date(`${local}:00Z`).getTime();
   if (Number.isNaN(asUtc)) return '';
   const offsetAt = (t: number) => new Date(`${toZonedInput(new Date(t))}:00Z`).getTime() - t;

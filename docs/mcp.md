@@ -6,63 +6,76 @@ make changes, always **as the person who owns the token** and never with more ri
 task-oriented guide is [AI assistants and MCP](user/21-ai-assistants-and-mcp.md); this page is
 the technical reference.
 
-Code: `server/src/modules/mcp` (endpoint, tools, resources, prompts, settings and call log),
-`web/src/modules/mcp` (Administration > AI assistant access; Connect an AI assistant),
-`tools/mcp-stdio.mjs` (stdio bridge). Tests: `server/src/modules/mcp/mcp.test.ts` (the SDK's own
-client against the real endpoint on port 0, and through the bridge), `web/src/modules/mcp/configs.test.ts`.
+Code: `server/src/modules/mcp` (endpoint, tools, resources, prompts, settings, call log and
+OAuth), `web/src/modules/mcp` (Administration > AI assistant access; Connect an AI assistant;
+the OAuth consent screen), `tools/mcp-stdio.mjs` (stdio bridge). Tests:
+`server/src/modules/mcp/mcp.test.ts` (the SDK's own client against the real endpoint on port 0,
+and through the bridge), `oauth.test.ts` (the SDK client running the whole OAuth flow, then every
+failure path), `access.test.ts` (who may connect, tool choice, progress, request ids, source
+addresses, system impact), `web/src/modules/mcp/configs.test.ts`.
 
 ## Endpoint
 
 | | |
 |---|---|
-| Address | `POST <application address>/mcp` (Streamable HTTP transport, JSON responses) |
+| Address | `POST <application address>/mcp` (Streamable HTTP transport) |
+| Answers | JSON; a `tools/call` that carries `_meta.progressToken` is answered as `text/event-stream` with progress notifications and then the result |
 | `GET`, `DELETE` | `405` with `Allow: POST`: the server is stateless (no `Mcp-Session-Id`) and sends nothing unasked |
-| Authentication | `Authorization: Bearer grc_pat_...` only. The session cookie is never read |
+| Authentication | `Authorization: Bearer grc_pat_...` (a personal access token) or, when switched on, an OAuth access token `grc_oat_...`. The session cookie is never read |
+| Request id | Every answer carries `X-Request-Id` (yours when you send a sensible one) |
 | Server name | `sandpiper-grc` |
 | Off by default | Administration > **AI assistant access** > **AI assistant access (MCP)** |
 
 The server binds to 127.0.0.1 like the rest of the application (see
 [Installation](installation.md) for HTTPS and a reverse proxy). The SDK used is
-`@modelcontextprotocol/sdk` 1.32 with `zod` 4.
+`@modelcontextprotocol/sdk` 1.32 with `zod` 4; it supports protocol versions up to `2025-11-25`.
 
 ## Authentication and scopes
 
-An assistant uses an ordinary personal access token (`core/tokens.ts`) that also carries the
-scope **`mcp.use`** (or `mcp.*`). A token with `*` alone is **not** accepted: MCP use is always a
-deliberate choice. Each request to `/mcp`:
+An assistant uses either an ordinary personal access token (`core/tokens.ts`) that also carries
+the scope **`mcp.use`** (or `mcp.*`), or an OAuth access token from a connector that signed in
+(see [OAuth for remote connectors](#oauth-for-remote-connectors)). A token with `*` alone is
+**not** accepted: MCP use is always a deliberate choice. Each request to `/mcp`:
 
 1. **Origin.** A request with an `Origin` header is refused (`403`) unless that origin is listed
    in **Browser origins** (setting `mcp.allowed_origins`, empty by default). MCP clients send no
    Origin; browsers always do. This is the MCP specification's DNS-rebinding defense and, with
    point 2, makes the endpoint CSRF-proof.
-2. **Bearer token only.** No `Authorization` header: `401` with `WWW-Authenticate: Bearer`. A
+2. **Bearer token only.** No `Authorization` header: `401` with `WWW-Authenticate: Bearer`, which
+   also names the protected resource metadata (`resource_metadata="..."`) when OAuth is on. A
    cookie is ignored, so a web page cannot drive the endpoint even for a signed-in person.
 3. **The core checks the token**, exactly as for `/api`: the endpoint calls
    `GET /api/mcp/session` in-process with the same header, which runs the core authentication
-   (hash lookup, expiry, revocation, wrong-token lockout by address, the per-token request limit
-   `tokens.rate_per_minute`, owner still active, second-factor enforcement). It refuses
-   (`403`) a token without `mcp.use` (`mcp_scope_missing`) and every token while access is off
-   (`mcp_disabled`).
+   (hash lookup, expiry, revocation, allowed source addresses, wrong-token lockout by address, the
+   per-token request limit `tokens.rate_per_minute`, owner still active, second-factor
+   enforcement). It refuses (`403`) a token without `mcp.use` (`mcp_scope_missing`), every token
+   while access is off (`mcp_disabled`), and the tokens of people outside the roles allowed to
+   connect (`mcp_not_allowed`).
 4. **Per-token limit** of requests to `/mcp`: setting `mcp.rate_per_minute` (default 120; `429`
    with `Retry-After`).
 5. **Tools run as the token.** Every tool calls the application's own `/api` routes in-process
-   (`app.inject`) with the same bearer token. Permissions are those the token's scopes and the
-   owner's grants have in common, worked out on every call; restricted records (security
-   incidents, risks, vulnerabilities, anything flagged) are invisible without `security.view`
-   in lists, search, links, history, summaries and resources; validation, numbering, hooks,
-   notifications and audit are the REST API's. No tool reads the database directly.
+   (`app.inject`) with the same bearer token and the same `X-Request-Id`. Permissions are those
+   the token's scopes and the owner's grants have in common, worked out on every call;
+   restricted records (security incidents, risks, vulnerabilities, anything flagged) are
+   invisible without `security.view` in lists, search, links, history, summaries and resources;
+   validation, numbering, hooks, notifications and audit are the REST API's. No tool reads the
+   database directly.
 
 Tokens for assistants are made on **Connect an AI assistant** (`/account/ai-assistant`) by
 `POST /api/mcp/tokens` (a signed-in session only, with a recent password confirmation; never
-with a token). The person chooses a name, an expiry (at most `tokens.max_days`) and:
+with a token). It uses the core's `issueToken`, so the tokens are stored exactly like every other
+personal access token. The person chooses a name, an expiry (at most `tokens.max_days`), and:
 
 - **Read only**: `<module>.view` for every permission module the person holds, plus `mcp.use`.
 - **Read and write**: `<module>.view`, `.create` and `.edit`, plus `mcp.use`. Never `.delete`,
   `.approve` or `.administer`.
+- Optionally **Tools it may use** (`tools`, see [Choosing tools](#choosing-tools)) and **Allowed
+  source addresses** (`allowedSources`, addresses or CIDR ranges; requests from elsewhere get
+  `403 token_source_not_allowed`).
 
-They are stored and shown like every other token (shown once, SHA-256 at rest, listed under
-Account security and Administration > API tokens, revocable there). Because they are ordinary
-tokens they also work with the REST API within their scopes.
+They are shown once, kept as SHA-256, listed under Account security and Administration > API
+tokens, and revocable there. Because they are ordinary tokens they also work with the REST API
+within their scopes. A person can also add `mcp.use` to any token on the API tokens card.
 
 ## Settings
 
@@ -77,12 +90,38 @@ not on the general Settings screen, so a token can never change them.
 | `mcp.allowed_tools` | `null` (all) | Tool names offered; others are not listed and cannot be called |
 | `mcp.rate_per_minute` | `120` | Requests a minute to `/mcp` per token |
 | `mcp.allowed_origins` | `[]` | Browser origins allowed to call `/mcp` |
+| `mcp.allowed_roles` | `null` (everyone) | Role keys whose holders may connect an assistant |
+| `mcp.role_tools` | `{}` | Tools per role key; a role without a list is not narrowed |
+| `mcp.oauth_enabled` | `false` | Remote connectors may sign in with OAuth 2.1 |
+| `mcp.oauth_registration` | `false` | Connectors may register themselves (dynamic client registration) |
 
-A tool is **offered** to a caller only when it is allowed, write access permits it, and the
-caller may use the part of the application behind it (for example `risk_heatmap` needs a
-loaded `risk` type the caller can see, `fleet_equipment_gaps` the fleet module and
-`fleet.view`). Unoffered tools do not appear in `tools/list` and a call to one fails with
-"Tool not found". **Delete is not exposed at all.**
+## Who may connect
+
+By default anyone holding at least one permission may connect an assistant once access is on.
+**Who may connect an assistant** (`mcp.allowed_roles`) narrows that to chosen roles. It applies
+at once and everywhere: making an assistant token (`403 mcp_not_allowed`), adding `mcp.use` on
+the API tokens card (the core's scope gate, `registerScopeGate`), the OAuth consent screen, and
+every request to `/mcp`, so the assistants of someone who leaves those roles are refused on their
+next request.
+
+## Choosing tools
+
+A tool is **offered** to a caller only when every one of these allows it:
+
+1. the administrator's allowed list (`mcp.allowed_tools`);
+2. **Tools by role** (`mcp.role_tools`): the union of the lists of the caller's roles; when any
+   of their roles has no list, roles do not narrow;
+3. the token's own list (table `mcp_token_tools`, set at creation or with
+   `PUT /api/mcp/tokens/:id/tools`, `{ tools: string[] | null }`, by the token's owner);
+4. write access, when the tool changes records;
+5. the caller's permissions for the part of the application behind it (for example
+   `risk_heatmap` needs a loaded `risk` type the caller can see, `fleet_equipment_gaps` the fleet
+   module and `fleet.view`, `system_impact` the `system` type). A part of the application an
+   administrator has switched off under Administration > Features counts as not loaded, and its
+   permissions as held by nobody, so its tools and record types disappear for every token.
+
+Unoffered tools do not appear in `tools/list` and a call to one fails with "Tool not found".
+**Delete is not exposed at all.**
 
 ## Tools
 
@@ -116,17 +155,27 @@ reference (`TKT-00012`).
 
 | Tool | Offered when | Source |
 |---|---|---|
-| `my_work` | always | Open tickets assigned to you, your open actions, `GET /api/changes/waiting`, `GET /api/policies/acknowledgments/mine`, unread `GET /api/notifications` (each part only where visible) |
-| `overdue_summary` (`per_kind?`) | always | Actions, tickets past resolution target, vulnerabilities past fix-by, pending incident notifications past deadline, obligations and exercises past due, risk reviews due, late safety investigations |
+| `my_work` | always | Open tickets assigned to you, your open actions, `GET /api/changes/waiting`, `GET /api/policies/acknowledgments/mine`, unread `GET /api/notifications` (each part only where visible). Reports progress |
+| `overdue_summary` (`per_kind?`) | always | Actions, tickets past resolution target, vulnerabilities past fix-by, pending incident notifications past deadline, obligations and exercises past due, risk reviews due, late safety investigations. Reports progress |
 | `risk_heatmap` (`scale?`, `basis?`) | can see `risk` | `GET /api/risks/heatmap`: grid, totals by rating, top ten |
-| `framework_progress` (`framework?`) | can see `framework` | `GET /api/frameworks/:id/progress`: at target, score, by status, assessments |
+| `framework_progress` (`framework?`) | can see `framework` | `GET /api/frameworks/:id/progress`: at target, score, by status, assessments. Reports progress |
 | `incident_clocks` | can see `security_incident` | Open incidents and pending `notification_task`s with time left or overdue |
 | `contracts_nearing_notice` (`days?`, default 90) | can see `contract` | `GET /api/contracts/renewals` |
 | `vulnerability_summary` | can see `vulnerability` | `GET /api/vulnerabilities/summary` |
 | `service_desk_metrics` (`from?`, `to?`) | can see `ticket` | `GET /api/tickets/metrics` |
 | `fleet_equipment_gaps` (`mode?`) | fleet module loaded, `fleet.view` | `GET /api/fleet/coverage?gaps=true` |
 | `safety_summary` | safety module loaded, `safety.view` | `GET /api/safety/summary` |
-| `run_report` (`report?`, `max_rows?` ≤ 200) | can see `report_definition` | Without `report`: the saved reports you can run. With an id or name: `GET /api/reports/:id/run` as labeled rows |
+| `run_report` (`report?`, `max_rows?` ≤ 200) | can see `report_definition` | Without `report`: the saved reports you can run. With an id or name: `GET /api/reports/:id/run` as labeled rows. Reports progress |
+| `system_impact` (`system`: id, reference or name) | can see `system` | `GET /api/systems/:id/impact`: downstream systems with depth and criticality, and the sites, data categories, assets, vehicles and services affected (each only where visible). Reports progress |
+
+### Progress notifications
+
+A client that wants progress sends `_meta.progressToken` with `tools/call`. That request is then
+answered as an event stream (still stateless, on the same POST): `notifications/progress` with
+`progress`, `total` and a `message` as the tool works through its steps, then the result. The
+tools marked "Reports progress" above send them; the others answer at once. Without a
+`progressToken` the answer is plain JSON as before. The bridge passes the events on as they
+arrive.
 
 ## Resources and prompts
 
@@ -138,23 +187,102 @@ reference (`TKT-00012`).
   assistant which tools to use, to cite references and links, and not to change anything unless
   asked.
 
+## OAuth for remote connectors
+
+Remote connectors (for example Claude's custom connectors, or Claude Code without a token) do not
+take a pasted token: they follow the [MCP authorization
+specification](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization).
+Sandpiper GRC is both the protected resource and the authorization server. **Off by default**
+(`mcp.oauth_enabled`), and it needs MCP access on.
+
+**HTTPS is required.** Every OAuth address answers only when the application is reached over
+HTTPS (or on this computer, `localhost`/`127.0.0.1`, for testing). Set the public address
+(`auth.public_url`, under Administration > Settings) to the `https://` address people use: it is the issuer and
+the base of the resource (`<public address>/mcp`). Connectors in a provider's cloud must be able
+to reach that address, which usually means a reverse proxy on a reachable host
+([Installation](installation.md#server-installation)).
+
+| Address | Standard | Purpose |
+|---|---|---|
+| `GET /.well-known/oauth-protected-resource/mcp` (and without `/mcp`) | RFC 9728 | `resource`, `authorization_servers`, `scopes_supported` (`mcp:read`, `mcp:write`), `bearer_methods_supported: ["header"]` |
+| `GET /.well-known/oauth-authorization-server` | RFC 8414 | Endpoints; `code_challenge_methods_supported: ["S256"]`; `grant_types_supported: ["authorization_code", "refresh_token"]`; `registration_endpoint` only while self-registration is on; `authorization_response_iss_parameter_supported: true` |
+| `GET /oauth/authorize` | OAuth 2.1 | The consent screen (a page of the web application; signs the person in first) |
+| `POST /oauth/token` | OAuth 2.1 | `authorization_code` (with `code_verifier`) and `refresh_token` |
+| `POST /oauth/register` | RFC 7591 | Dynamic client registration, only when `mcp.oauth_registration` is on |
+| `POST /oauth/revoke` | RFC 7009 | Revoke an access or refresh token (a refresh token ends the whole connection) |
+
+While OAuth is off, all of these answer `404` and the `401` from `/mcp` does not mention them.
+
+**The flow.** The connector calls `/mcp`, gets `401` with `resource_metadata`, reads both
+metadata documents, registers (or uses a client an administrator added), and sends the person's
+browser to `/oauth/authorize` with PKCE (`code_challenge_method=S256`, the only method), `state`
+and `resource=<public address>/mcp`. The person signs in if needed and sees the consent screen:
+the connector's name (as it gave it, or as the administrator entered it), where they return to,
+and a choice of **Read only** or (when the connector asked for `mcp:write` and the person can
+change records) **Read and write**, and how long to allow it (up to `tokens.max_days`). Allowing
+asks for a recent password confirmation; people outside the roles allowed to connect can only
+decline. The browser goes back to the registered redirect address with `code`, `state` and
+`iss`. The connector exchanges the code at `/oauth/token`.
+
+**Tokens.**
+
+- Authorization codes are single use and last five minutes; they are bound to the client, the
+  exact redirect address and the PKCE challenge. A code used twice ends the connection it made.
+- Access tokens (`grc_oat_...`) last an hour (never beyond the connection's end).
+  Refresh tokens (`grc_ort_...`) last 30 days and **rotate**: each refresh returns a new pair and
+  uses the old refresh token up; presenting a used refresh token again ends the whole
+  connection (`mcp.oauth.refresh_reuse` in the audit log).
+- Scopes: `mcp:read` gives the person's `<module>.view` permissions; `mcp:write` adds `.create`
+  and `.edit` (subject to write access being on). As with tokens, the permissions in force are
+  those in common with the person's roles at the moment of each request.
+- Access tokens are accepted **only at `/mcp`**: the core resolves them (through
+  `registerBearerResolver` in `core/tokens.ts`) only for the in-process calls the endpoint makes,
+  which carry a secret marker that changes at every start. Sent directly to `/api`, they get
+  `401 invalid_token`.
+- Everything is stored as SHA-256 only: client secrets, codes, access and refresh tokens. None
+  is written to a log or an audit event.
+
+**Clients.** `token_endpoint_auth_method` may be `none` (public clients with PKCE, the usual
+choice for desktop and command-line clients), `client_secret_basic` or `client_secret_post`.
+Redirect addresses must be `https`, `http` on a loopback address (any port, as OAuth 2.1 allows
+for native apps), or an app's own scheme; `javascript:`, `data:`, `file:` and similar are refused,
+as are fragments and user names. An authorization request with an unknown client or an
+unregistered redirect address is **never redirected**: the consent screen shows the error.
+Self-registration is limited to 10 an hour per address and 1000 connectors in all.
+Client ID metadata documents are not supported (`client_id_metadata_document_supported: false`),
+as they would need outbound connections.
+
+**Who sees what.** Each person sees their connections on Connect an AI assistant and can
+**Disconnect** them (`DELETE /api/mcp/oauth/grants/:id`). Administrators see every connector
+and connection on AI assistant access, add connectors by hand
+(`POST /api/mcp/admin/oauth/clients`), remove a connector with all its connections
+(`DELETE /api/mcp/admin/oauth/clients/:id`) and end any one connection. Switching OAuth off
+stops every connection at once.
+
 ## Audit and call log
 
 - Every change a tool makes goes through the REST route, so the record's own audit event names
-  the user and the token (`token_name`), and the core adds its `token.use` event.
+  the user and the token (`token_name`), and the core adds its `token.use` event. For a
+  connector the token name is "<connector> (connector)".
 - Each successful write tool also adds an `mcp.write` event on the record:
   `Updated ticket TKT-00012 (Status) via MCP (tool update_record) with API token "<name>"`. It
   shows in the record's History.
-- Every tool call and resource read is logged in `mcp_calls` (token, owner, tool, ok or the error
-  code, duration; never arguments or results), kept 90 days. Administrators see counts per token
-  and tool and the latest 50 calls on the AI assistant access page (`GET /api/mcp/admin?days=`).
+- All of these events carry the `request_id` of the `/mcp` request.
+- Every tool call and resource read is logged in `mcp_calls` (token or connection, owner, tool,
+  ok or the error code, duration, request id; never arguments or results), kept 90 days.
+  Administrators see counts per token and tool and the latest 50 calls on the AI assistant
+  access page (`GET /api/mcp/admin?days=`).
 - Changing an `mcp.*` setting writes a `setting.change` event; making an assistant token writes
-  `token.create` ("created for an AI assistant (MCP, read only)").
+  `token.create`; choosing its tools `mcp.tools`. OAuth writes `mcp.oauth.client_register`,
+  `mcp.oauth.consent`, `mcp.oauth.deny`, `mcp.oauth.revoke`, `mcp.oauth.client_remove`,
+  `mcp.oauth.code_reuse` and `mcp.oauth.refresh_reuse`.
 
 ## Connecting clients
 
 The Connect an AI assistant page shows these filled in with the installation's address and the
 new token. The token is shown once.
+
+### With a token
 
 **Claude Code** (over HTTP):
 
@@ -183,10 +311,6 @@ Config; restart Claude Desktop afterwards) through the bridge:
 }
 ```
 
-Claude Desktop's remote connectors are reached from the provider's cloud and sign in with
-OAuth; an installation listening on 127.0.0.1 cannot be reached that way, and this server does
-not offer OAuth. Use the bridge.
-
 **Other MCP clients** commonly accept the same `mcpServers` shape, either the command form above
 or a remote server by address:
 
@@ -197,18 +321,36 @@ or a remote server by address:
 Some clients name these fields differently (for example `"type": "http"` or `serverUrl`); see
 the client's documentation.
 
+### By signing in (OAuth)
+
+With sign-in for remote connectors on and the installation served over HTTPS at, say,
+`https://grc.example.org`:
+
+- **Claude** (claude.ai or Claude Desktop): Settings > Connectors > **Add custom connector**,
+  name it and enter `https://grc.example.org/mcp`, then **Connect**. Claude registers itself (or
+  enter the client id an administrator gave you under the connector's advanced settings), opens
+  the consent screen, and comes back connected. Claude's connectors run in the provider's cloud,
+  so the address must be reachable from the internet.
+- **Claude Code**: `claude mcp add --transport http sandpiper https://grc.example.org/mcp`, then
+  run `/mcp` in Claude Code and choose the server to sign in in your browser.
+- **Other MCP clients** that support MCP authorization: give only the address,
+  `{ "mcpServers": { "sandpiper": { "url": "https://grc.example.org/mcp" } } }`; the client finds
+  the rest from the `401` and the metadata.
+
 ## The stdio bridge
 
 `tools/mcp-stdio.mjs` (also downloadable as `sandpiper-mcp-stdio.mjs` from
 `GET /api/mcp/bridge` on the Connect page) is for clients that can only start a local command.
 It has no dependencies and runs on any Node.js 18 or later, including the portable one in
-`.tools/node`.
+`.tools/node`. It uses a personal access token (not OAuth).
 
 - Reads `GRC_URL` (the application address; `.../mcp` also accepted) and `GRC_TOKEN` from the
   **environment only**, so the token never appears in a process list.
 - Reads one JSON-RPC message per line on standard input, POSTs each to `<GRC_URL>/mcp` with the
   token, and writes each answer as one line on standard output, in order. It remembers the
-  negotiated protocol version and sends `MCP-Protocol-Version`.
+  negotiated protocol version and sends `MCP-Protocol-Version`, and sends its own
+  `X-Request-Id` (`bridge-<process>-<n>`).
+- Passes progress notifications on as they arrive, a moment before the result they belong to.
 - A refusal (`401`, `403`, `429`) or an unreachable server becomes a JSON-RPC error for each
   waiting request, with the reason on standard error, so the client never hangs.
 - Warns on standard error when `GRC_URL` is plain `http` to another computer.
@@ -218,14 +360,20 @@ It has no dependencies and runs on any Node.js 18 or later, including the portab
 | Symptom | Cause and fix |
 |---|---|
 | `403` "AI assistant access is switched off" | An administrator switches it on under Administration > AI assistant access |
-| `403` "lacks the mcp.use scope" | The token was made on the API tokens card. Make one on Connect an AI assistant |
+| `403` "lacks the mcp.use scope" | The token was made on the API tokens card without **Use with an AI assistant**. Make one on Connect an AI assistant |
+| `403` "Your role may not connect AI assistants" | **Who may connect an assistant** names other roles |
+| `403` "may not be used from this address" | The token has **Allowed source addresses** that do not include where the assistant runs |
 | `401` "That API token is not valid" | Expired, revoked or mistyped. Make a new one. After 20 wrong tokens in 5 minutes from one address, `429` for a while |
 | `403` "Requests from web pages are not accepted" | The client sends an `Origin` header. Use a desktop or command-line client, or list the origin under Browser origins |
 | `429` | The token's request limit (`mcp.rate_per_minute` or `tokens.rate_per_minute`). Wait a minute |
-| A tool is missing from the list | Not allowed by the administrator, write access is off, the token is read only, or the person cannot see that part of the application |
+| A tool is missing from the list | Not allowed by the administrator, not chosen for the role or the token, write access is off, the token is read only, or the person cannot see that part of the application |
 | "not a record type you can see" | The type is not loaded here, or needs a permission (restricted types need `security.view`) |
 | The bridge exits at once | `GRC_URL` or `GRC_TOKEN` is not set in the client's configuration (`env`) |
 | `405` on `GET /mcp` | Expected: the server is stateless; clients fall back to POST only |
+| A connector says the server has no sign-in, or the metadata is `404` | OAuth is off, MCP access is off, or the address is not HTTPS: set the public address (`auth.public_url`) to the `https://` address |
+| The consent screen says the connector "asked to return to an address it did not register" | The redirect address differs from its registration. Remove the connector and let it register again, or fix the address an administrator entered |
+| "Connectors cannot register themselves here" | Self-registration is off: an administrator adds the connector and gives you its client id |
+| A connector keeps asking to sign in again | Its connection ended (disconnected, expired, connector removed, OAuth switched off, or a refresh token was used twice) |
 
 ## Security notes and limits
 
@@ -235,6 +383,11 @@ It has no dependencies and runs on any Node.js 18 or later, including the portab
   read-only token limits what a manipulated assistant could do; write access is off by default,
   and nothing can be deleted.
 - Data read by an assistant goes to that assistant's provider. Restricted records only reach
-  people who may see them, but organizations should decide which roles may connect assistants.
-- Not built (see the epic E21): OAuth for remote connectors, per-role permission to connect,
-  streaming progress for long tools, a per-tool permission list per token.
+  people who may see them; use **Who may connect an assistant** and **Tools by role** to decide
+  which roles may connect and what their assistants may use.
+- A connector's name on the consent screen is what the connector registered with; the screen
+  says so, and shows where the person returns to. Prefer adding connectors by hand (and leaving
+  self-registration off) where only a few known connectors are used.
+- Not built (see the epic E21): client ID metadata documents (they would need outbound
+  connections), sign-in through the stdio bridge, and keeping the per-token request counts
+  outside process memory (E14-12).

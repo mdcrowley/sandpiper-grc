@@ -10,6 +10,10 @@ export interface Session {
   token: { id: string; name: string };
   /** The token's scopes as stored. */
   scopes: string[];
+  /** Tools chosen for this caller by the administrator, their roles and the token (null = every tool). */
+  tools?: string[] | null;
+  /** How the token was issued: a personal access token, or an OAuth sign-in by a remote connector. */
+  kind?: 'token' | 'oauth';
 }
 
 export interface FieldMeta { label: string; type: string; required?: boolean; readOnly?: boolean; list?: string; to?: string; custom?: boolean }
@@ -33,6 +37,11 @@ export interface ToolContext {
   /** One record by id or reference (TKT-00012), as the REST API returns it. */
   record(type: TypeMeta, idOrRef: string): Promise<Record<string, any>>;
   link(route: string, id?: string): string;
+  /**
+   * Reports how far a long-running tool has come (E21-20). Sends an MCP progress notification when
+   * the client asked for them (a progressToken on the call); otherwise does nothing.
+   */
+  progress(done: number, total?: number, message?: string): Promise<void>;
 }
 
 export interface ToolResult {
@@ -103,6 +112,7 @@ export function makeToolContext(ctx: ModuleContext, api: Caller, session: Sessio
       return row;
     },
     link: (route, id) => `${baseUrl}${route}${id ? `/${id}` : ''}`,
+    progress: async () => undefined,
   };
   return t;
 }

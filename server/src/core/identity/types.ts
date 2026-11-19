@@ -16,6 +16,18 @@ export interface ExternalIdentity {
   displayName: string | null;
   /** Group or role values, for role mapping. Empty when the provider sends none. */
   groups: string[];
+  /**
+   * True when the provider said the person has groups but did not send them (too many: "group
+   * overage", E02-24) and they could not be fetched. Role mapping then leaves roles as they are.
+   */
+  groupsUnknown?: boolean;
+  /** How the provider says the person signed in (OIDC `amr`, RFC 8176), and the level reached (`acr`). */
+  amr?: string[];
+  acr?: string | null;
+  /** The provider's session id (OIDC `sid`), for back-channel sign-out. */
+  sid?: string | null;
+  /** The raw ID token, kept (encrypted) only to name the session when signing out at the provider. Never logged. */
+  idToken?: string | null;
 }
 
 /** One mapping rule: people whose group claim holds `value` get role `role` (a role key). */
@@ -32,6 +44,14 @@ export interface CommonProviderConfig {
   jitDomains: string[];
   /** Treat the provider's email as verified even without `email_verified` (some directories never send it). */
   trustEmail: boolean;
+  /**
+   * E02-22: the provider enforces multi-factor sign-in. A session made through it satisfies this
+   * application's second-factor requirement when its token shows it: an `amr` value in `mfaAmr`
+   * (default `mfa`), or an `acr` in `mfaAcr`. Off by default.
+   */
+  providerMfa: boolean;
+  mfaAmr: string[];
+  mfaAcr: string[];
 }
 
 /** OpenID Connect settings. Issuer and endpoints are configuration; nothing is hard-coded. */
@@ -52,6 +72,12 @@ export interface OidcConfig extends CommonProviderConfig {
   algorithms: ('RS256' | 'ES256' | 'PS256')[];
   /** Extra parameters for the authorization request (for example a domain hint). Never `client_id`, `state` and so on. */
   extraParams: Record<string, string>;
+  /** E02-24: also read groups from the userinfo endpoint (always, not only when the token has too many to list). */
+  groupsFromUserinfo: boolean;
+  /** E02-23: signing out here also signs the person out at the provider (RP-initiated logout). Off by default. */
+  endSession: boolean;
+  /** E02-23: the provider may end sessions here by calling the back-channel logout address. Off by default. */
+  backchannelLogout: boolean;
 }
 
 /** A provider row as the service uses it. `secret` is decrypted only when needed. */

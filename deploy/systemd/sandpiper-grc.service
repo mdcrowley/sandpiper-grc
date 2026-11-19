@@ -9,7 +9,11 @@
 #   sudo install -m 640 -o root -g sandpiper /dev/null /etc/sandpiper-grc/env   # then edit it
 #   sudo cp deploy/systemd/sandpiper-grc.service /etc/systemd/system/
 #   sudo systemctl daemon-reload && sudo systemctl enable --now sandpiper-grc
-#   journalctl -u sandpiper-grc -f
+#   journalctl -u sandpiper-grc -f        (start-up and errors; every request is in data/logs/grc.log)
+#
+# With a PostgreSQL server and a least-privilege account (docs/installation.md), put
+# GRC_DATABASE_MIGRATE_URL and GRC_DATABASE_MIGRATE_PASSWORD_FILE in the env file: the owner
+# account migrates at start, then the server runs as the account in GRC_DATABASE_URL.
 #
 # Everything the application writes is under /var/lib/sandpiper-grc (StateDirectory): the data
 # folder, the secret key beside it (data.secret.key) and backups. Run operations commands as the
@@ -46,6 +50,9 @@ EnvironmentFile=-/etc/sandpiper-grc/env
 ExecStart=/opt/sandpiper-grc/.tools/node/bin/node --experimental-transform-types --disable-warning=ExperimentalWarning server/src/main.ts
 # A terminate signal makes the server finish requests in progress and close the database.
 KillSignal=SIGTERM
+# systemctl reload sandpiper-grc: use a renewed TLS certificate (GRC_TLS_CERT/KEY) without a
+# restart. The server also notices a changed certificate by itself (GRC_TLS_RELOAD_SECONDS).
+ExecReload=/bin/kill -HUP $MAINPID
 TimeoutStopSec=30
 Restart=on-failure
 RestartSec=5

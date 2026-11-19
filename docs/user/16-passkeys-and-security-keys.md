@@ -29,7 +29,22 @@ A passkey counts as your second factor. If your organization requires a second f
 
 Each key in the list shows its name, its kind (**Passkey on this device**, **Synced passkey**, **Security key** or **Passkey**), when it was added and when it was last used (and from which address). An account can have up to ten keys.
 
-**Add two.** Register a second key, or keep the authenticator app as well, so that losing one does not lock you out. Recovery codes come with the authenticator app; there are none for passkeys.
+**Add two.** Register a second key, or keep the authenticator app as well, so that losing one does not lock you out.
+
+### Recovery codes for passkeys
+
+If a passkey or security key is your only second factor (you have no authenticator app), a **Recovery codes** card appears on the Account security page as soon as you add your first key, marked **None yet**. Make them straight away:
+
+1. Select **Make recovery codes**, type your current password and select **Make codes**.
+2. Ten codes are shown **once**. Copy, download or print them and keep them somewhere safe, apart from your keys, then select **I have saved them**.
+
+Each code signs you in **once** in place of your key. The card shows how many are left; **New recovery codes** replaces them all. Which to choose:
+
+- **A second key** is the most convenient way back in, and it resists phishing.
+- **Recovery codes** need nothing but a safe place to keep a sheet of paper, and work on any device.
+- Both is best. With neither, losing your only key means asking an administrator.
+
+Your codes are removed when your last second factor goes: when you remove your last key and have no authenticator app. If you turn the authenticator app off but still have a key, your codes stay.
 
 The same card is also on its own page at **/account/passkeys**.
 
@@ -56,10 +71,14 @@ Remove a key straight away if the device or security key is lost or stolen.
 
 **After your password.** Type your username and password and select **Sign in**. If you have a key:
 
-- With no authenticator app, your browser asks for your key straight away.
+- With no authenticator app, your browser asks for your key straight away. If you cannot use it (lost, or on another device), the page asks for a **Recovery code** instead: type one and select **Sign in with the recovery code**. **Try your passkey or security key again** asks for the key once more.
 - With the authenticator app as well, you are asked for the 6-digit code; select **Use a passkey or security key instead** to use your key.
 
 If the key is refused you see "Sign-in with the key failed. Try again, or sign in with your password." A key whose use counter has gone backwards is refused, because that can mean it was copied; tell your administrator.
+
+## Confirming it is you with a key
+
+Before a sensitive change (a role, a sign-in setting, adding a key) the application asks you to **Confirm it is you**. After your password, a person with a second factor is asked for it too: select **Use your passkey or security key** and use your key, or type a 6-digit code or a recovery code instead.
 
 ## For administrators
 

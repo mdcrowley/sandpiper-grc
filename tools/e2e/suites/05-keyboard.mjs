@@ -290,6 +290,94 @@ export const tests = [
     },
   },
   {
+    name: 'record picker: type to search, arrow keys and Enter choose, Escape closes the list',
+    async run(t) {
+      const { page } = t;
+      const site = (await t.api().must('GET', '/api/sites?pageSize=1&sort=name')).rows[0];
+      const word = site.name.split(/\s+/).find((w) => w.length > 3 && !/^\[?Sample\]?$/i.test(w)) ?? site.name;
+      await page.goto('/assets?new=1');
+      await page.waitFor('[role=dialog] form');
+      await t.step('Tab to the Site picker', async () => {
+        for (let i = 0; i < 30; i++) {
+          const on = await page.eval(`(() => { const l = [...document.querySelectorAll('[role=dialog] label')].find((x) => /^Site/.test(x.innerText)); return !!l && l.control === document.activeElement; })()`);
+          if (on) return;
+          await page.key('Tab');
+        }
+        throw new Error('Tab did not reach the Site picker');
+      });
+      await t.step(`type "${word}", ArrowDown and Enter choose the site`, async () => {
+        await page.type(word);
+        await page.waitFor(() => [...document.querySelectorAll('[role=listbox] [role=option]')].some((o) => o.getClientRects().length), { timeout: 6000 });
+        await page.key('ArrowDown');
+        await page.key('Enter');
+        await sleep(300);
+        const value = await page.eval(`document.activeElement.value ?? ''`);
+        if (!value) throw new Error('nothing was chosen');
+        if (await page.eval(`document.activeElement.getAttribute('aria-expanded') === 'true'`)) throw new Error('the list stayed open after choosing');
+        t.log(`      chose "${value}"`);
+      });
+      await t.step('Escape closes an open list first, not the dialog', async () => {
+        await page.key('ArrowDown');
+        await sleep(200);
+        if (await page.eval(`document.activeElement.getAttribute('aria-expanded')`) !== 'true') throw new Error('ArrowDown did not open the list');
+        await page.key('Escape');
+        await sleep(300);
+        if (!(await page.exists('[role=dialog]'))) throw new Error('the first Escape closed the whole dialog');
+        if (await page.eval(`document.activeElement.getAttribute('aria-expanded')`) !== 'false') throw new Error('the list did not close');
+      });
+      await t.step('the next Escape asks before discarding the draft; Discard closes it with the keyboard', async () => {
+        await page.key('Escape');
+        await page.waitFor(() => [...document.querySelectorAll('[role=dialog]')].some((d) => /Discard this draft?/.test(d.innerText)), { timeout: 3000 }).catch(() => { throw new Error('no "Discard this draft?" question'); });
+        await sleep(200);
+        let on = '';
+        for (let i = 0; i < 6; i++) {
+          on = await page.eval(`(document.activeElement?.closest('[role=dialog]') && document.activeElement.tagName === 'BUTTON') ? document.activeElement.innerText.trim() : ''`);
+          if (/^Discard/.test(on)) break;
+          await page.key('Tab');
+        }
+        if (!/^Discard/.test(on)) throw new Error('Tab did not reach the Discard button');
+        await page.key('Enter');
+        await page.waitFor('[role=dialog]', { gone: true, timeout: 3000 }).catch(() => { throw new Error('the dialog stayed open'); });
+      });
+    },
+  },
+  {
+    name: 'relationship map: Tab reaches a node, Enter selects it, arrow keys move the view',
+    async run(t) {
+      const { page } = t;
+      await inContent(page, '/systems/map');
+      await t.step('Tab to the first node of the map', async () => {
+        await page.waitFor('.inv-node', { timeout: 8000 });
+        await tabTo(page, () => true, 1, 'anything');
+        for (let i = 0; i < 80; i++) {
+          if (await page.eval(`!!document.activeElement?.classList?.contains('inv-node')`)) return;
+          await page.key('Tab');
+        }
+        throw new Error('Tab never reached a node of the map');
+      });
+      await t.step('Enter selects the node and its details show', async () => {
+        const name = await page.eval(`document.activeElement.getAttribute('aria-label')`);
+        await page.key('Enter');
+        await sleep(400);
+        if (await page.eval(`document.activeElement.getAttribute('aria-pressed')`) !== 'true') throw new Error(`"${name}" is not marked as selected`);
+        const label = name.replace(/ \(.*$/, '');
+        if (!(await page.text('main')).includes(label)) throw new Error('the details of the node are not shown');
+        await page.key('Enter');
+        await sleep(200);
+      });
+      await t.step('on the map itself, the arrow keys move the view', async () => {
+        const ok = await page.fn(() => { const c = document.querySelector('.inv-canvas'); c?.focus(); return document.activeElement === c; });
+        if (!ok) throw new Error('the map area cannot take focus');
+        const before = await page.eval(`document.querySelector('.inv-canvas svg g')?.getAttribute('transform') ?? ''`);
+        await page.key('ArrowLeft');
+        await page.key('ArrowLeft');
+        await sleep(300);
+        const after = await page.eval(`document.querySelector('.inv-canvas svg g')?.getAttribute('transform') ?? ''`);
+        if (before === after) throw new Error('the view did not move');
+      });
+    },
+  },
+  {
     name: 'dashboard grid: a widget moves with the arrow keys',
     async run(t) {
       const { page } = t;

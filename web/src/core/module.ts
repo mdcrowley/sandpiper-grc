@@ -13,6 +13,21 @@ import { entries } from 'virtual:grc-modules';
 import type { IconName } from './Icon';
 import { lazyRouteElement } from './lazyRoutes';
 
+/**
+ * The optional area (Administration > Features, server/src/core/features.ts) each whole web module
+ * belongs to: while the area is off its menu entries, Create entries and pages are gone. Modules
+ * not listed are always on, or follow their permissions alone: the risks module also holds the
+ * action tracker, and the portal has a layout and switch of its own.
+ */
+export const MODULE_AREA: Record<string, string> = {
+  tickets: 'tickets', changes: 'changes', vendors: 'vendors', frameworks: 'frameworks', secincidents: 'secincidents',
+  policies: 'policies', training: 'training', vulnerabilities: 'vulnerabilities', projects: 'projects',
+  reports: 'reports', fleet: 'fleet', safety: 'safety',
+};
+
+/** Whether a web module's area is on (always true for a module that is not part of an area). */
+export const moduleOn = (key: string, areaOn: (area: string) => boolean) => !MODULE_AREA[key] || areaOn(MODULE_AREA[key]);
+
 export const NAV_GROUPS = [
   'Home', 'Service desk', 'Inventory', 'Change', 'Vendors', 'Cybersecurity', 'Safety', 'Projects', 'Reports', 'Administration', 'Help',
 ] as const;

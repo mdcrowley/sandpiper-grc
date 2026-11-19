@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ApiError, api, Badge, Button, Card, DateTimeField, EmptyState, ErrorState, errorMessage, formatDateTime, Icon, Loading,
-  lookupLabel, LookupSelect, PageHeader, Stepper, Switch, TextArea, TextField, useDebounced, useFetch, useLookup, useToast,
+  lookupLabel, LookupSelect, PageHeader, Stepper, Switch, TextArea, TextField, useCustomFieldInputs, useDebounced, useFetch, useLookup, useToast,
 } from '../../core';
 import type { Row } from '../../core';
 import { PilotNotice, remainingText, useLifecycle, useNow, zoneName } from './shared';
@@ -95,6 +95,8 @@ export function DeclareIncident() {
   const [previewing, setPreviewing] = useState(false);
   const [retry, setRetry] = useState(0);
   const [busy, setBusy] = useState<'' | 'declared' | 'reported'>('');
+  // The administrator's custom fields on security incidents (E18-34), asked on the first step.
+  const custom = useCustomFieldInputs('security_incident');
 
   const flags = answersToFields(questions, answers);
   const loaded = !!asked.data;
@@ -118,8 +120,9 @@ export function DeclareIncident() {
     if (!discovered) found.discovered_at = 'Discovered is required: the notification deadlines count from it.';
     else if (new Date(discovered).getTime() > Date.now() + 5 * 60_000) found.discovered_at = 'Discovered cannot be in the future.';
     setErrors(found);
-    if (Object.keys(found).length) setStep(0);
-    return !Object.keys(found).length;
+    const customOk = custom.collect() !== null;
+    if (Object.keys(found).length || !customOk) setStep(0);
+    return !Object.keys(found).length && customOk;
   }
 
   function go(next: number) {
@@ -129,16 +132,17 @@ export function DeclareIncident() {
 
   async function save(as: 'declared' | 'reported') {
     if (!validate()) return;
+    const extra = custom.collect() ?? {};
     const status = lifecycle?.statuses.find((s) => s.stage === as)?.value ?? as;
     setBusy(as);
     try {
       const row = await api.post<Row>('/api/security-incidents', {
-        title, summary: summary || undefined, scenario: scenario || undefined, severity, discovered_at: discovered, status, ...flags,
+        title, summary: summary || undefined, scenario: scenario || undefined, severity, discovered_at: discovered, status, ...flags, ...extra,
       });
       toast.success(as === 'declared' ? 'Incident declared. The notification clocks are running.' : 'Incident saved as reported. No clocks yet.');
       navigate(`/security-incidents/${row.id}`);
     } catch (err) {
-      if (err instanceof ApiError && err.fields) { setErrors(err.fields); setStep(0); }
+      if (err instanceof ApiError && err.fields) { setErrors(err.fields); custom.showErrors(err.fields); setStep(0); }
       toast.error(errorMessage(err));
       setBusy('');
     }
@@ -183,6 +187,7 @@ export function DeclareIncident() {
                   </div>
                   {errors.severity && <p className="field-error">{errors.severity}</p>}
                 </fieldset>
+                {custom.inputs}
               </>
             )}
 

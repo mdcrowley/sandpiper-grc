@@ -37,7 +37,8 @@ function NumberBody({ widget, data }: { widget: Widget; data: WidgetData }) {
   );
   const open = () => data.result && drill(data.result, data.result.drill);
   if (cfg.sentence) {
-    const [before, after] = String(cfg.sentence).split('{value}');
+    // {one|many} picks the words for a figure of exactly one, or of any other figure: "{project is|projects are}".
+    const [before, after] = String(cfg.sentence).replace(/\{([^{}|]*)\|([^{}]*)\}/g, (_m, one: string, many: string) => (v === 1 ? one : many)).split('{value}');
     return (
       <div className="rp-sentence">
         <button type="button" className="rp-sentence-text rp-clickable" onClick={open} title="See the records behind this figure">

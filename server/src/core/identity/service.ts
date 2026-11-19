@@ -8,8 +8,9 @@ import type { Db } from '../db.ts';
 import { makeDbLimiter } from '../ratelimit.ts';
 import { clientIp, cookieSecure, isHttps } from '../request.ts';
 import { isBreakGlass, resolveSignIn, syncMappedRoles, type Audit } from './accounts.ts';
+import { providerMfaSatisfied } from './config.ts';
 import { addSignInPolicy, afterSignIn, checkSignIn } from './hooks.ts';
-import { oidcDriver } from './oidc.ts';
+import { endSessionUrl, oidcDriver } from './oidc.ts';
 import { IdentityError, type ExternalIdentity, type ProviderDriver, type ProviderRecord, type RedirectStart } from './types.ts';
 
 export interface IdentityDeps {
@@ -189,7 +190,17 @@ export async function finishSignIn(
     await auditFailure(deps, req, provider, refused, user.id);
     return { ok: false, code: 'failed' };
   }
-  await syncMappedRoles(deps, req, user.id, provider, identity.groups);
+  if (identity.groupsUnknown && provider.config.mappingEnabled) {
+    // E02-24: the provider has groups for this person but did not send them. Removing roles because
+    // "no group matched" would be wrong, so roles are left as they are, and that is recorded.
+    await deps.audit(req, {
+      action: 'identity.groups_unknown', recordType: 'user', recordId: user.id,
+      summary: `${provider.name} said this person has too many groups to list and they could not be fetched; roles were left unchanged`,
+    });
+  } else {
+    await syncMappedRoles(deps, req, user.id, provider, identity.groups);
+  }
+  const mfa = providerMfaSatisfied(provider.config, identity);
   await deps.db.query('update users set last_login_at = now(), failed_attempts = 0, locked_until = null where id = $1', [user.id]);
   await deps.db.query('update user_identities set last_used_at = now(), email = coalesce($3, email) where provider_id = $1 and subject = $2',
     [provider.id, identity.subject, identity.email]);
@@ -198,9 +209,12 @@ export async function finishSignIn(
   req.user = await loadUser(deps.db, user.id);
   await deps.audit(req, {
     action: 'signin.success', recordType: 'user', recordId: user.id,
-    summary: `Signed in via ${provider.name} (${DRIVERS[provider.type]?.label ?? provider.type}) from ${clientIp(req)}`,
+    summary: `Signed in via ${provider.name} (${DRIVERS[provider.type]?.label ?? provider.type})${mfa ? ' with a multi-factor sign-in at the provider' : ''} from ${clientIp(req)}`,
   });
-  await afterSignIn(deps.app, req, { userId: user.id, method: provider.key, sessionToken: token });
+  await afterSignIn(deps.app, req, {
+    userId: user.id, method: provider.key, sessionToken: token,
+    provider: { mfa, sid: identity.sid ?? null, idToken: provider.config.endSession === true ? identity.idToken ?? null : null },
+  });
   return { ok: true, userId: user.id };
 }
 
@@ -224,14 +238,41 @@ export function registerSignInPolicy(deps: IdentityDeps): void {
       }
       return null;
     },
-    async after(req, { userId, method, sessionToken }) {
+    async after(req, { userId, method, sessionToken, provider: facts }) {
       const breakGlass = await isBreakGlass(deps.db, userId);
       const provider = method === 'local' ? null : await providerByKey(deps.db, method);
+      const tokenHash = sha256(sessionToken);
+      // The ID token is kept only to name the session at the provider's sign-out page (E02-23), encrypted.
+      const idTokenSealed = provider && facts?.idToken ? secretBox(deps.db).encrypt(facts.idToken, `sso-session:${tokenHash}`) : null;
       await deps.db.query(
-        'insert into identity_sessions (token_hash, method, provider_id, break_glass) values ($1,$2,$3,$4) on conflict (token_hash) do nothing',
-        [sha256(sessionToken), method, provider?.id ?? null, breakGlass],
+        `insert into identity_sessions (token_hash, method, provider_id, break_glass, mfa, sid, id_token_sealed)
+         values ($1,$2,$3,$4,$5,$6,$7) on conflict (token_hash) do nothing`,
+        [tokenHash, method, provider?.id ?? null, breakGlass, Boolean(provider && facts?.mfa), provider ? facts?.sid ?? null : null, idTokenSealed],
       );
       if (breakGlass) await breakGlassAlarm(deps, req, userId);
+    },
+    // E02-22: a session made through a provider trusted for multi-factor sign-in, whose token showed it.
+    async sessionSecondFactor(sessionHash) {
+      return Boolean(await deps.db.one(
+        `select 1 from identity_sessions s join identity_providers p on p.id = s.provider_id and p.deleted_at is null
+         where s.token_hash = $1 and s.mfa and coalesce((p.config->>'providerMfa')::boolean, false)`, [sessionHash],
+      ));
+    },
+    // E02-23: signing out here also signs out at the provider, when that is switched on for it.
+    async signOutRedirect(req, sessionHash) {
+      const s = await deps.db.one<{ provider_id: string | null; id_token_sealed: string | null }>(
+        'select provider_id, id_token_sealed from identity_sessions where token_hash = $1', [sessionHash],
+      );
+      if (!s?.provider_id) return null;
+      const provider = await providerById(deps.db, s.provider_id);
+      if (!provider || !provider.enabled || provider.config.endSession !== true) return null;
+      let idToken: string | null = null;
+      if (s.id_token_sealed) {
+        try { idToken = secretBox(deps.db).decrypt(s.id_token_sealed, `sso-session:${sessionHash}`); } catch { idToken = null; }
+      }
+      let base: string;
+      try { base = await publicBase(deps, req); } catch { return null; }
+      return endSessionUrl(provider, { idToken, postLogoutRedirectUri: `${base}/` });
     },
   });
 }

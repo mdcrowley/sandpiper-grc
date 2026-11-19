@@ -94,6 +94,7 @@ button.inv-nudge:hover { box-shadow: inset 0 0 0 1px var(--c-amber-solid); }
 .inv-node:focus-visible rect { stroke: var(--focus); stroke-width: 2.5; }
 .inv-node.is-selected rect { stroke: var(--text); stroke-width: 2.5; filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.25)); }
 .inv-node.is-impacted rect { stroke: var(--c-red-solid); stroke-width: 2; stroke-dasharray: 5 3; }
+.inv-node.is-marked rect { stroke: var(--c-amber-solid); stroke-width: 2.5; }
 /* Faded but still opaque, so the lines of the highlighted records do not show through. */
 .inv-node.is-dim rect { fill: var(--surface); stroke: var(--border); }
 .inv-node.is-dim text, .inv-node.is-dim circle { opacity: 0.35; }
@@ -102,6 +103,7 @@ button.inv-nudge:hover { box-shadow: inset 0 0 0 1px var(--c-amber-solid); }
 .inv-node-green { --node-bg: var(--c-green-bg); --node-fg: var(--c-green-fg); --node-solid: var(--c-green-solid); --node-line: color-mix(in srgb, var(--c-green-solid) 45%, transparent); }
 .inv-node-amber { --node-bg: var(--c-amber-bg); --node-fg: var(--c-amber-fg); --node-solid: var(--c-amber-solid); --node-line: color-mix(in srgb, var(--c-amber-solid) 45%, transparent); }
 .inv-node-orange { --node-bg: var(--c-orange-bg); --node-fg: var(--c-orange-fg); --node-solid: var(--c-orange-solid); --node-line: color-mix(in srgb, var(--c-orange-solid) 45%, transparent); }
+.inv-node-teal { --node-bg: var(--c-teal-bg); --node-fg: var(--c-teal-fg); --node-solid: var(--c-teal-solid); --node-line: color-mix(in srgb, var(--c-teal-solid) 45%, transparent); }
 
 .inv-edge { fill: none; stroke-width: 1.2; transition: opacity 140ms; }
 .inv-edge-flow { stroke: var(--text-muted); stroke-width: 1.6; }
@@ -110,6 +112,7 @@ button.inv-nudge:hover { box-shadow: inset 0 0 0 1px var(--c-amber-solid); }
 .inv-edge-amber { stroke: var(--c-amber-solid); stroke-dasharray: 4 4; }
 .inv-edge-orange { stroke: var(--c-orange-solid); stroke-dasharray: 4 4; }
 .inv-edge-blue { stroke: var(--c-blue-solid); stroke-dasharray: 4 4; }
+.inv-edge-teal { stroke: var(--c-teal-solid); stroke-dasharray: 4 4; }
 .inv-edge.is-rest { opacity: 0.45; }
 .inv-edge-flow.is-rest { opacity: 0.8; }
 .inv-edge.is-dim { opacity: 0.07; }
@@ -150,11 +153,13 @@ button.inv-nudge:hover { box-shadow: inset 0 0 0 1px var(--c-amber-solid); }
 .inv-swatch-green { background: var(--c-green-solid); }
 .inv-swatch-amber { background: var(--c-amber-solid); }
 .inv-swatch-orange { background: var(--c-orange-solid); }
+.inv-swatch-teal { background: var(--c-teal-solid); }
 .inv-swatch-line { display: inline-block; width: 14px; height: 2px; background: var(--text-muted); }
 
 .inv-legend { list-style: none; display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-5); margin: 0; padding: 0; color: var(--text-muted); font-size: var(--fs-sm); }
 .inv-legend li { display: inline-flex; align-items: center; gap: var(--s-2); }
 .inv-legend-hot { display: inline-block; width: 22px; height: 12px; border: 2px dashed var(--c-red-solid); border-radius: 4px; }
+.inv-legend-marked { display: inline-block; width: 22px; height: 12px; border: 2.5px solid var(--c-amber-solid); border-radius: 4px; }
 .inv-legend-tiers { flex-wrap: wrap; gap: var(--s-2) var(--s-3); }
 .inv-legend-tiers > span { display: inline-flex; align-items: center; gap: 5px; }
 .inv-tier-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
@@ -234,3 +239,19 @@ button.inv-nudge:hover { box-shadow: inset 0 0 0 1px var(--c-amber-solid); }
 /* A busy map: quieter lines at rest, so the boxes read first and a selection stands out. */
 .is-dense .inv-edge.is-rest { opacity: 0.22; }
 .is-dense .inv-edge-flow.is-rest { opacity: 0.5; stroke-width: 1.3; }
+
+/* ---------- map picture dialog ---------- */
+.inv-picture-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-4); }
+.inv-picture-preview { margin: 0; display: grid; gap: var(--s-2); }
+.inv-picture-preview img {
+  display: block; width: 100%; max-height: 300px; object-fit: contain;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2);
+}
+.inv-picture-preview figcaption { font-size: var(--fs-sm); }
+@media (max-width: 640px) { .inv-picture-options { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------- system tabs ---------- */
+.inv-row-actions { display: inline-flex; gap: 2px; justify-content: flex-end; }
+.inv-fixed-field { display: grid; gap: 2px; }
+.inv-fixed-label { font-size: var(--fs-sm); font-weight: 600; }
+.inv-fixed-field .muted { font-size: var(--fs-sm); }

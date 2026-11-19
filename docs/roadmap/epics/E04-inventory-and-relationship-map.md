@@ -1,6 +1,6 @@
 # E04 Inventory and relationship map
 
-**Status:** in progress
+**Status:** done (23 of 23 issues done)
 
 ## Goal
 
@@ -39,10 +39,10 @@ other. Other modules (tickets, risks, vendors, incidents) point at these records
 | E04-17 | Changes, tickets and vulnerabilities on systems and assets | done | P2 |
 | E04-18 | Warranty, support and loan reminders | done | P2 |
 | E04-19 | Transit equipment types and sample estate | done | P2 |
-| E04-20 | Edit an integration in place | open | P3 |
-| E04-21 | Reminder steps chosen on screen | open | P3 |
-| E04-22 | Export the relationship map as a picture | open | P3 |
-| E04-23 | Automated tests for the map layout | open | P3 |
+| E04-20 | Edit an integration in place | done | P3 |
+| E04-21 | Reminder steps chosen on screen | done | P3 |
+| E04-22 | Export the relationship map as a picture | done | P3 |
+| E04-23 | Automated tests for the map layout | done | P3 |
 
 ---
 
@@ -351,19 +351,22 @@ sample data looks like my estate.
 
 ### E04-20 Edit an integration in place
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 As an IT lead, I change an integration's method, direction or notes without removing it and
 adding it again.
 
 **Acceptance criteria**
 
-- [ ] An Edit button on each integration row
-- [ ] The change is audited on both systems
+- [x] An Edit button on each integration row
+- [x] The change is audited on both systems
+- [x] The direction is read from the system being edited, so an integration can be turned round from either end; a change that would duplicate another integration is refused (409); the other system cannot change
+
+**Implemented in:** `PATCH /api/systems/:id/integrations/:integrationId` (`server/src/modules/inventory/relations.ts`, audit action `system.integration_update`); `IntegrationDialog` and `LinkedList` in `web/src/modules/inventory/SystemTabs.tsx`; tests in `relations.test.ts`
 
 ### E04-21 Reminder steps chosen on screen
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 As an administrator, I choose how many days before a warranty or support end the reminders
 go out. Today the setting `inventory.reminder_days` can only be changed through the settings
@@ -371,28 +374,39 @@ store.
 
 **Acceptance criteria**
 
-- [ ] The steps are shown and edited on an administration screen
-- [ ] The change is audited
+- [x] The steps are shown and edited on an administration screen (Administration > Reminders)
+- [x] The change is audited (`setting.change`)
+
+**Implemented in:** `server/src/modules/notifications/reminder-settings.ts`,
+`web/src/modules/notifications/ReminderSettings.tsx`; tests
+`notifications/housekeeping.test.ts`.
 
 ### E04-22 Export the relationship map as a picture
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 As an IT lead, I save the map, or the neighborhood of one system, as an image for a report.
 
 **Acceptance criteria**
 
-- [ ] Save as SVG or PNG with the legend, in the current theme or a print theme
+- [x] Save as SVG or PNG with the legend, in the current theme or a print theme
+- [x] The whole map as filtered and arranged, whatever the zoom, with a heading, the date and a legend; optionally the impact of the selected system; a preview before saving
+- [x] The same on a system's Map tab (its neighborhood); no new packages (the SVG is drawn from the layout, the PNG on a canvas)
+
+**Implemented in:** `web/src/modules/inventory/mapExport.ts` (`renderMapSvg`, `readPalette`, `svgToPng`), `MapPicture.tsx`, the **Save as a picture** button in `MapCanvas.tsx`; tests in `mapExport.test.ts`
 
 ### E04-23 Automated tests for the map layout
 
-**Status:** open · **Priority:** P3 · **Type:** debt
+**Status:** done · **Priority:** P3 · **Type:** debt
 
-The map layout (`web/src/modules/inventory/mapLayout.ts`) is pure code with no tests, because
-the test runner covers only the server. It was checked by eye in the browser.
+The map layout (`web/src/modules/inventory/mapLayout.ts`) was pure code with no tests, checked by
+eye in the browser.
 
 **Acceptance criteria**
 
-- [ ] The test runner includes web unit tests
-- [ ] Tests that the same data always lays out the same way, that nothing overlaps, and that large groups wrap
+- [x] The test runner includes web unit tests (`vitest.config.ts` includes `web/src/**/*.test.ts`)
+- [x] Tests that the same data always lays out the same way, that nothing overlaps, and that large groups wrap
+- [x] Also: every record is placed once inside the drawing, systems stay inside their group box, long lanes wrap, lanes sit on the correct side, and an empty map draws
+
+**Implemented in:** `web/src/modules/inventory/mapLayout.test.ts`
 

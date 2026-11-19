@@ -113,3 +113,18 @@
   .ml-templates { grid-template-columns: minmax(0, 1fr); }
   .ml-template-list { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
 }
+
+/* ---------- delete beside a row (page only) ---------- */
+
+.ntf-deletable { display: flex; align-items: center; }
+.ntf-deletable .ntf-button { flex: 1 1 auto; min-width: 0; }
+.ntf-delete { flex: none; margin-inline-end: var(--s-2); }
+
+/* ---------- Administration > Reminders ---------- */
+
+.ntf-rem-statuses { margin: 0; padding: 0; border: 0; min-width: 0; }
+.ntf-rem-legend { padding: 0; font-weight: 600; font-size: var(--fs-sm); }
+.ntf-rem-statuses .ntf-small { margin: 2px 0 var(--s-2); }
+.ntf-rem-checks { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-4); }
+.ntf-rem-error { margin: var(--s-1) 0 0; color: var(--danger-text); font-size: var(--fs-sm); }
+.ntf-rem-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }

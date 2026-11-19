@@ -1,6 +1,7 @@
 // The controls that shape a report: list or summary, columns, grouping, totals, filters and sort.
 // Used whole by the report builder and in part by the dashboard widget editor.
-import { Button, Icon, IconButton, Select, Switch } from '../../core';
+import { useState } from 'react';
+import { Button, Icon, IconButton, Select, Switch, cx } from '../../core';
 import { FilterEditor } from './FilterEditor';
 import type { AggFn, Bucket, CatalogField, CatalogType, ReportSpec } from './types';
 
@@ -36,12 +37,22 @@ export function ColumnsEditor({ type, spec, onChange }: { type: CatalogType; spe
   const label = (path: string) => type.fields.find((f) => f.path === path)?.label ?? path;
   const move = (i: number, by: number) => { const next = [...cols]; const [c] = next.splice(i, 1); next.splice(i + by, 0, c); onChange({ ...spec, columns: next }); };
   const left = type.fields.filter((f) => !cols.includes(f.path));
+  // Dragging a column by its grip reorders the list (the arrow buttons do the same from the keyboard).
+  const [dragging, setDragging] = useState<number | null>(null);
+  const [over, setOver] = useState<number | null>(null);
+  const drop = (to: number) => { if (dragging !== null && dragging !== to) move(dragging, to - dragging); setDragging(null); setOver(null); };
   return (
     <div className="rp-columns">
       {cols.length === 0 && <p className="rp-empty-hint">No columns chosen yet. Pick fields from the list on the left, or add one here.</p>}
       <ol className="rp-column-list">
         {cols.map((path, i) => (
-          <li key={path}>
+          <li key={path} draggable className={cx(dragging === i && 'is-dragging', over === i && dragging !== null && dragging !== i && 'is-over')}
+            onDragStart={(e) => { setDragging(i); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', path); }}
+            onDragOver={(e) => { if (dragging === null) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setOver(i); }}
+            onDragLeave={() => setOver((o) => (o === i ? null : o))}
+            onDrop={(e) => { e.preventDefault(); drop(i); }}
+            onDragEnd={() => { setDragging(null); setOver(null); }}>
+            <span className="rp-column-grip" aria-hidden="true" title="Drag to reorder"><Icon name="menu" size={14} /></span>
             <span className="rp-column-n">{i + 1}</span>
             <span className="rp-column-name truncate">{label(path)}</span>
             <IconButton icon="arrow-up" label={`Move ${label(path)} up`} variant="ghost" size="sm" disabled={i === 0} onClick={() => move(i, -1)} />

@@ -30,6 +30,12 @@ export function guidePages() {
   return guide;
 }
 
+/** What the SDK passes a tool handler besides its arguments (the parts used here). */
+interface ToolExtra {
+  _meta?: { progressToken?: string | number };
+  sendNotification?: (n: { method: 'notifications/progress'; params: Record<string, unknown> }) => Promise<void>;
+}
+
 export interface CallLog { (tool: string, ok: boolean, error: string | null, ms: number): Promise<void> }
 
 const INSTRUCTIONS = 'Sandpiper GRC: governance, risk and compliance for a transit organization (service desk, inventory, changes, vendors and contracts, '
@@ -55,10 +61,22 @@ function errorResult(err: unknown) {
 export function buildServer(ctx: ModuleContext, settings: McpSettings, t: ToolContext, req: FastifyRequest, log: CallLog): McpServer {
   const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION, title: 'Sandpiper GRC' }, { instructions: INSTRUCTIONS });
 
-  const run = async (tool: ToolSpec, args: unknown) => {
+  const run = async (tool: ToolSpec, args: unknown, extra?: ToolExtra) => {
     const started = Date.now();
     try {
-      const result: ToolResult = await tool.run(args ?? {}, t);
+      // Progress notifications (E21-20), only when the client asked with a progressToken. They travel
+      // on this request's own event stream (http.ts answers with text/event-stream for such calls).
+      const progressToken = extra?._meta?.progressToken;
+      let last = -1;
+      const progress = progressToken === undefined || !extra?.sendNotification ? t.progress : async (done: number, total?: number, message?: string) => {
+        if (done <= last) return; // progress must increase
+        last = done;
+        await extra.sendNotification!({
+          method: 'notifications/progress',
+          params: { progressToken, progress: done, ...(total !== undefined ? { total } : {}), ...(message ? { message } : {}) },
+        }).catch(() => undefined);
+      };
+      const result: ToolResult = await tool.run(args ?? {}, { ...t, progress });
       await log(tool.name, true, null, Date.now() - started);
       if (tool.write && result.audit) {
         await ctx.audit(req, {
@@ -85,7 +103,7 @@ export function buildServer(ctx: ModuleContext, settings: McpSettings, t: ToolCo
         idempotentHint: !!tool.idempotent,
         openWorldHint: false,
       },
-    }, ((args: unknown) => run(tool, args)) as any);
+    }, ((args: unknown, extra: ToolExtra) => run(tool, args, extra)) as any);
   }
 
   // ---- resources: the user guide, and any record by type and id

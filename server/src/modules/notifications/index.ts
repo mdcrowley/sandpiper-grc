@@ -13,6 +13,8 @@ import { ensureMail } from '../../core/mail/index.ts';
 import type { ModuleDef, Row } from '../../core/module.ts';
 import { runDigest } from './digest.ts';
 import { runEmailDigest } from './email.ts';
+import { runHousekeeping } from './housekeeping.ts';
+import { registerReminderSettings } from './reminder-settings.ts';
 import { channelFor, CHANNELS, makeNotify, maySee, safeRoute, type Channel } from './service.ts';
 
 const KIND_LIST = 'notification_kind';
@@ -47,7 +49,7 @@ const mod: ModuleDef = {
 
     const me = (req: FastifyRequest) => req.user!.id;
     const unreadCount = async (userId: string) =>
-      (await db.one<{ c: number }>('select count(*)::int c from notifications where user_id = $1 and in_app and read_at is null', [userId]))!.c;
+      (await db.one<{ c: number }>('select count(*)::int c from notifications where user_id = $1 and in_app and dismissed_at is null and read_at is null', [userId]))!.c;
 
     // ---------- my notifications ----------
 
@@ -55,7 +57,7 @@ const mod: ModuleDef = {
       const q = req.query as Record<string, string>;
       const pageSize = Math.min(100, Math.max(1, Number(q.pageSize) || 20));
       const page = Math.max(1, Number(q.page) || 1);
-      const where = `user_id = $1 and in_app${q.unread === 'true' ? ' and read_at is null' : ''}`;
+      const where = `user_id = $1 and in_app and dismissed_at is null${q.unread === 'true' ? ' and read_at is null' : ''}`;
       const total = (await db.one<{ c: number }>(`select count(*)::int c from notifications where ${where}`, [me(req)]))!.c;
       const found = await db.query<Row>(
         `select id, kind, title, body, route, record_type, record_id, created_at, read_at from notifications
@@ -93,6 +95,35 @@ const mod: ModuleDef = {
         : undefined;
       if (!row) ctx.fail(404, 'not_found', 'Notification not found.');
       return { ok: true, id: row!.id, read_at: row!.read_at, unread: await unreadCount(me(req)) };
+    });
+
+    // Deleting hides the notification at once; housekeeping removes it for good later (a
+    // reminder sent "once a day" must still see that it was sent today). Not audited either.
+    app.delete('/api/notifications/:id', async (req) => {
+      const id = (req.params as { id: string }).id;
+      const row = UUID_RE.test(id)
+        ? await db.one<Row>(
+          `update notifications set dismissed_at = now(), read_at = coalesce(read_at, now())
+           where id = $1 and user_id = $2 and dismissed_at is null returning id`, [id, me(req)],
+        )
+        : undefined;
+      if (!row) ctx.fail(404, 'not_found', 'Notification not found.');
+      return { ok: true, id: row!.id, unread: await unreadCount(me(req)) };
+    });
+    ctx.describeRoute({
+      method: 'DELETE', path: '/api/notifications/:id', tag: 'Notifications', summary: 'Delete one of your notifications',
+      description: 'Needs only a signed-in person. Someone else\'s notification answers 404. Not audited.', response: '{ ok: boolean, id: uuid, unread: integer }',
+    });
+
+    app.post('/api/notifications/delete-read', async (req) => {
+      const rows = await db.query(
+        'update notifications set dismissed_at = now() where user_id = $1 and in_app and read_at is not null and dismissed_at is null returning id', [me(req)],
+      );
+      return { ok: true, deleted: rows.length, unread: await unreadCount(me(req)) };
+    });
+    ctx.describeRoute({
+      method: 'POST', path: '/api/notifications/delete-read', tag: 'Notifications', summary: 'Delete all your read notifications',
+      description: 'Needs only a signed-in person. Not audited.', response: '{ ok: boolean, deleted: integer, unread: integer }',
     });
 
     // ---------- preferences ----------
@@ -188,6 +219,10 @@ const mod: ModuleDef = {
     jobs.register('notifications.email_digest', async () => runEmailDigest(ctx), { maxAttempts: 3 });
     await jobs.schedule('notifications.reminders', { type: 'notifications.reminders', every: HOUR, firstRunInMs: 60_000 });
     await jobs.schedule('notifications.email_digest', { type: 'notifications.email_digest', every: HOUR, firstRunInMs: 5 * 60_000 });
+    jobs.register('notifications.housekeeping', async () => runHousekeeping(ctx), { maxAttempts: 3 });
+    await jobs.schedule('notifications.housekeeping', { type: 'notifications.housekeeping', every: 24 * HOUR, firstRunInMs: 15 * 60_000 });
+
+    registerReminderSettings(ctx);
 
     app.post('/api/notifications/digest/run', { preHandler: ctx.requirePerm('admin.administer') }, async () => runDigest(ctx, notify));
     app.post('/api/notifications/email-digest/run', { preHandler: ctx.requirePerm('admin.administer') }, async () => runEmailDigest(ctx));

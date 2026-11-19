@@ -4,6 +4,7 @@ import type { ModuleContext } from '../../core/module.ts';
 import { clientIp, isHttps } from '../../core/request.ts';
 import { makeCaller } from './caller.ts';
 import { buildServer } from './server.ts';
+import type { registerOAuth } from './oauth.ts';
 import type { McpSettings } from './settings.ts';
 import { makeToolContext, type Session } from './toolkit.ts';
 
@@ -14,7 +15,7 @@ import { makeToolContext, type Session } from './toolkit.ts';
  * Security, in order:
  * 1. Any Origin header that is not explicitly allowed is refused (browsers send one; MCP clients do not),
  *    which also defeats DNS rebinding.
- * 2. Only `Authorization: Bearer grc_pat_...` is accepted; the session cookie is never read, so a web
+ * 2. Only `Authorization: Bearer grc_pat_...` (or an OAuth access token `grc_oat_...`, oauth.ts) is accepted; the session cookie is never read, so a web
  *    page cannot drive this endpoint. The token is checked by the core, exactly as for /api, through
  *    GET /api/mcp/session (in-process), which also refuses a token without the mcp scope or while
  *    AI assistant access is off.
@@ -36,7 +37,18 @@ export async function baseUrl(ctx: ModuleContext, req: FastifyRequest): Promise<
   return `${isHttps(req) ? 'https' : 'http'}://${req.headers.host ?? '127.0.0.1'}`;
 }
 
-export function registerEndpoint(ctx: ModuleContext, log: (session: Session, tool: string, ok: boolean, error: string | null, ms: number) => Promise<void>) {
+/** Whether a POST body asks for progress notifications (a tools/call with _meta.progressToken), E21-20. */
+export function wantsProgress(body: unknown): boolean {
+  const messages = Array.isArray(body) ? body : [body];
+  return messages.some((m) => {
+    const token = (m as { method?: string; params?: { _meta?: { progressToken?: unknown } } } | null)?.params?._meta?.progressToken;
+    return (m as { method?: string } | null)?.method === 'tools/call' && (typeof token === 'string' || typeof token === 'number');
+  });
+}
+
+type OAuth = ReturnType<typeof registerOAuth>;
+
+export function registerEndpoint(ctx: ModuleContext, oauth: OAuth, log: (session: Session, tool: string, ok: boolean, error: string | null, ms: number, requestId: string) => Promise<void>) {
   const handler = async (req: FastifyRequest, reply: FastifyReply) => {
     const origin = req.headers.origin;
     if (origin !== undefined) {
@@ -48,14 +60,16 @@ export function registerEndpoint(ctx: ModuleContext, log: (session: Session, too
     const authorization = req.headers.authorization;
     if (!authorization || !/^Bearer\s+\S+$/i.test(authorization)) {
       return rpcError(reply, 401, 'Send a personal access token: "Authorization: Bearer grc_pat_...". Make one under Account security > Connect an AI assistant.',
-        -32001, { 'www-authenticate': 'Bearer realm="sandpiper-grc"' });
+        -32001, { 'www-authenticate': await oauth.challenge(req) });
     }
     const ip = clientIp(req);
-    const who = await ctx.app.inject({ method: 'GET', url: '/api/mcp/session', headers: { authorization }, remoteAddress: ip });
+    // The same request id on every in-process call, so the audit events a tool causes can be traced to this request (E13-14).
+    const internal = { ...oauth.internalHeaders(authorization), 'x-request-id': req.requestId };
+    const who = await ctx.app.inject({ method: 'GET', url: '/api/mcp/session', headers: { ...internal, authorization }, remoteAddress: ip });
     if (who.statusCode !== 200) {
       let message = 'The token was refused.';
       try { message = who.json().error?.message ?? message; } catch { /* keep the default */ }
-      return rpcError(reply, who.statusCode, message, -32001, who.statusCode === 401 ? { 'www-authenticate': 'Bearer realm="sandpiper-grc", error="invalid_token"' } : {});
+      return rpcError(reply, who.statusCode, message, -32001, who.statusCode === 401 ? { 'www-authenticate': await oauth.challenge(req, 'invalid_token') } : {});
     }
     const { settings, ...session } = who.json() as Session & { settings: McpSettings };
 
@@ -74,11 +88,14 @@ export function registerEndpoint(ctx: ModuleContext, log: (session: Session, too
     // The request now acts as the token's owner, for the audit events the tools write.
     req.user = { ...session.user, permissions: session.permissions };
     req.apiToken = session.token;
-    const api = makeCaller(ctx.app, authorization, ip);
+    const api = makeCaller(ctx.app, authorization, ip, internal);
     const t = makeToolContext(ctx, api, session, await baseUrl(ctx, req));
-    const server = buildServer(ctx, settings, t, req, (tool, ok, error, ms) => log(session, tool, ok, error, ms));
-    const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
+    const server = buildServer(ctx, settings, t, req, (tool, ok, error, ms) => log(session, tool, ok, error, ms, req.requestId));
+    // Plain JSON answers, except for a tool call that asks for progress: that one is answered as an
+    // event stream carrying the progress notifications and then the result (still stateless).
+    const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: !wantsProgress(req.body) });
     reply.hijack();
+    reply.raw.setHeader('x-request-id', req.requestId);
     reply.raw.setHeader('x-content-type-options', 'nosniff');
     reply.raw.setHeader('cache-control', 'no-store');
     reply.raw.on('close', () => { void transport.close(); void server.close(); });

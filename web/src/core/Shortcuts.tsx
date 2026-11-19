@@ -42,6 +42,7 @@ const GROUPS: { title: string; items: Shortcut[] }[] = [
       { keys: [['←'], ['→']], what: 'Move between tabs (on a tab)' },
       { keys: [['Ctrl Enter']], what: 'Post the comment you are writing' },
       { keys: [['↓']], what: 'Open a picker; arrows and Enter choose' },
+      { keys: [['M']], what: 'Move the focused change (change calendar)' },
     ],
   },
 ];

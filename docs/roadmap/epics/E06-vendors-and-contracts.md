@@ -1,6 +1,6 @@
 # E06 Vendors and contracts
 
-**Status:** in progress
+**Status:** in progress (21 of 23 issues done)
 
 ## Goal
 
@@ -41,8 +41,10 @@ contract must be renewed or ended, with enough warning to act.
 | E06-17 | Attach contract and evidence documents | done | P2 |
 | E06-18 | Vendor page as a profile; contract page led by the notice date | done | P2 |
 | E06-19 | Security-terms matrix as a heat grid; fast checklist editing | done | P2 |
-| E06-20 | One expiry date for an evidence item and its file | open | P3 |
-| E06-21 | Vendors answer the assessment themselves | open | P3 |
+| E06-20 | One expiry date for an evidence item and its file | done | P3 |
+| E06-21 | Vendors answer the assessment themselves | done | P3 |
+| E06-22 | Vendors attach files through the response link | open | P3 |
+| E06-23 | Send the response link by email from the application | open | P3 |
 
 ---
 
@@ -367,24 +369,65 @@ contract's page leads with its notice date, a countdown and what happens if we d
 
 ### E06-20 One expiry date for an evidence item and its file
 
-**Status:** open · **Priority:** P3 · **Type:** improvement
+**Status:** done · **Priority:** P3 · **Type:** improvement
 
 An evidence item has its own **Expires on** date, and a file attached as evidence has
 another. They can disagree, and only the item's date drives the evidence reminders.
 
 **Acceptance criteria**
 
-- [ ] When a file is attached as evidence, offer to copy its expiry to the item (or the reverse)
-- [ ] The evidence page warns when the two dates differ
+- [x] When a file is attached as evidence, offer to copy its expiry to the item (or the reverse): the notice appears as soon as the file is listed, with one button for each
+- [x] The evidence page warns when the two dates differ (including an item with no date and a file with one)
+
+**Implemented in** `server/src/modules/vendors/evidenceExpiry.ts` (`GET /api/evidence/:id/expiry`, `POST /api/evidence/:id/expiry/align`
+with `use: file | item`; the item's date changes through the record type, so its reminders are planned again), `links.test.ts`;
+`web/src/modules/vendors/EvidenceExpiry.tsx`, `EvidencePages.tsx`, `shared.tsx` (`FilesPanel` passes `onChange`)
 
 ### E06-21 Vendors answer the assessment themselves
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 Today staff record the answers. A vendor could answer through a one-time link without an
 account, with staff reviewing before the assessment is completed.
 
 **Acceptance criteria**
 
-- [ ] A time-limited link per assessment, usable without signing in
-- [ ] Staff review and can change answers before completing
+- [x] A time-limited link per assessment, usable without signing in: off by default (setting
+      `vendors.response_links_enabled`, on the Assessment questions page), 1 to 90 days (default
+      `vendors.response_link_days`, 14), one open link per draft (a new one replaces it), revocable, closed
+      when the assessment is completed; only a hash of the secret is stored and it is shown once; the public
+      routes answer the same "not valid" for unknown, expired, revoked and switched-off links and are rate
+      limited per address (60 a minute, and 20 wrong links in 15 minutes); the vendor sees the questions and
+      guidance only (no weights, score or staff answers), can save and come back, and sends with a name
+- [x] Staff review and can change answers before completing: the vendor's answers wait on the link; staff take
+      over one or all of them into the draft (audited), then change any answer and complete as before; the person
+      who created the link is notified when the answers are sent
+- [ ] Vendors attach files through the link (split out as E06-22)
+- [ ] The application emails the link (split out as E06-23)
+
+**Implemented in** `server/src/modules/vendors/responseLinks.ts` (`GET/PUT /api/vendors/response-links/settings`,
+`GET/POST /api/vendor-assessments/:aid/links`, `DELETE …/links/:lid`, `POST …/links/:lid/accept`, public
+`GET/PUT /api/vendor-response/:token`), `migrations/003_vendor_response_links.sql`, `links.test.ts`;
+`web/src/modules/vendors/ResponseLink.tsx`, `VendorResponse.tsx` (public route `/vendor-response/:token`), `Assessment.tsx`, `Questions.tsx`
+
+### E06-22 Vendors attach files through the response link
+
+**Status:** open · **Priority:** P3 · **Type:** feature
+
+Split out of E06-21. A vendor answering through the link often has a certificate or an assurance
+report to back an answer. Today they must send it separately and staff attach it.
+
+**Acceptance criteria**
+
+- [ ] The response page accepts files (same checks and malware scan as other uploads, a small limit per link)
+- [ ] Files wait with the answers until staff take them over as evidence of the vendor
+
+### E06-23 Send the response link by email from the application
+
+**Status:** open · **Priority:** P3 · **Type:** feature
+
+Split out of E06-21. Staff copy the link and send it themselves.
+
+**Acceptance criteria**
+
+- [ ] When email is set up, staff can send the link to a vendor contact from the assessment, with a reminder before it expires

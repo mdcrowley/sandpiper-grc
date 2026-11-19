@@ -114,7 +114,7 @@ describe('dashboards: permissions, sharing, widgets and the home choice', () => 
     expect((await agent.get(`/api/dashboards/${dash.id}`)).status).toBe(404);
     expect((await agent.get('/api/dashboards')).body.rows.map((r: any) => r.id)).not.toContain(dash.id);
     expect((await agent.post('/api/dashboards/home', { dashboard_id: dash.id })).status).toBe(404);
-    expect((await agent.get('/api/dashboards/home')).body).toEqual({ dashboard: null, route: null });
+    expect((await agent.get('/api/dashboards/home')).body).toMatchObject({ dashboard: null, route: null, suggested: null, readOnly: false });
 
     await lead.patch(`/api/dashboards/${dash.id}`, { sharing: 'roles', shared_roles: ['agent'] });
     const set = await agent.post('/api/dashboards/home', { dashboard_id: dash.id });
@@ -126,9 +126,26 @@ describe('dashboards: permissions, sharing, widgets and the home choice', () => 
     expect((await agent.get('/api/dashboards/home')).body.dashboard).toBeNull();
     // People without dashboards.view get an empty answer, not an error (the Overview page asks for everyone).
     const auditor = await t.as('auditor');
-    expect((await auditor.get('/api/dashboards/home')).body).toEqual({ dashboard: null, route: null });
+    expect((await auditor.get('/api/dashboards/home')).body).toMatchObject({ dashboard: null, route: null, suggested: null, readOnly: true });
     expect((await auditor.post('/api/dashboards/home', { dashboard_id: dash.id })).status).toBe(403);
     expect((await agent.post('/api/dashboards/home', { dashboard_id: null })).body.dashboard).toBeNull();
+  });
+
+  it('suggests the board summary to people who only look, until they choose a home of their own (E12-07)', async () => {
+    const board = (await lead.post('/api/dashboards', { name: 'Board summary', widgets: [], sharing: 'everyone' })).body;
+    await t.db.query(`update dashboards set key = 'board_summary' where id = $1`, [board.id]);
+    const exec = await t.as('executive_viewer');
+    const home = (await exec.get('/api/dashboards/home')).body;
+    expect(home).toMatchObject({ dashboard: null, suggested: { id: board.id, name: 'Board summary', route: `/dashboards/${board.id}` } });
+    // People with work to do get no suggestion.
+    expect((await agent.get('/api/dashboards/home')).body.suggested).toBeNull();
+    // A chosen home replaces the suggestion; a board summary that is not shared with them is not suggested.
+    const own = (await lead.post('/api/dashboards', { name: 'Executive view', widgets: [], sharing: 'everyone' })).body;
+    await exec.post('/api/dashboards/home', { dashboard_id: own.id });
+    expect((await exec.get('/api/dashboards/home')).body).toMatchObject({ dashboard: { id: own.id }, suggested: null });
+    await exec.post('/api/dashboards/home', { dashboard_id: null });
+    await lead.patch(`/api/dashboards/${board.id}`, { sharing: 'private' });
+    expect((await exec.get('/api/dashboards/home')).body.suggested).toBeNull();
   });
 
   it('works out every widget with the viewer\'s permissions and degrades gracefully', async () => {

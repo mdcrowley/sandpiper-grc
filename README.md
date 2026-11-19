@@ -13,7 +13,7 @@ regulator, and nothing in it is specific to one organization.
 ## Features
 
 - **Service desk**: incidents and requests with service-level clocks, problems, a knowledge
-  base, a service catalog and a self-service portal for staff
+  base, a service catalog, email to ticket and a self-service portal for staff
 - **Inventory, fleet and services**: systems, assets, sites and data categories with a
   relationship map; vehicles and on-vehicle equipment; "what is affected" when a system fails
 - **Change enablement**: risk-scored changes, approvals, a change calendar with blackout periods
@@ -26,7 +26,10 @@ regulator, and nothing in it is specific to one organization.
 - **Sign-in and security**: single sign-on (OpenID Connect), passkeys, second factor,
   roles, restricted records and a full audit log
 - **Integrations**: a REST API with an OpenAPI description, webhooks, and AI assistant
-  access over MCP (Claude Desktop, Claude Code and other MCP clients), all off until switched on
+  access over MCP (Claude Desktop, Claude Code and other MCP clients, by token or OAuth),
+  all off until switched on
+- **Use only what you need**: switch optional areas (for example fleet or safety) off under
+  Administration > Features, and they disappear everywhere; the data is kept
 - **Runs anywhere**: an embedded database or PostgreSQL, a container image for amd64 and
   arm64, verified and optionally encrypted backups, and upgrades that roll back on failure
 

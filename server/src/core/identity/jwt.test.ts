@@ -79,7 +79,7 @@ describe('provider settings', () => {
   it('trusts an email only when the provider verifies it or the administrator says so', () => {
     const cfg = oidcDriver.cleanConfig({ issuer: 'https://x.test', clientId: 'a', groupsClaim: 'roles' }, null).config as OidcConfig;
     expect(identityFromClaims({ sub: 's', email: 'A@B.test', email_verified: true, roles: ['r1', 5] }, cfg))
-      .toEqual({ subject: 's', email: 'a@b.test', emailVerified: true, displayName: null, groups: ['r1'] });
+      .toEqual({ subject: 's', email: 'a@b.test', emailVerified: true, displayName: null, groups: ['r1'], amr: [], acr: null, sid: null });
     expect(identityFromClaims({ sub: 's', email: 'a@b.test' }, cfg).emailVerified).toBe(false);
     const upn = { ...cfg, emailClaim: 'preferred_username' };
     expect(identityFromClaims({ sub: 's', preferred_username: 'a@b.test', email_verified: true }, upn).emailVerified).toBe(false);

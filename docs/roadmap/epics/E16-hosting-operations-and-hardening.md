@@ -1,6 +1,6 @@
 # E16 Hosting, operations and hardening
 
-**Status:** in progress
+**Status:** in progress (27 of 36 issues done)
 
 ## Goal
 
@@ -22,7 +22,8 @@ and usable by everyone.
   tested and run on any operating system. `grc.ps1` is a thin Windows wrapper that stops
   and starts the server around them.
 - Continuous integration is defined in `.github/workflows/ci.yml` (and locally `.\grc.ps1 ci`) for the repository's
-  home on GitHub.
+  home on GitHub. Every job passed on `main` on 2026-11-19 (run 44472809393), including the
+  tests on PostgreSQL 17 and the image publish.
 - Hardening of sign-in is in [E02](E02-account-security.md). The license, contributing
   guide and security policy are tracked in [E17-13](E17-documentation.md).
 
@@ -42,24 +43,30 @@ and usable by everyone.
 | E16-10 | Upgrade command | done | P2 |
 | E16-11 | Export-all and import-all commands | done | P3 |
 | E16-12 | Continuous integration | in progress | P1 |
-| E16-13 | Dependency scanning | in progress | P2 |
-| E16-14 | Load testing | open | P2 |
+| E16-13 | Dependency scanning | done | P2 |
+| E16-14 | Load testing | done | P2 |
 | E16-15 | Accessibility audit | in progress | P2 |
-| E16-16 | Server logging and log rotation | open | P3 |
+| E16-16 | Server logging and log rotation | done | P3 |
 | E16-17 | Unattended, off-machine backups with failure alerts | done | P1 |
 | E16-18 | Automatic rollback of a failed upgrade | done | P2 |
-| E16-19 | Show the installed version in the application | open | P3 |
-| E16-20 | Detect a migration edited after release | open | P3 |
+| E16-19 | Show the installed version in the application | done | P3 |
+| E16-20 | Detect a migration edited after release | done | P3 |
 | E16-21 | One-command Node.js bootstrap | done | P2 |
 | E16-22 | Status and logs commands | done | P2 |
 | E16-23 | Repository hygiene for contributors | done | P2 |
 | E16-24 | Encrypted backups and exports | done | P2 |
-| E16-25 | Start, stop and schedule on Linux and macOS | open | P3 |
+| E16-25 | Start, stop and schedule on Linux and macOS | done | P3 |
 | E16-30 | Backup, restore and status commands that know about a database server | done | P1 |
-| E16-31 | A least-privilege database role for the application | open | P2 |
+| E16-31 | A least-privilege database role for the application | done | P2 |
 | E16-32 | Publish the container image | in progress | P3 |
-| E16-33 | Reload the TLS certificate without a restart | open | P3 |
+| E16-33 | Reload the TLS certificate without a restart | done | P3 |
 | E16-34 | macOS and Linux scripts | done | P1 |
+| E16-35 | Confirm the user services on a real systemd and launchd | open | P3 |
+| E16-36 | Load test on a PostgreSQL server, and tune the slowest queries | done | P2 |
+| E16-37 | Schema changes at run time without the owner account | open | P3 |
+| E16-38 | Embedded database under load: Overview and global search, and scale 4 | open | P3 |
+| E16-39 | Start-up work within the time limit at volume | open | P3 |
+| E16-40 | Independent security review or penetration test | open | P2 |
 
 ---
 
@@ -139,28 +146,28 @@ signing in.
 
 ### E16-05 Run on a PostgreSQL server
 
-**Status:** in progress · **Priority:** P1 · **Type:** feature
+**Status:** done · **Priority:** P1 · **Type:** feature
 
 As an operator, I point the application at a PostgreSQL server with a connection
 setting, so that data is not tied to one process on one machine.
 
-The server driver is written and the whole test suite (73 files, about 800 tests) gives
-identical results through it locally with `GRC_TEST_DATABASE=pg` (about 4 minutes), where each test database is an embedded
-PostgreSQL 18 served over the wire protocol on a random port. The application was also
-run and used in the browser that way. It has not yet run against a separately installed
-PostgreSQL server: the CI leg that does so (PostgreSQL 17 service) is written but has not
-had its first run, and reports without failing the workflow until it has.
+The whole test suite gives identical results through the server driver, locally with
+`GRC_TEST_DATABASE=pg` (an embedded PostgreSQL 18 served over the wire protocol) and in
+continuous integration against a separately running PostgreSQL 17 server: the job "Tests on
+a database server (postgres-17)" passed on `main` on 2026-11-19 (run 44472809393), so its
+`continue-on-error` was removed. The compose variant with PostgreSQL 17 also passes in CI.
 
 **Acceptance criteria**
 
 - [x] A connection string setting selects a server instead of the embedded database (`GRC_DATABASE_URL` or `_FILE`; password, TLS, schema, pool size and timeouts as separate settings)
 - [x] All migrations and the full test suite pass through the server driver over the wire protocol (`GRC_TEST_DATABASE=pg`, locally and in continuous integration)
-- [ ] The same against a real PostgreSQL server in continuous integration (`GRC_TEST_DATABASE_URL`, job "Tests on a database server (postgres-17)"): confirm the first run, then remove its `continue-on-error`
+- [x] The same against a real PostgreSQL server in continuous integration (`GRC_TEST_DATABASE_URL`, job "Tests on a database server (postgres-17)"): first run green on 2026-11-19, now required
 - [x] Connection pooling and transactions behave the same in both modes: same values (dates, numbers, json, arrays, intervals), one connection per transaction, rollback on error, the time zone on every connection; tested side by side in `db.test.ts`. One documented difference: outside a transaction, other queries are not held back while one runs
 - [x] The embedded mode remains for local evaluation and tests (the default; an in-memory database never uses the configured server)
 - [x] A documented path moves existing embedded data to a server (`export-all`, then `import-all` against the server; the export round-trip tests pass through the server driver)
 - [x] Migrations and module SQL checked for embedded-only assumptions: none found (no extensions; `gen_random_uuid`, text search configurations, triggers and generated columns are standard). PostgreSQL 15 or later
-- [ ] `backup`, `restore` and `status` work in server mode (see E16-30; `pg_dump` guidance is in the operations guide meanwhile)
+- [x] `backup`, `restore` and `status` work in server mode (E16-30)
+- [x] Performance on a server measured (E16-36)
 
 **Implemented in:** `server/src/core/db.ts` (tests in `db.test.ts`); `.github/workflows/ci.yml` (job `database-server`); `docs/installation.md` (PostgreSQL server); `docs/operations.md` (PostgreSQL server backups); `docs/architecture.md` (Hosting)
 
@@ -226,7 +233,11 @@ are pruned.
 administrator rights; `unschedule-backup` removes it. The task's action, trigger and
 command line were built and the command line was run by hand against a scratch
 installation, but the task was deliberately **not registered** on the development
-machine, so the last criterion is open until someone confirms it on a real one.
+machine, so the last criterion is open until someone confirms it on a real one. Reviewed
+again on 2026-11-19: nothing else is missing. Confirming it needs a Windows machine where a
+per-user scheduled task may be registered: run `.\grc.ps1 schedule-backup -At <in two
+minutes>`, wait, check `status` and `backups\scheduled-backup.log`, then
+`unschedule-backup`. The server's own daily backups (E16-17) need no scheduler meanwhile.
 
 **Acceptance criteria**
 
@@ -275,9 +286,9 @@ migrations and tells me if anything went wrong.
 - [x] `upgrade` takes a backup, installs dependencies, rebuilds the web app, runs migrations, restarts and checks health
 - [x] It stops at the first failed step, leaves the server stopped, says whether the database may have changed, and prints the exact rollback commands naming the backup it took
 - [x] `-SkipInstall` for a machine with no network access
-- [ ] A failed migration leaves the previous version running from the backup, automatically (see E16-18)
-- [ ] The installed version is shown in the application (see E16-19; `grc.ps1 status` shows it today)
-- [ ] Migrations are never edited once released (see E16-20)
+- [x] A failed migration leaves the previous version running from the backup, automatically (E16-18)
+- [ ] The installed version is shown in the application (E16-19: `GET /api/version` and `grc version` are built; the screen is not)
+- [x] Migrations are never edited once released: checksums at start and in `status`, and a CI check against the last release (E16-20)
 
 **Implemented in:** `grc.ps1` (`upgrade`); `server/src/cli.ts` (`migrate`, `backup --label pre-upgrade`); `docs/operations.md` (Upgrading)
 
@@ -308,25 +319,26 @@ another installation, so data is never locked in.
 As a maintainer, every push and pull request runs the type check, the tests and a build
 automatically, and cannot be merged when they fail.
 
-The workflow is written and has been read through carefully, but it cannot be run
-outside GitHub, so it is unconfirmed until its first run there. In particular the Linux
-leg has never been executed: imports were checked for exact letter case and the code for
-Windows-only path handling, and nothing was found.
+Every job of the workflow passed on `main` on 2026-11-19 (run 44472809393): the checks on
+Windows and Linux, the tests through the wire protocol and on PostgreSQL 17, installation
+with `grc.sh` on Linux and macOS, the container image and compose, the browser suite, and the
+image publish. What is left is a repository setting: on 2026-11-19 the GitHub API reported
+`main` as not protected.
 
 **Acceptance criteria**
 
 - [x] A workflow runs install, `typecheck`, `test` and `build` on push and pull request, on Windows and Linux
 - [x] The Node.js major version is pinned in one file (`tools/node-version.txt`) shared with the local bootstrap script
 - [x] The private seed folder is never needed or read
-- [ ] The first run passes on both operating systems
-- [ ] The main branch is protected by the checks (a repository setting)
+- [x] The first run passes on both operating systems (and every other job), confirmed 2026-11-19
+- [ ] The main branch is protected by the checks (a repository setting: Settings > Branches, require the "Check" jobs; not set on 2026-11-19)
 - [x] A status badge in the README
 
 **Implemented in:** `.github/workflows/ci.yml` (and locally `.\grc.ps1 ci`); `tools/node-version.txt`
 
 ### E16-13 Dependency scanning
 
-**Status:** in progress · **Priority:** P2 · **Type:** feature
+**Status:** done · **Priority:** P2 · **Type:** feature
 
 As a maintainer, I am told when a dependency has a known vulnerability or is out of
 date.
@@ -334,27 +346,35 @@ date.
 **Acceptance criteria**
 
 - [x] Update proposals are raised automatically: weekly, grouped, for npm packages and for the workflow's actions
-- [x] An audit of dependencies runs in continuous integration (reporting only for now)
-- [ ] The lock file is committed and checked. Today `package-lock.json` is git-ignored, so the workflow falls back from `npm ci` to `npm install` and builds are not reproducible
-- [ ] A policy says how quickly each severity must be dealt with
+- [x] An audit of dependencies runs in continuous integration and in local CI (`grc.ps1 ci`, `grc.sh ci`): `audit-deps` fails on a high or critical vulnerability in a production package when a fixed version exists, and lists without failing one nobody can fix yet; without a network it warns
+- [x] The lock file is committed and checked: `package-lock.json` is in the repository and every CI job installs with `npm ci`
+- [x] A policy says how quickly each severity must be dealt with (`docs/operations.md`, "Dependency vulnerabilities")
 
-**Implemented in:** `.github/dependabot.yml`
+**Implemented in:** `server/src/ops/dependency-audit.ts` (tests in `dependency-audit.test.ts`); `server/src/cli.ts` (`audit-deps`); `grc.ps1`, `grc.sh` (`ci`, `audit-deps`); `.github/workflows/ci.yml` (step "Audit dependencies"); `.github/dependabot.yml`; `docs/operations.md`
 
 ### E16-14 Load testing
 
-**Status:** open · **Priority:** P2 · **Type:** feature
+**Status:** done · **Priority:** P2 · **Type:** feature
 
 As an operator, I know how the application behaves with realistic volumes and a
-realistic number of people using it at once. No load testing has been done.
+realistic number of people using it at once.
+
+`tools/load/run.mjs` (Node.js built-ins only) starts a throw-away instance, creates an
+invented volume through the API (at scale 1 about 22,000 records), measures the scenarios
+below with several simulated people at once, and with `--ops` times the operations
+commands. Results, targets and their limits are in `docs/operations.md`, "Performance and
+load testing".
 
 **Acceptance criteria**
 
-- [ ] A script generates a realistic volume of invented data
-- [ ] List, search, dashboard and save times are measured at that volume
-- [ ] Backup, restore, export and import times are measured at that volume (the export and import read whole tables into memory)
-- [ ] Targets are written down and the results recorded
-- [ ] The slowest queries are indexed or rewritten
-- [ ] Run against a PostgreSQL server (E16-05), not only the embedded database
+- [x] A script generates a realistic volume of invented data (`tools/load/run.mjs`, `--scale`)
+- [x] List, search, dashboard and save times are measured at that volume (50th, 95th and 99th percentile, with concurrency)
+- [x] Backup, restore, export and import times are measured at that volume (`--ops`)
+- [x] Targets are written down and the results recorded (`docs/operations.md`; first run at scale 0.5, about 10,500 records: several scenarios miss their targets, E16-36)
+- [x] The slowest queries are indexed or rewritten (E16-36)
+- [x] Run against a PostgreSQL server (E16-05), not only the embedded database (E16-36)
+
+**Implemented in:** `tools/load/run.mjs`, `tools/load/README.md`; `docs/operations.md` (Performance and load testing)
 
 ### E16-15 Accessibility audit
 
@@ -365,31 +385,37 @@ screen. No accessibility audit has been done.
 
 **Acceptance criteria**
 
-- [x] Every screen is checked with an automated accessibility tool; failures are fixed or listed (axe-core, WCAG 2.1 A and AA, every route plus each New dialog and the search window, light and dark at 1440 and 820; what is left is E18-39)
+- [x] Every screen is checked with an automated accessibility tool; failures are fixed or listed (axe-core, WCAG 2.1 A and AA, every route plus each New dialog and the search window, light and dark at 1440 and 820; the last findings, E18-39, are fixed and the 19 Nov 2026 run found no violation)
 - [ ] The main journeys are completed with a screen reader
 - [x] Color contrast is checked in both themes (axe on every screen, and `tools/contrast.mjs` on the tokens)
 - [x] Charts have a text alternative (each chart is labeled and ECharts writes a plain-English summary of its series and values)
 - [x] Findings are raised as issues under [E18](E18-quality-and-known-defects.md) (E18-37 to E18-39; keyboard findings in E18-06)
 
+- [x] The audit can fail the build: a serious or critical finding fails the run unless it is
+  listed, with its issue, in `tools/a11y/known.json` (empty since E18-39 was fixed); entries
+  that no longer match are reported as stale, so the list shrinks to empty as issues are fixed
+  and the CI step needs no `--no-fail`
+
 **Implemented in:** `tools/a11y/audit.mjs` (`npm run test:a11y`; report in
-`tools/a11y/out/report.md`, git-ignored), shared browser code in `tools/e2e/lib/`. Statement:
-[`docs/accessibility.md`](../../accessibility.md).
+`tools/a11y/out/report.md`, git-ignored), `tools/a11y/known.json`, shared browser code in
+`tools/e2e/lib/`. Statement: [`docs/accessibility.md`](../../accessibility.md).
 
 ### E16-16 Server logging and log rotation
 
-**Status:** open · **Priority:** P3 · **Type:** debt
+**Status:** done · **Priority:** P3 · **Type:** debt
 
 As an operator, I have structured request and error logs that rotate, so I can diagnose
-a problem without the log file growing without limit. Today the server's request
-logging is switched off, and output goes to two files that are overwritten at every
-start. `grc.ps1 logs` (E16-22) shows the end of them.
+a problem without the log file growing without limit.
 
 **Acceptance criteria**
 
-- [ ] Structured logs with a request identifier
-- [ ] Log level is a setting
-- [ ] Logs rotate by size or by day, and the previous run's log survives a restart
-- [ ] No passwords, tokens, codes or restricted record content in logs
+- [x] Structured logs with a request identifier: one JSON line per entry in `data/logs/grc.log`; one line per API request with the `X-Request-Id` the server sends back (also on audit events as `request_id`), method, path, status, duration and client address; everything written with `console.*` goes through the same log
+- [x] Log level is a setting (`GRC_LOG_LEVEL`; also `GRC_LOG_DIR`, `GRC_LOG_CONSOLE` text, json or off, `GRC_LOG_REQUESTS`)
+- [x] Logs rotate by size (`GRC_LOG_MAX_MB`, `GRC_LOG_FILES`), and the previous run's log survives a restart (`grc.log.1`)
+- [x] No passwords, tokens, codes or restricted record content in logs: no query strings or bodies, secret field names masked, tokens, bearer values and connection-string passwords removed from text (tested)
+- [x] `logs` shows the log readably (`grc.ps1`, `grc.sh`, `grc` in the container; `--level`, `--follow`); the container writes JSON to its output; the logs folder is left out of backups
+
+**Implemented in:** `server/src/ops/logging.ts` (tests in `logging.test.ts`); `server/src/main.ts`; `server/src/cli.ts` (`logs`); `server/src/ops/backup.ts` (`isRuntimeFile`); `grc.ps1`, `grc.sh` (`logs`); `Dockerfile` (`GRC_LOG_CONSOLE=json`); `docs/operations.md` (Logs)
 
 ### E16-17 Unattended, off-machine backups with failure alerts
 
@@ -458,30 +484,38 @@ anything.
 
 ### E16-19 Show the installed version in the application
 
-**Status:** open · **Priority:** P3 · **Type:** improvement
+**Status:** done · **Priority:** P3 · **Type:** improvement
 
 As a user reporting a problem, or an administrator after an upgrade, I can see which
-version is running without access to the server. Today only `grc.ps1 status` shows it.
+version is running without access to the server.
+
+The server side is built: `GET /api/version` and `grc version`. Left: showing it in the
+web application (Help > About, or the user menu).
 
 **Acceptance criteria**
 
-- [ ] The version (and commit, when known) is returned by the API and shown under Administration or Help
-- [ ] `/api/health` does not reveal it to people who are not signed in
+- [x] The version (and commit, when known: `GRC_COMMIT`, built into the container image by CI, or read from the git checkout without running git) is returned by the API to everyone signed in; administrators also get the Node.js version, the kind of database and the start time
+- [x] Shown under Help or Administration in the web application
+- [x] `/api/health` does not reveal it to people who are not signed in (`/api/version` answers 401 without a session; tested)
+- [x] The start-up line in the log names the version and commit; `grc version` prints them
+
+**Implemented in:** `server/src/ops/version.ts` (`registerVersion`, tests in `version.test.ts`); `server/src/cli.ts` (`version`); `server/src/main.ts`; `Dockerfile` (`GRC_COMMIT`)
 
 ### E16-20 Detect a migration edited after release
 
-**Status:** open · **Priority:** P3 · **Type:** debt
+**Status:** done · **Priority:** P3 · **Type:** debt
 
 As a maintainer, I am stopped from changing a migration that installations have already
-applied. Today a migration is identified by its file name only, and editing one is
-allowed while prototyping.
+applied.
 
 **Acceptance criteria**
 
-- [ ] A checksum of each migration is recorded when it is applied
-- [ ] Start-up (or `status`) warns when an applied migration's file no longer matches
-- [ ] Continuous integration fails when a released migration file changes
-- [ ] The rule is stated in `docs/development.md` and `CONTRIBUTING.md` once the first release is made
+- [x] A checksum of each migration is recorded when it is applied (SHA-256 of the text, line endings and byte-order mark ignored; filled in for migrations applied before checksums were kept)
+- [x] Start-up and `status` warn when an applied migration's file no longer matches; the edit is never run
+- [x] Continuous integration fails when a released migration file changes (job "Released migrations unchanged": compared with the newest `v*` tag; before the first release there is nothing to compare. Tried in a scratch clone with a tag: an edited migration is reported, a new one is not)
+- [ ] The rule is stated in `docs/development.md` and `CONTRIBUTING.md` once the first release is made (the text is ready; no release yet)
+
+**Implemented in:** `server/src/core/migrate.ts` (`migrationChecksum`, `changedMigrations`; tests in `migrate.test.ts`); `server/src/ops/migrations.ts` (`migrationFiles`, `readMigrationState`), `status.ts`; `.github/workflows/ci.yml` (job `released-migrations`); `docs/operations.md` (Status, Upgrading)
 
 ### E16-21 One-command Node.js bootstrap
 
@@ -572,18 +606,19 @@ finds it.
 
 ### E16-25 Start, stop and schedule on Linux and macOS
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 As an operator on Linux or macOS, I have the same one-command operation as on Windows.
-Today the application and the operations commands run there (`npm start`,
-`npm run cli -- backup` and so on), but starting in the background, stopping, upgrading
-and scheduling are done by `grc.ps1`, which is Windows only.
 
 **Acceptance criteria**
 
-- [ ] A shell script, or the command-line tool itself, offers `start`, `stop`, `restart`, `upgrade` and `logs`
-- [x] A documented scheduled backup (a cron entry and a systemd timer in `docs/operations.md`; the server's own daily backup also needs no scheduler)
-- [ ] Covered by the Linux leg of continuous integration
+- [x] A shell script offers `start`, `stop`, `restart`, `upgrade` and `logs` (`grc.sh`, E16-34)
+- [x] A documented scheduled backup (`grc.sh schedule-backup` prints a cron entry, a systemd timer and a launchd agent; `deploy/systemd/` and `deploy/launchd/` have system examples; the server's own daily backup needs no scheduler)
+- [x] Starting at boot or sign-in and after a crash: `./grc.sh service install|remove|status|print` writes a systemd user unit (Linux) or a launchd agent (macOS) with the settings in force (never a secret given directly); `start`, `stop` and the commands that stop the server keep working with it. System examples: `deploy/systemd/sandpiper-grc.service` (with `ExecReload` for a renewed certificate) and `deploy/launchd/org.sandpiper-grc.server.plist`
+- [x] Covered by the Linux and macOS legs of continuous integration (start, health, seed, backup, status, version, logs, stop; the service files checked with `systemd-analyze verify` and `plutil -lint`)
+- [ ] Installing the user services on a real systemd session and launchd (E16-35)
+
+**Implemented in:** `grc.sh` (`service`, `start_service`); `deploy/systemd/`; `deploy/launchd/`; `.github/workflows/ci.yml` (job `unix-install`); `docs/operations.md` (Running as a service on Linux and macOS); `docs/installation.md` (macOS service, Linux)
 
 ### E16-30 Backup, restore and status commands that know about a database server
 
@@ -607,42 +642,52 @@ tell me what to do instead.
 
 ### E16-31 A least-privilege database role for the application
 
-**Status:** open · **Priority:** P2 · **Type:** improvement
+**Status:** done · **Priority:** P2 · **Type:** improvement
 
 As a security lead, the application's database account cannot remove the audit log's
-append-only trigger. Today the documented role owns the database, because migrations
-create tables at every start.
+append-only trigger.
 
 **Acceptance criteria**
 
-- [ ] Migrations can run as an owner role separate from the role the server uses at run time
-- [ ] The run-time role has only the privileges it needs, and cannot alter or drop triggers
-- [ ] Documented in `docs/installation.md`
+- [x] Migrations can run as an owner role separate from the role the server uses at run time (`GRC_DATABASE_MIGRATE_URL` and `GRC_DATABASE_MIGRATE_PASSWORD(_FILE)`: at start, or with `migrate` from an administrator's session; `import-all` too)
+- [x] The run-time role has only the privileges it needs, and cannot alter or drop triggers: after migrating, the owner grants it read and write on every table and sequence, no update, delete or truncate on the audit log, and reading only on the migration list (`grant-runtime-role` repeats it). Tested on the real PostgreSQL engine (embedded, with `set role`): rows can be written; the trigger, a table and the audit log cannot be changed; start-up with nothing pending works; a pending migration stops with a message naming the owner setting
+- [x] Documented in `docs/installation.md` ("A least-privilege database role")
+- [ ] The same end to end on PostgreSQL 17 in continuous integration (step "Least-privilege database role" of the postgres-17 leg: written, not yet run; remove its `continue-on-error` after the first green run)
+- [ ] New custom fields and a changed search definition still need the owner at run time (E16-37)
+
+**Implemented in:** `server/src/ops/db-roles.ts` (tests in `db-roles.test.ts`); `server/src/core/migrate.ts` (tests in `migrate.test.ts`); `server/src/main.ts`; `server/src/cli.ts` (`migrate`, `grant-runtime-role`, `import-all`); `.github/workflows/ci.yml`; `docs/installation.md`
 
 ### E16-32 Publish the container image
 
 **Status:** in progress · **Priority:** P3 · **Type:** feature
 
-As an operator, I pull a versioned image rather than building one. A CI job now publishes multi-arch images (amd64, arm64) to `ghcr.io/mdcrowley/sandpiper-grc`: `edge` from main; `x.y.z`, `x.y` and `latest` from `v*` tags. Done when the first publish succeeds, the package is public and a pull works on both architectures.
+As an operator, I pull a versioned image rather than building one. A CI job publishes multi-arch images (amd64, arm64) to `ghcr.io/mdcrowley/sandpiper-grc`: `edge` from main; `x.y.z`, `x.y` and `latest` from `v*` tags.
+
+Confirmed on 2026-11-19: the publish job passed on `main` (run 44472809393), the package is
+public (an anonymous pull token is issued and the `edge` index lists linux/amd64 and
+linux/arm64). No version tag has been pushed yet, so only `edge` exists and `compose.yaml`'s
+default (`latest`) falls back to building from source.
 
 **Acceptance criteria**
 
-- [ ] A release workflow builds for amd64 and arm64 and pushes to a registry with the version tag
-- [ ] The image is signed and has a software bill of materials
-- [ ] `compose.yaml` can use the published image
+- [x] A release workflow builds for amd64 and arm64 and pushes to a registry (`edge` confirmed; the version tags follow the first `v*` tag)
+- [ ] The image is signed and has a software bill of materials: `sbom: true`, `provenance: mode=max` and `actions/attest-build-provenance` are in the publish job, not yet run
+- [ ] `compose.yaml` can use the published image: works with `GRC_IMAGE=ghcr.io/mdcrowley/sandpiper-grc:edge`; the default `latest` needs the first release
 
 ### E16-33 Reload the TLS certificate without a restart
 
-**Status:** open · **Priority:** P3 · **Type:** improvement
+**Status:** done · **Priority:** P3 · **Type:** improvement
 
 As an operator with short-lived certificates, a renewed certificate is used without
-restarting the server. Today the files named by `GRC_TLS_CERT` and `GRC_TLS_KEY` are read
-at start only.
+restarting the server.
 
 **Acceptance criteria**
 
-- [ ] The server notices a changed certificate file (or a signal) and uses it for new connections
-- [ ] A broken new certificate is reported and the old one stays in use
+- [x] The server notices a changed certificate file (every `GRC_TLS_RELOAD_SECONDS`, default 60) or a signal (`SIGHUP` on Linux and macOS: `systemctl reload`, `docker kill -s HUP`) and uses it for new connections; open connections carry on
+- [x] A broken new certificate is reported and the old one stays in use (not PEM, or a key that does not match, as when a renewal writes the two files one after the other; tried again when either file changes; a missing file is reported once)
+- [x] Tested with a real HTTPS listener (`tls-reload.test.ts`) and run live: a renewed pair was served within the interval, a mismatched one refused with the old one kept
+
+**Implemented in:** `server/src/core/http.ts` (`watchTlsFiles`, `tlsReloadSeconds`; tests in `tls-reload.test.ts`); `server/src/main.ts`; `deploy/systemd/sandpiper-grc.service` (`ExecReload`); `docs/installation.md` (HTTPS)
 
 ### E16-34 macOS and Linux scripts
 
@@ -655,3 +700,115 @@ at start only.
 - [x] Every applicable `grc.ps1` command exists in `grc.sh`
 - [x] Tested in Git Bash and in a Linux container (x64 and arm64)
 - [x] CI runs `grc.sh` on Ubuntu and macOS
+
+### E16-35 Confirm the user services on a real systemd and launchd
+
+**Status:** open · **Priority:** P3 · **Type:** feature
+
+As an operator on Linux or macOS, I know `./grc.sh service install` works where I run it.
+The unit and agent it writes, and the system examples in `deploy/`, are checked in
+continuous integration with `systemd-analyze verify` and `plutil -lint`, but were never
+installed and run: the development machine is Windows, and CI runners have no user session.
+
+**Acceptance criteria**
+
+- [ ] On a Linux machine with a user session: `service install`, a reboot with lingering, `stop`, `start`, `backup` and `service remove` behave as documented
+- [ ] On macOS: the same with the launchd agent, and the system daemon in `deploy/launchd/`
+- [ ] `status` reports the service
+
+### E16-36 Load test on a PostgreSQL server, and tune the slowest queries
+
+**Status:** done · **Priority:** P2 · **Type:** improvement
+
+As an operator, I know how the application behaves on the database a production
+installation would use, and the slowest screens are made faster. The first measurements
+(E16-14) are from the embedded database on one laptop.
+
+Measured on 2026-11-19 (`docs/operations.md`, "Performance and load testing"). On a
+PostgreSQL 17 server every scenario meets the server targets at scale 0.5 and 1 (lists
+about 100 ms, full-text lists 126 ms, global search 312 ms, the Overview 593 ms, saves
+81 to 129 ms at the 95th percentile, scale 0.5). On the embedded database lists, filtered
+and sorted lists, full-text lists and saves now meet the embedded targets; the Overview and
+global search under load do not, and are split into E16-38. The server ran in a container
+on the same laptop rather than on its own machine; a run on separate machines is part of
+E16-38.
+
+**Acceptance criteria**
+
+- [x] `tools/load/run.mjs` run against a PostgreSQL server (`GRC_DATABASE_URL`), results recorded beside the embedded ones (a PostgreSQL 17 container on the same machine; on its own machine: E16-38)
+- [x] The slowest scenarios looked at with `explain analyze`, a CPU profile and the new slow statement log, and indexed or rewritten: planner statistics for the embedded database (it never ran `analyze`), list pages found on ids with the total from the same statement, full-text matches found once through the index, substring text in the search index with a trigram index (migration 009), global search reading only each type's matching index rows, value labels read only for the lists a type uses, service desk figures in one pass
+- [x] Targets set realistically, separately for a PostgreSQL server and the embedded database
+- [x] The run repeated at scale 1 (embedded with `--ops`, and on the server); it completed without a lost connection. The load tool retries a dropped request once, counts it, and reports an instance that stopped by itself. Scale 4: E16-38
+- [x] Behavior unchanged: the same matches, order, totals and restrictions (tests in `core/platform.test.ts`, "full-text search"; `core/db.test.ts`, "performance aids"; the service desk figures tests)
+
+**Implemented in:** `server/src/core/resource.ts` (list paging, full-text match, labels), `search.ts` (`bodySql`, trigger), `routes.ts` (`GET /api/search`), `db.ts` (`pg_trgm`, `makeAutoAnalyze`, `GRC_SLOW_QUERY_MS`), `core/migrations/009_search_performance.sql`; `server/src/modules/tickets/metrics.ts`; `tools/load/run.mjs`, `tools/load/README.md`; `docs/operations.md`
+
+### E16-37 Schema changes at run time without the owner account
+
+**Status:** open · **Priority:** P3 · **Type:** debt
+
+As a security lead using a least-privilege database role (E16-31), adding a custom field
+or upgrading to a version that searches different fields works without the owner account.
+Today two things change the schema while the server runs: a new custom field adds a column
+(`core/resource.ts`, `ensureCustomColumn`), and a changed search definition rebuilds a
+trigger (`core/search.ts`). With the run-time role these fail (the field is refused; the
+type falls back to plain matching) until `migrate` is run as the owner.
+
+**Acceptance criteria**
+
+- [ ] Custom field values stored without a schema change, or the change run through the owner connection
+- [ ] Search triggers built only by migrations (or the owner), and the run-time role never attempts DDL
+- [x] `ensureCustomColumn` checks that the column exists before `alter table`, so a restart logs no error (it looks in `information_schema.columns` first; test in `core/platform.test.ts`, "custom fields")
+
+Note (E16-36): this release changes every search trigger once (substring text in `search_index.body`), so with the run-time role run `migrate` as the owner after upgrading, as for any change of search definition.
+
+**Implemented in (so far):** `server/src/core/resource.ts` (`ensureCustomColumn`)
+
+### E16-38 Embedded database under load: Overview and global search, and scale 4
+
+**Status:** open · **Priority:** P3 · **Type:** improvement
+
+As an evaluator using the embedded database, the Overview and global search stay usable
+when several people use the application at once. Split from E16-36: after tuning, each costs
+little on its own (the Overview's calls about 120 ms together, global search about 95 ms at
+scale 1), but with 8 people at once on the embedded database, which answers one statement
+at a time, they took 2.3 s and 1.8 s at the 95th percentile at scale 0.5 (targets 2.5 s and
+2 s were met in some runs and missed in others on a busy machine) and 3.7 s and 4.3 s at
+scale 1.
+
+**Acceptance criteria**
+
+- [ ] Fewer statements per request: the session and user lookup on every request (four statements today, `core/auth.ts`) made one, and settings read once per request
+- [ ] The Overview's figures cached for a short time or computed together, with figures still identical for every viewer
+- [ ] Global search with real text (a load-test vocabulary closer to real use than a hundred random words)
+- [ ] Scale 4 measured, on the embedded database and on a PostgreSQL server on its own machine
+- [ ] The vulnerability type searched through the index (its records are a view, so it is matched by substring today)
+
+### E16-39 Start-up work within the time limit at volume
+
+**Status:** open · **Priority:** P3 · **Type:** defect
+
+As an operator, the server starts on a large installation even when the machine is busy.
+Once, at scale 1 on a busy machine, a start stopped with "A callback for 'onReady' hook
+timed out": some start-up work took longer than Fastify's 10-second limit. Later starts of
+the same folder took a few seconds.
+
+**Acceptance criteria**
+
+- [ ] The start-up hook that ran long identified (time each `onReady` hook)
+- [ ] Long start-up work moved out of `onReady` (to the job queue or after listening), or the limit raised with a reason
+- [ ] A start of a scale-4 installation measured
+
+### E16-40 Independent security review or penetration test
+
+**Status:** open · **Priority:** P2 · **Type:** feature
+
+The application has had code reviews by its developers and automated checks (dependency
+audit, the accessibility audit, tests of refusal paths), but no review by someone independent
+of the code, and no penetration test of a running installation. An organization should have
+one before it relies on the application for sensitive records.
+
+**Acceptance criteria**
+
+- [ ] A review or test by someone independent, against a running installation set up as for production
+- [ ] Findings raised as issues, and the outcome summarized in `docs/security.md`

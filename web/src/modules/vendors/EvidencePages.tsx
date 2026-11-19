@@ -7,6 +7,7 @@ import {
   toColorName, useFetch,
 } from '../../core';
 import type { ColorName, Row } from '../../core';
+import { EvidenceExpiryCheck } from './EvidenceExpiry';
 import { AddEvidence, EvidenceContractCard } from './EvidenceForm';
 import { ExpiryChip, FilesPanel, daysPhrase, filesAvailable } from './shared';
 import type { ExpiringEvidence } from './shared';
@@ -35,9 +36,16 @@ export function EvidenceList() {
 }
 
 export function EvidenceDetail() {
+  // Bumped when files change or a date is copied, so the expiry check reads again.
+  const [version, setVersion] = useState(0);
+  // Bumped when a date is copied onto the files, so the files list shows the new dates.
+  const [filesKey, setFilesKey] = useState(0);
   return (
     <RecordPage
       type="evidence_item"
+      banner={filesAvailable ? ({ row, canEdit, reload }) => (
+        <EvidenceExpiryCheck itemId={row.id} version={version} canEdit={canEdit} onChanged={() => { reload(); setVersion((v) => v + 1); setFilesKey((k) => k + 1); }} />
+      ) : undefined}
       status={(row) => <ExpiryChip date={row.expires_on} />}
       subtitle={(row) => (
         row.vendor_id
@@ -52,7 +60,7 @@ export function EvidenceDetail() {
       )}
       tabs={filesAvailable ? [{
         key: 'files', label: 'Files',
-        content: ({ row }) => <FilesPanel recordType="evidence_item" recordId={row.id} evidence />,
+        content: ({ row }) => <FilesPanel key={filesKey} recordType="evidence_item" recordId={row.id} evidence onChange={() => setVersion((v) => v + 1)} />,
       }] : []}
     />
   );

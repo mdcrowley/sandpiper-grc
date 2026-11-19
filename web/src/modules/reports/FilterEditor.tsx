@@ -2,49 +2,10 @@
 // control for the field's type. Rows sit in a group that matches "all" or "any"; a group can hold
 // one more level of groups, which is enough for "A and (B or C)".
 import { Button, DateField, IconButton, MultiSelect, NumberField, RecordPicker, Select, TextField, UserPicker, useLookup } from '../../core';
-import type { FieldType } from '../../core';
+import { defaultCondition, opsFor, type Input } from './ops';
 import { isGroup, type CatalogField, type Condition, type FilterGroup } from './types';
 
-type Input = 'none' | 'text' | 'number' | 'numbers' | 'date' | 'dates' | 'days' | 'options' | 'user' | 'record';
-interface Op { op: string; label: string; input: Input }
-
-const EMPTY: Op[] = [{ op: 'empty', label: 'is empty', input: 'none' }, { op: 'nempty', label: 'is not empty', input: 'none' }];
-const OPS: Record<string, Op[]> = {
-  text: [
-    { op: 'contains', label: 'contains', input: 'text' }, { op: 'ncontains', label: 'does not contain', input: 'text' },
-    { op: 'eq', label: 'is exactly', input: 'text' }, { op: 'starts', label: 'starts with', input: 'text' }, ...EMPTY,
-  ],
-  number: [
-    { op: 'gte', label: 'is at least', input: 'number' }, { op: 'lte', label: 'is at most', input: 'number' },
-    { op: 'gt', label: 'is more than', input: 'number' }, { op: 'lt', label: 'is less than', input: 'number' },
-    { op: 'eq', label: 'is exactly', input: 'number' }, { op: 'ne', label: 'is not', input: 'number' },
-    { op: 'between', label: 'is between', input: 'numbers' }, ...EMPTY,
-  ],
-  date: [
-    { op: 'last_days', label: 'in the last … days', input: 'days' }, { op: 'next_days', label: 'in the next … days', input: 'days' },
-    { op: 'this_month', label: 'this month', input: 'none' }, { op: 'this_quarter', label: 'this quarter', input: 'none' }, { op: 'this_year', label: 'this year', input: 'none' },
-    { op: 'past', label: 'before today', input: 'none' }, { op: 'future', label: 'after today', input: 'none' },
-    { op: 'gte', label: 'on or after', input: 'date' }, { op: 'lte', label: 'on or before', input: 'date' }, { op: 'eq', label: 'on', input: 'date' },
-    { op: 'between', label: 'between', input: 'dates' },
-    { op: 'empty', label: 'has no date', input: 'none' }, { op: 'nempty', label: 'has a date', input: 'none' },
-  ],
-  boolean: [{ op: 'true', label: 'is yes', input: 'none' }, { op: 'false', label: 'is no', input: 'none' }],
-  lookup: [{ op: 'in', label: 'is any of', input: 'options' }, { op: 'nin', label: 'is none of', input: 'options' }, ...EMPTY],
-  user: [
-    { op: 'me', label: 'is me', input: 'none' }, { op: 'in', label: 'is', input: 'user' }, { op: 'nin', label: 'is not', input: 'user' },
-    { op: 'empty', label: 'is nobody', input: 'none' }, { op: 'nempty', label: 'is somebody', input: 'none' },
-  ],
-  ref: [{ op: 'in', label: 'is', input: 'record' }, { op: 'nin', label: 'is not', input: 'record' }, ...EMPTY],
-  json: EMPTY,
-};
-const family = (t: FieldType) => (t === 'longtext' ? 'text' : t === 'currency' ? 'number' : t === 'datetime' ? 'date' : t);
-export const opsFor = (t: FieldType): Op[] => OPS[family(t)] ?? EMPTY;
-
-/** A sensible first condition for a field, so a new row already says something. */
-export function defaultCondition(f: CatalogField): Condition {
-  const first = opsFor(f.type)[0];
-  return { field: f.path, op: first.op, value: first.input === 'days' ? 30 : first.input === 'options' ? [] : undefined };
-}
+export { defaultCondition, opsFor } from './ops';
 
 type Labeled = Condition & { label?: string };
 
@@ -82,7 +43,7 @@ function ValueControl({ field, cond, input, onChange }: { field: CatalogField; c
 
 function Row({ fields, cond, onChange, onRemove }: { fields: CatalogField[]; cond: Labeled; onChange: (c: Labeled) => void; onRemove: () => void }) {
   const field = fields.find((f) => f.path === cond.field);
-  const ops = field ? opsFor(field.type) : [];
+  const ops = field ? opsFor(field.type, field.multiple) : [];
   const op = ops.find((o) => o.op === cond.op) ?? ops[0];
   return (
     <div className="rp-cond">
@@ -154,7 +115,7 @@ export function completeFilters(group: FilterGroup | undefined, fields: CatalogF
   const items = group.items.flatMap((item): (Condition | FilterGroup)[] => {
     if (isGroup(item)) { const g = completeFilters(item, fields); return g ? [g] : []; }
     const f = fields.find((x) => x.path === item.field);
-    const op = f ? opsFor(f.type).find((o) => o.op === item.op) : undefined;
+    const op = f ? opsFor(f.type, f.multiple).find((o) => o.op === item.op) : undefined;
     if (!f || !op) return [];
     const v = item.value;
     const filled = op.input === 'none' ? true

@@ -5,6 +5,7 @@
 // person looking at them (see spec.ts and query.ts), never the author's.
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { UUID_RE } from '../../core/errors.ts';
+import { ensureJobs } from '../../core/jobs/index.ts';
 import type { ModuleDef, Row, SessionUser } from '../../core/module.ts';
 import { catalog } from './catalog.ts';
 import { makeDocuments, type Allow, type BuiltDocument } from './documents.ts';
@@ -19,6 +20,11 @@ import { mayView, reportable, SpecError, type GlobalFilters } from './spec.ts';
 import { runWidget, type Widget } from './widgets.ts';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** A role that only looks: no permission to create, change, delete, approve or administer anything. */
+export function readOnly(user: Pick<SessionUser, 'permissions'>): boolean {
+  return !user.permissions.some((p) => p === '*' || /\.(\*|create|edit|delete|approve|administer)$/.test(p));
+}
 
 /** Dashboard-wide filter values from a request body or from `g.<name>` query parameters. */
 function readGlobals(source: unknown): GlobalFilters {
@@ -48,6 +54,11 @@ const mod: ModuleDef = {
       { value: 'csv', label: 'Spreadsheet file (CSV)', color: 'green', sort: 20 },
       { value: 'xlsx', label: 'Excel file (XLSX)', color: 'teal', sort: 30 },
       { value: 'pdf', label: 'PDF file', color: 'purple', sort: 40 },
+    ], { module: 'reports' });
+    await ctx.lookups.ensure('report_schedule_email', [
+      { value: 'off', label: 'No email: in the application only', color: 'gray', sort: 10 },
+      { value: 'link', label: 'Email a link', color: 'blue', sort: 20 },
+      { value: 'attach', label: 'Email the file attached', color: 'teal', sort: 30 },
     ], { module: 'reports' });
     await ctx.lookups.ensure('report_schedule_target', [
       { value: 'report', label: 'Report', color: 'blue', sort: 10 },
@@ -192,11 +203,19 @@ const mod: ModuleDef = {
      * permission: `dashboard` is null when nothing is chosen, it was removed, or it is no longer shared.
      */
     app.get('/api/dashboards/home', async (req) => {
-      const none = { dashboard: null, route: null };
+      // `readOnly` lets the Overview choose its shape: figures first for people who only look.
+      const looks = readOnly(req.user!);
+      const none = { dashboard: null, route: null, suggested: null, readOnly: looks };
       if (!ctx.can(req.user, 'dashboards.view')) return none;
       const pick = await db.one<{ dashboard_id: string }>('select dashboard_id from dashboard_home where user_id = $1', [req.user!.id]);
       const dash = pick ? await sharing.load(req.user, 'dashboard', pick.dashboard_id) : undefined;
-      return dash ? { dashboard: { id: dash.id, name: dash.name, description: dash.description }, route: `/dashboards/${dash.id}` } : none;
+      if (dash) return { ...none, dashboard: { id: dash.id, name: dash.name, description: dash.description }, route: `/dashboards/${dash.id}` };
+      // Someone who only looks (no permission to create, change or approve anything) is offered the
+      // plain-language board summary until they choose a home dashboard of their own.
+      if (!looks) return none;
+      const board = await db.one<{ id: string }>(`select id from dashboards where key = 'board_summary' and deleted_at is null`);
+      const shown = board ? await sharing.load(req.user, 'dashboard', board.id) : undefined;
+      return shown ? { ...none, suggested: { id: shown.id, name: shown.name, description: shown.description, route: `/dashboards/${shown.id}` } } : none;
     });
 
     // A personal view setting, like notification read state: not written to the audit log.
@@ -328,15 +347,26 @@ const mod: ModuleDef = {
 
     app.post('/api/report-schedules/run-due', { preHandler: ctx.requirePerm('admin.administer') }, async () => runDueSchedules(ctx, deps, new Date()));
 
-    // The in-process scheduler. No timers under the test runner or with a throwaway in-memory database.
-    if (!process.env.VITEST && ctx.dataDir !== 'memory' && process.env.GRC_DATA_DIR !== 'memory') {
-      const tick = () => { runDueSchedules(ctx, deps, new Date()).catch((err) => console.error('[reports] scheduled delivery failed:', err)); };
-      const first = setTimeout(tick, 90_000);
-      const timer = setInterval(tick, 5 * 60_000);
-      first.unref();
-      timer.unref();
-      app.addHook('onClose', async () => { clearTimeout(first); clearInterval(timer); });
-    }
+    /** Whether scheduled deliveries can also go by email here (an administrator has switched email on). */
+    app.get('/api/reports/email-status', { preHandler: ctx.requirePerm('reports.view') }, async () => {
+      const on = app.hasDecorator('mailEnabled') ? await (app as unknown as { mailEnabled(): Promise<boolean> }).mailEnabled().catch(() => false) : false;
+      return { enabled: on };
+    });
+    ctx.describeRoute({
+      method: 'GET', path: '/api/reports/email-status', tag: 'Reports', permission: 'reports.view',
+      summary: 'Whether scheduled deliveries can also be emailed (email is set up and switched on)',
+      response: '{ enabled: boolean }',
+    });
+
+    // Due schedules run as a recurring job on the job queue (Administration > Background jobs). One
+    // run may deliver many schedules; each email it sends is a job of its own (`mail.send`).
+    const jobs = await ensureJobs(ctx);
+    jobs.register('reports.deliver', async () => {
+      const runs = await runDueSchedules(ctx, deps, new Date());
+      const sum = (k: 'delivered' | 'skipped' | 'failed') => runs.reduce((n, r) => n + r[k], 0);
+      return { schedules: runs.length, delivered: sum('delivered'), skipped: sum('skipped'), failed: sum('failed') };
+    }, { maxAttempts: 2, backoffSeconds: 120 });
+    await jobs.schedule('reports.deliver', { type: 'reports.deliver', every: 5 * 60_000, firstRunInMs: 90_000 });
   },
 
   async seed(ctx) {

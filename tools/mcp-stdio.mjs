@@ -36,6 +36,7 @@ try {
 }
 
 let protocolVersion = null;
+let sent = 0;
 const write = (msg) => process.stdout.write(`${JSON.stringify(msg)}\n`);
 const errorFor = (id, message, code = -32000) => ({ jsonrpc: '2.0', id: id ?? null, error: { code, message } });
 
@@ -57,6 +58,7 @@ async function relay(message) {
       method: 'POST',
       headers: {
         authorization: `Bearer ${token}`,
+        'x-request-id': `bridge-${process.pid}-${++sent}`,
         'content-type': 'application/json',
         accept: 'application/json, text/event-stream',
         ...(protocolVersion ? { 'mcp-protocol-version': protocolVersion } : {}),
@@ -68,9 +70,31 @@ async function relay(message) {
     for (const id of ids) write(errorFor(id, `Could not reach Sandpiper GRC at ${endpoint}.`));
     return;
   }
+  const type = res.headers.get('content-type') ?? '';
+  if (res.ok && type.includes('text/event-stream') && res.body) {
+    // A tool call that asked for progress: pass each event on as soon as it arrives, so the client
+    // sees the progress notifications while the tool runs, then the result.
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let notified = false;
+    const pass = async (r) => {
+      // Clients handle a notification a moment after an answer that arrives with it: let the
+      // progress go first, or it would be dropped as belonging to a finished request.
+      if (notified && r?.id !== undefined && !r.method) await new Promise((done) => setTimeout(done, 25));
+      if (r?.method) notified = true;
+      write(r);
+    };
+    for await (const chunk of res.body) {
+      buffer += decoder.decode(chunk, { stream: true });
+      const blocks = buffer.split(/\r?\n\r?\n/);
+      buffer = blocks.pop() ?? '';
+      for (const r of fromSse(blocks.join('\n\n'))) await pass(r);
+    }
+    for (const r of fromSse(buffer)) await pass(r);
+    return;
+  }
   const text = await res.text();
   if (res.status === 202 || !text) return; // a notification or response: nothing comes back
-  const type = res.headers.get('content-type') ?? '';
   let replies = [];
   if (type.includes('text/event-stream')) replies = fromSse(text);
   else {

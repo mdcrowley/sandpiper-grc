@@ -44,7 +44,7 @@ async function notices(kind: string, title: RegExp, userId?: string): Promise<nu
 }
 
 const base = { requester_name: 'Pat Example', requester_department: 'Finance' };
-const sweep = () => t.api.get('/api/tickets?pageSize=1');
+const sweep = () => t.api.post('/api/tickets/sla/sweep');
 
 describe('assignment and target notifications (E03-13)', () => {
   it('tells a new assignee, warns once before the target and again when it is missed', async () => {

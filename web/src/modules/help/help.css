@@ -212,3 +212,5 @@
 .help-anchor { margin-inline-start: 0.4em; color: var(--text-muted); font-weight: 500; text-decoration: none; opacity: 0; transition: opacity 120ms; }
 :is(h2, h3):hover > .help-anchor, .help-anchor:focus-visible { opacity: 1; }
 @media print { .help-anchor { display: none; } }
+/* A guide page of a part of the application that is switched off (Administration > Features). */
+.help-off-note { margin: 0 0 var(--s-4); padding: var(--s-3) var(--s-4); border-radius: var(--radius); background: var(--c-amber-bg); color: var(--c-amber-fg); line-height: 1.5; }

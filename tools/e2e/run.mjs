@@ -3,7 +3,7 @@
 // tools/e2e/suites, and exits non-zero when anything fails.
 //
 //   npm run test:e2e                          every suite
-//   npm run test:e2e -- --only smoke,roles    some suites (file names without .mjs)
+//   npm run test:e2e -- --only smoke,roles    some suites (file names without .mjs, with or without the number)
 //   npm run test:e2e -- --grep ticket,site    only tests whose name contains one of these
 //   npm run test:e2e -- --headed              show the browser
 //   npm run test:e2e -- --keep                keep the scratch data folder afterwards
@@ -38,7 +38,7 @@ const stamp = () => `${String(Math.round((Date.now() - started) / 1000)).padStar
 export const log = (m) => { const line = `${stamp()} ${m}`; console.log(line); appendFileSync(logFile, `${line}\n`); };
 
 const suiteFiles = readdirSync(join(here, 'suites')).filter((f) => f.endsWith('.mjs')).sort()
-  .filter((f) => !onlySuites || onlySuites.includes(f.replace(/\.mjs$/, '')));
+  .filter((f) => !onlySuites || [f.replace(/\.mjs$/, ''), f.replace(/\.mjs$/, '').replace(/^\d+-/, '')].some((n) => onlySuites.includes(n)));
 const suites = [];
 for (const f of suiteFiles) {
   const mod = await import(pathToFileURL(join(here, 'suites', f)).href);

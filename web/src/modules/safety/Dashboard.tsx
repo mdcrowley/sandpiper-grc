@@ -23,7 +23,7 @@ interface Summary {
   indicators: { id: string; name: string; measure: string; exposure: string | null; per_units: number | null; target: number | null; target_direction: string; latest: Point | null; points: Point[] }[];
 }
 
-const monthLabel = (p: string) => new Date(`${p}-15T12:00:00Z`).toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' });
+const monthLabel = (p: string) => new Date(`${p}-15T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' });
 const monthStart = (p: string) => `${p}-01`;
 const nextMonth = (p: string) => { const [y, m] = p.split('-').map(Number); return m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`; };
 

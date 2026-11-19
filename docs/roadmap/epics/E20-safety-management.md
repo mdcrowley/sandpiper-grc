@@ -1,6 +1,6 @@
 # E20 Safety management
 
-**Status:** in progress (core built)
+**Status:** done (14 of 14 issues done)
 
 ## Goal
 
@@ -32,10 +32,10 @@ governance, risk and compliance work.
 | E20-07 | Notifications for serious events and overdue corrective actions | done | P1 |
 | E20-08 | Safety dashboard | done | P1 |
 | E20-09 | Invented sample safety data | done | P2 |
-| E20-10 | `safety` permission key and a Safety role | open | P1 |
-| E20-11 | A Safety navigation group | open | P2 |
-| E20-12 | Hazard review reminders | open | P3 |
-| E20-13 | Report a safety event from the self-service portal | open | P3 |
+| E20-10 | `safety` permission key and a Safety role | done | P1 |
+| E20-11 | A Safety navigation group | done | P2 |
+| E20-12 | Hazard review reminders | done | P3 |
+| E20-13 | Report a safety event from the self-service portal | done | P3 |
 | E20-14 | Indicator figures for readers without `security.view` | done | P3 |
 
 ---
@@ -149,38 +149,50 @@ them month by month against a target.
 
 ### E20-10 `safety` permission key and a Safety role
 
-**Status:** open · **Priority:** P1 · **Type:** feature
+**Status:** done · **Priority:** P1 · **Type:** feature
 
-Today `safety` is not in `MODULE_KEYS` (`server/src/modules/admin/shared.ts`), so only `*` grants it.
+`safety` was not in `MODULE_KEYS` (`server/src/modules/admin/shared.ts`), so only `*` granted it.
 
 **Acceptance criteria**
 
-- [ ] `safety` added to `MODULE_KEYS` and to the developer guide's list
-- [ ] A default "Safety manager" role (switched off) with `safety.*`, `actions.*`, `fleet.view`, `sites.view`, `dashboards.view`; Security lead gains `safety.view`
+- [x] `safety` added to `MODULE_KEYS` and to the developer guide's list
+- [x] A default "Safety manager" role with `safety.*`, `actions.*`, `fleet.view`, `sites.view`, `dashboards.view` (and `systems.view`, `reports.view`, `policies.view`, `training.view`). It ships switched on, like the other working roles, rather than off as first planned: it grants nothing until someone is given it. Security lead gains `safety.view`
+
+**Implemented in:** `MODULE_KEYS` (`server/src/modules/admin/shared.ts`), `DEFAULT_ROLES` (`server/src/core/services.ts`); tests in `server/src/modules/safety/safety.test.ts` ("gives the default roles their safety grants"); user guide [Safety management](../../user/20-safety-management.md)
 
 ### E20-11 A Safety navigation group
 
-**Status:** open · **Priority:** P2 · **Type:** feature
+**Status:** done · **Priority:** P2 · **Type:** feature
 
 **Acceptance criteria**
 
-- [ ] `Safety` added to `NAV_GROUPS` and `GROUP_ICON` (`web/src/core/module.ts`, `Shell.tsx`); the safety pages move there from Cybersecurity
+- [x] `Safety` added to `NAV_GROUPS` and `GROUP_ICON` (`web/src/core/module.ts`, `Shell.tsx`); the safety pages move there from Cybersecurity
+
+**Implemented in:** `NAV_GROUPS` (`web/src/core/module.ts`, between Cybersecurity and Projects), `GROUP_ICON` (`web/src/core/Shell.tsx`), the `nav` entries of `web/src/modules/safety/index.tsx`; checked in the browser; user guide [Safety management](../../user/20-safety-management.md)
 
 ### E20-12 Hazard review reminders
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 **Acceptance criteria**
 
-- [ ] The owner is reminded when a hazard's review date is near or past
+- [x] The owner is reminded when a hazard's review date is near or past (once each;
+  lead time `safety.hazard_review_reminder_days`, 14; closed hazards left out)
+
+**Implemented in:** `server/src/modules/safety/hazard-reminders.ts` (job
+`safety.hazard_reviews`, hourly; `POST /api/safety/hazard-reminders/run`); tests
+`safety/hazard-reminders.test.ts`.
 
 ### E20-13 Report a safety event from the self-service portal
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 **Acceptance criteria**
 
-- [ ] Staff without safety permissions can report an event; the safety team triages it
+- [x] Staff without safety permissions can report an event from the portal in plain words (portal setting `safety_reports`, on by default); it becomes a safety event "Reported" with the reporter, the severity as described, and restricted when they say it holds personal details
+- [x] The safety team is told and triages it; the reporter follows their reports with a plain status
+
+**Implemented in:** `server/src/modules/safety/portal-intake.ts` (`/api/portal/safety/options`, `/api/portal/safety-reports`, registered by the safety module); `web/src/modules/portal/SafetyReport.tsx`, `Home.tsx`; test `server/src/modules/safety/portal-intake.test.ts`
 
 ### E20-14 Indicator figures for readers without `security.view`
 

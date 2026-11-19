@@ -26,6 +26,11 @@ export interface AffectedService {
 export interface FleetApi {
   /** Vehicles carrying equipment of these systems, and services depending on them. Empty when the caller lacks `fleet.view`. */
   affected(systemIds: string[], user: SessionUser | null): Promise<{ vehicles: AffectedVehicle[]; services: AffectedService[] }>;
+  /**
+   * Every service that is not discontinued and depends on at least one system, with those
+   * systems: what the relationship map draws. Empty when the caller lacks `fleet.view`.
+   */
+  serviceDependencies(user: SessionUser | null): Promise<AffectedService[]>;
 }
 
 declare module 'fastify' {
@@ -167,7 +172,28 @@ export function registerServices(ctx: ModuleContext) {
     return { vehicles: [...vehicles.values()], services: [...services.values()] };
   }
 
-  if (!app.hasDecorator('fleet')) app.decorate('fleet', { affected } satisfies FleetApi);
+  async function serviceDependencies(user: SessionUser | null): Promise<AffectedService[]> {
+    if (user && !ctx.can(user, 'fleet.view')) return [];
+    const modes = await ctx.lookups.values('vehicle_mode');
+    const deps = await ctx.lookups.values('service_dependency');
+    const rows = await db.query<Row>(
+      `select s.id, s.route_code, s.name, s.mode, s.status, l.system_id, l.dependency
+       from service_systems l join services s on s.id = l.service_id and s.deleted_at is null
+       where coalesce(s.status, '') <> 'discontinued'
+       order by s.route_code, l.system_id`);
+    const out = new Map<string, AffectedService>();
+    for (const r of rows) {
+      let s = out.get(r.id);
+      if (!s) {
+        s = { id: r.id, route_code: r.route_code, name: r.name, mode: r.mode, mode_label: label(modes, r.mode), status: r.status, route: `/services/${r.id}`, dependencies: [] };
+        out.set(r.id, s);
+      }
+      s.dependencies.push({ system_id: r.system_id, dependency: r.dependency, dependency_label: label(deps, r.dependency) });
+    }
+    return [...out.values()];
+  }
+
+  if (!app.hasDecorator('fleet')) app.decorate('fleet', { affected, serviceDependencies } satisfies FleetApi);
 
   app.get('/api/fleet/affected', { preHandler: ctx.requirePerm('fleet.view') }, async (req) => {
     const q = req.query as Record<string, string>;

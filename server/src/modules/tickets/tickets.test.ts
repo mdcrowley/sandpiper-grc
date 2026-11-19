@@ -119,8 +119,10 @@ describe('SLA clocks', () => {
     const running = (await t.api.get(`/api/tickets/${id}/sla`)).body;
     expect(running.resolve).toMatchObject({ state: 'running', remaining_minutes: 480 });
 
-    // Wednesday 09:30 local: late. Reading the ticket raises the flag and audits it.
+    // Wednesday 09:30 local: late. Reading alone changes nothing (E18-29); the timed check raises the flag and audits it.
     clock.set('2026-11-25T14:30:00Z');
+    expect((await t.api.get(`/api/tickets/${id}`)).body.resolve_breached).toBe(false);
+    expect((await t.api.post('/api/tickets/sla/sweep')).body.flagged).toBeGreaterThanOrEqual(1);
     const late = (await t.api.get(`/api/tickets/${id}`)).body;
     expect(late.resolve_breached).toBe(true);
     expect((await t.api.get(`/api/tickets/${id}/sla`)).body.resolve).toMatchObject({ state: 'breached', remaining_minutes: -30 });
@@ -144,8 +146,11 @@ describe('SLA clocks', () => {
     clock.set('2026-11-22T17:00:00Z'); // Sunday
     expect((await t.api.get(`/api/tickets/${made.body.id}`)).body.response_breached).toBe(false);
     clock.set('2026-11-23T15:59:00Z'); // Monday 10:59 local
+    await t.api.post('/api/tickets/sla/sweep');
     expect((await t.api.get(`/api/tickets?f.response_breached=true&q=Weekend wait`)).body.total).toBe(0);
     clock.set('2026-11-23T16:01:00Z'); // Monday 11:01 local
+    expect((await t.api.get(`/api/tickets?f.response_breached=true&q=Weekend wait`)).body.total).toBe(0);
+    await t.api.post('/api/tickets/sla/sweep');
     expect((await t.api.get(`/api/tickets?f.response_breached=true&q=Weekend wait`)).body.total).toBe(1);
 
     // A late first response keeps the flag.

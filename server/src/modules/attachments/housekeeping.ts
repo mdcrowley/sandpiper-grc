@@ -241,13 +241,17 @@ export interface MoveResult { moved: number; skipped: number; failed: number }
  * checked against its SHA-256 before the row is switched and the old copy deleted, so an
  * interruption leaves every file readable from one place or the other.
  */
-export async function moveFiles(ctx: ModuleContext, to: 'disk' | 's3', log: (line: string) => void = () => undefined): Promise<MoveResult> {
+export async function moveFiles(
+  ctx: ModuleContext, to: 'disk' | 's3', log: (line: string) => void = () => undefined,
+  progress?: (sofar: MoveResult & { total: number }) => Promise<void>,
+): Promise<MoveResult> {
   await stores(ctx).reload();
   const target = to === 's3' ? stores(ctx).s3() : stores(ctx).local;
   if (!target) throw new Error(`The object store cannot be used: ${stores(ctx).s3Problem() ?? 'it is not configured on the File settings page'}.`);
   const rows = await ctx.db.query<Row>('select * from attachments where purged_at is null and storage_driver <> $1 order by created_at', [target.driver]);
   const result: MoveResult = { moved: 0, skipped: 0, failed: 0 };
   result.skipped = (await ctx.db.one<{ n: number }>('select count(*)::int as n from attachments where purged_at is null and storage_driver = $1', [target.driver]))?.n ?? 0;
+  await progress?.({ ...result, total: rows.length });
   for (const att of rows) {
     try {
       const source = stores(ctx).forDriver(att.storage_driver);
@@ -263,6 +267,7 @@ export async function moveFiles(ctx: ModuleContext, to: 'disk' | 's3', log: (lin
       await source.delete(att.storage_key);
       result.moved += 1;
       if (result.moved % 100 === 0) log(`${result.moved} moved so far`);
+      if (result.moved % 20 === 0) await progress?.({ ...result, total: rows.length });
     } catch (err) {
       result.failed += 1;
       log(`FAILED ${att.file_name} (${att.id}): ${(err as Error).message}`);

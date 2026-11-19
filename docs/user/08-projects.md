@@ -2,6 +2,8 @@
 
 The Projects area takes a technology project from a one-page request through a fixed set of stages, with a gate between each stage where a checklist must be complete, the required documents must be in place and an approval recorded before the project can move on. This page covers submitting a request, how the tier is set, working a gate, moving a project back, status reports, the project register, milestones, scoring, actions and the portfolio views. The screens are in the **Projects** group of the menu: **Project portfolio**, **New project request** and **Project settings**.
 
+An administrator can switch projects off under **Administration > Features** (see [Administration](09-administration.md#features)). Records are kept and return when it is switched back on.
+
 ## What you need
 
 | To do this | You need this |
@@ -26,7 +28,8 @@ Every project starts as a one-page request.
 5. Enter a rough **Budget**, choose the **Funding source** (**Operating budget**, **Capital budget**, **Grant or outside funder** or **Other**; leave it as **Not known yet** if you do not know) and enter a **Target date**.
 6. Under **Does it touch any of these?**, check any that apply: **Touches payment**, **Touches personal data**, **Touches operational systems**.
 7. Where the system inventory is in use and you may view it, name any **Systems affected**: existing systems the project would change, replace or depend on.
-8. A box under the form says which tier the request looks like and why. Select **Submit request**.
+8. If you may view projects and your administrator has added fields of their own to projects (**Custom fields**), fill them in; those marked with an asterisk are required. People who may submit requests but not view projects are not asked them, and the project team fills them in later.
+9. A box under the form says which tier the request looks like and why. Select **Submit request**.
 
 The request is given a reference beginning `PRJ-`, joins the portfolio at the **Idea** stage with status **Active**, and its first gate, **Intake approval**, opens.
 
@@ -241,6 +244,8 @@ Milestones are the handful of dates that matter. They appear on the portfolio ti
 
 The **State** column shows **To do**, **Overdue** (past its due date and not done), or **Done** with the date, marked "(late)" if it was completed after the due date.
 
+When a milestone passes its due date without being done, the project manager is told once. A register item (risk, issue, decision or change request) that passes its due date while still open is told to its owner, or to the project manager when it has none. Only projects that are active or on hold are looked at. Moving the due date and missing it again sends a new reminder.
+
 ## Scoring
 
 Scoring gives each project a priority score out of 100 so that projects can be ranked against each other. Open the **Scoring** tab.
@@ -341,5 +346,4 @@ Loading sample data adds seven invented projects whose names start with **[Sampl
 
 - Approvals are recorded by hand. The application does not collect sign-off from the approvers.
 - Gates cannot be added or removed, and the stages they sit between cannot be changed, on screen.
-- No reminders are sent for milestones or register items that pass their due date.
 - Moving a project back goes one stage at a time.

@@ -313,3 +313,31 @@ a.pt-mini:hover { background: var(--surface-hover); text-decoration: none; }
 @media print {
   .pt-header, .pt-footer, .pt-reply, .pt-actions, .pt-search { display: none !important; }
 }
+
+/* ---------- E15-12: raising a request for a colleague ---------- */
+.pt-for-whom { display: grid; gap: var(--s-3); }
+.pt-colleague-search { display: grid; gap: var(--s-2); }
+.pt-colleagues { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.pt-colleague {
+  display: flex; align-items: center; gap: var(--s-2); width: 100%; min-height: 44px; padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); font: inherit; text-align: left; cursor: pointer;
+}
+.pt-colleague:hover, .pt-colleague:focus-visible { border-color: var(--brand); }
+.pt-colleague .muted { margin-left: auto; font-size: var(--fs-sm); }
+.pt-picked {
+  display: flex; align-items: center; gap: var(--s-2); min-height: 44px; padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--brand); border-radius: var(--radius); background: var(--surface-2);
+}
+.pt-picked > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.pt-raised { display: flex; align-items: center; gap: 6px; margin: 0 0 var(--s-2); color: var(--text-muted); font-size: var(--fs-md); }
+
+/* ---------- E20-13: safety reports ---------- */
+.pt-actions-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 900px) { .pt-actions-3 { grid-template-columns: 1fr 1fr; } .pt-actions-3 .pt-action-safety { grid-column: 1 / -1; } }
+@media (max-width: 640px) { .pt-actions-3 { grid-template-columns: 1fr; } }
+.pt-action-safety svg { color: var(--c-red-solid); }
+.pt-tile-icon-safety { background: var(--c-red-bg); color: var(--c-red-fg); }
+.pt-callout-urgent { background: var(--c-red-bg); color: var(--c-red-fg); }
+.pt-sent { display: flex; gap: var(--s-3); align-items: flex-start; border-color: var(--c-green-solid); }
+.pt-sent svg { flex: none; color: var(--c-green-solid); }
+.pt-sent p { margin: 4px 0 0; }

@@ -234,7 +234,7 @@ describe('passkeys and security keys (E02-08)', () => {
     const mine = t.core.openapi.routes()
       .filter((r) => r.url.startsWith('/api/auth/webauthn/') || r.url.includes('/passkeys'))
       .map((r) => `${r.method} ${r.url}`).sort();
-    expect(mine.length).toBe(9);
+    expect(mine.length).toBe(10);
     expect(WEBAUTHN_DOCS.map((d) => `${d.method} ${d.path}`).sort()).toEqual(mine);
   });
 
@@ -252,7 +252,10 @@ describe('passkeys and security keys (E02-08)', () => {
 describe('second factor on a new installation (E02-17)', () => {
   const fresh = async (secondFactor?: string) => {
     const built = await buildApp({ dataDir: 'memory', serveWeb: false });
-    const setup = await raw(built, 'POST', '/api/setup', { ...ADMIN, ...(secondFactor ? { secondFactor } : {}) });
+    // ADMIN names `notice`; `none` sends a setup body that names no choice at all.
+    const { secondFactor: _ignored, ...plain } = ADMIN;
+    const body = secondFactor === 'none' ? plain : { ...ADMIN, ...(secondFactor ? { secondFactor } : {}) };
+    const setup = await raw(built, 'POST', '/api/setup', body);
     expect(setup.status).toBe(200);
     return { built, cookie: setup.cookie!, setup: setup.body };
   };
@@ -275,8 +278,18 @@ describe('second factor on a new installation (E02-17)', () => {
     }
   });
 
-  it('keeps "notice" when setup does not ask for it', async () => {
-    const { built, cookie, setup } = await fresh();
+  it('requires it when setup names no choice (E02-19)', async () => {
+    const { built, cookie, setup } = await fresh('none');
+    try {
+      expect(setup.secondFactor).toBe('required');
+      expect((await raw(built, 'GET', '/api/auth/state', undefined, cookie)).body.mfaEnforcement).toBe('required');
+    } finally {
+      await built.close();
+    }
+  });
+
+  it('keeps "notice" when setup asks for only a reminder', async () => {
+    const { built, cookie, setup } = await fresh('notice');
     try {
       expect(setup.secondFactor).toBe('notice');
       expect((await raw(built, 'GET', '/api/auth/state', undefined, cookie)).body.mfaEnforcement).toBe('notice');

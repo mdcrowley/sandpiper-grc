@@ -19,11 +19,16 @@ export interface Caller {
   tryGet<T = any>(url: string): Promise<T | undefined>;
 }
 
-export function makeCaller(app: FastifyInstance, authorization: string, remoteAddress: string): Caller {
+/**
+ * `headers` go with every call: the request id of the /mcp request (so the audit events a tool
+ * causes carry the same id, E13-14) and, for OAuth access tokens, the in-process marker that lets
+ * those tokens through (they are not accepted on /api from outside, see oauth.ts).
+ */
+export function makeCaller(app: FastifyInstance, authorization: string, remoteAddress: string, headers: Record<string, string> = {}): Caller {
   async function call(method: 'GET' | 'POST' | 'PATCH', url: string, body?: unknown) {
     const res = await app.inject({
       method, url, remoteAddress,
-      headers: { authorization, ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+      headers: { ...headers, authorization, ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
       ...(body === undefined ? {} : { payload: JSON.stringify(body) }),
     });
     let parsed: any = null;

@@ -20,12 +20,13 @@ const thisMonth = () => dayInZone().slice(0, 7);
 const earlier = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
 
 let viewer: Awaited<ReturnType<typeof withGrants>>;
-let lead: Awaited<ReturnType<typeof t.as>>;
+/** Someone outside the safety team (no safety permission). */
+let outsider: Awaited<ReturnType<typeof t.as>>;
 
 beforeAll(async () => {
   t = await testApp();
   viewer = await withGrants('safety_viewer', ['safety.view', 'actions.view']);
-  lead = await t.as('security_lead');
+  outsider = await withGrants('no_safety', ['tickets.view']);
 });
 afterAll(async () => { await t.close(); });
 
@@ -128,11 +129,11 @@ describe('safety events', () => {
   });
 
   it('tells the safety team about a serious event, and about one raised to serious', async () => {
-    const before = (await lead.get('/api/notifications')).body.total;
+    const before = (await outsider.get('/api/notifications')).body.total;
     const serious = await t.api.post('/api/safety-events', { title: 'Test bus left the road', occurred_at: earlier(1), event_type: 'collision', severity: 'serious' });
     expect(serious.status).toBe(201);
-    // The security lead role has no safety.view, so is not told; the administrator holds '*'.
-    expect((await lead.get('/api/notifications')).body.total).toBe(before);
+    // Someone without safety.view is not told; the administrator holds '*'.
+    expect((await outsider.get('/api/notifications')).body.total).toBe(before);
     const admin = (await t.api.get('/api/notifications')).body.rows;
     expect(admin.some((n: any) => n.title.startsWith('Serious safety event: SE-') && n.title.includes('Test bus left the road'))).toBe(true);
     const minor = (await t.api.post('/api/safety-events', { title: 'Test fire alarm', occurred_at: earlier(1), event_type: 'fire', severity: 'minor' })).body;
@@ -195,6 +196,15 @@ describe('indicators and exposure', () => {
 });
 
 describe('permissions', () => {
+  it('gives the default roles their safety grants', async () => {
+    const manager = await t.as('safety_manager');
+    expect((await manager.get('/api/safety/summary')).status).toBe(200);
+    expect((await manager.post('/api/hazards', { title: 'Test platform edge gap' })).status).toBe(201);
+    const lead = await t.as('security_lead');
+    expect((await lead.get('/api/hazards')).status).toBe(200);
+    expect((await lead.post('/api/hazards', { title: 'x' })).status).toBe(403);
+  });
+
   it('needs safety permissions', async () => {
     const agent = await t.as('agent');
     for (const url of ['/api/safety-events', '/api/hazards', '/api/safety/summary', '/api/safety/scale', '/api/safety/exposure']) {

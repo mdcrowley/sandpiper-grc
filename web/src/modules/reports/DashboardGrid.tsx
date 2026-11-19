@@ -1,13 +1,16 @@
 // The dashboard grid: twelve columns of fixed-height rows on CSS grid. In edit mode each widget
 // can be moved by dragging its handle and resized from its corner (pointer events, so mouse, pen
 // and touch all work), or with the keyboard: arrow keys move the focused widget, Shift with the
-// arrows resizes it. Below about 760px the grid becomes one column in reading order.
+// arrows resizes it. Below about 760px the grid shows in reading order (two columns, or one on a
+// phone); while editing it keeps its twelve columns down to 480px, so dragging works on a tablet.
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import { Icon, IconButton, cx } from '../../core';
 import { GAP, ROW_HEIGHT, clampBox, readingOrder, settle } from './layout';
 import { GRID_COLUMNS, type Widget } from './types';
 
 const NARROW = 760;
+/** While editing, the real grid (and dragging) is kept down to this width. */
+const EDIT_NARROW = 480;
 const HEAD = 44;
 const PAD = 32;
 
@@ -40,7 +43,7 @@ export function DashboardGrid({ widgets, editing, onChange, renderBody, headerAc
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const narrow = width < NARROW;
+  const narrow = width < (editing ? EDIT_NARROW : NARROW);
   const colWidth = (width - GAP * (GRID_COLUMNS - 1)) / GRID_COLUMNS;
 
   // While dragging, the others make room live; nothing is committed until the pointer is let go.
@@ -91,6 +94,7 @@ export function DashboardGrid({ widgets, editing, onChange, renderBody, headerAc
   const ordered = narrow ? readingOrder(shown) : shown;
   return (
     <>
+      {editing && narrow && <p className="notice rp-grid-narrow-note">The screen is too narrow to drag widgets. Use the handle with the arrow keys to move them (Shift and the arrow keys to resize), or widen the window.</p>}
       <div ref={ref} className={cx('rp-grid', editing && 'is-editing', narrow && 'is-narrow', drag && 'is-dragging')}
         style={narrow ? undefined : { gridTemplateColumns: `repeat(${GRID_COLUMNS}, minmax(0, 1fr))`, gridAutoRows: `${ROW_HEIGHT}px`, gap: `${GAP}px` }}>
         {editing && !narrow && drag && (

@@ -17,7 +17,7 @@ import { EMAIL_RE, type MailService } from './service.ts';
 export const RESET_MINUTES_SETTING = 'auth.reset_link_minutes';
 export const FORGOT_MESSAGE = 'If that matches an account with an email address, a link to set a new password is on its way. Check your inbox, and your junk folder. The link works once.';
 
-const when = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: TIME_ZONE });
+const when = new Intl.DateTimeFormat('en-US', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: TIME_ZONE });
 export const expiresText = (at: string | Date) => `on ${when.format(new Date(at))} (${TIME_ZONE})`;
 
 /** The admin routes that issue a link, and where the user id and the link are in their answer. */

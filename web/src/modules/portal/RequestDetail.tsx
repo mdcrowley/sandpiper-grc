@@ -11,11 +11,12 @@ interface Detail {
   id: string; ref: string; title: string; description: string | null; status: PlainStatus;
   opened_at: string; updated_at: string; resolved_at: string | null; closed_at: string | null;
   item: { id: string; name: string } | null; answers: { label: string; value: string }[]; assignee_name: string | null;
+  raised_by?: string | null; raised_for?: string | null;
   resolution: { label: string | null; notes: string | null } | null; approval_note: string | null;
   rating: { score: number; comment: string | null; at: string } | null;
   can_rate: boolean; can_reopen: boolean; reopen_until: string | null; can_reply: boolean;
   messages: { id: string; body: string; author_name: string; mine: boolean; created_at: string }[];
-  files: { id: string; file_name: string; size_bytes: number; uploaded_at: string }[] | null;
+  files: { id: string; file_name: string; size_bytes: number; uploaded_at: string; from_desk?: boolean; shared_by_name?: string | null }[] | null;
 }
 
 function Stars({ value, onChange }: { value: number; onChange: (n: number) => void }) {
@@ -168,6 +169,8 @@ export function RequestDetail() {
       <header className="pt-detail-head">
         <p className="pt-ref">{d.ref}{d.item ? ` · ${d.item.name}` : ''}</p>
         <h1>{d.title}</h1>
+        {d.raised_by && <p className="pt-raised"><Icon name="user" size={16} /> Raised for you by {d.raised_by}</p>}
+        {d.raised_for && <p className="pt-raised"><Icon name="users" size={16} /> You raised this for {d.raised_for}</p>}
         <div className={`pt-status-box pt-tone-box-${d.status.tone}`}>
           <StatusPill status={d.status} />
           <p>{d.status.hint}{d.assignee_name && !d.status.done ? ` ${d.assignee_name} is looking after it.` : ''}</p>
@@ -198,11 +201,11 @@ export function RequestDetail() {
           {d.description && <div className="pt-facts-wide"><dt>Details</dt><dd className="prose">{d.description}</dd></div>}
           <div><dt>Sent</dt><dd>{formatDateTime(d.opened_at)}</dd></div>
         </dl>
-        {d.files && d.files.length > 0 && (
+        {d.files && d.files.some((f) => !f.from_desk) && (
           <>
             <h3 className="pt-sub">Your files</h3>
             <ul className="pt-file-list">
-              {d.files.map((f) => (
+              {d.files.filter((f) => !f.from_desk).map((f) => (
                 <li key={f.id}>
                   <Icon name="file-text" size={18} />
                   <a className="truncate" href={`/api/attachments/${f.id}/download`}>{f.file_name}</a>
@@ -214,6 +217,20 @@ export function RequestDetail() {
         )}
       </section>
 
+      {d.files && d.files.some((f) => f.from_desk) && (
+        <section className="pt-card" aria-labelledby="pt-desk-files">
+          <h2 id="pt-desk-files">Files from the service desk</h2>
+          <ul className="pt-file-list">
+            {d.files.filter((f) => f.from_desk).map((f) => (
+              <li key={f.id}>
+                <Icon name="download" size={18} />
+                <a className="truncate" href={`/api/attachments/${f.id}/download`}>{f.file_name}</a>
+                <span className="muted">{formatSize(Number(f.size_bytes))}{f.shared_by_name ? ` · from ${f.shared_by_name}` : ''}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <section className="pt-card" aria-labelledby="pt-conv">
         <h2 id="pt-conv">Messages</h2>
         {d.messages.length ? (

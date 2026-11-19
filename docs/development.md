@@ -55,7 +55,7 @@ version for a first pull request.
 |---|---|---|
 | PostgreSQL server | PGlite (Postgres compiled to WASM, embedded, data in `data/pg`) | Runs with no install. `GRC_DATABASE_URL` switches to a PostgreSQL server; both drivers are in `server/src/core/db.ts` |
 | Containers | `grc.ps1` (Windows) or `grc.sh` (macOS, Linux) with portable Node in `.tools/node` | `Dockerfile`, `compose.yaml` and `compose.postgres.yaml`; images published to `ghcr.io/mdcrowley/sandpiper-grc` ([Docker](docker.md)) |
-| Job queue | Table-backed job queue (`app.jobs`) | Some modules still use in-process timers (E14-22) |
+| Job queue | Table-backed job queue (`app.jobs`), started by core | Every scheduled task runs there, so it runs once however many server processes share the database |
 
 ## Organization profile and seed data
 
@@ -94,6 +94,10 @@ Everything goes through `grc.ps1` (it puts the portable Node on PATH):
 .\grc.ps1 backup     # verified copy of data/ in backups/<timestamp> (-Prune <n> keeps the newest n; -Encrypt)
 .\grc.ps1 restore <backup|latest|file>   # verifies, keeps a safety copy, replaces data/
 .\grc.ps1 status | logs | upgrade   # see docs/operations.md for these and the other operations commands
+.\grc.ps1 version    # installed version and commit
+.\grc.ps1 audit-deps # dependency advisories (fails only on a fixable high or critical one)
+.\grc.ps1 secret-key show | rotate   # where the secret key comes from; a new key (restarts the server)
+./grc.sh service install | remove | status | print   # macOS and Linux: a launchd or systemd user service
 .\grc.ps1 npm <args> # any npm command with the portable Node
 ```
 
@@ -106,7 +110,7 @@ clock on UTC, and the web build, and fails if any step fails. GitHub Actions
 build on Windows and Linux with a non-blocking dependency audit (`npm audit`); the tests
 through the PostgreSQL wire protocol (and, not yet blocking, on PostgreSQL 17); the
 container build and smoke test; and the browser suite with the accessibility audit, which
-reports but does not fail the build (see [Tests](#tests)).
+fails only on a finding not already raised as an issue (see [Tests](#tests)).
 
 The API description: `npx tsx server/src/core/openapi-cli.ts [file] [--unversioned]`
 writes the whole OpenAPI document (every record type and route, paths under `/api/v1`;
@@ -147,6 +151,8 @@ In a plain shell: `$env:Path = "$PWD\.tools\node;$env:Path"` then `npm run <scri
 | `GRC_ANALYZE` | off | `1` makes the web build report what each package weighs (`GRC_ANALYSE` is still accepted) |
 | `GRC_JOBS` | on | `off` stops the job queue's poller in this process (jobs are still queued) |
 | `GRC_JOBS_POLL_MS` | `10000` | How often the job queue looks for due work (at least 1000) |
+| `GRC_LOG_LEVEL`, `GRC_LOG_DIR`, `GRC_LOG_CONSOLE` | `info`, `<data>/logs`, `text` | Server log: level, folder of the rotating `grc.log` (`off` = none), and what reaches the console (`text`, `json`, `off`); also `GRC_LOG_MAX_MB`, `GRC_LOG_FILES`, `GRC_LOG_REQUESTS` ([Operations](operations.md#logs)) |
+| `GRC_PDF_FONTS` | system fonts | Font files for PDF text beyond Western European, separated by `;` (Windows) or `:`; `file.ttc#PostScriptName` picks one font of a collection; `none` switches it off. Unset: Noto, DejaVu, Arial Unicode, Segoe UI, Arial, Microsoft YaHei, Yu Gothic, Malgun or Nirmala, whichever the machine has ([Operations](operations.md#fonts-for-pdf-exports)) |
 
 Security environment (all optional; see [Security](security.md)): `GRC_SECRET_KEY` (32
 bytes as 64 hex characters or base64; encrypts authenticator keys and other stored
@@ -159,8 +165,10 @@ so open `http://localhost:<port>`, not `http://127.0.0.1:<port>`, when working o
 
 Hosting environment (see [Installation](installation.md#server-installation) for every
 variable): `GRC_DATABASE_URL` (or `GRC_DATABASE_URL_FILE`) uses a PostgreSQL server instead
-of the embedded database; `GRC_HOST` (default `127.0.0.1`); `GRC_TLS_CERT` and
-`GRC_TLS_KEY` serve HTTPS; `GRC_TRUST_PROXY` names the reverse proxies whose forwarded
+of the embedded database, and `GRC_DATABASE_MIGRATE_URL` runs migrations as the database
+owner so the server's own account can have row access only; `GRC_HOST` (default
+`127.0.0.1`); `GRC_TLS_CERT` and `GRC_TLS_KEY` serve HTTPS, re-read every
+`GRC_TLS_RELOAD_SECONDS` and on `SIGHUP`; `GRC_TRUST_PROXY` names the reverse proxies whose forwarded
 headers are believed; `GRC_ALLOW_INSECURE=1` allows plain HTTP on a reachable address
 behind a proxy that terminates HTTPS; `GRC_COOKIE_SECURE` (`off` | `auto` | `always`)
 becomes `auto` by itself on HTTPS or behind a trusted proxy. In code, use `clientIp(req)`
@@ -175,7 +183,7 @@ Read them in code with `ctx.settings.get(key, fallback)`, using the same fallbac
 |---|---|---|
 | `app.name` | `Sandpiper GRC` | Name shown in the application |
 | `pilot_mode` | `true` | Shows the "sample and test data only" notice |
-| `features` | `{ portal: false }` | Feature switches |
+| `features` | every area on except `portal` | Feature switches, one boolean per optional area (`core/features.ts`); changed under Administration > Features (needs a recent password confirmation). An area missing from the stored value takes its default |
 | `auth.password_min_length` | `14` | Minimum password length (never below 12) |
 | `auth.password_history` | `5` | Earlier passwords that may not be reused |
 | `auth.idle_minutes` | `30` | Session idle time-out |
@@ -207,6 +215,10 @@ never with a token:
 | `mcp.allowed_tools` | `null` (all) | Tool names offered |
 | `mcp.rate_per_minute` | `120` | Requests a minute to `/mcp` per token |
 | `mcp.allowed_origins` | `[]` | Browser origins allowed to call `/mcp` |
+| `mcp.allowed_roles` | `null` (everyone) | Roles whose members may connect an assistant |
+| `mcp.role_tools` | `{}` | Tool names offered per role |
+| `mcp.oauth_enabled` | `false` | Remote connectors may sign in with OAuth |
+| `mcp.oauth_registration` | `false` | Connectors may register themselves (dynamic client registration) |
 
 Modules keep their own settings too (for example
 `knowledge.agent_permission`, `frameworks.review_reminder_days`); each is described in the
@@ -252,7 +264,8 @@ server/src/main.ts            starts the server
 server/src/app.ts             buildApp({ dataDir }) - used by main and by tests
 server/src/cli.ts             seed and other commands
 server/src/core/              db, migrations, auth, rbac, audit, resources, lookups, links, comments,
-                              search, tags and watchers, custom fields, tokens, webhooks, OpenAPI, retention
+                              search, tags and watchers, custom fields, tokens, webhooks, OpenAPI, retention,
+                              feature switches (features.ts)
 server/src/core/migrations/   core SQL
 server/src/core/identity/     single sign-on (OpenID Connect), account linking, sign-in policy hooks
 server/src/core/webauthn/     passkeys and security keys
@@ -270,7 +283,9 @@ tools/                        install-node.ps1, browse.mjs, contrast.mjs, code-s
 tools/e2e/                    browser test runner and suites (npm run test:e2e)
 tools/a11y/                   accessibility audit (npm run test:a11y)
 tools/mcp-stdio.mjs           bridge for MCP clients that speak only stdio (docs/mcp.md)
-deploy/                       container health check and the secrets folder for compose.yaml
+tools/load/                   load test (seeds invented data, measures latency; docs/operations.md)
+deploy/                       container health check, the secrets folder for compose.yaml, and
+                              systemd and launchd examples (deploy/systemd, deploy/launchd)
 Dockerfile, compose.yaml      container image and a compose file (docs/installation.md)
 examples/                     invented organization profile, API token and webhook receiver examples
 ```
@@ -362,11 +377,20 @@ export default mod;
 Services other modules may offer are Fastify decorators; check before use:
 
 - `app.notify(...)`: in-app notifications (notifications module;
-  `if (ctx.app.hasDecorator('notify')) ...`).
+  `if (ctx.app.hasDecorator('notify')) ...`). For reminders pass `oncePerDay: true` (at
+  most once per person, record and kind each organization day) or `once: '<key>'` (at most
+  once per person ever, for example `'obligation.due:<id>:<date>'`). A reminder's lead time
+  is a setting read with `ctx.settings.get(key, fallback)`; add it to the list in
+  `modules/notifications/reminder-settings.ts` so administrators can change it under
+  Administration > Reminders.
 - `app.jobs` (`core/jobs`): the table-backed job queue. `app.jobs.register(type, handler,
   opts?)` in `register()`, then `await app.jobs.enqueue(type, payload?, { key?, runAt?,
   delayMs?, maxAttempts? })` (a second job with the same `key` while one waits is skipped)
-  and `app.jobs.schedule(name, { type, every })` for recurring work. A handler throws to
+  and `app.jobs.schedule(name, { type, every })` for recurring work. For a module's
+  recurring work use `await scheduleWork(ctx, '<module>.<work>', () => run(), { every,
+  firstRunInMs? })` (`core/jobs`), never `setInterval`: it registers the handler and a
+  schedule of the same name. A handler may report progress with `job.progress(value)`
+  (shown as the job's result while it runs). A handler throws to
   fail and is retried with back-off; `PermanentJobError` stops the retries. Administrators
   see the queue under Background jobs. The poller starts when the server listens (never
   under tests, which call `app.jobs.runDue()`); `GRC_JOBS=off` keeps it stopped.
@@ -375,15 +399,17 @@ Services other modules may offer are Fastify decorators; check before use:
   administrator sets up a mail server (Administration > Email), so always guard with
   `ctx.app.hasDecorator('sendMail')`.
 
-Today the notifications module starts the job queue and email (`ensureJobs`,
-`ensureMail`), so a server built with `GRC_MODULES` that leaves notifications out has
-neither (E14-23).
+Core starts the job queue and email in `app.ts` before any module registers, so both exist
+whichever modules are loaded (`ensureJobs` and `ensureMail` are safe to call again).
 
 ### Migrations
 
 `server/src/modules/<key>/migrations/001_name.sql`, applied in file-name order, core first
 then modules alphabetically, tracked in `schema_migrations`. Never edit an applied migration
 in a way that matters after pilot; during prototyping it is fine to edit and delete `data/`.
+A checksum of each applied migration is recorded: start-up and `status` warn when an applied
+migration has changed, and continuous integration compares migrations with the last release
+tag (`v*`). Never edit a released migration; add a new one.
 **No foreign keys across modules** - store the other record's `uuid` in a plain column and
 declare the field as `{ type: 'ref', to: '<type>' }`.
 
@@ -447,6 +473,10 @@ Custom fields that an administrator defines (Administration > Custom fields,
 `custom: true` in `/api/meta`, and are accepted by the generated routes like any other
 field.
 
+`evidence: true` on a definition makes its record page's file tab an **Evidence files** tab and
+records new files there as evidence (`evidence: false` turns it off). The default list is
+`EVIDENCE_TYPES` in `core/resource.ts`.
+
 Generated routes:
 
 | Route | Notes |
@@ -463,7 +493,7 @@ Generated routes:
 | Route | Purpose |
 |---|---|
 | `GET /api/health` | `{ ok: true }` (public) |
-| `GET /api/auth/state` | `{ appName, timeZone, currency, setupRequired, user, permissions, features, pilot, mfa... }` (public) |
+| `GET /api/auth/state` | `{ appName, timeZone, currency, setupRequired, user, permissions, features, areasOff, pilot, mfa... }` (public) |
 | `POST /api/setup` | First-run administrator (public, only while no users exist) |
 | `POST /api/auth/login`, `/logout`, `/change-password`, `/confirm` | Local sign-in; `confirm` proves the password again before a sensitive action |
 | `GET /api/meta` | `{ resources: { [type]: meta }, lookups: { [list]: [{ value, label, color, sort }] } }` |
@@ -478,12 +508,15 @@ Generated routes:
 | `GET /api/lookups/:list`, `POST/PATCH/DELETE /api/lookups...` | Lookup values; writes need `admin.administer` |
 | `/api/tags...`, `/api/watchers`, `/api/me/watching` | Tags and watchers on any record |
 | `/api/me/preferences/:key` | Per-person preferences |
+| `/api/views...` | List views shared with everyone who can see the list (audited) |
+| `GET /api/version` | The installed version (signed in) |
 | `/api/me/tokens`, `/api/admin/tokens` | Personal access tokens |
 | `/api/admin/webhooks...` | Webhooks and their deliveries |
 | `/api/admin/custom-fields...`, `/api/admin/retention...` | Custom fields; retention schedule and reviews |
 | `GET /api/records/:type/:id/pdf` | A record's PDF fact sheet (needs `<module>.export`) |
 | `/api/import/:type...`, `GET /api/import/history` | Import from CSV or Excel: fields, template, read (check), run; creating needs `<module>.create`, updating `<module>.edit` |
 | `/mcp` | The MCP endpoint for AI assistants (tokens with the `mcp.use` scope only; see [AI assistant access](mcp.md)) |
+| `/.well-known/oauth-*`, `/oauth/*` | OAuth 2.1 for remote MCP connectors (off by default; [AI assistant access](mcp.md)) |
 
 **Versioning.** Every `/api/...` route is also served at `/api/v1/...`
 (`core/api/versioning.ts`), the stable base path for integrators; the web application
@@ -530,6 +563,42 @@ and inherit the flag from their source record. Sensitive administrative routes c
 `sensitive(ctx, req, what)` (`modules/admin/shared.ts`), which needs a recent password
 confirmation (`POST /api/auth/confirm`).
 
+### Feature switches (optional areas)
+
+Administrators switch optional parts of the application on and off under Administration >
+Features (`modules/admin/features.ts`, setting `features`). What each part covers is declared
+once, in `AREAS` in `server/src/core/features.ts`:
+
+```ts
+{ key: 'fleet', label: 'Fleet and services', defaultOn: true, description: '...',
+  permissions: ['fleet'],      // permission modules nobody holds while off (`*` included)
+  types: [],                   // extra record types to hide (when their permission module is shared)
+  modules: ['fleet'],          // server module folders whose routes answer 404 `switched_off`
+  jobs: ['fleet.'],            // job type prefixes that are skipped while off
+  requires: [] }               // areas that must be on for this one (the portal needs tickets)
+```
+
+While an area is off, core makes it behave as if its module were not installed, with no
+work in the module: `can()` answers false for its permissions (users carry `off`, set by
+`loadUser`; `ctx.can` also applies it to users built by hand), so `/api/auth/state`,
+menus and permission-checked routes follow; `ctx.resources.get(type)` answers undefined and
+`all()` leaves its types out, so metadata, search, links, the report catalog, imports,
+custom fields, retention, webhooks, OpenAPI and MCP tools drop them; its module's routes
+(tagged with the module that registered them) and its types' generated routes answer 404
+`switched_off`, as does a core route asked about one of its types (`:type`, `type`,
+`record_type`, `from_type`, `to_type`); and the job queue skips its job types. The state is
+cached for five seconds and refreshed at once when the setting is written, so no restart is
+needed. The web app reads `features` and `areasOff` from `/api/auth/state`: `can()`
+answers false for an off permission, `areaOn(key)` says whether an area is on, and
+`MODULE_AREA` in `web/src/core/module.ts` drops a whole web module's menu entries, Create
+entries and pages (the pages show "switched off").
+
+A new module that is optional adds itself to `AREAS` (and to `MODULE_AREA` on the web, and
+`PAGE_AREA` in `web/src/modules/help/areas.ts` for its guide page). Guard cross-module code
+with `ctx.resources.get(type)` and permission checks as usual, and it follows the switch.
+Inventory, actions, notifications, attachments, administration, home and help are not
+areas: they are always on.
+
 ### Tests
 
 Vitest, files named `*.test.ts` beside the code (server and web). Use `testApp()` from
@@ -551,7 +620,8 @@ The test commands:
   twice, the second time with the clock on UTC.
 - `npm run test:e2e`: the browser suite (`tools/e2e/suites`). It builds the web app (or
   serves the build in `E2E_WEB_DIST`), starts a throw-away instance and drives a real
-  browser through every route, every role, every record type and the keyboard. Options
+  browser through every route, every role, every record type, the hand-written dialogs and
+  the keyboard, module by module (suites `01-smoke` to `08-keyboard-modules`). Options
   after `--`: `--only smoke,roles` (some suites), `--grep ticket` (tests whose name
   contains it), `--headed` (show the browser), `--keep` (keep the scratch data folder).
   Logs and screenshots go to `tools/e2e/out`. `node tools/e2e/serve.mjs` keeps an
@@ -559,12 +629,15 @@ The test commands:
   browser and `E2E_PORT` the port.
 - `npm run test:a11y`: the accessibility audit. It runs axe-core (WCAG 2.1 A and AA) on
   every route, in light and dark at 1440 and 820 pixels wide (`--quick`: light at 1440
-  only; `--routes /a,/b`; `--no-fail`), and writes `tools/a11y/out/report.md`. See
-  [Accessibility](accessibility.md).
+  only; `--routes /a,/b`; `--no-fail`), and writes `tools/a11y/out/report.md`. It fails
+  on any serious or critical finding that is not listed, with its roadmap issue, in
+  `tools/a11y/known.json`; remove an entry once its issue is fixed (the report lists stale
+  entries). See [Accessibility](accessibility.md).
 
 GitHub Actions runs the typecheck, tests and build on Windows and Linux, the tests through
 the PostgreSQL wire protocol, the container build and smoke test, and the browser suite
-followed by the accessibility audit, which does not yet fail the build.
+followed by the accessibility audit, which fails the build on a finding not yet raised as
+an issue in `tools/a11y/known.json`.
 
 ### Actions (shared contract)
 
@@ -652,8 +725,7 @@ report_schedule, report_pack → `reports`; dashboard → `dashboards`; vehicle,
 `fleet`; hazard, safety_event, safety_indicator → `safety`.
 
 Not yet built: SAML single sign-on (blocked: it needs an XML-signature library) and LDAP
-sign-in; another mail provider; email-to-ticket; a general workflow designer; OAuth for
-remote MCP connectors. See [Known gaps](known-gaps.md) and the
+sign-in; another mail provider; a general workflow designer. See [Known gaps](known-gaps.md) and the
 [roadmap](roadmap/README.md).
 
 ## Known gaps

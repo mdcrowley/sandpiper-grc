@@ -1,6 +1,6 @@
 # E19 Fleet and services
 
-**Status:** in progress (core built)
+**Status:** in progress (12 of 14 issues done)
 
 ## Goal
 
@@ -29,11 +29,12 @@ vehicles lack working equipment and which vehicles and services a system failure
 | E19-06 | Read API and embed for other modules | done | P2 |
 | E19-07 | Bulk import of vehicles | done | P2 |
 | E19-08 | Invented sample fleet | done | P2 |
-| E19-09 | `fleet` permission key and default role grants | open | P1 |
-| E19-10 | Vehicles and services in the inventory impact panel and the relationship map | open | P2 |
-| E19-11 | Affected services in the security incident workspace | open | P2 |
-| E19-12 | A bus or vehicle icon | open | P3 |
+| E19-09 | `fleet` permission key and default role grants | done | P1 |
+| E19-10 | Vehicles and services in the inventory impact panel and the relationship map | done | P2 |
+| E19-11 | Affected services in the security incident workspace | done | P2 |
+| E19-12 | A bus or vehicle icon | done | P3 |
 | E19-13 | Vehicles and services in the pilot seed profile | open | P3 |
+| E19-14 | Vehicles drawn on the relationship map | open | P3 |
 
 ---
 
@@ -155,40 +156,51 @@ As an administrator, I load the fleet from a spreadsheet.
 
 ### E19-09 `fleet` permission key and default role grants
 
-**Status:** open · **Priority:** P1 · **Type:** feature
+**Status:** done · **Priority:** P1 · **Type:** feature
 
-As an administrator, I can grant fleet permissions in the role editor. Today `fleet` is not in
-`MODULE_KEYS` (`server/src/modules/admin/shared.ts`), so only `*` grants it.
+As an administrator, I can grant fleet permissions in the role editor. `fleet` was not in
+`MODULE_KEYS` (`server/src/modules/admin/shared.ts`), so only `*` granted it.
 
 **Acceptance criteria**
 
-- [ ] `fleet` added to `MODULE_KEYS` and to the developer guide's list
-- [ ] Default roles: Agent gets `fleet.*`; Security lead `fleet.view`; Auditor `fleet.view`
+- [x] `fleet` added to `MODULE_KEYS` and to the developer guide's list
+- [x] Default roles: Agent gets `fleet.*`; Security lead `fleet.view`; Auditor `fleet.view` (the Safety manager role also holds `fleet.view`). Existing installations receive the new grants through **Sync default grants** under Administration > Roles
+
+**Implemented in:** `MODULE_KEYS` (`server/src/modules/admin/shared.ts`), `DEFAULT_ROLES` (`server/src/core/services.ts`); tests in `server/src/modules/fleet/fleet.test.ts` ("gives the default roles their fleet grants"); user guide [Fleet and services](../../user/19-fleet-and-services.md)
 
 ### E19-10 Vehicles and services in the inventory impact panel and the relationship map
 
-**Status:** open · **Priority:** P2 · **Type:** feature
+**Status:** done · **Priority:** P2 · **Type:** feature
 
 **Acceptance criteria**
 
-- [ ] The inventory web impact panel lists `vehicles` and `services` from the impact answer
-- [ ] Optionally, services as nodes on the relationship map
+- [x] The inventory web impact panel lists `vehicles` and `services` from the impact answer, counted in its summary, for people with `fleet.view`; affected services are outlined on the map, and a name not drawn on the map opens its record
+- [x] Services as nodes on the relationship map: a **Services** lane (shown with **Show > Services**, always on a system's Map tab), tied to the systems they depend on, each line naming what the service needs the system for; discontinued services and services with no dependency are left out; nothing for people without `fleet.view`
+- [ ] Vehicles as nodes on the map: not planned for now (dozens to thousands per operator); they are listed in the impact panel
+
+**Implemented in:** `app.fleet.serviceDependencies(user)` (`server/src/modules/fleet/services.ts`); `buildGraph` in `server/src/modules/inventory/relations.ts` (node type `service`, edge kind `service`); `web/src/modules/inventory/MapPanel.tsx`, `mapLayout.ts`; tests in `fleet.test.ts`, `mapLayout.test.ts`
 
 ### E19-11 Affected services in the security incident workspace
 
-**Status:** open · **Priority:** P2 · **Type:** feature
+**Status:** done · **Priority:** P2 · **Type:** feature
 
 **Acceptance criteria**
 
-- [ ] The incident workspace embeds `AffectedPanel` for the incident's affected systems
+- [x] The incident workspace embeds `AffectedPanel` for the incident's affected systems (the systems linked to the incident), on the **Affected** tab, sharing one request for the links with the links card so it follows as systems are linked and unlinked
+- [x] Found by file name (`import.meta.glob`), so the incident module builds and works without fleet; nothing shown without `fleet.view`; the panel carries its own styles
+
+**Implemented in:** `web/src/modules/secincidents/AffectedTab.tsx`, `secincidents.css`; `web/src/modules/fleet/AffectedPanel.tsx`
 
 ### E19-12 A bus or vehicle icon
 
-**Status:** open · **Priority:** P3 · **Type:** design
+**Status:** done · **Priority:** P3 · **Type:** design
 
 **Acceptance criteria**
 
-- [ ] A vehicle icon in the core icon set, used for the Vehicles navigation entry
+- [x] A vehicle icon in the core icon set, used for the Vehicles navigation entry
+- [x] Also a route icon for Services; both used for the create menu entries, the coverage tile and the impact tiles
+
+**Implemented in:** `bus` and `route` in `web/src/core/Icon.tsx` (Tabler `IconBus`, `IconRoute`); `web/src/modules/fleet/index.tsx`, `AffectedPanel.tsx`, `Coverage.tsx`, `Impact.tsx`
 
 ### E19-13 Vehicles and services in the pilot seed profile
 
@@ -197,3 +209,15 @@ As an administrator, I can grant fleet permissions in the role editor. Today `fl
 **Acceptance criteria**
 
 - [ ] Optional `vehicles.psv` and `services.psv` in the private seed folder
+
+### E19-14 Vehicles drawn on the relationship map
+
+**Status:** open · **Priority:** P3 · **Type:** feature
+
+Services can be drawn on the relationship map, and the impact panel lists the vehicles a
+system supports, but vehicles themselves are not drawn on the map. Split from E19-10.
+
+**Acceptance criteria**
+
+- [ ] Vehicles can be shown on the map (grouped by service or depot so a large fleet stays readable), for people with `fleet.view`
+- [ ] The map picture (PNG, SVG) and the layout tests include them

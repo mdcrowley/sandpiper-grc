@@ -13,12 +13,16 @@ type Item = Record<string, any>;
 
 /** A list of related rows with add and remove, and its loading, empty and error states. */
 function LinkedList({
-  url, title, addLabel, canEdit, emptyTitle, emptyMessage, columns, render, removeUrl, removeMessage, addDialog, onChanged,
+  url, title, addLabel, canEdit, emptyTitle, emptyMessage, columns, render, removeUrl, removeMessage, addDialog, editDialog, rowName, onChanged,
 }: {
   url: string; title: string; addLabel: string; canEdit: boolean; emptyTitle: string; emptyMessage: string;
   columns: string[]; render: (row: Item) => ReactNode[];
   removeUrl: (row: Item) => string; removeMessage: (row: Item) => string;
   addDialog: (close: (changed: boolean) => void) => ReactNode;
+  /** When given, each row has an Edit button that opens this dialog. */
+  editDialog?: (row: Item, close: (changed: boolean) => void) => ReactNode;
+  /** Names a row in the accessible names of its buttons ("Edit the integration with X"). */
+  rowName?: (row: Item) => string;
   /** Told after a row is added or removed (the page keeps counts of these lists). */
   onChanged?: () => void;
 }) {
@@ -26,6 +30,7 @@ function LinkedList({
   const toast = useToast();
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<Item | null>(null);
+  const [editing, setEditing] = useState<Item | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function remove() {
@@ -63,7 +68,14 @@ function LinkedList({
                 {data.map((row, i) => (
                   <tr key={row.id ?? i}>
                     {render(row).map((cell, j) => <td key={j}>{cell}</td>)}
-                    {canEdit && <td className="num"><IconButton icon="trash" label="Remove" variant="ghost" size="sm" onClick={() => setRemoving(row)} /></td>}
+                    {canEdit && (
+                      <td className="num">
+                        <span className="inv-row-actions">
+                          {editDialog && <IconButton icon="edit" label={rowName ? `Edit ${rowName(row)}` : 'Edit'} variant="ghost" size="sm" onClick={() => setEditing(row)} />}
+                          <IconButton icon="trash" label={rowName ? `Remove ${rowName(row)}` : 'Remove'} variant="ghost" size="sm" onClick={() => setRemoving(row)} />
+                        </span>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -71,6 +83,7 @@ function LinkedList({
           </div>
         )}
       {adding && addDialog((changed) => { setAdding(false); if (changed) { reload(); onChanged?.(); } })}
+      {editing && editDialog?.(editing, (changed) => { setEditing(null); if (changed) { reload(); onChanged?.(); } })}
       <ConfirmDialog open={!!removing} title="Remove this link?" message={removing ? removeMessage(removing) : ''} confirmLabel="Remove" danger
         busy={busy} onConfirm={remove} onCancel={() => setRemoving(null)} />
     </Card>
@@ -112,12 +125,16 @@ const FLOW: Record<string, { label: string; color: ColorName }> = {
   both: { label: 'Both ways', color: 'purple' },
 };
 
-function IntegrationDialog({ systemId, onClose }: { systemId: string; onClose: (changed: boolean) => void }) {
+/** The direction of an integration as this system sees it, in the terms the API takes. */
+const DIRECTION_OF_FLOW: Record<string, string> = { out: 'one_way', in: 'inbound', both: 'two_way' };
+
+/** Adds an integration, or with `existing` changes its direction, method and notes. */
+function IntegrationDialog({ systemId, existing, onClose }: { systemId: string; existing?: Item; onClose: (changed: boolean) => void }) {
   const toast = useToast();
-  const [other, setOther] = useState<string | null>(null);
-  const [direction, setDirection] = useState('one_way');
-  const [method, setMethod] = useState('');
-  const [notes, setNotes] = useState('');
+  const [other, setOther] = useState<string | null>(existing?.other_system_id ?? null);
+  const [direction, setDirection] = useState<string>(existing ? DIRECTION_OF_FLOW[existing.flow] ?? 'one_way' : 'one_way');
+  const [method, setMethod] = useState<string>(existing?.method ?? '');
+  const [notes, setNotes] = useState<string>(existing?.notes ?? '');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
 
@@ -125,8 +142,13 @@ function IntegrationDialog({ systemId, onClose }: { systemId: string; onClose: (
     if (!other) { setErrors({ to_system_id: 'Choose the other system.' }); return; }
     setBusy(true);
     try {
-      await api.post(`/api/systems/${systemId}/integrations`, { to_system_id: other, direction, method: method || null, notes });
-      toast.success('Integration added.');
+      if (existing) {
+        await api.patch(`/api/systems/${systemId}/integrations/${existing.id}`, { direction, method: method || null, notes });
+        toast.success('Integration changed.');
+      } else {
+        await api.post(`/api/systems/${systemId}/integrations`, { to_system_id: other, direction, method: method || null, notes });
+        toast.success('Integration added.');
+      }
       onClose(true);
     } catch (err) {
       setErrors(err instanceof ApiError && err.fields ? err.fields : { _form: errorMessage(err) });
@@ -135,11 +157,19 @@ function IntegrationDialog({ systemId, onClose }: { systemId: string; onClose: (
     }
   }
   return (
-    <Modal open title="Add integration" onClose={() => onClose(false)}
-      footer={<><Button onClick={() => onClose(false)}>Cancel</Button><Button variant="primary" loading={busy} onClick={submit}>Add integration</Button></>}>
+    <Modal open title={existing ? `Edit the integration with ${existing.other_name}` : 'Add integration'} onClose={() => onClose(false)}
+      footer={<><Button onClick={() => onClose(false)}>Cancel</Button><Button variant="primary" loading={busy} onClick={submit}>{existing ? 'Save changes' : 'Add integration'}</Button></>}>
       <form className="form" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
         {errors._form && <p className="form-error" role="alert">{errors._form}</p>}
-        <RecordPicker label="Other system" type="system" value={other} onChange={(v) => { setOther(v); setErrors({}); }} error={errors.to_system_id} required />
+        {existing ? (
+          <div className="inv-fixed-field">
+            <span className="inv-fixed-label">Other system</span>
+            <Link to={`/systems/${existing.other_system_id}`}>{existing.other_ref ? `${existing.other_ref} ` : ''}{existing.other_name}</Link>
+            <span className="muted">To connect a different system, remove this integration and add another.</span>
+          </div>
+        ) : (
+          <RecordPicker label="Other system" type="system" value={other} onChange={(v) => { setOther(v); setErrors({}); }} error={errors.to_system_id} required />
+        )}
         <div className="form-grid">
           <Select label="Direction of data" value={direction} onChange={(v) => setDirection(v || 'one_way')} error={errors.direction}
             options={[
@@ -170,6 +200,8 @@ export function IntegrationsTab({ systemId, canEdit, onChanged }: { systemId: st
       removeUrl={(r) => `/api/systems/${systemId}/integrations/${r.id}`}
       removeMessage={(r) => `The integration with ${r.other_name} will be removed from both systems.`}
       addDialog={(close) => <IntegrationDialog systemId={systemId} onClose={close} />}
+      editDialog={(row, close) => <IntegrationDialog systemId={systemId} existing={row} onClose={close} />}
+      rowName={(r) => `the integration with ${r.other_name}`}
     />
   );
 }
@@ -196,6 +228,7 @@ export function DataHeldTab({ systemId, canEdit, recorded, onChanged }: { system
         ]}
         removeUrl={(r) => `/api/systems/${systemId}/data-categories/${r.id}`}
         removeMessage={(r) => `${r.name} will no longer be recorded as held in this system.`}
+        rowName={(r) => r.name}
         addDialog={(close) => (
           <PickDialog title="Add data category" type="data_category" label="Data category" field="data_category_id"
             post={`/api/systems/${systemId}/data-categories`} onClose={close} />
@@ -216,6 +249,7 @@ export function SitesServed({ systemId, canEdit }: { systemId: string; canEdit: 
       render={(r) => [<Link to={`/sites/${r.id}`}>{r.name}</Link>, r.address ?? '—', r.function ?? '—']}
       removeUrl={(r) => `/api/systems/${systemId}/sites/${r.id}`}
       removeMessage={(r) => `${r.name} will no longer be recorded as served by this system.`}
+      rowName={(r) => r.name}
       addDialog={(close) => <PickDialog title="Add site served" type="site" label="Site" field="site_id" post={`/api/systems/${systemId}/sites`} onClose={close} />}
     />
   );

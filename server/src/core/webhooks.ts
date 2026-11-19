@@ -1,4 +1,8 @@
 import { createHmac, randomBytes } from 'node:crypto';
+import { lookup as dnsLookup, type LookupAddress } from 'node:dns';
+import { request as httpRequest, type IncomingMessage, type RequestOptions } from 'node:http';
+import { request as httpsRequest } from 'node:https';
+import { BlockList, isIP } from 'node:net';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { Db } from './db.ts';
 import { fail, UUID_RE } from './errors.ts';
@@ -13,7 +17,10 @@ import { can, requirePerm, type makeAudit, type makeSettings } from './services.
  * The one place the application opens a connection to somewhere else, so it is fenced three ways:
  *  1. Nothing is queued or sent unless the setting `integrations.outbound_enabled` is on (default off).
  *  2. A delivery goes only to a host on the allow-list `integrations.allowed_hosts`; anything else
- *     is recorded as `blocked`. Redirects are never followed.
+ *     is recorded as `blocked`. Redirects are never followed. The host name is resolved when the
+ *     connection is made, and a private, loopback, link-local or otherwise non-public address is
+ *     refused (`blocked`) unless that exact address is itself on the allow-list (E13-08), so an
+ *     allowed name that resolves somewhere internal cannot be used to reach the inside network.
  *  3. Restricted records are left out unless the subscription says `include_restricted`, which only
  *     a person holding `security.view` can switch on, and which stops applying if the person who
  *     created the subscription no longer holds it.
@@ -42,6 +49,122 @@ export function hostAllowed(url: URL, allowList: unknown): boolean {
     if (entry.startsWith('*.')) return host.endsWith(entry.slice(1)) && host.length > entry.length - 1;
     const m = /^(.*):(\d+)$/.exec(entry);
     return m ? m[1] === host && m[2] === port : entry === host;
+  });
+}
+
+// ---------- address checks at connection time (E13-08) ----------
+
+/** Addresses that are not on the public internet: never reached unless listed exactly. */
+const NON_PUBLIC = (() => {
+  const b = new BlockList();
+  for (const [net, bits] of [
+    ['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8], ['169.254.0.0', 16], ['172.16.0.0', 12],
+    ['192.0.0.0', 24], ['192.0.2.0', 24], ['192.88.99.0', 24], ['192.168.0.0', 16], ['198.18.0.0', 15],
+    ['198.51.100.0', 24], ['203.0.113.0', 24], ['224.0.0.0', 4], ['240.0.0.0', 4],
+  ] as const) b.addSubnet(net, bits, 'ipv4');
+  for (const [net, bits] of [
+    ['::', 128], ['::1', 128], ['64:ff9b::', 96], ['64:ff9b:1::', 48], ['100::', 64], ['2001::', 23], ['2001:db8::', 32],
+    ['2002::', 16], ['fc00::', 7], ['fe80::', 10], ['fec0::', 10], ['ff00::', 8],
+  ] as const) b.addSubnet(net, bits, 'ipv6');
+  return b;
+})();
+
+const bare = (host: string) => host.replace(/^\[|\]$/g, '').toLowerCase();
+
+/** The IPv4 address carried in an IPv4-mapped or IPv4-compatible IPv6 address, or null. */
+function embeddedIpv4(ip: string): string | null {
+  const dotted = /^::(?:ffff:)?(\d{1,3}(?:\.\d{1,3}){3})$/.exec(ip);
+  if (dotted) return dotted[1];
+  const hex = /^::(?:ffff:)?([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(ip);
+  if (!hex) return null;
+  const hi = parseInt(hex[1], 16);
+  const lo = parseInt(hex[2], 16);
+  return [hi >> 8, hi & 255, lo >> 8, lo & 255].join('.');
+}
+
+/** True when an IP address is private, loopback, link-local, reserved or otherwise not public. */
+export function nonPublicAddress(address: string): boolean {
+  const ip = bare(address);
+  const family = isIP(ip);
+  if (family === 4) return NON_PUBLIC.check(ip, 'ipv4');
+  if (family !== 6) return true; // not an address at all: refuse
+  const v4 = embeddedIpv4(ip);
+  if (v4 && isIP(v4) === 4) return NON_PUBLIC.check(v4, 'ipv4');
+  return NON_PUBLIC.check(ip, 'ipv6');
+}
+
+/** Whether this exact address (with this port, when the entry names one) is an allow-list entry. Wildcards never count. */
+export function addressListed(address: string, port: string, allowList: unknown): boolean {
+  if (!Array.isArray(allowList)) return false;
+  const ip = bare(address);
+  return allowList.some((raw) => {
+    const entry = String(raw).trim().toLowerCase();
+    const v6 = /^\[([^\]]+)\](?::(\d+))?$/.exec(entry);
+    if (v6) return bare(v6[1]) === ip && (!v6[2] || v6[2] === port);
+    if (isIP(entry) === 6) return entry === ip;
+    const m = /^([^:]+):(\d+)$/.exec(entry);
+    return m ? m[1] === ip && m[2] === port : entry === ip;
+  });
+}
+
+/** Raised (through the connection's name lookup) when an address may not be reached. */
+export class AddressBlockedError extends Error {
+  code = 'GRC_ADDRESS_BLOCKED';
+  constructor(message: string) { super(message); this.name = 'AddressBlockedError'; }
+}
+
+/** Why connecting to `address` for `host` is refused, or null when it may be reached. */
+export function addressRefusal(host: string, address: string, port: string, allowList: unknown): string | null {
+  if (!nonPublicAddress(address) || addressListed(address, port, allowList)) return null;
+  const what = bare(host) === bare(address) ? `Address ${address} is` : `Host ${host} resolves to ${address}, which is`;
+  return `${what} a private, loopback or reserved address. Add that exact address to the allow-list to send there.`;
+}
+
+/**
+ * Posts one webhook body. The host name is resolved here, at connection time, and every address it
+ * resolves to is checked (a name with one public and one private address is refused too). The
+ * connection then goes to the addresses that were checked: nothing is resolved twice.
+ */
+export function postWebhook(
+  url: URL, body: string, headers: Record<string, string>, allowList: unknown, timeoutMs = TIMEOUT_MS,
+): Promise<{ status: number }> {
+  return new Promise((resolve, reject) => {
+    const port = url.port || (url.protocol === 'https:' ? '443' : '80');
+    const host = bare(url.hostname);
+    if (isIP(host)) {
+      // A literal address is connected to as it is (the lookup below is not called for it).
+      const refusal = addressRefusal(host, host, port, allowList);
+      if (refusal) { reject(new AddressBlockedError(refusal)); return; }
+    }
+    const lookup = ((hostname: string, options: { all?: boolean; family?: number } | undefined, callback: (...args: unknown[]) => void) => {
+      dnsLookup(hostname, { all: true, family: options?.family ?? 0 }, (err, addresses: LookupAddress[]) => {
+        if (err) { callback(err); return; }
+        if (!addresses.length) { callback(new Error(`Host ${hostname} has no address.`)); return; }
+        for (const a of addresses) {
+          const refusal = addressRefusal(hostname, a.address, port, allowList);
+          if (refusal) { callback(new AddressBlockedError(refusal)); return; }
+        }
+        if (options?.all) callback(null, addresses);
+        else callback(null, addresses[0].address, addresses[0].family);
+      });
+    }) as unknown as RequestOptions['lookup'];
+    const timeout = () => Object.assign(new Error('timeout'), { name: 'TimeoutError' });
+    const send = url.protocol === 'https:' ? httpsRequest : httpRequest;
+    const req = send(url, {
+      method: 'POST', lookup, timeout: timeoutMs,
+      headers: { ...headers, 'content-length': String(Buffer.byteLength(body)) },
+    }, (res: IncomingMessage) => {
+      res.resume(); // drain; the answer's body is not kept
+      res.on('end', () => resolve({ status: res.statusCode ?? 0 }));
+      res.on('error', reject);
+    });
+    // The whole exchange, not only each pause, is limited to `timeoutMs`.
+    const timer = setTimeout(() => req.destroy(timeout()), timeoutMs);
+    timer.unref?.();
+    req.on('timeout', () => req.destroy(timeout()));
+    req.on('error', (err) => { clearTimeout(timer); reject(err); });
+    req.on('close', () => clearTimeout(timer));
+    req.end(body);
   });
 }
 
@@ -124,19 +247,26 @@ export function registerWebhooks({ app, db, audit, settings, res, box, loadUser,
     const timestamp = String(Math.floor(Date.now() / 1000));
     let code: number | null = null;
     let error: string | null = null;
+    let secret: string;
     try {
-      const response = await fetch(url, {
-        method: 'POST', body, redirect: 'manual', signal: AbortSignal.timeout(TIMEOUT_MS),
-        headers: {
-          'content-type': 'application/json', 'user-agent': 'grc-webhook/1',
-          'x-grc-event': d.event, 'x-grc-delivery': d.id, 'x-grc-timestamp': timestamp,
-          'x-grc-signature': signWebhook(open(d.webhook_id, d.secret), timestamp, body),
-        },
-      });
+      secret = open(d.webhook_id, d.secret);
+    } catch {
+      await finish('blocked', { error: 'The signing secret cannot be read with the current secret key. Replace the secret.' });
+      return;
+    }
+    try {
+      const response = await postWebhook(url, body, {
+        'content-type': 'application/json', 'user-agent': 'grc-webhook/1',
+        'x-grc-event': d.event, 'x-grc-delivery': d.id, 'x-grc-timestamp': timestamp,
+        'x-grc-signature': signWebhook(secret, timestamp, body),
+      }, await allowList());
       code = response.status;
-      await response.arrayBuffer().catch(() => undefined); // drain; the answer's body is not kept
       if (code < 200 || code >= 300) error = `The receiver answered ${code}.`;
     } catch (err) {
+      if (err instanceof AddressBlockedError || (err as { code?: string })?.code === 'GRC_ADDRESS_BLOCKED') {
+        await finish('blocked', { error: (err as Error).message });
+        return;
+      }
       error = (err as Error).name === 'TimeoutError' ? `No answer within ${TIMEOUT_MS / 1000} seconds.` : `Could not connect: ${(err as Error).message}`;
     }
     if (!error) { await finish('delivered', { code }); return; }
@@ -161,15 +291,9 @@ export function registerWebhooks({ app, db, audit, settings, res, box, loadUser,
     }
   }
 
-  // The in-process queue: a timer, not started under test (tests call processDue themselves).
+  // Due deliveries are sent by a job-queue schedule set up by core in app.ts (E14-23); a new one is
+  // also tried at once, except under test (tests call processDue themselves).
   const autoRun = !process.env.VITEST;
-  let timer: NodeJS.Timeout | null = null;
-  app.addHook('onReady', async () => {
-    if (!autoRun) return;
-    timer = setInterval(() => { void processDue().catch((err) => console.error('[webhooks]', err)); }, 30_000);
-    timer.unref();
-  });
-  app.addHook('onClose', async () => { if (timer) clearInterval(timer); });
 
   // ---------- administration ----------
 

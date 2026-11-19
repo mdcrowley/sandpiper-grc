@@ -1,4 +1,5 @@
 import type { FastifyRequest } from 'fastify';
+import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
 import { ensureDefaultQuestionSet, latestAssessment, registerAssessments } from './assessments.ts';
 import { CLAUSE_STATUSES, contractChecklist, DEFAULT_CLAUSES, saveClauseCheck, worstStatus } from './clauses.ts';
@@ -693,29 +694,10 @@ const mod: ModuleDef = {
 
     registerAssessments(ctx);
 
-    // ---------- reminder timer ----------
+    // ---------- reminders, hourly on the job queue (Administration > Background jobs) ----------
 
-    const safeRun = async () => {
-      try {
-        await runContractReminders(ctx);
-      } catch (err) {
-        console.error('[vendors] renewal reminders failed:', (err as Error).message);
-      }
-      try {
-        await runEvidenceReminders(ctx);
-      } catch (err) {
-        console.error('[vendors] evidence reminders failed:', (err as Error).message);
-      }
-    };
-    let timer: ReturnType<typeof setInterval> | undefined;
-    ctx.app.addHook('onReady', async () => {
-      await safeRun();
-      timer = setInterval(safeRun, HOUR);
-      timer.unref();
-    });
-    ctx.app.addHook('onClose', async () => {
-      if (timer) clearInterval(timer);
-    });
+    await scheduleWork(ctx, 'vendors.contract_reminders', async () => ({ fired: (await runContractReminders(ctx)).length }), { every: HOUR, firstRunInMs: 60_000 });
+    await scheduleWork(ctx, 'vendors.evidence_reminders', async () => ({ fired: (await runEvidenceReminders(ctx)).length }), { every: HOUR, firstRunInMs: 70_000 });
   },
 
   seed: (ctx: ModuleContext, opts) => seedVendors(ctx, opts),

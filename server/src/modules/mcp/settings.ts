@@ -16,6 +16,14 @@ export interface McpSettings {
   ratePerMinute: number;
   /** Browser origins allowed to call /mcp. Empty: any request carrying an Origin header is refused. */
   allowedOrigins: string[];
+  /** Role keys whose holders may connect an assistant (E21-17); null = anyone holding a permission. */
+  allowedRoles: string[] | null;
+  /** Tools per role key (E21-19). A role without an entry is not limited. */
+  roleTools: Record<string, string[]>;
+  /** OAuth 2.1 sign-in for remote connectors (E21-16). */
+  oauthEnabled: boolean;
+  /** Connectors may register themselves (RFC 7591 dynamic client registration). */
+  oauthRegistration: boolean;
 }
 
 export const KEYS = {
@@ -24,20 +32,34 @@ export const KEYS = {
   allowedTools: 'mcp.allowed_tools',
   ratePerMinute: 'mcp.rate_per_minute',
   allowedOrigins: 'mcp.allowed_origins',
+  allowedRoles: 'mcp.allowed_roles',
+  roleTools: 'mcp.role_tools',
+  oauthEnabled: 'mcp.oauth_enabled',
+  oauthRegistration: 'mcp.oauth_registration',
 } as const;
 
-export const DEFAULTS: McpSettings = { enabled: false, writeEnabled: false, allowedTools: null, ratePerMinute: 120, allowedOrigins: [] };
+export const DEFAULTS: McpSettings = {
+  enabled: false, writeEnabled: false, allowedTools: null, ratePerMinute: 120, allowedOrigins: [],
+  allowedRoles: null, roleTools: {}, oauthEnabled: false, oauthRegistration: false,
+};
+
+const strings = (v: unknown) => (Array.isArray(v) ? v.map(String) : null);
 
 export async function readSettings(ctx: ModuleContext): Promise<McpSettings> {
   const s = ctx.settings;
-  const tools = await s.get<unknown>(KEYS.allowedTools, null);
-  const origins = await s.get<unknown>(KEYS.allowedOrigins, []);
+  const roleTools = await s.get<unknown>(KEYS.roleTools, {});
   return {
     enabled: (await s.get<unknown>(KEYS.enabled, false)) === true,
     writeEnabled: (await s.get<unknown>(KEYS.writeEnabled, false)) === true,
-    allowedTools: Array.isArray(tools) ? tools.map(String) : null,
+    allowedTools: strings(await s.get<unknown>(KEYS.allowedTools, null)),
     ratePerMinute: Math.max(1, Number(await s.get<unknown>(KEYS.ratePerMinute, DEFAULTS.ratePerMinute)) || DEFAULTS.ratePerMinute),
-    allowedOrigins: Array.isArray(origins) ? origins.map(String) : [],
+    allowedOrigins: strings(await s.get<unknown>(KEYS.allowedOrigins, [])) ?? [],
+    allowedRoles: strings(await s.get<unknown>(KEYS.allowedRoles, null)),
+    roleTools: roleTools && typeof roleTools === 'object' && !Array.isArray(roleTools)
+      ? Object.fromEntries(Object.entries(roleTools as Record<string, unknown>).filter(([, v]) => Array.isArray(v)).map(([k, v]) => [k, (v as unknown[]).map(String)]))
+      : {},
+    oauthEnabled: (await s.get<unknown>(KEYS.oauthEnabled, false)) === true,
+    oauthRegistration: (await s.get<unknown>(KEYS.oauthRegistration, false)) === true,
   };
 }
 
@@ -48,3 +70,22 @@ export const hasMcpScope = (scopes: string[]) => scopes.includes(MCP_SCOPE) || s
 /** Whether a token's effective permissions include any way to create or change records. */
 export const hasWriteScope = (permissions: string[]) =>
   permissions.some((p) => !p.startsWith('mcp.') && (p === '*' || /\.(\*|create|edit)$/.test(p)));
+
+/** Who may connect an assistant (E21-17): someone holding a permission, in an allowed role when roles are chosen. */
+export function mayConnect(settings: McpSettings, user: { roles: string[]; permissions: string[] }): boolean {
+  if (!user.permissions.length) return false;
+  return !settings.allowedRoles || user.roles.some((r) => settings.allowedRoles!.includes(r));
+}
+
+/**
+ * The tools one caller may be offered by choice (E21-19), before permissions and write access:
+ * the administrator's allowed list, narrowed by the caller's roles (the union of their roles'
+ * lists; a role with no list does not narrow) and by the token's own list. null = no narrowing.
+ */
+export function chosenTools(settings: McpSettings, roles: string[], tokenTools: string[] | null): string[] | null {
+  let out: Set<string> | null = settings.allowedTools ? new Set(settings.allowedTools) : null;
+  const narrow = (names: string[]) => { out = out ? new Set([...out].filter((n) => names.includes(n))) : new Set(names); };
+  if (roles.length && roles.every((r) => Array.isArray(settings.roleTools[r]))) narrow([...new Set(roles.flatMap((r) => settings.roleTools[r]))]);
+  if (tokenTools) narrow(tokenTools);
+  return out ? [...(out as Set<string>)].sort() : null;
+}

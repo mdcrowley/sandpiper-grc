@@ -8,6 +8,7 @@
 import { randomBytes } from 'node:crypto';
 import { hostname } from 'node:os';
 import type { Db } from '../db.ts';
+import { featureState, jobOff, SWITCHED_OFF } from '../features.ts';
 import type { Row } from '../module.ts';
 
 export interface JobInfo {
@@ -16,6 +17,11 @@ export interface JobInfo {
   /** 1 on the first run. */
   attempt: number;
   maxAttempts: number;
+  /**
+   * Records how far the job has got (a small JSON value), shown on Background jobs and kept
+   * as the job's result until it finishes. Also renews the job's lease.
+   */
+  progress(value: unknown): Promise<void>;
 }
 
 /** Does the work. Resolve with a small JSON value (kept as the job's result); throw to fail. */
@@ -133,8 +139,19 @@ export function makeJobQueue(db: Db): JobQueue {
       await finish(job, { ok: false, error: Object.assign(new Error(clip(job.last_error) || 'The process running this job stopped before it finished.'), { permanent: true }) });
       return;
     }
+    // Work of a switched-off area (core/features.ts) is skipped, and the run recorded as such.
+    if (jobOff(await featureState(db), job.type)) {
+      await finish(job, { ok: true, result: { skipped: 'switched_off', message: SWITCHED_OFF } });
+      return;
+    }
     try {
-      const result = await h.fn(job.payload ?? {}, { id: job.id, type: job.type, attempt: job.attempts, maxAttempts: job.max_attempts });
+      const progress = async (value: unknown) => {
+        await db.query(
+          `update jobs set result = $2::jsonb, locked_until = now() + make_interval(secs => $4::int) where id = $1 and locked_by = $3`,
+          [job.id, JSON.stringify(value ?? null), worker, h.opts.leaseSeconds],
+        );
+      };
+      const result = await h.fn(job.payload ?? {}, { id: job.id, type: job.type, attempt: job.attempts, maxAttempts: job.max_attempts, progress });
       await finish(job, { ok: true, result });
     } catch (error) {
       await finish(job, { ok: false, error });

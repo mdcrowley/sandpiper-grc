@@ -15,6 +15,12 @@ export interface ProviderConfig {
   issuer: string; clientId: string; scopes: string; tokenAuth: 'client_secret_basic' | 'client_secret_post' | 'none';
   emailClaim: string; nameClaim: string; groupsClaim: string; algorithms: string[]; extraParams: Record<string, string>;
   mappingEnabled: boolean; mappings: { value: string; role: string }[]; jitEnabled: boolean; jitDomains: string[]; trustEmail: boolean;
+  /** E02-22: the provider's multi-factor sign-in counts here, shown by these amr or acr values. */
+  providerMfa?: boolean; mfaAmr?: string[]; mfaAcr?: string[];
+  /** E02-24: also read groups from the userinfo endpoint. */
+  groupsFromUserinfo?: boolean;
+  /** E02-23: sign out at the provider too; let the provider end sessions here (back-channel). */
+  endSession?: boolean; backchannelLogout?: boolean;
 }
 export interface Provider {
   id: string; key: string; type: string; typeLabel: string; name: string; enabled: boolean; isDefault: boolean; sort: number;

@@ -5,12 +5,12 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } 
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { ActionIcon, Alert, Button, CloseButton, Menu, Pagination, Select as MSelect, Text, TextInput, Tooltip } from '@mantine/core';
 import {
-  IconBaselineDensityMedium, IconBaselineDensitySmall, IconBookmark, IconCheck, IconChevronDown, IconUpload,
-  IconPlus, IconSearch, IconTrash,
+  IconBaselineDensityMedium, IconBaselineDensitySmall, IconBookmark, IconCheck, IconChevronDown, IconCloudUpload, IconUpload,
+  IconPlus, IconSearch, IconShare, IconTrash, IconUsers,
 } from '@tabler/icons-react';
-import { errorMessage, listQuery, type ListResult, type Row } from './api';
+import { api, ApiError, errorMessage, listQuery, type ListResult, type Row } from './api';
 import { useAuth } from './auth';
-import { TextField } from './fields';
+import { Checkbox, TextField } from './fields';
 import { fieldMeta } from './FieldValue';
 import { formatNumber } from './format';
 import { useDebounced, useFetch } from './hooks';
@@ -19,6 +19,7 @@ import { BULK_TYPES, BulkBar, BulkEditDialog, downloadRowsCsv } from './ListBulk
 import { ExportMenu } from './ListExport';
 import { FILTERABLE, FilterButton, FilterPills, TAGS_FILTER } from './ListFilters';
 import { EMPTY_VIEW, sameView, useListState, usePref, useSavedViews, type SavedView, type View } from './listState';
+import { useBrowserOnlyViews, useSharedViews, type SharedView } from './sharedViews';
 import { ColumnChooser, ListTable, TableSkeleton, type ListColumn } from './ListTable';
 import { customFieldNames, recordHref, useResource } from './meta';
 import { TagChips } from './tags';
@@ -124,7 +125,14 @@ export function ResourceList({
   const [pageSize, setPageSize] = usePref<number>(`${prefKey}.pageSize.${type}`, defaultPageSize);
 
   const [views, setViews] = useSavedViews(type);
+  // Views shared with everyone who can see this list, and views kept only in this browser (E01-24).
+  const shared = useSharedViews(type, Boolean(resource));
+  const browserOnly = useBrowserOnlyViews(type);
+  const [keptLocal, setKeptLocal] = useState(false);
   const [naming, setNaming] = useState<string | null>(null);
+  const [shareNamed, setShareNamed] = useState(false);
+  const [savingView, setSavingView] = useState(false);
+  const [unsharing, setUnsharing] = useState<SharedView | null>(null);
   const [creating, setCreating] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
   const formDirty = useRef(false);
@@ -279,24 +287,82 @@ export function ResourceList({
   const activeView = views.find((v) => sameView(v.view, view));
   const isAll = sameView(view, EMPTY_VIEW);
   const filtered = Boolean(view.q) || Object.values(view.filters).some((v) => v.length > 0);
-  const saveView = (name: string) => {
+  const activeShared = activeView ? undefined : shared.views.find((v) => sameView(v.view, view));
+  const labelsNow = () => {
     const labels: Record<string, string> = {};
     for (const [key, values] of Object.entries(view.filters)) {
       const meta = fieldMeta(resource, key);
       const label = values[0] && knownLabel(meta.type === 'user' ? 'user' : meta.to ?? '', values[0]);
       if (label) labels[key] = label;
     }
-    const next = [...views.filter((v) => v.name !== name), { name, view: { ...view, labels } }].sort((a, b) => a.name.localeCompare(b.name));
+    return labels;
+  };
+  const shareView = async (name: string, toShare: View): Promise<boolean> => {
+    const same = shared.views.find((v) => v.name.toLowerCase() === name.toLowerCase());
+    const body = { q: toShare.q, sort: toShare.sort, dir: toShare.dir, filters: toShare.filters };
+    try {
+      if (same?.canManage) await api.patch(`/api/views/${same.id}`, { name, view: body });
+      else await api.post('/api/views', { record_type: type, name, view: body });
+      shared.reload();
+      toast.success(`View "${name}" shared with everyone who can see ${plural}.`);
+      return true;
+    } catch (err) {
+      toast.error(err instanceof ApiError && err.code === 'duplicate' ? `Someone else has shared a view called "${name}". Choose another name.` : errorMessage(err));
+      return false;
+    }
+  };
+  const saveView = async (name: string) => {
+    if (shareNamed) {
+      setSavingView(true);
+      const ok = await shareView(name, view);
+      setSavingView(false);
+      if (!ok) return;
+      // A shared view replaces a personal one of the same name.
+      if (views.some((v) => v.name === name)) setViews(views.filter((v) => v.name !== name));
+      setNaming(null);
+      return;
+    }
+    const next = [...views.filter((v) => v.name !== name), { name, view: { ...view, labels: labelsNow() } }].sort((x, y) => x.name.localeCompare(y.name));
     setViews(next);
     setNaming(null);
-    toast.success(`View "${name}" saved.`);
+    toast.success(`View "${name}" saved. It follows you to any browser you sign in from.`);
   };
   const deleteView = (target: SavedView) => {
     const next = views.filter((v) => v !== target);
     setViews(next);
     toast.info(`View "${target.name}" deleted.`);
   };
-  const viewName = activeView ? activeView.name : isAll ? `All ${plural}` : 'Unsaved view';
+  const shareSaved = async (target: SavedView) => {
+    if (await shareView(target.name, target.view)) setViews(views.filter((v) => v !== target));
+  };
+  const unshare = async (target: SharedView) => {
+    try {
+      await api.del(`/api/views/${target.id}`);
+      shared.reload();
+      toast.info(`View "${target.name}" is no longer shared.`);
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setUnsharing(null);
+    }
+  };
+  const keepBrowserViews = () => {
+    setViews(views);
+    setKeptLocal(true);
+    toast.success(`${views.length} ${views.length === 1 ? 'view' : 'views'} kept in your account.`);
+  };
+  const viewName = activeView ? activeView.name : activeShared ? activeShared.name : isAll ? `All ${plural}` : 'Unsaved view';
+
+  const nameHint = (name: string) => {
+    if (shareNamed) {
+      const same = shared.views.find((v) => v.name.toLowerCase() === name.toLowerCase());
+      if (same) return same.canManage ? 'A shared view with this name exists and will be replaced.' : 'Someone else has shared a view with this name. Choose another.';
+      return 'Saves the current search, filters and sort order for everyone who can see this list.';
+    }
+    return views.some((v) => v.name === name)
+      ? 'A view of yours with this name exists and will be replaced.'
+      : 'Saves the current search, filters and sort order in your account, so it follows you to any browser.';
+  };
 
   const newButton = canCreate && (
     <Button leftSection={<IconPlus size={16} aria-hidden="true" />} onClick={() => setCreating(true)}>
@@ -330,7 +396,7 @@ export function ResourceList({
         <FilterButton resource={resource} fields={filters} view={view} setFilter={setFilter} onClear={() => change({ filters: {} })} />
 
         <div className="rc-tools">
-          <Menu position="bottom-end" shadow="md" width={260}>
+          <Menu position="bottom-end" shadow="md" width={300}>
             <Menu.Target>
               <Button variant="default" className="rc-view-button" leftSection={<IconBookmark size={16} aria-hidden="true" />} rightSection={<IconChevronDown size={14} aria-hidden="true" />}>
                 <span className="rc-sr-only">View: </span>
@@ -338,23 +404,61 @@ export function ResourceList({
               </Button>
             </Menu.Target>
             <Menu.Dropdown>
-              <Menu.Label>Views</Menu.Label>
               <Menu.Item leftSection={isAll ? <IconCheck size={16} /> : <span className="rc-menu-gap" />} onClick={() => applyView(EMPTY_VIEW)}>
                 All {plural}
               </Menu.Item>
+              {views.length > 0 && <Menu.Label>My views</Menu.Label>}
               {views.map((v) => (
                 <Menu.Item key={v.name} leftSection={v === activeView ? <IconCheck size={16} /> : <span className="rc-menu-gap" />} onClick={() => applyView(v.view)}>
                   {v.name}
                 </Menu.Item>
               ))}
+              {shared.views.length > 0 && <Menu.Label>Shared with everyone</Menu.Label>}
+              {shared.views.map((v) => (
+                <Menu.Item
+                  key={v.id}
+                  leftSection={v === activeShared ? <IconCheck size={16} /> : <IconUsers size={16} aria-hidden="true" className="rc-menu-muted" />}
+                  onClick={() => applyView(v.view)}
+                >
+                  <span className="rc-view-item">
+                    <span>{v.name}</span>
+                    {v.createdBy && <span className="rc-view-by">{v.mine ? 'Shared by you' : `Shared by ${v.createdBy.label}`}</span>}
+                  </span>
+                </Menu.Item>
+              ))}
               <Menu.Divider />
-              <Menu.Item leftSection={<IconBookmark size={16} />} disabled={isAll} onClick={() => setNaming(activeView?.name ?? '')}>
+              <Menu.Item
+                leftSection={<IconBookmark size={16} />}
+                disabled={isAll}
+                onClick={() => { setShareNamed(Boolean(activeShared)); setNaming(activeView?.name ?? activeShared?.name ?? ''); }}
+              >
                 Save current view…
               </Menu.Item>
+              {activeView && shared.available && (
+                <Menu.Item leftSection={<IconShare size={16} />} onClick={() => void shareSaved(activeView)}>
+                  Share “{activeView.name}” with everyone
+                </Menu.Item>
+              )}
               {activeView && (
                 <Menu.Item color="red" leftSection={<IconTrash size={16} />} onClick={() => deleteView(activeView)}>
                   Delete “{activeView.name}”
                 </Menu.Item>
+              )}
+              {activeShared?.canManage && (
+                <Menu.Item color="red" leftSection={<IconTrash size={16} />} onClick={() => setUnsharing(activeShared)}>
+                  Stop sharing “{activeShared.name}”
+                </Menu.Item>
+              )}
+              {browserOnly.length > 0 && !keptLocal && (
+                <>
+                  <Menu.Divider />
+                  <Menu.Item leftSection={<IconCloudUpload size={16} />} onClick={keepBrowserViews}>
+                    <span className="rc-view-item">
+                      <span>Keep {browserOnly.length === 1 ? 'this browser’s view' : `this browser’s ${browserOnly.length} views`} in your account</span>
+                      <span className="rc-view-by">Saved here before views followed you between browsers</span>
+                    </span>
+                  </Menu.Item>
+                </>
               )}
             </Menu.Dropdown>
           </Menu>
@@ -501,6 +605,16 @@ export function ResourceList({
         onCancel={() => setConfirmClose(false)}
       />
 
+      <ConfirmDialog
+        open={unsharing !== null}
+        title="Stop sharing this view?"
+        message={`“${unsharing?.name ?? ''}” will no longer be offered to anyone. No records are changed.`}
+        confirmLabel="Stop sharing"
+        danger
+        onConfirm={() => { if (unsharing) void unshare(unsharing); }}
+        onCancel={() => setUnsharing(null)}
+      />
+
       <BulkEditDialog
         open={bulkEditing}
         resource={resource}
@@ -531,14 +645,20 @@ export function ResourceList({
           onSubmit={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            if (naming?.trim()) saveView(naming.trim());
+            if (naming?.trim()) void saveView(naming.trim());
           }}
         >
           <TextField label="View name" required autoFocus maxLength={60} value={naming ?? ''} onChange={setNaming}
-            hint={views.some((v) => v.name === naming?.trim()) ? 'A view with this name exists and will be replaced.' : 'Saves the current search, filters and sort order in this browser.'} />
+            hint={nameHint(naming?.trim() ?? '')} />
+          {shared.available && (
+            <Checkbox
+              label="Share with everyone who can see this list" checked={shareNamed} onChange={setShareNamed}
+              hint="They get the same search, filters and sort, and see only the records they are allowed to see. Only you and administrators can change or remove it."
+            />
+          )}
           <div className="rc-form-actions">
             <Button variant="default" onClick={() => setNaming(null)}>Cancel</Button>
-            <Button type="submit" disabled={!naming?.trim()}>Save view</Button>
+            <Button type="submit" loading={savingView} disabled={!naming?.trim()}>{shareNamed ? 'Share view' : 'Save view'}</Button>
           </div>
         </form>
       </Modal>

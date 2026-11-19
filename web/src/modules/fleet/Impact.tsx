@@ -42,8 +42,8 @@ export function ImpactPage() {
           <>
             <div className="grid-stats">
               <Stat label="Systems" value={shown.counts.systems} icon="server" hint={downstream ? 'The system and those it feeds' : 'The system itself'} />
-              <Stat label="Services affected" value={shown.counts.services} icon="map-pin" color={shown.counts.services ? 'amber' : undefined} />
-              <Stat label="Vehicles affected" value={shown.counts.vehicles} icon="box" color={shown.counts.vehicles ? 'amber' : undefined} />
+              <Stat label="Services affected" value={shown.counts.services} icon="route" color={shown.counts.services ? 'amber' : undefined} />
+              <Stat label="Vehicles affected" value={shown.counts.vehicles} icon="bus" color={shown.counts.vehicles ? 'amber' : undefined} />
             </div>
             {shown.systems.length > 1 && (
               <Card title="Systems reached">

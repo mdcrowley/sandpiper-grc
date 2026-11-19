@@ -244,7 +244,7 @@ function Folded({ text, code }: { text: string; code?: boolean }) {
     <details className="adm-fold">
       <summary>
         <span className="adm-fold-preview">{text.replace(/\s+/g, ' ').slice(0, 60)}…</span>
-        <span className="adm-fold-more">Show all ({text.length.toLocaleString('en-GB')} characters)</span>
+        <span className="adm-fold-more">Show all ({text.length.toLocaleString('en-US')} characters)</span>
       </summary>
       <pre className={code ? 'adm-fold-code' : 'adm-fold-text'}>{text}</pre>
     </details>

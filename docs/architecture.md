@@ -24,11 +24,14 @@ There is no ORM: SQL is written by hand with parameters. Background work goes th
 table-backed job queue (`server/src/core/jobs`, `app.jobs`): jobs are rows that a poller
 claims with a lease, so two processes on one database never run the same job and a job
 whose process died is taken up again; failures are retried with back-off. Email, the
-notification digests and the queue's own clean-up run there. Some older scheduled work
-(for example the service-level sweep, the daily retention check and several modules'
-reminders) still uses in-process timers until it moves onto the queue (E14-22). Webhook
-deliveries are rows in their own table that a timer works through, so a restart loses
-none.
+notification digests and every module's scheduled work (the service-level sweep, the
+notification clocks, reminders, report schedules, the file purge, the backup schedule)
+run there as schedules, registered with one call (`scheduleWork`), so each runs once
+however many processes share the database. Long administrative work, such as scanning
+earlier files or moving files between stores, runs as a job that reports its progress.
+`app.ts` starts the queue and email itself, before any module, and schedules core's own work
+there too: the daily retention check and webhook deliveries (every minute, and at once when a
+delivery is queued). Webhook deliveries are rows in their own table, so a restart loses none.
 
 ## Layers
 
@@ -175,7 +178,12 @@ permission module, title field, optional auto-number) and provides:
   attachment file names find their record. Queries under three characters, and types that
   cannot be indexed, use substring matching as before. Because it is a trigger, rows
   written by raw SQL are indexed too. A trigger is rebuilt only when its definition
-  changes.
+  changes. The index row also keeps the text matched by part of a word in
+  `search_index.body`, with a trigram (`pg_trgm`) index (migration 009; the embedded driver
+  loads `pg_trgm`, and on a PostgreSQL server the owner must be allowed to create it, or
+  part-of-a-word matching works without the index). Lists find their page on ids first and
+  take the exact total from the same statement; the embedded database refreshes its
+  planner statistics itself (`GRC_ANALYZE_AFTER_WRITES`).
 - **Tags and watchers** (`server/src/core/tags.ts`) on any record, following the record's
   permissions. Tags filter lists (`f.tags=a,b`, `f.tags.all=`, `f.tags.null=`) and travel
   in rows as `_tags`. Watchers are told about comments and status changes through the
@@ -279,6 +287,11 @@ Local accounts only, plus personal access tokens for scripts. Details and limits
   tasks are restricted types: holding `risks.view` alone is not enough. Without
   `security.view` they do not appear in lists, counts, search, links, exports, stats or
   the audit search.
+- **Feature switches.** An administrator can switch optional parts of the application off
+  (`server/src/core/features.ts`). `can()` then answers false for that part's permissions
+  whoever holds them, its record types leave the resource registry, its routes answer 404
+  `switched_off` and its jobs are skipped, so a switched-off part behaves like a module that
+  is not installed. See [the developer guide](development.md#feature-switches-optional-areas).
 - **The web hides what the user cannot do**, using the permissions in `/api/auth/state`,
   but the server is the control: every route checks again.
 

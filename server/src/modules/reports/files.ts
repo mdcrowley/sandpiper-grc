@@ -114,7 +114,7 @@ function pdfSection(pdf: PdfBuilder, s: DocSection) {
   pdf.paragraph(`${r.total} ${(r.total === 1 ? r.typeLabel : r.plural).toLowerCase()}${r.truncated ? ' (the list is cut short; export to Excel for every row)' : ''}`, { muted: true, size: 8.5 });
 }
 
-const plain = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 2 });
+const plain = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
 const fmt = (v: number | null | undefined) => (v === null || v === undefined ? '' : plain.format(v));
 
 /**

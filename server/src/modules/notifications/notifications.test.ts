@@ -303,7 +303,7 @@ describe('daily digest', () => {
 
     const forOwner = await mineOnly(owner);
     expect(forOwner.map((r: any) => r.record_id).sort()).toEqual([overdue.id, soon.id].sort());
-    expect(forOwner.find((r: any) => r.record_id === overdue.id).title).toMatch(/^Action overdue since \d{1,2} \w{3} \d{4}: Renew the lighthouse license$/);
+    expect(forOwner.find((r: any) => r.record_id === overdue.id).title).toMatch(/^Action overdue since \w{3} \d{1,2}, \d{4}: Renew the lighthouse license$/);
     expect(forOwner.find((r: any) => r.record_id === soon.id).title).toMatch(/^Action due on .*: Review harbour access list$/);
     expect(forOwner[0].route).toBe(`${t.ctx.resources.get('action')!.route}/${forOwner[0].record_id}`);
     const forAssignee = await mineOnly(assignee);

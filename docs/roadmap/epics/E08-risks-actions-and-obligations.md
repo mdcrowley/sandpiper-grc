@@ -1,6 +1,6 @@
 # E08 Risks, actions and obligations
 
-**Status:** in progress
+**Status:** done (22 of 22 issues done)
 
 ## Goal
 
@@ -46,7 +46,7 @@ module; and a register of the obligations the organization must meet.
 | E08-19 | Board-pack risk report | done | P2 |
 | E08-20 | Risk page as a story | done | P2 |
 | E08-21 | Expired-acceptance count on the overview dashboard | done | P3 |
-| E08-22 | Obligation due-date reminders | open | P3 |
+| E08-22 | Obligation due-date reminders | done | P3 |
 
 ---
 
@@ -405,11 +405,17 @@ As a security lead, I see on the overview dashboard how many acceptances have ex
 
 ### E08-22 Obligation due-date reminders
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 As an obligation owner, I am reminded before an obligation's next due date.
 
 **Acceptance criteria**
 
-- [ ] The owner is notified once when the next due date comes within a configurable window
-- [ ] The obligations list can show only those due soon (exists today as a tile)
+- [x] The owner is notified once when the next due date comes within a configurable window
+  (`obligations.reminder_days`, 30, on Administration > Reminders), and once more when it is
+  reached; without an owner, everyone with `obligations.edit`
+- [x] The obligations list can show only those due soon (the **Due in 30 days** tile)
+
+**Implemented in:** `server/src/modules/risks/obligation-reminders.ts` (job
+`obligations.reminders`, every six hours, scheduled in `risks/index.ts`); tests
+`risks/obligation-reminders.test.ts`.

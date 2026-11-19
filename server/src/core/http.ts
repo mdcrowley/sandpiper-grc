@@ -1,5 +1,7 @@
+import { createHash, X509Certificate } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { BlockList, isIP } from 'node:net';
+import { createSecureContext } from 'node:tls';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { isHttps } from './request.ts';
 
@@ -191,4 +193,79 @@ export function planListen(env: Env = process.env, read: (path: string) => Buffe
 export function defaultCookieSecure(plan: Pick<ListenPlan, 'tls'>, env: Env = process.env): string | undefined {
   if (env.GRC_COOKIE_SECURE !== undefined && env.GRC_COOKIE_SECURE.trim() !== '') return undefined;
   return plan.tls || proxyConfigured(env) ? 'auto' : undefined;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Reloading the certificate (E16-33)
+
+export interface TlsReloadResult {
+  ok: boolean;
+  /** What happened, for the log: the new certificate's subject and expiry, or why it was refused. */
+  message: string;
+}
+
+export interface TlsReloader {
+  /** Reads the files now and switches to them if they changed and are valid. Null when unchanged. */
+  check(force?: boolean): TlsReloadResult | null;
+  stop(): void;
+}
+
+/** Seconds between looks at the certificate files: GRC_TLS_RELOAD_SECONDS (default 60, 0 = only on SIGHUP). */
+export function tlsReloadSeconds(env: Env = process.env): number {
+  const raw = env.GRC_TLS_RELOAD_SECONDS?.trim();
+  if (!raw) return 60;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) throw new ListenError(`GRC_TLS_RELOAD_SECONDS must be a number of seconds, 0 or more (got "${raw}").`);
+  return n;
+}
+
+/**
+ * Watches the certificate and key files of an HTTPS server and, when they change, checks the new
+ * pair (both PEM, the key matches the certificate) and gives it to the server for new
+ * connections; connections already open carry on. A broken or half-written pair is reported and
+ * the certificate in use stays; it is tried again when either file changes.
+ */
+export function watchTlsFiles(
+  server: { setSecureContext(options: { cert: Buffer; key: Buffer }): void },
+  files: Pick<TlsFiles, 'certPath' | 'keyPath' | 'cert' | 'key'>,
+  opts: { intervalMs: number; onResult: (r: TlsReloadResult) => void; read?: (path: string) => Buffer },
+): TlsReloader {
+  const read = opts.read ?? ((p: string) => readFileSync(p));
+  const sig = (cert: Buffer, key: Buffer) => createHash('sha256').update(cert).update('\0').update(key).digest('hex');
+  let seen = sig(files.cert, files.key);
+  let readError = '';
+  const check = (force = false): TlsReloadResult | null => {
+    let cert: Buffer;
+    let key: Buffer;
+    try {
+      cert = read(files.certPath);
+      key = read(files.keyPath);
+    } catch (err) {
+      const r = { ok: false, message: `Cannot read the TLS files; the certificate in use stays: ${(err as Error).message}` };
+      if (r.message === readError && !force) return null; // said once until it changes
+      readError = r.message;
+      opts.onResult(r);
+      return r;
+    }
+    readError = '';
+    const now = sig(cert, key);
+    if (now === seen && !force) return null;
+    seen = now;
+    let result: TlsReloadResult;
+    try {
+      if (!/-----BEGIN [A-Z ]*CERTIFICATE-----/.test(cert.toString('utf8'))) throw new Error(`${files.certPath} is not a PEM certificate`);
+      if (!/-----BEGIN [A-Z ]*PRIVATE KEY-----/.test(key.toString('utf8'))) throw new Error(`${files.keyPath} is not a PEM private key`);
+      createSecureContext({ cert, key }); // throws when the key does not match the certificate
+      const x509 = new X509Certificate(cert);
+      server.setSecureContext({ cert, key });
+      result = { ok: true, message: `TLS certificate reloaded: ${x509.subject.replace(/\n/g, ', ')}, valid until ${new Date(x509.validTo).toISOString()}` };
+    } catch (err) {
+      result = { ok: false, message: `The new TLS certificate was NOT loaded (the previous one stays in use): ${(err as Error).message}` };
+    }
+    opts.onResult(result);
+    return result;
+  };
+  const timer = opts.intervalMs > 0 ? setInterval(() => check(), opts.intervalMs) : null;
+  timer?.unref();
+  return { check, stop: () => timer && clearInterval(timer) };
 }

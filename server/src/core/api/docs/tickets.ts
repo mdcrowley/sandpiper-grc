@@ -23,7 +23,7 @@ export const DOCS: RouteDoc[] = [
   // ---------- one ticket ----------
   route('POST', '/api/tickets/:id/approval', 'Approve or reject a ticket that needs approval', {
     tag: T, permission: 'tickets.approve',
-    description: `${SEEN} A rejection needs a note. 409 \`no_approval\` when the ticket does not need approval. Audited; the owners and the person who logged the ticket are notified.`,
+    description: `${SEEN} A rejection needs a note. One decision per person; enough approvals approve, any rejection rejects, and a later approval by the same person overturns their rejection. Only the named approvers may decide (when any are named), never the requester; 403 otherwise. 409 \`no_approval\` when the ticket does not need approval. Audited; the owners and the person who logged the ticket are notified.`,
     body: "{ decision: 'approved' | 'rejected', note?: string }",
     response: '@ticket',
   }),
@@ -41,7 +41,7 @@ export const DOCS: RouteDoc[] = [
   // ---------- desk-wide views ----------
   route('GET', '/api/tickets/metrics', 'Service desk figures for tickets opened in a date range', {
     tag: T, permission: VIEW,
-    description: 'All tickets when no range is given. Backlog and vendor-held counts describe the desk as it stands now and ignore the range. Runs the service-level sweep first. A bad date answers 400 `validation`.',
+    description: 'All tickets when no range is given. Backlog and vendor-held counts describe the desk as it stands now and ignore the range. Never runs the service-level sweep: a target that has passed counts as missed at once. A bad date answers 400 `validation`.',
     query: { from: q('string', 'Start: a date (whole local day) or a date and time.'), to: q('string', 'End: a date (whole local day) or a date and time.') },
     response: `{ range: { from: datetime | null, to: datetime | null }, as_of: datetime, total: integer, open: integer, resolved: integer,
       volume_by_day: [{ day: date, opened: integer, resolved: integer }],

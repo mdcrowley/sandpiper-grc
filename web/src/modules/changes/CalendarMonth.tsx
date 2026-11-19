@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { cx, Icon, lookupColor, lookupLabel, todayInZone } from '../../core';
+import { dropOnDay, movableProps, type DragState, type MoveProps } from './calendarDrag';
 import type { Blackout, CalendarChange } from './types';
 import { addDays, dayOf, startOfDay, timeLabel, WEEKDAYS } from './util';
 
@@ -46,10 +48,12 @@ export function ConflictMark({ c }: { c: CalendarChange }) {
 const MAX = 3;
 
 /** Month grid: one cell per day, blackout days shaded, conflicts marked. */
-export function CalendarMonth({ days, month, changes, blackouts, onOpenDay }: {
+export function CalendarMonth({ days, month, changes, blackouts, onOpenDay, onMove, canMove }: {
   days: string[]; month: string; changes: CalendarChange[]; blackouts: Blackout[]; onOpenDay: (day: string) => void;
-}) {
+} & MoveProps) {
   const today = todayInZone();
+  const [drag, setDrag] = useState<DragState | null>(null);
+  const [over, setOver] = useState<string | null>(null);
   const cells = byDay(days, changes, blackouts);
   // A table of weeks (rows) and weekdays (cells) for assistive technology; the rows use
   // `display: contents`, so the layout stays one CSS grid of days.
@@ -67,7 +71,16 @@ export function CalendarMonth({ days, month, changes, blackouts, onOpenDay }: {
           <div
             key={day}
             role="cell"
-            className={cx('chg-day', day.slice(0, 7) !== month.slice(0, 7) && 'chg-day-out', day === today && 'chg-day-today', shade.length > 0 && 'chg-day-blackout')}
+            className={cx('chg-day', day.slice(0, 7) !== month.slice(0, 7) && 'chg-day-out', day === today && 'chg-day-today', shade.length > 0 && 'chg-day-blackout', drag && over === day && 'chg-drop-target')}
+            onDragOver={drag ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (over !== day) setOver(day); } : undefined}
+            onDragLeave={drag ? () => setOver((o) => (o === day ? null : o)) : undefined}
+            onDrop={drag ? (e) => {
+              e.preventDefault();
+              const request = dropOnDay(drag, day);
+              setDrag(null);
+              setOver(null);
+              if (request) onMove?.(request);
+            } : undefined}
           >
             {/* The visible day number starts the button's name, so speech users can say it. */}
             <button type="button" className="chg-day-num" onClick={() => onOpenDay(day)}>
@@ -77,7 +90,7 @@ export function CalendarMonth({ days, month, changes, blackouts, onOpenDay }: {
               <span key={b.id} className="chg-day-shade" title={b.reason ?? undefined}><Icon name="lock" size={12} /> <span>{b.name}</span></span>
             ))}
             {list.slice(0, MAX).map((c) => (
-              <Link key={c.id} to={`/changes/${c.id}`} className={eventClass(c)} title={describe(c)}>
+              <Link key={c.id} to={`/changes/${c.id}`} className={eventClass(c)} title={describe(c)} {...movableProps(c, day, { onMove, canMove }, setDrag)}>
                 <ConflictMark c={c} />
                 {dayOf(c.planned_start) === day && <span className="chg-ev-time">{timeLabel(c.planned_start)}</span>}
                 <span className="chg-ev-ref">{c.ref}</span>

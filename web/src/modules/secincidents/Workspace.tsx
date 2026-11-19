@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useState, type ComponentType } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
-  ApiError, Button, ConfirmDialog, ErrorState, errorMessage, Forbidden, formatDateTime, formatDuration, HistoryPanel, Loading, LookupChip,
+  ApiError, Button, ConfirmDialog, CustomFieldsCard, ErrorState, errorMessage, Forbidden, formatDateTime, formatDuration, HistoryPanel, Loading, LookupChip,
   Menu, Modal, NotFound, PageHeader, ResourceForm, Stepper, Tabs, useAuth, useFetch, useRecord, useResource, useToast,
 } from '../../core';
 import type { RecordContext } from '../../core';
@@ -223,6 +223,8 @@ export function Workspace() {
         <aside className="si-rail" aria-label="Clocks and team">
           <ClocksRail incidentId={row.id} declared={!!row.declared_at} version={version} canEdit={canEdit} onChanged={refresh} />
           <TeamCard incidentId={row.id} version={version} onManage={() => goTo('roles')} />
+          {/* The administrator's custom fields (E18-34); renders nothing when there are none. */}
+          <CustomFieldsCard type="security_incident" row={row} onSaved={refresh} />
         </aside>
         <div className="si-main">
           <Tabs label="Incident workspace" tabs={tabs} active={active} onChange={goTo} />

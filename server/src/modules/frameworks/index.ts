@@ -1,6 +1,7 @@
 import type { FastifyRequest } from 'fastify';
 import { todayInZone } from '../../core/config.ts';
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
+import { registerAdmin } from './admin.ts';
 import { registerExtras } from './extras.ts';
 import { DEFAULT_NAMES, NAMES_LIST, mappingProblem, rowsFromText, textFromRows } from './mappings.ts';
 import { seedFrameworks } from './seed.ts';
@@ -428,8 +429,10 @@ const mod: ModuleDef = {
 
     ctx.app.post('/api/assessments', { preHandler: ctx.requirePerm('frameworks.create') }, async (req, reply) => {
       const b = (req.body ?? {}) as Row;
+      // The administrator's custom fields (`cf_<key>`) pass through; the resource engine validates them (E18-34).
+      const custom = Object.fromEntries(Object.entries(b).filter(([k]) => k.startsWith('cf_')));
       const row = await ctx.resources.create('assessment_snapshot', {
-        name: b.name, notes: b.notes, framework_id: b.framework_id, taken_on: b.date ?? b.taken_on,
+        name: b.name, notes: b.notes, framework_id: b.framework_id, taken_on: b.date ?? b.taken_on, ...custom,
       }, req);
       const scale = await loadScale(ctx);
       reply.code(201);
@@ -624,7 +627,8 @@ const mod: ModuleDef = {
         'select framework_name from outcome_mappings group by framework_name order by count(*) desc, framework_name limit 100',
       )).map((r) => r.framework_name));
 
-    registerExtras(ctx, loadScale);
+    await registerExtras(ctx, loadScale);
+    registerAdmin(ctx);
   },
 
   seed: (ctx, opts) => seedFrameworks(ctx, opts),

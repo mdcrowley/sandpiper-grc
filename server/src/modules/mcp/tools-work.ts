@@ -39,12 +39,16 @@ const myWork: ToolSpec = {
   input: {},
   async run(_args, t) {
     const sections: Section[] = [];
+    const steps = 5;
+    await t.progress(0, steps, 'Looking at your tickets');
     const tickets = await listSection(t, 'tickets', 'Open tickets assigned to you', 'ticket',
       { 'f.assignee_id': 'me', 'f.resolved_at.null': 'true', sort: 'resolve_due_at', dir: 'asc' }, ['status', 'priority', 'resolve_due_at']);
     if (tickets) sections.push(tickets);
+    await t.progress(1, steps, 'Looking at your actions');
     const actions = await listSection(t, 'actions', 'Your open actions', 'action',
       { 'f.owner_id': 'me', 'f.status': OPEN_ACTIONS, sort: 'due_on', dir: 'asc' }, ['status', 'priority', 'due_on', 'source']);
     if (actions) sections.push(actions);
+    await t.progress(2, steps, 'Looking at changes waiting for approval');
     const change = await typeMeta(t, 'change');
     if (change && t.can('changes.approve')) {
       const waiting = await t.api.tryGet<{ rows: any[] }>('/api/changes/waiting');
@@ -55,6 +59,7 @@ const myWork: ToolSpec = {
         });
       }
     }
+    await t.progress(3, steps, 'Looking at policies to acknowledge');
     const acks = await t.api.tryGet<{ awaiting: any[] }>('/api/policies/acknowledgments/mine');
     if (acks) {
       sections.push({
@@ -62,6 +67,7 @@ const myWork: ToolSpec = {
         rows: acks.awaiting.slice(0, 10).map((a) => ({ id: a.id, ref: a.policy_ref, title: `${a.policy_title} (version ${a.version})`, due_on: a.due_on, state: a.state, url: `${t.baseUrl}/my-policies` })),
       });
     }
+    await t.progress(4, steps, 'Looking at unread notifications');
     const notes = await t.api.tryGet<{ rows: any[]; total: number }>('/api/notifications?unread=true&pageSize=10');
     if (notes) {
       sections.push({
@@ -69,6 +75,7 @@ const myWork: ToolSpec = {
         rows: notes.rows.map((n) => ({ id: n.id, title: n.title, at: n.created_at, ...(n.route ? { url: `${t.baseUrl}${n.route}` } : {}) })),
       });
     }
+    await t.progress(steps, steps, 'Done');
     const metaTypes = (await t.meta()).resources;
     const text = sections.map((s) => sectionText(s, s.key === 'tickets' ? metaTypes.ticket : s.key === 'actions' ? metaTypes.action : undefined)).join('\n\n');
     return { text: text || 'Nothing to show: none of the work lists are available to you.', data: { user: t.session.user.displayName, sections } };
@@ -95,21 +102,27 @@ const overdueSummary: ToolSpec = {
     ];
     const sections: Section[] = [];
     const meta = await t.meta();
+    const steps = specs.length + 2;
+    let step = 0;
     for (const [key, label, type, params, fields] of specs) {
+      await t.progress(step++, steps, `Looking at ${label.toLowerCase()}`);
       const def = meta.resources[type];
       // Only filters the type really has (installations differ).
       if (!def || Object.keys(params).some((p) => p.startsWith('f.') && !def.fields[p.slice(2).split('.')[0]])) continue;
       const s = await listSection(t, key, label, type, params, fields, n).catch(() => null);
       if (s) sections.push(s);
     }
+    await t.progress(step++, steps, 'Looking at risk reviews');
     if (meta.resources.risk) {
       const risks = await t.api.tryGet<any>('/api/risks/summary');
       if (risks) sections.push({ key: 'risk_reviews', label: 'Risk reviews due', total: Number(risks.reviews_due ?? 0), rows: [], url: t.link('/risks') });
     }
+    await t.progress(step++, steps, 'Looking at safety investigations');
     if (meta.resources.safety_event && t.can('safety.view')) {
       const safety = await t.api.tryGet<any>('/api/safety/summary');
       if (safety?.totals) sections.push({ key: 'safety_investigations', label: 'Safety investigations past due', total: Number(safety.totals.investigations_overdue ?? 0), rows: [] });
     }
+    await t.progress(steps, steps, 'Done');
     const total = sections.reduce((a, s) => a + s.total, 0);
     return {
       text: `Overdue as of ${today}: ${total} in all.\n\n${sections.map((s) => sectionText(s, meta.resources[{ actions: 'action', tickets: 'ticket', vulnerabilities: 'vulnerability', notifications: 'notification_task', obligations: 'obligation', exercises: 'exercise' }[s.key] ?? ''])).join('\n\n')}`,
@@ -168,7 +181,9 @@ const frameworkProgress: ToolSpec = {
       if (!fws.length) fail(`No framework you can see matches "${args.framework}".`, 'not_found');
     }
     const out = [];
-    for (const fw of fws.slice(0, 10)) {
+    const chosen = fws.slice(0, 10);
+    for (const [i, fw] of chosen.entries()) {
+      await t.progress(i, chosen.length, `Reading ${fw.name ?? fw.title ?? 'a framework'}`);
       const p = await t.api.tryGet<any>(`/api/frameworks/${fw.id}/progress`);
       if (!p) continue;
       const now = p.series[p.series.length - 1];
@@ -182,6 +197,7 @@ const frameworkProgress: ToolSpec = {
         url: t.link('/frameworks', fw.id),
       });
     }
+    await t.progress(chosen.length, chosen.length, 'Done');
     return {
       text: out.length
         ? out.map((f) => `${f.name}: ${f.at_target} of ${f.outcomes} outcomes at target (${f.at_target_pct}%), score ${f.score}. By status: ${Object.entries(f.by_status).map(([k, v]) => `${k} ${v}`).join(', ')}.`
@@ -384,7 +400,9 @@ const runReportTool: ToolSpec = {
     const found = isUuid(args.report) ? all.rows.find((r) => r.id === args.report)
       : all.rows.find((r) => String(r.name).toLowerCase() === w) ?? all.rows.find((r) => String(r.name).toLowerCase().includes(w));
     if (!found) fail(`No saved report you can run matches "${args.report}". Call run_report with no report to list them.`, 'not_found');
+    await t.progress(0, 1, `Running ${found.name ?? 'the report'}`);
     const ran = await t.api.get<any>(`/api/reports/${found.id}/run`);
+    await t.progress(1, 1, 'Done');
     const res = ran.result;
     const max = args.max_rows ?? 50;
     const rows = res.rows.slice(0, max).map((r: any) => Object.fromEntries(res.columns.map((c: any) => [c.label ?? c.key, r.d?.[c.key] ?? r.v?.[c.key] ?? null])));
@@ -397,7 +415,53 @@ const runReportTool: ToolSpec = {
   },
 };
 
+
+const systemImpact: ToolSpec = {
+  name: 'system_impact', title: 'What is affected if a system fails', group: 'Work and insight', idempotent: true,
+  description: 'Everything that depends on one system: the systems downstream of it through integrations (with how far away), '
+    + 'and the sites, data categories, assets, vehicles and services of it and of those systems, where you may see them. '
+    + 'Use it to judge the impact of an outage or a change.',
+  available: (a) => a.sees('system'),
+  input: { system: z.string().describe('System id, reference (e.g. SYS-00012) or name.') },
+  async run(args, t) {
+    const type = await t.typeOf('system');
+    const key = String(args.system ?? '').trim();
+    if (!key) fail('Name the system.');
+    let row: Record<string, any> | undefined;
+    try {
+      row = await t.record(type, key);
+    } catch {
+      const found = await t.api.get<{ rows: any[] }>(`${type.path}${qs({ q: key, pageSize: 5 })}`);
+      row = found.rows.find((r) => String(r[type.titleField] ?? '').toLowerCase() === key.toLowerCase()) ?? found.rows[0];
+    }
+    if (!row) fail(`No system you can see matches "${key}".`, 'not_found');
+    await t.progress(0, 1, `Following what depends on ${row![type.titleField] ?? 'the system'}`);
+    const impact = await t.api.get<any>(`/api/systems/${row!.id}/impact`);
+    await t.progress(1, 1, 'Done');
+    const link = (r: { route?: string }) => (r.route ? `${t.baseUrl}${r.route}` : undefined);
+    const list = (rows: any[]) => rows.map((r) => ({ id: r.id, ref: r.ref ?? null, label: r.label, via: r.via?.label ?? null, url: link(r) }));
+    const data = {
+      system: { ...impact.system, url: t.link(type.route, impact.system.id) },
+      counts: impact.counts,
+      downstream: impact.downstream.map((d: any) => ({ id: d.id, ref: d.ref, label: d.label, depth: d.depth, via: d.via?.label ?? null, method: d.method ?? null, criticality: d.criticality_label ?? null, url: link(d) })),
+      sites: list(impact.sites), data_categories: impact.data_categories.map((d: any) => ({ ...list([d])[0], sensitivity: d.sensitivity_label ?? null })),
+      assets: list(impact.assets), vehicles: list(impact.vehicles), services: list(impact.services),
+    };
+    const c = impact.counts;
+    const names = (rows: any[], n = 8) => rows.slice(0, n).map((r) => `${r.ref ? `${r.ref} ` : ''}${r.label}`).join('; ') + (rows.length > n ? ` and ${rows.length - n} more` : '');
+    const lines = [
+      `If ${impact.system.ref ? `${impact.system.ref} ` : ''}${impact.system.label} fails: ${plural(c.systems, 'downstream system')}, ${plural(c.sites, 'site')}, ${plural(c.data_categories, 'data category', 'data categories')}, ${plural(c.assets, 'asset')}, ${plural(c.vehicles, 'vehicle')} and ${plural(c.services, 'service')} affected.`,
+      data.downstream.length ? `Downstream systems: ${data.downstream.slice(0, 10).map((d: any) => `${d.ref ?? ''} ${d.label} (${d.depth === 1 ? 'direct' : `${d.depth} steps`}${d.criticality ? `, ${d.criticality}` : ''})`.trim()).join('; ')}${data.downstream.length > 10 ? ' and more' : ''}.` : '',
+      data.sites.length ? `Sites: ${names(data.sites)}.` : '',
+      data.services.length ? `Services: ${names(data.services)}.` : '',
+      data.vehicles.length ? `Vehicles: ${names(data.vehicles)}.` : '',
+      data.data_categories.length ? `Data: ${names(data.data_categories)}.` : '',
+    ].filter(Boolean);
+    return { text: lines.join('\n'), data };
+  },
+};
+
 export const WORK_TOOLS: ToolSpec[] = [
   myWork, overdueSummary, riskHeatmap, frameworkProgress, incidentClocks, contractsNearingNotice,
-  vulnerabilitySummary, serviceDeskMetrics, fleetEquipmentGaps, safetySummary, runReportTool,
+  vulnerabilitySummary, serviceDeskMetrics, fleetEquipmentGaps, safetySummary, runReportTool, systemImpact,
 ];

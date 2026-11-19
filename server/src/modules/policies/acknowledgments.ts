@@ -5,7 +5,6 @@ import { addDays, daysBetween, localDate } from './dates.ts';
 
 export const REMINDER_SETTING = 'policies.reminder_interval_days';
 export const DEFAULT_REMINDER_INTERVAL = 7;
-const HOUR = 3_600_000;
 
 const list = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : []);
 
@@ -16,7 +15,7 @@ export async function reminderInterval(ctx: ModuleContext): Promise<number> {
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const plainDate = (iso: string) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso); return m ? `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]} ${m[1]}` : iso; };
+const plainDate = (iso: string) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso); return m ? `${MONTHS[Number(m[2]) - 1]} ${Number(m[3])}, ${m[1]}` : iso; };
 
 /**
  * Tells one person about their acknowledgment request. The link opens their own reader for
@@ -186,7 +185,8 @@ export async function runPolicyReminders(ctx: ModuleContext, now: Date = new Dat
   const today = localDate(now);
   const interval = await reminderInterval(ctx);
   // An hour of slack, so a daily timer that drifts a little still fires on the day it should.
-  const cutoff = new Date(now.getTime() - interval * 24 * HOUR + HOUR).toISOString();
+  // A policy may set its own interval (E10-18); otherwise the module setting applies.
+  const cutoff = `($2::timestamptz - make_interval(days => coalesce(p.reminder_interval_days, $3::int)) + interval '1 hour')`;
   const due = await ctx.db.query<Row>(
     `select a.id, a.user_id, a.policy_id, a.due_on, v.version, p.ref, p.title
      from policy_acknowledgements a
@@ -196,19 +196,21 @@ export async function runPolicyReminders(ctx: ModuleContext, now: Date = new Dat
      where a.acknowledged_at is null and a.superseded_at is null and a.due_on < $1::date
        and p.deleted_at is null and p.status = 'published' and v.status = 'published'
        and u.deleted_at is null and u.status = 'active'
-       and (a.reminded_at is null or a.reminded_at <= $2::timestamptz)
+       and (a.reminded_at is null or a.reminded_at <= ${cutoff})
      order by p.ref, a.user_id`,
-    [today, cutoff],
+    [today, now.toISOString(), interval],
   );
   const out: PolicyReminder[] = [];
   for (const policyId of [...new Set(due.map((d) => d.policy_id))]) {
     const mine = due.filter((d) => d.policy_id === policyId);
     // The same condition again in the update keeps this safe if two runs ever overlap.
     const claimed = await ctx.db.query<{ id: string; user_id: string; due_on: unknown }>(
-      `update policy_acknowledgements set reminded_at = $2, reminder_count = reminder_count + 1
-       where id = any($1::uuid[]) and acknowledged_at is null and (reminded_at is null or reminded_at <= $3::timestamptz)
-       returning id, user_id, due_on`,
-      [mine.map((m) => m.id), now.toISOString(), cutoff],
+      `update policy_acknowledgements a set reminded_at = $2, reminder_count = reminder_count + 1
+       from policies p
+       where a.id = any($1::uuid[]) and p.id = a.policy_id and a.acknowledged_at is null
+         and (a.reminded_at is null or a.reminded_at <= ${cutoff})
+       returning a.id, a.user_id, a.due_on`,
+      [mine.map((m) => m.id), now.toISOString(), interval],
     );
     if (!claimed.length) continue;
     for (const c of claimed) {

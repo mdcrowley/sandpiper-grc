@@ -8,7 +8,8 @@
 // could see (and, for an upload, add files to) that one ticket:
 //
 //   PUT /api/attachments/upload?record_type=ticket&record_id=<my ticket>   (needs portal.create)
-//   GET /api/attachments/:id/download   for a file I uploaded to my ticket  (needs portal.view)
+//   GET /api/attachments/:id/download   for a file I uploaded to my ticket, or one the service
+//                                        desk shared with me (E15-13)      (needs portal.view)
 //
 // Nothing else changes: the requester still cannot list a ticket's files through the agent
 // route, see files someone else attached, change or remove a file, or reach any other ticket.
@@ -51,19 +52,28 @@ export function makeFiles(ctx: ModuleContext) {
         const id = (req.params as Row).id;
         if (!ctx.can(req.user, 'portal.view') || typeof id !== 'string' || !UUID_RE.test(id)) return;
         const att = await db.one<Row>(
-          `select record_id from attachments where id = $1 and record_type = 'ticket' and deleted_at is null and created_by = $2`, [id, req.user.id]);
+          `select a.record_id from attachments a
+           where a.id = $1 and a.record_type = 'ticket' and a.deleted_at is null
+             and (a.created_by = $2 or exists (select 1 from ticket_shared_files s where s.attachment_id = a.id and s.ticket_id = a.record_id))`,
+          [id, req.user.id]);
         if (!att || !(await mine(req.user.id, att.record_id))) return;
         req.user = widen(req.user, ['tickets.view']);
       }
     });
   }
 
-  /** The files the caller added to one of their requests; null when files are not available here. */
+  /**
+   * The files of one of the caller's requests that they may see: those they added, and those the
+   * service desk shared with them (`from_desk`). Null when files are not available here.
+   */
   async function forTicket(req: FastifyRequest, ticketId: string): Promise<Row[] | null> {
     if (!available) return null;
     return db.query<Row>(
-      `select id, file_name, size_bytes, created_at as uploaded_at from attachments
-       where record_type = 'ticket' and record_id = $1 and deleted_at is null and created_by = $2 order by created_at`,
+      `select a.id, a.file_name, a.size_bytes, a.created_at as uploaded_at, (s.attachment_id is not null and a.created_by is distinct from $2) as from_desk,
+              case when a.created_by is distinct from $2 then s.shared_by_name end as shared_by_name
+       from attachments a left join ticket_shared_files s on s.attachment_id = a.id and s.ticket_id = a.record_id
+       where a.record_type = 'ticket' and a.record_id = $1 and a.deleted_at is null and (a.created_by = $2 or s.attachment_id is not null)
+       order by a.created_at`,
       [ticketId, req.user!.id]);
   }
 

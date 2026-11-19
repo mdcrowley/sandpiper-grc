@@ -1,0 +1,21 @@
+/* The identity confirmation prompt (core/reauth.ts). Class names keep their adm- prefix from when it lived in the admin module. */
+.adm-reauth { border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 0; width: min(420px, calc(100vw - 2 * var(--s-4))); background: var(--surface); color: var(--text); box-shadow: var(--shadow-3); }
+.adm-reauth::backdrop { background: var(--overlay); }
+.adm-reauth-form { display: grid; gap: var(--s-3); padding: var(--s-5); margin: 0; }
+.adm-reauth-form h2 { margin: 0; font-size: var(--fs-lg); }
+.adm-reauth-form p { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); }
+.adm-reauth-label { font-size: var(--fs-sm); font-weight: 600; }
+.adm-reauth-input { font: inherit; min-height: var(--control-height); padding: 0 var(--s-3); border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface); color: inherit; width: 100%; box-sizing: border-box; }
+.adm-reauth-input:focus-visible, .adm-reauth-button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.adm-reauth-form .adm-reauth-error { color: var(--danger-text); font-weight: 600; min-height: 1.2em; }
+.adm-reauth-actions { display: flex; justify-content: flex-end; gap: var(--s-2); flex-wrap: wrap; }
+.adm-reauth-button { font: inherit; font-weight: 600; min-height: var(--control-height); padding: 0 var(--s-4); border: 1px solid var(--border-control); border-radius: var(--radius); background: var(--surface); color: inherit; cursor: pointer; }
+.adm-reauth-button:hover { background: var(--surface-hover); }
+.adm-reauth-primary { background: var(--brand); border-color: var(--brand); color: var(--brand-contrast); }
+.adm-reauth-primary:hover { background: var(--brand-hover); }
+.adm-reauth-button:disabled { opacity: 0.6; cursor: progress; }
+.adm-reauth-factor { display: grid; gap: var(--s-2); }
+.adm-reauth-factor[hidden] { display: none; }
+.adm-reauth-key { justify-self: start; }
+.adm-reauth-key[hidden] { display: none; }
+.adm-reauth-input:read-only { background: var(--surface-2); color: var(--text-muted); }

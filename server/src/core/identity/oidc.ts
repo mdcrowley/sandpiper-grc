@@ -17,8 +17,14 @@ export interface DiscoveryDoc {
   id_token_signing_alg_values_supported?: string[];
   code_challenge_methods_supported?: string[];
   token_endpoint_auth_methods_supported?: string[];
+  /** RP-initiated logout (E02-23). */
+  end_session_endpoint?: string;
+  backchannel_logout_supported?: boolean;
   [k: string]: unknown;
 }
+
+/** The event a back-channel logout token carries (OpenID Connect Back-Channel Logout 1.0). */
+export const BACKCHANNEL_EVENT = 'http://schemas.openid.net/event/backchannel-logout';
 
 /** Cache lifetimes. Exported so tests can shorten them; nothing else should change them. */
 export const oidcCache = {
@@ -120,13 +126,119 @@ export function identityFromClaims(payload: Record<string, any>, config: OidcCon
   const groups = (Array.isArray(g) ? g : typeof g === 'string' ? [g] : [])
     .filter((x): x is string => typeof x === 'string' && x.length > 0 && x.length <= 256).slice(0, 500);
   const given = [claimText(payload, 'given_name'), claimText(payload, 'family_name')].filter(Boolean).join(' ');
+  const amr = (Array.isArray(payload.amr) ? payload.amr : [])
+    .filter((x: unknown): x is string => typeof x === 'string' && x.length > 0 && x.length <= 100).slice(0, 20);
   return {
     subject: payload.sub,
     email,
     emailVerified: Boolean(email) && (verified || config.trustEmail === true),
     displayName: (claimText(payload, config.nameClaim || 'name') ?? given) || null,
     groups,
+    amr,
+    acr: typeof payload.acr === 'string' && payload.acr.length <= 200 ? payload.acr : null,
+    sid: typeof payload.sid === 'string' && payload.sid.length <= 255 ? payload.sid : null,
   };
+}
+
+/**
+ * Group overage (E02-24): the token says the person has groups but names a source instead of
+ * listing them (OpenID Connect "distributed claims": `_claim_names` / `_claim_sources`; some
+ * directories also send `hasgroups: true`).
+ */
+export function groupsOverage(payload: Record<string, any>, groupsClaim: string): { endpoint: string | null; accessToken: string | null } | null {
+  if (!groupsClaim || payload[groupsClaim] !== undefined) return null;
+  const names = payload._claim_names;
+  const source = names && typeof names === 'object' ? names[groupsClaim] : undefined;
+  if (typeof source === 'string') {
+    const src = payload._claim_sources?.[source];
+    const endpoint = src && typeof src.endpoint === 'string' ? src.endpoint : null;
+    const accessToken = src && typeof src.access_token === 'string' ? src.access_token : null;
+    return { endpoint, accessToken };
+  }
+  if (payload.hasgroups === true || payload.hasgroups === 'true') return { endpoint: null, accessToken: null };
+  return null;
+}
+
+const groupList = (g: unknown): string[] | null => {
+  if (Array.isArray(g)) return g.filter((x): x is string => typeof x === 'string' && x.length > 0 && x.length <= 256).slice(0, 500);
+  if (typeof g === 'string' && g) return [g];
+  return null;
+};
+
+/**
+ * Groups from the userinfo endpoint, or from the distributed-claims endpoint the token names. Only a
+ * JSON answer whose subject matches is used (a signed JWT answer from another party cannot be checked
+ * here, so it is not used). Null when no list could be had.
+ */
+async function fetchGroups(
+  doc: DiscoveryDoc, config: OidcConfig, subject: string, accessToken: string | null, overage: ReturnType<typeof groupsOverage>,
+): Promise<string[] | null> {
+  const tries: { url: string; token: string | null }[] = [];
+  if (doc.userinfo_endpoint && accessToken) tries.push({ url: doc.userinfo_endpoint, token: accessToken });
+  if (overage?.endpoint) tries.push({ url: overage.endpoint, token: overage.accessToken ?? accessToken });
+  for (const t of tries) {
+    if (!t.token || addressProblem(t.url)) continue;
+    try {
+      const { status, json } = await fetchJson(t.url, 'group list', { headers: { authorization: `Bearer ${t.token}` } });
+      if (status !== 200 || !json || typeof json !== 'object') continue;
+      if (json.sub !== undefined && json.sub !== subject) continue; // OIDC Core 5.3.2: must be the same person
+      const found = groupList(json[config.groupsClaim]) ?? groupList(json.value);
+      if (found) return found;
+    } catch {
+      // Not reachable or not usable: try the next source; the caller treats "none" as unknown.
+    }
+  }
+  return null;
+}
+
+/** RP-initiated logout (E02-23): where to send the browser to sign out at the provider too, or null. */
+export async function endSessionUrl(
+  provider: ProviderRecord, opts: { idToken: string | null; postLogoutRedirectUri: string },
+): Promise<string | null> {
+  const config = provider.config as OidcConfig;
+  if (config.endSession !== true) return null;
+  let doc: DiscoveryDoc;
+  try {
+    doc = await discover(config.issuer);
+  } catch {
+    return null; // the provider cannot be reached: signing out here still works
+  }
+  if (typeof doc.end_session_endpoint !== 'string' || addressProblem(doc.end_session_endpoint)) return null;
+  const url = new URL(doc.end_session_endpoint);
+  if (opts.idToken) url.searchParams.set('id_token_hint', opts.idToken);
+  url.searchParams.set('client_id', config.clientId);
+  url.searchParams.set('post_logout_redirect_uri', opts.postLogoutRedirectUri);
+  return url.toString();
+}
+
+/**
+ * Checks a back-channel logout token (OpenID Connect Back-Channel Logout 1.0, section 2.6): signed
+ * by the provider, for this client, recent, with the logout event, a subject or session id, and no nonce.
+ */
+export async function verifyLogoutToken(provider: ProviderRecord, token: string): Promise<{ sub: string | null; sid: string | null; jti: string | null }> {
+  const config = provider.config as OidcConfig;
+  const doc = await discover(config.issuer);
+  const jwt = parseJwt(token);
+  const alg = jwt.header.alg as JwtAlg;
+  const allowed = (config.algorithms?.length ? config.algorithms : SUPPORTED_ALGS).filter((a) => SUPPORTED_ALGS.includes(a));
+  if (!allowed.includes(alg)) throw new IdentityError(`algorithm ${String(jwt.header.alg)} not accepted`);
+  if (jwt.header.crit !== undefined) throw new IdentityError('unsupported critical header');
+  const keys = await keysFor(doc.jwks_uri, typeof jwt.header.kid === 'string' ? jwt.header.kid : undefined, alg);
+  if (!keys.length) throw new IdentityError('signing key not found');
+  if (!keys.some((k) => verifySignature(jwt, alg, k))) throw new IdentityError('bad signature');
+  const p = jwt.payload;
+  const now = Math.floor(Date.now() / 1000);
+  if (p.iss !== doc.issuer) throw new IdentityError('wrong issuer');
+  const audiences = Array.isArray(p.aud) ? p.aud : [p.aud];
+  if (!audiences.includes(config.clientId)) throw new IdentityError('wrong audience');
+  if (typeof p.iat !== 'number' || p.iat > now + 120 || p.iat < now - 600) throw new IdentityError('token too old or from the future');
+  if (p.exp !== undefined && (typeof p.exp !== 'number' || p.exp <= now - 120)) throw new IdentityError('token expired');
+  if (p.nonce !== undefined) throw new IdentityError('a logout token must not carry a nonce');
+  if (!p.events || typeof p.events !== 'object' || typeof p.events[BACKCHANNEL_EVENT] !== 'object') throw new IdentityError('not a logout token');
+  const sub = typeof p.sub === 'string' && p.sub && p.sub.length <= 255 ? p.sub : null;
+  const sid = typeof p.sid === 'string' && p.sid && p.sid.length <= 255 ? p.sid : null;
+  if (!sub && !sid) throw new IdentityError('no subject or session id');
+  return { sub, sid, jti: typeof p.jti === 'string' ? p.jti.slice(0, 255) : null };
 }
 
 const ALG_SET = new Set<string>(SUPPORTED_ALGS);
@@ -170,8 +282,16 @@ export const oidcDriver: ProviderDriver = {
       }
       if (Object.keys(extraParams).length > 10) fields.extraParams = 'Use up to 10 extra parameters.';
     }
+    const onOff = (k: string) => {
+      const v = input[k] !== undefined ? input[k] : existing?.[k] ?? false;
+      if (typeof v !== 'boolean') fields[k] = 'Choose on or off.';
+      return v === true;
+    };
     const config: OidcConfig = {
       ...common,
+      groupsFromUserinfo: onOff('groupsFromUserinfo'),
+      endSession: onOff('endSession'),
+      backchannelLogout: onOff('backchannelLogout'),
       issuer, clientId, scopes: scopes.join(' '), tokenAuth: tokenAuth as OidcConfig['tokenAuth'],
       emailClaim: claim('emailClaim', 'email') || 'email',
       nameClaim: claim('nameClaim', 'name') || 'name',
@@ -195,6 +315,9 @@ export const oidcDriver: ProviderDriver = {
       if (config.tokenAuth !== 'none' && !secret) notes.push('No client secret is stored yet.');
       const methods = doc.token_endpoint_auth_methods_supported;
       if (Array.isArray(methods) && !methods.includes(config.tokenAuth)) notes.push(`The provider does not list "${config.tokenAuth}" among its client authentication methods.`);
+      if (config.endSession && !doc.end_session_endpoint) notes.push('Signing out at the provider is on, but the provider offers no end_session_endpoint.');
+      if (config.backchannelLogout && doc.backchannel_logout_supported === false) notes.push('Back-channel sign-out is on, but the provider says it does not support it.');
+      if (config.groupsFromUserinfo && !doc.userinfo_endpoint) notes.push('Groups from userinfo is on, but the provider offers no userinfo_endpoint.');
       const result: TestResult = {
         ok: notes.length === 0,
         message: notes.length
@@ -204,6 +327,8 @@ export const oidcDriver: ProviderDriver = {
           issuer: doc.issuer, authorizationEndpoint: doc.authorization_endpoint, tokenEndpoint: doc.token_endpoint,
           jwksUri: doc.jwks_uri, signingAlgorithms: algs, keys: keys.keys.length,
           pkce: Array.isArray(doc.code_challenge_methods_supported) ? doc.code_challenge_methods_supported.includes('S256') : 'not stated',
+          endSessionEndpoint: doc.end_session_endpoint ?? null,
+          backchannelLogout: doc.backchannel_logout_supported ?? 'not stated',
         },
       };
       return result;
@@ -227,6 +352,8 @@ export const oidcDriver: ProviderDriver = {
     url.searchParams.set('nonce', nonce);
     url.searchParams.set('code_challenge', pkceChallenge(codeVerifier));
     url.searchParams.set('code_challenge_method', 'S256');
+    // E02-22: when multi-factor sign-in at the provider counts here, ask for the levels that show it.
+    if (config.providerMfa && config.mfaAcr?.length) url.searchParams.set('acr_values', config.mfaAcr.join(' '));
     if (reauth) {
       // Confirming identity before a sensitive action: ask the provider to check the person again.
       url.searchParams.set('prompt', 'login');
@@ -262,7 +389,17 @@ export const oidcDriver: ProviderDriver = {
       throw new IdentityError(`token request refused (${code})`);
     }
     const payload = await verifyIdToken(json.id_token, doc, config, remember.nonce);
-    return identityFromClaims(payload, config);
+    const identity = identityFromClaims(payload, config);
+    identity.idToken = json.id_token;
+    // E02-24: groups the token does not list (too many), or that the administrator asked to read from userinfo.
+    const overage = config.groupsClaim ? groupsOverage(payload, config.groupsClaim) : null;
+    if (config.groupsClaim && (overage || config.groupsFromUserinfo)) {
+      const accessToken = typeof json.access_token === 'string' && json.access_token.length <= 8192 ? json.access_token : null;
+      const fetched = await fetchGroups(doc, config, identity.subject, accessToken, overage);
+      if (fetched) identity.groups = fetched;
+      else if (overage) identity.groupsUnknown = true;
+    }
+    return identity;
   },
 
   forget(provider) {

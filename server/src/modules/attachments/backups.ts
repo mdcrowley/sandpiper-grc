@@ -11,6 +11,7 @@ import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import type { FastifyRequest } from 'fastify';
 import { requireRecentAuth } from '../../core/auth.ts';
+import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { TIME_ZONE, todayInZone } from '../../core/timezone.ts';
 import { describeKeySource, loadArchiveKey } from '../../ops/archive.ts';
@@ -55,7 +56,7 @@ export async function readBackupSettings(ctx: ModuleContext): Promise<BackupSett
 
 /** Hour and minute now in the organization's time zone, as HH:mm. */
 export function nowInZone(at = new Date()): string {
-  return new Intl.DateTimeFormat('en-GB', { timeZone: TIME_ZONE, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(at);
+  return new Intl.DateTimeFormat('en-US', { timeZone: TIME_ZONE, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(at);
 }
 
 function validate(ctx: ModuleContext, body: Row, current: BackupSettings, s3Available: boolean): BackupSettings {
@@ -103,7 +104,7 @@ function validate(ctx: ModuleContext, body: Row, current: BackupSettings, s3Avai
   return next;
 }
 
-export function registerBackups(ctx: ModuleContext) {
+export async function registerBackups(ctx: ModuleContext) {
   const { app, db } = ctx;
   const admin = { preHandler: ctx.requirePerm('admin.administer') };
   const dataDir = dataDirFor(ctx);
@@ -265,8 +266,10 @@ export function registerBackups(ctx: ModuleContext) {
 
   // ---------- schedule ----------
 
-  let first: NodeJS.Timeout | null = null;
-  let timer: NodeJS.Timeout | null = null;
+  // Every five minutes the job queue asks whether a backup is due (Administration > Background
+  // jobs), so one process takes it however many there are. A run may take a while: an hour's lease.
+  await scheduleWork(ctx, 'backups.schedule', () => tick(), { every: 5 * 60_000, firstRunInMs: 45_000, leaseSeconds: 3600, maxAttempts: 1 });
+
   app.addHook('onReady', async () => {
     // A run still marked "running" at start was cut off by a stop, or is the record of the very
     // backup that was just restored (each backup holds its own unfinished row).
@@ -277,15 +280,8 @@ export function registerBackups(ctx: ModuleContext) {
     );
     if (process.env.VITEST) return;
     await writeStatus();
-    const check = () => { void tick().catch((err) => console.error('[backups] schedule check failed:', err)); };
-    first = setTimeout(check, 45_000);
-    timer = setInterval(check, 5 * 60_000);
-    first.unref();
-    timer.unref();
   });
   app.addHook('onClose', async () => {
-    if (first) clearTimeout(first);
-    if (timer) clearInterval(timer);
     await running?.catch(() => undefined);
   });
 

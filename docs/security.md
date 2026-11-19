@@ -126,12 +126,19 @@ minutes** (setting `auth.reauth_minutes`, 1 to 60):
 
 Signing in counts as proof. After that the server answers `403 reauth_required`; the
 administration screens then ask for the password in place (`POST /api/auth/confirm`) and
-carry on with the action. Each refusal, each wrong password and each successful
-confirmation is audited (`reauth.required`, `reauth.failure`, `reauth.success`).
+carry on with the action. **A person who has a second factor is asked for it too** (E01-29):
+after the right password the server answers `400 second_factor_required` (not counted as a
+failure), and the prompt asks for a 6-digit code, a recovery code, or the person's passkey or
+security key (`POST /api/auth/webauthn/confirm/options`, then the answer as `webauthn`). A wrong
+code or a refused key counts towards the same limit as a wrong password (8 in 5 minutes). Each
+refusal, each wrong password or code and each successful confirmation is audited
+(`reauth.required`, `reauth.failure`, `reauth.success`, which says what was proved). A person
+with no password confirms through a linked sign-in provider instead; when that provider is
+trusted for multi-factor sign-in, the confirmation must show one too.
 
 Not covered: editing a user's name, email or department, disabling or unlocking an
-account, ending sessions, departments, configurable lists and non-security settings. The
-confirmation is the password only; it does not ask for the second factor.
+account, ending sessions, departments, configurable lists and non-security settings; and
+high-impact actions outside the administration screens (E01-30).
 
 ### Personal access tokens
 
@@ -171,8 +178,12 @@ For scripts and other tools that call the API without a browser.
   was last used, and from which address); an administrator lists and revokes anyone's
   (`/api/admin/tokens`). Creation and revocation are audited.
 
-Limits: a token cannot be narrowed to particular records or source addresses, and the
-per-token request count is kept in memory (a restart resets the current minute).
+- **Source addresses** (E02-18, optional). A token can be limited to up to 20 addresses or
+  ranges (IPv4, IPv6, CIDR). A request from anywhere else answers 403
+  `token_source_not_allowed` and writes a `token.refused` audit event.
+
+Limits: a token cannot be narrowed to particular records, and the per-token request count
+is kept in memory (a restart resets the current minute).
 
 ### Outbound webhooks
 
@@ -185,7 +196,14 @@ The only outbound connection the application makes. Fenced in three ways:
    queued (they are recorded as `blocked`).
 2. **Allow-list.** A delivery goes only to a host listed in `integrations.allowed_hosts`
    (`host`, `host:port` or `*.domain`); anything else is recorded as `blocked`. Redirects
-   are never followed, and each attempt times out after 10 seconds.
+   are never followed, and each attempt times out after 10 seconds. **The address is checked
+   again after the name is resolved** (E13-08): the host name is looked up when the connection
+   is made, and if any address it resolves to is private, loopback, link-local, carrier-grade
+   NAT, multicast, a documentation range or otherwise reserved (IPv4 and IPv6, including IPv4
+   carried in IPv6), the delivery is `blocked` unless that exact address is itself on the
+   allow-list (`10.0.0.5` or `10.0.0.5:8443`; a wildcard never counts). The connection then
+   goes to the addresses that were checked, so a name cannot resolve one way for the check and
+   another for the connection.
 3. **Restricted records stay in.** Events about restricted records are not sent unless
    the webhook has "include restricted records" switched on, which only a person holding
    `security.view` can do, and which stops applying if the person who switched it on no
@@ -225,6 +243,10 @@ history is kept.
 - The session cookie is `SameSite=Strict`, so browsers do not send it on cross-site
   requests at all.
 - There is no per-session CSRF token. The header is a fixed value.
+- One route is exempt: the sign-in provider's back-channel sign-out
+  (`POST /api/auth/sso/:key/backchannel-logout`), called server to server. It is public, never
+  uses a session, does nothing unless back-channel sign-out is switched on for that provider,
+  and acts only on a logout token signed by the provider (see Sign-in providers).
 
 ### Security headers and content security policy
 
@@ -259,6 +281,11 @@ added to responses sent over HTTPS (see "Network exposure").
 
 - Every `/api/` route needs a session unless explicitly public (health, auth state,
   setup, sign-in, sign-out, one-time links). Routes then check a permission.
+- **Switched-off parts** (Administration > Features, `server/src/core/features.ts`): the
+  permissions of a part an administrator has switched off are held by nobody, `*` and API
+  tokens included; its routes answer 404, its record types are hidden everywhere and its
+  background jobs are skipped. Switching parts on or off needs a recent password
+  confirmation and is audited. Its data is kept.
 - Roles grant permissions of the form `<module>.<action>`, with wildcards. A role that is
   switched off grants nothing.
 - **Restricted records.** Risks, security incidents, notification tasks and vulnerability
@@ -395,7 +422,10 @@ separate, tamper-evident copy.
   sign-in, at enrollment and when turning the factor off.
 - Enrollment is confirmed with a code before it takes effect.
 - Ten single-use recovery codes are issued at enrollment and shown once. Only their
-  SHA-256 hashes are stored. A used code is removed.
+  SHA-256 hashes are stored. A used code is removed. A person whose only second factor is a
+  passkey or security key is offered recovery codes as soon as the first key is added (E02-21);
+  they stand in for the key at sign-in. Codes go when the person's last factor goes (the last
+  key removed with no authenticator app, or the app turned off with no key left).
 - Turning the second factor off needs the password and a current code (or a recovery
   code). Issuing new recovery codes needs the password. An administrator can reset a
   user's second factor; all of these are audited.
@@ -426,7 +456,10 @@ separate, tamper-evident copy.
 - Each key is stored as `enc:v1:<iv>:<tag>:<ciphertext>`: AES-256-GCM with a random
   12-byte iv, bound to the user it belongs to (a ciphertext copied onto another user's row
   does not decrypt). `v1` is the format version. Webhook secrets, sign-in provider client
-  secrets and the mail server password are encrypted the same way with the same key.
+  secrets, the mail server password, the object store secret key, set-up and reset links
+  waiting to be emailed, single sign-on requests in progress and the provider sign-out details
+  of open sessions are encrypted the same way with the same key. Every kind is listed in
+  `core/secretkey-reseal.ts`.
 - The 32-byte encryption key (the **secret key**) comes from, in order: the environment
   variable `GRC_SECRET_KEY` (64 hex characters or base64); the file named by
   `GRC_SECRET_KEY_FILE`; or a file **beside** the data folder, named after it and
@@ -440,6 +473,13 @@ separate, tamper-evident copy.
   compared, then deleted).
 - Keys stored in the clear by an earlier version are encrypted at the next start
   (audited as `mfa.secrets_encrypted`).
+- **Every stored secret is re-encrypted after a key change** (E02-20). At each start, every
+  value written with a retired key is re-encrypted with the current one: authenticator keys
+  (audited as `mfa.secrets_encrypted`) and all the other kinds (audited as
+  `secret_key.reencrypted`, with a count of each). Values that no supplied key can open are
+  left as they are, reported in the start-up log and audited (`mfa.secrets_unreadable`,
+  `secret_key.unreadable`); a webhook whose secret cannot be read is `blocked` with that reason
+  rather than sent unsigned.
 - **Back the key up, separately.** Without it, nobody with a second factor can sign in
   with their authenticator code: they would need a recovery code or an administrator
   reset. Keep a copy of the key somewhere safe, apart from the backups. An encrypted
@@ -447,10 +487,11 @@ separate, tamper-evident copy.
 - **Seeing and changing the key.** `npx tsx server/src/core/secretkey-cli.ts show` says
   where the key comes from (it prints a short fingerprint, never the key). `rotate`, with
   the server stopped, writes a new key and keeps the old one as a retired key. Retired keys
-  can also be given in `GRC_SECRET_KEY_PREVIOUS` (comma-separated). Authenticator keys are
-  re-encrypted with the new key at the next start. Other secrets (webhook, provider and
-  mail-server secrets) are not yet: they stay readable only while the retired key is still
-  supplied, so keep it until they have been replaced.
+  can also be given in `GRC_SECRET_KEY_PREVIOUS` (comma-separated). Every stored secret is
+  re-encrypted with the new key at the next start. `show` also reads the database (with the
+  server stopped, for the embedded database) and says whether any value still needs a retired
+  key: once it says they are no longer needed, delete `<key file>.previous` and clear
+  `GRC_SECRET_KEY_PREVIOUS`.
 - Recovery codes and passwords are hashed, not encrypted, and are unaffected.
 
 ### Passkeys and security keys
@@ -531,6 +572,31 @@ separate, tamper-evident copy.
   passwords.
 - **Unlinking** needs a recent confirmation (a password, or signing in at the provider again),
   ends the other sessions made through that provider, and never removes a person's last way in.
+- **The provider's own second factor** (E02-22, off by default per provider). When an
+  administrator says a provider enforces multi-factor sign-in, a session made through it
+  satisfies this application's second-factor requirement **only when its ID token shows it**:
+  an `amr` value from the provider's list (default `mfa`) or an `acr` from its list (those
+  `acr` values are also asked for with `acr_values`). The result is kept with the session
+  (`identity_sessions.mfa`) and checked against the provider's current setting on every request,
+  so switching the trust off takes effect at once. Other sessions of the same person, and the
+  person's other ways of signing in, are judged on their own.
+- **Signing out at the provider** (E02-23, off by default per provider). RP-initiated logout:
+  signing out here sends the browser to the provider's `end_session_endpoint` with
+  `id_token_hint`, `client_id` and `post_logout_redirect_uri` (the application's address
+  followed by `/`). The ID token is kept for that only, encrypted with the application key and
+  deleted with the session. **Back-channel sign-out**: the provider may call
+  `POST /api/auth/sso/<key>/backchannel-logout` with a logout token, which is checked like an ID
+  token (signature from the provider's key set, issuer, audience, issue time within 10 minutes)
+  and must carry the back-channel logout event, a `sub` or `sid` and no `nonce`. The sessions made
+  through that provider for that person (or that provider session) end. A token is acted on once
+  (its `jti` is remembered for a day). Failures are audited and count against the sign-in limit.
+- **Groups by reference** (E02-24). When a token says the person has groups but names a source
+  instead of listing them ("group overage": `_claim_names`/`_claim_sources`, or `hasgroups`),
+  the groups are read from the provider's userinfo endpoint, then from the named source, with the
+  access token from the sign-in. Only a JSON answer about the same subject is used. If the groups
+  cannot be had, role mapping leaves the person's roles as they are (audited as
+  `identity.groups_unknown`) instead of removing them. An administrator can also choose to read
+  groups from userinfo at every sign-in.
 - **SAML 2.0 is not built**, on purpose: it cannot be done safely without an XML-signature
   implementation (see E02-10).
 
@@ -555,9 +621,33 @@ separate, tamper-evident copy.
   **Nothing can be deleted** through MCP. `mcp.allowed_tools` narrows the tools offered.
 - **Rate-limited** per token (`mcp.rate_per_minute`, default 120), on top of the general
   token limit.
+- **Who may connect.** `mcp.allowed_roles` limits assistant tokens, OAuth consent and every
+  `/mcp` request to members of the chosen roles; `mcp.role_tools` narrows the tools per role,
+  and an owner can narrow them per token.
+- **OAuth 2.1 for remote connectors** (off by default, `mcp.oauth_enabled`). Authorization
+  code with PKCE (S256 only) and a consent screen that asks for the password again; served
+  only over HTTPS or on this computer. Access tokens last an hour and work only at `/mcp`,
+  never on `/api`. Refresh tokens rotate on every use, and a reused code or refresh token
+  ends the whole grant. Dynamic client registration only when an administrator allows it
+  (`mcp.oauth_registration`). Client secrets, codes and tokens are stored only as SHA-256
+  hashes and never logged.
 - **Audited.** Each change names the token, and each write tool adds an `mcp.write` event
   that reads "... via MCP (tool ...) with API token ..." in the record's History. Every
   call is logged without its arguments or results and kept for 90 days.
+
+### Vendor response links
+
+`server/src/modules/vendors/responseLinks.ts`
+
+Vendors can answer an assessment through a link without an account (E06-21). Off by default
+(`vendors.response_links_enabled`; switching it off revokes every open link). A link expires
+(1 to 90 days), can be revoked, stops working once the assessment is completed, and only a
+SHA-256 hash of its secret is stored. The public routes are rate limited per address (60 a
+minute, and 20 wrong links in 15 minutes block the address) and answer the same "not valid"
+for an unknown, expired or revoked link and when the feature is off. The vendor sees the
+questions only, never the weights or staff answers; their answers stay apart until staff take
+them over. Link tokens in paths are masked in the server log, and pages send
+`Referrer-Policy: same-origin`.
 
 ### Files: malware scanning, storage and purge
 
@@ -602,12 +692,12 @@ put the prototype on a network or to hold sensitive real records in it.
   it to `required`.
 - Passkeys and security keys have been checked with a virtual authenticator in the
   browser, not yet with hardware keys over real HTTPS.
-- Password confirmation before sensitive actions asks for the password only, not the
-  second factor, and covers the administration screens only.
 - Single sign-on is OpenID Connect only: no SAML 2.0 and no directory (LDAP) sign-in. A
-  provider sign-in does not ask for this application's second factor and does not read the
-  provider's own (`amr`/`acr`); signing out here does not sign out at the provider (no
-  back-channel or front-channel logout); group "overage" (groups by reference) gives no groups.
+  provider sign-in does not ask for this application's own second factor; it counts as one only
+  when the provider is trusted for multi-factor sign-in and its token shows it. There is no
+  front-channel logout. Groups by reference are read from userinfo or a JSON source only: a
+  directory whose group source needs a provider-specific call (for example a POST) gives no
+  groups, and roles are then left unchanged.
 - Setup and reset links are emailed only when email is set up; otherwise the
   administrator passes them on by hand.
 
@@ -616,25 +706,18 @@ put the prototype on a network or to hold sensitive real records in it.
 - The data folder holds the database and files in the clear, including password hashes.
   The application encrypts only its stored secrets (authenticator keys, webhook, provider
   and mail-server secrets) and, on request, backups and exports.
-- After a change of secret key, only authenticator keys are re-encrypted; other secrets
-  need the retired key until they are replaced.
 - `backup` and `restore` cover the embedded database only; a PostgreSQL server is backed
   up with its own tools. Files in the object store are not in backups.
-- No access log, no alerting, no log retention. Server logs are overwritten at each start.
+- No alerting. The server log (JSON lines, one per request with its request id) rotates by
+  size; secrets in messages, query strings and link tokens in paths are masked.
 - Retention flags records for review but nothing anonymizes them, and audit events are
   kept indefinitely (`retention.audit_months` is recorded, not enforced).
-- Personal access tokens cannot be limited to source addresses or particular records.
-- Webhook receivers' addresses are checked by host name only: an allowed name that
-  resolves to an internal address is still called. Keep the allow-list to names you control.
-- MCP has no OAuth for remote connectors, and once it is switched on anyone with a role may
-  make an assistant token; there is no role permission for it yet.
+- Personal access tokens cannot be limited to particular records.
+- MCP connectors cannot use client ID metadata documents (E21-21): a connector registers
+  itself (when allowed) or is added by an administrator.
 
 **Access control details**
 
-- Opening a ticket list also runs the service-level sweep, so a read request can write
-  breach flags and system audit events.
-- A project item can be escalated to a risk by someone with `projects.edit` who cannot
-  see risks; they get back only the new risk's id and reference.
 - The modules added most recently (change enablement, policies, training, exercises,
   vulnerabilities, attachments, notifications, reports) have had one code review for
   permission, restriction, count-leak, audit and SQL-identifier gaps. Attachments,

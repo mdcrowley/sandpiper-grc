@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { ModuleDef } from '../module.ts';
 import { testApp } from '../../test/helpers.ts';
-import { ensureJobs, PermanentJobError } from './index.ts';
+import { ensureJobs, PermanentJobError, scheduleWork } from './index.ts';
 import { makeJobQueue } from './queue.ts';
 
 // Starts the queue without relying on any module being loaded (GRC_MODULES may be anything).
@@ -148,5 +148,47 @@ describe('job queue', () => {
     expect(now.body).toMatchObject({ status: 'done', schedule: 'test.tick' });
     expect(calls).toBe(2);
     expect((await t.api.post('/api/admin/jobs/schedules/nothing/run')).status).toBe(404);
+  });
+});
+
+describe('recurring work and progress', () => {
+  it('scheduleWork registers the handler and a schedule of the same name', async () => {
+    let runs = 0;
+    await scheduleWork(t.ctx, 'test.recurring', async () => { runs += 1; return { runs }; }, { every: 6 * 3_600_000, firstRunInMs: 0 });
+    const s = await t.db.one<any>(`select type, every_seconds from job_schedules where name = 'test.recurring'`);
+    expect(s).toEqual({ type: 'test.recurring', every_seconds: 6 * 3600 });
+    await t.app.jobs.runDue({ types: ['test.recurring'] });
+    expect(runs).toBe(1);
+    const last = await t.db.one<any>(`select status, result, schedule from jobs where type = 'test.recurring'`);
+    expect(last).toMatchObject({ status: 'done', result: { runs: 1 }, schedule: 'test.recurring' });
+    // Calling it again (a second start) keeps one schedule and its next run time.
+    await scheduleWork(t.ctx, 'test.recurring', async () => undefined, { every: 6 * 3_600_000 });
+    expect((await t.db.query(`select 1 from job_schedules where name = 'test.recurring'`)).length).toBe(1);
+  });
+
+  it('records progress while a job runs', async () => {
+    const seen: unknown[] = [];
+    t.app.jobs.register('test.progress', async (_p, info) => {
+      await info.progress({ done: 1, of: 2 });
+      seen.push((await job(info.id)).result);
+      return { done: 2, of: 2 };
+    });
+    const { id } = await t.app.jobs.enqueue('test.progress', {});
+    await t.app.jobs.runDue({ types: ['test.progress'] });
+    expect(seen).toEqual([{ done: 1, of: 2 }]);
+    expect(await job(id!)).toMatchObject({ status: 'done', result: { done: 2, of: 2 } });
+  });
+
+  it('cleans up finished runs of a schedule after two days, other finished jobs after thirty', async () => {
+    t.app.jobs.register('test.old', async () => 'ok');
+    const a = await t.app.jobs.enqueue('test.old', {});
+    const b = await t.app.jobs.enqueue('test.old', {});
+    await t.app.jobs.runDue({ types: ['test.old'] });
+    await t.db.query(`update jobs set finished_at = now() - interval '3 days' where id = any($1::uuid[])`, [[a.id, b.id]]);
+    await t.db.query(`update jobs set schedule = 'test.old' where id = $1`, [a.id]);
+    const cleanup = await t.app.jobs.enqueue('jobs.cleanup', {});
+    await t.app.jobs.runNow(cleanup.id!);
+    expect(await job(a.id!)).toBeUndefined();
+    expect((await job(b.id!)).status).toBe('done');
   });
 });

@@ -55,6 +55,7 @@ export const ROUTE_HELP: RouteHelp[] = [
 
   // Cybersecurity
   { prefix: '/frameworks', page: '05-cybersecurity-frameworks', section: 'the-outcomes-board' },
+  { prefix: '/frameworks/settings', page: '05-cybersecurity-frameworks', section: 'framework-settings' },
   { prefix: '/frameworks/outcomes', exact: true, page: '05-cybersecurity-frameworks', section: 'table-view' },
   { prefix: '/frameworks/outcomes', page: '05-cybersecurity-frameworks', section: 'working-on-one-outcome' },
   { prefix: '/assessments', page: '05-cybersecurity-frameworks', section: 'assessments' },
@@ -74,6 +75,7 @@ export const ROUTE_HELP: RouteHelp[] = [
   { prefix: '/vulnerabilities/dashboard', page: '13-vulnerabilities', section: 'the-dashboard' },
   { prefix: '/vulnerabilities/import', page: '13-vulnerabilities', section: 'import-findings' },
   { prefix: '/vulnerabilities/imports', page: '13-vulnerabilities', section: 'import-history' },
+  { prefix: '/vulnerabilities/duplicates', page: '13-vulnerabilities', section: 'duplicate-findings' },
   { prefix: '/vulnerabilities/settings', page: '13-vulnerabilities', section: 'the-severity-policy' },
   { prefix: '/policies', exact: true, page: '11-policies-and-exceptions', section: 'the-policy-library' },
   { prefix: '/policies', page: '11-policies-and-exceptions', section: 'the-policy-page' },
@@ -108,6 +110,7 @@ export const ROUTE_HELP: RouteHelp[] = [
   { prefix: '/admin/users', exact: true, page: '09-administration', section: 'users' },
   { prefix: '/admin/users', page: '09-administration', section: 'changing-a-persons-details-and-roles' },
   { prefix: '/admin/roles', page: '09-administration', section: 'roles-and-permissions' },
+  { prefix: '/admin/reminders', page: '14-attachments-and-notifications', section: 'reminders' },
   { prefix: '/admin/lists', page: '09-administration', section: 'lists' },
   { prefix: '/admin/settings', page: '09-administration', section: 'settings' },
   { prefix: '/admin/audit', page: '09-administration', section: 'the-audit-log' },
@@ -125,7 +128,8 @@ export const ROUTE_HELP: RouteHelp[] = [
   // Account
   { prefix: '/account/passkeys', page: '16-passkeys-and-security-keys', section: 'add-a-passkey-or-security-key' },
   { prefix: '/account/ai-assistant', page: '21-ai-assistants-and-mcp', section: 'connecting-your-assistant' },
-  { prefix: '/forgot-password', page: '01-getting-started' },
+  { prefix: '/forgot-password', page: '14-attachments-and-notifications', section: 'forgot-your-password' },
+  { prefix: '/oauth/authorize', page: '21-ai-assistants-and-mcp', section: 'connecting-a-remote-connector-by-signing-in' },
   { prefix: '/sign-in/passkey', page: '16-passkeys-and-security-keys', section: 'sign-in-with-a-passkey' },
 
   // Self-service portal

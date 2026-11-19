@@ -1,4 +1,4 @@
- open | 0 / 563 || 0 / 454 || 0 / 450 || 0 / 1666 || 0 / 649 || 0 / 1602 || 0 / 535 || 0 / 1760 || 0 / 818 || 0 / 582 || 0 / 952 || 0 / 714 || 0 / 1022 || 0 / 966 || 0 / 858 || 0 / 907 || 0 / 818 || 0 / 909 || 0 / 886 || 0 / 1210 || 0 / 1426 |# Feature tracker
+# Feature tracker
 
 This folder is the project's feature tracker. It lists everything the application does
 and everything it does not do yet, as **epics** (areas of work) made up of **issues**
@@ -135,31 +135,30 @@ status `done`; issues in progress, open or blocked are counted in the total only
 
 | ID | Epic | Status | Done / total |
 |---|---|---|---|
-| [E01](epics/E01-platform-foundations.md) | Platform foundations | in progress | 28 / 32 |
-| [E02](epics/E02-account-security.md) | Account security | in progress | 11 / 26 |
-| [E03](epics/E03-service-desk.md) | Service desk | in progress | 19 / 21 |
-| [E04](epics/E04-inventory-and-relationship-map.md) | Inventory and relationship map | in progress | 19 / 23 |
-| [E05](epics/E05-change-enablement.md) | Change enablement | in progress | 8 / 12 |
-| [E06](epics/E06-vendors-and-contracts.md) | Vendors and contracts | in progress | 19 / 21 |
-| [E07](epics/E07-framework-outcomes-and-assessments.md) | Framework outcomes and assessments | in progress | 22 / 25 |
-| [E08](epics/E08-risks-actions-and-obligations.md) | Risks, actions and obligations | in progress | 21 / 22 |
+| [E01](epics/E01-platform-foundations.md) | Platform foundations | in progress | 32 / 33 |
+| [E02](epics/E02-account-security.md) | Account security | in progress | 21 / 26 |
+| [E03](epics/E03-service-desk.md) | Service desk | done | 21 / 21 |
+| [E04](epics/E04-inventory-and-relationship-map.md) | Inventory and relationship map | done | 23 / 23 |
+| [E05](epics/E05-change-enablement.md) | Change enablement | done | 12 / 12 |
+| [E06](epics/E06-vendors-and-contracts.md) | Vendors and contracts | in progress | 21 / 23 |
+| [E07](epics/E07-framework-outcomes-and-assessments.md) | Framework outcomes and assessments | done | 25 / 25 |
+| [E08](epics/E08-risks-actions-and-obligations.md) | Risks, actions and obligations | done | 22 / 22 |
 | [E09](epics/E09-security-incidents-and-notification-clocks.md) | Security incidents and notification clocks | in progress | 23 / 25 |
-| [E10](epics/E10-policies-training-exceptions-exercises-vulnerabilities.md) | Policies, training, exceptions, exercises and vulnerabilities | in progress | 15 / 18 |
-| [E11](epics/E11-projects-and-portfolio.md) | Projects and portfolio | in progress | 23 / 24 |
-| [E12](epics/E12-dashboards-and-reporting.md) | Dashboards and reporting | in progress | 9 / 14 |
-| [E13](epics/E13-imports-api-integrations.md) | Imports, API and integrations | in progress | 14 / 18 |
-| [E14](epics/E14-platform-services.md) | Platform services | in progress | 10 / 27 |
-| [E15](epics/E15-self-service-portal.md) | Self-service portal | in progress | 10 / 14 |
-| [E16](epics/E16-hosting-operations-and-hardening.md) | Hosting, operations and hardening | in progress | 18 / 30 |
-| [E17](epics/E17-documentation.md) | Documentation | in progress | 6 / 14 |
-| [E18](epics/E18-quality-and-known-defects.md) | Quality and known defects | in progress | 26 / 41 |
-| [E19](epics/E19-fleet-and-services.md) | Fleet and services | in progress | 8 / 13 |
-| [E20](epics/E20-safety-management.md) | Safety management | in progress | 10 / 14 |
-| [E21](epics/E21-mcp-server.md) | MCP server (AI assistant access) | in progress | 13 / 20 |
-| | **Total** | | **332 / 454** |
+| [E10](epics/E10-policies-training-exceptions-exercises-vulnerabilities.md) | Policies, training, exceptions, exercises and vulnerabilities | done | 18 / 18 |
+| [E11](epics/E11-projects-and-portfolio.md) | Projects and portfolio | done | 24 / 24 |
+| [E12](epics/E12-dashboards-and-reporting.md) | Dashboards and reporting | in progress | 14 / 16 |
+| [E13](epics/E13-imports-api-integrations.md) | Imports, API and integrations | in progress | 16 / 20 |
+| [E14](epics/E14-platform-services.md) | Platform services | in progress | 23 / 28 |
+| [E15](epics/E15-self-service-portal.md) | Self-service portal | done | 14 / 14 |
+| [E16](epics/E16-hosting-operations-and-hardening.md) | Hosting, operations and hardening | in progress | 27 / 36 |
+| [E17](epics/E17-documentation.md) | Documentation | in progress | 7 / 14 |
+| [E18](epics/E18-quality-and-known-defects.md) | Quality and known defects | in progress | 37 / 46 |
+| [E19](epics/E19-fleet-and-services.md) | Fleet and services | in progress | 12 / 14 |
+| [E20](epics/E20-safety-management.md) | Safety management | done | 14 / 14 |
+| [E21](epics/E21-mcp-server.md) | MCP server (AI assistant access) | in progress | 21 / 22 |
+| | **Total** | | **427 / 476** |
 
-Of the 122 issues not done, 34 are in progress and 88 are open or blocked.
-SAML single sign-on).
+Of the 49 issues not done, 20 are in progress and 29 are open or blocked.
 
 ## Next up
 
@@ -168,20 +167,16 @@ with real data, then those that close the main known gaps.
 
 | # | Issue | Why now |
 |---|---|---|
-| 1 | [E18-03](epics/E18-quality-and-known-defects.md) Proofread NIST CSF 2.0 outcome text | Assessments quote this text; it needs a line-by-line check against the publication |
-| 2 | [E18-08](epics/E18-quality-and-known-defects.md) Check that every form can be submitted in the browser | Every record type's form is covered by the browser suite; the hand-written dialogs are not all submitted yet |
-| 3 | [E02-08](epics/E02-account-security.md) Passkeys and security keys | Checked with a virtual authenticator only; test hardware keys over real HTTPS before relying on them |
-| 4 | [E16-05](epics/E16-hosting-operations-and-hardening.md) Run on a PostgreSQL server, with [E16-06](epics/E16-hosting-operations-and-hardening.md) container images | Built and proven in continuous integration; not yet run as a real installation |
-| 5 | [E16-08](epics/E16-hosting-operations-and-hardening.md) Scheduled backups | Backups are built; a scheduled, off-machine run needs proving on a real installation |
-| 6 | [E18-39](epics/E18-quality-and-known-defects.md) Accessibility audit findings, with [E16-15](epics/E16-hosting-operations-and-hardening.md) a screen-reader walkthrough | Two automated findings remain, and no one has used the application with a screen reader |
-| 7 | [E18-06](epics/E18-quality-and-known-defects.md) Check keyboard-only use | The shell and lists are covered; module-by-module journeys are not |
-| 8 | [E16-14](epics/E16-hosting-operations-and-hardening.md) Load testing | Needed before more than a handful of people use one installation |
-| 9 | [E14-22](epics/E14-platform-services.md) Move the other modules' timers onto the job queue | Scheduled work should run once however many server processes there are |
-| 10 | [E02-10](epics/E02-account-security.md) Single sign-on with SAML | Blocked: decide whether to take on an XML-signature library or rely on OpenID Connect |
-| 11 | [E18-28](epics/E18-quality-and-known-defects.md) Features that suit some transit organizations but not all | Nothing may assume one kind of transit organization |
-| 12 | [E15-06](epics/E15-self-service-portal.md) Email-to-ticket | The last missing piece of the self-service portal |
-| 13 | [E21-16](epics/E21-mcp-server.md) OAuth for remote connectors | Lets hosted AI assistants connect without a pasted token |
-| 14 | [E17-14](epics/E17-documentation.md) American English throughout | The screens, file names and web addresses still use some British spellings; renames keep the old names working |
+| 1 | [E02-08](epics/E02-account-security.md) Passkeys and security keys | Checked with a virtual authenticator only; test hardware keys over real HTTPS before relying on them |
+| 2 | [E16-08](epics/E16-hosting-operations-and-hardening.md) Scheduled backups | Backups are built; a scheduled, off-machine run needs proving on a real installation |
+| 3 | [E16-15](epics/E16-hosting-operations-and-hardening.md) A screen-reader walkthrough | The automated audit is clean; no one has used the application with a screen reader |
+| 4 | [E18-28](epics/E18-quality-and-known-defects.md) Features that suit some transit organizations but not all | Nothing may assume one kind of transit organization; feature switches (E14-28) now offer the mechanism |
+| 5 | [E01-33](epics/E01-platform-foundations.md) Review which actions ask to confirm your identity | The shared prompt exists; each module's sensitive actions need a decision |
+| 6 | [E16-38](epics/E16-hosting-operations-and-hardening.md) Embedded database under load | The Overview and global search are slow with several people on the embedded database |
+| 7 | [E09-16](epics/E09-security-incidents-and-notification-clocks.md) Scheduled PDF of the offline kit | Incident responders need the kit current when systems are down |
+| 8 | [E16-35](epics/E16-hosting-operations-and-hardening.md) Confirm the user services on a real systemd and launchd | Written and linted, not yet run on a real Linux or Mac |
+| 9 | [E02-10](epics/E02-account-security.md) Single sign-on with SAML | Blocked: decide whether to take on an XML-signature library or rely on OpenID Connect |
+| 10 | [E18-45](epics/E18-quality-and-known-defects.md) Custom fields on saved reports and dashboards | Either ask them in those dialogs or stop offering those record types |
 
 ## Known gaps coverage
 
@@ -193,42 +188,35 @@ table in step with that file.
 | Gap | Issues |
 |---|---|
 | Single sign-on is OpenID Connect only: no SAML or LDAP | E02-10, E02-26 |
-| A provider sign-in does not use the provider's second factor | E02-22 |
-| Signing out does not sign out at the provider | E02-23 |
-| Email-to-ticket | E15-06 |
 | SMTP is the only mail provider | E14-25 |
 | No general workflow engine | E14-06 |
-| MCP: no OAuth for remote connectors | E21-16 |
-| MCP: no role permission for connecting an assistant | E21-17 |
-| MCP: no progress notifications | E21-20 |
+| MCP connectors cannot use client ID metadata documents | E21-21 |
+| Webhooks for record changes only | E13-19 |
+| Audit events cannot be found by request id | E13-20 |
+| Vendor response links: no file uploads, link not emailed | E06-22, E06-23 |
 
 ### Built but incomplete
 
 | Gap | Issues |
 |---|---|
-| Second factor required by default only through the setup wizard | E02-17, E02-19 |
 | Passkeys not yet checked with hardware keys over HTTPS | E02-08 |
-| Password confirmation asks for the password only | E01-29 |
-| Backups cover the embedded database only; object-store files not in backups | E16-08 |
-| Non-Latin text in server-made PDFs | E12-14 |
+| Identity confirmation not reviewed module by module | E01-33 |
+| Feature switches: hazard matrix while Risks is off; digest; portal switch | E14-28 (done; limits recorded there) |
+| Backups cover the embedded database only; scheduled backups not proven on a real installation | E16-08 |
+| Right-to-left and mixed-script PDF text | E12-16 |
 | The import check does not run record hooks | E13-10 |
-| Other modules' timers and file housekeeping not on the job queue; queue and email started by a module | E14-22, E14-23, E14-27 |
+| Reports cannot be grouped by a multi-choice field | E12-15 |
+| Custom fields not asked on saved reports and dashboards | E18-45 |
 | The If-Match lock is per process | E13-12 (done; the limit is recorded there) |
-| Webhook addresses checked by host name only | E13-08 |
-| Changes cannot be dragged on the calendar | E05-12 |
-| Vulnerability duplicates from before the improved matching | E10-16 |
-| Evidence item and file expiry dates can disagree | E06-20 |
-| NIST CSF 2.0 outcome text must be proofread | E18-03 |
+| Least-privilege account cannot add custom fields; user services not run on a real system | E16-37, E16-35 |
+| Embedded database slow for the Overview and global search under load | E16-38 |
+| Vehicles not drawn on the relationship map | E19-14 |
 | Offline kit prints from the browser (no scheduled PDF) | E09-16 |
-| Multi-choice custom fields in the report builder | E12-13 |
-| Custom fields missing from hand-built forms | E18-34 |
 
 ### Verification status
 
 | Gap | Issues |
 |---|---|
-| Containers and the PostgreSQL server proven in continuous integration only | E16-05, E16-06 |
-| Accessibility findings left, no screen-reader walkthrough | E18-39, E16-15 |
-| Keyboard-only use partly checked | E18-06 |
-| Hand-written dialogs partly submitted | E18-08 |
-| No load testing | E16-14 |
+| No screen-reader walkthrough | E16-15 |
+| Email to ticket, MCP OAuth and HTTPS webhooks tested against stand-ins only | E15-06, E21-16, E13-08 (done; recorded there) |
+| No independent security review or penetration test | E16-40 |

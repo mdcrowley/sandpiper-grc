@@ -13,11 +13,36 @@ interface Entry {
 interface TypeRow {
   type: string; label: string; color: string; completed: number; last_run: string | null; last_id: string | null;
   last_result: string | null; next_due: string | null; next_id: string | null; overdue: boolean;
+  /** How the steps of the last run went (E10-17), when it had steps. */
+  last_steps: StepTally | null;
+}
+interface StepTally { total: number; went_well: number; with_issues: number; not_done: number; not_tested: number; unrecorded: number }
+
+const STEP_PARTS: { key: keyof Omit<StepTally, 'total'>; label: string; color: string }[] = [
+  { key: 'went_well', label: 'went well', color: 'green' }, { key: 'with_issues', label: 'with issues', color: 'amber' },
+  { key: 'not_done', label: 'not done', color: 'red' }, { key: 'not_tested', label: 'not tested', color: 'gray' },
+  { key: 'unrecorded', label: 'not recorded', color: 'gray' },
+];
+
+/** A thin bar of how the steps went, with the counts in words beside it. */
+function StepsBar({ steps }: { steps: StepTally }) {
+  const words = STEP_PARTS.filter((p) => steps[p.key] > 0).map((p) => `${steps[p.key]} ${p.label}`).join(', ');
+  return (
+    <span className="trn-stepsbar-wrap">
+      <span className="trn-stepsbar" aria-hidden="true">
+        {STEP_PARTS.filter((p) => steps[p.key] > 0).map((p) => (
+          <span key={p.key} className={p.key === 'unrecorded' ? 'trn-stepsbar-none' : undefined}
+            style={{ width: `${(steps[p.key] / steps.total) * 100}%`, background: p.key === 'unrecorded' ? undefined : `var(--c-${p.color}-solid)` }} />
+        ))}
+      </span>
+      <span className="trn-stepsbar-text">{steps.total} steps: {words}</span>
+    </span>
+  );
 }
 interface Calendar { today: string; overdue: Entry[]; upcoming: Entry[]; undated: Entry[]; by_type: TypeRow[] }
 
 const monthName = (ym: string) =>
-  new Date(`${ym}-01T00:00:00Z`).toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+  new Date(`${ym}-01T00:00:00Z`).toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
 
 function EntryList({ entries, today, late }: { entries: Entry[]; today: string; late?: boolean }) {
   return (
@@ -87,7 +112,7 @@ export function ExerciseCalendar() {
           <table className="table">
             <caption className="sr-only">Exercise types with the last run and the next one due</caption>
             <thead>
-              <tr><th scope="col">Kind</th><th scope="col" className="num">Completed</th><th scope="col">Last run</th><th scope="col">Result</th><th scope="col">Next</th></tr>
+              <tr><th scope="col">Kind</th><th scope="col" className="num">Completed</th><th scope="col">Last run</th><th scope="col">Result</th><th scope="col">How the steps went</th><th scope="col">Next</th></tr>
             </thead>
             <tbody>
               {data.by_type.map((t) => (
@@ -96,6 +121,7 @@ export function ExerciseCalendar() {
                   <td className="num"><Link to={`/exercises?f.type=${t.type}&f.status=completed`}>{t.completed}</Link></td>
                   <td>{t.last_run && t.last_id ? <Link to={`/exercises/${t.last_id}`}>{formatDate(t.last_run)}</Link> : <span className="muted">Never</span>}</td>
                   <td>{t.last_result ? <LookupChip list="exercise_result" value={t.last_result} /> : <span className="muted">—</span>}</td>
+                  <td>{t.last_steps ? <StepsBar steps={t.last_steps} /> : <span className="muted">No steps recorded</span>}</td>
                   <td>
                     {t.next_due && t.next_id
                       ? <><Link to={`/exercises/${t.next_id}`}>{formatDate(t.next_due)}</Link> <span className={t.overdue ? 'trn-late' : 'muted'}>{daysPhrase(data.today, t.next_due)}</span></>

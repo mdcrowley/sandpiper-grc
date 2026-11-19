@@ -2,6 +2,7 @@
 import type { ModuleDef } from '../../core';
 import { VulnerabilityDashboard } from './Dashboard';
 import { VulnerabilityDetail } from './Detail';
+import { DuplicatesPage } from './Duplicates';
 import { ImportBatchPage, ImportHistory } from './Imports';
 import { ImportWizard } from './ImportWizard';
 import { VulnerabilityList } from './List';
@@ -24,6 +25,7 @@ const mod: ModuleDef = {
     { path: '/vulnerabilities/import', element: <Guard need="importFindings"><ImportWizard /></Guard>, permission: 'vulnerabilities.create' },
     { path: '/vulnerabilities/imports', element: <Guard><ImportHistory /></Guard>, permission: view },
     { path: '/vulnerabilities/imports/:id', element: <Guard><ImportBatchPage /></Guard>, permission: view },
+    { path: '/vulnerabilities/duplicates', element: <Guard><DuplicatesPage /></Guard>, permission: view },
     { path: '/vulnerabilities/settings', element: <Guard><PolicySettings /></Guard>, permission: view },
     { path: '/vulnerabilities/:id', element: <Guard><VulnerabilityDetail /></Guard>, permission: view },
   ],

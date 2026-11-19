@@ -15,6 +15,7 @@ import { MyRequests } from './MyRequests';
 import { RequestDetail } from './RequestDetail';
 import { ArticlePage } from './ArticlePage';
 import { PolicyPage } from './PolicyPage';
+import { SafetyReport } from './SafetyReport';
 import './portal.css';
 
 // The notification bell belongs to the notifications module: looked up, not imported.
@@ -114,6 +115,7 @@ export function PortalApp() {
           <Route path="/portal/requests/:id" element={<RequestDetail />} />
           <Route path="/portal/knowledge/:id" element={<ArticlePage />} />
           <Route path="/portal/policies/:ackId" element={<PolicyPage />} />
+          <Route path="/portal/safety" element={config.has.safety ? <SafetyReport /> : <NotFound />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </ConfigProvider>

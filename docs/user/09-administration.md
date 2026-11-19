@@ -1,10 +1,10 @@
 # Administration
 
-This page is for administrators. It explains how to add people and give them access, how roles and permissions work, how to manage the second sign-in factor, how to change the choices offered in drop-down lists, the application settings, and how to read the audit log. The last section, on the **Account security** page, applies to every user. It also covers single sign-on with your organization's identity provider and the break-glass account (**Sign-in providers**), your own fields on records (**Custom fields**), how long records are kept (**Retention**), **API tokens**, **Webhooks** and the **API reference**. The administration screens are in the **Administration** group of the menu: **Users**, **Roles**, **Sign-in providers**, **Lists**, **Settings**, **Custom fields**, **Retention**, **API tokens**, **Webhooks** and **Audit log**.
+This page is for administrators. It explains how to add people and give them access, how roles and permissions work, how to manage the second sign-in factor, how to change the choices offered in drop-down lists, the application settings, and how to read the audit log. The last section, on the **Account security** page, applies to every user. It also covers single sign-on with your organization's identity provider and the break-glass account (**Sign-in providers**), your own fields on records (**Custom fields**), how long records are kept (**Retention**), **API tokens**, **Webhooks** and the **API reference**. It also covers switching parts of the application on and off (**Features**). The administration screens are in the **Administration** group of the menu: **Users**, **Roles**, **Sign-in providers**, **Lists**, **Settings**, **Features**, **Custom fields**, **Retention**, **API tokens**, **Webhooks** and **Audit log**.
 
 ## What you need
 
-- **Users**, **Roles**, **Sign-in providers**, **Lists**, **Settings**, **Custom fields**, **Retention**, **API tokens** and **Webhooks** need **Administer** on **Administration**. The built-in **Administrator** role has it.
+- **Users**, **Roles**, **Sign-in providers**, **Lists**, **Settings**, **Features**, **Custom fields**, **Retention**, **API tokens** and **Webhooks** need **Administer** on **Administration**. The built-in **Administrator** role has it.
 - **Audit log** needs **View** on **Audit log**. The built-in **Administrator** and **Security lead** roles have it.
 - **Account security** is open to every signed-in user, for their own account.
 
@@ -12,20 +12,21 @@ The first administrator is created by the setup wizard the first time the applic
 
 ### Confirming your password
 
-Some changes decide who can do what, so the application checks it is really you before making them. If you have not given your password in the last 10 minutes, a **Confirm your password** box appears when you:
+Some changes decide who can do what, so the application checks it is really you before making them. If you have not given your password in the last 10 minutes, a **Confirm it is you** box appears when you:
 
 - add a role, change a role's permissions, switch a role on or off, or change **Members must use a second factor**;
 - select **Apply default permissions**;
 - add a user or change a person's roles;
 - reset a person's second factor, or issue a setup or password-reset link;
 - change anything under **Security**, **API tokens** or **Outbound connections** in **Settings**, or the **Idle time-out** under **Sessions**;
+- switch a part of the application on or off under **Features**;
 - make an API token, add a webhook, change where a webhook sends or whether it includes restricted records, or replace a webhook's secret;
 - remove a record for good from the **Retention** review list;
 - add, change or remove a sign-in provider, switch **Allow sign-in with a password** off or on, or change the **Application address**;
 - on a person's **Single sign-on** card: save **Ways to sign in**, **Allow** a link at next sign-in, **Unlink** an identity, or make or remove the break-glass account;
 - link or unlink a provider on your own **Account security** page.
 
-Enter your password and select **Confirm and continue**. The change you asked for is then made; you do not need to repeat it. Select **Cancel** and nothing is changed. You are not asked again for the next 10 minutes (an administrator can change this under **Settings**). Signing in counts, so you will not see the box straight after signing in; that includes signing in through a provider. If you have no password here (you only sign in through a provider), the **Single sign-on** card on **Account security** offers **Confirm with …** instead: you sign in at the provider again and come back.
+Enter your password and select **Confirm and continue**. If you have a second factor, the box then asks for it too: type the **6-digit code** from your authenticator app (or a recovery code), or select **Use your passkey or security key**, and select **Confirm and continue** again. A wrong code is refused with "That code was not accepted", and too many wrong attempts make you wait a few minutes. The change you asked for is then made; you do not need to repeat it. Select **Cancel** and nothing is changed. You are not asked again for the next 10 minutes (an administrator can change this under **Settings**). Signing in counts, so you will not see the box straight after signing in; that includes signing in through a provider. If you have no password here (you only sign in through a provider), the **Single sign-on** card on **Account security** offers **Confirm with …** instead: you sign in at the provider again and come back.
 
 ## Users
 
@@ -141,9 +142,10 @@ A role is a named set of permissions. People get access only through the roles t
 | Role | Intended for | Starts |
 |---|---|---|
 | **Administrator** | Configuration, users and roles. Holds every permission. | On |
-| **Agent** | Service desk and inventory work: tickets, knowledge, inventory and actions, with read access to most other areas. | On |
-| **Security lead** | Risks, frameworks, security incidents, vendors and contracts, and the audit log. | On |
+| **Agent** | Service desk and inventory work: tickets, knowledge, inventory, fleet and actions, with read access to most other areas. | On |
+| **Security lead** | Risks, frameworks, security incidents, vendors and contracts, and the audit log, with read access to fleet and safety. | On |
 | **Project manager** | Projects, gates, status reports and actions. | On |
+| **Safety manager** | Safety team: hazard log, safety events, investigations and indicators, with the action tracker and read access to fleet, systems and sites. | On |
 | **Approver** | People who approve changes, service requests, asset decisions and project gates. It does not include risks: a risk acceptance is recorded by someone who can see the risk, naming the approver. | Off |
 | **Executive viewer** | Read-only dashboards, projects and framework outcomes. | Off |
 | **Auditor** | Read-only access to chosen areas, with export of framework evidence. | Off |
@@ -235,6 +237,10 @@ The application starts on **Reminder** so that nobody is locked out by surprise.
 
 A 6-digit code works once. If you have just used a code, wait for the app to show the next one.
 
+A passkey or security key counts as a second factor too (see [Passkeys and security keys](16-passkeys-and-security-keys.md)), and so does a multi-factor sign-in at your organization's identity provider when you trust that provider for it (see "The provider's own second factor" under Sign-in providers). A person signed in that way sees on **Account security** that the provider confirmed a second factor for this session.
+
+On a new installation set up through the wizard, **Enforcement** starts at **Required** unless the person setting it up chooses **Only remind people for now**.
+
 ### Setting it up for yourself
 
 1. Select your name at the top right and choose **Account security**.
@@ -265,6 +271,8 @@ When a person has lost both their phone and their recovery codes:
 3. On the **Sign-in and security** card, select **Reset second factor** and confirm.
 
 Their authenticator app and recovery codes stop working. They sign in with a password only until they set the second factor up again, so ask them to do that straight away. The button appears only when the person has a second factor set up.
+
+A person whose only second factor is a passkey can make recovery codes too (see [Passkeys and security keys](16-passkeys-and-security-keys.md#recovery-codes-for-passkeys)); if they have lost both their keys and their codes, remove their keys from the **Passkeys and security keys** card on their page.
 
 ## Sign-in providers (single sign-on)
 
@@ -306,6 +314,19 @@ The sign-in uses the authorization code flow with PKCE, a one-time `state` and a
 
 Under **Role mapping**, switch on **Give roles from the provider's groups**, enter the **Groups claim** (for example `groups` or `roles`) and add rules with **Add rule**: a **Group value** and the role it **gives**. At every sign-in through that provider, each role named in a rule follows the person's groups: it is added when they are in a matching group and taken away when they are not. Roles that no rule names are never touched. A change that would leave nobody able to administer is not made, and is recorded in the audit log. Every role change made this way is recorded as a role change on the person.
 
+**People in many groups.** Some cloud directories stop listing groups in the token when a person is in too many, and send a reference instead. The application then asks the provider's userinfo address, and the source the token names, for the list. If it still cannot get it, it leaves the person's roles as they are (recorded as `identity.groups_unknown`) rather than taking them away. If your provider never puts groups in the token, check **Also read groups from the provider's userinfo address**. For a directory whose group list needs its own kind of request, send application roles, or a filtered groups claim, in the token instead.
+
+### The provider's own second factor (off unless you switch it on)
+
+If your identity provider already makes people use a second factor, under **Second factor** switch on **The provider enforces multi-factor sign-in**. A sign-in through that provider then counts as the second factor here, so people who must have one (see [Second factor](#second-factor)) are not asked to set up another. It counts only when the provider's token shows a multi-factor sign-in: one of the **Authentication methods that show it (amr)** (usually `mfa`), or one of the **Authentication levels that show it (acr)** your provider uses. Levels you list are also asked for when the person signs in. A sign-in whose token does not show it counts for nothing, and the person is asked to set up a second factor here as usual. Switching the option off takes effect at once, for people already signed in too.
+
+### Signing out at the provider (off unless you switch it on)
+
+Under **Signing out**:
+
+- **Signing out here also signs out at the provider** sends people to the provider's sign-out page when they sign out, so their organization session ends too; the provider then sends them back to the sign-in page. Register the return address shown (the application's address followed by `/`) with the provider. The provider must offer a sign-out address (**Test connection** shows it).
+- **Let the provider end sessions here (back-channel sign-out)** lets the provider tell this application when a person signs out there or their directory account is disabled: their sessions here made through that provider end at once. Register the address shown (ending in `/backchannel-logout`) with the provider. It works only on a server installation the provider can reach. Each call is recorded (`identity.backchannel_logout`), and a call with a token that does not check out is refused and recorded.
+
 ### Accounts created at first sign-in (off unless you switch it on)
 
 Under **New people**, switch on **Create an account at first sign-in** and list the **Allowed email domains**, one to a line (subdomains must be listed separately). Then a person the provider vouches for, whose verified email is in one of those domains and who has no account here, gets one at first sign-in, with only the roles role mapping gives (none without it). Anyone else with no account sees "there is no account here for you".
@@ -323,7 +344,7 @@ The **Passwords** card has the **Allow sign-in with a password** switch. Switch 
 
 ### The break-glass account
 
-One local administrator kept for when single sign-on is unavailable (the provider is down, or misconfigured). It always signs in with its own password and second factor, never through a provider, and **every sign-in raises an alarm**: a `signin.break_glass` event in the audit log, an in-app notification to every administrator and, when email is switched on, an email to every administrator. The person using it sees a red notice on their **Account security** page for the whole session.
+One local administrator kept for when single sign-on is unavailable (the provider is down, or misconfigured). It always signs in with its own password and second factor, never through a provider, and **every sign-in raises an alarm**: a `signin.break_glass` event in the audit log, an in-app notification to every administrator and, when email is switched on, an email to every administrator. The person using it sees a red notice at the top of **every page** for the whole session: "You are signed in with the break-glass account."
 
 To set it up:
 
@@ -335,7 +356,7 @@ The account must be active, hold the Administrator role, have a password and no 
 
 ### What is recorded
 
-Every sign-in through a provider (`signin.success`, naming the provider), every failure with its reason (`signin.failure`, for example "bad signature", "wrong audience", "token expired", "no account for this email"), every provider change (`identity_provider.create`, `.update`, `.enable`, `.disable`, `.test`, `.delete`), every link and unlink (`identity.link`, `identity.unlink`), link permissions, changes to a person's ways to sign in, and break-glass designations and uses, each with the time and the network address it came from.
+Every sign-in through a provider (`signin.success`, naming the provider, and saying when the provider's multi-factor sign-in counted), every failure with its reason (`signin.failure`, for example "bad signature", "wrong audience", "token expired", "no account for this email"), every provider change (`identity_provider.create`, `.update`, `.enable`, `.disable`, `.test`, `.delete`), every link and unlink (`identity.link`, `identity.unlink`), link permissions, changes to a person's ways to sign in, and break-glass designations and uses, each with the time and the network address it came from.
 
 ## Lists
 
@@ -371,7 +392,11 @@ Values are retired, never deleted, so that existing records keep their meaning.
 
 Some values carry behavior as well as a name, and that behavior belongs to the values supplied with the application. For example, an action counts as finished when its status is **Done** or **Canceled**, and a framework outcome's status decides how much it counts towards the score. A value you add yourself is an ordinary value with none of this behavior: a new action status is treated as open, and a new outcome status counts as zero. A few lists are fixed steps in a process, such as the project stages, the incident statuses and the notification triggers; add to or retire from those only after testing the effect.
 
-Rename supplied values freely, but be cautious about retiring them. You cannot create a new list on this screen.
+Rename supplied values freely, but be cautious about retiring them. You cannot create a new list on this screen. A list made for a custom field's options is named after that field.
+
+### Tags
+
+The **Tags** tab on the same page lists the tags used on each kind of record, with how many records carry each one; select a count to open those records. **Rename** changes a tag on every record at once; renaming it to a tag that already exists merges the two. Every rename and merge is recorded in the audit log.
 
 ## Settings
 
@@ -426,7 +451,7 @@ Changing these asks you to confirm your password.
 | Setting | Starts at | Notes |
 |---|---|---|
 | **Outbound connections** | Off | While off, nothing leaves the application: webhook deliveries are recorded as blocked and never sent. |
-| **Allowed hosts** | Empty | The only hosts a delivery may go to, one to a line: a host name (`receiver.example.org`), a host and port (`receiver.example.org:8443`) or every host under a domain (`*.example.org`). Up to 50. Anything else is blocked. |
+| **Allowed hosts** | Empty | The only hosts a delivery may go to, one to a line: a host name (`receiver.example.org`), a host and port (`receiver.example.org:8443`) or every host under a domain (`*.example.org`). Up to 50. Anything else is blocked. A host name that turns out to point at a private or internal network address (such as `10.x.x.x`, `192.168.x.x` or this machine) is blocked too, unless that exact address is also listed (`10.0.0.5` or `10.0.0.5:8443`). |
 
 ### Retention (settings)
 
@@ -434,11 +459,9 @@ Changing these asks you to confirm your password.
 |---|---|---|---|
 | **Audit log** | 84 | 12 to 1200 months | How long the audit log is to be kept, for your records schedule. It is recorded only: audit events are never deleted. |
 
-### Features
+### Features (settings)
 
-Feature switches control parts of the application that stay hidden until you turn them on. One is listed: **Self-service portal**, which starts off. The portal's pages are not built in this version, so leave it off.
-
-The audience roles (Requester, Approver, Executive viewer, Auditor) are not here. They are switched on the **Roles** page.
+This group only points to **Administration > Features**, where the parts of the application are switched on and off (see [Features](#features) below). The audience roles (Requester, Approver, Executive viewer, Auditor) are not there either: they are switched on the **Roles** page.
 
 ### Files
 
@@ -462,13 +485,63 @@ The **Departments** group holds the list used to group people.
 
 Department changes save immediately; they do not wait for **Save settings**.
 
+## Features
+
+Not every organization uses every part of the application. Open **Administration > Features** to switch off the parts you do not use, for example **Fleet and services** and **Safety management** when you do not manage vehicles or a safety program here, and to switch them back on later.
+
+Each part has a switch, a line saying what it covers, whether it is **On** or **Off**, and what depends on it:
+
+| Part | What it covers | Starts |
+|---|---|---|
+| **Service desk** | Tickets, problems, the knowledge base and the service catalog | On |
+| **Self-service portal** | The simpler pages where anyone submits and tracks their own requests. Needs the service desk | Off |
+| **Change enablement** | Change requests, approvals and the change calendar | On |
+| **Vendors and contracts** | Vendors, contracts, renewals and vendor evidence | On |
+| **Framework outcomes** | Cybersecurity framework outcomes, assessments and target profiles | On |
+| **Risks and obligations** | The risk register, risk reviews and acceptances, and obligations. The action tracker stays | On |
+| **Security incidents** | Security incidents, notification clocks and notification tasks | On |
+| **Policies and exceptions** | Policies, acknowledgments and policy exceptions | On |
+| **Training and exercises** | Courses, assignments and exercises | On |
+| **Vulnerabilities** | Vulnerability records, scanner imports and remediation deadlines | On |
+| **Projects** | Projects, the portfolio and project requests | On |
+| **Dashboards and reports** | Saved dashboards, the report catalog, scheduled reports and report packs. The **Overview** page and its figures stay | On |
+| **Fleet and services** | Vehicles, services (routes and lines) and the systems they depend on | On |
+| **Safety management** | Hazards, safety events, safety performance indicators, and safety reports from the portal | On |
+
+**AI assistant access** is listed too, with its state, but it keeps its own page: select the link to open **Administration > AI assistant access**. **Inventory** (systems, assets, sites, data categories and the relationship map), the **action tracker**, **notifications**, **files**, **administration**, the **Overview** and **Help** are always on.
+
+After an upgrade every part you already had stays on, and the portal keeps the setting it had.
+
+### Switching a part off or on
+
+1. Select the part's switch.
+2. A box asks you to confirm. When you switch a part off it says that the part disappears for everyone and that its data is kept; when something depends on it (the portal depends on the service desk), the box says that part will be switched off too. When you switch a part on that needs another (the portal), the box says the other is switched on as well.
+3. Select **Switch off** or **Switch on**. If you have not confirmed your password in the last few minutes, the **Confirm it is you** box appears first.
+
+The change applies at once for everyone, without a restart. It is recorded in the audit log ("Switched off: Fleet and services").
+
+### What happens when a part is off
+
+The part disappears for everyone, administrators and API tokens included:
+
+- its menu entries, **Create** entries and pages go; an old link to one of its pages says "This part of the application is switched off";
+- its records are left out of search, record links, the relationship map and impact panels (for example the vehicles and services on a system's impact panel and on a security incident's **Affected** tab), the **Overview** widgets, the report catalog and dashboards, imports, exports, custom fields, retention, webhooks, the API reference and the tools offered to AI assistants;
+- its reminders and other background work stop (the **Background jobs** page shows those runs as skipped), and the sample data command does not load its sample records;
+- its permissions are held by nobody: on a role's page those areas are marked **switched off**. The ticks are kept and work again when the part is switched back on;
+- its guide pages are left out of **Help** and its search; a guide page opened by a link says the part is switched off;
+- the API answers 404 with the code `switched_off` for its routes.
+
+Notifications already sent about its records stay in people's lists, shown as "A record you can no longer open".
+
+Nothing is deleted. Switching the part back on restores everything: records, links, history, permissions and reminders.
+
 ## Custom fields
 
 Custom fields are your own fields on a kind of record, added without any change to the software. Open **Administration > Custom fields**.
 
 Choose the kind of record under **Record type**. The table lists its custom fields in order, with **Order**, **Field** (the label, and underneath the name used in the API and exports, such as `cf_funding_source`), **Type**, **Section** and **State** (**In use** or **Switched off**).
 
-A custom field appears on the record type's forms and record pages, can be chosen as a list column and filter, and is included in CSV exports, the record's history and webhook deliveries.
+A custom field appears on the record type's forms and record pages, can be chosen as a list column and filter, and is included in CSV exports, the record's history and webhook deliveries. That includes the guided forms (a new ticket, a new change, declaring a security incident, taking an assessment snapshot, a project request). Two places ask less, on purpose: the self-service portal does not ask the custom fields of tickets (the service desk fills them in, and a required one is not enforced there), and the one-line quick add for actions asks only the required ones. A project request does not ask them of people who may submit requests but not view projects, and does not enforce required ones for them.
 
 ### Adding a field
 
@@ -484,7 +557,7 @@ If something is wrong, for example the key is already used, the reason is shown 
 
 ### Changing and switching off a field
 
-Select **Edit** to change the label, section, position, help or whether it is required. For a choice field you can also **Add options**. **In use** switches the field on or off.
+Select **Edit** to change the label, section, position, help or whether it is required. The up and down buttons in the **Order** column move a field earlier or later on forms. For a choice field you can also **Add options**. **In use** switches the field on or off.
 
 Select **Switch off** to hide a field everywhere. **The values already entered are kept**: select **Switch on** to bring the field and its values back. Fields are never deleted.
 
@@ -525,6 +598,8 @@ Select **Revoke** and confirm to stop a token at once, for example when someone 
 
 A token can never do more than its owner can do at the time. Every change made with a token is recorded in the audit log with the token's name. Tokens cannot sign in, change account security or manage tokens, and cannot confirm a password, so they cannot make the changes listed under "Confirming your password". The longest life and the request limit are under **Settings > API tokens**.
 
+When making a token, its owner can fill in **Allowed source addresses** (up to 20 addresses or ranges, such as `203.0.113.7` or `198.51.100.0/24`). The token is then refused from anywhere else, and each refusal is recorded in the audit log.
+
 ### API reference
 
 **Help > API reference** lists every route the signed-in person may call, grouped by subject, with the method, parameters, request body and what comes back. Type in **Filter routes** to narrow the list, for example "tickets", "POST" or "/api/admin"; select a route to open it. The page also links to the machine-readable description, `openapi.json`.
@@ -533,7 +608,7 @@ A token can never do more than its owner can do at the time. Every change made w
 
 A webhook tells another system, straight away, when records are added, changed or deleted. Open **Administration > Webhooks**.
 
-**Nothing is sent until outbound connections are switched on.** Under **Settings > Outbound connections**, switch on **Outbound connections** and add the receiving host to **Allowed hosts**. Until then every delivery is recorded as blocked, and the page says so at the top. A webhook whose host is not allowed is marked **Host not allowed**.
+**Nothing is sent until outbound connections are switched on.** Under **Settings > Outbound connections**, switch on **Outbound connections** and add the receiving host to **Allowed hosts**. Until then every delivery is recorded as blocked, and the page says so at the top. A webhook whose host is not allowed is marked **Host not allowed**. A receiver on your internal network must be listed by its address as well as its name: a name that leads to a private address is blocked with the reason "... resolves to ..., which is a private, loopback or reserved address".
 
 ### Adding a webhook
 
@@ -664,11 +739,10 @@ The token is shown once. Select **Copy token** and keep it somewhere safe, such 
 ## Not available yet
 
 - Single sign-on supports OpenID Connect only. SAML 2.0 providers and directory (LDAP) sign-in are not available.
-- A provider that lists many groups by reference instead of in the ID token ("group overage") gives no groups, so role mapping sees none; use application roles or a filtered groups claim instead.
-- Signing in through a provider does not ask for this application's own second factor, and a person expected to have one here still needs to set one up when **Enforcement** is **Required**. The provider's own multi-factor check is not yet read.
-- Signing out here does not sign you out of your provider.
-- The application sends no email. Setup and reset links must be passed on by hand, and there are no email or in-app notifications of any kind.
-- Confirming your password does not also ask for your second factor.
+- A directory whose group list can be fetched only with its own kind of request gives no groups when a person is in too many to list; their roles are then left unchanged. Use application roles or a filtered groups claim instead.
+- Signing in through a provider never asks for this application's own second factor; it counts as one only when you trust the provider for it (see "The provider's own second factor").
+- Setup and reset links are emailed only when email is set up (see [Attachments and notifications](14-attachments-and-notifications.md#email-settings)); otherwise you pass them on by hand.
+- Only the administration screens (and Account security) ask you to confirm it is you; other high-impact actions elsewhere do not yet.
 - The **Self-service portal** permissions can be checked on a role but do not control anything yet. They are marked **not yet used** on the role page.
 - The audit log's filters are not kept in the page address, so a filtered view cannot be bookmarked.
 - Roles cannot be deleted and user accounts cannot be removed; switch off or disable them instead.

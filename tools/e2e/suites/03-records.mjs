@@ -4,6 +4,7 @@
 // Covers the create and edit form of every record type (E18-08) and each module's main flow (E18-12).
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { sleep } from '../lib/browser.mjs';
 import { controls, fillControl, fillRequired, invalidControls, submit } from '../lib/forms.mjs';
 
@@ -342,16 +343,17 @@ function journey({ type, open, skip = [], known = {}, start, pick, comment }) {
       });
 
       if (!skip.includes('attachment')) await guarded('attachment', 'attach a file on the Attachments tab', async () => {
-        const dir = join(t.app.dir ?? process.cwd(), 'uploads');
+        // Outside the repository: the files are invented and only need to exist while uploaded.
+        const dir = join(t.app.dir ?? join(tmpdir(), 'sandpiper-e2e'), 'uploads');
         mkdirSync(dir, { recursive: true });
         const file = join(dir, `e2e-${stamp}.txt`);
         writeFileSync(file, `Invented attachment for ${title}\n`);
         // The attachments panel sits on the Attachments tab, or on the record's own Files or Evidence tab.
         const tab = await page.fn(() => {
           const tabs = [...document.querySelectorAll('[role=tab]')].map((x) => x.innerText.replace(/\s*\d+$/, '').trim());
-          return ['Attachments', 'Files', 'Evidence', 'Documents'].find((name) => tabs.includes(name));
+          return ['Attachments', 'Evidence files', 'Files', 'Evidence', 'Documents'].find((name) => tabs.includes(name));
         });
-        if (!tab) throw new Error('no Attachments, Files or Evidence tab');
+        if (!tab) throw new Error('no Attachments, Evidence files, Files or Evidence tab');
         await page.click({ text: tab, tag: '[role=tab]' });
         await page.waitFor('section[aria-label="Attach files"] input[type=file]');
         await page.upload('section[aria-label="Attach files"] input[type=file]', [file]);

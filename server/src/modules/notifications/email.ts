@@ -14,7 +14,7 @@ export const SETTING_DIGEST_HOUR = 'notifications.digest_hour';
 const MAX_ITEMS = 50;
 const RESTRICTED_ITEM = 'A new security notification — open the application to view it';
 
-const hourFormat = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', hourCycle: 'h23', timeZone: TIME_ZONE });
+const hourFormat = new Intl.DateTimeFormat('en-US', { hour: '2-digit', hourCycle: 'h23', timeZone: TIME_ZONE });
 
 export interface EmailDigestResult { people: number; messages: number; items: number }
 

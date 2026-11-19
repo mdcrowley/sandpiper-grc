@@ -151,3 +151,66 @@ export async function exportReference(ctx: ModuleContext, fw: Row): Promise<Refe
     })),
   };
 }
+
+export interface TextRefresh {
+  framework_id: string;
+  dry_run: boolean;
+  /** Outcomes whose official text differs from the shipped text: before and after. */
+  outcomes: { code: string; before: string | null; after: string }[];
+  /** Functions and categories whose name or description differs. */
+  structure: { code: string; field: 'name' | 'description'; before: string | null; after: string | null }[];
+}
+
+/**
+ * Brings the official wording of a framework that is already loaded in line with a reference
+ * (E18-03): outcome text, and function and category names and descriptions. Only parts that
+ * exist on both sides are touched: nothing is added or removed, and statuses, owners, targets,
+ * evidence, mappings and the organization's own descriptions stay as they are.
+ */
+export async function refreshText(ctx: ModuleContext, fw: Row, ref: ReferenceFramework, req: FastifyRequest | null, dryRun = false): Promise<TextRefresh> {
+  const { db } = ctx;
+  const want = new Map(flattenReference(ref).map((o) => [o.code, o.text]));
+  const outcomes = (await db.query<Row>(
+    'select id, code, official_text from framework_outcomes where framework_id = $1 and deleted_at is null order by code', [fw.id]))
+    .filter((o) => want.has(o.code) && want.get(o.code) !== o.official_text)
+    .map((o) => ({ id: o.id as string, code: o.code as string, before: (o.official_text ?? null) as string | null, after: want.get(o.code)! }));
+
+  const parts = new Map<string, { table: string; name: string; description: string | null }>();
+  for (const f of ref.functions) {
+    parts.set(f.code, { table: 'framework_functions', name: f.name, description: f.description ?? null });
+    for (const c of f.categories) parts.set(c.code, { table: 'framework_categories', name: c.name, description: c.description ?? null });
+  }
+  const have = [
+    ...(await db.query<Row>('select id, code, name, description, \'framework_functions\' as tbl from framework_functions where framework_id = $1', [fw.id])),
+    ...(await db.query<Row>('select id, code, name, description, \'framework_categories\' as tbl from framework_categories where framework_id = $1', [fw.id])),
+  ];
+  const structure: (TextRefresh['structure'][number] & { id: string; table: string })[] = [];
+  for (const row of have) {
+    const target = parts.get(row.code);
+    if (!target || target.table !== row.tbl) continue;
+    if (target.name !== row.name) structure.push({ id: row.id, table: row.tbl, code: row.code, field: 'name', before: row.name, after: target.name });
+    if (target.description !== null && target.description !== row.description) {
+      structure.push({ id: row.id, table: row.tbl, code: row.code, field: 'description', before: row.description ?? null, after: target.description });
+    }
+  }
+  structure.sort((a, b) => a.code.localeCompare(b.code));
+  const result: TextRefresh = {
+    framework_id: fw.id, dry_run: dryRun,
+    outcomes: outcomes.map(({ code, before, after }) => ({ code, before, after })),
+    structure: structure.map(({ code, field, before, after }) => ({ code, field, before, after })),
+  };
+  if (dryRun || (!outcomes.length && !structure.length)) return result;
+
+  for (const o of outcomes) await ctx.resources.update('framework_outcome', o.id, { official_text: o.after }, req);
+  for (const s of structure) {
+    // Table and column names come from the fixed lists above, never from the request.
+    await db.query(`update ${s.table} set ${s.field === 'name' ? 'name' : 'description'} = $2 where id = $1`, [s.id, s.after]);
+  }
+  await ctx.audit(req, {
+    action: 'framework.text_refresh', recordType: 'framework', recordId: fw.id,
+    summary: `Official wording of ${fw.name} refreshed: ${outcomes.length} outcome(s), ${structure.length} function or category name(s) and description(s)`,
+    before: { outcomes: result.outcomes.map((o) => ({ code: o.code, text: o.before })), structure: result.structure.map((s) => ({ code: s.code, field: s.field, value: s.before })) },
+    after: { outcomes: result.outcomes.map((o) => ({ code: o.code, text: o.after })), structure: result.structure.map((s) => ({ code: s.code, field: s.field, value: s.after })) },
+  });
+  return result;
+}

@@ -1,4 +1,5 @@
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { registerAffecting } from './affecting.ts';
 import type { ChangeService } from './service.ts';
 
 /** Hand-written routes beside the generated CRUD for `change`. */
@@ -15,6 +16,7 @@ export function registerChangeRoutes(ctx: ModuleContext, svc: ChangeService): vo
 
   // ---------- register, calendar and live conflict check ----------
 
+  registerAffecting(ctx, svc.base);
   app.get('/api/changes/overview', view, async (req) => svc.overview(query(req).week_from, query(req).week_to));
   app.get('/api/changes/calendar', view, async (req) => svc.calendar(query(req).from, query(req).to, query(req).system_id));
   // A read, sent as POST because it carries a list of systems.

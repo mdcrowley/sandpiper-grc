@@ -2,8 +2,9 @@
 // Also answers "Help for this page": /help?for=<pathname> goes straight to the right section.
 import { useMemo } from 'react';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
-import { Card, EmptyState, ErrorState, Loading, PageHeader, TextField } from '../../core';
+import { Card, EmptyState, ErrorState, Loading, PageHeader, TextField, useFetch } from '../../core';
 import { findPage, pageRefs, searchEntries, useGuide } from './guide';
+import { usePageOn } from './areas';
 import { helpFor } from './routeMap';
 import { search, searchWords, splitMarks } from './text';
 import './help.css';
@@ -18,7 +19,9 @@ export default function HelpHome() {
   const q = params.get('q') ?? '';
   const words = useMemo(() => searchWords(q), [q]);
   const entries = useMemo(() => (guide.data ? searchEntries(guide.data) : []), [guide.data]);
-  const hits = useMemo(() => search(entries, q), [entries, q]);
+  // Pages of switched-off parts of the application (Administration > Features) are left out.
+  const pageOn = usePageOn();
+  const hits = useMemo(() => search(entries, q), [entries, q]).filter((h) => pageOn(h.page));
 
   const wanted = params.get('for');
   if (wanted !== null) {
@@ -39,7 +42,7 @@ export default function HelpHome() {
   } else if (!words.length) {
     body = (
       <div className="help-cards">
-        {guide.data.map((p) => (
+        {guide.data.filter((p) => pageOn(p.ref.slug)).map((p) => (
           <Card key={p.ref.slug} title={<Link to={`/help/${p.ref.slug}`}>{p.title}</Link>}>
             <p className="muted help-card-summary">{p.summary}</p>
           </Card>
@@ -77,7 +80,19 @@ export default function HelpHome() {
           {guide.data && words.length ? `${hits.length} ${hits.length === 1 ? 'section matches' : 'sections match'}` : ''}
         </p>
         {body}
+        <AboutVersion />
       </div>
     </>
+  );
+}
+
+/** The installed version (E16-19): what to quote when reporting a problem. */
+function AboutVersion() {
+  const v = useFetch<{ version: string; commit: string | null }>('/api/version');
+  if (!v.data) return null;
+  return (
+    <p className="muted help-version">
+      Sandpiper GRC version {v.data.version}{v.data.commit ? ` (commit ${v.data.commit.slice(0, 12)})` : ''}. Give this when you report a problem.
+    </p>
   );
 }

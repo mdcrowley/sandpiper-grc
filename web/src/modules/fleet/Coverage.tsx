@@ -47,7 +47,7 @@ export function CoveragePage() {
       <FleetTabs active="coverage" />
       {data && (
         <div className="grid-stats">
-          <Stat label="Vehicles" value={data.summary.vehicles} icon="box" hint="Not counting retired vehicles" />
+          <Stat label="Vehicles" value={data.summary.vehicles} icon="bus" hint="Not counting retired vehicles" />
           <Stat label="Fully equipped" value={data.summary.fully_equipped} color="green" icon="check-circle" />
           <Stat label="With a gap" value={data.summary.with_gaps} color={data.summary.with_gaps ? 'red' : undefined} icon="alert" hint="Missing or not working"
             to={`/fleet/coverage?${new URLSearchParams({ ...(mode ? { mode } : {}), gaps: 'true' }).toString()}`} />

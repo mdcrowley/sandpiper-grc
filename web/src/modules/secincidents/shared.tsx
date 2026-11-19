@@ -73,7 +73,7 @@ export function metText(clock: Clock): string {
 }
 
 const fmt = (options: Intl.DateTimeFormatOptions) => {
-  try { return new Intl.DateTimeFormat('en-GB', { ...options, timeZone: timeZone() }); } catch { return new Intl.DateTimeFormat('en-GB', options); }
+  try { return new Intl.DateTimeFormat('en-US', { ...options, timeZone: timeZone() }); } catch { return new Intl.DateTimeFormat('en-US', options); }
 };
 
 /** "14:05" in the organization's time zone. */

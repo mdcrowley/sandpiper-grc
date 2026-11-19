@@ -32,9 +32,9 @@ export function exportColumns(fields: Record<string, FieldDef>, columns?: string
 }
 
 const money = (() => {
-  try { return new Intl.NumberFormat('en-GB', { style: 'currency', currency: CURRENCY }); } catch { return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'USD' }); }
+  try { return new Intl.NumberFormat('en-US', { style: 'currency', currency: CURRENCY }); } catch { return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }); }
 })();
-const plain = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 2 });
+const plain = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
 
 export const cellType = (f: FieldDef): CellType =>
   f.multiple ? 'text'

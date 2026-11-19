@@ -1,7 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { cx, todayInZone } from '../../core';
 import { byDay, ConflictMark, describe, eventClass } from './CalendarMonth';
+import { dropAt, movableProps, type DragState, type MoveProps } from './calendarDrag';
 import type { Blackout, CalendarChange } from './types';
 import { addDays, dayLabel, startOfDay, timeLabel } from './util';
 
@@ -35,8 +36,10 @@ function lanes(day: string, list: CalendarChange[]): { c: CalendarChange; lane: 
 }
 
 /** Week view: a column per day and a row per hour, blackout periods shaded behind the changes. */
-export function CalendarWeek({ days, changes, blackouts }: { days: string[]; changes: CalendarChange[]; blackouts: Blackout[] }) {
+export function CalendarWeek({ days, changes, blackouts, onMove, canMove }: { days: string[]; changes: CalendarChange[]; blackouts: Blackout[] } & MoveProps) {
   const today = todayInZone();
+  const [drag, setDrag] = useState<DragState | null>(null);
+  const [over, setOver] = useState<string | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const cols = byDay(days, changes, blackouts);
   // Start the view at the working day rather than midnight, or earlier when a change starts earlier.
@@ -55,7 +58,21 @@ export function CalendarWeek({ days, changes, blackouts }: { days: string[]; cha
             {HOURS.map((h) => <span key={h} style={{ top: h * HOUR }}>{String(h).padStart(2, '0')}:00</span>)}
           </div>
           {cols.map(({ day, changes: list, blackouts: shade }) => (
-            <div key={day} className={cx('chg-week-col', day === today && 'chg-week-col-today')} style={{ backgroundSize: `100% ${HOUR}px` }}>
+            <div
+              key={day}
+              className={cx('chg-week-col', day === today && 'chg-week-col-today', drag && over === day && 'chg-drop-target')}
+              style={{ backgroundSize: `100% ${HOUR}px` }}
+              onDragOver={drag ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (over !== day) setOver(day); } : undefined}
+              onDragLeave={drag ? () => setOver((o) => (o === day ? null : o)) : undefined}
+              onDrop={drag ? (e) => {
+                e.preventDefault();
+                const top = e.currentTarget.getBoundingClientRect().top;
+                const request = dropAt(drag, day, ((e.clientY - top - drag.grabY) / HOUR) * 60);
+                setDrag(null);
+                setOver(null);
+                if (request) onMove?.(request);
+              } : undefined}
+            >
               {shade.map((b) => {
                 const at = block(day, b.starts_at, b.ends_at);
                 return (
@@ -71,6 +88,7 @@ export function CalendarWeek({ days, changes, blackouts }: { days: string[]; cha
                   className={cx(eventClass(c), 'chg-week-ev')}
                   style={{ top: at.top, height: at.height, left: `calc(${(lane / of) * 100}% + 2px)`, width: `calc(${100 / of}% - 4px)` }}
                   title={describe(c)}
+                  {...movableProps(c, day, { onMove, canMove }, setDrag)}
                 >
                   <span className="chg-ev-line"><ConflictMark c={c} /><span className="chg-ev-ref">{c.ref}</span> <span className="chg-ev-time">{timeLabel(c.planned_start)}</span></span>
                   <span className="chg-ev-title">{c.title}</span>

@@ -99,6 +99,6 @@ export function cellText(col: ResultColumn, row: ResultRow): string {
 /** Large figures in a tile: 1,234 stays, 1,234,567 becomes 1.2M. */
 export function compact(v: number, currency = false): string {
   if (Math.abs(v) < 100000) return currency ? formatCurrency(v) : formatNumber(v);
-  const short = new Intl.NumberFormat('en-GB', { notation: 'compact', maximumFractionDigits: 1 }).format(v);
+  const short = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(v);
   return currency ? formatCurrency(0).replace(/[\d.,\s]+/, short) : short;
 }

@@ -174,7 +174,7 @@ export function AuditLogPage() {
                 </table>
               </div>
               <Pager
-                summary={`${data.total.toLocaleString('en-GB')} ${data.total === 1 ? 'event' : 'events'}, newest first`}
+                summary={`${data.total.toLocaleString('en-US')} ${data.total === 1 ? 'event' : 'events'}, newest first`}
                 page={page} pages={pages} onPage={setPage} previous="Newer" next="Older"
               />
             </>

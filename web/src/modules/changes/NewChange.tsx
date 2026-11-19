@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  api, ApiError, Button, Card, errorMessage, ErrorState, Loading, lookupLabel, PageHeader, Stepper, useDebounced, useFetch, useResource,
+  api, ApiError, Button, Card, errorMessage, ErrorState, Loading, lookupLabel, PageHeader, Stepper, useCustomFieldInputs, useDebounced, useFetch, useResource,
   useToast, type Row,
 } from '../../core';
 import { RiskQuestions, RiskResult } from './bits';
@@ -38,6 +38,10 @@ export function NewChange() {
   const [busy, setBusy] = useState('');
   const [conflicts, setConflicts] = useState<Conflict[] | undefined>(undefined);
   const [checking, setChecking] = useState(false);
+  // The administrator's custom fields on changes (E18-34): asked with the details, or under the
+  // chosen template for a standard change.
+  const custom = useCustomFieldInputs('change');
+  const customStep = draft.type === 'standard' ? 'template' : 'details';
 
   const set = (patch: Partial<Draft>) => { setDraft((d) => ({ ...d, ...patch })); setErrors({}); setFormError(''); };
   const steps = draft.type === 'standard' ? STEPS_STANDARD : STEPS_OTHER;
@@ -95,7 +99,8 @@ export function NewChange() {
       if (draft.planned_start && draft.planned_end && new Date(draft.planned_end) <= new Date(draft.planned_start)) e.planned_end = 'The planned end must be after the planned start.';
     }
     setErrors(e);
-    return Object.keys(e).length === 0;
+    const customOk = key !== customStep || custom.collect() !== null;
+    return Object.keys(e).length === 0 && customOk;
   }
 
   const go = (to: number) => {
@@ -106,6 +111,12 @@ export function NewChange() {
 
   async function create(submit: boolean) {
     if (!check('schedule')) return;
+    const extra = custom.collect();
+    if (!extra) {
+      // A required custom field is empty: back to the step that asks it, where it is marked.
+      setStep(customStep);
+      return;
+    }
     setBusy(submit ? 'submit' : 'draft');
     setFormError('');
     let created: Row | undefined;
@@ -113,14 +124,14 @@ export function NewChange() {
       if (draft.type === 'standard') {
         created = await api.post<Row>(`/api/changes/templates/${draft.templateId}/raise`, {
           title: draft.title, planned_start: draft.planned_start, planned_end: draft.planned_end || undefined,
-          system_id: draft.system?.id, assignee_id: draft.assignee?.id,
+          system_id: draft.system?.id, assignee_id: draft.assignee?.id, ...extra,
         });
       } else {
         created = await api.post<Row>('/api/changes', {
           title: draft.title, description: draft.description, reason: draft.reason, change_type: draft.type,
           system_id: draft.system?.id, assignee_id: draft.assignee?.id, risk_answers: draft.answers,
           implementation_plan: draft.implementation_plan, test_plan: draft.test_plan, backout_plan: draft.backout_plan,
-          planned_start: draft.planned_start || undefined, planned_end: draft.planned_end || undefined,
+          planned_start: draft.planned_start || undefined, planned_end: draft.planned_end || undefined, ...extra,
         });
       }
       for (const s of draft.extraSystems) {
@@ -136,7 +147,10 @@ export function NewChange() {
         navigate(`/changes/${created.id}`);
         return;
       }
-      if (err instanceof ApiError && err.fields) setErrors(err.fields);
+      if (err instanceof ApiError && err.fields) {
+        setErrors(err.fields);
+        if (custom.showErrors(err.fields)) setStep(customStep);
+      }
       setFormError(errorMessage(err));
     } finally {
       setBusy('');
@@ -161,6 +175,7 @@ export function NewChange() {
       {step === 'template' && (
         <Card title="Choose a template">
           <TemplateStep {...props} templates={templates.data} />
+          {draft.templateId && custom.inputs}
           <StepNav onBack={() => go(index - 1)} onNext={() => go(index + 1)} />
         </Card>
       )}
@@ -168,6 +183,7 @@ export function NewChange() {
       {step === 'details' && (
         <Card title={`${typeName} change: details`}>
           <DetailsStep {...props} hasSystems={hasSystems} />
+          {custom.inputs}
           <StepNav onBack={() => go(index - 1)} onNext={() => go(index + 1)} />
         </Card>
       )}

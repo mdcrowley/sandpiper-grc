@@ -1,6 +1,6 @@
 # E12 Dashboards and reporting
 
-**Status:** in progress
+**Status:** in progress (14 of 16 issues done)
 
 ## Goal
 
@@ -15,11 +15,13 @@ build, schedule and hand out the reports they need without asking for a develope
 - The `reports` module (`server/src/modules/reports`, `web/src/modules/reports`) holds the
   report builder, saved reports, user-built dashboards, report packs, exports and scheduled
   delivery. The permission keys `reports` and `dashboards` are enforced on every route.
-- The one rule: figures are always worked out with the permissions of the person looking,
-  through the same restricted-record rule as the generic list (`visibleWhere`), never the
-  author's. Sharing shares a design, never records.
-- Scheduled delivery is an in-app notification linking to a stored snapshot; email waits on
-  [E14-04](E14-platform-services.md). The job queue is an in-process timer (every 5 minutes).
+- The rules: figures (counts, totals, charts) are the same for everyone who may see them,
+  restricted records included, with their words and people masked as "Restricted records";
+  lists of records and drill-downs show each person only what their permissions allow
+  (`visibleWhere`), never the author's. Sharing shares a design, never records.
+- Scheduled delivery is an in-app notification linking to a stored snapshot, and optionally an
+  email with a link or the file (E12-10). Due schedules run as the recurring `reports.deliver`
+  job on the job queue (every 5 minutes); each email is a `mail.send` job.
 
 ## Issues
 
@@ -31,14 +33,16 @@ build, schedule and hand out the reports they need without asking for a develope
 | E12-04 | Report builder | done | P2 |
 | E12-05 | Scheduled delivery of reports | done | P3 |
 | E12-06 | Report packs | done | P2 |
-| E12-07 | Dashboards for read-only roles | in progress | P3 |
-| E12-08 | Print and PDF for dashboards | in progress | P3 |
+| E12-07 | Dashboards for read-only roles | done | P3 |
+| E12-08 | Print and PDF for dashboards | done | P3 |
 | E12-09 | PDF and spreadsheet (XLSX) exports | done | P2 |
-| E12-10 | Email delivery of scheduled reports | open | P3 |
+| E12-10 | Email delivery of scheduled reports | done | P3 |
 | E12-11 | Overview page shows the chosen home dashboard | done | P2 |
 | E12-12 | Default roles and scheduled delivery | done | P2 |
-| E12-13 | Report builder polish | open | P3 |
-| E12-14 | Non-Latin text in server-made PDFs | open | P3 |
+| E12-13 | Report builder polish | done | P3 |
+| E12-14 | Non-Latin text in server-made PDFs | done | P3 |
+| E12-15 | Group by a multi-choice field | open | P3 |
+| E12-16 | Right-to-left and mixed-script text in server-made PDFs | open | P3 |
 
 ---
 
@@ -135,7 +139,7 @@ or month.
 - [x] Each recipient receives only what their own permissions allow (restricted rows filtered by the recipient's permissions, never the creator's); people who may not view the item or its records, or are not shared it, are skipped with the reason logged
 - [x] Each delivery is logged and stored as a snapshot linked from an in-app notification
 - [x] Reading a snapshot in the application is viewing: it needs view permission and continued sight of the source and every saved report in it. Downloading it (CSV, or HTML with `?download=1`) is an export: it needs `reports.export` / `dashboards.export` and is audited. A CSV schedule sends the document to recipients who may not export
-- [ ] Email delivery: see E12-10
+- [x] Email delivery: see E12-10
 
 **Implemented in:** `server/src/modules/reports/schedule.ts`, `snapshots.ts`; `web/src/modules/reports/DeliveryPages.tsx`, `dialogs.tsx`. Tests: `delivery.test.ts` (with a chosen clock).
 
@@ -158,21 +162,23 @@ reports and charts as one dated document.
 
 ### E12-07 Dashboards for read-only roles
 
-**Status:** in progress · **Priority:** P3 · **Type:** improvement
+**Status:** done · **Priority:** P3 · **Type:** improvement
 
 As an executive viewer or auditor, I sign in and see a home page that suits a
 read-only role, rather than an overview with most tiles missing.
 
 **Acceptance criteria**
 
-- [ ] The home page chooses a layout from the user's permissions
-- [x] The board summary dashboard is a one-page view in plain language for an executive viewer
+- [x] The home page chooses a layout from the user's permissions: someone who may not create, change, delete, approve or administer anything (`readOnly` from `GET /api/dashboards/home`) sees the figures first ("At a glance"), then "Where to look" (every area they may open, from the navigation, without pages that start a new record), then their own lists ("For you"); without `dashboards.view`, "Where to look" leads
+- [x] The board summary dashboard is a one-page view in plain language for an executive viewer, and is suggested (`suggested` from `GET /api/dashboards/home`) on the Overview of anyone who only looks until they choose a home dashboard; sentences read correctly for a figure of 1 (`{one|many}`)
 - [x] The `dashboards.view` permission is enforced
-- [ ] The Overview page uses the chosen home dashboard (E12-11)
+- [x] The Overview page uses the chosen home dashboard (E12-11): it is shown in the Dashboard section, with a switch back to the Overview's own figures (remembered in the browser) and "Open in full"
+
+**Implemented in:** `server/src/modules/reports/index.ts` (`readOnly`, `/api/dashboards/home`); `web/src/modules/home/` (`OverviewPage.tsx`, `layoutChoice.ts`, `home.css`); `web/src/modules/reports/EmbeddedDashboard.tsx`, `Widget.tsx`, `standard.ts`. Tests: `sharing.test.ts`, `web/src/modules/home/layoutChoice.test.ts`.
 
 ### E12-08 Print and PDF for dashboards
 
-**Status:** in progress · **Priority:** P3 · **Type:** improvement
+**Status:** done · **Priority:** P3 · **Type:** improvement
 
 As a manager, I can print a dashboard, or save it as a PDF, and get a tidy page.
 
@@ -180,8 +186,10 @@ As a manager, I can print a dashboard, or save it as a PDF, and get a tidy page.
 
 - [x] Print styles for user-built dashboards and packs; a print-ready dashboard document (`GET /api/dashboards/:id/export`)
 - [x] The "as at" time appears on the page
-- [ ] Print styles for the fixed overview and service desk dashboards
-- [ ] Charts print legibly in black and white
+- [x] Print styles for the fixed overview (two columns, the "as at" time, a Print button); the service desk dashboard prints with the shared print rules and its charts print with patterns (a few rules for its period picker and grids go in `tickets.css`, owned by the service desk module)
+- [x] Charts print legibly in black and white: on `beforeprint` every chart is drawn again on white (light colors whatever the theme) with ECharts decal patterns, as a sharp picture at its own size, and put back after printing
+
+**Implemented in:** `web/src/core/ChartImpl.tsx`, `web/src/modules/home/home.css`, `OverviewPage.tsx`.
 
 ### E12-09 PDF and spreadsheet (XLSX) exports
 
@@ -197,23 +205,58 @@ server, and schedule them in those formats.
 - [x] Dashboards: a group of widgets with a chart or table starts a new page; packs: cover page, one section per page, page numbers
 - [x] Restricted content watermarked on every page (PDF) and under the table (XLSX); exports audited with the format; export permission on every record type as for CSV
 - [x] Scheduled delivery in PDF or Excel stores the file as the snapshot (recipients who may not export get the document); with an `app.sendMail` decorator the file is attached to a link email and the attachment is audited; without it delivery stays in the application
-- [ ] Embed an open font so non-Latin text prints in PDFs (E12-14)
+- [ ] Non-Latin text in PDFs: see E12-14
 
 **Implemented in:** `server/src/core/export/pdf.ts`, `xlsx.ts`, `zone.ts`; `server/src/modules/reports/files.ts` (renderers, filter descriptions), `documents.ts`, `index.ts` (`?format=pdf|xlsx` on `/api/reports/:id/export`, `POST /api/reports/export`, `/api/dashboards/:id/export`, `/api/report-packs/:id/export`), `schedule.ts` (email channel), `snapshots.ts` (binary snapshots); `web/src/modules/reports/` (`ReportPages.tsx`, `Builder.tsx`, `DashboardPages.tsx`, `PackPages.tsx`, `DeliveryPages.tsx`, `dialogs.tsx`). Tests: `files.test.ts`, `server/src/core/export/export.test.ts`.
 
 ### E12-14 Non-Latin text in server-made PDFs
 
-**Status:** open · **Priority:** P3 · **Type:** improvement
+**Status:** done · **Priority:** P3 · **Type:** improvement
 
-PDFs use PDFKit's standard Helvetica (Windows-1252 only); other characters print as "?".
-Bundle an open font with wide coverage (for example Noto Sans) and embed the subset used.
+PDFs used PDFKit's standard Helvetica (Windows-1252 only); other characters printed as "?".
+Decided: no font file or package is added to the repository. Windows-1252 text keeps Helvetica
+(nothing embedded); any other piece of text takes the first font that has all its characters,
+from `GRC_PDF_FONTS` (file list; `none` switches it off) or from well-known system fonts (Noto,
+DejaVu, Arial Unicode, Segoe UI, Arial, Microsoft YaHei, Yu Gothic, Malgun Gothic, Nirmala UI),
+embedded as a subset through fontkit (PDFKit's own dependency). The code is written and tested but
+lives in `server/src/core/export/` (shared): in progress until it is merged there.
 
-### E12-10 Email delivery of scheduled reports
+- [x] Greek, Cyrillic, Chinese, Japanese, Korean and Indic text prints as written when the machine has a font for it; bold faces found beside the regular ones
+- [x] Western European text unchanged (no font embedded, tests that read the text unchanged)
+- [x] A character no font has prints as "?"
+- [x] Merged into `server/src/core/export/pdf.ts` and `fonts.ts` (with `fonts.test.ts`); the container image installs `fonts-noto-core` and `fonts-noto-cjk` (or `fonts-dejavu-core`)
+- Right-to-left order and text mixing scripts that no single font covers: E12-16
+
+**Implemented in:** `server/src/core/export/pdf.ts`, `fonts.ts`, `fonts.test.ts`; `Dockerfile` installs `fonts-noto-core` and `fonts-noto-cjk`; `GRC_PDF_FONTS` in `docs/operations.md`.
+
+### E12-15 Group by a multi-choice field
 
 **Status:** open · **Priority:** P3 · **Type:** feature
 
-Depends on [E14-04](E14-platform-services.md). `schedule.ts` has a delivery-channel list
-ready for an email channel; the message must carry a link, never the figures.
+A multi-choice custom field can be a column and a filter (E12-13) but not a group: one record
+holding several values would be counted in each, so totals would no longer add up. Group by each
+value (`jsonb_array_elements_text`), with the table and chart saying that a record can be counted
+more than once and the pivot's totals counting distinct records.
+
+### E12-16 Right-to-left and mixed-script text in server-made PDFs
+
+**Status:** open · **Priority:** P3 · **Type:** improvement
+
+PDFKit shapes Arabic and Hebrew but does not reorder right-to-left runs, so they print left to
+right; and the builder chooses one font per piece of text, so text mixing scripts that no single
+font covers prints the missing characters as "?". Split text into runs by script and direction
+(a bidi pass) and print each run in a font that has it.
+
+### E12-10 Email delivery of scheduled reports
+
+**Status:** done · **Priority:** P3 · **Type:** feature
+
+- [x] Uses the outbound mail service (`app.sendMail`, by user id, the "General message" template, purpose `reports`); nothing is sent while email is off, and the dialog says so (`GET /api/reports/email-status`)
+- [x] Each schedule says how email is used (`email`: `link` by default, `attach` or `off`; migration `002_schedule_email.sql`); the message names the schedule and links to the stored copy, never carrying the figures in its text
+- [x] A file is attached only when the schedule asks, the format is a file (PDF, Excel, CSV), the recipient may export, and the copy holds no restricted records; otherwise a link goes, and the delivery log says why; attachments are audited (`report_snapshot.export`)
+- [x] Due schedules run as the recurring `reports.deliver` job (replacing the in-process timer); each email is a `mail.send` job with retries
+
+**Implemented in:** `server/src/modules/reports/` (`schedule.ts`, `index.ts`, `resources.ts`, `migrations/002_schedule_email.sql`); `web/src/modules/reports/dialogs.tsx`, `DeliveryPages.tsx`. Tests: `files.test.ts` ("scheduled email").
 
 ### E12-11 Overview page shows the chosen home dashboard
 
@@ -238,8 +281,12 @@ deliveries; only downloading a copy needs export permission. No change to the de
 
 ### E12-13 Report builder polish
 
-**Status:** open · **Priority:** P3 · **Type:** improvement
+**Status:** done · **Priority:** P3 · **Type:** improvement
 
-- Series and pivot columns follow the order values are met, not the lookup's sort order.
-- Multi-choice custom fields cannot be reported on yet.
-- Dashboard drag-and-drop is switched off below 760px of content width (keyboard moves still work).
+- [x] Series and pivot columns follow each grouping's natural order (`values` on each dimension column: a list's configured order, dates in time order, words alphabetically, "None" and "Restricted records" last), and with no sort chosen the second grouping follows it inside the first
+- [x] Multi-choice custom fields: shown as a column (labels joined), filtered with "has any of", "has none of", "has no value", "has a value"; refused as a group with a clear message (grouping: E12-15)
+- [x] Dashboard drag-and-drop works while editing down to 480px of content width (tablets); below that a note points to the keyboard moves
+- [x] A plain-language sentence describing the report above the preview; one-click Quick starts (count by status, each month, by owner, status by a second choice); Ctrl+S to save; a warning before leaving with unsaved changes; columns reordered by dragging
+- [x] Wording says figures are the same for everyone (lists show what each role allows)
+
+**Implemented in:** `server/src/modules/reports/` (`query.ts`, `spec.ts`, `custom.ts`, `catalog.ts`); `web/src/modules/reports/` (`Builder.tsx`, `describe.ts`, `starters.ts`, `ops.ts`, `FilterEditor.tsx`, `SpecEditor.tsx`, `charts.ts`, `DashboardGrid.tsx`). Tests: `query.test.ts`, `describe.test.ts`.

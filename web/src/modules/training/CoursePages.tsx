@@ -24,7 +24,7 @@ export function CourseList() {
         'mandatory', 'owner_id', 'status',
       ]}
       filters={['category', 'format', 'mandatory', 'status', 'owner_id']}
-      createFields={['title', 'description', 'category', 'provider', 'format', 'duration_minutes', 'recurrence_months', 'due_days', 'mandatory', 'self_certify', 'owner_id']}
+      createFields={['title', 'description', 'category', 'provider', 'format', 'duration_minutes', 'recurrence_months', 'due_days', 'mandatory', 'self_certify', 'owner_id', 'reminder_interval_days']}
       bulkFields={['category', 'mandatory', 'self_certify', 'owner_id', 'status']}
       actions={(
         <>
@@ -55,7 +55,7 @@ export function CourseDetail() {
       banner={({ row }) => <CourseProgressBar key={version} courseId={row.id} />}
       summaryFields={[
         'title', 'description', 'category', 'provider', 'format', 'duration_minutes', 'recurrence_months', 'due_days', 'mandatory',
-        'self_certify', 'owner_id', 'status',
+        'self_certify', 'owner_id', 'status', 'reminder_interval_days',
       ]}
       tabs={[
         { key: 'people', label: 'People', content: ({ row }) => <CoursePeople key={version} courseId={row.id} courseTitle={row.title} onChanged={changed} /> },

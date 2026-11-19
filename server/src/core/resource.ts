@@ -2,9 +2,9 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { CURRENCY } from './config.ts';
 import type { Db } from './db.ts';
 import { fail, UUID_RE } from './errors.ts';
-import type { FieldDef, ResourceDef, ResourceRegistry, Row, SessionUser } from './module.ts';
+import type { CreateOptions, FieldDef, ResourceDef, ResourceRegistry, Row, SessionUser } from './module.ts';
 import { CUSTOM_PREFIX, customFieldDef, customName, type CustomField, type CustomFields } from './customfields.ts';
-import { ensureSearchIndex, parseSearch } from './search.ts';
+import { BODY_SEPARATOR, ensureCommentSearch, ensureSearchIndex, parseSearch, substringColumns } from './search.ts';
 import { can, type makeAudit, type makeLookups } from './services.ts';
 // Spreadsheet and PDF exports, record fact sheets and the generic import (core/export, core/import).
 import { exportColumns, sendListExport } from './export/list.ts';
@@ -53,6 +53,13 @@ export const MASKED_SQL = `(chr(1) || 'restricted')`;
 export const MASKED_VALUE = '\u0001restricted';
 export const MASKED_LABEL = 'Restricted records';
 
+/**
+ * Record types whose files are evidence unless their definition says otherwise (E14-18): vendor
+ * evidence items, framework outcomes, obligations, policies, exercises and risks (whose treatments
+ * are proved by files). A module sets `evidence` on its definition to change this.
+ */
+export const EVIDENCE_TYPES: ReadonlySet<string> = new Set(['evidence_item', 'framework_outcome', 'obligation', 'policy', 'exercise', 'risk']);
+
 /** Tags as stored: trimmed, lower case, single spaces, no commas, at most 40 characters. */
 export const normalizeTag = (raw: unknown) => String(raw ?? '').toLowerCase().replace(/[\s,]+/g, ' ').trim().slice(0, 40);
 
@@ -75,6 +82,12 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
 
   /** Adds the `custom` column to a type's table (once) so custom values have somewhere to live. */
   async function ensureCustomColumn(def: ResourceDef): Promise<void> {
+    // Looked up first, so a run-time account without the right to change tables (E16-31) logs
+    // nothing at start-up once the column exists; only a missing column needs `alter table`.
+    const exists = await db.one(
+      `select 1 from information_schema.columns
+       where table_schema = current_schema() and table_name = $1 and column_name = 'custom'`, [def.table]);
+    if (exists) return;
     await db.exec(`alter table ${def.table} add column if not exists custom jsonb not null default '{}'`);
   }
 
@@ -94,6 +107,8 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
     const known = new Map((await db.query<{ table_name: string; signature: string }>('select table_name, signature from search_index_state'))
       .map((r) => [r.table_name, r.signature]));
     for (const def of defs.values()) await refreshSearch(def, known);
+    // Comments are searched in the same language as records (E14-21).
+    await ensureCommentSearch(db);
   });
 
   /** null user = the system (seeding, automation) and sees everything. */
@@ -191,7 +206,7 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
 
   // ---------- validation ----------
 
-  async function validate(def: ResourceDef, input: Row, mode: 'create' | 'update', system: boolean): Promise<Row> {
+  async function validate(def: ResourceDef, input: Row, mode: 'create' | 'update', system: boolean, skipCustomRequired = false): Promise<Row> {
     const errors: Record<string, string> = {};
     const out: Row = {};
     const listCache = new Map<string, Set<string>>();
@@ -206,7 +221,7 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
     // Custom fields are validated like built-in ones. "Required" applies to people, not to system work
     // (seeding, automation), which cannot know what an administrator has added.
     const customDefs = Object.entries(await custom.defs(def.type))
-      .map(([name, f]): [string, FieldDef] => [name, system ? { ...f, required: false } : f]);
+      .map(([name, f]): [string, FieldDef] => [name, system || skipCustomRequired ? { ...f, required: false } : f]);
     for (const [name, f] of [...Object.entries(def.fields), ...customDefs]) {
       if (f.readOnly && !system) continue;
       let v = input[name];
@@ -323,9 +338,9 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
     );
   }
 
-  async function create(type: string, input: Row, req: FastifyRequest | null = null): Promise<Row> {
+  async function create(type: string, input: Row, req: FastifyRequest | null = null, opts: CreateOptions = {}): Promise<Row> {
     const def = need(type);
-    let data = await validate(def, input, 'create', !req);
+    let data = await validate(def, input, 'create', !req, opts.skipCustomRequired === true);
     // Hooks see built-in fields only; custom values are stored beside them afterwards.
     const customValues = takeCustom(data);
     if (def.hooks?.beforeCreate) data = await def.hooks.beforeCreate(req, data);
@@ -456,7 +471,16 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
       ...Object.fromEntries(customFields.map((f) => [customName(f), customFieldDef(f)])),
     };
     const entries = Object.entries(fields);
-    const allLookups = entries.some(([, f]) => f.type === 'lookup') ? await lookups.all() : {};
+    // Only the lists this type uses, and only the labels (E16-36: every list was read for each page).
+    const lists = [...new Set(entries.filter(([k, f]) => f.type === 'lookup' && rows.some((r) => r[k] !== null && r[k] !== undefined)).map(([, f]) => f.list!))];
+    const lookupLabels = new Map<string, Map<string, string>>();
+    if (lists.length) {
+      for (const r of await db.query<{ list_key: string; value: string; label: string }>(
+        'select list_key, value, label from lookups where active and list_key = any($1::text[])', [lists])) {
+        (lookupLabels.get(r.list_key) ?? lookupLabels.set(r.list_key, new Map()).get(r.list_key)!).set(r.value, r.label);
+      }
+    }
+    const lookupLabel = (list: string, v: unknown) => lookupLabels.get(list)?.get(String(v)) ?? String(v);
     const names = await userNames(
       entries.filter(([, f]) => f.type === 'user').flatMap(([k]) => rows.map((r) => r[k])),
     );
@@ -470,8 +494,8 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
       for (const [k, f] of entries) {
         const v = row[k];
         if (v === null || v === undefined) continue;
-        if (f.type === 'lookup' && Array.isArray(v)) d[k] = v.map((x) => allLookups[f.list!]?.find((y) => y.value === x)?.label ?? String(x)).join(', ');
-        else if (f.type === 'lookup') d[k] = allLookups[f.list!]?.find((x) => x.value === v)?.label ?? String(v);
+        if (f.type === 'lookup' && Array.isArray(v)) d[k] = v.map((x) => lookupLabel(f.list!, x)).join(', ');
+        else if (f.type === 'lookup') d[k] = lookupLabel(f.list!, v);
         else if (f.type === 'user') d[k] = names.get(v) ?? 'Unknown user';
         else if (f.type === 'ref') d[k] = refLabels.get(f.to!)?.get(v)?.label ?? 'Unknown';
       }
@@ -515,17 +539,23 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
 
     const search = parseSearch(query.q);
     if (search.text) {
-      const cols = [...(def.searchable ?? [def.titleField]), ...(def.ref ? [def.ref.field] : [])];
+      const cols = substringColumns(def);
       const like = add(search.like);
       const substring = cols.map((c) => `${c}::text ilike ${like}`).join(' or ');
       if (search.fts && ftsTypes.has(def.type)) {
         // Full-text search (core/search.ts). Reference numbers always match as typed, and a single
         // word still matches inside words (codes, serial numbers), as it did before.
         const tsq = search.tsquery(add);
-        const entry = `from search_index si where si.record_type = ${add(def.type)} and si.record_id = ${def.table}.id`;
+        const type = add(def.type);
+        const entry = `from search_index si where si.record_type = ${type} and si.record_id = ${def.table}.id`;
         const exact = def.ref ? `lower(${def.ref.field}::text) = lower(${add(search.text)}::text)` : 'false';
-        where.push(guard(`(exists (select 1 ${entry} and si.vector @@ ${tsq}) or ${exact}`
-          + ` or ${search.single ? substring : `${def.titleField}::text ilike ${like}${def.ref ? ` or ${def.ref.field}::text ilike ${like}` : ''}`})`));
+        // The matching index rows are found once, through the index (the vector, and for one word the
+        // substring text with its trigram index), and kept in a hash, rather than tested again on
+        // every record (E16-36). `body` holds exactly the substring fields (search.ts, bodySql).
+        const inBody = search.single && !search.text.includes(BODY_SEPARATOR) ? ` or si.body ilike ${like}` : '';
+        const matched = `${def.table}.id in (select si.record_id from search_index si where si.record_type = ${type} and (si.vector @@ ${tsq}${inBody}))`;
+        where.push(guard(`(${matched} or ${exact}`
+          + ` or ${search.single ? (inBody ? 'false' : substring) : `${def.titleField}::text ilike ${like}${def.ref ? ` or ${def.ref.field}::text ilike ${like}` : ''}`})`));
         rank = `(coalesce((select ts_rank(si.vector, ${tsq}) ${entry}), 0) + case when ${exact} then 10 else 0 end`
           + ` + case when ${def.titleField}::text ilike ${like} then 0.5 else 0 end)`;
       } else {
@@ -632,10 +662,20 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
 
       const pageSize = Math.min(500, Math.max(1, Number(query.pageSize) || 50));
       const page = Math.max(1, Number(query.page) || 1);
-      const total = (await db.one<{ c: number }>(`select count(*)::int c from ${def.table} where ${where}`, params))!.c;
-      const rows = await db.query(
-        `select * from ${def.table} where ${where} ${order} limit ${pageSize} offset ${(page - 1) * pageSize}`, params,
+      // The page is found on ids alone and then read in full, so sorting never carries whole
+      // records, and the exact total comes from the same pass (E16-36). A page past the end has no
+      // row to carry it, so only then is it counted on its own.
+      const offset = (page - 1) * pageSize;
+      const found = await db.query<{ id: string; total: number }>(
+        `select id, count(*) over ()::int as total from ${def.table} where ${where} ${order} limit ${pageSize} offset ${offset}`, params,
       );
+      const ids = found.map((r) => r.id);
+      const total = found.length ? found[0].total
+        : offset === 0 ? 0 : (await db.one<{ c: number }>(`select count(*)::int c from ${def.table} where ${where}`, params))!.c;
+      const byId = new Map((ids.length
+        ? await db.query<Row>(`select * from ${def.table} where id = any($1::uuid[]) and deleted_at is null and ${visibilitySql(def, req.user)}`, [ids])
+        : []).map((r) => [r.id, r]));
+      const rows = ids.map((id) => byId.get(id)).filter((r): r is Row => r !== undefined);
       return { rows: await decorate(def, rows, req.user), total, page, pageSize };
     });
 
@@ -762,7 +802,10 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
   });
 
   return {
-    registry, defineResource, labelsFor, mayAccess, visibilitySql, decorate, userNames, labelOf, pickFields, customOf, visibleRecord,
+    registry, defineResource, labelsFor, mayAccess, visibilitySql,
+    /** Whether files on this type are evidence (ResourceDef.evidence, else EVIDENCE_TYPES). */
+    evidenceFor: (def: ResourceDef) => def.evidence ?? EVIDENCE_TYPES.has(def.type),
+    decorate, userNames, labelOf, pickFields, customOf, visibleRecord,
     /** Record types with a working full-text index. */
     ftsTypes,
     /** Subscribes to record changes (webhooks, watchers). */

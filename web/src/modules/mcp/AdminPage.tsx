@@ -8,13 +8,17 @@ import {
 } from '../../core';
 import { Notice } from '../admin/common';
 import { withReauth } from '../admin/reauth';
+import { OAuthCard, ToolsByRoleCard, WhoMayConnectCard, type OAuthView, type Role } from './AdminAccess';
 import './mcp.css';
 
-interface Settings { enabled: boolean; writeEnabled: boolean; allowedTools: string[] | null; ratePerMinute: number; allowedOrigins: string[] }
+interface Settings {
+  enabled: boolean; writeEnabled: boolean; allowedTools: string[] | null; ratePerMinute: number; allowedOrigins: string[];
+  allowedRoles: string[] | null; roleTools: Record<string, string[]>; oauthEnabled: boolean; oauthRegistration: boolean;
+}
 interface Tool { name: string; title: string; group: string; write: boolean; description: string; allowed: boolean; offered: boolean }
 interface Usage { token_id: string; token_name: string; user_name: string | null; calls: number; errors: number; last_at: string; active: boolean | null; tools: Record<string, number> }
-interface Call { id: number; at: string; token_name: string; user_name: string | null; tool: string; ok: boolean; error: string | null; duration_ms: number }
-interface AdminData { settings: Settings; days: number; activeTokens: number; tools: Tool[]; usage: Usage[]; recent: Call[] }
+interface Call { id: number; at: string; token_name: string; user_name: string | null; tool: string; ok: boolean; error: string | null; duration_ms: number; request_id: string | null }
+interface AdminData { settings: Settings; days: number; activeTokens: number; tools: Tool[]; usage: Usage[]; recent: Call[]; roles: Role[]; oauth: OAuthView }
 
 export function AdminAssistantsPage() {
   const toast = useToast();
@@ -31,7 +35,7 @@ export function AdminAssistantsPage() {
     setOrigins(data.settings.allowedOrigins.join('\n'));
   }, [data]);
 
-  const save = async (what: string, body: Partial<Settings>, done: string) => {
+  const save = async (what: string, body: Partial<Settings> | Record<string, unknown>, done: string) => {
     setBusy(what);
     try {
       await withReauth(() => api.put('/api/mcp/admin/settings', body));
@@ -125,6 +129,12 @@ export function AdminAssistantsPage() {
             </div>
           </Card>
 
+          <WhoMayConnectCard settings={data.settings} roles={data.roles} busy={busy} save={save} />
+
+          <ToolsByRoleCard settings={data.settings} roles={data.roles} tools={data.tools} busy={busy} save={save} />
+
+          <OAuthCard settings={data.settings} oauth={data.oauth} busy={busy} save={save} reload={reload} />
+
           <Card title={`Call log, last ${data.days} days`} flush>
             {data.usage.length === 0 ? (
               <EmptyState icon="history" title="No calls yet" message="Calls made by assistants appear here, per token." />
@@ -157,6 +167,7 @@ export function AdminAssistantsPage() {
                       <code>{c.tool}</code>
                       <span>{c.token_name} ({c.user_name ?? 'Unknown'})</span>
                       <span className="muted" title={formatDateTime(c.at)}>{relativeTime(c.at)}, {c.duration_ms} ms</span>
+                      {c.request_id && <span className="muted">Request <code>{c.request_id}</code></span>}
                       {c.error && <span className="muted mcp-error">{c.error}</span>}
                     </li>
                   ))}

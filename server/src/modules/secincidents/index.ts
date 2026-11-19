@@ -1,4 +1,5 @@
 import type { FastifyRequest } from 'fastify';
+import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
 import { TIME_ZONE, todayInZone } from '../../core/timezone.ts';
 import { notifyPerson, notifyViewers, sweepClocks } from './alerts.ts';
@@ -475,7 +476,7 @@ const mod: ModuleDef = {
       }
       // The incident has just closed and a review is still to do: tell the lead when it is due.
       if (!before.closed_at && after.closed_at && now === 'open' && after.review_due_on) {
-        const due = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
+        const due = new Intl.DateTimeFormat('en-US', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
           .format(new Date(`${String(after.review_due_on).slice(0, 10)}T00:00:00Z`));
         await notifyPerson(ctx, after, after.review_lead_id ?? after.lead_id, {
           kind: 'due', title: `Post-incident review due by ${due}: ${after.ref}`, body: after.title,
@@ -1025,15 +1026,8 @@ const mod: ModuleDef = {
 
     // ---------- alerts as a clock turns amber or red ----------
 
-    // No timers under the test runner or with a throwaway in-memory database.
-    if (!process.env.VITEST && process.env.GRC_DATA_DIR !== 'memory') {
-      const run = () => { sweep().catch((err) => console.error('[secincidents] clock sweep failed:', err)); };
-      const first = setTimeout(run, 20_000);
-      const timer = setInterval(run, 60_000);
-      first.unref();
-      timer.unref();
-      app.addHook('onClose', async () => { clearTimeout(first); clearInterval(timer); });
-    }
+    // Every minute on the job queue (Administration > Background jobs), once however many processes there are.
+    await scheduleWork(ctx, 'secincidents.clock_sweep', () => sweep(), { every: 60_000, firstRunInMs: 20_000 });
   },
 
   async seed(ctx, opts) {

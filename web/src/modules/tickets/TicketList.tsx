@@ -1,6 +1,7 @@
-// The queue: presets with live counts (also kept as saved views), the ticket list with bulk
+// The queue: presets with live counts (also offered to every agent as shared views of the list,
+// E03-20: see server/src/modules/tickets/views.ts), the ticket list with bulk
 // edit, and the New ticket dialog.
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Badge, Button, Countdown, LookupChip, PageHeader, recordHref, ResourceList, useAuth, useFetch,
@@ -37,25 +38,6 @@ const href = (filters: Record<string, string>) => {
 const canon = (search: string) => [...new URLSearchParams(search)]
   .filter(([k]) => k.startsWith('f.') || k === 'q').map((p) => p.join('=')).sort().join('&');
 
-/** Adds the presets to the list's saved views once per browser, so they also sit in the View menu. */
-function ensureStarterViews() {
-  try {
-    if (localStorage.getItem('grc.views.ticket.starter') === '2') return;
-    const existing: { name: string }[] = JSON.parse(localStorage.getItem('grc.views.ticket') ?? '[]');
-    const starters = PRESETS.filter((p) => Object.keys(p.filters).length > 0 && !existing.some((e) => e.name === p.label)).map((p) => ({
-      name: p.label,
-      view: {
-        q: '', sort: '', dir: 'asc',
-        filters: Object.fromEntries(Object.entries(p.filters).map(([k, val]) => [k, [val]])),
-        labels: p.filters.assignee_id === 'me' ? { assignee_id: 'Me' } : {},
-      },
-    }));
-    localStorage.setItem('grc.views.ticket', JSON.stringify([...existing, ...starters].sort((a, b) => a.name.localeCompare(b.name))));
-    localStorage.setItem('grc.views.ticket.starter', '2');
-  } catch {
-    // Storage unavailable: the presets above the list still work.
-  }
-}
 
 /** One cell for both clocks' outcome: time left on the resolution target, or how it ended. */
 function TargetCell({ row }: { row: Row }) {
@@ -76,7 +58,6 @@ function TitleCell({ row }: { row: Row }) {
 }
 
 export function TicketList() {
-  useMemo(ensureStarterViews, []);
   const { can } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();

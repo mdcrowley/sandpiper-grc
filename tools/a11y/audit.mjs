@@ -12,7 +12,11 @@
 //
 // Output (git-ignored): tools/a11y/out/report.md (readable summary by rule, with every route
 // and element affected) and tools/a11y/out/report.json (everything axe returned, trimmed).
-// Exit code 1 when any serious or critical violation remains, unless --no-fail.
+// Exit code 1 when any serious or critical violation remains that is not listed in
+// tools/a11y/known.json, unless --no-fail. known.json holds findings already raised as issues:
+// [{ "rule": "color-contrast", "route": "/safety", "issue": "E18-39" }] ("route" may be "*").
+// They are reported as known and do not fail the run; an entry that no longer matches anything is
+// reported as stale so it can be removed. With known.json empty, every finding fails the run.
 //
 // Environment: as for the browser tests (E2E_WEB_DIST, E2E_BROWSER, E2E_PORT, GRC_MODULES).
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -48,6 +52,11 @@ for (const v of visit) {
 }
 targets.push({ path: '/', pattern: '/ (command palette)', palette: true });
 if (only) targets = targets.filter((t) => only.includes(t.pattern) || only.includes(t.path));
+
+const knownFile = join(import.meta.dirname, 'known.json');
+let known = [];
+try { known = JSON.parse(readFileSync(knownFile, 'utf8')); } catch (err) { if (err.code !== 'ENOENT') throw new Error(`tools/a11y/known.json: ${err.message}`); }
+const isKnown = (rule, pattern) => known.find((k) => k.rule === rule && (k.route === '*' || k.route === pattern));
 
 const RULES = { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] }, resultTypes: ['violations'] };
 const found = new Map(); // rule id -> { id, impact, help, helpUrl, where: Map(pattern -> Set(combo)), nodes: Map(target -> { html, summary, patterns:Set }) }
@@ -118,13 +127,19 @@ const json = rules.map((r) => ({
 writeFileSync(join(outDir, 'report.json'), JSON.stringify({ when: new Date().toISOString(), combos, pages: targets.length, checked, skipped, rules: json }, null, 2));
 
 const serious = rules.filter((r) => r.impact === 'serious' || r.impact === 'critical');
+// Serious or critical findings by rule and route, split into those already raised and new ones.
+const pairs = serious.flatMap((r) => [...r.where.keys()].map((pattern) => ({ rule: r.id, pattern, known: isKnown(r.id, pattern) })));
+const fresh = pairs.filter((p) => !p.known);
+const stale = known.filter((k) => !pairs.some((p) => p.known === k));
 const md = [
   '# Accessibility audit (axe-core, WCAG 2.1 A and AA)',
   '',
   `${new Date().toISOString()} · ${targets.length} pages × ${combos.map((c) => c.join(' ')).join(', ')} = ${checked} checks · ${Math.round((Date.now() - started) / 1000)} s`,
   '',
-  `**${serious.length} serious or critical rule(s)**, ${rules.length - serious.length} moderate or minor.`,
+  `**${serious.length} serious or critical rule(s)**, ${rules.length - serious.length} moderate or minor. ${fresh.length} new serious or critical finding(s) (rule on a page), ${pairs.length - fresh.length} already raised as issues (\`tools/a11y/known.json\`).`,
   '',
+  ...(pairs.length - fresh.length ? ['Already raised:', '', ...pairs.filter((p) => p.known).map((p) => `- ${p.rule} on \`${p.pattern}\`: ${p.known.issue}`), ''] : []),
+  ...(stale.length ? ['Stale entries in known.json (no longer found; remove them):', '', ...stale.map((k) => `- ${k.rule} on \`${k.route}\` (${k.issue})`), ''] : []),
   ...(rules.length ? ['| Rule | Impact | Pages | Elements |', '|---|---|---|---|', ...rules.map((r) => `| [${r.id}](${r.helpUrl}) | ${r.impact} | ${r.where.size} | ${r.nodes.size} |`)] : ['No violations.']),
   '',
   ...rules.flatMap((r) => [
@@ -140,4 +155,7 @@ const md = [
 ].join('\n');
 writeFileSync(join(outDir, 'report.md'), md);
 log(`${checked} checks; ${serious.length} serious/critical rule(s), ${rules.length - serious.length} other. Report: ${join(outDir, 'report.md')}`);
-process.exit(serious.length && !has('--no-fail') ? 1 : 0);
+for (const p of pairs.filter((x) => x.known)) log(`known: ${p.rule} on ${p.pattern} (${p.known.issue})`);
+for (const k of stale) log(`stale entry in known.json, no longer found: ${k.rule} on ${k.route} (${k.issue})`);
+for (const p of fresh) log(`NEW: ${p.rule} on ${p.pattern}`);
+process.exit(fresh.length && !has('--no-fail') ? 1 : 0);

@@ -3,8 +3,8 @@ import { request as httpsRequest } from 'node:https';
 import { join } from 'node:path';
 import { databaseUrl, redactUrl } from '../core/db.ts';
 import { listBackups } from './backup.ts';
-import { appVersion, folderSize, formatBytes, repoRoot, serverPid } from './files.ts';
-import { migrationsOnDisk, readAppliedMigrations } from './migrations.ts';
+import { appVersion, folderSize, formatBytes, serverPid } from './files.ts';
+import { migrationFiles, migrationsOnDisk, readMigrationState } from './migrations.ts';
 import { type BackupStatusFile, readBackupStatus } from './online-backup.ts';
 import { secretKeyLocation } from './secret-key.ts';
 
@@ -35,6 +35,8 @@ export interface Status {
     /** Null when the database could not be read (it does not exist yet, or the server has it open). */
     applied: number | null;
     pending: string[] | null;
+    /** Applied migrations whose file was edited afterwards (E16-20); null when it could not be checked. */
+    changed: string[] | null;
     note: string;
   };
 }
@@ -76,51 +78,45 @@ export async function getStatus(opts: { dataDir: string; backupsDir: string; por
   if (server) {
     // A PostgreSQL server can be read while the application runs.
     let reason = '';
-    const applied = await readAppliedMigrations(opts.dataDir, (message) => (reason = message));
-    const done = new Set(applied ?? []);
-    const pending = applied ? onDisk.filter((m) => !done.has(m)) : null;
+    const state = await readMigrationState(opts.dataDir, (message) => (reason = message));
+    const done = new Set(state?.applied ?? []);
+    const pending = state ? onDisk.filter((m) => !done.has(m)) : null;
     migrations = {
-      onDisk: onDisk.length, applied: applied?.length ?? null, pending,
-      note: !applied ? `the database could not be read: ${reason}` : pending!.length ? `${pending!.length} pending (${pending!.join(', ')}); they run at the next start` : 'none pending',
+      onDisk: onDisk.length, applied: state?.applied.length ?? null, pending, changed: state?.changed ?? null,
+      note: !state ? `the database could not be read: ${reason}` : pendingNote(pending!) + changedNote(state.changed),
     };
   } else if (pid) {
     // The embedded database allows one process, so it cannot be read while the server has
-    // it open. The server applied everything it found when it started.
+    // it open. The server applied everything it found when it started (and warned in its log
+    // about any applied migration edited since).
     const started = statSync(join(opts.dataDir, 'grc.pid')).mtimeMs;
-    const newer = onDisk.filter((name) => {
-      const [scope, file] = name.split('/');
-      const path = scope === 'core' ? `server/src/core/migrations/${file}`
-        : scope.startsWith('core.') ? `server/src/core/${scope.slice(5)}/migrations/${file}` : `server/src/modules/${scope}/migrations/${file}`;
+    const newer = migrationFiles().filter((f) => {
       try {
-        return statSync(join(repoRoot, path)).mtimeMs > started;
+        return statSync(f.path).mtimeMs > started;
       } catch {
         return false;
       }
-    });
+    }).map((f) => f.name);
     migrations = {
       onDisk: onDisk.length,
       applied: null,
       pending: null,
+      changed: null,
       note: newer.length
         ? `${newer.length} migration file(s) changed since the server started (${newer.join(', ')}); restart to apply`
         : 'applied when the server started; none changed since',
     };
   } else if (!existsSync(join(opts.dataDir, 'pg'))) {
-    migrations = { onDisk: onDisk.length, applied: null, pending: onDisk, note: 'no database yet; all migrations run at first start' };
+    migrations = { onDisk: onDisk.length, applied: null, pending: onDisk, changed: [], note: 'no database yet; all migrations run at first start' };
   } else {
     let reason = '';
-    const applied = await readAppliedMigrations(opts.dataDir, (message) => (reason = message));
-    if (applied === null) {
-      migrations = { onDisk: onDisk.length, applied: null, pending: null, note: `the database could not be read: ${reason}` };
+    const state = await readMigrationState(opts.dataDir, (message) => (reason = message));
+    if (state === null) {
+      migrations = { onDisk: onDisk.length, applied: null, pending: null, changed: null, note: `the database could not be read: ${reason}` };
     } else {
-      const done = new Set(applied);
+      const done = new Set(state.applied);
       const pending = onDisk.filter((m) => !done.has(m));
-      migrations = {
-        onDisk: onDisk.length,
-        applied: applied.length,
-        pending,
-        note: pending.length ? `${pending.length} pending (${pending.join(', ')}); they run at the next start` : 'none pending',
-      };
+      migrations = { onDisk: onDisk.length, applied: state.applied.length, pending, changed: state.changed, note: pendingNote(pending) + changedNote(state.changed) };
     }
   }
 
@@ -156,6 +152,11 @@ export async function getStatus(opts: { dataDir: string; backupsDir: string; por
     migrations,
   };
 }
+
+const pendingNote = (pending: string[]) =>
+  pending.length ? `${pending.length} pending (${pending.join(', ')}); they run at the next start` : 'none pending';
+const changedNote = (changed: string[]) =>
+  changed.length ? `; WARNING: ${changed.length} applied migration file(s) EDITED since they were applied (${changed.join(', ')}): put the change in a new migration instead` : '';
 
 /** One line about the daily backups the server takes itself; says FAILED or OVERDUE plainly. */
 function formatServerBackups(b: BackupStatusFile | null, running: boolean, age: (hours: number) => string, now: Date): string {

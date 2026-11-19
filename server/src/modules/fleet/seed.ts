@@ -41,7 +41,7 @@ const RAIL_DEPS: [string, string][] = [
   ['Example Scheduling System', 'scheduling'], ['Example Radio Dispatch System', 'radio'],
 ];
 for (const [route_code, name, depot, service_type, description] of [
-  ['1', 'Harbour - Northgate', 'Example Depot North', 'fixed_route', 'Frequent cross-town route every 10 minutes in the day.'],
+  ['1', 'Harbor - Northgate', 'Example Depot North', 'fixed_route', 'Frequent cross-town route every 10 minutes in the day.'],
   ['2', 'Riverside Loop', 'Example Depot North', 'fixed_route', 'Circular route in both directions.'],
   ['4', 'College - Hospital', 'Example Depot North', 'fixed_route', 'Links the college campus with the hospital.'],
   ['7', 'Eastfield - City Center', 'Example Depot South', 'fixed_route', 'Radial route from the eastern estates.'],
@@ -59,7 +59,7 @@ SERVICES.push({
   systems: [['Example CAD/AVL System', 'cad_avl'], ['Example Scheduling System', 'scheduling'], ['Example Radio Dispatch System', 'radio']],
 });
 SERVICES.push({ route_code: 'LR-A', name: 'Light Rail Line A', mode: 'light_rail', service_type: 'rail_line', depot: 'Example Rail Yard', description: 'Interchange to the northern terminus.', systems: RAIL_DEPS });
-SERVICES.push({ route_code: 'LR-B', name: 'Light Rail Line B', mode: 'light_rail', service_type: 'rail_line', depot: 'Example Rail Yard', description: 'Interchange to the harbour.', systems: RAIL_DEPS });
+SERVICES.push({ route_code: 'LR-B', name: 'Light Rail Line B', mode: 'light_rail', service_type: 'rail_line', depot: 'Example Rail Yard', description: 'Interchange to the harbor.', systems: RAIL_DEPS });
 
 function vehicles(): (Row & { depot: string; label: string; kit: string[] })[] {
   const out: (Row & { depot: string; label: string; kit: string[] })[] = [];

@@ -14,7 +14,8 @@ param(
   [string]$Label = 'manual',       # backup: recorded in the manifest
   [string]$At = '02:00',           # schedule-backup: time of day, HH:mm
   [int]$Lines = 40,                # logs: how many lines to show
-  [switch]$Follow,                 # logs: keep showing new error lines
+  [switch]$Follow,                 # logs: keep showing new lines
+  [string]$Level,                  # logs: only this level and worse (error, warn, info, debug); audit-deps: fail from this severity
   [switch]$NoSecrets,              # export-all: leave out password hashes, second-factor secrets, sessions
   [string]$Out,                    # export-all: destination folder
   [switch]$Force,                  # restore: accept a backup made by newer code
@@ -167,7 +168,8 @@ Usage: .\grc.ps1 <command>
 
   start | stop | restart | health     run the server on http://127.0.0.1:8080
   status                              version, port, process, data size, last backup, pending migrations
-  logs [-Lines n] [-Follow]           show the end of the server logs
+  logs [-Lines n] [-Follow] [-Level warn]   show the end of the server log (datalogsgrc.log)
+  version                             the installed version and commit
   seed [-Profile pilot|dev]           load data (idempotent)
 
   backup [-Prune n] [-Encrypt [-IncludeSecretKey]]  verified copy of the data in backups\<timestamp>; -Prune keeps the newest n
@@ -185,11 +187,13 @@ Usage: .\grc.ps1 <command>
                                       backup, new code, npm install, build, migrate, restart, health check;
                                       puts the previous version back by itself if any step fails
   save-code                           keep a copy of the code as it is now, for upgrade to return to
+  secret-key show|rotate              where the secret key comes from (fingerprint only); rotate writes a new one
 
   Encrypted files use -KeyFile <file> or -PassphraseFile <file>, or the environment variables
   GRC_BACKUP_KEY_FILE, GRC_BACKUP_PASSPHRASE_FILE or GRC_BACKUP_PASSPHRASE.
 
-  dev | build | test | typecheck | ci development (ci = typecheck + tests + build)
+  dev | build | test | typecheck | ci development (ci = typecheck + tests + tests on UTC + build + dependency audit)
+  audit-deps [-Level high]            known vulnerabilities in production packages; fails only when a fix exists
   npm <args>                          any npm command with the portable Node.js
 '@
 }
@@ -221,15 +225,17 @@ switch ($Command) {
     # Local continuous integration: the checks to run before every commit or push.
     # Tools print warnings on stderr; judge each step by its exit code only.
     $ErrorActionPreference = 'Continue'
-    $steps = [ordered]@{ 'Typecheck' = { & npm.cmd run --silent typecheck }; 'Tests' = { & npm.cmd test }; 'Tests on UTC' = { $env:TZ = 'UTC'; try { & npm.cmd test } finally { Remove-Item Env:TZ -ErrorAction SilentlyContinue } }; 'Web build' = { & npm.cmd run --silent build } }
+    $steps = [ordered]@{ 'Typecheck' = { & npm.cmd run --silent typecheck }; 'Tests' = { & npm.cmd test }; 'Tests on UTC' = { $env:TZ = 'UTC'; try { & npm.cmd test } finally { Remove-Item Env:TZ -ErrorAction SilentlyContinue } }; 'Web build' = { & npm.cmd run --silent build }; 'Dependency audit' = { & $node $tsx 'server/src/cli.ts' audit-deps } }
     $failed = @()
     foreach ($name in $steps.Keys) {
       Write-Host "== $name" -ForegroundColor Cyan
       & $steps[$name]
+      # The audit needs the npm registry: without a network (exit 3) it is a warning, not a failure.
+      if ($name -eq 'Dependency audit' -and $LASTEXITCODE -eq 3) { Write-Host 'Dependency audit skipped: the npm registry could not be reached.' -ForegroundColor Yellow; continue }
       if ($LASTEXITCODE -ne 0) { $failed += $name }
     }
     if ($failed.Count) { Write-Host ("CI FAILED: " + ($failed -join ', ')) -ForegroundColor Red; exit 1 }
-    Write-Host 'CI passed: typecheck, tests and web build.' -ForegroundColor Green
+    Write-Host 'CI passed: typecheck, tests, web build and dependency audit.' -ForegroundColor Green
   }
 
   'status' {
@@ -247,12 +253,22 @@ switch ($Command) {
   }
 
   'logs' {
-    if (-not (Test-Path $log) -and -not (Test-Path "$log.err")) { Write-Host "No logs yet in $dataDir (the server has not been started by grc.ps1)."; exit 0 }
-    if (Test-Path $log) { Write-Host "--- $log" -ForegroundColor Cyan; Get-Content $log -Tail $Lines }
-    Write-Host "--- $log.err (errors)" -ForegroundColor Cyan
-    if (-not (Test-Path "$log.err")) { exit 0 }
-    if ($Follow) { Get-Content "$log.err" -Tail $Lines -Wait } else { Get-Content "$log.err" -Tail $Lines }
+    # Anything printed before the server's own log started (a failed start) is in server.log.err.
+    if ((Test-Path "$log.err") -and (Get-Item "$log.err").Length -gt 0) {
+      Write-Host "--- $log.err (start-up errors)" -ForegroundColor Cyan
+      Get-Content "$log.err" -Tail ([Math]::Min($Lines, 20))
+    }
+    # The server's own log (datalogsgrc.log, rotated by size), shown readably.
+    $a = @('logs', '--lines', $Lines)
+    if ($Level) { $a += '--level', $Level }
+    if ($Follow) { $a += '--follow' }
+    Install-Packages
+    & $node $tsx 'server/src/cli.ts' @a
+    exit $LASTEXITCODE
   }
+
+  'version'       { exit (Invoke-Cli version) }
+  'audit-deps'    { $a = @('audit-deps'); if ($Level) { $a += '--level', $Level }; exit (Invoke-Cli @a) }
 
   'backup' {
     $a = @('backup', '--label', $Label) + $keyArgs
@@ -302,6 +318,22 @@ switch ($Command) {
     if ($To -ne 'disk' -and $To -ne 's3') { Write-Host 'Say where to: .\grc.ps1 move-files -To s3   (or -To disk)' -ForegroundColor Red; exit 1 }
     exit (Invoke-Offline move-files --to $To)
   }
+  'secret-key' {
+    # show: where the key comes from (fingerprint only); rotate: a new key, the old one kept as retired.
+    $what = if ($Rest -and $Rest[0]) { $Rest[0] } else { 'show' }
+    if ($what -notin @('show', 'rotate')) { Write-Host 'Usage: .\grc.ps1 secret-key show | rotate' -ForegroundColor Red; exit 1 }
+    Install-Packages
+    $keyCli = 'server/src/core/secretkey-cli.ts'
+    if ($what -eq 'show') { Invoke-Native $node $tsx $keyCli show; exit $LASTEXITCODE }
+    # rotate needs the database to itself: stop the server, rotate, start it again.
+    $wasRunning = [bool](Get-ServerProcess)
+    if ($wasRunning) { Stop-Server }
+    Invoke-Native $node $tsx $keyCli rotate
+    $code = $LASTEXITCODE
+    if ($wasRunning -and -not (Start-Server -NoBuild) -and $code -eq 0) { $code = 1 }
+    exit $code
+  }
+
   'save-code' {
     $file = Join-Path $codeDir 'last-good.tar'
     Invoke-Native $node (Join-Path $root 'tools\code-snapshot.mjs') save $root $file

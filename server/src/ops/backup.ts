@@ -34,7 +34,7 @@ export const ARCHIVE_INFO = 'archive.json';
 
 /** Top-level names in the data folder that are never copied or replaced. */
 export const isRuntimeFile = (name: string) =>
-  name === 'grc.pid' || name === 'grc.stop' || name.startsWith('server.log') || name.startsWith('backup-status.json');
+  name === 'grc.pid' || name === 'grc.stop' || name === 'logs' || name.startsWith('server.log') || name.startsWith('backup-status.json');
 
 export interface BackupManifest {
   format: typeof BACKUP_FORMAT;
@@ -506,7 +506,7 @@ async function restoreFolder(opts: RestoreOptions): Promise<RestoreResult> {
     throw new OpsError(`The restore failed part-way: ${(err as Error).message}. The data folder is incomplete.${undo}`, 2);
   }
   const after = await checkFiles(opts.dataDir, manifest.files, manifest.folders).then((list) =>
-    list.filter((p) => !isRuntimeFile(p.replace(/^not in the manifest: /, ''))),
+    list.filter((p) => !isRuntimeFile(p.replace(/^not in the manifest: /, '').split('/')[0])),
   );
   if (after.length) throw new OpsError(`The restored files do not match the backup (${after[0]}).${undo}`, 2);
 

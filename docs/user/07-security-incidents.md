@@ -2,6 +2,8 @@
 
 A security incident is a suspected or confirmed attack on, loss of, or unauthorized access to your organization's systems, accounts or data. For a transit operator that includes an outage of dispatch or vehicle tracking caused by an attack, a compromised fare system, or an intrusion into the network on board vehicles. This page explains how to declare an incident, how the notification clocks work, and how to use the incident workspace: the log, checklists, roles, evidence, what is affected, the ransom-payment control and the post-incident review. It also covers the notification rules an administrator must set up, the page of notification deadlines across incidents, the printable incident report, and the printable kit for when the system itself is unavailable.
 
+An administrator can switch security incidents off under **Administration > Features** (see [Administration](09-administration.md#features)). Restricted records elsewhere (risks, vulnerabilities) are still protected the same way. Records are kept and return when it is switched back on.
+
 The screens are in the **Cybersecurity** group of the menu: **Security incidents**, **Notification deadlines**, **Rules and checklists** and **Offline incident kit**.
 
 ## Who can see security incidents
@@ -43,7 +45,8 @@ Select **Declare incident** on the list, or **Create > Security incident** from 
 3. Set **Discovered**: the date and time the organization first became aware, in the organization's time zone. It starts as the present moment. Correct it if the incident was noticed earlier. It cannot be in the future. Every notification deadline counts from this time.
 4. Choose a **Scenario** if one fits: **Ransomware**, **Account compromise**, **Payment fraud**, **Vendor compromise**, **Lost device**, **Dispatch or CAD/AVL outage**, **Fare system compromise**, **Onboard network compromise** or **Other**. The scenario brings the matching containment and recovery checklists.
 5. Choose a **Severity** by selecting one of the four cards. It starts as **Moderate**.
-6. Select **Continue**.
+6. If your administrator has added fields of their own to security incidents (**Custom fields**), fill them in below the severity; those marked with an asterisk are required. On the incident's workspace they are shown, and can be edited, in the **More details** card beside the clocks and the team.
+7. Select **Continue**.
 
 The severity guide:
 
@@ -242,11 +245,12 @@ Files themselves go on the **Attachments** tab. Files added there are recorded a
 
 ## Affected
 
-The **Affected** tab has three parts:
+The **Affected** tab has these parts:
 
 - **Questions that decide who must be told**: the same switches as when declaring. Changing one brings the clocks up to date straight away.
 - **Affected systems and data**: free text for **Affected systems** and **Affected data**. Select **Edit** to change them.
 - **Linked systems, data categories and other records**: connect the incident to records elsewhere, such as entries in the [Inventory](03-inventory.md) or a vendor in [Vendors and contracts](04-vendors-and-contracts.md).
+- **Services and vehicles affected**, when the fleet module is installed and you may see fleet records: the services (routes and lines) that depend on the systems linked to the incident, and the vehicles that carry their equipment, each with a link to its record. Link the affected systems in the part above and this list follows. It covers only the linked systems themselves, not the systems they feed; for those, open a system's **Map** tab or **What is affected** (see [Fleet and services](19-fleet-and-services.md)). Vehicles are listed only for people who may see assets.
 
 ## The ransom-payment control
 

@@ -17,7 +17,6 @@ import { dayInZone } from './timezone.ts';
  */
 
 const BASES = ['updated_at', 'created_at'];
-const SWEEP_EVERY_MS = 24 * 3600_000;
 
 interface Deps {
   app: FastifyInstance;
@@ -61,9 +60,7 @@ export function registerRetention({ app, db, audit, lookups, res, requireRecentA
     return { flagged: Object.values(byType).reduce((a, b) => a + b, 0), byType };
   }
 
-  // Daily, in process (see E14-12 for the durable queue). Not started under test.
-  let timer: NodeJS.Timeout | null = null;
-  let first: NodeJS.Timeout | null = null;
+  // The daily sweep runs on the job queue, scheduled by core in app.ts (E14-23).
   app.addHook('onReady', async () => {
     await lookups.ensure('retention_category', [
       { value: 'operational', label: 'Operational records' },
@@ -71,16 +68,6 @@ export function registerRetention({ app, db, audit, lookups, res, requireRecentA
       { value: 'contractual', label: 'Contracts and suppliers' },
       { value: 'governance', label: 'Governance and assurance' },
     ], { module: 'admin' });
-    if (process.env.VITEST) return;
-    const run = () => { void sweep().catch((err) => console.error('[retention] sweep failed:', err)); };
-    first = setTimeout(run, 60_000);
-    first.unref();
-    timer = setInterval(run, SWEEP_EVERY_MS);
-    timer.unref();
-  });
-  app.addHook('onClose', async () => {
-    if (timer) clearInterval(timer);
-    if (first) clearTimeout(first);
   });
 
   // ---------- policies ----------
@@ -142,9 +129,16 @@ export function registerRetention({ app, db, audit, lookups, res, requireRecentA
     const type = q.record_type && res.registry.get(q.record_type) ? q.record_type : null;
     const pageSize = Math.min(200, Math.max(1, Number(q.pageSize) || 50));
     const page = Math.min(100000, Math.max(1, Math.trunc(Number(q.page)) || 1));
-    // Restricted types are listed only for someone who may see them, and counted the same way.
-    const visibleTypes = res.registry.all().filter((d) => res.mayAccess(req.user, d, 'view')).map((d) => d.type);
-    const where = `status = $1 and ($2::text is null or record_type = $2) and record_type = any($3::text[])`;
+    // This is a drill-down list, so it shows only what the reviewer may see (E14-20): restricted types
+    // only to someone who may see them, and of a type with restricted rows (`restricted: 'flag'`), only
+    // the rows the reviewer may see. A record that no longer exists has no flag to hide it, so it stays
+    // listed. The pending counts on GET /api/admin/retention are figures and count every record.
+    const visibleDefs = res.registry.all().filter((d) => res.mayAccess(req.user, d, 'view'));
+    const visibleTypes = visibleDefs.map((d) => d.type);
+    const rowRules = visibleDefs
+      .filter((d) => d.restricted === 'flag' && res.visibilitySql(d, req.user, 't') !== 'true')
+      .map((d) => `(record_type <> '${d.type}' or not exists (select 1 from ${d.table} t where t.id = retention_reviews.record_id and not (${res.visibilitySql(d, req.user, 't')})))`);
+    const where = `status = $1 and ($2::text is null or record_type = $2) and record_type = any($3::text[])${rowRules.map((r) => ` and ${r}`).join('')}`;
     const total = (await db.one<{ c: number }>(`select count(*)::int c from retention_reviews where ${where}`, [status, type, visibleTypes]))!.c;
     const rows = await db.query<Row>(
       `select id, record_type, record_id, record_label, flagged_at, basis_at, status, extended_until, reason, decided_at, decided_by
@@ -174,6 +168,11 @@ export function registerRetention({ app, db, audit, lookups, res, requireRecentA
     const row = UUID_RE.test(id) ? await db.one<Row>(`select * from retention_reviews where id = $1 and status <> 'deleted'`, [id]) : undefined;
     const def = row ? res.registry.get(row.record_type) : undefined;
     if (!row || !def || !res.mayAccess(req.user, def, 'view')) fail(404, 'not_found', 'Review not found.');
+    // A row the reviewer may not see (a restricted row of a 'flag' type) is not theirs to decide.
+    const rule = res.visibilitySql(def!, req.user, 't');
+    if (rule !== 'true' && await db.one(`select 1 from ${def!.table} t where t.id = $1 and not (${rule})`, [row!.record_id])) {
+      fail(404, 'not_found', 'Review not found.');
+    }
     return { review: row!, def: def! };
   };
   const reasonOf = (b: Row) => {

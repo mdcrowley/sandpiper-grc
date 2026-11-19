@@ -165,7 +165,7 @@ The link at the top right of a widget opens the full page for that area. If a wi
 
 #### Your home dashboard
 
-If you have chosen one of the dashboards as your home dashboard (see [Dashboards and reports](15-dashboards-and-reports.md)), a button **Your dashboard:** followed by its name appears at the top right of the Overview. The Overview stays the page you land on.
+A chosen home dashboard (see [Dashboards and reports](15-dashboards-and-reports.md)) is shown in the Overview's **Dashboard** part, with a switch back to the Overview's own figures and an **Open in full** link. The Overview stays the page you land on. People whose role only looks (for example Executive viewer or Auditor) see the figures first, then **Where to look** (links to each area they can open), then **For you**.
 
 #### Choosing what the overview shows
 
@@ -205,12 +205,12 @@ The question-mark button at the top right is **Help for this page**: it opens th
 
 At the top of most record pages, under the title:
 
-- **Tags** are short labels you can add to any record you can edit: select **Add tags** (or **Edit**), type a tag and press Enter or a comma, then **Save tags**. Existing tags are suggested as you type. Tags are stored in lower case. In a list, the **Filters** panel has a **Tags** box (records with any of the tags you choose), and the column chooser has a **Tags** column.
+- **Tags** are short labels you can add to any record you can edit: select **Add tags** (or **Edit**), type a tag and press Enter or a comma, then **Save tags**. Existing tags are suggested as you type. Tags are stored in lower case. In a list, the **Filters** panel has a **Tags** box (records with any of the tags you choose), and the column chooser has a **Tags** column. Administrators can correct a tag on every record of a kind at once, or merge two tags, on the **Tags** tab of **Administration > Lists**.
 - **Watch** follows the record: you are notified when its status changes or someone comments on it (not about your own changes). The button then reads **Watching** with the number of people watching; select it again to stop. Hover over it to see who watches. Records you watch are listed under **Watching** on the Overview.
 
 ### Lists: columns, saved views and extra fields
 
-In any list, the column chooser and density are remembered for you, and **Save current view** in the **View** menu keeps a search, filters and sort under a name. These are saved with your account, so they follow you to another browser. If your administrator has added fields of their own to a kind of record (**Custom fields** in Administration), they appear in its forms under their own heading, on the record page (in **Details**, or a **More details** card), as columns you can switch on, and in **Filters**.
+In any list, the column chooser and density are remembered for you, and **Save current view** in the views menu keeps a search, filters and sort under a name, for you alone or shared with everyone who can see the list (see [Saved views](#saved-views)). These are saved with your account, so they follow you to another browser. If your administrator has added fields of their own to a kind of record (**Custom fields** in Administration), they appear in its forms under their own heading, on the record page (in **Details**, or a **More details** card), as columns you can switch on, and in **Filters**.
 
 ### Keyboard shortcuts
 
@@ -226,6 +226,8 @@ Press `?` (when you are not typing in a box) to see every keyboard shortcut, or 
 | `Esc` | Close the dialog, menu or list that is open |
 
 Shortcuts made of single letters do nothing while you are typing in a box or while a dialog is open.
+
+In a dialog, `Esc` first closes a list that is open in a field (a choice list or a record picker), and the next `Esc` closes the dialog. If you have typed something that is not saved yet, the dialog asks before throwing it away: `Tab` to **Discard** and press `Enter`, or choose **Cancel** to go back to it. In a record picker, type a few letters, move through the matches with the `Down` and `Up` arrows and press `Enter` to choose one.
 
 ### Theme toggle
 
@@ -286,7 +288,22 @@ A saved view remembers the current search, filters and sort order. The views but
 
 To use a view, select the views button and choose it. Choose **All …** at the top of the menu to go back to the full list. To remove a view, choose it and then select **Delete** in the same menu.
 
-Saved views are kept in your browser only. They are not shared with colleagues and do not follow you to another computer or browser. To share a view, send the page address instead.
+Your saved views are kept with your account, under **My views** in the menu, so they follow you to any computer or browser you sign in from. Nobody else sees them.
+
+#### Sharing a view with colleagues
+
+A view can also be shared with everyone who can see the list:
+
+- When you save it, check **Share with everyone who can see this list** and select **Share view**; or
+- choose one of your own views and select **Share "…" with everyone** in the menu. It then moves from **My views** to **Shared with everyone**.
+
+Shared views are listed under **Shared with everyone**, each with the name of the person who shared it. A shared view holds only the search, filters and sort: whoever opens it sees just the records they are allowed to see, so the same view can show different records to different people. Only the person who shared a view, or an administrator, can replace it (save a view of the same name with the box checked) or remove it (choose it, then **Stop sharing "…"**). Sharing, changing and removing a shared view is recorded in the audit log. Two shared views on one list cannot have the same name.
+
+To show a colleague a list just once, you can still send the page address instead.
+
+#### Views saved in this browser only
+
+Views saved before they were kept with your account were stored in the browser alone. While they are still only there, the menu ends with **Keep this browser's views in your account**: select it to keep them with your account from then on. Do this in each browser where you saved views.
 
 ### Columns and row height
 
@@ -418,10 +435,11 @@ The label is there so nobody mistakes a trial installation for the system of rec
 ## Where to get help
 
 - This guide is shown in the application's Help section. The same pages are in the `docs/user` folder of the installation.
-- For a forgotten password, a locked account or a lost second factor, ask an administrator. They can give you a new one-time link or reset your second factor.
+- For a forgotten password, select **Forgot your password?** on the sign-in page when your installation sends email (see [Forgot your password?](14-attachments-and-notifications.md#forgot-your-password)). For a locked account or a lost second factor, or when there is no such link, ask an administrator. They can give you a new one-time link or reset your second factor.
 - If you cannot see a menu item or button that this guide describes, your role does not include it. Ask an administrator.
 - Select the question-mark button at the top right to open this guide at the section about the page you are on, or **Help** in the menu under your name for its first page. The first page has a search box that looks through every page of the guide and takes you to the matching section.
 - If a page fails to load, select **Try again** on the message. If it keeps failing, tell whoever looks after the installation.
+- The foot of the Help page shows the installed version and the commit it was built from. Give it when you report a problem.
 
 ## Not available yet
 

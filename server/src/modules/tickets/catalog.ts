@@ -1,6 +1,8 @@
-// E03-15: catalog items with their own questions, fulfillment tasks and approval.
+// E03-15: catalog items with their own questions, fulfillment tasks and approval; E03-21: approval
+// by more than one person, by named approvers, or only for some answers.
 import type { FastifyRequest } from 'fastify';
-import type { ModuleContext, Row } from '../../core/module.ts';
+import { UUID_RE } from '../../core/errors.ts';
+import type { ModuleContext, Row, SessionUser } from '../../core/module.ts';
 import type { TicketNotify } from './notify.ts';
 import { categoryOf } from './sla.ts';
 
@@ -53,6 +55,34 @@ export function makeCatalog(ctx: ModuleContext, notify: TicketNotify) {
       if (out.length > 30) bad('questions', 'An item can ask at most 30 questions.');
       data.questions = out.length ? out : null;
     }
+    // E03-21: how many approvals, from whom, and for which answers.
+    if ('approvals_needed' in data) {
+      const n = data.approvals_needed === null || data.approvals_needed === '' ? 1 : Number(data.approvals_needed);
+      if (!Number.isInteger(n) || n < 1 || n > 5) bad('approvals_needed', 'Ask for 1 to 5 approvals.');
+      data.approvals_needed = n;
+    }
+    if ('approver_ids' in data) {
+      const a = parse('approver_ids', data.approver_ids);
+      if (a !== null && a !== undefined && !Array.isArray(a)) bad('approver_ids', 'Approvers must be a list of people.');
+      const ids = [...new Set(((a ?? []) as unknown[]).map((x) => String(x)))];
+      if (ids.some((id) => !UUID_RE.test(id))) bad('approver_ids', 'Choose approvers from the list of people.');
+      if (ids.length > 20) bad('approver_ids', 'Name at most 20 approvers.');
+      data.approver_ids = ids.length ? ids : null;
+    }
+    if ('approval_condition' in data) {
+      const c = parse('approval_condition', data.approval_condition) as Row | null | undefined;
+      const cond = (c ?? {}) as Row;
+      if (c === null || c === undefined || (typeof c === 'object' && !cond.question)) {
+        data.approval_condition = null;
+      } else {
+        if (typeof c !== 'object' || Array.isArray(c)) bad('approval_condition', 'Choose a question and the answers that need approval.');
+        const answers = (Array.isArray(cond.answers) ? cond.answers : []).map((x: unknown) => String(x).trim()).filter(Boolean);
+        if (!answers.length) bad('approval_condition', 'Choose at least one answer that needs approval.');
+        const questions = (Array.isArray(data.questions) ? data.questions : null) as Question[] | null;
+        if (questions && !questions.some((q) => q.key === cond.question)) bad('approval_condition', 'Approval depends on a question this item does not ask.');
+        data.approval_condition = { question: String(cond.question), answers };
+      }
+    }
     if ('tasks' in data) {
       const t = parse('tasks', data.tasks);
       if (t !== null && t !== undefined && !Array.isArray(t)) bad('tasks', 'Fulfillment tasks must be a list.');
@@ -93,7 +123,62 @@ export function makeCatalog(ctx: ModuleContext, notify: TicketNotify) {
     data.catalog_answers = answers.length ? answers : null;
     const tasks = (item.tasks ?? []) as string[];
     data.fulfilment_tasks = tasks.length ? tasks.map((title) => ({ title, done: false })) : null;
-    if (item.requires_approval) data.approval_status = 'pending';
+    if (needsApproval(item, answers)) {
+      data.approval_status = 'pending';
+      data.approvals_needed = Number(item.approvals_needed) || 1;
+      data.approver_ids = Array.isArray(item.approver_ids) && item.approver_ids.length ? item.approver_ids : null;
+    }
+  }
+
+  /** E03-21: an item that needs approval may need it only for some answers to one of its questions. */
+  function needsApproval(item: Row, answers: Answer[]): boolean {
+    if (!item.requires_approval) return false;
+    const cond = item.approval_condition as { question?: string; answers?: string[] } | null;
+    if (!cond?.question) return true;
+    const given = answers.find((a) => a.key === cond.question)?.value;
+    return given !== undefined && (cond.answers ?? []).some((v) => v.toLowerCase() === given.toLowerCase());
+  }
+
+  // ---------- decisions (E03-21) ----------
+
+  const decisionsOf = (ticketId: string) => db.query<Row>(
+    `select id, user_id, user_name, decision, note, superseded, decided_at from ticket_approvals where ticket_id = $1 order by decided_at, id`, [ticketId]);
+
+  /** Where the decisions stand: each person's latest decision counts, overturned rejections do not. */
+  function tally(ticket: Row, decisions: Row[]) {
+    const latest = new Map<string, Row>();
+    for (const d of decisions) if (!d.superseded) latest.set(d.user_id, d);
+    const current = [...latest.values()];
+    const approved = current.filter((d) => d.decision === 'approved');
+    const rejected = current.filter((d) => d.decision === 'rejected');
+    const needed = Math.max(1, Number(ticket.approvals_needed) || 1);
+    const status = rejected.length ? 'rejected' : approved.length >= needed ? 'approved' : 'pending';
+    return { needed, approved: approved.length, rejected: rejected.length, status, latest };
+  }
+
+  /** Who may decide on this ticket, and why not when they may not. */
+  function mayDecide(user: SessionUser | null | undefined, ticket: Row): string | null {
+    if (!user || !ctx.can(user, 'tickets.approve')) return 'You do not have permission to approve requests.';
+    if (ticket.requester_id && ticket.requester_id === user.id) return 'You cannot approve your own request.';
+    const named = Array.isArray(ticket.approver_ids) ? (ticket.approver_ids as string[]) : [];
+    if (named.length && !named.includes(user.id)) return 'This request names other approvers.';
+    return null;
+  }
+
+  async function approvalView(user: SessionUser | null | undefined, ticket: Row) {
+    const decisions = await decisionsOf(ticket.id);
+    const t = tally(ticket, decisions);
+    const named = Array.isArray(ticket.approver_ids) ? (ticket.approver_ids as string[]) : [];
+    const people = named.length
+      ? await db.query<Row>('select id, display_name as label from users where id = any($1::uuid[]) order by display_name', [named]) : [];
+    const why = mayDecide(user, ticket);
+    return {
+      status: ticket.approval_status ?? null, needed: t.needed, approved: t.approved, rejected: t.rejected,
+      approvers: named.length ? people : null,
+      decisions: decisions.map((d) => ({ ...d, counts: !d.superseded && t.latest.get(d.user_id)?.id === d.id })),
+      my_decision: user ? t.latest.get(user.id)?.decision ?? null : null,
+      can_decide: Boolean(ticket.approval_status) && !why, cannot_decide_reason: why,
+    };
   }
 
   /** A patch to the checklist: keeps who ticked each task and when. */
@@ -137,8 +222,9 @@ export function makeCatalog(ctx: ModuleContext, notify: TicketNotify) {
 
   async function afterCreate(row: Row): Promise<void> {
     if (row.approval_status !== 'pending') return;
+    const named = Array.isArray(row.approver_ids) && row.approver_ids.length ? (row.approver_ids as string[]) : null;
     await notify.send({
-      permission: 'tickets.approve', ...notify.about(row), kind: 'approval',
+      ...(named ? { userIds: named } : { permission: 'tickets.approve' }), ...notify.about(row), kind: 'approval',
       title: `Approval needed: ${notify.name(row)}`,
       body: row.requester_name ? `Requested by ${row.requester_name}.` : null,
     });
@@ -150,26 +236,53 @@ export function makeCatalog(ctx: ModuleContext, notify: TicketNotify) {
       const b = (req.body ?? {}) as Row;
       if (b.decision !== 'approved' && b.decision !== 'rejected') bad('decision', 'Choose approve or reject.');
       if (!row.approval_status) ctx.fail(409, 'no_approval', 'This ticket does not need approval.');
-      const note = String(b.note ?? '').trim() || null;
+      const note = String(b.note ?? '').trim().slice(0, 2000) || null;
       if (b.decision === 'rejected' && !note) bad('note', 'Say why the request is rejected.');
+      const why = mayDecide(req.user, row);
+      if (why) ctx.fail(403, 'forbidden', why);
+      const me = req.user!;
+      const before = tally(row, await decisionsOf(row.id));
+      if (before.latest.get(me.id)?.decision === b.decision) {
+        ctx.fail(409, 'already_decided', b.decision === 'approved' ? 'You have already approved this request.' : 'You have already rejected this request.');
+      }
+      // An approval given while the request stands rejected overturns the rejection (as one approver could before).
+      if (b.decision === 'approved' && row.approval_status === 'rejected') {
+        await db.query(`update ticket_approvals set superseded = true where ticket_id = $1 and decision = 'rejected' and not superseded`, [row.id]);
+      }
+      await db.query(
+        'insert into ticket_approvals (ticket_id, user_id, user_name, decision, note) values ($1,$2,$3,$4,$5)',
+        [row.id, me.id, me.displayName, b.decision, note]);
+      const after = tally(row, await decisionsOf(row.id));
       // The approval fields are read-only to people, so they are written as the system and audited as the person.
       const saved = await ctx.resources.update('ticket', row.id, {
-        approval_status: b.decision, approval_by: req.user!.id, approval_at: new Date().toISOString(), approval_note: note,
+        approval_status: after.status, approval_by: me.id, approval_at: new Date().toISOString(), approval_note: note,
       });
+      const progress = after.needed > 1 ? ` (${after.approved} of ${after.needed} approvals)` : '';
       await ctx.audit(req, {
         action: 'ticket.approval', recordType: 'ticket', recordId: row.id,
-        summary: `Request ${b.decision}: ${notify.name(row)}${note ? ` (${note})` : ''}`,
-        before: { approval_status: row.approval_status }, after: { approval_status: b.decision },
+        summary: `Request ${b.decision} by ${me.displayName}${progress}: ${notify.name(row)}${note ? ` (${note})` : ''}`,
+        before: { approval_status: row.approval_status }, after: { approval_status: after.status, decision: b.decision },
       });
-      const mine = (await notify.owners(saved));
-      await notify.send({
-        ...mine, userIds: [...(mine.userIds ?? []), row.created_by].filter((id) => id && id !== req.user!.id),
-        ...notify.about(row), kind: 'approval',
-        title: `Request ${b.decision}: ${notify.name(row)}`, body: note,
-      });
+      if (after.status !== row.approval_status) {
+        const mine = (await notify.owners(saved));
+        await notify.send({
+          ...mine, userIds: [...(mine.userIds ?? []), row.created_by, row.requester_id].filter((id) => id && id !== me.id),
+          ...notify.about(row), kind: 'approval',
+          title: `Request ${after.status === 'pending' ? 'back to waiting for approval' : after.status}: ${notify.name(row)}`, body: note,
+        });
+      }
       return ctx.resources.find('ticket', row.id, req.user);
+    });
+
+    ctx.app.get('/api/tickets/:id/approvals', { preHandler: ctx.requirePerm('tickets.view') }, async (req) => {
+      const row = (await ctx.resources.find('ticket', String((req.params as Row).id), req.user)) ?? ctx.fail(404, 'not_found', 'Ticket not found.');
+      return approvalView(req.user, row);
+    });
+    ctx.describeRoute({
+      method: 'GET', path: '/api/tickets/:id/approvals', permission: 'tickets.view', summary: 'Where the approval of a request stands: decisions, approvals needed, named approvers',
+      response: '{ status, needed, approved, rejected, approvers: [{ id, label }] | null, decisions: [{ user_name, decision, note, decided_at, superseded, counts }], my_decision, can_decide, cannot_decide_reason }',
     });
   }
 
-  return { checkItem, applyToNewTicket, checkTasks, checkApprovalGate, afterCreate, register };
+  return { checkItem, applyToNewTicket, checkTasks, checkApprovalGate, afterCreate, register, approvalView, mayDecide };
 }

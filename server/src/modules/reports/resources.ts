@@ -179,6 +179,10 @@ export function defineReportResources(ctx: ModuleContext, sharing: Sharing) {
     if (s.weekday !== undefined && s.weekday !== null) s.weekday = int(s.weekday, 1, 7, 1);
     if (s.month_day !== undefined && s.month_day !== null) s.month_day = int(s.month_day, 1, 31, 1);
     if (merged.target_type === 'dashboard' && merged.format === 'csv') bad('format', 'A dashboard can only be sent as a document.');
+    if (s.email !== undefined && !['off', 'link', 'attach'].includes(String(s.email))) bad('email', 'Choose how email is used.');
+    if ((merged.email ?? 'link') === 'attach' && !['pdf', 'xlsx', 'csv'].includes(String(merged.format ?? 'html'))) {
+      bad('email', 'Only a PDF, Excel or CSV file can be attached. Choose one of those formats, or send a link.');
+    }
     s.next_run_at = merged.active === false ? null : nextRun({ ...merged, ...s } as { cadence: string }, new Date()).toISOString();
   }
 
@@ -195,6 +199,7 @@ export function defineReportResources(ctx: ModuleContext, sharing: Sharing) {
       month_day: { label: 'Day of the month', type: 'number' },
       hour: { label: 'Hour of the day', type: 'number', default: 7 },
       format: { label: 'Format', type: 'lookup', list: 'report_schedule_format', default: 'html' },
+      email: { label: 'Email', type: 'lookup', list: 'report_schedule_email', default: 'link' },
       recipient_users: { label: 'People', type: 'json' },
       recipient_roles: { label: 'Roles', type: 'json' },
       active: { label: 'Switched on', type: 'boolean', default: true },

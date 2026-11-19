@@ -7,6 +7,7 @@ import { AssessmentQuestions } from './Questions';
 import { RenewalCalendar } from './RenewalCalendar';
 import { TermsMatrix } from './TermsMatrix';
 import { VendorDetail, VendorList } from './VendorPages';
+import { VendorResponsePage } from './VendorResponse';
 import './vendors.css';
 
 const mod: ModuleDef = {
@@ -32,6 +33,8 @@ const mod: ModuleDef = {
     { path: '/evidence/expiring', element: <EvidenceExpiring />, permission: 'vendors.view' },
     { path: '/evidence/:id', element: <EvidenceDetail />, permission: 'vendors.view' },
   ],
+  // A vendor answering an assessment through a link, without an account (E06-21).
+  publicRoutes: [{ path: '/vendor-response/:token', element: <VendorResponsePage /> }],
   create: [
     { label: 'Vendor', path: '/vendors?new=1', permission: 'vendors.create', icon: 'building' },
     { label: 'Contract', path: '/contracts?new=1', permission: 'contracts.create', icon: 'file-text' },

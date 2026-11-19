@@ -80,7 +80,7 @@ export async function launchBrowser({ profileDir, debugPort = 0, headless = true
   const args = [
     `--remote-debugging-port=${port}`, `--user-data-dir=${profileDir}`, '--no-first-run', '--no-default-browser-check',
     '--disable-gpu', '--disable-extensions', '--disable-background-networking', '--disable-sync', '--hide-scrollbars',
-    '--force-color-profile=srgb', '--font-render-hinting=none', '--lang=en-GB',
+    '--force-color-profile=srgb', '--font-render-hinting=none', '--lang=en-US',
   ];
   if (headless) args.unshift('--headless=new');
   // CI runners on Linux run as root inside a container-like sandbox.

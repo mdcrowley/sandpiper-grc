@@ -9,7 +9,7 @@ import { CommandPalette, type PaletteLink } from './CommandPalette';
 import { useMediaQuery } from './hooks';
 import { Icon, type IconName } from './Icon';
 import { Logo, Wordmark } from './Logo';
-import { modules, NAV_GROUPS, preloadRoute, type NavGroup, type NavItem } from './module';
+import { moduleOn, modules, NAV_GROUPS, preloadRoute, type NavGroup, type NavItem } from './module';
 import { Menu } from './overlay';
 import { formatDate } from './format';
 import { ShortcutsDialog } from './Shortcuts';
@@ -180,7 +180,7 @@ function initials(name: string): string {
 }
 
 export function Shell({ children }: { children: ReactNode }) {
-  const { user, appName, pilot, mfaEnrollmentRequired, mfaGraceEndsAt, can, logout } = useAuth();
+  const { user, appName, pilot, mfaEnrollmentRequired, mfaGraceEndsAt, can, areaOn, logout } = useAuth();
   const navigate = useNavigate();
   const { theme, toggle } = useTheme();
   const location = useLocation();
@@ -200,7 +200,8 @@ export function Shell({ children }: { children: ReactNode }) {
   const rail = !small && (medium || collapsed);
 
   const nav = useMemo<NavData & { pages: PaletteLink[] }>(() => {
-    const items = modules.flatMap((m) => m.nav ?? []).filter((item) => can(item.permission));
+    // Modules of a switched-off area (Administration > Features) contribute nothing.
+    const items = modules.filter((m) => moduleOn(m.key, areaOn)).flatMap((m) => m.nav ?? []).filter((item) => can(item.permission));
     const groups = NAV_GROUPS
       .map((group) => ({ group, items: items.filter((i) => i.group === group).sort((a, b) => (a.order ?? 100) - (b.order ?? 100)) }))
       .filter((g) => g.items.length > 0);
@@ -209,12 +210,13 @@ export function Shell({ children }: { children: ReactNode }) {
       current: activePath(location.pathname, items),
       pages: groups.flatMap((g) => g.items.map((i) => ({ label: i.label, path: i.path, icon: i.icon, group: g.group }))),
     };
-  }, [can, location.pathname]);
+  }, [can, areaOn, location.pathname]);
 
   const createItems = useMemo(() => modules
+    .filter((m) => moduleOn(m.key, areaOn))
     .flatMap((m) => m.create ?? [])
     .filter((item) => can(item.permission))
-    .sort((a, b) => a.label.localeCompare(b.label)), [can]);
+    .sort((a, b) => a.label.localeCompare(b.label)), [can, areaOn]);
 
   const closedRef = useRef(closed);
   closedRef.current = closed;

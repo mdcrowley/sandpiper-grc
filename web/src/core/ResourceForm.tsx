@@ -3,12 +3,9 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Alert, Button, Text } from '@mantine/core';
 import { IconAlertTriangle } from '@tabler/icons-react';
 import { api, ApiError, errorMessage, type Row } from './api';
-import {
-  Checkbox, DateField, DateTimeField, LookupChoices, LookupSelect, NumberField, RecordPicker, TextArea, TextField, UserPicker,
-} from './fields';
+import { FieldControl, isMissing, toApiValue, toFormValue } from './FieldControl';
 import { fieldMeta } from './FieldValue';
-import { currency } from './format';
-import { customFieldNames, useResource, type FieldMeta } from './meta';
+import { customFieldNames, useResource } from './meta';
 import { ErrorState } from './ui';
 import './records.css';
 
@@ -52,23 +49,6 @@ export interface ResourceFormProps {
 type Values = Record<string, unknown>;
 
 const WIDE_TYPES = ['longtext', 'json'];
-
-function toFormValue(meta: FieldMeta, value: unknown): unknown {
-  if (meta.multiple) return Array.isArray(value) ? value.map(String) : [];
-  if (meta.type === 'json') return value === null || value === undefined ? '' : JSON.stringify(value, null, 2);
-  if (meta.type === 'boolean') return Boolean(value);
-  if (meta.type === 'number' || meta.type === 'currency') return value === null || value === undefined || value === '' ? null : Number(value);
-  if (meta.type === 'user' || meta.type === 'ref') return value ?? null;
-  return value ?? '';
-}
-
-/** Form value to what the API stores; throws on invalid JSON. */
-function toApiValue(meta: FieldMeta, value: unknown): unknown {
-  if (meta.multiple) return Array.isArray(value) && value.length > 0 ? value : null;
-  if (meta.type === 'json') return value === '' ? null : JSON.parse(String(value));
-  if (typeof value === 'string') return value.trim() === '' ? null : value;
-  return value;
-}
 
 export function ResourceForm({
   type, fields: given, initial = {}, id, onSaved, onCancel, submitLabel, sections: givenSections, hints, onDirtyChange, customFields = true,
@@ -148,7 +128,7 @@ export function ResourceForm({
         found[field] = `${meta.label} must be valid JSON.`;
         continue;
       }
-      if (meta.required && meta.type !== 'boolean' && (value === null || value === undefined)) {
+      if (isMissing(meta, value)) {
         found[field] = `${meta.label} is required.`;
       } else if (id) {
         // Only send what changed.
@@ -185,36 +165,12 @@ export function ResourceForm({
   const control = (field: string) => {
     const meta = fieldMeta(resource, field);
     const display = (initial._display as Record<string, string> | undefined)?.[field];
-    const common = { label: meta.label, required: meta.required, error: errors[field], hint: hints?.[field] ?? meta.help };
-    const value = values[field];
-    if (meta.readOnly) {
-      return <TextField {...common} required={false} disabled value={String(display ?? initial[field] ?? '')} onChange={() => {}} />;
-    }
-    switch (meta.type) {
-      case 'longtext':
-        return <TextArea {...common} value={value as string} onChange={(v) => set(field, v)} />;
-      case 'json':
-        return <TextArea {...common} className="rc-field-mono" rows={6} hint={common.hint ?? 'JSON'} value={value as string} onChange={(v) => set(field, v)} />;
-      case 'number':
-        return <NumberField {...common} value={value as number | null} onChange={(v) => set(field, v)} />;
-      case 'currency':
-        return <NumberField {...common} prefix={currency()} thousands decimals={2} step={0.01} min={0} value={value as number | null} onChange={(v) => set(field, v)} />;
-      case 'date':
-        return <DateField {...common} value={value as string} onChange={(v) => set(field, v)} />;
-      case 'datetime':
-        return <DateTimeField {...common} value={value as string} onChange={(v) => set(field, v)} />;
-      case 'boolean':
-        return <Checkbox label={meta.label} error={errors[field]} hint={common.hint} checked={value as boolean} onChange={(v) => set(field, v)} />;
-      case 'lookup':
-        if (meta.multiple) return <LookupChoices {...common} list={meta.list ?? ''} value={value as string[]} onChange={(v) => set(field, v)} />;
-        return <LookupSelect {...common} list={meta.list ?? ''} value={value as string} onChange={(v) => set(field, v)} />;
-      case 'user':
-        return <UserPicker {...common} value={value as string | null} display={display} onChange={(v) => set(field, v)} />;
-      case 'ref':
-        return <RecordPicker {...common} type={meta.to ?? ''} value={value as string | null} display={display} onChange={(v) => set(field, v)} />;
-      default:
-        return <TextField {...common} value={value as string} onChange={(v) => set(field, v)} />;
-    }
+    return (
+      <FieldControl
+        meta={meta} value={values[field]} onChange={(v) => set(field, v)} error={errors[field]} hint={hints?.[field]}
+        display={display} readOnlyText={meta.readOnly ? String(display ?? initial[field] ?? '') : undefined}
+      />
+    );
   };
 
   const grid = (names: string[]) => (

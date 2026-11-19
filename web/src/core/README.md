@@ -284,8 +284,13 @@ Typing in the search box replaces the current history entry; filters, sort and p
 Dashboards can link straight to such an address. An embedded list (`urlState` off) reads `q`
 and `f.*` once when it mounts and then keeps its state to itself.
 
-**Saved views** (name, search, filters, sort) are kept in `localStorage` per record type
-(`grc.views.<type>`); "All <plural>" is built in. **Column choice, density and page size** are
+**Saved views** (name, search, filters, sort) are a person's own, kept on the server as the
+preference `views:<type>` with a `localStorage` copy (`grc.views.<type>`); "All <plural>" is built
+in. A view can also be **shared** with everyone who can see the list (`/api/views`, `core/views.ts`:
+audited, changed or removed only by its author or an administrator; labels of picked people and
+records are not stored, so the pills look them up with each viewer's own permissions). The menu
+lists "My views" and "Shared with everyone" (`useSavedViews` in `listState.ts`, `useSharedViews` in `sharedViews.ts`),
+and offers to keep views that are still only in this browser (`useBrowserOnlyViews`). **Column choice, density and page size** are
 kept in `localStorage` per user (`grc.u.<userId>.*`).
 
 **Export.** The Export menu (`ExportMenu`, needs `<module>.export`) offers Excel, CSV and
@@ -398,6 +403,7 @@ header buttons of a hand-built record page.
 | `status` | `(row) => ReactNode` | Default: a `LookupChip` of the `status` field when it is a lookup |
 | `actions` | `(rec) => ReactNode` | Header buttons |
 | `banner` | `(rec) => ReactNode` | Between header and summary: `Stepper`, `Countdown`s |
+| `evidence` | `boolean` | The built-in files tab is called "Evidence files" and records new files as evidence (collection and expiry dates). Default: the type's `evidence` flag in `/api/meta` (`ResourceDef.evidence`, else core's `EVIDENCE_TYPES`: evidence items, framework outcomes, obligations, policies, exercises, risks) |
 | `summaryFields` | `string[]` | Default summary: an `EditableSummary` of these fields |
 | `summary` | `(rec) => ReactNode` | Replaces the default summary |
 | `tabs` | `{ key, label, count?, content: (rec) => ReactNode }[]` | Shown before the built-in tabs |
@@ -774,10 +780,18 @@ All of these work without changes to a module that uses the generic pieces.
   a **More details** card (`CustomFieldsCard`) follows it. `EditableSummary` shows them only with
   `customFields`, so a page with several summary cards does not repeat them.
 - `FieldValue` and the History panel show multiple-choice values as chips / a list.
-- A hand-written form or page should add `customFieldNames(resource)` itself, or place
-  `<CustomFieldsCard type row onSaved />`.
+- A hand-written record page places `<CustomFieldsCard type row onSaved />` (RecordPage with
+  `summary` already does).
+- A hand-written form that keeps its own state uses `useCustomFieldInputs(type, { initial? })`:
+  render `custom.inputs` (the controls, grouped by section, with each field's help), spread
+  `custom.collect()` into the request body (it returns null and shows the messages when a
+  required field is empty; with `initial` it returns only what changed), and pass a failed
+  request's `err.fields` to `custom.showErrors`. `FieldControl` (one control for one field from
+  its metadata, as `ResourceForm` draws it) and `toFormValue` / `toApiValue` are exported too.
+  Without this, a required custom field makes such a form fail on the server.
 
-**Tags.** Rows carry `_tags`. `ResourceList` adds a **Tags** column (hidden until chosen) and a
+**Tags.** Rows carry `_tags`. Administrators rename and merge tags on the **Tags** tab of
+Administration > Lists (`POST /api/admin/tags/rename`). `ResourceList` adds a **Tags** column (hidden until chosen) and a
 **Tags** filter (`f.tags=a,b`: any of them; the pseudo-field `TAGS_FILTER`). `RecordPage` shows
 `<RecordTags>` under the header (`tags={false}` to leave it out). Also exported: `TagChips`,
 `TagsFilter`.

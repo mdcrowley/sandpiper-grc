@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Alert, Group, Pill, Progress, Stack, Stepper as Steps, Text } from '@mantine/core';
 import {
   api, ApiError, Button, Card, Checkbox, DateField, EmptyState, errorMessage, ErrorState, formatCurrency, formatDate, Icon, Loading,
-  NumberField, PageHeader, RecordPicker, Select, StatusChip, TextArea, TextField, toColorName, useFetch, useToast,
+  NumberField, PageHeader, RecordPicker, Select, StatusChip, TextArea, TextField, toColorName, useCustomFieldInputs, useFetch, useToast,
 } from '../../core';
 import { currencySymbol } from './bits';
 import type { Intake, MyRequest } from './types';
@@ -58,6 +58,9 @@ export function IntakeForm() {
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState<{ ref: string; name: string } | null>(null);
+  // The administrator's custom fields on projects (E18-34). Only people who may view projects have
+  // them in their metadata; for anyone else this is empty and the server does not require them.
+  const custom = useCustomFieldInputs('project');
   const set = <K extends keyof typeof BLANK>(key: K) => (value: (typeof BLANK)[K]) => setForm((f) => ({ ...f, [key]: value }));
 
   const header = (
@@ -75,22 +78,24 @@ export function IntakeForm() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    const extra = custom.collect();
     if (!form.name.trim()) { setFields({ name: 'Give the request a name.' }); setFormError(''); return; }
     setFields({});
     setFormError('');
+    if (!extra) return;
     setBusy(true);
     try {
-      const body: Record<string, unknown> = { ...form, budget, systems_affected: systems.map((s) => s.id) };
+      const body: Record<string, unknown> = { ...form, budget, systems_affected: systems.map((s) => s.id), ...extra };
       for (const k of Object.keys(body)) if (body[k] === '' || body[k] === null) delete body[k];
       if (!systems.length) delete body.systems_affected;
       const row = await api.post<{ id: string; ref: string; name: string; can_open: boolean }>('/api/projects/requests', body);
       toast.success(`Request ${row.ref} submitted.`);
       if (row.can_open) { navigate(`/projects/${row.id}`); return; }
       setSent({ ref: row.ref, name: row.name });
-      setForm(BLANK); setBudget(null); setSystems([]);
+      setForm(BLANK); setBudget(null); setSystems([]); custom.reset();
       reload();
     } catch (err) {
-      if (err instanceof ApiError && err.fields) setFields(err.fields);
+      if (err instanceof ApiError && err.fields) { setFields(err.fields); custom.showErrors(err.fields); }
       setFormError(errorMessage(err));
     } finally {
       setBusy(false);
@@ -155,6 +160,8 @@ export function IntakeForm() {
                   )}
                 </div>
               )}
+
+              {custom.inputs}
 
               <Alert color="blue" variant="light" icon={<Icon name="info" />} title={`This looks like ${tier.label}`}>
                 Because {tier.why}. The tier decides who approves each gate; it is worked out again whenever the project is saved.

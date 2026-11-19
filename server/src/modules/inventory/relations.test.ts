@@ -65,6 +65,38 @@ describe('integrations, data categories and sites', () => {
     }
   });
 
+  it('changes an integration in place, audited on both systems', async () => {
+    const made = (await t.api.post(`/api/systems/${sys.gamma.id}/integrations`, { to_system_id: sys.epsilon.id, method: 'api', notes: 'Old notes' })).body;
+    const url = `/api/systems/${sys.gamma.id}/integrations/${made.id}`;
+    // Method and notes.
+    const a = await t.api.patch(url, { method: 'file_transfer', notes: '  Weekly file  ' });
+    expect(a.status).toBe(200);
+    expect(a.body).toMatchObject({ id: made.id, flow: 'out', method: 'file_transfer', method_label: 'File transfer', notes: 'Weekly file' });
+    // Turned round, as seen from the other end: Epsilon now sends to Gamma.
+    const b = await t.api.patch(`/api/systems/${sys.epsilon.id}/integrations/${made.id}`, { direction: 'one_way' });
+    expect(b.body).toMatchObject({ from_system_id: sys.epsilon.id, to_system_id: sys.gamma.id, flow: 'out' });
+    expect((await t.api.get(`/api/systems/${sys.gamma.id}/integrations`)).body.find((r: any) => r.id === made.id).flow).toBe('in');
+    // Both ways, then clearing the notes; leaving a field out keeps it.
+    const c = await t.api.patch(url, { direction: 'two_way', notes: '' });
+    expect(c.body).toMatchObject({ direction: 'two_way', flow: 'both', notes: null, method: 'file_transfer' });
+    // Refused: a bad direction or method, an unknown integration, a change that would duplicate another one.
+    expect((await t.api.patch(url, { direction: 'sideways' })).body.error.fields.direction).toBeTruthy();
+    expect((await t.api.patch(url, { method: 'telepathy' })).body.error.fields.method).toBeTruthy();
+    expect((await t.api.patch(`/api/systems/${sys.alpha.id}/integrations/${made.id}`, { notes: 'x' })).status).toBe(404);
+    const other = (await t.api.post(`/api/systems/${sys.gamma.id}/integrations`, { to_system_id: sys.epsilon.id, method: 'manual' })).body;
+    expect((await t.api.patch(`/api/systems/${sys.gamma.id}/integrations/${other.id}`, { method: 'file_transfer' })).status).toBe(409);
+    // Permission.
+    const viewer = await t.as('project_manager'); // systems.view only
+    expect((await viewer.patch(url, { notes: 'x' })).status).toBe(403);
+    for (const id of [sys.gamma.id, sys.epsilon.id]) {
+      const events = (await t.api.get(`/api/history?record_type=system&record_id=${id}`)).body.filter((h: any) => h.action === 'system.integration_update');
+      expect(events.length).toBe(3);
+    }
+    // Leave the estate as the later tests expect it.
+    await t.api.del(url);
+    await t.api.del(`/api/systems/${sys.gamma.id}/integrations/${other.id}`);
+  });
+
   it('links data categories and sites to systems, audited', async () => {
     for (const [s, c] of [[sys.alpha, cat.pay], [sys.beta, cat.pay], [sys.gamma, cat.open], [sys.delta, cat.unclassified]]) {
       expect((await t.api.post(`/api/systems/${s.id}/data-categories`, { data_category_id: c.id })).status).toBe(201);

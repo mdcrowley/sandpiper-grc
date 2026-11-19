@@ -1,8 +1,10 @@
 import type { FastifyRequest } from 'fastify';
+import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
 import { MASKED_LABEL, MASKED_SQL, MASKED_VALUE } from '../../core/resource.ts';
 import { makeActionExtras } from './actions.ts';
 import { makeLifecycle } from './lifecycle.ts';
+import { runObligationReminders } from './obligation-reminders.ts';
 import { DEFAULT_SCALE, makeScales, THRESHOLD_SETTING, type Scale } from './scales.ts';
 import { seedRisksModule } from './seed.ts';
 
@@ -447,7 +449,9 @@ const mod: ModuleDef = {
     });
 
     // Revoking and expiry, reviews, the daily check and the board report.
-    makeLifecycle(ctx, { scales, riskPre, visibleRisk, statusesWith, today }).register();
+    await makeLifecycle(ctx, { scales, riskPre, visibleRisk, statusesWith, today }).register();
+    // Obligation due-date reminders, several times a day on the job queue; each goes out once.
+    await scheduleWork(ctx, 'obligations.reminders', () => runObligationReminders(ctx), { every: 6 * 3_600_000, firstRunInMs: 100_000 });
 
     // ------------------------------------------------------------------ actions
 

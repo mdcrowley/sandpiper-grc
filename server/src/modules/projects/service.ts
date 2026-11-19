@@ -999,12 +999,19 @@ export function makeService(ctx: ModuleContext) {
 
   // ---------- requests from people outside the project team ----------
 
-  /** Creates a project from the request form. Only the request fields are taken from the body. */
+  /**
+   * Creates a project from the request form. Only the request fields and the administrator's
+   * custom fields (`cf_<key>`, E18-34) are taken from the body. A requester who may not view
+   * projects is not shown the custom fields (they are not in that person's metadata), so required
+   * ones are not enforced for them, as for portal requests (E15-14).
+   */
   async function createRequest(req: FastifyRequest, body: Row): Promise<Row> {
     if (!(await mayRequest(req.user))) ctx.fail(403, 'forbidden', 'You do not have permission to submit a project request.');
     const data: Row = {};
     for (const k of REQUEST_FIELDS) if (body[k] !== undefined) data[k] = body[k];
-    const row = await ctx.resources.create('project', data, req);
+    const seesFields = ctx.can(req.user, 'projects.view');
+    if (seesFields) for (const [k, v] of Object.entries(body)) if (k.startsWith('cf_')) data[k] = v;
+    const row = await ctx.resources.create('project', data, req, { skipCustomRequired: !seesFields });
     return { id: row.id, ref: row.ref, name: row.name, stage: row.stage, status: row.status, can_open: ctx.can(req.user, 'projects.view') };
   }
 

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ErrorState, formatDate, Icon, Loading, relativeTime, useAuth, useFetch, type IconName } from '../../core';
 import { Approvals } from './Approvals';
+import { MySafetyReports } from './SafetyReport';
 import { ServiceBanner, Section, StatusPill, usePortal, useSuggestions, type CatalogItem, type PlainStatus } from './parts';
 
 const CAT_ICON: Record<string, IconName> = { people: 'users', access: 'key', equipment: 'box', software: 'file-text', vendors: 'building' };
@@ -188,7 +189,7 @@ export function PortalHome() {
         {config.intro && <p className="pt-intro">{config.intro}</p>}
         <Search />
         {config.can_create && (
-          <div className="pt-actions">
+          <div className={`pt-actions${config.has.safety ? ' pt-actions-3' : ''}`}>
             <Link to="/portal/report" className="pt-action pt-action-primary">
               <Icon name="alert" size={26} />
               <span><strong>Report a problem</strong><span>Something is broken or not working</span></span>
@@ -197,6 +198,12 @@ export function PortalHome() {
               <Icon name="plus" size={26} />
               <span><strong>Ask for something</strong><span>Access, equipment, a new starter</span></span>
             </Link>
+            {config.has.safety && (
+              <Link to="/portal/safety" className="pt-action pt-action-safety">
+                <Icon name="shield" size={26} />
+                <span><strong>Report a safety concern</strong><span>An accident, an injury or a near miss</span></span>
+              </Link>
+            )}
           </div>
         )}
       </div>
@@ -215,6 +222,7 @@ export function PortalHome() {
         </div>
         <div className="pt-col-side">
           {(config.has.ticket_approvals || config.has.changes) && <Approvals />}
+          {config.has.safety && <MySafetyReports compact />}
           {config.has.policies && <PoliciesCard />}
           {config.has.training && <TrainingCard />}
           {config.has.assets && <AssetsCard />}

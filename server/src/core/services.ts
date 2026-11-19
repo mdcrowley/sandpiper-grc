@@ -1,15 +1,20 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { Db, Queryable } from './db.ts';
 import { fail } from './errors.ts';
+import { invalidateFeatures } from './features.ts';
 import type { AuditInput, LookupListOptions, LookupValue, SessionUser } from './module.ts';
 import { clientIp } from './request.ts';
 
 // ---------- permissions ----------
 
-/** Grants may be exact ("tickets.view"), module wildcards ("tickets.*") or "*". */
+/**
+ * Grants may be exact ("tickets.view"), module wildcards ("tickets.*") or "*". A permission of a
+ * switched-off area (user.off, core/features.ts) is held by nobody.
+ */
 export function can(user: SessionUser | null, perm: string): boolean {
   if (!user) return false;
   const mod = perm.split('.')[0];
+  if (user.off?.includes(mod)) return false;
   return user.permissions.some((g) => g === '*' || g === perm || g === `${mod}.*`);
 }
 
@@ -35,7 +40,7 @@ export const DEFAULT_ROLES: {
     grants: [
       'tickets.*', 'knowledge.*', 'assets.*', 'systems.*', 'sites.*', 'data.*', 'changes.*', 'actions.*',
       'vendors.view', 'contracts.view', 'frameworks.view', 'policies.view', 'obligations.view',
-      'training.view', 'projects.view', 'dashboards.view', 'reports.view',
+      'training.view', 'projects.view', 'dashboards.view', 'reports.view', 'fleet.*',
     ],
   },
   {
@@ -45,7 +50,7 @@ export const DEFAULT_ROLES: {
       'security.*', 'risks.*', 'frameworks.*', 'vulnerabilities.*', 'policies.*', 'training.*', 'exceptions.*',
       'obligations.*', 'exercises.*', 'vendors.*', 'contracts.*', 'actions.*',
       'tickets.*', 'knowledge.*', 'assets.*', 'systems.*', 'sites.*', 'data.*', 'changes.*',
-      'projects.view', 'dashboards.*', 'reports.*', 'audit.view',
+      'projects.view', 'dashboards.*', 'reports.*', 'audit.view', 'fleet.view', 'safety.view',
     ],
   },
   {
@@ -82,7 +87,7 @@ export const DEFAULT_ROLES: {
     description: 'Time-limited read-only access to chosen modules with evidence export.',
     grants: [
       'frameworks.view', 'frameworks.export', 'policies.view', 'obligations.view', 'vendors.view',
-      'contracts.view', 'systems.view', 'assets.view', 'audit.view',
+      'contracts.view', 'systems.view', 'assets.view', 'audit.view', 'fleet.view',
     ],
   },
   {
@@ -263,6 +268,8 @@ export function makeSettings(db: Db, audit: ReturnType<typeof makeAudit>) {
          on conflict (key) do update set value = excluded.value, updated_at = now(), updated_by = excluded.updated_by`,
         [key, JSON.stringify(value), req?.user?.id ?? null],
       );
+      // Feature switches apply at once, without a restart (core/features.ts).
+      if (key === 'features') invalidateFeatures(db);
       await audit(req, {
         action: 'setting.change', recordType: 'setting', recordId: key,
         summary: `Setting ${key} changed`, before: before?.value, after: value,

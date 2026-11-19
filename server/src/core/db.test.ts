@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
 import { PGLiteSocketServer } from '@electric-sql/pglite-socket';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { type Db, envOrFile, openDb, redactUrl, sessionSql, sslOptions } from './db.ts';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { type Db, envOrFile, makeAutoAnalyze, openDb, redactUrl, sessionSql, slowQueryMs, slowStatementLog, sslOptions } from './db.ts';
 
 const withEnv = async <T>(env: Record<string, string | undefined>, fn: () => Promise<T> | T): Promise<T> => {
   const before = Object.fromEntries(Object.keys(env).map((k) => [k, process.env[k]]));
@@ -170,5 +170,61 @@ describe('server driver settings (E16-05)', () => {
       expect(err.message).toMatch(/Could not connect to the database at postgres:\/\/grc:\*\*\*@127\.0\.0\.1:1\/grc/);
       expect(err.message).not.toContain('hunter2');
     });
+  });
+});
+
+describe('performance aids (E16-36)', () => {
+  it('logs a slow statement with its time and text, never its parameters', async () => {
+    const lines: string[] = [];
+    const timed = slowStatementLog(5, (l) => lines.push(l));
+    await timed('select 1', async () => 1);
+    await timed('select   pg_sleep(0.01)\n  from x', () => new Promise((r) => setTimeout(r, 15)));
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatch(/^\[db\] slow statement, \d+ ms: select pg_sleep\(0\.01\) from x$/);
+    // Off: the work is only run.
+    expect(await slowStatementLog(0, () => { throw new Error('logged'); })('select 1', async () => 2)).toBe(2);
+    expect(await withEnv({ GRC_SLOW_QUERY_MS: '250' }, () => slowQueryMs())).toBe(250);
+    expect(await withEnv({ GRC_SLOW_QUERY_MS: 'x' }, () => slowQueryMs())).toBe(0);
+  });
+
+  it('analyzes the embedded database after it opens and after many writes, at most so often', async () => {
+    vi.useFakeTimers();
+    try {
+      let runs = 0;
+      const auto = makeAutoAnalyze(async () => { runs++; }, { every: 3, minGapMs: 60_000, firstAfterMs: 1000 });
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(runs).toBe(1);
+      auto.wrote(); auto.wrote();
+      await vi.advanceTimersByTimeAsync(120_000);
+      expect(runs).toBe(1); // two writes: not yet
+      auto.wrote();
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(runs).toBe(2); // the gap since the first run has passed
+      for (let i = 0; i < 3; i++) auto.wrote();
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(runs).toBe(2); // within the minimum gap
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(runs).toBe(3);
+      await auto.stop();
+      for (let i = 0; i < 9; i++) auto.wrote();
+      await vi.advanceTimersByTimeAsync(600_000);
+      expect(runs).toBe(3); // stopped
+      const off = makeAutoAnalyze(async () => { runs++; }, { every: 0 });
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(runs).toBe(3);
+      await off.stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('opens the embedded database with pg_trgm, which migration 009 uses for substring search', async () => {
+    const db = await withEnv({ GRC_TEST_DATABASE: undefined, GRC_TEST_DATABASE_URL: undefined }, () => openDb('memory'));
+    try {
+      await db.exec('create extension if not exists pg_trgm');
+      expect((await db.one<{ s: number }>(`select similarity('validator', 'validators') as s`))!.s).toBeGreaterThan(0.5);
+    } finally {
+      await db.close();
+    }
   });
 });

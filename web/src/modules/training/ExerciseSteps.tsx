@@ -2,17 +2,42 @@
 // hand), each with how it went and a note. Rehearses exactly what would be done for real.
 import { useState } from 'react';
 import {
-  api, ApiError, Button, Card, EmptyState, errorMessage, ErrorState, IconButton, Loading, LookupSelect, ProgressBar, Select, TextArea,
+  api, ApiError, Button, Card, EmptyState, errorMessage, ErrorState, Icon, IconButton, Loading, LookupSelect, ProgressBar, Select, TextArea,
   TextField, useAuth, useFetch, useToast,
 } from '../../core';
 
-interface Step { id: string; phase: string | null; phase_label: string | null; step: string; outcome: string | null; notes: string | null; source_scenario: string | null }
+interface Step {
+  id: string; phase: string | null; phase_label: string | null; step: string; outcome: string | null; notes: string | null; source_scenario: string | null;
+  /** The finding raised from this step, if any (E10-17). */
+  finding_id: string | null;
+}
+
+/** Step outcomes that can raise a finding. */
+const GAPS = ['not_done', 'with_issues'];
 interface Steps { steps: Step[]; summary: { total: number; went_well: number; with_issues: number; not_done: number; not_tested: number; unrecorded: number } }
 interface Lists { available: boolean; scenarios: { value: string; label: string; steps: number }[] }
 
-function StepRow({ exerciseId, step, canEdit, onChanged }: { exerciseId: string; step: Step; canEdit: boolean; onChanged: () => void }) {
+function StepRow({ exerciseId, step, canEdit, onChanged, onFinding }: {
+  exerciseId: string; step: Step; canEdit: boolean; onChanged: () => void; onFinding?: () => void;
+}) {
   const toast = useToast();
   const [notes, setNotes] = useState(step.notes ?? '');
+  const [raising, setRaising] = useState(false);
+  const raise = async () => {
+    setRaising(true);
+    try {
+      // Unsaved notes go into the finding too.
+      if (notes !== (step.notes ?? '')) await api.patch(`/api/exercises/${exerciseId}/steps/${step.id}`, { notes });
+      await api.post(`/api/exercises/${exerciseId}/steps/${step.id}/finding`, {});
+      toast.success('Finding raised. It is on the Findings tab, where a follow-up action can be raised from it.');
+      onChanged();
+      onFinding?.();
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setRaising(false);
+    }
+  };
   const save = async (patch: Record<string, unknown>) => {
     try {
       await api.patch(`/api/exercises/${exerciseId}/steps/${step.id}`, patch);
@@ -36,6 +61,13 @@ function StepRow({ exerciseId, step, canEdit, onChanged }: { exerciseId: string;
       <div className="trn-step-side">
         <LookupSelect label="How it went" hideLabel list="exercise_step_outcome" value={step.outcome ?? ''} disabled={!canEdit}
           onChange={(outcome) => void save({ outcome: outcome || null })} />
+        {step.finding_id ? (
+          <span className="trn-step-finding"><Icon name="check" size={14} /> Finding raised</span>
+        ) : canEdit && step.outcome && GAPS.includes(step.outcome) && (
+          <Button size="sm" variant="secondary" loading={raising} onClick={() => void raise()}>
+            Raise finding<span className="sr-only">: {step.step}</span>
+          </Button>
+        )}
         {canEdit && (
           <IconButton icon="trash" variant="ghost" size="sm" label={`Remove step: ${step.step}`}
             onClick={() => void api.del(`/api/exercises/${exerciseId}/steps/${step.id}`).then(onChanged, (e) => toast.error(errorMessage(e)))} />

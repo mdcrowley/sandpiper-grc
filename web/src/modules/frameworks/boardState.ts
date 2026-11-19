@@ -60,6 +60,33 @@ export function queryFromFilters(f: BoardFilters): string {
   return p.toString();
 }
 
+/** A list view of the outcome fields (core shared views): search, sort and filters. */
+export interface ListView { q: string; sort: string; dir: 'asc' | 'desc'; filters: Record<string, string[]> }
+
+/** Board filters as list filters on the outcome fields (and back), so a shared view works on both views. */
+export function listViewOf(f: BoardFilters) {
+  const filters: Record<string, string[]> = {};
+  if (f.priority) filters.priority = ['true'];
+  if (f.statuses.length) filters.status = f.statuses;
+  if (f.phases.length) filters.phase = f.phases;
+  if (f.functions.length) filters.function_code = f.functions;
+  if (f.owner === 'none') filters['owner_id.null'] = ['true'];
+  else if (f.owner) filters.owner_id = [f.owner];
+  return { q: f.q.trim(), sort: '', dir: 'asc' as const, filters };
+}
+
+export function boardQueryOf(view: ListView): string {
+  const f = view.filters ?? {};
+  return queryFromFilters({
+    priority: (f.priority ?? []).includes('true'),
+    statuses: f.status ?? [],
+    phases: f['phase.null']?.includes('true') ? [...(f.phase ?? []), NO_PHASE] : f.phase ?? [],
+    functions: f.function_code ?? [],
+    owner: f['owner_id.null']?.includes('true') ? 'none' : f.owner_id?.[0] ?? '',
+    q: view.q ?? '',
+  });
+}
+
 export const isFiltered = (f: BoardFilters) => queryFromFilters(f) !== '';
 
 /** The board's filters, read from and written to the page address. */
@@ -73,7 +100,7 @@ export function useBoardFilters(): [BoardFilters, (next: BoardFilters, replace?:
   return [filters, set];
 }
 
-// ---------- this browser's memory: saved views, density, the framework last looked at ----------
+// ---------- this browser's memory: density and the framework last looked at ----------
 
 function read<T>(key: string, fallback: T): T {
   try {
@@ -94,18 +121,8 @@ function write(key: string, value: unknown): void {
 
 export interface BoardView { name: string; query: string }
 
-const VIEWS_KEY = 'grc.views.framework_board';
-
-export function loadBoardViews(): BoardView[] {
-  const parsed = read<unknown>(VIEWS_KEY, []);
-  return Array.isArray(parsed)
-    ? (parsed as BoardView[]).filter((v) => v && typeof v.name === 'string' && typeof v.query === 'string')
-    : [];
-}
-
-export function storeBoardViews(views: BoardView[]): void {
-  write(VIEWS_KEY, views);
-}
+// Saved views are kept on the server (BoardViews.tsx); the browser key grc.views.framework_board
+// is still read once, so views saved here before carry over.
 
 export type Density = 'detailed' | 'compact' | 'map';
 const DENSITIES: Density[] = ['detailed', 'compact', 'map'];

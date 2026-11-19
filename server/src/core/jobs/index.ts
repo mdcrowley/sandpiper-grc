@@ -45,6 +45,33 @@ function shorten(value: unknown, depth = 0): unknown {
   return value;
 }
 
+export interface RecurringWork {
+  /** How often the work runs, in milliseconds (at least one minute). */
+  every: number;
+  /** First run this long after the schedule is first created (default one minute). */
+  firstRunInMs?: number;
+  /** Attempts before a run is given up (default 3; the next scheduled run tries again anyway). */
+  maxAttempts?: number;
+  /** How long one run may take before another process may take it over, in seconds (default 300). */
+  leaseSeconds?: number;
+}
+
+/**
+ * Recurring work on the job queue in one call, in place of a module's own `setInterval`
+ * (E14-22): registers `run` as job type `type` and a schedule of the same name, so the work
+ * shows on Background jobs and runs once however many server processes share the database.
+ * `run` throws to fail (the run is retried). Work that must happen at a time of day checks
+ * the time itself: the schedule only says how often to look.
+ *
+ *   await scheduleWork(ctx, 'projects.reminders', () => svc.runReminders(), { every: 6 * HOUR });
+ */
+export async function scheduleWork(ctx: ModuleContext, type: string, run: () => Promise<unknown>, opts: RecurringWork): Promise<JobQueue> {
+  const jobs = await ensureJobs(ctx);
+  jobs.register(type, async () => (await run()) ?? null, { maxAttempts: opts.maxAttempts ?? 3, leaseSeconds: opts.leaseSeconds });
+  await jobs.schedule(type, { type, every: opts.every, firstRunInMs: opts.firstRunInMs ?? 60_000 });
+  return jobs;
+}
+
 export async function ensureJobs(ctx: ModuleContext): Promise<JobQueue> {
   const { app, db } = ctx;
   if (app.hasDecorator('jobs')) return app.jobs;
@@ -52,9 +79,13 @@ export async function ensureJobs(ctx: ModuleContext): Promise<JobQueue> {
   const jobs = makeJobQueue(db);
   app.decorate('jobs', jobs);
 
-  // Housekeeping: finished jobs are kept for 30 days, dead ones for 90.
+  // Housekeeping: finished jobs are kept for 30 days, dead ones for 90. Finished runs of a
+  // schedule (some run every minute) are kept for two days: the schedule shows its last result.
   jobs.register('jobs.cleanup', async () => {
-    const done = await db.query(`delete from jobs where status = 'done' and finished_at < now() - interval '30 days' returning 1`);
+    const done = await db.query(
+      `delete from jobs where status = 'done' and (finished_at < now() - interval '30 days'
+         or (schedule is not null and finished_at < now() - interval '2 days')) returning 1`,
+    );
     const dead = await db.query(`delete from jobs where status = 'dead' and finished_at < now() - interval '90 days' returning 1`);
     return { removed: done.length + dead.length };
   }, { maxAttempts: 2 });

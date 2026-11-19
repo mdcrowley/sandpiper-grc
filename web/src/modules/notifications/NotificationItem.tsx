@@ -1,19 +1,21 @@
 // One notification row, used by the bell's list and by the full page.
-import { cx, LookupChip, relativeTime, formatDateTime } from '../../core';
+import { cx, IconButton, LookupChip, relativeTime, formatDateTime } from '../../core';
 import type { Notification } from './data';
 
 interface Props {
   notification: Notification;
   /** Called when the row is selected (open the record and mark it read). */
   onOpen: (n: Notification) => void;
+  /** When given, a delete button is shown beside the row (the full page). */
+  onDelete?: (n: Notification) => void;
   /** Tighter spacing for the bell's list. */
   compact?: boolean;
 }
 
-export function NotificationItem({ notification: n, onOpen, compact }: Props) {
+export function NotificationItem({ notification: n, onOpen, onDelete, compact }: Props) {
   const unread = n.read_at === null;
   return (
-    <li className={cx('ntf-item', unread && 'ntf-unread', compact && 'ntf-compact')}>
+    <li className={cx('ntf-item', unread && 'ntf-unread', compact && 'ntf-compact', onDelete && 'ntf-deletable')}>
       <button type="button" className="ntf-button" onClick={() => onOpen(n)}>
         <span className="ntf-dot" aria-hidden="true" />
         <span className="ntf-text">
@@ -28,6 +30,9 @@ export function NotificationItem({ notification: n, onOpen, compact }: Props) {
           </span>
         </span>
       </button>
+      {onDelete && (
+        <IconButton icon="trash" size="sm" className="ntf-delete" label={`Delete notification: ${n.title}`} onClick={() => onDelete(n)} />
+      )}
     </li>
   );
 }

@@ -8,6 +8,11 @@ export interface SessionUser {
   email: string;
   roles: string[];
   permissions: string[];
+  /**
+   * Permission modules of switched-off areas (core/features.ts), set when the user is loaded:
+   * `can()` answers false for them whatever the grants, `*` included.
+   */
+  off?: string[];
 }
 
 declare module 'fastify' {
@@ -69,6 +74,12 @@ export interface ResourceDef {
    */
   restrictedFrom?: { typeField: string; idField: string };
   searchable?: string[];
+  /**
+   * Files attached to these records are evidence (E14-18): the record page's Attachments tab records
+   * new files as evidence, with a collection date and an optional expiry date. Default: true for the
+   * evidence-bearing types core knows (EVIDENCE_TYPES in core/resource.ts), false for the rest.
+   */
+  evidence?: boolean;
   defaultSort?: { field: string; dir: 'asc' | 'desc' };
   fields: Record<string, FieldDef>;
   hooks?: {
@@ -115,6 +126,15 @@ export interface SeedOptions {
   organization?: Row;
 }
 
+/** Options for `ResourceRegistry.create`. */
+export interface CreateOptions {
+  /**
+   * A person creates the record through a form that does not ask the administrator's custom fields
+   * (the self-service portal): required custom fields are not enforced. Built-in required fields are.
+   */
+  skipCustomRequired?: boolean;
+}
+
 export interface ResourceRegistry {
   get(type: string): ResourceDef | undefined;
   all(): ResourceDef[];
@@ -123,7 +143,7 @@ export interface ResourceRegistry {
   /** Row if it exists and `user` may see it (null user = system), else undefined. */
   find(type: string, id: string, user?: SessionUser | null): Promise<Row | undefined>;
   /** Validated create with auto-number, hooks and audit. `req` null = system actor (seeding, automation). */
-  create(type: string, data: Row, req?: FastifyRequest | null): Promise<Row>;
+  create(type: string, data: Row, req?: FastifyRequest | null, opts?: CreateOptions): Promise<Row>;
   /** Validated partial update with hooks and audit. */
   update(type: string, id: string, patch: Row, req?: FastifyRequest | null): Promise<Row>;
   /**

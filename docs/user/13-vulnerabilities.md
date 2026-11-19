@@ -2,6 +2,8 @@
 
 A vulnerability finding is a weakness reported on a host by a scanner or an assessment. This part of the application keeps each finding from the day it is first seen until it is fixed, gives it a fix-by date from its severity, imports scanner exports without creating duplicates, and shows the position on a dashboard. Lists and record pages work as described in [Getting started](01-getting-started.md).
 
+An administrator can switch vulnerabilities off under **Administration > Features** (see [Administration](09-administration.md#features)). Records are kept and return when it is switched back on.
+
 ## Who can see findings
 
 Findings are security records. To see them you need the vulnerabilities permission and the permission to view security records. Without both, the pages, searches, exports and counts show nothing. The default **Security lead** and **Administrator** roles have both. Roles are described in [Administration](09-administration.md).
@@ -186,7 +188,7 @@ How duplicates are avoided:
 - A row that matches a known finding updates it: **Last seen** moves forward, and a change of severity, score or text is saved and shown in the finding's **History**. No second record is created.
 - A row that repeats an earlier row of the same file is shown as **Repeated in file** and only the first is used.
 
-Findings recorded before the port was part of the match keep working: the upgrade worked out their port and host from what was stored, and merged or removed nothing.
+Findings recorded before the port was part of the match keep working: the upgrade worked out their port and host from what was stored, and merged or removed nothing. Two such findings may now be the same finding; see [Duplicate findings](#duplicate-findings).
 
 **Missing from file** lists the open findings from earlier imports of the same source that are absent. Check **Close missing findings** (on the column step, or on this tab) to mark them fixed, dated today; the dry run runs again and shows the new totals. Leave it unchecked unless the file is a complete scan of the same scope as before. Findings added by hand and findings from other sources are never closed this way.
 
@@ -230,6 +232,17 @@ Open the **Dashboard** tab. Every tile, bar, point and table number opens the fi
 | **Overdue findings** | Overdue findings for each owner, with the two most serious severities, the rest, the total and the oldest fix-by date. When systems are in use, **By system owner** groups them instead by the owner of the system each finding is on (the technical owner, or the business owner when there is none) |
 
 The weekly chart is drawn from counts the application stores once a day and after every import. It cannot be filled in for weeks before the application was in use, so a new installation shows the chart from its second week.
+
+## Duplicate findings
+
+Findings recorded before hosts were matched by name and address, and before ports were kept apart, can be the same finding twice: the same host, port and identifier, both open. When there are any, the findings list shows a notice with **Review the duplicates**, which opens **Duplicate findings** (also at `/vulnerabilities/duplicates`).
+
+Each group lists its findings with how each was recorded, severity, status, first and last seen, owner, and how many comments and files it has. The first finding, an open one seen most recently, is suggested to keep. With the **Administer** permission on vulnerabilities:
+
+1. Choose the finding to keep with **Keep**.
+2. Select **Merge into …** and confirm.
+
+The other findings are removed. Their comments, files, links, tags and watchers move to the finding kept, which keeps its own status and owner and takes the earliest **First seen** and latest **Last seen** of the group. The kept finding's **History** records the merge with the details of every finding removed, and each removed finding's history records which finding it was merged into.
 
 ## Sample data
 

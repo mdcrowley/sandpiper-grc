@@ -251,7 +251,7 @@ async function register(ctx: ModuleContext) {
   registerRelations(ctx);
   registerLifecycle(ctx);
   registerDisposalRequests(ctx);
-  registerReminders(ctx);
+  await registerReminders(ctx);
   registerReports(ctx);
   registerImport(ctx);
 }

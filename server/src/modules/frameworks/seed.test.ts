@@ -149,3 +149,37 @@ describe('dev seed', () => {
     }
   }, 120000);
 });
+
+describe('pilot seed corrects cross-mappings split in the wrong place (E18-09)', () => {
+  it('replaces its own wrong rows once the name is known, and leaves a person\'s rows alone', async () => {
+    const t = await testApp();
+    const dir = mkdtempSync(join(tmpdir(), 'grc-frameworks-remap-'));
+    try {
+      writeFileSync(join(dir, DESIGNATIONS_FILE), 'id,focus_area_ratings\nGV.OC-01,ESS');
+      writeFileSync(join(dir, PROFILE_FILE), [
+        'ID|Outcome|Evidence|Status|Target|FirstAction|AlsoSatisfies|Phase',
+        'GV.OC-01|x|x|Partial|x|x|Example Standard 2 4.1.3; Insurer conditions|Now',
+      ].join('\n'));
+      const run = () => mod.seed!(t.ctx, { profile: 'pilot', seedDir: dir }) as Promise<string>;
+      await run();
+      const outcome = (await t.api.get('/api/framework-outcomes?q=GV.OC-01')).body.rows[0];
+      const pairs = async () => ((await t.api.get(`/api/framework-outcomes/${outcome.id}/mappings`)).body as any[])
+        .map((m) => [m.framework_name, m.reference]);
+      // Unknown name holding a number: the general rule splits it at the "2".
+      expect(await pairs()).toEqual(expect.arrayContaining([['Example Standard', '2 4.1.3']]));
+      // A person's own mapping with the same words must survive the correction.
+      expect((await t.api.post(`/api/framework-outcomes/${outcome.id}/mappings`, { framework_name: 'Example Standard', reference: '2 9.9' })).status).toBe(201);
+
+      await t.ctx.lookups.ensure('mapping_framework', [{ value: 'example_standard_2', label: 'Example Standard 2', sort: 900 }]);
+      const note = await run();
+      expect(note).toContain('1 cross-mappings split in the wrong place corrected');
+      const after = await pairs();
+      expect(after).toEqual(expect.arrayContaining([['Example Standard 2', '4.1.3'], ['Insurer conditions', ''], ['Example Standard', '2 9.9']]));
+      expect(after).not.toEqual(expect.arrayContaining([['Example Standard', '2 4.1.3']]));
+      expect(await run()).not.toContain('split in the wrong place');
+    } finally {
+      await t.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

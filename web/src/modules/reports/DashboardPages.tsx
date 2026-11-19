@@ -30,17 +30,24 @@ export function DashboardsPage() {
   const home = useFetch<Home>('/api/dashboards/home');
   const [q, setQ] = useState('');
   const [name, setName] = useState('');
+  const [nameError, setNameError] = useState('');
+  const nameRef = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState(false);
   const creating = params.get('new') === '1' && can('dashboards.create');
-  const close = () => { const p = new URLSearchParams(params); p.delete('new'); setParams(p, { replace: true }); setName(''); };
+  const close = () => { const p = new URLSearchParams(params); p.delete('new'); setParams(p, { replace: true }); setName(''); setNameError(''); };
 
   async function create() {
-    if (!name.trim()) return toast.error('Give the dashboard a name.');
+    // The message sits under the field, and focus goes back to it, so nobody misses it (E18-37).
+    const refuse = (message: string) => { setNameError(message); nameRef.current?.querySelector('input')?.focus(); };
+    if (!name.trim()) return refuse('Give the dashboard a name.');
     setBusy(true);
     try {
       const d = await api.post<Dashboard>('/api/dashboards', { name: name.trim(), widgets: [], filters: [{ kind: 'date', label: 'Dates' }] });
       navigate(`/dashboards/${d.id}?edit=1`);
-    } catch (err) { toast.error(errorMessage(err)); } finally { setBusy(false); }
+    } catch (err) {
+      const field = (err as { fields?: Record<string, string> }).fields?.name;
+      if (field) refuse(field); else toast.error(errorMessage(err));
+    } finally { setBusy(false); }
   }
 
   const rows = (list.data?.rows ?? []).filter((d) => `${d.name} ${d.description ?? ''}`.toLowerCase().includes(q.trim().toLowerCase()));
@@ -65,7 +72,7 @@ export function DashboardsPage() {
 
   return (
     <div className="stack">
-      <PageHeader title="Dashboards" subtitle="Figures at a glance. Every figure is worked out from what your own role lets you see."
+      <PageHeader title="Dashboards" subtitle="Figures at a glance, the same for everyone who may see them. Lists of records show what your role allows."
         actions={can('dashboards.create') ? <Button variant="primary" icon="plus" onClick={() => setParams({ new: '1' })}>New dashboard</Button> : undefined} />
       {list.error ? <ErrorState title="Dashboards could not be loaded" error={list.error} onRetry={list.reload} />
         : !list.data ? <Loading lines={6} label="Loading dashboards" />
@@ -84,7 +91,9 @@ export function DashboardsPage() {
       <Modal open={creating} title="New dashboard" onClose={close} size="sm"
         footer={<><Button onClick={close}>Cancel</Button><Button variant="primary" loading={busy} onClick={create}>Create and add widgets</Button></>}>
         <form className="form" onSubmit={(e) => { e.preventDefault(); void create(); }}>
-          <TextField label="Name" required value={name} onChange={setName} placeholder="For example: Depot technology" autoFocus />
+          <div ref={nameRef}>
+            <TextField label="Name" required value={name} error={nameError} onChange={(v) => { setName(v); if (nameError) setNameError(''); }} placeholder="For example: Depot technology" autoFocus />
+          </div>
           <p className="muted">It starts empty and private to you. Add widgets, then share it when it is ready.</p>
         </form>
       </Modal>
@@ -179,7 +188,7 @@ export function DashboardPage() {
   const setWidgets = (widgets: Widget[]) => draft.set((p) => ({ ...p, widgets }));
 
   async function save() {
-    if (!draft.value.name.trim()) { toast.error('Give the dashboard a name.'); setDialog('settings'); return; }
+    if (!draft.value.name.trim()) { setDialog('settings'); return; }
     setSaving(true);
     try {
       const v = draft.value;
@@ -278,7 +287,7 @@ export function DashboardPage() {
 
       {view.widgets.length === 0 ? (
         <EmptyState icon="chart" title="This dashboard is empty"
-          message={canChange ? 'Add figures, charts, lists and notes. Each one works out its figures from what the viewer may see.' : 'Nothing has been added yet.'}
+          message={canChange ? 'Add figures, charts, lists and notes. Figures are the same for everyone; lists of records show each viewer what their role allows.' : 'Nothing has been added yet.'}
           action={canChange ? <Button variant="primary" icon="plus" onClick={() => { if (!editing) setEdit(true); setDialog('library'); }}>Add a widget</Button> : undefined} />
       ) : (
         <DashboardGrid
@@ -317,7 +326,7 @@ function SettingsDialog({ open, value, onClose, onChange }: { open: boolean; val
   return (
     <Modal open={open} title="Dashboard settings" onClose={onClose} footer={<Button variant="primary" onClick={onClose}>Done</Button>}>
       <form className="form" onSubmit={(e) => { e.preventDefault(); onClose(); }}>
-        <TextField label="Name" required value={value.name} onChange={(name) => onChange({ name })} />
+        <TextField label="Name" required value={value.name} error={value.name.trim() ? undefined : 'Give the dashboard a name.'} onChange={(name) => onChange({ name })} />
         <TextArea label="Description" rows={2} value={value.description} onChange={(description) => onChange({ description })} />
         <fieldset className="rp-fieldset">
           <legend className="field-label">Filters across the whole dashboard</legend>

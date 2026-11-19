@@ -1,3 +1,4 @@
+import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleContext, Row, SessionUser } from '../../core/module.ts';
 import { TIME_ZONE } from '../../core/timezone.ts';
 
@@ -16,7 +17,7 @@ const others = (ids: unknown[], actorId: string | null) =>
 const fmt = (v: unknown) => {
   const d = v ? new Date(v as string) : null;
   if (!d || Number.isNaN(d.getTime())) return '';
-  return d.toLocaleString('en-GB', {
+  return d.toLocaleString('en-US', {
     day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: TIME_ZONE,
   });
 };
@@ -83,13 +84,7 @@ export async function sweepStartingSoon(ctx: ModuleContext, hours = 24): Promise
 
 const HOUR = 3_600_000;
 
-/** Starts the reminder timer. Not under the test runner or with a throwaway in-memory database. */
-export function registerStartSweep(ctx: ModuleContext): void {
-  if (process.env.VITEST || process.env.GRC_DATA_DIR === 'memory') return;
-  const run = () => { sweepStartingSoon(ctx).catch((err) => console.error('[changes] starting-soon reminder failed:', err)); };
-  const first = setTimeout(run, 60_000);
-  const timer = setInterval(run, HOUR / 4);
-  first.unref();
-  timer.unref();
-  ctx.app.addHook('onClose', async () => { clearTimeout(first); clearInterval(timer); });
+/** The reminder sweep, every quarter of an hour on the job queue (Administration > Background jobs). */
+export async function registerStartSweep(ctx: ModuleContext): Promise<void> {
+  await scheduleWork(ctx, 'changes.starting_soon', () => sweepStartingSoon(ctx), { every: HOUR / 4, firstRunInMs: 60_000 });
 }

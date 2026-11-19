@@ -224,6 +224,10 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [totp, setTotp] = useState('');
   const [needsCode, setNeedsCode] = useState(false);
+  // The account's only second factor is a passkey; the code box then takes a recovery code (E02-21).
+  const [keyOnly, setKeyOnly] = useState(false);
+  // "Forgot your password?" is shown only where it can send a link (email on; E14-24).
+  const [forgotAvailable, setForgotAvailable] = useState(false);
   const [missing, setMissing] = useState<Record<string, string>>({});
   const [error, setError] = useState(SSO_MESSAGES[sso] ?? '');
   const [busy, setBusy] = useState(false);
@@ -232,6 +236,7 @@ export function LoginPage() {
     // Without single sign-on installed (or reachable) the page is the plain password form.
     api.get<SignInOptions>('/api/auth/providers').then(setOptions, () => setOptions({ providers: [], localSignIn: true }));
     if (sso === 'link') api.get<PendingLink>('/api/auth/sso/pending').then(setPending, () => setPending(null));
+    api.get<{ available: boolean }>('/api/auth/forgot-password').then((r) => setForgotAvailable(r?.available === true), () => setForgotAvailable(false));
   }, [sso]);
 
   const cancelLink = async () => {
@@ -254,14 +259,14 @@ export function LoginPage() {
     const found: Record<string, string> = {};
     if (!username.trim()) found.username = 'Enter your username.';
     if (!password) found.password = 'Enter your password.';
-    if (needsCode && !totp.trim()) found.totp = 'Enter the 6-digit code.';
+    if (needsCode && !totp.trim()) found.totp = keyOnly ? 'Enter a recovery code, or use your passkey.' : 'Enter the 6-digit code.';
     setMissing(found);
     setError('');
     if (Object.keys(found).length > 0) return;
 
     setBusy(true);
     try {
-      await api.post('/api/auth/login', { username: username.trim(), password, ...(needsCode ? { totp: totp.trim() } : {}) });
+      await api.post('/api/auth/login', { username: username.trim(), password, ...(needsCode ? (keyOnly ? { recoveryCode: totp.trim() } : { totp: totp.trim() }) : {}) });
       if (pending?.pending) await finishLink();
       await refresh();
     } catch (err) {
@@ -273,7 +278,10 @@ export function LoginPage() {
           if (pending?.pending) await finishLink();
           await refresh();
         } catch (keyErr) {
-          setError(keyErr instanceof Error ? keyErr.message : errorMessage(keyErr));
+          // The key did not answer (lost, or another device): a recovery code also works.
+          setKeyOnly(true);
+          setNeedsCode(true);
+          setError(`${keyErr instanceof Error ? keyErr.message : errorMessage(keyErr)} If you cannot use your key, enter one of your recovery codes.`);
         }
       } else if (code === 'mfa_required' && !needsCode) {
         setNeedsCode(true);
@@ -295,7 +303,8 @@ export function LoginPage() {
   const linking = Boolean(pending?.pending);
   // With local passwords switched off the form stays folded away: only the break-glass account can use it.
   const passwordFolded = Boolean(options && !options.localSignIn && !linking && !showPassword && !needsCode);
-  const intro = needsCode ? 'One more step: enter the code from your authenticator app.'
+  const intro = needsCode && keyOnly ? 'One more step: use your passkey or security key, or enter a recovery code.'
+    : needsCode ? 'One more step: enter the code from your authenticator app.'
     : linking ? undefined
     : providers.length ? 'Use your organization account.' : undefined;
 
@@ -335,21 +344,29 @@ export function LoginPage() {
           value={password} error={missing.password} onChange={(e) => setPassword(e.currentTarget.value)}
         />
         {needsCode && (
-          <TextInput
-            label="6-digit code" required autoFocus autoComplete="one-time-code" inputMode="numeric"
-            description="From your authenticator app. A recovery code also works here."
-            value={totp} error={missing.totp} onChange={(e) => setTotp(e.currentTarget.value)}
-          />
+          keyOnly ? (
+            <TextInput
+              label="Recovery code" required autoFocus autoComplete="one-time-code" autoCapitalize="characters" spellCheck={false}
+              description="One of the codes you saved when you set up your passkey. Each works once."
+              value={totp} error={missing.totp} onChange={(e) => setTotp(e.currentTarget.value)}
+            />
+          ) : (
+            <TextInput
+              label="6-digit code" required autoFocus autoComplete="one-time-code" inputMode="numeric"
+              description="From your authenticator app. A recovery code also works here."
+              value={totp} error={missing.totp} onChange={(e) => setTotp(e.currentTarget.value)}
+            />
+          )
         )}
         <Button type="submit" variant={providers.length && !linking && !needsCode ? 'secondary' : 'primary'} loading={busy}>
-          {needsCode ? 'Verify and sign in' : linking ? 'Sign in and link' : 'Sign in'}
+          {needsCode && keyOnly ? 'Sign in with the recovery code' : needsCode ? 'Verify and sign in' : linking ? 'Sign in and link' : 'Sign in'}
         </Button>
-        {needsCode && <PasskeySecondFactorButton username={username.trim()} password={password} />}
+        {needsCode && <PasskeySecondFactorButton username={username.trim()} password={password} label={keyOnly ? 'Try your passkey or security key again' : undefined} />}
       </form>
       )}
       {/* A passkey alone, as another way in beside the password (not while linking or at the code step). */}
       {!passwordFolded && !linking && !needsCode && options?.localSignIn !== false && <PasskeySignIn />}
-      {!passwordFolded && options?.localSignIn !== false && (
+      {!passwordFolded && !needsCode && options?.localSignIn !== false && forgotAvailable && (
         <p className="auth-foot"><a href="/forgot-password">Forgot your password?</a></p>
       )}
     </AuthLayout>

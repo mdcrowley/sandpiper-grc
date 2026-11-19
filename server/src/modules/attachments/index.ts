@@ -8,12 +8,14 @@ import { createHash } from 'node:crypto';
 import type { Readable } from 'node:stream';
 import type { FastifyRequest } from 'fastify';
 import { UUID_RE } from '../../core/errors.ts';
+import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleDef, ResourceDef, Row } from '../../core/module.ts';
 import { todayInZone } from '../../core/timezone.ts';
 import {
   BLOCKED_EXTENSIONS, checkContent, contentDisposition, contentTypeFor, downloadContentType, extensionOf, sanitizeFileName,
 } from './filetypes.ts';
 import { registerFileAdmin } from './admin.ts';
+import { registerBackgroundFileJobs } from './background.ts';
 import { registerBackups } from './backups.ts';
 import { clamdScanner } from './clamd.ts';
 import { clamdConfig, readScanner } from './config.ts';
@@ -52,28 +54,15 @@ const mod: ModuleDef = {
     await applyScanner();
 
     registerFileAdmin(ctx, applyScanner);
-    registerBackups(ctx);
+    await registerBackgroundFileJobs(ctx);
+    await registerBackups(ctx);
 
     // Daily: files of records deleted for good are marked removed, and removed files past the
-    // purge period are deleted from storage. In process, like the other daily jobs (see E14-12).
-    let first: NodeJS.Timeout | null = null;
-    let daily: NodeJS.Timeout | null = null;
-    app.addHook('onReady', async () => {
-      if (process.env.VITEST) return;
-      const run = () => {
-        void dailyHousekeeping(ctx)
-          .then((r) => { if (r.orphans || r.purge.purged || r.purge.failed) console.log(`[attachments] housekeeping: ${r.orphans} file(s) of deleted records marked removed, ${r.purge.purged} purged, ${r.purge.failed} failed`); })
-          .catch((err) => console.error('[attachments] housekeeping failed:', err));
-      };
-      first = setTimeout(run, 120_000);
-      daily = setInterval(run, DAY);
-      first.unref();
-      daily.unref();
-    });
-    app.addHook('onClose', async () => {
-      if (first) clearTimeout(first);
-      if (daily) clearInterval(daily);
-    });
+    // purge period are deleted from storage. A job-queue schedule (Administration > Background jobs).
+    await scheduleWork(ctx, 'attachments.housekeeping', async () => {
+      const r = await dailyHousekeeping(ctx);
+      return { orphans: r.orphans, purged: r.purge.purged, failed: r.purge.failed };
+    }, { every: DAY, firstRunInMs: 120_000, leaseSeconds: 1800 });
 
     // ---------- who may see and change the files of a record ----------
 

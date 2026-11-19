@@ -1,4 +1,5 @@
 import type { ModuleContext, ModuleDef } from '../../core/module.ts';
+import { registerDuplicates } from './duplicates.ts';
 import { registerImport } from './importer.ts';
 import { registerSweep } from './notify.ts';
 import { registerPolicy } from './policy.ts';
@@ -86,9 +87,10 @@ async function register(ctx: ModuleContext) {
   });
 
   registerPolicy(ctx);
-  registerSummary(ctx);
+  registerDuplicates(ctx);
+  await registerSummary(ctx);
   registerImport(ctx);
-  registerSweep(ctx);
+  await registerSweep(ctx);
   await takeSnapshot(ctx);
 }
 

@@ -1,5 +1,7 @@
+import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleDef } from '../../core/module.ts';
 import { seedProjectDefaults } from './defaults.ts';
+import { runOverdueReminders } from './overdue-reminders.ts';
 import { defineProject } from './resource.ts';
 import { registerProjectRoutes } from './routes.ts';
 import { seedSampleProjects } from './seed.ts';
@@ -17,16 +19,10 @@ const mod: ModuleDef = {
     defineProject(ctx, svc);
     registerProjectRoutes(ctx, svc);
 
-    // Reminders for due status reports and waiting gates. In-process timer (single process);
-    // none under the test runner or with a throwaway in-memory database.
-    if (!process.env.VITEST && process.env.GRC_DATA_DIR !== 'memory') {
-      const run = () => { svc.runReminders().catch((err) => console.error('[projects] reminders failed:', err)); };
-      const first = setTimeout(run, 90_000);
-      const timer = setInterval(run, 6 * 3_600_000);
-      first.unref();
-      timer.unref();
-      ctx.app.addHook('onClose', async () => { clearTimeout(first); clearInterval(timer); });
-    }
+    // Reminders for due status reports and waiting gates, and for overdue milestones and
+    // register items: several times a day on the job queue (Administration > Background jobs).
+    await scheduleWork(ctx, 'projects.reminders', () => svc.runReminders(), { every: 6 * 3_600_000, firstRunInMs: 90_000 });
+    await scheduleWork(ctx, 'projects.overdue_reminders', () => runOverdueReminders(ctx), { every: 6 * 3_600_000, firstRunInMs: 100_000 });
   },
   async seed(ctx) {
     return seedSampleProjects(ctx, makeService(ctx));

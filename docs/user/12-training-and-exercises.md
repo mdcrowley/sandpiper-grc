@@ -2,6 +2,8 @@
 
 This part of the application records the courses people must take, who has completed them and who is overdue, and the exercises you run to test your plans: tabletop exercises, restore tests and continuity tests, with what each one showed and the actions that followed. Lists and record pages work as described in [Getting started](01-getting-started.md).
 
+An administrator can switch training and exercises off under **Administration > Features** (see [Administration](09-administration.md#features)); **My training** then goes too. Records are kept and return when it is switched back on.
+
 ## Who can do what
 
 | Permission | Allows |
@@ -146,7 +148,7 @@ When notifications are in use (see [Attachments and notifications](14-attachment
 - You are told when training is assigned to you, by a rule or by hand. Someone given more than three courses at once gets one notification with the count.
 - Once a course is past its due date you are reminded, then again every 7 days until it is completed.
 
-Each notification opens **My training**. To change the 7 days, someone with **Administer** on **Training** selects **Reminder settings** on the **Training overview**, enters **Days between reminders** (1 to 90) and selects **Save**.
+Each notification opens **My training**. To change the 7 days, someone with **Administer** on **Training** selects **Reminder settings** on the **Training overview**, enters **Days between reminders** (1 to 90) and selects **Save**. One course can have its own interval: set **Days between overdue reminders** on the course (1 to 90), or leave it empty to use the setting.
 
 ## Exercises
 
@@ -177,7 +179,9 @@ The **Steps** tab holds the steps of the exercise and how each one went. When se
 2. As the exercise runs, choose for each step **How it went**: **Went well**, **Done, with issues**, **Not done** or **Not tested**, and type a note of what happened, then select **Save note**.
 3. To add a step of your own, type it in **Add a step** and select **Add step**. Remove a step with the trash button.
 
-The bar at the top of **Steps** shows how many steps have been recorded and how they went. Every copy, change and removal is kept in the exercise's history. Steps that went badly are good candidates for findings.
+The bar at the top of **Steps** shows how many steps have been recorded and how they went. Every copy, change and removal is kept in the exercise's history.
+
+A step recorded as **Not done** or **Done, with issues** shows **Raise finding** (needs **Edit** on exercises). It adds a finding on the **Findings** tab in one action, naming the step, its phase, how it went and its note (a note you have typed but not saved goes in too). The severity is **High** for a step not done and **Medium** for one done with issues; change it, and add a recommendation, on the **Findings** tab, where a follow-up action can then be created. A step raises one finding; it then shows **Finding raised**.
 
 ### Participants
 
@@ -199,7 +203,7 @@ Open **Exercise calendar** in the **Cybersecurity** group.
 
 | Part | Shows |
 |---|---|
-| **When each kind was last run** | For each type: how many have been completed, the date and result of the last one, and the next one due |
+| **When each kind was last run** | For each type: how many have been completed, the date and result of the last one, how its steps went (a bar with the number that went well, with issues, not done, not tested and not recorded), and the next one due |
 | **Overdue** | Planned exercises whose date has passed, and completed exercises whose **Next due** date has passed |
 | Month by month | What is coming up: planned exercises, and the next run of each completed exercise that has a **Next due** date |
 

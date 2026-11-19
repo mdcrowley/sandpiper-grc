@@ -8,6 +8,7 @@ import {
   Loading, Modal, StatusChip, TextArea, TextField, todayInZone, useAuth, useFetch, useToast,
 } from '../../core';
 import type { ColorName } from '../../core';
+import { ResponseLinkPanel } from './ResponseLink';
 
 export interface Question { key: string; section: string | null; text: string; guidance: string | null; weight: number }
 type Answer = 'yes' | 'partial' | 'no' | 'na';
@@ -156,6 +157,7 @@ function AssessmentForm({ id, onClose, onCompleted }: { id: string; onClose: () 
           <p className="muted">Answers are saved as you choose them. You can close this and carry on later.</p>
         </div>
       </div>
+      <ResponseLinkPanel assessmentId={id} questions={a.questions} answers={a.answers} onAccepted={() => { setLocal(null); reload(); }} />
       {sections.map((s) => (
         <fieldset key={s.title} className="vnd-assess-section">
           <legend>{s.title}</legend>

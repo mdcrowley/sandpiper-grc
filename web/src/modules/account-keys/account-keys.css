@@ -19,6 +19,12 @@
 .ak-card .state { padding-block: var(--s-5); border-top: 1px solid var(--border); }
 .ak-choice-intro { margin: 0 0 var(--s-1); }
 
+/* Narrow by the card itself (it sits in a column beside other cards on Account security). */
+.ak-card { container-type: inline-size; }
+@container (max-width: 520px) {
+  .ak-item { flex-wrap: wrap; padding-inline: var(--s-4); }
+  .ak-item-actions { width: 100%; justify-content: flex-end; }
+}
 @media (max-width: 560px) {
   .ak-item { flex-wrap: wrap; padding-inline: var(--s-4); }
   .ak-item-actions { width: 100%; justify-content: flex-end; }

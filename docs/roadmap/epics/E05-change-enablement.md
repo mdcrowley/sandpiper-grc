@@ -1,6 +1,6 @@
 # E05 Change enablement
 
-**Status:** built (8 of 12 issues done; E05-08 and E05-11 in progress, E05-10 and E05-12 open)
+**Status:** done (12 of 12 issues done)
 
 ## Goal
 
@@ -42,11 +42,11 @@ wrong can be traced back to a change.
 | E05-05 | Link changes to systems, tickets and projects | done | P2 |
 | E05-06 | Implementation, back-out plan and review | done | P3 |
 | E05-07 | Standard change templates | done | P3 |
-| E05-08 | Changes on the system page and the relationship map | in progress | P3 |
+| E05-08 | Changes on the system page and the relationship map | done | P3 |
 | E05-09 | Route approvals to named approvers | done | P3 |
-| E05-10 | A "change" source for follow-up actions | open | P3 |
-| E05-11 | Calendar and blackout refinements | in progress | P3 |
-| E05-12 | Move a change by dragging it on the calendar | open | P3 |
+| E05-10 | A "change" source for follow-up actions | done | P3 |
+| E05-11 | Calendar and blackout refinements | done | P3 |
+| E05-12 | Move a change by dragging it on the calendar | done | P3 |
 
 ---
 
@@ -244,23 +244,34 @@ already filled in and needs no further approval.
 
 ### E05-08 Changes on the system page and the relationship map
 
-**Status:** in progress · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 As anyone looking at a system, I see its recent and planned changes with their dates
 and status, and on the relationship map I can see what else a change may affect.
 
 **Acceptance criteria**
 
-- [ ] The system page has a panel of changes that affect it, newest first, with status
-      and planned window (inventory module; the data is the `affects` links and
-      `GET /api/changes?f.system_id=`)
+- [x] The system page has a panel of changes that affect it, newest first, with status
+      and planned window. Built on the changes side: `GET /api/changes/affecting?type=system&id=`
+      (main system or `affects` link, newest first, grouped by `when`: planned, now, earlier) and the
+      component `RecordChangesPanel` (`web/src/modules/changes/RecordChangesPanel.tsx`); mounted on the
+      system page's **Changes and issues** tab (in place of the old main-system-only list)
 - [x] The data is ready for it: `GET /api/changes?f.system_id=<id>` filters by main system,
       and `GET /api/changes/calendar?from=&to=&system_id=<id>` returns every change affecting the
       system (main system or `affects` link) with the blackout periods that apply to it; the
       change calendar takes `?system=<id>` so a system page can link to it
-- [ ] The relationship map can start from a change and highlight the systems it affects
-      and their neighbors
-- [ ] Assets get the same panel
+- [x] The relationship map can start from a change and highlight the systems it affects
+      and their neighbors. Built on the changes side: `GET /api/changes/:id/affected` (systems and
+      assets, main ones marked, only what the caller may see) with `useChangeAffected`,
+      `affectedIds` and `ChangeOnMapBanner` (`web/src/modules/changes/ChangeOnMap.tsx`) for the map's
+      `?change=<id>`; the map outlines the affected records in amber and keeps their neighbors bright, and the
+      change's **Systems and links** tab has **Show on relationship map**
+- [x] Assets get the same panel (`<RecordChangesPanel type="asset" id=… />`, on the asset page's **Changes and issues** tab)
+
+**Implemented in** (changes side): `server/src/modules/changes/affecting.ts`, `affecting.test.ts`;
+`web/src/modules/changes/RecordChangesPanel.tsx`, `ChangeOnMap.tsx`, the **Show on relationship map** link in `RelatedTab.tsx`.
+(inventory side): `RelatedWork` in `web/src/modules/inventory/shared.tsx` (panel loaded by file name with `import.meta.glob`),
+`MapPage` and `MapExplorer` in `SystemMap.tsx` (`?change=`, eager `import.meta.glob` of `ChangeOnMap.tsx`), the `marked` highlighting in `MapCanvas.tsx`; checked in the browser
 
 ### E05-09 Route approvals to named approvers
 
@@ -289,7 +300,7 @@ the application, instead of someone recording my decision from an email.
 
 ### E05-10 A "change" source for follow-up actions
 
-**Status:** open · **Priority:** P3 · **Type:** chore
+**Status:** done · **Priority:** P3 · **Type:** chore
 
 Follow-up actions raised from a change carry `source_type = change` and the change's id,
 but their `source` is `other` because the `action_source` list (risks module) has no
@@ -299,11 +310,13 @@ but their `source` is `other` because the `action_source` list (risks module) ha
 
 - [x] `action_source` has a `change` value (risks module `seedDefaults`)
 - [x] The Actions contract in `docs/development.md` lists it
-- [ ] A test proves a follow-up action raised from a change carries source `change` (the issue stays open until it does)
+- [x] A test proves a follow-up action raised from a change carries source `change`, with the real risks module loaded
+
+**Implemented in** `server/src/modules/changes/workflow.ts` (`raiseAction`), `server/src/modules/changes/followup.test.ts`
 
 ### E05-11 Calendar and blackout refinements
 
-**Status:** in progress · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 Found while building the calendar.
 
@@ -311,24 +324,34 @@ Found while building the calendar.
 
 - [x] A blackout period can apply to chosen systems only, and can repeat (for example
       every month-end): weekly or monthly, with an optional end date
-- [ ] A change can be moved by dragging it on the calendar (split out as E05-12)
+- [x] A change can be moved by dragging it on the calendar (split out as E05-12, done)
 - [x] "My changes" includes changes where I am the implementer, not only the owner: the
       register has the saved views **Owned by me** and **Implemented by me** (the list filters
       cannot combine two fields with "or" yet)
 - [x] The calendar can be narrowed to one system (`?system=<id>`)
-- [ ] The lifecycle stepper does not need the module's own fix for sideways scrolling on
-      narrow screens (the core `Stepper` should contain its hidden labels)
+- [x] The lifecycle stepper does not need the module's own fix for sideways scrolling on
+      narrow screens: the core `Stepper` is positioned and scrolls its own overflow, the module has no
+      fix of its own, and change pages show no sideways scrolling at 820 pixels (checked in light and dark)
+
+**Implemented in** `web/src/modules/changes/BlackoutsAdmin.tsx`, `CalendarPage.tsx`, `ChangeList.tsx`; `web/src/core/base.css` (`.stepper`)
 
 ### E05-12 Move a change by dragging it on the calendar
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 Split out of E05-11.
 
 **Acceptance criteria**
 
-- [ ] Dragging a change in the month or week view moves its planned window, checks conflicts again and asks before saving
-- [ ] The keyboard can do the same
+- [x] Dragging a change in the month or week view moves its planned window, checks conflicts again and asks before saving
+      (month: whole days, keeping the times; week: day and time, snapped to 15 minutes; wall-clock times in the
+      organization's zone; draft, submitted, approved and scheduled changes; needs `changes.edit`)
+- [x] The keyboard can do the same: focus a change and press **M**; the same dialog has date fields and
+      one-day and one-hour steps
+
+**Implemented in** `web/src/modules/changes/MoveDialog.tsx`, `calendarDrag.ts`, `CalendarMonth.tsx`, `CalendarWeek.tsx`,
+`CalendarPage.tsx` (saves with `PATCH /api/changes/:id`, checks with `POST /api/changes/conflicts/check`); checked in a real
+browser with a scripted drag and the keyboard
 
 ### Also delivered in the finishing pass
 

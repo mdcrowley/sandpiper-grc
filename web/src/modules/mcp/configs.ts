@@ -44,3 +44,15 @@ export function genericHttp(c: ConfigInput): string {
 export function genericStdio(c: ConfigInput): string {
   return json({ mcpServers: { [c.name ?? 'sandpiper']: { command: 'node', args: [c.bridgePath], env: { GRC_URL: c.base, GRC_TOKEN: c.token } } } });
 }
+
+/** Remote connectors that sign in with OAuth (E21-16): only the address; no token is copied anywhere. */
+export function connectorUrl(base: string): string {
+  return `${base.replace(/\/+$/, '')}/mcp`;
+}
+export function claudeCodeOAuth(c: Pick<ConfigInput, 'base' | 'name'>): string {
+  return `claude mcp add --transport http ${c.name ?? 'sandpiper'} ${connectorUrl(c.base)}`;
+}
+/** A remote connector over HTTPS with no header: the client finds the sign-in itself. */
+export function genericOAuth(c: Pick<ConfigInput, 'base' | 'name'>): string {
+  return json({ mcpServers: { [c.name ?? 'sandpiper']: { url: connectorUrl(c.base) } } });
+}

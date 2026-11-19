@@ -1,4 +1,6 @@
 import { DEFAULT_APP_NAME } from '../../core/config.ts';
+import { AREA_KEYS, effectiveFeatures, FEATURE_DEFAULTS } from '../../core/features.ts';
+import { checkFeatures, featureChangeProblem } from './features.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { hasActivePasskey } from '../../core/webauthn/index.ts';
 import { localOffProblem } from './providers.ts';
@@ -11,8 +13,8 @@ const int = (min: number, max: number, what: string): Check => (v) =>
   (typeof v === 'number' && Number.isInteger(v) && v >= min && v <= max
     ? { value: v } : `${what} must be a whole number from ${min} to ${max}.`);
 
-/** Feature switches an administrator may set. Everything is off until switched on. */
-export const FEATURE_KEYS = ['portal'];
+/** Feature switches an administrator may set: one per optional area (core/features.ts). */
+export const FEATURE_KEYS = AREA_KEYS;
 
 /** The settings an administrator may change here, with defaults (matching the core fallbacks) and validation. */
 export const SETTINGS: Record<string, { fallback: unknown; check: Check }> = {
@@ -22,17 +24,8 @@ export const SETTINGS: Record<string, { fallback: unknown; check: Check }> = {
       ? { value: v.trim() } : 'Enter a name of 1 to 60 characters.'),
   },
   pilot_mode: { fallback: true, check: bool },
-  features: {
-    fallback: { portal: false },
-    check: (v) => {
-      if (!v || typeof v !== 'object' || Array.isArray(v)) return 'Feature switches must be on or off.';
-      for (const [k, on] of Object.entries(v)) {
-        if (!FEATURE_KEYS.includes(k)) return `Unknown feature: ${k}.`;
-        if (typeof on !== 'boolean') return 'Feature switches must be on or off.';
-      }
-      return { value: v };
-    },
-  },
+  // Areas missing from the stored value take their default (on, except the portal): see core/features.ts.
+  features: { fallback: FEATURE_DEFAULTS, check: checkFeatures },
   // NIST SP 800-63B: the floor never drops below 12.
   'auth.password_min_length': { fallback: 14, check: int(12, 128, 'Minimum password length') },
   'auth.password_history': { fallback: 5, check: int(0, 24, 'Password history') },
@@ -96,7 +89,7 @@ export function registerSettings(ctx: ModuleContext) {
   const read = async () => {
     const values: Row = {};
     for (const [key, spec] of Object.entries(SETTINGS)) values[key] = await ctx.settings.get(key, spec.fallback);
-    values.features = { ...(SETTINGS.features.fallback as object), ...values.features };
+    values.features = effectiveFeatures(values.features);
     return { values, featureKeys: FEATURE_KEYS };
   };
 
@@ -115,9 +108,15 @@ export function registerSettings(ctx: ModuleContext) {
     }
     if (Object.keys(fields).length) invalid(fields);
     const current = (await read()).values;
-    if (clean.features) clean.features = { ...current.features, ...clean.features };
+    if (clean.features) {
+      clean.features = { ...current.features, ...clean.features };
+      const problem = featureChangeProblem(clean.features);
+      if (problem) invalid({ features: problem });
+    }
     const changed = Object.keys(clean).filter((key) => JSON.stringify(current[key]) !== JSON.stringify(clean[key]));
     if (changed.some(isSecuritySetting)) await sensitive(ctx, req, `changing security settings (${changed.filter(isSecuritySetting).join(', ')})`);
+    // Switching a part of the application on or off changes what everyone can reach.
+    if (changed.includes('features')) await sensitive(ctx, req, 'switching parts of the application on or off');
     // Requiring a second factor must not lock out the administrator who switches it on.
     if (clean['auth.mfa_enforcement'] === 'required' && current['auth.mfa_enforcement'] !== 'required') {
       const me = await db.one<{ totp_enabled: boolean }>('select totp_enabled from users where id = $1', [req.user!.id]);

@@ -15,7 +15,8 @@ and the image's `grc` command ([Docker](#docker)). The examples in this runbook 
 | `.\grc.ps1 restart` | `stop`, then `start` |
 | `.\grc.ps1 health` | Calls `/api/health` (over HTTPS when `GRC_TLS_CERT` is set, accepting a self-signed certificate for this local check). Prints `Healthy` or `Not responding.` (exit code 1) |
 | `.\grc.ps1 status` | Version, port, process, size of the data folder, last backup, pending migrations and the backup schedule. See [Status](#status) |
-| `.\grc.ps1 logs [-Lines n] [-Follow]` | Shows the end of the server logs (default 40 lines). `-Follow` keeps showing new error lines until Ctrl+C |
+| `.\grc.ps1 logs [-Lines n] [-Follow] [-Level warn]` | Shows the end of the server log, readably (default 40 lines; `-Level` hides lines below that level). `-Follow` keeps showing new lines until Ctrl+C. See [Logs](#logs) |
+| `.\grc.ps1 version` | The installed version and the commit it was built from |
 | `.\grc.ps1 seed [-Profile pilot\|dev]` | Loads data (default profile `pilot`). See [Installation](installation.md#5-load-data) |
 | `.\grc.ps1 backup [-Prune n] [-Encrypt [-IncludeSecretKey]]` | Makes a verified copy of the data in `backups\<yyyyMMdd-HHmmss>\`, or with `-Encrypt` one encrypted file `backups\<yyyyMMdd-HHmmss>.tar.sgrc`. `-Prune n` then deletes all but the newest `n` backups. See [Backup](#backup) |
 | `.\grc.ps1 backups` | Lists backups, newest first, with time, size, version, why each was taken and whether it is encrypted |
@@ -27,14 +28,16 @@ and the image's `grc` command ([Docker](#docker)). The examples in this runbook 
 | `.\grc.ps1 import-all <dir or file>` | Loads an export (a folder, or an export file, encrypted or not) into an empty installation |
 | `.\grc.ps1 decrypt <file> [-Out file.tar]` | Turns an encrypted backup or export into the plain tar file it holds, checking every part. See [Encrypted backups and exports](#encrypted-backups-and-exports) |
 | `.\grc.ps1 new-key <file>` | Writes a new random key file for encrypted backups. Keep it outside the data folder |
-| `.\grc.ps1 move-files -To s3` (or `-To disk`) | Moves every attached file to the object store (or back to the disk), checking each copy before deleting the original. Stops and restarts the server |
+| `.\grc.ps1 move-files -To s3` (or `-To disk`) | Moves every attached file to the object store (or back to the disk), checking each copy before deleting the original. Stops and restarts the server. An administrator can do the same while the application runs, as a background job, from File settings > Storage > **Move stored files** |
 | `.\grc.ps1 upgrade [-From dir\|zip] [-Pull] [-SkipInstall] [-NoRollback]` | Backup, new code, `npm install`, build, migrations, restart, health check; if any step fails, puts the previous code, packages and data back and starts the previous version. See [Upgrading](#upgrading) |
+| `.\grc.ps1 secret-key show` (or `rotate`) | Says where the secret key comes from (with a fingerprint, never the key) and whether retired keys are still needed; `rotate`, which stops the server first, writes a new key and keeps the old one as a retired key. Runs `server/src/core/secretkey-cli.ts`; see [Security](security.md) |
 | `.\grc.ps1 save-code` | Keeps a copy of the code as it is now (`backups\code\last-good.tar`) for `upgrade` to return to. `start` makes one the first time it runs |
 | `.\grc.ps1 dev` | Development mode: stops the background server, then runs the API with file watching on port 8080 and the Vite development server on http://127.0.0.1:5173 (which proxies `/api` to port 8080). Ctrl+C stops both |
 | `.\grc.ps1 build` | Builds the web application into `dist\web\` and shows the full build output |
 | `.\grc.ps1 test` | Runs the automated tests (Vitest) |
 | `.\grc.ps1 typecheck` | Type-checks the server and the web application |
-| `.\grc.ps1 ci` | Local continuous integration: typecheck, tests and web build, with a pass or fail summary. Run it before every commit and push |
+| `.\grc.ps1 ci` | Local continuous integration: typecheck, tests, tests with the clock on UTC, web build and the dependency audit, with a pass or fail summary. Run it before every commit and push |
+| `.\grc.ps1 audit-deps [-Level high]` | Known vulnerabilities in the production packages (`npm audit`); fails only when a fixed version exists. See [Dependency vulnerabilities](#dependency-vulnerabilities) |
 | `.\grc.ps1 npm <args>` | Runs any npm command with the portable Node.js, for example `.\grc.ps1 npm install` |
 | `.\grc.ps1` or `.\grc.ps1 help` | Prints the list of commands |
 
@@ -62,18 +65,21 @@ otherwise the `node` on `PATH`, and refuses a major version other than the one i
 | `powershell -ExecutionPolicy Bypass -File .\tools\install-node.ps1` | `./tools/install-node.sh` |
 | `.\grc.ps1 npm install` | `./grc.sh install` (also fetches Node.js when no suitable one is found) |
 | `.\grc.ps1 start`, `stop`, `restart`, `health`, `status` | `./grc.sh start`, `stop`, `restart`, `health`, `status` |
-| `.\grc.ps1 logs -Lines 100 -Follow` | `./grc.sh logs --lines 100 --follow` |
+| `.\grc.ps1 logs -Lines 100 -Follow -Level warn`, `version`, `audit-deps` | `./grc.sh logs --lines 100 --follow --level warn`, `version`, `audit-deps` |
+| (a Windows service is not provided) | `./grc.sh service install`, `remove`, `status`, `print`: run the server as a systemd (Linux) or launchd (macOS) user service ([Running as a service](#running-as-a-service-on-linux-and-macos)) |
 | `.\grc.ps1 seed -Profile dev` | `./grc.sh seed --profile dev` |
 | `.\grc.ps1 backup -Prune 14 -Encrypt -KeyFile <file>` | `./grc.sh backup --prune 14 --encrypt --key-file <file>` |
 | `.\grc.ps1 backups`, `verify-backup`, `restore latest -Force` | `./grc.sh backups`, `verify-backup`, `restore latest --force` |
 | `.\grc.ps1 export-all -Out <dir> -NoSecrets`, `import-all <dir>` | `./grc.sh export-all --out <dir> --no-secrets`, `import-all <dir>` |
 | `.\grc.ps1 decrypt <file> -Out <tar>`, `new-key <file>`, `move-files -To s3` | `./grc.sh decrypt <file> --out <tar>`, `new-key <file>`, `move-files --to s3` |
+| `.\grc.ps1 secret-key show`, `secret-key rotate` | `./grc.sh secret-key show`, `secret-key rotate` |
 | `.\grc.ps1 upgrade -From <zip> -SkipInstall -NoRollback`, `-Pull`, `save-code` | `./grc.sh upgrade --from <folder, .zip or .tar.gz> --skip-install --no-rollback`, `--pull`, `save-code` |
 | `.\grc.ps1 schedule-backup -At 02:30 -Prune 14` (a Windows scheduled task) | `./grc.sh schedule-backup --at 02:30 --prune 14` prints a cron line, a systemd user timer and a launchd agent to add; `unschedule-backup` says how to remove them ([Scheduled backups](#scheduled-backups)) |
 | `.\grc.ps1 dev`, `build`, `test`, `typecheck`, `ci` | `./grc.sh dev`, `build`, `test`, `typecheck`, `ci` (`ci` includes the pass with the clock on UTC) |
 | `.\grc.ps1 npm <args>` | `./grc.sh npm <args>` |
 
-Differences: `start` runs the server in the background with `nohup`, writing the same
+Differences: `start` runs the server in the background with `nohup` (or, once `service
+install` has been run, starts the service), with its start-up output in
 `data/server.log` and `data/server.log.err`; `stop` asks for a clean shutdown the same way
 and sends a terminate signal if that does not work within 15 seconds; `status` reports a
 cron entry for this folder (it does not look at systemd or launchd); and `upgrade --from`
@@ -93,7 +99,9 @@ to itself run in a one-off container with the application stopped. Full details 
 |---|---|
 | Start, stop, restart | `docker compose up -d`, `docker compose stop`, `docker compose restart app` |
 | Health and status | `docker compose ps` (health), `docker compose exec app grc status` |
-| Logs | `docker compose logs -f app` (the server writes to the container's output, not to files) |
+| Logs | `docker compose logs -f app` (one JSON line per entry), or `docker compose exec app grc logs --lines 100` (the rotating file in the data volume, shown readably) |
+| Version | `docker compose exec app grc version` |
+| Renewed TLS certificate | Picked up by itself within `GRC_TLS_RELOAD_SECONDS`, or at once with `docker compose kill -s HUP app` |
 | Sample data | `docker compose stop app && docker compose run --rm app grc seed --profile dev && docker compose start app` |
 | Backup | `docker compose stop app && docker compose run --rm app grc backup --prune 14 && docker compose start app` |
 | List, verify, restore | `docker compose exec app grc backups`; `... run --rm app grc verify-backup`; `... run --rm app grc restore latest` (stopped) |
@@ -110,8 +118,9 @@ to itself run in a one-off container with the application stopped. Full details 
 | `data\files\` | Files attached to records |
 | `data\grc.pid` | Process id of the running server. Written at start, removed at clean shutdown |
 | `data\grc.stop` | Created briefly by `stop` to request a clean shutdown |
-| `data\server.log` | Standard output: the start-up line and the list of loaded modules |
-| `data\server.log.err` | Errors: start-up failures, failed migrations, and unexpected errors in requests (`[error] METHOD URL`) |
+| `data\logs\grc.log` | The server's own log: one JSON line per entry (requests, warnings, errors), rotated by size into `grc.log.1` ... `grc.log.5`. See [Logs](#logs) |
+| `data\server.log` | Console output of a server started by `grc.ps1`/`grc.sh`: the start-up line |
+| `data\server.log.err` | Console errors: anything printed before the log file is open (a refused start) and every warning and error |
 | `backups\<timestamp>\` | One backup: `manifest.json` and a `data\` folder holding the copy |
 | `backups\<timestamp>-pre-restore\` | The safety copy `restore` takes of the data it is about to replace |
 | `backups\export-<timestamp>\` | Where `export-all` writes when no `-Out` folder is given |
@@ -125,10 +134,12 @@ to itself run in a one-off container with the application stopped. Full details 
 
 Notes:
 
-- Both server log files are **overwritten at every start**. Copy them first if you need
-  them. `.\grc.ps1 logs` shows the end of both.
-- There is no request (access) log. The record of who did what is the audit log inside the
-  application (Administration, Audit log).
+- `server.log` and `server.log.err` are **overwritten at every start**; the server's own
+  log in `data\logs\` is not: the previous run's log is kept as `grc.log.1`.
+- The request log says which address asked for what and how it went; the record of who did
+  what is the audit log inside the application (Administration, Audit log). The two are
+  joined by the request identifier.
+- `data\logs\` is left out of backups and restores.
 - `GRC_DATA_DIR` moves the database, files, pid file and logs to another folder.
   `GRC_BACKUP_DIR` moves the backups, for example to another disk. Set them the same way
   for every command (see [Installation](installation.md#environment-variables)).
@@ -170,6 +181,11 @@ Windows task:   none (the server takes its own daily backups: Administration > B
   start. While the server is running the database cannot be opened by a second process;
   the server applied everything when it started, so the line reports only whether any
   migration file has changed since then (which means: restart, or better, `upgrade`).
+  A checksum of every migration is recorded when it is applied. When an applied
+  migration's file no longer matches (someone edited a migration after it ran), `status`
+  adds `WARNING: ... applied migration file(s) EDITED since they were applied` and the
+  server writes the same warning to its log at start. The edit is never applied: put the
+  change in a new migration ([Developer guide](development.md#migrations)).
 - **Windows task** shows the scheduled backup task, if there is one, when it runs next and
   whether its last run succeeded.
 - `npm run cli -- status --json` prints the same facts as JSON for a monitoring script.
@@ -189,6 +205,94 @@ a certificate). The container image checks it every 30 seconds with
 `node deploy/healthcheck.mjs`, which follows `GRC_PORT` and `GRC_TLS_CERT`; `docker ps`
 shows the result. Behind a reverse proxy, point the proxy's or load balancer's own health
 check at `/api/health` as well.
+
+## Logs
+
+The server keeps its own log, `data\logs\grc.log` (or the folder in `GRC_LOG_DIR`):
+one JSON object per line, so it can be searched or sent to a log collector.
+
+```powershell
+.\grc.ps1 logs                      # the last 40 entries, readably
+.\grc.ps1 logs -Lines 200 -Level warn
+.\grc.ps1 logs -Follow              # keep showing new entries (Ctrl+C stops)
+```
+
+```
+2030-01-31T09:12:44.120Z  INFO  Sandpiper GRC 0.1.0 (3f2a9c1d0b7e) running at http://127.0.0.1:8080  (embedded database; ...)
+2030-01-31T09:12:51.903Z  200  GET    /api/tickets  18.4 ms  127.0.0.1  id 6c1f0e7a-...
+2030-01-31T09:13:02.551Z  500  POST   /api/changes  41.2 ms  127.0.0.1  id 0b9d2e44-...
+2030-01-31T09:13:02.552Z  ERROR [error] POST /api/changes: ...
+```
+
+- **One line per request** to the API: time, status, method, path, duration, the client's
+  address (the real one behind a trusted proxy) and the **request identifier**. The same
+  identifier is sent back to the browser as `X-Request-Id` and recorded on audit events as
+  `request_id`, so a complaint ("it failed at 09:13"), its log line and its audit event can
+  be matched. Pages and scripts of the web application and the health check are not logged
+  unless they fail (or `GRC_LOG_LEVEL=debug`).
+- **Nothing secret is written.** A request line has the path only, never the query string
+  (which can hold search words or one-time codes) or the body, and the path itself loses any
+  secret it carries: the token of a vendor response link (`/vendor-response/***`) and any
+  other segment of 32 or more letters and digits that is not a record id. A path in an error
+  message is treated the same way, with the values of its query string masked. Every message passes through
+  a filter that masks passwords, tokens, `Bearer` and `grc_pat_` values, codes, cookies
+  and the password in a connection string. Restricted record content is never logged: the
+  server logs addresses and identifiers, not records.
+- **Rotation.** At every start the previous run's file becomes `grc.log.1`; while running,
+  the file is rotated when it passes `GRC_LOG_MAX_MB` (default 10). `GRC_LOG_FILES`
+  (default 5) old files are kept, so the log never takes more than about 60 MB.
+- **Settings** (environment): `GRC_LOG_LEVEL` (`error`, `warn`, `info` (default),
+  `debug`), `GRC_LOG_DIR` (`off` writes no file), `GRC_LOG_MAX_MB`, `GRC_LOG_FILES`,
+  `GRC_LOG_REQUESTS=off` (no request lines), and `GRC_LOG_CONSOLE`: `text` (default:
+  the start-up line, warnings and errors on the console), `json` (every entry on the
+  console as JSON; the container image uses it, so `docker logs` has everything) or `off`.
+- `data\server.log.err` still matters when the server **does not start** at all (a
+  setting it refuses, a port in use): `logs` shows its end first when it is not empty.
+
+## Fonts for PDF exports
+
+PDF exports and fact sheets print Western European text with the standard PDF fonts. For
+anything else (Greek, Cyrillic, Hebrew, Arabic, Chinese, Japanese, Korean, Indic scripts,
+symbols) the server embeds a font the machine already has, only the characters used. When
+`GRC_PDF_FONTS` is not set it looks for well-known system fonts: Noto and DejaVu (Linux),
+Arial Unicode (macOS), and Segoe UI, Arial, Microsoft YaHei, Yu Gothic, Malgun Gothic and
+Nirmala UI (Windows). The container image installs Noto (`fonts-noto-core` and
+`fonts-noto-cjk`), so it prints every common script.
+
+`GRC_PDF_FONTS` names the font files to use instead, in order of preference, separated by
+`;` on Windows and `:` elsewhere. A collection (`.ttc`) picks one font with `#` and its
+PostScript name, for example `/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc#NotoSansCJKjp-Regular`.
+`GRC_PDF_FONTS=none` switches embedding off (characters outside Western European are then
+left out). A file that cannot be read is skipped with a warning in the log.
+
+## Running as a service on Linux and macOS
+
+`./grc.sh service install` runs the server as a **user service** of the account you are
+signed in as, with no administrator rights: a systemd user unit on Linux
+(`~/.config/systemd/user/sandpiper-grc.service`) or a launchd agent on macOS
+(`~/Library/LaunchAgents/org.sandpiper-grc.server.plist`). It writes the `GRC_*` settings
+in force at that moment into the file (never a password, passphrase or key given directly:
+it says which it left out; use the `*_FILE` settings for those), starts the service and
+waits for the health check.
+
+- The service starts at sign-in and is restarted after a crash. On Linux,
+  `loginctl enable-linger <you>` makes it start at boot without anyone signed in.
+- `./grc.sh start`, `stop`, `restart` and the commands that stop the server around their
+  work (`backup`, `seed`, `restore`, `upgrade`) keep working: `stop` asks for a clean
+  shutdown, which the service manager does not undo, and `start` starts the service
+  rather than a second copy.
+- `./grc.sh service status` shows its state; `service print` shows the file without
+  installing anything; `service remove` stops it and deletes the file (the data is
+  untouched). `GRC_SERVICE_NAME` installs a second copy under another name.
+- For a server run by its own system account, use the system examples instead:
+  `deploy/systemd/sandpiper-grc.service` (Linux; `systemctl reload sandpiper-grc` loads a
+  renewed certificate) and `deploy/launchd/org.sandpiper-grc.server.plist` (macOS), each
+  with a daily backup (`sandpiper-grc-backup.timer`, `org.sandpiper-grc.backup.plist`). See
+  [Installation](installation.md#server-installation).
+
+Continuous integration checks the unit with `systemd-analyze verify` and the property
+lists with `plutil -lint`. Installing and running them under a real systemd user session
+and launchd has not been confirmed yet (E16-35).
 
 ## Clean shutdown, and why it matters
 
@@ -501,10 +605,11 @@ It reports what it verified, where the safety copy is, and which backup is now l
   took itself (`sandpiper-backup-*.tar` or `.tar.sgrc`, see
   [Backups taken by the server](#backups-taken-by-the-server)). It unpacks it into a hidden
   working folder in `backups\`, checks it, and deletes the folder afterwards.
-- **The secret key.** Unless the backup carried it (`-IncludeSecretKey`), `restore` does
-  not touch the secret key and says where it is expected. Restoring onto the same machine
-  needs nothing more; on another machine, put the key file in place first (see
-  [Backup](#backup)).
+- **The secret key.** The secret key is not in backups. Restore puts a key carried in an
+  encrypted backup (`-IncludeSecretKey`) in place, or as a retired key; then `secret-key
+  show` says when retired keys can be deleted. Otherwise `restore` does not touch the key
+  and says where it is expected: restoring onto the same machine needs nothing more; on
+  another machine, put the key file in place first (see [Backup](#backup)).
 - With a PostgreSQL server (`GRC_DATABASE_URL`), `restore` refuses: use `pg_restore`
   ([PostgreSQL server backups](#postgresql-server-backups)).
 
@@ -660,10 +765,13 @@ previous version again:
    no network access, when the packages are already in place.
 5. **Build** the web application.
 6. **Migrations.** Each migration runs in a transaction and is recorded in the
-   `schema_migrations` table, so it is applied once; core first, then each module in
-   alphabetical order. The command prints the ones it applied.
+   `schema_migrations` table with a checksum, so it is applied once; core first, then each
+   module in alphabetical order. The command prints the ones it applied. A migration that
+   was already applied and has been edited since is not run again; it is reported
+   ([Status](#status)).
 7. **Start and health check**, then `status`, and the new code is saved as
-   `last-good.tar`.
+   `last-good.tar`. Everyone signed in can then see the new version under Help > About
+   (`GET /api/version`), and the start-up line in the log names it.
 
 **Automatic rollback.** When a step from 3 on fails, `upgrade`:
 
@@ -713,6 +821,192 @@ server or containers, do the same steps by hand:
 To roll back: stop, put the previous code or image back, restore the dump into an empty
 database and the files, and start. There are no downward migrations, so the database must
 go back together with the code.
+
+**Upgrading to the version with faster search (migration 009).** The first start rebuilds
+every search index once, which can take a minute or two on a large installation. An embedded
+database upgraded to it cannot be opened by an older version: to go back, restore the backup
+`upgrade` took first.
+
+## Dependency vulnerabilities
+
+`.\grc.ps1 audit-deps` (`./grc.sh audit-deps`, part of `ci`, and a step of every GitHub
+Actions run) asks `npm audit` about the production packages and applies one rule: **it fails
+when a high or critical vulnerability has a fixed version** (an update, or a new major
+version to plan), and **lists without failing** one that nobody can fix yet, so the build is
+not blocked by something no one can change. `-Level moderate` is stricter; `npm run cli --
+audit-deps --all` includes the development packages. It needs the npm registry; without a
+network it says so and `ci` carries on. Dependabot proposes updates every Monday
+(`.github/dependabot.yml`).
+
+How quickly a vulnerability in a dependency is dealt with, counted from the day it is
+reported here:
+
+| Severity | Fix available | No fix yet |
+|---|---|---|
+| Critical | Update within 2 days, and publish a release | Within 2 days decide whether the vulnerable code is reachable; if it is, remove or replace the package, or switch the feature off and say so in the release notes |
+| High | Update within 7 days | Review within 7 days, as above; check again at every weekly audit |
+| Moderate | With the next weekly update | Reviewed at the next release |
+| Low | With the next routine update | Reviewed at the next release |
+
+## Performance and load testing
+
+`node tools/load/run.mjs` measures the application at a realistic volume. It needs no
+packages beyond the application's own and contacts nothing outside the machine. It starts a
+throw-away instance in a temporary folder, creates invented records through the API (at
+scale 1: 10,000 tickets, 3,000 assets, 2,000 actions, 1,500 changes and 1,500
+vulnerabilities, and some hundreds of each other type), then has a number of simulated
+people (`--concurrency`, default 8) repeat each scenario for `--duration` seconds: list
+pages, sorted and filtered lists, full-text queries, statistics, global search, one record,
+the whole Overview dashboard (every call it makes, timed until the last answer), and
+creating and updating a ticket. `--ops` also times backup, export, verification, restore
+and import at that volume. Results are written as JSON and Markdown to `tools/load/out/`
+(git-ignored). See [`tools/load/README.md`](../tools/load/README.md) for every option.
+
+**Targets** for a pilot (one organization, up to about 50 people at once), with 8 people
+at once and no errors:
+
+| | PostgreSQL server (what a pilot should run) | Embedded database (evaluation on one machine) |
+|---|---|---|
+| Lists, filtered and sorted lists, one record | 95th percentile within **300 ms** at scale 1 | within **500 ms** at scale 0.5 |
+| Full-text list query | within **300 ms** | within **1 s** |
+| Global search | within **500 ms** | within **2 s** |
+| Overview dashboard (all its calls) | within **1 s** | within **2.5 s** |
+| Save (create or update) | within **300 ms** | within **500 ms** |
+| Backup, export, restore, import at scale 1 | under a minute | under a minute |
+
+The embedded database answers one statement at a time inside the server process, so with
+8 people at once each of them waits for the others' statements too: its targets are looser,
+and it is meant for evaluation, not for a pilot ([What must change before real
+use](#what-must-change-before-real-use)).
+
+**Results.** All on the same 14-core laptop (31 GB, Windows 11), the load generator on the
+same machine, 8 people at once, 15 seconds per scenario, version 0.1.0. Scale 0.5 is about
+10,500 records (5,000 tickets, 1,500 assets, 1,000 actions, 750 changes, 750
+vulnerabilities and the rest). Other heavy work (test suites and browsers of other
+development sessions) ran beside every run and varied from minute to minute, which moves
+single figures by a factor of two either way; read the table for its pattern, not its
+digits. 95th percentile, and 50th in brackets, in milliseconds, at scale 0.5:
+
+| Scenario | Embedded, first run (morning) | Embedded, before tuning (same afternoon) | Embedded, after tuning | PostgreSQL server, after tuning |
+|---|---:|---:|---:|---:|
+| Ticket list, first page | 297 | 524 (431) | 372 (321) | 98 (76) |
+| Ticket list, random page, sorted by title | 1,550 | 2,084 (1,155) | 377 (308) | 110 (86) |
+| Ticket list, filtered by status | 2,083 | 380 (321) | 284 (246) | 86 (67) |
+| Ticket list, full-text query | 6,740 | 1,736 (1,496) | 780 (658) | 126 (104) |
+| Ticket statistics by status | 241 | 147 (126) | 139 (119) | 28 (23) |
+| First page of any list | 967 | 315 (238) | 187 (145) | 71 (54) |
+| Global search | 4,812 | 2,078 (614) | 1,781 (1,665) | 312 (257) |
+| One record | 177 | 82 (50) | 98 (81) | 40 (30) |
+| Overview dashboard (12 calls together) | 2,162 | 942 (859) | 2,256 (2,002) | 593 (500) |
+| Save: create a ticket | 1,353 | 340 (105) | 301 (270) | 129 (98) |
+| Save: update a ticket | 1,497 | 311 (252) | 227 (207) | 81 (67) |
+
+The PostgreSQL server was PostgreSQL 17 in a container on the same laptop (so it shared
+the processors with the application and the load generator), reached with
+`GRC_DATABASE_URL`, default settings and the default pool of 10 connections. It meets every
+server target with room to spare. At scale 1 (about 22,000 records) on the same server, 95th
+percentiles: ticket list pages 136 to 187 ms, filtered 82 ms, full-text 164 ms, first page of
+any list 66 ms, global search 351 ms, one record 34 ms, Overview 814 ms, saves 71 to 124 ms,
+with no errors: every server target is met at scale 1 as well.
+
+Scale 1 (about 22,000 records) on the embedded database, after tuning, 95th percentiles:
+lists 745 to 898 ms, filtered 502 ms, full-text 1,546 ms, global search 4,316 ms, one
+record 298 ms, Overview 3,678 ms, saves 275 to 902 ms. The run completed without errors.
+With `--ops`: backup with verification 8.3 s, `export-all` 26.4 s (65,219 rows),
+`verify-backup` 2.7 s, `restore` 17.7 s, `import-all` into an empty installation 55.8 s, all
+within the one-minute target. Seeding ran at about 23 tickets a second on the embedded
+database and about 80 a second on the PostgreSQL server.
+
+Measured one request at a time on the same scale-1 data (what a request costs with nobody
+else waiting), after tuning: a ticket list page 30 to 60 ms, a full-text list query 100 to
+130 ms, global search about 95 ms, all the Overview's calls about 120 ms together, one
+record under 10 ms. The embedded figures under load are therefore mostly waiting in line:
+with 8 people at once a request takes roughly 8 times its own cost, and more when the
+machine is busy.
+
+**What was tuned** (E16-36), found with `explain analyze` on the generated statements, a CPU
+profile of the server (over 85 % of its busy time is inside the database engine) and the
+slow statement log (below):
+
+- **Planner statistics on the embedded database.** It runs no autovacuum, so its tables were
+  never analyzed and the planner guessed 21 rows for a table of 6,000, choosing its plans
+  accordingly. The server now runs `analyze` a few seconds after opening it and again after
+  every 2,000 writes (`GRC_ANALYZE_AFTER_WRITES`, `0` switches it off), at most every ten
+  minutes. A PostgreSQL server does this itself.
+- **Lists** find the page on record ids alone and then read those records in full, so a sort
+  never carries whole rows, and the exact total comes from the same statement. Totals stay
+  exact and the same for everyone who sees the same rows.
+- **Full-text list queries** find the matching index rows once, through the index, instead
+  of testing the index again for every record.
+- **Substring matching** (a single word still matches inside words, codes and serial
+  numbers) no longer reads every record's text fields: the search index keeps those fields
+  as one text (`search_index.body`), with a trigram index (`pg_trgm`, migration 009). The
+  embedded database loads `pg_trgm` itself; on a PostgreSQL server the migration creates the
+  extension where the owner may (it is a trusted extension) and otherwise works without the
+  index.
+- **Global search** reads, for each record type, only that type's matching index rows and
+  ranks only those; the record table is then read by id, and only the best few are read in
+  full for their snippet. Types are searched four at a time, which a PostgreSQL server
+  answers side by side.
+- **Labels in lists** read only the value lists the type uses, instead of every value list
+  for each page.
+- **Service desk figures** (part of the Overview) count every breakdown in one pass over the
+  tickets and count the backlog by age in the database, instead of ten passes and reading
+  every open ticket.
+
+On the embedded database the Overview and global search did not get faster under load in
+these runs (the differences are within the noise of the busy machine; each costs less on its
+own, as above). What remains is tracked in E16-38.
+
+**Upgrading to this version** rebuilds every record type's search index once at the first
+start (about 4 seconds for 6,000 tickets on the embedded database). With a least-privilege
+run-time account, run `migrate` as the owner first, as for any change of search definition
+(E16-37). The search index grows by the text it now keeps (about the size of the searchable
+fields once more). An embedded database upgraded to this version cannot be opened by an
+earlier version (it needs `pg_trgm`); go back by restoring a backup taken before.
+
+**Slow statements.** `GRC_SLOW_QUERY_MS=200` (any number of milliseconds) writes every
+statement that takes that long to the error log with its time and text, never its values.
+On the embedded database the time includes waiting behind other statements.
+
+**The scale-1 run that lost its connection** in the first measurements (while creating
+tickets) did not happen again: two scale-1 runs completed, one of them with `--ops`, with no
+request left unanswered. The cause was not established. The load tool now tries a request
+that gets no answer once more, counts such requests in its results, and, when the instance
+stops by itself, reports its exit code and last output instead of only "fetch failed". One
+start of a restored scale-1 folder stopped with "A callback for 'onReady' hook timed out"
+(start-up work over Fastify's 10-second limit) while the machine was very busy; the next
+starts took a few seconds and logged no statement over 40 ms. That is tracked in E16-39.
+
+**Limits of these figures**, stated plainly:
+
+- One development laptop, busy with other work, with the load generator and (for the server
+  figures) the database on the same machine. A PostgreSQL server on its own machine should
+  do better than the server column.
+- Records were created through the API, so they look like real use, but the words come from
+  a list of about a hundred, so every word is in roughly a fifth of all records. Real text
+  is far more selective, which makes full-text queries and global search cheaper than here.
+- Scale 4 has not been run yet (E16-38).
+
+## Emergency access (break-glass)
+
+The break-glass account is the one local administrator kept for when single sign-on is
+unavailable ([Administration](user/09-administration.md)). Every sign-in with it is
+recorded as a `signin.break_glass` audit event and announced to every administrator. When
+it is needed:
+
+1. Take the sealed password and the hardware security key from where they are kept, and
+   note who took them and when.
+2. On the sign-in page open **Emergency access with a password**, and sign in with the
+   break-glass account's user name, the password and the security key. A red notice stays
+   at the top of every page for the whole session.
+3. Deal with the emergency, and nothing else: for example fix or switch on the sign-in
+   provider, or switch password sign-in back on.
+4. Record what was done, and why, in a ticket or the incident record.
+5. Sign out.
+6. Change the break-glass password (a new one, sealed again with the security key), and
+   review the `signin.break_glass` audit event and everything recorded during that
+   session (Administration > Audit log).
 
 ## Troubleshooting
 
@@ -800,8 +1094,10 @@ The server logged the cause in `data\server.log.err` with the request method and
 - A locked account unlocks by itself (the lock lasts from 1 to 15 minutes), or another
   administrator can unlock it under Administration, Users.
 - A forgotten password needs another administrator to issue a reset link.
-- If the only administrator cannot sign in, there is no break-glass account and no reset
-  command. In a prototype, restore a backup or reset the database (below).
+- If single sign-on is down or misconfigured, use the break-glass account
+  ([Emergency access](#emergency-access-break-glass)).
+- If the only administrator cannot sign in and there is no break-glass account, there is no
+  reset command. In a prototype, restore a backup or reset the database (below).
 
 ### Resetting a prototype database
 

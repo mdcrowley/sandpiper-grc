@@ -293,7 +293,7 @@ export function ActionsTab({ sourceType, sourceId }: { sourceType: string; sourc
   );
 }
 
-const fileLoaders = import.meta.glob<{ AttachmentsPanel: ComponentType<{ recordType: string; recordId: string; evidence?: boolean }> }>(
+const fileLoaders = import.meta.glob<{ AttachmentsPanel: ComponentType<{ recordType: string; recordId: string; evidence?: boolean; onChange?: () => void }> }>(
   '../attachments/AttachmentsPanel.tsx',
 );
 const loadFiles = Object.values(fileLoaders)[0];
@@ -302,13 +302,13 @@ const LazyFiles = loadFiles ? lazy(() => loadFiles().then((m) => ({ default: m.A
 export const filesAvailable = LazyFiles !== null;
 
 /** The attachments panel for a record; with `evidence`, new files carry a collection and expiry date. */
-export function FilesPanel({ recordType, recordId, evidence }: { recordType: string; recordId: string; evidence?: boolean }) {
+export function FilesPanel({ recordType, recordId, evidence, onChange }: { recordType: string; recordId: string; evidence?: boolean; onChange?: () => void }) {
   if (!LazyFiles) {
     return <EmptyState icon="file-text" title="Files are not available" message="The attachments service is not part of this installation." />;
   }
   return (
     <Suspense fallback={<Loading lines={3} label="Loading files" />}>
-      <LazyFiles recordType={recordType} recordId={recordId} evidence={evidence} />
+      <LazyFiles recordType={recordType} recordId={recordId} evidence={evidence} onChange={onChange} />
     </Suspense>
   );
 }

@@ -1,3 +1,4 @@
+import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleDef, Row } from '../../core/module.ts';
 import { defineExercise, registerExercises } from './exercises.ts';
 import { registerExerciseSteps } from './exerciseSteps.ts';
@@ -85,6 +86,10 @@ const mod: ModuleDef = {
       whole('recurrence_months', 'Repeat every (months)', 120);
       whole('due_days', 'Days allowed', 730);
       whole('duration_minutes', 'Duration (minutes)', 10000);
+      const ri = merged.reminder_interval_days;
+      if (ri !== null && ri !== undefined && (!Number.isInteger(Number(ri)) || Number(ri) < 1 || Number(ri) > 90)) {
+        fields.reminder_interval_days = 'Days between reminders must be a whole number from 1 to 90, or empty for the usual interval.';
+      }
       if (Object.keys(fields).length) ctx.fail(400, 'validation', 'Check the highlighted fields.', fields);
     }
 
@@ -107,6 +112,8 @@ const mod: ModuleDef = {
         self_certify: { label: 'People may mark it complete themselves', type: 'boolean', default: false },
         owner_id: { label: 'Owner', type: 'user' },
         status: { label: 'Status', type: 'lookup', list: 'course_status', default: 'active' },
+        // E10-18: empty uses the module setting (training.reminder_interval_days).
+        reminder_interval_days: { label: 'Days between overdue reminders (empty: the usual interval)', type: 'number' },
       },
       hooks: {
         beforeCreate: (_req, data) => { checkCourse(data); return data; },
@@ -136,25 +143,13 @@ const mod: ModuleDef = {
       return { reminder_interval_days: n };
     });
 
-    // Assignment rules are applied at start and then daily, then people are told what is new or
-    // overdue. The timer never keeps the process alive, and does not run under the test runner.
-    const safeRun = async () => {
-      try {
-        await syncTrainingAssignments(ctx);
-        await notifyTraining(ctx);
-      } catch (err) {
-        console.error('[training] assignment sync failed:', (err as Error).message);
-      }
-    };
-    let timer: ReturnType<typeof setInterval> | undefined;
-    if (!process.env.VITEST && process.env.GRC_DATA_DIR !== 'memory') ctx.app.addHook('onReady', async () => {
-      await safeRun();
-      timer = setInterval(safeRun, DAY);
-      timer.unref();
-    });
-    ctx.app.addHook('onClose', async () => {
-      if (timer) clearInterval(timer);
-    });
+    // Assignment rules are applied daily, then people are told what is new or overdue: a
+    // job-queue schedule (Administration > Background jobs). Tests call the runs directly.
+    await scheduleWork(ctx, 'training.daily', async () => {
+      const synced = await syncTrainingAssignments(ctx);
+      const told = await notifyTraining(ctx);
+      return { synced: synced ?? null, ...told };
+    }, { every: DAY, firstRunInMs: 60_000 });
   },
 
   seed: seedTraining,

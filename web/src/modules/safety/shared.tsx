@@ -1,5 +1,5 @@
 // Shared pieces of the safety pages: section tabs, the hazard matrix and the action panel loader.
-import { lazy, Suspense, type ComponentType } from 'react';
+import { lazy, Suspense, type ComponentType, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, Loading, StatusChip, Tabs, useFetch } from '../../core';
 import type { ColorName } from '../../core';
@@ -68,7 +68,7 @@ export function HazardMatrix({ scale, value, onPick, counts, label }: {
               const chosen = value?.likelihood === l.value && value?.severity === c.value;
               const n = counts?.[`${l.value}.${c.value}`] ?? 0;
               const name = `${l.label} by ${c.label}: ${r?.label ?? 'not rated'}`;
-              const style = { background: `var(--c-${r?.color ?? 'gray'}-bg)`, color: `var(--c-${r?.color ?? 'gray'}-fg)` };
+              const style = { '--sf-bg': `var(--c-${r?.color ?? 'gray'}-bg)`, '--sf-fg': `var(--c-${r?.color ?? 'gray'}-fg)` } as CSSProperties;
               return onPick ? (
                 <button key={c.value} type="button" className={`sf-cell${chosen ? ' is-chosen' : ''}`} style={style}
                   aria-pressed={chosen} aria-label={name} title={name} onClick={() => onPick(l.value, c.value)}>

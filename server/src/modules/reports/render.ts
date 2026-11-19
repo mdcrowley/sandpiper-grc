@@ -16,8 +16,8 @@ function csvCell(v: unknown): string {
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-const money = new Intl.NumberFormat('en-GB', { style: 'currency', currency: /^[A-Z]{3}$/.test(CURRENCY) ? CURRENCY : 'USD' });
-const plain = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 2 });
+const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: /^[A-Z]{3}$/.test(CURRENCY) ? CURRENCY : 'USD' });
+const plain = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
 
 /** A cell as a person reads it. */
 export function cellText(col: ResultColumn, row: ResultRow): string {

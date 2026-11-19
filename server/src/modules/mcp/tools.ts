@@ -23,6 +23,7 @@ export function availability(ctx: ModuleContext, permissions: string[]): Availab
 /** Why a tool is or is not offered to a caller (also used by the administrators' screen with no caller). */
 export function toolState(tool: ToolSpec, settings: McpSettings, a: Availability | null, session: Session | null): { offered: boolean; reason: string | null } {
   if (settings.allowedTools && !settings.allowedTools.includes(tool.name)) return { offered: false, reason: 'Not in the allowed tool list.' };
+  if (session?.tools && !session.tools.includes(tool.name)) return { offered: false, reason: 'Not chosen for this token or for the roles of its owner.' };
   if (tool.write && !settings.writeEnabled) return { offered: false, reason: 'Write access for AI assistants is off.' };
   if (session && tool.write && !hasWriteScope(session.permissions)) return { offered: false, reason: 'The token has no create or edit permissions.' };
   if (a && tool.available && !tool.available(a)) return { offered: false, reason: 'Needs a part of the application or a permission this caller does not have.' };

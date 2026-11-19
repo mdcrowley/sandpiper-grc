@@ -46,13 +46,6 @@ const RANGES: Partial<Record<keyof Values, { min: number; max: number; what: str
 const cleanHosts = (lines: unknown) => [...new Set((Array.isArray(lines) ? lines : []).map((h) => h.trim().toLowerCase()).filter(Boolean))];
 const HOST_RE = /^(\*\.)?[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?(:\d{1,5})?$/;
 
-const FEATURES: Record<string, { title: string; text: string }> = {
-  portal: {
-    title: 'Self-service portal',
-    text: 'The simpler pages where anyone in the organization submits and tracks their own requests. Off by default: agents enter tickets on behalf of others. Switch on together with the Requester role when you open the application to everyone.',
-  },
-};
-
 const ENFORCEMENT: { value: Enforcement; label: string; text: string }[] = [
   { value: 'off', label: 'Off', text: 'Nobody is reminded or blocked.' },
   { value: 'notice', label: 'Reminder', text: 'People without one see a reminder on every page and can carry on working.' },
@@ -271,7 +264,7 @@ export function SettingsPage() {
           {has('tokens.max_days') && (
             <Group id="tokens" title="API tokens" text="Personal tokens that let scripts and other systems use the API as the person who made them. Changing these asks for your password.">
               <Card>
-                <Setting title="Longest token life" changed={isChanged('tokens.max_days')} text={<>A new token must expire within this many days. Tokens already made keep their expiry. Default 365. Everyone's tokens are listed under <Link to="/admin/tokens">API tokens</Link>.</>}>
+                <Setting title="Longest token life" changed={isChanged('tokens.max_days')} text={<>A new token must expire within this many days. Tokens already made keep their expiry. Default 365. Everyone's tokens are listed under <Link to="/admin/tokens">API tokens</Link>. Whether AI assistants may connect, and who may connect one, is set under <Link to="/admin/ai-assistants">AI assistant access</Link>.</>}>
                   {number('tokens.max_days', 'Longest token life in days', 'Days, from 1 to 3650.')}
                 </Setting>
                 {has('tokens.rate_per_minute') && (
@@ -318,17 +311,11 @@ export function SettingsPage() {
             </Group>
           )}
 
-          <Group id="features" title="Features" text="Parts of the application that stay hidden until you switch them on.">
+          <Group id="features" title="Features" text="The optional parts of the application your organization uses.">
             <Card>
-              {data.featureKeys.length === 0 && <p className="muted">This version has no feature switches.</p>}
-              {data.featureKeys.map((k) => (
-                <Setting key={k} title={FEATURES[k]?.title ?? k} text={FEATURES[k]?.text ?? 'No description is available for this switch.'} error={errors.features} changed={form.features[k] !== data.values.features[k]}>
-                  <Switch
-                    label={FEATURES[k]?.title ?? k} checked={Boolean(form.features[k])}
-                    onChange={(on) => set('features', { ...form.features, [k]: on })}
-                  />
-                </Setting>
-              ))}
+              <Setting title="Parts of the application" text="The service desk, the self-service portal, change enablement, vendors, frameworks, risks, security incidents, policies, training, vulnerabilities, projects, dashboards and reports, fleet and safety can each be switched off. A part that is off is hidden for everyone; its records are kept.">
+                <Link className="btn btn-secondary" to="/admin/features">Open Features</Link>
+              </Setting>
               <p className="muted adm-setting-note">The audience roles (Requester, Approver, Executive viewer, Auditor) are switched on the <Link to="/admin/roles">Roles</Link> page.</p>
             </Card>
           </Group>

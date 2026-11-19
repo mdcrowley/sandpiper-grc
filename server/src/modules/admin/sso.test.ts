@@ -399,3 +399,187 @@ describe('per-person limits, local passwords off and break-glass (E02-13)', () =
     expect((await t.anon.get('/api/auth/providers')).body.providers).toEqual([]);
   });
 });
+
+describe('the provider second factor, signing out at the provider, groups by reference (E02-22, E02-23, E02-24)', () => {
+  const KEY2 = 'mfa-idp';
+  let id2 = '';
+  const ADMIN_PASSWORD = 'a long test passphrase 1';
+  const state = async (session: string) => (await asSession(session).get('/api/auth/state')).json();
+  const patchConfig = async (config: Record<string, unknown>) => {
+    const res = await t.api.patch(`/api/admin/identity-providers/${id2}`, { config });
+    expect(res.status).toBe(200);
+  };
+
+  beforeAll(async () => {
+    await t.api.post('/api/auth/confirm', { password: ADMIN_PASSWORD });
+    const res = await t.api.post('/api/admin/identity-providers', {
+      key: KEY2, name: 'Multi-factor directory', type: 'oidc', enabled: true,
+      config: {
+        issuer: idp.issuer, clientId: idp.clientId, jitEnabled: true, jitDomains: ['mfa.example.test'],
+        mappingEnabled: true, groupsClaim: 'groups', mappings: [{ value: 'sec', role: 'security_lead' }],
+      },
+      secret: idp.clientSecret,
+    });
+    expect(res.status).toBe(201);
+    id2 = res.body.id;
+  });
+  afterAll(async () => {
+    await t.api.post('/api/auth/confirm', { password: ADMIN_PASSWORD });
+    await t.api.patch('/api/admin/settings', { 'auth.mfa_enforcement': 'notice' });
+    await t.api.patch(`/api/admin/identity-providers/${id2}`, { enabled: false });
+  });
+
+  it('counts a multi-factor sign-in at the provider only when the provider is trusted for it and the token shows it', async () => {
+    await t.api.post('/api/auth/confirm', { password: ADMIN_PASSWORD });
+    // An administrator needs a second factor of their own before requiring one (stood in for here, until the end of this test).
+    await t.db.query("update users set totp_enabled = true where username = 'admin'");
+    expect((await t.api.patch('/api/admin/settings', { 'auth.mfa_enforcement': 'required' })).status).toBe(200);
+    idp.user = { sub: 'mfa-1', email: 'lee@mfa.example.test', email_verified: true, name: 'Lee', groups: ['sec'] };
+
+    // Not trusted: a security lead with no factor here is blocked, whatever the token says.
+    idp.overrides = { amr: ['pwd', 'mfa'] };
+    const untrusted = await ssoSignIn(KEY2);
+    expect(untrusted.location).toBe('/');
+    expect((await state(untrusted.session!)).mfaEnrollmentBlocked).toBe(true);
+    expect((await asSession(untrusted.session!).get('/api/users/options')).statusCode).toBe(403);
+
+    // Trusted, but this token shows a password only: still blocked.
+    await patchConfig({ providerMfa: true });
+    idp.overrides = { amr: ['pwd'] };
+    const weak = await ssoSignIn(KEY2);
+    expect((await state(weak.session!)).mfaEnrollmentBlocked).toBe(true);
+
+    // Trusted and shown: this session works; the other sessions of the same person are judged on their own.
+    idp.overrides = { amr: ['pwd', 'mfa'] };
+    const strong = await ssoSignIn(KEY2);
+    expect(await state(strong.session!)).toMatchObject({ mfaEnrollmentBlocked: false, mfaEnrollmentRequired: false });
+    expect((await asSession(strong.session!).get('/api/users/options')).statusCode).toBe(200);
+    expect((await asSession(strong.session!).get('/api/auth/security')).json().secondFactorViaProvider).toBe(true);
+    expect((await state(weak.session!)).mfaEnrollmentBlocked).toBe(true);
+    expect((await audited('signin.success', '%Multi-factor directory%multi-factor sign-in at the provider%')).length).toBeGreaterThanOrEqual(1);
+
+    // An authentication level (acr) can show it instead, and is asked for at the start.
+    await patchConfig({ providerMfa: true, mfaAmr: [], mfaAcr: ['urn:example:loa:mfa'] });
+    const start = await inject('POST', `/api/auth/sso/${KEY2}/start`, {}, {});
+    expect(new URL(start.json().redirectUrl).searchParams.get('acr_values')).toBe('urn:example:loa:mfa');
+    idp.overrides = { amr: ['pwd'], acr: 'urn:example:loa:mfa' };
+    expect((await state((await ssoSignIn(KEY2)).session!)).mfaEnrollmentBlocked).toBe(false);
+    idp.overrides = { amr: ['pwd', 'mfa'], acr: 'urn:example:loa:basic' };
+    expect((await state((await ssoSignIn(KEY2)).session!)).mfaEnrollmentBlocked).toBe(true);
+
+    // Switching the trust off again ends the effect at once, for sessions already made too.
+    await patchConfig({ providerMfa: false, mfaAmr: ['mfa'], mfaAcr: [] });
+    expect((await state(strong.session!)).mfaEnrollmentBlocked).toBe(true);
+    // Trust needs at least one value that shows it.
+    const empty = await t.api.patch(`/api/admin/identity-providers/${id2}`, { config: { providerMfa: true, mfaAmr: [], mfaAcr: [] } });
+    expect(empty.body.error.fields['config.mfaAmr']).toBeTruthy();
+    await t.api.patch('/api/admin/settings', { 'auth.mfa_enforcement': 'notice' });
+    await t.db.query("update users set totp_enabled = false where username = 'admin'");
+    idp.overrides = {};
+  });
+
+  it('signs out at the provider too when that is switched on', async () => {
+    idp.user = { sub: 'mfa-1', email: 'lee@mfa.example.test', email_verified: true, groups: ['sec'] };
+    const off = await ssoSignIn(KEY2);
+    const plain = await asSession(off.session!).post('/api/auth/logout');
+    expect(plain.json()).toEqual({ ok: true });
+    expect((await t.db.query('select 1 from identity_sessions where id_token_sealed is not null')).length).toBe(0);
+
+    await patchConfig({ endSession: true });
+    const on = await ssoSignIn(KEY2);
+    const sealed = await t.db.query<{ v: string }>('select id_token_sealed as v from identity_sessions where id_token_sealed is not null');
+    expect(sealed).toHaveLength(1);
+    expect(sealed[0].v).toMatch(/^enc:v1:/);
+    const out = (await asSession(on.session!).post('/api/auth/logout')).json();
+    const url = new URL(out.redirectUrl);
+    expect(`${url.origin}${url.pathname}`).toBe(`${idp.issuer}/logout`);
+    expect(url.searchParams.get('client_id')).toBe(idp.clientId);
+    expect(url.searchParams.get('post_logout_redirect_uri')).toBe('http://localhost:80/');
+    expect(url.searchParams.get('id_token_hint')?.split('.')).toHaveLength(3);
+    expect((await state(on.session!)).user).toBeNull();
+    expect((await audited('signout', '%sign out at the provider too%')).length).toBe(1);
+    // A password session never gets one.
+    await makeUser('signout-local', 'signout-local@example.test');
+    const local = await login('signout-local');
+    expect((await asSession(local.session!).post('/api/auth/logout')).json()).toEqual({ ok: true });
+    await patchConfig({ endSession: false });
+  });
+
+  it('ends sessions when the provider calls back-channel sign-out with a valid token', async () => {
+    const backchannel = (token: string) => t.app.inject({
+      method: 'POST', url: `/api/auth/sso/${KEY2}/backchannel-logout`,
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      payload: `logout_token=${encodeURIComponent(token)}`,
+    });
+    idp.user = { sub: 'mfa-1', email: 'lee@mfa.example.test', email_verified: true, groups: ['sec'] };
+    // Off by default: nothing answers.
+    expect((await backchannel(idp.logoutToken({ sub: 'mfa-1' }))).statusCode).toBe(404);
+    await patchConfig({ backchannelLogout: true });
+
+    const a = await ssoSignIn(KEY2);
+    const b = await ssoSignIn(KEY2);
+    await makeUser('backchannel-local', 'backchannel-local@example.test');
+    const pw = await login('backchannel-local'); // another person, untouched
+    expect((await backchannel(idp.logoutToken({ sub: 'mfa-1' }, { badSignature: true }))).statusCode).toBe(400);
+    expect((await backchannel(idp.logoutToken({ sub: 'mfa-1', aud: 'another-client' }))).statusCode).toBe(400);
+    expect((await backchannel(idp.logoutToken({ sub: 'mfa-1', nonce: 'n' }))).statusCode).toBe(400);
+    expect((await backchannel(idp.logoutToken({ sub: 'mfa-1', events: {} }))).statusCode).toBe(400);
+    expect((await backchannel(idp.logoutToken({}))).statusCode).toBe(400); // neither sub nor sid
+    expect((await state(a.session!)).user).not.toBeNull();
+    expect((await audited('identity.failure', '%Back-channel sign-out failed (bad signature)%')).length).toBe(1);
+
+    const token = idp.logoutToken({ sub: 'mfa-1' });
+    const ok = await backchannel(token); // no CSRF header: it is a server-to-server call
+    expect(ok.statusCode).toBe(200);
+    expect((await state(a.session!)).user).toBeNull();
+    expect((await state(b.session!)).user).toBeNull();
+    expect((await state(pw.session!)).user).not.toBeNull();
+    expect((await audited('identity.backchannel_logout', '%signed % session(s) out%')).length).toBe(1);
+
+    // The same token again does nothing more; a session made since is untouched by it.
+    const c = await ssoSignIn(KEY2);
+    expect((await backchannel(token)).statusCode).toBe(200);
+    expect((await state(c.session!)).user).not.toBeNull();
+
+    // By the provider's session id.
+    idp.overrides = { sid: 'provider-session-7' };
+    const d = await ssoSignIn(KEY2);
+    expect((await backchannel(idp.logoutToken({ sid: 'provider-session-7' }))).statusCode).toBe(200);
+    expect((await state(d.session!)).user).toBeNull();
+    expect((await state(c.session!)).user).not.toBeNull();
+    idp.overrides = {};
+    await patchConfig({ backchannelLogout: false });
+  });
+
+  it('reads groups sent by reference, and leaves roles alone when they cannot be had', async () => {
+    const roles = async (session: string) => ((await state(session)).user.roles as string[]).sort();
+    // Too many groups to list: the token names a source instead; the userinfo endpoint has them.
+    idp.user = { sub: 'many-groups', email: 'sam@mfa.example.test', email_verified: true };
+    idp.overrides = { _claim_names: { groups: 'src1' }, _claim_sources: { src1: { endpoint: `${idp.issuer}/groups` } } };
+    idp.userinfo = { groups: ['sec', 'others'] };
+    const first = await ssoSignIn(KEY2);
+    expect(await roles(first.session!)).toEqual(['security_lead']);
+
+    // Neither the userinfo endpoint nor the source has them: roles are left as they are, and that is recorded.
+    idp.userinfo = {};
+    const second = await ssoSignIn(KEY2);
+    expect(await roles(second.session!)).toEqual(['security_lead']);
+    expect((await audited('identity.groups_unknown')).length).toBe(1);
+
+    // A token that simply lists no groups still removes the mapped role, as before.
+    idp.overrides = {};
+    const third = await ssoSignIn(KEY2);
+    expect(await roles(third.session!)).toEqual([]);
+
+    // "Groups from userinfo" reads them there even when the token lists some.
+    await patchConfig({ groupsFromUserinfo: true });
+    idp.user = { sub: 'many-groups', email: 'sam@mfa.example.test', email_verified: true, groups: ['unrelated'] };
+    idp.userinfo = { groups: ['sec'] };
+    expect(await roles((await ssoSignIn(KEY2)).session!)).toEqual(['security_lead']);
+    // A userinfo answer about someone else is not used.
+    idp.userinfo = { sub: 'someone-else', groups: ['sec'] };
+    expect(await roles((await ssoSignIn(KEY2)).session!)).toEqual([]);
+    idp.userinfo = {};
+    await patchConfig({ groupsFromUserinfo: false });
+  });
+});

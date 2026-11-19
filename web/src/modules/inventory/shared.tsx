@@ -1,5 +1,6 @@
 // Pieces shared by the inventory pages: date helpers, callouts, and the "Changes and issues" tab.
-import type { ReactNode } from 'react';
+import { lazy, Suspense } from 'react';
+import type { ComponentType, ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { Alert, Badge, Group, Paper, SimpleGrid, Stack, Text } from '@mantine/core';
 import {
@@ -44,6 +45,14 @@ export function Callout({ color = 'blue', title, children, action }: { color?: C
 }
 
 /* ---------- Changes and issues ---------- */
+
+// The changes module's panel of changes affecting a system or asset (main record or linked as
+// affected), found by file name so inventory builds and works without that module.
+const changeLoaders = import.meta.glob<{ RecordChangesPanel: ComponentType<{ type: 'system' | 'asset'; id: string }> }>(
+  '../changes/RecordChangesPanel.tsx',
+);
+const loadChanges = Object.values(changeLoaders)[0];
+const RecordChangesPanel = loadChanges ? lazy(() => loadChanges().then((m) => ({ default: m.RecordChangesPanel }))) : null;
 
 interface WorkList {
   type: string;
@@ -112,17 +121,26 @@ export function RelatedWork({ field, id, noun }: { field: 'system_id' | 'asset_i
   const change = useResource('change');
   const ticket = useResource('ticket');
   const vulnerability = useResource('vulnerability');
-  const any = [change, ticket, vulnerability].some((r) => r && can(`${r.module}.view`) && r.fields[field]);
+  // With the changes panel, changes are listed there (including those linked as affected), not in a card.
+  const panel = !!RecordChangesPanel && !!change && can('changes.view');
+  const any = panel || [change, ticket, vulnerability].some((r) => r && can(`${r.module}.view`) && r.fields[field]);
+  const cards = WORK.filter((w) => !(panel && w.type === 'change'));
   if (!any) {
     return <EmptyState icon="refresh" title="Nothing to show here" message="Changes, tickets and vulnerabilities appear here when those parts of the application are in use and you may see them." />;
   }
   return (
     <Stack gap="md">
-      <SimpleGrid cols={{ base: 1, md: 3 }} spacing="md">
-        {WORK.map((w) => <WorkCard key={w.type} list={w} field={field} id={id} noun={noun} />)}
+      {panel && RecordChangesPanel && (
+        <Suspense fallback={<Loading lines={3} label="Loading changes" />}>
+          <RecordChangesPanel type={field === 'system_id' ? 'system' : 'asset'} id={id} />
+        </Suspense>
+      )}
+      <SimpleGrid cols={{ base: 1, md: cards.length }} spacing="md">
+        {cards.map((w) => <WorkCard key={w.type} list={w} field={field} id={id} noun={noun} />)}
       </SimpleGrid>
       <Text c="dimmed" size="sm">
-        A record is listed when its {field === 'system_id' ? 'system' : 'asset'} field names this {noun}. Other records linked by hand are on the Related tab.
+        {panel ? `Changes are listed when this ${noun} is their main ${noun} or is linked to them as affected. ` : ''}
+        {panel ? 'Tickets and vulnerabilities' : 'A record'} {panel ? 'are' : 'is'} listed when {panel ? 'their' : 'its'} {field === 'system_id' ? 'system' : 'asset'} field names this {noun}. Other records linked by hand are on the Related tab.
       </Text>
     </Stack>
   );

@@ -1,6 +1,6 @@
 # E21 MCP server (AI assistant access)
 
-**Status:** in progress (core built)
+**Status:** in progress (21 of 22 issues done)
 
 ## Goal
 
@@ -17,8 +17,8 @@ rights than they have.
 - Security first: bearer tokens only (never the cookie), Origin validation, off by default,
   write access separately off by default, no delete, every tool through the REST routes with
   the caller's token.
-- No core files changed. The `mcp.use` scope is outside `scopeCovered`'s grants, so assistant
-  tokens are made by the module's own route (E21-14 proposes the core change).
+- Core pieces it relies on (`core/tokens.ts`): scope families and run-time gates (`mcp.use`),
+  `issueToken`, source addresses, and `registerBearerResolver` for OAuth access tokens.
 
 ## Issues
 
@@ -37,13 +37,15 @@ rights than they have.
 | E21-11 | stdio bridge | done | P1 |
 | E21-12 | Tests against the real endpoint and the bridge | done | P1 |
 | E21-13 | Documentation | done | P1 |
-| E21-14 | Core: let `scopeCovered` accept the `mcp` scope family | open | P2 |
-| E21-15 | "Connect an AI assistant" card on Account security and a Settings link | open | P2 |
-| E21-16 | OAuth 2.1 authorization for remote connectors | open | P3 |
-| E21-17 | Who may connect an assistant (role permission) | open | P2 |
-| E21-18 | Help for this page: route map entries | open | P3 |
-| E21-19 | Tool-level choice per token and per role | open | P3 |
-| E21-20 | Progress notifications for long-running tools | open | P3 |
+| E21-14 | Core: let `scopeCovered` accept the `mcp` scope family | done | P2 |
+| E21-15 | "Connect an AI assistant" card on Account security and a Settings link | done | P2 |
+| E21-16 | OAuth 2.1 authorization for remote connectors | done | P3 |
+| E21-17 | Who may connect an assistant (role permission) | done | P2 |
+| E21-18 | Help for this page: route map entries | done | P3 |
+| E21-19 | Tool-level choice per token and per role | done | P3 |
+| E21-20 | Progress notifications for long-running tools | done | P3 |
+| E21-21 | Client ID metadata documents for connectors | open | P3 |
+| E21-22 | "What is affected if this system fails" tool | done | P2 |
 
 ---
 
@@ -177,6 +179,7 @@ rights than they have.
 
 - [x] `GRC_URL` and `GRC_TOKEN` from the environment only; no dependencies; Node 18+
 - [x] Relays line-delimited JSON-RPC to `/mcp` in order; refusals become JSON-RPC errors
+- [x] Streams progress notifications as they arrive, ahead of the result (E21-20)
 
 **Implemented in:** `tools/mcp-stdio.mjs`
 
@@ -202,47 +205,129 @@ rights than they have.
 
 ### E21-14 Core: let `scopeCovered` accept the `mcp` scope family
 
-**Status:** open · **Priority:** P2 · **Type:** tech debt
+**Status:** done · **Priority:** P2 · **Type:** tech debt
 
-`POST /api/me/tokens` refuses `mcp.use` for anyone without `*`, so the module makes assistant
-tokens with its own route (the same format and storage). Treat `mcp.*` as a capability any
-user may give their own token, then let the API tokens dialog offer it and drop the copy.
+`mcp.use` is a scope family (E13-18): anyone holding a permission may put it in a token, and the
+API tokens dialog offers it. The module's own token route stays as a convenience (read or read and
+write, tools, addresses) but no longer keeps its own copy of the token storage code.
+
+**Acceptance criteria**
+
+- [x] `scopeGrantable` accepts `mcp.use` and `mcp.*` for anyone holding a permission (E13-18)
+- [x] The API tokens dialog offers `scopeFamilies`
+- [x] `POST /api/mcp/tokens` makes the token with the core's `issueToken`
+- [x] A run-time gate (`registerScopeGate`) so "who may connect" also applies on the API tokens card
+
+**Implemented in:** `server/src/core/tokens.ts` (`SCOPE_FAMILIES`, `scopeGrantable`, `issueToken`, `registerScopeGate`); `server/src/modules/mcp/index.ts`; `web/src/modules/admin/ApiTokens.tsx`; tests `server/src/core/api/conventions.test.ts`, `server/src/modules/mcp/access.test.ts`
 
 ### E21-15 Card on Account security and a Settings link
 
-**Status:** open · **Priority:** P2 · **Type:** feature
+**Status:** done · **Priority:** P2 · **Type:** feature
 
-Account security (admin module) should show `ConnectAssistantCard` from
-`web/src/modules/mcp/ConnectCard.tsx`, and Settings should link to AI assistant access. Until
-then the pages are reached at `/account/ai-assistant` and from Administration.
+**Acceptance criteria**
+
+- [x] Account security shows `ConnectAssistantCard` beside the API tokens card
+- [x] AI assistant access links to the person's own page (**Connect my assistant**); the card links administrators to AI assistant access while it is off
+- [x] A link from Administration > Settings to AI assistant access (the Settings page belongs to the admin module; change requested from its owner)
+
+**Implemented in:** `web/src/modules/admin/AccountSecurity.tsx`, `web/src/modules/mcp/ConnectCard.tsx`, `AdminPage.tsx`
 
 ### E21-16 OAuth 2.1 for remote connectors
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
-Remote connectors (for example Claude's custom connectors) expect the MCP authorization flow
-(OAuth 2.1 with protected resource metadata). Needs HTTPS and a reachable address.
+Remote connectors (for example Claude's custom connectors) sign in with the MCP authorization
+flow instead of a pasted token. Off by default; needs HTTPS (or loopback).
+
+**Acceptance criteria**
+
+- [x] Protected resource metadata (RFC 9728) at `/.well-known/oauth-protected-resource[/mcp]`; the `401` from `/mcp` names it (`resource_metadata`)
+- [x] Authorization server metadata (RFC 8414) at `/.well-known/oauth-authorization-server`
+- [x] Authorization code with PKCE, S256 only; codes single use, five minutes, bound to client, redirect address and challenge; a reused code ends the connection
+- [x] Consent screen (`/oauth/authorize`): who asks, where the person returns, read or read and write, how long; recent password confirmation to allow; unknown clients and unregistered redirect addresses are never redirected to
+- [x] Dynamic client registration (RFC 7591) only when an administrator allows it, rate-limited; administrators can add connectors by hand (public, or with a secret shown once)
+- [x] Access tokens of an hour; refresh tokens rotate; a reused refresh token ends the connection
+- [x] Revocation (RFC 7009); people disconnect their own connections; administrators remove connectors and end any connection; switching OAuth off ends all at once
+- [x] Resource indicators (RFC 8707) checked; access tokens accepted only at `/mcp`, never on `/api` directly
+- [x] Secrets, codes and tokens stored as SHA-256 only and never logged
+- [x] Tests: the SDK's own client runs discovery, registration, PKCE, consent, tool calls and refresh; every failure path by hand
+
+**Implemented in:** `server/src/modules/mcp/oauth.ts`, `migrations/002_oauth_and_tool_choice.sql`, `http.ts`, `index.ts`; `server/src/core/tokens.ts` (`registerBearerResolver`); `web/src/modules/mcp/ConsentPage.tsx`, `AdminAccess.tsx`, `ConnectCard.tsx`; test `server/src/modules/mcp/oauth.test.ts`; `/.well-known/oauth-protected-resource`, `/.well-known/oauth-authorization-server`, `/oauth/token`, `/oauth/register`, `/oauth/revoke`, `POST /api/mcp/oauth/authorize`, `POST /api/mcp/oauth/decision`, `DELETE /api/mcp/oauth/grants/:id`, `/api/mcp/admin/oauth/clients`
 
 ### E21-17 Who may connect an assistant
 
-**Status:** open · **Priority:** P2 · **Type:** security
+**Status:** done · **Priority:** P2 · **Type:** security
 
-A permission (for example `mcp.use` granted by role) so administrators can limit which roles
-connect assistants, rather than everyone once switched on.
+Permission strings are fixed per module (`MODULE_KEYS`), so the choice is made by role in the
+module's own setting rather than with a new permission.
+
+**Acceptance criteria**
+
+- [x] Setting `mcp.allowed_roles` (null = everyone holding a permission), chosen on AI assistant access
+- [x] Applies to making assistant tokens, to `mcp.use` on the API tokens card, to the consent screen and to every `/mcp` request (existing tokens refused at once)
+- [x] The card says when the person's role may not connect
+
+**Implemented in:** `server/src/modules/mcp/settings.ts` (`mayConnect`), `index.ts`, `oauth.ts`; `web/src/modules/mcp/AdminAccess.tsx`, `ConnectCard.tsx`; test `access.test.ts`
 
 ### E21-18 Help for this page
 
-**Status:** open · **Priority:** P3 · **Type:** docs
+**Status:** done · **Priority:** P3 · **Type:** docs
 
-Help module `routeMap.ts`: `/admin/ai-assistants` and `/account/ai-assistant` to
-`ai-assistants-and-mcp`.
+**Acceptance criteria**
+
+- [x] `/admin/ai-assistants` and `/account/ai-assistant` open the AI assistants page of the guide
+- [x] `/oauth/authorize` to "Connecting a remote connector by signing in" (route map change requested from the help module)
+
+**Implemented in:** `web/src/modules/help/routeMap.ts`
 
 ### E21-19 Tool choice per token and per role
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
+
+**Acceptance criteria**
+
+- [x] Setting `mcp.role_tools` (tools per role; the union over the person's roles; a role without a list does not narrow)
+- [x] Tools per token or connector sign-in (`mcp_token_tools`), chosen when connecting and changed later by the owner (`PUT /api/mcp/tokens/:id/tools`)
+- [x] Offered tools: the allowed list, narrowed by role and by token, then by write access and permissions
+
+**Implemented in:** `server/src/modules/mcp/settings.ts` (`chosenTools`), `tools.ts`, `index.ts`; `web/src/modules/mcp/AdminAccess.tsx`, `ConnectCard.tsx`; test `access.test.ts`
 
 ### E21-20 Progress notifications for long-running tools
 
+**Status:** done · **Priority:** P3 · **Type:** feature
+
+No sessions needed: a `tools/call` with `_meta.progressToken` is answered as an event stream on
+the same POST.
+
+**Acceptance criteria**
+
+- [x] `my_work`, `overdue_summary`, `framework_progress`, `run_report` and `system_impact` report progress (increasing, with total and message)
+- [x] Plain JSON answers when no progress is asked for
+- [x] The stdio bridge passes the events on as they arrive
+
+**Implemented in:** `server/src/modules/mcp/http.ts` (`wantsProgress`), `server.ts`, `toolkit.ts`, `tools-work.ts`; `tools/mcp-stdio.mjs`; tests `access.test.ts`, `mcp.test.ts`
+
+### E21-21 Client ID metadata documents for connectors
+
 **Status:** open · **Priority:** P3 · **Type:** feature
 
-Needs the stateful (session) transport; today every request is stateless.
+Found while building E21-16. The 2025-11-25 MCP authorization specification prefers client ids
+that are https addresses of a metadata document. Supporting them means fetching that document,
+an outbound connection, so it needs an administrator switch and an allowed-host list like
+webhooks. Today connectors register themselves (when allowed) or are added by hand.
+
+**Acceptance criteria**
+
+- [ ] Off by default; allowed hosts; fetched with a size and time limit; cached
+- [ ] `client_id_metadata_document_supported` true only when on
+
+### E21-22 "What is affected if this system fails" tool
+
+**Status:** done · **Priority:** P2 · **Type:** feature
+
+**Acceptance criteria**
+
+- [x] `system_impact` (system id, reference or name): downstream systems with depth and criticality, and the sites, data categories, assets, vehicles and services affected, each only where the person may see them
+- [x] Offered only to people who can see systems; reports progress
+
+**Implemented in:** `server/src/modules/mcp/tools-work.ts` (`GET /api/systems/:id/impact`); test `access.test.ts`

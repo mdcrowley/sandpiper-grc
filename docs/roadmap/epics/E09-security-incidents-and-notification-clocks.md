@@ -1,6 +1,6 @@
 # E09 Security incidents and notification clocks
 
-**Status:** in progress
+**Status:** in progress (23 of 25 issues done)
 
 ## Goal
 
@@ -17,6 +17,9 @@ for every party that must be told, counting down from the moment of discovery.
 - Notification rules ship as generic, inactive placeholders with no deadline. Who must
   be told and by when depends on each organization's law, regulators, contracts and
   insurer, so each installation sets its own rules, with legal advice.
+- The **Affected** tab lists the services and vehicles reached by the systems linked to the
+  incident when the fleet module is loaded; that is tracked in
+  [E19-11](E19-fleet-and-services.md#e19-11-affected-services-in-the-security-incident-workspace).
 
 ## Issues
 

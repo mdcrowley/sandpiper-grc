@@ -44,7 +44,7 @@ cyan() { printf '\033[36m%s\033[0m\n' "$*"; }
 cmd="${1:-help}"
 [ $# -gt 0 ] && shift
 
-profile=pilot prune=0 label=manual at=02:00 lines=40 follow=0 no_secrets=0 out='' force=0
+profile=pilot prune=0 label=manual at=02:00 lines=40 follow=0 no_secrets=0 out='' force=0 level=''
 skip_install=0 encrypt=0 key_file='' pass_file='' to='' from='' pull=0 no_rollback=0 include_key=0
 rest=()
 if [ "$cmd" != npm ]; then
@@ -66,6 +66,7 @@ if [ "$cmd" != npm ]; then
           label) take "$@"; label="$value" ;;
           at) take "$@"; at="$value" ;;
           lines) take "$@"; lines="$value" ;;
+          level) take "$@"; level="$value" ;;
           out) take "$@"; out="$value" ;;
           keyfile) take "$@"; key_file="$value" ;;
           passphrasefile) take "$@"; pass_file="$value" ;;
@@ -179,13 +180,19 @@ start_server() {
   install_packages || return 1
   if [ "$1" = no-build ]; then build_web if-missing || return 1; else build_web || return 1; fi
   mkdir -p "$data_dir"
-  nohup node "$tsx" server/src/main.ts >"$log" 2>"$log.err" </dev/null &
-  local bg=$!
-  for _ in $(seq 1 60); do
-    health && break
-    kill -0 "$bg" 2>/dev/null || break
-    sleep 0.5
-  done
+  if service_installed; then
+    # Installed as a service (./grc.sh service install): start it there, so it stays supervised.
+    start_service || { red "The service did not start. See ./grc.sh service status"; return 1; }
+    for _ in $(seq 1 60); do health && break; sleep 0.5; done
+  else
+    nohup node "$tsx" server/src/main.ts >"$log" 2>"$log.err" </dev/null &
+    local bg=$!
+    for _ in $(seq 1 60); do
+      health && break
+      kill -0 "$bg" 2>/dev/null || break
+      sleep 0.5
+    done
+  fi
   if health; then green "Sandpiper GRC is running at $url"; return 0; fi
   red "Server did not become healthy. See $log.err  (./grc.sh logs)"
   return 1
@@ -241,7 +248,9 @@ Usage: ./grc.sh <command> [options]
   install                             Node.js check (or tools/install-node.sh) and npm install
   start | stop | restart | health     run the server on http://127.0.0.1:8080 (GRC_PORT)
   status                              version, port, process, data size, last backup, pending migrations
-  logs [--lines n] [--follow]         show the end of the server logs
+  logs [--lines n] [--follow] [--level warn]   show the end of the server log (data/logs/grc.log)
+  version                             the installed version and commit
+  service install|remove|status|print run the server as a systemd (Linux) or launchd (macOS) user service
   seed [--profile pilot|dev]          load data (idempotent)
 
   backup [--prune n] [--encrypt [--include-secret-key]]   verified copy of the data in backups/<timestamp>
@@ -259,11 +268,13 @@ Usage: ./grc.sh <command> [options]
                                       backup, new code, npm install, build, migrate, restart, health check;
                                       puts the previous version back by itself if any step fails
   save-code                           keep a copy of the code as it is now, for upgrade to return to
+  secret-key show|rotate              where the secret key comes from (fingerprint only); rotate writes a new one
 
   Encrypted files use --key-file <file> or --passphrase-file <file>, or the environment variables
   GRC_BACKUP_KEY_FILE, GRC_BACKUP_PASSPHRASE_FILE or GRC_BACKUP_PASSPHRASE.
 
-  dev | build | test | typecheck | ci development (ci = typecheck + tests + tests on UTC + build)
+  dev | build | test | typecheck | ci development (ci = typecheck + tests + tests on UTC + build + dependency audit)
+  audit-deps [--level high]           known vulnerabilities in production packages; fails only when a fix exists
   npm <args>                          any npm command with this script's Node.js
 EOF
 }
@@ -339,6 +350,163 @@ then: launchctl load ~/Library/LaunchAgents/org.sandpiper-grc.backup.plist
 
 Check the result with ./grc.sh status and ./grc.sh backups.
 EOF
+}
+
+# --- service: run the server under systemd (Linux) or launchd (macOS) as this user -----------------
+# A user service needs no root: it starts at sign-in (and, on Linux with  loginctl enable-linger,
+# at boot), is restarted if it crashes, and is stopped cleanly by ./grc.sh stop (a clean exit is not
+# restarted). For a system-wide service run by its own account, see deploy/systemd and deploy/launchd.
+service_name="${GRC_SERVICE_NAME:-sandpiper-grc}"
+launchd_label="org.sandpiper-grc.${service_name#sandpiper-grc}"
+launchd_label="${launchd_label%.}"
+[ "$launchd_label" = org.sandpiper-grc ] && launchd_label=org.sandpiper-grc.server
+systemd_unit="$HOME/.config/systemd/user/$service_name.service"
+launchd_plist="$HOME/Library/LaunchAgents/$launchd_label.plist"
+
+service_kind() {
+  case "$(uname -s)" in
+    Linux) echo systemd ;;
+    Darwin) echo launchd ;;
+    *) echo none ;;
+  esac
+}
+service_file() { if [ "$(service_kind)" = launchd ]; then echo "$launchd_plist"; else echo "$systemd_unit"; fi; }
+service_installed() { [ "$(service_kind)" != none ] && [ -f "$(service_file)" ]; }
+
+# The GRC_* settings in force now, one NAME=value per line. Secrets given directly are left out:
+# a service file is readable, so pass them as *_FILE settings instead.
+service_env() {
+  env | LC_ALL=C sort | while IFS= read -r line; do
+    case "$line" in
+      GRC_SERVICE_NAME=*) ;;
+      GRC_*_FILE=*) printf '%s\n' "$line" ;;
+      GRC_*PASSWORD*=* | GRC_*PASSPHRASE*=* | GRC_*SECRET*=* | GRC_*TOKEN*=* | GRC_*KEY_ID=* | GRC_DATABASE*URL=*://*:*@*) echo "skipped:${line%%=*}" ;;
+      GRC_*=*) printf '%s\n' "$line" ;;
+    esac
+  done
+}
+
+xml_escape() { printf '%s' "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'; }
+
+service_text() {
+  local node_bin line
+  node_bin="$(command -v node)"
+  if [ "$(service_kind)" = launchd ]; then
+    cat <<EOF2
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Sandpiper GRC in $(xml_escape "$root"), written by ./grc.sh service install. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>$launchd_label</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>$(xml_escape "$node_bin")</string>
+    <string>$(xml_escape "$tsx")</string>
+    <string>server/src/main.ts</string>
+  </array>
+  <key>WorkingDirectory</key><string>$(xml_escape "$root")</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key><string>$(xml_escape "$(dirname "$node_bin"):/usr/bin:/bin")</string>
+EOF2
+    service_env | while IFS= read -r line; do
+      case "$line" in skipped:*) continue ;; esac
+      printf '    <key>%s</key><string>%s</string>\n' "${line%%=*}" "$(xml_escape "${line#*=}")"
+    done
+    cat <<EOF2
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <!-- Restarted after a crash, not after a clean stop (./grc.sh stop). -->
+  <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
+  <key>ExitTimeOut</key><integer>30</integer>
+  <key>StandardOutPath</key><string>$(xml_escape "$log")</string>
+  <key>StandardErrorPath</key><string>$(xml_escape "$log.err")</string>
+</dict>
+</plist>
+EOF2
+  else
+    cat <<EOF2
+# Sandpiper GRC in $root, written by ./grc.sh service install.
+[Unit]
+Description=Sandpiper GRC ($root)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=$root
+Environment="PATH=$(dirname "$node_bin"):/usr/bin:/bin"
+EOF2
+    service_env | while IFS= read -r line; do
+      case "$line" in skipped:*) continue ;; esac
+      printf 'Environment="%s"\n' "$(printf '%s' "$line" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/%/%%/g')"
+    done
+    cat <<EOF2
+ExecStart="$node_bin" "$tsx" server/src/main.ts
+# A terminate signal makes the server finish requests in progress and close the database.
+KillSignal=SIGTERM
+TimeoutStopSec=30
+# Restarted after a crash, not after a clean stop (./grc.sh stop).
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:$log
+StandardError=append:$log.err
+
+[Install]
+WantedBy=default.target
+EOF2
+  fi
+}
+
+service_cmd() {
+  local action="${first_rest:-status}" kind file
+  kind="$(service_kind)"
+  file="$(service_file)"
+  if [ "$kind" = none ]; then red 'service needs systemd (Linux) or launchd (macOS). Use ./grc.sh start, or a scheduler of your own.'; exit 1; fi
+  case "$action" in
+    print) service_text ;;
+    install)
+      install_packages || exit 1
+      build_web || exit 1
+      if server_pid >/dev/null; then echo 'Stopping the server started by hand; the service runs it from now on.'; stop_server; fi
+      mkdir -p "$(dirname "$file")" "$data_dir"
+      service_text >"$file"
+      chmod 600 "$file"
+      service_env | grep '^skipped:' | while IFS= read -r line; do
+        yellow "Not written into the service file: ${line#skipped:} (a secret). Use ${line#skipped:}_FILE, or a password file, instead."
+      done
+      if [ "$kind" = launchd ]; then
+        launchctl bootout "gui/$(id -u)/$launchd_label" 2>/dev/null
+        launchctl bootstrap "gui/$(id -u)" "$file" || { red "launchctl could not load $file"; exit 1; }
+      else
+        systemctl --user daemon-reload && systemctl --user enable --now "$service_name.service" || { red "systemctl --user could not start $service_name (is there a user session? see docs/operations.md)"; exit 1; }
+      fi
+      for _ in $(seq 1 60); do health && break; sleep 1; done
+      if health; then green "Installed $file; Sandpiper GRC is running at $url and starts when you sign in."; else red "Installed $file, but the server did not answer. See ./grc.sh logs"; exit 1; fi
+      [ "$kind" = systemd ] && echo "To start it at boot without signing in:  loginctl enable-linger $(id -un)"
+      ;;
+    remove | uninstall)
+      if [ ! -f "$file" ]; then echo "No service installed ($file)."; exit 0; fi
+      if [ "$kind" = launchd ]; then launchctl bootout "gui/$(id -u)/$launchd_label" 2>/dev/null
+      else systemctl --user disable --now "$service_name.service" 2>/dev/null; fi
+      rm -f "$file"
+      [ "$kind" = systemd ] && systemctl --user daemon-reload 2>/dev/null
+      server_pid >/dev/null && stop_server
+      green "Removed $file. The data is untouched; ./grc.sh start runs the server by hand again."
+      ;;
+    status)
+      if [ ! -f "$file" ]; then echo "No service installed (./grc.sh service install writes $file)."
+      elif [ "$kind" = launchd ]; then launchctl print "gui/$(id -u)/$launchd_label" 2>/dev/null | grep -E '^\s*(state|pid|last exit code)' || echo "$launchd_label is installed but not loaded."
+      else systemctl --user status "$service_name.service" --no-pager 2>/dev/null | head -n 5 || echo "$service_name is installed."; fi
+      ;;
+    *) red 'Usage: ./grc.sh service install | remove | status | print'; exit 1 ;;
+  esac
+}
+
+# Starts the installed service instead of a background process, so it stays under its manager.
+start_service() {
+  if [ "$(service_kind)" = launchd ]; then launchctl kickstart "gui/$(id -u)/$launchd_label" 2>/dev/null || launchctl bootstrap "gui/$(id -u)" "$launchd_plist"
+  else systemctl --user start "$service_name.service"; fi
 }
 
 # --- upgrade -----------------------------------------------------------------------------------
@@ -567,8 +735,15 @@ case "$cmd" in
     cyan '== Tests'; npm test || failed="$failed, Tests"
     cyan '== Tests on UTC'; TZ=UTC npm test || failed="$failed, Tests on UTC"
     cyan '== Web build'; npm run --silent build || failed="$failed, Web build"
+    cyan '== Dependency audit'
+    node "$tsx" server/src/cli.ts audit-deps
+    case $? in
+      0) ;;
+      3) yellow 'Dependency audit skipped: the npm registry could not be reached.' ;;
+      *) failed="$failed, Dependency audit" ;;
+    esac
     if [ -n "$failed" ]; then red "CI FAILED: ${failed#, }"; exit 1; fi
-    green 'CI passed: typecheck, tests and web build.'
+    green 'CI passed: typecheck, tests, web build and dependency audit.'
     ;;
 
   status)
@@ -583,12 +758,17 @@ case "$cmd" in
     exit $code ;;
 
   logs)
-    if [ ! -f "$log" ] && [ ! -f "$log.err" ]; then echo "No logs yet in $data_dir (the server has not been started by grc.sh)."; exit 0; fi
-    if [ -f "$log" ]; then cyan "--- $log"; tail -n "$lines" "$log"; fi
-    cyan "--- $log.err (errors)"
-    [ -f "$log.err" ] || exit 0
-    if [ $follow = 1 ]; then tail -n "$lines" -f "$log.err"; else tail -n "$lines" "$log.err"; fi
-    ;;
+    # Anything printed before the server's own log started (a failed start) is in server.log.err.
+    if [ -s "$log.err" ]; then cyan "--- $log.err (start-up errors)"; tail -n 20 "$log.err"; fi
+    # The server's own log (data/logs/grc.log, rotated by size), shown readably.
+    a=(logs --lines "$lines")
+    [ -n "$level" ] && a+=(--level "$level")
+    [ $follow = 1 ] && a+=(--follow)
+    install_packages || exit 1
+    node "$tsx" server/src/cli.ts "${a[@]}"; exit $? ;;
+  version) run_cli version; exit $? ;;
+  audit-deps) a=(audit-deps); [ -n "$level" ] && a+=(--level "$level"); run_cli "${a[@]}"; exit $? ;;
+  service) service_cmd ;;
 
   backup)
     a=(backup --label "$label" ${key_args[@]+"${key_args[@]}"})
@@ -631,6 +811,20 @@ case "$cmd" in
   move-files)
     case "$to" in disk | s3) ;; *) red 'Say where to: ./grc.sh move-files --to s3   (or --to disk)'; exit 1 ;; esac
     run_offline move-files --to "$to"; exit $? ;;
+  secret-key)
+    # show: where the key comes from (fingerprint only); rotate: a new key, the old one kept as retired.
+    what="${first_rest:-show}"
+    case "$what" in show | rotate) ;; *) red 'Usage: ./grc.sh secret-key show | rotate'; exit 1 ;; esac
+    install_packages || exit 1
+    if [ "$what" = show ]; then node "$tsx" server/src/core/secretkey-cli.ts show; exit $?; fi
+    # rotate needs the database to itself: stop the server, rotate, start it again.
+    was_running=0
+    server_pid >/dev/null && was_running=1
+    [ $was_running = 1 ] && stop_server
+    node "$tsx" server/src/core/secretkey-cli.ts rotate
+    code=$?
+    if [ $was_running = 1 ] && ! start_server no-build; then [ $code = 0 ] && code=1; fi
+    exit $code ;;
   save-code)
     mkdir -p "$code_dir"
     if node "$root/tools/code-snapshot.mjs" save "$root" "$code_dir/last-good.tar"; then

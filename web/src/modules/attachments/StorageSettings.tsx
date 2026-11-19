@@ -6,6 +6,7 @@ import {
 } from '../../core';
 import type { FilesOverview, S3Settings } from './adminTypes';
 import { STORE_LABELS } from './adminTypes';
+import { MoveFilesCard } from './BackgroundWork';
 import { usePasswordConfirm } from './confirm';
 import { formatBytes } from './shared';
 
@@ -94,7 +95,7 @@ export function StorageSettings({ overview, onSaved }: { overview: FilesOverview
           <Select
             label="Store new files on" required value={driver} onChange={(v) => setDriver(v as 'disk' | 's3')}
             options={[{ value: 'disk', label: 'The local disk (in the data folder)' }, { value: 's3', label: 'An S3-compatible object store' }]}
-            hint="Files already stored stay where they are and remain readable. To move them, stop the server and run .\grc.ps1 move-files -To s3 (or -To disk)."
+            hint="Files already stored stay where they are and remain readable. To move them, save this choice, then use Move stored files below."
           />
           {overview.s3Problem && <div className="notice notice-warn" role="status">The object store cannot be used: {overview.s3Problem}</div>}
           <fieldset className="att-fieldset">
@@ -149,6 +150,7 @@ export function StorageSettings({ overview, onSaved }: { overview: FilesOverview
           </div>
         </form>
       </Card>
+      <MoveFilesCard overview={overview} onDone={onSaved} />
       <Card title="Storage check">
         <div className="stack">
           <p className="att-facts">Compares every stored file with the records of attached files: files missing from storage, and stored files that no record refers to. Nothing is changed.</p>

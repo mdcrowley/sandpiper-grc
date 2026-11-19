@@ -7,6 +7,7 @@ import {
   TextArea, TextField, useAuth, useFetch, useToast,
 } from '../../core';
 import type { Question } from './Assessment';
+import { ResponseLinkSettings } from './ResponseLink';
 
 interface SetData {
   active: { id: string; version: number; title: string; questions: Question[] } | null;
@@ -113,6 +114,9 @@ export function AssessmentQuestions() {
             {editable && dirty && <Button onClick={reload} disabled={busy}>Undo changes</Button>}
             {editable && <Button variant="primary" loading={busy} disabled={!dirty || !lines.length} onClick={() => void save()}>Save as version {(data.versions[0]?.version ?? 0) + 1}</Button>}
           </div>
+        </Card>
+        <Card title="Vendors answering for themselves">
+          <ResponseLinkSettings />
         </Card>
         <Card title="Versions" flush>
           <div className="table-wrap">

@@ -1,8 +1,9 @@
 // The form that replaces the raw JSON of a catalog item: the values it fills in on the
-// ticket, the questions it asks, and the fulfillment tasks it adds.
+// ticket, the questions it asks, the fulfillment tasks it adds, and who must approve it (E03-21:
+// how many approvals, from whom, and for which answers).
 import { useEffect, useState } from 'react';
 import {
-  Button, Card, Checkbox, errorMessage, IconButton, LookupSelect, Select, TextArea, TextField, useToast,
+  api, Button, Card, Checkbox, errorMessage, IconButton, LookupSelect, NumberField, qs, Select, TextArea, TextField, UserPicker, useToast,
 } from '../../core';
 import type { RecordContext } from '../../core';
 import { fieldErrors, type Question } from './util';
@@ -16,7 +17,8 @@ const TYPES: { value: Question['type']; label: string }[] = [
 ];
 
 interface QDraft { key?: string; label: string; type: Question['type']; required: boolean; options: string; hint: string }
-interface Draft { defaults: Record<string, string>; questions: QDraft[]; tasks: string[] }
+interface ApprovalDraft { requires: boolean; needed: number; approvers: string[]; question: string; answers: string[] }
+interface Draft { defaults: Record<string, string>; questions: QDraft[]; tasks: string[]; approval: ApprovalDraft }
 
 const draftOf = (row: Record<string, any>): Draft => ({
   defaults: Object.fromEntries(Object.entries((row.defaults ?? {}) as Record<string, unknown>).map(([k, v]) => [k, String(v ?? '')])),
@@ -24,7 +26,84 @@ const draftOf = (row: Record<string, any>): Draft => ({
     key: q.key, label: q.label, type: q.type, required: q.required, options: (q.options ?? []).join('\n'), hint: q.hint ?? '',
   })),
   tasks: [...((row.tasks ?? []) as string[])],
+  approval: {
+    requires: Boolean(row.requires_approval),
+    needed: Number(row.approvals_needed) || 1,
+    approvers: [...((row.approver_ids ?? []) as string[])],
+    question: String(row.approval_condition?.question ?? ''),
+    answers: [...((row.approval_condition?.answers ?? []) as string[])],
+  },
 });
+
+/** Names for the chosen approvers, looked up as ids are added. */
+function useNames(ids: string[]): Record<string, string> {
+  const [names, setNames] = useState<Record<string, string>>({});
+  const key = ids.filter((id) => !names[id]).sort().join(',');
+  useEffect(() => {
+    if (!key) return;
+    let live = true;
+    api.get<{ id: string; label: string }[]>(`/api/users/options${qs({ ids: key })}`)
+      .then((rows) => { if (live) setNames((old) => ({ ...old, ...Object.fromEntries(rows.map((r) => [r.id, r.label])) })); })
+      .catch(() => undefined);
+    return () => { live = false; };
+  }, [key]);
+  return names;
+}
+
+/** E03-21: whether the item needs approval, how many approvals, from whom, and for which answers. */
+function ApprovalCard({ d, setD, ro, errors, questions }: {
+  d: ApprovalDraft; setD: (patch: Partial<ApprovalDraft>) => void; ro: boolean; errors: Record<string, string>; questions: QDraft[];
+}) {
+  const names = useNames(d.approvers);
+  const asked = questions.filter((q) => q.key && q.label.trim());
+  const q = asked.find((x) => x.key === d.question);
+  const choices = q?.type === 'yes_no' ? ['Yes', 'No'] : q?.type === 'choice' ? q.options.split('\n').map((o) => o.trim()).filter(Boolean) : null;
+  const toggle = (v: string, on: boolean) => setD({ answers: on ? [...d.answers, v] : d.answers.filter((a) => a !== v) });
+  return (
+    <Card title="Approval" actions={<span className="muted">{d.requires ? `${d.needed} approval${d.needed === 1 ? '' : 's'} needed` : 'No approval needed'}</span>}>
+      <Checkbox label="Needs approval before work starts" checked={d.requires} disabled={ro} onChange={(v) => setD({ requires: v })}
+        hint="While a request waits for approval it can be assigned, paused or canceled, but work cannot start." />
+      {d.requires && (
+        <div className="form-grid sd-approval-grid">
+          <NumberField label="Approvals needed" min={1} max={5} step={1} disabled={ro} value={d.needed}
+            onChange={(v) => setD({ needed: Math.min(5, Math.max(1, Math.round(Number(v) || 1))) })}
+            error={errors.approvals_needed} hint="Anyone who rejects stops the request." />
+          <div className="form-cell-wide sd-approvers">
+            <span className="sd-approvers-label" id="sd-approvers-label">Who may approve</span>
+            {d.approvers.length ? (
+              <ul className="sd-chip-list" aria-labelledby="sd-approvers-label">
+                {d.approvers.map((id) => (
+                  <li key={id} className="sd-chip">
+                    <span>{names[id] ?? 'Loading…'}</span>
+                    {!ro && <IconButton icon="x" variant="ghost" size="sm" label={`Remove ${names[id] ?? 'this approver'}`} onClick={() => setD({ approvers: d.approvers.filter((x) => x !== id) })} />}
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="muted">Anyone who may approve service requests.</p>}
+            {!ro && (
+              <UserPicker label="Add an approver" placeholder="Type a name" value={null}
+                onChange={(id) => { if (id && !d.approvers.includes(id)) setD({ approvers: [...d.approvers, id] }); }}
+                error={errors.approver_ids} hint="Name people to limit approval to them. They also need the permission to approve requests." />
+            )}
+          </div>
+          <Select className="form-cell-wide" label="Only when a question is answered" disabled={ro || !asked.length} value={d.question}
+            placeholder={asked.length ? 'Always' : 'Add questions first'} options={[{ value: '', label: 'Always' }, ...asked.map((x) => ({ value: x.key!, label: x.label }))]}
+            onChange={(v) => setD({ question: v ?? '', answers: [] })} error={errors.approval_condition}
+            hint="For example, approval only when the answer to “Restricted system?” is Yes. A new question can be chosen once the item is saved." />
+          {q && (choices ? (
+            <fieldset className="form-cell-wide sd-answers">
+              <legend>Answers that need approval</legend>
+              {choices.map((c) => <Checkbox key={c} label={c} checked={d.answers.includes(c)} disabled={ro} onChange={(on) => toggle(c, on)} />)}
+            </fieldset>
+          ) : (
+            <TextArea className="form-cell-wide" label="Answers that need approval" rows={2} disabled={ro} value={d.answers.join('\n')}
+              onChange={(v) => setD({ answers: v.split('\n') })} hint="One on each line; capitals do not matter." />
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
 
 /** Moves one entry of a list up or down. */
 function move<T>(list: T[], index: number, by: number): T[] {
@@ -59,11 +138,17 @@ export function CatalogDesigner({ rec }: { rec: RecordContext }) {
           ...(q.type === 'choice' ? { options: q.options.split('\n').map((o) => o.trim()).filter(Boolean) } : {}),
         })),
         tasks: d.tasks.map((t) => t.trim()).filter(Boolean),
+        requires_approval: d.approval.requires,
+        approvals_needed: d.approval.needed,
+        approver_ids: d.approval.approvers,
+        approval_condition: d.approval.requires && d.approval.question
+          ? { question: d.approval.question, answers: d.approval.answers.map((a) => a.trim()).filter(Boolean) } : null,
       });
       toast.success('Catalog item saved.');
     } catch (err) {
-      setErrors(fieldErrors(err));
-      toast.error(fieldErrors(err).questions ?? fieldErrors(err).tasks ?? errorMessage(err));
+      const f = fieldErrors(err);
+      setErrors(f);
+      toast.error(f.questions ?? f.tasks ?? f.approval_condition ?? f.approver_ids ?? f.approvals_needed ?? errorMessage(err));
     } finally {
       setBusy(false);
     }
@@ -137,10 +222,13 @@ export function CatalogDesigner({ rec }: { rec: RecordContext }) {
         {canEdit && <div><Button icon="plus" onClick={() => setD((old) => ({ ...old, tasks: [...old.tasks, ''] }))}>Add task</Button></div>}
       </Card>
 
+      <ApprovalCard d={d.approval} ro={ro} errors={errors} questions={d.questions}
+        setD={(patch) => setD((old) => ({ ...old, approval: { ...old.approval, ...patch } }))} />
+
       {canEdit && (
         <div className="form-actions sd-sticky-actions">
           <Button disabled={!dirty || busy} onClick={() => { setD(draftOf(row)); setErrors({}); }}>Undo changes</Button>
-          <Button variant="primary" disabled={!dirty} loading={busy} onClick={submit}>Save form and tasks</Button>
+          <Button variant="primary" disabled={!dirty} loading={busy} onClick={submit}>Save form, tasks and approval</Button>
         </div>
       )}
     </div>

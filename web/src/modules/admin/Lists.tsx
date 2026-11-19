@@ -1,14 +1,20 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
-  api, ApiError, Button, Card, COLOR_NAMES, EmptyState, ErrorState, errorMessage, humanize, Icon, Loading, Modal,
-  PageHeader, StatusChip, TextField, toColorName, useFetch, useMeta, useToast,
+  api, ApiError, Button, Card, COLOR_NAMES, EmptyState, ErrorState, errorMessage, humanize, Icon, IconButton, Loading, Modal,
+  PageHeader, Select, StatusChip, Tabs, TagChips, TextField, toColorName, useFetch, useMeta, useToast,
 } from '../../core';
 import type { ColorName, ResourceMeta } from '../../core';
 
 interface ListSummary { list_key: string; count: number }
 interface LookupRow { id: string; list_key: string; value: string; label: string; color: ColorName; sort: number; active: boolean }
-interface Usage { type: string; typeLabel: string; fieldLabel: string }
+interface Usage { type: string; typeLabel: string; fieldLabel: string; custom?: boolean }
+
+/** A list made for a custom field is named after that field; the others after their key. */
+const listTitle = (list: string, usage: Usage[] | undefined) => {
+  const own = list.startsWith('cf_') ? usage?.find((u) => u.custom) : undefined;
+  return own ? `${own.fieldLabel} (custom field)` : humanize(list);
+};
 
 const slug = (label: string) => label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
 
@@ -17,7 +23,7 @@ function usageByList(resources: Record<string, ResourceMeta> | undefined): Recor
   const out: Record<string, Usage[]> = {};
   for (const r of Object.values(resources ?? {})) {
     for (const f of Object.values(r.fields)) {
-      if (f.list) (out[f.list] ??= []).push({ type: r.type, typeLabel: r.label, fieldLabel: f.label });
+      if (f.list) (out[f.list] ??= []).push({ type: r.type, typeLabel: r.label, fieldLabel: f.label, custom: f.custom });
     }
   }
   return out;
@@ -44,6 +50,28 @@ function ColorPicker({ value, onChange }: { value: ColorName; onChange: (c: Colo
 }
 
 export function ListsPage() {
+  const [params, setParams] = useSearchParams();
+  const tab = params.get('tab') === 'tags' ? 'tags' : 'lists';
+  return (
+    <>
+      <PageHeader
+        title="Lists and tags"
+        subtitle="The choices offered in drop-downs across the application (statuses, priorities, categories and so on), and the free-form tags people put on records. Changes apply at once, with no code."
+      />
+      <Tabs
+        label="Lists and tags"
+        active={tab}
+        onChange={(key) => setParams(key === 'tags' ? { tab: 'tags' } : {}, { replace: true })}
+        tabs={[
+          { key: 'lists', label: 'Lists', content: <ListsTab /> },
+          { key: 'tags', label: 'Tags', content: <TagsTab /> },
+        ]}
+      />
+    </>
+  );
+}
+
+function ListsTab() {
   const lists = useFetch<ListSummary[]>('/api/lookups');
   const { resources } = useMeta();
   const usage = useMemo(() => usageByList(resources), [resources]);
@@ -52,15 +80,11 @@ export function ListsPage() {
   const selected = params.get('list') ?? lists.data?.[0]?.list_key ?? '';
   const needle = find.trim().toLowerCase();
   const shown = (lists.data ?? []).filter((l) =>
-    !needle || l.list_key.includes(needle) || humanize(l.list_key).toLowerCase().includes(needle)
+    !needle || l.list_key.includes(needle) || listTitle(l.list_key, usage[l.list_key]).toLowerCase().includes(needle)
     || (usage[l.list_key] ?? []).some((u) => u.typeLabel.toLowerCase().includes(needle)));
 
   return (
-    <>
-      <PageHeader
-        title="Lists"
-        subtitle="The choices offered in drop-downs across the application: statuses, priorities, categories and so on. Changes apply at once, with no code."
-      />
+    <div className="adm-tab-body">
       {lists.error ? <ErrorState error={lists.error} onRetry={lists.reload} />
         : !lists.data ? <Loading lines={8} label="Loading lists" />
         : lists.data.length === 0 ? <EmptyState icon="clipboard" title="No lists yet" message="Lists appear here once a module that uses them is installed." />
@@ -75,7 +99,7 @@ export function ListsPage() {
                   {shown.map((l) => (
                     <button key={l.list_key} type="button" aria-current={l.list_key === selected ? 'true' : undefined} onClick={() => setParams({ list: l.list_key })}>
                       <span className="adm-list-nav-text">
-                        <span>{humanize(l.list_key)}</span>
+                        <span>{listTitle(l.list_key, usage[l.list_key])}</span>
                         {usage[l.list_key]?.length ? <span className="adm-list-nav-hint">{[...new Set(usage[l.list_key].map((u) => u.typeLabel))].join(', ')}</span> : null}
                       </span>
                       <span className="adm-count">{l.count}</span>
@@ -87,7 +111,131 @@ export function ListsPage() {
             {selected && <ListValues key={selected} list={selected} usage={usage[selected] ?? []} onChanged={lists.reload} />}
           </div>
         )}
-    </>
+    </div>
+  );
+}
+
+/* ---------- tags (server: core/tags.ts) ---------- */
+
+interface TagUse { tag: string; count: number }
+
+/** The tags in use on one record type, with how many records carry each, and renaming or merging them. */
+function TagsTab() {
+  const { resources } = useMeta();
+  const [params, setParams] = useSearchParams();
+  const types = useMemo(() => Object.values(resources ?? {}).sort((a, b) => a.label.localeCompare(b.label)), [resources]);
+  const wanted = params.get('type') ?? '';
+  const type = wanted && resources?.[wanted] ? wanted : types[0]?.type ?? '';
+  const resource = resources?.[type];
+  const { data, error, reload, loading } = useFetch<TagUse[]>(type ? `/api/tags/options?record_type=${encodeURIComponent(type)}` : null, { keepPrevious: true });
+  const [find, setFind] = useState('');
+  const [renaming, setRenaming] = useState<TagUse | null>(null);
+  const needle = find.trim().toLowerCase();
+  const shown = (data ?? []).filter((t) => !needle || t.tag.includes(needle));
+  const noun = (n: number) => (n === 1 ? resource?.label ?? 'record' : resource?.plural ?? 'records').toLowerCase();
+
+  return (
+    <div className="adm-tab-body">
+      <p className="muted adm-tags-intro">
+        Anyone who can change a record can tag it. Rename a tag here to correct it on every record of a type at once; renaming it to a tag
+        that already exists merges the two. Each change is recorded in the audit log.
+      </p>
+      <div className="adm-toolbar adm-toolbar-top">
+        <Select
+          className="adm-toolbar-grow" label="Record type" searchable value={type}
+          options={types.map((t) => ({ value: t.type, label: t.label }))}
+          onChange={(v) => setParams(v ? { tab: 'tags', type: v } : { tab: 'tags' }, { replace: true })}
+        />
+        <TextField label="Find a tag" type="search" placeholder="Part of a tag" leftSection={<Icon name="search" size={16} />} value={find} onChange={setFind} />
+      </div>
+      <Card flush title={resource ? `Tags on ${resource.plural.toLowerCase()}${data ? ` (${data.length})` : ''}` : 'Tags'}>
+        {!type ? <EmptyState icon="tag" title="No record types" message="Tags appear once a module with records is installed." />
+          : error ? <ErrorState error={error} onRetry={reload} />
+          : !data ? <div className="card-body"><Loading lines={5} label="Loading tags" /></div>
+          : data.length === 0 ? (
+            <EmptyState icon="tag" title={`No ${resource?.plural.toLowerCase() ?? 'records'} are tagged yet`}
+              message="Tags are added on a record’s page, under its title. They are listed here with how many records carry each one." />
+          ) : shown.length === 0 ? <p className="card-body muted" role="status">No tag matches “{find.trim()}”.</p> : (
+            <div className={`table-wrap adm-table-frame${loading ? ' table-loading' : ''}`} aria-busy={loading}>
+              <table className="table adm-tags">
+                <thead>
+                  <tr><th scope="col">Tag</th><th scope="col" className="num">Records</th><th scope="col"><span className="sr-only">Actions</span></th></tr>
+                </thead>
+                <tbody>
+                  {shown.map((t) => (
+                    <tr key={t.tag}>
+                      <td><TagChips tags={[t.tag]} /></td>
+                      <td className="num">
+                        {resource
+                          ? <Link to={`${resource.route}?f.tags=${encodeURIComponent(t.tag)}`} aria-label={`${t.count} ${noun(t.count)} tagged ${t.tag}`}>{t.count}</Link>
+                          : t.count}
+                      </td>
+                      <td className="adm-row-actions">
+                        <Button size="sm" variant="ghost" icon="edit" aria-label={`Rename or merge ${t.tag}`} onClick={() => setRenaming(t)}>Rename</Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        {data && data.length >= 200 && <p className="card-body adm-card-foot muted">The 200 most used tags are shown. Find a tag to narrow the list.</p>}
+      </Card>
+      {renaming && resource && (
+        <RenameTagDialog
+          tag={renaming} recordType={resource.type} noun={noun} existing={data ?? []}
+          onClose={() => setRenaming(null)} onDone={() => { setRenaming(null); reload(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Tags as stored: lower case, single spaces, no commas, at most 40 characters (core/resource.ts normalizeTag). */
+const normalizeTag = (raw: string) => raw.toLowerCase().replace(/[\s,]+/g, ' ').trim().slice(0, 40);
+
+function RenameTagDialog({ tag, recordType, noun, existing, onClose, onDone }: {
+  tag: TagUse; recordType: string; noun: (n: number) => string; existing: TagUse[]; onClose: () => void; onDone: () => void;
+}) {
+  const toast = useToast();
+  const [to, setTo] = useState(tag.tag);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const clean = normalizeTag(to);
+  const target = existing.find((t) => t.tag === clean && t.tag !== tag.tag);
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!clean) { setError('Type the new name.'); return; }
+    if (clean === tag.tag) { onClose(); return; }
+    setBusy(true);
+    try {
+      await api.post('/api/admin/tags/rename', { record_type: recordType, from: tag.tag, to: clean });
+      toast.success(target ? `“${tag.tag}” merged into “${clean}”.` : `“${tag.tag}” renamed to “${clean}”.`);
+      onDone();
+    } catch (err) {
+      const fields = err instanceof ApiError ? err.fields : {};
+      setError(fields.to ?? fields.from ?? errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal open title={`Rename “${tag.tag}”`} size="sm" onClose={onClose}>
+      <form className="form" onSubmit={submit} noValidate>
+        <TextField
+          label="New name" required autoFocus maxLength={40} value={to} onChange={(v) => { setTo(v); setError(''); }} error={error || undefined}
+          hint={target
+            ? `“${clean}” is already on ${target.count} ${noun(target.count)}: the two tags will be merged into one.`
+            : `Changes the tag on ${tag.count} ${noun(tag.count)}. Tags are kept in lower case.`}
+        />
+        <div className="form-actions">
+          <Button onClick={onClose}>Cancel</Button>
+          <Button type="submit" variant="primary" loading={busy}>{target ? 'Merge tags' : 'Rename tag'}</Button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -135,7 +283,7 @@ function ListValues({ list, usage, onChanged }: { list: string; usage: Usage[]; 
 
   return (
     <Card
-      title={humanize(list)} flush
+      title={listTitle(list, usage)} flush
       actions={<Button size="sm" variant="primary" icon="plus" onClick={() => setEditing('new')}>Add value</Button>}
     >
       <div className="card-body adm-usage">
@@ -165,8 +313,8 @@ function ListValues({ list, usage, onChanged }: { list: string; usage: Usage[]; 
                     <td>
                       <span className="adm-order">
                         <span className="adm-order-n">{i + 1}</span>
-                        <Button size="sm" variant="ghost" icon="arrow-up" aria-label={`Move up: ${r.label}`} disabled={busy || i === 0} onClick={() => move(i, -1)}>Move up</Button>
-                        <Button size="sm" variant="ghost" icon="arrow-down" aria-label={`Move down: ${r.label}`} disabled={busy || i === rows.length - 1} onClick={() => move(i, 1)}>Move down</Button>
+                        <IconButton size="sm" icon="arrow-up" label={`Move up: ${r.label}`} disabled={busy || i === 0} onClick={() => move(i, -1)} />
+                        <IconButton size="sm" icon="arrow-down" label={`Move down: ${r.label}`} disabled={busy || i === rows.length - 1} onClick={() => move(i, 1)} />
                       </span>
                     </td>
                     <td><StatusChip color={toColorName(r.color)} label={r.label} /></td>

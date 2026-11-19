@@ -1,3 +1,4 @@
+import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleContext, Row, SessionUser } from '../../core/module.ts';
 import { hasSystems, secured } from './policy.ts';
 
@@ -203,7 +204,7 @@ export async function overdueReport(ctx: ModuleContext, user: Viewer, group: 'ow
   return { group, available: true, groups: list, total: list.reduce((n, g) => n + g.total, 0) };
 }
 
-export function registerSummary(ctx: ModuleContext) {
+export async function registerSummary(ctx: ModuleContext) {
   const view = secured(ctx, 'vulnerabilities.view');
   ctx.app.get('/api/vulnerabilities/summary', { preHandler: view }, async (req) => buildSummary(ctx, req.user));
 
@@ -214,10 +215,6 @@ export function registerSummary(ctx: ModuleContext) {
   });
 
   // The trend is real: counts are stored each day (and after every import), never back-filled.
-  // No timers under the test runner or with a throwaway in-memory database.
-  if (!process.env.VITEST && process.env.GRC_DATA_DIR !== 'memory') {
-    const timer = setInterval(() => { takeSnapshot(ctx).catch((err) => console.error('[vulnerabilities] snapshot failed:', err)); }, 24 * 3600 * 1000);
-    timer.unref();
-    ctx.app.addHook('onClose', async () => clearInterval(timer));
-  }
+  // Daily on the job queue (Administration > Background jobs), as well as at start and after imports.
+  await scheduleWork(ctx, 'vulnerabilities.snapshot', () => takeSnapshot(ctx), { every: 24 * 3600 * 1000, firstRunInMs: 24 * 3600 * 1000 });
 }

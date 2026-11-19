@@ -2,6 +2,8 @@
 
 The Change area is where changes to systems are planned, assessed for risk, approved, scheduled, carried out and reviewed, so that everyone can see what is about to change and anything that goes wrong can be traced back. This page covers raising a change, the three types of change, the risk questionnaire, approvals, the calendar with blackout periods and conflicts, completing and reviewing a change, and the settings an administrator maintains. The screens are in the **Change** group of the menu: **Changes**, **Change calendar**, **New change** and **Change settings**.
 
+An administrator can switch change enablement off under **Administration > Features** (see [Administration](09-administration.md#features)); the changes panel on system pages then goes too. Records are kept and return when it is switched back on.
+
 ## What you need
 
 | To do this | You need this permission on Changes |
@@ -69,7 +71,7 @@ The **View** menu beside **Filters** holds ready-made saved views, which you can
 ### A normal or emergency change
 
 1. On the **Details** step, enter a **Title**. Describe **What will be done** and **Why it is needed**.
-2. Choose the **Main system** and the **Implementer**, the person who will do the work. Under **Other affected systems**, use **Add a system** for every other system the change touches.
+2. Choose the **Main system** and the **Implementer**, the person who will do the work. Under **Other affected systems**, use **Add a system** for every other system the change touches. If your administrator has added fields of their own to changes (**Custom fields**), they follow, under **More details** or their own heading; one marked with an asterisk must be filled in before **Next**.
 3. On the **Risk** step, answer each question. The **Risk** level and score update as you answer.
 4. On the **Plans** step, write the **Implementation plan**, the **Test plan** and the **Back-out plan**.
 5. On the **Schedule** step, enter the **Planned start** and **Planned end**.
@@ -84,7 +86,7 @@ You can create a change that has a conflict. It is flagged, and it cannot be sch
 ### A standard change
 
 1. On the **Template** step, choose a template. Each shows when to use it, its risk level and its usual duration.
-2. Check the **Title**, and choose the **Main system** and **Implementer**. The plans come from the template.
+2. Check the **Title**, and choose the **Main system** and **Implementer**. The plans come from the template. Any custom fields your administrator has added to changes are asked here too.
 3. On the **Schedule** step, enter the **Planned start**. The **Planned end** is filled in from the template's usual duration; change it if you need to.
 4. Select **Create change**.
 
@@ -175,6 +177,8 @@ The **Systems and links** tab shows what a change touches and what it relates to
 
 Affected systems matter: two changes conflict only when they overlap in time and share a system.
 
+On a system's or an asset's own page, the **Changes** panel lists the changes that affect it (as main system or asset, or linked as affected), newest first, grouped as **Under way**, **Planned** and **Earlier**, each with its status, type and planned window. A system's panel has **Calendar**, which opens the change calendar narrowed to that system. The panel is on the **Changes and issues** tab of the system or asset. To see what a change may touch, open the change's **Systems and links** tab and select **Show on relationship map**: the map opens with the systems and assets the change affects outlined in amber and their neighbors kept bright, under a note naming the change. Select **Show the whole map** to clear it.
+
 ## Conflicts
 
 A change is flagged when its planned window:
@@ -205,6 +209,15 @@ Open **Change > Change calendar**.
 - Blackout periods are shaded with stripes and named.
 - A warning triangle marks a change with an unresolved conflict. A check mark shows a change whose conflict has been acknowledged.
 - Select a change to open it.
+
+### Moving a change
+
+With **Edit** on changes, a change that is a draft, submitted, approved or scheduled can be moved on the calendar:
+
+- **Dragging**: drag the change to another day in the month view (it keeps its times), or to another day and time in the week view (it snaps to a quarter of an hour). The length of the window stays the same.
+- **Keyboard**: tab to the change and press **M**.
+
+Either way the **Move** dialog opens with the new window. You can adjust the **New planned start** and **New planned end**, or use **1 day earlier**, **1 hour earlier**, **1 hour later** and **1 day later**. The conflicts are checked again as you go and listed in the dialog. Nothing is saved until you select **Move change**; **Cancel** leaves the change where it was. A change that is already approved keeps its approvals: tell the approvers if the new time matters to them. The move is recorded in the change's history.
 
 Under the calendar, **Conflicts in this period** lists every change with an unresolved conflict and what it clashes with, and **Blackout periods in this period** lists the blackout periods shown, with whether each repeats and which systems it applies to. **Show on calendar** on a change's **Conflicts** tab opens the calendar at that change's week.
 

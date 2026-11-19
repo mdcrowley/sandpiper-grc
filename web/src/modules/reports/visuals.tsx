@@ -69,6 +69,21 @@ export function CalendarGrid({ month, days, today, onMonth, onDay, noun }: {
     return [...Array(first).fill(null), ...Array.from({ length }, (_, i) => `${month}-${String(i + 1).padStart(2, '0')}`)] as (string | null)[];
   }, [month]);
   const max = Math.max(1, ...Object.values(days).map((d) => d.count));
+  // A table of weeks (rows) and weekdays (cells) for assistive technology (E18-39). The rows and
+  // the cells that hold a button use `display: contents`, so the layout stays one CSS grid.
+  const weeks: (string | null)[][] = [];
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+  const cell = (day: string | null, i: number) => {
+    if (!day) return <span key={`b${i}`} role="cell" />;
+    const hit = days[day];
+    const n = Number(day.slice(8));
+    const level = hit ? Math.max(1, Math.ceil((hit.count / max) * 4)) : 0;
+    const cls = cx('rp-cal-day', day === today && 'is-today', hit && `rp-cal-l${level}`);
+    const label = hit ? `${n} ${monthLabel(month)}: ${hit.count} ${noun}` : `${n} ${monthLabel(month)}`;
+    return hit && onDay && hit.drill !== undefined
+      ? <span key={day} role="cell" className="rp-cal-cell"><button type="button" className={cls} onClick={() => onDay(hit.drill!)} aria-label={label} title={label}><span>{n}</span><b>{hit.count}</b></button></span>
+      : <span key={day} role="cell" className={cls} aria-label={label}><span>{n}</span>{hit && <b>{hit.count}</b>}</span>;
+  };
   return (
     <div className="rp-cal">
       <div className="rp-cal-head">
@@ -76,19 +91,15 @@ export function CalendarGrid({ month, days, today, onMonth, onDay, noun }: {
         <strong aria-live="polite">{monthLabel(month)}</strong>
         {onMonth && <button type="button" className="btn btn-ghost btn-sm" onClick={() => onMonth(shiftMonth(month, 1))} aria-label="Next month"><Icon name="chevron-right" size={16} /></button>}
       </div>
-      <div className="rp-cal-grid" role="grid" aria-label={`${noun} in ${monthLabel(month)}`}>
-        {WEEKDAYS.map((d) => <span key={d} className="rp-cal-dow" role="columnheader">{d}</span>)}
-        {cells.map((day, i) => {
-          if (!day) return <span key={`b${i}`} />;
-          const hit = days[day];
-          const n = Number(day.slice(8));
-          const level = hit ? Math.max(1, Math.ceil((hit.count / max) * 4)) : 0;
-          const cls = cx('rp-cal-day', day === today && 'is-today', hit && `rp-cal-l${level}`);
-          const label = hit ? `${n} ${monthLabel(month)}: ${hit.count} ${noun}` : `${n} ${monthLabel(month)}`;
-          return hit && onDay && hit.drill !== undefined
-            ? <button key={day} type="button" className={cls} onClick={() => onDay(hit.drill!)} aria-label={label} title={label}><span>{n}</span><b>{hit.count}</b></button>
-            : <span key={day} className={cls} aria-label={label}><span>{n}</span>{hit && <b>{hit.count}</b>}</span>;
-        })}
+      <div className="rp-cal-grid" role="table" aria-label={`${noun} in ${monthLabel(month)}`}>
+        <div className="rp-cal-row" role="row">
+          {WEEKDAYS.map((d) => <span key={d} className="rp-cal-dow" role="columnheader">{d}</span>)}
+        </div>
+        {weeks.map((week, w) => (
+          <div key={week.find(Boolean) ?? w} className="rp-cal-row" role="row">
+            {week.map((day, i) => cell(day, w * 7 + i))}
+          </div>
+        ))}
       </div>
     </div>
   );

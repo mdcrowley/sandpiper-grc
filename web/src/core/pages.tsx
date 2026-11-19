@@ -49,3 +49,15 @@ export function Forbidden() {
     />
   );
 }
+
+/** Shown for a page of a part of the application an administrator has switched off (Administration > Features). */
+export function SwitchedOff() {
+  return (
+    <FullPage
+      icon="settings"
+      code="Switched off"
+      title="This part of the application is switched off"
+      message="An administrator has switched this part off under Administration > Features. Its records are kept and come back when it is switched on again."
+    />
+  );
+}

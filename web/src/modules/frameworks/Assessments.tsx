@@ -3,7 +3,7 @@ import type { FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ApiError, Button, Card, DateField, EmptyState, ErrorState, Loading, Modal, PageHeader, Select, Stat, TextArea, TextField,
-  api, errorMessage, formatDate, todayInZone, useAuth, useFetch, useToast,
+  api, errorMessage, formatDate, todayInZone, useAuth, useCustomFieldInputs, useFetch, useToast,
 } from '../../core';
 import { useFrameworkChoice } from './Board';
 import { rememberFramework } from './boardState';
@@ -20,22 +20,29 @@ function TakeSnapshot({ frameworkId, onDone, onCancel }: { frameworkId: string; 
   const [notes, setNotes] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  // The administrator's custom fields on snapshots (E18-34), under the built-in ones.
+  const custom = useCustomFieldInputs('assessment_snapshot', { flat: true });
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (!name.trim()) { setErrors({ name: 'Name is required.' }); return; }
-    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) { setErrors({ date: 'Enter a date.' }); return; }
-    if (date > todayInZone()) { setErrors({ date: 'Date cannot be in the future.' }); return; }
-    if (date && date < '2000-01-01') { setErrors({ date: 'Date cannot be before 2000-01-01.' }); return; }
+    const found: Record<string, string> = {};
+    if (!name.trim()) found.name = 'Name is required.';
+    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) found.date = 'Enter a date.';
+    else if (date > todayInZone()) found.date = 'Date cannot be in the future.';
+    else if (date && date < '2000-01-01') found.date = 'Date cannot be before 2000-01-01.';
+    setErrors(found);
+    const extra = custom.collect();
+    if (Object.keys(found).length || !extra) return;
     setBusy(true);
-    setErrors({});
     try {
-      await api.post('/api/assessments', { name, date: date || undefined, notes, framework_id: frameworkId });
+      await api.post('/api/assessments', { name, date: date || undefined, notes, framework_id: frameworkId, ...extra });
       toast.success('Snapshot taken.');
       onDone();
     } catch (err) {
-      if (err instanceof ApiError && err.fields) setErrors({ ...err.fields, date: err.fields.taken_on ?? err.fields.date });
-      else toast.error(errorMessage(err));
+      if (err instanceof ApiError && err.fields) {
+        setErrors({ ...err.fields, date: err.fields.taken_on ?? err.fields.date });
+        custom.showErrors(err.fields);
+      } else toast.error(errorMessage(err));
     } finally {
       setBusy(false);
     }
@@ -50,6 +57,7 @@ function TakeSnapshot({ frameworkId, onDone, onCancel }: { frameworkId: string; 
         placeholder="For example: Quarter 1 review" />
       <DateField label="Date" value={date} onChange={setDate} error={errors.date} hint="Leave empty for today." />
       <TextArea label="Notes" rows={3} value={notes} onChange={setNotes} error={errors.notes} />
+      {custom.inputs}
       <div className="form-actions">
         <Button onClick={onCancel}>Cancel</Button>
         <Button type="submit" variant="primary" loading={busy}>Take snapshot</Button>

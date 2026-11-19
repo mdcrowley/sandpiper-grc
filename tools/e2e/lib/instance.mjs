@@ -164,7 +164,7 @@ export async function startInstance({ dir, log = console.log, roles = true }) {
   log(`starting a scratch instance on ${base} (data in ${dataDir})`);
   await startServer();
   const anon = new Api(base);
-  const setup = await anon.post('/api/setup', { username: 'e2e.admin', email: 'e2e.admin@example.test', displayName: 'Test Administrator', password: PASSWORD });
+  const setup = await anon.post('/api/setup', { username: 'e2e.admin', email: 'e2e.admin@example.test', displayName: 'Test Administrator', password: PASSWORD, secondFactor: 'notice' });
   if (setup.status !== 200) throw new Error(`setup failed: ${setup.status} ${setup.text}`);
   await stopServer();
   log('loading the dev seed (invented sample data)');

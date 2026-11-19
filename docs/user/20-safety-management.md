@@ -1,8 +1,12 @@
 # Safety management
 
-The safety pages hold the safety side of the operation: the **hazard log**, **safety events** (collisions, injuries, near misses, assaults, fires, derailments and unsafe conditions) with their investigation and corrective actions, and **safety performance indicators** measured against targets. Open them from the **Cybersecurity** group: **Safety dashboard**, **Safety events**, **Hazard log** and **Safety indicators**. The pages share tabs along the top: **Dashboard**, **Safety events**, **Hazard log**, **Indicators** and **Exposure**. Lists and record pages work as described in [Getting started](01-getting-started.md).
+The safety pages hold the safety side of the operation: the **hazard log**, **safety events** (collisions, injuries, near misses, assaults, fires, derailments and unsafe conditions) with their investigation and corrective actions, and **safety performance indicators** measured against targets. Open them from the **Safety** group in the navigation: **Safety dashboard**, **Safety events**, **Hazard log** and **Safety indicators**. The pages share tabs along the top: **Dashboard**, **Safety events**, **Hazard log**, **Indicators** and **Exposure**. Lists and record pages work as described in [Getting started](01-getting-started.md).
+
+If your organization does not run its safety program here, an administrator can switch **Safety management** off under **Administration > Features** (see [Administration](09-administration.md#features)). The safety pages, their reminders and **Report a safety concern** in the portal then disappear. Records are kept and return when it is switched back on.
 
 You need the **safety** permissions (`safety.view`, and `safety.create`, `safety.edit`, `safety.delete`, `safety.export`, `safety.administer`). Corrective actions and mitigations are kept in the action tracker, so working with them also needs the **actions** permissions.
+
+The default **Safety manager** role holds all of these, the action tracker, and read access to vehicles and services, systems, sites, dashboards, reports, policies and training, so a safety team can be set up by giving people that role. The **Security lead** role can read the safety pages (`safety.view`). An administrator can grant the safety permissions to any other role under **Administration > Roles**.
 
 ## Safety dashboard
 
@@ -75,6 +79,8 @@ On the hazard page, the **Current risk** card scores the hazard with its existin
 
 Set the **Status** as the work goes on: **Identified**, **Being mitigated**, **Controlled** or **Closed**. Closed hazards are left off the dashboard's matrix.
 
+A hazard's **Owner** (or, when it has none, everyone who may edit safety records) is reminded once when its **Review date** is 14 days away and once when it is reached. Closed hazards are left out. Set the next review date after each review and the reminders start again. An administrator changes the 14 days under **Administration** > **Reminders**.
+
 ### Mitigations
 
 The **Mitigations** tab holds the actions that reduce the hazard, kept in the action tracker under **Safety**, exactly as corrective actions are.
@@ -112,4 +118,3 @@ The `dev` sample profile loads an invented year of safety records: twelve hazard
 - A separate **Safety** navigation group: the pages sit in the **Cybersecurity** group for now.
 - Reporting safety events from the self-service portal.
 - Notifying an outside safety regulator; use a security incident's notification clocks if one is needed.
-- Hazard review reminders (the dashboard counts hazards past their review date).

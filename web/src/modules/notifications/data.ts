@@ -110,3 +110,15 @@ export const markRead = async (id: string) => {
 export const markAllRead = async () => {
   setUnread((await api.post<{ unread: number }>('/api/notifications/read-all')).unread);
 };
+
+/** Deletes one notification (it is hidden at once and removed for good later). */
+export const deleteNotification = async (id: string) => {
+  setUnread((await api.del<{ unread: number }>(`/api/notifications/${id}`)).unread);
+};
+
+/** Deletes every notification already read. Returns how many. */
+export const deleteRead = async (): Promise<number> => {
+  const res = await api.post<{ deleted: number; unread: number }>('/api/notifications/delete-read');
+  setUnread(res.unread);
+  return res.deleted;
+};

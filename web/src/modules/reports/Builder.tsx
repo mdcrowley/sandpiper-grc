@@ -1,16 +1,18 @@
 // The report builder: three panes (fields, shape, live preview) that a person with no technical
 // background can use. Every change shows at once in the preview; nothing is saved until Save.
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   Button, Card, EmptyState, ErrorState, Icon, Loading, Menu, Modal, PageHeader, TextArea, TextField,
-  api, errorMessage, useAuth, useDebounced, useFetch, useToast,
+  api, errorMessage, lookupLabel, useAuth, useDebounced, useFetch, useToast,
 } from '../../core';
 import { ChartPicker, FieldList, ShareFields, TypePicker, useUndo } from './BuilderParts';
 import { downloadFile, fileName, openDocument, useCatalog, usePost } from './data';
+import { describeReport } from './describe';
 import { completeFilters, defaultCondition } from './FilterEditor';
 import { ResultTable, ResultView } from './ResultView';
 import { ColumnsEditor, FiltersSection, GroupEditor, Section, SortEditor, TotalsEditor, isSummary } from './SpecEditor';
+import { startersFor } from './starters';
 import type { CatalogField, CatalogType, ChartSpec, ReportDefinition, ReportResult, ReportSpec, Sharing } from './types';
 
 interface Draft { name: string; description: string; spec: ReportSpec | null; chart: ChartSpec; sharing: Sharing; shared_roles: string[] }
@@ -43,9 +45,11 @@ function Preview({ type, spec, chart, name, onResult }: { type: CatalogType; spe
   const { data, error, loading, reload } = usePost<ReportResult>('/api/reports/run', body);
   useEffect(() => { onResult(data); }, [data, onResult]);
   const noColumns = !isSummary(spec) && (spec.columns?.length ?? 0) === 0;
+  const sentence = useMemo(() => describeReport(sendable(spec, type), type, lookupLabel), [spec, type]);
   return (
     <Card className="rp-preview" title="Preview"
-      actions={<span className="rp-preview-status" role="status">{loading ? 'Updating…' : data ? `${data.total.toLocaleString('en-GB')} ${(data.total === 1 ? type.label : type.plural).toLowerCase()} match` : ''}</span>}>
+      actions={<span className="rp-preview-status" role="status">{loading ? 'Updating…' : data ? `${data.total.toLocaleString('en-US')} ${(data.total === 1 ? type.label : type.plural).toLowerCase()} match` : ''}</span>}>
+      <p className="rp-describe"><Icon name="info" size={16} /><span>{sentence}</span></p>
       {error && !data ? <ErrorState title="The preview could not be worked out" error={error} onRetry={reload} />
         : !data ? <Loading lines={6} label="Working out the preview" />
         : (
@@ -60,7 +64,7 @@ function Preview({ type, spec, chart, name, onResult }: { type: CatalogType; spe
               </>
             )}
             <p className="rp-preview-foot muted">
-              <Icon name="eye" size={14} /> You are seeing what your own role allows. Other people who open this report see what theirs allows.
+              <Icon name="eye" size={14} /> Figures are the same for everyone who opens this report; a list of records shows each person only what their role allows.
               {data.restricted && <> <Icon name="lock" size={14} /> Includes restricted records.</>}
             </p>
           </div>
@@ -86,6 +90,24 @@ export function Builder() {
   const [result, setResult] = useState<ReportResult | undefined>();
   const d = draft.value;
   const type = types?.find((t) => t.type === d.spec?.type);
+  const saved = useRef(false);
+  const openSave = useRef<() => void>(() => undefined);
+
+  // Ctrl+S (or Cmd+S) saves, as in any editor.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 's') { e.preventDefault(); openSave.current(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+  // Closing or reloading the tab with unsaved changes asks first.
+  useEffect(() => {
+    if (!draft.dirty) return;
+    const onLeave = (e: BeforeUnloadEvent) => { if (!saved.current) { e.preventDefault(); e.returnValue = ''; } };
+    window.addEventListener('beforeunload', onLeave);
+    return () => window.removeEventListener('beforeunload', onLeave);
+  }, [draft.dirty]);
 
   // Start from a saved report (edit, or "save a copy" with ?copy=), or from ?type= for a new one.
   useEffect(() => {
@@ -133,7 +155,7 @@ export function Builder() {
     }
     const groups = spec.groupBy ?? [];
     if (groups.some((g) => g.field === f.path)) return setSpec({ ...spec, groupBy: groups.filter((g) => g.field !== f.path), pivot: false, sort: [] });
-    if (!f.group) return toast.info(`${f.label} cannot be used for grouping. Use the filter button to filter by it.`);
+    if (!f.group) return toast.info(f.multiple ? `${f.label} can hold several values for one record, so it cannot be a group. Use the filter button to filter by it.` : `${f.label} cannot be used for grouping. Use the filter button to filter by it.`);
     const dated = f.type === 'date' || f.type === 'datetime';
     setSpec({ ...spec, groupBy: [...groups.slice(0, 1), { field: f.path, ...(dated ? { bucket: 'month' as const } : {}) }], sort: [] });
   }
@@ -149,15 +171,19 @@ export function Builder() {
     setSaving(true);
     try {
       const body = { name: d.name.trim(), description: d.description, spec: sendable(spec, type!), chart: d.chart, sharing: d.sharing, shared_roles: d.shared_roles };
-      const saved = id ? await api.patch<ReportDefinition>(`/api/reports/${id}`, body) : await api.post<ReportDefinition>('/api/reports', body);
+      const result = id ? await api.patch<ReportDefinition>(`/api/reports/${id}`, body) : await api.post<ReportDefinition>('/api/reports', body);
+      saved.current = true;
       toast.success('Report saved.');
-      navigate(`/reports/${saved.id}`);
+      setSaveOpen(false);
+      navigate(`/reports/${result.id}`);
     } catch (err) {
       toast.error(errorMessage(err));
     } finally {
       setSaving(false);
     }
   }
+  openSave.current = () => { setNameError(''); setSaveOpen(true); };
+  const starters = startersFor(type);
   const exportBody = (format: string) => ({ title: d.name || `${type.plural} report`, format, spec: sendable(spec, type), chart: d.chart });
   const exportAs = (format: 'csv' | 'xlsx' | 'pdf' | 'html') => (format === 'html'
     ? openDocument('POST', '/api/reports/export', exportBody('html'))
@@ -181,7 +207,7 @@ export function Builder() {
                 { label: 'Print-ready page', icon: 'external', onSelect: () => exportAs('html'), separated: true },
               ]} />
             )}
-            <Button variant="primary" icon="check" onClick={() => { setNameError(''); setSaveOpen(true); }}>{id ? 'Save changes' : 'Save report'}</Button>
+            <Button variant="primary" icon="check" onClick={() => openSave.current()} title="Save (Ctrl+S)">{id ? 'Save changes' : 'Save report'}</Button>
           </>
         )}
       />
@@ -207,6 +233,18 @@ export function Builder() {
               </button>
             </div>
 
+            {starters.length > 0 && (
+              <div className="rp-starters" role="group" aria-label="Quick starts">
+                <span className="rp-starters-label">Quick start</span>
+                {starters.map((s) => (
+                  <button key={s.key} type="button" className="rp-starter" title={s.hint}
+                    onClick={() => draft.set((p) => ({ ...p, spec: { type: spec.type, filters: spec.filters, ...s.spec }, chart: s.chart }))}>
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {summary ? (
               <>
                 <Section title="Group" hint="Records with the same value are counted together. Dates can be grouped by week, month and so on.">
@@ -217,7 +255,7 @@ export function Builder() {
                 </Section>
               </>
             ) : (
-              <Section title="Columns" hint="In the order they will appear. Use the arrows to reorder.">
+              <Section title="Columns" hint="In the order they will appear. Drag a column by its grip, or use the arrows, to reorder.">
                 <ColumnsEditor type={type} spec={spec} onChange={setSpec} />
               </Section>
             )}

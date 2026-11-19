@@ -177,7 +177,7 @@ export function WidgetEditor({ widget, types, onClose, onSave }: { widget: Widge
                   </div>
                 )}
                 <TextField label="Say it in a sentence" value={String(cfg.sentence ?? '')} onChange={(sentence) => setCfg({ sentence: sentence || undefined })}
-                  placeholder="{value} requests are open with the team." hint="Optional. Write {value} where the figure goes. Good for pages read by people outside the team." />
+                  placeholder="{value} {request is|requests are} open with the team." hint="Optional. Write {value} where the figure goes, and {one|many} for words that change when the figure is 1. Good for pages read by people outside the team." />
               </Section>
             )}
 

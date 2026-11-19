@@ -45,8 +45,8 @@ const pad = (n: number) => String(n).padStart(2, '0');
 export const wallDate = (w: WallClock) => `${w.y}-${pad(w.m)}-${pad(w.d)}`;
 
 /** "18 Nov 2026, 14:05" in the organization's time zone. */
-const stampFmt = new Intl.DateTimeFormat('en-GB', { timeZone: TIME_ZONE, day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
-const dateFmt = new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' });
+const stampFmt = new Intl.DateTimeFormat('en-US', { timeZone: TIME_ZONE, day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+const dateFmt = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' });
 export const formatStamp = (v: unknown) => { const d = v instanceof Date ? v : new Date(String(v)); return Number.isNaN(d.getTime()) ? String(v ?? '') : stampFmt.format(d); };
 /** A calendar date (YYYY-MM-DD, never shifted by time zone) as "18 Nov 2026". */
 export const formatDay = (v: unknown) => {

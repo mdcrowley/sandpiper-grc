@@ -18,6 +18,8 @@ interface AuthStateResponse {
   user: AuthUser | null;
   permissions: string[];
   features: Record<string, boolean>;
+  /** Permission modules of switched-off areas (Administration > Features): nobody holds them. */
+  areasOff?: string[];
   pilot: boolean;
   mfaEnrollmentRequired?: boolean;
   mfaEnrollmentBlocked?: boolean;
@@ -41,8 +43,15 @@ export interface Auth {
   mfaEnrollmentBlocked: boolean;
   /** While a grace period runs: the instant (ISO) after which the missing second factor blocks the user. */
   mfaGraceEndsAt: string | null;
-  /** True when the user holds the permission, directly or through a wildcard grant (`*`, `tickets.*`). */
+  /**
+   * True when the user holds the permission, directly or through a wildcard grant (`*`, `tickets.*`).
+   * A permission of a switched-off area (Administration > Features) is held by nobody.
+   */
   can: (permission: string | undefined) => boolean;
+  /** Whether an optional area (`fleet`, `safety`, `portal`, ...) is switched on; unknown keys count as on. */
+  areaOn: (key: string) => boolean;
+  /** Whether a permission belongs to a switched-off area (so nobody holds it). */
+  switchedOff: (permission: string | undefined) => boolean;
   /** Re-read the session from the server. */
   refresh: () => Promise<void>;
   logout: () => Promise<void>;
@@ -87,6 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const auth = useMemo<Auth | null>(() => {
     if (!state) return null;
     const granted = state.permissions ?? [];
+    const off = new Set(state.areasOff ?? []);
     return {
       user: state.user,
       appName: state.appName || 'Sandpiper GRC',
@@ -96,14 +106,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       mfaEnrollmentRequired: Boolean(state.mfaEnrollmentRequired),
       mfaEnrollmentBlocked: Boolean(state.user && state.mfaEnrollmentBlocked),
       mfaGraceEndsAt: state.mfaGraceEndsAt ?? null,
-      can: (permission) => !permission || permits(granted, permission),
+      can: (permission) => !permission || (!off.has(permission.split('.')[0]) && permits(granted, permission)),
+      areaOn: (key) => state.features?.[key] !== false,
+      switchedOff: (permission) => Boolean(permission && off.has(permission.split('.')[0])),
       refresh,
       logout: async () => {
+        let next: string | null = null;
         try {
-          await api.post('/api/auth/logout');
+          // A session made through a sign-in provider that signs out there too gets that provider's
+          // sign-out address back (E02-23); the browser goes there, and the provider sends it back here.
+          const res = await api.post<{ ok: boolean; redirectUrl?: string }>('/api/auth/logout');
+          next = typeof res?.redirectUrl === 'string' && /^https?:\/\//i.test(res.redirectUrl) ? res.redirectUrl : null;
         } finally {
           resetPreferences();
-          await refresh();
+          if (next) window.location.assign(next);
+          else await refresh();
         }
       },
     };

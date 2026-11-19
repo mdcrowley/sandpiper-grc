@@ -75,6 +75,20 @@ export function registerExercises(ctx: ModuleContext) {
       }
     }
     const dated = entries.filter((e) => e.date).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    // How the steps of each exercise went (E10-17), for the latest run of each kind.
+    const stepRows = await db.query<{ exercise_id: string; outcome: string | null; c: number }>(
+      `select s.exercise_id, s.outcome, count(*)::int as c from exercise_steps s join exercises e on e.id = s.exercise_id
+       where s.deleted_at is null and e.deleted_at is null group by s.exercise_id, s.outcome`);
+    const stepsOf = (id: string | null) => {
+      if (!id) return null;
+      const mine = stepRows.filter((r) => r.exercise_id === id);
+      if (!mine.length) return null;
+      const n = (o: string | null) => mine.filter((r) => (r.outcome ?? null) === o).reduce((t, r) => t + r.c, 0);
+      return {
+        total: mine.reduce((t, r) => t + r.c, 0), went_well: n('went_well'), with_issues: n('with_issues'),
+        not_done: n('not_done'), not_tested: n('not_tested'), unrecorded: n(null),
+      };
+    };
     const by_type = types.map((t) => {
       const done = rows.filter((e) => e.type === t.value && e.status === 'completed' && e.exercise_date)
         .sort((a, b) => String(b.exercise_date).localeCompare(String(a.exercise_date)));
@@ -82,6 +96,7 @@ export function registerExercises(ctx: ModuleContext) {
       return {
         type: t.value, label: t.label, color: t.color ?? 'gray', completed: done.length,
         last_run: done[0]?.exercise_date ?? null, last_id: done[0]?.id ?? null, last_result: done[0]?.result ?? null,
+        last_steps: stepsOf(done[0]?.id ?? null),
         next_due: next?.date ?? null, next_id: next?.id ?? null, overdue: !!next && String(next.date) < today,
       };
     });
@@ -203,7 +218,7 @@ export function registerExercises(ctx: ModuleContext) {
   /** Findings with the state of their follow-up action, when the actions module is there and the caller may see it. */
   async function findingsOf(ex: Row, req: FastifyRequest): Promise<Row[]> {
     const rows = await db.query<Row>(
-      `select id, finding, severity, recommendation, action_id from exercise_findings
+      `select id, finding, severity, recommendation, action_id, step_id from exercise_findings
        where exercise_id = $1 and deleted_at is null order by created_at, id`, [ex.id],
     );
     const actions = ctx.resources.get('action') && ctx.can(req.user, 'actions.view');

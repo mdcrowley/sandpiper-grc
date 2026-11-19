@@ -2,15 +2,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, Card, EmptyState, ErrorState, errorMessage, Loading, PageHeader, Tabs, useFetch, useToast } from '../../core';
-import { markAllRead, markRead, useUnreadCount, type Notification, type NotificationPage } from './data';
+import { deleteNotification, deleteRead, markAllRead, markRead, useUnreadCount, type Notification, type NotificationPage } from './data';
 import { NotificationItem } from './NotificationItem';
 import { NotificationPreferences } from './Preferences';
 import './notifications.css';
 
 const PAGE_SIZE = 20;
 
-function NotificationList({ unreadOnly }: { unreadOnly: boolean }) {
+function NotificationList({ unreadOnly, version }: { unreadOnly: boolean; version: number }) {
   const navigate = useNavigate();
+  const toast = useToast();
   const unread = useUnreadCount();
   const [page, setPage] = useState(1);
   const { data, error, reload } = useFetch<NotificationPage>(
@@ -23,10 +24,26 @@ function NotificationList({ unreadOnly }: { unreadOnly: boolean }) {
     seen.current = unread;
     reload();
   }, [unread, reload]);
+  // "Delete read" on the page header changed the list.
+  const lastVersion = useRef(version);
+  useEffect(() => {
+    if (lastVersion.current === version) return;
+    lastVersion.current = version;
+    reload();
+  }, [version, reload]);
 
   const open = (n: Notification) => {
     if (n.read_at === null) markRead(n.id).catch(() => undefined);
     if (n.route) navigate(n.route);
+  };
+  const remove = async (n: Notification) => {
+    try {
+      await deleteNotification(n.id);
+      toast.success('Notification deleted.');
+      reload();
+    } catch (err) {
+      toast.error(errorMessage(err));
+    }
   };
 
   if (error) return <ErrorState title="Notifications could not be loaded" error={error} onRetry={reload} />;
@@ -42,7 +59,7 @@ function NotificationList({ unreadOnly }: { unreadOnly: boolean }) {
     <div className="stack">
       <Card flush>
         <ul className="ntf-list">
-          {data.rows.map((n) => <NotificationItem key={n.id} notification={n} onOpen={open} />)}
+          {data.rows.map((n) => <NotificationItem key={n.id} notification={n} onOpen={open} onDelete={(x) => void remove(x)} />)}
         </ul>
       </Card>
       <div className="ntf-pager">
@@ -59,6 +76,8 @@ export function NotificationsPage() {
   const unread = useUnreadCount();
   const [search, setSearch] = useSearchParams();
   const [marking, setMarking] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [version, setVersion] = useState(0);
 
   const readAll = async () => {
     setMarking(true);
@@ -72,20 +91,38 @@ export function NotificationsPage() {
     }
   };
 
+  const clearRead = async () => {
+    setDeleting(true);
+    try {
+      const n = await deleteRead();
+      toast.success(n ? `${n} read notification${n === 1 ? '' : 's'} deleted.` : 'There were no read notifications to delete.');
+      setVersion((v) => v + 1);
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <div className="stack ntf-page">
       <PageHeader
         title="Notifications"
         subtitle="What needs your attention: work assigned to you, approvals waiting, and deadlines that are close."
-        actions={<Button icon="check" loading={marking} disabled={unread === 0} onClick={() => void readAll()}>Mark all as read</Button>}
+        actions={(
+          <>
+            <Button icon="check" loading={marking} disabled={unread === 0} onClick={() => void readAll()}>Mark all as read</Button>
+            <Button icon="trash" loading={deleting} onClick={() => void clearRead()}>Delete read</Button>
+          </>
+        )}
       />
       <Tabs
         label="Notification views"
         active={search.get('tab') ?? 'all'}
         onChange={(key) => setSearch((p) => { p.set('tab', key); return p; }, { replace: true })}
         tabs={[
-          { key: 'all', label: 'All', content: <NotificationList key="all" unreadOnly={false} /> },
-          { key: 'unread', label: 'Unread', count: unread, content: <NotificationList key="unread" unreadOnly /> },
+          { key: 'all', label: 'All', content: <NotificationList key="all" unreadOnly={false} version={version} /> },
+          { key: 'unread', label: 'Unread', count: unread, content: <NotificationList key="unread" unreadOnly version={version} /> },
           { key: 'preferences', label: 'Preferences', content: <NotificationPreferences /> },
         ]}
       />

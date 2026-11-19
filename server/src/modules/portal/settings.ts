@@ -1,11 +1,16 @@
 // Portal settings: the switch (the `portal` feature switch, shared with Administration >
-// Settings), the title and welcome line, the service status banner and the reopen window.
+// Features), the title and welcome line, the service status banner, the reopen window, who may
+// raise a request for a colleague, and whether safety events may be reported from the portal.
 import type { FastifyRequest } from 'fastify';
+import { effectiveFeatures } from '../../core/features.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 
 export const SETTINGS_KEY = 'portal.settings';
 export const BANNER_TONES = ['info', 'warning', 'outage', 'resolved'] as const;
 export type BannerTone = (typeof BANNER_TONES)[number];
+/** E15-12: who may raise a request for a colleague: nobody, colleagues of the same department, or anyone. */
+export const ON_BEHALF = ['nobody', 'department', 'anyone'] as const;
+export type OnBehalf = (typeof ON_BEHALF)[number];
 
 export interface PortalSettings {
   title: string;
@@ -13,6 +18,10 @@ export interface PortalSettings {
   banner: { message: string; tone: BannerTone; updated_at: string | null } | null;
   /** Days after resolution in which the requester may reopen a request. 0 = never. */
   reopen_days: number;
+  /** E15-12: who may raise a request on behalf of a colleague. */
+  on_behalf: OnBehalf;
+  /** E20-13: staff may report a safety event from the portal (when the safety module is loaded). */
+  safety_reports: boolean;
 }
 
 export const DEFAULTS: PortalSettings = {
@@ -20,6 +29,8 @@ export const DEFAULTS: PortalSettings = {
   intro: 'Report a problem, ask for something you need, or check on something you asked for.',
   banner: null,
   reopen_days: 7,
+  on_behalf: 'department',
+  safety_reports: true,
 };
 
 export async function readSettings(ctx: ModuleContext): Promise<PortalSettings> {
@@ -37,6 +48,8 @@ export async function readSettings(ctx: ModuleContext): Promise<PortalSettings> 
     intro: typeof raw.intro === 'string' ? raw.intro.trim() : DEFAULTS.intro,
     banner,
     reopen_days: Number.isInteger(days) && days >= 0 && days <= 90 ? days : DEFAULTS.reopen_days,
+    on_behalf: (ON_BEHALF as readonly string[]).includes(raw.on_behalf) ? raw.on_behalf as OnBehalf : DEFAULTS.on_behalf,
+    safety_reports: typeof raw.safety_reports === 'boolean' ? raw.safety_reports : DEFAULTS.safety_reports,
   };
 }
 
@@ -81,12 +94,24 @@ export async function saveSettings(ctx: ModuleContext, req: FastifyRequest, body
       next.banner.updated_at = current.banner.updated_at;
     }
   }
+  if (body.on_behalf !== undefined) {
+    if (!(ON_BEHALF as readonly string[]).includes(body.on_behalf)) fields.on_behalf = 'Choose nobody, the same department or anyone.';
+    else next.on_behalf = body.on_behalf as OnBehalf;
+  }
+  if (body.safety_reports !== undefined) {
+    if (typeof body.safety_reports !== 'boolean') fields.safety_reports = 'Choose on or off.';
+    else next.safety_reports = body.safety_reports;
+  }
   if (body.enabled !== undefined && typeof body.enabled !== 'boolean') fields.enabled = 'Choose on or off.';
   if (Object.keys(fields).length) ctx.fail(400, 'validation', 'Check the highlighted fields.', fields);
 
   if (body.enabled !== undefined && body.enabled !== (await isEnabled(ctx))) {
     if (!ctx.can(req.user, 'admin.administer')) ctx.fail(403, 'forbidden', 'Only an administrator can switch the portal on or off.');
     const features = await ctx.settings.get<Row>('features', { portal: false });
+    // The portal needs the service desk (core/features.ts); Administration > Features says the same.
+    if (body.enabled && !effectiveFeatures(features).tickets) {
+      ctx.fail(400, 'validation', 'Check the highlighted fields.', { enabled: 'The portal needs the service desk. Switch the service desk on first under Administration > Features.' });
+    }
     await ctx.settings.set('features', { ...features, portal: body.enabled }, req);
   }
   if (JSON.stringify(next) !== JSON.stringify(current)) await ctx.settings.set(SETTINGS_KEY, next, req);

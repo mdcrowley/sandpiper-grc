@@ -346,3 +346,25 @@
 }
 
 .fw-nowrap { white-space: nowrap; }
+
+/* ---------- settings (E07-23) ---------- */
+.fw-settings-intro { margin: 0; max-width: 72ch; }
+.fw-weights { display: grid; gap: var(--s-2); max-width: 640px; }
+.fw-weight { display: grid; grid-template-columns: minmax(120px, 180px) 96px 16px minmax(80px, 1fr); align-items: center; gap: var(--s-2); }
+.fw-weight-name { display: inline-flex; align-items: center; gap: var(--s-2); font-weight: 600; }
+.fw-weight-unit { color: var(--text-muted); }
+.fw-weight-bar { height: 8px; border-radius: 4px; background: var(--border); overflow: hidden; }
+.fw-weight-bar > span { display: block; height: 100%; background: var(--fw-solid); border-radius: 4px; transition: width .15s ease; }
+@media (max-width: 560px) { .fw-weight { grid-template-columns: 1fr 88px 16px; } .fw-weight-bar { grid-column: 1 / -1; } }
+
+/* ---------- wording refresh (E18-03) and shared views (E07-25) ---------- */
+.fw-diff { display: grid; gap: var(--s-2); max-height: 50vh; overflow: auto; margin: 0; padding: 0; list-style: none; }
+.fw-diff li { display: grid; gap: 2px; padding: var(--s-2) var(--s-3); border: 1px solid var(--border); border-radius: var(--radius-sm, 6px); }
+.fw-diff-code { font-weight: 650; font-size: var(--fs-sm); }
+.fw-diff-old { color: var(--text-muted); text-decoration: line-through; }
+.fw-views-list { display: grid; gap: var(--s-1); margin: 0; padding: 0; list-style: none; }
+.fw-views-list li { display: flex; align-items: center; gap: var(--s-2); padding: var(--s-2) 0; border-bottom: 1px solid var(--border); }
+.fw-views-list li:last-child { border-bottom: 0; }
+.fw-views-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.fw-views-owner { font-size: var(--fs-sm); color: var(--text-muted); }
+.fw-settings-field { max-width: 420px; }

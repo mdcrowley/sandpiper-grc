@@ -35,3 +35,7 @@
 
 /* Positioned, so screen-reader-only header text in a far-right column is clipped with the table instead of widening the page. */
 .vuln-tw { position: relative; }
+
+/* ---------- duplicate findings (E10-16) ---------- */
+.vuln-dup-title { overflow-wrap: anywhere; }
+.vuln-dup-key { margin: 0; padding: var(--s-2) var(--s-3); overflow-wrap: anywhere; }

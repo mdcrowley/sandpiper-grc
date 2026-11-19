@@ -1,6 +1,6 @@
 # E10 Policies, training, exceptions, exercises and vulnerabilities
 
-**Status:** done (15 of 15 issues done; follow-ups E10-16 to E10-18 open)
+**Status:** done (18 of 18 issues done)
 
 ## Goal
 
@@ -38,9 +38,9 @@ capture what they show, and track vulnerabilities from discovery to fix.
 | E10-13 | Asset or system criticality should shorten fix-by dates | done | P3 |
 | E10-14 | Reuse an incident scenario checklist in an exercise | done | P3 |
 | E10-15 | Discard a draft policy version and set the reminder interval in Settings | done | P3 |
-| E10-16 | Merge vulnerability duplicates recorded before host and port matching | open | P3 |
-| E10-17 | Exercise step outcomes on the exercise calendar and as findings | open | P3 |
-| E10-18 | Separate reminder intervals for overdue policy and training per audience | open | P3 |
+| E10-16 | Merge vulnerability duplicates recorded before host and port matching | done | P3 |
+| E10-17 | Exercise step outcomes on the exercise calendar and as findings | done | P3 |
+| E10-18 | Separate reminder intervals for overdue policy and training per audience | done | P3 |
 
 ---
 
@@ -288,29 +288,48 @@ A draft version cannot be discarded, and the reminder interval is a setting with
 
 ### E10-16 Merge vulnerability duplicates recorded before host and port matching
 
-**Status:** open · **Priority:** P3 · **Type:** improvement
+**Status:** done · **Priority:** P3 · **Type:** improvement
 
 Migration 002 keys existing findings but deliberately merges nothing, so two rows that are now the same finding (same host after reconciliation, same port and identifier) both stay open.
 
 **Acceptance criteria**
 
-- [ ] A report lists such pairs, and an administrator can merge them, keeping history and attachments of both
+- [x] A report lists such pairs, and an administrator can merge them, keeping history and attachments of both:
+      **Duplicate findings** (`/vulnerabilities/duplicates`, linked from a notice on the findings list) groups findings that
+      share host, port and identifier; with `vulnerabilities.administer` (and `security.view`) the chosen finding is kept and
+      the others removed, their comments, files, links, tags and watchers moved across, the earliest first-seen and latest
+      last-seen kept, the removed findings' details recorded in the kept finding's history (`vulnerability.merge`) and the
+      kept finding named on each removed one (`vulnerability.merged_into`)
+
+**Implemented in** `server/src/modules/vulnerabilities/duplicates.ts` (`GET /api/vulnerabilities/duplicates`,
+`POST /api/vulnerabilities/duplicates/merge`), `duplicates.test.ts`; `web/src/modules/vulnerabilities/Duplicates.tsx`, `List.tsx`, `index.tsx`
 
 ### E10-17 Exercise step outcomes on the exercise calendar and as findings
 
-**Status:** open · **Priority:** P3 · **Type:** improvement
+**Status:** done · **Priority:** P3 · **Type:** improvement
 
 **Acceptance criteria**
 
-- [ ] A step recorded as "Not done" or "Done, with issues" can raise a finding in one action
-- [ ] The calendar's "When each kind was last run" shows how the steps went
+- [x] A step recorded as "Not done" or "Done, with issues" can raise a finding in one action (**Raise finding** on the step; the finding names the step, phase, outcome and note; high for not done, medium with issues; one per step, `exercise_findings.step_id`)
+- [x] The calendar's "When each kind was last run" shows how the steps went (a bar and counts for the latest completed run of each kind, `by_type[].last_steps`)
+
+**Implemented in** `server/src/modules/training/exerciseSteps.ts` (`POST /api/exercises/:id/steps/:stepId/finding`, `finding_id` on steps),
+`exercises.ts` (calendar `last_steps`, findings carry `step_id`), `migrations/004_step_findings.sql`, `stepFindings.test.ts`;
+`web/src/modules/training/ExerciseSteps.tsx`, `ExerciseCalendar.tsx`
 
 ### E10-18 Separate reminder intervals per audience
 
-**Status:** open · **Priority:** P3 · **Type:** improvement
+**Status:** done · **Priority:** P3 · **Type:** improvement
 
 Policies and training each have one reminder interval for everybody.
 
 **Acceptance criteria**
 
-- [ ] A policy or course can set its own interval, falling back to the module setting
+- [x] A policy or course can set its own interval, falling back to the module setting
+
+**Implemented in:** migrations `policies/002_reminder_interval.sql` and
+`training/003_reminder_interval.sql` (`reminder_interval_days`), the fields and checks in
+`policies/index.ts` and `training/index.ts`, the reminder queries in
+`policies/acknowledgments.ts` and `training/notify.ts`, `web/src/modules/policies/AudienceCard.tsx`
+and `web/src/modules/training/CoursePages.tsx`; tests `policies/reminder-interval.test.ts`,
+`training/reminder-interval.test.ts`.

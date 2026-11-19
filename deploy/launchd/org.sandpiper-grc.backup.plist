@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Daily verified backup of a Sandpiper GRC installed with org.sandpiper-grc.server.plist, at 02:30,
+  the counterpart of deploy/systemd/sandpiper-grc-backup.timer. It stops the server for the few
+  seconds the copy takes and starts it again, whatever the result (grc.sh does both). The server's
+  own daily backups (Administration > Backups) need no scheduler at all; this is the offline copy.
+
+    sudo cp deploy/launchd/org.sandpiper-grc.backup.plist /Library/LaunchDaemons/
+    sudo chown root:wheel /Library/LaunchDaemons/org.sandpiper-grc.backup.plist
+    sudo launchctl bootstrap system /Library/LaunchDaemons/org.sandpiper-grc.backup.plist
+
+  It runs as root because stopping and starting the daemon needs it; grc.sh itself writes the
+  backup with the same settings as the server. With a PostgreSQL server, back the database up with
+  its own tools instead (docs/operations.md). A run missed while the Mac slept runs at wake-up.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>org.sandpiper-grc.backup</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>-c</string>
+    <string>launchctl bootout system/org.sandpiper-grc.server; sudo -u _sandpiper -E /usr/local/sandpiper-grc/grc.sh backup --label scheduled --prune 14; code=$?; launchctl bootstrap system /Library/LaunchDaemons/org.sandpiper-grc.server.plist; exit $code</string>
+  </array>
+  <key>WorkingDirectory</key><string>/usr/local/sandpiper-grc</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key><string>/usr/local/sandpiper-grc/.tools/node/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>GRC_DATA_DIR</key><string>/usr/local/var/sandpiper-grc/data</string>
+    <key>GRC_BACKUP_DIR</key><string>/usr/local/var/sandpiper-grc/backups</string>
+  </dict>
+  <key>StartCalendarInterval</key><dict><key>Hour</key><integer>2</integer><key>Minute</key><integer>30</integer></dict>
+  <key>StandardOutPath</key><string>/usr/local/var/sandpiper-grc/backups/scheduled-backup.out</string>
+  <key>StandardErrorPath</key><string>/usr/local/var/sandpiper-grc/backups/scheduled-backup.out</string>
+</dict>
+</plist>

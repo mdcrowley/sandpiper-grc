@@ -164,8 +164,34 @@
 .home-cz-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-2); width: 100%; }
 .home-cz-foot-end { display: flex; gap: var(--s-2); margin-inline-start: auto; }
 
+/* Section heading with the dashboard view switch (E12-07) */
+.home-section-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-2) var(--s-3); min-width: 0; }
+.home-section-head .home-section-title { min-width: 0; overflow-wrap: anywhere; }
+.home-section-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-3); }
+.home-section-link { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-sm); font-weight: 600; }
+.home-section-note { margin: calc(-1 * var(--s-1)) 0 0; font-size: var(--fs-sm); }
+
+/* Where to look: the areas a person who only looks may open */
+.home-areas { display: grid; gap: var(--s-2); grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); margin: 0; padding: 0; list-style: none; }
+.home-area {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; column-gap: var(--s-2);
+  align-items: center; height: 100%; padding: var(--s-3); border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface); color: var(--text); text-decoration: none; box-shadow: var(--shadow-1);
+}
+.home-area:hover { border-color: var(--brand); background: var(--surface-hover); }
+.home-area:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.home-area-name { font-weight: 600; overflow-wrap: anywhere; }
+.home-area-group { grid-row: 2; color: var(--text-muted); font-size: var(--fs-xs); }
+.home-area .icon { grid-row: 1 / span 2; grid-column: 2; color: var(--text-muted); }
+
+/* Print (E12-08): a tidy page with the time the figures were taken; charts print with patterns. */
+.home-print-asat { margin: var(--s-1) 0 0; color: var(--text-muted); font-size: var(--fs-sm); }
 @media print {
-  .home-hero-actions { display: none; }
-  .home-grid, .home-work-grid { grid-template-columns: 1fr; }
-  .home-cell { break-inside: avoid; }
+  .home-hero-actions, .home-section-tools, .home-clear { display: none !important; }
+  .home { gap: 14pt; }
+  .home-hero .page-title { font-size: 20pt; }
+  .home-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10pt; }
+  .home-work-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10pt; }
+  .home-cell, .home-section-head { break-inside: avoid; }
+  .home-section-title { break-after: avoid; }
 }

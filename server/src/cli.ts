@@ -3,6 +3,7 @@ import { rm } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import { buildApp, repoRoot } from './app.ts';
 import { openDb } from './core/db.ts';
+import { AREAS, featureState } from './core/features.ts';
 import { readOrganizationProfile } from './core/profile.ts';
 import type { LookupValue, SeedOptions } from './core/module.ts';
 import { decryptToTar, ENCRYPTED_EXT, isArchivePath, loadArchiveKey, newKeyText, readArchiveInfo } from './ops/archive.ts';
@@ -10,17 +11,25 @@ import {
   createBackup, listBackupsAsync, OpsError, pruneBackups, resolveBackup, restoreBackup, verifyBackup,
 } from './ops/backup.ts';
 import { exportAll, exportToArchive, importAll, unpackExport } from './ops/export.ts';
-import { formatBytes, serverPid, timestamp } from './ops/files.ts';
+import { appVersion, formatBytes, serverPid, timestamp } from './ops/files.ts';
 import { migrationsOnDisk, readAppliedMigrations } from './ops/migrations.ts';
+import { asOwner, grantRuntimeRole, migrateAsOwner, migrateUrl, runtimeRole } from './ops/db-roles.ts';
+import { runAudit, SEVERITIES, type Severity } from './ops/dependency-audit.ts';
+import { followLog, formatLogLine, LEVELS, lastLines, logSettings } from './ops/logging.ts';
 import { secretKeyNote } from './ops/secret-key.ts';
 import { formatStatus, getStatus } from './ops/status.ts';
+import { buildCommit } from './ops/version.ts';
 
 // Command-line tasks. The embedded database allows one process at a time, so stop the
 // server first (grc.ps1 and grc.sh do this for you). The operations commands live in ./ops.
 
 const USAGE = `Usage: cli.ts <command>
   seed [--profile pilot|dev]            load data
-  migrate                               bring the database up to date
+  migrate                               bring the database up to date (as the owner when GRC_DATABASE_MIGRATE_URL is set)
+  grant-runtime-role                    give the server's own database account its privileges (PostgreSQL server, as the owner)
+  version                               the installed version and commit
+  logs [--lines n] [--follow] [--level warn] [--json]   the end of the server log (data/logs/grc.log)
+  audit-deps [--level high] [--all]     known vulnerabilities in the packages; fails only when a fix exists
   status [--json]                       version, server, data size, last backup, migrations
   backup [--prune <n>] [--label <text>] [--encrypt [--include-secret-key]]   copy the data folder to a new backup
   backups                               list backups, newest first
@@ -40,7 +49,7 @@ const [command, ...args] = process.argv.slice(2);
 const dataDir = process.env.GRC_DATA_DIR ?? resolve(repoRoot, 'data');
 const backupsDir = process.env.GRC_BACKUP_DIR ? resolve(process.env.GRC_BACKUP_DIR) : resolve(repoRoot, 'backups');
 
-const VALUE_FLAGS = ['profile', 'prune', 'label', 'out', 'key-file', 'passphrase-file', 'to'];
+const VALUE_FLAGS = ['profile', 'prune', 'label', 'out', 'key-file', 'passphrase-file', 'to', 'level', 'lines'];
 
 function flag(name: string, fallback: string): string {
   const i = args.indexOf(`--${name}`);
@@ -100,8 +109,12 @@ async function run(): Promise<number> {
     }
     console.log(`seed organization profile: ${Object.keys(organization).length ? Object.keys(organization).join(', ') : 'none'}`);
 
+    const features = await featureState(ctx.db);
     for (const m of modules) {
       if (!m.seed) continue;
+      // Sample data of a switched-off part of the application is not loaded (core/features.ts).
+      const area = AREAS.find((a) => a.key === m.key || a.modules.includes(m.key));
+      if (area && !features.on[area.key]) { console.log(`seed ${m.key}: skipped (${area.label} is switched off)`); continue; }
       try {
         const note = await m.seed(ctx, { profile, seedDir, organization });
         console.log(`seed ${m.key}: ${note || 'done'}`);
@@ -116,6 +129,14 @@ async function run(): Promise<number> {
 
   if (command === 'migrate') {
     requireStopped();
+    if (migrateUrl()) {
+      // Least-privilege set-up (E16-31): the owner changes the schema, then grants the server's account.
+      const owner = await migrateAsOwner(dataDir, (dir) => buildApp({ dataDir: dir, serveWeb: false }));
+      console.log(owner!.applied.length ? `Applied ${owner!.applied.length} migration(s) as the owner: ${owner!.applied.join(', ')}` : 'No migrations to apply.');
+      console.log(owner!.granted ? `Granted the run-time role "${owner!.granted}" its privileges on ${owner!.tables} tables.` : 'No run-time role to grant (set GRC_DATABASE_URL or GRC_DATABASE_APP_ROLE).');
+      console.log('Database is up to date.');
+      return 0;
+    }
     const before = (await readAppliedMigrations(dataDir)) ?? [];
     const { db, close } = await buildApp({ dataDir, serveWeb: false });
     const after = (await db.query<{ name: string }>('select name from schema_migrations')).map((r) => r.name);
@@ -124,6 +145,63 @@ async function run(): Promise<number> {
     console.log(added.length ? `Applied ${added.length} migration(s): ${added.join(', ')}` : 'No migrations to apply.');
     console.log('Database is up to date.');
     return 0;
+  }
+
+  if (command === 'grant-runtime-role') {
+    const role = runtimeRole();
+    if (!migrateUrl() || !role) throw new OpsError('Set GRC_DATABASE_MIGRATE_URL (the owner) and GRC_DATABASE_URL (the account the server uses, or GRC_DATABASE_APP_ROLE).');
+    const result = await asOwner(async () => {
+      const db = await openDb(dataDir);
+      try {
+        return await grantRuntimeRole(db, role);
+      } finally {
+        await db.close();
+      }
+    });
+    console.log(`Granted "${role}" read and write on ${result.tables} tables in schema ${result.schema} (no schema changes, no audit log changes).`);
+    return 0;
+  }
+
+  if (command === 'logs') {
+    const settings = logSettings(dataDir);
+    if (!settings.dir) throw new OpsError('The server writes no log file (GRC_LOG_DIR is off, or the data folder is "memory"); see its console output instead.');
+    const file = join(settings.dir, 'grc.log');
+    const count = Number(flag('lines', '40'));
+    const min = flag('level', 'debug');
+    if (!(LEVELS as readonly string[]).includes(min)) throw new OpsError(`--level must be one of ${LEVELS.join(', ')}.`);
+    const keep = (line: string) => {
+      try {
+        return LEVELS.indexOf(JSON.parse(line).level) <= LEVELS.indexOf(min as (typeof LEVELS)[number]);
+      } catch {
+        return true;
+      }
+    };
+    const show = (line: string) => { if (keep(line)) console.log(has('json') ? line : formatLogLine(line)); };
+    if (!existsSync(file)) console.log(`No log yet in ${settings.dir} (the server writes it once started).`);
+    // The previous run's file too, when the current one is short.
+    let lines = lastLines(file, count * 4).filter(keep);
+    if (lines.length < count) lines = [...lastLines(`${file}.1`, count * 4).filter(keep), ...lines];
+    for (const l of lines.slice(-count)) console.log(has('json') ? l : formatLogLine(l));
+    if (has('follow')) {
+      followLog(file, show);
+      await new Promise(() => {}); // until Ctrl+C
+    }
+    return 0;
+  }
+
+  if (command === 'version') {
+    const commit = buildCommit();
+    console.log(`Sandpiper GRC ${appVersion()}${commit ? ` (commit ${commit})` : ''}, Node.js ${process.version}`);
+    return 0;
+  }
+
+  if (command === 'audit-deps') {
+    const level = flag('level', 'high') as Severity;
+    if (!SEVERITIES.includes(level)) throw new OpsError(`--level must be one of ${SEVERITIES.join(', ')}.`);
+    const result = runAudit({ level, includeDev: has('all') });
+    (result.code === 0 ? console.log : console.error)(result.text);
+    // Exit 3 (could not run, usually no network) is a warning for local CI, not a failure.
+    return result.code;
   }
 
   if (command === 'status') {
@@ -249,12 +327,16 @@ async function run(): Promise<number> {
       inDir = await unpackExport(inDir, encrypted ? requiredKey('This export is encrypted, so importing it') : null);
     }
     try {
-      const { db, close } = await buildApp({ dataDir, serveWeb: false }); // creates and migrates the database
+      // Loading needs the owner's rights (it switches triggers off while it loads), so with a
+      // least-privilege set-up it runs as the owner and grants the run-time role afterwards.
+      const { db, close } = await asOwner(() => buildApp({ dataDir, serveWeb: false })); // creates and migrates the database
       try {
         const result = await importAll(db, { inDir, filesDir: dataDir === 'memory' ? null : join(dataDir, 'files') });
         const rows = result.tables.reduce((sum, t) => sum + t.rows, 0);
         console.log(`Imported ${rows} rows into ${result.tables.length} tables and ${result.files} files from ${resolve(given)}`);
         for (const note of result.notes) console.log(`  Note: ${note}`);
+        const role = runtimeRole();
+        if (migrateUrl() && role) console.log(`  Granted "${role}" on ${(await grantRuntimeRole(db, role)).tables} tables.`);
       } finally {
         await close();
       }

@@ -9,6 +9,8 @@ import {
   providerByKey, readSecret, registerSignInPolicy, safeReturn, signinLimiter, type IdentityDeps,
 } from '../../core/identity/service.ts';
 import { IdentityError, type ExternalIdentity, type ProviderRecord } from '../../core/identity/types.ts';
+import { verifyLogoutToken } from '../../core/identity/oidc.ts';
+import { providerMfaSatisfied } from '../../core/identity/config.ts';
 import type { ModuleContext } from '../../core/module.ts';
 import { clientIp } from '../../core/request.ts';
 import { body } from './shared.ts';
@@ -109,6 +111,11 @@ export function registerSso(ctx: ModuleContext) {
       const mine = await db.one('select 1 from user_identities where provider_id = $1 and subject = $2 and user_id = $3', [p.id, identity.subject, flow.userId]);
       if (!mine) {
         await auditFailure(deps, req, p, 'a different person signed in at the provider', flow.userId!, 'Confirmation');
+        return go(`${back}${sep}sso=reauth_failed`);
+      }
+      // E01-29 and E02-22: with a provider trusted for multi-factor sign-in, a confirmation must show one too.
+      if (p.config.providerMfa === true && !providerMfaSatisfied(p.config, identity)) {
+        await auditFailure(deps, req, p, 'the provider did not show a multi-factor sign-in', flow.userId!, 'Confirmation');
         return go(`${back}${sep}sso=reauth_failed`);
       }
       await db.query('update sessions set confirmed_at = now() where token_hash = $1', [flow.sessionHash]);
@@ -246,6 +253,54 @@ export function registerSso(ctx: ModuleContext) {
     await requireRecentAuth({ db, audit: ctx.audit, settings: ctx.settings }, req, 'unlinking a sign-in provider');
     await unlinkIdentity(ctx, req, me.id, row!, 'by the person');
     return { ok: true };
+  });
+
+  // ---------- back-channel sign-out (E02-23) ----------
+  // The provider calls this, server to server, when a person signs out there or their directory
+  // account is disabled. It carries a signed logout token, not a browser session, so the CSRF header
+  // is not asked for (route config `noCsrf`); the token's signature is the proof.
+  app.register(async (scoped) => {
+    scoped.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string', bodyLimit: 32 * 1024 }, (_req, raw, done) => {
+      try { done(null, Object.fromEntries(new URLSearchParams(String(raw)))); } catch (err) { done(err as Error, undefined); }
+    });
+    scoped.post('/api/auth/sso/:key/backchannel-logout', { config: { public: true, noCsrf: true } }, async (req, reply) => {
+      reply.header('cache-control', 'no-store');
+      const ip = clientIp(req);
+      if (await signinLimiter(db).blocked(ip)) return reply.code(429).send({ error: 'rate_limited' });
+      const p = await providerByKey(db, String((req.params as Record<string, string>).key ?? ''));
+      if (!p || !p.enabled || p.type !== 'oidc' || p.config.backchannelLogout !== true) return reply.code(404).send({ error: 'not_found' });
+      const token = (req.body as Record<string, unknown> | undefined)?.logout_token;
+      let claims: { sub: string | null; sid: string | null; jti: string | null };
+      try {
+        if (typeof token !== 'string' || !token) throw new IdentityError('no logout token');
+        claims = await verifyLogoutToken(p, token);
+      } catch (err) {
+        await auditFailure(deps, req, p, err instanceof IdentityError ? err.reason : 'unexpected error', undefined, 'Back-channel sign-out');
+        return reply.code(400).send({ error: 'invalid_request' });
+      }
+      if (claims.jti) {
+        await db.query(`delete from identity_logout_tokens where received_at < now() - interval '1 day'`);
+        const fresh = await db.one('insert into identity_logout_tokens (provider_id, jti) values ($1,$2) on conflict do nothing returning 1', [p.id, claims.jti]);
+        if (!fresh) return reply.code(200).send({ ok: true }); // already acted on
+      }
+      const linked = claims.sub
+        ? await db.one<{ user_id: string }>('select user_id from user_identities where provider_id = $1 and subject = $2', [p.id, claims.sub])
+        : undefined;
+      // Sessions made through this provider: for that person, or for that provider session.
+      const ended = await db.query<{ user_id: string }>(
+        `delete from sessions where token_hash in (
+           select s.token_hash from identity_sessions s join sessions x on x.token_hash = s.token_hash
+           where s.provider_id = $1 and (($2::text is not null and s.sid = $2) or ($3::uuid is not null and x.user_id = $3)))
+         returning user_id`,
+        [p.id, claims.sid, linked?.user_id ?? null],
+      );
+      const users = [...new Set(ended.map((r) => r.user_id))];
+      await ctx.audit(req, {
+        action: 'identity.backchannel_logout', recordType: 'user', recordId: users.length === 1 ? users[0] : linked?.user_id,
+        summary: `${p.name} signed ${ended.length} session(s) out from ${ip}${claims.sub && !linked ? ' (the subject is not linked to an account here)' : ''}`,
+      });
+      return reply.code(200).send({ ok: true });
+    });
   });
 
   app.get('/api/auth/sso/session', async (req) => {

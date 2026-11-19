@@ -51,7 +51,7 @@ const FAR = 8.64e15;
 export const byUrgency = (a: Row, b: Row) =>
   (ORDER[a.state] - ORDER[b.state]) || (new Date(a.due_at ?? FAR).getTime() - new Date(b.due_at ?? FAR).getTime());
 
-const stampFmt = new Intl.DateTimeFormat('en-GB', {
+const stampFmt = new Intl.DateTimeFormat('en-US', {
   day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: TIME_ZONE,
 });
 /** "18 Nov 2026, 14:05" in the organization's time zone, for text written into the log and notifications. */

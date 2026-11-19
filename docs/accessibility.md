@@ -20,7 +20,9 @@ below.
 - **Automated checks on every screen.** Every route of the application, each list's New
   dialog and the search window are checked with the open-source axe-core engine against the
   WCAG 2.1 A and AA rules, in the light and dark themes, at desktop (1440 pixels) and tablet
-  (820 pixels) widths: `node tools/a11y/audit.mjs` (see the developer guide, "Testing").
+  (820 pixels) widths: `node tools/a11y/audit.mjs` (see the developer guide, "Tests"). A
+  finding already raised as a roadmap issue is listed in `tools/a11y/known.json`; any other
+  serious or critical finding fails the check.
 - **Color contrast of the design tokens** in both themes: `node tools/contrast.mjs`. Text
   meets 4.5:1 and controls, focus rings and chart colors 3:1 against their backgrounds.
 - **Keyboard-only use**, checked automatically by the browser tests
@@ -28,7 +30,17 @@ below.
   on every stop, the order of Tab stops (top bar, then navigation, then the page), arrow keys
   in the navigation, menus, tabs and list tables, dialogs that keep focus inside and return it
   when closed with Escape, the search window (Ctrl+K or /), creating a record without a
-  mouse, and moving a dashboard widget with the arrow keys.
+  mouse, choosing a record in a picker with the arrow keys, selecting a node of the
+  relationship map, and moving a dashboard widget with the arrow keys.
+- **Keyboard-only use, module by module** (`08-keyboard-modules.mjs`): for every module's
+  lists and one record of each, every Tab stop in the page shows a focus indicator, nothing
+  that reacts to a click is left out of the Tab order, and each New dialog opens with Enter,
+  keeps the focus, and closes with Escape, putting the focus back.
+- **Every hand-written dialog** that changes a record (resolving and closing a ticket,
+  checking an asset out and in, disposal, risk review and acceptance, gate decisions, change
+  approval and completion, vulnerability decisions, training records, exercise findings) is
+  opened, submitted empty where it asks for something, and submitted in a real browser
+  (`07-dialogs.mjs`).
 - **Every role** has been taken through every screen in a browser (`04-roles.mjs`): pages a
   role may not use say "No access" rather than failing.
 
@@ -54,8 +66,13 @@ below.
   with the keyboard; its Table view lists the same relationships and is the better choice
   with a screen reader.
 - Charts give a summary in words, but the figures behind some charts are only available by
-  opening the records behind them.
-- Issues the automated audit still reports are listed in the roadmap
+  opening the records behind them. On the Overview, dashboards and reports, a chart's bars and
+  slices open the records behind them with a pointer only; with the keyboard, use the report's
+  table or the list itself (roadmap issue E18-42).
+- Record pickers open their list as soon as they take the focus, so after closing a question
+  inside a dialog, the first Escape closes the picker's list and the next one the dialog.
+- The automated audit reported no violation on any screen in its last full run (19 November
+  2026). Anything it finds later is raised in the roadmap
   ([E18](roadmap/epics/E18-quality-and-known-defects.md)) with the screen and the fix.
 
 ## Reporting a problem

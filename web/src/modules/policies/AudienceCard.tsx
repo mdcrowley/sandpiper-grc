@@ -14,7 +14,7 @@ export function AudienceCard({ rec }: { rec: RecordContext }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
-  const [form, setForm] = useState({ everyone: false, roles: [] as string[], departments: [] as string[], days: 14 as number | null });
+  const [form, setForm] = useState({ everyone: false, roles: [] as string[], departments: [] as string[], days: 14 as number | null, remind: null as number | null });
 
   const roles: string[] = Array.isArray(row.audience_roles) ? row.audience_roles : [];
   const departments: string[] = Array.isArray(row.audience_departments) ? row.audience_departments : [];
@@ -23,7 +23,7 @@ export function AudienceCard({ rec }: { rec: RecordContext }) {
   const nobody = !row.audience_everyone && roles.length === 0 && departments.length === 0;
 
   const edit = () => {
-    setForm({ everyone: row.audience_everyone === true, roles, departments, days: Number(row.ack_days) || 14 });
+    setForm({ everyone: row.audience_everyone === true, roles, departments, days: Number(row.ack_days) || 14, remind: row.reminder_interval_days == null ? null : Number(row.reminder_interval_days) });
     setMessage('');
     setOpen(true);
   };
@@ -31,7 +31,7 @@ export function AudienceCard({ rec }: { rec: RecordContext }) {
     setSaving(true);
     setMessage('');
     try {
-      await rec.save({ audience_everyone: form.everyone, audience_roles: form.roles, audience_departments: form.departments, ack_days: form.days });
+      await rec.save({ audience_everyone: form.everyone, audience_roles: form.roles, audience_departments: form.departments, ack_days: form.days, reminder_interval_days: form.remind });
       toast.success('Audience saved.');
       setOpen(false);
     } catch (err) {
@@ -57,6 +57,7 @@ export function AudienceCard({ rec }: { rec: RecordContext }) {
         <p className="muted">
           People are asked when a version is published and have {Number(row.ack_days) || 14} days to acknowledge it.
           A change here applies from the next version published.
+          {' '}{row.reminder_interval_days ? `Anyone late is reminded every ${row.reminder_interval_days} days.` : 'Anyone late is reminded at the usual interval.'}
         </p>
       </div>
 
@@ -76,6 +77,10 @@ export function AudienceCard({ rec }: { rec: RecordContext }) {
             </>
           )}
           <NumberField label="Days to acknowledge" min={1} max={365} step={1} value={form.days} onChange={(v) => setForm((f) => ({ ...f, days: v }))} />
+          <NumberField
+            label="Days between reminders" min={1} max={90} step={1} value={form.remind} onChange={(v) => setForm((f) => ({ ...f, remind: v }))}
+            hint="For people who are late. Leave empty for the usual interval set under Policies settings."
+          />
         </div>
       </Modal>
     </Card>

@@ -10,11 +10,14 @@ import { CopyBox, copyText, downloadText, Notice } from './common';
 import { PasskeysCard } from '../account-keys/PasskeysCard';
 import { LinkedIdentitiesCard } from './LinkedIdentities';
 import { encodeQr, qrPath } from './qr';
+import { withReauth } from './reauth';
 import { SessionsCard } from './Sessions';
 
 interface Security {
   totpEnabled: boolean; recoveryCodesLeft: number; mfaEnrollmentRequired: boolean; mfaEnrollmentBlocked?: boolean;
   mfaGraceEndsAt?: string | null; passwordChangedAt: string | null; minLength: number;
+  /** Passkeys and security keys held (E02-21), whether a password is set, and whether this session's provider proved a second factor (E02-22). */
+  passkeys?: number; hasPassword?: boolean; secondFactorViaProvider?: boolean;
 }
 
 const HOME = '/account/security';
@@ -92,6 +95,12 @@ export function AccountSecurityPage() {
               Until it is set up, the rest of the application is not available to you. You can still change your password or sign out.
             </Notice>
           )}
+          {data.secondFactorViaProvider && !data.totpEnabled && !data.passkeys && (
+            <Notice tone="info" role="status" icon="shield">
+              Your organization's sign-in provider confirmed a second factor when you signed in, so this session meets the
+              requirement. Setting one up here as well lets you work when you sign in another way.
+            </Notice>
+          )}
           {!blocked && !data.totpEnabled && data.mfaEnrollmentRequired && data.mfaGraceEndsAt && (
             <Notice tone="caution" role="status" icon="clock">
               Set up your second factor by <strong>{formatDate(data.mfaGraceEndsAt)}</strong>. After that you will not be able to work until it is set up.
@@ -107,6 +116,10 @@ export function AccountSecurityPage() {
               {/* Single sign-on: linked providers and the break-glass notice (not while access is blocked). */}
               {/* Passkeys and security keys (account-keys module): count as a second factor, so shown even while blocked. */}
               {!codes && <PasskeysCard onChange={changed} />}
+              {/* Recovery codes for people whose only second factor is a passkey (E02-21). */}
+              {!codes && !data.totpEnabled && Boolean(data.passkeys) && (
+                <PasskeyRecoveryCodes data={data} onCodes={(c) => { setCodes(c); changed(); }} />
+              )}
               {!blocked && !codes && <LinkedIdentitiesCard />}
             </div>
             <div className={`stack${codes ? ' adm-no-print' : ''}`}>
@@ -242,9 +255,9 @@ function RecoveryCodes({ codes, onDone }: { codes: string[]; onDone: () => void 
       <div className="stack">
         <Notice tone="caution" role="alert">
           <strong>These codes are shown once.</strong> When you leave this page they cannot be shown again; only you have them.
-          Copy, download or print them now and keep them somewhere safe and separate from your phone.
+          Copy, download or print them now and keep them somewhere safe and separate from your phone and your keys.
         </Notice>
-        <p>Each code signs you in <strong>once</strong> in place of the 6-digit code, for when your phone is lost or broken.</p>
+        <p>Each code signs you in <strong>once</strong> in place of your second factor, for when your phone or key is lost or broken.</p>
         <ol className="adm-codes" aria-label="Recovery codes" data-testid="recovery-codes">{codes.map((c) => <li key={c}><code>{c}</code></li>)}</ol>
         <div className="row adm-no-print">
           <Button icon="clipboard" onClick={() => void copyText(codes.join('\n')).then((ok) => { if (ok) { setSaved(true); toast.success('Codes copied.'); } else toast.error('Copying was blocked. Download or write the codes down.'); })}>Copy codes</Button>
@@ -256,6 +269,68 @@ function RecoveryCodes({ codes, onDone }: { codes: string[]; onDone: () => void 
           <Button variant="primary" disabled={!saved} aria-describedby={saved ? undefined : 'adm-codes-first'} onClick={onDone}>I have saved them</Button>
         </div>
       </div>
+    </Card>
+  );
+}
+
+/**
+ * Recovery codes when the only second factor is a passkey or security key (E02-21). Offered as soon as
+ * the first key is added: without them, losing the key means asking an administrator.
+ */
+function PasskeyRecoveryCodes({ data, onCodes }: { data: Security; onCodes: (codes: string[]) => void }) {
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const none = data.recoveryCodesLeft === 0;
+  const close = () => { setOpen(false); setPassword(''); setError(''); };
+  const make = async (e?: FormEvent) => {
+    e?.preventDefault();
+    if (data.hasPassword !== false && !password) { setError('Enter your current password.'); return; }
+    setBusy(true);
+    setError('');
+    try {
+      const res = await withReauth(() => api.post<{ recoveryCodes: string[] }>('/api/auth/totp/recovery-codes', { password }));
+      close();
+      onCodes(res.recoveryCodes);
+    } catch (err) {
+      setError(err instanceof ApiError && err.fields.password ? err.fields.password : errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Card title="Recovery codes" actions={<StatusChip color={none ? 'amber' : 'green'} label={none ? 'None yet' : `${data.recoveryCodesLeft} left`} />}>
+      <div className="stack">
+        {none ? (
+          <Notice tone="caution" role="status">
+            <strong>Make recovery codes now.</strong> Your passkeys are your only second factor. If you lose them, a recovery code
+            gets you in once; without one you will need an administrator.
+          </Notice>
+        ) : (
+          <p>Each of your {data.recoveryCodesLeft} codes signs you in once if you cannot use your passkey or security key.</p>
+        )}
+        <div className="row">
+          <Button icon={none ? 'shield' : 'refresh'} variant={none ? 'primary' : 'secondary'} onClick={() => setOpen(true)}>
+            {none ? 'Make recovery codes' : 'New recovery codes'}
+          </Button>
+        </div>
+      </div>
+      <Modal open={open} size="sm" title={none ? 'Make recovery codes' : 'Make new recovery codes'} onClose={close}>
+        <form className="form" onSubmit={make} noValidate>
+          <p className="muted">
+            {none ? 'Ten codes will be shown once.' : 'Your existing recovery codes will stop working and ten new ones will be shown once.'}
+          </p>
+          {data.hasPassword !== false && (
+            <TextField label="Current password" required autoFocus type="password" autoComplete="current-password" value={password} onChange={setPassword} error={error || undefined} />
+          )}
+          {data.hasPassword === false && error && <p className="form-error" role="alert">{error}</p>}
+          <div className="form-actions">
+            <Button onClick={close}>Cancel</Button>
+            <Button type="submit" variant="primary" loading={busy}>Make codes</Button>
+          </div>
+        </form>
+      </Modal>
     </Card>
   );
 }

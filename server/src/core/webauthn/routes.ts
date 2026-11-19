@@ -134,6 +134,17 @@ export async function passkeySecondFactor(
   }
 }
 
+/**
+ * Recovery codes belong to a second factor. When a person's last factor goes (no passkey left and no
+ * authenticator app), their codes go too, so they cannot later stand in for a factor that is gone.
+ */
+async function dropOrphanRecoveryCodes(db: Db, userId: string): Promise<void> {
+  await db.query(
+    `update users set recovery_codes = '[]'::jsonb where id = $1 and not totp_enabled
+       and not exists (select 1 from webauthn_credentials c where c.user_id = users.id and c.revoked_at is null)`, [userId],
+  );
+}
+
 export function registerWebAuthn(app: FastifyInstance, deps: WebAuthnDeps) {
   const { db, audit, settings } = deps;
   const signinFailures = makeDbLimiter(db, 'signin', 20, 5 * 60_000); // shared with password sign-in, by address
@@ -205,7 +216,10 @@ export function registerWebAuthn(app: FastifyInstance, deps: WebAuthnDeps) {
         action: 'passkey.register', recordType: 'user', recordId: me.id,
         summary: `Passkey "${name}" added (${publicView(row).algorithm}${created.backupEligible ? ', synced' : ''}${created.userVerified ? ', with user verification' : ''})`,
       });
-      return { ok: true, credential: publicView(row) };
+      // E02-21: a first passkey with no authenticator app leaves the person with no way back in if it is
+      // lost; the page offers recovery codes then (they are made with POST /api/auth/totp/recovery-codes).
+      const codes = await db.one<{ totp: boolean; n: number }>('select totp_enabled as totp, jsonb_array_length(recovery_codes) as n from users where id = $1', [me.id]);
+      return { ok: true, credential: publicView(row), offerRecoveryCodes: !codes?.totp && !codes?.n };
     } catch (err) {
       if (!(err instanceof WebAuthnError)) throw err;
       await changeFailures.hit(me.id);
@@ -242,6 +256,7 @@ export function registerWebAuthn(app: FastifyInstance, deps: WebAuthnDeps) {
     const row = await ownCredential(req, me.id);
     await requireRecentAuth(deps, req, 'Removing a passkey or security key');
     await db.query('update webauthn_credentials set revoked_at = now(), revoked_by = $2 where id = $1', [row.id, me.id]);
+    await dropOrphanRecoveryCodes(db, me.id);
     await audit(req, { action: 'passkey.revoke', recordType: 'user', recordId: me.id, summary: `Passkey "${row.name}" removed by its owner` });
     return { ok: true };
   });
@@ -266,8 +281,26 @@ export function registerWebAuthn(app: FastifyInstance, deps: WebAuthnDeps) {
     const row = await ownCredential(req, userId);
     await requireRecentAuth(deps, req, 'Removing someone\'s passkey');
     await db.query('update webauthn_credentials set revoked_at = now(), revoked_by = $2 where id = $1', [row.id, req.user!.id]);
+    await dropOrphanRecoveryCodes(db, userId);
     await audit(req, { action: 'passkey.revoke', recordType: 'user', recordId: userId, summary: `Passkey "${row.name}" removed by an administrator` });
     return { ok: true };
+  });
+
+  // ---------- confirming one's identity before a sensitive action (E01-29) ----------
+
+  /** A challenge for the signed-in person's own keys, answered in POST /api/auth/confirm as `webauthn`. */
+  app.post('/api/auth/webauthn/confirm/options', async (req) => {
+    const me = req.user!;
+    const rp = rpOrFail(req);
+    const keys = (await activeCredentials(db, me.id)).filter((c) => c.rp_id === rp.rpId);
+    if (!keys.length) fail(404, 'no_passkeys', 'No passkey or security key is registered for your account at this address.');
+    const challenge = await issueChallenge(db, 'login', me.id);
+    return {
+      publicKey: {
+        challenge, rpId: rp.rpId, timeout: CHALLENGE_SECONDS * 1000, userVerification: await uvPolicy(deps),
+        allowCredentials: keys.map((c) => ({ type: 'public-key', id: c.credential_id, transports: c.transports })),
+      },
+    };
   });
 
   // ---------- sign-in ----------

@@ -1,14 +1,26 @@
-import { useState } from 'react';
-import { Card, EditableSummary, ErrorState, errorMessage, LinksPanel, Loading, Switch, useFetch, useToast } from '../../core';
+import { lazy, Suspense, useState } from 'react';
+import type { ComponentType } from 'react';
+import { Card, EditableSummary, ErrorState, errorMessage, LinksPanel, Loading, Switch, useAuth, useFetch, useToast } from '../../core';
 import type { RecordContext } from '../../core';
+import type { RecordLink } from '../../core/RecordLinks';
 import type { Questions } from './types';
+
+// The fleet module's panel of affected vehicles and services, when that module is built in. Found
+// by file name, so this page still builds, and simply leaves the panel out, without it.
+const fleetLoaders = import.meta.glob<{ AffectedPanel: ComponentType<{ systemIds: string[] }> }>('../fleet/AffectedPanel.tsx');
+const loadFleet = Object.values(fleetLoaders)[0];
+const AffectedPanel = loadFleet ? lazy(() => loadFleet().then((m) => ({ default: m.AffectedPanel }))) : null;
 
 /** What is involved: the yes/no answers that drive the notification rules, the affected systems and data, and linked records. */
 export function AffectedTab({ rec, onSaved }: { rec: RecordContext; onSaved: () => void }) {
   const { row, save, canEdit } = rec;
   const toast = useToast();
   const asked = useFetch<Questions>('/api/security-incidents/questions');
+  const { can } = useAuth();
   const [saving, setSaving] = useState<string | null>(null);
+  // One request for the links, shared by the links card and the vehicles and services they reach.
+  const links = useFetch<RecordLink[]>(`/api/links?record_type=security_incident&record_id=${encodeURIComponent(row.id)}`);
+  const systemIds = (links.data ?? []).filter((l) => l.type === 'system').map((l) => l.recordId);
   const held: string[] = Array.isArray(row.data_kinds) ? row.data_kinds : [];
 
   async function answer(q: Questions['questions'][number], yes: boolean) {
@@ -54,8 +66,23 @@ export function AffectedTab({ rec, onSaved }: { rec: RecordContext; onSaved: () 
       <EditableSummary type="security_incident" row={row} onSaved={onSaved} title="Affected systems and data"
         fields={['affected_systems', 'affected_data']} />
       <Card title="Linked systems, data categories and other records">
-        <LinksPanel type="security_incident" id={row.id} />
+        <LinksPanel type="security_incident" id={row.id} linksState={links} />
       </Card>
+      {AffectedPanel && can('fleet.view') && (
+        <section className="si-fleet" aria-labelledby="si-fleet-title">
+          <div className="si-fleet-head">
+            <h2 id="si-fleet-title">Services and vehicles affected</h2>
+            <p className="muted">Services that depend on the linked systems, and vehicles that carry their equipment.</p>
+          </div>
+          {systemIds.length === 0 ? (
+            <p className="muted si-fleet-empty">Link the affected systems above to see the services and vehicles they reach.</p>
+          ) : (
+            <Suspense fallback={<Loading lines={3} label="Loading affected vehicles and services" />}>
+              <AffectedPanel systemIds={systemIds} />
+            </Suspense>
+          )}
+        </section>
+      )}
     </div>
   );
 }

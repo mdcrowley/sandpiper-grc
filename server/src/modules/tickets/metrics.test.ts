@@ -85,6 +85,8 @@ describe('service desk metrics', () => {
     }
     expect((await t.api.get('/api/tickets?f.category=hardware&f.opened_at.gte=2026-11-16')).body.total).toBe(2);
     // E18-16: the "missed target" tile counts either target; the list it opens filters on the same thing.
+    // E18-29: the figures count a target that has just passed; the list's flag follows at the next sweep (every minute).
+    await t.api.post('/api/tickets/sla/sweep');
     const ranged = (await t.api.get('/api/tickets/metrics?from=2026-11-16&to=2026-11-18')).body;
     const list = (await t.api.get('/api/tickets?f.target_missed=true&f.opened_at.gte=2026-11-16&f.opened_at.lte=2026-11-18T23:59:59.999')).body;
     expect(list.total).toBe(ranged.sla.breaches);

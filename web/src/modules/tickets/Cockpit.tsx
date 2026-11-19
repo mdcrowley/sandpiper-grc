@@ -42,6 +42,38 @@ function Clock({ label, clock, total, start, paused }: { label: string; clock: C
   );
 }
 
+interface ApprovalState {
+  status: string | null; needed: number; approved: number; rejected: number;
+  approvers: { id: string; label: string }[] | null;
+  decisions: { id: string; user_name: string; decision: 'approved' | 'rejected'; note: string | null; decided_at: string; superseded: boolean; counts: boolean }[];
+  my_decision: string | null; can_decide: boolean; cannot_decide_reason: string | null;
+}
+
+/** E03-21: who has decided so far, and who may still decide. */
+function ApprovalProgress({ state }: { state: ApprovalState }) {
+  if (state.needed <= 1 && !state.approvers && state.decisions.length <= 1) return null;
+  return (
+    <div className="sd-approval-progress">
+      {state.needed > 1 && (
+        <ProgressBar label="Approvals given" value={state.approved} max={state.needed} size="sm"
+          color={state.rejected ? 'red' : state.approved >= state.needed ? 'green' : 'amber'} valueText={`${state.approved} of ${state.needed} approvals`} />
+      )}
+      {state.approvers && <p className="muted">May approve: {state.approvers.map((a) => a.label).join(', ')}.</p>}
+      {state.decisions.length > 0 && (
+        <ul className="sd-decisions">
+          {state.decisions.map((d) => (
+            <li key={d.id} className={d.counts ? undefined : 'is-superseded'}>
+              <Icon name={d.decision === 'approved' ? 'check-circle' : 'x'} size={14} />
+              <span><strong>{d.user_name}</strong> {d.decision === 'approved' ? 'approved' : 'rejected'} {formatDateTime(d.decided_at)}
+                {d.note ? <> · “{d.note}”</> : null}{!d.counts ? <span className="muted"> (no longer counts)</span> : null}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function Approval({ rec }: { rec: RecordContext }) {
   const { row, reload } = rec;
   const { can } = useAuth();
@@ -50,7 +82,12 @@ function Approval({ rec }: { rec: RecordContext }) {
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const state = useFetch<ApprovalState>(row.approval_status ? `/api/tickets/${row.id}/approvals` : null);
+  const reloadState = state.reload;
+  useEffect(() => { if (row.approval_status) reloadState(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [row.updated_at]);
   if (!row.approval_status) return null;
+  const mayDecide = can('tickets.approve') && (state.data ? state.data.can_decide : true);
+  const progress = state.data && state.data.needed > 1 ? ` ${state.data.approved} of ${state.data.needed} approvals so far.` : '';
 
   async function decide() {
     setBusy(true);
@@ -73,11 +110,14 @@ function Approval({ rec }: { rec: RecordContext }) {
       {row.approval_status === 'pending' ? (
         <div className="notice notice-pilot sd-cockpit-note">
           <Icon name="lock" size={16} />
-          <span className="sd-grow"><strong>Waiting for approval.</strong> Work can start once this request is approved. It can be assigned, paused or canceled meanwhile.</span>
-          {can('tickets.approve') && (
+          <span className="sd-grow">
+            <strong>Waiting for approval.</strong>{progress} Work can start once this request is approved. It can be assigned, paused or canceled meanwhile.
+            {can('tickets.approve') && state.data && !state.data.can_decide && state.data.cannot_decide_reason ? <span className="muted"> {state.data.cannot_decide_reason}</span> : null}
+          </span>
+          {mayDecide && (
             <span className="row">
-              <Button size="sm" variant="primary" icon="check" onClick={() => { setNote(''); setError(''); setDecision('approved'); }}>Approve</Button>
-              <Button size="sm" icon="x" onClick={() => { setNote(''); setError(''); setDecision('rejected'); }}>Reject</Button>
+              {state.data?.my_decision !== 'approved' && <Button size="sm" variant="primary" icon="check" onClick={() => { setNote(''); setError(''); setDecision('approved'); }}>Approve</Button>}
+              {state.data?.my_decision !== 'rejected' && <Button size="sm" icon="x" onClick={() => { setNote(''); setError(''); setDecision('rejected'); }}>Reject</Button>}
             </span>
           )}
         </div>
@@ -88,11 +128,12 @@ function Approval({ rec }: { rec: RecordContext }) {
             <strong>{lookupLabel('ticket_approval', row.approval_status)}</strong>{who}.{row.approval_note ? ` “${row.approval_note}”` : ''}
             {row.approval_status === 'rejected' ? ' Cancel the ticket, or ask for the decision to be changed.' : ''}
           </span>
-          {row.approval_status === 'rejected' && can('tickets.approve') && (
+          {row.approval_status === 'rejected' && mayDecide && (
             <Button size="sm" onClick={() => { setNote(''); setError(''); setDecision('approved'); }}>Approve after all</Button>
           )}
         </div>
       )}
+      {state.data && <ApprovalProgress state={state.data} />}
       <Modal open={decision !== null} size="sm" title={decision === 'approved' ? 'Approve this request' : 'Reject this request'} onClose={() => setDecision(null)}
         footer={<><Button onClick={() => setDecision(null)}>Cancel</Button><Button variant={decision === 'rejected' ? 'danger' : 'primary'} loading={busy} onClick={decide}>{decision === 'approved' ? 'Approve' : 'Reject'}</Button></>}>
         <TextArea label={decision === 'rejected' ? 'Reason' : 'Note (optional)'} required={decision === 'rejected'} rows={3} value={note} onChange={setNote} error={error || undefined}

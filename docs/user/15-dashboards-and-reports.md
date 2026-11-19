@@ -2,15 +2,19 @@
 
 You can build your own reports and dashboards without help from a developer: choose what to report on, pick the columns or groups you want, and see the answer straight away. Everything is under the **Reports** group: **Dashboards**, **Reports**, **Report packs**, **Schedules** and **Delivered to me**.
 
+An administrator can switch dashboards and reports off under **Administration > Features** (see [Administration](09-administration.md#features)); the **Overview** page and its figures stay. Saved dashboards, reports and schedules are kept and return when it is switched back on.
+
 Two rules run through all of it. **Everyone who may see a figure sees the same figure**: counts, totals, charts, pivot tables, numbers and gauges include every record, restricted ones too, so two people never read different numbers for the same thing. **Records themselves are shown only to people allowed to open them**: a list of records, the records behind a figure and the rows of a **List** report show only what you may see, and when a summary is grouped by words or people (such as a title, a department or an owner) restricted records are counted under **Restricted records** instead, for everyone. Sharing a report or dashboard shares the *design*, never the records. Someone without access to security incidents sees a dashboard's incident widget say "Your role does not include this information" while the rest of the dashboard works as normal.
 
 ## Reports
 
 Open **Reports** to see the saved reports you can use: your own, those shared with you, and the standard reports that come with the application. Select a report to run it. The figures are as at the moment you open it; select **Refresh the figures** under the **More** button (three dots) to work them out again.
 
+If a report is about records your role does not include (or a part of the application that is not switched on here), the page says so plainly and does not try to run it.
+
 On an open report you can:
 
-- **Export**: **PDF** downloads a PDF with the title, the report's filters, the time it was made, a chart (bars, a line or a pie, as the report is drawn) and the table, which continues over as many pages as it needs with its header row repeated; **Excel (XLSX)** downloads a spreadsheet with dates, numbers and amounts as real typed cells; **CSV** downloads every row as plain text; **Print-ready page** opens a page you can print or save as a PDF from the browser's Print command. The PDF uses standard fonts that cover Western European letters only: other characters print as `?`, so use Excel or CSV for text in other scripts. Exports need the reports export permission and export permission for the records in the report. Every export is written to the audit log, and an export that lists restricted records carries a "Restricted export by …" line (a summary does not: it shows none of their details).
+- **Export**: **PDF** downloads a PDF with the title, the report's filters, the time it was made, a chart (bars, a line or a pie, as the report is drawn) and the table, which continues over as many pages as it needs with its header row repeated; **Excel (XLSX)** downloads a spreadsheet with dates, numbers and amounts as real typed cells; **CSV** downloads every row as plain text; **Print-ready page** opens a page you can print or save as a PDF from the browser's Print command. Western European text is printed in a standard font; text in other scripts (Greek, Cyrillic, Hebrew, Arabic, Chinese, Japanese, Korean and others) is printed in a font from the server, so it reads as written (see [Text in other scripts in PDFs](#text-in-other-scripts-in-pdfs)). Exports need the reports export permission and export permission for the records in the report. Every export is written to the audit log, and an export that lists restricted records carries a "Restricted export by …" line (a summary does not: it shows none of their details).
 - **Schedule**: send the report to people regularly (see [Scheduled delivery](#scheduled-delivery)).
 - **Add to dashboard**: place the report on a dashboard you can change, or on a new one.
 - **Share** and **Edit**: only for the report's owner (and administrators). Anyone else can select **Save a copy** under **More** to make their own version.
@@ -23,15 +27,17 @@ On an open report you can:
 3. The builder opens in three panes:
    - **1 · What it is about** (left): every field you can use, with its kind (text, choice, date, money and so on). Fields of linked records are listed under "From …", for example **From vendor**, and fields your organization added are under **Added by your organization**. Select a field to add it; select the funnel beside it to filter by it.
    - **2 · Shape it** (middle): the columns or groups, totals, filters, order and the chart.
-   - **Preview** (right): the answer, updated a moment after every change. It shows what *your* role allows; other people see what theirs allows.
-4. Choose **List** (one row for each record) or **Summary** (counts and totals, grouped).
-5. Select **Save report**, give it a **Name** and a **Description**, choose **Who can see it**, and select **Save**.
+   - **Preview** (right): a sentence saying in plain words what the report does (for example "The number of tickets, grouped by status, where priority is any of High."), then the answer, updated a moment after every change. A list shows what *your* role allows; figures are the same for everyone.
+4. Choose **List** (one row for each record) or **Summary** (counts and totals, grouped). **Quick start** offers ready-made shapes that suit the kind of record, such as **Count by status**, **Tickets each month**, **By assignee** (largest first) and **Status by priority**: select one to start from it. Your filters are kept, and **Undo** brings back what was there.
+5. Select **Save report** (or press Ctrl+S), give it a **Name** and a **Description**, choose **Who can see it**, and select **Save**.
 
-**Undo** and **Redo** (or Ctrl+Z and Ctrl+Y) step back and forward through every change. Select **Change** in the first pane to report on something else; **Undo** brings the old report back.
+**Undo** and **Redo** (or Ctrl+Z and Ctrl+Y) step back and forward through every change. If you close or reload the tab with changes you have not saved, the browser asks first. Select **Change** in the first pane to report on something else; **Undo** brings the old report back.
 
 ### Lists
 
-Under **Columns**, the chosen fields are listed in the order they will appear. Use the arrows to move a column up or down and the cross to remove it, or pick one from **Add a column…**. With no columns chosen, a standard set is shown.
+Under **Columns**, the chosen fields are listed in the order they will appear. Drag a column by its grip (the three lines) to a new place, or use the arrows to move it up or down; the cross removes it, and **Add a column…** adds one. With no columns chosen, a standard set is shown.
+
+A field your organization added that holds several choices (a multi-choice field) shows all of a record's choices in its column, separated by commas. It can be filtered by (see below) but not grouped by, because one record can hold several values.
 
 ### Summaries
 
@@ -45,7 +51,7 @@ Select **Add a condition**, choose a field, then a comparison in plain words and
 - text: **contains**, **does not contain**, **is exactly**, **starts with**;
 - numbers and money: **is at least**, **is at most**, **is more than**, **is less than**, **is between** and so on;
 - dates: **in the last … days**, **in the next … days**, **this month**, **this quarter**, **this year**, **before today**, **after today**, **on or after**, **on or before**, **between**;
-- choices: **is any of**, **is none of**; people: **is me**, **is**, **is not**, **is nobody**; yes/no fields: **is yes**, **is no**;
+- choices: **is any of**, **is none of**; multi-choice fields: **has any of**, **has none of**, **has no value**, **has a value**; people: **is me**, **is**, **is not**, **is nobody**; yes/no fields: **is yes**, **is no**;
 - every field: **is empty** / **is not empty** (or **has no date** / **has a date**).
 
 With two or more conditions, choose whether records must match **all of these** or **any of these**. **Add a group** adds a set of conditions with the opposite rule, for "A and (B or C)". A condition that still needs a value is left out of the preview until it has one.
@@ -55,6 +61,10 @@ With two or more conditions, choose whether records must match **all of these** 
 Under **Order**, choose what to **Sort by** and the direction.
 
 Under **Show as**, pick how the result is drawn: **Table**, **Number**, **Gauge** (a figure against a **Target**, with a **Full scale**), **Bars**, **Ranked bars**, **Stacked bars**, **Line**, **Area**, **Doughnut**, **Pie**, **Heat map** or **Calendar**. Charts that do not suit the report are grayed out; hover over one to see why (for example, a heat map needs two fields to group by). When the report has several totals, **Figure to draw** chooses which one the chart shows; the table keeps them all.
+
+With two groups, the second one's values keep their natural order in the legend, the series and the pivot table's columns: a choice list's own order (for example New, In progress, Closed), dates in time order and words alphabetically, with **None** and **Restricted records** last.
+
+Category names along the bottom of a bar or line chart never run into each other: they stay on one line when there is room, wrap onto two lines when there is room for a word, and otherwise are tilted and shortened, with any that would still overlap left out (hover over a bar to read its full name).
 
 Every bar, slice, point, cell and figure can be selected to open the list of records behind it, with the matching filters in the address, so you can bookmark or send it. When a filter has no equivalent on the list page, the report says the list uses the closest filters it can.
 
@@ -101,19 +111,32 @@ Seven standard dashboards come with the application: **IT leadership overview**,
 
 Your home dashboard is your own choice and does not change anyone else's. If it is later deleted or no longer shared with you, the choice quietly stops applying.
 
+### Printing a dashboard
+
+Select **Print this page** under **More** (or use the browser's Print command) for a tidy page: menus and buttons are left out, the dashboard's name and the time its figures were worked out are printed at the top, and every chart is printed on white with patterns as well as colors, so its bars and slices can be told apart on a black-and-white printer. The Overview prints the same way (its **Print** button). For a document made by the server, use **Export** instead.
+
+### Your dashboard on the Overview
+
+The Overview (the home page) takes its shape from your role:
+
+- When you have chosen a home dashboard, the Overview's **Dashboard** part shows it, under **Your dashboard:** and its name. Switch between **My dashboard** and **Overview figures** (the Overview's own widgets) above it; the choice is remembered in this browser. **Open in full** opens the dashboard itself, with its filters.
+- If your role is for looking rather than changing anything (for example **Executive viewer** or **Auditor**), the Overview leads with the figures, under **At a glance**: the **Board summary** dashboard is suggested there until you choose a home dashboard of your own. **Where to look** then lists every area your role can open, and your own lists (notifications, records you watch and the like) come last, under **For you**. Without the dashboards permission, **Where to look** comes first.
+
+Everyone else sees **My work** first, then the **Dashboard**.
+
 ### Build or change a dashboard
 
-1. Select **New dashboard** (or **Create** then **Dashboard**), enter a **Name** and select **Create and add widgets**. It starts empty and private to you. To change an existing dashboard, open it and select **Edit** (only its owner and administrators can; anyone else can **Save a copy**).
+1. Select **New dashboard** (or **Create** then **Dashboard**), enter a **Name** and select **Create and add widgets** (without a name, a message under the field asks for one). It starts empty and private to you. To change an existing dashboard, open it and select **Edit** (only its owner and administrators can; anyone else can **Save a copy**).
 2. Select **Add a widget**. Build a new one (**Number**, **Chart**, **Gauge**, **Progress toward a target**, **Table**, **List of records**, **Countdown clock**, **Calendar** or **Text**) or pick one of the saved reports under **Or use a saved report**.
 3. The widget editor opens at the side. Choose the **Records**, then the groups, totals, columns, filters and chart, depending on the kind of widget:
-   - **Number**: one figure. Switch on **Show a trend arrow** to compare the latest period with the one before (choose **Counted by**, **Days in each period** and whether **More is good news**). **Say it in a sentence** turns the figure into a sentence: write `{value}` where the figure goes.
+   - **Number**: one figure. Switch on **Show a trend arrow** to compare the latest period with the one before (choose **Counted by**, **Days in each period** and whether **More is good news**). **Say it in a sentence** turns the figure into a sentence: write `{value}` where the figure goes, and `{one|many}` for words that change when the figure is exactly 1, for example `{value} {project is|projects are} rated red`.
    - **Gauge** and **Progress toward a target**: under **Out of**, measure against **All …** (shows a percentage) or **A target figure**.
    - **Countdown clock**: **A date I choose**, or **The next dates on records** (choose the **Date to use**).
    - **Calendar**: a month with the number of records on each day; use the arrows to change month.
    - **Text**: a heading, note or instructions. Start a line with `#` for a heading or `-` for a bullet; use `**bold**`, `*italic*` and `[words](/tickets)` for a link. Text is never run as code.
    - **Saved report**: the report as it is now, drawn the way the report says.
 4. Select **Done**.
-5. **Move** a widget by dragging its handle (the three lines beside its title), and **resize** it by dragging its bottom-right corner. Other widgets move out of the way. With the keyboard, Tab to a widget's handle and use the arrow keys to move it, or Shift and the arrow keys to make it wider, narrower, taller or shorter.
+5. **Move** a widget by dragging its handle (the three lines beside its title), and **resize** it by dragging its bottom-right corner. Other widgets move out of the way. This works with a mouse, a pen or a finger, on any screen at least about 480 pixels wide (a tablet held either way); on a narrower screen a note says to use the keyboard instead. With the keyboard, Tab to a widget's handle and use the arrow keys to move it, or Shift and the arrow keys to make it wider, narrower, taller or shorter.
 6. Each widget has buttons to change it, duplicate it and remove it.
 7. **Settings** sets the **Name**, **Description**, the **Filters across the whole dashboard** and how often to **Refresh the figures**.
 8. **Undo** and **Redo** work as in the report builder. Select **Save** to keep your changes, or **Cancel** to leave them (you are asked first if you changed anything).
@@ -141,15 +164,25 @@ Select **Schedule** on a report (or **Schedule…** on a dashboard) to send it r
 
 1. Enter a **Name**.
 2. Choose **How often** (**Every day**, **Every week** **On** a weekday, or **Every month** on a **Day of the month**: in shorter months, the last day) and **At** what hour, in the organization's time zone.
-3. Choose **As**: **Document (print or save as PDF)**, **PDF file**, **Excel file (XLSX)** or, for a report, **Spreadsheet file (CSV)**. Anyone whose role may not export receives the document instead of a file. When an administrator has switched email on, each person is also emailed a link to their copy, with the PDF or Excel file attached when they may export it; the attachment is recorded in the audit log. Without email, delivery is in the application only.
-4. Under **Send to**, add people with **Add a person…** and whole roles with **Everyone in a role…**.
-5. Select **Schedule**.
+3. Choose **As**: **Document (print or save as PDF)**, **PDF file**, **Excel file (XLSX)** or, for a report, **Spreadsheet file (CSV)**. Anyone whose role may not export receives the document instead of a file.
+4. Choose **Email**:
+   - **Email a link** (the usual choice): each person also gets an email naming the schedule, with a link to their copy. The figures stay in the application: the email never carries them.
+   - **Email the file attached** (only for a PDF, Excel or CSV file): the file is attached for people whose role allows exporting, and the attachment is recorded in the audit log. A copy that lists restricted records is never attached: those people get the link instead, and the delivery log says why.
+   - **No email: in the application only**.
 
-At each delivery, every recipient gets a notification in the application with a link to a copy frozen at that moment, worked out from **their own** permissions, and listed under **Delivered to me**. A recipient is skipped (and the reason logged) when their role cannot view reports or dashboards or the records in them, or the report or dashboard is not shared with them. Email delivery is not available yet.
+   Email is sent only when an administrator has set it up and switched it on (Administration > Email); until then the dialog says so and deliveries stay in the application. Each email is sent by the background job queue, which tries again if the mail server does not answer.
+5. Under **Send to**, add people with **Add a person…** and whole roles with **Everyone in a role…**.
+6. Select **Schedule**.
 
-**Schedules** lists every schedule you own. Select one to see its **Deliveries** (who received it, when, and any reason it was skipped), and to **Edit**, **Send now** or **Delete** it.
+At each delivery, every recipient gets a notification in the application with a link to a copy frozen at that moment, worked out from **their own** permissions, and listed under **Delivered to me**. A recipient is skipped (and the reason logged) when their role cannot view reports or dashboards or the records in them, or the report or dashboard is not shared with them. Due schedules are run by the background job queue every five minutes (an administrator sees it as **reports.deliver** under Administration > Background jobs).
+
+**Schedules** lists every schedule you own, with how each uses email. Select one to see its **Deliveries** (who received it, when, and any reason it was skipped), and to **Edit**, **Send now** or **Delete** it.
 
 **Delivered to me** lists every copy delivered to you or produced by you. Select one to read it in the application. A copy opens only while you can still see the report, dashboard or pack it was made from and every saved report in it. A PDF or Excel copy is only offered as a file to download. Taking a copy out of the application, with **Download PDF**, **Download Excel file**, **Download CSV** or **Download to print or save as PDF**, needs the reports (or dashboards) export permission and is recorded in the audit log.
+
+## Text in other scripts in PDFs
+
+PDF files made by the server (exports, scheduled PDF files, report packs and record fact sheets) print Western European text in a standard font. Any other text is printed in a font that the server already has, with only the letters used embedded in the file, so names and titles in Greek, Cyrillic, Hebrew, Arabic, Chinese, Japanese, Korean, Indic scripts and so on read as written. The server looks for well-known fonts with wide coverage (Noto Sans and DejaVu Sans on Linux, Arial Unicode on macOS, Segoe UI, Arial, Microsoft YaHei, Yu Gothic, Malgun Gothic and Nirmala UI on Windows); an administrator can name others (see [Operations](../operations.md)). A character that no available font has still prints as `?`, and so does a character in a piece of text that mixes scripts no single font covers. Right-to-left text (Hebrew, Arabic) is shaped but printed left to right. Excel and CSV files hold any text.
 
 ## Permissions
 

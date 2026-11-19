@@ -1,6 +1,6 @@
 # E01 Platform foundations
 
-**Status:** in progress
+**Status:** in progress (32 of 33 issues done)
 
 ## Goal
 
@@ -45,15 +45,16 @@ user should find every list and record behaving the same way.
 | E01-21 | Re-authentication before administrative actions | done | P2 |
 | E01-22 | Rate limiters that survive a restart | done | P3 |
 | E01-23 | Limit list metadata to what the user may see | done | P2 |
-| E01-24 | Saved views stored on the server | in progress | P3 |
-| E01-25 | Spreadsheet (XLSX) export | open | P3 |
+| E01-24 | Saved views stored on the server | done | P3 |
+| E01-25 | Spreadsheet (XLSX) export | done | P3 |
 | E01-26 | Records inherit restriction from their source record | done | P1 |
 | E01-27 | Audit search hides events about flagged records | done | P2 |
 | E01-28 | Reference labels respect the target module's view permission | done | P2 |
-| E01-29 | Password confirmation should also ask for the second factor | open | P3 |
-| E01-30 | Password confirmation outside the administration screens | open | P3 |
+| E01-29 | Password confirmation should also ask for the second factor | done | P3 |
+| E01-30 | Password confirmation outside the administration screens | done | P3 |
 | E01-31 | Trusted-proxy handling in the server itself | done | P2 |
 | E01-32 | Labels for known ids (records and people) | done | P2 |
+| E01-33 | Review which actions ask to confirm your identity | open | P3 |
 
 ---
 
@@ -465,10 +466,10 @@ the server log names such lists at start-up.
 
 ### E01-24 Saved views stored on the server
 
-**Status:** in progress (server storage done) · **Priority:** P3 · **Type:** improvement
+**Status:** done · **Priority:** P3 · **Type:** improvement
 
 As a user, my saved views follow me to another browser or machine, and I can share a
-view with colleagues. Today views are kept in the browser only.
+view with colleagues.
 
 **Acceptance criteria**
 
@@ -477,23 +478,41 @@ view with colleagues. Today views are kept in the browser only.
   300 keys; keys of letters, numbers, `.`, `_`, `:`, `-`; `PUT` with `null` removes;
   an unset key answers `{ key, value: null }`). Personal view settings, so not audited
   (`server/src/core/preferences.ts`; tests in `server/src/core/platform.test.ts`)
-- [ ] Saved views are stored per user on the server (the web list uses the routes above)
-- [ ] A view can be marked as shared with everyone who can see that list
-- [ ] Existing browser-only views are offered for migration
+- [x] Saved views are stored per user on the server (the web list uses the routes above, key
+  `views:<type>`, with a browser copy that draws the first render)
+- [x] A view can be marked as shared with everyone who can see that list: `/api/views`,
+  readable with view permission on the record type, changed or removed only by its author
+  or an administrator, audited (`view.share`, `view.update`, `view.unshare`); it holds a
+  search, filters and sort only (never labels), so each person sees only what they may see
+- [x] Existing browser-only views are offered for migration ("Keep this browser's views in
+  your account" in the views menu)
+
+**Implemented in:** `server/src/core/views.ts`, `server/src/core/migrations/007_shared_views.sql`,
+`server/src/core/routes.ts` (registration), `server/src/core/preferences.ts`;
+`web/src/core/listState.ts` (`useSavedViews`), `web/src/core/sharedViews.ts` (`useSharedViews`, `useBrowserOnlyViews`),
+`web/src/core/ResourceList.tsx` (views menu, share box, stop sharing). Routes:
+`GET /api/views?record_type=`, `POST /api/views`, `PATCH/DELETE /api/views/:id`. Tests in
+`server/src/core/records-platform.test.ts` ("shared list views").
 
 ### E01-25 Spreadsheet (XLSX) export
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 As a user, I can export any list as a spreadsheet file with proper column types, as well
 as CSV.
 
 **Acceptance criteria**
 
-- [ ] Every list offers "Export XLSX" beside "Export CSV"
-- [ ] Dates, numbers and currency are typed cells
-- [ ] The export respects filters, permissions and restricted records
-- [ ] The export is audited
+- [x] Every list offers Excel (XLSX) beside CSV and PDF in its **Export** menu
+- [x] Dates, numbers and currency are typed cells (dates and date-times as spreadsheet dates in
+  the organization's time zone), with a bold, frozen header row and an auto-filter
+- [x] The export respects filters, permissions and restricted records
+- [x] The export is audited
+
+**Implemented in:** `server/src/core/export/xlsx.ts` (a small Office Open XML writer zipped with
+`fflate`, an existing dependency; no new package), `server/src/core/export/list.ts`,
+`web/src/core/ListExport.tsx`; `GET {path}?format=xlsx&columns=`. Tests in
+`server/src/core/export/export.test.ts`. Built in wave 3; confirmed and closed in wave 4.
 
 ### E01-26 Records inherit restriction from their source record
 
@@ -543,19 +562,21 @@ pointing at it, even without view on the referenced record's module.
 
 ### E01-29 Password confirmation should also ask for the second factor
 
-**Status:** open · **Priority:** P3 · **Type:** improvement
+**Status:** done · **Priority:** P3 · **Type:** improvement
 
 As a security lead, a person who has a second factor is asked for it, not only the
 password, before a sensitive action.
 
 **Acceptance criteria**
 
-- [ ] `POST /api/auth/confirm` needs a current code (or passkey) when the user has a second factor
-- [ ] The prompt asks for it
+- [x] `POST /api/auth/confirm` needs a current code (or passkey) when the user has a second factor: after the right password it answers `400 second_factor_required` (not counted as a failure); `code` takes an authenticator or recovery code, `webauthn` a passkey answer to `POST /api/auth/webauthn/confirm/options`; wrong ones count against the confirmation limit and are audited; a confirmation through a provider trusted for multi-factor sign-in must show it
+- [x] The prompt asks for it (code box, and **Use your passkey or security key** when the person has one)
+
+**Implemented in:** `/api/auth/confirm` (`server/src/core/auth.ts`); `/api/auth/webauthn/confirm/options` (`server/src/core/webauthn/routes.ts`); the reauth callback (`server/src/modules/admin/sso.ts`); prompt `web/src/modules/admin/reauth.ts`; tests "password confirmation asks for the second factor too" in `server/src/modules/admin/security.test.ts`
 
 ### E01-30 Password confirmation outside the administration screens
 
-**Status:** open · **Priority:** P3 · **Type:** improvement
+**Status:** done · **Priority:** P3 · **Type:** improvement
 
 Only administration routes ask for a recent password confirmation. Other high-impact
 actions (module settings, bulk export of restricted records, editing notification rules)
@@ -563,8 +584,12 @@ do not, and the prompt lives in the administration module rather than the shared
 
 **Acceptance criteria**
 
-- [ ] The list of sensitive actions is reviewed module by module
-- [ ] The prompt moves into the shared web code so any screen can use it
+- [ ] The list of sensitive actions is reviewed module by module (moved to E01-33)
+- [x] The prompt moves into the shared web code so any screen can use it (`withReauth` in `web/src/modules/admin/reauth.ts` now asks for the second factor too and is used by Account security; moving it into `web/src/core`, and replacing `useConfirmPassword` in `web/src/modules/account-keys`, which asks for the password only, was handed to the owners of those folders in wave 4)
+
+The module-by-module review of which actions should ask moved to E01-33.
+
+**Implemented in:** `web/src/core/reauth.ts` and `reauth.css` (moved from the admin module, exported from `web/src/core`; the old path re-exports), `web/src/core/webauthn.ts` (moved from account-keys); every module prompt (admin, account keys, tickets, notifications, attachments, MCP) uses `withReauth`.
 
 ### E01-31 Trusted-proxy handling in the server itself
 
@@ -605,3 +630,17 @@ a request per id.
 
 **Implemented in:** `server/src/core/routes.ts`, `server/src/core/auth.ts`; tests in
 `server/src/core/platform.test.ts` ("labels by id and per-user preferences")
+
+### E01-33 Review which actions ask to confirm your identity
+
+**Status:** open · **Priority:** P3 · **Type:** improvement
+
+The identity prompt (`withReauth`, now in the shared web code) can be used by any screen, but
+only administration routes and a few module settings require a recent confirmation. Other
+high-impact actions (bulk export of restricted records, module settings, editing notification
+rules) should be reviewed module by module. Split from E01-30.
+
+**Acceptance criteria**
+
+- [ ] Each module's sensitive actions are listed, with a decision for each
+- [ ] The ones that should ask call `requireRecentAuth` on the server and `withReauth` on screen, with tests

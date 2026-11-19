@@ -20,6 +20,7 @@
 // The call never throws: a failure is logged and reported as nothing sent.
 import { UUID_RE } from '../../core/errors.ts';
 import type { ModuleContext, ResourceDef, Row, SessionUser } from '../../core/module.ts';
+import { TIME_ZONE, todayInZone } from '../../core/timezone.ts';
 
 export interface NotifyInput {
   /** People to notify, by user id. Unknown, pending and disabled users are ignored. */
@@ -37,8 +38,17 @@ export interface NotifyInput {
   recordId?: string;
   /** In-app path to open. Defaults to the record's page. */
   route?: string;
-  /** Skip recipients who already have this kind for this record (or this title) today. */
+  /**
+   * Skip recipients who already have this kind for this record (or this title) today, in the
+   * organization's time zone. A notification the person has deleted still counts.
+   */
   oncePerDay?: boolean;
+  /**
+   * Send to each recipient at most once for this occasion, ever: a key such as
+   * `obligation.due:<id>:<due date>`. Recorded per person, so someone who could not be told
+   * (muted, or unable to see the record) is not recorded and may be told on a later run.
+   */
+  once?: string;
 }
 
 export interface NotifyResult { sent: number; skipped: number }
@@ -136,16 +146,24 @@ export function makeNotify(ctx: ModuleContext) {
 
     const already = new Set<string>();
     if (input.oncePerDay) {
+      // The start of today in the organization's time zone, not the database's or the machine's.
+      const since = `(($2::date)::timestamp at time zone $3::text)`;
       const rows = def
         ? await ctx.db.query<{ user_id: string }>(
-          `select user_id from notifications where kind = $1 and record_type = $2 and record_id = $3 and created_at >= current_date`,
-          [kind, def.type, recordId],
+          `select user_id from notifications where kind = $1 and created_at >= ${since} and record_type = $4 and record_id = $5`,
+          [kind, todayInZone(), TIME_ZONE, def.type, recordId],
         )
         : await ctx.db.query<{ user_id: string }>(
-          `select user_id from notifications where kind = $1 and record_type is null and title = $2 and created_at >= current_date`,
-          [kind, title],
+          `select user_id from notifications where kind = $1 and created_at >= ${since} and record_type is null and title = $4`,
+          [kind, todayInZone(), TIME_ZONE, title],
         );
       for (const r of rows) already.add(r.user_id);
+    }
+    const once = typeof input.once === 'string' && input.once.trim() ? input.once.trim().slice(0, 300) : null;
+    if (once) {
+      for (const r of await ctx.db.query<{ user_id: string }>(
+        'select user_id from notification_once where once_key = $1 and user_id = any($2::uuid[])', [once, targets.map((u) => u.id)],
+      )) already.add(r.user_id);
     }
 
     let sent = 0;
@@ -159,6 +177,13 @@ export function makeNotify(ctx: ModuleContext) {
       const canEmail = wantsEmail && mailOn && EMAIL_RE.test(String(user.email ?? ''));
       const inApp = channel !== 'email' || !canEmail;
       const emailState = !wantsEmail ? null : !canEmail ? 'skipped' : pref?.digest ? 'digest' : 'queued';
+      if (once) {
+        // Claimed first: two runs at the same moment cannot both send it.
+        const claimed = await ctx.db.one(
+          'insert into notification_once (user_id, once_key) values ($1, $2) on conflict do nothing returning user_id', [user.id, once],
+        );
+        if (!claimed) continue;
+      }
       await ctx.db.query(
         `insert into notifications (user_id, kind, title, body, route, record_type, record_id, in_app, email_state) values ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
         [user.id, kind, title, body, route, def?.type ?? null, recordId, inApp, emailState],

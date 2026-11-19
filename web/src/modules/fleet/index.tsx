@@ -13,8 +13,8 @@ const view = 'fleet.view';
 const mod: ModuleDef = {
   key: 'fleet',
   nav: [
-    { group: 'Inventory', label: 'Vehicles', path: '/vehicles', icon: 'box', permission: view, order: 54 },
-    { group: 'Inventory', label: 'Services', path: '/services', icon: 'map-pin', permission: view, order: 55 },
+    { group: 'Inventory', label: 'Vehicles', path: '/vehicles', icon: 'bus', permission: view, order: 54 },
+    { group: 'Inventory', label: 'Services', path: '/services', icon: 'route', permission: view, order: 55 },
     { group: 'Inventory', label: 'Equipment coverage', path: '/fleet/coverage', icon: 'check-square', permission: view, order: 56 },
     { group: 'Inventory', label: 'What is affected', path: '/fleet/impact', icon: 'target', permission: view, order: 57 },
   ],
@@ -27,8 +27,8 @@ const mod: ModuleDef = {
     { path: '/fleet/impact', element: <ImpactPage />, permission: view },
   ],
   create: [
-    { label: 'Vehicle', path: '/vehicles?new=1', permission: 'fleet.create', icon: 'box' },
-    { label: 'Service', path: '/services?new=1', permission: 'fleet.create', icon: 'map-pin' },
+    { label: 'Vehicle', path: '/vehicles?new=1', permission: 'fleet.create', icon: 'bus' },
+    { label: 'Service', path: '/services?new=1', permission: 'fleet.create', icon: 'route' },
   ],
 };
 export default mod;

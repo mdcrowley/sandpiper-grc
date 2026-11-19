@@ -40,6 +40,8 @@ export interface CatalogField {
   via?: string;
   /** A field an administrator added (`cf_<key>`). */
   custom?: boolean;
+  /** A multi-choice field: a record can hold several values. */
+  multiple?: boolean;
   group: boolean; sum: boolean; column: boolean;
 }
 
@@ -56,9 +58,11 @@ export function fieldsOf(ctx: ModuleContext, user: SessionUser | null, def: Reso
   }
   // Fields an administrator added to this record type.
   for (const [name, f] of Object.entries(custom)) {
-    out.push({ path: name, label: f.label, type: f.type, list: f.list, to: f.to, custom: true, ...usable(f.type) });
+    // A multi-choice field can be a column and a filter; one record can hold several values, so it is no group or total.
+    out.push({ path: name, label: f.label, type: f.type, list: f.list, to: f.to, custom: true, ...usable(f.type), ...(f.multiple ? { multiple: true, group: false, sum: false } : {}) });
   }
   for (const [name, f] of Object.entries({ ...def.fields, ...custom })) {
+    if (f.multiple) continue;
     if (f.type === 'user') {
       for (const [sub, uf] of Object.entries(USER_SUBFIELDS)) {
         out.push({ path: `${name}.${sub}`, label: `${f.label}: ${uf.label}`, type: uf.type, via: f.label, ...usable(uf.type) });

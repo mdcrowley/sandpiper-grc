@@ -437,3 +437,10 @@
   .si-doc-sign { break-inside: avoid; }
   @page { margin: 16mm 15mm; }
 }
+
+/* ---------- Affected tab: services and vehicles (fleet module) ---------- */
+.si-fleet { display: grid; gap: var(--s-3); min-width: 0; }
+.si-fleet-head { display: grid; gap: 2px; }
+.si-fleet-head h2 { margin: 0; font-size: var(--fs-lg); }
+.si-fleet-head p, .si-fleet-empty { margin: 0; font-size: var(--fs-sm); }
+.si-fleet-empty { padding: var(--s-3) var(--s-4); border: 1px dashed var(--border-control); border-radius: var(--radius-lg); }

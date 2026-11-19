@@ -40,8 +40,12 @@ export function ReportView() {
   const toast = useToast();
   const { can } = useAuth();
   const drill = useDrill();
+  const { resources } = useMeta();
   const def = useFetch<ReportDefinition>(`/api/reports/${id}`);
-  const run = useFetch<{ result: ReportResult }>(`/api/reports/${id}/run`);
+  // The record types a person may view are in the metadata: a report on anything else is not run
+  // at all, so the page says so plainly instead of asking for something it would be refused (E18-38).
+  const about = def.data ? resources[def.data.record_type] : undefined;
+  const run = useFetch<{ result: ReportResult }>(about ? `/api/reports/${id}/run` : null);
   const [dialog, setDialog] = useState<'share' | 'schedule' | 'dashboard' | 'delete' | null>(null);
   const [busy, setBusy] = useState(false);
   const canChange = useCanChange(def.data, 'reports');
@@ -74,7 +78,7 @@ export function ReportView() {
         status={<LookupChip list="report_sharing" value={report.sharing} />}
         actions={(
           <>
-            {can('reports.export') && result && (
+            {can('reports.export') && about && result && (
               <Menu label="Export" icon="download" align="end" items={[
                 { label: 'PDF', icon: 'file-text', onSelect: () => exportAs('pdf') },
                 { label: 'Excel (XLSX)', icon: 'download', onSelect: () => exportAs('xlsx') },
@@ -82,8 +86,8 @@ export function ReportView() {
                 { label: 'Print-ready page', icon: 'external', onSelect: () => exportAs('html'), separated: true },
               ]} />
             )}
-            {can('reports.create') && <Button icon="calendar" onClick={() => setDialog('schedule')}>Schedule</Button>}
-            {can('dashboards.edit') && <Button icon="chart" onClick={() => setDialog('dashboard')}>Add to dashboard</Button>}
+            {can('reports.create') && about && <Button icon="calendar" onClick={() => setDialog('schedule')}>Schedule</Button>}
+            {can('dashboards.edit') && about && <Button icon="chart" onClick={() => setDialog('dashboard')}>Add to dashboard</Button>}
             {canChange && <Button icon="users" onClick={() => setDialog('share')}>Share</Button>}
             {canChange && <Link className="btn btn-primary" to={`/reports/${report.id}/edit`}><Icon name="edit" size={16} /> Edit</Link>}
             <Menu label="More" icon="more" iconOnly align="end" items={[
@@ -102,7 +106,7 @@ export function ReportView() {
       />
 
       <Card>
-        {runStatus === 403 ? <EmptyState icon="lock" title="You cannot see these records" message="This report is about records your role does not include. Ask an administrator if you need it." />
+        {!about || runStatus === 403 ? <EmptyState icon="lock" title="You cannot see these records" message="This report is about records your role does not include, or that are not switched on here. Ask an administrator if you need it." />
           : runStatus === 409 ? <EmptyState icon="info" title="Not available here" message={errorMessage(run.error)} />
           : run.error ? <ErrorState title="The report could not be run" error={run.error} onRetry={run.reload} />
           : !result ? <Loading lines={8} label="Running the report" />
@@ -111,7 +115,7 @@ export function ReportView() {
               <ResultView result={result} chart={report.chart} label={report.name} height={340} withTable />
               <p className="rp-preview-foot muted">
                 <button type="button" className="rp-link-num" onClick={() => drill(result, result.drill)}>
-                  {result.total.toLocaleString('en-GB')} {(result.total === 1 ? result.typeLabel : result.plural).toLowerCase()}
+                  {result.total.toLocaleString('en-US')} {(result.total === 1 ? result.typeLabel : result.plural).toLowerCase()}
                 </button>
                 {' '}as at {formatDateTime(result.generatedAt)}.
                 {!result.drillExact && ' The list behind the figures uses the closest filters the list page offers.'}

@@ -16,7 +16,7 @@ export interface TestApi {
   del<T = any>(url: string): Promise<TestResponse<T>>;
 }
 
-export const ADMIN = { username: 'admin', email: 'admin@example.test', displayName: 'Test Admin', password: 'a long test passphrase 1' };
+export const ADMIN = { username: 'admin', email: 'admin@example.test', displayName: 'Test Admin', password: 'a long test passphrase 1', secondFactor: 'notice' };
 
 /**
  * An in-memory application for tests. `api` is signed in as an administrator;

@@ -4,7 +4,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ApiError, Badge, Button, Card, ChoicesField, ConfirmDialog, EmptyState, ErrorState, errorMessage, formatDate, formatDateTime, humanize,
-  Icon, Loading, Modal, PageHeader, relativeTime, Select, StatusChip, TextField, useAuth, useFetch, useMeta, useToast,
+  Icon, Loading, Modal, PageHeader, relativeTime, Select, StatusChip, TextArea, TextField, useAuth, useFetch, useMeta, useToast,
 } from '../../core';
 import type { ColorName, Option } from '../../core';
 import { CopyBox, FilterPills, Initials, Notice, Pager, type FilterPill } from './common';
@@ -21,12 +21,14 @@ export interface ApiToken {
   created_at: string;
   revoked_at: string | null;
   active: boolean;
+  /** Addresses and ranges the token may be used from; empty = anywhere (E02-18). */
+  allowed_sources?: string[];
   userId?: string;
   userName?: string;
   username?: string;
 }
 
-interface MyTokens { tokens: ApiToken[]; maxDays: number; grants: string[]; scopeFamilies?: { scope: string; description: string }[] }
+interface MyTokens { tokens: ApiToken[]; maxDays: number; grants: string[]; scopeFamilies?: { scope: string; description: string }[]; yourAddress?: string }
 interface Created { id: string; name: string; prefix: string; scopes: string[]; expires_at: string; token: string }
 
 // ---------- permissions a token may carry ----------
@@ -91,6 +93,15 @@ function tokenState(t: ApiToken): { color: ColorName; label: string } {
 }
 const isLive = (t: ApiToken) => !t.revoked_at && t.active;
 
+/** "Only from 10.0.0.0/8 and 2 more", or null for a token usable anywhere. */
+export function sourcesText(sources: string[] | undefined): string | null {
+  if (!sources?.length) return null;
+  return `Only from ${sources.slice(0, 2).join(', ')}${sources.length > 2 ? ` and ${sources.length - 2} more` : ''}`;
+}
+
+/** Lines or commas into a list of addresses. */
+export const sourcesFrom = (text: string) => text.split(/[\s,]+/).map((x) => x.trim()).filter(Boolean);
+
 function lastUse(t: ApiToken): string {
   if (!t.last_used_at) return 'Never used';
   return `Last used ${relativeTime(t.last_used_at)}${t.last_used_ip ? ` from ${t.last_used_ip}` : ''}`;
@@ -132,6 +143,7 @@ export function MyTokensCard() {
             <span><code>{t.prefix}…</code></span>
             <span>{t.revoked_at ? `Revoked ${formatDate(t.revoked_at)}` : `${isLive(t) ? 'Expires' : 'Expired'} ${formatDate(t.expires_at)}`}</span>
             <span title={t.last_used_at ? formatDateTime(t.last_used_at) : undefined}>{lastUse(t)}</span>
+            {sourcesText(t.allowed_sources) && <span title={t.allowed_sources!.join(', ')}>{sourcesText(t.allowed_sources)}</span>}
           </span>
           <ScopeChips scopes={t.scopes} />
         </div>
@@ -203,6 +215,7 @@ function NewTokenDialog({ open, data, onClose, onCreated }: { open: boolean; dat
   const [name, setName] = useState('');
   const [scopes, setScopes] = useState<string[]>([]);
   const [days, setDays] = useState(firstDays);
+  const [sources, setSources] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -211,7 +224,7 @@ function NewTokenDialog({ open, data, onClose, onCreated }: { open: boolean; dat
 
   const close = () => {
     // The token is dropped from memory here: it cannot be shown again.
-    setMade(null); setName(''); setScopes([]); setDays(firstDays); setErrors({}); setFormError('');
+    setMade(null); setName(''); setScopes([]); setDays(firstDays); setSources(''); setErrors({}); setFormError('');
     onClose();
   };
 
@@ -226,7 +239,7 @@ function NewTokenDialog({ open, data, onClose, onCreated }: { open: boolean; dat
     if (Object.keys(found).length) return;
     setBusy(true);
     try {
-      const res = await adminApi.post<Created>('/api/me/tokens', { name: name.trim(), scopes, expiresInDays: Number(days) });
+      const res = await adminApi.post<Created>('/api/me/tokens', { name: name.trim(), scopes, expiresInDays: Number(days), allowedSources: sourcesFrom(sources) });
       setMade(res);
       toast.success('Token made.');
       onCreated();
@@ -280,6 +293,11 @@ function NewTokenDialog({ open, data, onClose, onCreated }: { open: boolean; dat
         <Select
           label="Expires after" required value={days} onChange={setDays} options={dayOptions} error={errors.expiresInDays}
           hint={`Tokens may last at most ${data.maxDays} days. Choose the shortest time that will do.`}
+        />
+        <TextArea
+          label="Allowed source addresses" rows={2} value={sources} onChange={(v) => { setSources(v); setErrors(({ allowedSources: _a, ...r }) => r); }}
+          error={errors.allowedSources} placeholder="203.0.113.7 or 10.20.0.0/16"
+          hint={`Optional. The token works only from these addresses or ranges, one per line; leave empty to allow any address.${data.yourAddress ? ` This request came from ${data.yourAddress}.` : ''}`}
         />
         <Notice icon="lock">Making a token asks for your password if you have not given it in the last few minutes.</Notice>
         <div className="form-actions">
@@ -407,6 +425,7 @@ export function AdminTokensPage() {
                           <td className="adm-wrap">
                             <strong>{t.name}</strong>
                             <div className="muted adm-small"><code>{t.prefix}…</code> made {formatDate(t.created_at)}</div>
+                            {sourcesText(t.allowed_sources) && <div className="muted adm-small" title={t.allowed_sources!.join(', ')}>{sourcesText(t.allowed_sources)}</div>}
                           </td>
                           <td className="adm-wrap"><ScopeChips scopes={t.scopes} max={3} /></td>
                           <td title={formatDateTime(t.expires_at)}>{formatDate(t.expires_at)}</td>

@@ -2,7 +2,8 @@ import { useState, type FormEvent, type Ref } from 'react';
 import { Link } from 'react-router-dom';
 import { Checkbox as MCheckbox, Popover, TextInput, Tooltip, UnstyledButton } from '@mantine/core';
 import {
-  api, Button, DateField, errorMessage, formatDate, Icon, InlinePopups, LookupChip, useAuth, useLookup, useMeta, UserPicker, useToast,
+  api, ApiError, Button, customFieldNames, DateField, errorMessage, formatDate, Icon, InlinePopups, LookupChip, useAuth, useCustomFieldInputs,
+  useLookup, useMeta, UserPicker, useResource, useToast,
 } from '../../core';
 import type { Row } from '../../core';
 import { actionPath, ActionStatus, isOverdue } from './ActionStatus';
@@ -179,7 +180,11 @@ export function ActionRows({ rows, today, openStatuses, onChanged, caption, show
   );
 }
 
-/** One line to add an action: type a title, optionally a due date, press Enter. */
+/**
+ * One line to add an action: type a title, optionally a due date, press Enter. The administrator's
+ * required custom fields (E18-34) appear under the line once a title is typed; optional ones are
+ * left for the action's own page, so the line stays quick.
+ */
 export function QuickAdd({ initial, onAdded, placeholder = 'Add an action and press Enter', inputRef, withDue = true }: {
   /** Hidden values for the new action, e.g. its source record or owner. */
   initial?: Record<string, unknown>;
@@ -192,31 +197,38 @@ export function QuickAdd({ initial, onAdded, placeholder = 'Add an action and pr
   const [title, setTitle] = useState('');
   const [due, setDue] = useState('');
   const [busy, setBusy] = useState(false);
+  const resource = useResource('action');
+  const required = customFieldNames(resource).filter((f) => resource!.fields[f].required && !resource!.fields[f].readOnly);
+  const custom = useCustomFieldInputs('action', { only: required, flat: true });
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     e.stopPropagation();
     if (!title.trim() || busy) return;
+    const extra = custom.collect();
+    if (!extra) return;
     setBusy(true);
     try {
-      const row = await api.post<Row>('/api/actions', { ...initial, title: title.trim(), ...(due ? { due_on: due } : {}) });
+      const row = await api.post<Row>('/api/actions', { ...initial, title: title.trim(), ...(due ? { due_on: due } : {}), ...extra });
       toast.success(`${row.ref ?? 'Action'} added.`);
       setTitle('');
       setDue('');
+      custom.reset();
       onAdded(row);
     } catch (err) {
-      toast.error(errorMessage(err));
+      if (!(err instanceof ApiError && custom.showErrors(err.fields))) toast.error(errorMessage(err));
     } finally {
       setBusy(false);
     }
   };
   return (
-    <form className="rk-quick" onSubmit={submit}>
+    <form className="rk-quick" onSubmit={submit} noValidate>
       <TextInput
         ref={inputRef} className="rk-quick-title" size="sm" aria-label="New action" placeholder={placeholder} value={title} maxLength={300}
         leftSection={<Icon name="plus" size={16} />} onChange={(e) => setTitle(e.currentTarget.value)}
       />
       {withDue && <DateField hideLabel label="Due date of the new action" placeholder="Due date" className="rk-quick-due" value={due} onChange={setDue} />}
       <Button type="submit" variant="primary" loading={busy} disabled={!title.trim()}>Add</Button>
+      {custom.inputs && title.trim() && <div className="rk-quick-custom">{custom.inputs}</div>}
     </form>
   );
 }

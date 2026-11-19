@@ -24,8 +24,8 @@ export function SchedulesPage() {
         key={tick}
         type="report_schedule"
         title="Schedules"
-        columns={['name', 'target_type', 'cadence', 'next_run_at', 'last_run_at', { field: 'last_status', label: 'Last result' }, 'active', 'owner_id']}
-        filters={['cadence', 'target_type', 'active', 'owner_id']}
+        columns={['name', 'target_type', 'cadence', 'email', 'next_run_at', 'last_run_at', { field: 'last_status', label: 'Last result' }, 'active', 'owner_id']}
+        filters={['cadence', 'target_type', 'email', 'active', 'owner_id']}
         bulkFields={[]}
         onRowClick={(row) => setOpen(row)}
         actions={<span className="muted">To add one, open a report or dashboard and choose Schedule.</span>}

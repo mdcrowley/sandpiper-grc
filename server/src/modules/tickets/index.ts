@@ -1,4 +1,5 @@
 import type { FastifyRequest } from 'fastify';
+import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
 import { registerAssist } from './assist.ts';
 import { AGENT_AUDIENCE, makeAudience } from './audience.ts';
@@ -9,6 +10,9 @@ import { clock } from './clock.ts';
 import { makeTicketNotify } from './notify.ts';
 import { CATALOG, seedDefaults } from './defaults.ts';
 import { registerMetrics } from './metrics.ts';
+import { makeEmailIntake } from './email.ts';
+import { registerSharedFiles } from './shared-files.ts';
+import { seedSharedQueues } from './views.ts';
 import { seedSamples } from './seed.ts';
 import {
   addWorkingMinutes, categoryOf, clockView, DAY_KEYS, DEFAULT_MATRIX, priorityFor, workingMinutesBetween,
@@ -111,14 +115,22 @@ const mod: ModuleDef = {
     const view ={ preHandler: ctx.requirePerm('tickets.view') };
     const administer = { preHandler: ctx.requirePerm('tickets.administer') };
 
-    // Breach flags are brought up to date before any ticket read (and by the timer below).
-    // Registered before the ticket routes so that it applies to the generated ones.
-    app.addHook('preHandler', async (req) => {
-      if (req.method === 'GET' && req.user && req.url.startsWith('/api/tickets')) await sla.sweep();
+    // E18-29: breach flags, warnings and escalation are brought up to date by a timer only, never
+    // by reading tickets (a read must not write). The clock view (`/api/tickets/:id/sla`) works out
+    // the remaining time itself, so a ticket page is right between two sweeps. Tests run it by hand.
+    // The timer is a job-queue schedule (Administration > Background jobs), so the sweep runs
+    // once a minute however many server processes there are (E14-22).
+    await scheduleWork(ctx, 'tickets.sla_sweep', async () => ({ flagged: await sla.sweep() }), { every: SWEEP_MS, firstRunInMs: SWEEP_MS });
+    app.post('/api/tickets/sla/sweep', administer, async (req) => {
+      const flagged = await sla.sweep();
+      await ctx.audit(req, { action: 'ticket.sla_sweep', recordType: 'ticket', summary: `Service-level check run by hand: ${flagged} target(s) newly missed` });
+      return { flagged };
     });
-    const timer = setInterval(() => { sla.sweep().catch((err) => console.error('[tickets] SLA sweep failed:', err)); }, SWEEP_MS);
-    timer.unref();
-    app.addHook('onClose', async () => clearInterval(timer));
+    ctx.describeRoute({
+      method: 'POST', path: '/api/tickets/sla/sweep', permission: 'tickets.administer', summary: 'Run the service-level check now',
+      description: 'The check runs every minute by itself: it flags missed targets, sends warnings and applies escalation rules. Reading tickets never runs it.',
+      response: '{ flagged }',
+    });
 
     // ---------- ticket rules ----------
 
@@ -337,6 +349,8 @@ const mod: ModuleDef = {
         approval_by: { label: 'Decided by', type: 'user', readOnly: true },
         approval_at: { label: 'Decided', type: 'datetime', readOnly: true },
         approval_note: { label: 'Approval note', type: 'longtext', readOnly: true },
+        approvals_needed: { label: 'Approvals needed', type: 'number', readOnly: true },
+        approver_ids: { label: 'Named approvers', type: 'json', readOnly: true },
       },
       hooks: { beforeCreate, beforeUpdate, afterCreate, afterUpdate },
     });
@@ -452,6 +466,9 @@ const mod: ModuleDef = {
         tasks: { label: 'Fulfillment tasks', type: 'json' },
         requires_approval: { label: 'Needs approval before work starts', type: 'boolean', default: false },
         portal: { label: 'Show in the self-service portal', type: 'boolean', default: false },
+        approvals_needed: { label: 'Approvals needed', type: 'number', default: 1 },
+        approver_ids: { label: 'Who may approve', type: 'json' },
+        approval_condition: { label: 'Approval only for these answers', type: 'json' },
       },
       hooks: {
         beforeCreate: (_req, data) => catalog.checkItem(data),
@@ -469,6 +486,11 @@ const mod: ModuleDef = {
     catalog.register();
     registerAutomation(ctx, notify);
     registerAssist(ctx, audience.isAgent);
+    registerSharedFiles(ctx, notify);
+    await seedSharedQueues(ctx);
+    const intake = makeEmailIntake(ctx, notify);
+    intake.register();
+    await intake.start();
 
     // Starter catalog, added once; administrators own it afterwards.
     if (!(await ctx.settings.get('tickets.catalogue_seeded', false))) {
@@ -724,7 +746,7 @@ const mod: ModuleDef = {
       return recordArticleFeedback(ctx, req, a, (req.body as Row | undefined)?.helpful);
     });
 
-    registerMetrics(ctx, sla);
+    registerMetrics(ctx);
   },
 
   async seed(ctx, opts) {

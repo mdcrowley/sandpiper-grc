@@ -160,15 +160,15 @@ export const DOCS: RouteDoc[] = [
   }),
 
   // ---- systems: relationships ----
-  route('GET', '/api/systems/graph', 'Relationship map of systems, vendors, sites, data categories and assets', {
+  route('GET', '/api/systems/graph', 'Relationship map of systems, vendors, sites, data categories, assets and services', {
     tag: 'Systems', permission: 'systems.view',
-    description: 'Sites, data categories and assets appear only for callers holding `sites.view`, `data.view` and `assets.view`; vendor names and links need `vendors.view`. 404 when `focus` is not a system.',
+    description: 'Sites, data categories and assets appear only for callers holding `sites.view`, `data.view` and `assets.view`; vendor names and links need `vendors.view`. Services (routes and lines that depend on a system) need `fleet.view` and the fleet module. 404 when `focus` is not a system.',
     query: {
       focus: 'A system id: only that system\'s neighbourhood.',
       depth: q('integer', 'Hops from the focus, 1 to 4 (default 1).'),
     },
     response: `{ focus?: uuid,
-      nodes: [{ id: string, type: 'system' | 'vendor' | 'site' | 'asset' | 'data_category', label: string, group: string, route: string | null, ref?: string | null, attrs?: object }],
+      nodes: [{ id: string, type: 'system' | 'vendor' | 'site' | 'asset' | 'data_category' | 'service', label: string, group: string, route: string | null, ref?: string | null, attrs?: object }],
       edges: [{ from: string, to: string, kind: string, label: string, direction?: string }] }`,
   }),
   route('GET', '/api/systems/:id/impact', 'What is affected if this system fails', {

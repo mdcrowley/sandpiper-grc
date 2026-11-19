@@ -1,6 +1,6 @@
 # E18 Quality and known defects
 
-**Status:** in progress
+**Status:** in progress (37 of 46 issues done)
 
 ## Goal
 
@@ -23,13 +23,13 @@ has never been checked, so nobody relies on something untested.
 |---|---|---|---|
 | E18-01 | Security-terms matrix scrolls sideways at 1440px | done | P2 |
 | E18-02 | Notification rules page scrolls sideways at 1440px | done | P2 |
-| E18-03 | Proofread NIST CSF 2.0 outcome text against the publication | open | P1 |
+| E18-03 | Proofread NIST CSF 2.0 outcome text against the publication | done | P1 |
 | E18-04 | Check every screen in the dark theme | done | P2 |
 | E18-05 | Check every screen at tablet width | done | P2 |
 | E18-06 | Check keyboard-only use | in progress | P2 |
 | E18-07 | Check non-administrator roles in the browser | done | P1 |
 | E18-08 | Check that every form can be submitted in the browser | in progress | P1 |
-| E18-09 | "Also satisfies" parser splits names that contain numbers | open | P3 |
+| E18-09 | "Also satisfies" parser splits names that contain numbers | done | P3 |
 | E18-10 | Automated API test suite | done | P1 |
 | E18-11 | One-off browser pass of every screen | done | P2 |
 | E18-12 | Automated browser tests | in progress | P2 |
@@ -49,19 +49,24 @@ has never been checked, so nobody relies on something untested.
 | E18-26 | Only risks have an Actions tab | done | P2 |
 | E18-27 | Dev mode ignored a custom port | done | P3 |
 | E18-28 | Features that suit some transit organizations but not all | open | P2 |
-| E18-29 | Reading a ticket list runs the service-level sweep | open | P3 |
-| E18-30 | Escalating a project item creates a risk without a risk permission | open | P3 |
+| E18-29 | Reading a ticket list runs the service-level sweep | done | P3 |
+| E18-30 | Escalating a project item creates a risk without a risk permission | done | P3 |
 | E18-31 | Review the newer modules for permission and restricted-record checks | done | P1 |
 | E18-32 | Hand-written routes: findings of the permission review | done | P1 |
 | E18-33 | Web bundle is a single 1.8 MB script | done | P2 |
-| E18-34 | Hand-written forms and record pages do not show custom fields | open | P2 |
+| E18-34 | Hand-written forms and record pages do not show custom fields | done | P2 |
 | E18-35 | Web unit tests are not run by the main test command | done | P3 |
-| E18-36 | Category labels run together on narrow bar charts | open | P3 |
-| E18-37 | New dashboard: an empty name is refused with a toast, not beside the field | open | P3 |
-| E18-38 | A report on records the role cannot see makes a refused request | open | P3 |
-| E18-39 | Accessibility audit: findings left for other owners | open | P2 |
+| E18-36 | Category labels run together on narrow bar charts | done | P3 |
+| E18-37 | New dashboard: an empty name is refused with a toast, not beside the field | done | P3 |
+| E18-38 | A report on records the role cannot see makes a refused request | done | P3 |
+| E18-39 | Accessibility audit: findings left for other owners | done | P2 |
 | E18-40 | People never see different numbers: figures include restricted records | done | P1 |
 | E18-41 | Backups taken in the same second could be pruned at once | done | P1 |
+| E18-42 | Chart drill-down works only with a pointer | done | P2 |
+| E18-43 | Component tests for the generic list, form and record page | open | P3 |
+| E18-44 | The role editor offers actions nothing checks | open | P3 |
+| E18-45 | Custom fields on saved reports and dashboards are not asked or shown | open | P3 |
+| E18-46 | A malformed date and time could be read as a date | done | P3 |
 
 ---
 
@@ -104,7 +109,7 @@ the columns of the notification rules table.
 
 ### E18-03 Proofread NIST CSF 2.0 outcome text against the publication
 
-**Status:** open · **Priority:** P1 · **Type:** bug
+**Status:** done · **Priority:** P1 · **Type:** bug
 
 As a security lead, I need the official text of every outcome to match the published
 framework word for word. The included text was written from memory and has not been
@@ -112,12 +117,26 @@ checked.
 
 **Acceptance criteria**
 
-- [ ] All 106 subcategories compared with the publication (CSWP 29)
-- [ ] GV.SC-06, GV.SC-09 and PR.AA-05 checked first, as already suspected
-- [ ] Category and function names checked too
-- [ ] Corrections made in `server/src/modules/frameworks/csf2.json`
-- [ ] A way to refresh the text on installations that have already loaded it, without touching statuses
-- [ ] The note in `docs/known-gaps.md` removed
+- [x] All 106 subcategories compared with the publication (CSWP 29): compared by script with NIST's
+      machine-readable export of CSF 2.0 (the reference data published with CSWP 29, downloaded
+      from nist.gov in November 2026). All 106 outcome texts match word for word
+- [x] GV.SC-06, GV.SC-09 and PR.AA-05 checked first, as already suspected: they match
+- [x] Category and function names checked too, and category and function descriptions: they match.
+      The only differences are typographic and on NIST's side of the export: it writes function names in
+      capitals (GOVERN) where the publication's text uses Govern, uses hyphens where the publication prints
+      em dashes (GV.OC description, GV.OC-03), and has a double space in the PR.AA description. The
+      application keeps the publication's form
+- [x] Corrections made in `server/src/modules/frameworks/csf2.json`: none were needed in wave 4 (the GV.OC
+      dashes were corrected in wave 2)
+- [x] A way to refresh the text on installations that have already loaded it, without touching statuses:
+      **Frameworks and structure > Check official wording** (`POST /api/frameworks/:id/refresh-text`, with
+      `dryRun`), which lists and then applies differences in outcome text and function and category names
+      and descriptions; nothing is added or removed and statuses, owners, targets, evidence, mappings and
+      plain-language descriptions are untouched; audited as `framework.text_refresh`
+- [x] The note in `docs/known-gaps.md` removed (and from the user guide)
+
+**Implemented in** `server/src/modules/frameworks/importer.ts` (`refreshText`), `admin.ts`, `admin.test.ts`;
+`web/src/modules/frameworks/RefreshText.tsx`, `Manage.tsx`
 
 **Where:** `server/src/modules/frameworks/csf2.json` (feature: [E07-02](E07-framework-outcomes-and-assessments.md))
 
@@ -156,24 +175,30 @@ desktop width.
 
 ### E18-06 Check keyboard-only use
 
-**Status:** in progress · **Priority:** P2 · **Type:** bug
+**Status:** done · **Priority:** P2 · **Type:** bug
 
 As a user who does not use a mouse, I can reach and operate everything. Keyboard-only
 use has not been tested.
 
 **Acceptance criteria**
 
-- [ ] The main journey in each module completed with the keyboard alone (done for the shell, the search window, lists, a New dialog, record tabs and the dashboard layout; not yet module by module)
+- [x] The main journey in each module completed with the keyboard alone (the shell, the search window, lists, a New dialog, record tabs and the dashboard layout; and, module by module, every list and one record of each: every Tab stop is reached from the skip link and shows a focus indicator, nothing that reacts to a click is left out of the Tab order, and each New dialog opens with Enter, keeps the focus and closes with Escape)
 - [x] Focus is always visible and follows a sensible order (skip link, then the top bar, then the navigation, then the page)
 - [x] Dialogs trap focus and return it when closed
-- [ ] Menus, tabs, pickers and the relationship map can be operated (menus, tabs, navigation, list tables and the dashboard grid done; record pickers and the relationship map not yet driven)
+- [x] Menus, tabs, pickers and the relationship map can be operated (menus, tabs, navigation, list tables, the dashboard grid, a record picker: type, arrows and Enter choose, Escape closes the list before the dialog; and the relationship map: Tab to a node, Enter selects it, the arrow keys move the view)
 - [x] Each problem found is fixed or raised as its own issue here
 
 **Found and fixed:** the whole navigation (some 80 Tab stops) came before the top bar, so
 search, Create and the account menu were the last things a keyboard user reached; the top
 bar now comes first in the page (`web/src/core/Shell.tsx`; the look is unchanged).
 
-**Implemented in:** `tools/e2e/suites/05-keyboard.mjs` (run by `npm run test:e2e`).
+**Found by the module tour:** on the Overview, dashboards and reports, a chart's bars and slices
+open the records behind them with a pointer only (E18-42). Record pickers open their list as soon
+as they take the focus, so when focus comes back to one (after closing the "Discard this draft?"
+question) the first Escape closes its list and the next one the dialog; noted in the accessibility
+statement.
+
+**Implemented in:** `tools/e2e/suites/05-keyboard.mjs` and `tools/e2e/suites/08-keyboard-modules.mjs` (run by `npm run test:e2e`).
 
 ### E18-07 Check non-administrator roles in the browser
 
@@ -200,7 +225,7 @@ without `security.view`, and the role x page matrix is written to
 
 ### E18-08 Check that every form can be submitted in the browser
 
-**Status:** in progress · **Priority:** P1 · **Type:** bug
+**Status:** done · **Priority:** P1 · **Type:** bug
 
 As a user, I can create and edit every kind of record from the screen. Screens were
 loaded once without errors, but forms were not submitted.
@@ -208,16 +233,16 @@ loaded once without errors, but forms were not submitted.
 **Acceptance criteria**
 
 - [x] Create and edit one of every record type through the web app (25 types; dashboards, report packs and reports are changed in their own editors, which the create step drives)
-- [ ] Every hand-written dialog submitted once (ticket actions, check-out, disposal, gate decision, acceptance, declare incident, and so on): declare incident, the change wizard, the report builder, the second-factor set-up and bulk edit done; the rest not yet
+- [x] Every hand-written dialog submitted once (ticket actions, check-out, disposal, gate decision, acceptance, declare incident, and so on): declare incident, the change wizard, the report builder, the second-factor set-up and bulk edit; and in `07-dialogs.mjs`: resolve, close and "with vendor" on a ticket; check out, check in and dispose of an asset; complete a risk review, record a risk acceptance, add an action from a risk; record a gate decision; approve and complete a change; assign, mark fixed and accept the risk of a vulnerability; record training on a course; add an exercise finding. Each is opened from its record page, submitted empty where it asks for something (refused beside the field), filled in and submitted, and the change is read back through the API
 - [x] Validation messages appear beside the right field (an empty New form and an emptied title on edit are refused with a message beside the field, for every type)
 - [x] Each problem found is fixed or raised as its own issue here (E18-37)
 
-**Implemented in:** `tools/e2e/suites/03-records.mjs` and `tools/e2e/lib/forms.mjs` (fill any
-form by its labels, whatever the control).
+**Implemented in:** `tools/e2e/suites/03-records.mjs`, `tools/e2e/suites/07-dialogs.mjs` and
+`tools/e2e/lib/forms.mjs` (fill any form by its labels, whatever the control).
 
 ### E18-09 "Also satisfies" parser splits names that contain numbers
 
-**Status:** open · **Priority:** P3 · **Type:** bug
+**Status:** done · **Priority:** P3 · **Type:** bug
 
 As the person loading framework designations, a cross-mapping to a framework whose name
 itself contains a number is split in the wrong place: the parser treats the first word
@@ -226,10 +251,14 @@ knows.
 
 **Acceptance criteria**
 
-- [ ] A name containing a number, followed by a reference, is split correctly
-- [ ] The list of known names is data, or an explicit separator is supported in the file
-- [ ] Tests cover names with a number, names without, and entries with no reference
-- [ ] Mappings already loaded wrongly can be corrected by running the seed again
+- [x] A name containing a number, followed by a reference, is split correctly (a colon, a known name, then the general rule; done in E07-17)
+- [x] The list of known names is data (lookup `mapping_framework` plus names in use), and a colon is an explicit separator
+- [x] Tests cover names with a number, names without, and entries with no reference (`extras.test.ts`)
+- [x] Mappings already loaded wrongly can be corrected by running the seed again: a mapping the seed wrote
+      (no author) with the same words split differently is replaced, audited, and reported in the seed's
+      summary; mappings people added are left alone (`seed.test.ts`)
+
+**Implemented in** `server/src/modules/frameworks/mappings.ts`, `seed.ts`, `seed.test.ts`, `extras.test.ts`
 
 **Where:** `parseMapping` in `server/src/modules/frameworks/seed.ts` (feature: [E07-11](E07-framework-outcomes-and-assessments.md))
 
@@ -270,7 +299,7 @@ script errors or failed requests.
 
 ### E18-12 Automated browser tests
 
-**Status:** in progress · **Priority:** P2 · **Type:** feature
+**Status:** done · **Priority:** P2 · **Type:** feature
 
 As a maintainer, a small set of browser tests runs the main journey of each module on
 every change, so a broken screen is caught before a user finds it.
@@ -281,9 +310,9 @@ every change, so a broken screen is caught before a user finds it.
 - [x] One journey per module: create, edit, and one module-specific action (per record type: create, an empty form refused, edit, status, comment, attachment; plus sign-in and sign-out, second-factor enrollment, search, bulk edit and export)
 - [x] Run as an administrator and as one non-administrator role (every default role, in `04-roles.mjs`)
 - [x] Run in both themes (the smoke test runs light at 1440 and dark at 820)
-- [ ] Part of continuous integration ([E16-12](E16-hosting-operations-and-hardening.md)): the job is written (development guide, "Testing") and waits for the workflow file
+- [x] Part of continuous integration ([E16-12](E16-hosting-operations-and-hardening.md)): the browser job in `.github/workflows/ci.yml` builds the web application once and runs `npm run test:e2e` on every push and pull request, then the accessibility audit
 
-**Implemented in:** `tools/e2e/` (`run.mjs`, `lib/`, `suites/01-smoke` to `06-lists`),
+**Implemented in:** `tools/e2e/` (`run.mjs`, `lib/`, `suites/01-smoke` to `08-keyboard-modules`),
 started by `npm run test:e2e`: it builds the web application (or uses `E2E_WEB_DIST`),
 starts a throw-away instance on a free port with the dev seed, drives headless Edge or
 Chrome over the DevTools protocol, logs every step to `tools/e2e/out/log.txt`, saves a
@@ -315,16 +344,18 @@ regulators, people, places and vendors are not.
 
 ### E18-14 Tests for the web code
 
-**Status:** open · **Priority:** P3 · **Type:** debt
+**Status:** done · **Priority:** P3 · **Type:** debt
 
 As a developer, the shared web helpers have their own tests. Today all automated tests
 are on the server.
 
 **Acceptance criteria**
 
-- [ ] Unit tests for formatting, the list query builder and the saved-view store
-- [ ] Component tests for the generic list, form and record page
-- [ ] Run by the same `test` command
+- [x] Unit tests for formatting, the list query builder and the saved-view store (`format.test.ts`: dates in the organization's zone, date-time inputs across daylight-saving changes, durations, money; `api.test.ts`: query strings, the list contract, the CSRF header, error bodies, the sign-in handler; `listState.test.ts`: views read from the address, comparing views, saved views in the browser; `preferences.test.ts`, `labels.test.ts`, `meta.test.ts`: preferences on the server and in the browser, custom-field order, record addresses, the form field shell)
+- [x] Component tests: the read-only display components (Timeline, KeyValue, AgendaList) are rendered to HTML in `display.test.ts`; the generic list, form and record page need a browser-like environment and are split out as E18-43
+- [x] Run by the same `test` command (`web/src/**/*.test.ts`, E18-35)
+
+**Implemented in:** `web/src/core/*.test.ts`
 
 ### E18-15 A ticket can be closed without a resolution code
 
@@ -460,7 +491,7 @@ For example Catalog / Service catalog and Security terms / Security terms matrix
 
 ### E18-25 Permissions granted but never checked
 
-**Status:** in progress · **Priority:** P2 · **Type:** debt
+**Status:** done · **Priority:** P2 · **Type:** debt
 
 The dashboards, reports and portal permissions appear in role grants but no route checks them.
 
@@ -472,8 +503,17 @@ overview screen and the reporting epic.
 
 **Acceptance criteria**
 
-- [ ] Each is either enforced by the screens and routes it names, or removed: `dashboards.view` now decides whether the Overview shows its Dashboard part (`DASHBOARD_PERMISSION` in `web/src/modules/home/registry.ts`) and guards the reporting module's dashboards; `reports` is checked by the reporting module; `portal` is still checked by nothing (no portal)
+- [x] Each is either enforced by the screens and routes it names, or removed: `dashboards.view` decides whether the Overview shows its Dashboard part (`DASHBOARD_PERMISSION` in `web/src/modules/home/registry.ts`) and guards the reporting module's dashboards (a record type of module `dashboards`); `reports` is checked by the reporting module (`server/src/modules/reports`); `portal.view` and `portal.create` are checked by the self-service portal (`server/src/modules/portal/access.ts`, `requests.ts`, `files.ts`)
 - [x] The role editor says which permission areas nothing checks yet (`MAYBE_UNUSED` in `web/src/modules/admin/RoleDetail.tsx`: an area carries a "not yet used" hint unless a record type that belongs to it is loaded)
+
+**Audit (19 Nov 2026):** every permission a default role grants by name is checked by a route.
+The record-type routes check `<module>.view`, `create`, `edit`, `delete` and `export` for every
+module that has a record type; the approver's `changes.approve`, `projects.approve`,
+`tickets.approve` and `assets.approve`, the auditor's `frameworks.export` and `audit.view`, and the
+requester's `portal.view` and `portal.create` are each checked by name. What remains is the other
+way round: the role editor offers every action for every area, about 40 of those combinations
+are checked by nothing (for example `knowledge.approve`, `audit.create`, `portal.export`), and its
+"not yet used" hint still names `portal` (E18-44).
 
 **Where:** `web/src/modules/home`, [E12](E12-dashboards-and-reporting.md); `DEFAULT_ROLES` (`server/src/core/services.ts`); `MODULE_KEYS` (`server/src/modules/admin/shared.ts`)
 ### E18-26 Only risks have an Actions tab
@@ -519,7 +559,7 @@ jurisdiction's funding rules.
 
 ### E18-29 Reading a ticket list runs the service-level sweep
 
-**Status:** open · **Priority:** P3 · **Type:** debt
+**Status:** done · **Priority:** P3 · **Type:** debt
 
 A `GET` on the ticket routes also runs the sweep that writes breach flags and system
 audit events, so a read request changes data. It cannot be triggered from another site
@@ -527,13 +567,13 @@ in a harmful way (the change is the same one a timer would make), but reads shou
 
 **Acceptance criteria**
 
-- [ ] The sweep runs on a timer only
+- [x] The sweep runs on a timer only (a job-queue schedule every minute); neither the ticket routes nor `GET /api/tickets/metrics` run it. Metrics count a target that has just passed without writing anything; `POST /api/tickets/sla/sweep` (`tickets.administer`) runs it by hand
 
-**Where:** `server/src/modules/tickets/index.ts`
+**Where:** `server/src/modules/tickets/index.ts`, `metrics.ts`; tests `tickets.test.ts`, `service.test.ts`, `metrics.test.ts`
 
 ### E18-30 Escalating a project item creates a risk without a risk permission
 
-**Status:** open · **Priority:** P3 · **Type:** debt
+**Status:** done · **Priority:** P3 · **Type:** debt
 
 A person with `projects.edit` can escalate a project item into a risk they cannot then
 see. By design, and they get back only the new risk's id and reference, but it lets
@@ -541,7 +581,13 @@ someone without `risks.create` add to the risk register.
 
 **Acceptance criteria**
 
-- [ ] Decide: keep (and say so in the user guide), or require `risks.create`
+- [x] Decide: keep (and say so in the user guide), or require `risks.create`. Decided: require it. Found
+      already built when checked in wave 4: the route refuses with 403 without `risks.create`, the Items tab
+      grays out **Escalate to risk register** and explains why, and the user guide's permission table and
+      "Escalating a risk" say so
+
+**Implemented in** `server/src/modules/projects/routes.ts` (escalate route), `features.test.ts`
+("escalation needs create on risks"); `web/src/modules/projects/ItemsTab.tsx`; `docs/user/08-projects.md`
 
 **Where:** `POST /api/projects/:id/items/:itemId/escalate` (`server/src/modules/projects/routes.ts`)
 
@@ -602,17 +648,59 @@ Every module loads at start. Split the bundle by route so the first page loads q
 
 ### E18-34 Hand-written forms and record pages do not show custom fields
 
-**Status:** open · **Priority:** P2 · **Type:** bug
+**Status:** done (reports and dashboards split out as E18-45) · **Priority:** P2 · **Type:** bug
 
 The generic list, form and record page show an administrator's custom fields by themselves
-(see `web/src/core/README.md`, section 12). Pages that build their own form or summary do not:
-for example the ticket's **New ticket** dialog and its summary cards (a **More details** card
-appears only where the page uses `RecordPage`'s `summary`).
+(see `web/src/core/README.md`, section 12). Pages that build their own form do not, and a
+**required** custom field then makes such a form fail on the server.
+
+Core now offers `useCustomFieldInputs(type, { initial? })` (`web/src/core/CustomFieldInputs.tsx`):
+the controls grouped by section, `collect()` for the request body with the required check, and
+`showErrors(err.fields)`; and `FieldControl` for one field. Every record page built on
+`RecordPage` already shows custom fields (the summary, or a **More details** card after a
+`summary` of its own), and every form built on `ResourceForm` (including `EditableSummary`
+cards and `ResourceList`'s New dialog) adds them.
 
 **Acceptance criteria**
 
-- [ ] Every module's hand-written create and edit forms add `customFieldNames(resource)` (or pass `customFields` to `ResourceForm`)
-- [ ] Every record page shows them, through `summaryFields`, `CustomFieldsCard` or its own layout
+- [x] A reusable component for hand-written forms (`useCustomFieldInputs`), applied in the core
+  forms and record pages
+- [x] Every module's hand-written create forms add it: the new ticket dialog (last, under its own
+  headings), the new change flow (on the **Details** step, or under the chosen template for a
+  standard change; `Next` checks required ones), declaring a security incident (step 1), taking an
+  assessment snapshot, the project request, and the action quick add (only the **required** ones,
+  shown once a title is typed, so the line stays quick; the rest are filled in on the action's
+  page). A server refusal of a custom field is shown beside it
+- [x] The portal request form deliberately asks no custom fields: they are the service desk's
+  own classification, may pick people or records a requester cannot see, and a catalog item's
+  questions are how requesters are asked for more. The portal route takes only its own fields and
+  does not enforce required custom fields (E15-14); `portal/RequestForm.tsx` says so
+- [x] A project request asks them only of people who may view projects (only they have the
+  project type in their metadata); for anyone else the server neither takes custom values nor
+  enforces required ones (`skipCustomRequired`)
+- [x] Server routes that build the record themselves pass `cf_<key>` values through to the
+  resource engine: `POST /api/changes/templates/:id/raise`, `POST /api/assessments`,
+  `POST /api/projects/requests`. Tickets, changes, security incidents and actions use the generic
+  create, which already took them
+- [x] Every record page shows them: pages built on `RecordPage` already did; the security incident
+  workspace has a **More details** card in its side rail, and the assessment snapshot page one
+  under the notes (the snapshot's own statuses stay fixed). Edit forms built on `ResourceForm`
+  (the workspace's **Edit details**) already included them
+- [x] Checked with a required text field on each of the six types in light and dark at 1440 and
+  820: the form shows it, refuses to send without it with the message beside the field, and the
+  value is saved and shown on the record page
+- Reports and dashboards are split out as E18-45: an administrator can add custom fields to them,
+  but they are saved configurations rather than records, and their dialogs do not ask them
+
+**Implemented in:** `web/src/core/CustomFieldInputs.tsx`, `web/src/core/FieldControl.tsx`,
+`web/src/core/ResourceForm.tsx`, `web/src/core/RecordPage.tsx`; `web/src/modules/tickets/NewTicketDialog.tsx`,
+`web/src/modules/changes/NewChange.tsx`, `web/src/modules/secincidents/DeclareIncident.tsx`,
+`Workspace.tsx`, `web/src/modules/frameworks/Assessments.tsx`, `SnapshotDetail.tsx`,
+`web/src/modules/projects/IntakeForm.tsx`, `web/src/modules/risks/ActionRows.tsx` (and `risks.css`),
+`web/src/modules/portal/RequestForm.tsx` (comment); `server/src/modules/changes/admin.ts`,
+`server/src/modules/frameworks/index.ts`, `server/src/modules/projects/service.ts`. Tests:
+`server/src/modules/changes/customfields.test.ts`, `frameworks/customfields.test.ts`,
+`projects/customfields.test.ts`.
 
 ### E18-35 Web unit tests are not run by the main test command
 
@@ -631,17 +719,19 @@ live beside the code as `web/src/**/*.test.ts` and run with
 
 ### E18-36 Category labels run together on narrow bar charts
 
-**Status:** open · **Priority:** P3 · **Type:** bug
+**Status:** done · **Priority:** P3 · **Type:** bug
 
 On the Assets and systems dashboard, the Assets by status chart prints its category labels with no space between them (for example Ordered and In stock) at 1440px.
 
 **Acceptance criteria**
 
-- [ ] Category labels on vertical bar charts wrap, rotate or abbreviate so none touch at 820px and wider
+- [x] Category labels on vertical bar charts wrap, rotate or abbreviate so none touch at 820px and wider: the chart measures the labels against the room each category has and keeps them on one line, wraps them onto two lines, or tilts and shortens them (hiding any that would still overlap), again whenever the chart is resized
+
+**Implemented in:** `web/src/core/ChartImpl.tsx` (`fitCategoryLabels`), `web/src/modules/reports/charts.ts` (fixed label widths removed). Tests: `web/src/modules/reports/labels.test.ts`.
 
 ### E18-37 New dashboard: an empty name is refused with a toast, not beside the field
 
-**Status:** open · **Priority:** P3 · **Type:** bug
+**Status:** done · **Priority:** P3 · **Type:** bug
 
 Found by the browser tests (E18-08). In Reports > Dashboards > New dashboard, pressing
 "Create and add widgets" with no name shows a passing notice ("Give the dashboard a
@@ -651,12 +741,12 @@ fixed (`tools/e2e/suites/03-records.mjs`, `known: { empty: 'E18-37' }`).
 
 **Acceptance criteria**
 
-- [ ] The message appears under the Name field (`error` on the `TextField`) and focus moves to the field (`web/src/modules/reports/DashboardPages.tsx`, `create()`)
-- [ ] The `known` entry for dashboards is removed from the browser tests
+- [x] The message appears under the Name field (`error` on the `TextField`) and focus moves to the field (`web/src/modules/reports/DashboardPages.tsx`, `create()`); a server refusal of the name shows there too, and the dashboard settings dialog marks an empty name the same way
+- [ ] The `known` entry for dashboards is removed from the browser tests (`tools/e2e/suites/03-records.mjs`, shared: handed to the coordinator)
 
 ### E18-38 A report on records the role cannot see makes a refused request
 
-**Status:** open · **Priority:** P3 · **Type:** bug
+**Status:** done · **Priority:** P3 · **Type:** bug
 
 Found by the role tour (E18-07). A project manager opening a shared report about assets
 (which the role may not view) gets a refused request (`403` from
@@ -665,21 +755,26 @@ report covers records outside their role.
 
 **Acceptance criteria**
 
-- [ ] The report page checks the role's view permission for the report's record type and says so, without asking the server to run it (`web/src/modules/reports`)
-- [ ] The role tour shows no failed request on `/reports/:id` for any role
+- [x] The report page checks the role's view permission for the report's record type and says so, without asking the server to run it (`web/src/modules/reports`): the type must be in the metadata, which holds only types the person may view; Export, Schedule and Add to dashboard are hidden then
+- [x] The role tour shows no failed request on `/reports/:id` for any role (checked with `tools/browse.mjs` as an executive viewer on a report about assets)
 
 ### E18-39 Accessibility audit: findings left for other owners
 
-**Status:** open · **Priority:** P2 · **Type:** bug
+**Status:** done · **Priority:** P2 · **Type:** bug
 
 Found by the automated accessibility audit (E16-15, `node tools/a11y/audit.mjs`), in files
 outside the audit's own changes. Each line names the file and the fix.
 
 **Acceptance criteria**
 
-- [ ] Dashboard calendar widget: `role="grid"` holds column headers and cells without rows (axe `aria-required-children`, `aria-required-parent`, critical). In `web/src/modules/reports/visuals.tsx` (line 79), wrap each week in `role="row"` (with `display: contents`, as the change calendar now does) or use `role="table"` with rows
-- [ ] Safety overview (`/safety`) hazard matrix: empty cells are faded with `opacity: 0.55`, taking their rating text ("Medium", "High") to about 2.5:1 (axe `color-contrast`, serious, both themes). In `web/src/modules/safety/safety.css` (`.sf-cell.is-empty`), mark empty cells another way (a dashed border, or a lighter background with the full-strength text color)
-- [ ] The audit reports no serious or critical violation on any route in either theme at 1440 and 820
+- [x] Dashboard calendar widget: `role="grid"` holds column headers and cells without rows (axe `aria-required-children`, `aria-required-parent`, critical). In `web/src/modules/reports/visuals.tsx` (line 79), wrap each week in `role="row"` (with `display: contents`, as the change calendar now does) or use `role="table"` with rows. Done: the month is a `role="table"` with a header row and one `role="row"` per week; every day (and blank) is a `role="cell"`, and a day with records keeps its button inside its cell. Rows and button cells use `display: contents`, so the layout is unchanged (the report page's calendar view shares it)
+- [x] Safety overview (`/safety`) hazard matrix: empty cells are faded with `opacity: 0.55`, taking their rating text ("Medium", "High") to about 2.5:1 (axe `color-contrast`, serious, both themes). In `web/src/modules/safety/safety.css` (`.sf-cell.is-empty`), mark empty cells another way (a dashed border, or a lighter background with the full-strength text color). Done: an empty cell has a paler fill (its rating color mixed with the surface) and a dashed outline, with the rating text at full strength
+- [x] The audit reports no serious or critical violation on any route in either theme at 1440 and 820 (re-run on 19 Nov 2026 after the fixes: 173 pages in four combinations, 692 checks, no violation of any impact; `tools/a11y/known.json` is now empty)
+- [x] The audit is ready to fail the build: the two findings above are listed in `tools/a11y/known.json` with this issue, anything else serious or critical fails the run; remove their entries when they are fixed (the audit reports an entry that no longer matches as stale), and drop `--no-fail` from the CI step
+
+**Implemented in:** `web/src/modules/reports/visuals.tsx` (`CalendarGrid`), `reports.css`
+(`.rp-cal-row`, `.rp-cal-cell`); `web/src/modules/safety/shared.tsx` (`HazardMatrix`: colors as
+`--sf-bg`/`--sf-fg`), `safety.css` (`.sf-cell.is-empty`); `tools/a11y/known.json` emptied.
 
 **Fixed in the audit itself (for the record):** combobox pickers now always state
 `aria-expanded` (`core/pickers.tsx`); Mantine's clear buttons have a name
@@ -736,3 +831,77 @@ written. Found by an intermittent test failure in CI (macOS and PostgreSQL legs)
 - [x] Regression tests; the affected test passed 10 runs in a row
 
 **Done:** `server/src/ops/online-backup.ts` (`byAge`, `nextArchiveName`), `server/src/ops/online-backup-order.test.ts`.
+
+### E18-45 Custom fields on saved reports and dashboards are not asked or shown
+
+**Status:** open · **Priority:** P3 · **Type:** bug
+
+Split from E18-34. **Administration > Custom fields** offers every record type, including saved
+reports (`report_definition`), dashboards, report schedules and report packs. These are saved
+configurations rather than organizational records: the report builder's save dialog, the New
+dashboard dialog and the dashboard settings do not ask custom fields, and the report and dashboard
+pages do not show them. A **required** custom field on one of these types would make creating it
+fail with a message about a field the dialog does not show.
+
+**Acceptance criteria**
+
+- [ ] Decide: leave the reporting types out of the custom-fields record type list (preferred;
+  `server/src/core/customfield-routes.ts` refuses them and `recordTypes` leaves them out), or ask
+  them in the reporting dialogs with `useCustomFieldInputs` and show them with `CustomFieldsCard`
+- [ ] Either way, a required custom field can never block saving a report or a dashboard
+
+**Where:** `server/src/core/customfield-routes.ts` (core), `web/src/modules/reports`
+
+### E18-42 Chart drill-down works only with a pointer
+
+**Status:** done · **Priority:** P2 · **Type:** bug
+
+Clicking a bar, slice or point of a chart on the Overview, a dashboard or a report opens the
+records behind it, but only with a pointer: a keyboard user could not reach them. Found by the
+keyboard tour (E18-06).
+
+**Acceptance criteria**
+
+- [x] When a chart opens records on click, each data point also has a button, hidden until it has focus, named after its series, category and value, that does the same
+- [x] Tested (`web/src/core/chartKeys.test.ts`)
+
+**Implemented in:** `web/src/core/ChartImpl.tsx` (`segmentsOf`), `web/src/core/records.css` (`.rc-chart-keys`).
+
+### E18-43 Component tests for the generic list, form and record page
+
+**Status:** open · **Priority:** P3 · **Type:** debt
+
+The read-only display components have rendering tests, but the generic list, form and record
+page need a browser-like test environment (jsdom or happy-dom, a new development package) or an
+exported metadata context before they can be tested on their own. Split from E18-14.
+
+**Acceptance criteria**
+
+- [ ] A decision on the test environment (new package or exported context)
+- [ ] Tests for list filters and paging, form validation messages and the record page's tabs
+
+### E18-44 The role editor offers actions nothing checks
+
+**Status:** open · **Priority:** P3 · **Type:** debt
+
+The role editor offers about 40 combinations of area and action that no route checks, so an
+administrator can grant a permission that does nothing. Found by the permissions audit (E18-25).
+
+**Acceptance criteria**
+
+- [x] The "not yet used" hint no longer names `portal`, which is now checked
+- [ ] The server lists the permissions its routes check, and the role editor greys out the rest
+
+### E18-46 A malformed date and time could be read as a date
+
+**Status:** done · **Priority:** P3 · **Type:** bug
+
+`fromZonedInput`, which turns a date-and-time box's value into an instant, accepted any text:
+`'abc'` became 1 January 2000, because the browser reads `'abc:00Z'` as a date. Found by the
+web unit tests (E18-14).
+
+**Acceptance criteria**
+
+- [x] Only a `YYYY-MM-DDTHH:MM` value is converted; anything else gives an empty value
+
+**Implemented in:** `web/src/core/format.ts`.

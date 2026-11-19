@@ -4,8 +4,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Badge, Button, Card, Checkbox, DefinitionList, EditableSummary, errorMessage, formatDate, formatDateTime, LookupChip, ProgressBar, RecordPage,
-  ResourceForm, TextArea, useFetch, useToast,
+  api, Badge, Button, Card, Checkbox, DefinitionList, EditableSummary, errorMessage, formatDate, formatDateTime, Icon, LookupChip, ProgressBar, RecordPage,
+  ResourceForm, Switch, TextArea, useFetch, useToast,
 } from '../../core';
 import type { RecordContext, Row } from '../../core';
 import { Cockpit } from './Cockpit';
@@ -98,6 +98,48 @@ function MayHelp({ row }: { row: Row }) {
   );
 }
 
+interface SharedFile { id: string; file_name: string; size_bytes: number; from_requester: boolean; shared: boolean; shared_by_name: string | null; shared_at: string | null }
+
+/** E15-13: which of the ticket's files the requester sees in the self-service portal. */
+function SharedFiles({ rec }: { rec: RecordContext }) {
+  const { row, canEdit } = rec;
+  const toast = useToast();
+  const { data, reload } = useFetch<{ rows: SharedFile[]; requester_can_see: boolean }>(`/api/tickets/${row.id}/shared-files`);
+  const [busy, setBusy] = useState<string | null>(null);
+  useEffect(() => { reload(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [row.updated_at]);
+  if (!data || !data.requester_can_see || !data.rows.length) return null;
+  async function share(f: SharedFile, shared: boolean) {
+    setBusy(f.id);
+    try {
+      await api.put(`/api/tickets/${row.id}/shared-files/${f.id}`, { shared });
+      toast.success(shared ? `${f.file_name} is now shown to the requester.` : `${f.file_name} is no longer shown to the requester.`);
+      reload();
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setBusy(null);
+    }
+  }
+  const shown = data.rows.filter((f) => f.shared || f.from_requester).length;
+  return (
+    <Card title="Files the requester sees" actions={<span className="muted">{shown} of {data.rows.length}</span>}>
+      <p className="muted">The requester sees the files they added, and the ones you share here, in the self-service portal.</p>
+      <ul className="sd-shared-files">
+        {data.rows.map((f) => (
+          <li key={f.id}>
+            {f.from_requester
+              ? <><Icon name="user" size={16} /><span className="truncate" title={f.file_name}>{f.file_name}</span><span className="muted">Added by the requester</span></>
+              : (
+                <Switch label={f.file_name} checked={f.shared} disabled={!canEdit || busy === f.id} onChange={(v) => void share(f, v)}
+                  hint={f.shared && f.shared_by_name ? `Shared by ${f.shared_by_name}${f.shared_at ? ` on ${formatDateTime(f.shared_at)}` : ''}` : undefined} />
+              )}
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
 function VendorPanel({ row }: { row: Row }) {
   if (!row.with_vendor && !row.vendor_ref && !row.vendor_raised_at) return null;
   const raised = row.vendor_raised_at ? new Date(row.vendor_raised_at).getTime() : null;
@@ -181,6 +223,10 @@ function Summary({ rec }: { rec: RecordContext }) {
         {row.channel === 'portal' && (
           <p className="muted sd-portal-note">Raised in the self-service portal. The requester sees public comments only{row.reopened_count ? `, and has reopened it ${row.reopened_count === 1 ? 'once' : `${row.reopened_count} times`}` : ''}.</p>
         )}
+        {row.channel === 'email' && (
+          <p className="muted sd-portal-note">Raised by email. Their replies are added as public comments, and public comments are emailed to them when email to ticket is set to do so.</p>
+        )}
+        <SharedFiles rec={rec} />
         <VendorPanel row={row} />
         <MayHelp row={row} />
         <Card title="Dates">

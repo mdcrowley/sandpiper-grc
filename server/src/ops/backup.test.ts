@@ -24,6 +24,8 @@ function fakeData(name: string) {
   writeFileSync(join(dataDir, 'pg', 'base', '1'), 'original database page');
   writeFileSync(join(dataDir, 'files', 'ab', 'evidence.txt'), 'original attachment');
   writeFileSync(join(dataDir, 'server.log'), 'log line');
+  mkdirSync(join(dataDir, 'logs'), { recursive: true });
+  writeFileSync(join(dataDir, 'logs', 'grc.log'), '{"msg":"the server log stays out of backups"}\n');
   return { dataDir, backupsDir };
 }
 const at = (minute: number) => new Date(2030, 0, 31, 9, minute, 0);

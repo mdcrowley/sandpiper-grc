@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   ApiError, Button, Card, Checkbox, EmptyState, ErrorState, errorMessage, humanize, Icon, Loading, NotFound, PageHeader,
-  StatusChip, TextArea, TextField, useFetch, useMeta, useToast,
+  StatusChip, TextArea, TextField, useAuth, useFetch, useMeta, useToast,
 } from '../../core';
 import { Notice } from './common';
 import type { Role, RolesResponse } from './common';
@@ -23,11 +23,13 @@ const moduleLabel = (key: string) => MODULE_LABELS[key] ?? humanize(key);
  * unless a record type that belongs to it is loaded (see `unusedAreas`). The list of areas itself always
  * comes from the server; this only decides which rows carry the hint.
  */
-const MAYBE_UNUSED = ['reports', 'portal'];
+const MAYBE_UNUSED = ['reports'];
 
 export function RoleDetailPage() {
   const { id } = useParams();
   const toast = useToast();
+  // Areas switched off under Administration > Features: their grants are kept but nobody holds them.
+  const { switchedOff } = useAuth();
   const vocab = useFetch<RolesResponse>('/api/admin/roles');
   const { data: role, error, reload } = useFetch<Role>(`/api/admin/roles/${id}`);
   const [form, setForm] = useState({ name: '', description: '', requiresMfa: false, enabled: true });
@@ -205,14 +207,16 @@ export function RoleDetailPage() {
                 </thead>
                 <tbody>
                   {shown.map((m) => {
-                    const unused = unusedAreas.has(m);
+                    const off = switchedOff(`${m}.view`);
+                    const unused = !off && unusedAreas.has(m);
                     return (
-                      <tr key={m} className={unused ? 'adm-matrix-unused' : undefined}>
+                      <tr key={m} className={unused || off ? 'adm-matrix-unused' : undefined}>
                         <th scope="row" className="adm-matrix-area">
                           <span className="adm-matrix-name">{moduleLabel(m)}</span>
                           <span className="adm-matrix-key">
                             <code>{m}</code>
                             {unused && <span className="adm-matrix-hint" title="Nothing in this version checks these permissions yet. Ticking them has no effect today.">not yet used</span>}
+                            {off && <Link className="adm-matrix-hint" to="/admin/features" title="This part of the application is switched off under Features: nobody holds these permissions until it is switched on again. Ticks are kept.">switched off</Link>}
                           </span>
                         </th>
                         <td className="adm-matrix-all">

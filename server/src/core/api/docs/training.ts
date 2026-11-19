@@ -28,9 +28,9 @@ const COMPLETION = `completed_on?: date | null, score?: number | null "0 to 100.
 
 const PARTICIPANT = '{ id: uuid, name: string, role: string | null, attended: boolean }';
 const ACTION_STATE = '{ id: uuid, ref: string, title: string, status: string, status_label: string, status_color: string, due_on: date | null }';
-const FINDING = `{ id: uuid, finding: string, severity: string | null, recommendation: string | null, action_id: uuid | null, action: ${ACTION_STATE} | null }`;
+const FINDING = `{ id: uuid, step_id: uuid | null "The exercise step it was raised from", finding: string, severity: string | null, recommendation: string | null, action_id: uuid | null, action: ${ACTION_STATE} | null }`;
 const STEP = `{ id: uuid, phase: string | null, phase_label: string | null, step: string, sort: number, outcome: string | null, notes: string | null,
-  source_scenario: string | null }`;
+  source_scenario: string | null, finding_id: uuid | null "Finding raised from this step" }`;
 const STEP_ROW = '{ id: uuid, exercise_id: uuid, phase: string | null, step: string, sort: number, outcome: string | null, notes: string | null, source_scenario: string | null, ... }';
 const CAL_ENTRY = `{ id: uuid, ref: string, title: string, type: string | null, type_label: string, owner_name: string | null, facilitator: string | null,
   kind: 'planned' | 'repeat', date: date | null, last_run: date | null }`;
@@ -147,7 +147,8 @@ export const DOCS: RouteDoc[] = [
     description: 'An entry is a planned exercise (by its date) or the next run of a completed one (by its next due date) unless a later exercise of the same type is on record. Canceled exercises are left out.',
     response: `{ today: date, overdue: [${CAL_ENTRY}], upcoming: [${CAL_ENTRY}], undated: [${CAL_ENTRY}],
       by_type: [{ type: string, label: string, color: string, completed: integer, last_run: date | null, last_id: uuid | null, last_result: string | null,
-        next_due: date | null, next_id: uuid | null, overdue: boolean }] }`,
+        next_due: date | null, next_id: uuid | null, overdue: boolean,
+        last_steps: { total: integer, went_well: integer, with_issues: integer, not_done: integer, not_tested: integer, unrecorded: integer } | null }] }`,
   }),
 
   // ---------- exercises: participants ----------

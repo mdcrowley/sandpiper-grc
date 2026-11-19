@@ -2,6 +2,8 @@
 
 A framework is a published list of security outcomes that an organization works towards; NIST CSF 2.0 is included, and others can be added from a file. This page explains how to read the outcomes board, how to record where you stand on each outcome and the evidence for it, and how to take assessment snapshots so that progress can be shown between two dates. The screens are in the **Cybersecurity** group of the menu: **Framework outcomes** and **Assessments**.
 
+An administrator can switch framework outcomes off under **Administration > Features** (see [Administration](09-administration.md#features)). Records are kept and return when it is switched back on.
+
 Transit operators often map framework outcomes to the security guidance issued for their sector, or to the conditions of a grant, an insurer or a contract. The **Also satisfies** tab and the **Coverage of other frameworks** page are made for this: record the mapping once on each outcome, then see the other document's requirements with the outcomes that meet them.
 
 ## Words used on these screens
@@ -37,7 +39,7 @@ Every outcome has one status. The colors are the same on every screen, and a key
 
 An outcome is "at target" when its status is the target status or better. With the usual target, that means **Largely met** or **Met**.
 
-Administrators can rename statuses and change their colors under **Lists** (the list is called **Outcome status**).
+Administrators can rename statuses and change their colors under **Lists** (the list is called **Outcome status**). The score each status counts for, and the target status, are changed on the framework settings screen (see [Framework settings](#framework-settings)).
 
 ## The outcomes board
 
@@ -115,10 +117,11 @@ The filters are part of the page address, so you can bookmark a filtered board o
 Use the **Views** menu in the filter bar:
 
 - **All outcomes** and **Priority outcomes** are always there.
-- **Save current view…** saves the filters you have set under a name. A view with the same name is replaced.
-- Your saved views are listed in the menu; select one to apply it. When the current filters match a saved view, the menu shows its name and offers **Delete view**.
+- **Save current view…** saves the filters you have set under a name. A view of yours with the same name is replaced. Turn on **Share with everyone who can see the outcomes** to share it instead.
+- Your own views, then the shared ones (marked with the name of the person who shared them), are listed in the menu; select one to apply it. When the current filters match a saved view, the menu shows its name.
+- **Manage views…** lists your views and the shared ones. **Share** shares one of your own views; the trash icon deletes one of yours, or removes a shared view you shared (an administrator can remove any shared view).
 
-Saved views are kept in this browser on this computer.
+Your own views are kept with your account, so they follow you to any browser; views you saved in this browser before are carried over the first time you open the board. A shared view is stored as filters on the outcome fields (status, phase, priority, function and owner), so it also appears among the saved views of the table view. Sharing, changing and removing a shared view is recorded in the audit log. A shared view holds filters, never outcomes: everyone sees only what their own permissions allow.
 
 ### Printing the board
 
@@ -133,7 +136,7 @@ In the table you can:
 - search by code or wording using the search box;
 - filter by **Status**, **Phase**, **Priority outcome**, **Owner** and **Review date**;
 - sort by selecting a column heading;
-- save the current search and filters as a view (saved views are kept in your browser on this computer);
+- save the current search and filters as a view, for yourself or shared with everyone who can see the outcomes (shared board views appear here too);
 - download the rows as a spreadsheet file with **Export** (needs the **Export** permission);
 - add an outcome with **New framework outcome** (needs **Create**).
 
@@ -190,7 +193,7 @@ This card holds the plan for the outcome: **Target**, **First action**, **Phase*
 
 ### Review-date reminders
 
-When an outcome has a review date, its owner receives a notification (the bell at the top of the screen) two weeks before the date and again when the date is reached. If the outcome has no owner, everyone who may edit framework outcomes is told instead. Each review date is announced at most twice; set a new review date after the review and the reminders start again for that date. Notifications can be turned off under **Reminders** in your notification settings.
+When an outcome has a review date, its owner receives a notification (the bell at the top of the screen) two weeks before the date (the lead time is set on the [framework settings](#framework-settings) screen) and again when the date is reached. If the outcome has no owner, everyone who may edit framework outcomes is told instead. Each review date is announced at most twice; set a new review date after the review and the reminders start again for that date. Notifications can be turned off under **Reminders** in your notification settings.
 
 ### Status over time
 
@@ -233,6 +236,8 @@ Each note shows an expiry label:
 | **Expires** (amber) | The item expires within 30 days. |
 | **Expired** (red) | The expiry date has passed. |
 
+The outcome's owner (or, when it has none, everyone who may edit framework outcomes) is reminded once when a note's expiry date is 30 days away, and once when it has passed. An administrator changes the 30 days under **Administration** > **Reminders**. Files attached as evidence are listed on the **Expiring evidence files** page instead.
+
 Adding evidence does not change the status. Update the status yourself when the evidence justifies it.
 
 ### Also satisfies
@@ -248,7 +253,7 @@ To add a mapping:
 
 The same framework and reference cannot be added twice to one outcome. A name cannot contain a colon or a semicolon, and a reference cannot contain a semicolon: add a separate mapping for each reference. To change a mapping, select the pencil icon, edit it and select **Save changes**. To remove one, select the trash icon; it is removed immediately, without a confirmation step. Select a framework's name to open its coverage.
 
-An outcome also has an **Also satisfies** text field, which is filled when your organization's designations are loaded at setup (entries separated by semicolons, for example `ISO/IEC 27001 A.5.1; Example Standard 2: 4.1`). The text and the mappings are kept in step: adding, changing or removing a mapping rewrites the text, and changing the text adds and removes mappings to match. In the text, a colon marks where a name ends and its reference begins. Without a colon, a name from the **Mapping framework** list, or one already used in a mapping, is recognized even when it contains a number; otherwise the reference starts at the first word that contains a digit. Administrators can add names to the **Mapping framework** list under **Lists**.
+An outcome also has an **Also satisfies** text field, which is filled when your organization's designations are loaded at setup (entries separated by semicolons, for example `ISO/IEC 27001 A.5.1; Example Standard 2: 4.1`). The text and the mappings are kept in step: adding, changing or removing a mapping rewrites the text, and changing the text adds and removes mappings to match. In the text, a colon marks where a name ends and its reference begins. Without a colon, a name from the **Mapping framework** list, or one already used in a mapping, is recognized even when it contains a number; otherwise the reference starts at the first word that contains a digit. Administrators can add names to the **Mapping framework** list under **Lists**. If a name containing a number was split in the wrong place when the designations were loaded (for example "Example Standard" with reference "2 4.1.3"), add the full name to the list and run the seed command again: mappings the seed made with the same words split differently are replaced by the correct one, and mappings people added themselves are left alone.
 
 ### Risks, policies and actions
 
@@ -297,6 +302,20 @@ Changes to names, colors and order are kept until you select **Save structure**;
 Loading the file for a framework that is already loaded updates names and wording and adds new outcomes. It never changes a status, owner, target, evidence or mapping, and it never removes an outcome: outcomes that are in the application but not in the file are listed and left alone.
 
 **Download as a file** saves the chosen framework in the same format, which is a good starting point for writing a file of your own.
+
+### Checking the official wording
+
+For NIST CSF 2.0, **Check official wording** (needs **Edit**) compares the outcome text and the function and category names and descriptions with the wording supplied with this version of the application, which has been checked against the published framework. It lists every difference; **Update** brings them in line. Only the wording changes: statuses, owners, targets, evidence, mappings and your own plain-language descriptions are not touched, and no outcome is added or removed. Use it after an upgrade on an installation that loaded the framework with an earlier version. The change is recorded in the framework's history.
+
+## Framework settings
+
+Open **Framework outcomes > More > Framework settings**. Everyone who can see the outcomes can read the settings; changing them needs the **Administer** permission on frameworks. Every change is recorded in the audit log.
+
+- **Scoring**: the weight of each status, as a percentage of an outcome (usually 0, 33, 67 and 100). The score out of 100 is the average weight of the outcomes.
+- **Target status**: the line drawn on the board, the progress chart and assessment reports. An outcome at that status, or at one that weighs more, counts as on target. The target status needs a weight above 0%.
+- **Days before the review date**: when the first review reminder goes out (0 to 90; 0 sends only the reminder on the day). The same setting is listed under **Administration** > **Reminders**.
+
+Select **Save settings**; **Discard changes** goes back to what is saved. Scores on the board, the progress chart and in reports use the new weights at once, including those of earlier snapshots.
 
 ### The reference file format
 
@@ -350,10 +369,10 @@ Before you start, make sure outcome statuses are up to date, because the snapsho
 1. Select **Take snapshot**.
 2. Enter a **Name**, for example "Quarter 1 review".
 3. Leave **Date** empty to use today, or enter the date the assessment relates to. The date cannot be in the future or before 2000.
-4. Add any **Notes**.
+4. Add any **Notes**, and fill in any custom fields your administrator has added to snapshots (those marked with an asterisk are required).
 5. Select **Take snapshot**.
 
-A snapshot cannot be changed afterwards. The **Date** only labels the snapshot and sets its position on the chart: whatever date you enter, the statuses saved are the ones on the board when you select the button.
+The statuses a snapshot holds cannot be changed afterwards; its custom fields, if any, are shown and can be edited in the **More details** card on the snapshot's page. The **Date** only labels the snapshot and sets its position on the chart: whatever date you enter, the statuses saved are the ones on the board when you select the button.
 
 Take the first snapshot as soon as the statuses are a fair reflection of the present. It becomes the baseline.
 
@@ -432,7 +451,4 @@ The snapshot disappears from the progress chart and from comparisons. The deleti
 
 ## Not available yet
 
-- There is no screen for changing the target status or the score each status counts for, or the number of days before a review date that the first reminder is sent.
-- No reminder is sent when an evidence note's expiry date is reached.
-- Saved board views are kept in one browser only; they cannot be shared with colleagues except by sending the page address.
-- The NIST CSF 2.0 wording supplied with the application has been checked against the published standard from memory, not line by line against the publication. Check the official text of an outcome against the standard before quoting it.
+Nothing tracked for this area is missing at the moment.

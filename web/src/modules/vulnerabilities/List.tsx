@@ -37,6 +37,7 @@ export function VulnerabilityList() {
   ]);
   const optional = useAvailableFields(['system_id', 'asset_id']);
   const t = summary?.totals;
+  const { data: dups } = useFetch<{ groups: unknown[] }>('/api/vulnerabilities/duplicates');
   const openOf = (sev: string) => summary?.openBySeverity.find((s) => s.severity === sev)?.count ?? 0;
 
   return (
@@ -44,6 +45,12 @@ export function VulnerabilityList() {
       <PageHeader title="Vulnerabilities" subtitle="Findings from scans and assessments, from first seen to fixed."
         actions={access.importFindings ? <Link className="btn btn-secondary" to="/vulnerabilities/import">Import findings</Link> : undefined} />
       <SectionTabs active="findings" />
+      {(dups?.groups.length ?? 0) > 0 && (
+        <div className="notice notice-warn-soft" role="note">
+          {dups!.groups.length} group{dups!.groups.length === 1 ? '' : 's'} of findings share one host, port and identifier: duplicates recorded before host and port matching.{' '}
+          <Link to="/vulnerabilities/duplicates">Review the duplicates</Link>
+        </div>
+      )}
       <div className="grid-stats">
         <Stat label="Open" value={t?.open ?? '–'} icon="bug" to={listLink({ closed: 'false' })} />
         <Stat label="Overdue" value={t?.overdue ?? '–'} icon="clock" color={t?.overdue ? 'red' : undefined} to={listLink({ overdue: 'true' })} />

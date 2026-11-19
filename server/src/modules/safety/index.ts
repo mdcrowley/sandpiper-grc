@@ -2,6 +2,7 @@ import type { ModuleContext, ModuleDef } from '../../core/module.ts';
 import { registerEvents } from './events.ts';
 import { registerHazards } from './hazards.ts';
 import { registerIndicators } from './indicators.ts';
+import { registerPortalIntake } from './portal-intake.ts';
 import { registerReminders } from './reminders.ts';
 import { seedSafety } from './seed.ts';
 
@@ -88,7 +89,8 @@ async function register(ctx: ModuleContext) {
   registerHazards(ctx);
   registerEvents(ctx);
   registerIndicators(ctx);
-  registerReminders(ctx);
+  registerPortalIntake(ctx);
+  await registerReminders(ctx);
 }
 
 const mod: ModuleDef = {

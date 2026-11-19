@@ -13,7 +13,7 @@ const nextMonth = (iso: string) => {
   return d.toISOString().slice(0, 10);
 };
 const monthName = (iso: string, long: boolean) =>
-  new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', { month: long ? 'long' : 'short', timeZone: 'UTC' });
+  new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-US', { month: long ? 'long' : 'short', timeZone: 'UTC' });
 const quarterOf = (iso: string) => `Q${Math.floor((Number(iso.slice(5, 7)) - 1) / 3) + 1} ${iso.slice(0, 4)}`;
 
 type Zoom = 'quarter' | 'year';

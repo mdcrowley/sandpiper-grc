@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 
 import { SegmentedControl } from '@mantine/core';
 import {
   api, Button, Checkbox, DateField, errorMessage, formatDateTime, Icon, LookupChip, LookupSelect, Modal, RecordPicker, Select, TextArea, TextField,
-  useAuth, useDebounced, useFetch, useLookup, useResource, UserPicker, useToast,
+  useAuth, useCustomFieldInputs, useDebounced, useFetch, useLookup, useResource, UserPicker, useToast,
 } from '../../core';
 import type { ListResult, Row } from '../../core';
 import { fieldErrors, priorityFor, type PriorityMatrix, type Question, type Suggestions } from './util';
@@ -38,6 +38,8 @@ export function NewTicketDialog({ open, onClose, onCreated, initial, title = 'Ne
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
   const another = useRef(false);
+  // The administrator's custom fields on tickets (E18-34), after the built-in sections.
+  const custom = useCustomFieldInputs('ticket');
 
   const matrix = useFetch<PriorityMatrix>(open ? '/api/tickets/priority-matrix' : null);
   const catalog = useFetch<ListResult>(open ? '/api/catalog-items?f.active=true&sort=name&pageSize=100' : null);
@@ -55,6 +57,7 @@ export function NewTicketDialog({ open, onClose, onCreated, initial, title = 'Ne
     setAssigneeName(undefined);
     setErrors({});
     setFormError('');
+    custom.reset();
   }
 
   function applyItem(next: Row | null) {
@@ -90,7 +93,8 @@ export function NewTicketDialog({ open, onClose, onCreated, initial, title = 'Ne
     if (override && !v.priority) found.priority = 'Choose a priority, or untick the box.';
     for (const q of questions) if (q.required && !String(answers[q.key] ?? '').trim()) found[`catalog_answers.${q.key}`] = `${q.label} is required.`;
     setErrors(found);
-    if (Object.keys(found).length) {
+    const extra = custom.collect();
+    if (Object.keys(found).length || !extra) {
       setFormError('Check the highlighted fields.');
       return;
     }
@@ -99,6 +103,7 @@ export function NewTicketDialog({ open, onClose, onCreated, initial, title = 'Ne
     for (const [k, val] of Object.entries(v)) if (val !== '' && val !== null && val !== undefined) body[k] = val;
     if (!override) delete body.priority;
     if (questions.length) body.catalog_answers = answers;
+    Object.assign(body, extra);
     setBusy(true);
     setFormError('');
     try {
@@ -109,6 +114,7 @@ export function NewTicketDialog({ open, onClose, onCreated, initial, title = 'Ne
       onCreated(row, again);
     } catch (err) {
       setErrors(fieldErrors(err));
+      custom.showErrors(fieldErrors(err));
       setFormError(errorMessage(err));
     } finally {
       setBusy(false);
@@ -264,6 +270,7 @@ export function NewTicketDialog({ open, onClose, onCreated, initial, title = 'Ne
             <LookupSelect label="How it arrived" list="ticket_channel" value={v.channel ?? ''} onChange={set('channel')} error={errors.channel} />
           </div>
         </fieldset>
+        {custom.inputs}
         <button type="submit" hidden aria-hidden="true" tabIndex={-1} />
       </form>
     </Modal>

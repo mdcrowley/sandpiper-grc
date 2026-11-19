@@ -1,12 +1,15 @@
-// Server-made PDF documents (PDFKit, standard fonts). One builder serves list exports, reports,
-// dashboards, report packs and record fact sheets: headings, paragraphs, fact lists, tables that
-// break across pages with the header row repeated, simple vector charts (bar, line, pie), page
-// numbers and, for restricted content, a watermark on every page.
+// Server-made PDF documents (PDFKit). One builder serves list exports, reports, dashboards,
+// report packs and record fact sheets: headings, paragraphs, fact lists, tables that break across
+// pages with the header row repeated, simple vector charts (bar, line, pie), page numbers and, for
+// restricted content, a watermark on every page.
 //
-// Fonts: PDFKit's built-in Helvetica, so nothing is downloaded or bundled. Those fonts cover
-// Western European text (the Windows-1252 character set); any other character is printed as "?".
-// Embedding an open font with wider coverage is listed as a known gap.
+// Fonts: text that Windows-1252 covers (Western European languages) is printed in PDFKit's
+// built-in Helvetica, so nothing is embedded. Any other text (Greek, Cyrillic, Hebrew, Arabic,
+// Chinese, Japanese, Korean and so on) is printed in a TrueType or OpenType font from the machine,
+// or from GRC_PDF_FONTS, with only the glyphs used embedded (see fonts.ts). A character no
+// available font has is printed as "?". Right-to-left text is shaped but not reordered.
 import PDFDocument from 'pdfkit';
+import { pdfFonts, type FontFace } from './fonts.ts';
 
 export const PDF_TYPE = 'application/pdf';
 
@@ -20,18 +23,51 @@ export const SERIES = ['#2a78d6', '#eb6834', '#1aa976', '#c88800', '#e56c9a', '#
 
 // Windows-1252 characters above 0x7f that are not Latin-1 (the standard fonts can print these too).
 const CP1252_EXTRA = new Set('€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ');
-/** Text the standard fonts can print: anything outside Windows-1252 becomes "?". */
-export function printable(v: unknown): string {
+const standard = (ch: string, c: number) => c === 10 || (c >= 0x20 && c < 0x7f) || (c >= 0xa0 && c <= 0xff) || CP1252_EXTRA.has(ch);
+
+/** Line breaks, tabs, look-alike spaces and the minus sign made plain; control characters dropped. */
+function clean(v: unknown): string {
   let s = '';
   for (const ch of String(v ?? '').replace(/\r\n?/g, '\n').replace(/\t/g, '  ')) {
     const c = ch.codePointAt(0)!;
-    if (c === 10 || (c >= 0x20 && c < 0x7f) || (c >= 0xa0 && c <= 0xff) || CP1252_EXTRA.has(ch)) s += ch;
-    else if (c === 0x2212) s += '-';
+    if (c === 0x2212) s += '-';
     else if (c === 0x2009 || c === 0x202f || c === 0x200b) s += ' ';
+    else if (c < 0x20 && c !== 10) continue;
     else if (c >= 0x7f && c < 0xa0) continue;
-    else s += '?';
+    else s += ch;
   }
   return s;
+}
+
+/** Text the standard fonts can print: anything outside Windows-1252 becomes "?". */
+export function printable(v: unknown): string {
+  let s = '';
+  for (const ch of clean(v)) s += standard(ch, ch.codePointAt(0)!) ? ch : '?';
+  return s;
+}
+
+/**
+ * The font for a piece of text, and the text as it will be printed. Windows-1252 text keeps the
+ * standard font; other text takes the first embedded font that has every character, or else the
+ * one with the most, and any character still missing becomes "?".
+ */
+export function fontFor(v: unknown, bold: boolean, fonts = pdfFonts()): { face: FontFace | null; text: string } {
+  const s = clean(v);
+  const chars = [...s];
+  if (chars.every((ch) => standard(ch, ch.codePointAt(0)!))) return { face: null, text: s };
+  const faces = fonts.map((f) => (bold ? f.bold : f.regular));
+  // Spaces and line breaks are printed by any font: judge a font by the other characters.
+  const needed = [...new Set(chars.map((ch) => ch.codePointAt(0)!).filter((c) => c !== 10 && c !== 0x20))];
+  let best: FontFace | null = null;
+  let bestScore = -1;
+  for (const face of faces) {
+    const score = needed.filter((c) => face.has(c)).length;
+    if (score === needed.length) { best = face; bestScore = score; break; }
+    if (score > bestScore) { best = face; bestScore = score; }
+  }
+  if (!best || bestScore === 0) return { face: null, text: printable(s) };
+  const face = best;
+  return { face, text: chars.map((ch) => { const c = ch.codePointAt(0)!; return c === 10 || c === 0x20 || face.has(c) ? ch : '?'; }).join('') };
 }
 
 export interface PdfOptions {
@@ -56,13 +92,15 @@ export class PdfBuilder {
   private chunks: Buffer[] = [];
   private done: Promise<Buffer>;
   private readonly opts: PdfOptions;
+  private readonly registered = new Set<string>();
 
   constructor(opts: PdfOptions) {
     this.opts = opts;
     this.doc = new PDFDocument({
       size: 'A4', layout: opts.landscape ? 'landscape' : 'portrait', bufferPages: true,
       margins: { top: 64, bottom: 56, left: 48, right: 48 },
-      info: { Title: printable(opts.title), Author: printable(opts.author ?? ''), Creator: printable(opts.appName ?? 'Sandpiper GRC'), Producer: 'Sandpiper GRC' },
+      // Document properties are stored as Unicode, so they need no font.
+      info: { Title: clean(opts.title), Author: clean(opts.author ?? ''), Creator: clean(opts.appName ?? 'Sandpiper GRC'), Producer: 'Sandpiper GRC' },
       // Content streams are compressed; tests inflate them to read the text back.
       compress: true,
     });
@@ -73,6 +111,23 @@ export class PdfBuilder {
     });
     this.doc.font('Helvetica').fontSize(10).fillColor(INK);
     if (opts.cover) this.coverPage(); else this.titleBlock();
+  }
+
+  /** Sets the font that can print `text` (bold or regular) and returns the text to print with it. */
+  private t(text: unknown, bold = false): string {
+    const { face, text: out } = fontFor(text, bold);
+    if (!face) {
+      this.doc.font(bold ? 'Helvetica-Bold' : 'Helvetica');
+      return out;
+    }
+    if (!this.registered.has(face.key)) {
+      // PDFKit embeds only the glyphs used (a subset).
+      if (face.postscript) this.doc.registerFont(face.key, face.path, face.postscript);
+      else this.doc.registerFont(face.key, face.path);
+      this.registered.add(face.key);
+    }
+    this.doc.font(face.key);
+    return out;
   }
 
   get left() { return this.doc.page.margins.left; }
@@ -86,15 +141,15 @@ export class PdfBuilder {
 
   private metaLines() {
     const { doc } = this;
-    doc.font('Helvetica').fontSize(9.5).fillColor(MUTED);
-    for (const line of this.opts.meta ?? []) doc.text(printable(line), this.left, doc.y, { width: this.width });
+    doc.fontSize(9.5).fillColor(MUTED);
+    for (const line of this.opts.meta ?? []) doc.text(this.t(line), this.left, doc.y, { width: this.width });
     doc.fillColor(INK);
   }
 
   private titleBlock() {
     const { doc } = this;
-    doc.font('Helvetica-Bold').fontSize(20).fillColor(INK).text(printable(this.opts.title), this.left, doc.page.margins.top, { width: this.width });
-    if (this.opts.subtitle) doc.font('Helvetica').fontSize(11).fillColor(MUTED).text(printable(this.opts.subtitle), { width: this.width });
+    doc.fontSize(20).fillColor(INK).text(this.t(this.opts.title, true), this.left, doc.page.margins.top, { width: this.width });
+    if (this.opts.subtitle) doc.fontSize(11).fillColor(MUTED).text(this.t(this.opts.subtitle), { width: this.width });
     doc.moveDown(0.3);
     this.metaLines();
     doc.moveDown(0.4);
@@ -106,13 +161,13 @@ export class PdfBuilder {
     const { doc } = this;
     const top = doc.page.height * 0.32;
     doc.rect(this.left, top - 28, 56, 5).fill(BRAND);
-    doc.font('Helvetica-Bold').fontSize(28).fillColor(INK).text(printable(this.opts.title), this.left, top, { width: this.width });
-    if (this.opts.subtitle) doc.moveDown(0.3).font('Helvetica').fontSize(13).fillColor(MUTED).text(printable(this.opts.subtitle), { width: this.width });
+    doc.fontSize(28).fillColor(INK).text(this.t(this.opts.title, true), this.left, top, { width: this.width });
+    if (this.opts.subtitle) { doc.moveDown(0.3).fontSize(13).fillColor(MUTED); doc.text(this.t(this.opts.subtitle), { width: this.width }); }
     doc.moveDown(1);
     this.metaLines();
     if (this.opts.watermark) {
-      doc.moveDown(1).font('Helvetica-Bold').fontSize(10).fillColor(DANGER)
-        .text(printable(`${this.opts.watermark}. Contains restricted records: do not pass on.`), { width: this.width });
+      doc.moveDown(1).fontSize(10).fillColor(DANGER);
+      doc.text(this.t(`${this.opts.watermark}. Contains restricted records: do not pass on.`, true), { width: this.width });
     }
     doc.addPage();
   }
@@ -121,22 +176,21 @@ export class PdfBuilder {
     const { doc } = this;
     this.ensure(level === 1 ? 60 : 40);
     if (doc.y > doc.page.margins.top + 4) doc.moveDown(level === 1 ? 0.8 : 0.5);
-    doc.font('Helvetica-Bold').fontSize(level === 1 ? 14 : 11.5).fillColor(INK).text(printable(text), this.left, doc.y, { width: this.width });
+    doc.fontSize(level === 1 ? 14 : 11.5).fillColor(INK).text(this.t(text, true), this.left, doc.y, { width: this.width });
     doc.moveDown(0.3).font('Helvetica').fontSize(10);
   }
 
   paragraph(text: string, opts: { muted?: boolean; size?: number } = {}) {
     const { doc } = this;
-    doc.font('Helvetica').fontSize(opts.size ?? 10).fillColor(opts.muted ? MUTED : INK)
-      .text(printable(text), this.left, doc.y, { width: this.width });
+    doc.fontSize(opts.size ?? 10).fillColor(opts.muted ? MUTED : INK).text(this.t(text), this.left, doc.y, { width: this.width });
     doc.fillColor(INK).moveDown(0.4);
   }
 
   /** A shaded line of text: "not available", "no records" and the like. */
   note(text: string) {
     const { doc } = this;
-    const t = printable(text);
-    doc.font('Helvetica').fontSize(9.5);
+    doc.fontSize(9.5);
+    const t = this.t(text);
     const h = doc.heightOfString(t, { width: this.width - 20 }) + 14;
     this.ensure(h + 6);
     const y = doc.y;
@@ -162,7 +216,7 @@ export class PdfBuilder {
         this.ensure(14);
         const y = doc.y;
         doc.text(bullet, this.left + 6, y, { width: 18 });
-        doc.text(printable(strip(li[3])), this.left + 24, y, { width: this.width - 24 });
+        doc.text(this.t(strip(li[3])), this.left + 24, y, { width: this.width - 24 });
         doc.moveDown(0.15);
       } else this.paragraph(strip(line));
     }
@@ -173,13 +227,13 @@ export class PdfBuilder {
     const { doc } = this;
     const labelW = Math.min(170, this.width * 0.3);
     for (const item of items) {
-      const value = printable(item.value || '—');
-      doc.font('Helvetica').fontSize(10);
+      doc.fontSize(10);
+      const value = this.t(item.value || '—');
       const h = Math.max(doc.heightOfString(value, { width: this.width - labelW - 12 }), 12) + 8;
       this.ensure(h);
       const y = doc.y;
-      doc.font('Helvetica-Bold').fontSize(9.5).fillColor(MUTED).text(printable(item.label), this.left, y + 4, { width: labelW - 8 });
-      doc.font('Helvetica').fontSize(10).fillColor(INK).text(value, this.left + labelW, y + 4, { width: this.width - labelW });
+      doc.fontSize(9.5).fillColor(MUTED).text(this.t(item.label, true), this.left, y + 4, { width: labelW - 8 });
+      doc.fontSize(10).fillColor(INK).text(this.t(item.value || '—'), this.left + labelW, y + 4, { width: this.width - labelW });
       doc.moveTo(this.left, y + h).lineTo(this.left + this.width, y + h).lineWidth(0.5).strokeColor(RULE).stroke();
       doc.y = y + h + 1;
     }
@@ -200,8 +254,8 @@ export class PdfBuilder {
       }
       const x = this.left + (i % perRow) * (w + 12);
       doc.roundedRect(x, rowY, w, 58, 6).lineWidth(0.8).strokeColor(RULE).stroke();
-      doc.font('Helvetica-Bold').fontSize(20).fillColor(INK).text(printable(item.value || '0'), x + 10, rowY + 8, { width: w - 20, lineBreak: false, ellipsis: true });
-      doc.font('Helvetica').fontSize(9).fillColor(MUTED).text(printable(item.label), x + 10, rowY + 38, { width: w - 20, lineBreak: false, ellipsis: true });
+      doc.fontSize(20).fillColor(INK).text(this.t(item.value || '0', true), x + 10, rowY + 8, { width: w - 20, lineBreak: false, ellipsis: true });
+      doc.fontSize(9).fillColor(MUTED).text(this.t(item.label), x + 10, rowY + 38, { width: w - 20, lineBreak: false, ellipsis: true });
     });
     doc.fillColor(INK);
     doc.x = this.left;
@@ -220,10 +274,10 @@ export class PdfBuilder {
     // Widths from the measured text: each column wants its longest line (capped at 240 points) and
     // needs at least its longest word, so short values such as references never break mid-word.
     const sample = rows.slice(0, 200);
-    const measure = (s: string, bold: boolean) => { doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(fontSize); return doc.widthOfString(s); };
+    const measure = (s: string, bold: boolean) => { doc.fontSize(fontSize); return doc.widthOfString(this.t(s, bold)); };
     const longestWord = (s: string, bold: boolean) => Math.max(0, ...s.split(/\s+/).map((w) => measure(w, bold)));
-    const want = columns.map((c, i) => c.weight !== undefined ? 0 : Math.min(240, Math.max(measure(printable(c.header), true), ...sample.map((r) => measure(printable(String(r[i] ?? '').slice(0, 120)), false)))) + pad * 2 + 1);
-    const need = columns.map((c, i) => c.weight !== undefined ? 0 : Math.min(140, Math.max(longestWord(printable(c.header), true), ...sample.map((r) => longestWord(printable(String(r[i] ?? '').slice(0, 120)), false)))) + pad * 2 + 1);
+    const want = columns.map((c, i) => c.weight !== undefined ? 0 : Math.min(240, Math.max(measure(c.header, true), ...sample.map((r) => measure(String(r[i] ?? '').slice(0, 120), false)))) + pad * 2 + 1);
+    const need = columns.map((c, i) => c.weight !== undefined ? 0 : Math.min(140, Math.max(longestWord(c.header, true), ...sample.map((r) => longestWord(String(r[i] ?? '').slice(0, 120), false)))) + pad * 2 + 1);
     let widths: number[];
     if (columns.some((c) => c.weight !== undefined)) {
       const total = columns.reduce((n, c) => n + (c.weight ?? 10), 0);
@@ -243,37 +297,35 @@ export class PdfBuilder {
         widths = base.map((b, i) => b + ((this.width - needTotal) * extra[i]) / extraTotal);
       }
     }
-    const cellText = (s: unknown) => printable(String(s ?? '').slice(0, 600));
-    const rowHeight = (cells: string[], bold: boolean) => {
-      doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(fontSize);
-      return Math.max(...cells.map((c, i) => doc.heightOfString(c || ' ', { width: widths[i] - pad * 2 }))) + pad * 2;
+    const cellText = (s: unknown) => String(s ?? '').slice(0, 600);
+    const isBold = (style: 'head' | 'body' | 'bold', i: number) => style !== 'body' || Boolean(opts.boldFirstColumn && i === 0);
+    const rowHeight = (cells: string[], style: 'head' | 'body' | 'bold') => {
+      doc.fontSize(fontSize);
+      return Math.max(...cells.map((c, i) => doc.heightOfString(this.t(c || ' ', isBold(style, i)), { width: widths[i] - pad * 2 }))) + pad * 2;
     };
     const drawRow = (cells: string[], y: number, h: number, style: 'head' | 'body' | 'bold', shade: boolean) => {
       if (style === 'head') doc.rect(this.left, y, this.width, h).fill(BAND);
       else if (shade) doc.rect(this.left, y, this.width, h).fill('#f7fafa');
       let x = this.left;
-      doc.font(style === 'body' ? 'Helvetica' : 'Helvetica-Bold').fontSize(fontSize).fillColor(INK);
+      doc.fontSize(fontSize).fillColor(INK);
       cells.forEach((c, i) => {
-        const bold = style === 'body' && opts.boldFirstColumn && i === 0;
-        if (bold) doc.font('Helvetica-Bold');
-        doc.text(c, x + pad, y + pad, { width: widths[i] - pad * 2, align: columns[i].align === 'right' ? 'right' : 'left' });
-        if (bold) doc.font('Helvetica');
+        doc.text(this.t(c, isBold(style, i)), x + pad, y + pad, { width: widths[i] - pad * 2, align: columns[i].align === 'right' ? 'right' : 'left' });
         x += widths[i];
       });
       doc.moveTo(this.left, y + h).lineTo(this.left + this.width, y + h).lineWidth(style === 'head' ? 1 : 0.4).strokeColor(style === 'head' ? BRAND : RULE).stroke();
     };
     const head = columns.map((c) => cellText(c.header));
-    const headH = rowHeight(head, true);
+    const headH = rowHeight(head, 'head');
     const drawHead = () => { const y = doc.y; drawRow(head, y, headH, 'head', false); doc.y = y + headH; };
     this.ensure(headH + 20);
     drawHead();
     rows.forEach((raw, n) => {
       const cells = columns.map((_, i) => cellText(raw[i]));
-      const bold = Boolean(opts.boldLast && n === rows.length - 1);
-      const h = Math.min(rowHeight(cells, bold), this.bottom - this.doc.page.margins.top - headH - 4);
+      const style = opts.boldLast && n === rows.length - 1 ? 'bold' : 'body';
+      const h = Math.min(rowHeight(cells, style), this.bottom - this.doc.page.margins.top - headH - 4);
       if (doc.y + h > this.bottom) { doc.addPage(); drawHead(); }
       const y = doc.y;
-      drawRow(cells, y, h, bold ? 'bold' : 'body', n % 2 === 1);
+      drawRow(cells, y, h, style, n % 2 === 1);
       doc.y = y + h;
     });
     doc.x = this.left;
@@ -297,12 +349,12 @@ export class PdfBuilder {
     const valueW = 56;
     const trackW = this.width - nameW - valueW - 16;
     const max = Math.max(...data.map((p) => p.value), 0) || 1;
-    doc.font('Helvetica').fontSize(8).fillColor(MUTED).text(printable(label), this.left, doc.y, { width: this.width });
+    doc.fontSize(8).fillColor(MUTED).text(this.t(label), this.left, doc.y, { width: this.width });
     doc.moveDown(0.2);
     for (const p of data) {
       this.ensure(rowH);
       const y = doc.y;
-      doc.font('Helvetica').fontSize(8.5).fillColor(INK).text(printable(p.label), this.left, y + 3, { width: nameW - 8, lineBreak: false, ellipsis: true });
+      doc.fontSize(8.5).fillColor(INK).text(this.t(p.label), this.left, y + 3, { width: nameW - 8, lineBreak: false, ellipsis: true });
       doc.rect(this.left + nameW, y + 2, trackW, rowH - 5).fill(BAND);
       const w = Math.max(0.5, (Math.max(0, p.value) / max) * trackW);
       doc.rect(this.left + nameW, y + 2, w, rowH - 5).fill(SERIES[0]);
@@ -317,7 +369,7 @@ export class PdfBuilder {
     const { doc } = this;
     const h = 170;
     this.ensure(h + 50);
-    doc.font('Helvetica').fontSize(8).fillColor(MUTED).text(printable(label), this.left, doc.y, { width: this.width });
+    doc.fontSize(8).fillColor(MUTED).text(this.t(label), this.left, doc.y, { width: this.width });
     const top = doc.y + 6;
     const axisW = 40;
     const x0 = this.left + axisW;
@@ -342,7 +394,7 @@ export class PdfBuilder {
     const step = Math.max(1, Math.ceil(data.length / 6));
     data.forEach((p, i) => {
       if (i % step !== 0 && i !== data.length - 1) return;
-      doc.font('Helvetica').fontSize(7).fillColor(MUTED).text(printable(p.label), xOf(i) - 40, top + h + 4, { width: 80, align: 'center', lineBreak: false, ellipsis: true });
+      doc.fontSize(7).fillColor(MUTED).text(this.t(p.label), xOf(i) - 40, top + h + 4, { width: 80, align: 'center', lineBreak: false, ellipsis: true });
     });
     doc.fillColor(INK);
     doc.x = this.left;
@@ -353,7 +405,7 @@ export class PdfBuilder {
     const { doc } = this;
     const r = 70;
     this.ensure(r * 2 + 40);
-    doc.font('Helvetica').fontSize(8).fillColor(MUTED).text(printable(label), this.left, doc.y, { width: this.width });
+    doc.fontSize(8).fillColor(MUTED).text(this.t(label), this.left, doc.y, { width: this.width });
     const top = doc.y + 6;
     const cx = this.left + r + 4;
     const cy = top + r;
@@ -377,8 +429,8 @@ export class PdfBuilder {
     const lx = cx + r + 28;
     data.forEach((p, i) => {
       doc.rect(lx, ly + 1, 8, 8).fill(SERIES[i % SERIES.length]);
-      doc.font('Helvetica').fontSize(8.5).fillColor(INK)
-        .text(`${printable(p.label)}: ${formatNumber(p.value)} (${formatNumber((Math.max(0, p.value) / total) * 100)}%)`, lx + 14, ly, { width: this.left + this.width - lx - 14, lineBreak: false, ellipsis: true });
+      doc.fontSize(8.5).fillColor(INK)
+        .text(this.t(`${p.label}: ${formatNumber(p.value)} (${formatNumber((Math.max(0, p.value) / total) * 100)}%)`), lx + 14, ly, { width: this.left + this.width - lx - 14, lineBreak: false, ellipsis: true });
       ly += 15;
     });
     doc.x = this.left;
@@ -403,15 +455,15 @@ export class PdfBuilder {
           .text('RESTRICTED', 0, doc.page.height / 2 - 32, { width: doc.page.width, align: 'center', lineBreak: false });
         doc.restore();
         doc.fillOpacity(1);
-        doc.font('Helvetica-Bold').fontSize(8).fillColor(DANGER)
-          .text(printable(this.opts.watermark), margins.left, 24, { width: w, align: 'center', lineBreak: false, ellipsis: true });
+        doc.fontSize(8).fillColor(DANGER)
+          .text(this.t(this.opts.watermark, true), margins.left, 24, { width: w, align: 'center', lineBreak: false, ellipsis: true });
       } else if (i > 0) {
-        doc.font('Helvetica').fontSize(8).fillColor(MUTED)
-          .text(printable(this.opts.title), margins.left, 28, { width: w, lineBreak: false, ellipsis: true });
+        doc.fontSize(8).fillColor(MUTED)
+          .text(this.t(this.opts.title), margins.left, 28, { width: w, lineBreak: false, ellipsis: true });
       }
-      doc.font('Helvetica').fontSize(8).fillColor(MUTED);
-      doc.text(printable(this.opts.appName ?? ''), margins.left, doc.page.height - 34, { width: w / 2, lineBreak: false, ellipsis: true });
-      doc.text(`Page ${i + 1} of ${total}`, margins.left + w / 2, doc.page.height - 34, { width: w / 2, align: 'right', lineBreak: false });
+      doc.fontSize(8).fillColor(MUTED);
+      doc.text(this.t(this.opts.appName ?? ''), margins.left, doc.page.height - 34, { width: w / 2, lineBreak: false, ellipsis: true });
+      doc.font('Helvetica').text(`Page ${i + 1} of ${total}`, margins.left + w / 2, doc.page.height - 34, { width: w / 2, align: 'right', lineBreak: false });
       margins.bottom = keep;
     }
     doc.end();
@@ -419,5 +471,5 @@ export class PdfBuilder {
   }
 }
 
-const numberFmt = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 2 });
+const numberFmt = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
 export const formatNumber = (v: number) => (Number.isFinite(v) ? numberFmt.format(v) : '');

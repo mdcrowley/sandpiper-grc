@@ -124,7 +124,7 @@ export function TermsMatrix() {
                 {data.clauses.map((c) => (
                   <th key={c.key} scope="col" className="vnd-grid-clause">
                     <Tooltip label={c.description ?? c.label} multiline w={260} withArrow events={{ hover: true, focus: true, touch: true }}>
-                      <span tabIndex={0} lang="en-GB">{c.label}</span>
+                      <span tabIndex={0} lang="en-US">{c.label}</span>
                     </Tooltip>
                   </th>
                 ))}

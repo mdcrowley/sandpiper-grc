@@ -1,6 +1,6 @@
 # E03 Service desk
 
-**Status:** in progress
+**Status:** done (21 of 21 issues done)
 
 ## Goal
 
@@ -39,8 +39,8 @@ what they know in a knowledge base.
 | E03-17 | Add and remove working calendars | done | P3 |
 | E03-18 | Agent workspace: ticket cockpit, quick actions, fast logging, queues | done | P1 |
 | E03-19 | Follow-up actions on problems | done | P2 |
-| E03-20 | Server-side saved views for ticket queues | open | P3 |
-| E03-21 | Approval by more than one person, or by answer | open | P3 |
+| E03-20 | Server-side saved views for ticket queues | done | P3 |
+| E03-21 | Approval by more than one person, or by answer | done | P3 |
 ---
 
 ### E03-01 Tickets for incidents and requests
@@ -358,26 +358,31 @@ see in their action list.
 
 ### E03-20 Server-side saved views for ticket queues
 
-**Status:** open · **Priority:** P3 · **Type:** improvement
+**Status:** done · **Priority:** P3 · **Type:** improvement
 
-As an agent, my saved queues follow me to another computer. Today the queue presets are
-added to the list's saved views, which the core keeps in the browser.
+As an agent, my saved queues follow me to another computer. The queue presets used to be
+copied into the list's saved views in the browser only.
 
 **Acceptance criteria**
 
-- [ ] Saved views are stored per user on the server (a core change, [E01](E01-platform-foundations.md))
-- [ ] The service desk presets are offered to every agent as shared views
+- [x] Saved views are stored per user on the server (core preferences `views:<type>`, [E01](E01-platform-foundations.md))
+- [x] The service desk presets are offered to every agent as shared views (core shared views, E01-24): added once, then owned by administrators; the browser-only copy is gone
+
+**Implemented in:** `server/src/modules/tickets/views.ts` (`seedSharedQueues`); `web/src/modules/tickets/TicketList.tsx`; test in `server/src/modules/portal/sharing.test.ts`
 
 ### E03-21 Approval by more than one person, or by answer
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 As a service desk lead, some requests need two approvals, or need approval only when a
 particular answer is given (for example access to a restricted system).
 
 **Acceptance criteria**
 
-- [ ] An item can name the number of approvals and who may give them
-- [ ] Approval can depend on the answer to one of the item's questions
-- [ ] Each decision is audited
+- [x] An item can name the number of approvals (1 to 5) and who may give them (named people, or anyone with `tickets.approve`)
+- [x] Approval can depend on the answer to one of the item's questions
+- [x] Each decision is audited; one rejection rejects, an approval after a rejection overturns it, nobody approves their own request
+- [x] The ticket strip shows progress and decisions; the portal's approvals list only what I may still decide
+
+**Implemented in:** `server/src/modules/tickets/catalog.ts` (`POST /api/tickets/:id/approval`, `GET /api/tickets/:id/approvals`), migration `tickets/005_sharing_approvals_email.sql` (`ticket_approvals`); `/api/portal/approvals`; `web/src/modules/tickets/CatalogDesigner.tsx`, `Cockpit.tsx`, `web/src/modules/portal/Approvals.tsx`; tests `server/src/modules/tickets/approvals.test.ts`, `server/src/modules/portal/sharing.test.ts`
 

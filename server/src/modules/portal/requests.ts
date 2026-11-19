@@ -1,9 +1,11 @@
 // The requester's own requests: raise one (from the catalog or "report a problem"), list them,
-// read one with its public messages, reply, reopen and rate.
+// read one with its public messages, reply, reopen and rate. A request may be raised for a
+// colleague (E15-12), who then follows it too.
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { MINE, type Access } from './access.ts';
-import { readSettings } from './settings.ts';
+import { createFromPortal } from './create.ts';
+import { readSettings, type OnBehalf } from './settings.ts';
 import { AFFECTS, plainStatus, URGENCY } from './words.ts';
 
 const DAY_MS = 86_400_000;
@@ -35,6 +37,32 @@ export function registerRequests(ctx: ModuleContext, access: Access, files: { fo
     return until > new Date() ? until.toISOString() : null;
   }
 
+  // ---------- on behalf of a colleague (E15-12) ----------
+
+  /** Colleagues the caller may raise a request for, under the portal's rule. */
+  async function colleagues(me: { id: string }, rule: OnBehalf, q: string, id?: string): Promise<Row[]> {
+    if (rule === 'nobody') return [];
+    const like = `%${q.replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
+    return db.query<Row>(
+      `select u.id, u.display_name as label, d.name as department
+       from users u left join departments d on d.id = u.department_id
+       where u.deleted_at is null and u.status = 'active' and u.id <> $1
+         and ($2::text = 'anyone' or (u.department_id is not null and u.department_id = (select department_id from users where id = $1)))
+         and ($4::uuid is not null and u.id = $4::uuid or $4::uuid is null and (u.display_name ilike $3 or u.username ilike $3))
+       order by u.display_name limit 20`, [me.id, rule, like, id ?? null]);
+  }
+
+  app.get('/api/portal/colleagues', create, async (req) => {
+    const rule = (await readSettings(ctx)).on_behalf;
+    const q = text((req.query as Row).q, 80);
+    return { rule, rows: rule === 'nobody' || q.length < 2 ? [] : await colleagues(req.user!, rule, q) };
+  });
+  ctx.describeRoute({
+    method: 'GET', path: '/api/portal/colleagues', permission: 'portal.create',
+    summary: 'Colleagues I may raise a request for (the portal setting decides: nobody, my department, or anyone)',
+    query: { q: 'At least two letters of a name' }, response: '{ rule, rows: [{ id, label, department }] }',
+  });
+
   // ---------- raise ----------
 
   app.post('/api/portal/requests', create, async (req, reply) => {
@@ -47,6 +75,18 @@ export function registerRequests(ctx: ModuleContext, access: Access, files: { fo
     const data: Row = {
       requester_id: me.id, requester_name: me.displayName, requester_email: me.email || null, channel: 'portal',
     };
+    let forPerson: Row | null = null;
+    if (b.for_user_id !== undefined && b.for_user_id !== null && b.for_user_id !== '' && b.for_user_id !== me.id) {
+      const rule = (await readSettings(ctx)).on_behalf;
+      if (rule === 'nobody') bad({ for_user_id: 'Requests can only be raised for yourself here.' });
+      const id = typeof b.for_user_id === 'string' && /^[0-9a-f-]{36}$/i.test(b.for_user_id) ? b.for_user_id : null;
+      forPerson = id ? (await colleagues(me, rule, '', id))[0] ?? null : null;
+      if (!forPerson) {
+        bad({ for_user_id: rule === 'department' ? 'You can raise a request only for someone in your own department.' : 'Choose a colleague from the list.' });
+      }
+      data.affected_user_id = forPerson!.id;
+      data.affected_user = forPerson!.label;
+    }
 
     if (b.catalog_item_id !== undefined && b.catalog_item_id !== null && b.catalog_item_id !== '') {
       const item = typeof b.catalog_item_id === 'string'
@@ -88,14 +128,21 @@ export function registerRequests(ctx: ModuleContext, access: Access, files: { fo
 
     // Created as the person (audited under their name, notifications sent), through the same
     // checks as any ticket. Only the fields set above can be given: no priority, assignee or notes.
-    const row = await ctx.resources.create('ticket', data, req);
+    if (forPerson) data.description = [`Raised by ${me.displayName} for ${forPerson.label}.`, data.description].filter(Boolean).join('\n\n');
+    const row = await createFromPortal(ctx, 'ticket', data, req);
+    if (forPerson && app.hasDecorator('notify')) {
+      await (app as unknown as { notify: (i: Row) => Promise<unknown> }).notify({
+        userIds: [forPerson.id], kind: 'general', title: `${me.displayName} raised a request for you: ${row.ref}`,
+        body: row.title, route: `/portal/requests/${row.id}`,
+      });
+    }
     reply.code(201);
     return { id: row.id, ref: row.ref, title: row.title };
   });
   ctx.describeRoute({
     method: 'POST', path: '/api/portal/requests', permission: 'portal.create',
     summary: 'Raise a request from the portal: a catalog item with its answers, or a short problem report',
-    body: '{ catalog_item_id?, answers?: { key: value }, title?, details?, where?, affects?: me|team|service, how_urgent?: stopped|slowed|can_wait }',
+    body: '{ catalog_item_id?, answers?: { key: value }, title?, details?, where?, affects?: me|team|service, how_urgent?: stopped|slowed|can_wait, for_user_id? (a colleague, when the portal allows it) }',
   });
 
   // ---------- list and read ----------
@@ -132,6 +179,7 @@ export function registerRequests(ctx: ModuleContext, access: Access, files: { fo
     const cat = String(all.find((s) => s.value === t.status)?.meta?.category ?? 'open');
     const item = t.catalog_item_id ? await db.one<Row>('select id, name from catalog_items where id = $1', [t.catalog_item_id]) : null;
     const assignee = t.assignee_id ? await db.one<Row>('select display_name from users where id = $1', [t.assignee_id]) : null;
+    const me = req.user!.id;
     // Public messages only. Internal notes never leave the server.
     const comments = await db.query<Row>(
       `select id, body, author_id, author_name, created_at from comments
@@ -145,6 +193,9 @@ export function registerRequests(ctx: ModuleContext, access: Access, files: { fo
       item: item ? { id: item.id, name: item.name } : null,
       answers: ((t.catalog_answers ?? []) as Row[]).map((a) => ({ label: a.label, value: a.value })),
       assignee_name: assignee?.display_name ?? null,
+      // E15-12: who raised it, when it was raised for me; and who it is for, when I raised it for someone.
+      raised_by: t.requester_id !== me ? t.requester_name ?? null : null,
+      raised_for: t.requester_id === me && t.affected_user_id && t.affected_user_id !== me ? t.affected_user ?? null : null,
       resolution: status.done && t.status !== 'cancelled' ? { label: resolutionLabel, notes: t.resolution_notes ?? null } : null,
       approval_note: t.approval_status === 'rejected' ? t.approval_note ?? null : null,
       rating: t.satisfaction_by_requester ? { score: t.satisfaction_score, comment: t.satisfaction_comment, at: t.satisfaction_at } : null,

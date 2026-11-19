@@ -190,10 +190,10 @@ describe('report query: grouping, buckets and aggregates on the fixed data set',
     expect(byLabel(await by('opened_at', 'quarter'))).toEqual({ 'Q1 2026': 4, 'Q2 2026': 2 });
     expect(byLabel(await by('opened_at', 'year'))).toEqual({ 2026: 6 });
     const days = await by('opened_at', 'day');
-    expect(byLabel(days)['31 Jan 2026']).toBe(1);
-    expect(byLabel(days)['1 Feb 2026']).toBeUndefined();
+    expect(byLabel(days)['Jan 31, 2026']).toBe(1);
+    expect(byLabel(days)['Feb 1, 2026']).toBeUndefined();
     const weeks = await by('opened_on', 'week');
-    expect(byLabel(weeks)).toMatchObject({ 'Week of 5 Jan 2026': 1, 'Week of 9 Feb 2026': 2, 'Week of 30 Mar 2026': 2 });
+    expect(byLabel(weeks)).toMatchObject({ 'Week of Jan 5, 2026': 1, 'Week of Feb 9, 2026': 2, 'Week of Mar 30, 2026': 2 });
     // A bucket drills down to the list with a half-open date range.
     const feb = (await by('opened_at', 'month')).rows.find((x: any) => x.d.g0 === 'Feb 2026');
     expect(decodeURIComponent(feb.drill)).toBe('f.opened_at.gte=2026-02-01&f.opened_at.lt=2026-03-01');
@@ -228,7 +228,7 @@ describe('report query: grouping, buckets and aggregates on the fixed data set',
     const rows = await run(t.api, { type: 'rt_thing', columns: ['name', 'site_id', 'site_id.region', 'owner_id', 'owner_id.email', 'status', 'opened_on'], sort: [{ by: 'site_id.region', dir: 'asc' }, { by: 'name', dir: 'desc' }] });
     expect(rows.body.rows[0].v).toMatchObject({ c0: 'D', c2: 'Coast' });
     const a = rows.body.rows.find((x: any) => x.v.c0 === 'A');
-    expect(a.d).toMatchObject({ c1: 'North', c3: 'Test Admin', c5: 'Brand new', c6: '5 Jan 2026' });
+    expect(a.d).toMatchObject({ c1: 'North', c3: 'Test Admin', c5: 'Brand new', c6: 'Jan 5, 2026' });
     expect(a.v.c4).toBe('admin@example.test');
     expect(a.id).toBeTruthy();
   });
@@ -290,5 +290,53 @@ describe('report query: custom fields', () => {
     // A saved report may use them; an injected key is still refused.
     expect((await t.api.post('/api/reports', { name: 'By zone', spec: { type: 'rt_thing', groupBy: [{ field: 'cf_zone' }] } })).status).toBe(201);
     expect((await run(t.api, { type: 'rt_thing', columns: ["cf_zone'||1"] })).status).toBe(400);
+  });
+});
+
+describe('report query: multi-choice custom fields and value order (E12-13)', () => {
+  it('shows a multi-choice field as a column and filters by it, but never groups by it', async () => {
+    const tags = await t.api.post('/api/admin/custom-fields', {
+      record_type: 'rt_thing', label: 'Lines served', key: 'lines', type: 'multiselect',
+      options: [{ value: 'red', label: 'Red line', color: 'red' }, { value: 'blue', label: 'Blue line', color: 'blue' }, { value: 'green', label: 'Green line', color: 'green' }],
+    });
+    expect(tags.status, JSON.stringify(tags.body)).toBe(201);
+    const things = await t.db.query<{ id: string; name: string }>(`select id, name from rt_things where deleted_at is null and name in ('A', 'B', 'C')`);
+    const by = Object.fromEntries(things.map((x) => [x.name, x.id]));
+    await t.ctx.resources.update('rt_thing', by.A, { cf_lines: ['red', 'blue'] });
+    await t.ctx.resources.update('rt_thing', by.B, { cf_lines: ['green'] });
+
+    const cat = (await t.api.get('/api/reports/catalog')).body.types.find((x: any) => x.type === 'rt_thing');
+    expect(cat.fields.find((f: any) => f.path === 'cf_lines')).toMatchObject({ type: 'lookup', multiple: true, group: false, sum: false });
+
+    const cols = await run(t.api, { type: 'rt_thing', columns: ['name', 'cf_lines'], sort: [{ by: 'name' }] });
+    expect(cols.status, JSON.stringify(cols.body)).toBe(200);
+    const shown = Object.fromEntries(cols.body.rows.map((r: any) => [r.v.c0, r.d.c1 ?? null]));
+    expect(shown).toMatchObject({ A: 'Red line, Blue line', B: 'Green line', C: null });
+    expect(cols.body.columns[1].multiple).toBe(true);
+
+    const any = await run(t.api, { type: 'rt_thing', columns: ['name'], filters: { op: 'and', items: [{ field: 'cf_lines', op: 'in', value: ['blue', 'green'] }] }, sort: [{ by: 'name' }] });
+    expect(any.body.rows.map((r: any) => r.v.c0)).toEqual(['A', 'B']);
+    expect(decodeURIComponent(any.body.drill)).toBe('f.cf_lines=blue,green');
+    const none = await run(t.api, { type: 'rt_thing', columns: ['name'], filters: { op: 'and', items: [{ field: 'cf_lines', op: 'nin', value: ['red'] }, { field: 'cf_lines', op: 'nempty' }] } });
+    expect(none.body.rows.map((r: any) => r.v.c0)).toEqual(['B']);
+    const empty = await run(t.api, { type: 'rt_thing', filters: { op: 'and', items: [{ field: 'cf_lines', op: 'empty' }] }, aggregates: [{ fn: 'count' }] });
+    expect(empty.body.rows[0].v.a0).toBe(4);
+
+    const grouped = await run(t.api, { type: 'rt_thing', groupBy: [{ field: 'cf_lines' }] });
+    expect(grouped.status).toBe(400);
+    expect(grouped.body.error.message).toMatch(/several values/);
+    expect((await run(t.api, { type: 'rt_thing', filters: { op: 'and', items: [{ field: 'cf_lines', op: 'contains', value: 'x' }] } })).status).toBe(400);
+  });
+
+  it('gives each grouping its values in their natural order, and orders the second grouping that way', async () => {
+    // Sorted by the count, the first values met would be "In hand" then "Finished" then "Brand new".
+    const r = await run(t.api, { type: 'rt_thing', groupBy: [{ field: 'opened_on', bucket: 'quarter' }, { field: 'status' }] });
+    expect(r.status).toBe(200);
+    expect(r.body.columns[0].values).toEqual(['Q1 2026', 'Q2 2026']);
+    expect(r.body.columns[1].values).toEqual(['Brand new', 'In hand', 'Finished']);
+    const q1 = r.body.rows.filter((x: any) => x.d.g0 === 'Q1 2026').map((x: any) => x.d.g1);
+    expect(q1).toEqual(['Brand new', 'In hand']);
+    const words = await run(t.api, { type: 'rt_thing', groupBy: [{ field: 'status' }, { field: 'department' }] });
+    expect(words.body.columns[1].values).toEqual(['Finance', 'Operations', 'Restricted records', 'None']);
   });
 });

@@ -6,12 +6,12 @@ import { q, route } from './helpers.ts';
 const SPEC = '{ type: string "Record type reported on", columns?: [string], filters?: object, groupBy?: [object], aggregates?: [object], pivot?: boolean, sort?: [object], limit?: integer }';
 const GLOBALS = '{ from?: date, to?: date, department?: string, site?: uuid, system?: uuid, owner?: uuid | \'me\' }';
 const RESULT = `{ type: string, typeLabel: string, plural: string, route: string, mode: 'rows' | 'groups' | 'total',
-  columns: [{ key: string, label: string, type: string, role: 'column' | 'dim' | 'agg', ... }],
+  columns: [{ key: string, label: string, type: string, role: 'column' | 'dim' | 'agg', multiple?: boolean "A multi-choice field", values?: [string] "Choices of a dimension column", ... }],
   rows: [{ id?: uuid, v: object "Raw values by column key", d: object "Display labels by column key", c?: object, drill?: string }],
   total: integer, truncated: boolean, pivot?: object, drill: string, drillExact: boolean, globalsApplied: [string],
   restricted: boolean, recordTypes: [string], generatedAt: datetime }`;
 const SNAPSHOT = '{ id: uuid, source_type: \'report\' | \'dashboard\' | \'pack\', source_id: uuid, schedule_id: uuid | null, title: string, format: \'html\' | \'csv\' | \'pdf\' | \'xlsx\', for_user_id: uuid, record_types: [string], restricted: boolean, size_bytes: integer, created_at: datetime }';
-const HOME = '{ dashboard: { id: uuid, name: string, description: string | null } | null, route: string | null }';
+const HOME = '{ dashboard: { id: uuid, name: string, description: string | null } | null, route: string | null, suggested: { id: uuid, name: string, description: string | null, route: string } | null, readOnly: boolean }';
 const RUN_SUMMARY = '{ scheduleId: uuid, delivered: integer, skipped: integer, failed: integer, snapshots: [uuid] }';
 
 const g = {
@@ -31,7 +31,7 @@ export const DOCS: RouteDoc[] = [
   // ---------- builder support ----------
   route('GET', '/api/reports/catalog', 'Record types and fields the caller may report on', {
     tag: 'Reports', description: VIEWER,
-    response: '{ types: [{ type: string, label: string, plural: string, route: string, module: string, description: string, restricted: boolean, titleField: string, refField: string | null, canExport: boolean, fields: [{ path: string, label: string, type: string, list?: string, to?: string, via?: string, custom?: boolean, group: boolean, sum: boolean, column: boolean }], globals: { [kind]: string } }] }',
+    response: '{ types: [{ type: string, label: string, plural: string, route: string, module: string, description: string, restricted: boolean, titleField: string, refField: string | null, canExport: boolean, fields: [{ path: string, label: string, type: string, list?: string, to?: string, via?: string, custom?: boolean, multiple?: boolean, group: boolean, sum: boolean, column: boolean }], globals: { [kind]: string } }] }',
   }),
   route('GET', '/api/reports/roles', 'Switched-on roles, for choosing who a report is shared with', {
     tag: 'Reports', description: VIEWER, response: '[{ key: string, name: string }]',

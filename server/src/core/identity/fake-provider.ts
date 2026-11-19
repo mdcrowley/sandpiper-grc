@@ -3,7 +3,9 @@
 // An in-process HTTP server on 127.0.0.1 (port 0 = any free port) that serves a discovery document,
 // a key set, an authorization endpoint that approves at once (or shows a one-button page), and a token
 // endpoint that checks the client, the redirect address and PKCE, then signs an ID token with a key
-// generated at start. Test controls: `user`, `overrides`, `badSignature`, `alg`, `rotateKeys()`.
+// generated at start. Test controls: `user`, `overrides`, `badSignature`, `alg`, `rotateKeys()`,
+// `userinfo` (what the userinfo endpoint adds), `logoutToken()` (a signed back-channel logout token).
+// It also serves a userinfo endpoint, a group-list endpoint (`/groups`) and an end-session endpoint (`/logout`).
 import { createHash, generateKeyPairSync, randomBytes, sign as cryptoSign, constants, type KeyObject } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -37,6 +39,10 @@ export interface FakeProvider {
   rotateKeys(): void;
   /** Counts of requests by path, to prove when nothing was fetched. */
   hits: Record<string, number>;
+  /** Claims the userinfo and /groups endpoints return (besides `sub`), for the last person signed in. */
+  userinfo: Record<string, unknown>;
+  /** A signed back-channel logout token (claims added to iss, aud, iat, jti and the logout event). */
+  logoutToken(claims: Record<string, unknown>, opts?: { badSignature?: boolean }): string;
   close(): Promise<void>;
 }
 
@@ -58,6 +64,8 @@ export async function startFakeProvider(opts: { clientId?: string; clientSecret?
     interactive: false,
     rotateKeys() { keys = makeKeys(); },
     hits,
+    userinfo: {} as Record<string, unknown>,
+    logoutToken: (_claims: Record<string, unknown>, _opts?: { badSignature?: boolean }) => '',
     close: async () => {},
   };
 
@@ -67,9 +75,10 @@ export async function startFakeProvider(opts: { clientId?: string; clientSecret?
     return [rsa, ec];
   }
 
-  function signToken(claims: Record<string, unknown>): string {
+  const accessTokens = new Map<string, string>(); // access token -> sub
+  function signToken(claims: Record<string, unknown>, bad = fake.badSignature): string {
     const alg = fake.alg;
-    const signer = fake.badSignature ? makeKeys() : keys;
+    const signer = bad ? makeKeys() : keys;
     const header = { alg, kid: `${keys.kid}-${alg === 'ES256' ? 'ec' : 'rsa'}`, typ: 'JWT' };
     const input = `${b64u(JSON.stringify(header))}.${b64u(JSON.stringify(claims))}`;
     let sig: Buffer;
@@ -117,7 +126,20 @@ export async function startFakeProvider(opts: { clientId?: string; clientSecret?
         id_token_signing_alg_values_supported: ['RS256', 'ES256', 'PS256'],
         code_challenge_methods_supported: ['S256'],
         token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post'],
+        userinfo_endpoint: `${fake.issuer}/userinfo`,
+        end_session_endpoint: `${fake.issuer}/logout`,
+        backchannel_logout_supported: true,
       });
+    }
+    if (url.pathname === '/userinfo' || url.pathname === '/groups') {
+      const bearer = /^Bearer (.+)$/.exec(req.headers.authorization ?? '');
+      const sub = bearer ? accessTokens.get(bearer[1]) : undefined;
+      if (!sub) return send(res, 401, { error: 'invalid_token' });
+      return send(res, 200, { sub, ...fake.userinfo });
+    }
+    if (url.pathname === '/logout') {
+      res.writeHead(200, { 'content-type': 'text/plain' });
+      return res.end('signed out');
     }
     if (url.pathname === '/jwks') return send(res, 200, { keys: jwk() });
     if (url.pathname === '/authorize' || url.pathname === '/authorize/approve') {
@@ -160,7 +182,9 @@ a{display:inline-block;background:#1d4ed8;color:#fff;padding:10px 18px;border-ra
         if (v === undefined) delete claims[k];
         else claims[k] = v;
       }
-      return send(res, 200, { access_token: randomBytes(16).toString('hex'), token_type: 'Bearer', expires_in: 300, id_token: signToken(claims) });
+      const accessToken = randomBytes(16).toString('hex');
+      accessTokens.set(accessToken, String(claims.sub ?? ''));
+      return send(res, 200, { access_token: accessToken, token_type: 'Bearer', expires_in: 300, id_token: signToken(claims) });
     }
     return send(res, 404, { error: 'not_found' });
   });
@@ -168,6 +192,10 @@ a{display:inline-block;background:#1d4ed8;color:#fff;padding:10px 18px;border-ra
   await new Promise<void>((resolve) => server.listen(opts.port ?? 0, '127.0.0.1', resolve));
   fake.port = (server.address() as AddressInfo).port;
   fake.issuer = `http://127.0.0.1:${fake.port}`;
+  fake.logoutToken = (claims, opts = {}) => signToken({
+    iss: fake.issuer, aud: fake.clientId, iat: Math.floor(Date.now() / 1000), jti: randomBytes(8).toString('hex'),
+    events: { 'http://schemas.openid.net/event/backchannel-logout': {} }, ...claims,
+  }, opts.badSignature === true);
   fake.close = () => new Promise<void>((resolve) => { server.closeAllConnections?.(); server.close(() => resolve()); });
   return fake;
 }

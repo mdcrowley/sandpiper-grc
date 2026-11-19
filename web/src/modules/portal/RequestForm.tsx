@@ -1,15 +1,21 @@
 // Raising a request: from a catalog item (its own questions) or "Report a problem" (a short
 // form in plain words). Help articles that match are offered before sending.
+//
+// The administrator's custom fields on tickets are deliberately not asked here (E18-34): they are
+// the service desk's own classification, filled in by agents during triage, and may pick people or
+// records a requester cannot see. A catalog item's questions are how a request asks requesters
+// for more. The server takes only the fields set by the portal route and does not enforce required
+// custom fields for portal requests (E15-14).
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
-  api, ApiError, Button, DateField, errorMessage, ErrorState, Icon, Loading, TextArea, TextField, useFetch, useToast,
+  api, ApiError, Button, DateField, errorMessage, ErrorState, Icon, Loading, qs, TextArea, TextField, useDebounced, useFetch, useToast,
 } from '../../core';
 import { itemIcon } from './Home';
 import { FilePicker, sendFile, Suggestions, usePortal, useSuggestions, type CatalogItem, type Choice } from './parts';
 
 /** Big tappable choices (radio buttons drawn as cards). */
-function ChoiceCards({ name, label, options, value, onChange, error, required, hint }: {
+export function ChoiceCards({ name, label, options, value, onChange, error, required, hint }: {
   name: string; label: string; options: Choice[]; value: string; onChange: (v: string) => void; error?: string; required?: boolean; hint?: string;
 }) {
   return (
@@ -28,6 +34,60 @@ function ChoiceCards({ name, label, options, value, onChange, error, required, h
     </fieldset>
   );
 }
+
+interface Colleague { id: string; label: string; department: string | null }
+export interface ForWhomState { mode: 'me' | 'other'; colleague: Colleague | null }
+
+/** E15-12: "Who is this for?": me, or a colleague the portal lets me raise it for. */
+function ForWhom({ value, onChange, error }: { value: ForWhomState; onChange: (v: ForWhomState) => void; error?: string }) {
+  const { on_behalf: rule } = usePortal();
+  const [q, setQ] = useState('');
+  const query = useDebounced(q.trim(), 250);
+  const [found, setFound] = useState<Colleague[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    if (value.mode !== 'other' || query.length < 2) { setFound(null); return; }
+    api.get<{ rows: Colleague[] }>(`/api/portal/colleagues${qs({ q: query })}`)
+      .then((r) => { if (live) setFound(r.rows); }).catch(() => { if (live) setFound([]); });
+    return () => { live = false; };
+  }, [query, value.mode]);
+  if (!rule || rule === 'nobody') return null;
+  return (
+    <div className="pt-for-whom">
+      <ChoiceCards name="for_whom" label="Who is this for?" value={value.mode}
+        hint={rule === 'department' ? 'You can raise it for a colleague in your own department. They will be told, and can follow it too.' : 'They will be told, and can follow it too.'}
+        options={[{ value: 'me', label: 'Me' }, { value: 'other', label: 'A colleague' }]}
+        onChange={(m) => onChange({ mode: m as ForWhomState['mode'], colleague: m === 'me' ? null : value.colleague })} />
+      {value.mode === 'other' && (value.colleague ? (
+        <div className="pt-picked">
+          <Icon name="user" size={20} />
+          <span><strong>{value.colleague.label}</strong>{value.colleague.department && <span className="muted"> · {value.colleague.department}</span>}</span>
+          <button type="button" className="pt-link-btn" onClick={() => { onChange({ ...value, colleague: null }); setQ(''); }}>Change</button>
+        </div>
+      ) : (
+        <div className="pt-colleague-search">
+          <TextField label="Colleague’s name" size="md" value={q} onChange={setQ} error={error} placeholder="Type at least two letters" autoComplete="off" />
+          <div aria-live="polite">
+            {found && (found.length ? (
+              <ul className="pt-colleagues">
+                {found.map((c) => (
+                  <li key={c.id}>
+                    <button type="button" className="pt-colleague" onClick={() => onChange({ ...value, colleague: c })}>
+                      <Icon name="user" size={18} /><span>{c.label}</span>{c.department && <span className="muted">{c.department}</span>}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="muted pt-none">Nobody found{rule === 'department' ? ' in your department' : ''} with that name.</p>)}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const forBody = (w: ForWhomState) => (w.mode === 'other' && w.colleague ? { for_user_id: w.colleague.id } : {});
+const forMissing = (w: ForWhomState) => w.mode === 'other' && !w.colleague;
 
 function Page({ title, intro, icon, children }: { title: string; intro?: ReactNode; icon: Parameters<typeof Icon>[0]['name']; children: ReactNode }) {
   useEffect(() => { document.title = title; }, [title]);
@@ -95,6 +155,8 @@ export function RequestForm() {
   const [details, setDetails] = useState('');
   const [where, setWhere] = useState('');
   const [files, setFiles] = useState<File[]>([]);
+  const [forWhom, setForWhom] = useState<ForWhomState>({ mode: 'me', colleague: null });
+  const [forErr, setForErr] = useState('');
   const { submit, busy, errors, formError } = useSubmit();
   const articles = useSuggestions(item ? `${item.name} ${details}`.slice(0, 120) : '');
 
@@ -111,7 +173,8 @@ export function RequestForm() {
   const set = (key: string, v: string) => setAnswers((a) => ({ ...a, [key]: v }));
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
-    void submit({ catalog_item_id: item.id, answers, details, where }, files);
+    if (forMissing(forWhom)) { setForErr('Choose the colleague this is for.'); return; }
+    void submit({ catalog_item_id: item.id, answers, details, where, ...forBody(forWhom) }, files);
   };
 
   return (
@@ -134,6 +197,7 @@ export function RequestForm() {
         })}
         <TextArea label="Anything else we should know?" size="md" rows={3} value={details} onChange={setDetails} error={errors.details} />
         <TextField label="Where are you?" hint="Site, depot, station or vehicle number, if it matters." size="md" value={where} onChange={setWhere} />
+        <ForWhom value={forWhom} onChange={(v) => { setForWhom(v); setForErr(''); }} error={forErr || errors.for_user_id} />
         <Suggestions articles={articles} title="Before you send: these might help" />
         <FormEnd busy={busy} label="Send request" files={files} setFiles={setFiles} />
       </form>
@@ -150,12 +214,15 @@ export function ReportProblem() {
   const [affects, setAffects] = useState('');
   const [urgent, setUrgent] = useState('');
   const [files, setFiles] = useState<File[]>([]);
+  const [forWhom, setForWhom] = useState<ForWhomState>({ mode: 'me', colleague: null });
+  const [forErr, setForErr] = useState('');
   const { submit, busy, errors, formError } = useSubmit();
   const articles = useSuggestions(`${title} ${details}`.slice(0, 160));
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
-    void submit({ title, details, where, affects, how_urgent: urgent }, files);
+    if (forMissing(forWhom)) { setForErr('Choose the colleague this is for.'); return; }
+    void submit({ title, details, where, affects, how_urgent: urgent, ...forBody(forWhom) }, files);
   };
   return (
     <Page title="Report a problem" intro="Tell us what is wrong in your own words. A few lines is plenty." icon="alert">
@@ -167,6 +234,7 @@ export function ReportProblem() {
         <TextField label="Where?" hint="Site, depot, station, or vehicle or fleet number." size="md" value={where} onChange={setWhere} />
         <ChoiceCards name="affects" label="Who is affected?" required options={config.affects} value={affects} onChange={setAffects} error={errors.affects} />
         <ChoiceCards name="how_urgent" label="How urgent is it?" required options={config.urgency} value={urgent} onChange={setUrgent} error={errors.how_urgent} />
+        <ForWhom value={forWhom} onChange={(v) => { setForWhom(v); setForErr(''); }} error={forErr || errors.for_user_id} />
         <FormEnd busy={busy} label="Send" files={files} setFiles={setFiles} />
       </form>
     </Page>

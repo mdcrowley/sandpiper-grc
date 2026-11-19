@@ -1,6 +1,6 @@
 # E07 Framework outcomes and assessments
 
-**Status:** in progress
+**Status:** done (25 of 25 issues done)
 
 ## Goal
 
@@ -47,9 +47,9 @@ be added as data.
 | E07-20 | Review-date reminders | done | P2 |
 | E07-21 | Printable assessment report | done | P2 |
 | E07-22 | Outcome page: status timeline and linked work | done | P2 |
-| E07-23 | Settings screen for the target status, weights and reminder lead time | open | P3 |
-| E07-24 | Reminders when evidence notes expire | open | P3 |
-| E07-25 | Saved board views shared between people | open | P3 |
+| E07-23 | Settings screen for the target status, weights and reminder lead time | done | P3 |
+| E07-24 | Reminders when evidence notes expire | done | P3 |
+| E07-25 | Saved board views shared between people | done | P3 |
 
 ---
 
@@ -82,7 +82,7 @@ are available to load, so I do not type them in.
 - [x] Codes are unique, well-formed and sit under their category and function
 - [x] Counts per function match the published numbers
 - [x] The `dev` seed loads the whole framework with sample statuses
-- [ ] Outcome wording proofread line by line against the publication by a person (tracked as [E18-03](E18-quality-and-known-defects.md)). Checked from knowledge of CSWP 29 in wave 2: the GV.OC category description and GV.OC-03 had hyphens where the publication has em dashes (fixed); nothing else found
+- [x] Outcome wording compared line by line with NIST's published reference data for CSWP 29 in wave 4 ([E18-03](E18-quality-and-known-defects.md)): every outcome, category and function matches
 
 **Implemented in:** `server/src/modules/frameworks/csf2.json`, `reference.ts`, `reference.test.ts`
 
@@ -355,23 +355,40 @@ included one, without a code change.
 
 ### E07-23 Settings screen for the target status, weights and reminder lead time
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 The target status and the status weights are stored settings and the reminder lead time is
 the setting `frameworks.review_reminder_days`, but none has a screen.
 
-- [ ] An administrator can change them on a screen; changes audited
+- [x] An administrator can change them on a screen; changes audited: **Framework outcomes > More > Framework settings**
+      (`/frameworks/settings`), readable with `frameworks.view`, changed with `frameworks.administer`. Weights (0 to 100%)
+      are stored in the `outcome_status` list's `meta.weight` (audited as `frameworks.weights_change`); the target status
+      (`frameworks.target_status`, which must weigh more than 0) and the lead time (0 to 90 days, also listed under
+      Administration > Reminders) are settings, audited as `setting.change`
+
+**Implemented in** `server/src/modules/frameworks/admin.ts` (`GET/PUT /api/frameworks/settings`), `admin.test.ts`;
+`web/src/modules/frameworks/SettingsPage.tsx`, `Board.tsx` (More menu), `index.tsx`
 
 ### E07-24 Reminders when evidence notes expire
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
-- [ ] The outcome's owner is told when an evidence note is about to expire and when it has (files already follow the attachments module's own rules)
+- [x] The outcome's owner is told when an evidence note is about to expire and when it has (files already follow the attachments module's own rules)
+
+**Implemented in:** `server/src/modules/frameworks/evidence-reminders.ts` (job
+`frameworks.evidence_reminders`, hourly; lead time `frameworks.evidence_reminder_days`, 30;
+`POST /api/frameworks/evidence-reminders/run`); tests `frameworks/evidence-reminders.test.ts`.
 
 ### E07-25 Saved board views shared between people
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 Saved board views live in one browser. Sharing today means sending the page address.
 
-- [ ] Views can be saved on the server and shared with a team
+- [x] Views can be saved on the server and shared with a team: a person's own board views are the preference
+      `views:framework_board` (core `useSyncedPreference`; views saved in the browser before are carried over); a shared
+      view is a core shared list view (`/api/views`, record type `framework_outcome`, E01-24), stored as filters on the
+      outcome fields, so it also shows in the table view's saved views; sharing and removing are audited by core.
+      "A team" is everyone who can see the outcomes; there are no narrower groups
+
+**Implemented in** `web/src/modules/frameworks/BoardViews.tsx`, `boardState.ts` (`listViewOf`, `boardQueryOf`), `boardState.test.ts`

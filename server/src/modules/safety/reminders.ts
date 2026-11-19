@@ -1,5 +1,7 @@
+import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { dayInZone } from '../../core/timezone.ts';
+import { runHazardReviewReminders } from './hazard-reminders.ts';
 
 /**
  * Overdue corrective actions: once a day, every open action that arose from a safety event and
@@ -31,17 +33,15 @@ export async function runSafetyReminders(ctx: ModuleContext): Promise<{ overdue:
   return { overdue: rows.length, sent };
 }
 
-export function registerReminders(ctx: ModuleContext) {
+export async function registerReminders(ctx: ModuleContext) {
   const { app } = ctx;
   app.post('/api/safety/reminders/run', { preHandler: ctx.requirePerm('safety.administer') }, async () => runSafetyReminders(ctx));
   ctx.describeRoute({ method: 'POST', path: '/api/safety/reminders/run', summary: 'Send the overdue corrective action reminders now (they also run every hour, once a day per action)', permission: 'safety.administer' });
 
-  if (!process.env.VITEST && process.env.GRC_DATA_DIR !== 'memory') {
-    const safeRun = () => { runSafetyReminders(ctx).catch((err) => console.error('[safety] reminders failed:', err)); };
-    const first = setTimeout(safeRun, 90_000);
-    const timer = setInterval(safeRun, HOUR);
-    first.unref();
-    timer.unref();
-    app.addHook('onClose', async () => { clearTimeout(first); clearInterval(timer); });
-  }
+  app.post('/api/safety/hazard-reminders/run', { preHandler: ctx.requirePerm('safety.administer') }, async () => runHazardReviewReminders(ctx));
+  ctx.describeRoute({ method: 'POST', path: '/api/safety/hazard-reminders/run', summary: 'Send the hazard review reminders now (they also run every hour; each review date is announced at most twice)', permission: 'safety.administer' });
+
+  // Hourly on the job queue (Administration > Background jobs).
+  await scheduleWork(ctx, 'safety.reminders', () => runSafetyReminders(ctx), { every: HOUR, firstRunInMs: 90_000 });
+  await scheduleWork(ctx, 'safety.hazard_reviews', () => runHazardReviewReminders(ctx), { every: HOUR, firstRunInMs: 100_000 });
 }

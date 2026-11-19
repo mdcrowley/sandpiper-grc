@@ -19,7 +19,7 @@ const mod: ModuleDef = {
     // Fixed paths are registered before the generated `/api/changes/:id`.
     registerChangeRoutes(ctx, svc);
     defineChange(ctx, svc.base);
-    registerStartSweep(ctx);
+    await registerStartSweep(ctx);
   },
   async seed(ctx) {
     return seedSampleChanges(ctx, makeService(ctx));

@@ -135,6 +135,15 @@ command has a `grc.sh` equivalent; options are written `--profile dev` or `-Prof
 If the files came from a downloaded zip and macOS says "permission denied", run
 `chmod +x grc.sh tools/install-node.sh` once, or start them with `sh`.
 
+### macOS service
+
+To keep it running, starting when you sign in and after a crash:
+`./grc.sh service install` writes a launchd agent for your account
+(`~/Library/LaunchAgents/org.sandpiper-grc.server.plist`) with the settings in force and
+starts it; `./grc.sh service remove` takes it away ([Operations](operations.md#running-as-a-service-on-linux-and-macos)).
+For a Mac that serves a team, `deploy/launchd/` has a system daemon run by its own role
+account, and a daily backup; the comments at the top of each file give the commands.
+
 ## Linux
 
 The same as macOS: `grc.sh` with Node.js 24 from one of
@@ -152,7 +161,10 @@ The same as macOS: `grc.sh` with Node.js 24 from one of
 ```
 
 `./grc.sh start` runs the server in the background for the current user, for one person on
-one machine. On a server, run it as a **systemd service** instead, so it starts at boot and
+one machine. `./grc.sh service install` makes that a systemd **user** service, which
+starts when you sign in (at boot with `loginctl enable-linger`) and restarts after a crash
+([Operations](operations.md#running-as-a-service-on-linux-and-macos)). On a server, run it
+as a **system service** instead, so it starts at boot and
 restarts after a failure. `deploy/systemd/` has a service unit (with sandboxing, a state
 directory under `/var/lib/sandpiper-grc` and settings in `/etc/sandpiper-grc/env`) and a
 daily backup timer; the comments at the top of each file give the commands:
@@ -168,6 +180,9 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now sandpiper-grc sandpiper-grc-backup.timer
 journalctl -u sandpiper-grc -f
 ```
+
+The server's own log, one line per request, is `/var/lib/sandpiper-grc/data/logs/grc.log`
+(`sudo -u sandpiper GRC_DATA_DIR=/var/lib/sandpiper-grc/data ./grc.sh logs`).
 
 The unit listens on `127.0.0.1:8080` and trusts a reverse proxy on the same machine; add the
 proxy of [Reverse proxy](#reverse-proxy) in front of it.
@@ -361,6 +376,19 @@ rest). `.\grc.ps1 schedule-backup` writes the values in force into its scheduled
 | `GRC_JOBS_POLL_MS` | `10000` | How often the job queue looks for due work |
 | `GRC_MODULES` | all modules | Comma-separated module folder names to load. A development aid |
 | `GRC_SKIP_NODE_CHECK` | off | `1` lets `grc.sh` run with a Node.js major version other than the pinned one |
+| `GRC_DATABASE_MIGRATE_URL` | not set | The **owner** account's connection string for a least-privilege set-up: migrations run as it, and the server itself as the account in `GRC_DATABASE_URL` ([below](#a-least-privilege-database-role)). `_FILE` names a file holding it; `GRC_DATABASE_MIGRATE_PASSWORD` (or `_FILE`) its password |
+| `GRC_DATABASE_APP_ROLE` | the user in `GRC_DATABASE_URL` | The role granted the run-time privileges after migrations |
+| `GRC_TLS_RELOAD_SECONDS` | `60` | How often the certificate files are looked at for a renewal. `0`: only on `SIGHUP` (Linux, macOS) |
+| `GRC_LOG_LEVEL` | `info` | `error`, `warn`, `info` or `debug` ([Operations](operations.md#logs)) |
+| `GRC_LOG_DIR` | `<data folder>/logs` | Folder of the server's log `grc.log`; `off` writes no file |
+| `GRC_LOG_MAX_MB`, `GRC_LOG_FILES` | `10`, `5` | Size at which the log is rotated, and how many old files are kept |
+| `GRC_LOG_CONSOLE` | `text` (`json` in the container) | What the console gets: `text` (start-up line, warnings, errors), `json` (every entry) or `off` |
+| `GRC_LOG_REQUESTS` | on | `off` leaves out the line per request |
+| `GRC_COMMIT` | the git checkout's commit | The commit shown with the version; the container image has it built in |
+| `GRC_PDF_FONTS` | well-known system fonts | Font files for PDF text outside Western European, `;`-separated on Windows and `:` elsewhere; `file.ttc#PostScriptName` picks one font of a collection; `none` switches it off ([Operations](operations.md#fonts-for-pdf-exports)) |
+| `GRC_SLOW_QUERY_MS` | not set | Log database statements taking this many milliseconds or more (their text only, never their values) |
+| `GRC_ANALYZE_AFTER_WRITES` | `2000` | Embedded database only: refresh the query planner's statistics after this many writes (at most every ten minutes); `0` switches it off |
+| `GRC_SERVICE_NAME` | `sandpiper-grc` | Name of the user service `./grc.sh service install` writes |
 
 Limits to know about:
 
@@ -376,7 +404,7 @@ Limits to know about:
 | `.tools/node/` | Portable Node.js (`install-node.ps1` or `install-node.sh`) | No |
 | `node_modules/` | npm packages | No |
 | `dist/web/` | The built web application | No |
-| `data/` | Database (`data/pg`), attached files (`data/files`), `grc.pid`, `server.log`, `server.log.err` | No |
+| `data/` | Database (`data/pg`), attached files (`data/files`), the server's log (`data/logs`), `grc.pid`, `server.log`, `server.log.err` | No |
 | `data.secret.key` (beside `data/`) | The secret key, unless supplied another way. Not in backups: back it up separately | No |
 | `seed/` | Your organization profile and import files | No, never |
 | `backups/` | Backups, safety copies made by `restore`, exports, copies of the code for `upgrade`, and the scheduled backup log | No |
@@ -424,8 +452,10 @@ With it, the same SQL runs on a PostgreSQL server:
 
 - **Version.** PostgreSQL 15 or later. No extensions are needed. Continuous integration runs
   the test suite against PostgreSQL 17.
-- **Create a role and a database** (as a superuser, in `psql`). The application's role owns
-  its database, because migrations create and change tables at every start:
+- **Create a role and a database** (as a superuser, in `psql`). In the simplest set-up the
+  application's role owns its database, because migrations create and change tables at
+  start. [A least-privilege database role](#a-least-privilege-database-role) separates the
+  two, and is recommended for production:
 
   ```sql
   create role grc login password 'choose-a-long-password';
@@ -457,6 +487,43 @@ With it, the same SQL runs on a PostgreSQL server:
 - **Backups** are taken with the database server's own tools in this mode; see
   [Operations](operations.md#postgresql-server-backups).
 
+### A least-privilege database role
+
+When the account the server uses owns the tables, anyone who takes over the server process
+could also remove the audit log's append-only trigger. Give the server an account that may
+only read and write rows, and keep ownership with a second account used for migrations:
+
+```sql
+create role grc_owner login password 'owner-password';
+create role grc_app   login password 'app-password';
+create database grc owner grc_owner encoding 'UTF8' template template0 locale_provider builtin builtin_locale 'C.UTF-8';
+```
+
+```sh
+GRC_DATABASE_URL=postgres://grc_app@db.example.internal:5432/grc               # the server runs as this
+GRC_DATABASE_PASSWORD_FILE=/etc/sandpiper-grc/app-password
+GRC_DATABASE_MIGRATE_URL=postgres://grc_owner@db.example.internal:5432/grc     # migrations run as this
+GRC_DATABASE_MIGRATE_PASSWORD_FILE=/etc/sandpiper-grc/owner-password
+```
+
+- With `GRC_DATABASE_MIGRATE_URL` set, the server first builds the schema **as the owner**
+  at every start (migrations and the search triggers), then **grants the run-time role**
+  read and write on every table and sequence, no update or delete on the audit log, and only
+  reading the migration list, and closes the owner's connection. It then runs as
+  `grc_app`. `npm run cli -- migrate` (or `grc migrate`) does the same without starting
+  the server, and `npm run cli -- grant-runtime-role` repeats only the grants.
+- To keep the owner's password off the server altogether, leave `GRC_DATABASE_MIGRATE_URL`
+  out of the server's settings and run `migrate` with it from an administrator's session
+  after each upgrade. Started with migrations pending, the run-time account cannot apply
+  them: the server stops with `... may not change the schema: run the migrations as the
+  owner role`.
+- `grc_app` owns nothing, so it cannot create, alter or drop tables or triggers (tested in
+  `server/src/core/migrate.test.ts`, and in continuous integration against PostgreSQL 17).
+- Two things still need the owner, so run `migrate` as the owner after them: **new custom
+  fields** (each adds a column) and an upgrade that changes what is searched (it rebuilds a
+  search trigger; until then that record type is searched by plain matching and the log says
+  so). `import-all` also runs as the owner when `GRC_DATABASE_MIGRATE_URL` is set.
+
 ### HTTPS
 
 Plain HTTP is accepted only on the loopback address. Choose one of:
@@ -470,8 +537,15 @@ Plain HTTP is accepted only on the loopback address. Choose one of:
   GRC_TLS_CERT=/etc/sandpiper-grc/tls/fullchain.pem  GRC_TLS_KEY=/etc/sandpiper-grc/tls/privkey.pem
   ```
 
-  Ports below 1024 need a privilege; use 8443 with a firewall redirect. The certificate is
-  read at start: restart after renewing it.
+  Ports below 1024 need a privilege; use 8443 with a firewall redirect.
+
+  **Renewing the certificate needs no restart.** The server looks at the two files every
+  `GRC_TLS_RELOAD_SECONDS` (default 60) and, at once, on `SIGHUP` (`systemctl reload
+  sandpiper-grc`, `docker compose kill -s HUP app`; Linux and macOS). A changed pair is
+  checked (both PEM, the key belongs to the certificate) and used for new connections;
+  connections already open carry on. A broken or half-written pair is refused with an error in
+  the log (`The new TLS certificate was NOT loaded`) and the old certificate stays in use, so
+  a renewal tool that writes the two files one after the other is safe.
 
 Either way the session cookie is marked `Secure` and HTTPS responses carry
 `Strict-Transport-Security`. Starting on a reachable address with neither a certificate nor
@@ -524,5 +598,27 @@ providers ([Security](security.md)).
 
 See [Docker](docker.md): the published image, `compose.yaml` (embedded database) and
 `compose.postgres.yaml` (with PostgreSQL), volumes, backups, the secret key and upgrades.
+
+### Email to ticket
+
+Email to ticket turns messages sent to a service desk address into tickets, and replies into
+comments on them. It is off by default and is switched on by an administrator under
+**Service desk > Settings > Email to ticket**, which shows each message received and what was
+done with it. Outgoing email must be set up too (see [Email settings](user/14-attachments-and-notifications.md#email-settings)), for the
+acknowledgments and for replies to reach the requester. Choose one of two ways for messages to
+arrive:
+
+- **The server reads a mailbox (POP3).** Use a mailbox kept for this alone: messages are
+  deleted from it once they are handled, unless **Leave messages in the mailbox after reading them** is on. Port 995 with TLS, or 110 with STARTTLS. The server
+  connects out to the mail server, so allow that connection.
+- **A mail relay posts each message.** The mail server (or a small relay script) sends every
+  message for the service desk address, as the raw message (`content-type: message/rfc822`),
+  to `POST /api/tickets/email/inbound` with the headers `X-GRC-Relay-Key: <key>` (created on
+  the settings tab and shown once) and `X-GRC-CSRF: 1`. Messages up to 30 MB are taken; the
+  answer is 202 once the message is stored.
+
+Auto-replies, bounces, mailing lists, messages from the application's own address, repeated
+messages and more than the hourly limit from one sender are ignored and logged. Attachments are
+checked like any upload (type, content, malware scanner, size).
 
 Next: [Operations](operations.md).

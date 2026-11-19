@@ -328,6 +328,11 @@ describe('the stdio bridge', () => {
     expect(await names(c)).toContain('get_record');
     const got = await c.callTool({ name: 'get_record', arguments: { type: 'mcpwidget', id: widgetRef } });
     expect((got.structuredContent as any).title).toBe('Depot radio console fault');
+    // Progress notifications come through the bridge too (streamed), before the result.
+    const seen: number[] = [];
+    const work = await c.callTool({ name: 'my_work', arguments: {} }, undefined, { onprogress: (p) => { seen.push(p.progress); } });
+    expect(work.isError).toBeFalsy();
+    expect(seen.length).toBeGreaterThanOrEqual(3);
   }, 30_000);
 
   it('reports a refused token as an error rather than hanging', async () => {

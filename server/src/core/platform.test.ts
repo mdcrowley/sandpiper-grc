@@ -428,6 +428,36 @@ describe('full-text search', () => {
     expect(await listIds('xylophonist')).toEqual([]);
     expect(await listIds('bassoon')).toEqual([row.id]);
   });
+
+  it('matches part of a word through the indexed substring text, never across two fields (E16-36)', async () => {
+    const row = await t.db.one<any>(`select body from search_index where record_type = 'gadget' and record_id = $1`, [ids.code]);
+    expect(row.body).toBe(['Switch SW-CORE-0042 firmware', 'Serial ZX81QQ7.', (await t.api.get(`/api/gadgets/${ids.code}`)).body.ref].join('\u001f'));
+    // The trigram index is there when the extension is (the embedded database always has it).
+    if ((await t.db.query(`select 1 from pg_extension where extname = 'pg_trgm'`)).length) {
+      expect((await t.db.query(`select 1 from pg_indexes where indexname = 'search_index_body_trgm_ix'`)).length).toBe(1);
+    }
+    // "firmware" + "Serial": the end of one field and the start of the next is not a match.
+    expect(await listIds('wareSerial')).toEqual([]);
+    expect((await search('wareSerial')).filter((r) => r.type === 'gadget')).toEqual([]);
+    // Part of a word in the notes, in a list and in global search; a restricted record stays hidden.
+    expect(await listIds('xplosive')).toEqual([]);
+    expect(await listIds('estigati', agent)).toEqual([]);
+    expect(await listIds('estigati', lead)).toEqual([ids.hidden]);
+    expect((await search('estigati', lead)).filter((r) => r.type === 'gadget').map((r) => r.id)).toEqual([ids.hidden]);
+    expect((await search('estigati', agent)).filter((r) => r.type === 'gadget')).toEqual([]);
+  });
+
+  it('pages a sorted, searched list with an exact total, also past the end (E16-36)', async () => {
+    const all = (await t.api.get('/api/gadgets?sort=name&pageSize=500')).body;
+    const page2 = (await t.api.get('/api/gadgets?sort=name&pageSize=2&page=2')).body;
+    expect(page2.total).toBe(all.total);
+    expect(page2.rows.map((r: any) => r.id)).toEqual(all.rows.slice(2, 4).map((r: any) => r.id));
+    const beyond = (await t.api.get('/api/gadgets?sort=name&pageSize=2&page=99')).body;
+    expect(beyond).toMatchObject({ rows: [], total: all.total, page: 99 });
+    expect((await t.api.get('/api/gadgets?q=nothing-matches-this&page=1')).body).toMatchObject({ rows: [], total: 0 });
+    // The same total whoever asks with the same view of the rows; a restricted record is not counted for someone who cannot see it.
+    expect((await agent.get('/api/gadgets?q=printer&pageSize=1&page=2')).body.total).toBe(2);
+  });
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -463,6 +493,18 @@ describe('custom fields', () => {
     await add({ label: 'Zones', type: 'multiselect', options: ['North', 'South', 'East'] });
     expect((await t.api.post('/api/admin/custom-fields', { record_type: 'gadget', label: 'Score', type: 'text' })).body.error.fields.key).toMatch(/already/);
     expect((await audited('custom_field.create')).length).toBe(9);
+
+    // E16-37: once the column exists, start-up checks for it and never runs `alter table` again
+    // (a run-time account without the right to change tables would log an error each time).
+    const exec = t.db.exec;
+    const altered: string[] = [];
+    t.db.exec = async (sql: string) => { if (/alter table/i.test(sql)) altered.push(sql); return exec.call(t.db, sql); };
+    try {
+      await t.core.resources.ensureCustomColumn(t.core.resources.registry.get('gadget')!);
+    } finally {
+      t.db.exec = exec;
+    }
+    expect(altered).toEqual([]);
 
     const listed = await t.api.get('/api/admin/custom-fields?record_type=gadget');
     expect(listed.body.fields).toHaveLength(9);

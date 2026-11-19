@@ -45,6 +45,7 @@ export function ShareDialog({ open, onClose, path, item, what, onSaved }: {
   );
 }
 
+const isFile = (format: unknown) => format === 'pdf' || format === 'xlsx' || format === 'csv';
 const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const HOURS = Array.from({ length: 24 }, (_, h) => ({ value: String(h), label: `${String(h).padStart(2, '0')}:00` }));
 
@@ -56,6 +57,7 @@ export function ScheduleDialog({ open, onClose, target, existing, onSaved }: {
 }) {
   const toast = useToast();
   const roles = useFetch<{ key: string; name: string }[]>(open ? '/api/reports/roles' : null);
+  const mail = useFetch<{ enabled: boolean }>(open ? '/api/reports/email-status' : null);
   const [f, setF] = useState<Row>({});
   const [people, setPeople] = useState<{ id: string; label: string }[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -70,7 +72,7 @@ export function ScheduleDialog({ open, onClose, target, existing, onSaved }: {
       setF({ ...existing });
       setPeople(((existing.recipient_users as string[]) ?? []).map((id) => ({ id, label: id === user?.id ? user.displayName : 'A chosen person' })));
     } else {
-      setF({ name: target ? `${target.name}: weekly` : '', cadence: 'weekly', weekday: 1, month_day: 1, hour: 7, format: 'html', recipient_roles: [], active: true });
+      setF({ name: target ? `${target.name}: weekly` : '', cadence: 'weekly', weekday: 1, month_day: 1, hour: 7, format: 'html', email: 'link', recipient_roles: [], active: true });
       setPeople(user ? [{ id: user.id, label: `${user.displayName} (me)` }] : []);
     }
   }, [open, existing, target, user]);
@@ -81,6 +83,7 @@ export function ScheduleDialog({ open, onClose, target, existing, onSaved }: {
     setErrors({});
     const body = {
       name: String(f.name ?? '').trim(), cadence: f.cadence, weekday: f.weekday, month_day: f.month_day, hour: Number(f.hour), format: isDash && f.format === 'csv' ? 'html' : f.format,
+      email: f.email === 'attach' && !isFile(f.format) ? 'link' : f.email ?? 'link',
       recipient_users: people.map((p) => p.id), recipient_roles: f.recipient_roles ?? [], active: f.active !== false,
       ...(existing ? {} : { target_type: target!.type, target_id: target!.id }),
     };
@@ -100,7 +103,7 @@ export function ScheduleDialog({ open, onClose, target, existing, onSaved }: {
     <Modal open={open} title={existing ? 'Edit schedule' : `Schedule this ${isDash ? 'dashboard' : 'report'}`} onClose={onClose}
       footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" loading={busy} onClick={save}>{existing ? 'Save changes' : 'Schedule'}</Button></>}>
       <form className="form" onSubmit={(e) => { e.preventDefault(); void save(); }}>
-        <p className="notice">Each person receives a notification in the application with a link to a copy frozen at that moment, showing only what their own role allows. When an administrator has switched email on, they are also emailed a link, with the PDF or Excel file attached when they may export it.</p>
+        <p className="notice">Each person receives a notification in the application with a link to a copy frozen at that moment. Figures are the same for everyone; lists of records show each person only what their own role allows.</p>
         <TextField label="Name" required value={String(f.name ?? '')} error={errors.name} onChange={(name) => set({ name })} />
         <div className="form-grid">
           <Select label="How often" required value={String(f.cadence ?? 'weekly')} onChange={(cadence) => set({ cadence })}
@@ -117,6 +120,17 @@ export function ScheduleDialog({ open, onClose, target, existing, onSaved }: {
               ...(isDash ? [] : [{ value: 'csv', label: 'Spreadsheet file (CSV)' }]),
             ]} />
         </div>
+        <Select label="Email" required value={String(f.email ?? 'link')} onChange={(email) => set({ email })} error={errors.email}
+          hint={mail.data && !mail.data.enabled
+            ? 'Email is not switched on here, so deliveries stay in the application until an administrator sets it up.'
+            : f.email === 'attach'
+              ? 'The file goes only to people whose role allows exporting, and never when it holds restricted records: they get a link instead.'
+              : 'The email names the schedule and links to the copy; the figures stay in the application.'}
+          options={[
+            { value: 'link', label: 'Email a link' },
+            ...(isFile(f.format) ? [{ value: 'attach', label: 'Email the file attached' }] : []),
+            { value: 'off', label: 'No email: in the application only' },
+          ]} />
         <fieldset className="rp-recipients">
           <legend className="field-label">Send to</legend>
           {errors.recipient_users && <p className="field-error">{errors.recipient_users}</p>}

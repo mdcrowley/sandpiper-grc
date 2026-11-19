@@ -1,10 +1,10 @@
 // Relationship map: types and the layout. The layout is worked out from the data alone (no
 // simulation), so the same estate always draws the same way: systems sit in labeled boxes in
-// the middle, vendors in a lane on the left, sites, data categories and assets in lanes on the
+// the middle, vendors in a lane on the left, sites, data categories, assets and services in lanes on the
 // right, each placed level with the systems it belongs to (or, when they are short, stacked in
 // one column so the map stays narrow enough to read).
 
-export type NodeType = 'system' | 'vendor' | 'site' | 'asset' | 'data_category';
+export type NodeType = 'system' | 'vendor' | 'site' | 'asset' | 'data_category' | 'service';
 export interface GraphNode {
   id: string; type: NodeType; label: string; group: string; route: string | null; ref?: string | null;
   attrs?: Record<string, string | null>;
@@ -18,6 +18,7 @@ export const NODE_TYPES: { type: NodeType; label: string; plural: string; color:
   { type: 'site', label: 'Site', plural: 'Sites', color: 'green' },
   { type: 'data_category', label: 'Data category', plural: 'Data categories', color: 'amber' },
   { type: 'asset', label: 'Asset', plural: 'Assets', color: 'orange' },
+  { type: 'service', label: 'Service', plural: 'Services', color: 'teal' },
 ];
 export const typeInfo = (t: NodeType) => NODE_TYPES.find((x) => x.type === t) ?? NODE_TYPES[0];
 
@@ -123,9 +124,9 @@ export function computeLayout(
     }
     return { slots, centerH: Math.max(0, ...colHeights) - (keys.length ? BOX_GAP : 0) };
   };
-  // Lanes on the right (sites, data, assets) share one column, one under another, when they are
+  // Lanes on the right (sites, data, assets, services) share one column, one under another, when they are
   // short enough to fit beside the systems: the map is then narrower and easier to read.
-  const right = (['site', 'data_category', 'asset'] as NodeType[]).map((t) => ({ t, items: of(t) })).filter((l) => l.items.length);
+  const right = (['site', 'data_category', 'asset', 'service'] as NodeType[]).map((t) => ({ t, items: of(t) })).filter((l) => l.items.length);
   const stackedH = (count: number) => LANE_HEAD + count * STEP - GAP_Y;
   const stacks = (height: number) => right.length > 1
     && right.every((l) => laneCols(l.items.length, height) === 1)
@@ -165,16 +166,16 @@ export function computeLayout(
   if (systems.length) lanes.push({ type: 'system', label: 'Systems', x: centerX, y: 0, w: centerW });
 
   // ----- lanes around the systems -----
-  const neighbours = new Map<string, string[]>();
+  const neighbors = new Map<string, string[]>();
   for (const e of edges) {
     for (const [a, b] of [[e.from, e.to], [e.to, e.from]]) {
-      if (!neighbours.has(a)) neighbours.set(a, []);
-      neighbours.get(a)!.push(b);
+      if (!neighbors.has(a)) neighbors.set(a, []);
+      neighbors.get(a)!.push(b);
     }
   }
   /** Average height of the already-placed records a node is tied to. */
   const level = (n: GraphNode): number => {
-    const ys = (neighbours.get(n.id) ?? []).map((id) => byId.get(id)).filter((p): p is PlacedNode => !!p).map((p) => p.y + p.h / 2);
+    const ys = (neighbors.get(n.id) ?? []).map((id) => byId.get(id)).filter((p): p is PlacedNode => !!p).map((p) => p.y + p.h / 2);
     return ys.length ? ys.reduce((s, y) => s + y, 0) / ys.length : LANE_HEAD + centerH / 2;
   };
   /**
@@ -225,7 +226,7 @@ export function computeLayout(
 }
 
 /** Everything one step from `id`, with the edges that tie them. */
-export function neighbourhood(id: string, edges: GraphEdge[]): { ids: Set<string>; edges: Set<number> } {
+export function neighborhood(id: string, edges: GraphEdge[]): { ids: Set<string>; edges: Set<number> } {
   const ids = new Set<string>([id]);
   const hit = new Set<number>();
   edges.forEach((e, i) => {
@@ -233,4 +234,15 @@ export function neighbourhood(id: string, edges: GraphEdge[]): { ids: Set<string
     if (e.to === id) { ids.add(e.from); hit.add(i); }
   });
   return { ids, edges: hit };
+}
+
+/**
+ * Shortens a label to n characters, at a word boundary where one is near, so the words drawn on a
+ * node are whole words of its accessible name (speech users say what they see).
+ */
+export function shortLabel(s: string, n = 22): string {
+  if (s.length <= n) return s;
+  const cut = s.slice(0, n - 1);
+  const space = cut.lastIndexOf(' ');
+  return `${space >= n / 2 ? cut.slice(0, space) : cut}…`;
 }

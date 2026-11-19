@@ -46,7 +46,15 @@ ENV NODE_ENV=production \
     GRC_BACKUP_DIR=/var/lib/sandpiper/backups \
     GRC_SEED_DIR=/var/lib/sandpiper/seed \
     GRC_SECRET_KEY_FILE=/var/lib/sandpiper-key/secret.key \
-    GRC_WEB_DIST=/app/dist/web
+    GRC_WEB_DIST=/app/dist/web \
+    GRC_LOG_CONSOLE=json
+# Fonts for PDF exports in any script (server/src/core/export/fonts.ts finds them by itself):
+# Noto core covers Latin, Greek, Cyrillic, Arabic, Hebrew, Devanagari, Thai and more; Noto CJK
+# covers Chinese, Japanese and Korean. They add about 120 MB to the image; GRC_PDF_FONTS
+# overrides the choice. Before WORKDIR and the application files, so the layer stays cached.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends fonts-noto-core fonts-noto-cjk \
+ && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
 # Application files belong to root and are read-only to the process.
@@ -73,6 +81,12 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=3 \
   CMD ["node", "deploy/healthcheck.mjs"]
 
 STOPSIGNAL SIGTERM
+# The commit the image is built from, shown by GET /api/version and `grc version` (CI passes it in).
+# Last, so that a new commit does not invalidate the cached layers above.
+ARG GRC_COMMIT=""
+ENV GRC_COMMIT=${GRC_COMMIT}
+# Every log entry goes to standard output as one JSON line (docker logs), and to the rotating file
+# /var/lib/sandpiper/data/logs/grc.log. `docker kill -s HUP` reloads a renewed TLS certificate.
 # The server is TypeScript run by Node's built-in type transformation: no compiler and no
 # development packages in the image, and nothing written outside the volumes.
 CMD ["node", "--experimental-transform-types", "--disable-warning=ExperimentalWarning", "server/src/main.ts"]

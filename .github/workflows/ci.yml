@@ -4,7 +4,9 @@ name: CI
 # pull request; the tests again through the PostgreSQL server driver; installation on macOS
 # and Linux with tools/install-node.sh and grc.sh; the container image, built and started,
 # and compose.yaml run with both databases; the browser suite. On pushes to main and on
-# version tags, once the checks pass, the image is published to ghcr.io for amd64 and arm64.
+# version tags, once the checks pass, the image is published to ghcr.io for amd64 and arm64, with a
+# software bill of materials and signed build provenance. The dependency audit fails only on a
+# vulnerability someone can fix; a released migration may never change.
 # Nothing here needs the private seed/ folder or any secret other than the built-in token.
 
 on:
@@ -47,9 +49,15 @@ jobs:
         run: npm ci --no-audit --no-fund
 
       - name: Audit dependencies
-        # Reports known vulnerabilities in production dependencies; does not fail the build yet.
-        continue-on-error: true
-        run: npm audit --omit=dev --audit-level=high
+        # Fails on a known high or critical vulnerability in a production package when a fixed
+        # version exists; one that nobody can fix yet is listed without failing (E16-13). Exit 3
+        # means the registry could not be reached, which is a warning here.
+        shell: bash
+        run: |
+          code=0
+          npx tsx server/src/cli.ts audit-deps || code=$?
+          if [ "$code" = 3 ]; then echo "::warning::The dependency audit could not reach the npm registry."; exit 0; fi
+          exit $code
 
       - name: Type check (server and web)
         run: npm run typecheck
@@ -68,9 +76,6 @@ jobs:
     name: Tests on a database server (${{ matrix.target }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # The real-server leg has not run yet: it reports without failing the workflow until its
-    # first green run on GitHub, after which this line should be removed (E16-05).
-    continue-on-error: ${{ matrix.target == 'postgres-17' }}
     strategy:
       fail-fast: false
       matrix:
@@ -119,6 +124,60 @@ jobs:
           GRC_TEST_DATABASE_URL: postgres://grc:grc-ci-only@127.0.0.1:5432/grc
         run: npm test
 
+      - name: Least-privilege database role (owner migrates, the server runs as grc_app)
+        # E16-31 on a real server: the owner account creates the schema and grants grc_app, which
+        # may read and write rows but cannot alter the schema or the audit log's trigger.
+        # Not yet failing the workflow: remove continue-on-error after its first green run.
+        if: matrix.target == 'postgres-17'
+        continue-on-error: true
+        env:
+          PGHOST: 127.0.0.1
+          PGUSER: grc
+          PGPASSWORD: grc-ci-only
+          GRC_DATA_DIR: ${{ runner.temp }}/grc-lp
+          GRC_PORT: '8171'
+          GRC_DATABASE_SSL: 'off'
+          GRC_DATABASE_URL: postgres://grc_app:app-ci-only@127.0.0.1:5432/grc_lp
+        run: |
+          set -eu
+          psql -d grc -v ON_ERROR_STOP=1 -c "create database grc_lp" -c "create role grc_app login password 'app-ci-only'"
+          GRC_DATABASE_MIGRATE_URL=postgres://grc:grc-ci-only@127.0.0.1:5432/grc_lp npx tsx server/src/cli.ts migrate
+          npx tsx server/src/main.ts > "$RUNNER_TEMP/lp.out" 2>&1 &
+          for _ in $(seq 1 60); do curl -fsS http://127.0.0.1:8171/api/health && break; sleep 2; done
+          curl -fsS -X POST -H 'content-type: application/json' -H 'x-grc-csrf: 1' \
+            -d '{"username":"admin","email":"admin@example.test","displayName":"Administrator","password":"ci-only-Passw0rd-long-enough"}' \
+            http://127.0.0.1:8171/api/setup > /dev/null
+          if PGUSER=grc_app PGPASSWORD=app-ci-only psql -d grc_lp -c "drop trigger audit_events_no_change on audit_events"; then echo "grc_app could drop the audit trigger"; exit 1; fi
+          if PGUSER=grc_app PGPASSWORD=app-ci-only psql -d grc_lp -c "delete from audit_events"; then echo "grc_app could delete audit events"; exit 1; fi
+          cat "$RUNNER_TEMP/lp.out"
+          if grep -i 'permission denied\|must be owner' "$GRC_DATA_DIR/logs/grc.log"; then echo "the server needed owner rights at run time"; exit 1; fi
+          touch "$GRC_DATA_DIR/grc.stop"
+
+  # A migration that is part of a release must never change (E16-20): installations have applied
+  # it and would not run it again. Compared with the newest version tag; before the first release
+  # there is nothing to compare with.
+  released-migrations:
+    name: Released migrations unchanged
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out (with tags)
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Compare with the newest release
+        run: |
+          tag=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)
+          if [ -z "$tag" ]; then echo "No release tag yet, so no migration is released."; exit 0; fi
+          changed=$(git diff --name-only --diff-filter=MDR "$tag" HEAD -- ':(glob)server/src/**/migrations/*.sql')
+          if [ -n "$changed" ]; then
+            echo "::error::Migrations released in $tag were changed, renamed or deleted. Put the change in a new migration instead:"
+            echo "$changed"
+            exit 1
+          fi
+          echo "Every migration released in $tag is unchanged."
+
   # macOS and Linux installation as a person would do it: the pinned Node.js fetched by
   # tools/install-node.sh, then grc.sh for everything (the counterpart of grc.ps1).
   unix-install:
@@ -156,8 +215,22 @@ jobs:
           ./grc.sh backup --prune 2
           ./grc.sh verify-backup
           ./grc.sh status
+          ./grc.sh version
+          ./grc.sh logs --lines 20
+          test -s "$GRC_DATA_DIR/logs/grc.log"
           ./grc.sh stop
           if ./grc.sh health; then echo "still answering after stop"; exit 1; fi
+
+      - name: Service definitions are valid (systemd unit, launchd agent)
+        run: |
+          set -eu
+          if [ "$(uname -s)" = Linux ]; then
+            ./grc.sh service print > "$RUNNER_TEMP/sandpiper-grc.service"
+            systemd-analyze verify "$RUNNER_TEMP/sandpiper-grc.service"
+          else
+            ./grc.sh service print > "$RUNNER_TEMP/org.sandpiper-grc.server.plist"
+            plutil -lint "$RUNNER_TEMP/org.sandpiper-grc.server.plist" deploy/launchd/*.plist
+          fi
 
       - name: Server logs
         if: failure()
@@ -187,7 +260,9 @@ jobs:
           load: true
           push: false
           tags: sandpiper-grc:ci
-          build-args: NODE_MAJOR=${{ steps.node.outputs.major }}
+          build-args: |
+            NODE_MAJOR=${{ steps.node.outputs.major }}
+            GRC_COMMIT=${{ github.sha }}
           cache-from: type=gha,scope=ci-amd64
           cache-to: type=gha,scope=ci-amd64,mode=max
 
@@ -228,6 +303,10 @@ jobs:
           # The secret key was generated in its own volume, not in the data volume.
           docker exec grc sh -c 'test -s /var/lib/sandpiper-key/secret.key && ! ls /var/lib/sandpiper/*.key /var/lib/sandpiper/data/*.key 2>/dev/null'
           docker exec grc grc status
+          # The version and commit, and the server's own log in the data volume.
+          docker exec grc grc version | grep -q "${{ github.sha }}"
+          docker exec grc grc logs --lines 5
+          docker logs grc 2>&1 | grep -q '"msg":"Sandpiper GRC'
 
       - name: Refuses plain HTTP on every interface without GRC_ALLOW_INSECURE
         run: |
@@ -286,6 +365,9 @@ jobs:
     permissions:
       contents: read
       packages: write
+      # Signed build provenance (attestations), recorded with GitHub's own signing service.
+      id-token: write
+      attestations: write
     steps:
       - name: Check out
         uses: actions/checkout@v5
@@ -329,17 +411,30 @@ jobs:
             org.opencontainers.image.licenses=MIT
 
       - name: Build and push (linux/amd64, linux/arm64)
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          build-args: NODE_MAJOR=${{ steps.node.outputs.major }}
+          # A software bill of materials and full build provenance, attached to the image.
+          sbom: true
+          provenance: mode=max
+          build-args: |
+            NODE_MAJOR=${{ steps.node.outputs.major }}
+            GRC_COMMIT=${{ github.sha }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}
           cache-from: type=gha,scope=publish
           cache-to: type=gha,scope=publish,mode=max
+
+      - name: Sign the build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ghcr.io/${{ github.repository }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
 
   browser:
     name: Browser tests and accessibility (ubuntu-latest)
@@ -368,8 +463,8 @@ jobs:
         env:
           E2E_WEB_DIST: ${{ github.workspace }}/e2e-web
 
-      - name: Accessibility audit (reported, not yet failing the build)
-        run: npm run test:a11y -- --quick --no-fail
+      - name: Accessibility audit
+        run: npm run test:a11y -- --quick
         env:
           E2E_WEB_DIST: ${{ github.workspace }}/e2e-web
 

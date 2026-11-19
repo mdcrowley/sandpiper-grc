@@ -121,6 +121,23 @@ describe('services and what is affected', () => {
     expect((await t.api.get(`/api/systems/${ids.rti}/services`)).body.map((s: any) => s.route_code)).toEqual(['9']);
   });
 
+  it('draws services on the relationship map, tied to the systems they depend on', async () => {
+    const graph = (await t.api.get('/api/systems/graph')).body;
+    const node = graph.nodes.find((n: any) => n.id === ids.svc);
+    expect(node).toMatchObject({ type: 'service', label: 'Test Crosstown', ref: '9', route: `/services/${ids.svc}`, group: 'Services' });
+    expect(graph.edges).toContainEqual({ from: ids.rti, to: ids.svc, kind: 'service', label: 'needed for Passenger information' });
+    // A service with no dependency, or a discontinued one, is not drawn.
+    const lone = (await t.api.post('/api/services', { route_code: '99', name: 'Test lone route', mode: 'bus' })).body.id;
+    const gone = (await t.api.post('/api/services', { route_code: '98', name: 'Test old route', mode: 'bus', status: 'discontinued' })).body.id;
+    await t.api.post(`/api/services/${gone}/systems`, { system_id: ids.rti });
+    const again = (await t.api.get('/api/systems/graph')).body.nodes.map((n: any) => n.id);
+    expect(again).not.toContain(lone);
+    expect(again).not.toContain(gone);
+    // A system's own map reaches its services.
+    const focus = (await t.api.get(`/api/systems/graph?focus=${ids.rti}`)).body;
+    expect(focus.nodes.map((n: any) => n.id)).toContain(ids.svc);
+  });
+
   it('names the vehicles and services affected by an on-vehicle system outage, directly and downstream', async () => {
     const direct = (await t.api.get(`/api/fleet/impact?system_id=${ids.avl}`)).body;
     expect(direct.vehicles.map((v: any) => v.fleet_number).sort()).toEqual(['3001', 'T90']);
@@ -165,7 +182,7 @@ describe('import (core import service)', () => {
 
 describe('permissions', () => {
   it('needs fleet permissions, and assets.view for equipment', async () => {
-    const agent = await t.as('agent'); // holds assets and systems, not fleet
+    const agent = await withGrants('no_fleet', ['assets.view', 'systems.view']); // assets and systems, not fleet
     expect((await agent.get('/api/vehicles')).status).toBe(403);
     expect((await agent.get('/api/fleet/coverage')).status).toBe(403);
     expect((await agent.get(`/api/fleet/affected?system_ids=${ids.avl}`)).status).toBe(403);
@@ -186,10 +203,21 @@ describe('permissions', () => {
     expect((await editor.put('/api/fleet/requirements', {})).status).toBe(403);
   });
 
-  it('leaves vehicles and services out of the inventory impact view for people without fleet.view', async () => {
-    const agent = await t.as('agent');
+  it('leaves vehicles and services out of the inventory impact view and the map for people without fleet.view', async () => {
+    const agent = await t.as('no_fleet');
     const inv = (await agent.get(`/api/systems/${ids.avl}/impact`)).body;
     expect(inv.counts.vehicles).toBe(0);
     expect(inv.vehicles).toEqual([]);
+    const graph = (await agent.get('/api/systems/graph')).body;
+    expect(graph.nodes.some((n: any) => n.type === 'service')).toBe(false);
+  });
+
+  it('gives the default roles their fleet grants', async () => {
+    const agent = await t.as('agent');
+    expect((await agent.get('/api/vehicles')).status).toBe(200);
+    expect((await agent.post('/api/vehicles', { fleet_number: 'A-1', mode: 'bus' })).status).toBe(201);
+    const lead = await t.as('security_lead');
+    expect((await lead.get('/api/services')).status).toBe(200);
+    expect((await lead.post('/api/services', { route_code: 'L1', name: 'Lead line' })).status).toBe(403);
   });
 });

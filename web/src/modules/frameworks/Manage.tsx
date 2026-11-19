@@ -10,6 +10,7 @@ import {
 import type { ColorName } from '../../core';
 import { useFrameworkChoice } from './Board';
 import { rememberFramework } from './boardState';
+import { RefreshTextDialog, SHIPPED_KEY } from './RefreshText';
 import type { ImportResult, Structure, StructureCategory, StructureFunction } from './types';
 import { frameworkTitle } from './types';
 
@@ -258,6 +259,8 @@ export function ManagePage() {
   const [params, setParams] = useSearchParams();
   const choice = useFrameworkChoice(params.get('framework') ?? undefined);
   const [importing, setImporting] = useState(params.get('new') === '1');
+  const [refreshing, setRefreshing] = useState(false);
+  const [version, setVersion] = useState(0);
   const canAdd = can('frameworks.create') || can('frameworks.edit');
   const current = choice.frameworks.find((f) => f.id === choice.id);
 
@@ -308,13 +311,16 @@ export function ManagePage() {
             title={frameworkTitle(current)}
             actions={(
               <div className="row">
+                {current.key.toLowerCase() === SHIPPED_KEY && can('frameworks.edit') && (
+                  <Button size="sm" icon="refresh" onClick={() => setRefreshing(true)}>Check official wording</Button>
+                )}
                 <Button size="sm" icon="download" onClick={download}>Download as a file</Button>
                 <Button size="sm" icon="target" onClick={() => navigate(`/frameworks/board/${current.id}`)}>Open the board</Button>
               </div>
             )}
           >
             {current.description && <p className="muted fw-fwdesc">{current.description}</p>}
-            <StructureEditor key={current.id} frameworkId={current.id} canEdit={can('frameworks.edit')} />
+            <StructureEditor key={`${current.id}-${version}`} frameworkId={current.id} canEdit={can('frameworks.edit')} />
           </Card>
 
           <Card title="History of this framework">
@@ -322,6 +328,10 @@ export function ManagePage() {
           </Card>
         </>
       )}
+
+      <Modal open={refreshing && Boolean(current)} title="Check the official wording" size="lg" onClose={() => setRefreshing(false)}>
+        {current && <RefreshTextDialog frameworkId={current.id} onCancel={() => setRefreshing(false)} onDone={() => { setRefreshing(false); setVersion((v) => v + 1); choice.reload(); }} />}
+      </Modal>
 
       <Modal open={importing} title="Add framework from a file" size="lg" onClose={() => setImporting(false)}>
         <ImportDialog

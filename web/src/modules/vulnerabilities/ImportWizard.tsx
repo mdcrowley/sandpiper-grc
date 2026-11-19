@@ -162,7 +162,7 @@ export function ImportWizard() {
             {mode === 'file' ? (
               <FileInput label="CSV file" placeholder="Choose a file" accept=".csv,.tsv,.txt,text/csv" clearable value={file} onChange={onFile}
                 leftSection={<Icon name="upload" size={16} />}
-                description={`A scanner or assessment export, up to ${maxMb} MB and ${info.data.maxRows.toLocaleString('en-GB')} rows. The first row must hold the column names.`}
+                description={`A scanner or assessment export, up to ${maxMb} MB and ${info.data.maxRows.toLocaleString('en-US')} rows. The first row must hold the column names.`}
                 inputWrapperOrder={['label', 'input', 'description', 'error']} />
             ) : (
               <TextArea label="CSV text" value={csv} onChange={(v) => { setCsv(v); setFileName(''); setFile(null); }} rows={6} maxRows={12}
@@ -174,7 +174,7 @@ export function ImportWizard() {
                 <Icon name={headers.length > 1 && lineCount > 0 ? 'check-circle' : 'alert-circle'} size={16} />
                 <span>
                   {headers.length > 1 && lineCount > 0
-                    ? <><strong>{fileName || 'Pasted text'}</strong>: {headers.length} columns separated by {DELIMITER_NAME[delimiter] ?? delimiter}, and about {lineCount.toLocaleString('en-GB')} {lineCount === 1 ? 'row' : 'rows'} of findings.</>
+                    ? <><strong>{fileName || 'Pasted text'}</strong>: {headers.length} columns separated by {DELIMITER_NAME[delimiter] ?? delimiter}, and about {lineCount.toLocaleString('en-US')} {lineCount === 1 ? 'row' : 'rows'} of findings.</>
                     : <>This does not look like a file of findings yet: it needs a first row of column names and at least one row below it.</>}
                 </span>
               </div>
@@ -289,7 +289,7 @@ export function ImportWizard() {
             <KeyValue layout="columns" compact items={[
               { label: 'Source', value: result.source },
               { label: 'File', value: fileName || 'Pasted text' },
-              { label: 'Rows read', value: result.total.toLocaleString('en-GB') },
+              { label: 'Rows read', value: result.total.toLocaleString('en-US') },
               { label: 'Owner for new findings', value: owner?.label || 'Nobody' },
               { label: 'Close missing findings', value: result.closeMissing ? 'Yes' : 'No' },
             ]} />

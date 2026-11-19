@@ -1,3 +1,4 @@
+import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { notify, usersWith } from './disposal.ts';
 
@@ -97,17 +98,10 @@ export async function runReminders(ctx: ModuleContext): Promise<ReminderResult> 
   return result;
 }
 
-export function registerReminders(ctx: ModuleContext) {
+export async function registerReminders(ctx: ModuleContext) {
   const { app } = ctx;
   app.post('/api/inventory/reminders/run', { preHandler: ctx.requirePerm('admin.administer') }, async () => runReminders(ctx));
 
-  // No timers under the test runner or with a throwaway in-memory database.
-  if (!process.env.VITEST && process.env.GRC_DATA_DIR !== 'memory') {
-    const safeRun = () => { runReminders(ctx).catch((err) => console.error('[inventory] reminders failed:', err)); };
-    const first = setTimeout(safeRun, 120_000);
-    const timer = setInterval(safeRun, 6 * 3_600_000); // several times a day; each reminder still goes out once
-    first.unref();
-    timer.unref();
-    app.addHook('onClose', async () => { clearTimeout(first); clearInterval(timer); });
-  }
+  // Several times a day on the job queue (Administration > Background jobs); each reminder still goes out once.
+  await scheduleWork(ctx, 'inventory.reminders', () => runReminders(ctx), { every: 6 * 3_600_000, firstRunInMs: 120_000 });
 }

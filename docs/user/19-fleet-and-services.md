@@ -2,7 +2,11 @@
 
 The fleet pages record the vehicles you run, the equipment fitted to each one, the services (routes and lines) you operate and the systems each service needs. Together they answer two everyday questions: which vehicles are missing working equipment, and which vehicles and services are affected when a system fails. Open them from the **Inventory** group: **Vehicles**, **Services**, **Equipment coverage** and **What is affected**. The four pages share tabs along the top, so you can move between them directly. Lists and record pages work as described in [Getting started](01-getting-started.md).
 
+If your organization does not manage vehicles here, an administrator can switch **Fleet and services** off under **Administration > Features** (see [Administration](09-administration.md#features)). Vehicles and services then disappear everywhere, including the impact panels on system pages, the relationship map and the **Affected** tab of security incidents. Records are kept and return when it is switched back on.
+
 You need the **fleet** permissions to see these pages (`fleet.view`, and `fleet.create`, `fleet.edit`, `fleet.delete`, `fleet.export` to change and export). Equipment is made of assets, so working with it also needs permission to see assets; **What is affected** needs permission to see systems.
+
+Of the default roles, **Agent** holds every fleet permission; **Security lead**, **Safety manager** and **Auditor** can read the fleet pages (`fleet.view`). An administrator can grant the fleet permissions to any other role under **Administration > Roles**.
 
 ## Vehicles
 
@@ -85,7 +89,13 @@ Open **What is affected**, choose the **System that has failed** (for example th
 - **Services affected**: services that depend on the system, with their mode and what they need it for. Discontinued services are left out.
 - **Vehicles affected**: vehicles that carry equipment belonging to the system, with their mode, depot and how many pieces of its equipment they carry. Retired vehicles are left out.
 
-Switch on **Include systems it feeds** to follow the recorded integrations downstream, as the relationship map does: the **Systems reached** card then lists every system the failure reaches and how many steps away it is, and the vehicles and services of all of them are counted. The same answer is part of the system's own impact view in the inventory (see [Inventory](03-inventory.md)).
+Switch on **Include systems it feeds** to follow the recorded integrations downstream, as the relationship map does: the **Systems reached** card then lists every system the failure reaches and how many steps away it is, and the vehicles and services of all of them are counted. The same answer is part of the system's own impact view in the inventory: select a system on the relationship map, or open its **Map** tab, and **If this fails** lists the **Services** and **Vehicles** too (see [Inventory](03-inventory.md)).
+
+## Elsewhere in the application
+
+- **Relationship map**: services that depend on at least one system can be drawn on the map, in their own lane, tied to the systems they need (select **Services** under **Show**). Each line says what the service needs the system for.
+- **Security incidents**: the **Affected** tab of an incident lists the services and vehicles reached by the systems linked to the incident (see [Security incidents](07-security-incidents.md)).
+- **Safety events** name the vehicle and route involved; see [Safety management](20-safety-management.md).
 
 The answer is only as good as the equipment installed on vehicles and the dependencies recorded on services.
 
@@ -96,5 +106,5 @@ The `dev` sample profile loads an invented operator: 40 buses at two depots and 
 ## Not available yet
 
 - Vehicle blocks and daily assignments of vehicles to services.
-- Vehicles and services on the relationship map itself (they appear in its impact answer only).
+- Vehicles on the relationship map itself (they are listed in its impact answer). Services are drawn on it.
 - Vehicle mileage, inspections and maintenance work orders; these belong in a fleet maintenance system.

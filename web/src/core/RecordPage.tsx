@@ -169,13 +169,19 @@ export interface RecordPageProps {
   tags?: boolean;
   /** Show a Watch button among the header buttons. Default true. */
   watch?: boolean;
+  /**
+   * Files on this record are evidence: the built-in tab is called "Evidence files" and records new
+   * files as evidence, with a collection date and an optional expiry date. Default: the record type's
+   * `evidence` flag in /api/meta (true for evidence-bearing types such as policies and risks).
+   */
+  evidence?: boolean;
 }
 
 const ALL_DEFAULT_TABS: DefaultTab[] = ['activity', 'attachments', 'links', 'history'];
 
 export function RecordPage({
   type, id: idProp, title, subtitle, status, actions, banner, summaryFields, summary, tabs = [],
-  defaultTabs = ALL_DEFAULT_TABS, breadcrumbs, tags = true, watch = true,
+  defaultTabs = ALL_DEFAULT_TABS, breadcrumbs, tags = true, watch = true, evidence: evidenceProp,
 }: RecordPageProps) {
   const params = useParams();
   const id = idProp ?? params.id ?? '';
@@ -224,6 +230,7 @@ export function RecordPage({
     return <Loading label={`Loading ${resource.label.toLowerCase()}`} lines={8} />;
   }
 
+  const evidence = evidenceProp ?? Boolean(resource.evidence);
   const rec: RecordContext = { row, resource, reload, save, canEdit: can(`${resource.module}.edit`) };
   const reference = resource.refField ? (row[resource.refField] as string | undefined) : undefined;
   const heading = title ? title(row) : String(row[resource.titleField] ?? resource.label);
@@ -244,10 +251,10 @@ export function RecordPage({
       content: <ActivityPanel type={type} id={id} row={row} commentsState={comments} />,
     },
     attachments: {
-      key: 'attachments', label: 'Attachments', count: files.data?.rows?.length || undefined,
+      key: 'attachments', label: evidence ? 'Evidence files' : 'Attachments', count: files.data?.rows?.length || undefined,
       content: AttachmentsPanel && (
         <Suspense fallback={<Loading label="Loading files" lines={3} />}>
-          <AttachmentsPanel recordType={type} recordId={id} />
+          <AttachmentsPanel recordType={type} recordId={id} evidence={evidence} />
         </Suspense>
       ),
     },

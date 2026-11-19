@@ -275,6 +275,7 @@
 .rk-quick { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); min-width: 0; flex: 1; }
 .rk-quick-title { flex: 1 1 16rem; min-width: 0; }
 .rk-quick-due { flex: 0 0 10.5rem; }
+.rk-quick-custom { flex: 1 1 100%; min-width: 0; }
 
 .rk-panel .card-head { min-height: 46px; }
 .rk-panel-count { margin-left: var(--s-2); vertical-align: middle; }

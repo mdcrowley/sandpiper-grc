@@ -5,6 +5,7 @@ import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-route
 import { marked } from 'marked';
 import { ErrorState, Loading, NotFound, PageHeader, TextField, cx } from '../../core';
 import { findPage, pageRefs, stemSlug, useGuide, usePage, type LoadedPage, type PageRef } from './guide';
+import { usePageOn } from './areas';
 import { slugify } from './text';
 import './help.css';
 
@@ -37,6 +38,7 @@ function render(page: LoadedPage): string {
 
 function Contents({ current, titles }: { current: string; titles: Map<string, string> }) {
   const navigate = useNavigate();
+  const pageOn = usePageOn();
   const [q, setQ] = useState('');
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -50,7 +52,7 @@ function Contents({ current, titles }: { current: string; titles: Map<string, st
       <nav aria-label="User guide contents">
         <p className="help-contents-title">User guide</p>
         <ul>
-          {pageRefs.map((p) => (
+          {pageRefs.filter((p) => p.slug === current || pageOn(p.slug)).map((p) => (
             <li key={p.slug}>
               <Link to={`/help/${p.slug}`} className={cx(p.slug === current && 'is-current')} aria-current={p.slug === current ? 'page' : undefined}>
                 {titles.get(p.slug) ?? p.roughTitle}
@@ -65,6 +67,7 @@ function Contents({ current, titles }: { current: string; titles: Map<string, st
 
 export default function HelpPage() {
   const { slug } = useParams();
+  const pageOn = usePageOn();
   const location = useLocation();
   const navigate = useNavigate();
   const body = useRef<HTMLDivElement>(null);
@@ -120,6 +123,9 @@ export default function HelpPage() {
       <div className="help-layout">
         <Contents current={ref.slug} titles={titles} />
         <article className="help-article">
+          {!pageOn(ref.slug) && (
+            <p className="help-off-note" role="note">This part of the application is switched off in this installation (Administration &gt; Features), so what this page describes is not available.</p>
+          )}
           {error ? <ErrorState title="This page of the guide could not be loaded" error={error} onRetry={retry} />
             : !page ? <Loading lines={8} label="Loading the guide" />
               : (

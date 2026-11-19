@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
+import { BlockList, isIP } from 'node:net';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import type { Db } from './db.ts';
+import type { Db, Queryable } from './db.ts';
 import { fail, UUID_RE } from './errors.ts';
 import type { Row, SessionUser } from './module.ts';
 import { makeDbLimiter } from './ratelimit.ts';
@@ -18,6 +19,9 @@ import { can, requirePerm, type makeAudit, type makeSettings } from './services.
  *   needs no X-GRC-CSRF header (a browser cannot be tricked into sending the header).
  * - Tokens cannot reach the sign-in, account-security or token-management routes (TOKEN_BLOCKED),
  *   and cannot pass a password confirmation, so they cannot perform sensitive administrative actions.
+ * - A token may be limited to source addresses (E02-18): a list of addresses and CIDR ranges.
+ * - Modules may accept other bearer tokens with their own prefix (registerBearerResolver), such as
+ *   the OAuth access tokens of the MCP module; the checks after the lookup are the same.
  */
 export const TOKEN_PREFIX = 'grc_pat_';
 const SCOPE_RE = /^(\*|[a-z][a-z0-9_]*\.(\*|[a-z][a-z0-9_]*))$/;
@@ -31,7 +35,7 @@ export function tokenBlocked(url: string): boolean {
     || path === '/api/admin/tokens' || path.startsWith('/api/admin/tokens/');
 }
 
-const tokenHash = (token: string) => createHash('sha256').update(token).digest('hex');
+export const tokenHash = (token: string) => createHash('sha256').update(token).digest('hex');
 
 /** What two grant patterns have in common, or null. Patterns: `*`, `<module>.*`, `<module>.<action>`. */
 function common(a: string, b: string): string | null {
@@ -67,6 +71,9 @@ export function scopeCovered(scope: string, grants: string[]): boolean {
  * `scopeCovered` alone would refuse them to everyone but administrators holding `*`. Each says
  * who may put it in a token: `allowed(grants)` sees the person's own permissions. What the token
  * can then do is still limited to its permission scopes and its owner's grants.
+ *
+ * An installation may narrow a family further at run time (for example "only these roles may
+ * connect an AI assistant"): see `registerScopeGate` on the Fastify instance.
  */
 export interface ScopeFamily { description: string; allowed: (grants: string[]) => boolean }
 export const SCOPE_FAMILIES = new Map<string, ScopeFamily>([
@@ -103,6 +110,109 @@ export function scopeGrantable(scope: string, grants: string[]): boolean {
 export const grantableFamilies = (grants: string[]) =>
   [...SCOPE_FAMILIES.entries()].filter(([, f]) => f.allowed(grants)).map(([scope, f]) => ({ scope, description: f.description }));
 
+// ---------- source addresses (E02-18) ----------
+
+export const MAX_SOURCES = 20;
+
+/** `::ffff:10.0.0.1` -> `10.0.0.1`, `[::1]` -> `::1`, a zone index dropped. */
+export function normalizeIp(ip: string): string {
+  let s = String(ip ?? '').trim().replace(/^\[|\]$/g, '').replace(/%.*$/, '');
+  if (/^::ffff:\d+\.\d+\.\d+\.\d+$/i.test(s)) s = s.slice(7);
+  return s;
+}
+
+/** One address or CIDR range, normalized, or null when it is not one. */
+export function parseSource(entry: string): { address: string; prefix: number; family: 'ipv4' | 'ipv6' } | null {
+  const m = /^([^/\s]+)(?:\/(\d{1,3}))?$/.exec(String(entry ?? '').trim());
+  if (!m) return null;
+  const address = normalizeIp(m[1]);
+  const v = isIP(address);
+  if (!v) return null;
+  const max = v === 4 ? 32 : 128;
+  const prefix = m[2] === undefined ? max : Number(m[2]);
+  if (!Number.isInteger(prefix) || prefix < 0 || prefix > max) return null;
+  return { address, prefix, family: v === 4 ? 'ipv4' : 'ipv6' };
+}
+
+/**
+ * Checks a list of allowed source addresses as given by a person: `{ list }` (trimmed, without
+ * duplicates; empty means "from anywhere") or `{ error }` in plain words.
+ */
+export function checkSources(value: unknown): { list: string[] } | { error: string } {
+  if (value === undefined || value === null || value === '') return { list: [] };
+  const raw = Array.isArray(value) ? value.map(String) : typeof value === 'string' ? value.split(/[\s,]+/) : null;
+  if (!raw) return { error: 'Give a list of addresses or ranges.' };
+  const list = [...new Set(raw.map((s) => s.trim()).filter(Boolean))];
+  if (list.length > MAX_SOURCES) return { error: `List at most ${MAX_SOURCES} addresses or ranges.` };
+  const bad = list.find((s) => !parseSource(s));
+  if (bad) return { error: `"${bad.slice(0, 60)}" is not an address or range. Write for example 203.0.113.7, 10.20.0.0/16 or 2001:db8::/32.` };
+  return { list };
+}
+
+/** Whether a request from `ip` is allowed by a token's list (an empty list allows every address). */
+export function sourceAllowed(ip: string, sources: string[] | null | undefined): boolean {
+  if (!sources || sources.length === 0) return true;
+  const addr = normalizeIp(ip);
+  const v = isIP(addr);
+  if (!v) return false;
+  const block = new BlockList();
+  for (const s of sources) {
+    const p = parseSource(s);
+    if (p) block.addSubnet(p.address, p.prefix, p.family);
+  }
+  return block.check(addr, v === 4 ? 'ipv4' : 'ipv6');
+}
+
+// ---------- issuing ----------
+
+export interface IssuedToken { row: Row; token: string }
+
+/**
+ * Stores a new personal access token and returns it with the secret (shown once). Callers check
+ * the name, scopes and expiry first, and ask for a recent password confirmation. Used by
+ * POST /api/me/tokens and by modules that make tokens for a purpose (the MCP module).
+ */
+export async function issueToken(db: Queryable, t: { userId: string; name: string; scopes: string[]; expires: Date; allowedSources?: string[] }): Promise<IssuedToken> {
+  const token = TOKEN_PREFIX + randomBytes(32).toString('base64url');
+  const sources = t.allowedSources?.length ? JSON.stringify(t.allowedSources) : null;
+  const row = await db.one<Row>(
+    `insert into api_tokens (user_id, name, token_hash, prefix, scopes, expires_at, allowed_sources) values ($1,$2,$3,$4,$5::jsonb,$6,$7::jsonb)
+     returning id, name, prefix, scopes, expires_at, created_at, allowed_sources`,
+    [t.userId, t.name, tokenHash(token), token.slice(0, TOKEN_PREFIX.length + 6), JSON.stringify(t.scopes), t.expires.toISOString(), sources],
+  );
+  return { row: row!, token };
+}
+
+// ---------- other bearer tokens, and what a request's token carries ----------
+
+/** What a module's resolver finds for a bearer token of its own kind. */
+export interface BearerResolution {
+  /** Identifies the credential in audit events and the per-token request limit (a uuid). */
+  id: string;
+  name: string;
+  userId: string;
+  /** Scopes, as for a personal access token (permission scopes and scope families). */
+  scopes: string[];
+  allowedSources?: string[] | null;
+}
+/** Answers null for an unknown, expired or revoked token; may throw `fail(...)` to refuse with a reason. */
+export type BearerResolver = (token: string, req: FastifyRequest) => Promise<BearerResolution | null>;
+/** May this person put the scope in a credential right now (beyond `ScopeFamily.allowed`)? */
+export type ScopeGate = (user: SessionUser) => Promise<boolean>;
+
+declare module 'fastify' {
+  interface FastifyInstance {
+    /** Accept bearer tokens starting with `prefix` (e.g. `grc_oat_`) on /api routes. */
+    registerBearerResolver(prefix: string, resolver: BearerResolver): void;
+    /** Narrow who may put a scope family in a token at run time (e.g. by role). */
+    registerScopeGate(scope: string, gate: ScopeGate): void;
+  }
+}
+
+const requestScopes = new WeakMap<FastifyRequest, string[]>();
+/** The scopes of the token a request was made with (as stored), or undefined for a session. */
+export const tokenScopes = (req: FastifyRequest): string[] | undefined => requestScopes.get(req);
+
 export interface ApiTokenInfo { id: string; name: string }
 
 interface Deps {
@@ -115,7 +225,7 @@ interface Deps {
 
 const LIST_SQL = `
   select t.id, t.user_id, u.display_name as user_name, u.username, t.name, t.prefix, t.scopes, t.expires_at,
-         t.last_used_at, t.last_used_ip, t.created_at, t.revoked_at,
+         t.last_used_at, t.last_used_ip, t.created_at, t.revoked_at, coalesce(t.allowed_sources, '[]'::jsonb) as allowed_sources,
          (t.revoked_at is null and t.expires_at > now()) as active
   from api_tokens t join users u on u.id = t.user_id`;
 
@@ -124,35 +234,66 @@ export function registerTokens(app: FastifyInstance, deps: Deps) {
   const failures = makeDbLimiter(db, 'token', 20, 5 * 60_000); // wrong tokens, by source address
   // Requests per token in the current minute. In memory: a restart only resets the minute.
   const windows = new Map<string, { minute: number; count: number }>();
+  const resolvers = new Map<string, BearerResolver>();
+  const gates = new Map<string, ScopeGate>();
+
+  app.decorate('registerBearerResolver', (prefix: string, resolver: BearerResolver) => {
+    if (!/^grc_[a-z]{2,8}_$/.test(prefix) || prefix === TOKEN_PREFIX) throw new Error(`Bearer prefix "${prefix}" must look like "grc_xyz_" and not be ${TOKEN_PREFIX}`);
+    resolvers.set(prefix, resolver);
+  });
+  app.decorate('registerScopeGate', (scope: string, gate: ScopeGate) => { gates.set(scope, gate); });
+
+  /** Whether `user` may put `scope` in a token now: grantable, and any run-time gate agrees. */
+  async function mayGrant(scope: string, user: SessionUser): Promise<boolean> {
+    if (!scopeGrantable(scope, user.permissions)) return false;
+    if (scopeCovered(scope, user.permissions)) return true;
+    const names = scope.endsWith('.*') ? [...SCOPE_FAMILIES.keys()].filter((s) => s.startsWith(scope.slice(0, -1))) : [scope];
+    for (const n of names) {
+      const gate = gates.get(n);
+      if (gate && !(await gate(user))) return false;
+    }
+    return true;
+  }
 
   /** Resolves a bearer token into `req.user` (with the token's reduced permissions) or throws. */
   async function authenticate(req: FastifyRequest, token: string): Promise<void> {
     const ip = clientIp(req);
     if (await failures.blocked(ip)) fail(429, 'rate_limited', 'Too many requests with a wrong token. Wait a few minutes and try again.');
-    const row = token.startsWith(TOKEN_PREFIX)
-      ? await db.one<Row>(
-        `select id, user_id, name, scopes, (last_used_at is null or last_used_at < now() - interval '1 minute') as stale
+    let found: (BearerResolution & { stale?: boolean }) | null = null;
+    if (token.startsWith(TOKEN_PREFIX)) {
+      const row = await db.one<Row>(
+        `select id, user_id, name, scopes, allowed_sources, (last_used_at is null or last_used_at < now() - interval '1 minute') as stale
          from api_tokens where token_hash = $1 and revoked_at is null and expires_at > now()`,
-        [tokenHash(token)])
-      : undefined;
-    const owner = row ? await deps.loadUser(db, row.user_id) : null;
-    if (!row || !owner) {
+        [tokenHash(token)]);
+      if (row) found = { id: row.id, name: row.name, userId: row.user_id, scopes: row.scopes, allowedSources: row.allowed_sources, stale: row.stale };
+    } else {
+      const resolver = [...resolvers.entries()].find(([p]) => token.startsWith(p))?.[1];
+      if (resolver) found = await resolver(token, req);
+    }
+    const owner = found ? await deps.loadUser(db, found.userId) : null;
+    if (!found || !owner) {
       await failures.hit(ip);
-      await audit(req, { action: 'token.refused', recordType: 'api_token', recordId: row?.id, summary: `API token refused (unknown, expired or revoked) from ${ip}` });
+      await audit(req, { action: 'token.refused', recordType: 'api_token', recordId: found?.id, summary: `API token refused (unknown, expired or revoked) from ${ip}` });
       fail(401, 'invalid_token', 'That API token is not valid. It may have expired or been revoked.');
+    }
+    if (!sourceAllowed(ip, found!.allowedSources)) {
+      await failures.hit(ip);
+      await audit(req, { action: 'token.refused', recordType: 'api_token', recordId: found!.id, summary: `API token "${found!.name}" refused: used from ${ip}, which is not among its allowed source addresses` });
+      fail(403, 'token_source_not_allowed', 'This API token may not be used from this address.');
     }
     const perMinute = Math.max(1, Number(await settings.get('tokens.rate_per_minute', 600)) || 600);
     const minute = Math.floor(Date.now() / 60_000);
-    const w = windows.get(row!.id);
-    if (!w || w.minute !== minute) windows.set(row!.id, { minute, count: 1 });
+    const w = windows.get(found!.id);
+    if (!w || w.minute !== minute) windows.set(found!.id, { minute, count: 1 });
     else if (++w.count > perMinute) fail(429, 'rate_limited', `This API token is limited to ${perMinute} requests a minute.`);
     if (windows.size > 5000) for (const [k, v] of windows) if (v.minute !== minute) windows.delete(k);
 
     if (tokenBlocked(req.url)) fail(403, 'token_not_allowed', 'This route cannot be called with an API token. Sign in to use it.');
-    if (row!.stale) await db.query('update api_tokens set last_used_at = now(), last_used_ip = $2 where id = $1', [row!.id, ip]);
-    req.user = { ...owner!, permissions: intersectGrants(row!.scopes as string[], owner!.permissions) };
+    if (found!.stale) await db.query('update api_tokens set last_used_at = now(), last_used_ip = $2 where id = $1', [found!.id, ip]);
+    req.user = { ...owner!, permissions: intersectGrants(found!.scopes, owner!.permissions) };
     req.sessionHash = null;
-    req.apiToken = { id: row!.id, name: row!.name };
+    req.apiToken = { id: found!.id, name: found!.name };
+    requestScopes.set(req, [...found!.scopes]);
   }
 
   // Every change made with a token leaves an event naming the token, whatever the route itself records.
@@ -168,14 +309,20 @@ export function registerTokens(app: FastifyInstance, deps: Deps) {
   const publicRow = ({ user_id, user_name, username, ...t }: Row, withOwner: boolean) =>
     (withOwner ? { ...t, userId: user_id, userName: user_name, username } : t);
 
-  app.get('/api/me/tokens', async (req) => ({
-    tokens: (await db.query<Row>(`${LIST_SQL} where t.user_id = $1 order by t.created_at desc`, [req.user!.id])).map((t) => publicRow(t, false)),
-    maxDays: await maxDays(),
-    // What this person may put in a token today.
-    grants: req.user!.permissions,
-    // Capability scopes (not permissions) they may add, such as `mcp.use`.
-    scopeFamilies: grantableFamilies(req.user!.permissions),
-  }));
+  app.get('/api/me/tokens', async (req) => {
+    const families = [];
+    for (const f of grantableFamilies(req.user!.permissions)) if (await mayGrant(f.scope, req.user!)) families.push(f);
+    return {
+      tokens: (await db.query<Row>(`${LIST_SQL} where t.user_id = $1 order by t.created_at desc`, [req.user!.id])).map((t) => publicRow(t, false)),
+      maxDays: await maxDays(),
+      // What this person may put in a token today.
+      grants: req.user!.permissions,
+      // Capability scopes (not permissions) they may add, such as `mcp.use`.
+      scopeFamilies: families,
+      // The address this request came from, to help fill in "allowed source addresses".
+      yourAddress: normalizeIp(clientIp(req)),
+    };
+  });
 
   app.post('/api/me/tokens', async (req, reply) => {
     const b = (req.body ?? {}) as Row;
@@ -190,9 +337,12 @@ export function registerTokens(app: FastifyInstance, deps: Deps) {
     if (!scopes.length) fields.scopes = 'Choose at least one permission for the token.';
     else if (scopes.some((s) => !SCOPE_RE.test(s))) fields.scopes = 'Permissions look like "tickets.view", "tickets.*" or "*".';
     else {
-      const beyond = scopes.filter((s) => !scopeGrantable(s, me.permissions));
+      const beyond: string[] = [];
+      for (const s of scopes) if (!(await mayGrant(s, me))) beyond.push(s);
       if (beyond.length) fields.scopes = `You do not hold these permissions yourself: ${beyond.join(', ')}.`;
     }
+    const sources = checkSources(b.allowedSources);
+    if ('error' in sources) fields.allowedSources = sources.error;
     const limit = await maxDays();
     let expires: Date | null = null;
     if (b.expiresAt !== undefined && b.expiresAt !== null && b.expiresAt !== '') {
@@ -208,18 +358,15 @@ export function registerTokens(app: FastifyInstance, deps: Deps) {
     if (Object.keys(fields).length) fail(400, 'validation', 'Check the highlighted fields.', fields);
     await deps.requireRecentAuth(req, 'creating an API token');
 
-    const token = TOKEN_PREFIX + randomBytes(32).toString('base64url');
-    const row = await db.one<Row>(
-      `insert into api_tokens (user_id, name, token_hash, prefix, scopes, expires_at) values ($1,$2,$3,$4,$5::jsonb,$6)
-       returning id, name, prefix, scopes, expires_at, created_at`,
-      [me.id, name, tokenHash(token), token.slice(0, TOKEN_PREFIX.length + 6), JSON.stringify(scopes), expires!.toISOString()],
-    );
+    const allowedSources = 'list' in sources ? sources.list : [];
+    const { row, token } = await issueToken(db, { userId: me.id, name, scopes, expires: expires!, allowedSources });
     await audit(req, {
-      action: 'token.create', recordType: 'api_token', recordId: row!.id,
-      summary: `API token "${name}" created, expiring ${expires!.toISOString().slice(0, 10)}`, after: { name, scopes, expires_at: expires!.toISOString() },
+      action: 'token.create', recordType: 'api_token', recordId: row.id,
+      summary: `API token "${name}" created, expiring ${expires!.toISOString().slice(0, 10)}${allowedSources.length ? `, usable from ${allowedSources.join(', ')} only` : ''}`,
+      after: { name, scopes, expires_at: expires!.toISOString(), ...(allowedSources.length ? { allowed_sources: allowedSources } : {}) },
     });
     reply.code(201);
-    return { ...row, token }; // the only time the token itself is shown
+    return { ...row, allowed_sources: row.allowed_sources ?? [], token }; // the only time the token itself is shown
   });
 
   async function revoke(req: FastifyRequest, where: string, params: unknown[]) {
