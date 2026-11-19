@@ -43,7 +43,8 @@ export function findBrowser() {
       : [];
   const names = process.platform === 'win32'
     ? ['msedge.exe', 'chrome.exe']
-    : ['microsoft-edge', 'microsoft-edge-stable', 'google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser'];
+    // On Linux, Chrome first: it starts quickly on a fresh CI machine, where Edge's first start can be slow.
+    : ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser', 'microsoft-edge', 'microsoft-edge-stable'];
   const onPath = (process.env.PATH ?? '').split(delimiter).filter(Boolean).flatMap((dir) => names.map((n) => join(dir, n)));
   const tried = [...fixed.filter(Boolean), ...onPath];
   const found = tried.find((p) => existsSync(p));
@@ -86,7 +87,7 @@ export async function launchBrowser({ profileDir, debugPort = 0, headless = true
   if (process.platform === 'linux') args.push('--no-sandbox', '--disable-dev-shm-usage');
   const proc = spawn(exe, [...args, 'about:blank'], { stdio: 'ignore' });
   let ws;
-  for (let i = 0; i < 80 && !ws; i++) {
+  for (let i = 0; i < 240 && !ws; i++) { // up to 60 seconds: a first start on a fresh machine can be slow
     try {
       const v = await (await fetch(`http://127.0.0.1:${port}/json/version`)).json();
       const socket = new WebSocket(v.webSocketDebuggerUrl);

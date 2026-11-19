@@ -199,7 +199,7 @@ jobs:
           [ "$top" = "deploy dist node_modules package.json server " ] || { echo "Unexpected /app contents: $top"; exit 1; }
           found=$(docker run --rm --entrypoint sh sandpiper-grc:ci -c '
             find /app/server -name "*.test.ts" 2>/dev/null
-            ls -A /var/lib/sandpiper /var/lib/sandpiper-key 2>/dev/null
+            find /var/lib/sandpiper /var/lib/sandpiper-key -mindepth 1 2>/dev/null
             find /app -path /app/node_modules -prune -o \( -name "*.pem" -o -name "*.key" -o -name ".env*" \) -print 2>/dev/null
           ' || true)
           if [ -n "$found" ]; then echo "Unexpected files in the image:"; echo "$found"; exit 1; fi
