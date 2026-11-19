@@ -9,7 +9,7 @@ import {
 import type { ApiError, ListResult } from '../../core';
 import { useUndo } from './BuilderParts';
 import { DashboardGrid } from './DashboardGrid';
-import { openDocument, useCatalogue } from './data';
+import { downloadFile, fileName, openDocument, useCatalogue } from './data';
 import { ScheduleDialog, ShareDialog, useCanChange } from './dialogs';
 import { FilterBar, readGlobals, writeGlobals } from './FilterBar';
 import { readingOrder, settle } from './layout';
@@ -206,10 +206,11 @@ export function DashboardPage() {
   async function remove() {
     try { await api.del(`/api/dashboards/${d.id}`); toast.success('Dashboard deleted.'); navigate('/dashboards'); } catch (err) { toast.error(errorMessage(err)); }
   }
-  const printDoc = () => {
-    const q = new URLSearchParams();
+  const exportAs = (format: 'pdf' | 'xlsx' | 'html') => {
+    const q = new URLSearchParams({ format });
     for (const [k, v] of Object.entries(globals)) if (v) q.set(`g.${k}`, v);
-    openDocument('GET', `/api/dashboards/${d.id}/export${q.toString() ? `?${q}` : ''}`).catch((err) => toast.error(errorMessage(err)));
+    const url = `/api/dashboards/${d.id}/export?${q}`;
+    (format === 'html' ? openDocument('GET', url) : downloadFile(fileName(d.name, format), 'GET', url)).catch((err) => toast.error(errorMessage(err)));
   };
 
   function addWidget(kind: Widget['kind'], report?: { id: string; name: string }) {
@@ -222,6 +223,13 @@ export function DashboardPage() {
   const viewActions = (
     <>
       <Button variant="ghost" icon="refresh" onClick={refresh} title={`Figures as at ${formatDateTime(lastRun.toISOString())}`}>Refresh</Button>
+      {can('dashboards.export') && (
+        <Menu label="Export" icon="download" align="end" items={[
+          { label: 'PDF', icon: 'file-text', onSelect: () => exportAs('pdf') },
+          { label: 'Excel (XLSX)', icon: 'download', onSelect: () => exportAs('xlsx') },
+          { label: 'Print-ready page', icon: 'external', onSelect: () => exportAs('html'), separated: true },
+        ]} />
+      )}
       <Button icon="eye" onClick={toggleWall}>Wall mode</Button>
       {canChange && <Button variant="primary" icon="edit" onClick={() => setEdit(true)}>Edit</Button>}
       <Menu label="More" icon="more" iconOnly align="end" items={[
@@ -231,7 +239,6 @@ export function DashboardPage() {
         ...(canChange ? [{ label: 'Share…', icon: 'users' as const, onSelect: () => setDialog('share') }] : []),
         ...(can('reports.create') ? [{ label: 'Schedule…', icon: 'calendar' as const, onSelect: () => setDialog('schedule') }] : []),
         { label: 'Print this page', icon: 'file-text' as const, onSelect: () => window.print() },
-        ...(can('dashboards.export') ? [{ label: 'Print-ready document', icon: 'download' as const, onSelect: printDoc }] : []),
         ...(can('dashboards.create') ? [{ label: 'Save a copy', icon: 'plus' as const, onSelect: copy }] : []),
         ...(canChange && can('dashboards.delete') ? [{ label: 'Delete', icon: 'trash' as const, danger: true, separated: true, onSelect: () => setDialog('delete') }] : []),
       ]} />

@@ -45,6 +45,7 @@ export function GateStepper({ data, onGateClick }: { data: ProjectGates; onGateC
             <>
               <span className="prj-gate-mark" aria-hidden="true"><Icon name={GATE_ICON[state]} size={13} /></span>
               <span className="prj-gate-name">{def.name}</span>
+              <span className="sr-only"> gate: </span>
               <span className="prj-gate-state">{text}</span>
             </>
           );
@@ -59,8 +60,10 @@ export function GateStepper({ data, onGateClick }: { data: ProjectGates; onGateC
                 <li className={`prj-gate prj-gate-${state}${gate?.is_current ? ' prj-gate-current' : ''}`}>
                   {gate && onGateClick ? (
                     <Tooltip label="Show this gate's record" openDelay={400}>
-                      <UnstyledButton className="prj-gate-btn" onClick={() => onGateClick(gate)} aria-label={`${def.name} gate: ${text}. Show its record.`}>
+                      {/* Named by what it shows, so speech users can say it: "Intake approval gate: Approved ...". */}
+                      <UnstyledButton className="prj-gate-btn" onClick={() => onGateClick(gate)}>
                         {body}
+                        <span className="sr-only">. Show this gate's record.</span>
                       </UnstyledButton>
                     </Tooltip>
                   ) : <span className="prj-gate-btn">{body}</span>}

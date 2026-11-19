@@ -349,23 +349,38 @@ describe('actions', () => {
     // search, pickers, statistics, export
     expect((await agent.get('/api/search?q=Quokka')).body.map((r: any) => r.label)).toEqual(['Quokka ordinary action']);
     expect((await agent.get('/api/records/lookup?type=action&q=Quokka')).body.map((r: any) => r.label)).toEqual(['Quokka ordinary action']);
+    // Statistics are figures: the same for everyone, the restricted action counted but its details masked.
     const stats = (await agent.get('/api/actions/stats?group=source')).body;
-    expect(stats.groups.find((g: any) => g.value === 'risk')).toBeUndefined();
-    expect((await agent.get('/api/actions/stats?group=department')).body.groups.some((g: any) => g.value === 'Quokka department')).toBe(false);
+    expect(stats).toEqual((await lead.get('/api/actions/stats?group=source')).body);
+    expect(stats.groups.find((g: any) => g.value === 'risk').count).toBe(1);
+    const byDept = (await agent.get('/api/actions/stats?group=department')).body;
+    expect(byDept).toEqual((await lead.get('/api/actions/stats?group=department')).body);
+    expect(JSON.stringify(byDept)).not.toContain('Quokka');
+    expect(byDept.groups.find((g: any) => g.restricted).count).toBeGreaterThanOrEqual(1);
+    const byOwner = (await agent.get('/api/actions/stats?group=owner_id')).body;
+    expect(byOwner.groups.find((g: any) => g.value === agent.userId)?.count ?? 0)
+      .toBe((await agent.get(`/api/actions?f.owner_id=${agent.userId}`)).body.total);
+    expect((await agent.get('/api/actions/stats?group=status&q=Quokka')).body.total).toBe(1);
+    expect((await lead.get('/api/actions/stats?group=status&q=Quokka')).body.total).toBe(1);
     const csv = await (await t.as('security_lead')).get('/api/actions?format=csv&q=Quokka');
     expect(csv.text).toContain('Quokka follow-up on the hidden risk');
     expect(csv.text).toMatch(/Restricted export by/);
     const auditorCsv = await t.api.get('/api/actions?format=csv&q=Quokka ordinary');
     expect(auditorCsv.text).not.toMatch(/Restricted export by/);
-    // summaries: the restricted action is in no count for the agent, and in every count for the lead
+    // The summary is a figure: the restricted action is in every count, for the agent and the lead
+    // alike; its owner and department show as "Restricted records" for both. "Mine" is each person's own.
     const after = (await agent.get('/api/actions/summary')).body;
-    expect(after.open).toBe(before.open + 2);
-    expect(after.overdue).toBe(before.overdue + 1);
-    expect(after.by_department.some((d: any) => d.value === 'Quokka department')).toBe(false);
-    expect(after.by_source.find((s: any) => s.value === 'risk')).toBeUndefined();
+    expect(after.open).toBe(before.open + 3);
+    expect(after.overdue).toBe(before.overdue + 2);
+    expect(after.by_source.find((s: any) => s.value === 'risk')).toMatchObject({ open: 1, overdue: 1 });
+    expect(after.by_owner.find((o: any) => o.restricted)).toMatchObject({ owner_id: null, label: 'Restricted records', open: 1, overdue: 1 });
+    expect(after.by_department.find((d: any) => d.restricted)).toMatchObject({ value: null, label: 'Restricted records', open: 1 });
+    expect(JSON.stringify(after)).not.toContain('Quokka');
+    expect(after.mine.open).toBe(before.mine.open); // the agent owns it but may not see it
     const leadSummary = (await lead.get('/api/actions/summary')).body;
-    expect(leadSummary.open).toBe(after.open + 1);
-    expect(leadSummary.by_department.some((d: any) => d.value === 'Quokka department')).toBe(true);
+    const { mine: _a, ...agentFigures } = after;
+    const { mine: _l, ...leadFigures } = leadSummary;
+    expect(leadFigures).toEqual(agentFigures);
     // history, comments, links and the audit search
     expect((await agent.get(`/api/history?record_type=action&record_id=${hidden.body.id}`)).status).toBe(404);
     expect((await agent.post('/api/comments', { record_type: 'action', record_id: hidden.body.id, body: 'hello' })).status).toBe(404);

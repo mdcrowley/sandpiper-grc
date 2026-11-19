@@ -1,9 +1,12 @@
-// The API reference (/help/api): the OpenAPI description from GET /api/openapi.json, readable on screen.
-// No extra library: paths grouped by tag, each operation folded until opened, schemas drawn as nested lists.
+// The API reference (/help/api): the OpenAPI description from GET /api/v1/openapi.json (paths under
+// the stable base path /api/v1), readable on screen. No extra library: paths grouped by tag, each
+// operation folded until opened, schemas drawn as nested lists, copyable curl and PowerShell examples.
+// Read-only documentation: nothing on this page sends a request to the documented routes.
 // The server cuts the description down to what the signed-in person may use.
 import { Fragment, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, cx, EmptyState, ErrorState, Loading, PageHeader, TextField, useFetch } from '../../core';
+import ApiExamples from './ApiExamples';
 import './help.css';
 
 interface Schema {
@@ -23,7 +26,7 @@ interface Schema {
   readOnly?: boolean;
   [k: string]: unknown;
 }
-interface Parameter { name: string; in: string; required?: boolean; description?: string; schema?: Schema }
+interface Parameter { name: string; in: string; required?: boolean; description?: string; schema?: Schema; $ref?: string }
 interface Media { schema?: Schema }
 interface Operation {
   tags?: string[];
@@ -32,8 +35,9 @@ interface Operation {
   operationId?: string;
   parameters?: Parameter[];
   requestBody?: { required?: boolean; content?: Record<string, Media> };
-  responses?: Record<string, { description?: string; content?: Record<string, Media> }>;
+  responses?: Record<string, { description?: string; headers?: Record<string, unknown>; content?: Record<string, Media> }>;
   security?: unknown[];
+  deprecated?: boolean;
   'x-permission'?: string;
   'x-also-needs'?: string;
   'x-undocumented'?: boolean;
@@ -43,8 +47,12 @@ interface OpenApiDoc {
   info: { title: string; version?: string; description?: string };
   tags?: { name: string; description?: string }[];
   paths: Record<string, Record<string, Operation>>;
-  components?: { schemas?: Record<string, Schema> };
+  components?: { schemas?: Record<string, Schema>; parameters?: Record<string, Parameter> };
 }
+
+/** Parameters given by reference (If-Match, Idempotency-Key, ...) drawn like the others. */
+const resolveParams = (params: Parameter[] | undefined, doc: OpenApiDoc): Parameter[] =>
+  (params ?? []).map((p) => (p.$ref ? doc.components?.parameters?.[refName(p.$ref)] ?? p : p)).filter((p) => p.name);
 interface Entry { key: string; method: string; path: string; op: Operation; tag: string; text: string }
 
 const METHOD_ORDER = ['get', 'post', 'put', 'patch', 'delete'];
@@ -180,6 +188,7 @@ function Parameters({ params }: { params: Parameter[] }) {
 function OperationBody({ entry, doc }: { entry: Entry; doc: OpenApiDoc }) {
   const { op } = entry;
   const body = op.requestBody?.content ?? {};
+  const params = resolveParams(op.parameters, doc);
   return (
     <div className="api-op-body">
       {op.description && <div className="api-text"><Paragraphs text={op.description} /></div>}
@@ -187,11 +196,12 @@ function OperationBody({ entry, doc }: { entry: Entry; doc: OpenApiDoc }) {
         {op.security && op.security.length === 0 ? <li>No sign-in needed.</li> : (
           op['x-permission'] ? <li>Needs the permission <code>{op['x-permission']}</code>{op['x-also-needs'] && <> and <code>{op['x-also-needs']}</code></>}.</li> : <li>Needs a signed-in session or an API token.</li>
         )}
+        {op.deprecated && <li><strong>Deprecated.</strong> Answers carry a <code>Deprecation</code> header; see the description for what to use instead.</li>}
         {op['x-undocumented'] && <li>This route has not been described in detail yet.</li>}
         {op.operationId && <li>Operation id <code>{op.operationId}</code></li>}
       </ul>
-      {op.parameters && op.parameters.length > 0 && (
-        <section><h4>Parameters</h4><Parameters params={op.parameters} /></section>
+      {params.length > 0 && (
+        <section><h4>Parameters</h4><Parameters params={params} /></section>
       )}
       {Object.keys(body).length > 0 && (
         <section>
@@ -210,6 +220,9 @@ function OperationBody({ entry, doc }: { entry: Entry; doc: OpenApiDoc }) {
                 <dt><span className={cx('api-code', code.startsWith('2') && 'api-code-ok', /^[45]/.test(code) && 'api-code-err')}>{code === 'default' ? 'Any' : code}</span></dt>
                 <dd>
                   {r.description && <Rich text={r.description} />}
+                  {code.startsWith('2') && r.headers && (
+                    <p className="muted api-headers">Headers: {Object.keys(r.headers).map((h, i) => <Fragment key={h}>{i > 0 && ', '}<code>{h}</code></Fragment>)}</p>
+                  )}
                   {r.content && Object.entries(r.content).map(([type, m]) => {
                     const isError = m.schema?.$ref?.endsWith('/Error');
                     if (isError) return null; // the error shape is described once, at the top
@@ -221,12 +234,13 @@ function OperationBody({ entry, doc }: { entry: Entry; doc: OpenApiDoc }) {
           </dl>
         </section>
       )}
+      <ApiExamples method={entry.method} path={entry.path} op={{ ...op, parameters: params }} schemas={doc.components?.schemas} />
     </div>
   );
 }
 
 export default function ApiReference() {
-  const { data: doc, error, reload } = useFetch<OpenApiDoc>('/api/openapi.json');
+  const { data: doc, error, reload } = useFetch<OpenApiDoc>('/api/v1/openapi.json');
   const [q, setQ] = useState('');
 
   const entries = useMemo<Entry[]>(() => {
@@ -236,7 +250,7 @@ export default function ApiReference() {
       for (const [method, op] of Object.entries(ops)) {
         if (!METHOD_ORDER.includes(method)) continue;
         const tag = op.tags?.[0] ?? 'Other';
-        out.push({ key: `${method} ${path}`, method, path, op, tag, text: `${method} ${path} ${op.summary ?? ''} ${tag} ${op.operationId ?? ''} ${op['x-permission'] ?? ''}`.toLowerCase() });
+        out.push({ key: `${method} ${path}`, method, path, op, tag, text: `${method} ${path} ${op.summary ?? ''} ${tag} ${op.operationId ?? ''} ${op['x-permission'] ?? ''} ${op.description ?? ''}`.toLowerCase() });
       }
     }
     return out.sort((a, b) => a.path.localeCompare(b.path) || METHOD_ORDER.indexOf(a.method) - METHOD_ORDER.indexOf(b.method));
@@ -277,7 +291,8 @@ export default function ApiReference() {
                 {doc.info.description && <Paragraphs text={doc.info.description} />}
                 <p>
                   Make a personal API token on your <Link to="/account/security">Account security</Link> page. This page lists only what you may use;
-                  the machine-readable version is <a href="/api/openapi.json" download="openapi.json">openapi.json</a> (OpenAPI {doc.openapi}).
+                  the machine-readable version is <a href="/api/v1/openapi.json" download="openapi.json">openapi.json</a> (OpenAPI {doc.openapi}).
+                  Each route shows copyable curl and PowerShell examples. This is documentation only: it does not send requests for you.
                 </p>
               </div>
             </Card>

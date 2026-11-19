@@ -1,5 +1,7 @@
 import { DEFAULT_APP_NAME } from '../../core/config.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { hasActivePasskey } from '../../core/webauthn/index.ts';
+import { localOffProblem } from './providers.ts';
 import { adminRoute, body, idParam, invalid, sensitive } from './shared.ts';
 
 type Check = (v: unknown) => { value: unknown } | string;
@@ -44,6 +46,29 @@ export const SETTINGS: Record<string, { fallback: unknown; check: Check }> = {
   },
   'auth.mfa_grace_days': { fallback: 0, check: int(0, 30, 'Grace period') },
   'auth.reauth_minutes': { fallback: 10, check: int(1, 60, 'Password confirmation window') },
+  // Passkeys (core/webauthn): a passkey alone may sign a person in; and whether every use must check a PIN or biometric.
+  'auth.passkey_sign_in': { fallback: true, check: bool },
+  'auth.passkey_user_verification': {
+    fallback: 'preferred',
+    check: (v) => (v === 'preferred' || v === 'required' ? { value: v } : 'Choose preferred or required.'),
+  },
+  // Single sign-on (core/identity). Local passwords can be switched off only when a break-glass account
+  // exists and everyone else has a linked provider (checked below).
+  'auth.local_signin': { fallback: true, check: bool },
+  // The address people use to reach the application, for the redirect address given to providers. Empty = as requested.
+  'auth.public_url': {
+    fallback: '',
+    check: (v) => {
+      if (v === '' || v === null) return { value: '' };
+      const s = typeof v === 'string' ? v.trim().replace(/\/+$/, '') : '';
+      let url: URL | null = null;
+      try { url = new URL(s); } catch { /* checked below */ }
+      const loopback = url && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+      return url && (url.protocol === 'https:' || (url.protocol === 'http:' && loopback)) && !url.username && !url.password
+        && url.pathname === '/' && !url.search && !url.hash && s.length <= 200
+        ? { value: s } : 'Enter the https address people use to open the application, such as https://grc.example.org, with no path.';
+    },
+  },
   // Personal access tokens (core/tokens.ts): the longest life a new token may have, and requests a minute per token.
   'tokens.max_days': { fallback: 365, check: int(1, 3650, 'Longest token life in days') },
   'tokens.rate_per_minute': { fallback: 600, check: int(10, 6000, 'Token requests a minute') },
@@ -96,7 +121,15 @@ export function registerSettings(ctx: ModuleContext) {
     // Requiring a second factor must not lock out the administrator who switches it on.
     if (clean['auth.mfa_enforcement'] === 'required' && current['auth.mfa_enforcement'] !== 'required') {
       const me = await db.one<{ totp_enabled: boolean }>('select totp_enabled from users where id = $1', [req.user!.id]);
-      if (!me?.totp_enabled) invalid({ 'auth.mfa_enforcement': 'Set up your own second factor first (Account security), then require it.' });
+      // An authenticator app or a passkey both count as the administrator's own second factor.
+      if (!me?.totp_enabled && !(await hasActivePasskey(db, req.user!.id))) {
+        invalid({ 'auth.mfa_enforcement': 'Set up your own second factor first (Account security), then require it.' });
+      }
+    }
+    // Switching local passwords off must leave everyone a way in: the break-glass account, and a provider for the rest.
+    if (clean['auth.local_signin'] === false && current['auth.local_signin'] !== false) {
+      const problem = await localOffProblem(ctx);
+      if (problem) invalid({ 'auth.local_signin': problem });
     }
     for (const [key, value] of Object.entries(clean)) {
       // ctx.settings.set writes the audit event (setting.change) with before and after.

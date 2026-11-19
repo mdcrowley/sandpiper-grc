@@ -1,3 +1,6 @@
+import { MODULE_DOCS } from './api/docs/index.ts';
+import { TRANSFER_DOCS } from './export/docs.ts';
+import { describeWebAuthnRoutes } from './webauthn/apidocs.ts';
 import type { RouteDoc } from './module.ts';
 import type { OpenApi } from './openapi.ts';
 
@@ -22,8 +25,8 @@ const DOCS: [RouteDoc['method'], string, string, Extra?][] = [
   ['GET', '/api/users/labels', 'Names for user ids, including people since disabled or removed', { tag: 'People', query: { ids: 'Comma-separated user ids (at most 500).' }, response: '[{ id, label, active }]' }],
 
   // ---- personal access tokens ----
-  ['GET', '/api/me/tokens', 'Your API tokens', { tag: 'API tokens', response: '{ tokens: [{ id, name, prefix, scopes, expires_at, last_used_at, last_used_ip, created_at, revoked_at, active }], maxDays, grants }', description: 'Session only.' }],
-  ['POST', '/api/me/tokens', 'Create an API token (the token is in this answer and never shown again)', { tag: 'API tokens', body: '{ name, scopes: ["tickets.view", "assets.*"], expiresInDays | expiresAt }', response: '{ id, name, prefix, scopes, expires_at, created_at, token }', description: 'Session only, with a recent password confirmation (403 `reauth_required` otherwise). Scopes must be permissions you hold.' }],
+  ['GET', '/api/me/tokens', 'Your API tokens', { tag: 'API tokens', response: '{ tokens: [{ id, name, prefix, scopes, expires_at, last_used_at, last_used_ip, created_at, revoked_at, active }], maxDays, grants, scopeFamilies: [{ scope, description }] }', description: 'Session only. `scopeFamilies` are the capability scopes (not permissions) you may add, such as `mcp.use`.' }],
+  ['POST', '/api/me/tokens', 'Create an API token (the token is in this answer and never shown again)', { tag: 'API tokens', body: '{ name, scopes: ["tickets.view", "assets.*", "mcp.use"], expiresInDays | expiresAt }', response: '{ id, name, prefix, scopes, expires_at, created_at, token }', description: 'Session only, with a recent password confirmation (403 `reauth_required` otherwise). Scopes must be permissions you hold, or capability scopes you are allowed (`scopeFamilies` of GET /api/me/tokens).' }],
   ['DELETE', '/api/me/tokens/:id', 'Revoke one of your API tokens', { tag: 'API tokens', description: 'Session only.' }],
   ['GET', '/api/admin/tokens', 'Every person\'s API tokens', { tag: 'API tokens', permission: A, query: { user_id: 'Only this person\'s tokens.' }, response: '{ tokens: [{ ..., userId, userName, username }] }' }],
   ['DELETE', '/api/admin/tokens/:id', 'Revoke anyone\'s API token', { tag: 'API tokens', permission: A }],
@@ -94,4 +97,10 @@ const DOCS: [RouteDoc['method'], string, string, Extra?][] = [
 
 export function registerApiDocs(openapi: OpenApi): void {
   for (const [method, path, summary, extra] of DOCS) openapi.describe({ method, path, summary, ...extra });
+  // Record fact sheets and the generic import (core/export, core/import).
+  for (const doc of TRANSFER_DOCS) openapi.describe(doc);
+  // Passkeys and security keys (core/webauthn).
+  describeWebAuthnRoutes(openapi);
+  // The modules' hand-written routes (core/api/docs); a module's own describeRoute replaces these.
+  for (const docs of Object.values(MODULE_DOCS)) for (const doc of docs) openapi.describe(doc);
 }

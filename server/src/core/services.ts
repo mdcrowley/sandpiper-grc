@@ -57,6 +57,11 @@ export const DEFAULT_ROLES: {
     ],
   },
   {
+    key: 'safety_manager', name: 'Safety manager', enabled: true, requiresMfa: false,
+    description: 'Safety team: hazard log, safety events, investigations and safety performance indicators.',
+    grants: ['safety.*', 'fleet.view', 'systems.view', 'sites.view', 'actions.*', 'dashboards.view', 'reports.view', 'policies.view', 'training.view'],
+  },
+  {
     key: 'approver', name: 'Approver', enabled: false, requiresMfa: false,
     // Risk acceptance is deliberately absent: risks are restricted records, and seeing them needs
     // security.view, which would also open every security incident. An acceptance is recorded by
@@ -181,8 +186,8 @@ export async function syncDefaultGrants(
 export function makeAudit(db: Db) {
   return async (req: FastifyRequest | null, ev: AuditInput, q: Queryable = db): Promise<void> => {
     await q.query(
-      `insert into audit_events (actor_id, actor_name, ip, action, record_type, record_id, summary, before, after, token_id, token_name)
-       values ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10,$11)`,
+      `insert into audit_events (actor_id, actor_name, ip, action, record_type, record_id, summary, before, after, token_id, token_name, request_id)
+       values ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10,$11,$12)`,
       [
         req?.user?.id ?? null,
         // No request = the system itself (seeding, timers, start-up). A request with nobody signed in
@@ -198,6 +203,8 @@ export function makeAudit(db: Db) {
         // Changes made with a personal access token name the token (core/tokens.ts).
         req?.apiToken?.id ?? null,
         req?.apiToken?.name ?? null,
+        // The X-Request-Id sent back to the caller, so an integration can find its own changes.
+        (req as { requestId?: string } | null)?.requestId || null,
       ],
     );
   };

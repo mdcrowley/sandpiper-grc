@@ -1,10 +1,10 @@
 # Administration
 
-This page is for administrators. It explains how to add people and give them access, how roles and permissions work, how to manage the second sign-in factor, how to change the choices offered in drop-down lists, the application settings, and how to read the audit log. The last section, on the **Account security** page, applies to every user. It also covers your own fields on records (**Custom fields**), how long records are kept (**Retention**), **API tokens**, **Webhooks** and the **API reference**. The administration screens are in the **Administration** group of the menu: **Users**, **Roles**, **Lists**, **Settings**, **Custom fields**, **Retention**, **API tokens**, **Webhooks** and **Audit log**.
+This page is for administrators. It explains how to add people and give them access, how roles and permissions work, how to manage the second sign-in factor, how to change the choices offered in drop-down lists, the application settings, and how to read the audit log. The last section, on the **Account security** page, applies to every user. It also covers single sign-on with your organisation's identity provider and the break-glass account (**Sign-in providers**), your own fields on records (**Custom fields**), how long records are kept (**Retention**), **API tokens**, **Webhooks** and the **API reference**. The administration screens are in the **Administration** group of the menu: **Users**, **Roles**, **Sign-in providers**, **Lists**, **Settings**, **Custom fields**, **Retention**, **API tokens**, **Webhooks** and **Audit log**.
 
 ## What you need
 
-- **Users**, **Roles**, **Lists**, **Settings**, **Custom fields**, **Retention**, **API tokens** and **Webhooks** need **Administer** on **Administration**. The built-in **Administrator** role has it.
+- **Users**, **Roles**, **Sign-in providers**, **Lists**, **Settings**, **Custom fields**, **Retention**, **API tokens** and **Webhooks** need **Administer** on **Administration**. The built-in **Administrator** role has it.
 - **Audit log** needs **View** on **Audit log**. The built-in **Administrator** and **Security lead** roles have it.
 - **Account security** is open to every signed-in user, for their own account.
 
@@ -20,9 +20,12 @@ Some changes decide who can do what, so the application checks it is really you 
 - reset a person's second factor, or issue a setup or password-reset link;
 - change anything under **Security**, **API tokens** or **Outbound connections** in **Settings**, or the **Idle time-out** under **Sessions**;
 - make an API token, add a webhook, change where a webhook sends or whether it includes restricted records, or replace a webhook's secret;
-- remove a record for good from the **Retention** review list.
+- remove a record for good from the **Retention** review list;
+- add, change or remove a sign-in provider, switch **Allow sign-in with a password** off or on, or change the **Application address**;
+- on a person's **Single sign-on** card: save **Ways to sign in**, **Allow** a link at next sign-in, **Unlink** an identity, or make or remove the break-glass account;
+- link or unlink a provider on your own **Account security** page.
 
-Enter your password and select **Confirm and continue**. The change you asked for is then made; you do not need to repeat it. Select **Cancel** and nothing is changed. You are not asked again for the next 10 minutes (an administrator can change this under **Settings**). Signing in counts, so you will not see the box straight after signing in.
+Enter your password and select **Confirm and continue**. The change you asked for is then made; you do not need to repeat it. Select **Cancel** and nothing is changed. You are not asked again for the next 10 minutes (an administrator can change this under **Settings**). Signing in counts, so you will not see the box straight after signing in; that includes signing in through a provider. If you have no password here (you only sign in through a provider), the **Single sign-on** card on **Account security** offers **Confirm with …** instead: you sign in at the provider again and come back.
 
 ## Users
 
@@ -116,7 +119,18 @@ Two safeguards apply. You cannot disable your own account or remove your own adm
 
 The **Recent account events** card on a person's page lists the latest sign-ins and changes to that account, with how long ago, who did it and the network address it came from. Select **See all events for this account in the audit log** to open the audit log already filtered to that person's account. You need access to the audit log to see the card.
 
-While a person is still **Waiting for setup**, the **Sign-in and security** card says whether a setup link is waiting to be used. The **Second factor** line is marked in amber when one of the person's roles expects a second factor and they have not set one up.
+While a person is still **Waiting for setup**, the **Sign-in and security** card says whether a setup link is waiting to be used. The **Second factor** line is marked in amber when one of the person's roles expects a second factor and they have not set one up. **Sign-in providers** says how many single sign-on identities are linked to the account.
+
+### Passkeys and single sign-on on a person's page
+
+The **Passkeys and security keys** card lists the person's keys; see [Passkeys and security keys](16-passkeys-and-security-keys.md). **Reset second factor** removes their keys as well as their authenticator app.
+
+The **Single sign-on** card has four parts:
+
+- **Linked identities**: each provider the person can sign in with, the email it gave, how and when it was linked, and when it was last used. **Unlink** removes one; the person's account, roles and history stay. The last way a person can sign in cannot be unlinked.
+- **Link at next sign-in**: for someone who cannot link a provider themselves (for example when passwords are switched off). Choose the **Provider** and select **Allow**. The person's next sign-in with that provider links it, provided the provider gives the same, verified email address as the account here. The permission lasts 7 days; **Withdraw** cancels it.
+- **Ways to sign in**: tick **Allow only the ways ticked below**, then tick **Password** and the providers this person may use, and select **Save**. Untick the box and save to allow every way again.
+- **Break-glass account**: see "The break-glass account" below.
 
 ## Roles and permissions
 
@@ -251,6 +265,77 @@ When a person has lost both their phone and their recovery codes:
 3. On the **Sign-in and security** card, select **Reset second factor** and confirm.
 
 Their authenticator app and recovery codes stop working. They sign in with a password only until they set the second factor up again, so ask them to do that straight away. The button appears only when the person has a second factor set up.
+
+## Sign-in providers (single sign-on)
+
+Single sign-on lets people sign in with their organisation account, at your organisation's identity provider, instead of a password kept here. Any provider that supports **OpenID Connect** works. Open **Administration > Sign-in providers**.
+
+**Nothing is contacted until you switch a provider on.** A provider you have added but not switched on is never called, except when you select **Test connection**. Nobody can register themself: people sign in through a provider only to an account an administrator has added or linked, unless you switch on **Create an account at first sign-in**.
+
+The list shows each provider's name (with **Default** beside the default one) and issuer address, its **Kind**, how many **Linked people** it has, its **Options** (**Role mapping**, **Creates accounts**, or **No client secret** in red when one is missing) and an **On** switch. The **…** menu offers **Edit**, **Test connection**, **Make default** and **Remove** (only for a provider that is switched off).
+
+### Registering the application with your provider
+
+At your identity provider, register this application as a web application (a confidential client) using the **authorisation code** flow. Give it the **redirect address** shown on the **Redirect address** card, with the provider's short name in place of `<short name>`, for example `https://grc.example.org/api/auth/sso/staff-directory/callback`. The provider gives you a **client ID** and a **client secret**, and states its **issuer** address.
+
+If people reach the application through an address other than the one your browser uses now (for example behind a reverse proxy), enter it under **Application address** on the **Redirect address** card and select **Save address**. It must be an `https` address with no path, such as `https://grc.example.org`.
+
+Settings for common kinds of provider:
+
+| Kind of provider | Issuer | Email | Groups for role mapping |
+|---|---|---|---|
+| A cloud directory service | The tenant's own issuer, usually ending in the tenant identifier and a version, for example `https://<sign-in host>/<tenant id>/v2.0` | Often `email`; some directories send the address only in `preferred_username` or `upn` | `groups` (often group identifiers rather than names) or `roles` (application roles) |
+| A government or sovereign cloud tenant of a major directory service | The same form, but on that cloud's own sign-in host, which differs from the commercial one. Copy it from the tenant's discovery document; never assume the commercial host | As above | As above |
+| A self-hosted identity server | The server's address followed by a path for your realm or application, exactly as its discovery document states | `email`, with `email_verified` | Add a groups claim (often `groups`) to the ID token in the server's client settings |
+
+The issuer must match the provider's discovery document exactly, including any trailing slash; **Test connection** tells you if it does not. Nothing about any provider is built in: issuer and every address come from the discovery document of the issuer you enter.
+
+### Adding a provider
+
+1. Select **Add provider**.
+2. Under **About**, enter the **Name** shown on the sign-in button ("Sign in with …") and a **Short name** (lower-case letters, numbers and dashes; it is part of the redirect address and cannot be changed later). Tick **Default provider** to make its button come first. Leave **Switched on** off until you have tested it.
+3. Under **Connection**, enter the **Issuer** and **Client ID**, choose the **Client authentication** (most providers: **Client secret, sent in the Authorization header**) and enter the **Client secret**. The secret is stored encrypted and never shown again; to replace it later, type a new one. **Scopes** start as `openid email profile`. **Accepted signature algorithms** are RS256, ES256 and PS256; untick any you do not want. **Extra sign-in parameters** (one `name=value` to a line, for example a domain hint) are optional.
+4. Under **Who the person is**, the **Email claim** is usually `email`. Tick **Treat the provider's email address as verified** only for a directory that controls every address it issues but does not send `email_verified`: matching accounts by email relies on it.
+5. Select **Add provider**. You are asked for your password if you have not given it recently.
+6. Open the provider again (select its name) and select **Test connection**. The result says whether the discovery document and key set were read, and lists the **Sign-in address**, **Token address**, **Key set address**, the algorithms the provider signs with, the number of **Signing keys** and whether it **Offers PKCE (S256)**.
+7. Switch it on with the **On** switch. Its button appears on the sign-in page at once.
+
+The sign-in uses the authorisation code flow with PKCE, a one-time `state` and a `nonce`; the ID token's signature, issuer, audience, expiry and nonce are all checked. A provider whose discovery document is not on `https` is refused (plain `http` is accepted only on the same machine, for trials).
+
+### Role mapping (off unless you switch it on)
+
+Under **Role mapping**, switch on **Give roles from the provider's groups**, enter the **Groups claim** (for example `groups` or `roles`) and add rules with **Add rule**: a **Group value** and the role it **gives**. At every sign-in through that provider, each role named in a rule follows the person's groups: it is added when they are in a matching group and taken away when they are not. Roles that no rule names are never touched. A change that would leave nobody able to administer is not made, and is recorded in the audit log. Every role change made this way is recorded as a role change on the person.
+
+### Accounts created at first sign-in (off unless you switch it on)
+
+Under **New people**, switch on **Create an account at first sign-in** and list the **Allowed email domains**, one to a line (subdomains must be listed separately). Then a person the provider vouches for, whose verified email is in one of those domains and who has no account here, gets one at first sign-in, with only the roles role mapping gives (none without it). Anyone else with no account sees "there is no account here for you".
+
+### How people's accounts are matched
+
+- A person who has signed in through a provider before is recognised by the provider's identifier for them, whatever their email says now.
+- A first sign-in whose verified email matches an existing account is **not** linked straight away. The sign-in page asks the person to sign in once with that account's password ("Link your sign-in"); only then are the two linked. They can also choose **Do not link**. An administrator's **Link at next sign-in** permission skips the password step.
+- People can link and unlink providers themselves on **Account security**.
+- The break-glass account is never linked and never signs in through a provider.
+
+### Passwords
+
+The **Passwords** card has the **Allow sign-in with a password** switch. Switch it off once everyone signs in through a provider: the sign-in page then shows only the provider buttons, with **Emergency access with a password** for the break-glass account. The application refuses to switch passwords off until there is a break-glass account and every other active person has a linked identity at a switched-on provider; the card names anyone still without one (open **… active people have no linked provider yet**). While passwords are off, a provider that some people depend on cannot be switched off, and the break-glass account can be neither disabled nor removed.
+
+### The break-glass account
+
+One local administrator kept for when single sign-on is unavailable (the provider is down, or misconfigured). It always signs in with its own password and second factor, never through a provider, and **every sign-in raises an alarm**: a `signin.break_glass` event in the audit log, an in-app notification to every administrator and, when email is switched on, an email to every administrator. The person using it sees a red notice on their **Account security** page for the whole session.
+
+To set it up:
+
+1. Add a user for it (for example "Emergency administrator") with the **Administrator** role, and set its password with the one-time link. Use a long random password (30 characters or more), written down and kept sealed somewhere safe.
+2. Sign in as it once and add a second factor, ideally a hardware security key kept apart from the password (see [Passkeys and security keys](16-passkeys-and-security-keys.md)).
+3. As another administrator, open the user, and on the **Single sign-on** card select **Make break-glass account** and confirm.
+
+The account must be active, hold the Administrator role, have a password and no linked provider. There can be only one: remove the designation from the old one (**Remove break-glass designation**) before choosing another. The **Passwords** card on **Sign-in providers** names the break-glass account and whether it has a second factor. After any use, check the audit log, and change its password.
+
+### What is recorded
+
+Every sign-in through a provider (`signin.success`, naming the provider), every failure with its reason (`signin.failure`, for example "bad signature", "wrong audience", "token expired", "no account for this email"), every provider change (`identity_provider.create`, `.update`, `.enable`, `.disable`, `.test`, `.delete`), every link and unlink (`identity.link`, `identity.unlink`), link permissions, changes to a person's ways to sign in, and break-glass designations and uses, each with the time and the network address it came from.
 
 ## Lists
 
@@ -544,6 +629,24 @@ This card lists every browser you are signed in from, with its **Address**, when
 
 If you do not recognise a session, end it and change your password.
 
+### Passkeys and security keys
+
+The **Passkeys and security keys** card lets you add a passkey or security key as your second factor, or to sign in with it alone. See [Passkeys and security keys](16-passkeys-and-security-keys.md).
+
+### Single sign-on
+
+When your administrator has set up a sign-in provider, the **Single sign-on** card lists the providers linked to your account and offers **Link …** for the others.
+
+- To link one, select **Link** and the provider's name. Confirm your password if asked, then sign in at the provider. It must give the same email address as your account here, or nothing is linked and you are told why. You come back to this page with "Linked".
+- To unlink one, select **Unlink** and confirm. You may be asked to confirm your password. The last way you can sign in cannot be unlinked.
+- If you have no password here and are asked to confirm it is you, the card shows **Confirm with …**: you sign in at the provider again, and then have a few minutes to make the change.
+
+You can also link a provider from the sign-in page: if you sign in through a provider and your email matches your account here, the page asks you to sign in once with your password to link them.
+
+If you are signed in with the break-glass account, a red notice at the top of the page says so: every administrator has been alerted.
+
+On the sign-in page, a provider's button (**Sign in with …**) sends you to your organisation's sign-in and back. Under the password form are **Sign in with a passkey** and **Forgot your password?**. When passwords are switched off, the password form is folded away under **Emergency access with a password**, for the break-glass account only, and neither of those is shown.
+
 ### API tokens on your account
 
 The **API tokens** card lists your tokens, with their first characters, expiry, last use and permissions. Expired and revoked tokens are folded away under **Expired and revoked tokens**.
@@ -560,7 +663,10 @@ The token is shown once. Select **Copy token** and keep it somewhere safe, such 
 
 ## Not available yet
 
-- Sign-in is by username and password held in the application only. There is no single sign-on, no passkeys and no emergency access account.
+- Single sign-on supports OpenID Connect only. SAML 2.0 providers and directory (LDAP) sign-in are not available.
+- A provider that lists many groups by reference instead of in the ID token ("group overage") gives no groups, so role mapping sees none; use application roles or a filtered groups claim instead.
+- Signing in through a provider does not ask for this application's own second factor, and a person expected to have one here still needs to set one up when **Enforcement** is **Required**. The provider's own multi-factor check is not yet read.
+- Signing out here does not sign you out of your provider.
 - The application sends no email. Setup and reset links must be passed on by hand, and there are no email or in-app notifications of any kind.
 - Confirming your password does not also ask for your second factor.
 - The **Self-service portal** permissions can be ticked on a role but do not control anything yet. They are marked **not yet used** on the role page.

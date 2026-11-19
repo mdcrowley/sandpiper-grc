@@ -159,9 +159,9 @@ export function Builder() {
     }
   }
   const exportBody = (format: string) => ({ title: d.name || `${type.plural} report`, format, spec: sendable(spec, type), chart: d.chart });
-  const exportAs = (format: 'csv' | 'html') => (format === 'csv'
-    ? downloadFile(fileName(d.name || type.plural, 'csv'), 'POST', '/api/reports/export', exportBody('csv'))
-    : openDocument('POST', '/api/reports/export', exportBody('html'))).catch((err) => toast.error(errorMessage(err)));
+  const exportAs = (format: 'csv' | 'xlsx' | 'pdf' | 'html') => (format === 'html'
+    ? openDocument('POST', '/api/reports/export', exportBody('html'))
+    : downloadFile(fileName(d.name || type.plural, format), 'POST', '/api/reports/export', exportBody(format))).catch((err) => toast.error(errorMessage(err)));
 
   return (
     <div className="rp-builder">
@@ -175,8 +175,10 @@ export function Builder() {
             <Button variant="ghost" disabled={!draft.canRedo} onClick={draft.redo} title="Redo (Ctrl+Y)">Redo</Button>
             {can('reports.export') && type.canExport && (
               <Menu label="Export" icon="download" align="end" items={[
-                { label: 'Spreadsheet file (CSV)', icon: 'download', onSelect: () => exportAs('csv') },
-                { label: 'Print-ready document', icon: 'file-text', onSelect: () => exportAs('html') },
+                { label: 'PDF', icon: 'file-text', onSelect: () => exportAs('pdf') },
+                { label: 'Excel (XLSX)', icon: 'download', onSelect: () => exportAs('xlsx') },
+                { label: 'CSV', icon: 'download', onSelect: () => exportAs('csv') },
+                { label: 'Print-ready page', icon: 'external', onSelect: () => exportAs('html'), separated: true },
               ]} />
             )}
             <Button variant="primary" icon="check" onClick={() => { setNameError(''); setSaveOpen(true); }}>{id ? 'Save changes' : 'Save report'}</Button>

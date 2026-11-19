@@ -20,7 +20,7 @@ export function adminRoute(ctx: ModuleContext, method: 'GET' | 'POST' | 'PATCH' 
 export const MODULE_KEYS = [
   'tickets', 'knowledge', 'assets', 'systems', 'sites', 'data', 'changes', 'vendors', 'contracts', 'frameworks',
   'risks', 'security', 'vulnerabilities', 'policies', 'training', 'exceptions', 'obligations', 'exercises',
-  'actions', 'projects', 'dashboards', 'reports', 'audit', 'admin', 'portal',
+  'actions', 'projects', 'dashboards', 'reports', 'audit', 'admin', 'portal', 'fleet', 'safety',
 ];
 export const ACTIONS = ['view', 'create', 'edit', 'delete', 'approve', 'administer', 'export'];
 

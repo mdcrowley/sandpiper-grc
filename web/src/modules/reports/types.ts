@@ -84,7 +84,7 @@ export interface ReportPack extends Shared {
 
 export interface Snapshot {
   id: string; source_type: 'report' | 'dashboard' | 'pack'; source_id: string; schedule_id: string | null; title: string;
-  format: 'html' | 'csv'; restricted: boolean; size_bytes: number; created_at: string;
+  format: 'html' | 'csv' | 'pdf' | 'xlsx'; restricted: boolean; size_bytes: number; created_at: string;
 }
 
 export const GRID_COLUMNS = 12;

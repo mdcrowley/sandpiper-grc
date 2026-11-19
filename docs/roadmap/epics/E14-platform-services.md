@@ -1,7 +1,8 @@
 # E14 Platform services not yet built
 
-**Status:** in progress (attachments, in-app notifications and full-text search built;
-custom fields, tags, watchers and retention built on the server, their screens open)
+**Status:** in progress (attachments, in-app notifications, email delivery, the job queue and
+full-text search built; custom fields, tags, watchers and retention built on the server, their
+screens open)
 
 ## Goal
 
@@ -20,8 +21,11 @@ bulk edit) that make daily use quicker.
 - Many open issues in other epics depended on E14-01 (attachments) and E14-03
   (notifications). Both are now built; those issues can embed `AttachmentsPanel` and
   call `app.notify` (see E14-16).
-- Email needs an outbound connection, which the local prototype forbids. It must be an
-  explicit, per-installation setting and stay off by default.
+- Email needs an outbound connection. It is an explicit, per-installation setting
+  (Administration > Email) and stays off by default; the application works fully without it.
+- The job queue and email are core services (`server/src/core/jobs`, `server/src/core/mail`).
+  Until `app.ts` starts them itself, the notifications module starts both in its
+  `seedDefaults`, so they exist before any module's `register` runs.
 - Workflow today is per-module code plus configurable lists. That is adequate for a
   pilot; the general engine is a later item.
 
@@ -32,24 +36,30 @@ bulk edit) that make daily use quicker.
 | E14-01 | Attachments on any record | done | P1 |
 | E14-02 | Custom fields | in progress | P3 |
 | E14-03 | In-app notifications | done | P1 |
-| E14-04 | Email delivery | open | P2 |
-| E14-05 | Email setup and reset links | open | P2 |
+| E14-04 | Email delivery | done | P2 |
+| E14-05 | Email setup and reset links | in progress | P2 |
 | E14-06 | Workflow engine with approvals | open | P3 |
 | E14-07 | Full-text search | done | P2 |
 | E14-08 | Tags | in progress | P3 |
 | E14-09 | Watchers | in progress | P3 |
 | E14-10 | Bulk edit | done | P2 |
 | E14-11 | Retention settings and review flags | in progress | P2 |
-| E14-12 | Job queue for background work | open | P2 |
-| E14-13 | Object-storage driver for attachments | open | P2 |
-| E14-14 | Malware scanner for attachments | open | P1 |
-| E14-15 | Purge and retention of removed files | open | P2 |
+| E14-12 | Job queue for background work | done | P2 |
+| E14-13 | Object-storage driver for attachments | done | P2 |
+| E14-14 | Malware scanner for attachments | done | P1 |
+| E14-15 | Purge and retention of removed files | done | P2 |
 | E14-16 | Notifications from the other modules | done | P1 |
 | E14-17 | Notification housekeeping | open | P3 |
 | E14-18 | Evidence files on evidence-bearing records | open | P2 |
 | E14-19 | Anonymise a record at the end of its retention period | open | P3 |
 | E14-20 | Retention review counts follow row-level restriction | open | P3 |
 | E14-21 | Comment search follows the search language setting | open | P3 |
+| E14-22 | Move the other modules' timers onto the job queue | open | P2 |
+| E14-23 | Start the job queue and email from core | open | P3 |
+| E14-24 | "Forgot your password?" link and help for the new pages | open | P2 |
+| E14-25 | Another mail provider (a mail service's web interface) | open | P3 |
+| E14-26 | Other modules' tests stand in for `notify` and `sendMail` safely | open | P3 |
+| E14-27 | File housekeeping, rescans and moves as background jobs | open | P3 |
 
 ---
 
@@ -149,36 +159,56 @@ Ticket assignment, contract reminders and incident clocks are one-line calls in 
 modules that own those records: see E14-16.
 
 **Implemented in:** `server/src/modules/notifications/` (`service.ts` `app.notify`,
-`index.ts` routes under `/api/notifications`, `digest.ts`, `email.ts` provider contract
-only, `migrations/001_notifications.sql`, `notifications.test.ts`);
+`index.ts` routes under `/api/notifications`, `digest.ts`, `email.ts` daily email summary
+(E14-04), `migrations/001_notifications.sql`, `notifications.test.ts`);
 `web/src/modules/notifications/` (`NotificationBell.tsx`, `NotificationsPage.tsx`,
 `Preferences.tsx`, `data.ts`); user guide `docs/user/14-attachments-and-notifications.md`
 
 ### E14-04 Email delivery
 
-**Status:** open · **Priority:** P2 · **Type:** feature
+**Status:** done · **Priority:** P2 · **Type:** feature
 
 As a user, I can choose to receive my notifications by email as well as in the
 application.
 
 **Acceptance criteria**
 
-- [ ] Mail server details are settings; delivery is off until configured
-- [ ] Messages contain a link and a short summary, never restricted detail
-- [ ] Failed deliveries are retried and logged
-- [ ] A test-message button for administrators
-- [ ] Documented as the one deliberate exception to "no outbound connections"
-- [ ] The daily-digest choice each person can already store
-  (`notification_preferences.daily_digest`) sends one summary a day instead of a message
-  per notification
+- [x] Mail server details (host, port, TLS mode none/STARTTLS/TLS, user name, password kept
+  encrypted, from, reply-to, application address) are settings on **Administration > Email**;
+  delivery is off until an administrator switches it on; changes need a recent password
+  confirmation and are audited without the password
+- [x] Messages contain a link and a short summary, never restricted detail: a restricted record
+  gets the content-free "You have a new security notification — open the application to view
+  it", access is checked again when each message is sent, and an outside address never
+  receives anything about a restricted record
+- [x] Failed deliveries are retried through the job queue (5 attempts, 1-2-4-8 minutes; a 5xx
+  reply or a refused sign-in is not retried) and logged (**Delivery log**)
+- [x] A **Send test email** button for administrators (works before email is switched on)
+- [x] Documented as a deliberate outbound connection that is off by default (user guide;
+  text for `docs/security.md` and the developer guide given to their owners)
+- [x] Per person and per kind: bell, email, both or off (`notification_preferences.channels`);
+  "email" falls back to the bell while email is off or the person has no address
+- [x] The daily-digest choice sends one summary a day (from `notifications.digest_hour`,
+  default 7, organisation time zone) instead of a message per notification
+- [x] Templates are data (`mail_templates`): subject, plain text and simple HTML with
+  placeholders, validated (allowed tags and links only, values escaped), with preview and
+  "put back the default"
+- [x] `app.sendMail(...)` for other modules (guarded with `app.hasDecorator('sendMail')`), and a
+  provider interface (`registerMailProvider`) so another provider needs no change elsewhere
+- [x] Tested against an in-process SMTP sink (`server/src/core/mail/smtp-sink.ts`): delivery,
+  plain connection, sign-in, refusals and retries, preferences, digest, restricted records
 
-Groundwork in place: the provider contract (`EmailProvider`, `EmailMessage`,
-`EmailResult`) is written down in `server/src/modules/notifications/email.ts`. Nothing
-calls it and nothing is sent.
+**Implemented in:** `server/src/core/mail/` (`index.ts` `ensureMail`, `service.ts` `sendMail`
+and the `mail.send` job, `provider.ts` SMTP through nodemailer and the provider registry,
+`templates.ts`, `routes.ts` routes under `/api/admin/mail`, `links.ts`, `smtp-sink.ts`,
+`migrations/001_mail.sql`, `mail.test.ts`); `server/src/modules/notifications/` (`service.ts`
+channels, `email.ts` daily summary, `migrations/002_email.sql`, `email.test.ts`);
+`web/src/modules/notifications/` (`EmailSettings.tsx`, `MailTemplates.tsx`, `MailLog.tsx`,
+`Preferences.tsx`, `reauth.tsx`); user guide `docs/user/14-attachments-and-notifications.md`
 
 ### E14-05 Email setup and reset links
 
-**Status:** open · **Priority:** P2 · **Type:** improvement
+**Status:** in progress (the sign-in page link is E14-24) · **Priority:** P2 · **Type:** improvement
 
 As a new user, I receive my setup link by email. As a user who has forgotten my
 password, I request a reset link myself. Today an administrator is shown the link and
@@ -186,11 +216,22 @@ must pass it on.
 
 **Acceptance criteria**
 
-- [ ] Creating a user can send the setup link by email
-- [ ] "Forgotten password" on the sign-in page sends a reset link
-- [ ] The response is the same whether or not the address is known
-- [ ] Requests are rate-limited
-- [ ] Depends on E14-04; the current hand-over method remains when email is off
+- [x] Creating a user, and issuing a set-up or reset link, also emails it to the person when
+  email is on (the response gains `emailedTo`); the link is kept encrypted in the queued job
+- [x] A **Forgot your password?** page (`/forgot-password`, public) sends a reset link (a
+  set-up link for an account still pending); it expires after `auth.reset_link_minutes`
+  (default 60) and replaces the person's earlier self-service link, never one an
+  administrator issued
+- [ ] A link to that page on the sign-in screen (core: E14-24)
+- [x] The response is the same whether or not the username or address is known
+- [x] Requests are rate-limited (5 in 15 minutes from one address, then 429; 3 links an hour
+  for one account, silently) and audited (`password.reset_request`)
+- [x] Depends on E14-04; the current hand-over method remains when email is off (the page
+  then says to ask an administrator)
+
+**Implemented in:** `server/src/core/mail/links.ts` (`GET/POST /api/auth/forgot-password`, and an
+`onSend` hook on the admin module's three link routes); `web/src/modules/notifications/ForgotPassword.tsx`;
+tests in `server/src/core/mail/mail.test.ts` ("forgotten password")
 
 ### E14-06 Workflow engine with approvals
 
@@ -275,8 +316,9 @@ As a user, I follow a record and am notified when it changes.
 - [x] Only people who can see the record can watch it, and `app.notify` skips anyone who
   has since lost access
 - [x] Depends on E14-03
-- [ ] **Watch** button on the record page and a **Watching** list (web core); a `watch`
-  value in `notification_kind` so people can switch these off (notifications module)
+- [ ] **Watch** button on the record page and a **Watching** list (web core)
+- [x] A `watch` value ("Records I watch") in `notification_kind`, so people can switch these
+  off or have them emailed (notifications module)
 
 **Implemented in:** `server/src/core/tags.ts`, comment hook in `server/src/core/routes.ts`;
 tests in `server/src/core/platform.test.ts` ("tags and watchers"). Routes:
@@ -333,7 +375,7 @@ tests in `server/src/core/platform.test.ts` ("retention"). Routes: `GET /api/adm
 
 ### E14-12 Job queue for background work
 
-**Status:** open · **Priority:** P2 · **Type:** debt
+**Status:** done (other modules' timers: E14-22) · **Priority:** P2 · **Type:** debt
 
 As an administrator, I want scheduled work (the service-level sweep, contract
 reminders, and later notifications and scheduled reports) to run from a durable queue
@@ -345,68 +387,110 @@ retries; it can be the model, or be moved onto the general queue.
 
 **Acceptance criteria**
 
-- [ ] Scheduled and one-off jobs are stored in the database
-- [ ] A job runs once even with more than one server process
-- [ ] Failures are retried and visible on an administration page
-- [ ] The existing timers are moved onto the queue, including the notification digest
-  (`server/src/modules/notifications/index.ts`)
+- [x] Scheduled and one-off jobs are stored in the database (`jobs`, `job_schedules`): type,
+  payload, run-at, attempts, back-off, lease, result, error
+- [x] A job runs once even with more than one server process: claims are conditional updates
+  with a lease (`locked_until`), so a crashed process's job is taken over when the lease runs
+  out; a schedule is queued by whichever poller moves its next run time on; `key` de-duplicates
+- [x] Failures are retried with a doubling wait and go "dead" after `max_attempts` (or at once on
+  `PermanentJobError`); **Administration > Background jobs** lists recent, failed and dead jobs
+  with **Try again now**, and the schedules with **Run now** (both audited)
+- [x] Modules use it through `app.jobs` / `ensureJobs(ctx)`: `register(type, handler, opts)`,
+  `enqueue(type, payload, opts)`, `schedule(name, { type, every })`, `runDue()`
+- [x] The notification digest and the daily email summary are on the queue
+  (`notifications.reminders`, `notifications.email_digest`); the other modules' timers are E14-22
+
+**Implemented in:** `server/src/core/jobs/` (`queue.ts`, `index.ts` with the routes under
+`/api/admin/jobs`, `migrations/001_jobs.sql`, `jobs.test.ts`); `web/src/modules/notifications/JobsPage.tsx`
+(`/admin/jobs`). The poller starts when the server starts listening (every 10 s,
+`GRC_JOBS_POLL_MS`; `GRC_JOBS=off` stops it), never in tests or commands.
 
 ### E14-13 Object-storage driver for attachments
 
-**Status:** open · **Priority:** P2 · **Type:** feature
+**Status:** done · **Priority:** P2 · **Type:** feature
 
 As an administrator of a hosted installation, I keep attached files in an S3-compatible
-object store instead of on the server's disk. Today the only drivers are local disk and
-memory (for tests).
+object store instead of on the server's disk.
 
 **Acceptance criteria**
 
-- [ ] A driver implementing `FileStorage` (`put`, `get`, `delete`, `stat`) in
-  `server/src/modules/attachments/storage.ts` for an S3-compatible store
-- [ ] The driver is chosen by configuration; credentials come from the environment, never
-  from the database or the repository
-- [ ] Uploads and downloads stream; nothing is buffered whole in memory
-- [ ] Each attachment's `storage_driver` is honoured, so files stored on disk before the
-  change stay readable, and a command moves them across
-- [ ] Documented as an outbound connection that is off by default
-- [ ] Backup and restore instructions cover the store
+- [x] A driver implementing `FileStorage` (`put`, `get`, `delete`, `stat`, and `list` for the
+  integrity check) for an S3-compatible store, speaking the S3 API directly with AWS
+  Signature Version 4 computed with `node:crypto` (no SDK); path-style and virtual-hosted
+  addresses, region, endpoint, optional server-side encryption (`AES256` or `aws:kms` with a
+  key ID); checked against the published signing example and a fake store that verifies
+  every signature
+- [x] The driver is chosen by an administrator (File settings > Storage). Credentials come
+  from the server's environment (`GRC_S3_ACCESS_KEY_ID`, `GRC_S3_SECRET_ACCESS_KEY`), a
+  credentials file on the server, or the settings, where the secret is encrypted with the
+  application's secret key and never returned to the browser. (Changed from "never from the
+  database": the encrypted setting is the same protection the email password has.)
+- [x] Uploads and downloads stream; uploads go in 8 MB parts (multipart upload above that),
+  so at most one part is held in memory
+- [x] Each attachment's `storage_driver` is honoured, so files stored on disk before the
+  change stay readable; `grc.ps1 move-files -To s3|disk` moves them across, checking each
+  copy's SHA-256 before deleting the original
+- [x] Documented as an outbound connection that is off by default; settings are tested
+  before they are saved and need a recent password confirmation
+- [x] Backup and restore instructions cover the store (it is not in backups; use its
+  versioning, or move files back first) — `docs/operations.md`
+
+**Implemented in:** `server/src/modules/attachments/` (`s3.ts`, `stores.ts`, `config.ts`,
+`admin.ts`, `housekeeping.ts` `moveFiles`, `storage.ts` `list`, `fakes.ts`,
+`s3-clamd.test.ts`, `storage-admin.test.ts`); `server/src/cli.ts` (`move-files`); `grc.ps1`
+(`move-files`); `web/src/modules/attachments/StorageSettings.tsx`
 
 ### E14-14 Malware scanner for attachments
 
-**Status:** open · **Priority:** P1 · **Type:** feature
+**Status:** done · **Priority:** P1 · **Type:** feature
 
 As a security lead, every attached file is checked for malware before it is accepted.
-Today the hook exists (`app.fileScanner`, `server/src/modules/attachments/scanner.ts`)
-but no scanner is supplied, and files are marked "Not scanned".
 
 **Acceptance criteria**
 
-- [ ] A scanner module that registers with `app.fileScanner.use(...)` and calls an engine
-  running on the same machine (no outside service)
-- [ ] An infected file is refused, its bytes removed, and the refusal audited (already
-  the behaviour of the hook; covered by a test with a fake scanner)
-- [ ] A setting decides whether uploads are refused or accepted as "Not scanned" when the
-  engine is unavailable (today: refused whenever a scanner is installed)
-- [ ] Files attached before the scanner was installed can be scanned in a batch, and an
-  infected one is quarantined and reported
-- [ ] The engine's signature date is shown on the **File settings** page
+- [x] A scanner that registers with `app.fileScanner.use(...)`: a ClamAV daemon reached
+  over TCP (`INSTREAM`, chunked, with a time limit and a size limit), switched on by an
+  administrator and off by default; run on the same machine or one the organisation controls
+- [x] An infected file is refused, its bytes removed, and the refusal audited (tested with a
+  fake `clamd` that answers clean, infected and errors)
+- [x] A setting decides whether uploads are refused or accepted as "Not scanned" (with a
+  warning to the uploader and an audit event) when the engine cannot give a verdict;
+  the default is accept
+- [x] Files attached before the scanner was switched on can be scanned in batches from the
+  File settings page; an infected one is removed at once (bytes deleted, row marked
+  `infected`), audited as `attachment.quarantine` and reported to administrators
+- [x] The engine's version and signature date are shown on the **File settings** page
+  (**Test connection**)
+
+**Implemented in:** `server/src/modules/attachments/clamd.ts`, `config.ts`, `index.ts`
+(policy), `housekeeping.ts` (`rescanNotScanned`), `admin.ts`, `fakes.ts`;
+`web/src/modules/attachments/ScannerSettings.tsx`
 
 ### E14-15 Purge and retention of removed files
 
-**Status:** open · **Priority:** P2 · **Type:** feature
+**Status:** done · **Priority:** P2 · **Type:** feature
 
 As an administrator, removed files are deleted from storage after a set period, and I can
-restore one before then. Today removing a file marks its row and keeps the bytes in
-`data/files` indefinitely; there is no restore screen and no purge.
+restore one before then.
 
 **Acceptance criteria**
 
-- [ ] A list of removed files for administrators, with restore
-- [ ] A retention period (a setting); files removed for longer are purged from storage by
-  a scheduled job, and the purge is audited
-- [ ] Files whose record has been deleted follow the same rule
-- [ ] A check that reports stored files with no row and rows with no stored file
-- [ ] Depends on E14-11 for the retention settings and E14-12 for the job
+- [x] A list of removed files for administrators, with restore (restricted records' files
+  are listed only for holders of `security.view`)
+- [x] A retention period (a setting, 30 days to begin with, 0 keeps them); files removed
+  for longer are purged from storage by a daily job (or **Purge now**), and each purge is
+  audited
+- [x] Files whose record has been deleted for good (by the retention review) are marked
+  removed and follow the same rule; files of soft-deleted records are kept for the
+  review; records are never deleted by this
+- [x] A check that reports stored files with no row and rows with no stored file, on both
+  stores
+- [x] Storage usage is shown on the File settings page
+- [ ] The daily job runs on an in-process timer, not yet on the job queue (E14-27)
+
+**Implemented in:** `server/src/modules/attachments/housekeeping.ts`, `admin.ts`,
+`migrations/002_storage_scanning_purge_backups.sql`, `index.ts` (daily timer);
+`web/src/modules/attachments/RemovedFiles.tsx`, `FileSettings.tsx`
 
 ### E14-16 Notifications from the other modules
 
@@ -509,3 +593,101 @@ another language comment word-ending matches are weaker.
 - [ ] The comments trigger is (re)built at start-up from the configured language, like the
   record triggers
 - [ ] A test with a non-default language
+
+### E14-22 Move the other modules' timers onto the job queue
+
+**Status:** open · **Priority:** P2 · **Type:** debt
+
+As an administrator, all scheduled work shows on **Background jobs** and runs once however
+many server processes there are. Split from E14-12: the notifications module's timers are
+moved; these still use `setInterval` in their own module: tickets (SLA sweep), changes,
+frameworks, inventory reminders, policies, projects, reports (schedules), risks
+(lifecycle), security incidents (clocks), training, vendors, vulnerabilities (reminders and
+snapshot), core retention sweep and webhook deliveries.
+
+**Acceptance criteria**
+
+- [ ] Each owner replaces its timer with, in `register`:
+  `const jobs = await ensureJobs(ctx); jobs.register('<module>.<work>', () => run(), { maxAttempts: 3 });`
+  `await jobs.schedule('<module>.<work>', { type: '<module>.<work>', every: <ms>, firstRunInMs: <ms> });`
+  and removes the timer and its `onClose` hook (the queue is stopped on close)
+- [ ] Its test drives the work with `app.jobs.runDue({ types: ['<module>.<work>'] })` or the
+  existing "run now" route, and checks the schedule exists
+- [ ] Work that must run at a time of day keeps its own "is it time yet" check inside the
+  handler (the schedule only says how often to look), as `notifications.email_digest` does
+
+### E14-23 Start the job queue and email from core
+
+**Status:** open · **Priority:** P3 · **Type:** debt
+
+Today the notifications module starts `app.jobs` and `app.sendMail` in its `seedDefaults`
+(they are core services in `server/src/core/jobs` and `server/src/core/mail`), so a server
+built with `GRC_MODULES` that leaves notifications out has neither.
+
+**Acceptance criteria**
+
+- [ ] `server/src/app.ts` calls `await ensureJobs(ctx); await ensureMail(ctx);` after `ctx` is
+  built and before the `seedDefaults` loop (both are idempotent, so the notifications module's
+  calls become no-ops); the migration scopes `core.jobs` and `core.mail` stay as they are
+- [ ] A test with `GRC_MODULES=none` sees `/api/admin/jobs` and `/api/admin/mail/settings`
+
+### E14-24 "Forgot your password?" link and help for the new pages
+
+**Status:** open · **Priority:** P2 · **Type:** improvement
+
+The `/forgot-password` page exists (E14-05) but nothing links to it.
+
+**Acceptance criteria**
+
+- [ ] The sign-in screen (`web/src/core/AuthPages.tsx`) shows a **Forgot your password?** link
+  under the password box, to `/forgot-password`, shown only when
+  `GET /api/auth/forgot-password` says `available: true`
+- [ ] The Help route map (`web/src/modules/help/routeMap.ts`) sends `/admin/email`,
+  `/admin/jobs` and `/forgot-password` to `14-attachments-and-notifications` (sections
+  `email-settings`, `background-jobs`, `forgot-your-password`)
+
+### E14-25 Another mail provider (a mail service's web interface)
+
+**Status:** open · **Priority:** P3 · **Type:** feature
+
+As an administrator whose mail service offers only a web interface, I send through it. The
+provider interface is in place (`MailProvider` and `registerMailProvider` in
+`server/src/core/mail/provider.ts`); nothing else needs to change.
+
+**Acceptance criteria**
+
+- [ ] A provider file registering itself, reusing the stored settings (host as the endpoint,
+  user name as the key id, the encrypted password as the secret)
+- [ ] Only to the configured host; no redirects; a time-out; 4xx-like answers retried, others not
+- [ ] A test with a stand-in HTTP server on port 0
+
+### E14-26 Other modules' tests stand in for `notify` and `sendMail` safely
+
+**Status:** open · **Priority:** P3 · **Type:** defect
+
+Some tests add their own `notify` or `sendMail` decorator to record calls. With every module
+loaded the real service is already there: `reports/files.test.ts` fails ("The decorator
+'sendMail' has already been added"). (`attachments/backups.test.ts` and
+`attachments/storage-admin.test.ts` had the same problem; they now wrap whichever `notify` is
+present, and pass alone and with every module.)
+
+**Acceptance criteria**
+
+- [ ] Stand-ins are added only when missing (`if (!ctx.app.hasDecorator('sendMail'))`), and the
+  assertions read what the real service stored when it is present (the `notifications` table,
+  or `mail_log` for email), so the tests pass alone and with every module
+
+### E14-27 File housekeeping, rescans and moves as background jobs
+
+**Status:** open · **Priority:** P3 · **Type:** improvement
+
+The attachments module's daily purge, the server's own backup schedule (E16-17) and the batch
+malware rescan run on in-process timers or inside one request, and moving files between the
+disk and the object store is a command run with the server stopped.
+
+**Acceptance criteria**
+
+- [ ] The daily purge and the backup schedule run as job-queue schedules (E14-12), visible on
+  Administration > Background jobs
+- [ ] **Scan files attached earlier** and moving files to the other store can be started from
+  File settings and run as jobs, with progress, while the application keeps running

@@ -1,5 +1,5 @@
-// First-run setup, sign-in and change-password.
-import { useState, type FormEvent, type ReactNode } from 'react';
+// First-run setup, sign-in (password and single sign-on buttons) and change-password.
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { PasswordInput, TextInput } from '@mantine/core';
 import { api, ApiError, errorMessage } from './api';
 import { useAuth } from './auth';
@@ -7,10 +7,15 @@ import { Icon } from './Icon';
 import { Wordmark } from './Logo';
 import { Modal, useToast } from './overlay';
 import { Button, ProgressBar } from './ui';
+// Passkeys (E02-08) live in the account-keys module; these pieces are embedded in the sign-in and setup pages.
+import { PasskeySecondFactorButton, PasskeySignIn, signInWithKeyAfterPassword } from '../modules/account-keys/PasskeySignIn';
+import { DEFAULT_SECOND_FACTOR, SecondFactorChoice, type SecondFactorSetting } from '../modules/account-keys/SecondFactorChoice';
 
 const MIN_PASSWORD = 14;
 const PASSWORD_HINT = `At least ${MIN_PASSWORD} characters. A phrase of several words works well.`;
 const VISIBILITY = { 'aria-label': 'Show or hide the password' };
+/** A button that reads as a link (the sign-in page loads before any module's styles). */
+const LINK_BUTTON = { padding: 0, border: 0, background: 'none', color: 'var(--link)', font: 'inherit', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' } as const;
 
 function AuthLayout({ title, intro, children }: { title: string; intro?: string; children: ReactNode }) {
   const { appName } = useAuth();
@@ -67,6 +72,7 @@ function LengthMeter({ password }: { password: string }) {
 export function SetupPage() {
   const { refresh } = useAuth();
   const [form, setForm] = useState({ displayName: '', username: '', email: '', password: '', confirm: '' });
+  const [secondFactor, setSecondFactor] = useState<SecondFactorSetting>(DEFAULT_SECOND_FACTOR);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -97,6 +103,7 @@ export function SetupPage() {
         email: form.email.trim(),
         displayName: form.displayName.trim(),
         password: form.password,
+        secondFactor,
       });
       await refresh();
     } catch (err) {
@@ -121,21 +128,126 @@ export function SetupPage() {
         <PasswordInput label="Password" required autoComplete="new-password" description={PASSWORD_HINT} visibilityToggleButtonProps={VISIBILITY} {...bind('password')} />
         <LengthMeter password={form.password} />
         <PasswordInput label="Repeat password" required autoComplete="new-password" visibilityToggleButtonProps={VISIBILITY} {...bind('confirm')} />
+        <SecondFactorChoice value={secondFactor} onChange={setSecondFactor} />
         <Button type="submit" variant="primary" loading={busy}>Create administrator</Button>
       </form>
     </AuthLayout>
   );
 }
 
+// ---------- single sign-on on the sign-in page ----------
+
+interface SignInOptions { providers: { key: string; name: string; isDefault: boolean }[]; localSignIn: boolean }
+interface PendingLink { pending: boolean; provider?: string; email?: string }
+
+const SSO_MESSAGES: Record<string, string> = {
+  failed: 'Single sign-on did not work. Try again, or ask an administrator if it keeps happening.',
+  no_account: 'You signed in at your organisation, but there is no account here for you. Ask an administrator to add you.',
+};
+
+/** Reads `?sso=` once (the result of a trip to an identity provider) and takes it out of the address. */
+function useSsoResult(): string {
+  const [result] = useState(() => new URLSearchParams(window.location.search).get('sso') ?? '');
+  useEffect(() => {
+    if (result) window.history.replaceState(null, '', window.location.pathname);
+  }, [result]);
+  return result;
+}
+
+/** Buttons for the enabled sign-in providers. Starting one sends the browser to the provider. */
+function ProviderButtons({ options, onError }: { options: SignInOptions; onError: (message: string) => void }) {
+  const [starting, setStarting] = useState('');
+  const start = async (key: string) => {
+    setStarting(key);
+    try {
+      const { redirectUrl } = await api.post<{ redirectUrl: string }>(`/api/auth/sso/${encodeURIComponent(key)}/start`);
+      window.location.assign(redirectUrl);
+    } catch (err) {
+      onError(errorMessage(err));
+      setStarting('');
+    }
+  };
+  return (
+    <div className="stack" style={{ gap: 'var(--s-2)' }} role="group" aria-label="Sign in with your organisation">
+      {options.providers.map((p, i) => (
+        <Button
+          key={p.key} variant={p.isDefault || (i === 0 && !options.providers.some((x) => x.isDefault)) ? 'primary' : 'secondary'}
+          icon="enter" loading={starting === p.key} disabled={Boolean(starting) && starting !== p.key} onClick={() => void start(p.key)}
+        >
+          Sign in with {p.name}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
+function OrDivider({ children }: { children: ReactNode }) {
+  const line = { flex: 1, height: 1, background: 'var(--border)' };
+  return (
+    <div role="separator" aria-label={String(children)} style={{ display: 'flex', alignItems: 'center', gap: 'var(--s-3)', margin: 'var(--s-4) 0', color: 'var(--text-muted)', fontSize: 'var(--fs-sm)' }}>
+      <span style={line} /><span>{children}</span><span style={line} />
+    </div>
+  );
+}
+
+/**
+ * Shown for the whole session when someone signs in with the break-glass account. Renders nothing
+ * otherwise (or when single sign-on is not installed). The shell places it with its other notices.
+ */
+export function BreakGlassBanner() {
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    let live = true;
+    api.get<{ breakGlass: boolean }>('/api/auth/sso/session').then((s) => { if (live) setOn(Boolean(s?.breakGlass)); }, () => undefined);
+    return () => { live = false; };
+  }, []);
+  if (!on) return null;
+  return (
+    <p className="notice notice-warn shell-notice" role="alert" data-testid="break-glass-banner">
+      <Icon name="alert" size={16} />
+      <span>
+        <strong>You are signed in with the break-glass account.</strong> Every administrator has been alerted. Use it only to deal
+        with the emergency, record what you did, and sign out as soon as you can.
+      </span>
+    </p>
+  );
+}
+
 export function LoginPage() {
   const { refresh } = useAuth();
+  const toast = useToast();
+  const sso = useSsoResult();
+  const [options, setOptions] = useState<SignInOptions | null>(null);
+  const [pending, setPending] = useState<PendingLink | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [totp, setTotp] = useState('');
   const [needsCode, setNeedsCode] = useState(false);
   const [missing, setMissing] = useState<Record<string, string>>({});
-  const [error, setError] = useState('');
+  const [error, setError] = useState(SSO_MESSAGES[sso] ?? '');
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    // Without single sign-on installed (or reachable) the page is the plain password form.
+    api.get<SignInOptions>('/api/auth/providers').then(setOptions, () => setOptions({ providers: [], localSignIn: true }));
+    if (sso === 'link') api.get<PendingLink>('/api/auth/sso/pending').then(setPending, () => setPending(null));
+  }, [sso]);
+
+  const cancelLink = async () => {
+    try { await api.post('/api/auth/sso/pending/cancel'); } catch { /* nothing to cancel */ }
+    setPending(null);
+  };
+
+  /** After a password sign-in that confirms a waiting link: link it, then open the application. */
+  const finishLink = async () => {
+    try {
+      const res = await api.post<{ provider: string }>('/api/auth/sso/pending/complete');
+      toast.success(`Linked. Next time you can sign in with ${res.provider}.`);
+    } catch (err) {
+      toast.error(`Signed in, but not linked: ${errorMessage(err)}`);
+    }
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -150,10 +262,20 @@ export function LoginPage() {
     setBusy(true);
     try {
       await api.post('/api/auth/login', { username: username.trim(), password, ...(needsCode ? { totp: totp.trim() } : {}) });
+      if (pending?.pending) await finishLink();
       await refresh();
     } catch (err) {
       const code = err instanceof ApiError ? err.code : '';
-      if (code === 'mfa_required' && !needsCode) {
+      if (code === 'mfa_required' && err instanceof ApiError && err.fields.passkey) {
+        // The account's second factor is a passkey only: ask the browser for it straight away.
+        try {
+          await signInWithKeyAfterPassword(username.trim(), password);
+          if (pending?.pending) await finishLink();
+          await refresh();
+        } catch (keyErr) {
+          setError(keyErr instanceof Error ? keyErr.message : errorMessage(keyErr));
+        }
+      } else if (code === 'mfa_required' && !needsCode) {
         setNeedsCode(true);
       } else if (code === 'locked') {
         setError('This account is temporarily locked after too many attempts. Try again later or ask an administrator.');
@@ -169,12 +291,43 @@ export function LoginPage() {
     }
   };
 
+  const providers = options?.providers ?? [];
+  const linking = Boolean(pending?.pending);
+  // With local passwords switched off the form stays folded away: only the break-glass account can use it.
+  const passwordFolded = Boolean(options && !options.localSignIn && !linking && !showPassword && !needsCode);
+  const intro = needsCode ? 'One more step: enter the code from your authenticator app.'
+    : linking ? undefined
+    : providers.length ? 'Use your organisation account.' : undefined;
+
   return (
-    <AuthLayout title="Sign in" intro={needsCode ? 'One more step: enter the code from your authenticator app.' : undefined}>
-      <form className="form" onSubmit={submit} noValidate>
-        {error && <FormError>{error}</FormError>}
+    <AuthLayout title={linking ? 'Link your sign-in' : 'Sign in'} intro={intro}>
+      {linking && (
+        <div className="notice" role="status" style={{ marginBottom: 'var(--s-4)' }}>
+          <Icon name="link" size={16} />
+          <span>
+            You signed in with <strong>{pending!.provider}</strong> as {pending!.email}, which matches an account here.
+            Sign in once with that account's password to link the two. After that, {pending!.provider} is enough.{' '}
+            <button type="button" style={LINK_BUTTON} onClick={() => void cancelLink()}>Do not link</button>
+          </span>
+        </div>
+      )}
+      {!linking && providers.length > 0 && !needsCode && (
+        <>
+          {error && <FormError>{error}</FormError>}
+          <ProviderButtons options={options!} onError={setError} />
+          {options!.localSignIn && <OrDivider>or use a password</OrDivider>}
+        </>
+      )}
+      {passwordFolded ? (
+        <p className="auth-foot">
+          <button type="button" style={LINK_BUTTON} onClick={() => setShowPassword(true)}>Emergency access with a password</button>
+          <br />Password sign-in is switched off except for the break-glass account.
+        </p>
+      ) : (
+      <form className="form" onSubmit={submit} noValidate style={!linking && providers.length > 0 && !options?.localSignIn && !needsCode ? { marginTop: 'var(--s-4)' } : undefined}>
+        {error && (linking || providers.length === 0 || needsCode) && <FormError>{error}</FormError>}
         <TextInput
-          label="Username" required autoFocus={!needsCode} autoComplete="username" autoCapitalize="none" spellCheck={false}
+          label="Username" required autoFocus={!needsCode && (providers.length === 0 || linking || showPassword)} autoComplete="username" autoCapitalize="none" spellCheck={false}
           value={username} error={missing.username} onChange={(e) => setUsername(e.currentTarget.value)}
         />
         <PasswordInput
@@ -188,9 +341,17 @@ export function LoginPage() {
             value={totp} error={missing.totp} onChange={(e) => setTotp(e.currentTarget.value)}
           />
         )}
-        <Button type="submit" variant="primary" loading={busy}>{needsCode ? 'Verify and sign in' : 'Sign in'}</Button>
+        <Button type="submit" variant={providers.length && !linking && !needsCode ? 'secondary' : 'primary'} loading={busy}>
+          {needsCode ? 'Verify and sign in' : linking ? 'Sign in and link' : 'Sign in'}
+        </Button>
+        {needsCode && <PasskeySecondFactorButton username={username.trim()} password={password} />}
       </form>
-      <p className="auth-foot">Forgotten your password? An administrator can send you a reset link.</p>
+      )}
+      {/* A passkey alone, as another way in beside the password (not while linking or at the code step). */}
+      {!passwordFolded && !linking && !needsCode && options?.localSignIn !== false && <PasskeySignIn />}
+      {!passwordFolded && options?.localSignIn !== false && (
+        <p className="auth-foot"><a href="/forgot-password">Forgot your password?</a></p>
+      )}
     </AuthLayout>
   );
 }

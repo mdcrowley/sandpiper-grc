@@ -80,7 +80,7 @@ export function ScheduleDialog({ open, onClose, target, existing, onSaved }: {
     setBusy(true);
     setErrors({});
     const body = {
-      name: String(f.name ?? '').trim(), cadence: f.cadence, weekday: f.weekday, month_day: f.month_day, hour: Number(f.hour), format: isDash ? 'html' : f.format,
+      name: String(f.name ?? '').trim(), cadence: f.cadence, weekday: f.weekday, month_day: f.month_day, hour: Number(f.hour), format: isDash && f.format === 'csv' ? 'html' : f.format,
       recipient_users: people.map((p) => p.id), recipient_roles: f.recipient_roles ?? [], active: f.active !== false,
       ...(existing ? {} : { target_type: target!.type, target_id: target!.id }),
     };
@@ -100,7 +100,7 @@ export function ScheduleDialog({ open, onClose, target, existing, onSaved }: {
     <Modal open={open} title={existing ? 'Edit schedule' : `Schedule this ${isDash ? 'dashboard' : 'report'}`} onClose={onClose}
       footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" loading={busy} onClick={save}>{existing ? 'Save changes' : 'Schedule'}</Button></>}>
       <form className="form" onSubmit={(e) => { e.preventDefault(); void save(); }}>
-        <p className="notice">Each person receives a notification in the application with a link to a copy frozen at that moment, showing only what their own role allows. Email delivery is not available yet.</p>
+        <p className="notice">Each person receives a notification in the application with a link to a copy frozen at that moment, showing only what their own role allows. When an administrator has switched email on, they are also emailed a link, with the PDF or Excel file attached when they may export it.</p>
         <TextField label="Name" required value={String(f.name ?? '')} error={errors.name} onChange={(name) => set({ name })} />
         <div className="form-grid">
           <Select label="How often" required value={String(f.cadence ?? 'weekly')} onChange={(cadence) => set({ cadence })}
@@ -108,10 +108,14 @@ export function ScheduleDialog({ open, onClose, target, existing, onSaved }: {
           {f.cadence === 'weekly' && <Select label="On" required value={String(f.weekday ?? 1)} onChange={(v) => set({ weekday: Number(v) })} options={WEEKDAYS.map((d, i) => ({ value: String(i + 1), label: d }))} />}
           {f.cadence === 'monthly' && <NumberField label="Day of the month" min={1} max={31} value={Number(f.month_day ?? 1)} onChange={(v) => set({ month_day: v ?? 1 })} hint="In shorter months, the last day." />}
           <Select label="At" required value={String(f.hour ?? 7)} onChange={(hour) => set({ hour: Number(hour) })} options={HOURS} hint={`Time zone: ${timeZone()}`} />
-          {!isDash && (
-            <Select label="As" required value={String(f.format ?? 'html')} onChange={(format) => set({ format })} error={errors.format}
-              options={[{ value: 'html', label: 'Document (print or save as PDF)' }, { value: 'csv', label: 'Spreadsheet file (CSV)' }]} />
-          )}
+          <Select label="As" required value={String(f.format ?? 'html')} onChange={(format) => set({ format })} error={errors.format}
+            hint="People who may not export receive the document instead of a file."
+            options={[
+              { value: 'html', label: 'Document (print or save as PDF)' },
+              { value: 'pdf', label: 'PDF file' },
+              { value: 'xlsx', label: 'Excel file (XLSX)' },
+              ...(isDash ? [] : [{ value: 'csv', label: 'Spreadsheet file (CSV)' }]),
+            ]} />
         </div>
         <fieldset className="rp-recipients">
           <legend className="field-label">Send to</legend>

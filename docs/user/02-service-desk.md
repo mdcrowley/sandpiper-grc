@@ -4,7 +4,7 @@ The service desk is where the IT team logs and works on incidents and service re
 
 ## Tickets
 
-A ticket is either an **Incident** (something is broken) or a **Service request** (someone needs something). There is no self-service portal yet, so IT staff log every ticket on behalf of the colleague who asked.
+A ticket is either an **Incident** (something is broken) or a **Service request** (someone needs something). IT staff log tickets on behalf of the colleague who asked; when the [self-service portal](18-self-service-portal.md) is switched on, staff can also raise and follow their own. A ticket raised there shows **Portal** under **How it arrived**, and the **Requester** card notes that the requester sees public comments only.
 
 ### The ticket list
 
@@ -137,7 +137,7 @@ To close:
 
 ### Satisfaction
 
-Because there is no portal, ask the requester how satisfied they were and record the answer yourself.
+A requester who uses the [self-service portal](18-self-service-portal.md) answers for themselves once the ticket is resolved. Their answer shows on the **Requester satisfaction** card with "Given by the requester in the self-service portal", and nobody can change it afterwards. For everyone else, ask the requester how satisfied they were and record the answer yourself.
 
 - When closing, the **Close ticket** box asks **How satisfied was the requester? (optional)**. Choose from **1** (Very poor) to **5** (Very good) and add a **Comment** if you wish.
 - If you closed without a score, the closed ticket shows a **Requester satisfaction** card. Choose a score there and select **Save**.
@@ -147,6 +147,8 @@ Once a score is saved, the card shows it, for example "4 out of 5". Cancelled ti
 ### Comments and files
 
 On the **Activity** tab, type in the box and select **Add note** (an internal note, seen by staff only) or switch to **Public comment** first. **Ctrl** and **Enter** also posts. Files such as photos of a fault or a vendor's report go on the **Attachments** tab: select **Choose files**, or drop them on the panel.
+
+A requester following the ticket in the portal sees your **public comments** (and is told about each one) but never your internal notes, and sees only the files they added themselves.
 
 ## Service-level targets
 
@@ -331,6 +333,7 @@ If your role allows editing tickets, a **Manage items** tab is shown.
 
 - To add an item, select **New catalogue item** and enter a **Name**, **Description** and **Category**. Tick **Needs approval before work starts** if someone must approve each request.
 - To hide an item without losing it, edit it and untick **Active**.
+- To offer an item to staff in the self-service portal, tick **Show in the self-service portal** (or use the switches on the **Self-service portal** tab of the service desk settings). The **Portal** column shows **Shown** for those items, and their tiles say **In the portal**.
 
 Open an item to design its form on the **Form and tasks** tab:
 
@@ -394,8 +397,12 @@ Select **New rule** and give it a **Name**, what it waits for (**When an open ti
 
 **Warn when this share of the time is used (%)** sets when the "close to a target" warning is sent (0 switches warnings off). Under **Assignment group members**, add the people in each group; they are told about unassigned tickets and group escalations. A group with no members means everyone who works tickets. Select **Save notification settings**.
 
+### Self-service portal
+
+Switch the portal on and off, set its title, welcome line, service status banner and reopen window, and choose which catalogue items staff can ask for. See [Self-service portal](18-self-service-portal.md#settings-for-the-service-desk).
+
 ## Not available yet
 
-- A self-service portal, and creating tickets from email. All tickets are logged by IT staff.
+- Creating tickets from email.
 - Formatting in articles.
 - Approval by more than one person, or approval steps that depend on the answers given.

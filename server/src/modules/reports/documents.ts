@@ -3,8 +3,9 @@
 import { DEFAULT_APP_NAME } from '../../core/config.ts';
 import type { ModuleContext, Row, SessionUser } from '../../core/module.ts';
 import { AccessError, runReport, type ReportResult } from './query.ts';
-import { htmlDocument, toCsv, type DocSection } from './render.ts';
-import { SpecError, type GlobalFilters } from './spec.ts';
+import { describeSpecFilters } from './files.ts';
+import { htmlDocument, toCsv, type DocInput, type DocSection } from './render.ts';
+import { SpecError, type GlobalFilters, type ReportSpec } from './spec.ts';
 import { runWidget, type Widget } from './widgets.ts';
 
 export interface BuiltDocument {
@@ -15,6 +16,8 @@ export interface BuiltDocument {
   rows: number;
   recordTypes: string[];
   restricted: boolean;
+  /** What the document was built from: the PDF and XLSX files are drawn from the same sections. */
+  input: DocInput;
 }
 
 const globalsNote = (g?: GlobalFilters) => {
@@ -35,7 +38,7 @@ export function makeDocuments(ctx: ModuleContext, loadReport: (user: SessionUser
     if (!ctx.resources.get(report.record_type)) return { ...head, note: 'Not available: this needs a part of the application that is not switched on here.' };
     try {
       const result = await runReport(ctx, user, report.spec, { globals, now, limit: 500 });
-      return { ...head, result, chart: (report.chart as Row)?.kind };
+      return { ...head, result, chart: (report.chart as Row)?.kind, filters: await describeSpecFilters(ctx, report.spec) };
     } catch (err) {
       if (err instanceof AccessError) return { ...head, note: 'Not included: your role does not include this information.' };
       if (err instanceof SpecError) return { ...head, note: `This report could not be run: ${err.message}` };
@@ -48,9 +51,11 @@ export function makeDocuments(ctx: ModuleContext, loadReport: (user: SessionUser
     const sections = given.map((s) => (s.result && allow && !allow(s.result)
       ? { title: s.title, note: `Not included: your role does not allow exporting ${s.result.plural.toLowerCase()}.` } : s));
     const results = sections.map((s) => s.result).filter((r): r is ReportResult => Boolean(r));
+    const input: DocInput = { title, subtitle, cover, sections, preparedFor: user.displayName, generatedAt: now.toISOString(), appName: await appName(), filtersNote };
     return {
       title,
-      html: htmlDocument({ title, subtitle, cover, sections, preparedFor: user.displayName, generatedAt: now.toISOString(), appName: await appName(), filtersNote }),
+      input,
+      html: htmlDocument(input),
       rows: results.reduce((n, r) => n + r.rows.length, 0),
       recordTypes: [...new Set(results.flatMap((r) => r.recordTypes))],
       restricted: results.some((r) => r.restricted),
@@ -61,22 +66,28 @@ export function makeDocuments(ctx: ModuleContext, loadReport: (user: SessionUser
     const now = opts.now ?? new Date();
     // An export is the whole answer, not the first screenful: failures are the caller's to hear about.
     const result = await runReport(ctx, user, report.spec, { globals: opts.globals, now, forExport: true });
-    const doc = await finish(report.name, report.description ?? null, false, [{ title: report.name, result, chart: (report.chart as Row)?.kind }], user, now, globalsNote(opts.globals));
+    const doc = await finish(report.name, report.description ?? null, false, [{ title: report.name, result, chart: (report.chart as Row)?.kind, filters: await describeSpecFilters(ctx, report.spec) }], user, now, globalsNote(opts.globals));
     return { ...doc, csv: toCsv(result, user.displayName) };
   }
 
   async function forSpec(user: SessionUser, title: string, spec: unknown, chart?: string): Promise<BuiltDocument> {
     const now = new Date();
     const result = await runReport(ctx, user, spec, { now, forExport: true });
-    const doc = await finish(title, null, false, [{ title, result, chart }], user, now);
+    const doc = await finish(title, null, false, [{ title, result, chart, filters: await describeSpecFilters(ctx, spec as ReportSpec) }], user, now);
     return { ...doc, csv: toCsv(result, user.displayName) };
   }
 
   async function forDashboard(user: SessionUser, dash: Row, opts: { globals?: GlobalFilters; now?: Date; allow?: Allow } = {}): Promise<BuiltDocument> {
     const now = opts.now ?? new Date();
     const widgets = [...((dash.widgets as Widget[]) ?? [])].sort((a, b) => a.y - b.y || a.x - b.x);
-    const sections: DocSection[] = [];
+    const all: DocSection[] = [];
+    // Widgets that share rows of the grid form a group (a band); the PDF gives each band its own page.
+    let group = 0;
+    let bandEnd = -1;
     for (const w of widgets) {
+      if (bandEnd >= 0 && w.y >= bandEnd) group += 1;
+      bandEnd = Math.max(bandEnd, (w.y ?? 0) + Math.max(1, w.h ?? 1));
+      const sections = { push: (s: DocSection) => all.push({ ...s, group }) };
       const cfg = (w.config ?? {}) as Row;
       const title = w.title || 'Untitled';
       if (w.kind === 'text') { sections.push({ title, markdown: String(cfg.markdown ?? '') }); continue; }
@@ -87,6 +98,7 @@ export function makeDocuments(ctx: ModuleContext, loadReport: (user: SessionUser
         ? `${data.trend.current} in the last ${data.trend.days} days; ${data.trend.previous} in the ${data.trend.days} days before.` : null;
       sections.push({ title, description: extra, result: data.result, chart: (data.chart as Row | undefined)?.kind });
     }
+    const sections = all;
     return finish(dash.name, dash.description ?? null, false, sections, user, now, globalsNote(opts.globals), opts.allow);
   }
 

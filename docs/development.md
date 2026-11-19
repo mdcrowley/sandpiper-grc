@@ -4,10 +4,11 @@ Sandpiper GRC is a governance, risk and compliance platform for transit organisa
 rail and paratransit operators) and their IT, cybersecurity and safety teams: service desk,
 asset and system inventory, change enablement, vendors and contracts, cybersecurity
 framework outcomes, risks, security incidents with notification clocks, policies,
-training, vulnerabilities, projects and reporting. This repository is a **local
-prototype**: it runs on one Windows machine with no Docker, no admin rights and no
-outbound network access. See the [project README](../README.md) for an introduction and
-[Known gaps](known-gaps.md) for what is not built.
+training, vulnerabilities, projects, fleet and services, safety management and reporting.
+This repository is a **prototype**: it runs on one Windows machine with no Docker, no
+admin rights and no outbound network access, and can also run on a server with
+PostgreSQL, HTTPS or in a container. See the [project README](../README.md) for an
+introduction and [Known gaps](known-gaps.md) for what is not built.
 
 This guide is the reference for contributors: the hard rules, commands, layout, the module
 and resource API, permissions, tests and web conventions. [Architecture](architecture.md)
@@ -25,9 +26,11 @@ version for a first pull request.
   application. Samples and tests use invented data.
 - **`seed/` is private** to each installation and is git-ignored. Never commit it, never
   send it to an external service, never paste its content into code, logs, tests or docs.
-- **Local only.** The server binds to 127.0.0.1. No telemetry, no CDN fonts or scripts, no
-  calls to outside services from application code. (Webhooks are the one deliberate
-  exception: off by default, and only to hosts an administrator allows.)
+- **Local by default.** The server binds to 127.0.0.1 unless it is configured for a
+  server installation. No telemetry, no CDN fonts or scripts, no calls to outside
+  services from application code, except the deliberate ones an administrator switches
+  on: webhooks (only to allowed hosts), email, sign-in providers, the malware scanner and
+  the object store. Each is off by default.
 - **Documentation and the roadmap change with the code, always.** A change is not finished
   until every place that describes it is updated in the same piece of work:
   - `docs/user/*.md` - the user guide. These same files are bundled into the application's
@@ -43,15 +46,16 @@ version for a first pull request.
 - Every data change writes an audit event. Every feature ships with a test.
 - Configuration over code: statuses, priorities, categories, scales and so on are rows in
   `lookups` / settings tables, not constants.
-- Plain English in the UI, British spelling ("catalogue", "authorisation", "organisation").
+- Plain English in the UI, American English spelling ("catalog", "authorization",
+  "organization").
 
 ## Prototype choices (revisit before production)
 
-| Production target | Prototype | Why |
+| Production target | Prototype default | Notes |
 |---|---|---|
-| PostgreSQL server | PGlite (Postgres compiled to WASM, embedded, data in `data/pg`) | Runs with no install. SQL is real Postgres, so moving to a server is a driver swap in `server/src/core/db.ts` |
-| Containers | `grc.ps1` + portable Node in `.tools/node` | Same reason |
-| Job queue | In-process timers | Single process |
+| PostgreSQL server | PGlite (Postgres compiled to WASM, embedded, data in `data/pg`) | Runs with no install. `GRC_DATABASE_URL` switches to a PostgreSQL server; both drivers are in `server/src/core/db.ts` |
+| Containers | `grc.ps1` + portable Node in `.tools/node` | `Dockerfile` and `compose.yaml` build and run the container image |
+| Job queue | Table-backed job queue (`app.jobs`) | Some modules still use in-process timers (E14-22) |
 
 ## Organisation profile and seed data
 
@@ -85,23 +89,33 @@ Everything goes through `grc.ps1` (it puts the portable Node on PATH):
 .\grc.ps1 test       # vitest (server and web tests)
 .\grc.ps1 typecheck  # server and web
 .\grc.ps1 build      # production web build into dist/web
-.\grc.ps1 ci         # local continuous integration: typecheck, tests, web build
-.\grc.ps1 backup     # checksummed copy of data/ in backups/<timestamp> (-Prune <n> keeps the newest n)
-.\grc.ps1 restore <backup|latest>   # verifies, keeps a safety copy, replaces data/
-.\grc.ps1 status | logs | upgrade   # see docs/operations.md for these and export-all / import-all
+.\grc.ps1 ci         # local continuous integration: typecheck, tests, tests on UTC, web build
+.\grc.ps1 backup     # verified copy of data/ in backups/<timestamp> (-Prune <n> keeps the newest n; -Encrypt)
+.\grc.ps1 restore <backup|latest|file>   # verifies, keeps a safety copy, replaces data/
+.\grc.ps1 status | logs | upgrade   # see docs/operations.md for these and the other operations commands
 .\grc.ps1 npm <args> # any npm command with the portable Node
 ```
 
 `.\grc.ps1` with no command prints the full list.
 
-**Continuous integration is local.** Run `.\grc.ps1 ci` before every commit and push: it
-runs the typecheck, the tests (server and web) and the web build, and fails if any step
-fails. GitHub Actions runs the same checks on Windows and Linux for every push and pull
-request (`.github/workflows/ci.yml`), plus a non-blocking dependency audit.
+**Continuous integration is local first.** Run `.\grc.ps1 ci` before every commit and
+push: it runs the typecheck, the tests (server and web) twice, the second time with the
+clock on UTC, and the web build, and fails if any step fails. GitHub Actions
+(`.github/workflows/ci.yml`) runs on every push and pull request: the typecheck, tests and
+build on Windows and Linux with a non-blocking dependency audit (`npm audit`); the tests
+through the PostgreSQL wire protocol (and, not yet blocking, on PostgreSQL 17); the
+container build and smoke test; and the browser suite with the accessibility audit, which
+reports but does not fail the build (see [Tests](#tests)).
 
-The API description: `npx tsx server/src/core/openapi-cli.ts <file>` writes the whole
-OpenAPI document (every record type and route) to a file, or to standard output with no
-argument. It builds an in-memory application, so it needs no running server.
+The API description: `npx tsx server/src/core/openapi-cli.ts [file] [--unversioned]`
+writes the whole OpenAPI document (every record type and route, paths under `/api/v1`;
+`--unversioned` puts them under `/api`) to a file, or to standard output with no file. It
+checks the document's structure first (`core/api/validate.ts`) and writes nothing when the
+check fails. It builds an in-memory application, so it needs no running server.
+
+The secret key: `npx tsx server/src/core/secretkey-cli.ts show` says where the key comes
+from (with a fingerprint, never the key); `rotate`, with the server stopped, writes a new
+key and keeps the old one as a retired key. See [Security](security.md).
 
 ### Install on a new machine
 
@@ -130,14 +144,26 @@ In a plain shell: `$env:Path = "$PWD\.tools\node;$env:Path"` then `npm run <scri
 | `GRC_CURRENCY` | `USD` | Organisation currency (ISO code) |
 | `GRC_SEARCH_LANGUAGE` | `english` | PostgreSQL text-search configuration used for full-text search |
 | `GRC_ANALYSE` | off | `1` makes the web build report what each package weighs |
+| `GRC_JOBS` | on | `off` stops the job queue's poller in this process (jobs are still queued) |
+| `GRC_JOBS_POLL_MS` | `10000` | How often the job queue looks for due work (at least 1000) |
 
 Security environment (all optional; see [Security](security.md)): `GRC_SECRET_KEY` (32
-bytes as 64 hex characters or base64; encrypts authenticator keys), `GRC_SECRET_KEY_FILE`
-(a file holding it; default `secret.key` in the data folder, generated on first start),
-`GRC_SECRET_KEY_PREVIOUS` (retired keys, comma-separated, for one start after a key
-change), `GRC_COOKIE_SECURE` (`off` default | `auto` | `always`) and `GRC_TRUST_PROXY`
-(`1` only behind one trusted reverse proxy). In code, use `clientIp(req)` and
-`isHttps(req)` from `core/request.ts` rather than `req.ip` and `req.protocol`.
+bytes as 64 hex characters or base64; encrypts authenticator keys and other stored
+secrets), `GRC_SECRET_KEY_FILE` (a file holding it; by default a file **beside** the data
+folder, named after it, `<data>.secret.key`, generated on first start), and
+`GRC_SECRET_KEY_PREVIOUS` (retired keys, comma-separated). Passkeys:
+`GRC_WEBAUTHN_RP_ID` (host name) and `GRC_WEBAUTHN_ORIGINS` (comma-separated origins),
+both defaulting to the address of the request. Browsers refuse IP addresses for passkeys,
+so open `http://localhost:<port>`, not `http://127.0.0.1:<port>`, when working on them.
+
+Hosting environment (see [Installation](installation.md#server-installation) for every
+variable): `GRC_DATABASE_URL` (or `GRC_DATABASE_URL_FILE`) uses a PostgreSQL server instead
+of the embedded database; `GRC_HOST` (default `127.0.0.1`); `GRC_TLS_CERT` and
+`GRC_TLS_KEY` serve HTTPS; `GRC_TRUST_PROXY` names the reverse proxies whose forwarded
+headers are believed; `GRC_ALLOW_INSECURE=1` allows plain HTTP on a reachable address
+behind a proxy that terminates HTTPS; `GRC_COOKIE_SECURE` (`off` | `auto` | `always`)
+becomes `auto` by itself on HTTPS or behind a trusted proxy. In code, use `clientIp(req)`
+and `isHttps(req)` from `core/request.ts` rather than `req.ip` and `req.protocol`.
 
 ### Settings
 
@@ -156,6 +182,10 @@ Read them in code with `ctx.settings.get(key, fallback)`, using the same fallbac
 | `auth.mfa_enforcement` | `notice` | `off`, `notice` or `required` |
 | `auth.mfa_grace_days` | `0` | Days to enrol before enforcement |
 | `auth.reauth_minutes` | `10` | How long a password confirmation lasts |
+| `auth.passkey_sign_in` | `true` | A passkey alone may sign a person in |
+| `auth.passkey_user_verification` | `preferred` | `preferred` or `required` (every passkey use checks a PIN or biometric) |
+| `auth.local_signin` | `true` | Password sign-in; can be switched off only when a break-glass account exists and everyone else has a provider |
+| `auth.public_url` | `''` | The https address people use, for the redirect address given to sign-in providers; empty = as requested |
 | `tokens.max_days` | `365` | Longest life of a new personal access token |
 | `tokens.rate_per_minute` | `600` | Requests a minute per token |
 | `integrations.outbound_enabled` | `false` | Allows webhook deliveries at all |
@@ -163,7 +193,21 @@ Read them in code with `ctx.settings.get(key, fallback)`, using the same fallbac
 | `retention.audit_months` | `84` | Audit log retention, recorded for the retention schedule (nothing deletes audit events) |
 
 Changing an `auth.*`, `tokens.*` or `integrations.*` setting needs a recent password
-confirmation. Modules keep their own settings too (for example
+confirmation.
+
+AI assistant access has its own settings, changed under Administration > AI assistant
+access (`server/src/modules/mcp/settings.ts`), never on the general Settings screen and
+never with a token:
+
+| Key | Default | Meaning |
+|---|---|---|
+| `mcp.enabled` | `false` | The `/mcp` endpoint answers at all |
+| `mcp.write_enabled` | `false` | Tools that create or change records are offered |
+| `mcp.allowed_tools` | `null` (all) | Tool names offered |
+| `mcp.rate_per_minute` | `120` | Requests a minute to `/mcp` per token |
+| `mcp.allowed_origins` | `[]` | Browser origins allowed to call `/mcp` |
+
+Modules keep their own settings too (for example
 `knowledge.agent_permission`, `frameworks.review_reminder_days`); each is described in the
 user guide page for that module.
 
@@ -209,13 +253,25 @@ server/src/cli.ts             seed and other commands
 server/src/core/              db, migrations, auth, rbac, audit, resources, lookups, links, comments,
                               search, tags and watchers, custom fields, tokens, webhooks, OpenAPI, retention
 server/src/core/migrations/   core SQL
+server/src/core/identity/     single sign-on (OpenID Connect), account linking, sign-in policy hooks
+server/src/core/webauthn/     passkeys and security keys
+server/src/core/jobs/         the table-backed job queue (app.jobs)
+server/src/core/mail/         outbound email, templates and set-up and reset links (app.sendMail)
+server/src/core/export/       Excel and PDF exports, record fact sheets
+server/src/core/import/       CSV and Excel import of any record type
+server/src/core/api/          /api/v1 versioning, API conventions, route descriptions (docs/)
 server/src/modules/<key>/     one folder per module: index.ts, migrations/*.sql, seed.ts, *.test.ts
 server/src/ops/               operations commands: backup, restore, export, import, status
 server/src/test/helpers.ts    testApp() - in-memory app with a signed-in admin
 web/src/core/                 shell, design system, generic list/detail/form, api client (see web/src/core/README.md)
 web/src/modules/<key>/        one folder per module: index.tsx (+ pages)
-tools/                        install-node.ps1, browse.mjs, contrast.mjs, switched-off CI files
-examples/                     invented organisation profile, API token and webhook receiver examples
+tools/                        install-node.ps1, browse.mjs, contrast.mjs, code-snapshot.mjs
+tools/e2e/                    browser test runner and suites (npm run test:e2e)
+tools/a11y/                   accessibility audit (npm run test:a11y)
+tools/mcp-stdio.mjs           bridge for MCP clients that speak only stdio (docs/mcp.md)
+deploy/                       container health check and the secrets folder for compose.yaml
+Dockerfile, compose.yaml      container image and a compose file (docs/installation.md)
+examples/                     invented organization profile, API token and webhook receiver examples
 ```
 
 Modules are discovered automatically on both sides (directory scan on the server,
@@ -225,6 +281,11 @@ Folders starting with `_` are ignored.
 ## Server conventions
 
 TypeScript ESM, run by `tsx`. Relative imports carry the `.ts` extension. No enums.
+
+Dates: build "today" with `dayInZone(offsetDays)` (or `todayInZone()`) from
+`core/timezone.ts`, never from the machine's clock or UTC (`new Date().getDate()`,
+`toISOString().slice(0, 10)`): those differ from the organization's date for part of
+every day, and tests then fail at some hours or on a machine set to UTC.
 
 ### Module shape
 
@@ -282,18 +343,40 @@ export default mod;
   a type that `user` may see under the restricted-record rules; every hand-written query
   over a resource table includes it:
   `where deleted_at is null and ${ctx.resources.visibleWhere('action', req.user)}`.
+  **Figures are the same for everyone** (see [Security](security.md)): a summary query that
+  counts or totals records counts every record and does **not** use `visibleWhere`. When it
+  groups by words or people (text, long-text, JSON and person fields), group restricted rows
+  under `MASKED_SQL` from `core/resource.ts` instead of their value, and never match a
+  restricted row by such a field. Lists, their totals and drill-downs keep `visibleWhere`.
 - `ctx.readSeed(opts, 'systems.psv', '|')` - parses a delimited seed file into objects keyed by header.
   `opts.organisation` is the organisation profile (`{}` when there is none).
 - `ctx.fail(status, code, message, fields?)` - throws an API error.
 - `ctx.describeRoute({ method, path, summary, permission?, public?, query?, body?, response? })`
-  (optional; also `description` and `tag`) describes a hand-written route for
-  `GET /api/openapi.json`. Call it beside the route. Routes that are not described still
-  appear in the document, marked `x-undocumented`; a route with a `permission` is left out
-  for callers who lack it.
+  (also `description` and `tag`) describes a hand-written route for
+  `GET /api/openapi.json`. Call it beside the route, or describe the route in
+  `server/src/core/api/docs/<module>.ts`. **Every route must be described**:
+  `server/src/core/api/coverage.test.ts` fails for a route that is not. A route with a
+  `permission` is left out of the document for callers who lack it.
 
-Services other modules may offer are Fastify decorators; check before use. For example
-the notifications module provides `app.notify(...)`
-(`if (ctx.app.hasDecorator('notify')) ...`).
+Services other modules may offer are Fastify decorators; check before use:
+
+- `app.notify(...)`: in-app notifications (notifications module;
+  `if (ctx.app.hasDecorator('notify')) ...`).
+- `app.jobs` (`core/jobs`): the table-backed job queue. `app.jobs.register(type, handler,
+  opts?)` in `register()`, then `await app.jobs.enqueue(type, payload?, { key?, runAt?,
+  delayMs?, maxAttempts? })` (a second job with the same `key` while one waits is skipped)
+  and `app.jobs.schedule(name, { type, every })` for recurring work. A handler throws to
+  fail and is retried with back-off; `PermanentJobError` stops the retries. Administrators
+  see the queue under Background jobs. The poller starts when the server listens (never
+  under tests, which call `app.jobs.runDue()`); `GRC_JOBS=off` keeps it stopped.
+- `app.sendMail({ userIds, template, purpose, data, record?, attachments? })` and
+  `app.mailEnabled()` (`core/mail`): email through the job queue. Off until an
+  administrator sets up a mail server (Administration > Email), so always guard with
+  `ctx.app.hasDecorator('sendMail')`.
+
+Today the notifications module starts the job queue and email (`ensureJobs`,
+`ensureMail`), so a server built with `GRC_MODULES` that leaves notifications out has
+neither (E14-23).
 
 ### Migrations
 
@@ -315,7 +398,8 @@ deleted_at timestamptz
 ### Resources (generic CRUD)
 
 `ctx.defineResource(def)` registers a record type and generates list, stats, get, create,
-update and soft-delete routes with permission checks, validation, audit and CSV export.
+update and soft-delete routes with permission checks, validation, audit, export (CSV,
+Excel and PDF), a PDF fact sheet and import.
 
 ```ts
 ctx.defineResource({
@@ -366,7 +450,7 @@ Generated routes:
 
 | Route | Notes |
 |---|---|
-| `GET {path}` | `q`, `sort`, `dir`, `page`, `pageSize` (max 500), filters `f.<field>=a,b` (any of), `f.<field>.gt=`, `.lt=`, `.null=true\|false`; tags `f.tags=a,b` (any of), `f.tags.all=a,b` (every one), `f.tags.null=true` (untagged); `format=csv` exports. `q` is a full-text search, best matches first when no sort is chosen. Returns `{ rows, total, page, pageSize }`. Each row carries `_display: { <field>: label }` for `user`, `ref` and `lookup` fields, and `_tags` |
+| `GET {path}` | `q`, `sort`, `dir`, `page`, `pageSize` (max 500), filters `f.<field>=a,b` (any of), `f.<field>.gt=`, `.lt=`, `.null=true\|false`; tags `f.tags=a,b` (any of), `f.tags.all=a,b` (every one), `f.tags.null=true` (untagged); `format=csv\|xlsx\|pdf` exports every matching row (needs `<module>.export`), with `columns=a,b` choosing the columns. `q` is a full-text search, best matches first when no sort is chosen. Returns `{ rows, total, page, pageSize }`. Each row carries `_display: { <field>: label }` for `user`, `ref` and `lookup` fields, and `_tags` |
 | `GET {path}/stats?group=<field>` | Same filters. `{ groups: [{ value, label, color, count }], total }` |
 | `GET {path}/:id` | One row (with `_display`) |
 | `POST {path}` | Create. 400 with `error.fields` on validation failure |
@@ -396,6 +480,20 @@ Generated routes:
 | `/api/me/tokens`, `/api/admin/tokens` | Personal access tokens |
 | `/api/admin/webhooks...` | Webhooks and their deliveries |
 | `/api/admin/custom-fields...`, `/api/admin/retention...` | Custom fields; retention schedule and reviews |
+| `GET /api/records/:type/:id/pdf` | A record's PDF fact sheet (needs `<module>.export`) |
+| `/api/import/:type...`, `GET /api/import/history` | Import from CSV or Excel: fields, template, read (check), run; creating needs `<module>.create`, updating `<module>.edit` |
+| `/mcp` | The MCP endpoint for AI assistants (tokens with the `mcp.use` scope only; see [AI assistant access](mcp.md)) |
+
+**Versioning.** Every `/api/...` route is also served at `/api/v1/...`
+(`core/api/versioning.ts`), the stable base path for integrators; the web application
+keeps using `/api`. See the [integration guide](api.md).
+
+**Conventions** (`core/api/conventions.ts`, applied centrally to generated routes):
+`ETag` on one record, and `If-Match` on a `PATCH` or `DELETE` refused with 409
+`version_conflict` when the record has changed; `Idempotency-Key` on a create replays the
+first answer for 24 hours; list answers carry `Link` and `X-Total-Count`; requests made
+with a token carry `RateLimit-*` headers; every answer carries `X-Request-Id`, which is
+recorded on audit events as `request_id`.
 
 Errors: `{ error: { code, message, fields? } }` with a matching HTTP status.
 
@@ -404,7 +502,9 @@ must carry the header `X-GRC-CSRF: 1` (the web api client adds it); or a persona
 token, `Authorization: Bearer grc_pat_...`, which needs no `X-GRC-CSRF` header and never
 falls back to the cookie. A token acts as its owner, limited to its scopes, cannot reach
 the sign-in, account-security or token routes, and cannot pass a password confirmation.
-See `examples/api-token.ps1`.
+See `examples/api-token.ps1`. Besides permissions, a token may carry a scope family that
+is not a permission (`SCOPE_FAMILIES` in `core/tokens.ts`): today only `mcp.use`, which
+lets it be used at `/mcp`.
 
 ### Permissions
 

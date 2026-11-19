@@ -8,6 +8,7 @@ import {
 } from '../../core';
 import { EscalationSettings, NotificationSettings } from './SettingsAutomation';
 import { CalendarSettings } from './SettingsCalendars';
+import { PortalSettingsTab } from './SettingsPortal';
 import { fieldErrors, put, splitMinutes, workingText, type Calendar, type Policy, type PriorityMatrix } from './util';
 
 export const APPLY_NOTE = 'Changes apply to due times worked out from now on: new tickets, and tickets whose priority changes. Tickets already logged keep the due times they have.';
@@ -225,6 +226,7 @@ export function ServiceDeskSettings() {
     { key: 'calendars', label: 'Calendars and holidays', content: <CalendarSettings canEdit={canEdit} /> },
     { key: 'escalation', label: 'Escalation', content: <EscalationSettings canEdit={canEdit} /> },
     { key: 'notifications', label: 'Notifications', content: <NotificationSettings canEdit={canEdit} /> },
+    { key: 'portal', label: 'Self-service portal', content: <PortalSettingsTab /> },
   ];
   const active = tabs.some((t) => t.key === params.get('tab')) ? (params.get('tab') as string) : 'priorities';
   return (

@@ -1,0 +1,40 @@
+# Only what the image needs goes to the build. Private and local-only material never does.
+
+# Private to each installation, internal documents and assistant notes
+seed/
+**/seed/
+*Build Specification*
+**/*Build Specification*
+CLAUDE.md
+**/CLAUDE.md
+
+# Runtime data, backups, local tools and builds
+data/
+backups/
+.tools/
+node_modules/
+**/node_modules/
+dist/
+*.log
+
+# Secrets and certificates
+.env
+.env.*
+secret.key
+*.secret.key
+*.pem
+*.key
+*.pfx
+deploy/secrets/
+
+# Not needed in the image
+.git/
+.github/
+.vscode/
+.idea/
+examples/
+tools/
+grc.ps1
+server/src/**/*.test.ts
+server/src/test/
+web/src/**/*.test.ts

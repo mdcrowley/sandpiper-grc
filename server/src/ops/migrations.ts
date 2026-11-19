@@ -1,6 +1,6 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { openDb } from '../core/db.ts';
+import { databaseUrl, openDb } from '../core/db.ts';
 import type { Queryable } from '../core/db.ts';
 import { repoRoot } from './files.ts';
 
@@ -16,6 +16,14 @@ export function migrationsOnDisk(srcDir: string = join(repoRoot, 'server/src')):
     for (const file of readdirSync(dir).filter((f) => f.endsWith('.sql')).sort()) names.push(`${scope}/${file}`);
   };
   add('core', join(srcDir, 'core/migrations'));
+  // Core services that keep their own tables (for example core/jobs, core/mail) apply
+  // core/<service>/migrations under the scope "core.<service>" when they start.
+  const coreDir = join(srcDir, 'core');
+  if (existsSync(coreDir)) {
+    for (const d of readdirSync(coreDir, { withFileTypes: true }).filter((e) => e.isDirectory() && e.name !== 'migrations').map((e) => e.name).sort()) {
+      add(`core.${d}`, join(coreDir, d, 'migrations'));
+    }
+  }
   const modulesDir = join(srcDir, 'modules');
   if (existsSync(modulesDir)) {
     const keys = readdirSync(modulesDir, { withFileTypes: true })
@@ -44,7 +52,7 @@ export async function appliedMigrations(db: Queryable): Promise<string[]> {
  * process at a time.
  */
 export async function readAppliedMigrations(dataDir: string, onError?: (message: string) => void): Promise<string[] | null> {
-  if (dataDir !== 'memory' && !existsSync(join(dataDir, 'pg'))) return null;
+  if (!databaseUrl() && dataDir !== 'memory' && !existsSync(join(dataDir, 'pg'))) return null;
   try {
     const db = await openDb(dataDir);
     try {

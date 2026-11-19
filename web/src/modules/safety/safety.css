@@ -1,0 +1,38 @@
+/* Safety module. Tokens only, so both themes work. */
+
+.sf-pad { padding: var(--s-4); }
+.sf-hint { font-size: var(--fs-sm); margin: var(--s-2) 0 0; }
+.sf-actions { text-align: right; white-space: nowrap; }
+.sf-big { font-size: var(--fs-2xl); font-weight: 650; line-height: 1.1; font-variant-numeric: tabular-nums; }
+
+.sf-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: var(--s-4); align-items: start; }
+.sf-summary { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-4); align-items: start; }
+@media (min-width: 1000px) { .sf-summary { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); } }
+.sf-summary > :first-child { grid-column: 1 / -1; }
+.sf-scoring { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--s-4); align-items: start; }
+.sf-scoring .sf-hint { margin: 0 0 var(--s-3); min-height: 2.8em; }
+
+/* The hazard matrix */
+.sf-matrix { overflow-x: auto; }
+.sf-matrix-grid { display: grid; gap: 3px; min-width: 300px; }
+.sf-axis-corner { font-size: var(--fs-xs); align-self: end; padding-bottom: var(--s-1); }
+.sf-col-label { font-size: var(--fs-xs); font-weight: 600; color: var(--text-muted); text-align: center; align-self: end; padding-bottom: var(--s-1); }
+.sf-row-label { font-size: var(--fs-sm); font-weight: 600; color: var(--text-muted); display: flex; align-items: center; padding-right: var(--s-2); }
+.sf-cell {
+  min-height: 44px; border-radius: var(--radius-sm); border: 2px solid transparent; font: inherit; font-size: var(--fs-xs); font-weight: 600;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; padding: 2px;
+}
+button.sf-cell { cursor: pointer; }
+button.sf-cell:hover { border-color: var(--border-strong); }
+.sf-cell.is-chosen { border-color: var(--text); box-shadow: inset 0 0 0 2px var(--surface); }
+.sf-cell.is-chosen::after { content: '✓'; font-size: var(--fs-sm); }
+.sf-cell-n { font-size: var(--fs-lg); line-height: 1.1; }
+.sf-cell.is-empty { opacity: 0.55; }
+.sf-cell-r { font-weight: 500; }
+
+/* Indicators on the dashboard */
+.sf-indicators { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+.sf-indicator { padding: var(--s-4); border-top: 1px solid var(--border); border-left: 1px solid var(--border); margin: 0 0 0 -1px; display: flex; flex-direction: column; gap: var(--s-2); min-width: 0; }
+.sf-ind-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s-2); }
+.sf-ind-figure { display: flex; flex-direction: column; gap: 2px; }
+.sf-ind-figure .muted { font-size: var(--fs-sm); }

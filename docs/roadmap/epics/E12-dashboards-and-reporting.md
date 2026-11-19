@@ -33,11 +33,12 @@ build, schedule and hand out the reports they need without asking for a develope
 | E12-06 | Report packs | done | P2 |
 | E12-07 | Dashboards for read-only roles | in progress | P3 |
 | E12-08 | Print and PDF for dashboards | in progress | P3 |
-| E12-09 | PDF and spreadsheet (XLSX) exports | open | P2 |
+| E12-09 | PDF and spreadsheet (XLSX) exports | done | P2 |
 | E12-10 | Email delivery of scheduled reports | open | P3 |
 | E12-11 | Overview page shows the chosen home dashboard | done | P2 |
 | E12-12 | Default roles and scheduled delivery | done | P2 |
 | E12-13 | Report builder polish | open | P3 |
+| E12-14 | Non-Latin text in server-made PDFs | open | P3 |
 
 ---
 
@@ -184,10 +185,28 @@ As a manager, I can print a dashboard, or save it as a PDF, and get a tidy page.
 
 ### E12-09 PDF and spreadsheet (XLSX) exports
 
-**Status:** open · **Priority:** P2 · **Type:** feature
+**Status:** done · **Priority:** P2 · **Type:** feature
 
-Server-made PDF and XLSX files need packages that are not installed. Today the print-ready
-document is saved as a PDF from the browser, and spreadsheets are CSV.
+As a manager, I download a report, dashboard or pack as a PDF or an Excel workbook made by the
+server, and schedule them in those formats.
+
+**Acceptance criteria**
+
+- [x] XLSX written with `fflate` alone: shared strings, bold frozen header, auto-filter, column widths, typed numbers, currency, percentages and dates (organisation time zone)
+- [x] PDF with `pdfkit` standard fonts: title, the report's filters in words, generated time, a table that continues over pages with its header repeated, a vector chart (bar, line or pie) drawn from the figures, page numbers
+- [x] Dashboards: a group of widgets with a chart or table starts a new page; packs: cover page, one section per page, page numbers
+- [x] Restricted content watermarked on every page (PDF) and under the table (XLSX); exports audited with the format; export permission on every record type as for CSV
+- [x] Scheduled delivery in PDF or Excel stores the file as the snapshot (recipients who may not export get the document); with an `app.sendMail` decorator the file is attached to a link email and the attachment is audited; without it delivery stays in the application
+- [ ] Embed an open font so non-Latin text prints in PDFs (E12-14)
+
+**Implemented in:** `server/src/core/export/pdf.ts`, `xlsx.ts`, `zone.ts`; `server/src/modules/reports/files.ts` (renderers, filter descriptions), `documents.ts`, `index.ts` (`?format=pdf|xlsx` on `/api/reports/:id/export`, `POST /api/reports/export`, `/api/dashboards/:id/export`, `/api/report-packs/:id/export`), `schedule.ts` (email channel), `snapshots.ts` (binary snapshots); `web/src/modules/reports/` (`ReportPages.tsx`, `Builder.tsx`, `DashboardPages.tsx`, `PackPages.tsx`, `DeliveryPages.tsx`, `dialogs.tsx`). Tests: `files.test.ts`, `server/src/core/export/export.test.ts`.
+
+### E12-14 Non-Latin text in server-made PDFs
+
+**Status:** open · **Priority:** P3 · **Type:** improvement
+
+PDFs use PDFKit's standard Helvetica (Windows-1252 only); other characters print as "?".
+Bundle an open font with wide coverage (for example Noto Sans) and embed the subset used.
 
 ### E12-10 Email delivery of scheduled reports
 

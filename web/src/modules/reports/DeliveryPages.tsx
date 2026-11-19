@@ -110,7 +110,7 @@ export function SnapshotsPage() {
                   <tr key={s.id}>
                     <td><Link to={`/reports/snapshots/${s.id}`}>{s.title}</Link>{s.restricted && <> <Icon name="lock" size={14} label="Includes restricted records" /></>}</td>
                     <td>{SOURCE[s.source_type] ?? s.source_type}{s.schedule_id ? ' (scheduled)' : ''}</td>
-                    <td>{s.format === 'csv' ? 'Spreadsheet (CSV)' : 'Document'}</td>
+                    <td>{s.format === 'csv' ? 'Spreadsheet (CSV)' : s.format === 'xlsx' ? 'Excel file' : s.format === 'pdf' ? 'PDF file' : 'Document'}</td>
                     <td>{formatDateTime(s.created_at)}</td>
                   </tr>
                 ))}
@@ -121,6 +121,8 @@ export function SnapshotsPage() {
     </div>
   );
 }
+
+const FILE_NAMES: Record<string, string> = { csv: 'CSV', xlsx: 'Excel file', pdf: 'PDF' };
 
 export function SnapshotPage() {
   const { id } = useParams();
@@ -135,12 +137,13 @@ export function SnapshotPage() {
     <div className="stack">
       <PageHeader title={s.title} breadcrumbs={[{ label: 'Delivered to me', to: '/reports/snapshots' }, { label: s.title }]}
         subtitle={`Figures as at ${formatDateTime(s.created_at)}. This copy does not change.`}
-        actions={!s.can_download ? undefined : s.format === 'csv'
-          ? <Button variant="primary" icon="download" onClick={() => downloadFile(`${s.title}.csv`, 'GET', src).catch((err) => toast.error(errorMessage(err)))}>Download</Button>
+        actions={!s.can_download ? undefined : s.format !== 'html'
+          ? <Button variant="primary" icon="download" onClick={() => downloadFile(`${s.title}.${s.format}`, 'GET', src).catch((err) => toast.error(errorMessage(err)))}>Download {FILE_NAMES[s.format] ?? 'file'}</Button>
           : <Button variant="primary" icon="download" onClick={() => downloadFile(`${s.title}.html`, 'GET', `${src}?download=1`).catch((err) => toast.error(errorMessage(err)))}>Download to print or save as PDF</Button>} />
       {s.restricted && <p className="notice notice-warn"><Icon name="lock" size={16} /> Includes restricted records. Do not pass it to anyone who may not see them.</p>}
-      {s.format === 'csv'
-        ? <EmptyState icon="download" title="A spreadsheet file" message={s.can_download ? 'Download it to open in a spreadsheet program.' : 'Your role does not allow downloading it.'} />
+      {s.format !== 'html'
+        ? <EmptyState icon="download" title={s.format === 'pdf' ? 'A PDF file' : 'A spreadsheet file'}
+            message={s.can_download ? `Download it to open it${s.format === 'pdf' ? '' : ' in a spreadsheet program'}.` : 'Your role does not allow downloading it.'} />
         : <iframe className="rp-snapshot-frame" title={s.title} src={src} sandbox="" />}
     </div>
   );

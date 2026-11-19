@@ -7,7 +7,8 @@ import { buildApp } from '../app.ts';
 import { acceptTotpCode, readTotpSecret, SESSION_COOKIE, storeTotpSecret } from './auth.ts';
 import type { ModuleDef } from './module.ts';
 import { makeDbLimiter } from './ratelimit.ts';
-import { KEY_FILE_NAME, makeSecretBox, parseKey } from './secretbox.ts';
+import { makeSecretBox, parseKey } from './secretbox.ts';
+import { defaultKeyFile } from './secretkey.ts';
 import { ADMIN, testApp } from '../test/helpers.ts';
 import { generateTotpSecret, matchTotpStep, totpCode, verifyTotp } from './totp.ts';
 
@@ -241,8 +242,24 @@ describe('permissions and restricted records', () => {
     expect((await agent.get(`/api/history?record_type=widget&record_id=${hidden.body.id}`)).status).toBe(404);
     expect((await agent.get(`/api/widgets/${pointer.body.id}`)).body._display.parent_id).toBe('Restricted');
     expect((await agent.get('/api/widgets?format=csv')).text).not.toContain('Zebra');
+    // Figures are the same for everyone: the restricted widget counts, but none of its words or links show.
     const stats = await agent.get('/api/widgets/stats?group=restricted');
-    expect(stats.body.groups.map((g: any) => g.value)).toEqual(['false']);
+    expect(stats.body).toEqual((await t.api.get('/api/widgets/stats?group=restricted')).body);
+    expect(stats.body.total).toBe(adminTotal);
+    expect(stats.body.groups.find((g: any) => g.value === 'true').count).toBe(1);
+    const byName = (await agent.get('/api/widgets/stats?group=name')).body;
+    expect(byName).toEqual((await t.api.get('/api/widgets/stats?group=name')).body);
+    expect(JSON.stringify(byName)).not.toContain('Zebra');
+    expect(byName.groups.find((g: any) => g.restricted)).toMatchObject({ value: null, label: 'Restricted records', count: 1 });
+    // A search or a filter on its words never finds it in a figure, for anyone.
+    for (const q of ['q=zebra', 'f.name=Zebra%20confidential']) {
+      expect((await agent.get(`/api/widgets/stats?group=status&${q}`)).body.total).toBe(0);
+      expect((await t.api.get(`/api/widgets/stats?group=status&${q}`)).body.total).toBe(0);
+    }
+    // The pointer's reference to it is labelled "Restricted" for the agent; the count is the same.
+    const byParent = (await agent.get('/api/widgets/stats?group=parent_id')).body;
+    expect(byParent.groups.find((g: any) => g.value === hidden.body.id)).toMatchObject({ label: 'Restricted', count: 1 });
+    expect(byParent.total).toBe((await t.api.get('/api/widgets/stats?group=parent_id')).body.total);
 
     expect((await agent.get('/api/secrets')).status).toBe(403);
     expect((await agent.get('/api/meta')).body.resources.secret).toBeUndefined();
@@ -491,7 +508,7 @@ describe('across a restart (E01-22, E02-07)', () => {
     delete process.env.GRC_SECRET_KEY; delete process.env.GRC_SECRET_KEY_FILE;
     try {
       const first = await buildApp({ dataDir: dir, serveWeb: false });
-      const keyFile = join(dir, KEY_FILE_NAME);
+      const keyFile = defaultKeyFile(dir); // beside the data folder, not inside it
       expect(existsSync(keyFile)).toBe(true); // generated on first start
       const limiter = makeDbLimiter(first.db, 'test', 3, 60_000);
       for (let i = 0; i < 3; i++) await limiter.hit('198.51.100.7');

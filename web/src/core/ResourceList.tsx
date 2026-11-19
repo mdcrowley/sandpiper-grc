@@ -1,14 +1,14 @@
 // Generic list for any registered record type: server-side search, sort, filter and paging kept
-// in the page address, saved views, column chooser, density, CSV export, row selection with bulk
-// edit, and an optional New dialog.
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+// in the page address, saved views, column chooser, density, export (CSV, Excel, PDF), import from
+// a CSV or Excel file, row selection with bulk edit, and an optional New dialog.
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { ActionIcon, Alert, Button, CloseButton, Menu, Pagination, Select as MSelect, Text, TextInput, Tooltip } from '@mantine/core';
 import {
-  IconBaselineDensityMedium, IconBaselineDensitySmall, IconBookmark, IconCheck, IconChevronDown, IconDownload,
+  IconBaselineDensityMedium, IconBaselineDensitySmall, IconBookmark, IconCheck, IconChevronDown, IconUpload,
   IconPlus, IconSearch, IconTrash,
 } from '@tabler/icons-react';
-import { api, errorMessage, listQuery, type ListResult, type Row } from './api';
+import { errorMessage, listQuery, type ListResult, type Row } from './api';
 import { useAuth } from './auth';
 import { TextField } from './fields';
 import { fieldMeta } from './FieldValue';
@@ -16,6 +16,7 @@ import { formatNumber } from './format';
 import { useDebounced, useFetch } from './hooks';
 import { knownLabel, rememberLabel } from './labels';
 import { BULK_TYPES, BulkBar, BulkEditDialog, downloadRowsCsv } from './ListBulk';
+import { ExportMenu } from './ListExport';
 import { FILTERABLE, FilterButton, FilterPills, TAGS_FILTER } from './ListFilters';
 import { EMPTY_VIEW, sameView, useListState, usePref, useSavedViews, type SavedView, type View } from './listState';
 import { ColumnChooser, ListTable, TableSkeleton, type ListColumn } from './ListTable';
@@ -25,6 +26,9 @@ import { ConfirmDialog, Modal, useToast } from './overlay';
 import { ResourceForm } from './ResourceForm';
 import { EmptyState, ErrorState, PageHeader } from './ui';
 import './records.css';
+
+// The import wizard's code loads the first time someone opens it.
+const ImportWizard = lazy(() => import('./ImportWizard').then((m) => ({ default: m.ImportWizard })));
 
 export type ColumnDef =
   | string
@@ -124,7 +128,7 @@ export function ResourceList({
   const [creating, setCreating] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
   const formDirty = useRef(false);
-  const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [selected, setSelected] = useState<Map<string, Row>>(() => new Map());
   const [bulkEditing, setBulkEditing] = useState(false);
   const bulkChanged = useRef(false);
@@ -132,17 +136,24 @@ export function ResourceList({
   const canCreate = Boolean(createFields && resource && can(`${resource.module}.create`));
   const canEdit = Boolean(resource && can(`${resource.module}.edit`));
   const canExport = Boolean(resource && can(`${resource.module}.export`));
+  // Import (core/ImportWizard): from the list that is the page, for people who may create or change the type.
+  const isPage = Boolean(title) || atHome;
+  const canImport = Boolean(resource && isPage && (can(`${resource.module}.create`) || can(`${resource.module}.edit`))
+    && (!resource.restricted || resource.restricted === 'flag' || can('security.view')));
 
-  // The global Create menu links here with ?new=1.
+  // The global Create menu links here with ?new=1; ?import=1 opens the import wizard.
   const wantsNew = params.get('new') === '1';
+  const wantsImport = params.get('import') === '1';
   useEffect(() => {
-    if (!wantsNew) return;
-    if (canCreate) setCreating(true);
+    if (!wantsNew && !wantsImport) return;
+    if (wantsNew && canCreate) setCreating(true);
+    if (wantsImport && canImport) setImporting(true);
     setParams((p) => {
       p.delete('new');
+      p.delete('import');
       return p;
     }, { replace: true });
-  }, [wantsNew, canCreate, setParams]);
+  }, [wantsNew, wantsImport, canCreate, canImport, setParams]);
 
   // Search box: typed text is local, the view follows after a pause; Back/Forward flow the other way.
   const [text, setText] = useState(view.q);
@@ -258,22 +269,6 @@ export function ResourceList({
   const open = (row: Row) => (onRowClick ? onRowClick(row) : navigate(recordHref(resource.route, row.id)));
   const fileName = `${plural.replace(/\s+/g, '-')}.csv`;
 
-  const exportCsv = async () => {
-    setExporting(true);
-    try {
-      const blob = await api.blob(`${resource.path}${listQuery({ ...query, format: 'csv' })}`);
-      const href = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = href;
-      a.download = fileName;
-      a.click();
-      URL.revokeObjectURL(href);
-    } catch (err) {
-      toast.error(errorMessage(err));
-    } finally {
-      setExporting(false);
-    }
-  };
   const exportSelected = () => {
     const fields = visible.filter((c) => c.known).map((c) => c.field);
     downloadRowsCsv(resource, fields.length > 0 ? fields : [resource.titleField], [...selected.values()], fileName.replace('.csv', '-selected.csv'));
@@ -381,10 +376,14 @@ export function ResourceList({
             </ActionIcon>
           </Tooltip>
           {canExport && (
-            <Tooltip label={`Export ${filtered ? 'the filtered' : 'all'} ${plural} as CSV`}>
-              <Button variant="default" className="rc-icon-label" loading={exporting} leftSection={<IconDownload size={16} aria-hidden="true" />} onClick={() => void exportCsv()}>
-                <span className="rc-btn-label">Export</span>
-                <span className="rc-sr-only"> CSV</span>
+            <ExportMenu resource={resource} query={query} filtered={filtered}
+              columns={visible.filter((c) => c.known || c.field in resource.fields).map((c) => c.field)} />
+          )}
+          {canImport && (
+            <Tooltip label={`Import ${plural} from a CSV or Excel file`}>
+              <Button variant="default" className="rc-icon-label" leftSection={<IconUpload size={16} aria-hidden="true" />} onClick={() => setImporting(true)}>
+                <span className="rc-btn-label">Import</span>
+                <span className="rc-sr-only"> {plural}</span>
               </Button>
             </Tooltip>
           )}
@@ -519,6 +518,12 @@ export function ResourceList({
           }
         }}
       />
+
+      {canImport && importing && (
+        <Suspense fallback={null}>
+          <ImportWizard resource={resource} open={importing} onClose={() => setImporting(false)} onImported={reload} />
+        </Suspense>
+      )}
 
       <Modal open={naming !== null} title="Save view" size="sm" onClose={() => setNaming(null)}>
         <form

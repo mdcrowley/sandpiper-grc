@@ -2,7 +2,9 @@
 
 This installs the prototype on one Windows machine. It needs no administrator rights, no
 Docker and no database server. It is not a production installation: see
-[Security](security.md) and [Known gaps](known-gaps.md).
+[Security](security.md) and [Known gaps](known-gaps.md). To serve a team, with a
+PostgreSQL server, HTTPS, a reverse proxy or containers, see
+[Server installation](#server-installation).
 
 ## Requirements
 
@@ -10,8 +12,8 @@ Docker and no database server. It is not a production installation: see
 - The repository, cloned or copied to a folder you can write to.
 - Internet access **during installation only**, to download Node.js and the npm packages.
   The running application makes no outbound connections.
-- A current web browser on the same machine. The server listens on `127.0.0.1` only, so it
-  cannot be reached from another computer.
+- A current web browser on the same machine. The server listens on `127.0.0.1` unless told
+  otherwise, so it cannot be reached from another computer.
 
 ## 1. Put the portable Node.js in `.tools\node`
 
@@ -258,7 +260,8 @@ scheduled task.)
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `GRC_PORT` | `8080` | Port the server listens on (always on `127.0.0.1`) |
+| `GRC_PORT` | `8080` | Port the server listens on |
+| `GRC_HOST` | `127.0.0.1` | Address the server listens on. Any address other machines can reach (`0.0.0.0`, `::`, a network address) needs HTTPS or `GRC_ALLOW_INSECURE=1`; see [Server installation](#server-installation) |
 | `GRC_DATA_DIR` | `.\data` | Folder for the database, attached files, process id file and logs. The value `memory` gives a throwaway in-memory database; it is meant for tests and for `npm start` in a plain shell, not for `.\grc.ps1 start` |
 | `GRC_BACKUP_DIR` | `.\backups` | Folder for backups, safety copies and (by default) exports. Point it at another disk to keep backups away from the data |
 | `GRC_WEB_DIST` | `.\dist\web` | Folder the web application is built into and served from. A development aid for running a second copy |
@@ -268,8 +271,21 @@ scheduled task.)
 | `GRC_SECRET_KEY` | not set | The key that encrypts authenticator (second-factor) keys in the database: 32 bytes, as 64 hex characters or base64. When not set, the key file below is used |
 | `GRC_SECRET_KEY_FILE` | `secret.key` in the data folder | Path of a file holding the same key. The default file is generated on first start. Point this outside the data and backup folders to keep the key apart from the database |
 | `GRC_SECRET_KEY_PREVIOUS` | not set | Retired keys, comma-separated, in the same format. Needed for one start after changing the key, so existing values can be re-encrypted; see [Security](security.md) |
-| `GRC_COOKIE_SECURE` | `off` | `off`, `auto` or `always`: whether the session cookie is marked `Secure`. `auto` marks it when the request arrived over HTTPS. Leave `off` on plain `http://127.0.0.1` |
-| `GRC_TRUST_PROXY` | off | `1` when the server sits behind one reverse proxy you control: its `X-Forwarded-Proto` and `X-Forwarded-For` headers are then believed. Never set it without such a proxy |
+| `GRC_COOKIE_SECURE` | `off`; `auto` when HTTPS or a trusted proxy is configured | `off`, `auto` or `always`: whether the session cookie is marked `Secure`. `auto` marks it when the request arrived over HTTPS (directly, or as reported by a trusted proxy) |
+| `GRC_TRUST_PROXY` | off | Which reverse proxies may set `X-Forwarded-For`, `-Proto` and `-Host`: a comma-separated list of addresses, CIDR ranges and the words `loopback`, `private` and `linklocal` (recommended), or a number of proxy hops whatever their address (`1` = one proxy; only when nothing can reach the server except through it). Client addresses in the audit log, sessions and rate limits, HTTPS detection and HSTS all follow it. Never set it without such a proxy |
+| `GRC_TLS_CERT`, `GRC_TLS_KEY` | not set | PEM certificate (with any intermediate certificates after it) and private key files. When both are set the server speaks HTTPS itself |
+| `GRC_ALLOW_INSECURE` | off | `1` allows plain HTTP on an address other machines can reach. Only for a server whose HTTPS is terminated by a proxy in front of it |
+| `GRC_HSTS_MAX_AGE` | `31536000` (one year) | `Strict-Transport-Security` max-age in seconds, sent on HTTPS responses only. `0` switches the header off |
+| `GRC_HSTS_INCLUDE_SUBDOMAINS` | off | `1` adds `includeSubDomains`. Only if every name under the domain is served over HTTPS |
+| `GRC_DATABASE_URL` | not set (embedded database) | A PostgreSQL connection string, `postgres://user@host:5432/dbname`. Set it to use a database server instead of the embedded database. `GRC_DATABASE_URL_FILE` names a file holding it |
+| `GRC_DATABASE_PASSWORD` | not set | The database password, replacing any in the URL, so the URL need not be secret. `GRC_DATABASE_PASSWORD_FILE` names a file holding it |
+| `GRC_DATABASE_SSL` | as the URL's `sslmode` | `off`, `require` (encrypted, certificate not checked) or `verify` (encrypted and checked). `GRC_DATABASE_SSL_CA` names a PEM file of the certificate authority to check against. An `sslmode` in the URL takes precedence |
+| `GRC_DATABASE_SCHEMA` | the server's default (`public`) | Schema the application's tables live in (`search_path`). Create it, owned by the application's role, beforehand |
+| `GRC_DATABASE_POOL_MAX` | `10` | Most connections the server keeps open |
+| `GRC_DATABASE_STATEMENT_TIMEOUT` | `120000` | Milliseconds a single statement may run before the server cancels it. `0` for no limit |
+| `GRC_DATABASE_IDLE_TX_TIMEOUT` | `300000` | Milliseconds a transaction may sit idle before the server ends it |
+| `GRC_DATABASE_CONNECT_TIMEOUT` | `10000` | Milliseconds to wait for a new connection |
+| `GRC_DATABASE_IDLE_TIMEOUT` | `30000` | Milliseconds an unused pooled connection stays open |
 | `GRC_MODULES` | all modules | Comma-separated module folder names to load, for example `admin,tickets`. A development aid; see [Architecture](architecture.md#testing) |
 
 Limits to know about:
@@ -314,10 +330,181 @@ Two ways, both described in [Operations](operations.md):
   not been through the setup wizard. Take the secret key across as well; see
   [Export and import](operations.md#export-and-import).
 
+## Server installation
+
+Everything above runs the application for one person on one machine. To serve a team, three
+things change, each switched on by an environment variable and each independent of the
+others: the database moves to a PostgreSQL server, the connection is encrypted, and the
+server listens on an address other machines can reach. Containers (below) put all three
+together.
+
+Run **one** application process per database. Timers, the webhook queue and some counters
+live in the process's memory, so two copies against the same database would each run them
+([Architecture](architecture.md#path-to-production)).
+
+### PostgreSQL server
+
+Without `GRC_DATABASE_URL` the application uses its embedded database in the data folder.
+With it, the same SQL runs on a PostgreSQL server:
+
+- **Version.** PostgreSQL 15 or later. No extensions are needed: the schema uses the
+  built-in `gen_random_uuid()`, the standard `english` and `simple` text search
+  configurations and PL/pgSQL triggers. The test suite runs through the server driver in
+  continuous integration, against PostgreSQL 17 and against the embedded engine served over
+  the network protocol.
+- **Create a role and a database** (as a superuser, in `psql`). The application's role owns
+  its database, because migrations create and change tables at every start:
+
+  ```sql
+  create role grc login password 'choose-a-long-password';
+  -- PostgreSQL 17 and later: byte-order sorting, the same as the embedded database
+  create database grc owner grc encoding 'UTF8' template template0 locale_provider builtin builtin_locale 'C.UTF-8';
+  -- PostgreSQL 15 and 16:
+  -- create database grc owner grc encoding 'UTF8' template template0 lc_collate 'C' lc_ctype 'C.UTF-8';
+  ```
+
+  Any other UTF-8 locale also works; lists sorted by name then follow that locale's rules
+  instead of byte order.
+- **Point the application at it**, then start as usual. Migrations run at start-up, exactly
+  as with the embedded database:
+
+  ```sh
+  GRC_DATABASE_URL=postgres://grc@db.example.internal:5432/grc
+  GRC_DATABASE_PASSWORD_FILE=/etc/sandpiper/db-password     # or put the password in the URL
+  GRC_DATABASE_SSL=verify                                     # a server on another machine
+  GRC_DATABASE_SSL_CA=/etc/sandpiper/db-ca.pem                # if its certificate is from a private authority
+  ```
+
+  The start-up line names the server (with the password hidden). If it cannot connect,
+  the server stops at once and says why.
+- **The data folder is still needed.** Attached files, the process file and (unless
+  `GRC_SECRET_KEY` or `GRC_SECRET_KEY_FILE` is set) the secret key file stay on disk.
+- **Sessions.** Every connection is given the organisation's time zone (`GRC_TIMEZONE`),
+  the statement and idle-transaction timeouts and, if set, `GRC_DATABASE_SCHEMA`, so the
+  server's own defaults do not matter. Transactions each hold one pooled connection from
+  start to finish.
+- **Moving embedded data to a server.** On the old installation, `export-all`; on the new
+  one, with `GRC_DATABASE_URL` pointing at an empty database and before the setup wizard,
+  `import-all <folder>`. Take the secret key across. See
+  [Export and import](operations.md#export-and-import).
+- **Backups** are taken with the database server's own tools in this mode; see
+  [Operations](operations.md#postgresql-server-backups).
+
+### HTTPS
+
+Plain HTTP is accepted only on the loopback address. Choose one of:
+
+- **The application serves HTTPS itself.** Give it a certificate and key in PEM files
+  (the certificate file may continue with the intermediate certificates):
+
+  ```sh
+  GRC_HOST=0.0.0.0  GRC_PORT=443
+  GRC_TLS_CERT=/etc/sandpiper/tls/fullchain.pem  GRC_TLS_KEY=/etc/sandpiper/tls/privkey.pem
+  ```
+
+  Listening on port 443 needs a privilege on most systems; port 8443 behind a firewall
+  redirect is the usual alternative. The certificate is read at start: restart after
+  renewing it.
+- **A reverse proxy terminates HTTPS** in front of the application (next section).
+
+Either way the session cookie is marked `Secure` (`GRC_COOKIE_SECURE` becomes `auto`
+unless set), and HTTPS responses carry `Strict-Transport-Security` (one year by default;
+`GRC_HSTS_MAX_AGE`).
+
+Starting with `GRC_HOST` set to an address other machines can reach, and neither a
+certificate nor `GRC_ALLOW_INSECURE=1`, stops with:
+`Refusing to serve plain HTTP on 0.0.0.0, which other machines can reach.`
+
+**A certificate for testing only.** This writes a self-signed certificate valid for 30
+days for `localhost`, `127.0.0.1` and `::1` (or the names you give). Browsers do not trust
+it and warn on every visit; never use it for real users.
+
+```sh
+npx tsx server/src/core/tls-selfsigned.ts ./data-certs                 # or: ... ./data-certs grc.example.test 192.0.2.10
+GRC_TLS_CERT=./data-certs/cert.pem GRC_TLS_KEY=./data-certs/key.pem npm start
+```
+
+### Reverse proxy
+
+A proxy such as nginx, Caddy, HAProxy or a cloud load balancer terminates HTTPS and passes
+requests to the application over HTTP. Tell the application which proxy to believe, so
+that client addresses (audit log, sessions, sign-in rate limits) and "was this HTTPS?"
+come from the proxy's `X-Forwarded-For` and `X-Forwarded-Proto` headers, and only from it:
+
+| Where the proxy runs | Settings |
+|---|---|
+| Same machine | `GRC_HOST` unset (127.0.0.1), `GRC_TRUST_PROXY=loopback` |
+| Another machine | `GRC_HOST=0.0.0.0`, `GRC_ALLOW_INSECURE=1`, `GRC_TRUST_PROXY=<the proxy's address or range>`, and a firewall so that only the proxy reaches the port |
+| Containers on one Docker network | `GRC_HOST=0.0.0.0`, `GRC_ALLOW_INSECURE=1`, `GRC_TRUST_PROXY=private` (as `compose.yaml` does) |
+
+The proxy must **replace or append to** `X-Forwarded-For` (never pass on a value the
+browser sent unchecked) and set `X-Forwarded-Proto`. The application believes headers
+only from a listed address; a request arriving from anywhere else is taken at face value.
+A minimal nginx site:
+
+```nginx
+server {
+  listen 443 ssl;
+  server_name grc.example.test;
+  ssl_certificate     /etc/ssl/grc/fullchain.pem;
+  ssl_certificate_key /etc/ssl/grc/privkey.pem;
+  client_max_body_size 25m;                    # attachments
+  location / {
+    proxy_pass http://127.0.0.1:8080;
+    proxy_set_header Host              $host;
+    proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+}
+```
+
+With Caddy, `grc.example.test { reverse_proxy 127.0.0.1:8080 }` does the same and obtains
+the certificate itself. If people sign in with passkeys, set `GRC_WEBAUTHN_RP_ID` and
+`GRC_WEBAUTHN_ORIGINS` to the address they type ([Security](security.md)).
+
+### Containers
+
+`Dockerfile` builds an image (Node.js, production packages only, the built web application,
+running as an unprivileged user, with a health check on `/api/health`), and `compose.yaml`
+runs it in one of two ways:
+
+```sh
+mkdir -p deploy/secrets
+openssl rand -hex 32 > deploy/secrets/secret_key.txt
+openssl rand -base64 32 | tr -d '/+=' > deploy/secrets/db_password.txt
+chmod 644 deploy/secrets/*.txt                     # readable by the container's user (see deploy/secrets/README.md)
+
+docker compose --profile embedded up -d --build    # the application alone, embedded database in a volume
+# or
+docker compose --profile server up -d --build      # the application and PostgreSQL 17
+```
+
+Then open `http://127.0.0.1:8080` on the host and complete the setup wizard. In both
+profiles:
+
+- All configuration is by environment variable; secrets come from files under
+  `/run/secrets` (`GRC_SECRET_KEY_FILE`, `GRC_DATABASE_PASSWORD_FILE`). Add your own
+  settings (`GRC_TIMEZONE`, `GRC_CURRENCY`, ...) to the `environment` block.
+- Everything the application writes is under `/var/lib/sandpiper` (a named volume: database
+  in embedded mode, attached files, backups). The root filesystem is read-only.
+- The port is published on `127.0.0.1` only, over HTTP, with `GRC_ALLOW_INSECURE=1`: put the
+  reverse proxy of the previous section in front of it. To serve HTTPS from the container
+  instead, mount the certificate files, set `GRC_TLS_CERT` and `GRC_TLS_KEY`, remove
+  `GRC_ALLOW_INSECURE`, and publish the port on the address you need.
+- Commands run inside the container, for example
+  `docker compose exec app node --experimental-transform-types server/src/cli.ts status`.
+  The image runs the TypeScript sources with Node.js's built-in type transformation, so it
+  holds no compiler.
+- `docker compose stop` sends a terminate signal; the server finishes requests in progress
+  and closes the database cleanly (it waits up to 20 seconds).
+
+The image is built and started in continuous integration on every push. It has not yet been
+published to a registry.
+
 ## Other operating systems
 
 `grc.ps1` and `tools\install-node.ps1` are for Windows. The application itself also runs
-on Linux and macOS (not yet tested there, since CI is local on Windows for now): install the Node.js
+on Linux and macOS (continuous integration runs the tests on Linux): install the Node.js
 major version named in `tools/node-version.txt`, then `npm install`,
 `npm run seed -- --profile dev`, `npm run build` and `npm start`. Backup, restore, export
 and import are available as `npm run cli -- <command>` with the server stopped; starting,

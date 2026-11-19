@@ -6,6 +6,10 @@ import type { FieldDef, ResourceDef, ResourceRegistry, Row, SessionUser } from '
 import { CUSTOM_PREFIX, customFieldDef, customName, type CustomField, type CustomFields } from './customfields.ts';
 import { ensureSearchIndex, parseSearch } from './search.ts';
 import { can, type makeAudit, type makeLookups } from './services.ts';
+// Spreadsheet and PDF exports, record fact sheets and the generic import (core/export, core/import).
+import { exportColumns, sendListExport } from './export/list.ts';
+import { registerExportRoutes } from './export/routes.ts';
+import { registerImportRoutes } from './import/routes.ts';
 
 const IDENT = /^[a-z_][a-z0-9_]*$/;
 const CODE = CURRENCY.replace(/[^A-Z]/g, '') || 'USD';
@@ -37,6 +41,17 @@ export interface RecordChange {
   req: FastifyRequest | null;
 }
 export type ChangeListener = (change: RecordChange) => Promise<void> | void;
+
+/**
+ * Field types that hold a record's details: its words and its people. Figures (counts, totals,
+ * charts) include restricted records for everyone, but never match, group or label a restricted
+ * record by the value of such a field; whether the field is blank still counts.
+ */
+export const DETAIL_TYPES: ReadonlySet<string> = new Set(['text', 'longtext', 'json', 'user']);
+/** The group value a figure gives a restricted record in place of a detail (SQL and its value). */
+export const MASKED_SQL = `(chr(1) || 'restricted')`;
+export const MASKED_VALUE = '\u0001restricted';
+export const MASKED_LABEL = 'Restricted records';
 
 /** Tags as stored: trimmed, lower case, single spaces, no commas, at most 40 characters. */
 export const normaliseTag = (raw: unknown) => String(raw ?? '').toLowerCase().replace(/[\s,]+/g, ' ').trim().slice(0, 40);
@@ -476,11 +491,25 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
     return f.type === 'number' || f.type === 'currency' ? `${text}::numeric` : f.type === 'date' ? `${text}::date` : text;
   }
 
-  function buildWhere(def: ResourceDef, query: Record<string, string>, user: SessionUser | null, customDefs: Record<string, FieldDef> = {}) {
-    const where = ['deleted_at is null', visibilitySql(def, user)];
+  /**
+   * The WHERE clause for a list (`figures` false: only what the caller may see) or for a figure
+   * (`figures` true, GET /stats: every record, whoever asks; see "Figures" in docs/security.md).
+   * In a figure, a condition that reads a restricted record's details (its words, its people, a
+   * search) never matches that record, so a figure cannot be used to find out what one says. A
+   * figure about the caller's own records ("me") is theirs alone and keeps the list rule.
+   */
+  function buildWhere(def: ResourceDef, query: Record<string, string>, user: SessionUser | null, customDefs: Record<string, FieldDef> = {}, figures = false) {
+    const fieldOf = (name: string) => def.fields[name] ?? STD_FIELDS[name] ?? customDefs[name];
+    const personal = figures && Object.entries(query).some(([key, v]) => {
+      const [f, name, op] = key.split('.');
+      return f === 'f' && op === undefined && fieldOf(name)?.type === 'user' && String(v).split(',').includes('me');
+    });
+    const everyone = figures && !personal;
+    const where = ['deleted_at is null', everyone ? 'true' : visibilitySql(def, user)];
+    const masks = everyone && def.restricted === 'flag';
+    const guard = (cond: string) => (masks ? `(not coalesce(restricted, false) and ${cond})` : cond);
     const params: unknown[] = [];
     const add = (v: unknown) => { params.push(v); return `$${params.length}`; };
-    const fieldOf = (name: string) => def.fields[name] ?? STD_FIELDS[name] ?? customDefs[name];
     /** Set when the query is a full-text search: an expression to order the best matches first. */
     let rank: string | null = null;
 
@@ -495,12 +524,12 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
         const tsq = search.tsquery(add);
         const entry = `from search_index si where si.record_type = ${add(def.type)} and si.record_id = ${def.table}.id`;
         const exact = def.ref ? `lower(${def.ref.field}::text) = lower(${add(search.text)}::text)` : 'false';
-        where.push(`(exists (select 1 ${entry} and si.vector @@ ${tsq}) or ${exact}`
-          + ` or ${search.single ? substring : `${def.titleField}::text ilike ${like}${def.ref ? ` or ${def.ref.field}::text ilike ${like}` : ''}`})`);
+        where.push(guard(`(exists (select 1 ${entry} and si.vector @@ ${tsq}) or ${exact}`
+          + ` or ${search.single ? substring : `${def.titleField}::text ilike ${like}${def.ref ? ` or ${def.ref.field}::text ilike ${like}` : ''}`})`));
         rank = `(coalesce((select ts_rank(si.vector, ${tsq}) ${entry}), 0) + case when ${exact} then 10 else 0 end`
           + ` + case when ${def.titleField}::text ilike ${like} then 0.5 else 0 end)`;
       } else {
-        where.push(`(${substring})`);
+        where.push(guard(`(${substring})`));
       }
     }
     for (const [key, raw] of Object.entries(query)) {
@@ -511,8 +540,8 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
         // Tags (core/tags.ts): f.tags=a,b is any of; f.tags.all=a,b is every one; f.tags.null=true is untagged.
         const tagged = `select 1 from record_tags rt where rt.record_type = ${add(def.type)} and rt.record_id = ${def.table}.id`;
         const tags = [...new Set(value.split(',').map(normaliseTag).filter(Boolean))];
-        if (!op) where.push(`exists (${tagged} and rt.tag = any(${add(tags)}::text[]))`);
-        else if (op === 'all') for (const t of tags) where.push(`exists (${tagged} and rt.tag = ${add(t)})`);
+        if (!op) where.push(guard(`exists (${tagged} and rt.tag = any(${add(tags)}::text[]))`));
+        else if (op === 'all') for (const t of tags) where.push(guard(`exists (${tagged} and rt.tag = ${add(t)})`));
         else if (op === 'null') where.push(`${value === 'true' ? 'not ' : ''}exists (${tagged})`);
         else fail(400, 'bad_filter', `Unknown filter operator "${op}".`);
         continue;
@@ -524,7 +553,10 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
       if (!op) {
         const values = value.split(',').map((v) => (v === 'me' && f.type === 'user' ? user?.id ?? '' : v));
         if (f.multiple) where.push(`jsonb_exists_any(custom->'${name.slice(CUSTOM_PREFIX.length)}', ${add(values)}::text[])`);
-        else where.push(`${col}::text = any(${add(values)}::text[])`);
+        else {
+          const cond = `${col}::text = any(${add(values)}::text[])`;
+          where.push(DETAIL_TYPES.has(f.type) ? guard(cond) : cond);
+        }
       } else if (op === 'null') {
         where.push(`${col} is ${value === 'true' ? '' : 'not '}null`);
       } else if (['gt', 'lt', 'gte', 'lte'].includes(op)) {
@@ -535,7 +567,7 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
         fail(400, 'bad_filter', `Unknown filter operator "${op}".`);
       }
     }
-    return { where: where.join(' and '), params, rank };
+    return { where: where.join(' and '), params, rank, everyone };
   }
 
   function csvCell(v: unknown): string {
@@ -575,7 +607,7 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
       if (query.format === 'csv') {
         authorize(req, def, 'export');
         const rows = await decorate(def, await db.query(`select * from ${def.table} where ${where} ${order} limit 50000`, params), req.user);
-        const exported: Record<string, FieldDef> = { ...def.fields, ...customDefs };
+        const exported: Record<string, FieldDef> = Object.fromEntries(exportColumns({ ...def.fields, ...customDefs }, query.columns));
         const names = Object.keys(exported);
         const lines = [names.map((n) => csvCell(exported[n].label)).join(',')];
         for (const r of rows) lines.push(names.map((n) => csvCell(r._display?.[n] ?? r[n])).join(','));
@@ -588,6 +620,15 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
         reply.header('content-disposition', `attachment; filename="${def.type}-export.csv"`);
         return '﻿' + lines.join('\r\n');
       }
+      // Spreadsheet (XLSX) and PDF: the same rows, permissions, watermark rule and audit as CSV (core/export/list.ts).
+      if (query.format === 'xlsx' || query.format === 'pdf') {
+        authorize(req, def, 'export');
+        const rows = await decorate(def, await db.query(`select * from ${def.table} where ${where} ${order} limit 50000`, params), req.user);
+        return sendListExport({
+          req, reply, db, audit, def, rows, fields: { ...def.fields, ...customDefs }, query, format: query.format,
+          lookupLabels: async (list, value) => (await lookups.values(list)).find((x) => x.value === value)?.label,
+        });
+      }
 
       const pageSize = Math.min(500, Math.max(1, Number(query.pageSize) || 50));
       const page = Math.max(1, Number(query.page) || 1);
@@ -598,6 +639,9 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
       return { rows: await decorate(def, rows, req.user), total, page, pageSize };
     });
 
+    // A figure: the same counts for everyone who may view the type, restricted records included
+    // (buildWhere, figures). A restricted record is grouped under "Restricted records" when the
+    // grouping field is one of its details; a restricted related record is labelled "Restricted".
     app.get(`${def.path}/stats`, async (req) => {
       authorize(req, def, 'view');
       const query = req.query as Record<string, string>;
@@ -605,16 +649,21 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
       const customDefs = await custom.defs(def.type);
       const f = def.fields[group] ?? customDefs[group];
       if (!f || !IDENT.test(group) || f.multiple) fail(400, 'bad_group', `Cannot group by "${group}".`);
-      const { where, params } = buildWhere(def, query, req.user, customDefs);
+      const { where, params, everyone } = buildWhere(def, query, req.user, customDefs, true);
+      const col = columnSql(group, f);
+      const value = everyone && def.restricted === 'flag' && DETAIL_TYPES.has(f.type)
+        ? `case when coalesce(restricted, false) and ${col} is not null then ${MASKED_SQL} else ${col}::text end`
+        : `${col}::text`;
       const rows = await db.query<{ value: string | null; count: number }>(
-        `select ${columnSql(group, f)}::text as value, count(*)::int as count from ${def.table} where ${where} group by 1 order by 2 desc`,
+        `select ${value} as value, count(*)::int as count from ${def.table} where ${where} group by 1 order by 2 desc`,
         params,
       );
-      const values = rows.map((r) => r.value).filter((v): v is string => v !== null);
+      const values = rows.map((r) => r.value).filter((v): v is string => v !== null && v !== MASKED_VALUE);
       const list = f.type === 'lookup' ? await lookups.values(f.list!) : [];
       const names = f.type === 'user' ? await userNames(values) : new Map<string, string>();
       const refs = f.type === 'ref' ? await labelsFor(f.to!, values, req.user) : new Map<string, RecordLabel>();
       const groups = rows.map((r) => {
+        if (r.value === MASKED_VALUE) return { value: null, label: MASKED_LABEL, color: 'gray', count: r.count, restricted: true };
         const lv = list.find((x) => x.value === r.value);
         const label = r.value === null ? 'None'
           : f.type === 'lookup' ? lv?.label ?? r.value
@@ -704,6 +753,13 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
     if (!row) fail(404, 'not_found', 'Record not found.');
     return { def: def!, row: row! };
   }
+
+  // Record fact sheets (PDF) and the generic import of any record type.
+  registerExportRoutes({ app, db, audit, custom, decorate, visibleRecord, labelOf });
+  registerImportRoutes({
+    app, db, audit, registry, lookups, mayAccess, visibilitySql, customDefs: (type) => custom.defs(type),
+    validate: (def, input, mode, system) => validate(def, input, mode, system),
+  });
 
   return {
     registry, defineResource, labelsFor, mayAccess, visibilitySql, decorate, userNames, labelOf, pickFields, customOf, visibleRecord,

@@ -21,7 +21,10 @@ about country or regulator, and nothing in it is specific to one organisation.
 - **Inventory and relationship map**: systems, assets, sites and data categories, with a
   map of how they connect; asset types and hosting for on-vehicle equipment (fare
   equipment, vehicle location units, on-vehicle routers, cameras, passenger information
-  displays); check-out, disposal approval and CSV import
+  displays); check-out and disposal approval
+- **Fleet and services**: vehicles, the equipment installed on them and gaps in that
+  coverage, routes and services and the systems they depend on, and "what is affected"
+  when a system fails
 - **Change enablement**: standard, normal and emergency changes with risk scoring,
   approvals, a change calendar with blackout periods and conflict warnings, and
   post-implementation review
@@ -32,6 +35,8 @@ about country or regulator, and nothing in it is specific to one organisation.
 - **Risks**: a risk register with configurable scales, a cyber 5x5 scale and the safety
   hazard matrix (four severity levels by five likelihood levels), a heat map, treatment,
   acceptances and reviews
+- **Safety management**: a hazard log scored on the safety hazard matrix, safety events
+  and their investigations, corrective actions and safety performance indicators
 - **Actions**: one action tracker shared by every area, which inherits restriction from
   the record an action arose from
 - **Obligations**: an obligations register and information requests
@@ -49,20 +54,43 @@ about country or regulator, and nothing in it is specific to one organisation.
 - **Projects and portfolio**: intake, tiers, stage gates with checklists, status reports,
   a risk and issue register, milestones and portfolio views
 - **Dashboards and report builder**: an overview page, user-built reports and
-  dashboards, sharing, report packs and scheduled delivery in the application
-- **Attachments and notifications**: files on any record, evidence files with expiry,
-  and in-app notifications with a daily digest
-- **API and webhooks**: personal access tokens, an OpenAPI document, and webhooks (off
-  until an administrator allows outbound connections to named hosts)
+  dashboards, sharing, report packs and scheduled delivery
+- **Self-service portal**: a simple area where any member of staff raises and follows
+  their own requests (off until an administrator switches it on)
+- **Attachments**: files on any record, evidence files with expiry, optional malware
+  scanning with ClamAV, an optional S3-compatible object store, and removed files purged
+  after a set period
+- **Notifications and email**: in-app notifications, and email notifications and daily
+  digests (off until an administrator sets up a mail server), sent through a background
+  job queue
+- **Exports and imports**: any list to Excel, CSV or PDF; a PDF fact sheet for any record;
+  import of any record type from CSV or Excel
+- **Sign-in**: single sign-on with OpenID Connect (any compliant provider), account
+  linking and a break-glass administrator; passkeys and hardware security keys; a second
+  factor required by default on a new installation
+- **API and webhooks**: a stable REST API at `/api/v1` with personal access tokens and an
+  OpenAPI description (see the [integration guide](docs/api.md), and Help > API reference
+  in the application), and webhooks (off until an administrator allows outbound
+  connections to named hosts)
+- **AI assistant access (MCP)**: Claude Desktop, Claude Code and other MCP clients can
+  work in the application as the signed-in person, within that person's permissions (off
+  until an administrator switches it on; see [AI assistant access](docs/mcp.md))
 - **Everywhere**: comments, history, links between records, tags, watchers, custom
-  fields, full-text search and CSV export
+  fields and full-text search. Figures are the same for everyone: restricted records count
+  in every total, while their details stay hidden (see [Security](docs/security.md))
 - **Administration**: users, roles, second factor, configurable lists, settings,
   retention schedule and audit log
+- **Hosting and operations**: an embedded database or a PostgreSQL server
+  (`GRC_DATABASE_URL`), HTTPS directly or behind a reverse proxy, a container image and
+  compose file; scheduled, verified and optionally encrypted backups; an upgrade that puts
+  the previous version back by itself if a step fails
 
 ## Status
 
-**Prototype.** It runs locally on one Windows machine for evaluation. It is not hardened
-for production; read [known gaps](docs/known-gaps.md) before relying on it.
+**Prototype.** It runs on one Windows machine for evaluation, and can also run on a server
+with PostgreSQL, HTTPS or in a container ([installation](docs/installation.md#server-installation)).
+It has not had an independent security review; read [known gaps](docs/known-gaps.md)
+before relying on it.
 
 ## Quick start
 
@@ -75,12 +103,14 @@ Windows, no admin rights, no Docker.
 4. `.\grc.ps1 start`, then open http://127.0.0.1:8080
 
 The first visit shows a setup wizard that creates the administrator. There is no default
-account. The server listens on 127.0.0.1 only and makes no outbound connections unless an
-administrator switches webhooks on.
+account. The server listens on 127.0.0.1 only. It makes no outbound connections until an
+administrator switches one on: webhooks, email, a sign-in provider, the malware scanner or
+an object store. To use passkeys on this machine, open http://localhost:8080 instead.
 
 Other commands: `stop`, `restart`, `health`, `status`, `logs`, `dev`, `build`, `test`,
-`typecheck`, `ci`, `backup`, `restore`, `upgrade`, `export-all`, `import-all`. See
-[docs/operations.md](docs/operations.md).
+`typecheck`, `ci`, `backup`, `backups`, `verify-backup`, `restore`, `schedule-backup`,
+`unschedule-backup`, `export-all`, `import-all`, `decrypt`, `new-key`, `move-files`,
+`upgrade`, `save-code`. See [docs/operations.md](docs/operations.md).
 
 ### Make it yours
 
@@ -100,20 +130,23 @@ on your law, regulators, funders, contracts and insurer: set them yourself, with
 
 - **User guide**: [docs/user](docs/user/01-getting-started.md), also inside the application under **Help**
 - **Installation, operations, architecture, security**: [docs](docs/README.md)
+- **Integrations**: [REST API](docs/api.md) and [AI assistant access (MCP)](docs/mcp.md)
+- **Accessibility statement**: [docs/accessibility.md](docs/accessibility.md)
 - **Developer guide**: [docs/development.md](docs/development.md)
 - **Roadmap** (epics and issues): [docs/roadmap](docs/roadmap/README.md)
 - **Known gaps**: [docs/known-gaps.md](docs/known-gaps.md)
 
 ## Technology
 
-TypeScript throughout. Fastify and embedded Postgres (PGlite) on the server; React, Vite,
-Mantine and ECharts on the web.
+TypeScript throughout. Fastify on the server, with embedded Postgres (PGlite) or a
+PostgreSQL server; React, Vite, Mantine and ECharts on the web.
 
 ## Contributing
 
 Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for the hard rules and
 how to run the checks (`.\grc.ps1 ci`), and the [developer guide](docs/development.md)
-for the conventions.
+for the conventions. The browser tests (`npm run test:e2e`) and the accessibility audit
+(`npm run test:a11y`) are described there too.
 
 ## Security
 

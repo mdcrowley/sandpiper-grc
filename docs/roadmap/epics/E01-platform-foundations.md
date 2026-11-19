@@ -52,7 +52,7 @@ user should find every list and record behaving the same way.
 | E01-28 | Reference labels respect the target module's view permission | done | P2 |
 | E01-29 | Password confirmation should also ask for the second factor | open | P3 |
 | E01-30 | Password confirmation outside the administration screens | open | P3 |
-| E01-31 | Trusted-proxy handling in the server itself | open | P2 |
+| E01-31 | Trusted-proxy handling in the server itself | done | P2 |
 | E01-32 | Labels for known ids (records and people) | done | P2 |
 
 ---
@@ -158,7 +158,7 @@ counts, search, links, exports and the audit log.
 **Acceptance criteria**
 
 - [x] A record type can be restricted as a whole or row by row
-- [x] Restricted records are excluded from lists, statistics, exports, search, pickers and links
+- [x] Restricted records are excluded from lists, exports, search, pickers and links (statistics now count them for everyone, with their details masked: E18-40)
 - [x] A request for a hidden record returns "not found" rather than "forbidden"
 - [x] Audit events about restricted types are hidden without the security permission
 - [x] Covered by automated tests for an ordinary agent
@@ -568,17 +568,22 @@ do not, and the prompt lives in the administration module rather than the shared
 
 ### E01-31 Trusted-proxy handling in the server itself
 
-**Status:** open · **Priority:** P2 · **Type:** debt
+**Status:** done · **Priority:** P2 · **Type:** debt
 
 `GRC_TRUST_PROXY` is honoured by core helpers (`clientIp`, `isHttps`) used for the
-session cookie, rate limits, sessions and the audit log. Modules that read `req.ip`
-directly still see the proxy's address, and no `Strict-Transport-Security` header is sent.
+session cookie, rate limits, sessions and the audit log, and now by the web server
+itself, so modules that read `req.ip`, `req.protocol` or `req.hostname` get the same
+answer. It also accepts a list of proxy addresses, ranges and keywords
+(`loopback`, `private`, `linklocal`), so a header is believed only from a listed peer.
 
 **Acceptance criteria**
 
-- [ ] The web server is built with the matching trust-proxy option, so `req.ip` is right everywhere (`server/src/app.ts`)
-- [ ] A `Strict-Transport-Security` header is sent when served over HTTPS
-- [ ] Depends on [E16-07](E16-hosting-operations-and-hardening.md)
+- [x] The web server is built with the matching trust-proxy option, so `req.ip` is right everywhere (`server/src/app.ts`, `trustProxyFn` in `server/src/core/http.ts`, read per request)
+- [x] A `Strict-Transport-Security` header is sent when served over HTTPS (directly or through a trusted proxy)
+- [x] Tested: address and protocol from a listed proxy are believed, from any other peer ignored; failed sign-ins are recorded against the real client
+- [x] Depends on [E16-07](E16-hosting-operations-and-hardening.md)
+
+**Implemented in:** `server/src/core/http.ts`; `server/src/app.ts` (tests in `server/src/core/http.test.ts`)
 
 ### E01-32 Labels for known ids (records and people)
 

@@ -199,3 +199,10 @@
 .sd-group h3 { margin: 0; font-size: var(--fs-md); font-weight: 650; }
 .sd-group p { margin: 0; font-size: var(--fs-sm); }
 @container (max-width: 860px) { .sd-calendar { grid-template-columns: minmax(0, 1fr); } }
+
+/* E15: the portal tab of the settings and the portal note on a ticket */
+.sd-portal-items { list-style: none; margin: 0; padding: 0; display: grid; }
+.sd-portal-items li { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s-3); padding: var(--s-3) 0; border-bottom: 1px solid var(--border); }
+.sd-portal-items li:last-child { border-bottom: 0; }
+.sd-portal-items li a { flex: none; font-size: var(--fs-sm); }
+.sd-portal-note { font-size: var(--fs-sm); margin: 0; }

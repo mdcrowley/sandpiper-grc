@@ -1,11 +1,13 @@
 name: CI
 
 # Type check, tests and a production build of the web application, on every push and
-# pull request. Nothing here needs the private seed/ folder or any secret.
+# pull request; the tests again through the PostgreSQL server driver; and the container
+# image, built and started. Nothing here needs the private seed/ folder or any secret.
 
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -35,6 +37,7 @@ jobs:
         with:
           # The major version is pinned in one place, shared with tools/install-node.ps1.
           node-version-file: tools/node-version.txt
+          cache: npm
 
       - name: Install packages
         # Installs exactly what the committed lock file says.
@@ -53,3 +56,171 @@ jobs:
 
       - name: Build the web application
         run: npm run build
+
+  # The whole test suite through the PostgreSQL server driver (pg), so both drivers stay
+  # interchangeable (E16-05):
+  # - pglite-socket: every test database is an embedded PostgreSQL served over the wire protocol
+  # - postgres-17: every test database is a fresh database on a real PostgreSQL server
+  database-server:
+    name: Tests on a database server (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # The real-server leg has not run yet: it reports without failing the workflow until its
+    # first green run on GitHub, after which this line should be removed (E16-05).
+    continue-on-error: ${{ matrix.target == 'postgres-17' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [pglite-socket, postgres-17]
+    services:
+      postgres:
+        # Started for both legs (a service cannot be made conditional); only postgres-17 uses it.
+        image: postgres:17-bookworm
+        env:
+          POSTGRES_USER: grc
+          POSTGRES_PASSWORD: grc-ci-only
+          POSTGRES_DB: grc
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U grc -d grc"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      GRC_SEED_DIR: ${{ github.workspace }}/no-seed-folder
+      GRC_DATABASE_POOL_MAX: '5'
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: tools/node-version.txt
+          cache: npm
+
+      - name: Install packages
+        run: npm ci --no-audit --no-fund
+
+      - name: Tests through the wire protocol (pglite-socket)
+        if: matrix.target == 'pglite-socket'
+        env:
+          GRC_TEST_DATABASE: pg
+        run: npm test
+
+      - name: Tests on PostgreSQL 17
+        if: matrix.target == 'postgres-17'
+        env:
+          # The account creates and drops one database per test application.
+          GRC_TEST_DATABASE_URL: postgres://grc:grc-ci-only@127.0.0.1:5432/grc
+        run: npm test
+
+  # Builds the container image and proves it starts and answers its health check (E16-06).
+  container:
+    name: Container image
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build the image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          push: false
+          tags: sandpiper-grc:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Nothing private is in the image
+        run: |
+          set -eu
+          found=$(docker run --rm --entrypoint sh sandpiper-grc:ci -c '
+            ls -d /app/seed /app/data /app/.tools /app/backups /app/CLAUDE.md 2>/dev/null
+            find /app -name "*Build Specification*" 2>/dev/null
+            find /app/server -name "*.test.ts" 2>/dev/null
+            find /app /var/lib/sandpiper -path /app/node_modules -prune -o \( -name "*.pem" -o -name "*.secret.key" -o -name "secret.key" \) -print 2>/dev/null
+          ' || true)
+          if [ -n "$found" ]; then echo "Unexpected files in the image:"; echo "$found"; exit 1; fi
+
+      - name: Start (embedded database, read-only root filesystem, as in compose.yaml)
+        run: |
+          openssl rand -hex 32 > secret_key.txt && chmod 644 secret_key.txt
+          docker run -d --name grc --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges:true \
+            -e GRC_ALLOW_INSECURE=1 -e GRC_SECRET_KEY_FILE=/run/secrets/key \
+            -v "$PWD/secret_key.txt:/run/secrets/key:ro" -p 127.0.0.1:8080:8080 sandpiper-grc:ci
+
+      - name: Health check answers
+        run: |
+          for i in $(seq 1 60); do
+            status=$(docker inspect --format '{{.State.Health.Status}}' grc 2>/dev/null || echo missing)
+            if curl -fsS http://127.0.0.1:8080/api/health | grep -q '"ok":true'; then echo "health ok (container: $status)"; break; fi
+            if [ "$(docker inspect --format '{{.State.Running}}' grc)" != "true" ]; then docker logs grc; exit 1; fi
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:8080/api/health | grep -q '"ok":true'
+          curl -fsS http://127.0.0.1:8080/ | grep -qi '<div id="root"' || { echo "web application not served"; exit 1; }
+          # The image's own HEALTHCHECK must turn healthy too.
+          for i in $(seq 1 60); do
+            [ "$(docker inspect --format '{{.State.Health.Status}}' grc)" = healthy ] && exit 0
+            sleep 3
+          done
+          docker inspect --format '{{json .State.Health}}' grc; exit 1
+
+      - name: Refuses plain HTTP on every interface without GRC_ALLOW_INSECURE
+        run: |
+          if docker run --rm sandpiper-grc:ci; then echo "should have refused"; exit 1; fi
+          docker run --rm sandpiper-grc:ci 2>&1 | grep -q 'Refusing to serve plain HTTP'
+
+      - name: Stops cleanly
+        if: always()
+        run: |
+          docker logs grc || true
+          docker stop -t 30 grc || true
+
+  browser:
+    name: Browser tests and accessibility (ubuntu-latest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: tools/node-version.txt
+          cache: npm
+
+      - name: Install packages
+        run: npm ci --no-audit --no-fund
+
+      - name: Build the web application
+        run: npm run build
+        env:
+          GRC_WEB_DIST: ${{ github.workspace }}/e2e-web
+
+      - name: Browser tests (every route, every role, every record type, keyboard)
+        run: npm run test:e2e
+        env:
+          E2E_WEB_DIST: ${{ github.workspace }}/e2e-web
+
+      - name: Accessibility audit (reported, not yet failing the build)
+        run: npm run test:a11y -- --quick --no-fail
+        env:
+          E2E_WEB_DIST: ${{ github.workspace }}/e2e-web
+
+      - name: Keep the logs and screenshots of a failed run
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-test-output
+          path: |
+            tools/e2e/out
+            tools/a11y/out

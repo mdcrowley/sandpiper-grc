@@ -1,8 +1,10 @@
 // Runs a compiled report: one parameterised query for the data, one for the count, then labels.
-// The caller's permissions and the restricted-record rules were applied by the compiler (the same
-// visibility condition as the generic list); labels of related records are checked again here.
+// The caller's permissions and the restricted-record rules were applied by the compiler: rows get
+// the same visibility condition as the generic list; figures count every record and mask the
+// details of restricted ones (spec.ts). Labels of related records are checked again here.
 import { TIME_ZONE } from '../../core/config.ts';
 import { UUID_RE } from '../../core/errors.ts';
+import { MASKED_LABEL, MASKED_VALUE } from '../../core/resource.ts';
 import type { FieldDef, FieldType, ModuleContext, ResourceDef, Row, SessionUser } from '../../core/module.ts';
 import { compileWithCustom, LIMITS, mayView, SpecError, type Bucket, type Compiled, type GlobalFilters } from './spec.ts';
 
@@ -104,7 +106,11 @@ export function bucketEnd(start: string, bucket: Bucket): string {
 const stamp = new Intl.DateTimeFormat('en-GB', { timeZone: TIME_ZONE, day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
 export const formatStamp = (v: unknown) => { const d = v instanceof Date ? v : new Date(String(v)); return Number.isNaN(d.getTime()) ? String(v) : stamp.format(d); };
 
-interface Labeller { label(v: unknown): string | undefined; color?(v: unknown): string | undefined; order?(v: unknown): number }
+interface Labeller {
+  label(v: unknown): string | undefined; color?(v: unknown): string | undefined; order?(v: unknown): number;
+  /** Set when a label names a restricted record the caller may see (the result then carries the export watermark). */
+  revealed?: boolean;
+}
 
 async function labeller(ctx: ModuleContext, user: SessionUser | null, f: FieldDef, values: unknown[]): Promise<Labeller | null> {
   if (f.type === 'lookup') {
@@ -122,16 +128,22 @@ async function labeller(ctx: ModuleContext, user: SessionUser | null, f: FieldDe
   if (f.type === 'ref') {
     const target = ctx.resources.get(f.to!);
     const names = new Map<string, string>();
+    let revealed = false;
     if (target && ids.length) {
       // The label is a piece of the other record: without access to it the caller reads "Restricted".
       const open = mayView(ctx, user, target);
       const rows = await ctx.db.query<Row>(
-        `select id, ${target.titleField}::text as label, (${ctx.resources.visibleWhere(target.type, user)}) as visible
+        `select id, ${target.titleField}::text as label, (${ctx.resources.visibleWhere(target.type, user)}) as visible,
+                ${target.restricted === 'flag' ? 'coalesce(restricted, false)' : target.restricted === true ? 'true' : 'false'} as flagged
          from ${target.table} where id::text = any($1::text[])`, [ids],
       );
-      for (const r of rows) names.set(r.id, open && r.visible ? r.label ?? '' : 'Restricted');
+      for (const r of rows) {
+        const shown = open && r.visible;
+        names.set(r.id, shown ? r.label ?? '' : 'Restricted');
+        if (shown && r.flagged) revealed = true;
+      }
     }
-    return { label: (v) => names.get(String(v)) ?? 'Unknown' };
+    return { label: (v) => names.get(String(v)) ?? 'Unknown', revealed };
   }
   return null;
 }
@@ -168,7 +180,8 @@ export async function runCompiled(ctx: ModuleContext, user: SessionUser | null, 
   const { data, total, flagged } = await guarded(async () => {
     const found = await ctx.db.query<Row>(sql, c.params);
     const count = (await ctx.db.one<{ n: number }>(`select count(*)::int n from ${c.from} where ${c.where}`, c.params))!.n;
-    const hasFlagged = def.restricted === 'flag'
+    // A figure shows no restricted record's details (they are masked), so only rows decide this.
+    const hasFlagged = def.restricted === 'flag' && !c.figures
       ? Boolean(await ctx.db.one(`select 1 from ${c.from} where ${c.where} and coalesce(t.restricted, false) limit 1`, c.params))
       : false;
     return { data: found, total: count, flagged: hasFlagged };
@@ -215,14 +228,18 @@ export async function runCompiled(ctx: ModuleContext, user: SessionUser | null, 
     ...aggs.map((a): ResultColumn => ({ key: a.key, label: a.label, type: a.type, role: 'agg', fn: a.fn, field: a.field?.path })),
   ];
   const labellers = await Promise.all(dims.map((d) => (d.bucket ? null : labeller(ctx, user, d.def, data.map((r) => r[d.key])))));
+  if (labellers.some((l) => l?.revealed)) result.restricted = true;
   const dimDrill = (i: number, v: unknown): [string, string][] => {
     const d = dims[i];
+    // Masked details: the list of the restricted records (which shows each person only those they may see).
+    if (v === MASKED_VALUE) return def.fields.restricted ? [['f.restricted', 'true']] : [];
     if (d.related) return [];
     if (v === null || v === undefined) return [[`f.${d.path}.null`, 'true']];
     if (d.bucket) return [[`f.${d.path}.gte`, String(v)], [`f.${d.path}.lt`, bucketEnd(String(v), d.bucket)]];
     return [[`f.${d.path}`, String(v)]];
   };
   const dimLabel = (i: number, v: unknown) => (v === null || v === undefined ? 'None'
+    : v === MASKED_VALUE ? MASKED_LABEL
     : dims[i].bucket ? bucketLabel(String(v), dims[i].bucket!)
     : labellers[i]?.label(v) ?? String(v));
 
@@ -250,6 +267,11 @@ export async function runCompiled(ctx: ModuleContext, user: SessionUser | null, 
   if (c.mode === 'groups' && !c.order.length && labellers[0]?.order) {
     const pos = labellers[0].order;
     result.rows.sort((a, b) => (a.v.g0 === null ? 1e10 : pos(a.v.g0)) - (b.v.g0 === null ? 1e10 : pos(b.v.g0)));
+  }
+
+  // "Restricted records" (masked details) reads best last, like "None".
+  if (result.rows.some((r) => r.v.g0 === MASKED_VALUE)) {
+    result.rows = [...result.rows.filter((r) => r.v.g0 !== MASKED_VALUE), ...result.rows.filter((r) => r.v.g0 === MASKED_VALUE)];
   }
 
   if (c.spec.pivot && dims.length === 2) result.pivot = pivot(result, dims[1].bucket ? null : labellers[1], qsOf, base, dimDrill);

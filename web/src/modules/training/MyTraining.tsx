@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import {
   api, ApiError, Button, Card, DateField, EmptyState, ErrorState, errorMessage, formatDate, Loading, Modal, PageHeader, Select, Stat,
-  TextArea, todayInZone, useFetch, useToast,
+  TextArea, todayInZone, useFetch, useScrollFocus, useToast,
 } from '../../core';
 import { RecordStatusChip, ResultCell, WhenCell } from './shared';
 import type { TrainingRecord } from './shared';
@@ -57,8 +57,10 @@ function CompleteDialog({ courseId, courses, onClose, onDone }: {
 function Table({ caption, rows, today, done, selfCourses, onComplete }: {
   caption: string; rows: TrainingRecord[]; today: string; done: boolean; selfCourses: Set<string>; onComplete: (courseId: string) => void;
 }) {
+  // A table wider than the screen scrolls sideways; the box then takes focus so the keyboard can scroll it.
+  const scrollRef = useScrollFocus<HTMLDivElement>();
   return (
-    <div className="table-wrap trn-tw">
+    <div className="table-wrap trn-tw" ref={scrollRef} role="region" aria-label={caption}>
       <table className="table">
         <caption className="sr-only">{caption}</caption>
         <thead>

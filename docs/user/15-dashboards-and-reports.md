@@ -2,7 +2,7 @@
 
 You can build your own reports and dashboards without help from a developer: choose what to report on, pick the columns or groups you want, and see the answer straight away. Everything is under the **Reports** group: **Dashboards**, **Reports**, **Report packs**, **Schedules** and **Delivered to me**.
 
-One rule runs through all of it: **every figure is worked out from what the person looking at it is allowed to see**. Sharing a report or dashboard shares the *design*, never the records. Someone without access to security incidents sees a dashboard's incident widget say "Your role does not include this information" while the rest of the dashboard works as normal, and no count, total or chart ever includes records they could not open themselves.
+Two rules run through all of it. **Everyone who may see a figure sees the same figure**: counts, totals, charts, pivot tables, numbers and gauges include every record, restricted ones too, so two people never read different numbers for the same thing. **Records themselves are shown only to people allowed to open them**: a list of records, the records behind a figure and the rows of a **List** report show only what you may see, and when a summary is grouped by words or people (such as a title, a department or an owner) restricted records are counted under **Restricted records** instead, for everyone. Sharing a report or dashboard shares the *design*, never the records. Someone without access to security incidents sees a dashboard's incident widget say "Your role does not include this information" while the rest of the dashboard works as normal.
 
 ## Reports
 
@@ -10,7 +10,7 @@ Open **Reports** to see the saved reports you can use: your own, those shared wi
 
 On an open report you can:
 
-- **Export**: **Spreadsheet file (CSV)** downloads every row; **Print-ready document** opens a page you can print or save as a PDF from the browser's Print command. Exports need the reports export permission and export permission for the records in the report. Every export is written to the audit log, and an export that contains restricted records carries a "Restricted export by …" line.
+- **Export**: **PDF** downloads a PDF with the title, the report's filters, the time it was made, a chart (bars, a line or a pie, as the report is drawn) and the table, which continues over as many pages as it needs with its header row repeated; **Excel (XLSX)** downloads a spreadsheet with dates, numbers and amounts as real typed cells; **CSV** downloads every row as plain text; **Print-ready page** opens a page you can print or save as a PDF from the browser's Print command. The PDF uses standard fonts that cover Western European letters only: other characters print as `?`, so use Excel or CSV for text in other scripts. Exports need the reports export permission and export permission for the records in the report. Every export is written to the audit log, and an export that lists restricted records carries a "Restricted export by …" line (a summary does not: it shows none of their details).
 - **Schedule**: send the report to people regularly (see [Scheduled delivery](#scheduled-delivery)).
 - **Add to dashboard**: place the report on a dashboard you can change, or on a new one.
 - **Share** and **Edit**: only for the report's owner (and administrators). Anyone else can select **Save a copy** under **More** to make their own version.
@@ -96,7 +96,8 @@ Seven standard dashboards come with the application: **IT leadership overview**,
 - Select any figure, bar, slice, cell or calendar day to open the records behind it.
 - **Refresh** works the figures out again. A dashboard can also refresh itself (see **Settings** below); the time the figures were worked out is shown under the widgets.
 - **Wall mode** fills the screen for a display on the wall: larger text, no menus, and the figures refresh at least every 5 minutes. Press Esc or **Leave wall mode** to go back.
-- Under **More** (three dots): **Set as my home dashboard** (or **Stop using as my home**), **Share…**, **Schedule…**, **Print this page**, **Print-ready document** (needs the dashboards export permission; leaves out any widget about records you may not export), **Save a copy** and **Delete**.
+- Under **More** (three dots): **Set as my home dashboard** (or **Stop using as my home**), **Share…**, **Schedule…**, **Print this page**, **Save a copy** and **Delete**.
+- **Export** (needs the dashboards export permission; leaves out any widget about records you may not export): **PDF** (each group of widgets that shares rows of the dashboard and holds a chart or table starts a new page; figures and text run on together), **Excel (XLSX)** (one sheet per widget with figures) or **Print-ready page**.
 
 Your home dashboard is your own choice and does not change anyone else's. If it is later deleted or no longer shared with you, the choice quietly stops applying.
 
@@ -128,8 +129,8 @@ Reports, dashboards and report packs each have **Who can see it**: **Only me**, 
 A report pack is a document for a governing body or an auditor: a cover page followed by an ordered set of saved reports and text sections. Open **Report packs**. The **Governing body security pack** comes with the application (a summary to write, framework progress, top risks, overdue actions and incidents).
 
 - Open a pack to see it as it will print: the cover page with the title, subtitle, "Figures as at" and "Prepared by", a contents list, then one section per page.
-- **Print** prints the page from the browser (each section starts on a new sheet). **Print-ready document** opens the same pack as a separate page.
-- **Produce dated copy** (needs the reports export permission) freezes the figures as they are now and keeps the copy under **Produced documents**, so it can be opened again later. Anyone who can see the pack and every saved report in it, and can see every kind of record in it, can read the copy in the application; a copy with restricted records needs security access too.
+- **Print** prints the page from the browser (each section starts on a new sheet). **Download** (needs the reports export permission) offers **PDF** (a cover page, then one section per page, with page numbers), **Excel (XLSX)** (one sheet per report) or **Print-ready page**, which opens the same pack as a separate page.
+- **Produce dated copy** (needs the reports export permission) freezes the figures as they are now and keeps the copy under **Produced documents**, so it can be opened again later. Anyone who can see the pack and every saved report in it, and can see every kind of record in it, can read the copy in the application; a copy that lists restricted records needs security access too.
 - **Edit sections** (under **More**, or the button beside the preview): change the **Name**, **Cover title**, **Cover subtitle** and **Description**; add sections with **Add a saved report** or **Add text**; give each a **Heading**; move them with the arrows and remove them with the cross. Select **Save**.
 
 To start a new pack, select **New report pack** on the **Report packs** page, or **Create** then **Report pack**.
@@ -140,7 +141,7 @@ Select **Schedule** on a report (or **Schedule…** on a dashboard) to send it r
 
 1. Enter a **Name**.
 2. Choose **How often** (**Every day**, **Every week** **On** a weekday, or **Every month** on a **Day of the month**: in shorter months, the last day) and **At** what hour, in the organisation's time zone.
-3. For a report, choose **As**: **Document (print or save as PDF)** or **Spreadsheet file (CSV)**. Dashboards are always sent as a document, and so is a spreadsheet for anyone whose role may not export reports.
+3. Choose **As**: **Document (print or save as PDF)**, **PDF file**, **Excel file (XLSX)** or, for a report, **Spreadsheet file (CSV)**. Anyone whose role may not export receives the document instead of a file. When an administrator has switched email on, each person is also emailed a link to their copy, with the PDF or Excel file attached when they may export it; the attachment is recorded in the audit log. Without email, delivery is in the application only.
 4. Under **Send to**, add people with **Add a person…** and whole roles with **Everyone in a role…**.
 5. Select **Schedule**.
 
@@ -148,7 +149,7 @@ At each delivery, every recipient gets a notification in the application with a 
 
 **Schedules** lists every schedule you own. Select one to see its **Deliveries** (who received it, when, and any reason it was skipped), and to **Edit**, **Send now** or **Delete** it.
 
-**Delivered to me** lists every copy delivered to you or produced by you. Select one to read it in the application. A copy opens only while you can still see the report, dashboard or pack it was made from and every saved report in it. Taking a copy out of the application, with **Download** or **Download to print or save as PDF**, needs the reports (or dashboards) export permission and is recorded in the audit log.
+**Delivered to me** lists every copy delivered to you or produced by you. Select one to read it in the application. A copy opens only while you can still see the report, dashboard or pack it was made from and every saved report in it. A PDF or Excel copy is only offered as a file to download. Taking a copy out of the application, with **Download PDF**, **Download Excel file**, **Download CSV** or **Download to print or save as PDF**, needs the reports (or dashboards) export permission and is recorded in the audit log.
 
 ## Permissions
 
@@ -157,7 +158,7 @@ At each delivery, every recipient gets a notification in the application with a 
 | Reports: view | Open and run reports and packs shared with you; use the report builder's preview; receive and read delivered copies |
 | Reports: create | Build and save reports and packs, schedule them |
 | Reports: edit / delete | Change or delete reports, packs and schedules you own |
-| Reports: export | CSV and print-ready exports, producing pack copies, downloading delivered copies |
+| Reports: export | PDF, Excel, CSV and print-ready exports of reports and packs, producing pack copies, downloading delivered copies |
 | Dashboards: view | Open dashboards shared with you and choose a home dashboard |
 | Dashboards: create / edit / delete | Build, change or delete dashboards you own |
-| Dashboards: export | Print-ready dashboard documents; downloading delivered dashboard copies |
+| Dashboards: export | PDF, Excel and print-ready dashboard exports; downloading delivered dashboard copies |

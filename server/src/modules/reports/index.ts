@@ -8,6 +8,7 @@ import { UUID_RE } from '../../core/errors.ts';
 import type { ModuleDef, Row, SessionUser } from '../../core/module.ts';
 import { catalogue } from './catalogue.ts';
 import { makeDocuments, type Allow, type BuiltDocument } from './documents.ts';
+import { EXPORT_KINDS, FILE_TYPES, FORMAT_NAMES, renderFile } from './files.ts';
 import { AccessError, runReport } from './query.ts';
 import { defineReportResources } from './resources.ts';
 import { runDueSchedules, runSchedule } from './schedule.ts';
@@ -45,6 +46,8 @@ const mod: ModuleDef = {
     await ctx.lookups.ensure('report_schedule_format', [
       { value: 'html', label: 'Document (print or save as PDF)', color: 'blue', sort: 10 },
       { value: 'csv', label: 'Spreadsheet file (CSV)', color: 'green', sort: 20 },
+      { value: 'xlsx', label: 'Excel file (XLSX)', color: 'teal', sort: 30 },
+      { value: 'pdf', label: 'PDF file', color: 'purple', sort: 40 },
     ], { module: 'reports' });
     await ctx.lookups.ensure('report_schedule_target', [
       { value: 'report', label: 'Report', color: 'blue', sort: 10 },
@@ -80,18 +83,19 @@ const mod: ModuleDef = {
     const exportAllowed = (user: SessionUser): Allow => (r) => r.recordTypes.every((t) => { const d = ctx.resources.get(t); return Boolean(d && mayView(ctx, user, d, 'export')); });
 
     async function send(req: FastifyRequest, reply: FastifyReply, doc: BuiltDocument, format: string, audit: { type: string; id?: string; what: string }) {
-      const csv = format === 'csv' && doc.csv !== undefined;
+      const kind = format === 'csv' && doc.csv !== undefined ? 'csv' : format === 'xlsx' || format === 'pdf' ? format : 'html';
+      const body = await renderFile(doc, kind, audit.type);
       // Every export is in the audit trail, with whether restricted records were in it.
       await ctx.audit(req, {
         action: `${audit.type}.export`, recordType: audit.type, recordId: audit.id,
-        summary: `Exported ${audit.what} to ${csv ? 'CSV' : 'a print-ready document'} (${doc.rows} rows${doc.restricted ? ', includes restricted records' : ''})`,
-        after: { record_types: doc.recordTypes, restricted: doc.restricted, format: csv ? 'csv' : 'html' },
+        summary: `Exported ${audit.what} to ${FORMAT_NAMES[kind]} (${doc.rows} rows${doc.restricted ? ', includes restricted records' : ''})`,
+        after: { record_types: doc.recordTypes, restricted: doc.restricted, format: kind },
       });
       const file = doc.title.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase().slice(0, 60) || 'report';
-      reply.header('content-type', csv ? 'text/csv; charset=utf-8' : 'text/html; charset=utf-8');
-      reply.header('content-disposition', `${csv ? 'attachment' : 'inline'}; filename="${file}.${csv ? 'csv' : 'html'}"`);
+      reply.header('content-type', FILE_TYPES[kind]);
+      reply.header('content-disposition', `${kind === 'html' ? 'inline' : 'attachment'}; filename="${file}.${kind}"`);
       reply.header('cache-control', 'no-store');
-      return csv ? doc.csv : doc.html;
+      return body;
     }
 
     // ---------- builder support ----------
@@ -134,7 +138,8 @@ const mod: ModuleDef = {
 
     // ---------- exports ----------
 
-    const checkFormat = (f: unknown) => (f === 'csv' || f === 'html' ? f : ctx.fail(400, 'bad_format', 'Choose CSV or a print-ready document.'));
+    const checkFormat = (f: unknown, csv = true) => (typeof f === 'string' && (EXPORT_KINDS as string[]).includes(f) && (csv || f !== 'csv') ? f
+      : ctx.fail(400, 'bad_format', csv ? 'Choose CSV, Excel, PDF or a print-ready document.' : 'Choose Excel, PDF or a print-ready document.'));
     const needExport = (user: SessionUser, types: string[]) => {
       for (const t of types) {
         const d = ctx.resources.get(t);
@@ -160,14 +165,16 @@ const mod: ModuleDef = {
 
     app.get('/api/dashboards/:id/export', { preHandler: ctx.requirePerm('dashboards.export') }, async (req, reply) => {
       const dash = await need(req, 'dashboard', 'Dashboard');
+      const format = checkFormat((req.query as Row).format ?? 'html', false);
       const doc = await documents.forDashboard(req.user!, dash, { globals: readGlobals(req.query), allow: exportAllowed(req.user!) });
-      return send(req, reply, doc, 'html', { type: 'dashboard', id: dash.id, what: `dashboard "${dash.name}"` });
+      return send(req, reply, doc, format, { type: 'dashboard', id: dash.id, what: `dashboard "${dash.name}"` });
     });
 
     app.get('/api/report-packs/:id/export', { preHandler: ctx.requirePerm('reports.export') }, async (req, reply) => {
       const pack = await need(req, 'report_pack', 'Report pack');
+      const format = checkFormat((req.query as Row).format ?? 'html', false);
       const doc = await documents.forPack(req.user!, pack, { allow: exportAllowed(req.user!) });
-      return send(req, reply, doc, 'html', { type: 'report_pack', id: pack.id, what: `report pack "${pack.name}"` });
+      return send(req, reply, doc, format, { type: 'report_pack', id: pack.id, what: `report pack "${pack.name}"` });
     });
 
     // ---------- dashboards ----------
@@ -288,16 +295,17 @@ const mod: ModuleDef = {
     app.get('/api/reports/snapshots/:id', async (req) => openSnapshot(req));
     app.get('/api/reports/snapshots/:id/content', async (req, reply) => {
       const row = await openSnapshot(req);
-      const csv = row.format === 'csv';
-      // A spreadsheet file, or ?download=1, leaves the application: that is an export.
-      const download = csv || (req.query as Row).download === '1';
+      const kind = (EXPORT_KINDS as string[]).includes(row.format) ? row.format as 'csv' | 'html' | 'pdf' | 'xlsx' : 'html';
+      const file = kind !== 'html';
+      // A file (spreadsheet, PDF), or ?download=1, leaves the application: that is an export.
+      const download = file || (req.query as Row).download === '1';
       if (download && !row.can_download) ctx.fail(403, 'forbidden', 'Your role does not allow taking this out of the application. You can read it here.');
       await ctx.audit(req, {
         action: download ? 'report_snapshot.export' : 'report_snapshot.open', recordType: 'report_snapshot', recordId: row.id,
-        summary: `${download ? 'Downloaded' : 'Opened'} stored ${csv ? 'export' : 'document'} "${row.title}"${row.restricted ? ' (includes restricted records)' : ''}`,
+        summary: `${download ? 'Downloaded' : 'Opened'} stored ${file ? 'export' : 'document'} "${row.title}"${row.restricted ? ' (includes restricted records)' : ''}`,
       });
-      reply.header('content-type', csv ? 'text/csv; charset=utf-8' : 'text/html; charset=utf-8');
-      reply.header('content-disposition', `${download ? 'attachment' : 'inline'}; filename="snapshot-${String(row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at).slice(0, 10)}.${csv ? 'csv' : 'html'}"`);
+      reply.header('content-type', FILE_TYPES[kind]);
+      reply.header('content-disposition', `${download ? 'attachment' : 'inline'}; filename="snapshot-${String(row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at).slice(0, 10)}.${kind}"`);
       reply.header('cache-control', 'no-store');
       return snapshots.content(row.id);
     });

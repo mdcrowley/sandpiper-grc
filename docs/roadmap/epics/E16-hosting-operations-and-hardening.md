@@ -12,10 +12,11 @@ and usable by everyone.
 ## Scope notes
 
 - Today the application runs under a portable Node.js with an embedded Postgres
-  database in the `data/` folder, started by `grc.ps1`. It listens on the local
-  loopback address only, over plain HTTP.
-- The SQL is real Postgres, so moving to a database server is intended to be a driver
-  change in `server/src/core/db.ts`.
+  database in the `data/` folder, started by `grc.ps1`. By default it listens on the local
+  loopback address only, over plain HTTP. A PostgreSQL server (E16-05), HTTPS and trusted
+  proxies (E16-07) and containers (E16-06) are each switched on by environment variables;
+  see `docs/installation.md`, "Server installation".
+- The SQL is real Postgres; both database drivers sit behind `server/src/core/db.ts`.
 - Operations commands (backup, restore, export, import, status) are written in
   TypeScript under `server/src/ops/` and called through `server/src/cli.ts`, so they are
   tested and run on any operating system. `grc.ps1` is a thin Windows wrapper that stops
@@ -33,9 +34,9 @@ and usable by everyone.
 | E16-02 | Embedded database with ordered migrations | done | P1 |
 | E16-03 | Manual backup command | done | P1 |
 | E16-04 | Health check | done | P2 |
-| E16-05 | Run on a PostgreSQL server | open | P1 |
-| E16-06 | Container images | open | P2 |
-| E16-07 | HTTPS | open | P1 |
+| E16-05 | Run on a PostgreSQL server | in progress | P1 |
+| E16-06 | Container images | in progress | P2 |
+| E16-07 | HTTPS | done | P1 |
 | E16-08 | Scheduled backups | in progress | P1 |
 | E16-09 | Restore command | done | P1 |
 | E16-10 | Upgrade command | done | P2 |
@@ -43,17 +44,21 @@ and usable by everyone.
 | E16-12 | Continuous integration | in progress | P1 |
 | E16-13 | Dependency scanning | in progress | P2 |
 | E16-14 | Load testing | open | P2 |
-| E16-15 | Accessibility audit | open | P2 |
+| E16-15 | Accessibility audit | in progress | P2 |
 | E16-16 | Server logging and log rotation | open | P3 |
-| E16-17 | Unattended, off-machine backups with failure alerts | open | P1 |
-| E16-18 | Automatic rollback of a failed upgrade | open | P2 |
+| E16-17 | Unattended, off-machine backups with failure alerts | done | P1 |
+| E16-18 | Automatic rollback of a failed upgrade | done | P2 |
 | E16-19 | Show the installed version in the application | open | P3 |
 | E16-20 | Detect a migration edited after release | open | P3 |
 | E16-21 | One-command Node.js bootstrap | done | P2 |
 | E16-22 | Status and logs commands | done | P2 |
 | E16-23 | Repository hygiene for contributors | done | P2 |
-| E16-24 | Encrypted backups and exports | open | P2 |
+| E16-24 | Encrypted backups and exports | done | P2 |
 | E16-25 | Start, stop and schedule on Linux and macOS | open | P3 |
+| E16-30 | Backup, restore and status commands that know about a database server | done | P1 |
+| E16-31 | A least-privilege database role for the application | open | P2 |
+| E16-32 | Publish the container image | open | P3 |
+| E16-33 | Reload the TLS certificate without a restart | open | P3 |
 
 ---
 
@@ -133,50 +138,79 @@ signing in.
 
 ### E16-05 Run on a PostgreSQL server
 
-**Status:** open · **Priority:** P1 · **Type:** feature
+**Status:** in progress · **Priority:** P1 · **Type:** feature
 
 As an operator, I point the application at a PostgreSQL server with a connection
-setting, so that data is not tied to one process on one machine. Today the only driver
-is the embedded database; the server driver has not been written.
+setting, so that data is not tied to one process on one machine.
+
+The server driver is written and the whole test suite (73 files, about 800 tests) gives
+identical results through it locally with `GRC_TEST_DATABASE=pg` (about 4 minutes), where each test database is an embedded
+PostgreSQL 18 served over the wire protocol on a random port. The application was also
+run and used in the browser that way. It has not yet run against a separately installed
+PostgreSQL server: the CI leg that does so (PostgreSQL 17 service) is written but has not
+had its first run, and reports without failing the workflow until it has.
 
 **Acceptance criteria**
 
-- [ ] A connection string setting selects a server instead of the embedded database
-- [ ] All migrations and the full test suite pass against a server (also in continuous integration, with a database service)
-- [ ] Connection pooling and transactions behave the same in both modes
-- [ ] The embedded mode remains for local evaluation and tests
-- [ ] A documented path moves existing embedded data to a server. `export-all` and `import-all` (E16-11) were written for this and use only standard PostgreSQL functions, but the import has not been run against a server
-- [ ] `backup`, `restore` and `status` work in server mode (today they copy and read the embedded database's files)
+- [x] A connection string setting selects a server instead of the embedded database (`GRC_DATABASE_URL` or `_FILE`; password, TLS, schema, pool size and timeouts as separate settings)
+- [x] All migrations and the full test suite pass through the server driver over the wire protocol (`GRC_TEST_DATABASE=pg`, locally and in continuous integration)
+- [ ] The same against a real PostgreSQL server in continuous integration (`GRC_TEST_DATABASE_URL`, job "Tests on a database server (postgres-17)"): confirm the first run, then remove its `continue-on-error`
+- [x] Connection pooling and transactions behave the same in both modes: same values (dates, numbers, json, arrays, intervals), one connection per transaction, rollback on error, the time zone on every connection; tested side by side in `db.test.ts`. One documented difference: outside a transaction, other queries are not held back while one runs
+- [x] The embedded mode remains for local evaluation and tests (the default; an in-memory database never uses the configured server)
+- [x] A documented path moves existing embedded data to a server (`export-all`, then `import-all` against the server; the export round-trip tests pass through the server driver)
+- [x] Migrations and module SQL checked for embedded-only assumptions: none found (no extensions; `gen_random_uuid`, text search configurations, triggers and generated columns are standard). PostgreSQL 15 or later
+- [ ] `backup`, `restore` and `status` work in server mode (see E16-30; `pg_dump` guidance is in the operations guide meanwhile)
+
+**Implemented in:** `server/src/core/db.ts` (tests in `db.test.ts`); `.github/workflows/ci.yml` (job `database-server`); `docs/installation.md` (PostgreSQL server); `docs/operations.md` (PostgreSQL server backups); `docs/architecture.md` (Hosting)
 
 ### E16-06 Container images
 
-**Status:** open · **Priority:** P2 · **Type:** feature
+**Status:** in progress · **Priority:** P2 · **Type:** feature
 
 As an operator, I run the application and its database from published container
 definitions with one command.
 
+Docker was not available where this was written, so the definitions were checked by
+reading only. The run commands the image uses were tried directly: the server starts under
+plain Node.js 24 with `--experimental-transform-types` (no `tsx`) and answers its health
+check, and `deploy/healthcheck.mjs` was exercised. The CI job builds the image, checks no
+private files are in it, starts it with a read-only root filesystem and waits for it to
+report healthy; it proves the rest on its first run.
+
 **Acceptance criteria**
 
-- [ ] An image for the application, built in stages, running as a non-root user
-- [ ] A compose file with the application, the database and a volume for files
-- [ ] Configuration by environment variables only
-- [ ] A health check wired to `/api/health`
-- [ ] The image is built in continuous integration
-- [ ] Depends on E16-05
+- [x] An image for the application, built in stages (web build, production packages, runtime), running as the non-root `node` user, all state under one volume, read-only root filesystem
+- [x] A compose file with the application, the database and a volume for files: profiles `embedded` and `server`, secrets from files, published on 127.0.0.1 only
+- [x] Configuration by environment variables only (secrets by `_FILE` variables)
+- [x] A health check wired to `/api/health` (follows `GRC_PORT` and HTTPS)
+- [x] `.dockerignore` never sends `seed/`, `data/`, `.tools/`, secrets or internal documents; CI checks the image
+- [ ] The image is built and started in continuous integration: job written ("Container image"), first run to confirm
+- [x] Depends on E16-05
+- [ ] Published to a registry (see E16-32)
+
+**Implemented in:** `Dockerfile`; `.dockerignore`; `compose.yaml`; `deploy/healthcheck.mjs`; `deploy/secrets/README.md`; `.github/workflows/ci.yml` (job `container`); `docs/installation.md` (Containers)
 
 ### E16-07 HTTPS
 
-**Status:** open · **Priority:** P1 · **Type:** feature
+**Status:** done · **Priority:** P1 · **Type:** feature
 
 As a user on another machine, I reach the application over an encrypted connection.
 
+Run live with a self-signed certificate: health, setup (cookie marked `Secure`) and pages
+in headless Edge over HTTPS (`tools/browse.mjs --insecure-tls`); plain HTTP on `0.0.0.0`
+refused at start.
+
 **Acceptance criteria**
 
-- [ ] The application runs behind a reverse proxy that terminates HTTPS, or serves HTTPS itself with a supplied certificate
-- [ ] It trusts forwarded headers only from a configured proxy, so source addresses in the audit log stay correct
-- [ ] Strict transport security is sent
-- [ ] The session cookie is marked secure ([E02-14](E02-account-security.md))
-- [ ] Binding to a non-loopback address without HTTPS is refused
+- [x] The application runs behind a reverse proxy that terminates HTTPS (`GRC_TRUST_PROXY`, `GRC_ALLOW_INSECURE`), or serves HTTPS itself with a supplied certificate (`GRC_TLS_CERT`, `GRC_TLS_KEY`)
+- [x] It trusts forwarded headers only from a configured proxy (addresses, ranges, keywords, or a hop count), so source addresses in the audit log, sessions and rate limits stay correct
+- [x] Strict transport security is sent on HTTPS responses (`GRC_HSTS_MAX_AGE`, `GRC_HSTS_INCLUDE_SUBDOMAINS`)
+- [x] The session cookie is marked secure ([E02-14](E02-account-security.md)): `auto` by default on HTTPS or behind a trusted proxy
+- [x] Binding to a non-loopback address without HTTPS is refused, unless `GRC_ALLOW_INSECURE=1` declares a TLS proxy in front
+- [x] A self-signed certificate for local testing, made without OpenSSL (`server/src/core/tls-selfsigned.ts`), documented as untrusted
+- [x] Tested: listen decisions, trust lists, HSTS, forwarded headers from trusted and untrusted peers, and a real HTTPS listener
+
+**Implemented in:** `server/src/core/http.ts`, `tls-selfsigned.ts` (tests in `http.test.ts`); `server/src/app.ts`; `server/src/main.ts`; `tools/browse.mjs` (`--insecure-tls`); `docs/installation.md` (HTTPS, Reverse proxy)
 
 ### E16-08 Scheduled backups
 
@@ -199,9 +233,10 @@ machine, so the last criterion is open until someone confirms it on a real one.
 - [x] Each run adds a line with its result to `backups\scheduled-backup.log`, and `status` shows the task, its next run and its last result
 - [x] The server is restarted after the backup even when the run is unattended
 - [ ] Registration, a scheduled run and removal confirmed on a real machine
-- [ ] A failed backup is reported to someone (see E16-17)
-- [ ] Backups can be written to a second location (see E16-17)
-- [ ] An administration page shows the last successful backup (see E16-17)
+- [x] A failed backup is reported to someone (the server's own daily backups, E16-17)
+- [x] Backups can be written to a second location (E16-17)
+- [x] An administration page shows the last successful backup (E16-17)
+- [x] The task can encrypt (`schedule-backup -Encrypt -KeyFile`), and a cron entry and a systemd timer for Linux are documented
 
 **Implemented in:** `grc.ps1` (`schedule-backup`, `unschedule-backup`, `backup -Label scheduled`, `status`); `docs/operations.md`
 
@@ -320,18 +355,22 @@ realistic number of people using it at once. No load testing has been done.
 
 ### E16-15 Accessibility audit
 
-**Status:** open · **Priority:** P2 · **Type:** feature
+**Status:** in progress · **Priority:** P2 · **Type:** feature
 
 As a user who relies on a keyboard, a screen reader or high contrast, I can use every
 screen. No accessibility audit has been done.
 
 **Acceptance criteria**
 
-- [ ] Every screen is checked with an automated accessibility tool; failures are fixed or listed
+- [x] Every screen is checked with an automated accessibility tool; failures are fixed or listed (axe-core, WCAG 2.1 A and AA, every route plus each New dialog and the search window, light and dark at 1440 and 820; what is left is E18-39)
 - [ ] The main journeys are completed with a screen reader
-- [ ] Colour contrast is checked in both themes
-- [ ] Charts have a text alternative
-- [ ] Findings are raised as issues under [E18](E18-quality-and-known-defects.md)
+- [x] Colour contrast is checked in both themes (axe on every screen, and `tools/contrast.mjs` on the tokens)
+- [x] Charts have a text alternative (each chart is labelled and ECharts writes a plain-English summary of its series and values)
+- [x] Findings are raised as issues under [E18](E18-quality-and-known-defects.md) (E18-37 to E18-39; keyboard findings in E18-06)
+
+**Implemented in:** `tools/a11y/audit.mjs` (`npm run test:a11y`; report in
+`tools/a11y/out/report.md`, git-ignored), shared browser code in `tools/e2e/lib/`. Statement:
+[`docs/accessibility.md`](../../accessibility.md).
 
 ### E16-16 Server logging and log rotation
 
@@ -351,36 +390,68 @@ start. `grc.ps1 logs` (E16-22) shows the end of them.
 
 ### E16-17 Unattended, off-machine backups with failure alerts
 
-**Status:** open · **Priority:** P1 · **Type:** feature
+**Status:** done · **Priority:** P1 · **Type:** feature
 
 As an operator, backups happen whether or not anyone is signed in, a copy leaves the
-machine, and I am told when one fails. Today the scheduled task (E16-08) runs only while
-its user is signed in to Windows, writes to one folder, and records a failure only in a
-log file and in `grc.ps1 status`.
+machine, and I am told when one fails.
 
 **Acceptance criteria**
 
-- [ ] Backups run when nobody is signed in (a service account, or a scheduler inside the server once it does not need to stop for a backup)
-- [ ] Each backup is also copied to a second location and verified there
-- [ ] A failed or missed backup raises an alert (depends on notifications, [E14-03](E14-platform-services.md))
-- [ ] An administration page shows the last successful backup and its age
-- [ ] The schedule and retention count are settings in the application
-- [ ] A backup can be taken without stopping the server (needs E16-05, or an online dump of the embedded database)
+- [x] Backups run when nobody is signed in: a scheduler inside the server takes a daily
+  backup at the time an administrator chooses (checked every five minutes; a missed time is
+  caught up at start)
+- [x] Each backup is written to a second location (a folder or network share, or the
+  S3-compatible object store), read back from there and verified, and old ones there are
+  pruned to the number to keep
+- [x] A failed backup, and no good backup for two days, notify administrators through
+  `app.notify` when the notifications module is loaded; both are audited
+- [x] Administration > Backups shows the last successful backup and its age, the schedule,
+  destination, encryption and the last 20 runs, with **Back up now**; `grc.ps1 status`
+  shows the last result (from `data/backup-status.json`)
+- [x] The schedule, destination, retention count and encryption are settings in the
+  application (changing them needs a recent password confirmation)
+- [x] A backup is taken without stopping the server: a logical export of every table inside
+  one transaction (requests wait about two seconds for the sample data), packed into one
+  archive, encrypted when a key is set; `restore` loads it into a new database
+- [ ] The schedule runs on the job queue rather than an in-process timer (E14-27)
+
+**Implemented in:** `server/src/ops/online-backup.ts`, `export.ts` (catalogue read once),
+`backup.ts` (archive restore), `status.ts`; `server/src/modules/attachments/backups.ts`,
+`migrations/002_storage_scanning_purge_backups.sql` (`backup_runs`), `backups.test.ts`;
+`web/src/modules/attachments/BackupSettings.tsx`; `docs/operations.md` (Backups taken by the
+server)
 
 ### E16-18 Automatic rollback of a failed upgrade
 
-**Status:** open · **Priority:** P2 · **Type:** improvement
+**Status:** done · **Priority:** P2 · **Type:** improvement
 
 As an operator, when an upgrade fails I am back on the previous version without typing
-anything. Today `upgrade` stops, leaves the server down and prints the rollback
-commands, because it does not know how to put the previous code back.
+anything.
 
 **Acceptance criteria**
 
-- [ ] `upgrade` records the version it is moving from, in a way that does not depend on one version-control tool being installed
-- [ ] On a failed migration, start or health check it restores the pre-upgrade backup, puts the previous code and packages back and starts the previous version
-- [ ] The outcome is stated plainly either way
-- [ ] Tested with a migration that fails on purpose
+- [x] `upgrade` records the version it is moving from (`package.json`, in
+  `backups/code/upgrade.json`) and keeps a copy of the code as a tar file
+  (`tools/code-snapshot.mjs`, Node.js only), not depending on a version-control tool.
+  `upgrade -From <folder|zip>` and `-Pull` put the new code in place themselves after
+  saving the old; without them the copy saved by `start`, `save-code` or the last
+  successful upgrade is used
+- [x] On a failure from the new code onwards (including a failed migration, start or health
+  check) it puts the previous code back (removing files the new version added under
+  `server/src` and `web/src`), reinstalls packages if the package list changed, restores
+  the pre-upgrade backup when the database may have changed, rebuilds and starts the
+  previous version
+- [x] The outcome is stated plainly either way (`ROLLED BACK` / `ROLLBACK INCOMPLETE` with
+  the commands to finish by hand); `-NoRollback` keeps the old behaviour
+- [x] Tested with a migration that fails on purpose: rehearsed on a copy of the application
+  (release with a broken migration: rolled back, previous version healthy);
+  `server/src/ops/code-snapshot.test.ts` covers save, apply and restore
+- [ ] A rollback after a package change needs network access for `npm install` (or
+  `-SkipInstall` and a manual install); keeping the previous `node_modules` aside would
+  avoid it
+
+**Implemented in:** `grc.ps1` (`upgrade`, `save-code`, `start`); `tools/code-snapshot.mjs`;
+`server/src/ops/code-snapshot.test.ts`; `docs/operations.md` (Upgrading)
 
 ### E16-19 Show the installed version in the application
 
@@ -469,19 +540,32 @@ The project is released under the MIT License (`LICENSE`); `CONTRIBUTING.md` say
 
 ### E16-24 Encrypted backups and exports
 
-**Status:** open · **Priority:** P2 · **Type:** feature
+**Status:** done · **Priority:** P2 · **Type:** feature
 
 As an operator, a backup or export that leaves the machine cannot be read by whoever
-finds it. Today both are plain folders containing everything, including password hashes;
-with the default key file a backup also contains the key that protects authenticator
-keys.
+finds it.
 
 **Acceptance criteria**
 
-- [ ] `backup` and `export-all` can write an encrypted archive, with the key supplied from outside the data folder
-- [ ] `restore` and `import-all` read it, and verification still works
-- [ ] The manifest is covered by an integrity check that someone who can alter the files cannot recompute
-- [ ] Losing the key is documented as losing the backup
+- [x] `backup -Encrypt` and `export-all -Encrypt` (and the server's own backups) write one
+  encrypted archive: a tar stream sealed with AES-256-GCM in 64 KiB chunks, streamed, with
+  a documented format; the key is a 32-byte key file (`new-key`) or a passphrase (scrypt),
+  from `-KeyFile`/`-PassphraseFile` or `GRC_BACKUP_KEY_FILE`/`GRC_BACKUP_PASSPHRASE(_FILE)`;
+  a key file inside the data folder is refused
+- [x] `restore`, `verify-backup` and `import-all` read it (verification decrypts and checks
+  without writing); `decrypt` turns it into the plain tar file
+- [x] Every chunk, the header and the order are authenticated with the key, so the manifest
+  cannot be altered and re-signed without it; a wrong key, an altered byte and a cut-off
+  file are refused (tested)
+- [x] Losing the key is documented as losing the backup
+- [x] The secret key (kept beside the data folder) is not in backups; it can be carried
+  inside an encrypted backup only (`-IncludeSecretKey`, or the Backups page), and a restore
+  puts it in place or adds it as a retired key
+
+**Implemented in:** `server/src/ops/archive.ts`, `backup.ts`, `export.ts`
+(`exportToArchive`, `unpackExport`), `secret-key.ts`, `archive.test.ts`; `server/src/cli.ts`
+(`--encrypt`, `--include-secret-key`, `decrypt`, `new-key`); `grc.ps1`;
+`docs/operations.md` (Encrypted backups and exports)
 
 ### E16-25 Start, stop and schedule on Linux and macOS
 
@@ -495,5 +579,64 @@ and scheduling are done by `grc.ps1`, which is Windows only.
 **Acceptance criteria**
 
 - [ ] A shell script, or the command-line tool itself, offers `start`, `stop`, `restart`, `upgrade` and `logs`
-- [ ] A documented scheduled backup (a timer or cron entry)
+- [x] A documented scheduled backup (a cron entry and a systemd timer in `docs/operations.md`; the server's own daily backup also needs no scheduler)
 - [ ] Covered by the Linux leg of continuous integration
+
+### E16-30 Backup, restore and status commands that know about a database server
+
+**Status:** done · **Priority:** P1 · **Type:** feature
+
+As an operator on a database server, the operations commands either do the right thing or
+tell me what to do instead.
+
+**Acceptance criteria**
+
+- [x] `backup` in server mode refuses with the documented alternative (`pg_dump`; the
+  server's own daily backups and `export-all` work in this mode)
+- [x] `restore` in server mode refuses (`pg_restore`, or `import-all` into an empty database)
+- [x] `status` names the database server (password hidden) and reports pending migrations
+  by asking it, also while the application runs
+- [x] `databaseUrl()` in `server/src/core/db.ts` is the switch used (`refuseServerDatabase`
+  in `server/src/ops/backup.ts`; tested in `archive.test.ts`)
+
+**Implemented in:** `server/src/ops/backup.ts`, `status.ts`, `migrations.ts`;
+`docs/operations.md` (PostgreSQL server backups, Restore)
+
+### E16-31 A least-privilege database role for the application
+
+**Status:** open · **Priority:** P2 · **Type:** improvement
+
+As a security lead, the application's database account cannot remove the audit log's
+append-only trigger. Today the documented role owns the database, because migrations
+create tables at every start.
+
+**Acceptance criteria**
+
+- [ ] Migrations can run as an owner role separate from the role the server uses at run time
+- [ ] The run-time role has only the privileges it needs, and cannot alter or drop triggers
+- [ ] Documented in `docs/installation.md`
+
+### E16-32 Publish the container image
+
+**Status:** open · **Priority:** P3 · **Type:** feature
+
+As an operator, I pull a versioned image rather than building one.
+
+**Acceptance criteria**
+
+- [ ] A release workflow builds for amd64 and arm64 and pushes to a registry with the version tag
+- [ ] The image is signed and has a software bill of materials
+- [ ] `compose.yaml` can use the published image
+
+### E16-33 Reload the TLS certificate without a restart
+
+**Status:** open · **Priority:** P3 · **Type:** improvement
+
+As an operator with short-lived certificates, a renewed certificate is used without
+restarting the server. Today the files named by `GRC_TLS_CERT` and `GRC_TLS_KEY` are read
+at start only.
+
+**Acceptance criteria**
+
+- [ ] The server notices a changed certificate file (or a signal) and uses it for new connections
+- [ ] A broken new certificate is reported and the old one stays in use

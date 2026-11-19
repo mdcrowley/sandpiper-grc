@@ -1,0 +1,50 @@
+/* Passkeys and security keys: the card, the sign-in button, the setup choice. Tokens only. */
+
+.ak-intro p { margin: 0; }
+.ak-list { display: grid; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--border); }
+.ak-item { display: flex; align-items: center; gap: var(--s-3); padding: 12px 20px; }
+.ak-item + .ak-item { border-top: 1px solid var(--border); }
+.ak-item-icon {
+  display: grid; place-items: center; flex: none; width: 36px; height: 36px;
+  border-radius: var(--radius); background: var(--c-blue-bg); color: var(--c-blue-fg);
+}
+.ak-item-main { display: grid; gap: 2px; min-width: 0; flex: 1 1 auto; }
+.ak-item-name { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); font-weight: 600; overflow-wrap: anywhere; }
+.ak-item-facts { display: flex; flex-wrap: wrap; gap: 2px var(--s-3); font-size: var(--fs-sm); }
+.ak-item-facts span + span::before { content: "\00b7"; margin-inline-end: var(--s-3); }
+.ak-item-actions { display: flex; flex: none; gap: var(--s-1); }
+.ak-remove { color: var(--c-red-fg); }
+.ak-foot { border-top: 1px solid var(--border); justify-items: start; }
+.ak-foot p { margin: 0; }
+.ak-card .state { padding-block: var(--s-5); border-top: 1px solid var(--border); }
+.ak-choice-intro { margin: 0 0 var(--s-1); }
+
+@media (max-width: 560px) {
+  .ak-item { flex-wrap: wrap; padding-inline: var(--s-4); }
+  .ak-item-actions { width: 100%; justify-content: flex-end; }
+}
+
+/* "Use a passkey" on the sign-in page */
+.ak-signin { display: grid; gap: var(--s-2); }
+.ak-or {
+  display: flex; align-items: center; gap: var(--s-3); margin: var(--s-1) 0;
+  color: var(--text-muted); font-size: var(--fs-sm);
+}
+.ak-or::before, .ak-or::after { content: ""; flex: 1; border-top: 1px solid var(--border); }
+.ak-signin .ui-btn, .ak-signin button { width: 100%; }
+
+/* The setup wizard's second-factor choice */
+.ak-choice { display: grid; gap: var(--s-2); margin: 0; padding: 0; border: 0; min-width: 0; }
+.ak-choice legend { padding: 0; margin-bottom: var(--s-1); font-weight: 600; }
+.ak-option {
+  display: grid; grid-template-columns: auto 1fr; gap: 2px var(--s-2); align-items: start;
+  padding: var(--s-3); border: 1px solid var(--border-control); border-radius: var(--radius); cursor: pointer;
+}
+.ak-option:has(input:checked) { border-color: var(--c-blue-solid); background: var(--c-blue-bg); }
+.ak-option input { margin: 3px 0 0; accent-color: var(--c-blue-solid); }
+.ak-option-title { font-weight: 600; }
+.ak-option-text { grid-column: 2; font-size: var(--fs-sm); color: var(--text-muted); }
+.ak-option:has(input:checked) .ak-option-text { color: inherit; }
+.ak-option:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.ak-page { display: grid; gap: var(--s-4); max-width: 760px; }

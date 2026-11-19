@@ -1,12 +1,17 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
+import { isAbsolute, join, relative, resolve } from 'node:path';
 import { buildApp, repoRoot } from './app.ts';
 import { openDb } from './core/db.ts';
 import type { LookupValue, SeedOptions } from './core/module.ts';
-import { createBackup, listBackups, OpsError, pruneBackups, resolveBackup, restoreBackup, verifyBackup } from './ops/backup.ts';
-import { exportAll, importAll } from './ops/export.ts';
+import { decryptToTar, ENCRYPTED_EXT, isArchivePath, loadArchiveKey, newKeyText, readArchiveInfo } from './ops/archive.ts';
+import {
+  createBackup, listBackupsAsync, OpsError, pruneBackups, resolveBackup, restoreBackup, verifyBackup,
+} from './ops/backup.ts';
+import { exportAll, exportToArchive, importAll, unpackExport } from './ops/export.ts';
 import { formatBytes, serverPid, timestamp } from './ops/files.ts';
 import { migrationsOnDisk, readAppliedMigrations } from './ops/migrations.ts';
+import { secretKeyNote } from './ops/secret-key.ts';
 import { formatStatus, getStatus } from './ops/status.ts';
 
 // Command-line tasks. The embedded database allows one process at a time, so stop the
@@ -16,18 +21,25 @@ const USAGE = `Usage: cli.ts <command>
   seed [--profile pilot|dev]            load data
   migrate                               bring the database up to date
   status [--json]                       version, server, data size, last backup, migrations
-  backup [--prune <n>] [--label <text>] copy the data folder to a new backup
+  backup [--prune <n>] [--label <text>] [--encrypt [--include-secret-key]]   copy the data folder to a new backup
   backups                               list backups, newest first
   verify-backup <name|path|latest>      check a backup against its manifest
   restore <name|path|latest> [--force]  replace the data with a backup (keeps a safety copy)
-  export-all [--out <dir>] [--no-secrets]   every table as JSON Lines, plus files
-  import-all <dir>                      load an export into an empty installation`;
+  export-all [--out <dir|file>] [--no-secrets] [--encrypt]   every table as JSON Lines, plus files
+  import-all <dir|archive>              load an export into an empty installation
+  decrypt <archive> [--out <file.tar>]  turn an encrypted backup or export into a plain tar file
+  new-key <file>                        write a new random key file for encrypted backups
+  move-files --to disk|s3               move attached files to the other store, checking each one
+
+Encrypted archives: --key-file <file> or --passphrase-file <file>, or the environment variables
+GRC_BACKUP_KEY_FILE, GRC_BACKUP_PASSPHRASE_FILE or GRC_BACKUP_PASSPHRASE. Keep the key outside
+the data folder.`;
 
 const [command, ...args] = process.argv.slice(2);
 const dataDir = process.env.GRC_DATA_DIR ?? resolve(repoRoot, 'data');
 const backupsDir = process.env.GRC_BACKUP_DIR ? resolve(process.env.GRC_BACKUP_DIR) : resolve(repoRoot, 'backups');
 
-const VALUE_FLAGS = ['profile', 'prune', 'label', 'out'];
+const VALUE_FLAGS = ['profile', 'prune', 'label', 'out', 'key-file', 'passphrase-file', 'to'];
 
 function flag(name: string, fallback: string): string {
   const i = args.indexOf(`--${name}`);
@@ -37,6 +49,16 @@ const has = (name: string) => args.includes(`--${name}`);
 /** The first argument that is neither a flag nor a flag's value. */
 function positional(): string | undefined {
   return args.find((a, i) => !a.startsWith('--') && !(i > 0 && VALUE_FLAGS.includes(args[i - 1].replace(/^--/, ''))));
+}
+
+/** The key for encrypted archives, from the flags or the environment; null when none is given. */
+function archiveKey() {
+  return loadArchiveKey({ keyFile: flag('key-file', '') || null, passphraseFile: flag('passphrase-file', '') || null, dataDir });
+}
+function requiredKey(what: string) {
+  const key = archiveKey();
+  if (!key) throw new OpsError(`${what} needs a key: --key-file <file> or --passphrase-file <file>, or GRC_BACKUP_KEY_FILE / GRC_BACKUP_PASSPHRASE_FILE / GRC_BACKUP_PASSPHRASE.`);
+  return key;
 }
 
 /** Commands that open or replace the database need the server stopped. */
@@ -115,10 +137,14 @@ async function run(): Promise<number> {
     requireStopped();
     const prune = has('prune') ? Number(flag('prune', '')) : null;
     if (prune !== null && (!Number.isInteger(prune) || prune < 1)) throw new OpsError('--prune needs a whole number, 1 or more.');
+    const key = has('encrypt') ? requiredKey('An encrypted backup') : null;
     const migrations = await readAppliedMigrations(dataDir, warn('the migration list could not be read and is not in the manifest'));
-    const backup = await createBackup({ dataDir, backupsDir, migrations, label: flag('label', 'manual') });
+    const includeKey = has('include-secret-key');
+    if (includeKey && !key) throw new OpsError('--include-secret-key needs --encrypt: the key may only travel inside an encrypted backup.');
+    const backup = await createBackup({ dataDir, backupsDir, migrations, label: flag('label', 'manual'), key, includeSecretKey: includeKey });
     console.log(`Backed up to ${backup.dir}`);
-    console.log(`  ${backup.manifest.files.length} files, ${formatBytes(backup.manifest.totalBytes)}, checksums verified, version ${backup.manifest.appVersion}`);
+    console.log(`  ${backup.manifest.files.length} files, ${formatBytes(backup.manifest.totalBytes)}, checksums verified${key ? ', encrypted' : ''}, version ${backup.manifest.appVersion}`);
+    console.log(`  ${secretKeyNote(dataDir, includeKey)}`);
     if (prune !== null) {
       const removed = await pruneBackups(backupsDir, prune);
       console.log(removed.length ? `  Pruned ${removed.length} old backup(s): ${removed.join(', ')}` : `  Nothing to prune (keeping the newest ${prune}).`);
@@ -127,23 +153,26 @@ async function run(): Promise<number> {
   }
 
   if (command === 'backups') {
-    const backups = listBackups(backupsDir);
+    const backups = await listBackupsAsync(backupsDir);
     if (!backups.length) console.log(`No backups in ${backupsDir}.`);
     for (const b of backups) {
-      console.log(`${b.name.padEnd(30)} ${b.manifest.createdAt}  ${formatBytes(b.manifest.totalBytes).padStart(10)}  v${b.manifest.appVersion}  ${b.manifest.label}`);
+      const how = [b.manifest.label, b.encrypted ? 'encrypted' : '', b.kind === 'online-backup' ? 'taken while running' : ''].filter(Boolean).join(', ');
+      console.log(`${b.name.padEnd(36)} ${b.manifest.createdAt}  ${formatBytes(b.manifest.totalBytes).padStart(10)}  v${b.manifest.appVersion}  ${how}`);
     }
     return 0;
   }
 
   if (command === 'verify-backup') {
     const dir = resolveBackup(backupsDir, positional() ?? 'latest');
-    const { manifest, problems } = await verifyBackup(dir);
+    const encrypted = isArchivePath(dir) && statSync(dir).isFile() && (await readArchiveInfo(dir)).encrypted;
+    const { manifest, problems } = await verifyBackup(dir, encrypted ? requiredKey('This backup is encrypted, so checking it') : null);
     if (problems.length) {
       console.error(`FAILED: ${dir} does not match its manifest:`);
       for (const p of problems.slice(0, 20)) console.error(`  - ${p}`);
       return 1;
     }
-    console.log(`OK: ${dir} (${manifest.files.length} files, ${formatBytes(manifest.totalBytes)}, made ${manifest.createdAt} by version ${manifest.appVersion})`);
+    const count = manifest.files.length ? `${manifest.files.length} files, ` : '';
+    console.log(`OK: ${dir} (${count}${formatBytes(manifest.totalBytes)}, made ${manifest.createdAt} by version ${manifest.appVersion}${encrypted ? ', decrypted and checked' : ''})`);
     return 0;
   }
 
@@ -153,32 +182,54 @@ async function run(): Promise<number> {
     const ref = positional();
     if (!ref) throw new OpsError('Say which backup to restore: a name from `backups`, a path, or `latest`.');
     const backupDir = resolveBackup(backupsDir, ref);
+    const encrypted = isArchivePath(backupDir) && statSync(backupDir).isFile() && (await readArchiveInfo(backupDir)).encrypted;
+    const key = encrypted ? requiredKey('This backup is encrypted, so restoring it') : archiveKey();
     console.log(`Restoring ${backupDir} into ${dataDir}`);
     const currentMigrations = await readAppliedMigrations(dataDir, warn('the current database could not be read; the safety copy is still taken'));
-    const result = await restoreBackup({ backupDir, dataDir, backupsDir, codeMigrations: migrationsOnDisk(), currentMigrations, force: has('force') });
-    console.log(`  Verified ${result.manifest.files.length} files against the manifest.`);
+    const result = await restoreBackup({
+      backupDir, dataDir, backupsDir, codeMigrations: migrationsOnDisk(), currentMigrations, force: has('force'), key,
+      async loadExport(dir) {
+        const { db, close } = await buildApp({ dataDir, serveWeb: false }); // a new, migrated, empty database
+        try {
+          const loaded = await importAll(db, { inDir: dir, filesDir: join(dataDir, 'files') });
+          console.log(`  Loaded ${loaded.tables.reduce((s, t) => s + t.rows, 0)} rows and ${loaded.files} files into a new database.`);
+          for (const note of loaded.notes) console.log(`  Note: ${note}`);
+        } finally {
+          await close();
+        }
+      },
+    });
+    if (!result.fromExport) console.log(`  Verified ${result.manifest.files.length} files against the manifest.`);
     console.log(result.safetyCopy ? `  The data that was replaced is kept in ${result.safetyCopy.dir}` : '  There was no existing data to keep.');
     console.log(`Restored the backup made ${result.manifest.createdAt} by version ${result.manifest.appVersion}.`);
     if (result.pendingMigrations.length) console.log(`  ${result.pendingMigrations.length} newer migration(s) will be applied at the next start: ${result.pendingMigrations.join(', ')}`);
     console.log('Everything recorded after that backup is no longer in the application.');
+    console.log(`  ${result.keyNote ?? secretKeyNote(dataDir).replace('is not in backups (unless an encrypted backup is told to include it)', 'was not in this backup')}`);
     return 0;
   }
 
   if (command === 'export-all') {
     requireStopped();
-    const outDir = resolve(flag('out', join(backupsDir, `export-${timestamp()}`)));
+    const encrypt = has('encrypt');
+    const key = encrypt ? requiredKey('An encrypted export') : null;
+    const filesDir = dataDir === 'memory' ? null : join(dataDir, 'files');
     const db = await openDb(dataDir);
     try {
-      const manifest = await exportAll(db, {
-        outDir,
-        filesDir: dataDir === 'memory' ? null : join(dataDir, 'files'),
-        includeSecrets: !has('no-secrets'),
-      });
+      if (encrypt) {
+        const outFile = resolve(flag('out', join(backupsDir, `export-${timestamp()}${ENCRYPTED_EXT}`)));
+        const { manifest, bytes } = await exportToArchive(db, { outFile, key, filesDir, includeSecrets: !has('no-secrets') });
+        const rows = manifest.tables.reduce((sum, t) => sum + t.rows, 0);
+        console.log(`Exported ${rows} rows from ${manifest.tables.length} tables and ${manifest.files.length} files to ${outFile} (${formatBytes(bytes)}, encrypted)`);
+        console.log('  Read it back with: import-all <file>, or turn it into a plain tar file with: decrypt <file>');
+        return 0;
+      }
+      const outDir = resolve(flag('out', join(backupsDir, `export-${timestamp()}`)));
+      const manifest = await exportAll(db, { outDir, filesDir, includeSecrets: !has('no-secrets') });
       const rows = manifest.tables.reduce((sum, t) => sum + t.rows, 0);
       console.log(`Exported ${rows} rows from ${manifest.tables.length} tables and ${manifest.files.length} files to ${outDir}`);
       console.log(
         manifest.secretsIncluded
-          ? '  It includes password hashes and second-factor secrets: protect it like a backup.'
+          ? '  It includes password hashes and second-factor secrets: protect it like a backup (or use --encrypt).'
           : '  Password hashes, second-factor secrets, sessions and one-time links were left out.',
       );
     } finally {
@@ -189,18 +240,65 @@ async function run(): Promise<number> {
 
   if (command === 'import-all') {
     requireStopped();
-    const inDir = positional();
-    if (!inDir || !existsSync(inDir)) throw new OpsError('Say which export folder to import (the folder that holds manifest.json).');
-    const { db, close } = await buildApp({ dataDir, serveWeb: false }); // creates and migrates the database
+    const given = positional();
+    if (!given || !existsSync(given)) throw new OpsError('Say which export to import: the folder that holds manifest.json, or an export archive.');
+    const isFile = statSync(given).isFile();
+    let inDir = resolve(given);
+    if (isFile) {
+      const { encrypted } = await readArchiveInfo(inDir);
+      inDir = await unpackExport(inDir, encrypted ? requiredKey('This export is encrypted, so importing it') : null);
+    }
     try {
-      const result = await importAll(db, { inDir: resolve(inDir), filesDir: dataDir === 'memory' ? null : join(dataDir, 'files') });
-      const rows = result.tables.reduce((sum, t) => sum + t.rows, 0);
-      console.log(`Imported ${rows} rows into ${result.tables.length} tables and ${result.files} files from ${resolve(inDir)}`);
-      for (const note of result.notes) console.log(`  Note: ${note}`);
+      const { db, close } = await buildApp({ dataDir, serveWeb: false }); // creates and migrates the database
+      try {
+        const result = await importAll(db, { inDir, filesDir: dataDir === 'memory' ? null : join(dataDir, 'files') });
+        const rows = result.tables.reduce((sum, t) => sum + t.rows, 0);
+        console.log(`Imported ${rows} rows into ${result.tables.length} tables and ${result.files} files from ${resolve(given)}`);
+        for (const note of result.notes) console.log(`  Note: ${note}`);
+      } finally {
+        await close();
+      }
+    } finally {
+      if (isFile) await rm(inDir, { recursive: true, force: true });
+    }
+    return 0;
+  }
+
+  if (command === 'decrypt') {
+    const file = positional();
+    if (!file || !existsSync(file)) throw new OpsError('Say which encrypted archive to decrypt.');
+    const out = resolve(flag('out', file.endsWith(ENCRYPTED_EXT) ? file.slice(0, -'.sgrc'.length) : `${file}.tar`));
+    if (existsSync(out)) throw new OpsError(`${out} already exists.`);
+    await decryptToTar(resolve(file), out, requiredKey('Decrypting'));
+    console.log(`Decrypted to ${out} (a plain tar file: every entry was checked). It is NOT protected: delete it when done.`);
+    return 0;
+  }
+
+  if (command === 'new-key') {
+    const file = positional();
+    if (!file) throw new OpsError('Say where to write the key file, outside the data folder: new-key <file>.');
+    if (existsSync(file)) throw new OpsError(`${file} already exists; it was left alone.`);
+    const abs = resolve(file);
+    const rel = relative(resolve(dataDir), abs);
+    if (dataDir !== 'memory' && !rel.startsWith('..') && !isAbsolute(rel)) throw new OpsError('Keep the key file outside the data folder.');
+    writeFileSync(abs, newKeyText(), { flag: 'wx', mode: 0o600 });
+    console.log(`Wrote a new key to ${abs}. Keep a copy somewhere safe and separate from the backups: without it they cannot be read.`);
+    return 0;
+  }
+
+  if (command === 'move-files') {
+    requireStopped();
+    const to = flag('to', '');
+    if (to !== 'disk' && to !== 's3') throw new OpsError('Say where to move the files: --to disk or --to s3.');
+    const { moveFiles } = await import('./modules/attachments/housekeeping.ts');
+    const { ctx, close } = await buildApp({ dataDir, serveWeb: false });
+    try {
+      const result = await moveFiles(ctx, to, (line) => console.log(`  ${line}`));
+      console.log(`Moved ${result.moved} file(s) to ${to === 's3' ? 'the object store' : 'the local disk'}; ${result.skipped} already there; ${result.failed} failed.`);
+      return result.failed ? 1 : 0;
     } finally {
       await close();
     }
-    return 0;
   }
 
   console.log(USAGE);

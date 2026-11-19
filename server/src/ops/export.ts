@@ -1,9 +1,10 @@
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
-import { mkdir, readdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { existsSync, readFileSync, statSync } from 'node:fs';
+import { copyFile, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
+import { basename, dirname, join } from 'node:path';
 import type { Db, Queryable } from '../core/db.ts';
-import { OpsError } from './backup.ts';
+import { type ArchiveInfo, type ArchiveKey, extractEntries, folderEntries, openArchiveFile, writeArchive } from './archive.ts';
+import { OpsError } from './errors.ts';
 import { appVersion, copyFiles, describeFiles, listFiles, sha256File, sha256Text } from './files.ts';
 import type { FileEntry } from './files.ts';
 import { appliedMigrations } from './migrations.ts';
@@ -23,7 +24,7 @@ export const EXPORT_FORMAT = 'sandpiper-grc-export';
 const PAGE = 2000;
 
 /** Tables whose rows are left out of an export made without secrets. */
-export const SECRET_TABLES = ['sessions', 'one_time_tokens', 'password_history'];
+export const SECRET_TABLES = ['sessions', 'one_time_tokens', 'password_history', 'webauthn_credentials', 'webauthn_challenges'];
 /** Columns blanked in an export made without secrets: table -> column -> replacement. */
 export const SECRET_COLUMNS: Record<string, Record<string, unknown>> = {
   users: { password_hash: null, totp_secret: null, totp_enabled: false, recovery_codes: [] },
@@ -77,20 +78,6 @@ function columnsOf(db: Queryable, table: string): Promise<ColumnInfo[]> {
   );
 }
 
-async function primaryKey(db: Queryable, table: string): Promise<string[]> {
-  const rows = await db.query<{ attname: string }>(
-    `select a.attname
-       from pg_index i
-       join pg_class c on c.oid = i.indrelid
-       join pg_namespace n on n.oid = c.relnamespace
-       join pg_attribute a on a.attrelid = i.indrelid and a.attnum = any(i.indkey)
-      where n.nspname = 'public' and c.relname = $1 and i.indisprimary
-      order by a.attnum`,
-    [table],
-  );
-  return rows.map((r) => r.attname);
-}
-
 export interface ExportOptions {
   outDir: string;
   /** The application's files folder (`<data>/files`); null or missing means there are none. */
@@ -107,10 +94,33 @@ export async function exportAll(db: Queryable, opts: ExportOptions): Promise<Exp
   const includeSecrets = opts.includeSecrets ?? true;
   await mkdir(join(opts.outDir, 'tables'), { recursive: true });
 
+  // The catalogue is read once for every table: one query per table is slow on the embedded
+  // database and an online backup holds its transaction open while this runs.
+  const columnsByTable = new Map<string, string[]>();
+  for (const r of await db.query<{ table_name: string; column_name: string }>(
+    `select table_name, column_name from information_schema.columns where table_schema = 'public' order by table_name, ordinal_position`,
+  )) {
+    if (!columnsByTable.has(r.table_name)) columnsByTable.set(r.table_name, []);
+    columnsByTable.get(r.table_name)!.push(r.column_name);
+  }
+  const keysByTable = new Map<string, string[]>();
+  for (const r of await db.query<{ table_name: string; attname: string }>(
+    `select c.relname as table_name, a.attname
+       from pg_index i
+       join pg_class c on c.oid = i.indrelid
+       join pg_namespace n on n.oid = c.relnamespace
+       join pg_attribute a on a.attrelid = i.indrelid and a.attnum = any(i.indkey)
+      where n.nspname = 'public' and i.indisprimary
+      order by c.relname, a.attnum`,
+  )) {
+    if (!keysByTable.has(r.table_name)) keysByTable.set(r.table_name, []);
+    keysByTable.get(r.table_name)!.push(r.attname);
+  }
+
   const tables: ExportedTable[] = [];
   for (const name of await tableNames(db)) {
-    const columns = (await columnsOf(db, name)).map((c) => c.column_name);
-    const pk = await primaryKey(db, name);
+    const columns = columnsByTable.get(name) ?? [];
+    const pk = keysByTable.get(name) ?? [];
     const order = pk.length ? pk.map((c) => `t.${ident(c)}`).join(', ') : 'row_to_json(t)::text';
     const skipRows = !includeSecrets && SECRET_TABLES.includes(name);
     const blank = includeSecrets ? undefined : SECRET_COLUMNS[name];
@@ -162,6 +172,61 @@ export async function exportAll(db: Queryable, opts: ExportOptions): Promise<Exp
   ];
   await writeFile(join(opts.outDir, 'checksums.sha256'), `${report.join('\n')}\n`, 'utf8');
   return manifest;
+}
+
+export interface ExportArchiveOptions extends Omit<ExportOptions, 'outDir'> {
+  /** The archive to write: `.tar`, or `.tar.sgrc` when a key is given. */
+  outFile: string;
+  key: ArchiveKey | null;
+  /** What the archive says about itself (see archive.ts); `kind` defaults to `export`. */
+  info?: Partial<ArchiveInfo>;
+  /** Extra files to carry, path in the archive -> file on disk (for example extra/secret.key). */
+  extra?: Record<string, string>;
+}
+
+/**
+ * An export written as one archive file. The tables and files are exported to a working folder
+ * beside the archive, packed (and encrypted when a key is given), checked and the folder removed.
+ */
+export async function exportToArchive(db: Queryable, opts: ExportArchiveOptions): Promise<{ manifest: ExportManifest; bytes: number; info: ArchiveInfo }> {
+  if (existsSync(opts.outFile)) throw new OpsError(`${opts.outFile} already exists. Choose a new name.`);
+  const work = `${opts.outFile}.work`;
+  await rm(work, { recursive: true, force: true });
+  try {
+    const manifest = await exportAll(db, { outDir: work, filesDir: opts.filesDir, includeSecrets: opts.includeSecrets, now: opts.now });
+    for (const [path, file] of Object.entries(opts.extra ?? {})) {
+      if (!existsSync(file)) continue;
+      await mkdir(join(work, dirname(path)), { recursive: true });
+      await copyFile(file, join(work, path));
+    }
+    const info: ArchiveInfo = {
+      kind: 'export', name: basename(opts.outFile), createdAt: manifest.createdAt, appVersion: manifest.appVersion,
+      totalBytes: listFiles(work).reduce((sum, p) => sum + statSync(join(work, p)).size, 0),
+      secretsIncluded: manifest.secretsIncluded, migrations: manifest.migrations, ...opts.info,
+    } as ArchiveInfo;
+    const paths = listFiles(work);
+    const bytes = await writeArchive(opts.outFile, [
+      { path: 'archive.json', type: 'file', data: Buffer.from(`${JSON.stringify(info, null, 2)}\n`) },
+      ...folderEntries(work, [], paths),
+    ], opts.key, info);
+    return { manifest, bytes, info };
+  } finally {
+    await rm(work, { recursive: true, force: true });
+  }
+}
+
+/** Unpacks an export archive into a new folder beside it, for importAll. The caller removes the folder. */
+export async function unpackExport(file: string, key: ArchiveKey | null): Promise<string> {
+  const work = `${file}.unpacked-${process.pid}`;
+  await rm(work, { recursive: true, force: true });
+  try {
+    await extractEntries(openArchiveFile(file, key), work);
+    readExportManifest(work);
+  } catch (err) {
+    await rm(work, { recursive: true, force: true });
+    throw err;
+  }
+  return work;
 }
 
 export function readExportManifest(dir: string): ExportManifest {

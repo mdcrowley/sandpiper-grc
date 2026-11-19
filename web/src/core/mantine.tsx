@@ -89,6 +89,8 @@ export const theme = createTheme({
     // Every Mantine input is built on Input and InputWrapper, so these classes reach them all (see base.css).
     Input: Input.extend({ classNames: { wrapper: 'ui-input-wrap', input: 'ui-input' } }),
     InputWrapper: InputWrapper.extend({ classNames: { label: 'ui-label' } }),
+    // The clear (x) button Mantine adds to clearable inputs, date inputs among them, has no name of its own.
+    InputClearButton: Input.ClearButton.extend({ defaultProps: { 'aria-label': 'Clear value' } }),
   },
 });
 

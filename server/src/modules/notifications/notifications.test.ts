@@ -231,7 +231,9 @@ describe('preferences', () => {
     const before = (await agent.get('/api/notifications/preferences')).body;
     expect(before.dailyDigest).toBe(false);
     expect(before.emailAvailable).toBe(false);
-    expect(before.kinds.map((k: any) => k.value)).toEqual(['assignment', 'approval', 'due', 'sla', 'reminder', 'acknowledgement', 'clock', 'general']);
+    // Other modules may add kinds of their own (the list is configurable); these are this module's.
+    const ours = ['assignment', 'approval', 'due', 'sla', 'reminder', 'acknowledgement', 'clock', 'watch', 'general'];
+    expect(before.kinds.map((k: any) => k.value).filter((v: string) => ours.includes(v))).toEqual(ours);
     expect(before.kinds.every((k: any) => k.enabled && k.label && k.description)).toBe(true);
 
     const saved = await save(agent.userId, { kinds: { assignment: false, reminder: false }, dailyDigest: true });

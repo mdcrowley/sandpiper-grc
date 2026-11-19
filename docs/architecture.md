@@ -54,9 +54,10 @@ timer works through, so a restart loses none.
 ## Process model
 
 - **One process.** `server/src/main.ts` calls `buildApp()` in `server/src/app.ts`, listens
-  on `127.0.0.1`, and serves both the API (`/api/...`) and the built web application
-  (`dist/web`, with a fallback to `index.html` for client-side routes).
-- **Embedded database.** PGlite runs inside that process and allows one process per data
+  (on `127.0.0.1` unless configured otherwise; see Hosting below), and serves both the API
+  (`/api/...`) and the built web application (`dist/web`, with a fallback to `index.html`
+  for client-side routes).
+- **Embedded database** (the default). PGlite runs inside that process and allows one process per data
   folder. That is why `server/src/cli.ts` (the `seed` and `migrate` commands) refuses to
   run while `data/grc.pid` exists, and why `grc.ps1` stops the server around `seed` and
   `backup`. `grc.ps1` exposes `seed`; `migrate` is available only through
@@ -352,22 +353,67 @@ A short outline, for an invented "meeting rooms" module. The exact shapes are in
 
 No registration step is needed anywhere: both sides find the folder.
 
+## Hosting
+
+How the one process is reached and where its data lives. Operator's view:
+[Server installation](installation.md#server-installation).
+
+- **Two database drivers, one interface.** `openDb` in `server/src/core/db.ts` returns the
+  same `Db` (`query`, `one`, `exec`, `tx`, `close`) from either PGlite (embedded, the
+  default) or a `pg` connection pool (`GRC_DATABASE_URL`). Nothing else imports either
+  driver. The server driver is made to behave like the embedded one:
+  - *Values*: type parsers give dates as `YYYY-MM-DD` strings, `numeric`/`bigint` (and
+    their arrays) as numbers, `interval` as text and `json`/`jsonb` parsed, as PGlite does.
+    PGlite knows each parameter's type and sends a JavaScript array bound for `jsonb` as
+    JSON; `pg` would send a Postgres array, so for a statement with an array parameter the
+    driver asks the server once for the parameter types (`PREPARE` and
+    `pg_prepared_statements`) and JSON-encodes those arrays. Cached per statement.
+  - *Sessions*: every pooled connection gets the organisation's time zone, a statement
+    timeout, an idle-in-transaction timeout and an optional `search_path` before first use.
+  - *Transactions*: `tx` takes one connection for `begin` ... `commit`/`rollback`. Unlike
+    PGlite, other queries on the outer handle are not held back meanwhile; they run on
+    other connections and do not see the transaction's uncommitted work.
+  - *Portability*: no extensions; `gen_random_uuid()` (core since PostgreSQL 13), the
+    `english` and `simple` text-search configurations and PL/pgSQL triggers are standard.
+    One migration uses a stored generated column. PostgreSQL 15 or later is supported.
+  - *Tests*: `GRC_TEST_DATABASE=pg` makes every in-memory test database a fresh PGlite
+    served over the Postgres wire protocol (`@electric-sql/pglite-socket`, random port)
+    and reached through the server driver, so the whole suite exercises it;
+    `GRC_TEST_DATABASE_URL` gives each a fresh database on a real server, dropped on close.
+    An in-memory database never uses `GRC_DATABASE_URL`. `server/src/core/db.test.ts`
+    checks both drivers side by side.
+- **Listening and HTTPS.** `planListen` in `server/src/core/http.ts` reads `GRC_HOST`,
+  `GRC_PORT` and `GRC_TLS_CERT`/`GRC_TLS_KEY` and refuses plain HTTP on a non-loopback
+  address unless `GRC_ALLOW_INSECURE=1`. With a certificate the same Fastify instance is
+  built with `https` options. `server/src/core/tls-selfsigned.ts` writes a self-signed
+  test certificate using Node's crypto only.
+- **Trusted proxies.** Fastify is built with a trust-proxy function (`trustProxyFn`) that
+  reads `GRC_TRUST_PROXY` on each request: addresses, CIDR ranges and keywords, or a hop
+  count. `req.ip`, `req.protocol` and `req.hostname` therefore follow `X-Forwarded-*` only
+  from a trusted peer, everywhere. The helpers in `server/src/core/request.ts`
+  (`clientIp`, `isHttps`, `cookieSecure`) agree with them.
+- **HSTS and cookies.** An `onSend` hook in `app.ts` adds `Strict-Transport-Security` to
+  HTTPS responses (`GRC_HSTS_MAX_AGE`). `main.ts` sets `GRC_COOKIE_SECURE=auto` when HTTPS
+  or a trusted proxy is configured and the setting was left unset.
+- **Shutdown.** On a signal or the stop file, `main.ts` closes Fastify (finishing requests
+  in progress) and then the database (flushing PGlite, or ending the pool), and exits;
+  after 20 seconds it exits regardless.
+- **Containers.** `Dockerfile` (web build stage, production-packages stage, runtime as the
+  `node` user running `node --experimental-transform-types server/src/main.ts`, state
+  under the `/var/lib/sandpiper` volume, `HEALTHCHECK` via `deploy/healthcheck.mjs`),
+  `.dockerignore` (never sends `seed/`, `data/`, `.tools/`, secrets or internal documents)
+  and `compose.yaml` (profiles `embedded` and `server`, secrets from files, read-only root
+  filesystem). CI builds the image and checks it starts healthy.
+
 ## Path to production
 
-The prototype choices were made so that each can be replaced without redesign. None of
-the following is built yet; see [Known gaps](known-gaps.md).
+The prototype choices were made so that each can be replaced without redesign. The
+database server, HTTPS and containers are in place (Hosting, above); the rest is not yet
+built; see [Known gaps](known-gaps.md).
 
-- **Database.** Replace PGlite with a PostgreSQL server by reimplementing `openDb` in
-  `server/src/core/db.ts` with a PostgreSQL client and a connection pool. Nothing else
-  imports PGlite, and the SQL and migrations are already PostgreSQL. Things to design
-  with it: a real transaction-per-request story, the session time zone on every pooled
-  connection, and a database role for the application that cannot alter the audit trigger.
-- **Containers.** Replace `grc.ps1` and the portable Node.js with a container image for
-  the server and a managed or containerised PostgreSQL. The pid-file and stop-file
-  mechanism goes away in favour of ordinary signals, which `main.ts` already handles.
-- **HTTPS.** Terminate TLS in front of the server (or in it), mark the session cookie
-  `Secure`, add HSTS, tell Fastify which proxy to trust so that source addresses in the
-  audit log and rate limiter are real, and revisit the fixed `127.0.0.1` binding.
+- **Database.** Still to design: a transaction-per-request story, and a database role for
+  the application that cannot alter the audit trigger (today the role owns its tables).
+  Backups in server mode use `pg_dump`; `grc.ps1 backup` covers the embedded database only.
 - **Single sign-on.** Add OpenID Connect or SAML beside local accounts, with account
   linking and a break-glass local administrator. Decide where the second factor is
   enforced.

@@ -72,34 +72,75 @@ describe('report query: permissions and restricted records', () => {
     expect((await run(await t.as('agent'), { type: 'rt_box' })).status).toBe(403);
   });
 
-  it('hides restricted rows, and every count that would reveal them, without security.view', async () => {
+  it('hides restricted rows from lists without security.view', async () => {
     const agent = await t.as('agent');
     const lead = await t.as('security_lead');
     const rows = await run(agent, { type: 'rt_thing', columns: ['name'] });
     expect(rows.body.total).toBe(5);
     expect(rows.body.rows.map((x: any) => x.v.c0)).not.toContain('R');
     expect((await run(lead, { type: 'rt_thing', columns: ['name'] })).body.total).toBe(6);
-
-    const spec = { type: 'rt_thing', groupBy: [{ field: 'status' }], aggregates: [{ fn: 'count' }, { fn: 'sum', field: 'amount' }, { fn: 'max', field: 'amount' }, { fn: 'pct' }] };
-    const a = (await run(agent, spec)).body;
-    expect(byLabel(a)).toEqual({ 'Brand new': 1, 'In hand': 2, Finished: 2 });
-    expect(byLabel(a, 'a1')['In hand']).toBe(500);
-    expect(byLabel(a, 'a2')['In hand']).toBe(300);
-    expect(byLabel(a, 'a3')['In hand']).toBe(40);
-    const l = (await run(lead, spec)).body;
-    expect(byLabel(l)['In hand']).toBe(3);
-    expect(byLabel(l, 'a1')['In hand']).toBe(1500);
-
-    // The same answer as the generic list and stats give.
-    expect((await agent.get('/api/rt-things')).body.total).toBe(5);
-    expect((await agent.get('/api/rt-things/stats?group=status')).body.total).toBe(5);
-
-    // Totals, pivots and a filter aimed at the hidden row.
-    expect((await run(agent, { type: 'rt_thing', aggregates: [{ fn: 'sum', field: 'amount' }] })).body.rows[0].v.a0).toBe(1000);
+    // A list aimed at the hidden row finds nothing, and its total is the list's.
     expect((await run(agent, { type: 'rt_thing', filters: { op: 'and', items: [{ field: 'amount', op: 'gte', value: 1000 }] } })).body.total).toBe(0);
     expect((await run(agent, { type: 'rt_thing', filters: { op: 'or', items: [{ field: 'restricted', op: 'true' }, { field: 'name', op: 'eq', value: 'R' }] } })).body.total).toBe(0);
-    const p = (await run(agent, { type: 'rt_thing', groupBy: [{ field: 'department' }, { field: 'status' }], pivot: true })).body.pivot;
-    expect(p.grand).toBe(5);
+    expect((await agent.get('/api/rt-things')).body.total).toBe(5);
+  });
+
+  it('gives every figure the same value for everyone, and never a restricted record\'s details', async () => {
+    const agent = await t.as('agent');
+    const lead = await t.as('security_lead');
+    const same = async (spec: object) => {
+      const a = (await run(agent, spec)).body;
+      const l = (await run(lead, spec)).body;
+      const strip = (b: any) => ({ ...b, generatedAt: undefined });
+      expect(strip(a), JSON.stringify(spec)).toEqual(strip(l));
+      expect(strip(a)).toEqual(strip((await run(t.api, spec)).body));
+      return a;
+    };
+    const a = await same({ type: 'rt_thing', groupBy: [{ field: 'status' }], aggregates: [{ fn: 'count' }, { fn: 'sum', field: 'amount' }, { fn: 'max', field: 'amount' }, { fn: 'pct' }] });
+    expect(byLabel(a)).toEqual({ 'Brand new': 1, 'In hand': 3, Finished: 2 });
+    expect(byLabel(a, 'a1')['In hand']).toBe(1500);
+    expect(byLabel(a, 'a2')['In hand']).toBe(1000);
+    expect(byLabel(a, 'a3')['In hand']).toBe(50);
+    expect(a.total).toBe(6);
+    expect(a.restricted).toBe(false); // no restricted record's details are in it
+    expect((await same({ type: 'rt_thing', aggregates: [{ fn: 'sum', field: 'amount' }] })).rows[0].v.a0).toBe(2000);
+    // A numeric or yes/no condition counts the restricted record; a condition on its words never matches it.
+    expect((await same({ type: 'rt_thing', aggregates: [{ fn: 'count' }], filters: { op: 'and', items: [{ field: 'amount', op: 'gte', value: 1000 }] } })).rows[0].v.a0).toBe(1);
+    expect((await same({ type: 'rt_thing', aggregates: [{ fn: 'count' }], filters: { op: 'and', items: [{ field: 'restricted', op: 'true' }] } })).rows[0].v.a0).toBe(1);
+    expect((await same({ type: 'rt_thing', aggregates: [{ fn: 'count' }], filters: { op: 'and', items: [{ field: 'name', op: 'eq', value: 'R' }] } })).rows[0].v.a0).toBe(0);
+    expect((await same({ type: 'rt_thing', aggregates: [{ fn: 'count' }], filters: { op: 'and', items: [{ field: 'department', op: 'contains', value: 'Fin' }] } })).rows[0].v.a0).toBe(2);
+    // Grouping by its words or people puts it under "Restricted records"; blank values are still blank.
+    const byDept = await same({ type: 'rt_thing', groupBy: [{ field: 'department' }] });
+    expect(byLabel(byDept)).toEqual({ Finance: 2, Operations: 2, None: 1, 'Restricted records': 1 });
+    const byName = await same({ type: 'rt_thing', groupBy: [{ field: 'name' }] });
+    expect(Object.keys(byLabel(byName))).not.toContain('R');
+    expect(byLabel(byName)['Restricted records']).toBe(1);
+    const p = (await same({ type: 'rt_thing', groupBy: [{ field: 'department' }, { field: 'status' }], pivot: true })).pivot;
+    expect(p.grand).toBe(6);
+    // The generic statistics agree.
+    expect((await agent.get('/api/rt-things/stats?group=status')).body).toEqual((await lead.get('/api/rt-things/stats?group=status')).body);
+    expect((await agent.get('/api/rt-things/stats?group=status')).body.total).toBe(6);
+    // Dashboard widgets: number, gauge and chart figures are everyone's; a list of records is the viewer's.
+    const widget = async (who: any, w: object) => (await who.post('/api/dashboards/run-widget', { widget: { id: 'w', x: 0, y: 0, w: 4, h: 2, ...w } })).body;
+    for (const w of [
+      { kind: 'number', config: { spec: { type: 'rt_thing' }, of: null, trend: { days: 3650, field: 'opened_on' } } },
+      { kind: 'gauge', config: { spec: { type: 'rt_thing', aggregates: [{ fn: 'sum', field: 'amount' }] } } },
+      { kind: 'chart', config: { spec: { type: 'rt_thing', groupBy: [{ field: 'owner_id' }] } } },
+    ]) {
+      const fromAgent = await widget(agent, w);
+      const fromAdmin = await widget(t.api, w);
+      expect(fromAgent.status, JSON.stringify(fromAgent)).toBe('ok');
+      expect({ ...fromAgent, result: { ...fromAgent.result, generatedAt: 0 } }).toEqual({ ...fromAdmin, result: { ...fromAdmin.result, generatedAt: 0 } });
+    }
+    expect((await widget(agent, { kind: 'number', config: { spec: { type: 'rt_thing' } } })).value).toBe(6);
+    const listed = await widget(agent, { kind: 'list', config: { spec: { type: 'rt_thing', columns: ['name'] } } });
+    expect(listed.result.rows.map((r: any) => r.v.c0)).not.toContain('R');
+    expect((await widget(t.api, { kind: 'list', config: { spec: { type: 'rt_thing', columns: ['name'] } } })).result.rows.map((r: any) => r.v.c0)).toContain('R');
+
+    // A figure about "me" is the caller's own, and keeps the list rule.
+    const mine = { type: 'rt_thing', aggregates: [{ fn: 'count' }], filters: { op: 'and', items: [{ field: 'owner_id', op: 'me' }] } };
+    expect((await run(t.api, mine)).body.rows[0].v.a0).toBe(1);
+    expect((await run(agent, mine)).body.rows[0].v.a0).toBe(0);
   });
 
   it('does not join, label or group by related records the caller may not see', async () => {
@@ -137,7 +178,8 @@ describe('report query: grouping, buckets and aggregates on the fixed data set',
     expect(r.body.total).toBe(6);
     expect(r.body.rows[1].drill).toBe('f.status=open');
     const share = await run(t.api, { type: 'rt_thing', groupBy: [{ field: 'department' }], aggregates: [{ fn: 'pct', field: 'amount' }] });
-    expect(byLabel(share.body)).toEqual({ Finance: 65, Operations: 35, None: null });
+    // Department is free text, so the restricted record's is masked (for everyone) as "Restricted records".
+    expect(byLabel(share.body)).toEqual({ Finance: 15, Operations: 35, None: null, 'Restricted records': 50 });
   });
 
   it('buckets dates by day, week, month, quarter and year in the organisation time zone', async () => {
@@ -195,9 +237,10 @@ describe('report query: grouping, buckets and aggregates on the fixed data set',
     const r = await run(t.api, { type: 'rt_thing', groupBy: [{ field: 'department' }, { field: 'status' }], pivot: true, sort: [{ by: 'g0' }] });
     const p = r.body.pivot;
     expect(p.cols.map((x: any) => x.label)).toEqual(['Brand new', 'In hand', 'Finished']);
-    expect(p.rows.map((x: any) => x.label)).toEqual(['Finance', 'Operations', 'None']);
-    expect(p.cells.map((line: any[]) => line.map((x) => x?.v ?? null))).toEqual([[1, 2, null], [null, 1, 1], [null, null, 1]]);
-    expect(p.rowTotals).toEqual([3, 2, 1]);
+    expect(p.rows.map((x: any) => x.label)).toEqual(['Finance', 'Operations', 'None', 'Restricted records']);
+    expect(p.cells.map((line: any[]) => line.map((x) => x?.v ?? null))).toEqual([[1, 1, null], [null, 1, 1], [null, null, 1], [null, 1, null]]);
+    expect(p.rowTotals).toEqual([2, 2, 1, 1]);
+    expect(decodeURIComponent(p.rows[3].drill)).toBe('f.restricted=true');
     expect(p.colTotals).toEqual([1, 3, 2]);
     expect(p.grand).toBe(6);
     expect(decodeURIComponent(p.cells[0][1].drill)).toBe('f.department=Finance&f.status=open');

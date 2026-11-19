@@ -46,7 +46,8 @@ function Summary({ data, onShowGates, gatesOpen }: { data: Portfolio; onShowGate
           icon="target"
           label="Overall rating"
           sub={(
-            <Progress.Root size="sm" radius="xl" aria-label={`Overall rating: ${ragText}`} mt={6}>
+            // Drawing only: the counts beside it say the same in words (a split bar has no single value to announce).
+            <Progress.Root size="sm" radius="xl" aria-hidden="true" mt={6}>
               {(['red', 'amber', 'green'] as const).map((k) => totals.rag[k] > 0 && (
                 <Progress.Section key={k} value={(totals.rag[k] / Math.max(1, totals.projects)) * 100} color={k} />
               ))}

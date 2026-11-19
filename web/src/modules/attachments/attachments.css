@@ -114,3 +114,31 @@
 .att-file-cell .att-name { white-space: normal; overflow-wrap: break-word; word-break: normal; }
 .att-settings { max-width: 720px; }
 .att-facts { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); }
+
+/* ---------- file settings and backups ---------- */
+
+.att-admin { max-width: 1100px; min-width: 0; }
+.att-fieldset {
+  display: grid;
+  gap: var(--s-3);
+  min-width: 0;
+  margin: 0;
+  padding: var(--s-3) var(--s-4) var(--s-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.att-fieldset > legend { padding: 0 var(--s-2); font-weight: 600; }
+.att-inline-form { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--s-3); }
+.att-inline-form > :first-child { flex: 0 1 280px; }
+/* Buttons line up with the input, below its label. */
+.att-inline-form > button { margin-top: calc(var(--fs-sm) * 1.55 + 4px); }
+.att-break { overflow-wrap: anywhere; }
+.att-run { min-width: 160px; max-width: 460px; overflow-wrap: anywhere; }
+.att-run-message { color: var(--danger-text); font-size: var(--fs-sm); overflow-wrap: anywhere; }
+.att-admin .grid-stats .stat-hint, .att-admin .grid-stats [class*="hint"] { overflow-wrap: anywhere; }
+
+/* Removed files: names and records wrap, so the Put back button stays in view. */
+.att-removed td { white-space: normal; vertical-align: middle; }
+.att-removed td:nth-child(2) { min-width: 180px; max-width: 320px; overflow-wrap: anywhere; }
+.att-removed td:nth-child(2) a { white-space: normal; overflow: visible; text-overflow: clip; }
+.att-removed td:last-child { white-space: nowrap; }

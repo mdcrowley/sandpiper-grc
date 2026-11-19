@@ -123,9 +123,13 @@ On the map, everything affected is outlined with a red dashed line and the lines
 
 The list is only as good as the integrations, sites and data categories you have recorded. A system with none shows "Nothing recorded depends on" it.
 
+When the fleet module is installed and you may see fleet records, the answer behind this list also names the **vehicles** that carry equipment of the failing or downstream systems and the **services** (routes and lines) that depend on them. **Fleet > What is affected** shows the same for one system on its own page; see [Fleet and services](19-fleet-and-services.md).
+
 ## Assets
 
 An asset is a piece of equipment, a licence or a subscription. Open **Assets** in the **Inventory** group.
+
+Equipment fitted to vehicles (onboard computers, CAD/AVL units, fareboxes, card validators, on-vehicle routers, cameras, radios and passenger information displays) is recorded here as assets with those types, and installed on a vehicle from the vehicle's **Equipment** tab. See [Fleet and services](19-fleet-and-services.md).
 
 Use the column chooser to add **Disposal approval**, **Department**, **Owner**, **System**, **Serial number**, **Cost** or **Purchase date**. To change several assets at once, tick them and select **Edit selected…**: you can set **Status**, **Type**, **Site**, **Owner**, **System**, **Funding source**, **Warranty end** or **Support end**. The disposal rules below still apply to each asset.
 

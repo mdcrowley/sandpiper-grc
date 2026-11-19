@@ -1,0 +1,2 @@
+# Step logs, screenshots of failures and the role matrix are generated: tools/e2e/run.mjs writes them here.
+out/

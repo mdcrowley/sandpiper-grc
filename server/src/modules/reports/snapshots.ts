@@ -8,14 +8,19 @@ import { mayView } from './spec.ts';
 
 interface Store { driver: string; put(key: string, source: Readable): Promise<void>; get(key: string): Promise<Readable>; delete(key: string): Promise<void> }
 
+export type SnapshotFormat = 'html' | 'csv' | 'pdf' | 'xlsx';
+/** Formats stored as bytes: in the database they are kept as base64 text. */
+export const BINARY_FORMATS = new Set(['pdf', 'xlsx']);
+
 export interface SnapshotInput {
   sourceType: 'report' | 'dashboard' | 'pack';
   sourceId: string;
   scheduleId?: string | null;
   title: string;
-  format: 'html' | 'csv';
+  format: SnapshotFormat;
   forUser: SessionUser;
-  content: string;
+  /** Text for html and csv; the file's bytes for pdf and xlsx. */
+  content: string | Buffer;
   recordTypes: string[];
   restricted: boolean;
 }
@@ -44,10 +49,12 @@ export function makeSnapshots(ctx: ModuleContext) {
 
   async function save(input: SnapshotInput): Promise<string> {
     const s = await fileStore();
+    const bytes = Buffer.isBuffer(input.content) ? input.content : Buffer.from(input.content, 'utf8');
+    const inline = BINARY_FORMATS.has(input.format) ? bytes.toString('base64') : bytes.toString('utf8');
     let key: string | null = null;
     if (s) {
       key = s.newKey();
-      try { await s.storage.put(key, Readable.from([Buffer.from(input.content, 'utf8')])); } catch (err) {
+      try { await s.storage.put(key, Readable.from([bytes])); } catch (err) {
         console.warn('[reports] snapshot file could not be written; kept in the database instead:', (err as Error).message);
         key = null;
       }
@@ -56,7 +63,7 @@ export function makeSnapshots(ctx: ModuleContext) {
       `insert into report_snapshots (source_type, source_id, schedule_id, title, format, for_user_id, record_types, restricted, storage_driver, storage_key, content, size_bytes)
        values ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,$10,$11,$12) returning id`,
       [input.sourceType, input.sourceId, input.scheduleId ?? null, input.title.slice(0, 200), input.format, input.forUser.id,
-        JSON.stringify(input.recordTypes), input.restricted, key ? s!.storage.driver : null, key, key ? null : input.content, Buffer.byteLength(input.content, 'utf8')],
+        JSON.stringify(input.recordTypes), input.restricted, key ? s!.storage.driver : null, key, key ? null : inline, bytes.length],
     );
     return row!.id;
   }
@@ -79,14 +86,16 @@ export function makeSnapshots(ctx: ModuleContext) {
     return UUID_RE.test(String(id)) ? ctx.db.one<Row>(`select ${META} from report_snapshots where id = $1`, [id]) : undefined;
   }
 
-  async function content(id: string): Promise<string> {
-    const row = (await ctx.db.one<Row>('select storage_key, content from report_snapshots where id = $1', [id]))!;
-    if (!row.storage_key) return row.content ?? '';
+  /** The stored document: text for html and csv, bytes for pdf and xlsx. */
+  async function content(id: string): Promise<string | Buffer> {
+    const row = (await ctx.db.one<Row>('select storage_key, content, format from report_snapshots where id = $1', [id]))!;
+    const binary = BINARY_FORMATS.has(row.format);
+    if (!row.storage_key) return binary ? Buffer.from(row.content ?? '', 'base64') : row.content ?? '';
     const s = await fileStore();
     if (!s) throw new Error('Snapshot file store is not available');
     const chunks: Buffer[] = [];
     for await (const chunk of await s.storage.get(row.storage_key)) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-    return Buffer.concat(chunks).toString('utf8');
+    return binary ? Buffer.concat(chunks) : Buffer.concat(chunks).toString('utf8');
   }
 
   async function listFor(user: SessionUser, limit = 50): Promise<Row[]> {

@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { dayInZone } from '../../core/timezone.ts';
 import { testApp } from '../../test/helpers.ts';
 
 // Invented estate:  Alpha -> Beta -> Gamma,  Beta <-> Delta,  Epsilon -> Alpha (upstream only).
@@ -8,12 +9,7 @@ const site: Record<string, any> = {};
 const cat: Record<string, any> = {};
 const asset: Record<string, any> = {};
 
-const day = (offset: number) => {
-  const d = new Date();
-  d.setDate(d.getDate() + offset);
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-};
+const day = (offset: number) => dayInZone(offset);
 
 beforeAll(async () => {
   t = await testApp();
@@ -160,7 +156,10 @@ describe('impact', () => {
     expect(impact.sites.map((s: any) => [s.label, s.via.label]).sort()).toEqual([['North Workshop', 'Alpha'], ['South Office', 'Gamma']]);
     expect(impact.data_categories.find((c: any) => c.label === 'Invented pay data').via).toMatchObject({ label: 'Alpha', direct: true });
     expect(impact.assets.map((a: any) => a.label).sort()).toEqual(['Alpha server', 'Gamma switch']);
-    expect(impact.counts).toEqual({ systems: 3, sites: 2, data_categories: 3, assets: 2 });
+    expect(impact.counts).toMatchObject({ systems: 3, sites: 2, data_categories: 3, assets: 2 });
+    // No vehicle carries these systems' equipment and no service depends on them.
+    expect(impact.counts.vehicles ?? 0).toBe(0);
+    expect(impact.counts.services ?? 0).toBe(0);
 
     // Two-way links carry failure both ways; one-way links do not run backwards.
     const delta = (await t.api.get(`/api/systems/${sys.delta.id}/impact`)).body;

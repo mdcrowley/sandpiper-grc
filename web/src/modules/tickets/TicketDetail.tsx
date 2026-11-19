@@ -124,14 +124,17 @@ function SatisfactionCard({ rec }: { rec: RecordContext }) {
   const [score, setScore] = useState<number | null>(null);
   const [comment, setComment] = useState('');
   const [busy, setBusy] = useState(false);
-  if (!row.closed_at || row.status === 'cancelled') return null;
   if (row.satisfaction_score) {
     return (
       <Card title="Requester satisfaction">
         <p><strong>{row.satisfaction_score} out of 5</strong>{row.satisfaction_comment ? <span className="prose"> — {row.satisfaction_comment}</span> : null}</p>
+        {row.satisfaction_by_requester && (
+          <p className="muted">Given by the requester in the self-service portal{row.satisfaction_at ? ` on ${formatDateTime(row.satisfaction_at)}` : ''}. It cannot be changed.</p>
+        )}
       </Card>
     );
   }
+  if (!row.closed_at || row.status === 'cancelled') return null;
   if (!canEdit) return null;
   async function submit() {
     setBusy(true);
@@ -174,7 +177,10 @@ function Summary({ rec }: { rec: RecordContext }) {
             'system_id', 'asset_id', 'problem_id', 'catalog_item_id', 'channel'].filter(has)}
         />
         <EditableSummary type="ticket" row={row} onSaved={reload} title="Requester"
-          fields={['requester_name', 'requester_department', 'requester_email', 'affected_user']} />
+          fields={['requester_name', 'requester_department', 'requester_email', 'requester_id', 'affected_user', 'affected_user_id'].filter(has)} />
+        {row.channel === 'portal' && (
+          <p className="muted sd-portal-note">Raised in the self-service portal. The requester sees public comments only{row.reopened_count ? `, and has reopened it ${row.reopened_count === 1 ? 'once' : `${row.reopened_count} times`}` : ''}.</p>
+        )}
         <VendorPanel row={row} />
         <MayHelp row={row} />
         <Card title="Dates">

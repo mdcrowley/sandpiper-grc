@@ -40,9 +40,10 @@ export const systemOwnersVisible = (ctx: ModuleContext, user: Viewer) => hasSyst
 
 export async function buildSummary(ctx: ModuleContext, user: Viewer) {
   const { db } = ctx;
-  // Restricted records: every query below carries the reader's visibility condition.
-  const mine = ctx.resources.visibleWhere('vulnerability', user);
-  const mineV = ctx.resources.visibleWhere('vulnerability', user, 'v');
+  // Figures are the same for everyone who may see them (docs/security.md, "Figures"): every finding
+  // counts. (Only people holding security.view reach this at all.)
+  const mine = 'true';
+  const mineV = 'true';
   const severities = (await ctx.lookups.values('vulnerability_severity')).map((s) => ({ value: s.value, label: s.label, color: s.color ?? 'gray' }));
   const zero = () => Object.fromEntries(severities.map((s) => [s.value, 0])) as Record<string, number>;
 

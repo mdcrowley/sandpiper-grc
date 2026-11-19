@@ -25,12 +25,15 @@ export interface Attachment {
   scan_engine: string | null;
   uploaded_by_name: string | null;
   uploaded_at: string;
+  /** Only on the upload response: the scanner could not check the file and it was accepted anyway. */
+  scan_warning?: string;
 }
 
 export interface FileConfig {
   maxBytes: number;
   allowedExtensions: string[];
   scanner: string;
+  whenUnavailable: 'accept' | 'refuse';
   canAdminister: boolean;
 }
 

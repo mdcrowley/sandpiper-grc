@@ -1,8 +1,12 @@
 import { existsSync, statSync } from 'node:fs';
+import { request as httpsRequest } from 'node:https';
 import { join } from 'node:path';
+import { databaseUrl, redactUrl } from '../core/db.ts';
 import { listBackups } from './backup.ts';
 import { appVersion, folderSize, formatBytes, repoRoot, serverPid } from './files.ts';
 import { migrationsOnDisk, readAppliedMigrations } from './migrations.ts';
+import { type BackupStatusFile, readBackupStatus } from './online-backup.ts';
+import { secretKeyLocation } from './secret-key.ts';
 
 // `grc.ps1 status`: one screen that says what is installed, whether it is running, how
 // big the data is, when it was last backed up and whether the database is behind the code.
@@ -19,7 +23,13 @@ export interface Status {
   dataBytes: number;
   backupsDir: string;
   backupCount: number;
-  lastBackup: { name: string; createdAt: string; label: string; bytes: number; ageHours: number } | null;
+  lastBackup: { name: string; createdAt: string; label: string; bytes: number; ageHours: number; encrypted: boolean } | null;
+  /** The backups the server takes itself (Administration > Backups), as it last recorded them. */
+  serverBackups: BackupStatusFile | null;
+  /** The embedded database in the data folder, or a PostgreSQL server (its address without the password). */
+  database: { kind: 'embedded' | 'server'; where: string };
+  /** Where the secret key is: backups of the data folder do not contain it. */
+  secretKey: string;
   migrations: {
     onDisk: number;
     /** Null when the database could not be read (it does not exist yet, or the server has it open). */
@@ -29,7 +39,22 @@ export interface Status {
   };
 }
 
+/** HTTPS when the server serves it itself (GRC_TLS_CERT); the local check accepts a self-signed certificate. */
+export const serverScheme = () => (process.env.GRC_TLS_CERT?.trim() ? 'https' : 'http');
+
 async function isHealthy(url: string): Promise<boolean> {
+  if (url.startsWith('https:')) {
+    return new Promise((resolve) => {
+      const req = httpsRequest(`${url}/api/health`, { rejectUnauthorized: false, timeout: 3000 }, (res) => {
+        let body = '';
+        res.on('data', (c) => { body += c; });
+        res.on('end', () => { try { resolve(res.statusCode === 200 && JSON.parse(body).ok === true); } catch { resolve(false); } });
+      });
+      req.on('timeout', () => req.destroy());
+      req.on('error', () => resolve(false));
+      req.end();
+    });
+  }
   try {
     const res = await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(3000) });
     return res.ok && ((await res.json()) as { ok?: boolean }).ok === true;
@@ -40,20 +65,32 @@ async function isHealthy(url: string): Promise<boolean> {
 
 export async function getStatus(opts: { dataDir: string; backupsDir: string; port: number; now?: Date }): Promise<Status> {
   const now = opts.now ?? new Date();
-  const url = `http://127.0.0.1:${opts.port}`;
+  const url = `${serverScheme()}://127.0.0.1:${opts.port}`;
+  const server = databaseUrl();
   const pid = serverPid(opts.dataDir);
   const backups = listBackups(opts.backupsDir);
   const newest = backups[0];
   const onDisk = migrationsOnDisk();
 
   let migrations: Status['migrations'];
-  if (pid) {
+  if (server) {
+    // A PostgreSQL server can be read while the application runs.
+    let reason = '';
+    const applied = await readAppliedMigrations(opts.dataDir, (message) => (reason = message));
+    const done = new Set(applied ?? []);
+    const pending = applied ? onDisk.filter((m) => !done.has(m)) : null;
+    migrations = {
+      onDisk: onDisk.length, applied: applied?.length ?? null, pending,
+      note: !applied ? `the database could not be read: ${reason}` : pending!.length ? `${pending!.length} pending (${pending!.join(', ')}); they run at the next start` : 'none pending',
+    };
+  } else if (pid) {
     // The embedded database allows one process, so it cannot be read while the server has
     // it open. The server applied everything it found when it started.
     const started = statSync(join(opts.dataDir, 'grc.pid')).mtimeMs;
     const newer = onDisk.filter((name) => {
       const [scope, file] = name.split('/');
-      const path = scope === 'core' ? `server/src/core/migrations/${file}` : `server/src/modules/${scope}/migrations/${file}`;
+      const path = scope === 'core' ? `server/src/core/migrations/${file}`
+        : scope.startsWith('core.') ? `server/src/core/${scope.slice(5)}/migrations/${file}` : `server/src/modules/${scope}/migrations/${file}`;
       try {
         return statSync(join(repoRoot, path)).mtimeMs > started;
       } catch {
@@ -106,13 +143,39 @@ export async function getStatus(opts: { dataDir: string; backupsDir: string; por
           label: newest.manifest.label,
           bytes: newest.manifest.totalBytes,
           ageHours: Math.max(0, Math.round((now.getTime() - Date.parse(newest.manifest.createdAt)) / 36e5)),
+          encrypted: Boolean(newest.encrypted),
         }
       : null,
+    serverBackups: opts.dataDir === 'memory' ? null : readBackupStatus(opts.dataDir),
+    database: server ? { kind: 'server', where: redactUrl(server) } : { kind: 'embedded', where: join(opts.dataDir, 'pg') },
+    secretKey: (() => {
+      const k = secretKeyLocation(opts.dataDir);
+      if (k.source === 'environment') return 'GRC_SECRET_KEY (not in backups: keep a copy with your other secrets)';
+      return k.insideData ? `${k.file} (INSIDE the data folder: move it out)` : `${k.file} (outside the data folder, not in backups: back it up separately)`;
+    })(),
     migrations,
   };
 }
 
-export function formatStatus(s: Status): string {
+/** One line about the daily backups the server takes itself; says FAILED or OVERDUE plainly. */
+function formatServerBackups(b: BackupStatusFile | null, running: boolean, age: (hours: number) => string, now: Date): string {
+  if (!b) return 'not set up (Administration > Backups)';
+  if (!b.enabled) return `switched off (Administration > Backups)${b.lastSuccess ? `; last ${b.lastSuccess.name}, ${age(hoursSince(b.lastSuccess.at, now))}` : ''}`;
+  const parts = [`${b.schedule} to ${b.destination ?? '(no destination)'}${b.encrypted ? ', encrypted' : ''}`];
+  if (b.lastSuccess) {
+    const hours = hoursSince(b.lastSuccess.at, now);
+    parts.push(`last good ${b.lastSuccess.name}, ${age(hours)}${hours > 48 ? ' - OVERDUE' : ''}`);
+  } else {
+    parts.push('no successful backup yet');
+  }
+  if (b.lastRun && !b.lastRun.ok) parts.push(`LAST RUN FAILED ${b.lastRun.at}: ${b.lastRun.message ?? 'no detail'}`);
+  if (!running) parts.push('the server is stopped, so none are being taken');
+  return parts.join('; ');
+}
+
+const hoursSince = (iso: string, now: Date) => Math.max(0, Math.round((now.getTime() - Date.parse(iso)) / 36e5));
+
+export function formatStatus(s: Status, now = new Date()): string {
   const age = (hours: number) => (hours < 48 ? `${hours} hour(s) ago` : `${Math.round(hours / 24)} days ago`);
   const state = !s.running ? 'stopped' : s.healthy ? `running and healthy (process ${s.pid})` : `running but NOT answering the health check (process ${s.pid})`;
   const lines = [
@@ -120,14 +183,19 @@ export function formatStatus(s: Status): string {
     ['Server', state],
     ['Address', `${s.url} (port ${s.port})`],
     ['Data folder', `${s.dataDir} (${formatBytes(s.dataBytes)})`],
+    ['Database', s.database.kind === 'server'
+      ? `PostgreSQL server ${s.database.where}; back it up with pg_dump (the backup and restore commands cover the embedded database only)`
+      : `embedded, in ${s.database.where}`],
+    ['Secret key', s.secretKey],
     [
       'Last backup',
       s.lastBackup
-        ? `${s.lastBackup.name}, ${age(s.lastBackup.ageHours)}, ${formatBytes(s.lastBackup.bytes)}${s.lastBackup.label === 'manual' ? '' : ` (${s.lastBackup.label})`}`
+        ? `${s.lastBackup.name}, ${age(s.lastBackup.ageHours)}, ${formatBytes(s.lastBackup.bytes)}${s.lastBackup.label === 'manual' ? '' : ` (${s.lastBackup.label})`}${s.lastBackup.encrypted ? ', encrypted' : ''}`
         : 'none',
     ],
     ['Backups', `${s.backupCount} in ${s.backupsDir}`],
+    ['Server backups', formatServerBackups(s.serverBackups, s.running, age, now)],
     ['Migrations', `${s.migrations.onDisk} in the code; ${s.migrations.note}`],
   ];
-  return lines.map(([label, value]) => `${`${label}:`.padEnd(13)}${value}`).join('\n');
+  return lines.map(([label, value]) => `${`${label}:`.padEnd(16)}${value}`).join('\n');
 }

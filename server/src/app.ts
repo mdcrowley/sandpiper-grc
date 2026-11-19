@@ -10,6 +10,7 @@ import { registerCustomFieldRoutes } from './core/customfield-routes.ts';
 import { makeCustomFields } from './core/customfields.ts';
 import { openDb } from './core/db.ts';
 import { ApiError, fail } from './core/errors.ts';
+import { addHsts, trustProxyFn } from './core/http.ts';
 import { migrate } from './core/migrate.ts';
 import type { ModuleContext, ModuleDef, Row } from './core/module.ts';
 import { makeOpenApi } from './core/openapi.ts';
@@ -31,6 +32,8 @@ export interface BuildOptions {
   serveWeb?: boolean;
   /** Extra modules registered after the discovered ones (used by tests). */
   extraModules?: ModuleDef[];
+  /** Serve HTTPS with this certificate and key (PEM). See `planListen` in core/http.ts. */
+  https?: { cert: Buffer | string; key: Buffer | string };
 }
 
 export async function buildApp(opts: BuildOptions) {
@@ -52,7 +55,10 @@ export async function buildApp(opts: BuildOptions) {
   ]);
   await ensureDefaultRoles(db);
 
-  const app = Fastify({ logger: false, bodyLimit: 10 * 1024 * 1024 });
+  // trustProxy: req.ip, req.protocol and req.hostname follow X-Forwarded-* only from GRC_TRUST_PROXY (E01-31).
+  const serverOptions = { logger: false, bodyLimit: 10 * 1024 * 1024, trustProxy: trustProxyFn() };
+  // With a certificate the same server speaks HTTPS (E16-07); its type is the plain one for everything that uses it.
+  const app = Fastify({ ...serverOptions, ...(opts.https ? { https: opts.https } : {}) } as typeof serverOptions);
   await app.register(cookie);
   // Sees every route as it is registered, for GET /api/openapi.json: keep it ahead of all routes.
   const openapi = makeOpenApi(app);
@@ -78,7 +84,8 @@ export async function buildApp(opts: BuildOptions) {
     return reply.code(500).send({ error: { code: 'server_error', message: 'Something went wrong. The error has been logged.' } });
   });
 
-  app.addHook('onSend', async (_req, reply) => {
+  app.addHook('onSend', async (req, reply) => {
+    addHsts(req, reply); // only on responses that went out over HTTPS
     reply.header('x-content-type-options', 'nosniff');
     reply.header('x-frame-options', 'DENY');
     reply.header('referrer-policy', 'same-origin');

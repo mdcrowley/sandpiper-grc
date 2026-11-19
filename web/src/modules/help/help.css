@@ -187,6 +187,18 @@
 .api-code-ok { background: var(--c-green-bg); color: var(--c-green-fg); }
 .api-code-err { background: var(--c-red-bg); color: var(--c-red-fg); }
 
+.api-headers { margin: var(--s-1) 0 0; font-size: var(--fs-sm); }
+.api-headers code { font-family: var(--font-mono); font-size: 0.875em; }
+.api-example-note { margin: 0 0 var(--s-2); font-size: var(--fs-sm); }
+.api-example-note code { font-family: var(--font-mono); font-size: 0.875em; padding: 1px 5px; border-radius: 4px; background: var(--c-gray-bg); color: var(--c-gray-fg); }
+.api-examples { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-3); }
+.api-example { min-width: 0; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); }
+.api-example-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-2); padding: 2px var(--s-1) 2px var(--s-3); border-bottom: 1px solid var(--border); }
+.api-example-label { font-size: var(--fs-xs); font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.api-snippet { margin: 0; padding: var(--s-2) var(--s-3); overflow-x: auto; font: var(--fs-xs)/1.6 var(--font-mono); color: var(--text); white-space: pre; }
+.api-op .api-snippet code { padding: 0; border-radius: 0; background: none; color: inherit; font-size: inherit; overflow-wrap: normal; }
+.api-snippet:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+
 @media (max-width: 1000px) {
   .api-layout { grid-template-columns: minmax(0, 1fr); }
   /* The filter box does the job of the contents list on a narrow screen. */

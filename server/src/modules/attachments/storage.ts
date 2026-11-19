@@ -1,10 +1,10 @@
 // Where the bytes of an attachment live. The database never holds file content.
 //
-// Two drivers are built in: `disk` (under <data folder>/files) and `memory` (tests).
-// To add another (for example an S3-compatible object store), implement FileStorage and
-// return it from openStorage(); nothing else in the module knows where files are kept.
+// Drivers: `disk` (under <data folder>/files), `memory` (tests) and `s3` (an S3-compatible
+// object store, s3.ts). stores.ts decides which one new files go to; each attachment row
+// records its driver, so files stay readable wherever they were put.
 import { createReadStream, createWriteStream } from 'node:fs';
-import { mkdir, rename, rm, stat } from 'node:fs/promises';
+import { mkdir, readdir, rename, rm, stat } from 'node:fs/promises';
 import { dirname, join, resolve, sep } from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -21,6 +21,8 @@ export interface FileStorage {
   delete(key: string): Promise<void>;
   /** Size in bytes, or null when the key does not exist. */
   stat(key: string): Promise<{ size: number } | null>;
+  /** Every stored key (for the integrity check). */
+  list(): Promise<{ key: string; size: number }[]>;
 }
 
 /** Keys are made here and nowhere else: two fan-out folders and 32 random hex characters. */
@@ -32,9 +34,10 @@ export function newStorageKey(): string {
   return `${hex.slice(0, 2)}/${hex.slice(2, 4)}/${hex}`;
 }
 
-function checkKey(key: string): void {
+export function checkStorageKey(key: string): void {
   if (!KEY_RE.test(key)) throw new Error('Invalid storage key');
 }
+const checkKey = checkStorageKey;
 
 /** Files on the local disk, each written to a temporary name and renamed when complete. */
 export function diskStorage(root: string): FileStorage {
@@ -76,6 +79,24 @@ export function diskStorage(root: string): FileStorage {
         return null;
       }
     },
+    async list() {
+      const out: { key: string; size: number }[] = [];
+      const walk = async (dir: string, rel: string) => {
+        let entries;
+        try {
+          entries = await readdir(dir, { withFileTypes: true });
+        } catch {
+          return;
+        }
+        for (const e of entries) {
+          const r = rel ? `${rel}/${e.name}` : e.name;
+          if (e.isDirectory()) await walk(join(dir, e.name), r);
+          else if (e.isFile()) out.push({ key: r, size: (await stat(join(dir, e.name))).size });
+        }
+      };
+      await walk(base, '');
+      return out;
+    },
   };
 }
 
@@ -105,6 +126,9 @@ export function memoryStorage(): FileStorage & { files: Map<string, Buffer> } {
       checkKey(key);
       const data = files.get(key);
       return data ? { size: data.length } : null;
+    },
+    async list() {
+      return [...files].map(([key, data]) => ({ key, size: data.length }));
     },
   };
 }

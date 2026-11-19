@@ -75,10 +75,16 @@ describe('saved reports: permissions and sharing', () => {
   });
 
   it('runs a shared report with the viewer\'s permissions, not the author\'s', async () => {
+    // A figure is the same for everyone who may run it; a list is the viewer's own.
     const made = (await lead.post('/api/reports', { name: 'Shared count', spec: { type: 'rt_thing', aggregates: [{ fn: 'count' }] }, sharing: 'everyone' })).body;
     expect((await lead.get(`/api/reports/${made.id}/run`)).body.result.rows[0].v.a0).toBe(6);
-    expect((await agent.get(`/api/reports/${made.id}/run`)).body.result.rows[0].v.a0).toBe(5);
+    expect((await agent.get(`/api/reports/${made.id}/run`)).body.result.rows[0].v.a0).toBe(6);
+    // Department is free text: the restricted thing's never matches, for anyone.
     expect((await agent.get(`/api/reports/${made.id}/run?g.department=Finance`)).body.result.rows[0].v.a0).toBe(2);
+    expect((await lead.get(`/api/reports/${made.id}/run?g.department=Finance`)).body.result.rows[0].v.a0).toBe(2);
+    const list = (await lead.post('/api/reports', { name: 'Shared list', spec: { type: 'rt_thing', columns: ['name'] }, sharing: 'everyone' })).body;
+    expect((await lead.get(`/api/reports/${list.id}/run`)).body.result.total).toBe(6);
+    expect((await agent.get(`/api/reports/${list.id}/run`)).body.result.total).toBe(5);
     // A viewer with no access to the record type is refused, whoever shared the report.
     expect((await (await t.as('executive_viewer')).get(`/api/reports/${made.id}/run`)).status).toBe(403);
   });
@@ -127,7 +133,7 @@ describe('dashboards: permissions, sharing, widgets and the home choice', () => 
 
   it('works out every widget with the viewer\'s permissions and degrades gracefully', async () => {
     const widget = (w: unknown, extra: object = {}) => ({ widget: w, ...extra });
-    expect((await agent.post('/api/dashboards/run-widget', widget(widgets[0]))).body).toMatchObject({ status: 'ok', value: 5 });
+    expect((await agent.post('/api/dashboards/run-widget', widget(widgets[0]))).body).toMatchObject({ status: 'ok', value: 6 });
     expect((await lead.post('/api/dashboards/run-widget', widget(widgets[0]))).body.value).toBe(6);
     expect((await agent.post('/api/dashboards/run-widget', widget(widgets[0], { globals: { department: 'Operations' } }))).body.value).toBe(2);
     expect((await agent.post('/api/dashboards/run-widget', widget(widgets[2]))).body.status).toBe('unavailable');
@@ -136,7 +142,7 @@ describe('dashboards: permissions, sharing, widgets and the home choice', () => 
 
     // Gauge: a share of a wider set. Progress: one figure out of another.
     const gauge = { kind: 'gauge', config: { spec: { type: 'rt_thing', filters: { op: 'and', items: [{ field: 'status', op: 'in', value: ['done'] }] } }, of: null } };
-    expect((await agent.post('/api/dashboards/run-widget', widget(gauge))).body).toMatchObject({ value: 2, denominator: 5 });
+    expect((await agent.post('/api/dashboards/run-widget', widget(gauge))).body).toMatchObject({ value: 2, denominator: 6 });
     const progress = { kind: 'progress', config: { spec: { type: 'rt_thing', aggregates: [{ fn: 'sum', field: 'qty' }] }, denominator: { type: 'rt_thing', aggregates: [{ fn: 'sum', field: 'amount' }] } } };
     expect((await lead.post('/api/dashboards/run-widget', widget(progress))).body).toMatchObject({ value: 25, denominator: 2000 });
     // Calendar: one month, counted by day.
@@ -163,7 +169,7 @@ describe('dashboards: permissions, sharing, widgets and the home choice', () => 
     await lead.patch(`/api/reports/${report.id}`, { sharing: 'everyone' });
     const on = await agent.post('/api/dashboards/run-widget', { widget: w, dashboardId: dash.id });
     expect(on.body.status).toBe('ok');
-    expect(on.body.result.rows[0].v.a0).toBe(5);
+    expect(on.body.result.rows[0].v.a0).toBe(6); // the same figure the author sees
   });
 
   it('refuses a dashboard or pack that points at someone else\'s private report', async () => {

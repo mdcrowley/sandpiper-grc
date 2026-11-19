@@ -14,6 +14,26 @@ echarts.use([
 
 // Tighter than the ECharts default; an option's own `grid` replaces it.
 const DEFAULT_GRID = { top: 24, right: 16, bottom: 32, left: 48 };
+
+/**
+ * Words ECharts writes for screen readers in place of the picture (its aria component). Its own
+ * defaults number the series from 0 ("The 0 series is a Line chart"); these read as plain English.
+ */
+const ARIA_LABEL = {
+  general: { withTitle: 'Chart: {title}.', withoutTitle: 'Chart.' },
+  series: {
+    maxCount: 8,
+    single: { prefix: '', withName: ' A {seriesType} of {seriesName}.', withoutName: ' A {seriesType}.' },
+    multiple: {
+      prefix: ' {seriesCount} series.', withName: ' {seriesName}: a {seriesType}.', withoutName: ' A {seriesType}.',
+      separator: { middle: '', end: '' },
+    },
+  },
+  data: {
+    maxCount: 12, allData: ' Values: ', partialData: ' The first {displayCnt} values: ',
+    withName: '{name} {value}', withoutName: '{value}', separator: { middle: '; ', end: '.' },
+  },
+};
 const TOKEN = /^var\((--[\w-]+)\)$/;
 
 function resolveTokens<T>(value: T): T {
@@ -141,7 +161,7 @@ export default function ChartImpl({ option, label, height = 280, onSegmentClick,
       : legend.bottom !== undefined ? { ...DEFAULT_GRID, bottom: 64 }
         : { ...DEFAULT_GRID, top: 44 };
     chartRef.current?.setOption({
-      aria: { enabled: true },
+      aria: { enabled: true, label: ARIA_LABEL },
       grid,
       tooltip: { trigger: 'item', confine: true },
       animation: !calm,

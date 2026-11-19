@@ -377,9 +377,9 @@ const mod: ModuleDef = {
       let systems: number | null = null;
       const sys = ctx.resources.get('system');
       if (sys?.fields.vendor_id && ctx.can(req.user, `${sys.module}.view`) && sys.restricted !== true) {
-        const flag = sys.restricted === 'flag' && !ctx.can(req.user, 'security.view') ? 'and coalesce(restricted, false) = false' : '';
+        // A figure: every system counts, the same for everyone who may see systems (docs/security.md, "Figures").
         systems = (await db.one<{ c: number }>(
-          `select count(*)::int c from ${sys.table} where vendor_id = $1 and deleted_at is null ${flag}`, [vendor.id],
+          `select count(*)::int c from ${sys.table} where vendor_id = $1 and deleted_at is null`, [vendor.id],
         ))!.c;
       }
       return {

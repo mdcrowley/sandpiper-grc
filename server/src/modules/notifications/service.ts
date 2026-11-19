@@ -13,7 +13,10 @@
 // record; the link defaults to the record's page. For something that is not a record, leave
 // them out and pass `route` (an in-app path beginning with "/").
 // `kind` is a value of the configurable list `notification_kind`; each person can switch
-// kinds off. `oncePerDay` skips anyone who already received this kind for this record today.
+// kinds off, or choose for each kind the bell, email, both or nothing (`notification_preferences.channels`).
+// When email is on and chosen, a message is queued at once, or the notification waits for the
+// person's daily summary (email.ts); a restricted record is never described in an email.
+// `oncePerDay` skips anyone who already received this kind for this record today.
 // The call never throws: a failure is logged and reported as nothing sent.
 import { UUID_RE } from '../../core/errors.ts';
 import type { ModuleContext, ResourceDef, Row, SessionUser } from '../../core/module.ts';
@@ -23,7 +26,7 @@ export interface NotifyInput {
   userIds?: (string | null | undefined)[];
   /** Also notify everyone holding this permission, for example "security.view". */
   permission?: string;
-  /** A value of the `notification_kind` list: assignment, approval, due, sla, reminder, acknowledgement, clock, general. */
+  /** A value of the `notification_kind` list: assignment, approval, due, sla, reminder, acknowledgement, clock, watch, general. */
   kind: string;
   /** One line, shown in the bell and the list. Write it for the recipient. */
   title: string;
@@ -39,6 +42,17 @@ export interface NotifyInput {
 }
 
 export interface NotifyResult { sent: number; skipped: number }
+
+export const CHANNELS = ['app', 'email', 'both', 'none'] as const;
+export type Channel = (typeof CHANNELS)[number];
+const EMAIL_RE = /^[^\s@<>"',;]+@[^\s@<>"',;]+\.[^\s@<>"',;]+$/;
+
+/** How one kind reaches a person: their choice, else "none" if they muted it, else the bell only. */
+export function channelFor(pref: { muted: string[]; channels: Record<string, string> } | undefined, kind: string): Channel {
+  const chosen = pref?.channels?.[kind];
+  if ((CHANNELS as readonly string[]).includes(chosen as string)) return chosen as Channel;
+  return pref?.muted.includes(kind) ? 'none' : 'app';
+}
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -107,10 +121,18 @@ export function makeNotify(ctx: ModuleContext) {
       route ??= `${def.route}/${recordId}`;
     }
 
-    const muted = new Map<string, string[]>();
-    for (const p of await ctx.db.query<{ user_id: string; muted_kinds: string[] }>(
-      'select user_id, muted_kinds from notification_preferences where user_id = any($1::uuid[])', [targets.map((u) => u.id)],
-    )) muted.set(p.user_id, Array.isArray(p.muted_kinds) ? p.muted_kinds : []);
+    const prefs = new Map<string, { muted: string[]; channels: Record<string, string>; digest: boolean }>();
+    for (const p of await ctx.db.query<{ user_id: string; muted_kinds: string[]; channels: Record<string, string>; daily_digest: boolean }>(
+      'select user_id, muted_kinds, channels, daily_digest from notification_preferences where user_id = any($1::uuid[])', [targets.map((u) => u.id)],
+    )) {
+      prefs.set(p.user_id, {
+        muted: Array.isArray(p.muted_kinds) ? p.muted_kinds : [],
+        channels: p.channels && typeof p.channels === 'object' ? p.channels : {},
+        digest: p.daily_digest === true,
+      });
+    }
+    const mailOn = ctx.app.hasDecorator('sendMail') && (await ctx.app.mailEnabled());
+    let kindLabel: string | undefined;
 
     const already = new Set<string>();
     if (input.oncePerDay) {
@@ -128,12 +150,29 @@ export function makeNotify(ctx: ModuleContext) {
 
     let sent = 0;
     for (const user of targets) {
-      if (muted.get(user.id)?.includes(kind) || already.has(user.id)) continue;
+      const pref = prefs.get(user.id);
+      const channel = channelFor(pref, kind);
+      if (channel === 'none' || already.has(user.id)) continue;
       if (def && !(await maySee(ctx, user, def, recordId!))) continue;
+      // Email, if chosen and possible; otherwise the bell, so that nothing is lost.
+      const wantsEmail = channel === 'email' || channel === 'both';
+      const canEmail = wantsEmail && mailOn && EMAIL_RE.test(String(user.email ?? ''));
+      const inApp = channel !== 'email' || !canEmail;
+      const emailState = !wantsEmail ? null : !canEmail ? 'skipped' : pref?.digest ? 'digest' : 'queued';
       await ctx.db.query(
-        `insert into notifications (user_id, kind, title, body, route, record_type, record_id) values ($1,$2,$3,$4,$5,$6,$7)`,
-        [user.id, kind, title, body, route, def?.type ?? null, recordId],
+        `insert into notifications (user_id, kind, title, body, route, record_type, record_id, in_app, email_state) values ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        [user.id, kind, title, body, route, def?.type ?? null, recordId, inApp, emailState],
       );
+      if (emailState === 'queued') {
+        kindLabel ??= (await ctx.lookups.values('notification_kind')).find((k) => k.value === kind)?.label ?? 'Other';
+        // What the recipient may see is checked again when the message is sent; a restricted
+        // record gets the content-free security message (core/mail/service.ts).
+        await ctx.app.sendMail({
+          userIds: [user.id], template: 'notification', purpose: 'notification',
+          data: { title, body, kindLabel, link: route ?? '/notifications' },
+          record: def ? { type: def.type, id: recordId! } : undefined,
+        });
+      }
       sent += 1;
     }
     if (sent) {

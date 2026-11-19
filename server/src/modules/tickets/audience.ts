@@ -8,6 +8,7 @@
 // record pickers and related-record lists.
 import type { FastifyRequest } from 'fastify';
 import { UUID_RE } from '../../core/errors.ts';
+import { DETAIL_TYPES } from '../../core/resource.ts';
 import type { ModuleContext, Row, SessionUser } from '../../core/module.ts';
 
 export const AGENT_AUDIENCE = 'agents';
@@ -33,6 +34,27 @@ export function makeAudience(ctx: ModuleContext) {
   const hidden = async (id: unknown) => (await agentOnly([id])).size > 0;
   const notFound = () => ctx.fail(404, 'not_found', 'Record not found.');
 
+  /** Whatever audiences were asked for, narrowed to those a non-agent may see. */
+  async function nonAgentAudiences(query: Record<string, string>): Promise<string> {
+    const asked = query['f.audience'] ? String(query['f.audience']).split(',') : null;
+    const all = (await ctx.lookups.values('kb_audience')).map((a) => a.value).filter((a) => a !== AGENT_AUDIENCE);
+    const allowed = asked ? asked.filter((a) => a !== AGENT_AUDIENCE && all.includes(a)) : all;
+    return allowed.length ? allowed.join(',') : '__none__';
+  }
+
+  /** Whether a stats question reads articles' words or people: a search, such a filter, or grouping by such a field. */
+  function readsDetails(query: Record<string, string>): boolean {
+    const fields = ctx.resources.get(TYPE)?.fields ?? {};
+    const detail = (name: string | undefined) => !!name && (['id', 'tags', 'created_by', 'updated_by'].includes(name)
+      || name.startsWith('cf_') || DETAIL_TYPES.has(fields[name]?.type ?? ''));
+    if (String(query.q ?? '').trim()) return true;
+    if (detail(query.group)) return true;
+    return Object.keys(query).some((key) => {
+      const [f, name, op] = key.split('.');
+      return f === 'f' && op !== 'null' && detail(name);
+    });
+  }
+
   function register() {
     ctx.app.addHook('preHandler', async (req: FastifyRequest) => {
       if (!req.user || !req.url.startsWith('/api/')) return;
@@ -40,13 +62,17 @@ export function makeAudience(ctx: ModuleContext) {
       const query = (req.query ?? {}) as Record<string, string>;
       const body = (req.body ?? {}) as Row;
 
-      if (path === '/api/knowledge' || path === '/api/knowledge/stats') {
+      if (path === '/api/knowledge/stats' && req.method === 'GET') {
+        // A figure: agent-only articles count for everyone (docs/security.md, "Figures"), unless the
+        // question reads their words or people (a search, a text or person filter, grouping by one),
+        // and then they are left out for everyone, agents included, so the figure stays the same.
+        if (!readsDetails(query)) return;
+        (req.query as Record<string, string>)['f.audience'] = await nonAgentAudiences(query);
+        return;
+      }
+      if (path === '/api/knowledge') {
         if (req.method !== 'GET' || (await isAgent(req.user))) return;
-        // Narrow whatever was asked for to the values a non-agent may see.
-        const asked = query['f.audience'] ? String(query['f.audience']).split(',') : null;
-        const all = (await ctx.lookups.values('kb_audience')).map((a) => a.value).filter((a) => a !== AGENT_AUDIENCE);
-        const allowed = asked ? asked.filter((a) => a !== AGENT_AUDIENCE && all.includes(a)) : all;
-        (req.query as Record<string, string>)['f.audience'] = allowed.length ? allowed.join(',') : '__none__';
+        (req.query as Record<string, string>)['f.audience'] = await nonAgentAudiences(query);
         return;
       }
       if (path.startsWith('/api/knowledge/')) {

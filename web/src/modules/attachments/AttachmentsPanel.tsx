@@ -82,11 +82,12 @@ export function AttachmentsPanel({ recordType, recordId, evidence = false, onCha
       })),
     ]);
     let added = 0;
+    let unscanned = 0;
     for (const { file, key, refusal } of items) {
       if (refusal) continue;
       patch(key, { state: 'sending' });
       try {
-        await uploadFile(
+        const saved = await uploadFile(
           file,
           {
             record_type: recordType, record_id: recordId, kind: asEvidence ? 'evidence' : 'file',
@@ -96,6 +97,7 @@ export function AttachmentsPanel({ recordType, recordId, evidence = false, onCha
           (fraction) => patch(key, { progress: fraction }),
         );
         added += 1;
+        if (saved.scan_warning) unscanned += 1;
         setQueue((q) => q.filter((item) => item.key !== key));
       } catch (err) {
         patch(key, { state: 'failed', error: errorMessage(err) });
@@ -103,6 +105,9 @@ export function AttachmentsPanel({ recordType, recordId, evidence = false, onCha
     }
     if (added) {
       toast.success(added === 1 ? 'File attached.' : `${added} files attached.`);
+      if (unscanned) {
+        toast.info(`The malware scanner could not be reached, so ${unscanned === 1 ? 'one file was' : `${unscanned} files were`} accepted without a scan and marked "Not scanned".`);
+      }
       reload();
     }
   }, [config.data, recordType, recordId, asEvidence, collectedOn, expiresOn, toast, reload]);

@@ -11,19 +11,23 @@ repository root in Windows PowerShell. For first-time installation see
 | `.\grc.ps1 start` | Starts the server in the background. Does nothing if it is already running. Runs `npm install` if `node_modules\` is missing, rebuilds the web application if any file under `web\` or `docs\user\` is newer than the last build, then waits for the health check (about 30 seconds) |
 | `.\grc.ps1 stop` | Asks the server to shut down cleanly and waits up to 15 seconds. Only if that fails does it end the process by force |
 | `.\grc.ps1 restart` | `stop`, then `start` |
-| `.\grc.ps1 health` | Calls `/api/health`. Prints `Healthy` or `Not responding.` (exit code 1) |
+| `.\grc.ps1 health` | Calls `/api/health` (over HTTPS when `GRC_TLS_CERT` is set, accepting a self-signed certificate for this local check). Prints `Healthy` or `Not responding.` (exit code 1) |
 | `.\grc.ps1 status` | Version, port, process, size of the data folder, last backup, pending migrations and the backup schedule. See [Status](#status) |
 | `.\grc.ps1 logs [-Lines n] [-Follow]` | Shows the end of the server logs (default 40 lines). `-Follow` keeps showing new error lines until Ctrl+C |
 | `.\grc.ps1 seed [-Profile pilot\|dev]` | Loads data (default profile `pilot`). See [Installation](installation.md#5-load-data) |
-| `.\grc.ps1 backup [-Prune n]` | Makes a verified copy of the data in `backups\<yyyyMMdd-HHmmss>\`. `-Prune n` then deletes all but the newest `n` backups. See [Backup](#backup) |
-| `.\grc.ps1 backups` | Lists backups, newest first, with time, size, version and why each was taken |
-| `.\grc.ps1 verify-backup [<backup>]` | Checks every file of a backup against its checksums (default: the newest) |
-| `.\grc.ps1 restore <backup> [-Force]` | Replaces the data with a backup after verifying it, keeping a safety copy of the current data. See [Restore](#restore) |
-| `.\grc.ps1 schedule-backup [-At HH:mm] [-Prune n]` | Registers a daily backup as a per-user Windows scheduled task. See [Scheduled backups](#scheduled-backups) |
+| `.\grc.ps1 backup [-Prune n] [-Encrypt [-IncludeSecretKey]]` | Makes a verified copy of the data in `backups\<yyyyMMdd-HHmmss>\`, or with `-Encrypt` one encrypted file `backups\<yyyyMMdd-HHmmss>.tar.sgrc`. `-Prune n` then deletes all but the newest `n` backups. See [Backup](#backup) |
+| `.\grc.ps1 backups` | Lists backups, newest first, with time, size, version, why each was taken and whether it is encrypted |
+| `.\grc.ps1 verify-backup [<backup>]` | Checks every file of a backup against its checksums (default: the newest); an encrypted one is decrypted on the way, writing nothing |
+| `.\grc.ps1 restore <backup> [-Force]` | Replaces the data with a backup (a folder, an encrypted file, or an archive the server took itself) after verifying it, keeping a safety copy of the current data. See [Restore](#restore) |
+| `.\grc.ps1 schedule-backup [-At HH:mm] [-Prune n] [-Encrypt]` | Registers a daily stop-and-copy backup as a per-user Windows scheduled task. See [Scheduled backups](#scheduled-backups) |
 | `.\grc.ps1 unschedule-backup` | Removes that task |
-| `.\grc.ps1 export-all [-Out dir] [-NoSecrets]` | Writes every table as JSON Lines, plus attached files and a checksum report. See [Export and import](#export-and-import) |
-| `.\grc.ps1 import-all <dir>` | Loads an export into an empty installation |
-| `.\grc.ps1 upgrade [-SkipInstall]` | After new code is in place: backup, `npm install`, build, migrations, restart, health check. See [Upgrading](#upgrading) |
+| `.\grc.ps1 export-all [-Out dir] [-NoSecrets] [-Encrypt]` | Writes every table as JSON Lines, plus attached files and a checksum report; `-Encrypt` writes one encrypted file instead. See [Export and import](#export-and-import) |
+| `.\grc.ps1 import-all <dir or file>` | Loads an export (a folder, or an export file, encrypted or not) into an empty installation |
+| `.\grc.ps1 decrypt <file> [-Out file.tar]` | Turns an encrypted backup or export into the plain tar file it holds, checking every part. See [Encrypted backups and exports](#encrypted-backups-and-exports) |
+| `.\grc.ps1 new-key <file>` | Writes a new random key file for encrypted backups. Keep it outside the data folder |
+| `.\grc.ps1 move-files -To s3` (or `-To disk`) | Moves every attached file to the object store (or back to the disk), checking each copy before deleting the original. Stops and restarts the server |
+| `.\grc.ps1 upgrade [-From dir\|zip] [-Pull] [-SkipInstall] [-NoRollback]` | Backup, new code, `npm install`, build, migrations, restart, health check; if any step fails, puts the previous code, packages and data back and starts the previous version. See [Upgrading](#upgrading) |
+| `.\grc.ps1 save-code` | Keeps a copy of the code as it is now (`backups\code\last-good.tar`) for `upgrade` to return to. `start` makes one the first time it runs |
 | `.\grc.ps1 dev` | Development mode: stops the background server, then runs the API with file watching on port 8080 and the Vite development server on http://127.0.0.1:5173 (which proxies `/api` to port 8080). Ctrl+C stops both |
 | `.\grc.ps1 build` | Builds the web application into `dist\web\` and shows the full build output |
 | `.\grc.ps1 test` | Runs the automated tests (Vitest) |
@@ -64,6 +68,10 @@ npm run cli                      # lists every command
 | `backups\<timestamp>-pre-restore\` | The safety copy `restore` takes of the data it is about to replace |
 | `backups\export-<timestamp>\` | Where `export-all` writes when no `-Out` folder is given |
 | `backups\scheduled-backup.log` | One line per scheduled backup run |
+| `backups\<timestamp>.tar.sgrc` | An encrypted backup (one file) |
+| `backups\code\` | Copies of the code for `upgrade` to return to (`last-good.tar`, `pre-upgrade-<timestamp>.tar`) and the copy of `code-snapshot.mjs` it runs |
+| `data\backup-status.json` | What the server last recorded about its own daily backups, for `status` |
+| `data.secret.key` (beside `data\`) | The secret key; not in backups |
 | `dist\web\` | The built web application served by the server |
 | `seed\` | Private import files (see Installation) |
 
@@ -85,15 +93,27 @@ Notes:
 ```
 
 ```
-Version:     0.1.0 (Node.js v24.11.0)
-Server:      running and healthy (process 5124)
-Address:     http://127.0.0.1:8080 (port 8080)
-Data folder: C:\grc\data (61.0 MB)
-Last backup: 20300131-020000, 7 hour(s) ago, 61.0 MB (scheduled)
-Backups:     14 in C:\grc\backups
-Migrations:  18 in the code; applied when the server started; none changed since
-Schedule:    backup task 'Sandpiper GRC backup (grc)' is Ready; next run 02/01/2030 02:00:00; last run 01/31/2030 02:00:03 succeeded
+Version:        0.1.0 (Node.js v24.11.0)
+Server:         running and healthy (process 5124)
+Address:        http://127.0.0.1:8080 (port 8080)
+Data folder:    C:\grc\data (61.0 MB)
+Database:       embedded, in C:\grc\data\pg
+Secret key:     C:\grc\data.secret.key (outside the data folder, not in backups: back it up separately)
+Last backup:    20300131-020000, 7 hour(s) ago, 61.0 MB (scheduled), encrypted
+Backups:        14 in C:\grc\backups
+Server backups: daily at 02:00 (Europe/London), keeping 14 to \\fileserver\backups\grc, encrypted; last good sandpiper-backup-20300131-020000.tar.sgrc, 7 hour(s) ago
+Migrations:     18 in the code; applied when the server started; none changed since
+Windows task:   none (the server takes its own daily backups: Administration > Backups)
 ```
+
+- **Server backups** is what the server recorded about its own daily backups
+  ([Backups taken by the server](#backups-taken-by-the-server)): the schedule, the
+  destination, the last good one, `OVERDUE` when that is more than two days old, and
+  `LAST RUN FAILED` with the reason. The server writes it to `data\backup-status.json`, so
+  it is shown even while the database is in use.
+- **Database** says `embedded` or names the PostgreSQL server (without its password).
+- **Secret key** says where the key that protects authenticator keys and webhook secrets
+  is, and reminds you that backups do not contain it.
 
 - **Server** is `stopped`, `running and healthy`, or `running but NOT answering the health
   check` (the process exists but the address does not respond: look at the logs).
@@ -102,8 +122,8 @@ Schedule:    backup task 'Sandpiper GRC backup (grc)' is Ready; next run 02/01/2
   start. While the server is running the database cannot be opened by a second process;
   the server applied everything when it started, so the line reports only whether any
   migration file has changed since then (which means: restart, or better, `upgrade`).
-- **Schedule** shows the scheduled backup task, when it runs next and whether its last
-  run succeeded.
+- **Windows task** shows the scheduled backup task, if there is one, when it runs next and
+  whether its last run succeeded.
 - `npm run cli -- status --json` prints the same facts as JSON for a monitoring script.
 
 ## Health check
@@ -115,6 +135,12 @@ Schedule:    backup task 'Sandpiper GRC backup (grc)' is Ready; next run 02/01/2
 Or request `http://127.0.0.1:8080/api/health` directly; a healthy server answers
 `{"ok":true}` without sign-in. The check proves the process is up and answering. It does
 not test the database.
+
+On a server installation use the address the server listens on (`https://...` when it has
+a certificate). The container image checks it every 30 seconds with
+`node deploy/healthcheck.mjs`, which follows `GRC_PORT` and `GRC_TLS_CERT`; `docker ps`
+shows the result. Behind a reverse proxy, point the proxy's or load balancer's own health
+check at `/api/health` as well.
 
 ## Clean shutdown, and why it matters
 
@@ -169,27 +195,150 @@ Things to know:
   backups, and deletes the oldest beyond `n`. It never touches a folder that has no
   `manifest.json` (exports, copies made by hand, backups made by an older version of this
   script).
-- Backups are **not encrypted**. They contain everything in the application, including
-  password hashes and second-factor secrets. Store them accordingly.
-- Authenticator (second-factor) keys are encrypted in the database, but by default the
-  key that opens them, `data\secret.key`, is in the data folder and so is copied into
-  every backup beside the database. To keep backups free of usable authenticator keys,
-  supply the key with `GRC_SECRET_KEY`, or set `GRC_SECRET_KEY_FILE` to a path outside
-  the data and backup folders, and keep your own copy of that key somewhere safe: a
-  restore needs the key the backup was made with. See [Installation](installation.md)
-  and [Security](security.md).
-- The key that encrypts authenticator keys is `data\secret.key` by default, so it is in
-  the backup too, and a restore brings back the key that matches the data. If you keep
-  the key somewhere else (`GRC_SECRET_KEY` or `GRC_SECRET_KEY_FILE`, see
-  [Security](security.md)), it is **not** in the backup: keep your own copy of it, because
-  a restored database is no use for second-factor sign-in without the key it was written
-  with.
+- A plain backup is **not encrypted**. It contains everything in the application,
+  including password hashes and second-factor secrets. Use `-Encrypt` for anything that
+  leaves the machine ([Encrypted backups and exports](#encrypted-backups-and-exports)).
+- **The secret key is not in backups.** Authenticator keys and webhook secrets are
+  encrypted in the database with the secret key, which is kept **beside** the data folder
+  (`data.secret.key` next to `data\`), or comes from `GRC_SECRET_KEY` /
+  `GRC_SECRET_KEY_FILE` (see [Security](security.md)). `backup`, `restore` and `status`
+  say where it is. Keep your own copy of that file somewhere safe and separate: a restored
+  database cannot use second-factor sign-in or webhook secrets without the key it was
+  written with. To restore on another machine, put the key file beside the restored data
+  folder under the same name, or set `GRC_SECRET_KEY` (or `GRC_SECRET_KEY_FILE`) before
+  starting.
+- If you would rather the key travelled with the data, `-Encrypt -IncludeSecretKey`
+  puts it **inside the encrypted file** (never in a plain backup). A restore then puts it in
+  place: where there is no key file yet it is written there; where a different key is in
+  use it is added to `<key file>.previous`, so values written with it are re-encrypted with
+  the current key at the next start.
 - By default `backups\` is on the same disk as the data. Set `GRC_BACKUP_DIR` to a folder
   on another disk, or copy backups elsewhere as well, and run `verify-backup` on a copy
   now and then.
 - The checksums detect damage and incomplete copies. They are not a defence against
   someone who can rewrite both the files and the manifest.
 - The private `seed\` folder is not included.
+- Files kept in an S3-compatible object store (Administration > File settings > Storage)
+  are not in any backup: only files on the local disk are. Protect the bucket with the
+  store's own versioning or replication, or move the files back with
+  `.\grc.ps1 move-files -To disk` before a backup you need to be complete.
+
+### Encrypted backups and exports
+
+```powershell
+.\grc.ps1 new-key D:\keys\grc-backup.key          # once; keep a copy somewhere safe
+$env:GRC_BACKUP_KEY_FILE = 'D:\keys\grc-backup.key'
+.\grc.ps1 backup -Encrypt                         # backups\<timestamp>.tar.sgrc
+.\grc.ps1 export-all -Encrypt                     # backups\export-<timestamp>.tar.sgrc
+.\grc.ps1 verify-backup latest                    # decrypts and checks, writes nothing
+.\grc.ps1 restore latest
+.\grc.ps1 decrypt backups\20300131-020000.tar.sgrc   # the plain tar file, for any tar tool
+```
+
+The key is a file of 32 random bytes (`new-key` writes one as 64 hex characters), or a
+passphrase of at least 12 characters. Give it with `-KeyFile <file>` or
+`-PassphraseFile <file>`, or in the environment as `GRC_BACKUP_KEY_FILE`,
+`GRC_BACKUP_PASSPHRASE_FILE` or `GRC_BACKUP_PASSPHRASE`. A key file inside the data folder
+is refused, because it would be copied with the data it protects. **Without the key an
+encrypted backup cannot be read by anyone, including you**: keep a copy of it apart from
+the backups.
+
+- An encrypted backup is written straight from the data folder into one file; nothing
+  unencrypted is written on the way, and the file is decrypted and checked against the
+  manifest before the command reports success. (An encrypted export is written to a
+  working folder beside the output first, then packed and the folder deleted.)
+- `restore`, `verify-backup` and `import-all` recognise an encrypted file and ask for the
+  key; the safety copy `restore` keeps is encrypted with the same key.
+- `backups` lists encrypted backups (their name, time, size and version are readable
+  without the key) and `-Prune` counts them.
+- `schedule-backup -Encrypt -KeyFile <file>` (or `-PassphraseFile`) makes the Windows task
+  encrypt too. A passphrase typed into the environment is not copied into the task.
+
+**The file format** (also in `server/src/ops/archive.ts`). An encrypted file is a POSIX
+"ustar" tar stream (the same content as a backup folder or export folder, with an extra
+first entry `archive.json` that says what it is) sealed with AES-256-GCM in chunks:
+
+| Bytes | Content |
+|---|---|
+| 0-7 | `SGRCENC1` |
+| 8-11 | Length H of the header, unsigned 32-bit big-endian |
+| next H | Header, UTF-8 JSON: `kdf` (`scrypt` for a passphrase, `key` for a key file), `salt` (16 bytes, base64), `N`, `r`, `p` (scrypt cost; 32768, 8, 1), `nonce` (7 random bytes, base64), `chunkSize` (65536) and `info` (name, kind, time, version, size: readable without the key) |
+| then, repeated | Ciphertext length L (32-bit big-endian), L bytes of ciphertext, 16-byte GCM tag |
+
+The 256-bit key is scrypt(passphrase, salt) or HKDF-SHA256(key file, salt,
+"sandpiper-grc archive v1"). Chunk *i* (from 0) is sealed with the nonce
+`<7-byte prefix><i, 32-bit big-endian><1 for the last chunk, else 0>`, and the magic, length
+and header bytes are authenticated with every chunk. Every chunk is checked before its
+content is used, so a wrong key, an altered byte, a changed header, reordered chunks and a
+file cut short (its last chunk missing) are all refused.
+
+### Backups taken by the server
+
+The server can take its own backup every day, while it keeps running, and write it to a
+second location: another folder (another disk, or a network share such as
+`\\fileserver\backups\grc`) or the S3-compatible object store. An administrator sets it up
+under **Administration > Backups** (schedule, destination, how many to keep, encryption);
+see the user guide's *Backups* section. It is off until switched on, and needs nobody to be
+signed in to Windows.
+
+How it works:
+
+1. At the chosen time (checked every five minutes; a time missed while the server was down
+   is caught up when it starts) the server exports every table **inside one transaction**,
+   so the copy is consistent. Requests wait meanwhile: about two seconds for the invented
+   sample data. Attached files on the local disk are added.
+2. The export is packed into one file, `sandpiper-backup-<yyyyMMdd-HHmmss>.tar`, or
+   `.tar.sgrc` when **Encrypt each backup** is on (the server must be started with
+   `GRC_BACKUP_KEY_FILE`, `GRC_BACKUP_PASSPHRASE_FILE` or `GRC_BACKUP_PASSPHRASE`). It is
+   made in `backups\.work-<process>\` and deleted from there afterwards.
+3. It is written to the destination, **read back from there**, decrypted if need be, and
+   every table and file is checked against the manifest inside it. A copy that does not
+   match is deleted and the run fails.
+4. Older `sandpiper-backup-*` files at the destination beyond the number to keep are
+   deleted. Nothing else there is touched.
+
+Each run is recorded (Administration > Backups shows the last 20) and audited
+(`backup.run`, `backup.failed`). A failed run, and no good backup for two days, notify
+every administrator (when the notifications module is loaded). `grc.ps1 status` shows the
+last result from `data\backup-status.json`.
+
+Restore one with `.\grc.ps1 restore <file>` (download it from the object store first, for
+example with the provider's command-line tool). It is a logical backup, so the restore
+keeps a safety copy of the current data, empties the data folder, creates a new database
+with the current code's migrations and loads the export into it; the backup must not come
+from newer code. Everything else is as described under [Restore](#restore). On a
+PostgreSQL server, load it with `import-all <file>` into an empty database instead.
+
+**Without Windows.** On Linux or macOS there is no `grc.ps1`; the server's own daily backup
+works the same, and the stop-and-copy backup can be scheduled with cron or a systemd timer
+running the command line directly (the server must be stopped around it):
+
+```
+# crontab -e: every day at 02:30, encrypted, keep 14
+30 2 * * * cd /opt/sandpiper && GRC_DATA_DIR=/var/lib/sandpiper/data GRC_BACKUP_DIR=/srv/backups/grc GRC_BACKUP_KEY_FILE=/etc/sandpiper/backup.key npm run --silent cli -- backup --label scheduled --encrypt --prune 14 >> /srv/backups/grc/scheduled-backup.log 2>&1
+```
+
+```
+# /etc/systemd/system/grc-backup.service
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/sandpiper
+Environment=GRC_DATA_DIR=/var/lib/sandpiper/data GRC_BACKUP_DIR=/srv/backups/grc GRC_BACKUP_KEY_FILE=/etc/sandpiper/backup.key
+ExecStartPre=/bin/systemctl stop sandpiper
+ExecStart=/usr/bin/npm run --silent cli -- backup --label scheduled --encrypt --prune 14
+ExecStopPost=/bin/systemctl start sandpiper
+
+# /etc/systemd/system/grc-backup.timer
+[Timer]
+OnCalendar=*-*-* 02:30
+Persistent=true
+[Install]
+WantedBy=timers.target
+```
+
+`systemctl enable --now grc-backup.timer`; `systemctl list-timers` and
+`journalctl -u grc-backup` show when it ran and what it said. The service name `sandpiper`
+is whatever unit runs the server on that machine.
 
 ### Scheduled backups
 
@@ -213,8 +362,51 @@ administrator rights.
   written into the task, so it uses the same data folder, backup folder and port. If you
   change them, or move the repository, run `schedule-backup` again (it replaces the task).
 - Each run appends one line to `backups\scheduled-backup.log`: the time, the exit code
-  (`0` is success) and what the backup reported. Nothing alerts you when a run fails:
-  look at `.\grc.ps1 status`, which shows the last result and the age of the last backup.
+  (`0` is success) and what the backup reported. Nothing alerts you when a run of this
+  task fails: look at `.\grc.ps1 status`, which shows the last result and the age of the
+  last backup. The server's own backups ([above](#backups-taken-by-the-server)) do alert
+  administrators, and need nobody signed in; the task remains useful for a full
+  stop-and-copy of the database files.
+
+### PostgreSQL server backups
+
+With `GRC_DATABASE_URL` set ([Installation](installation.md#postgresql-server)) the records
+live on the database server, not in the data folder. `backup` and `restore` copy the
+embedded database only, so in this mode they **refuse** with a message pointing here, and
+`status` names the database server and reads its migrations while the application runs.
+The server's own daily backups ([Backups taken by the server](#backups-taken-by-the-server))
+and `export-all` do work against a server. For a full copy, back up the two parts with
+their own tools, at the same time:
+
+```sh
+# The database: a consistent snapshot while the application keeps running
+pg_dump --format=custom --no-owner --file=grc-$(date +%Y%m%d-%H%M%S).dump "postgres://grc@db.example.internal/grc"
+# The files: the data folder (or the container volume), with the server running or stopped
+tar -czf grc-files-$(date +%Y%m%d-%H%M%S).tar.gz -C /var/lib/sandpiper data
+```
+
+- `pg_dump` takes a consistent copy without stopping anyone; its major version must be the
+  server's or newer. Run it from cron or a systemd timer, keep several days, and copy the
+  files to another machine.
+- Files are added rather than changed, so a copy taken a little after the dump holds every
+  file the dump refers to. A file attached between the two is in the copy but not in the
+  database, which is harmless.
+- **Restore**: stop the application, restore the files, then load the dump into an empty
+  database owned by the application's role, and start:
+
+  ```sh
+  dropdb grc && createdb --owner=grc --template=template0 grc
+  pg_restore --no-owner --role=grc --dbname=grc grc-20260101-020000.dump
+  ```
+
+  The append-only audit log has a trigger that refuses updates and deletes; `pg_restore`
+  only inserts, so it is not affected.
+- In the container setup: `docker compose exec db pg_dump -U grc --format=custom grc > grc.dump`,
+  and the files with `docker run --rm -v <project>_grc-files:/v -v "$PWD":/out busybox tar -czf /out/grc-files.tar.gz -C /v .`
+- `export-all` and `import-all` also work against a server, and remain the way to move
+  between the embedded database and a server, or between versions.
+- A managed database service's own scheduled snapshots and point-in-time recovery are a
+  good addition, not a replacement for a copy you hold.
 
 ## Restore
 
@@ -255,6 +447,18 @@ It reports what it verified, where the safety copy is, and which backup is now l
 - Backups made by the earlier version of this script (a plain copy with no
   `manifest.json`) are refused. Put one back by hand: stop the server, move the contents
   of `data\` aside, copy the backup's contents into `data\`, start.
+- **Single-file backups.** `restore` also takes an encrypted backup
+  (`<timestamp>.tar.sgrc`, with its key: see
+  [Encrypted backups and exports](#encrypted-backups-and-exports)) and a file the server
+  took itself (`sandpiper-backup-*.tar` or `.tar.sgrc`, see
+  [Backups taken by the server](#backups-taken-by-the-server)). It unpacks it into a hidden
+  working folder in `backups\`, checks it, and deletes the folder afterwards.
+- **The secret key.** Unless the backup carried it (`-IncludeSecretKey`), `restore` does
+  not touch the secret key and says where it is expected. Restoring onto the same machine
+  needs nothing more; on another machine, put the key file in place first (see
+  [Backup](#backup)).
+- With a PostgreSQL server (`GRC_DATABASE_URL`), `restore` refuses: use `pg_restore`
+  ([PostgreSQL server backups](#postgresql-server-backups)).
 
 ### Restore test
 
@@ -292,7 +496,12 @@ locked in.
 .\grc.ps1 export-all                       # into backups\export-<timestamp>\
 .\grc.ps1 export-all -Out D:\handover\grc
 .\grc.ps1 export-all -NoSecrets            # see below
+.\grc.ps1 export-all -Encrypt              # one encrypted file, backups\export-<timestamp>.tar.sgrc
 ```
+
+With `-Encrypt` the same content is written as one encrypted file (see
+[Encrypted backups and exports](#encrypted-backups-and-exports)); `import-all` reads it
+with the key, and `decrypt` turns it into a plain tar file.
 
 An export is a folder:
 
@@ -309,8 +518,9 @@ their structure.
 
 **Secrets.** A full export contains password hashes, second-factor secrets, recovery-code
 hashes, sessions and one-time links, because an installation cannot be moved without
-them. Protect it like a backup. `-NoSecrets` leaves the rows of `sessions`,
-`one_time_tokens` and `password_history` out and blanks `password_hash`, `totp_secret`,
+them. Protect it like a backup, or use `-Encrypt`. `-NoSecrets` leaves the rows of `sessions`,
+`one_time_tokens`, `password_history`, `webauthn_credentials` and `webauthn_challenges`
+(passkeys) out and blanks `password_hash`, `totp_secret`,
 `totp_enabled` and `recovery_codes` on every user; the manifest marks those tables as
 redacted. An export does not contain the secret key (`secret.key` or `GRC_SECRET_KEY`):
 the second-factor secrets in a full export are encrypted, and the installation that
@@ -320,8 +530,9 @@ command.
 
 **The secret key is not in an export.** Authenticator keys are stored encrypted, and the
 export carries them as stored. **Before** running `import-all` somewhere else, give the
-target the same key: copy `data\secret.key` into the target's (empty) data folder, or set
-`GRC_SECRET_KEY` there. Without it the import itself succeeds, but anyone who has a
+target the same key: copy the key file (`data.secret.key`, beside the data folder) beside
+the target's data folder under the target's name (`<target data folder>.secret.key`), or
+set `GRC_SECRET_KEY` there. Without it the import itself succeeds, but anyone who has a
 second factor cannot complete sign-in, because their authenticator key cannot be read.
 
 ### Import
@@ -376,43 +587,80 @@ into a server once the application can run on one. That driver does not exist ye
 ## Upgrading
 
 ```powershell
-git pull                 # or put the new version's files in place
-.\grc.ps1 upgrade
+.\grc.ps1 upgrade -From D:\downloads\sandpiper-grc-0.2.0.zip   # a release folder or .zip
+.\grc.ps1 upgrade -Pull                                        # or: git pull --ff-only, done by upgrade
+.\grc.ps1 upgrade                                              # or: the new code is already in place
 ```
 
-`upgrade` runs six steps and stops at the first failure:
+`upgrade` runs seven steps. If any of them fails it **rolls back by itself** and starts the
+previous version again:
 
-1. **Backup** (`pre-upgrade`), stopping the server first. If the backup fails, nothing
-   else happens.
-2. **`npm install`** with the portable Node.js. `-SkipInstall` skips this on a machine with
+1. **Keep the current code.** With `-From` or `-Pull`, the code as it is now is saved to
+   `backups\code\pre-upgrade-<timestamp>.tar` before anything changes (the newest three are
+   kept). Without them, the new code is already in place, so the copy used for going back
+   is `backups\code\last-good.tar`: written by `start` the first time it runs, by
+   `save-code`, and at the end of every successful upgrade. If there is none, `upgrade`
+   says so and cannot roll back the code by itself. Either way the version it is moving
+   from is read from `package.json` and recorded in `backups\code\upgrade.json`; no
+   version-control tool is needed.
+2. **Backup** (`pre-upgrade`), stopping the server first (encrypted with `-Encrypt`). If
+   the backup fails, nothing else happens.
+3. **New code**: `git pull --ff-only` (`-Pull`), or the release copied into place
+   (`-From`: files that are not in the release are removed from `server\src` and `web\src`
+   only, nothing else is deleted). Without either: nothing to do.
+4. **`npm install`** with the portable Node.js. `-SkipInstall` skips this on a machine with
    no network access, when the packages are already in place.
-3. **Build** the web application.
-4. **Migrations.** Each migration runs in a transaction and is recorded in the
+5. **Build** the web application.
+6. **Migrations.** Each migration runs in a transaction and is recorded in the
    `schema_migrations` table, so it is applied once; core first, then each module in
    alphabetical order. The command prints the ones it applied.
-5. **Start.**
-6. **Health check**, then `status`.
+7. **Start and health check**, then `status`, and the new code is saved as
+   `last-good.tar`.
 
-If a step fails, the server is left **stopped** and the command prints what to do. It
-says whether the database may have been changed (a failure in steps 2 or 3 cannot have
-changed it; from step 4 on it may have) and gives the rollback:
+**Automatic rollback.** When a step from 3 on fails, `upgrade`:
 
-```
-To go back to the previous version:
-  1. Put the previous code back (for example: git checkout <previous tag or commit>).
-  2. .\grc.ps1 restore 20300131-101500        <- the backup this upgrade took
-  3. .\grc.ps1 npm install
-  4. .\grc.ps1 start
-```
+- stops the server;
+- puts the saved code back (`tools\code-snapshot.mjs restore`, run from a copy kept in
+  `backups\code\`, so a broken new version cannot block it), removing files the new
+  version added under `server\src` and `web\src` (a new migration among them);
+- runs `npm install` again if `package.json` or `package-lock.json` changed (with
+  `-SkipInstall` it says so instead);
+- restores the pre-upgrade backup if the database may have been changed (from step 6 on;
+  there are no downward migrations), keeping the new version's data as a safety copy;
+- builds the web application and starts the previous version, and checks its health.
 
-Step 2 of the rollback matters because there are no downward migrations: once a new
-migration has run, the old code may not work with the database, so the data must go back
-to the backup as well. A failed migration is itself rolled back; earlier new ones stay
-applied. `data\server.log.err` (or `.\grc.ps1 logs`) names a migration that failed at
-start (`Migration <module>/<file> failed: ...`).
+It then says plainly either `ROLLED BACK: the upgrade failed at '<step>', and version
+<previous> is running again with the data as it was before.` (exit code 1), or
+`ROLLBACK INCOMPLETE` with the step that failed and the commands to finish by hand (exit
+code 2, server stopped). `-NoRollback` keeps the old behaviour: stop, leave the server
+stopped and print those commands. `data\server.log.err` (or `.\grc.ps1 logs`) names a
+migration that failed at start (`Migration <module>/<file> failed: ...`).
+
+This was rehearsed on a copy of the application with a release holding a broken
+migration: the migration failed, the code and the data were put back and the previous
+version started healthy.
 
 To move to a newer Node.js patch release within the same major version, stop the server
 and run `powershell -ExecutionPolicy Bypass -File .\tools\install-node.ps1 -Force`.
+
+### Upgrading a server or container installation
+
+`grc.ps1 upgrade` backs up the embedded database only. With a database server or
+containers, do the same steps by hand:
+
+1. **Back up** the database with `pg_dump` and the files
+   ([PostgreSQL server backups](#postgresql-server-backups)), or, with the embedded
+   database in a container, stop it and copy the volume.
+2. **Replace the code**: `git pull` then `npm ci && npm run build`, or
+   `docker compose build` (or pull a newer image).
+3. **Restart**: `docker compose up -d` replaces the container. Migrations run at start-up;
+   a failure stops the server with `Migration <module>/<file> failed: ...` in its output
+   (`docker compose logs app`), and the container restarts and fails again until fixed.
+4. **Check** `/api/health` and the start-up line.
+
+To roll back: stop, put the previous code or image back, restore the dump into an empty
+database and the files, and start. There are no downward migrations, so the database must
+go back together with the code.
 
 ## Troubleshooting
 
@@ -509,9 +757,13 @@ This is acceptable for a prototype only.
 
 ## Security posture of the prototype
 
-- The server binds to `127.0.0.1` only. It cannot be reached from the network, and this
-  is fixed in code, not a setting.
-- There is no HTTPS. The session cookie is therefore not marked `Secure` unless `GRC_COOKIE_SECURE` is set, which is only for running behind an HTTPS proxy (with `GRC_TRUST_PROXY`); see [Installation](installation.md).
+- The server binds to `127.0.0.1` by default and cannot then be reached from the network.
+  `GRC_HOST` changes that, and the server refuses plain HTTP on any other address unless
+  it has a certificate (`GRC_TLS_CERT`, `GRC_TLS_KEY`) or `GRC_ALLOW_INSECURE=1` says a
+  proxy terminates HTTPS in front of it; see [Server installation](installation.md#server-installation).
+- On HTTPS (direct, or through a proxy named in `GRC_TRUST_PROXY`) the session cookie is
+  marked `Secure` and `Strict-Transport-Security` is sent. On plain `http://127.0.0.1`
+  neither applies.
 - The application makes no outbound calls: no telemetry, no externally hosted fonts or
   scripts, no email. Internet access is needed only to install or upgrade
   (`tools\install-node.ps1` and `npm install`).
@@ -525,8 +777,10 @@ This is acceptable for a prototype only.
 The prototype is for evaluation on one machine. Before it holds real records for a team,
 at least these must change:
 
-1. A PostgreSQL server in place of the embedded database.
-2. HTTPS, and a deliberate decision about which network may reach it.
+1. A PostgreSQL server in place of the embedded database (supported: `GRC_DATABASE_URL`),
+   with its own backups.
+2. HTTPS (supported: a certificate or a trusted reverse proxy), and a deliberate decision
+   about which network may reach it.
 3. Backups that run when nobody is signed in, are copied off the machine, are encrypted,
    and raise an alert when one fails. (Verified backups, a daily schedule, pruning and a
    tested restore command exist today.)

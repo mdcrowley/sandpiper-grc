@@ -51,20 +51,27 @@ export function CalendarMonth({ days, month, changes, blackouts, onOpenDay }: {
 }) {
   const today = todayInZone();
   const cells = byDay(days, changes, blackouts);
+  // A table of weeks (rows) and weekdays (cells) for assistive technology; the rows use
+  // `display: contents`, so the layout stays one CSS grid of days.
+  const weeks: DayData[][] = [];
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
   return (
-    <div className="chg-month" role="grid" aria-label="Changes by day">
+    <div className="chg-month" role="table" aria-label="Changes by day">
       <div className="chg-month-head" role="row">
         {WEEKDAYS.map((w) => <span key={w} role="columnheader"><abbr title={w}>{w.slice(0, 3)}</abbr></span>)}
       </div>
-      <div className="chg-month-body">
-        {cells.map(({ day, changes: list, blackouts: shade }) => (
+      <div className="chg-month-body" role="rowgroup">
+        {weeks.map((week) => (
+          <div key={week[0].day} className="chg-month-week" role="row">
+            {week.map(({ day, changes: list, blackouts: shade }) => (
           <div
             key={day}
-            role="gridcell"
+            role="cell"
             className={cx('chg-day', day.slice(0, 7) !== month.slice(0, 7) && 'chg-day-out', day === today && 'chg-day-today', shade.length > 0 && 'chg-day-blackout')}
           >
-            <button type="button" className="chg-day-num" onClick={() => onOpenDay(day)} aria-label={`Open the week of ${day}`}>
-              {Number(day.slice(8))}
+            {/* The visible day number starts the button's name, so speech users can say it. */}
+            <button type="button" className="chg-day-num" onClick={() => onOpenDay(day)}>
+              {Number(day.slice(8))}<span className="sr-only">, open the week of {day}</span>
             </button>
             {shade.map((b) => (
               <span key={b.id} className="chg-day-shade" title={b.reason ?? undefined}><Icon name="lock" size={12} /> <span>{b.name}</span></span>
@@ -80,6 +87,8 @@ export function CalendarMonth({ days, month, changes, blackouts, onOpenDay }: {
             {list.length > MAX && (
               <button type="button" className="chg-linkbtn chg-more" onClick={() => onOpenDay(day)}>{list.length - MAX} more</button>
             )}
+          </div>
+            ))}
           </div>
         ))}
       </div>

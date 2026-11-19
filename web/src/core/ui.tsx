@@ -16,6 +16,27 @@ export function cx(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(' ');
 }
 
+/**
+ * Makes an element a Tab stop only while its content overflows it, so a keyboard user can
+ * scroll it with the arrow keys (WCAG 2.1.1). Use on a box with `overflow: auto`:
+ * `const ref = useScrollFocus<HTMLDivElement>(); <div ref={ref} ...>`.
+ */
+export function useScrollFocus<T extends HTMLElement>() {
+  const [el, setEl] = useState<T | null>(null);
+  useEffect(() => {
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const check = () => {
+      const scrolls = el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1;
+      if (scrolls) el.setAttribute('tabindex', '0'); else el.removeAttribute('tabindex');
+    };
+    check();
+    const observer = new ResizeObserver(check);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [el]);
+  return setEl;
+}
+
 /* ---------- Buttons ---------- */
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
@@ -333,8 +354,10 @@ export function Stepper({
   steps, current, blocked, onStepClick, label = 'Progress', active, orientation = 'horizontal', size = 'md', className,
 }: StepperProps) {
   const at = current !== undefined ? steps.findIndex((s) => s.key === current) : active ?? -1;
+  // On a narrow screen the steps scroll sideways: the list then takes focus so the keyboard can scroll it.
+  const scrollRef = useScrollFocus<HTMLOListElement>();
   return (
-    <ol className={cx('stepper', orientation === 'vertical' && 'stepper-vertical', size === 'sm' && 'stepper-sm', className)} aria-label={label}>
+    <ol ref={scrollRef} className={cx('stepper', orientation === 'vertical' && 'stepper-vertical', size === 'sm' && 'stepper-sm', className)} aria-label={label}>
       {steps.map((step, i) => {
         const derived: StepState = at < 0 ? 'todo' : i < at ? 'done' : i > at ? 'todo' : blocked ? 'blocked' : 'current';
         const state = step.state ?? derived;

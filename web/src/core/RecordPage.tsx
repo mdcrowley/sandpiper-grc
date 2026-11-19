@@ -15,6 +15,7 @@ import { HistoryPanel, recordQuery } from './RecordHistory';
 import { LinksPanel, type RecordLink } from './RecordLinks';
 import { ResourceForm, type FormSection } from './ResourceForm';
 import { RecordTags, WatchButton } from './tags';
+import { RecordPdfButton } from './ListExport';
 import { Card, EmptyState, ErrorState, Loading, PageHeader, Tabs, type Crumb, type TabItem } from './ui';
 import './records.css';
 
@@ -270,7 +271,7 @@ export function RecordPage({
         reference={reference}
         subtitle={subtitle ? subtitle(row) : defaultSubtitle}
         status={chip}
-        actions={watch ? <>{actions?.(rec)}<WatchButton recordType={type} recordId={id} /></> : actions?.(rec)}
+        actions={<>{actions?.(rec)}<RecordPdfButton resource={resource} id={id} label={reference ?? heading} />{watch && <WatchButton recordType={type} recordId={id} />}</>}
         breadcrumbs={breadcrumbs ?? [{ label: resource.plural, to: resource.route }, { label: reference ?? heading }]}
       />
       {tags && <RecordTags recordType={type} recordId={id} canEdit={rec.canEdit} />}

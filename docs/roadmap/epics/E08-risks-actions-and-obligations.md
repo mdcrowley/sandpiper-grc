@@ -326,7 +326,7 @@ repaired for existing actions at every start.
 **Acceptance criteria**
 
 - [x] An action whose source record is restricted is hidden from people without `security.view`
-- [x] This holds in lists, counts, statistics, the summary, single reads, search, pickers, exports, links, comments, history and the audit search
+- [x] This holds in lists (and their totals), single reads, search, pickers, exports, links, comments, history and the audit search. Statistics and the summary count it for everyone, with its owner and department shown as "Restricted records" (E18-40)
 - [x] A person cannot raise an action on, or move one to, a record they cannot see
 - [x] A test covers an agent with `actions.view` but without `security.view`
 - [x] One restricted action can be shared deliberately with one named person who lacks `security.view`: they see it (never its source) under "My actions" and may change its status and notes; sharing is audited and can be withdrawn

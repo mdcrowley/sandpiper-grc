@@ -116,6 +116,33 @@ export const ROUTE_HELP: RouteHelp[] = [
   { prefix: '/admin/custom-fields', page: '09-administration', section: 'custom-fields' },
   { prefix: '/admin/retention', page: '09-administration', section: 'retention' },
   { prefix: '/admin/attachments', page: '14-attachments-and-notifications', section: 'file-settings' },
+  { prefix: '/admin/backups', page: '14-attachments-and-notifications', section: 'backups' },
+  { prefix: '/admin/email', page: '14-attachments-and-notifications', section: 'email-settings' },
+  { prefix: '/admin/jobs', page: '14-attachments-and-notifications', section: 'background-jobs' },
+  { prefix: '/admin/sign-in-providers', page: '09-administration', section: 'sign-in-providers-single-sign-on' },
+  { prefix: '/admin/ai-assistants', page: '21-ai-assistants-and-mcp', section: 'switching-it-on-administrators' },
+
+  // Account
+  { prefix: '/account/passkeys', page: '16-passkeys-and-security-keys', section: 'add-a-passkey-or-security-key' },
+  { prefix: '/account/ai-assistant', page: '21-ai-assistants-and-mcp', section: 'connecting-your-assistant' },
+  { prefix: '/forgot-password', page: '01-getting-started' },
+  { prefix: '/sign-in/passkey', page: '16-passkeys-and-security-keys', section: 'sign-in-with-a-passkey' },
+
+  // Self-service portal
+  { prefix: '/portal', page: '18-self-service-portal' },
+
+  // Fleet and services
+  { prefix: '/vehicles', page: '19-fleet-and-services', section: 'vehicles' },
+  { prefix: '/fleet/coverage', page: '19-fleet-and-services', section: 'equipment-coverage' },
+  { prefix: '/fleet/impact', page: '19-fleet-and-services', section: 'what-is-affected' },
+  { prefix: '/services', page: '19-fleet-and-services', section: 'services' },
+
+  // Safety
+  { prefix: '/safety', page: '20-safety-management', section: 'safety-dashboard' },
+  { prefix: '/safety/events', page: '20-safety-management', section: 'safety-events' },
+  { prefix: '/safety/hazards', page: '20-safety-management', section: 'hazard-log' },
+  { prefix: '/safety/indicators', page: '20-safety-management', section: 'safety-performance-indicators' },
+  { prefix: '/safety/exposure', page: '20-safety-management', section: 'exposure' },
 ];
 
 /** The guide entry for an address, or undefined when nothing covers it. */

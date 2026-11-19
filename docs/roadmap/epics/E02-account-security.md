@@ -14,8 +14,9 @@ everything else fails.
 - Passwords, lockout and sessions are in [E01](E01-platform-foundations.md).
 - The second factor (authenticator app and recovery codes) can be enforced, but ships as
   a notice only (`auth.mfa_enforcement` = `notice`) so an upgrade locks nobody out.
-- Single sign-on needs outbound network access, which the local prototype does not
-  have. Those issues depend on [E16](E16-hosting-operations-and-hardening.md).
+- Single sign-on (OpenID Connect) needs outbound access to the identity provider. It is off
+  until an administrator switches a provider on; the application works without it. Running it
+  for real also needs HTTPS on a real host name ([E16](E16-hosting-operations-and-hardening.md)).
 
 ## Issues
 
@@ -28,17 +29,25 @@ everything else fails.
 | E02-05 | Enforce the second factor | done | P1 |
 | E02-06 | Replay protection for authenticator codes | done | P1 |
 | E02-07 | Encrypt second-factor secrets at rest | done | P1 |
-| E02-08 | Passkeys and security keys (WebAuthn) | open | P3 |
-| E02-09 | Single sign-on with OpenID Connect | open | P2 |
-| E02-10 | Single sign-on with SAML | open | P3 |
-| E02-11 | Link local accounts to single sign-on identities | open | P3 |
+| E02-08 | Passkeys and security keys (WebAuthn) | in progress | P3 |
+| E02-09 | Single sign-on with OpenID Connect | done | P2 |
+| E02-10 | Single sign-on with SAML | blocked | P3 |
+| E02-11 | Link local accounts to single sign-on identities | done | P3 |
 | E02-12 | Personal API tokens | in progress | P2 |
-| E02-13 | Break-glass account | open | P2 |
-| E02-14 | Secure session cookie when served over HTTPS | in progress | P1 |
+| E02-13 | Break-glass account | in progress | P2 |
+| E02-14 | Secure session cookie when served over HTTPS | done | P1 |
 | E02-15 | Send a blocked person straight to second-factor set-up | done | P1 |
-| E02-16 | Keep the secret key out of the data folder by default | open | P2 |
-| E02-17 | Enforce the second factor by default on new installations | open | P2 |
+| E02-16 | Keep the secret key out of the data folder by default | in progress | P2 |
+| E02-17 | Enforce the second factor by default on new installations | in progress | P2 |
 | E02-18 | Limit a token to source addresses | open | P3 |
+| E02-19 | Second factor required when setup names no choice | open | P2 |
+| E02-20 | Re-encrypt webhook secrets after a key change | open | P2 |
+| E02-21 | A way back in for people whose only factor is a passkey | open | P3 |
+| E02-22 | Trust the provider's own second factor | open | P2 |
+| E02-23 | Sign out at the provider too | open | P3 |
+| E02-24 | Groups by reference (group overage) | open | P3 |
+| E02-25 | Break-glass banner on every page | open | P2 |
+| E02-26 | Directory (LDAP) sign-in | open | P3 |
 
 ---
 
@@ -161,45 +170,88 @@ comes from `GRC_SECRET_KEY`, else the file named by `GRC_SECRET_KEY_FILE`, else
 - [x] Existing keys are migrated on start-up, audited
 - [x] Key rotation is documented and works (`GRC_SECRET_KEY_PREVIOUS`; re-encrypted at start-up) in [Security](../../security.md)
 - [x] Key backup is documented
-- [ ] Backups contain no usable authenticator keys: true only when the key is supplied through `GRC_SECRET_KEY` or a `GRC_SECRET_KEY_FILE` outside the data folder. With the default key file, `backup` copies the key with the database (E02-16)
+- [x] Backups contain no usable authenticator keys: the default key file is now kept beside the data folder, not in it, so `backup` does not copy it (E02-16). A `GRC_SECRET_KEY_FILE` pointed inside the data folder is warned about at start-up
 
 **Implemented in:** `server/src/core/secretbox.ts`; `secretBox`, `storeTotpSecret`, `readTotpSecret`, `encryptStoredSecrets` (`server/src/core/auth.ts`); `Db.dataDir` (`server/src/core/db.ts`); tests in `server/src/core/core.test.ts`
 
 ### E02-08 Passkeys and security keys (WebAuthn)
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** in progress · **Priority:** P3 · **Type:** feature
 
 As a user, I can register a passkey or a hardware security key as my second factor, or
 as my only factor, so sign-in resists phishing.
 
+WebAuthn ceremonies implemented with Node's crypto and a small CBOR/COSE reader of our own
+(no new packages): ES256, EdDSA and RS256 keys; one-use challenges that expire after five
+minutes; origin and RP ID checked (`GRC_WEBAUTHN_ORIGINS`, `GRC_WEBAUTHN_RP_ID`, default the
+host the request was sent to); a use counter that goes backwards is refused and audited as a
+possible copied key; attestation is not verified (format "none" is asked for; see
+[Security](../../security.md)). A passkey counts as a second factor for enforcement. Signing in
+with a passkey alone needs user verification (PIN or biometric); as the second factor after the
+password, a touch-only security key is enough unless `auth.passkey_user_verification` is
+`required`.
+
 **Acceptance criteria**
 
-- [ ] Register, name and remove more than one key
-- [ ] Sign in with a key in place of an authenticator code
-- [ ] Works once the application is served over HTTPS on a real host name
-- [ ] All key events are audited
+- [x] Register, name, rename and remove more than one key (up to ten), with when each was last used and from where
+- [x] Sign in with a key in place of an authenticator code, or with a passkey alone (`auth.passkey_sign_in`, default on)
+- [x] Wrong origin, wrong RP ID, replayed or foreign challenge, counter regression and removed keys are refused, with tests using a software authenticator
+- [x] Checked in a real browser (headless Edge with a virtual authenticator, `VIRTUAL_AUTHENTICATOR=1` in `tools/browse.mjs`): adding a passkey, signing in with it alone, and as the second factor after the password
+- [ ] Works once the application is served over HTTPS on a real host name (configuration exists; not tried on a real host, depends on E16-07)
+- [x] All key events are audited (`passkey.register`, `.rename`, `.revoke`, `.used`, `.refused`, `.register_refused`, `.sign_count_regression`; `signin.success` "via passkey")
+- [ ] The card is on the Account security page and on an administrator's user page, and the sign-in page offers **Sign in with a passkey** and **Use a passkey or security key instead** (components are ready in `web/src/modules/account-keys`; the embeds belong to the administration and sign-in screens)
+- [ ] An administrator's second-factor reset also removes the person's passkeys (`revokeAllPasskeys`), and the "set up your own second factor first" check on `auth.mfa_enforcement` counts a passkey
+
+**Implemented in:** `server/src/core/webauthn/` (`cbor.ts`, `cose.ts`, `ceremony.ts`, `config.ts`, `store.ts`, `routes.ts`, `apidocs.ts`, `softauthn.ts` test authenticator, `webauthn.test.ts`); hooks in `server/src/core/auth.ts` (`registerWebAuthn`, `passkeySecondFactor`, `hasActivePasskey`, `WEBAUTHN_ENROLMENT_ROUTES`); `server/src/core/migrations/004_webauthn.sql`; web `web/src/modules/account-keys/` (`PasskeysCard`, `PasskeySignIn`, `PasskeySecondFactorButton`, pages `/account/passkeys` and `/sign-in/passkey`); `tools/browse.mjs` (`VIRTUAL_AUTHENTICATOR=1`); [user guide](../../user/16-passkeys-and-security-keys.md)
 
 ### E02-09 Single sign-on with OpenID Connect
 
-**Status:** open · **Priority:** P2 · **Type:** feature
+**Status:** done · **Priority:** P2 · **Type:** feature
 
 As a user, I sign in with my organisation account. As an administrator, I configure the
 identity provider in settings and map its groups to roles.
 
 **Acceptance criteria**
 
-- [ ] Provider details are entered in settings, not in code
-- [ ] Authorisation-code flow with proof key
-- [ ] Groups or claims map to roles
-- [ ] Local sign-in can be limited to named accounts once single sign-on is on
-- [ ] Sign-in events record which method was used
+- [x] Provider details are entered in settings, not in code (Administration > Sign-in providers; issuer and every endpoint from the discovery document, so commercial, government-cloud and self-hosted providers are configured alike)
+- [x] Authorisation-code flow with proof key (PKCE S256), `state` bound to the browser and single-use, `nonce`
+- [x] ID token signature (RS256, ES256, PS256) and claims (iss, aud/azp, exp, iat, nbf, nonce) checked with Node's crypto; key set cached, refetched on an unknown key id (rotation)
+- [x] Client secret stored encrypted with the application key
+- [x] Groups or claims map to roles (off by default); just-in-time accounts for allowed email domains (off by default)
+- [x] Several providers side by side, each switched on or off, one default; the sign-in page shows only enabled ones; no self-registration
+- [x] Nothing is fetched from a provider until it is switched on, except **Test connection** when an administrator asks
+- [x] Local sign-in can be limited to named accounts once single sign-on is on: per-person "ways to sign in", and `auth.local_signin` off (allowed only with a break-glass account and everyone else linked)
+- [x] Sign-in events record which method was used, with failures' reasons, provider changes, links and unlinks, time and source address
+- [x] Tests against an in-process stand-in provider (`fake-provider.ts`): happy path, bad signature, wrong audience, expiry, wrong issuer, replayed state, wrong nonce, unknown email, JIT off/on, mapping, ES256/PS256, key rotation
+- [x] Checked in a browser: signing in through the stand-in provider, the provider screens, user page and Account security (light and dark, 1440 and 820)
+
+**Implemented in:** `server/src/core/identity/` (`types.ts` driver interface, `jwt.ts`, `oidc.ts`, `http.ts`, `config.ts`, `accounts.ts`, `service.ts`, `hooks.ts`, `fake-provider.ts`, `jwt.test.ts`); `checkSignIn`/`afterSignIn` in `server/src/core/auth.ts`; `server/src/modules/admin/sso.ts`, `providers.ts`, `migrations/001_identity.sql`, settings `auth.local_signin` and `auth.public_url` (`settings.ts`), `sso.test.ts`; web `web/src/core/AuthPages.tsx` (provider buttons), `web/src/modules/admin/Providers.tsx`, `ProviderEditor.tsx`, `UserSignIn.tsx`, `LinkedIdentities.tsx`; [user guide](../../user/09-administration.md#sign-in-providers-single-sign-on), [Security](../../security.md)
 
 ### E02-10 Single sign-on with SAML
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** blocked · **Priority:** P3 · **Type:** feature
 
 As an administrator whose identity provider only offers SAML, I can connect it in the
 same way as OpenID Connect.
+
+**Why it is not built.** Verifying a SAML response safely needs a complete XML Signature
+implementation: a hardened XML parser (no DTDs or external entities), Exclusive XML
+Canonicalisation 1.0 (with and without comments, in-scope namespaces), resolving each
+`Reference` by ID and applying only the enveloped-signature and exc-c14n transforms, digest
+and signature checks against the configured certificate only (never a `KeyInfo` key), and
+defences against signature wrapping (the signed element must be exactly the assertion that is
+then read; one assertion; IDs unique). Node has no XML parser or canonicaliser, and writing
+one here would be the riskiest code in the application. It needs either an approved, maintained
+XML-signature package, or a decision to support SAML only through an OpenID Connect bridge
+(many identity providers offer both).
+
+**When unblocked:** a `saml` driver in `server/src/core/identity/` with `style: 'redirect'`:
+`start` builds the AuthnRequest (HTTP-Redirect binding), the callback (POST binding, which needs
+a `SameSite=None` state cookie or a relay-state store) calls `complete`, which returns the same
+`ExternalIdentity` (NameID, email attribute, groups attribute); linking, mapping, just-in-time
+accounts, break-glass and audit then work unchanged. Also: service-provider metadata at
+`/api/auth/sso/:key/metadata`, `InResponseTo`, `NotOnOrAfter`, `Audience` and `Recipient` checks,
+and replay protection by assertion ID.
 
 **Acceptance criteria**
 
@@ -209,16 +261,19 @@ same way as OpenID Connect.
 
 ### E02-11 Link local accounts to single sign-on identities
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 As a user who already has a local account, my first single sign-on visit links to it
 rather than creating a duplicate.
 
 **Acceptance criteria**
 
-- [ ] Matching is on a verified email address and needs one confirmation
-- [ ] An administrator can link and unlink identities by hand
-- [ ] Links are shown on the user page and audited
+- [x] Matching is on a verified email address and needs one confirmation: the account's password at the sign-in page ("Link your sign-in"), or from Account security after a recent confirmation, with the provider's email equal to the account's
+- [x] An administrator can link (by allowing a link at the next sign-in, 7 days) and unlink identities by hand
+- [x] Links are shown on the user page and Account security, and audited; unlinking needs re-authentication and never removes the last way in; history, roles and audit are kept
+- [x] A person without a password can confirm through a linked provider (`/api/auth/sso/:key/reauth`) for actions that need a recent confirmation
+
+**Implemented in:** `server/src/core/identity/accounts.ts`; `server/src/modules/admin/sso.ts`, `providers.ts`; `web/src/modules/admin/LinkedIdentities.tsx`, `UserSignIn.tsx`, `web/src/core/AuthPages.tsx`; tests in `server/src/modules/admin/sso.test.ts`
 
 ### E02-12 Personal API tokens
 
@@ -254,34 +309,38 @@ handling), `server/src/core/migrations/003_platform_services.sql`, settings in
 
 ### E02-13 Break-glass account
 
-**Status:** open · **Priority:** P2 · **Type:** feature
+**Status:** in progress · **Priority:** P2 · **Type:** feature
 
 As an administrator, I have one documented emergency account that works when single
 sign-on or second factors are unavailable, and every use of it raises an alarm.
 
 **Acceptance criteria**
 
-- [ ] One local account can be marked as break-glass
-- [ ] It is exempt from single sign-on but has a long password and its own factor
-- [ ] Every sign-in is audited prominently and notified to administrators
-- [ ] The procedure is described in the operations runbook
+- [x] One local account can be marked as break-glass (exactly one; an active administrator with a password and no linked provider)
+- [x] It is exempt from single sign-on (refused through any provider, always keeps its password even with `auth.local_signin` off) and the guidance asks for a long random password and a hardware key; it cannot be disabled or lose administrator access while passwords are off
+- [x] Every sign-in is audited prominently (`signin.break_glass`) and notified to every administrator in the application (`app.notify`) and by email when email is on (`app.sendMail`)
+- [x] The session is marked; its Account security page shows a red notice (`BreakGlassBanner` is exported from `web/src/core/AuthPages.tsx` for the shell: E02-25)
+- [ ] The procedure is described in the operations runbook (`docs/operations.md`; the steps are in the user guide, Administration > The break-glass account)
+
+**Implemented in:** `registerSignInPolicy` and the alarm in `server/src/core/identity/service.ts`; `POST /api/admin/users/:id/break-glass` (`server/src/modules/admin/providers.ts`); guards in `users.ts`; `web/src/modules/admin/UserSignIn.tsx`, `Providers.tsx`, `LinkedIdentities.tsx`; tests in `server/src/modules/admin/sso.test.ts`
 
 ### E02-14 Secure session cookie when served over HTTPS
 
-**Status:** in progress · **Priority:** P1 · **Type:** debt
+**Status:** done · **Priority:** P1 · **Type:** debt
 
 As a security lead, I want the session cookie marked "secure" whenever the application
-is not on the local loopback address. The flag is off by default because the prototype
-is served over plain HTTP on the local machine.
+is not on the local loopback address. The flag stays off on plain HTTP on the local
+machine.
 
 **Acceptance criteria**
 
-- [x] The cookie carries the secure flag when the application is served over HTTPS: `GRC_COOKIE_SECURE=auto` (with `GRC_TRUST_PROXY=1` behind a proxy) or `always`; default `off`
+- [x] The cookie carries the secure flag when the application is served over HTTPS: `GRC_COOKIE_SECURE=auto` (with `GRC_TRUST_PROXY` behind a proxy) or `always`
+- [x] `auto` is the default when the server has a certificate or a trusted proxy is configured; otherwise `off`
 - [x] A forwarded-protocol header is believed only when the proxy is declared trusted, with tests
-- [ ] The application refuses to start on a non-loopback address without HTTPS (the listen address is fixed to 127.0.0.1 in `server/src/main.ts` today)
-- [ ] Depends on [E16-07](E16-hosting-operations-and-hardening.md)
+- [x] The application refuses to start on a non-loopback address without HTTPS (`GRC_HOST`; `GRC_ALLOW_INSECURE=1` when a TLS proxy is in front)
+- [x] Depends on [E16-07](E16-hosting-operations-and-hardening.md)
 
-**Implemented in:** `server/src/core/request.ts`; `setSessionCookie` (`server/src/core/auth.ts`); tests "session cookie" in `server/src/core/core.test.ts`
+**Implemented in:** `server/src/core/request.ts`; `setSessionCookie` (`server/src/core/auth.ts`); `planListen` and `defaultCookieSecure` (`server/src/core/http.ts`), `server/src/main.ts`; tests "session cookie" in `server/src/core/core.test.ts` and `server/src/core/http.test.ts`
 
 ### E02-15 Send a blocked person straight to second-factor set-up
 
@@ -304,30 +363,51 @@ the person has to find Account security themselves.
 
 ### E02-16 Keep the secret key out of the data folder by default
 
-**Status:** open · **Priority:** P2 · **Type:** debt
+**Status:** in progress · **Priority:** P2 · **Type:** debt
 
 The generated key file sits beside the database, so a copy of the data folder (and every
 `backup`) holds both the encrypted authenticator keys and the key that opens them.
 
+Now: `GRC_SECRET_KEY`, else `GRC_SECRET_KEY_FILE`, else `<data folder>.secret.key` BESIDE the
+data folder (for `data\` that is `data.secret.key`), generated on first start. An existing
+`data\secret.key` is moved out at start-up (copied, read back, compared, then deleted); a
+second identical copy (an old backup restored) is deleted; a different one is used as a
+retired key so its values are re-encrypted, and left for the operator to delete. If the
+parent folder cannot be written, the old place is used with a warning. Every start says
+where the key came from.
+
 **Acceptance criteria**
 
-- [ ] `backup` leaves the key file out, or the key is generated outside the data folder
-- [ ] A command shows where the key comes from and writes a new one
-- [ ] `restore` documents how the key is brought back
+- [x] The key is generated outside the data folder, so `backup` does not copy it; existing installations are moved safely, with tests
+- [x] A command shows where the key comes from and writes a new one: `npx tsx server/src/core/secretkey-cli.ts show | rotate` (`rotate` keeps the old key in `<key file>.previous` so the next start re-encrypts; refused while the server runs)
+- [ ] `grc.ps1 secret-key show|rotate` runs that command (operations script)
+- [ ] `restore` and the backup pages of the operations guide say how the key is brought back (text supplied to the operations guide's owner)
+
+**Implemented in:** `server/src/core/secretkey.ts`, `secretkey-cli.ts`, `secretkey.test.ts`; `loadSecretBox` (`server/src/core/secretbox.ts`)
 
 ### E02-17 Enforce the second factor by default on new installations
 
-**Status:** open · **Priority:** P2 · **Type:** improvement
+**Status:** in progress · **Priority:** P2 · **Type:** improvement
 
 `auth.mfa_enforcement` defaults to `notice` everywhere so that upgrades lock nobody out.
 A new installation should start at `required`, with the setup wizard taking the first
 administrator through set-up.
 
+`POST /api/setup` takes `secondFactor: 'required' | 'notice'`. With `required` the setting is
+stored (audited as `setup.second_factor`), the first administrator is blocked until enrolled,
+and the web shell's enrolment gate (E02-15) takes them straight to Account security, where an
+authenticator app or a passkey both enrol them. The wizard's choice (`SecondFactorChoice`)
+starts at `required`.
+
 **Acceptance criteria**
 
-- [ ] The setup wizard enrols the first administrator and sets `required`
-- [ ] Existing installations keep their current value
-- [ ] Depends on E02-15
+- [x] Setup with `secondFactor: 'required'` sets `required` and leads the first administrator to enrolment (tests)
+- [x] Existing installations keep their current value (setup runs only once)
+- [x] Depends on E02-15
+- [ ] The setup wizard shows `SecondFactorChoice` and sends its value (component ready in `web/src/modules/account-keys`; the wizard belongs to the sign-in screens)
+- [ ] A setup call that names no choice still keeps `notice` (scripts and the test helper rely on it): E02-19
+
+**Implemented in:** `applySetupSecondFactor` (`server/src/core/webauthn/setup-default.ts`), called from `POST /api/setup` (`server/src/core/auth.ts`); `web/src/modules/account-keys/SecondFactorChoice.tsx`; tests "second factor on a new installation" in `server/src/core/webauthn/webauthn.test.ts`
 
 ### E02-18 Limit a token to source addresses
 
@@ -341,3 +421,86 @@ machine, so a copied token is useless elsewhere. Found while building E02-12.
 - [ ] A token may carry a list of allowed source addresses or ranges
 - [ ] A request from elsewhere is refused and audited as `token.refused`
 - [ ] The per-token request count moves out of process memory with E14-12
+
+### E02-19 Second factor required when setup names no choice
+
+**Status:** open · **Priority:** P2 · **Type:** improvement
+
+Found while building E02-17. `POST /api/setup` without `secondFactor` keeps `notice`, because
+the test helper (`server/src/test/helpers.ts`) and the browser-check scripts create the first
+administrator that way and would otherwise be blocked at once.
+
+**Acceptance criteria**
+
+- [ ] The test helper and documented scripts pass `secondFactor: 'notice'` explicitly
+- [ ] Then a setup call without the field defaults to `required`
+
+### E02-20 Re-encrypt webhook secrets after a key change
+
+**Status:** open · **Priority:** P2 · **Type:** bug
+
+Found while building E02-16. At start-up only authenticator keys are re-encrypted with the
+current secret key (`encryptStoredSecrets`). Webhook signing secrets written with a retired key
+keep working only while that key is still supplied (`GRC_SECRET_KEY_PREVIOUS` or
+`<key file>.previous`); once it is removed they can no longer be read.
+
+**Acceptance criteria**
+
+- [ ] Every value sealed with the secret box is re-encrypted at start-up, with a count in the audit log
+- [ ] `secret-key show` says when retired keys are still needed
+
+### E02-21 A way back in for people whose only factor is a passkey
+
+**Status:** open · **Priority:** P3 · **Type:** improvement
+
+Found while building E02-08. Recovery codes are issued with the authenticator app only, so a
+person whose only second factor is a passkey who loses it needs an administrator.
+
+**Acceptance criteria**
+
+- [ ] Recovery codes are offered when the first passkey is added and no app is set up
+- [ ] The user guide explains the choice
+
+### E02-22 Trust the provider's own second factor
+
+**Status:** open · **Priority:** P2 · **Type:** improvement
+
+A sign-in through a provider does not ask for this application's second factor, and a person
+expected to have one here is still blocked by `auth.mfa_enforcement = required` until they set one
+up. Found while building E02-09.
+
+**Acceptance criteria**
+
+- [ ] A per-provider choice "the provider enforces multi-factor", checked against the ID token's `amr`/`acr`
+- [ ] Sessions made that way satisfy the second-factor requirement; others do not
+
+### E02-23 Sign out at the provider too
+
+**Status:** open · **Priority:** P3 · **Type:** feature
+
+Signing out here leaves the provider session alive. Add RP-initiated logout (`end_session_endpoint`)
+and, for a server deployment, back-channel logout so a disabled directory account ends its sessions here.
+
+### E02-24 Groups by reference (group overage)
+
+**Status:** open · **Priority:** P3 · **Type:** improvement
+
+Some cloud directories send a reference (`_claim_names`) instead of the groups when a person is
+in many groups; role mapping then sees none. Support fetching them, or document using application
+roles or a filtered groups claim (documented today).
+
+### E02-25 Break-glass banner on every page
+
+**Status:** open · **Priority:** P2 · **Type:** improvement
+
+The break-glass session is marked (`GET /api/auth/sso/session`) and shown on Account security, but
+the shell does not yet show it on every page. Render `BreakGlassBanner` (exported from
+`web/src/core/AuthPages.tsx`) in `web/src/core/Shell.tsx` beside the second-factor notice.
+
+### E02-26 Directory (LDAP) sign-in
+
+**Status:** open · **Priority:** P3 · **Type:** feature
+
+A `credentials`-style driver in `server/src/core/identity/` (`authenticate(provider, secret,
+username, password)` returning an `ExternalIdentity`) offered on the password form. Needs an LDAP
+client (a new package) and LDAPS only.

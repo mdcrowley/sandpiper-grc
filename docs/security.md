@@ -1,8 +1,9 @@
 # Security
 
-What protects the application today, and what does not yet. This describes a **local
-prototype** that listens on `127.0.0.1` only. It has not had an independent security
-review or penetration test. Read the "Not yet" section before deciding what to put in it.
+What protects the application today, and what does not yet. This describes a
+**prototype** that listens on `127.0.0.1` only unless it is configured otherwise. It has
+not had an independent security review or penetration test. Read the "Not yet" section
+before deciding what to put in it.
 
 Each item below names the file that implements it.
 
@@ -10,20 +11,30 @@ Each item below names the file that implements it.
 
 ### Network exposure
 
-- The server listens on `127.0.0.1` only; the address is fixed in `server/src/main.ts`.
-- No HTTPS. Traffic never leaves the machine.
-- **Behind a proxy (configuration, off by default).** Two environment variables prepare for
-  running behind one trusted HTTPS reverse proxy (`server/src/core/request.ts`):
-  - `GRC_COOKIE_SECURE` = `off` (default), `auto` or `always`. `auto` marks the session
-    cookie `Secure` when the request arrived over HTTPS; `always` marks it every time.
-  - `GRC_TRUST_PROXY=1` makes the server believe the proxy's `X-Forwarded-Proto` (for
-    `auto`) and the last address in `X-Forwarded-For` (for rate limits, sessions and the
-    audit log). Leave it off unless a proxy you control sets those headers: without a
-    proxy, anyone could forge them.
-- Application code makes no outbound calls: no telemetry, no externally hosted fonts or
-  scripts, no email. The one exception is **outbound webhooks**, which send nothing until
-  an administrator switches on `integrations.outbound_enabled` and lists the receiving
-  hosts (see "Outbound webhooks" below).
+`server/src/core/http.ts`, `server/src/core/request.ts`, `server/src/main.ts`
+
+- **Loopback by default.** The server listens on `127.0.0.1` unless `GRC_HOST` names
+  another address. Plain HTTP on an address other machines can reach is **refused at
+  start-up** unless HTTPS is configured or `GRC_ALLOW_INSECURE=1` declares that a proxy
+  terminating HTTPS sits in front.
+- **HTTPS.** With `GRC_TLS_CERT` and `GRC_TLS_KEY` (PEM files) the server speaks HTTPS
+  itself. Responses that went out over HTTPS carry `Strict-Transport-Security`
+  (`GRC_HSTS_MAX_AGE`, default one year; `0` switches it off).
+- **Behind a reverse proxy.** `GRC_TRUST_PROXY` says whose `X-Forwarded-For`, `-Proto` and
+  `-Host` headers to believe: a comma-separated list of addresses, CIDR ranges and the
+  words `loopback`, `private` and `linklocal` (recommended), or a number of proxy hops.
+  Unset, forwarded headers are ignored. Set it only for a proxy you control: otherwise
+  anyone could forge the client address used for rate limits, sessions and the audit log.
+- **Secure cookie.** `GRC_COOKIE_SECURE` = `off`, `auto` or `always`. When it is not set it
+  is `auto` (the cookie is marked `Secure` whenever the request arrived over HTTPS) on an
+  HTTPS server or behind a trusted proxy, and `off` otherwise.
+- **Outbound connections are off until an administrator switches one on.** There is no
+  telemetry and there are no externally hosted fonts or scripts. The application connects
+  out only to: webhook receivers (see "Outbound webhooks"), a mail server (once email is
+  set up), a sign-in provider (once switched on, or on **Test connection**), a ClamAV
+  scanner and an S3-compatible object store (each once chosen; see "Files").
+
+See [Installation](installation.md#server-installation) for setting these up.
 
 ### Accounts and passwords
 
@@ -44,7 +55,10 @@ Each item below names the file that implements it.
   the browser in use gets a new one.
 - **New users and resets** use a one-time link: random token, only its SHA-256 hash stored,
   valid 24 hours, single use, and replaced when a newer link is issued. Redeeming a reset
-  link ends the user's sessions. The administrator passes the link on by hand.
+  link ends the user's sessions. The administrator is shown the link to pass on; when email
+  is set up it is also emailed to the person, and people can ask for their own reset link
+  ("Forgot your password?"; valid 60 minutes by default and rate-limited), with the same
+  answer whether or not the account exists.
 - **Least privilege for new users**: a new user has only the roles the administrator picks.
 
 ### Lockout and rate limiting
@@ -76,9 +90,9 @@ once they fall outside the window.
 
 - The session token is 32 random bytes. Only its SHA-256 hash is stored in the database,
   so a copy of the database does not yield usable session tokens.
-- Cookie `grc_session`: `HttpOnly`, `SameSite=Strict`, path `/`. By default it is **not**
-  marked `Secure`, because the prototype has no HTTPS; set `GRC_COOKIE_SECURE` (see
-  "Network exposure") when it is served over HTTPS.
+- Cookie `grc_session`: `HttpOnly`, `SameSite=Strict`, path `/`. It is marked `Secure`
+  on HTTPS requests when the server serves HTTPS or sits behind a trusted proxy (see
+  "Network exposure"); on plain HTTP on `127.0.0.1` it is not.
 - Absolute lifetime 8 hours. Idle time-out 30 minutes by default; an administrator can
   set it from 5 to 480 minutes.
 - The user, their status and their roles are loaded on every request, so disabling a
@@ -104,7 +118,11 @@ minutes** (setting `auth.reauth_minutes`, 1 to 60):
 - creating a personal access token;
 - adding a webhook, changing its address or switching on "include restricted records",
   and replacing its secret;
-- removing a record for good from the retention review.
+- removing a record for good from the retention review;
+- adding, changing or removing a sign-in provider; a person's sign-in limits, link permissions,
+  unlinking and the break-glass designation; linking or unlinking one's own provider;
+- changing the mail server, the malware-scanning, storage and removed-file settings, the
+  backup settings or AI assistant access; making a token for an AI assistant.
 
 Signing in counts as proof. After that the server answers `403 reauth_required`; the
 administration screens then ask for the password in place (`POST /api/auth/confirm`) and
@@ -220,8 +238,8 @@ history is kept.
 | `Content-Security-Policy` | `default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'` |
 
 Scripts load only from the application itself; inline scripts are not allowed. Inline
-styles are allowed (`'unsafe-inline'` for styles only). There is no
-`Strict-Transport-Security` header, because there is no HTTPS.
+styles are allowed (`'unsafe-inline'` for styles only). `Strict-Transport-Security` is
+added to responses sent over HTTPS (see "Network exposure").
 
 ### Input handling
 
@@ -243,21 +261,72 @@ styles are allowed (`'unsafe-inline'` for styles only). There is no
   setup, sign-in, sign-out, one-time links). Routes then check a permission.
 - Roles grant permissions of the form `<module>.<action>`, with wildcards. A role that is
   switched off grants nothing.
-- **Restricted records.** Risks, security incidents and notification tasks need
-  `security.view` in addition to their module permission. Without it they are absent from
-  lists, counts, statistics, single reads, exports, global search, record pickers, links,
-  reference labels (shown as "Restricted") and the audit search. A direct request for a
-  restricted record returns "not found" rather than revealing that it exists.
+- **Restricted records.** Risks, security incidents, notification tasks and vulnerability
+  findings need `security.view` in addition to their module permission. Without it they
+  are absent from lists (and the totals of those lists), single reads, exports, global
+  search, record pickers, links, reference labels (shown as "Restricted") and the audit
+  search. A direct request for a restricted record returns "not found" rather than
+  revealing that it exists. Figures follow their own rule (below).
 - **Inherited restriction.** A record type can take its restriction from the record it
   arose from (`restrictedFrom` in a resource definition). Actions do: an action raised on
   a risk, a security incident or any record flagged restricted is itself restricted, and
-  is hidden in the same places, including the action tracker's summary counts. The flag
-  is set by the server (a caller cannot set or clear it), follows the action if it is
-  moved to another source record, follows the source if its own restriction changes, and
-  is repaired for existing rows at every start. A person cannot raise an action on, or
-  move one to, a record they cannot see.
-- **Hand-written queries** over a record table use `ctx.resources.visibleWhere(type, user)`
-  to get the same condition as the generated routes.
+  is hidden in the same places. The flag is set by the server (a caller cannot set or
+  clear it), follows the action if it is moved to another source record, follows the
+  source if its own restriction changes, and is repaired for existing rows at every
+  start. A person cannot raise an action on, or move one to, a record they cannot see.
+  Safety events flagged as holding personal information are restricted the same way.
+- **Hand-written queries** that return records use `ctx.resources.visibleWhere(type, user)`
+  to get the same condition as the generated routes. Queries that return figures do not
+  (see below).
+
+### Figures are the same for everyone
+
+`server/src/core/resource.ts` (`GET {path}/stats`), `server/src/modules/reports/spec.ts`,
+`server/src/modules/safety/indicators.ts`, `server/src/modules/risks/index.ts`
+(`/api/actions/summary`)
+
+**Rule: people never see different numbers.** Every figure the application shows (tiles,
+totals, counts, rates, percentages, heat-map cells, chart series, report and dashboard
+figures, scheduled deliveries, "needs attention" counts, summary endpoints) has one value,
+whoever looks at it. Restricted records count in every figure. Who may see a figure *at
+all* is still decided by permissions: someone without `risks.view` gets no risk summary,
+and a report on a wholly restricted record type needs `security.view`.
+
+Why: two people in the same meeting reading different totals for the same thing (open
+actions, safety events this month) is worse than useless; it undermines every figure
+the organisation reports. Restriction exists to protect what a record *says* and *who*
+it concerns, not the fact that it is there: a safety manager may not read a restricted
+event, but the monthly count of events must still be right. This rule replaces the
+earlier one that left restricted records out of counts for people without
+`security.view` "where a count of one would reveal that a record exists".
+
+What still protects details in a figure:
+
+- **Details are masked, for everyone.** Words and people (text, long-text and person
+  fields, and fields reached through them) are a record's details. A figure that groups
+  by such a field puts restricted records under **Restricted records** instead of their
+  value, for every viewer, administrators included, so the figure is still the same for
+  all. Categories (lists such as status or severity), yes/no fields, numbers, dates and
+  references to other records are grouped by their value. Whether a detail is blank (an
+  action with no owner) still counts.
+- **A figure cannot be used to search details.** A search, or a condition on words or
+  people (in `GET {path}/stats` or a report), never matches a restricted record, for
+  anyone. Without this, "how many actions mention this person's name?" would read a
+  restricted record one word at a time.
+- **Labels stay protected.** A figure grouped by a reference to a restricted record
+  labels it "Restricted" for people who may not see it; the count is the same.
+- **A figure about "me"** (a report filtered on "me", the "mine" counts on the action
+  tracker) is the viewer's own, not a shared figure, and keeps the list rule.
+- **Lists keep filtering.** A list of records, its total, a drill-down from a figure,
+  record pages, search, exports, pickers and the record rows of a report or a dashboard
+  list widget show only what the viewer may see. So a figure can be larger than the list
+  behind it; the difference is the restricted records the viewer may not open.
+- **Exports of figures carry no watermark** (they hold no restricted details); a report
+  of record rows that includes restricted records does, as before, and a stored copy of
+  it opens only for people with `security.view`.
+- Knowledge articles for IT agents only follow the same rule in `GET /api/knowledge/stats`:
+  they count for everyone, unless the question searches or groups by their words, when
+  they are left out for everyone.
 - **Labels of referenced records** are shown only to people who hold view on the
   referenced record's module; others see "Restricted".
 - **Audit search.** Events about restricted record types, and about individual records
@@ -340,36 +409,184 @@ separate, tamper-evident copy.
   | `notice` (default) | A reminder on every page; nothing is blocked |
   | `required` | After sign-in they can reach only their own account state, the account security page's routes (set up the factor, change password, list own sessions) and sign-out. Every other `/api/` request is refused with `403 mfa_enrolment_required` |
 
-  The default is `notice` so that upgrading an existing installation does not lock anyone
-  out. **Set it to `required` before real records are entered.** An administrator must
-  have their own second factor before they can choose `required`. A grace period
+  On a **new installation** the setup wizard sets it to `required` unless the person
+  completing the wizard chooses otherwise (`core/webauthn/setup-default.ts`), and takes the
+  first administrator straight to enrollment. The setting's own default stays `notice`, so
+  upgrading an existing installation does not lock anyone out, and a setup made through
+  the API without a choice also keeps `notice`. **Set it to `required` before real records
+  are entered.** An administrator must have their own second factor (an authenticator app
+  or a passkey) before they can choose `required`. A grace period
   (`auth.mfa_grace_days`, 0 to 30, default 0) lets a person keep working for that many
   days from their first request made while the factor is required.
 
-#### Authenticator keys are encrypted
+#### Authenticator keys and other secrets are encrypted
 
-`server/src/core/secretbox.ts`
+`server/src/core/secretbox.ts`, `server/src/core/secretkey.ts`
 
 - Each key is stored as `enc:v1:<iv>:<tag>:<ciphertext>`: AES-256-GCM with a random
   12-byte iv, bound to the user it belongs to (a ciphertext copied onto another user's row
-  does not decrypt). `v1` is the format version.
-- The 32-byte encryption key comes from, in order: the environment variable
-  `GRC_SECRET_KEY` (64 hex characters or base64); the file named by `GRC_SECRET_KEY_FILE`;
-  or `secret.key` in the data folder, which is generated on first start.
+  does not decrypt). `v1` is the format version. Webhook secrets, sign-in provider client
+  secrets and the mail server password are encrypted the same way with the same key.
+- The 32-byte encryption key (the **secret key**) comes from, in order: the environment
+  variable `GRC_SECRET_KEY` (64 hex characters or base64); the file named by
+  `GRC_SECRET_KEY_FILE`; or a file **beside** the data folder, named after it and
+  generated on first start: for the data folder `C:\grc\data` it is
+  `C:\grc\data.secret.key`. A copy of the data folder, or a `grc.ps1 backup`, therefore
+  holds the encrypted values but not their key.
+- An installation from before this change kept the key at `secret.key` inside the data
+  folder. At start-up that file is moved beside the data folder (copied, read back and
+  compared, then deleted).
 - Keys stored in the clear by an earlier version are encrypted at the next start
   (audited as `mfa.secrets_encrypted`).
 - **Back the key up, separately.** Without it, nobody with a second factor can sign in
   with their authenticator code: they would need a recovery code or an administrator
-  reset. With the default key file, the key sits in the data folder, so `grc.ps1 backup`
-  copies it **together with** the database, and a backup then contains everything needed
-  to read the authenticator keys. To keep backups free of usable keys, supply the key
-  through `GRC_SECRET_KEY` or point `GRC_SECRET_KEY_FILE` at a path outside the data and
-  backup folders, and keep a copy of the key somewhere else that is safe.
-- **Changing the key.** Start the server with the new key in `GRC_SECRET_KEY` (or the
-  key file) and the old one in `GRC_SECRET_KEY_PREVIOUS` (comma-separated if several).
-  Every stored key is re-encrypted with the new key at start-up; after one successful
-  start the old key can be removed from the configuration.
+  reset. Keep a copy of the key somewhere safe, apart from the backups. An encrypted
+  backup can carry it on request (`backup -Encrypt -IncludeSecretKey`).
+- **Seeing and changing the key.** `npx tsx server/src/core/secretkey-cli.ts show` says
+  where the key comes from (it prints a short fingerprint, never the key). `rotate`, with
+  the server stopped, writes a new key and keeps the old one as a retired key. Retired keys
+  can also be given in `GRC_SECRET_KEY_PREVIOUS` (comma-separated). Authenticator keys are
+  re-encrypted with the new key at the next start. Other secrets (webhook, provider and
+  mail-server secrets) are not yet: they stay readable only while the retired key is still
+  supplied, so keep it until they have been replaced.
 - Recovery codes and passwords are hashed, not encrypted, and are unaffected.
+
+### Passkeys and security keys
+
+`server/src/core/webauthn/`, `web/src/modules/account-keys/`
+
+- **WebAuthn**, built on Node's own crypto (no extra package). A passkey or hardware
+  security key can be a person's second factor in place of the six-digit code, or, while
+  `auth.passkey_sign_in` is on (the default), sign them in on its own. Signing in with a
+  passkey alone goes through the same sign-in policy hooks as a password, so per-person
+  limits and switched-off passwords apply.
+- **Checks.** Each registration and sign-in uses a single-use challenge that expires after
+  5 minutes; the origin, the relying-party ID and the signature are checked every time.
+  Accepted algorithms are ES256, EdDSA and RS256. A signature counter that does not go up
+  is refused, as it can mean a copied key. `auth.passkey_user_verification` = `required`
+  makes every use check a PIN or biometric (default `preferred`).
+- **Attestation is not verified.** Checking it would need the makers' root certificates
+  from an outside service, and would tell only the make of the key, not who holds it.
+- **Where passkeys are bound.** `GRC_WEBAUTHN_RP_ID` (a host name) and
+  `GRC_WEBAUTHN_ORIGINS` (comma-separated origins) default to the address the request was
+  sent to. Set both whenever the application is reached through a proxy or by more than
+  one name, so that a forged `Host` header cannot change them. Browsers refuse IP
+  addresses, so on one machine use `http://localhost:8080`, not `http://127.0.0.1:8080`.
+- A person can hold up to 10 keys; adding, renaming and removing them is audited.
+
+### Sign-in providers (single sign-on)
+
+`server/src/core/identity/` (protocol and policy), `server/src/modules/admin/sso.ts` and
+`providers.ts` (routes), `server/src/modules/admin/migrations/001_identity.sql`
+
+- **OpenID Connect, any compliant provider.** Issuer, client and claims are entered by an
+  administrator; every endpoint comes from the issuer's discovery document, whose `issuer`
+  must match exactly. Nothing is hard-coded, so commercial, government and sovereign cloud
+  tenants and self-hosted servers are configured the same way. Providers sit behind a driver
+  interface (`core/identity/types.ts`): a redirect-style driver (OpenID Connect; SAML would be
+  another) or a credentials-style driver (a directory over LDAP, not built). Everything after
+  "the provider says this is subject X" is shared.
+- **Off until switched on.** A provider that is not switched on is never contacted. The only
+  other outbound call is **Test connection**, made when an administrator selects it. Calls go
+  over `https` only (plain `http` only to the loopback address), never follow redirects, time
+  out after 10 seconds and are size-limited.
+- **The flow.** Authorisation code with PKCE (S256), a random `state` bound to the browser by a
+  short-lived `HttpOnly`, `SameSite=Lax` cookie (needed because the provider sends the browser
+  back cross-site) and single-use in the database, and a `nonce` checked in the ID token. The
+  nonce and PKCE verifier are stored encrypted with the application key and expire after 10
+  minutes. The callback address is per provider, and an `iss` response parameter (RFC 9207)
+  must match.
+- **ID token checks, with Node's own crypto (no extra package).** Signatures RS256, PS256
+  (2048-bit keys or more) and ES256 only, never `none` or HMAC; the key is chosen from the
+  provider's key set by `kid`, with use and type checked. The key set is cached for an hour and
+  fetched again when an unknown key id appears (key rotation, at most once a minute). Claims:
+  issuer, audience (and `azp` with several audiences), expiry, issue time (not in the future,
+  not older than 10 minutes, 2 minutes' clock tolerance), `nbf` and nonce.
+- **Client secret** stored encrypted with the application key (`core/secretbox.ts`, bound to the
+  provider), never returned by the API.
+- **Accounts.** A returning person is found by provider and subject. A first sign-in whose
+  *verified* email matches an account is not linked until the account's password is also given
+  (or an administrator allowed it in advance for that provider, for 7 days). Linking from
+  Account security needs a recent confirmation and the provider's verified email to equal the
+  account's. Just-in-time account creation and group-to-role mapping are both **off** by
+  default; account creation is limited to listed email domains; mapping only touches roles that
+  a rule names and never leaves nobody able to administer. An email claim other than `email`, or
+  one without `email_verified`, is trusted only when the administrator says so.
+- **Per-person limits and passwords off.** A person can be limited to chosen ways of signing in.
+  The setting `auth.local_signin` switches passwords off for everyone except the break-glass
+  account; it can be switched off only when a break-glass account exists and every other active
+  person has an identity at a switched-on provider. The rules are applied by sign-in policy
+  hooks (`core/identity/hooks.ts`) that password and passkey sign-in both consult.
+- **Break-glass account.** Exactly one (a unique index), an active administrator with a password
+  and no linked identity. It always signs in with its password (and second factor), never
+  through a provider. Every sign-in writes `signin.break_glass`, notifies every administrator in
+  the application and, when email is on, by email, and marks the session, whose Account security
+  page shows a red notice. It cannot be disabled, lose administrator access or lose the
+  designation while passwords are off.
+- **Audit.** Sign-ins (naming the provider), failures with the reason, provider changes and
+  tests, links, unlinks, link permissions, per-person limits and break-glass changes, each with
+  time and source address. Failures count against the same per-address sign-in limit as
+  passwords.
+- **Unlinking** needs a recent confirmation (a password, or signing in at the provider again),
+  ends the other sessions made through that provider, and never removes a person's last way in.
+- **SAML 2.0 is not built**, on purpose: it cannot be done safely without an XML-signature
+  implementation (see E02-10).
+
+### AI assistant access (MCP)
+
+`server/src/modules/mcp/`; details in [AI assistant access](mcp.md)
+
+- **Off by default.** The `/mcp` endpoint answers only once an administrator switches on
+  `mcp.enabled` (Administration > AI assistant access). These settings are not on the
+  general Settings screen, need a signed-in session with a recent password confirmation,
+  and can never be changed with a token.
+- **Token only.** A request must carry a personal access token in the `Authorization`
+  header; cookies are ignored, so a web page cannot drive the endpoint. The token must
+  carry the scope `mcp.use` (or `mcp.*`); `*` alone is not enough. Assistant tokens are
+  made by a signed-in person after a recent password confirmation, never with a token.
+- **Origin check.** A request carrying an `Origin` header is refused unless that origin is
+  listed in `mcp.allowed_origins` (empty by default). MCP clients send no `Origin`.
+- **As the person, never more.** Every tool calls the application's own `/api` routes
+  in-process with the same token, so permissions, restricted records, validation and audit
+  are exactly the REST API's. Tools that change records are offered only when
+  `mcp.write_enabled` is on and the token's permissions include a `.create` or `.edit`.
+  **Nothing can be deleted** through MCP. `mcp.allowed_tools` narrows the tools offered.
+- **Rate-limited** per token (`mcp.rate_per_minute`, default 120), on top of the general
+  token limit.
+- **Audited.** Each change names the token, and each write tool adds an `mcp.write` event
+  that reads "... via MCP (tool ...) with API token ..." in the record's History. Every
+  call is logged without its arguments or results and kept for 90 days.
+
+### Files: malware scanning, storage and purge
+
+`server/src/modules/attachments/` (`clamd.ts`, `s3.ts`, `housekeeping.ts`)
+
+- **Malware scanning (off by default).** When switched on, every new file is sent to a
+  ClamAV scanning service (`clamd`) before it is accepted. A file found to contain malware
+  is refused, its content deleted and the refusal audited. When the scanner cannot be
+  reached, an administrator chooses whether to refuse the file or accept it marked
+  **Not scanned**. Earlier files can be scanned later; one found to contain malware is
+  removed and every administrator is notified. Run `clamd` on the same machine or one you
+  control: each file's content is sent to it.
+- **Checksums.** Every file's SHA-256 is recorded, and a file whose content has changed
+  since it was attached is not sent.
+- **Object store (optional).** New files can go to an S3-compatible object store instead
+  of the data folder. Its secret key is stored encrypted, or read from a file or the
+  environment (`GRC_S3_ACCESS_KEY_ID`, `GRC_S3_SECRET_ACCESS_KEY`).
+- **Purge.** A removed file keeps its content for a period an administrator sets, then a
+  daily job deletes it; until then it can be put back. Every purge is audited.
+
+### Backups
+
+`server/src/ops/backup.ts`, `server/src/ops/archive.ts`; details in
+[Operations](operations.md#backup)
+
+- Every backup is checked against its checksums before it is reported as done, and
+  `restore` verifies a backup before replacing anything.
+- **Encrypted backups and exports** (`-Encrypt`) are one file, AES-256-GCM in chunks, keyed
+  by a 32-byte key file or a passphrase (scrypt). An encrypted backup writes nothing
+  unencrypted on the way. A key file inside the data folder is refused. Without the key, nobody can read the
+  backup.
 
 ## Not yet
 
@@ -378,37 +595,40 @@ put the prototype on a network or to hold sensitive real records in it.
 
 **Sign-in**
 
-- Second-factor enforcement is off by default (`notice`); an administrator has to switch
-  it to `required`. When a blocked person signs in, the web application does not yet
-  take them straight to the enrolment page: they see errors until they open Account
-  security themselves.
+- The second factor is required from the start only on a new installation set up through
+  the wizard. An existing installation stays at `notice` until an administrator switches
+  it to `required`.
+- Passkeys and security keys have been checked with a virtual authenticator in the
+  browser, not yet with hardware keys over real HTTPS.
 - Password confirmation before sensitive actions asks for the password only, not the
   second factor, and covers the administration screens only.
-- No single sign-on (OpenID Connect or SAML), no passkeys, no break-glass account.
-- Setup and reset links are shown to the administrator to pass on; there is no email.
+- Single sign-on is OpenID Connect only: no SAML 2.0 and no directory (LDAP) sign-in. A
+  provider sign-in does not ask for this application's second factor and does not read the
+  provider's own (`amr`/`acr`); signing out here does not sign out at the provider (no
+  back-channel or front-channel logout); group "overage" (groups by reference) gives no groups.
+- Setup and reset links are emailed only when email is set up; otherwise the
+  administrator passes them on by hand.
 
 **Platform**
 
-- No HTTPS in the application itself and no HSTS header. The `Secure` cookie flag and the
-  proxy settings exist but are off by default, and the server does not refuse to start on
-  a non-loopback address without them (it only ever binds to 127.0.0.1 today).
-- No encryption at rest by the application apart from authenticator keys. The `data\`
-  and `backups\` folders hold everything else in the clear, including password hashes,
-  and by default the key file that protects the authenticator keys.
-- No scheduled backup and no restore command.
+- The data folder holds the database and files in the clear, including password hashes.
+  The application encrypts only its stored secrets (authenticator keys, webhook, provider
+  and mail-server secrets) and, on request, backups and exports.
+- After a change of secret key, only authenticator keys are re-encrypted; other secrets
+  need the retired key until they are replaced.
+- `backup` and `restore` cover the embedded database only; a PostgreSQL server is backed
+  up with its own tools. Files in the object store are not in backups.
 - No access log, no alerting, no log retention. Server logs are overwritten at each start.
-- Retention flags records for review but nothing anonymises them, and audit events are
+- Retention flags records for review but nothing anonymizes them, and audit events are
   kept indefinitely (`retention.audit_months` is recorded, not enforced).
 - Personal access tokens cannot be limited to source addresses or particular records.
 - Webhook receivers' addresses are checked by host name only: an allowed name that
   resolves to an internal address is still called. Keep the allow-list to names you control.
+- MCP has no OAuth for remote connectors, and once it is switched on anyone with a role may
+  make an assistant token; there is no role permission for it yet.
 
 **Access control details**
 
-- The `dashboards`, `reports` and `portal` permissions can be granted but nothing checks
-  them: the overview shows each panel by its own module's permission, and there is no
-  report builder or portal yet.
-- The "agents only" audience on knowledge articles is not enforced.
 - Opening a ticket list also runs the service-level sweep, so a read request can write
   breach flags and system audit events.
 - A project item can be escalated to a risk by someone with `projects.edit` who cannot
@@ -420,23 +640,22 @@ put the prototype on a network or to hold sensitive real records in it.
   owners (for example change approvals counted by typed name, and risk acceptance on a
   vulnerability through an unapproved exception).
 - The retention review list counts flagged records of a type the reviewer may view even
-  when individual rows are flagged restricted (labels are still hidden).
+  when individual rows are flagged restricted (labels are still hidden). This is in line
+  with "Figures are the same for everyone" above.
 
 **Assurance**
 
-- No independent security review, penetration test, dependency audit in continuous
-  integration, load test or accessibility audit.
-- Non-administrator roles have been exercised by automated API tests, not in a browser.
+- No independent security review, penetration test or load test.
+- Continuous integration runs a dependency audit (`npm audit`), which reports but does not
+  yet fail the build.
+- An automated accessibility audit (axe-core, `npm run test:a11y`) exists; continuous
+  integration runs it without failing the build, and there has been no screen-reader
+  walkthrough.
+- Non-administrator roles are exercised in the browser by the end-to-end suite
+  (`npm run test:e2e`, every default role on every page), as well as by API tests.
 
 ## Reporting a vulnerability
 
-> **Maintainer: replace this paragraph with your contact details** (a monitored email
-> address or private reporting channel, and how quickly reporters can expect a reply)
-> before sharing this repository.
-
-Until then, if you find a security problem:
-
-- Do not open a public issue and do not include real data in a report.
-- Tell the person who gave you access to the repository, privately.
-- Include what you did, what you expected, what happened, and the version (commit) you
-  tested.
+Report it privately, as described in [`SECURITY.md`](../SECURITY.md): through GitHub's
+private vulnerability reporting (a private security advisory), not as a public issue. Do
+not include real data in a report.

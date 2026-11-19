@@ -9,7 +9,7 @@ import {
 import type { IconName, ListResult, Row } from '../../core';
 import { CatalogueDesigner } from './CatalogueDesigner';
 
-const FIELDS = ['name', 'description', 'category', 'active', 'requires_approval'];
+const FIELDS = ['name', 'description', 'category', 'active', 'requires_approval', 'portal'];
 const ICONS: Record<string, IconName> = { people: 'users', access: 'key', equipment: 'box', software: 'file-text', vendors: 'building' };
 
 function Tiles() {
@@ -53,6 +53,7 @@ function Tiles() {
                     <p className="muted">{item.description || 'No description.'}</p>
                     <div className="row sd-tile-meta">
                       {item.requires_approval && <Badge color="amber">Needs approval</Badge>}
+                      {item.portal && <Badge color="blue">In the portal</Badge>}
                       {questions > 0 && <Badge color="gray">{questions} question{questions === 1 ? '' : 's'}</Badge>}
                       {tasks > 0 && <Badge color="gray">{tasks} task{tasks === 1 ? '' : 's'}</Badge>}
                     </div>
@@ -80,11 +81,12 @@ export function CatalogueList() {
       columns={['name', 'category',
         { field: 'active', sortable: true, render: (row) => (row.active ? <Badge color="green">Active</Badge> : <Badge color="gray">Hidden</Badge>) },
         { field: 'requires_approval', label: 'Approval', sortable: true, render: (row) => (row.requires_approval ? <Badge color="amber">Needed</Badge> : '—') },
+        { field: 'portal', label: 'Portal', sortable: true, render: (row) => (row.portal ? <Badge color="blue">Shown</Badge> : '—') },
         { field: 'questions', label: 'Questions', render: (row) => (row.questions ?? []).length || '—' },
         { field: 'tasks', label: 'Tasks', render: (row) => (row.tasks ?? []).length || '—' },
         'updated_at']}
-      filters={['category', 'active', 'requires_approval']}
-      bulkFields={['category', 'active', 'requires_approval']}
+      filters={['category', 'active', 'requires_approval', 'portal']}
+      bulkFields={['category', 'active', 'requires_approval', 'portal']}
       createFields={FIELDS}
     />
   );
@@ -108,6 +110,7 @@ export function CatalogueDetail() {
         <span className="row">
           {row.active ? <Badge color="green">Active</Badge> : <Badge color="gray">Hidden</Badge>}
           {row.requires_approval && <Badge color="amber">Needs approval</Badge>}
+          {row.portal && <Badge color="blue">In the portal</Badge>}
         </span>
       )}
       actions={({ row }) => row.active && (
@@ -115,7 +118,7 @@ export function CatalogueDetail() {
       )}
       summary={({ row, reload }) => (
         <EditableSummary type="catalog_item" row={row} fields={FIELDS} onSaved={reload}
-          sections={[{ fields: ['name', 'description', 'category'] }, { title: 'Behaviour', fields: ['active', 'requires_approval'] }]} />
+          sections={[{ fields: ['name', 'description', 'category'] }, { title: 'Behaviour', fields: ['active', 'requires_approval', 'portal'] }]} />
       )}
       tabs={[
         { key: 'form', label: 'Form and tasks', content: (rec) => <CatalogueDesigner rec={rec} /> },

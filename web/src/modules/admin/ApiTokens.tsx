@@ -26,7 +26,7 @@ export interface ApiToken {
   username?: string;
 }
 
-interface MyTokens { tokens: ApiToken[]; maxDays: number; grants: string[] }
+interface MyTokens { tokens: ApiToken[]; maxDays: number; grants: string[]; scopeFamilies?: { scope: string; description: string }[] }
 interface Created { id: string; name: string; prefix: string; scopes: string[]; expires_at: string; token: string }
 
 // ---------- permissions a token may carry ----------
@@ -59,6 +59,7 @@ const covered = (scope: string, grants: string[]) => grants.some((g) => overlap(
 /** A permission in words: "Tickets: view only". */
 export function scopeLabel(scope: string): string {
   if (scope === '*') return 'Everything you can do';
+  if (scope === 'mcp.use') return 'Use with an AI assistant (MCP)';
   const [m, a] = scope.split('.');
   if (a === '*') return `${areaName(m)}: everything`;
   if (a === 'view') return `${areaName(m)}: view only`;
@@ -187,8 +188,12 @@ function NewTokenDialog({ open, data, onClose, onCreated }: { open: boolean; dat
   const toast = useToast();
   const { resources } = useMeta();
   const options = useMemo(
-    () => scopeOptions(data.grants, Object.values(resources ?? {}).map((r) => r.module)),
-    [data.grants, resources],
+    () => [
+      ...scopeOptions(data.grants, Object.values(resources ?? {}).map((r) => r.module)),
+      // Extra abilities that are not permissions, such as using the token with an AI assistant (MCP).
+      ...(data.scopeFamilies ?? []).map((f) => ({ value: f.scope, label: f.description })),
+    ],
+    [data.grants, data.scopeFamilies, resources],
   );
   const dayOptions = useMemo(() => {
     const days = [...new Set([...DAY_CHOICES.filter((d) => d <= data.maxDays), data.maxDays])].sort((a, b) => a - b);

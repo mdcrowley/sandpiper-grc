@@ -40,7 +40,7 @@ describe('exports', () => {
     // Agent: may view reports and export the records, but holds no reports.export.
     expect((await agent.get(`/api/reports/${report.id}/export?format=csv`)).status).toBe(403);
     expect((await agent.post('/api/reports/export', { spec: report.spec, format: 'csv' })).status).toBe(403);
-    expect((await lead.get(`/api/reports/${report.id}/export?format=xlsx`)).status).toBe(400);
+    expect((await lead.get(`/api/reports/${report.id}/export?format=docx`)).status).toBe(400);
 
     const before = (await audits('report_definition.export')).length;
     const csv = await lead.get(`/api/reports/${report.id}/export?format=csv`);
@@ -48,12 +48,16 @@ describe('exports', () => {
     const lines = csv.text.replace('\ufeff', '').split('\r\n');
     expect(lines[0]).toBe('Status,Number of test things');
     expect(lines.slice(1, 4)).toEqual(['Brand new,1', 'In hand,3', 'Finished,2']);
-    // The restricted thing is in these figures, so the export is watermarked like a core restricted export.
-    expect(lines[4]).toMatch(/^Restricted export by Test security_lead \d+ at 20/);
+    // The restricted thing is counted, but none of its details is in these figures: no watermark.
+    expect(lines.length).toBe(4);
     const events = await audits('report_definition.export');
     expect(events.length).toBe(before + 1);
     expect(events.at(-1)).toMatchObject({ record_id: report.id, actor_id: lead.userId });
-    expect(events.at(-1).summary).toContain('includes restricted records');
+    expect(events.at(-1).summary).not.toContain('includes restricted records');
+    // A list of the records does hold the restricted one, and is watermarked like a core restricted export.
+    const rows = await lead.post('/api/reports/export', { format: 'csv', spec: { type: 'rt_thing', columns: ['name'] } });
+    expect(rows.text).toContain('\r\nR');
+    expect(rows.text.trimEnd().split('\r\n').at(-1)).toMatch(/^Restricted export by Test security_lead \d+ at 20/);
   });
 
   it('produces a print-ready document with no script, escaped text and the watermark when restricted', async () => {
@@ -64,9 +68,12 @@ describe('exports', () => {
     expect(html.text).not.toMatch(/<script/i);
     expect(html.text).toContain('Prepared for'.toLowerCase());
     expect(html.text).not.toContain('Restricted export by');
-    const unsaved = await lead.post('/api/reports/export', { title: 'All things', format: 'html', spec: { type: 'rt_thing', groupBy: [{ field: 'department' }] } });
+    const unsaved = await lead.post('/api/reports/export', { title: 'All things', format: 'html', spec: { type: 'rt_thing', columns: ['name', 'department'] } });
     expect(unsaved.text).toContain('Restricted export by');
-    expect(unsaved.text).toContain('class="bars"');
+    const chart = await lead.post('/api/reports/export', { title: 'All things', format: 'html', spec: { type: 'rt_thing', groupBy: [{ field: 'department' }] } });
+    expect(chart.text).toContain('class="bars"');
+    expect(chart.text).toContain('Restricted records'); // the restricted thing's department is masked, for everyone
+    expect(chart.text).not.toContain('Restricted export by');
     expect(markdownToHtml('# Title\n\n<img src=x onerror=alert(1)> **bold**\n- one\n- two')).toBe(
       '<h3>Title</h3>\n<p>&lt;img src=x onerror=alert(1)&gt; <strong>bold</strong></p>\n<ul>\n<li>one</li>\n<li>two</li>\n</ul>');
   });
@@ -93,18 +100,22 @@ describe('exports', () => {
 describe('report packs', () => {
   it('previews, exports and freezes a pack; a frozen pack opens again only for people who could see its data', async () => {
     const doomed = (await lead.post('/api/reports', { name: 'Soon gone', sharing: 'everyone', spec: { type: 'rt_thing', aggregates: [{ fn: 'count' }] } })).body;
+    const listing = (await lead.post('/api/reports', { name: 'Every thing', sharing: 'everyone', spec: { type: 'rt_thing', columns: ['name'] } })).body;
     const pack = (await lead.post('/api/report-packs', {
       name: 'Quarterly pack', cover_title: 'Quarterly report', cover_subtitle: 'For the committee', sharing: 'everyone',
-      sections: [{ kind: 'text', title: 'Summary', body: 'All **fine**.' }, { kind: 'report', reportId: report.id }, { kind: 'report', reportId: doomed.id }],
+      sections: [{ kind: 'text', title: 'Summary', body: 'All **fine**.' }, { kind: 'report', reportId: report.id }, { kind: 'report', reportId: doomed.id }, { kind: 'report', reportId: listing.id }],
     })).body;
     await lead.del(`/api/reports/${doomed.id}`);
     expect((await lead.post('/api/report-packs', { name: 'Bad', sections: [{ kind: 'video' }] })).status).toBe(400);
     expect((await lead.post('/api/report-packs', { name: 'Bad', sections: [{ kind: 'report', reportId: '00000000-0000-4000-8000-000000000000' }] })).status).toBe(400);
 
     const preview = await agent.get(`/api/report-packs/${pack.id}/preview`);
-    expect(preview.body.sections.map((s: any) => s.kind)).toEqual(['text', 'report', 'report']);
-    expect(preview.body.sections[1].result.total).toBe(5);
+    expect(preview.body.sections.map((s: any) => s.kind)).toEqual(['text', 'report', 'report', 'report']);
+    // The figures are everyone's; the list of records is the viewer's own.
+    expect(preview.body.sections[1].result.total).toBe(6);
+    expect(preview.body.sections[1].result).toMatchObject({ ...(await lead.get(`/api/report-packs/${pack.id}/preview`)).body.sections[1].result, generatedAt: expect.any(String) });
     expect(preview.body.sections[2].note).toContain('removed');
+    expect(preview.body.sections[3].result.total).toBe(5);
 
     expect((await agent.post(`/api/report-packs/${pack.id}/produce`)).status).toBe(403);
     const made = await lead.post(`/api/report-packs/${pack.id}/produce`);
@@ -194,15 +205,20 @@ describe('scheduled delivery', () => {
     const [forPlainAgent] = await mine(agent);
     const plain = await agent.get(`/api/reports/snapshots/${forPlainAgent.id}/content`);
     expect(plain.status).toBe(200);
-    expect(plain.text).toContain('5 test things');
+    // Every recipient gets the same figures (the restricted thing counts for all, and shows for none).
+    expect(plain.text).toContain('6 test things');
     expect((await agent.get(`/api/reports/snapshots/${forPlainAgent.id}/content?download=1`)).status).toBe(403);
     const leadDoc = (await lead.get(`/api/reports/snapshots/${forLead.id}/content`)).text;
     const agentDoc = (await reader.get(`/api/reports/snapshots/${forAgent.id}/content`)).text;
+    const figures = (doc: string) => [...doc.matchAll(/<td[^>]*>([^<]*)<\/td>/g)].map((m) => m[1]);
     expect(leadDoc).toContain('6 test things');
-    expect(leadDoc).toContain('Restricted export by');
-    expect(agentDoc).toContain('5 test things');
+    expect(agentDoc).toContain('6 test things');
+    expect(figures(agentDoc)).toEqual(figures(leadDoc));
+    expect(figures(agentDoc).length).toBeGreaterThan(0);
+    expect(leadDoc).not.toContain('Restricted export by');
     expect(agentDoc).not.toContain('Restricted export by');
     expect(forAgent.restricted).toBe(false);
+    expect(forLead.restricted).toBe(false);
     // A snapshot belongs to the person it was produced for.
     expect((await reader.get(`/api/reports/snapshots/${forLead.id}/content`)).status).toBe(404);
     expect((await lead.get(`/api/reports/snapshots/${forAgent.id}`)).status).toBe(404);
@@ -234,7 +250,7 @@ describe('scheduled delivery', () => {
     expect(ran.body).toMatchObject({ delivered: 1, skipped: 0 });
     const doc = (await reader.get(`/api/reports/snapshots/${ran.body.snapshots[0]}/content`)).text;
     expect(doc).toContain('Things on record');
-    expect(doc).toContain('<span class="figure-value">5</span>');
+    expect(doc).toContain('<span class="figure-value">6</span>'); // the same number the owner sees
     // Once the dashboard is private, the reader is skipped, and the earlier copy no longer opens.
     await lead.patch(`/api/dashboards/${dash.id}`, { sharing: 'private' });
     const again = await lead.post(`/api/report-schedules/${s.id}/run-now`);

@@ -3,6 +3,7 @@
 // declared fields of a record type the caller may view, and every value travels as a parameter.
 import { TIME_ZONE, todayInZone } from '../../core/config.ts';
 import { UUID_RE } from '../../core/errors.ts';
+import { DETAIL_TYPES, MASKED_SQL } from '../../core/resource.ts';
 import type { FieldDef, FieldType, ModuleContext, ResourceDef, SessionUser } from '../../core/module.ts';
 import { customDefs, customSql, type CustomDefs } from './custom.ts';
 
@@ -76,6 +77,11 @@ export interface ResolvedField {
   sql: string;
   /** Set when the field lives on a related record. */
   related?: { via: string; target: ResourceDef | null };
+  /**
+   * Figures only: SQL that is true when this value is a detail of a restricted record. Such a
+   * value is never matched by a condition and is grouped as "Restricted records".
+   */
+  mask?: string;
 }
 
 export interface CompiledDim extends ResolvedField { key: string; bucket?: Bucket; expr: string }
@@ -98,6 +104,19 @@ export interface Compiled {
   globalsApplied: string[];
   /** Every record type whose data can appear (the base type and joined ones). */
   types: ResourceDef[];
+  /**
+   * A figure (grouped or totalled, not about "me"): worked out over every record, the same for
+   * everyone who may run it. Rows (a list of records) are worked out as the caller.
+   */
+  figures: boolean;
+}
+
+/** Whether a filter group uses "me" anywhere: the figure is then the caller's own. */
+function usesMe(g: unknown, depth = 0): boolean {
+  if (!g || typeof g !== 'object' || depth > LIMITS.depth + 1) return false;
+  const items = (g as FilterGroup).items;
+  if (!Array.isArray(items)) return (g as Condition).op === 'me';
+  return items.some((item) => usesMe(item, depth + 1));
 }
 
 /** Which field of a record type a dashboard-wide filter applies to, or null when it has none. */
@@ -139,12 +158,21 @@ export function compile(
   const baseFields: Record<string, FieldDef> = { ...STD_FIELDS, ...def.fields, ...custom };
   const columnSql = (name: string, f: FieldDef) => (custom[name] && !def.fields[name] ? customSql('t', name, f) : `t.${name}`);
 
+  // Figures are the same for everyone (docs/security.md, "Figures"): grouped and totalled reports
+  // count every record, and a restricted record's details are masked for everyone rather than
+  // left out for some. A list of records, or a figure about "me", is worked out as the caller.
+  const aggregate = (Array.isArray(spec.groupBy) && spec.groupBy.length > 0) || (Array.isArray(spec.aggregates) && spec.aggregates.length > 0);
+  const figures = aggregate && !usesMe(spec.filters) && opts.globals?.owner !== 'me';
+  const viewer = figures ? null : user;
+  /** Figures only: true for a restricted row of `d` under `alias` (rows of a wholly restricted type are seen only by people who may see them all). */
+  const flagged = (d: ResourceDef, alias: string) => (figures && d.restricted === 'flag' ? `coalesce(${alias}.restricted, false)` : undefined);
+
   function resolve(path: unknown): ResolvedField {
     if (typeof path !== 'string' || path.length > 130) throw new SpecError('A field name is not valid.');
     const [name, sub, extra] = path.split('.');
     const f = baseFields[name];
     if (extra !== undefined || !f || !IDENT.test(name)) throw new SpecError(`"${path}" is not a field of ${def!.plural.toLowerCase()}.`, path);
-    if (sub === undefined) return { path, label: f.label, def: f, sql: columnSql(name, f) };
+    if (sub === undefined) return { path, label: f.label, def: f, sql: columnSql(name, f), mask: DETAIL_TYPES.has(f.type) ? flagged(def!, 't') : undefined };
     if (!IDENT.test(sub)) throw new SpecError(`"${path}" is not a field that can be used.`, path);
     if (f.type === 'user') {
       const uf = USER_SUBFIELDS[sub];
@@ -155,7 +183,7 @@ export function compile(
         joined.set(name, alias);
         joins.push(`left join users ${alias} on ${alias}.id::text = ${columnSql(name, f)}::text`);
       }
-      return { path, label: `${f.label}: ${uf.label}`, def: { label: uf.label, type: uf.type }, sql: uf.sql(alias), related: { via: name, target: null } };
+      return { path, label: `${f.label}: ${uf.label}`, def: { label: uf.label, type: uf.type }, sql: uf.sql(alias), related: { via: name, target: null }, mask: flagged(def!, 't') };
     }
     if (f.type === 'ref') {
       const target = ctx.resources.get(f.to!);
@@ -166,12 +194,13 @@ export function compile(
       if (!alias) {
         alias = `j${joined.size}`;
         joined.set(name, alias);
-        // A related record the caller may not see joins as "nothing": no value, no group, no count.
+        // In a list, a related record the caller may not see joins as "nothing": no value, no group, no count.
+        // In a figure every related record joins, and its words are masked when it is restricted.
         joins.push(`left join ${target.table} ${alias} on ${alias}.id::text = ${columnSql(name, f)}::text and ${alias}.deleted_at is null`
-          + ` and ${ctx.resources.visibleWhere(target.type, user, alias)}`);
+          + ` and ${ctx.resources.visibleWhere(target.type, viewer, alias)}`);
       }
       types.set(target.type, target);
-      return { path, label: `${f.label}: ${tf.label}`, def: tf, sql: `${alias}.${sub}`, related: { via: name, target } };
+      return { path, label: `${f.label}: ${tf.label}`, def: tf, sql: `${alias}.${sub}`, related: { via: name, target }, mask: DETAIL_TYPES.has(tf.type) ? flagged(target, alias) : undefined };
     }
     throw new SpecError(`"${path}" is not a field that can be used.`, path);
   }
@@ -226,7 +255,14 @@ export function compile(
   }
 
   type Drill = [string, string][] | null;
+  /** A condition; in a figure, one that reads a restricted record's details never matches it (blank or not still does). */
   function condition(c: Condition): { sql: string; drill: Drill } {
+    const mask = resolve(c?.field).mask;
+    const out = conditionOf(c);
+    const op = String(c.op ?? '');
+    return mask && op !== 'empty' && op !== 'nempty' ? { sql: `(not ${mask} and ${out.sql})`, drill: out.drill } : out;
+  }
+  function conditionOf(c: Condition): { sql: string; drill: Drill } {
     conditions += 1;
     if (conditions > LIMITS.conditions) throw new SpecError(`A report can have at most ${LIMITS.conditions} conditions.`);
     const f = resolve(c.field);
@@ -298,7 +334,7 @@ export function compile(
     return { sql: `(${parts.map((p) => p.sql).join(` ${op} `)})`, drill: exact ? parts.flatMap((p) => p.drill!) : null };
   }
 
-  const where = [`t.deleted_at is null`, ctx.resources.visibleWhere(def.type, user, 't')];
+  const where = [`t.deleted_at is null`, ctx.resources.visibleWhere(def.type, viewer, 't')];
   const drill: Compiled['drill'] = { params: [], exact: true };
   if (spec.filters !== undefined && spec.filters !== null) {
     const g = group(spec.filters, 1);
@@ -342,6 +378,7 @@ export function compile(
     const expr = isDate
       // Bucket boundaries fall on the organisation's calendar, not the server's or the browser's.
       ? `date_trunc('${bucket}', ${t === 'datetime' ? `(${f.sql} at time zone ${tz()})` : `${f.sql}::timestamp`})`
+      : f.mask ? `case when ${f.mask} and ${f.sql} is not null then ${MASKED_SQL} else ${f.sql}::text end`
       : `${f.sql}::text`;
     return { ...f, key: `g${i}`, bucket, expr };
   });
@@ -400,7 +437,7 @@ export function compile(
   return {
     order,
     def, spec, mode, from: `${def.table} t ${joins.join(' ')}`, where: where.join(' and '), params,
-    columns, dims, aggs, drill, globalsApplied, types: [...types.values()],
+    columns, dims, aggs, drill, globalsApplied, types: [...types.values()], figures,
   };
 }
 

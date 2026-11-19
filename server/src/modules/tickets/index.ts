@@ -4,6 +4,7 @@ import { registerAssist } from './assist.ts';
 import { AGENT_AUDIENCE, makeAudience } from './audience.ts';
 import { makeAutomation, registerAutomation } from './automation.ts';
 import { makeCatalogue } from './catalogue.ts';
+import { recordArticleFeedback } from './feedback.ts';
 import { clock } from './clock.ts';
 import { makeTicketNotify } from './notify.ts';
 import { CATALOGUE, seedDefaults } from './defaults.ts';
@@ -192,6 +193,14 @@ const mod: ModuleDef = {
       const at = now.toISOString();
       const m: Row = { ...existing, ...patch };
       checkCommon(patch, existing.id);
+      // E15-07: the requester's own satisfaction answer is theirs; nobody changes it afterwards.
+      if (req && existing.satisfaction_by_requester) {
+        for (const f of ['satisfaction_score', 'satisfaction_comment']) {
+          if (f in patch && (patch[f] ?? null) !== (existing[f] ?? null)) {
+            ctx.fail(400, 'validation', 'Check the highlighted fields.', { [f]: 'The requester gave this answer in the portal. It cannot be changed.' });
+          }
+        }
+      }
       catalogue.checkTasks(req, existing, patch);
       await catalogue.checkApprovalGate(req, existing, m.status);
 
@@ -276,6 +285,7 @@ const mod: ModuleDef = {
         requester_department: { label: 'Requester department', type: 'text' },
         requester_id: { label: 'Requester account', type: 'user' },
         affected_user: { label: 'Affected person', type: 'text' },
+        affected_user_id: { label: 'Affected person account', type: 'user' },
         category: { label: 'Category', type: 'lookup', list: 'ticket_category' },
         subcategory: { label: 'Subcategory', type: 'text' },
         catalog_item_id: { label: 'Catalogue item', type: 'ref', to: 'catalog_item' },
@@ -302,6 +312,9 @@ const mod: ModuleDef = {
         post_incident_review: { label: 'Post-incident review', type: 'json' },
         satisfaction_score: { label: 'Satisfaction (1 to 5)', type: 'number' },
         satisfaction_comment: { label: 'Satisfaction comment', type: 'longtext' },
+        satisfaction_by_requester: { label: 'Satisfaction given by the requester', type: 'boolean', readOnly: true },
+        satisfaction_at: { label: 'Satisfaction given', type: 'datetime', readOnly: true },
+        reopened_count: { label: 'Reopened by the requester', type: 'number', readOnly: true },
         breach_reason: { label: 'Breach reason', type: 'longtext' },
         opened_at: { label: 'Opened', type: 'datetime', readOnly: true },
         response_due_at: { label: 'Respond by', type: 'datetime', readOnly: true },
@@ -353,6 +366,18 @@ const mod: ModuleDef = {
     }
     async function afterUpdate(req: FastifyRequest | null, before: Row, after: Row): Promise<void> {
       if (req) await tellAssignee(req, before, after);
+      if (req) await tellRequester(req, before, after);
+    }
+
+    /** E15: with the portal on, the requester hears when IT need them or think the request is done. */
+    async function tellRequester(req: FastifyRequest, before: Row, after: Row): Promise<void> {
+      if (!after.requester_id || after.requester_id === req.user?.id || after.status === before.status) return;
+      if ((await ctx.settings.get<Row>('features', { portal: false }))?.portal !== true) return;
+      const cat = await sla.category(after.status);
+      const title = after.status === 'waiting_requester' ? `IT need a reply from you: ${after.ref}`
+        : cat === 'resolved' ? `Your request ${after.ref} is resolved` : null;
+      if (!title) return;
+      await notify.send({ userIds: [after.requester_id], kind: 'general', title, body: after.title, route: `/portal/requests/${after.id}` });
     }
 
     ctx.defineResource({
@@ -426,6 +451,7 @@ const mod: ModuleDef = {
         questions: { label: 'Questions', type: 'json' },
         tasks: { label: 'Fulfilment tasks', type: 'json' },
         requires_approval: { label: 'Needs approval before work starts', type: 'boolean', default: false },
+        portal: { label: 'Show in the self-service portal', type: 'boolean', default: false },
       },
       hooks: {
         beforeCreate: (_req, data) => catalogue.checkItem(data),
@@ -695,30 +721,7 @@ const mod: ModuleDef = {
 
     app.post('/api/knowledge/:id/feedback', kbView, async (req) => {
       const a = (await ctx.resources.find('knowledge_article', (req.params as any).id, req.user)) ?? ctx.fail(404, 'not_found', 'Article not found.');
-      const helpful = (req.body as Row | undefined)?.helpful;
-      if (typeof helpful !== 'boolean') ctx.fail(400, 'validation', 'Check the highlighted fields.', { helpful: 'Say whether the article helped: yes or no.' });
-      // One vote per person per article version. Voting again replaces the earlier vote.
-      const version = Number(a.version ?? 1);
-      const prior = await db.one<{ helpful: boolean }>(
-        'select helpful from knowledge_article_feedback where article_id = $1 and user_id = $2 and version = $3', [a.id, req.user!.id, version]);
-      if (prior && prior.helpful === helpful) {
-        return { helpful_yes: a.helpful_yes, helpful_no: a.helpful_no, your_vote: helpful, changed: false };
-      }
-      await db.query(
-        `insert into knowledge_article_feedback (article_id, user_id, version, helpful) values ($1,$2,$3,$4)
-         on conflict (article_id, user_id, version) do update set helpful = excluded.helpful, updated_at = now()`,
-        [a.id, req.user!.id, version, helpful]);
-      const yes = (helpful ? 1 : 0) - (prior?.helpful === true ? 1 : 0);
-      const no = (helpful ? 0 : 1) - (prior?.helpful === false ? 1 : 0);
-      const row = await db.one<Row>(
-        `update knowledge_articles set helpful_yes = greatest(0, helpful_yes + $2::int), helpful_no = greatest(0, helpful_no + $3::int)
-         where id = $1 returning helpful_yes, helpful_no`, [a.id, yes, no]);
-      await ctx.audit(req, {
-        action: 'knowledge_article.feedback', recordType: 'knowledge_article', recordId: a.id,
-        summary: `${prior ? 'Changed vote to' : 'Marked'} ${helpful ? 'helpful' : 'not helpful'}: ${a.ref} ${a.title} (version ${version})`,
-        before: { helpful_yes: a.helpful_yes, helpful_no: a.helpful_no }, after: { helpful_yes: row!.helpful_yes, helpful_no: row!.helpful_no },
-      });
-      return { ...row, your_vote: helpful, changed: true };
+      return recordArticleFeedback(ctx, req, a, (req.body as Row | undefined)?.helpful);
     });
 
     registerMetrics(ctx, sla);

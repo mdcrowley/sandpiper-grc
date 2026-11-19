@@ -13,24 +13,67 @@ import { todayInZone } from '../../core/timezone.ts';
 import {
   BLOCKED_EXTENSIONS, checkContent, contentDisposition, contentTypeFor, downloadContentType, extensionOf, sanitiseFileName,
 } from './filetypes.ts';
+import { registerFileAdmin } from './admin.ts';
+import { registerBackups } from './backups.ts';
+import { clamdScanner } from './clamd.ts';
+import { clamdConfig, readScanner } from './config.ts';
+import { dailyHousekeeping } from './housekeeping.ts';
 import { makeScannerRegistry, type ScanResult } from './scanner.ts';
 import {
-  dataDirFor, formatBytes, Meter, present, readSettings, SETTING_EXTENSIONS, SETTING_MAX_BYTES, TooLargeError,
+  formatBytes, Meter, present, readSettings, SETTING_EXTENSIONS, SETTING_MAX_BYTES, TooLargeError,
   validateDescriptive, validateSettings,
 } from './service.ts';
-import { newStorageKey, openStorage } from './storage.ts';
+import { newStorageKey, type FileStorage } from './storage.ts';
+import { makeStores } from './stores.ts';
 
 interface Parent { def: ResourceDef; row: Row; restricted: boolean; label: string }
+
+const DAY = 24 * 3_600_000;
 
 const mod: ModuleDef = {
   key: 'attachments',
 
   async register(ctx) {
     const { app, db } = ctx;
-    const storage = openStorage(dataDirFor(ctx));
+    // Where files are kept (local disk, or an object store once an administrator sets one up).
+    const stores = makeStores(ctx);
+    if (!app.hasDecorator('attachmentStores')) app.decorate('attachmentStores', stores);
+    await stores.reload();
     // Other modules reach the scanner hook through the Fastify instance (see scanner.ts).
     if (!app.hasDecorator('fileScanner')) app.decorate('fileScanner', makeScannerRegistry());
     const scanners = app.fileScanner;
+
+    /** Installs the ClamAV scanner when an administrator has switched it on; removes it when switched off. */
+    async function applyScanner() {
+      const s = await readScanner(ctx);
+      if (s.enabled) scanners.use(clamdScanner(clamdConfig(s)));
+      else if (scanners.current().name === 'clamav') scanners.reset();
+    }
+    await applyScanner();
+
+    registerFileAdmin(ctx, applyScanner);
+    registerBackups(ctx);
+
+    // Daily: files of records deleted for good are marked removed, and removed files past the
+    // purge period are deleted from storage. In process, like the other daily jobs (see E14-12).
+    let first: NodeJS.Timeout | null = null;
+    let daily: NodeJS.Timeout | null = null;
+    app.addHook('onReady', async () => {
+      if (process.env.VITEST) return;
+      const run = () => {
+        void dailyHousekeeping(ctx)
+          .then((r) => { if (r.orphans || r.purge.purged || r.purge.failed) console.log(`[attachments] housekeeping: ${r.orphans} file(s) of deleted records marked removed, ${r.purge.purged} purged, ${r.purge.failed} failed`); })
+          .catch((err) => console.error('[attachments] housekeeping failed:', err));
+      };
+      first = setTimeout(run, 120_000);
+      daily = setInterval(run, DAY);
+      first.unref();
+      daily.unref();
+    });
+    app.addHook('onClose', async () => {
+      if (first) clearTimeout(first);
+      if (daily) clearInterval(daily);
+    });
 
     // ---------- who may see and change the files of a record ----------
 
@@ -77,6 +120,7 @@ const mod: ModuleDef = {
       const s = await readSettings(ctx);
       return {
         maxBytes: s.maxBytes, allowedExtensions: s.allowedExtensions, scanner: scanners.current().name,
+        whenUnavailable: (await readScanner(ctx)).whenUnavailable,
         canAdminister: ctx.can(req.user, 'admin.administer'),
       };
     });
@@ -176,6 +220,13 @@ const mod: ModuleDef = {
         if (Number.isFinite(declared) && declared > settings.maxBytes) await refuse(413, 'too_large', tooLarge, 'too large');
 
         // Receive: straight to storage, counting and hashing on the way.
+        let storage: FileStorage;
+        try {
+          storage = stores.current();
+        } catch (err) {
+          console.error('[attachments] no storage for uploads:', (err as Error).message);
+          return ctx.fail(503, 'storage_unavailable', 'Files cannot be stored at the moment. Tell an administrator.');
+        }
         const key = newStorageKey();
         const meter = new Meter(settings.maxBytes);
         body!.on('error', (err) => meter.destroy(err));
@@ -208,8 +259,18 @@ const mod: ModuleDef = {
         if (scan.verdict === 'infected') {
           await discard(422, 'malware', 'This file was refused by the malware scanner.', `malware scanner ${scanner.name}: ${scan.detail ?? 'infected'}`);
         }
+        let scanWarning: string | null = null;
         if (scan.verdict === 'error') {
-          await discard(503, 'scan_failed', 'The file could not be checked for malware, so it was not accepted. Try again later.', `malware scanner ${scanner.name} failed: ${scan.detail ?? 'no detail'}`);
+          // The administrator decides: refuse the file, or accept it as "Not scanned" with a warning.
+          const policy = (await readScanner(ctx)).whenUnavailable;
+          if (policy === 'refuse') {
+            await discard(503, 'scan_failed', 'The file could not be checked for malware, so it was not accepted. Try again later.', `malware scanner ${scanner.name} failed: ${scan.detail ?? 'no detail'}`);
+          }
+          scanWarning = 'The malware scanner could not check this file, so it was accepted without a scan and marked "Not scanned".';
+          await ctx.audit(req, {
+            action: 'attachment.scan_unavailable', recordType: parent.def.type, recordId: parent.row.id,
+            summary: `File accepted without a malware scan: ${fileName} (malware scanner ${scanner.name} failed: ${scan.detail ?? 'no detail'})`,
+          });
         }
         const scanned = scan.verdict === 'clean';
 
@@ -234,7 +295,7 @@ const mod: ModuleDef = {
           },
         });
         reply.code(201);
-        return present(row);
+        return scanWarning ? { ...present(row), scan_warning: scanWarning } : present(row);
       });
     });
 
@@ -255,6 +316,13 @@ const mod: ModuleDef = {
         });
         return ctx.fail(500, code, message);
       };
+      let storage: FileStorage;
+      try {
+        storage = stores.forDriver(att.storage_driver);
+      } catch (err) {
+        console.error('[attachments] download:', (err as Error).message);
+        return ctx.fail(503, 'storage_unavailable', 'The store that holds this file cannot be reached. Tell an administrator.');
+      }
       const stat = await storage.stat(att.storage_key);
       if (!stat) await problem('file_missing', 'The stored file is missing. Tell an administrator.', 'stored file missing');
 
@@ -302,10 +370,11 @@ const mod: ModuleDef = {
       return present(row);
     });
 
-    // Soft delete: the row is marked and the stored bytes are kept, like every other record.
+    // Soft delete: the row is marked and the stored bytes are kept for the purge period
+    // (File settings), during which an administrator can put the file back.
     app.delete('/api/attachments/:id', async (req) => {
       const { att, parent } = await needAttachment(req, 'edit');
-      await db.query('update attachments set deleted_at = now(), updated_at = now(), updated_by = $2 where id = $1', [att.id, req.user!.id]);
+      await db.query(`update attachments set deleted_at = now(), removed_reason = 'removed', updated_at = now(), updated_by = $2 where id = $1`, [att.id, req.user!.id]);
       await ctx.audit(req, {
         action: 'attachment.delete', recordType: parent.def.type, recordId: parent.row.id,
         summary: `File removed: ${att.file_name}`,

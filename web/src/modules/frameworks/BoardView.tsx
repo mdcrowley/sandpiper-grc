@@ -46,13 +46,16 @@ const Tile = memo(function Tile({ outcome: o, statuses, phase, density, canEdit,
     <div className={cx('fw-tile', `fw-tile-${density}`, o.priority && 'is-priority', saving && 'is-saving')} style={statusVars(status?.color ?? 'gray') as CSSProperties}>
       <Link
         className="fw-tile-link" to={`/frameworks/outcomes/${o.id}`} data-tile={o.id} tabIndex={-1}
-        aria-label={name} title={density === 'map' ? name : undefined}
+        title={density === 'map' ? name : undefined}
       >
+        {/* The link's name comes from what it shows, plus the status in words for screen readers,
+            so it always starts with the visible code (speech users say what they see). */}
         <span className="fw-tile-head">
           <span className="fw-tile-code">{o.code}</span>
+          <span className="sr-only">, {label}{o.priority ? ', priority outcome' : ''}.</span>
           {o.priority && <span className="fw-star"><Icon name="star" size={density === 'map' ? 10 : 13} /></span>}
         </span>
-        {density !== 'map' && <span className="fw-tile-text">{text}</span>}
+        {density !== 'map' ? <span className="fw-tile-text">{text}</span> : <span className="sr-only"> {text}</span>}
         {density === 'detailed' && (
           <span className="fw-tile-foot">
             {phase && <Badge color={phase.color}>{phase.label}</Badge>}

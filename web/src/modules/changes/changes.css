@@ -99,21 +99,23 @@ a.chg-ev:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 .chg-ev-amber { background: var(--c-amber-bg); color: var(--c-amber-fg); border-left-color: var(--c-amber-solid); }
 .chg-ev-orange { background: var(--c-orange-bg); color: var(--c-orange-fg); border-left-color: var(--c-orange-solid); }
 .chg-ev-purple { background: var(--c-purple-bg); color: var(--c-purple-fg); border-left-color: var(--c-purple-solid); }
-.chg-ev-done { opacity: 0.62; }
+/* Finished changes recede by losing their fill, not by fading: faded text would fall below 4.5:1. */
+.chg-ev-done { background: var(--surface); box-shadow: inset 0 0 0 1px var(--border); }
 .chg-ev-draft { border-left-style: dashed; background: transparent; box-shadow: inset 0 0 0 1px var(--border); }
 .chg-ev-conflict { box-shadow: inset 0 0 0 1.5px var(--c-amber-solid); }
 .chg-ev-mark { flex: none; color: var(--c-amber-fg); }
 .chg-ev-mark-ok { color: var(--c-green-fg); }
-.chg-ev-time { font-variant-numeric: tabular-nums; opacity: 0.85; flex: none; }
+.chg-ev-time { font-variant-numeric: tabular-nums; font-weight: 400; flex: none; }
 .chg-ev-ref { font-weight: 650; flex: none; }
 .chg-ev-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 
 .chg-month-head, .chg-month-body { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.chg-month-week { display: contents; }
 .chg-month-head span { padding: var(--s-2); font-size: var(--fs-xs); font-weight: 600; color: var(--text-muted); text-align: center; border-bottom: 1px solid var(--border); }
 .chg-month-head abbr { text-decoration: none; }
 .chg-day { min-height: 112px; min-width: 0; padding: 4px; display: flex; flex-direction: column; gap: 3px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
 .chg-day:nth-child(7n) { border-right: 0; }
-.chg-day:nth-last-child(-n + 7) { border-bottom: 0; }
+.chg-month-week:last-child .chg-day { border-bottom: 0; }
 .chg-day-out { background-color: var(--surface-2); }
 .chg-day-out .chg-day-num { color: var(--text-muted); }
 .chg-day-num { all: unset; align-self: flex-start; min-width: 24px; height: 24px; line-height: 24px; text-align: center; border-radius: 12px; font-size: var(--fs-sm); font-weight: 600; cursor: pointer; }

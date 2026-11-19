@@ -1,0 +1,44 @@
+/* Fleet module. Tokens only, so both themes work. */
+
+.fl-pad { padding: var(--s-4); }
+.fl-note { font-size: var(--fs-sm); }
+.fl-actions { text-align: right; white-space: nowrap; }
+
+.fl-required { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--s-2) var(--s-4); }
+.fl-required li { display: flex; align-items: center; justify-content: space-between; gap: var(--s-2); padding: var(--s-2) var(--s-3); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); }
+
+.fl-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--s-4); }
+.fl-filters > * { min-width: 200px; flex: 0 1 260px; }
+
+.fl-legend { list-style: none; display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-5); margin: 0; padding: var(--s-3) var(--s-4); border-bottom: 1px solid var(--border); font-size: var(--fs-sm); color: var(--text-muted); }
+.fl-legend li { display: inline-flex; align-items: center; gap: var(--s-2); }
+
+.fl-coverage .table th.fl-col, .fl-coverage .table td.fl-col { text-align: center; }
+.fl-coverage .table thead th { vertical-align: bottom; }
+.fl-coverage .table thead th.fl-col { white-space: normal; min-width: 76px; max-width: 110px; line-height: 1.25; }
+.fl-coverage .table td, .fl-coverage .table th { padding-left: var(--s-2); padding-right: var(--s-2); }
+.fl-coverage .table th.fl-rowhead { text-transform: none; letter-spacing: normal; font-size: var(--fs-md); font-weight: 600; color: var(--text); background: transparent; text-align: left; white-space: nowrap; padding-left: var(--s-4); }
+.fl-coverage .table th:first-child { padding-left: var(--s-4); }
+/* The vehicle column stays in view while the equipment columns scroll sideways on narrow screens. */
+.fl-coverage .table th.fl-rowhead { position: sticky; left: 0; z-index: 1; background: var(--surface); }
+.fl-coverage .table thead th:first-child { position: sticky; left: 0; z-index: 2; }
+.fl-col-sub { font-weight: 400; font-size: var(--fs-xs); }
+.fl-sub { display: flex; align-items: center; gap: var(--s-2); margin-top: 2px; font-weight: 400; font-size: var(--fs-sm); }
+.fl-cell { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; }
+.fl-cell-ok { background: var(--c-green-bg); color: var(--c-green-fg); }
+.fl-cell-warn { background: var(--c-amber-bg); color: var(--c-amber-fg); }
+.fl-cell-bad { background: var(--c-red-bg); color: var(--c-red-fg); }
+.fl-cell-na { color: var(--text-muted); }
+
+.fl-req { border: 1px solid var(--border); border-radius: var(--radius); padding: var(--s-3) var(--s-4); margin: 0; }
+.fl-req legend { font-weight: 600; padding: 0 var(--s-1); }
+.fl-req-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--s-2) var(--s-4); }
+
+.fl-affected { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--s-4); align-items: start; }
+.fl-list { list-style: none; margin: 0; padding: 0; }
+.fl-list li { display: flex; flex-direction: column; gap: 2px; padding: var(--s-3) var(--s-4); border-top: 1px solid var(--border); }
+.fl-list li:first-child { border-top: 0; }
+.fl-list .muted { font-size: var(--fs-sm); }
+.fl-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-4); }
+
+.fl-file { align-self: flex-start; cursor: pointer; }

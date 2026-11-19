@@ -1,9 +1,10 @@
 import { randomToken, sha256 } from '../../core/auth.ts';
+import { revokeAllPasskeys } from '../../core/webauthn/index.ts';
 import type { Queryable } from '../../core/db.ts';
 import { UUID_RE } from '../../core/errors.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import type { FastifyRequest } from 'fastify';
-import { adminRoute, body, guardAdministrators, idParam, invalid, sensitive } from './shared.ts';
+import { adminRoute, administratorIds, body, guardAdministrators, idParam, invalid, sensitive } from './shared.ts';
 
 // Never selects password_hash, totp_secret or recovery_codes.
 const USER_SELECT = `
@@ -14,7 +15,10 @@ const USER_SELECT = `
     coalesce((select json_agg(json_build_object('key', r.key, 'name', r.name, 'enabled', r.enabled, 'requires_mfa', r.requires_mfa) order by r.name)
               from user_roles ur join roles r on r.id = ur.role_id where ur.user_id = u.id), '[]'::json) as roles,
     exists (select 1 from one_time_tokens t where t.user_id = u.id and t.used_at is null and t.expires_at > now()) as link_pending,
-    (select count(*)::int from sessions s where s.user_id = u.id and s.expires_at > now()) as sessions
+    (select count(*)::int from sessions s where s.user_id = u.id and s.expires_at > now()) as sessions,
+    (select count(*)::int from user_identities i join identity_providers p on p.id = i.provider_id and p.deleted_at is null
+      where i.user_id = u.id) as identities,
+    coalesce((select s.break_glass from identity_user_settings s where s.user_id = u.id), false) as break_glass
   from users u left join departments d on d.id = u.department_id and d.deleted_at is null
   where u.deleted_at is null`;
 
@@ -165,6 +169,8 @@ export function registerUsers(ctx: ModuleContext) {
       if (JSON.stringify(wanted) !== JSON.stringify(held)) await sensitive(ctx, req, `changing the roles of ${before.username}`);
     }
 
+    // Read before the transaction: the embedded database has one connection, which the transaction holds.
+    const localOff = before.break_glass && (await ctx.settings.get('auth.local_signin', true)) === false;
     await db.tx(async (tx) => {
       await tx.query(
         `update users set username = $2, email = $3, display_name = $4, department_id = $5, status = $6,
@@ -181,6 +187,15 @@ export function registerUsers(ctx: ModuleContext) {
         await tx.query('update one_time_tokens set used_at = now() where user_id = $1 and used_at is null', [id]);
       }
       await guardAdministrators(tx, req.user!.id);
+      // The break-glass account must stay able to administer; and with local passwords off it is the only way back in.
+      if (before.break_glass) {
+        if (!(await administratorIds(tx)).includes(id) && status !== 'disabled') {
+          ctx.fail(409, 'break_glass', 'This is the break-glass account and must keep administrator access. Remove the break-glass designation first.');
+        }
+        if (status === 'disabled' && localOff) {
+          ctx.fail(409, 'break_glass', 'Local passwords are off, so the break-glass account is the only way in if single sign-on fails. It cannot be disabled.');
+        }
+      }
     });
 
     const after = await getUser(id);
@@ -258,9 +273,11 @@ export function registerUsers(ctx: ModuleContext) {
     await db.query(
       `update users set totp_enabled = false, totp_secret = null, totp_last_step = null, mfa_required_since = null,
          recovery_codes = '[]', updated_at = now() where id = $1`, [u.id]);
+    // Passkeys and security keys are second factors too: a reset removes them as well.
+    const keys = await revokeAllPasskeys(db, u.id, req.user!.id);
     await ctx.audit(req, {
       action: 'mfa.reset', recordType: 'user', recordId: u.id,
-      summary: `Second factor of ${u.username} reset by an administrator`,
+      summary: `Second factor of ${u.username} reset by an administrator${keys ? ` (${keys} passkey(s) removed)` : ''}`,
       before: { totp_enabled: u.totp_enabled }, after: { totp_enabled: false },
     });
     return getUser(u.id);

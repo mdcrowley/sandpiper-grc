@@ -4,7 +4,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type
 import { ActionIcon, AppShell, Avatar, Drawer, Menu as MMenu, Popover, Tooltip, UnstyledButton } from '@mantine/core';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from './auth';
-import { ChangePasswordDialog } from './AuthPages';
+import { BreakGlassBanner, ChangePasswordDialog } from './AuthPages';
 import { CommandPalette, type PaletteLink } from './CommandPalette';
 import { useMediaQuery } from './hooks';
 import { Icon, type IconName } from './Icon';
@@ -18,7 +18,7 @@ import { cx } from './ui';
 
 const GROUP_ICON: Record<NavGroup, IconName> = {
   Home: 'home', 'Service desk': 'ticket', Inventory: 'server', Change: 'refresh', Vendors: 'building',
-  Cybersecurity: 'shield', Projects: 'folder', Reports: 'chart', Administration: 'settings', Help: 'help',
+  Cybersecurity: 'shield', Safety: 'alert', Projects: 'folder', Reports: 'chart', Administration: 'settings', Help: 'help',
 };
 
 // The notification bell belongs to the notifications module. It is looked up rather than imported, so the
@@ -300,15 +300,8 @@ export function Shell({ children }: { children: ReactNode }) {
         Skip to content
       </a>
 
-      <AppShell.Navbar className={cx('sidebar', rail && 'sidebar-rail')}>
-        <Link className="brand" to="/" aria-label={`${appName}: overview`}>
-          {rail ? <Logo size={30} /> : <Wordmark name={appName} />}
-        </Link>
-        <div className="sidebar-scroll">
-          {rail ? <NavRail groups={nav.groups} current={nav.current} /> : <NavFull groups={nav.groups} current={nav.current} closed={closed} onToggle={toggleGroup} />}
-        </div>
-      </AppShell.Navbar>
-
+      {/* The top bar comes before the sidebar in the page (both are fixed in place, so the look is the
+          same): Tab reaches search, Create and the account menu without first passing every navigation entry. */}
       <AppShell.Header className="shell-header">
         <div className="topbar">
           <Tooltip label={navToggle.label}>
@@ -317,9 +310,10 @@ export function Shell({ children }: { children: ReactNode }) {
             </ActionIcon>
           </Tooltip>
 
-          <button type="button" className="gsearch" aria-label="Search all records" aria-keyshortcuts="/ Control+K" aria-haspopup="dialog" onClick={() => setPaletteOpen(true)}>
+          {/* The visible words are the button's name (speech users say what they see); the narrow form adds the rest unseen. */}
+          <button type="button" className="gsearch" aria-keyshortcuts="/ Control+K" aria-haspopup="dialog" onClick={() => setPaletteOpen(true)}>
             <Icon name="search" size={17} />
-            <span className="gsearch-text">{tight ? 'Search…' : 'Search records, pages and actions…'}</span>
+            <span className="gsearch-text">{tight ? <>Search<span className="sr-only"> records, pages and actions</span>…</> : 'Search records, pages and actions…'}</span>
             <kbd className="kbd" aria-hidden="true">Ctrl K</kbd>
           </button>
 
@@ -327,9 +321,10 @@ export function Shell({ children }: { children: ReactNode }) {
             {pilot && (
               <Popover width={300} position="bottom-end" withArrow>
                 <Popover.Target>
-                  <button type="button" className="chip chip-amber pilot-badge" aria-label="Pilot mode: test data only. More information">
+                  <button type="button" className="chip chip-amber pilot-badge">
                     <Icon name="flask" size={14} />
                     {tight ? 'Pilot' : 'Pilot: test data only'}
+                    <span className="sr-only">{tight ? ' mode: test data only' : ''}. More information</span>
                   </button>
                 </Popover.Target>
                 <Popover.Dropdown>
@@ -360,7 +355,8 @@ export function Shell({ children }: { children: ReactNode }) {
             <MMenu position="bottom-end" offset={6} width={240}>
               <MMenu.Target>
                 <UnstyledButton className="user-button" aria-label={`Account: ${name}`}>
-                  <Avatar size={30} radius="xl" color="brand" variant="filled">{initials(name)}</Avatar>
+                  {/* Initials are drawn by CSS (shell.css), so the button's visible text is the name its label starts from. */}
+                  <Avatar size={30} radius="xl" color="brand" variant="filled" aria-hidden="true"><span className="user-initials" data-initials={initials(name)} /></Avatar>
                   {!tight && <span className="user-name">{name}</span>}
                   {!tight && <Icon name="chevron-down" size={14} />}
                 </UnstyledButton>
@@ -396,7 +392,17 @@ export function Shell({ children }: { children: ReactNode }) {
         )}
       </AppShell.Header>
 
+      <AppShell.Navbar className={cx('sidebar', rail && 'sidebar-rail')}>
+        <Link className="brand" to="/" aria-label={`${appName}: overview`}>
+          {rail ? <Logo size={30} /> : <Wordmark name={appName} />}
+        </Link>
+        <div className="sidebar-scroll">
+          {rail ? <NavRail groups={nav.groups} current={nav.current} /> : <NavFull groups={nav.groups} current={nav.current} closed={closed} onToggle={toggleGroup} />}
+        </div>
+      </AppShell.Navbar>
+
       <AppShell.Main id="main" className="content shell-main" tabIndex={-1} ref={mainRef}>
+        <BreakGlassBanner />
         {children}
       </AppShell.Main>
 

@@ -99,7 +99,8 @@ function AsyncCombobox({ value, display, onChange, load, kind, placeholder = 'Ty
   const shell = fieldShell(field);
   return (
     <Combobox store={combobox} onOptionSubmit={choose} {...host.popup}>
-      <Combobox.Target>
+      {/* withExpandedAttribute: a combobox must always say whether its list is open (aria-expanded). */}
+      <Combobox.Target withExpandedAttribute>
         <TextInput
           {...shell}
           ref={(el) => { inputRef.current = el; host.ref(el); }}

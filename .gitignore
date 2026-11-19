@@ -11,9 +11,14 @@ node_modules/
 dist/
 *.log
 
+# Browser test and accessibility audit output
+tools/e2e/out/
+tools/a11y/out/
+
 # Secrets
 .env
 .env.*
 secret.key
+*.secret.key*
 *.pem
 *.pfx

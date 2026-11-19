@@ -1,5 +1,6 @@
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { dayInZone } from '../../core/timezone.ts';
 
 const ROUTED_ONLY = 'inventory.disposal_routed_only'; // same key as disposal.ts (which imports nothing from here)
 
@@ -8,10 +9,9 @@ const ROUTED_ONLY = 'inventory.disposal_routed_only'; // same key as disposal.ts
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+/** Today in the organisation's time zone. */
 export function today(): string {
-  const d = new Date();
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  return dayInZone();
 }
 
 export interface Problem { status: number; code: string; message: string; fields?: Record<string, string> }

@@ -21,3 +21,4 @@ export * from './ResourceList';
 export * from './RecordPage';
 export { NotFound, Forbidden } from './pages';
 export { ChangePasswordDialog } from './AuthPages';
+export { ExportMenu, RecordPdfButton } from './ListExport';

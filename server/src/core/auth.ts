@@ -6,6 +6,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { CURRENCY, DEFAULT_APP_NAME, TIME_ZONE } from './config.ts';
 import type { Db } from './db.ts';
 import { fail, UUID_RE } from './errors.ts';
+import { afterSignIn, checkSignIn } from './identity/hooks.ts';
 import type { SessionUser } from './module.ts';
 import { makeDbLimiter } from './ratelimit.ts';
 import { clientIp, cookieSecure } from './request.ts';
@@ -13,6 +14,9 @@ import { isEncrypted, loadSecretBox, type SecretBox } from './secretbox.ts';
 import type { makeAudit, makeSettings } from './services.ts';
 import { registerTokens } from './tokens.ts';
 import { matchTotpStep } from './totp.ts';
+// Passkeys and security keys, and the new-installation second-factor default (E02-08, E02-17).
+import { applySetupSecondFactor, hasActivePasskey, passkeySecondFactor, registerWebAuthn } from './webauthn/index.ts';
+import { WEBAUTHN_ENROLMENT_ROUTES } from './webauthn/paths.ts';
 
 export const SESSION_COOKIE = 'grc_session';
 const GENERIC_SIGNIN_ERROR = 'Sign-in failed. Check your details, or wait a few minutes and try again.';
@@ -197,6 +201,7 @@ export async function mfaEnforcement(deps: Deps): Promise<MfaEnforcement> {
 export const MFA_ENROLMENT_ROUTES = [
   '/api/health', '/api/auth/state', '/api/auth/logout', '/api/auth/security', '/api/auth/confirm',
   '/api/auth/totp/begin', '/api/auth/totp/confirm', '/api/auth/change-password', '/api/auth/sessions',
+  ...WEBAUTHN_ENROLMENT_ROUTES,
 ];
 
 /**
@@ -248,7 +253,8 @@ export async function mfaEnrollmentRequired(deps: Deps, userId: string): Promise
      from users u where u.id = $1`,
     [userId, forAll],
   );
-  return Boolean(row?.required);
+  // A passkey or security key counts as a second factor too (core/webauthn).
+  return Boolean(row?.required) && !(await hasActivePasskey(deps.db, userId));
 }
 
 export async function createSession(db: Db, userId: string, ip?: string, userAgent?: string): Promise<string> {
@@ -262,7 +268,7 @@ export async function createSession(db: Db, userId: string, ip?: string, userAge
   return token;
 }
 
-function setSessionCookie(req: FastifyRequest, reply: FastifyReply, token: string) {
+export function setSessionCookie(req: FastifyRequest, reply: FastifyReply, token: string) {
   // `secure` follows GRC_COOKIE_SECURE (off by default: the prototype is plain http on 127.0.0.1).
   reply.setCookie(SESSION_COOKIE, token, {
     httpOnly: true, sameSite: 'strict', path: '/', maxAge: 8 * 3600, secure: cookieSecure(req),
@@ -319,6 +325,7 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
 
   app.decorateRequest('apiToken', null);
   const tokens = registerTokens(app, { db, audit, settings, loadUser, requireRecentAuth: (req, what) => requireRecentAuth(deps, req, what) });
+  registerWebAuthn(app, deps); // passkeys and security keys: /api/auth/webauthn/...
 
   app.addHook('onRequest', async (req) => {
     if (!req.url.startsWith('/api/')) return;
@@ -407,7 +414,9 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
       action: 'setup.complete', recordType: 'user', recordId: user!.id,
       summary: `Initial administrator ${username} created`,
     });
-    return { ok: true };
+    // E02-17: the wizard's choice of second-factor enforcement for this new installation.
+    const secondFactor = await applySetupSecondFactor(deps, req, (b as Record<string, unknown>).secondFactor);
+    return { ok: true, secondFactor };
   });
 
   app.post('/api/auth/login', { config: { public: true } }, async (req, reply) => {
@@ -460,8 +469,14 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
     };
 
     if (!(await verifyPassword(u.password_hash, password))) return registerFailure('wrong password');
+    // Passkeys and security keys (core/webauthn): an assertion in `webauthn` stands in for the code.
+    const passkey = await passkeySecondFactor(deps, req, u.id, (b as Record<string, unknown>).webauthn);
+    if (passkey === 'failed') return registerFailure('passkey or security key not accepted');
+    if (passkey === 'needed' && !u.totp_enabled) {
+      fail(401, 'mfa_required', 'Use your passkey or security key to finish signing in.', { passkey: 'required' });
+    }
     let usedRecoveryCode = false;
-    if (u.totp_enabled) {
+    if (u.totp_enabled && passkey !== 'passed') {
       // A single-use recovery code is accepted in place of the authenticator code.
       const code = String(b.totp ?? b.recoveryCode ?? '').trim();
       if (!code) fail(401, 'mfa_required', 'Enter the 6-digit code from your authenticator app.');
@@ -471,6 +486,11 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
       }
     }
 
+    // Sign-in policies (core/identity/hooks.ts): local passwords switched off, a person limited to
+    // single sign-on. Refused like any other failure, so the answer reveals nothing.
+    const refused = await checkSignIn(app, { userId: u.id, method: 'local' });
+    if (refused) return reject(refused, u.id);
+
     await db.query(
       'update users set failed_attempts = 0, locked_until = null, last_login_at = now() where id = $1', [u.id],
     );
@@ -479,7 +499,7 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
     req.user = await loadUser(db, u.id);
     await audit(req, {
       action: 'signin.success', recordType: 'user', recordId: u.id,
-      summary: `Signed in via local${usedRecoveryCode ? ' with a recovery code' : u.totp_enabled ? ' with second factor' : ''}`,
+      summary: `Signed in via local${usedRecoveryCode ? ' with a recovery code' : passkey === 'passed' ? ' with a passkey' : u.totp_enabled ? ' with second factor' : ''}`,
     });
     if (usedRecoveryCode) {
       const left = await db.one<{ n: number }>('select jsonb_array_length(recovery_codes) as n from users where id = $1', [u.id]);
@@ -488,6 +508,7 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
         summary: `Recovery code used to sign in; ${left?.n ?? 0} left`,
       });
     }
+    await afterSignIn(app, req, { userId: u.id, method: 'local', sessionToken: token });
     return { ok: true };
   });
 

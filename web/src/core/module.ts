@@ -14,7 +14,7 @@ import type { IconName } from './Icon';
 import { lazyRouteElement } from './lazyRoutes';
 
 export const NAV_GROUPS = [
-  'Home', 'Service desk', 'Inventory', 'Change', 'Vendors', 'Cybersecurity', 'Projects', 'Reports', 'Administration', 'Help',
+  'Home', 'Service desk', 'Inventory', 'Change', 'Vendors', 'Cybersecurity', 'Safety', 'Projects', 'Reports', 'Administration', 'Help',
 ] as const;
 export type NavGroup = (typeof NAV_GROUPS)[number];
 

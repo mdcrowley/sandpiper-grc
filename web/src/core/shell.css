@@ -184,6 +184,7 @@
 }
 .user-button:hover, .user-button[aria-expanded="true"] { background: var(--surface-2); }
 .user-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-initials::before { content: attr(data-initials); }
 .user-card { display: grid; padding: var(--s-2) var(--s-3); font-size: var(--fs-sm); }
 .user-card-name { font-size: var(--fs-md); font-weight: 650; }
 .user-card .muted { overflow: hidden; text-overflow: ellipsis; }

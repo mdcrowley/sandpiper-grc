@@ -1,0 +1,70 @@
+/* Import wizard (ImportWizard.tsx, ImportWizardParts.tsx). Tokens only, so both themes work. */
+.iw { display: flex; flex-direction: column; gap: var(--s-4); min-width: 0; }
+.iw-step { display: flex; flex-direction: column; gap: var(--s-3); min-width: 0; }
+.iw-small { font-size: var(--fs-sm); margin: 0; }
+.iw-h3 { font-size: var(--fs-md); font-weight: 600; margin: var(--s-2) 0 0; }
+.iw-footer { display: flex; flex-wrap: wrap; gap: var(--s-2); justify-content: flex-end; width: 100%; }
+.iw-problem { margin: 0; font-size: var(--fs-sm); }
+.iw-problem ul { margin: var(--s-1) 0 0; padding-left: var(--s-5); }
+
+.iw-drop {
+  display: flex; flex-direction: column; align-items: center; gap: var(--s-2); text-align: center;
+  padding: var(--s-6) var(--s-4); border: 2px dashed var(--border-strong); border-radius: var(--radius-lg);
+  background: var(--surface-2); color: var(--text); cursor: pointer;
+}
+.iw-drop:hover, .iw-drop-over { border-color: var(--brand); background: var(--brand-soft); }
+.iw-drop:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
+.iw-drop-title { font-weight: 600; font-size: var(--fs-lg); word-break: break-word; }
+.iw-sheet { max-width: 320px; }
+.iw-link { background: none; border: 0; padding: 0; color: var(--link); text-decoration: underline; cursor: pointer; font: inherit; }
+
+.iw-map table { table-layout: fixed; width: 100%; }
+.iw-map th:nth-child(1) { width: 28%; }
+.iw-map th:nth-child(2) { width: 34%; }
+.iw-map tbody th.iw-col-name {
+  font-weight: 600; word-break: break-word; text-transform: none; letter-spacing: normal;
+  font-size: var(--fs-md); background: none; color: var(--text);
+}
+.iw-map td, .iw-map th { vertical-align: top; }
+.iw-map tbody th.iw-col-name, .iw-examples { padding-top: calc(var(--s-2) + 7px); }
+.iw-examples { color: var(--text-muted); font-size: var(--fs-sm); overflow-wrap: anywhere; }
+.iw-example + .iw-example::before { content: ", "; }
+.iw-field { min-width: 0; }
+.iw-auto { display: block; margin-top: 2px; font-size: var(--fs-xs); color: var(--text-muted); }
+.iw-options { margin-top: var(--s-2); }
+
+.iw-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s-3); }
+.iw-tile { border: 1px solid var(--border); border-left-width: 4px; border-radius: var(--radius); padding: var(--s-3) var(--s-4); background: var(--surface); display: flex; flex-direction: column; }
+.iw-tile-green { border-left-color: var(--c-green-solid); }
+.iw-tile-blue { border-left-color: var(--c-blue-solid); }
+.iw-tile-gray { border-left-color: var(--c-gray-solid); }
+.iw-tile-red { border-left-color: var(--c-red-solid); }
+.iw-tile-value { font-size: var(--fs-2xl); font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.iw-tile-label { font-size: var(--fs-sm); color: var(--text-muted); }
+
+.iw-values { border: 1px solid var(--border); border-radius: var(--radius); padding: var(--s-3) var(--s-4); background: var(--surface-2); display: flex; flex-direction: column; gap: var(--s-2); }
+.iw-values .iw-h3 { margin: 0; }
+.iw-value-field { font-weight: 600; font-size: var(--fs-sm); }
+.iw-value-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s-2); }
+.iw-value-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1.4fr); gap: var(--s-2); align-items: center; }
+.iw-raw { font-family: var(--font-mono); font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.iw-arrow { color: var(--text-muted); }
+.iw-pick { min-width: 0; }
+.iw-again { display: flex; justify-content: flex-end; }
+
+.iw-rows { display: flex; flex-direction: column; gap: var(--s-2); }
+.iw-rows-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); flex-wrap: wrap; }
+.iw-rows-head .iw-h3 { margin: 0; }
+.iw-rows-filter { width: 250px; max-width: 100%; }
+.iw-results td { vertical-align: top; }
+.iw-error { color: var(--danger-text); }
+.iw-file-name { word-break: break-all; }
+.iw-done { display: flex; align-items: center; gap: var(--s-2); margin: 0; font-weight: 600; }
+.iw-done svg { color: var(--c-green-solid); flex: none; }
+
+@media (max-width: 640px) {
+  .iw-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .iw-value-row { grid-template-columns: minmax(0, 1fr); }
+  .iw-arrow { display: none; }
+  .iw-map th:nth-child(2), .iw-map td:nth-child(2) { display: none; }
+}

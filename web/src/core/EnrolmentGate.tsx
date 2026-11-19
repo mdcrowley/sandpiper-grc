@@ -40,7 +40,7 @@ export function EnrolmentGate() {
             <strong>Set up a second sign-in factor to continue.</strong>
             <p>
               Your organisation requires one for your account. Until it is set up, the rest of the
-              application is not available. It takes about two minutes and needs an authenticator app on your phone.
+              application is not available. It takes about two minutes and needs an authenticator app or a passkey.
             </p>
           </div>
         </div>

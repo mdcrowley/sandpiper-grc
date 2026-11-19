@@ -1,69 +1,52 @@
-// Administrator settings for attached files: the size limit and the allowed types.
-import { useEffect, useState, type FormEvent } from 'react';
-import {
-  api, ApiError, Button, Card, ErrorState, errorMessage, Loading, NumberField, PageHeader, TextArea, useFetch, useToast,
-} from '../../core';
-import type { FileConfig } from './shared';
+// Administration > File settings: upload limits, malware scanning, where files are kept,
+// removed files and storage usage.
+import { useSearchParams } from 'react-router-dom';
+import { ErrorState, Loading, PageHeader, Stat, Tabs, useFetch } from '../../core';
+import type { FilesOverview } from './adminTypes';
+import { STORE_LABELS } from './adminTypes';
+import { RemovedFiles } from './RemovedFiles';
+import { ScannerSettings } from './ScannerSettings';
+import { StorageSettings } from './StorageSettings';
+import { UploadLimits } from './UploadLimits';
+import { formatBytes } from './shared';
 import './attachments.css';
 
+const TABS = ['uploads', 'scanning', 'storage', 'removed'];
+
 export function FileSettings() {
-  const toast = useToast();
-  const { data, error, reload } = useFetch<FileConfig>('/api/attachments/config');
-  const [maxMb, setMaxMb] = useState<number | null>(null);
-  const [types, setTypes] = useState('');
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (!data) return;
-    setMaxMb(Math.round(data.maxBytes / (1024 * 1024)));
-    setTypes(data.allowedExtensions.join(', '));
-  }, [data]);
-
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
-    setErrors({});
-    try {
-      await api.patch('/api/attachments/settings', { maxMb, allowedExtensions: types });
-      toast.success('File settings saved.');
-      reload();
-    } catch (err) {
-      if (err instanceof ApiError && Object.keys(err.fields).length) setErrors(err.fields);
-      else toast.error(errorMessage(err));
-    } finally {
-      setSaving(false);
-    }
-  };
+  const { data, error, reload } = useFetch<FilesOverview>('/api/attachments/admin/overview');
+  const [params, setParams] = useSearchParams();
+  const tab = TABS.includes(params.get('tab') ?? '') ? params.get('tab')! : 'uploads';
+  const u = data?.usage;
+  const stores = u?.byDriver.map((d) => `${d.files} file${d.files === 1 ? '' : 's'} (${formatBytes(d.bytes)}) on ${(STORE_LABELS[d.driver] ?? d.driver).replace(/^Local/, 'the local').replace(/^Object/, 'the object')}`).join('; ');
 
   return (
-    <div className="stack att-settings">
+    <div className="stack att-admin">
       <PageHeader
         title="File settings"
-        subtitle="Limits for files attached to records. They apply to new uploads; files already attached are not affected."
+        subtitle="Limits, malware scanning and storage for files attached to records."
         breadcrumbs={[{ label: 'Administration' }, { label: 'File settings' }]}
       />
-      {error ? <ErrorState error={error} onRetry={reload} /> : !data ? <Loading lines={5} label="Loading file settings" /> : (
-        <Card title="Attachments">
-          <form className="form" onSubmit={submit}>
-            <NumberField
-              label="Largest file (MB)" required min={1} max={2048} step={1} value={maxMb} onChange={setMaxMb} error={errors.maxMb}
-              hint="Each file may be up to this size. From 1 to 2048."
-            />
-            <TextArea
-              label="Allowed file types" required rows={3} value={types} onChange={setTypes} error={errors.allowedExtensions}
-              hint="Extensions separated by commas, for example: pdf, docx, png. A file is refused when its content does not match its extension. Programs and scripts can never be allowed."
-            />
-            <p className="att-facts">
-              Malware scanning: {data.scanner === 'none'
-                ? 'no scanner is installed, so files are accepted without a malware scan and marked "Not scanned".'
-                : `every file is checked by "${data.scanner}" before it is accepted.`}
-            </p>
-            <div className="form-actions">
-              <Button type="submit" variant="primary" loading={saving}>Save settings</Button>
-            </div>
-          </form>
-        </Card>
+      {error ? <ErrorState error={error} onRetry={reload} /> : !data || !u ? <Loading lines={6} label="Loading file settings" /> : (
+        <>
+          <div className="grid-stats">
+            <Stat label="Files in use" value={u.active.files} hint={formatBytes(u.active.bytes)} icon="file-text" />
+            <Stat label="Removed, waiting to be purged" value={u.removed.files} hint={formatBytes(u.removed.bytes)} icon="trash" />
+            <Stat label="Not scanned for malware" value={u.notScanned} color={u.notScanned ? 'amber' : undefined} hint={data.activeScanner === 'none' ? 'Scanning is off' : `Scanner: ${data.activeScanner}`} icon="shield" />
+            <Stat label="New files go to" value={data.storage.driver === 's3' ? 'Object store' : 'Local disk'} hint={stores || 'Nothing stored yet'} icon="database" />
+          </div>
+          <Tabs
+            label="File settings"
+            active={tab}
+            onChange={(key) => setParams((p) => { const next = new URLSearchParams(p); next.set('tab', key); return next; }, { replace: true })}
+            tabs={[
+              { key: 'uploads', label: 'Uploads', content: <UploadLimits /> },
+              { key: 'scanning', label: 'Malware scanning', content: <ScannerSettings overview={data} onSaved={reload} /> },
+              { key: 'storage', label: 'Storage', content: <StorageSettings overview={data} onSaved={reload} /> },
+              { key: 'removed', label: 'Removed files', count: u.removed.files, content: <RemovedFiles purgeDays={data.purgeDays} onChanged={reload} /> },
+            ]}
+          />
+        </>
       )}
     </div>
   );

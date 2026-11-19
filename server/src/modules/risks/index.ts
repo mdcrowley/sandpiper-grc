@@ -1,5 +1,6 @@
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
+import { MASKED_LABEL, MASKED_SQL, MASKED_VALUE } from '../../core/resource.ts';
 import { makeActionExtras } from './actions.ts';
 import { makeLifecycle } from './lifecycle.ts';
 import { DEFAULT_SCALE, makeScales, THRESHOLD_SETTING, type Scale } from './scales.ts';
@@ -508,8 +509,11 @@ const mod: ModuleDef = {
 
     ctx.app.get('/api/actions/summary', { preHandler: ctx.requirePerm('actions.view') }, async (req) => {
       const closed = await statusesWith('action_status', 'closed');
-      // Restricted actions are left out of every count for people without security.view.
-      const open = `deleted_at is null and not (coalesce(status, '') = any($1::text[])) and ${ctx.resources.visibleWhere('action', req.user)}`;
+      // Figures are the same for everyone (docs/security.md, "Figures"): every open action counts,
+      // restricted or not. A restricted action's owner and department are its details, so those
+      // groups put it under "Restricted records" for everyone. "Mine" is the caller's own figure.
+      const open = `deleted_at is null and not (coalesce(status, '') = any($1::text[]))`;
+      const masked = (col: string) => `case when coalesce(restricted, false) and ${col} is not null then ${MASKED_SQL} else ${col} end`;
       const head = (await ctx.db.one<Row>(
         `select count(*)::int as open,
                 count(*) filter (where due_on < current_date)::int as overdue,
@@ -521,27 +525,29 @@ const mod: ModuleDef = {
       const group = (expr: string) => ctx.db.query<Row>(
         `select ${expr} as value, count(*)::int as open, count(*) filter (where due_on < current_date)::int as overdue
          from actions where ${open} group by 1 order by 2 desc, 1`, [closed]);
-      const owners = await group('owner_id::text');
+      const owners = await group(masked('owner_id::text'));
       const names = new Map((await ctx.db.query<Row>(
-        'select id::text as id, display_name from users where id::text = any($1::text[])', [owners.map((o) => o.value).filter(Boolean)],
+        'select id::text as id, display_name from users where id::text = any($1::text[])', [owners.map((o) => o.value).filter((v) => v && v !== MASKED_VALUE)],
       )).map((u) => [u.id, u.display_name]));
       const sources = await ctx.lookups.values('action_source');
       const mine = (await ctx.db.one<Row>(
         `select count(*)::int as open, count(*) filter (where due_on < current_date)::int as overdue,
                 count(*) filter (where due_on >= current_date and due_on <= current_date + (7 - extract(isodow from current_date))::int)::int as due_this_week
-         from actions where ${open} and owner_id = $2`, [closed, req.user!.id]))!;
+         from actions where ${open} and owner_id = $2 and ${ctx.resources.visibleWhere('action', req.user)}`, [closed, req.user!.id]))!;
       return {
         ...head,
         mine,
         open_statuses: (await ctx.lookups.values('action_status')).filter((v) => !v.meta?.closed).map((v) => v.value),
-        by_owner: owners.map((o) => ({
-          owner_id: o.value, label: o.value ? names.get(o.value) ?? 'Unknown user' : 'Unassigned', open: o.open, overdue: o.overdue,
-        })),
+        by_owner: owners.map((o) => (o.value === MASKED_VALUE
+          ? { owner_id: null, restricted: true, label: MASKED_LABEL, open: o.open, overdue: o.overdue }
+          : { owner_id: o.value, label: o.value ? names.get(o.value) ?? 'Unknown user' : 'Unassigned', open: o.open, overdue: o.overdue })),
         by_source: (await group('source')).map((s) => {
           const lv = sources.find((x) => x.value === s.value);
           return { value: s.value, label: lv?.label ?? s.value ?? 'None', color: lv?.color ?? 'gray', open: s.open, overdue: s.overdue };
         }),
-        by_department: (await group(`nullif(department, '')`)).map((d) => ({ value: d.value, label: d.value ?? 'None', open: d.open, overdue: d.overdue })),
+        by_department: (await group(masked(`nullif(department, '')`))).map((d) => (d.value === MASKED_VALUE
+          ? { value: null, restricted: true, label: MASKED_LABEL, open: d.open, overdue: d.overdue }
+          : { value: d.value, label: d.value ?? 'None', open: d.open, overdue: d.overdue })),
       };
     });
 

@@ -169,7 +169,8 @@ a.vnd-cell:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px;
 .vnd-reminder:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 .vnd-reminder-fired { background: var(--c-green-bg); color: var(--c-green-fg); border-color: transparent; }
 .vnd-reminder-due { background: var(--c-amber-bg); color: var(--c-amber-fg); border-color: var(--c-amber-solid); }
-.vnd-reminder-superseded { border-style: dashed; text-decoration: line-through; opacity: 0.75; }
+/* Skipped reminders are struck through and dashed; fading them would take the text below 4.5:1. */
+.vnd-reminder-superseded { border-style: dashed; text-decoration: line-through; }
 
 .vnd-contract-cols { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: var(--s-4); align-items: start; }
 @media (max-width: 1100px) { .vnd-contract-cols { grid-template-columns: 1fr; } }

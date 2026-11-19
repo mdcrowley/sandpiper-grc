@@ -1,7 +1,9 @@
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { lazy, Suspense, type ComponentType } from 'react';
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './core/auth';
 import { LoginPage, SetupPage } from './core/AuthPages';
 import { EnrolmentGate } from './core/EnrolmentGate';
+import { RouteLoading } from './core/lazyRoutes';
 import { UiProvider } from './core/mantine';
 import { MetaProvider } from './core/meta';
 import { modules } from './core/module';
@@ -14,13 +16,36 @@ import { Shell } from './core/Shell';
 const routes = modules.flatMap((m) => m.routes ?? []);
 const publicRoutes = modules.flatMap((m) => m.publicRoutes ?? []);
 
-/** Everything behind sign-in: setup wizard, sign-in page, second-factor set-up, or the shell with module routes. */
+// The self-service portal (E15) has a layout of its own, without the shell. It belongs to the portal
+// module and is looked up rather than imported, so the application builds and runs without it.
+const portalFiles = import.meta.glob<{ PortalApp: ComponentType }>('./modules/portal/PortalApp.tsx');
+const loadPortal = Object.values(portalFiles)[0] as (typeof portalFiles)[string] | undefined;
+const PortalApp = loadPortal && modules.some((m) => m.key === 'portal')
+  ? lazy(() => loadPortal().then((m) => ({ default: m.PortalApp })))
+  : null;
+/** Permissions that open some part of the agent screens (anything in the sidebar but the portal itself). */
+const agentPermissions = [...new Set(modules.flatMap((m) => m.nav ?? []).map((n) => n.permission)
+  .filter((p): p is string => Boolean(p) && !p!.startsWith('portal.')))];
+const isPortalPath = (path: string) => path === '/portal' || path.startsWith('/portal/');
+/** Pages a portal-only person may still open in the shell: their own account and the guide. */
+const keepsShell = (path: string) => path.startsWith('/account') || path.startsWith('/help');
+
+/** Everything behind sign-in: setup wizard, sign-in page, second-factor set-up, the portal, or the shell with module routes. */
 function SignedInApp() {
-  const { user, setupRequired, mfaEnrollmentBlocked, can } = useAuth();
+  const { user, setupRequired, mfaEnrollmentBlocked, can, features } = useAuth();
+  const { pathname } = useLocation();
   if (setupRequired) return <SetupPage />;
   if (!user) return <LoginPage />;
   // The server refuses everything but second-factor set-up: offer only that (and sign out).
   if (mfaEnrollmentBlocked) return <EnrolmentGate />;
+  if (PortalApp) {
+    if (isPortalPath(pathname)) {
+      return <Suspense fallback={<RouteLoading bare />}><PortalApp /></Suspense>;
+    }
+    // Someone who can use the portal and nothing else lands there rather than in an empty shell.
+    const portalOnly = features.portal && can('portal.view') && !agentPermissions.some((p) => can(p));
+    if (portalOnly && !keepsShell(pathname)) return <Navigate to="/portal" replace />;
+  }
   return (
     <MetaProvider>
       <Shell>

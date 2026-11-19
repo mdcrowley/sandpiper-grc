@@ -495,11 +495,17 @@ describe('malware scanning hook', () => {
       expect(infected.status).toBe(422);
       expect(infected.body.error.code).toBe('malware');
       expect(infected.body.error.message).not.toContain('Test.Signature');
+      // A scanner that cannot give a verdict: accepted as "Not scanned" by default, refused when the setting says so.
+      const accepted = await upload(admin, on(widget, 'lucky.txt'), Buffer.from('SCANNER-BREAKS'));
+      expect(accepted.status).toBe(201);
+      expect(accepted.body).toMatchObject({ scan_status: 'not_scanned', scan_warning: expect.any(String) });
+      await t.db.query(`insert into settings (key, value) values ('attachments.scanner', '{"whenUnavailable":"refuse"}'::jsonb)`);
       const failed = await upload(admin, on(widget, 'unlucky.txt'), Buffer.from('SCANNER-BREAKS'));
       expect(failed.status).toBe(503);
       expect(failed.body.error.code).toBe('scan_failed');
+      await t.db.query(`delete from settings where key = 'attachments.scanner'`);
 
-      expect(seen).toEqual(['checked.txt', 'bad.txt', 'unlucky.txt']);
+      expect(seen).toEqual(['checked.txt', 'bad.txt', 'lucky.txt', 'unlucky.txt']);
       expect((await t.db.query(`select 1 from attachments where file_name in ('bad.txt', 'unlucky.txt')`)).length).toBe(0);
       const refused = (await events('attachment.refused', widget)).map((e) => e.summary);
       expect(refused).toContain('File refused: bad.txt (malware scanner test-engine: Test.Signature)');

@@ -1,14 +1,11 @@
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { dayInZone } from '../../core/timezone.ts';
 import { upsertByName } from './seed.ts';
 
 /** Invented data only: the `dev` estate and the "[Sample]" assets added in every profile. */
 
-function dayOffset(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-}
+/** A date `days` from today, in the organisation's time zone. */
+const dayOffset = (days: number): string => dayInZone(days);
 
 // An invented bus and light-rail operator. Every name, place and vendor is made up.
 const DEV_SITES: Row[] = [

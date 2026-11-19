@@ -26,13 +26,13 @@ has never been checked, so nobody relies on something untested.
 | E18-03 | Proofread NIST CSF 2.0 outcome text against the publication | open | P1 |
 | E18-04 | Check every screen in the dark theme | done | P2 |
 | E18-05 | Check every screen at tablet width | done | P2 |
-| E18-06 | Check keyboard-only use | open | P2 |
-| E18-07 | Check non-administrator roles in the browser | open | P1 |
-| E18-08 | Check that every form can be submitted in the browser | open | P1 |
+| E18-06 | Check keyboard-only use | in progress | P2 |
+| E18-07 | Check non-administrator roles in the browser | done | P1 |
+| E18-08 | Check that every form can be submitted in the browser | in progress | P1 |
 | E18-09 | "Also satisfies" parser splits names that contain numbers | open | P3 |
 | E18-10 | Automated API test suite | done | P1 |
 | E18-11 | One-off browser pass of every screen | done | P2 |
-| E18-12 | Automated browser tests | open | P2 |
+| E18-12 | Automated browser tests | in progress | P2 |
 | E18-13 | Transit positioning: nothing in built-in text identifies one organisation | done | P1 |
 | E18-14 | Tests for the web code | open | P3 |
 | E18-15 | A ticket can be closed without a resolution code | done | P2 |
@@ -57,6 +57,10 @@ has never been checked, so nobody relies on something untested.
 | E18-34 | Hand-written forms and record pages do not show custom fields | open | P2 |
 | E18-35 | Web unit tests are not run by the main test command | done | P3 |
 | E18-36 | Category labels run together on narrow bar charts | open | P3 |
+| E18-37 | New dashboard: an empty name is refused with a toast, not beside the field | open | P3 |
+| E18-38 | A report on records the role cannot see makes a refused request | open | P3 |
+| E18-39 | Accessibility audit: findings left for other owners | open | P2 |
+| E18-40 | People never see different numbers: figures include restricted records | done | P1 |
 
 ---
 
@@ -151,22 +155,28 @@ desktop width.
 
 ### E18-06 Check keyboard-only use
 
-**Status:** open · **Priority:** P2 · **Type:** bug
+**Status:** in progress · **Priority:** P2 · **Type:** bug
 
 As a user who does not use a mouse, I can reach and operate everything. Keyboard-only
 use has not been tested.
 
 **Acceptance criteria**
 
-- [ ] The main journey in each module completed with the keyboard alone
-- [ ] Focus is always visible and follows a sensible order
-- [ ] Dialogs trap focus and return it when closed
-- [ ] Menus, tabs, pickers and the relationship map can be operated
-- [ ] Each problem found is fixed or raised as its own issue here
+- [ ] The main journey in each module completed with the keyboard alone (done for the shell, the search window, lists, a New dialog, record tabs and the dashboard layout; not yet module by module)
+- [x] Focus is always visible and follows a sensible order (skip link, then the top bar, then the navigation, then the page)
+- [x] Dialogs trap focus and return it when closed
+- [ ] Menus, tabs, pickers and the relationship map can be operated (menus, tabs, navigation, list tables and the dashboard grid done; record pickers and the relationship map not yet driven)
+- [x] Each problem found is fixed or raised as its own issue here
+
+**Found and fixed:** the whole navigation (some 80 Tab stops) came before the top bar, so
+search, Create and the account menu were the last things a keyboard user reached; the top
+bar now comes first in the page (`web/src/core/Shell.tsx`; the look is unchanged).
+
+**Implemented in:** `tools/e2e/suites/05-keyboard.mjs` (run by `npm run test:e2e`).
 
 ### E18-07 Check non-administrator roles in the browser
 
-**Status:** open · **Priority:** P1 · **Type:** bug
+**Status:** done · **Priority:** P1 · **Type:** bug
 
 As an agent, security lead or project manager, I see only what my role allows and
 nothing breaks. Every screen has so far been loaded only as an administrator; the API
@@ -174,26 +184,35 @@ tests cover other roles but the web app has not been tried with them.
 
 **Acceptance criteria**
 
-- [ ] Sign in as each enabled default role and walk every navigation entry
-- [ ] No navigation entry leads to a "forbidden" error
-- [ ] No page shows a failed request for something the role may not read
-- [ ] Buttons for actions the role cannot take are hidden or disabled
-- [ ] The overview dashboard is sensible for each role
-- [ ] Roles shipped switched off are tried once switched on
+- [x] Sign in as each enabled default role and walk every navigation entry
+- [x] No navigation entry leads to a "forbidden" error
+- [x] No page shows a failed request for something the role may not read (one exception raised as E18-38)
+- [x] Buttons for actions the role cannot take are hidden or disabled (New, Export, row selection for bulk edit, Edit)
+- [x] The overview dashboard is sensible for each role
+- [x] Roles shipped switched off are tried once switched on
+
+**Implemented in:** `tools/e2e/suites/04-roles.mjs`: one user per default role (approver,
+executive viewer, auditor and requester switched on in the scratch instance) visits every
+route; pages a role may not use must say "No access", restricted records stay hidden
+without `security.view`, and the role x page matrix is written to
+`tools/e2e/out/role-matrix.md`.
 
 ### E18-08 Check that every form can be submitted in the browser
 
-**Status:** open · **Priority:** P1 · **Type:** bug
+**Status:** in progress · **Priority:** P1 · **Type:** bug
 
 As a user, I can create and edit every kind of record from the screen. Screens were
 loaded once without errors, but forms were not submitted.
 
 **Acceptance criteria**
 
-- [ ] Create and edit one of every record type through the web app
-- [ ] Every hand-written dialog submitted once (ticket actions, check-out, disposal, gate decision, acceptance, declare incident, and so on)
-- [ ] Validation messages appear beside the right field
-- [ ] Each problem found is fixed or raised as its own issue here
+- [x] Create and edit one of every record type through the web app (25 types; dashboards, report packs and reports are changed in their own editors, which the create step drives)
+- [ ] Every hand-written dialog submitted once (ticket actions, check-out, disposal, gate decision, acceptance, declare incident, and so on): declare incident, the change wizard, the report builder, the second-factor set-up and bulk edit done; the rest not yet
+- [x] Validation messages appear beside the right field (an empty New form and an emptied title on edit are refused with a message beside the field, for every type)
+- [x] Each problem found is fixed or raised as its own issue here (E18-37)
+
+**Implemented in:** `tools/e2e/suites/03-records.mjs` and `tools/e2e/lib/forms.mjs` (fill any
+form by its labels, whatever the control).
 
 ### E18-09 "Also satisfies" parser splits names that contain numbers
 
@@ -250,18 +269,24 @@ script errors or failed requests.
 
 ### E18-12 Automated browser tests
 
-**Status:** open · **Priority:** P2 · **Type:** feature
+**Status:** in progress · **Priority:** P2 · **Type:** feature
 
 As a maintainer, a small set of browser tests runs the main journey of each module on
 every change, so a broken screen is caught before a user finds it.
 
 **Acceptance criteria**
 
-- [ ] A smoke test loads every route and fails on a script error or failed request
-- [ ] One journey per module: create, edit, and one module-specific action
-- [ ] Run as an administrator and as one non-administrator role
-- [ ] Run in both themes
-- [ ] Part of continuous integration ([E16-12](E16-hosting-operations-and-hardening.md))
+- [x] A smoke test loads every route and fails on a script error or failed request
+- [x] One journey per module: create, edit, and one module-specific action (per record type: create, an empty form refused, edit, status, comment, attachment; plus sign-in and sign-out, second-factor enrolment, search, bulk edit and export)
+- [x] Run as an administrator and as one non-administrator role (every default role, in `04-roles.mjs`)
+- [x] Run in both themes (the smoke test runs light at 1440 and dark at 820)
+- [ ] Part of continuous integration ([E16-12](E16-hosting-operations-and-hardening.md)): the job is written (development guide, "Testing") and waits for the workflow file
+
+**Implemented in:** `tools/e2e/` (`run.mjs`, `lib/`, `suites/01-smoke` to `06-lists`),
+started by `npm run test:e2e`: it builds the web application (or uses `E2E_WEB_DIST`),
+starts a throw-away instance on a free port with the dev seed, drives headless Edge or
+Chrome over the DevTools protocol, logs every step to `tools/e2e/out/log.txt`, saves a
+screenshot of each failure and exits non-zero on any failure.
 
 ### E18-13 Transit positioning: nothing in built-in text identifies one organisation
 
@@ -547,7 +572,7 @@ events, unvalidated SQL identifiers and state-changing `GET` requests.
 
 **Acceptance criteria**
 
-- [x] `GET /api/actions/summary` counted restricted actions for everyone: now filtered ([E08-16](E08-risks-actions-and-obligations.md))
+- [x] `GET /api/actions/summary` counted restricted actions for everyone: now filtered ([E08-16](E08-risks-actions-and-obligations.md)). Superseded by E18-40: figures count every record again, and mask restricted owners and departments
 - [x] `GET /api/audit` showed events about flagged records: now hidden (E01-27)
 - [x] `GET /api/meta` and `GET /api/lookups/:list` returned every list: now limited (E01-23)
 - [x] Reference labels ignored the target module's view permission: fixed (E01-28)
@@ -612,3 +637,83 @@ On the Assets and systems dashboard, the Assets by status chart prints its categ
 **Acceptance criteria**
 
 - [ ] Category labels on vertical bar charts wrap, rotate or abbreviate so none touch at 820px and wider
+
+### E18-37 New dashboard: an empty name is refused with a toast, not beside the field
+
+**Status:** open · **Priority:** P3 · **Type:** bug
+
+Found by the browser tests (E18-08). In Reports > Dashboards > New dashboard, pressing
+"Create and add widgets" with no name shows a passing notice ("Give the dashboard a
+name.") instead of a message under the Name field, so a screen-reader user may miss it and
+focus stays on the button. The browser tests report this step as a known defect until it is
+fixed (`tools/e2e/suites/03-records.mjs`, `known: { empty: 'E18-37' }`).
+
+**Acceptance criteria**
+
+- [ ] The message appears under the Name field (`error` on the `TextField`) and focus moves to the field (`web/src/modules/reports/DashboardPages.tsx`, `create()`)
+- [ ] The `known` entry for dashboards is removed from the browser tests
+
+### E18-38 A report on records the role cannot see makes a refused request
+
+**Status:** open · **Priority:** P3 · **Type:** bug
+
+Found by the role tour (E18-07). A project manager opening a shared report about assets
+(which the role may not view) gets a refused request (`403` from
+`/api/reports/:id/run`) behind the page, rather than the page saying plainly that the
+report covers records outside their role.
+
+**Acceptance criteria**
+
+- [ ] The report page checks the role's view permission for the report's record type and says so, without asking the server to run it (`web/src/modules/reports`)
+- [ ] The role tour shows no failed request on `/reports/:id` for any role
+
+### E18-39 Accessibility audit: findings left for other owners
+
+**Status:** open · **Priority:** P2 · **Type:** bug
+
+Found by the automated accessibility audit (E16-15, `node tools/a11y/audit.mjs`), in files
+outside the audit's own changes. Each line names the file and the fix.
+
+**Acceptance criteria**
+
+- [ ] Dashboard calendar widget: `role="grid"` holds column headers and cells without rows (axe `aria-required-children`, `aria-required-parent`, critical). In `web/src/modules/reports/visuals.tsx` (line 79), wrap each week in `role="row"` (with `display: contents`, as the change calendar now does) or use `role="table"` with rows
+- [ ] Safety overview (`/safety`) hazard matrix: empty cells are faded with `opacity: 0.55`, taking their rating text ("Medium", "High") to about 2.5:1 (axe `color-contrast`, serious, both themes). In `web/src/modules/safety/safety.css` (`.sf-cell.is-empty`), mark empty cells another way (a dashed border, or a lighter background with the full-strength text colour)
+- [ ] The audit reports no serious or critical violation on any route in either theme at 1440 and 820
+
+**Fixed in the audit itself (for the record):** combobox pickers now always state
+`aria-expanded` (`core/pickers.tsx`); Mantine's clear buttons have a name
+(`core/mantine.tsx`); the search button, pilot badge and account button are named by what
+they show (`core/Shell.tsx`, `core/shell.css`); the change calendar is a table of weeks with
+day buttons named by their number and finished changes no longer faded below 4.5:1
+(`modules/changes`); framework tiles, risk heat-map cells, project gate buttons and
+relationship-map nodes start their names with their visible text; the relationship map is a
+group, not an image holding buttons (`modules/inventory/MapCanvas.tsx`); the portfolio's
+split rating bar is hidden from assistive technology beside the same figures in words
+(`modules/projects`); skipped contract reminders are no longer faded below 4.5:1
+(`modules/vendors/vendors.css`); chart descriptions read as plain English
+(`core/ChartImpl.tsx`).
+
+### E18-40 People never see different numbers: figures include restricted records
+
+**Status:** done · **Priority:** P1 · **Type:** security
+
+The owner's rule: two people who may both see a figure always see the same value. Before,
+figures left out restricted records for people without `security.view`, so a safety manager
+and a security lead read different totals for the same thing. Restriction now protects a
+record's details (words and people), not its existence in a figure. The rule and its
+reasoning are in `docs/security.md`, "Figures are the same for everyone".
+
+**Acceptance criteria**
+
+- [x] Pure figures count every record: `GET {path}/stats`, `/api/actions/summary` (except "mine"), report and dashboard summaries (count, total, average, share, pivot, number, gauge, progress, chart, calendar), scheduled deliveries, the safety dashboard and indicators (E20-14), the vendor page's system count, the vulnerability summary
+- [x] A restricted record's words and people (text, long-text and person fields) are never matched by a search or condition in a figure, and a figure grouped by one puts it under "Restricted records", for everyone (`DETAIL_TYPES`, `MASKED_*` in `core/resource.ts`; `mask` in `reports/spec.ts`)
+- [x] Lists stay filtered: list totals, drill-downs, record rows of a report or list widget, search, exports and pickers; a figure about "me" keeps the list rule
+- [x] Summaries carry no export watermark (no restricted details); row reports still do
+- [x] Knowledge base statistics count agent-only articles for everyone unless the question reads their words (`tickets/audience.ts`)
+- [x] Tests: an administrator (or security lead) and an agent get identical figures and no restricted title or person (`core.test.ts`, `reports/query.test.ts`, `delivery.test.ts`, `sharing.test.ts`, `files.test.ts`, `risks.test.ts`, `tickets/service.test.ts`)
+
+**Left as it is, deliberately:** statistics about saved reports and dashboards themselves
+(`/api/reports/stats`) still follow sharing, because a private report is a person's own
+work, not an organisational record. Revisit if anyone shows those counts.
+
+**Implemented in:** `server/src/core/resource.ts`, `server/src/modules/reports/spec.ts`, `query.ts`, `server/src/modules/risks/index.ts`, `server/src/modules/vendors/index.ts`, `server/src/modules/vulnerabilities/summary.ts`, `server/src/modules/tickets/audience.ts`; `docs/security.md`

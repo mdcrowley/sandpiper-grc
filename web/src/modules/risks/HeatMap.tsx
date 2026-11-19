@@ -116,12 +116,15 @@ export function HeatMap({ data, selected, onSelect, showMovement }: Props) {
                   style={{ background: `var(--c-${cell.color}-bg)`, color: `var(--c-${cell.color}-fg)`, ['--cell-solid' as string]: `var(--c-${cell.color}-solid)` }}
                   aria-disabled={cell.count === 0}
                   aria-pressed={isSelected}
-                  aria-label={`${name}: rated ${ratingLabel(cell.rating)}, ${cell.count} ${cell.count === 1 ? 'risk' : 'risks'}`}
                   title={`${name}: ${ratingLabel(cell.rating)}`}
                   onClick={() => { if (cell.count > 0) onSelect(isSelected ? null : cell); }}
                 >
+                  {/* The name is what the cell shows ("1 Medium") plus words for screen readers, so
+                      speech users can say what they see: "1 Medium risk: Possible by Minor". */}
                   <span className="rk-cell-count">{cell.count > 0 ? cell.count : ''}</span>
+                  {cell.count > 0 && <span className="sr-only"> </span>}
                   <span className="rk-cell-rating">{ratingLabel(cell.rating)}</span>
+                  <span className="sr-only">{cell.count > 0 ? ` ${cell.count === 1 ? 'risk' : 'risks'}: ${name}` : `, no risks: ${name}`}</span>
                 </button>
               );
             }))}

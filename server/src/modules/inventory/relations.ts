@@ -450,13 +450,30 @@ export function registerRelations(ctx: ModuleContext) {
         )).map((r) => ({ id: r.id, ref: r.tag, label: r.name, route: `/assets/${r.id}`, via: via(r.system_id) }))
       : [];
 
+    // Vehicles carrying equipment of these systems and services depending on them, when the
+    // fleet module is loaded and the caller may see fleet records (empty otherwise).
+    const fleet = app.hasDecorator('fleet') ? await app.fleet.affected(ids, req.user) : null;
+    const vehicles = (fleet?.vehicles ?? []).map((v) => ({
+      id: v.id, label: v.fleet_number, route: v.route, mode_label: v.mode_label, depot_name: v.depot_name,
+      via: via(ids.find((s) => v.equipment.some((e) => e.system_id === s)) ?? system.id),
+    }));
+    const services = (fleet?.services ?? []).map((s) => ({
+      id: s.id, ref: s.route_code, label: s.name, route: s.route, mode_label: s.mode_label,
+      via: via(ids.find((x) => s.dependencies.some((d) => d.system_id === x)) ?? system.id),
+    }));
+
     return {
       system: { id: system.id, ref: system.ref, label: system.name },
       downstream,
       sites,
       data_categories: dataCategories,
       assets,
-      counts: { systems: downstream.length, sites: sites.length, data_categories: dataCategories.length, assets: assets.length },
+      vehicles,
+      services,
+      counts: {
+        systems: downstream.length, sites: sites.length, data_categories: dataCategories.length, assets: assets.length,
+        vehicles: vehicles.length, services: services.length,
+      },
     };
   });
 }

@@ -5,7 +5,10 @@ import {
   StatusChip, TextField, useAuth, useFetch, useToast,
 } from '../../core';
 import { MyTokensCard } from './ApiTokens';
+import { ConnectAssistantCard } from '../mcp/ConnectCard';
 import { CopyBox, copyText, downloadText, Notice } from './common';
+import { PasskeysCard } from '../account-keys/PasskeysCard';
+import { LinkedIdentitiesCard } from './LinkedIdentities';
 import { encodeQr, qrPath } from './qr';
 import { SessionsCard } from './Sessions';
 
@@ -101,10 +104,14 @@ export function AccountSecurityPage() {
                 : data.totpEnabled
                   ? <SecondFactorOn data={data} onCodes={(c) => { setCodes(c); changed(); }} onChanged={changed} />
                   : <SecondFactorSetup required={data.mfaEnrollmentRequired} onEnabled={(c) => { setCodes(c); changed(); }} />}
+              {/* Single sign-on: linked providers and the break-glass notice (not while access is blocked). */}
+              {/* Passkeys and security keys (account-keys module): count as a second factor, so shown even while blocked. */}
+              {!codes && <PasskeysCard onChange={changed} />}
+              {!blocked && !codes && <LinkedIdentitiesCard />}
             </div>
             <div className={`stack${codes ? ' adm-no-print' : ''}`}>
               <Card title="Password" actions={<Button size="sm" icon="key" onClick={() => setChanging(true)}>Change password</Button>}>
-                <p>{data.passwordChangedAt ? `Last changed ${formatDateTime(data.passwordChangedAt)}.` : 'No password has been set.'}</p>
+                <p>{data.passwordChangedAt ? `Last changed ${formatDateTime(data.passwordChangedAt)}.` : 'No password has been set. You sign in through a linked provider.'}</p>
                 <p className="muted">
                   At least {data.minLength} characters; a phrase of several words works well. No rules about symbols or capitals,
                   and no forced periodic change. Commonly used passwords are refused. Changing it signs you out everywhere else.
@@ -114,7 +121,7 @@ export function AccountSecurityPage() {
             </div>
           </div>
           {/* Not while access is blocked for want of a second factor: tokens are for people who can already work. */}
-          {!blocked && inRouter && !data.mfaEnrollmentBlocked && <div className={codes ? 'adm-no-print' : undefined}><MyTokensCard /></div>}
+          {!blocked && inRouter && !data.mfaEnrollmentBlocked && <div className={codes ? 'adm-no-print' : undefined}><MyTokensCard /><ConnectAssistantCard /></div>}
         </div>
       )}
       <ChangePasswordDialog open={changing} onClose={() => { setChanging(false); reload(); }} />

@@ -55,9 +55,9 @@ export function ReportView() {
   const result = run.data?.result;
   const runStatus = (run.error as ApiError | undefined)?.status;
 
-  const exportAs = (format: 'csv' | 'html') => (format === 'csv'
-    ? downloadFile(fileName(report.name, 'csv'), 'GET', `/api/reports/${report.id}/export?format=csv`)
-    : openDocument('GET', `/api/reports/${report.id}/export?format=html`)).catch((err) => toast.error(errorMessage(err)));
+  const exportAs = (format: 'csv' | 'xlsx' | 'pdf' | 'html') => (format === 'html'
+    ? openDocument('GET', `/api/reports/${report.id}/export?format=html`)
+    : downloadFile(fileName(report.name, format), 'GET', `/api/reports/${report.id}/export?format=${format}`)).catch((err) => toast.error(errorMessage(err)));
 
   async function remove() {
     setBusy(true);
@@ -76,8 +76,10 @@ export function ReportView() {
           <>
             {can('reports.export') && result && (
               <Menu label="Export" icon="download" align="end" items={[
-                { label: 'Spreadsheet file (CSV)', icon: 'download', onSelect: () => exportAs('csv') },
-                { label: 'Print-ready document', icon: 'file-text', onSelect: () => exportAs('html') },
+                { label: 'PDF', icon: 'file-text', onSelect: () => exportAs('pdf') },
+                { label: 'Excel (XLSX)', icon: 'download', onSelect: () => exportAs('xlsx') },
+                { label: 'CSV', icon: 'download', onSelect: () => exportAs('csv') },
+                { label: 'Print-ready page', icon: 'external', onSelect: () => exportAs('html'), separated: true },
               ]} />
             )}
             {can('reports.create') && <Button icon="calendar" onClick={() => setDialog('schedule')}>Schedule</Button>}

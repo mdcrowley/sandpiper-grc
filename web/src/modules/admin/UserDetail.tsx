@@ -8,6 +8,8 @@ import type { ListResult } from '../../core';
 import { Notice, RoleChips, UserStatus } from './common';
 import type { AdminUser, AuditEvent, Department, IssuedLink, RolesResponse } from './common';
 import { adminApi } from './reauth';
+import { PasskeysCard } from '../account-keys/PasskeysCard';
+import { UserSignInCard } from './UserSignIn';
 import { LinkIssued } from './Users';
 
 interface Pending { title: string; message: string; label: string; danger?: boolean; run: () => Promise<void> }
@@ -69,7 +71,8 @@ export function UserDetailPage() {
               </Notice>
             )}
             <DefinitionList items={[
-              { label: 'Password', value: user.has_password ? `Set ${formatDateTime(user.password_changed_at)}` : 'Not set yet' },
+              { label: 'Password', value: user.has_password ? `Set ${formatDateTime(user.password_changed_at)}` : user.identities ? 'None: signs in through a provider' : 'Not set yet' },
+              { label: 'Sign-in providers', value: user.identities ? `${user.identities} linked` : 'None linked' },
               { label: 'Second factor', value: user.totp_enabled ? <StatusChip color="green" label="Authenticator app" /> : <StatusChip color={needsFactor ? 'amber' : 'gray'} label={needsFactor ? 'Not set up, expected by a role' : 'Not set up'} /> },
               { label: 'Last sign-in', value: user.last_login_at ? formatDateTime(user.last_login_at) : 'Never' },
               { label: 'Active sessions', value: user.sessions },
@@ -118,6 +121,8 @@ export function UserDetailPage() {
               )}
             </div>
           </Card>
+          <PasskeysCard userId={user.id} />
+          <UserSignInCard user={user} onChanged={refresh} />
           <Card title="Recent account events" flush>
             {!auth.can('audit.view') ? <EmptyState icon="history" title="You need audit access to see events" />
               : events.error ? <ErrorState error={events.error} onRetry={events.reload} />

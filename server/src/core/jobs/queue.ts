@@ -1,0 +1,257 @@
+// The background job queue (E14-12): jobs are rows in `jobs`, worked through by a poller.
+//
+// A job is claimed with a conditional update that also sets a lease (`locked_until`), so two
+// processes sharing one database never run the same job, and a job whose process died is
+// claimed again once its lease runs out. A failure is retried after a wait that doubles each
+// time; after `max_attempts`, or on a `PermanentJobError`, the job is "dead" and waits for an
+// administrator (Administration > Background jobs). Recurring work is a row in `job_schedules`.
+import { randomBytes } from 'node:crypto';
+import { hostname } from 'node:os';
+import type { Db } from '../db.ts';
+import type { Row } from '../module.ts';
+
+export interface JobInfo {
+  id: string;
+  type: string;
+  /** 1 on the first run. */
+  attempt: number;
+  maxAttempts: number;
+}
+
+/** Does the work. Resolve with a small JSON value (kept as the job's result); throw to fail. */
+export type JobHandler = (payload: any, job: JobInfo) => Promise<unknown>;
+
+export interface HandlerOptions {
+  /** Attempts before the job is dead (default 5). */
+  maxAttempts?: number;
+  /** First wait after a failure, doubled each time, at most six hours (default 60). */
+  backoffSeconds?: number;
+  /** How long a run may hold the job before another poller may take it over (default 300). */
+  leaseSeconds?: number;
+}
+
+export interface EnqueueOptions {
+  /** Not before this time. */
+  runAt?: Date | string;
+  /** Not before this many milliseconds from now. */
+  delayMs?: number;
+  maxAttempts?: number;
+  backoffSeconds?: number;
+  /** At most one waiting or running job per key: a second enqueue with the same key is skipped. */
+  key?: string;
+}
+
+export interface ScheduleOptions {
+  /** The job type to queue (its handler must be registered). */
+  type: string;
+  /** Interval in milliseconds (at least one minute). */
+  every: number;
+  payload?: Row;
+  /** First run this long after the schedule is first created (default: one interval). */
+  firstRunInMs?: number;
+}
+
+/** Throw this from a handler when trying again cannot help: the job goes straight to dead. */
+export class PermanentJobError extends Error {
+  readonly permanent = true;
+}
+
+export interface JobQueue {
+  /** Registers the handler for a job type. Call it from a module's `register()`. */
+  register(type: string, handler: JobHandler, opts?: HandlerOptions): void;
+  /** Queues a job. Never throws for a duplicate `key`: `queued` is then false. */
+  enqueue(type: string, payload?: Row, opts?: EnqueueOptions): Promise<{ id: string | null; queued: boolean }>;
+  /** Creates or updates a recurring schedule (keeps its next run time when it already exists). */
+  schedule(name: string, opts: ScheduleOptions): Promise<void>;
+  /** Runs every job that is due (and queues due schedules). Returns how many ran. */
+  runDue(opts?: { limit?: number; types?: string[] }): Promise<number>;
+  /** Claims and runs one job now, whatever its run time, if it is waiting. Returns the row afterwards. */
+  runNow(id: string): Promise<Row | undefined>;
+  /** Job types with a handler in this process. */
+  types(): string[];
+  /** Starts the poller (the server does this when it starts listening). */
+  start(intervalMs?: number): void;
+  stop(): void;
+  readonly started: boolean;
+}
+
+const MAX_WAIT_SECONDS = 6 * 3600;
+const clip = (s: unknown, n = 2000) => String(s ?? '').slice(0, n);
+
+export function makeJobQueue(db: Db): JobQueue {
+  const handlers = new Map<string, { fn: JobHandler; opts: Required<HandlerOptions> }>();
+  const worker = `${hostname()}:${process.pid}:${randomBytes(3).toString('hex')}`;
+  let running = false;
+  let timer: NodeJS.Timeout | null = null;
+  let kick: NodeJS.Immediate | null = null;
+
+  const due = `((status in ('queued', 'failed') and run_at <= now()) or (status = 'running' and locked_until < now()))`;
+
+  async function finish(job: Row, outcome: { ok: true; result: unknown } | { ok: false; error: unknown }) {
+    if (outcome.ok) {
+      await db.query(
+        `update jobs set status = 'done', result = $2::jsonb, last_error = null, finished_at = now(), locked_by = null, locked_until = null
+         where id = $1 and locked_by = $3`,
+        [job.id, JSON.stringify(outcome.result ?? null), worker],
+      );
+      return;
+    }
+    const err = outcome.error as Error & { permanent?: boolean };
+    const message = clip(err?.message ?? err, 1000) || 'The job failed without saying why.';
+    const dead = err?.permanent === true || job.attempts >= job.max_attempts;
+    const wait = Math.min(MAX_WAIT_SECONDS, job.backoff_seconds * 2 ** Math.max(0, job.attempts - 1));
+    await db.query(
+      `update jobs set status = $2, last_error = $3, locked_by = null, locked_until = null,
+         finished_at = case when $2 = 'dead' then now() else null end,
+         run_at = case when $2 = 'dead' then run_at else now() + make_interval(secs => $4::int) end
+       where id = $1 and locked_by = $5`,
+      [job.id, dead ? 'dead' : 'failed', message, wait, worker],
+    );
+    if (dead) console.error(`[jobs] ${job.type} ${job.id} gave up after ${job.attempts} attempt(s): ${message}`);
+  }
+
+  async function claim(id: string, any = false): Promise<Row | undefined> {
+    const types = [...handlers.keys()];
+    return db.one<Row>(
+      `update jobs set status = 'running', attempts = attempts + 1, locked_by = $2, started_at = now(),
+         locked_until = now() + make_interval(secs => $3::int)
+       where id = $1 and type = any($4::text[]) and ${any ? `(status in ('queued', 'failed') or (status = 'running' and locked_until < now()))` : due}
+       returning *`,
+      [id, worker, 300, types],
+    );
+  }
+
+  async function execute(job: Row): Promise<void> {
+    const h = handlers.get(job.type);
+    if (!h) return; // cannot happen: claim only takes registered types
+    // The lease the handler asked for (claim used the default).
+    if (h.opts.leaseSeconds !== 300) {
+      await db.query('update jobs set locked_until = now() + make_interval(secs => $2::int) where id = $1 and locked_by = $3', [job.id, h.opts.leaseSeconds, worker]);
+    }
+    if (job.attempts > job.max_attempts) {
+      // Claimed again after its process stopped, with no attempts left.
+      await finish(job, { ok: false, error: Object.assign(new Error(clip(job.last_error) || 'The process running this job stopped before it finished.'), { permanent: true }) });
+      return;
+    }
+    try {
+      const result = await h.fn(job.payload ?? {}, { id: job.id, type: job.type, attempt: job.attempts, maxAttempts: job.max_attempts });
+      await finish(job, { ok: true, result });
+    } catch (error) {
+      await finish(job, { ok: false, error });
+    }
+  }
+
+  async function promoteSchedules(types: string[]) {
+    const rows = await db.query<Row>(
+      // As text: a JavaScript date would lose the microseconds the comparison below needs.
+      `select name, type, payload, every_seconds, next_run_at::text as next_at from job_schedules
+       where enabled and next_run_at <= now() and type = any($1::text[])`,
+      [types],
+    );
+    for (const s of rows) {
+      // Whoever moves next_run_at on queues the run; another process's update then matches nothing.
+      const won = await db.one(
+        `update job_schedules set next_run_at = now() + make_interval(secs => every_seconds), last_run_at = now(), updated_at = now()
+         where name = $1 and next_run_at = $2::timestamptz returning name`,
+        [s.name, s.next_at],
+      );
+      if (won) await queue.enqueue(s.type, s.payload ?? {}, { key: `schedule:${s.name}` }).then(async (r) => {
+        if (r.id) await db.query('update jobs set schedule = $2 where id = $1', [r.id, s.name]);
+      });
+    }
+  }
+
+  const queue: JobQueue = {
+    register(type, fn, opts = {}) {
+      if (!/^[a-z][a-z0-9_.-]{0,79}$/.test(type)) throw new Error(`Job type "${type}" must be lower case letters, digits, dots, dashes or underscores.`);
+      handlers.set(type, {
+        fn,
+        opts: {
+          maxAttempts: Math.max(1, Math.min(50, opts.maxAttempts ?? 5)),
+          backoffSeconds: Math.max(1, Math.min(MAX_WAIT_SECONDS, opts.backoffSeconds ?? 60)),
+          leaseSeconds: Math.max(10, Math.min(3600, opts.leaseSeconds ?? 300)),
+        },
+      });
+    },
+
+    async enqueue(type, payload = {}, opts = {}) {
+      const h = handlers.get(type)?.opts;
+      const runAt = opts.runAt ? new Date(opts.runAt) : new Date(Date.now() + Math.max(0, opts.delayMs ?? 0));
+      const row = await db.one<{ id: string }>(
+        `insert into jobs (type, payload, run_at, max_attempts, backoff_seconds, dedupe_key)
+         values ($1, $2::jsonb, $3, $4, $5, $6)
+         on conflict (dedupe_key) where dedupe_key is not null and status in ('queued', 'failed', 'running') do nothing
+         returning id`,
+        [type, JSON.stringify(payload ?? {}), runAt.toISOString(), opts.maxAttempts ?? h?.maxAttempts ?? 5,
+          opts.backoffSeconds ?? h?.backoffSeconds ?? 60, opts.key ?? null],
+      );
+      if (row && timer && !kick && runAt.getTime() <= Date.now()) {
+        // The poller is running: do not make a new job wait for the next tick.
+        kick = setImmediate(() => { kick = null; void queue.runDue().catch((err) => console.error('[jobs]', err)); });
+      }
+      return { id: row?.id ?? null, queued: Boolean(row) };
+    },
+
+    async schedule(name, opts) {
+      const every = Math.max(60, Math.round(opts.every / 1000));
+      const first = Math.max(0, Math.round((opts.firstRunInMs ?? opts.every) / 1000));
+      await db.query(
+        `insert into job_schedules (name, type, payload, every_seconds, next_run_at)
+         values ($1, $2, $3::jsonb, $4, now() + make_interval(secs => $5::int))
+         on conflict (name) do update set type = excluded.type, payload = excluded.payload, every_seconds = excluded.every_seconds,
+           next_run_at = least(job_schedules.next_run_at, now() + make_interval(secs => excluded.every_seconds)), updated_at = now()`,
+        [name, opts.type, JSON.stringify(opts.payload ?? {}), every, first],
+      );
+    },
+
+    async runDue(opts = {}) {
+      if (running) return 0;
+      running = true;
+      try {
+        const types = (opts.types ?? [...handlers.keys()]).filter((t) => handlers.has(t));
+        if (!types.length) return 0;
+        await promoteSchedules(types);
+        const ids = await db.query<{ id: string }>(
+          `select id from jobs where type = any($1::text[]) and ${due} order by run_at, created_at limit $2`,
+          [types, Math.max(1, Math.min(200, opts.limit ?? 25))],
+        );
+        let ran = 0;
+        for (const { id } of ids) {
+          const job = await claim(id);
+          if (!job) continue; // another poller took it
+          await execute(job);
+          ran += 1;
+        }
+        return ran;
+      } finally {
+        running = false;
+      }
+    },
+
+    async runNow(id) {
+      const job = await claim(id, true);
+      if (job) await execute(job);
+      return db.one<Row>('select * from jobs where id = $1', [id]);
+    },
+
+    types: () => [...handlers.keys()].sort(),
+
+    start(intervalMs = 10_000) {
+      if (timer) return;
+      const tick = () => { void queue.runDue().catch((err) => console.error('[jobs] poll failed:', err)); };
+      timer = setInterval(tick, Math.max(1000, intervalMs));
+      timer.unref();
+      setTimeout(tick, 2000).unref();
+    },
+
+    stop() {
+      if (timer) clearInterval(timer);
+      if (kick) clearImmediate(kick);
+      timer = null;
+      kick = null;
+    },
+
+    get started() { return timer !== null; },
+  };
+  return queue;
+}

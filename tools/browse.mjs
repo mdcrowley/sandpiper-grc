@@ -1,4 +1,4 @@
-// Drives headless Edge over the DevTools protocol against a scratch server:
+// Drives headless Edge (or Chrome/Chromium) over the DevTools protocol against a scratch server:
 // visits each route signed in, records script errors and failed API calls, saves screenshots.
 //
 // Usage:
@@ -15,6 +15,8 @@
 //                           window.__grcRoutes to an array of every module route path (waited for,
 //                           up to 10 s). Paths without ":" or "*" are visited; the rest are listed
 //                           as skipped. Wins over ROUTES.
+//   --insecure-tls          accept an untrusted (self-signed) certificate on an https:// baseUrl, both
+//                           here and in the browser. For local testing only
 //
 // Environment:
 //   ROUTES=/a,/b     visit only these routes
@@ -28,6 +30,11 @@
 //   HEIGHT           window height in pixels (default 900); a tall one shows a long page in one shot
 //   PDF=1            the route tour also saves each page as a paginated PDF beside its screenshot
 //   SCRIPT=<file>    run scripted steps in place of the route tour (see below)
+//   VIRTUAL_AUTHENTICATOR=1
+//                    give the browser a software passkey device (DevTools WebAuthn domain: platform
+//                    authenticator, stores passkeys, user verified, presence confirmed automatically),
+//                    so scripts can add a passkey and sign in with it. Use a host name base URL such as
+//                    http://localhost:<port>: browsers refuse passkeys at an IP address
 //
 // Route tour. For each route: load it, wait WAIT ms and then until no ".route-loading" element
 // is left (shown while a lazily loaded page arrives; up to 10 s), then report script errors,
@@ -67,10 +74,11 @@
 // Script errors, failed API calls and failed steps are listed at the end.
 import { spawn } from 'node:child_process';
 import { createHmac } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { findBrowser } from './e2e/lib/browser.mjs';
 
-const flags = { print: false, as2: false, allRoutes: false, user2: null };
+const flags = { print: false, as2: false, allRoutes: false, user2: null, insecureTls: false };
 const positional = [];
 {
   const argv = process.argv.slice(2);
@@ -79,6 +87,7 @@ const positional = [];
     if (a === '--print') flags.print = true;
     else if (a === '--as2') flags.as2 = true;
     else if (a === '--all-routes') flags.allRoutes = true;
+    else if (a === '--insecure-tls') flags.insecureTls = true;
     else if (a === '--user2') flags.user2 = argv[++i];
     else if (a.startsWith('--user2=')) flags.user2 = a.slice('--user2='.length);
     else if (a.startsWith('--')) throw new Error(`unknown flag ${a}`);
@@ -94,6 +103,8 @@ const user2 = flags.user2 ? flags.user2.slice(0, flags.user2.indexOf(':')) : pro
 const pass2 = flags.user2 ? flags.user2.slice(flags.user2.indexOf(':') + 1) : process.env.PASS2;
 if (flags.user2 && !flags.user2.includes(':')) throw new Error('--user2 takes name:password');
 mkdirSync(outDir, { recursive: true });
+// A self-signed test certificate: accept it here (sign-in and look-ups) and in the browser.
+if (flags.insecureTls) process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 // An account with a second factor also needs a code: `secret` is its authenticator key (base32,
 // the code is worked out here) and `code` a ready-made code, for example a recovery code.
@@ -135,10 +146,10 @@ let routes = flags.allRoutes ? [] : process.env.ROUTES ? process.env.ROUTES.spli
   '/admin/users', '/admin/roles', '/admin/lists', '/admin/settings', '/admin/audit', '/account/security',
 ];
 
-const edge = ['C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', 'C:/Program Files/Microsoft/Edge/Application/msedge.exe'];
-const exe = edge.find(existsSync);
+// Edge, Chrome or Chromium on Windows, macOS or Linux (or E2E_BROWSER): the same search as the browser tests.
+const exe = findBrowser();
 const port = Number(process.env.DEBUG_PORT ?? 9333);
-const proc = spawn(exe, ['--headless=new', `--remote-debugging-port=${port}`, `--user-data-dir=${join(outDir, 'profile')}`, '--no-first-run', '--disable-gpu', 'about:blank'], { stdio: 'ignore' });
+const proc = spawn(exe, ['--headless=new', `--remote-debugging-port=${port}`, `--user-data-dir=${join(outDir, 'profile')}`, '--no-first-run', '--disable-gpu', ...(flags.insecureTls ? ['--ignore-certificate-errors'] : []), 'about:blank'], { stdio: 'ignore' });
 
 let ws;
 for (let i = 0; i < 40; i++) {
@@ -166,6 +177,15 @@ const settle = Number(process.env.WAIT ?? 2800);
 const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
 const { sessionId: s } = await send('Target.attachToTarget', { targetId, flatten: true });
 for (const d of ['Runtime', 'Page', 'Network', 'Log']) await send(`${d}.enable`, {}, s);
+// VIRTUAL_AUTHENTICATOR=1: a software passkey device for WebAuthn (DevTools "WebAuthn" domain).
+if (process.env.VIRTUAL_AUTHENTICATOR === '1') {
+  await send('WebAuthn.enable', { enableUI: false }, s);
+  const added = await send('WebAuthn.addVirtualAuthenticator', { options: {
+    protocol: 'ctap2', transport: 'internal', hasResidentKey: true, hasUserVerification: true,
+    isUserVerified: true, automaticPresenceSimulation: true,
+  } }, s);
+  if (!added.authenticatorId) throw new Error(`the browser did not add a virtual authenticator: ${JSON.stringify(added)}`);
+}
 
 const applyViewport = () => send('Emulation.setDeviceMetricsOverride', { width: Number(width), height: Number(process.env.HEIGHT ?? 900), deviceScaleFactor: 1, mobile: false }, s);
 /** Saves the page as <name>.pdf, paginated as the browser's print window would produce it. */

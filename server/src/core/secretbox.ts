@@ -1,6 +1,7 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { parseKey, resolveSecretKey } from './secretkey.ts';
+
+export { parseKey };
 
 /**
  * Field-level encryption for secrets kept in the database (authenticator keys).
@@ -10,15 +11,16 @@ import { dirname, join, resolve } from 'node:path';
  * "totp:<user id>") is authenticated with the value, so a ciphertext copied onto another
  * row does not decrypt.
  *
- * The key comes from, in order:
+ * The key comes from, in order (see secretkey.ts):
  *   1. GRC_SECRET_KEY            - 32 bytes as 64 hex characters or base64
  *   2. GRC_SECRET_KEY_FILE       - path of a file holding the same
- *   3. <data folder>/secret.key  - generated on first start
- * GRC_SECRET_KEY_PREVIOUS (comma-separated, same format) lists retired keys: values written
+ *   3. <data folder>.secret.key  - beside (not inside) the data folder, generated on first start
+ * Retired keys (GRC_SECRET_KEY_PREVIOUS, comma-separated, and <key file>.previous): values written
  * with them still decrypt, and are re-encrypted with the current key at start-up.
  */
 
 const PREFIX = 'enc:v1:';
+/** The key file's name inside the data folder in installations from before E02-16 (moved out at start-up). */
 export const KEY_FILE_NAME = 'secret.key';
 
 export interface SecretBox {
@@ -31,13 +33,6 @@ export interface SecretBox {
 }
 
 export const isEncrypted = (stored: string) => stored.startsWith('enc:');
-
-export function parseKey(text: string): Buffer {
-  const t = text.trim();
-  const key = /^[0-9a-fA-F]{64}$/.test(t) ? Buffer.from(t, 'hex') : Buffer.from(t, 'base64');
-  if (key.length !== 32) throw new Error('The secret key must be 32 bytes, given as 64 hex characters or as base64.');
-  return key;
-}
 
 function seal(key: Buffer, plain: string, context: string): string {
   const iv = randomBytes(12);
@@ -77,16 +72,16 @@ export function makeSecretBox(key: Buffer, previous: Buffer[] = [], source: Secr
   };
 }
 
-/** Loads the key for a data folder, creating the key file on first start. `memory` gets a throwaway key. */
+/**
+ * Loads the key for a data folder (secretkey.ts: from the environment, or a key file kept beside the
+ * data folder, created on first start; an old key inside the data folder is moved out). `memory`
+ * gets a throwaway key. Says at start-up where the key came from and anything that needs attention.
+ */
 export function loadSecretBox(dataDir: string): SecretBox {
-  const previous = String(process.env.GRC_SECRET_KEY_PREVIOUS ?? '').split(',').filter((s) => s.trim()).map(parseKey);
-  if (process.env.GRC_SECRET_KEY) return makeSecretBox(parseKey(process.env.GRC_SECRET_KEY), previous, 'environment');
-  if (dataDir === 'memory' && !process.env.GRC_SECRET_KEY_FILE) return makeSecretBox(randomBytes(32), previous, 'memory');
-  const file = process.env.GRC_SECRET_KEY_FILE ? resolve(process.env.GRC_SECRET_KEY_FILE) : join(dataDir, KEY_FILE_NAME);
-  if (!existsSync(file)) {
-    mkdirSync(dirname(file), { recursive: true });
-    // `wx`: never overwrite a key that appeared in the meantime.
-    writeFileSync(file, `${randomBytes(32).toString('hex')}\n`, { flag: 'wx', mode: 0o600 });
+  const found = resolveSecretKey(dataDir);
+  if (found.source !== 'memory') {
+    for (const note of found.notes) console.log(`[secret key] ${note}`);
+    for (const warning of found.warnings) console.error(`[secret key] ${warning}`);
   }
-  return makeSecretBox(parseKey(readFileSync(file, 'utf8')), previous, 'file');
+  return makeSecretBox(found.key, found.previous, found.source);
 }

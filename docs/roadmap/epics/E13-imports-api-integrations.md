@@ -18,8 +18,10 @@ the application in a documented, authenticated way.
 - The application makes no outbound connections unless an administrator switches on
   `integrations.outbound_enabled` and lists the hosts in `integrations.allowed_hosts`;
   webhooks (E13-06) are the only user of that today.
-- Examples: `examples/api-token.ps1` (calling the API with a token) and
-  `examples/webhook-receiver.mjs` (checking a webhook signature).
+- Examples: `examples/api-token.ps1` (calling the API with a token),
+  `examples/api-client.mjs` (a dependency-free Node.js client) and
+  `examples/webhook-receiver.mjs` (checking a webhook signature). Integration guide:
+  `docs/api.md`.
 
 ## Issues
 
@@ -28,12 +30,21 @@ the application in a documented, authenticated way.
 | E13-01 | Asset CSV import with mapping and dry run | done | P1 |
 | E13-02 | Asset JSON ingest | done | P2 |
 | E13-03 | Delimited seed files for first load | done | P2 |
-| E13-04 | Spreadsheet (XLSX) import | open | P3 |
+| E13-04 | Spreadsheet (XLSX) import | done | P3 |
 | E13-05 | OpenAPI document | done | P2 |
 | E13-06 | Webhooks | in progress | P3 |
-| E13-07 | CSV import for other record types | open | P2 |
+| E13-07 | CSV import for other record types | done | P2 |
 | E13-08 | Webhook address checks after name resolution | open | P3 |
-| E13-09 | Describe every module's hand-written routes | open | P3 |
+| E13-09 | Describe every module's hand-written routes | done | P3 |
+| E13-10 | Import follow-ups | open | P3 |
+| E13-11 | Stable versioned base path `/api/v1` | done | P2 |
+| E13-12 | ETag and If-Match optimistic concurrency | done | P2 |
+| E13-13 | Idempotency-Key on creates | done | P2 |
+| E13-14 | Request id on every answer and in audit events | in progress | P2 |
+| E13-15 | Paging links and the error envelope everywhere | done | P3 |
+| E13-16 | Rate-limit headers on token requests | done | P3 |
+| E13-17 | API reference page and integration guide | done | P2 |
+| E13-18 | Capability scopes for tokens (`mcp.use`) | done | P2 |
 
 ---
 
@@ -90,15 +101,17 @@ seed folder as delimited files and load them with one command.
 
 ### E13-04 Spreadsheet (XLSX) import
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 As an agent, I upload a spreadsheet file directly instead of saving it as CSV first.
 
 **Acceptance criteria**
 
-- [ ] The import screen accepts `.xlsx` and lets me choose a sheet
-- [ ] Typed cells (dates, numbers) are read correctly
-- [ ] Everything after reading the file is shared with the CSV import
+- [x] The import screen accepts `.xlsx` and lets me choose a sheet
+- [x] Typed cells (dates, numbers) are read correctly
+- [x] Everything after reading the file is shared with the CSV import
+
+**Implemented in:** `server/src/core/import/xlsx.ts` (a reader on `fflate`: shared and inline strings, number formats that are dates, size limits against oversized archives), `read.ts`. The asset screen (E13-01) still takes CSV only; the generic import (E13-07) takes both, assets included. Tests: `server/src/core/import/import.test.ts`, `server/src/core/export/export.test.ts` (round trip).
 
 ### E13-05 OpenAPI document
 
@@ -163,18 +176,30 @@ example a ticket is created or a notification clock turns red).
 
 ### E13-07 CSV import for other record types
 
-**Status:** open · **Priority:** P2 · **Type:** feature
+**Status:** done · **Priority:** P2 · **Type:** feature
 
 As a user, I can import systems, vendors, contracts, tickets, risks and other record
 types from CSV through the same mapping and dry-run screen that assets have.
 
 **Acceptance criteria**
 
-- [ ] The importer is generalised to any registered record type
-- [ ] Each list page offers "Import" to people who can create that type
-- [ ] Validation, hooks and audit run exactly as for records created by hand
-- [ ] A match key can be chosen for updating existing rows
-- [ ] Restricted types need the same permissions as creating them by hand
+- [x] The importer is generalised to any registered record type
+- [x] Each list page offers "Import" to people who can create that type
+- [x] Validation, hooks and audit run exactly as for records created by hand (the check runs the engine's validation; hooks run on the real import)
+- [x] A match key can be chosen for updating existing rows (create, update only, or update and create)
+- [x] Restricted types need the same permissions as creating them by hand
+- [x] Column mapping suggested by label; values of lists, people and records matched by value, label, user name, email, reference or title, with a screen to map what matched nothing
+- [x] Duplicates in the file and against existing records (that the person can see) are skipped and reported; per-row results; import history from the audit log; 5 MB, 5,000 rows, 200 columns
+
+**Implemented in:** `server/src/core/import/` (`read.ts`, `service.ts`, `routes.ts`: `GET /api/import/:type/fields`, `GET /api/import/:type/template`, `POST /api/import/:type/read`, `POST /api/import/:type`, `GET /api/import/history?type=`), registered from `core/resource.ts`; `web/src/core/ImportWizard.tsx`, `ImportWizardParts.tsx`, `ImportWizard.css`, `ResourceList.tsx` (Import button, `?import=1`). The asset importer (`inventory/importer.ts`) stays as it is. Tests: `server/src/core/import/import.test.ts`.
+
+### E13-10 Import follow-ups
+
+**Status:** open · **Priority:** P3 · **Type:** improvement
+
+- [ ] Run `beforeCreate`/`beforeUpdate` hooks in the check without writing (today a hook's refusal shows only on the real import)
+- [x] Describe the import and fact-sheet routes for the OpenAPI document (`core/export/docs.ts`, registered from `core/apidocs.ts`)
+- [ ] Let the asset screen delegate to the generic import once it can express the asset-specific checks
 
 ### E13-08 Webhook address checks after name resolution
 
@@ -192,7 +217,7 @@ checked against the host name only. Found while building E13-06.
 
 ### E13-09 Describe every module's hand-written routes
 
-**Status:** open · **Priority:** P3 · **Type:** docs
+**Status:** done · **Priority:** P3 · **Type:** docs
 
 As an integrator, every route in `/api/openapi.json` has a summary and its parameters.
 Core and the admin module describe theirs; other modules' hand-written routes appear
@@ -200,5 +225,109 @@ marked `x-undocumented` until each module calls `ctx.describeRoute({...})` besid
 
 **Acceptance criteria**
 
-- [ ] Each module describes its hand-written routes
-- [ ] A test lists the routes still undocumented, and the list only shrinks
+- [x] Each module's hand-written routes are described (about 320 routes of 14 modules), with
+  tag, permission, query parameters and request and response schemas, in central tables
+  (`server/src/core/api/docs/<module>.ts`, written in the short schema notation of
+  `core/api/shape.ts`). A module's own `ctx.describeRoute` replaces its entry there, so owners
+  can move descriptions beside their routes at any time
+- [x] A test fails when any registered route is undescribed, with every module loaded or any
+  subset (`core/api/coverage.test.ts`; allow-list `INTENTIONALLY_UNDOCUMENTED`, empty), and the
+  whole document passes a structure check (tags, unique operation ids, path parameters,
+  references: `core/api/validate.ts`)
+- [x] Record schemas cover fields by type, `_display`, `_tags` and custom fields `cf_*`; list
+  envelopes (`<Type>Page`), `Stats`, `Error`, and the CSV, XLSX and PDF export variants
+
+**Implemented in:** `server/src/core/api/docs/*`, `shape.ts`, `schemas.ts`, `validate.ts`,
+`server/src/core/openapi.ts`, `server/src/core/apidocs.ts`; `openapi-cli.ts` checks the
+structure before writing.
+
+### E13-11 Stable versioned base path `/api/v1`
+
+**Status:** done · **Priority:** P2 · **Type:** feature
+
+As an integrator, I call a documented, versioned path that will not change under me.
+
+**Acceptance criteria**
+
+- [x] Every `/api/...` route of core and every module is also served at `/api/v1/...`,
+  implemented once (`core/api/versioning.ts`: an `onRoute` alias and an `onRequest` rewrite
+  so authentication, token rules, module hooks and audit see one path); `/api` stays for the
+  web application
+- [x] `GET /api/v1/openapi.json` describes the v1 paths; `openapi-cli.ts` writes them by
+  default (`--unversioned` for `/api`)
+- [x] Compatibility promise documented (additive only within v1); deprecations announced with
+  `Deprecation`, `Sunset` and `Link` headers and `deprecated: true` in the document
+  (`core/api/deprecations.ts`)
+
+### E13-12 ETag and If-Match optimistic concurrency
+
+**Status:** done · **Priority:** P2 · **Type:** feature
+
+- [x] One record (GET, POST, PATCH answers) carries `ETag`; PATCH and DELETE with `If-Match`
+  answer 409 `version_conflict` (with the current `ETag`) when the record changed; without
+  the header nothing changes for the web application
+- [x] Writes to one record are taken one at a time in the process, so the check and the write
+  cannot interleave (`core/api/conventions.ts`)
+
+### E13-13 Idempotency-Key on creates
+
+**Status:** done · **Priority:** P2 · **Type:** feature
+
+- [x] A create with `Idempotency-Key` is stored for 24 hours (table `api_idempotency_keys`,
+  migration `core/api/migrations/001_idempotency.sql`, scope `core.api`); a repeat replays the
+  first answer with `Idempotent-Replayed: true`; a different body is 422
+  `idempotency_key_reused`; a running one 409 `idempotency_in_progress`; refusals are not stored
+- [x] Keys belong to the user and token (or session) that sent them
+
+### E13-14 Request id on every answer and in audit events
+
+**Status:** in progress · **Priority:** P2 · **Type:** feature
+
+- [x] Every answer carries `X-Request-Id` (the caller's when it is sensible, else a UUID),
+  available to code as `req.requestId`
+- [ ] Audit events record the request id: needs a `request_id` column on `audit_events` (a new
+  core migration) and `req?.requestId` in `makeAudit` (`core/services.ts`), owned by core
+
+### E13-15 Paging links and the error envelope everywhere
+
+**Status:** done · **Priority:** P3 · **Type:** improvement
+
+- [x] Any `{ rows, total, page, pageSize }` answer carries `Link` (first, prev, next, last) and
+  `X-Total-Count`, from the path the caller used; keyset paging guidance in `docs/api.md`
+- [x] Every `/api` error answer has `{ error: { code, message } }`; one without it gets it
+  (answers outside `/api`, such as `/mcp`, are left alone)
+
+### E13-16 Rate-limit headers on token requests
+
+**Status:** done · **Priority:** P3 · **Type:** improvement
+
+- [x] Token requests carry `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset` and
+  `RateLimit-Policy`; a 429 carries `Retry-After`. The count mirrors the token limiter in
+  `core/tokens.ts` (same clock-minute window)
+
+### E13-17 API reference page and integration guide
+
+**Status:** done · **Priority:** P2 · **Type:** docs
+
+- [x] `/help/api` reads the v1 document: grouped by tag with a contents list, search (also
+  in descriptions), expandable schemas, parameters given by reference, response headers,
+  copyable curl and PowerShell examples with a `GRC_TOKEN` placeholder; documentation only,
+  nothing is sent (`web/src/modules/help/ApiReference.tsx`, `ApiExamples.tsx`,
+  `exampleRequests.ts`)
+- [x] `docs/api.md`: tokens and scopes, base URL and versioning, paging, filtering, sorting,
+  search, exports, imports, webhooks, errors, request ids, rate limits, idempotency,
+  concurrency, restricted records, and five worked integrations
+- [x] `examples/api-client.mjs` (dependency-free Node.js client); `examples/api-token.ps1` on v1
+
+### E13-18 Capability scopes for tokens
+
+**Status:** done · **Priority:** P2 · **Type:** feature
+
+Found while building the MCP endpoint: `mcp.use` is not a permission any role grants, so only
+administrators could put it in a token.
+
+- [x] Scope families (`SCOPE_FAMILIES`, `registerScopeFamily`, `scopeGrantable` in
+  `core/tokens.ts`): `mcp.use` (and `mcp.*`) may be added by anyone holding a permission; they
+  add no access to records; `GET /api/me/tokens` lists them in `scopeFamilies`
+- [ ] The token screen offers `scopeFamilies` (web, admin module) and the MCP module may stop
+  issuing its own tokens (`POST /api/mcp/tokens`)

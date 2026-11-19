@@ -88,6 +88,10 @@ export interface DocSection {
   markdown?: string;
   /** Shown instead of content: "not available" and the like. */
   note?: string;
+  /** The report's own filters in words ("Status is any of New, Open"). */
+  filters?: string[];
+  /** Dashboards: the band of the grid the widget sits in; the PDF starts a new page for each band. */
+  group?: number;
 }
 export interface DocInput {
   title: string;
@@ -127,7 +131,7 @@ function table(r: ReportResult): string {
 }
 
 function section(s: DocSection): string {
-  const head = `<h2>${esc(s.title)}</h2>${s.description ? `<p class="lede">${esc(s.description)}</p>` : ''}`;
+  const head = `<h2>${esc(s.title)}</h2>${s.description ? `<p class="lede">${esc(s.description)}</p>` : ''}${s.filters?.length ? `<p class="meta">Filters: ${esc(s.filters.join('; '))}</p>` : ''}`;
   if (s.note) return `<section>${head}<p class="note">${esc(s.note)}</p></section>`;
   if (s.markdown !== undefined) return `<section class="text">${head}${markdownToHtml(s.markdown)}</section>`;
   const r = s.result;

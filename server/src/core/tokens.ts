@@ -61,6 +61,48 @@ export function scopeCovered(scope: string, grants: string[]): boolean {
   return grants.some((g) => common(scope, g) === scope);
 }
 
+/**
+ * Scope families that are not permissions (docs/api.md, "Scopes"): capabilities a token may be
+ * given, such as `mcp.use` (the token may be used at the MCP endpoint). No role grants them, so
+ * `scopeCovered` alone would refuse them to everyone but administrators holding `*`. Each says
+ * who may put it in a token: `allowed(grants)` sees the person's own permissions. What the token
+ * can then do is still limited to its permission scopes and its owner's grants.
+ */
+export interface ScopeFamily { description: string; allowed: (grants: string[]) => boolean }
+export const SCOPE_FAMILIES = new Map<string, ScopeFamily>([
+  // Anyone who holds any permission may let a token reach the MCP endpoint; an administrator
+  // still has to switch the endpoint on, and every tool call is checked against the token's
+  // permission scopes and the owner's grants.
+  ['mcp.use', { description: 'Use this token at the MCP endpoint (/mcp)', allowed: (grants) => grants.length > 0 }],
+]);
+
+/** Adds a scope family (a module offering a capability scope). */
+export function registerScopeFamily(scope: string, family: ScopeFamily): void {
+  if (!SCOPE_RE.test(scope) || scope.endsWith('.*') || scope === '*') throw new Error(`Scope family "${scope}" must look like "<area>.<capability>"`);
+  SCOPE_FAMILIES.set(scope, family);
+}
+
+/**
+ * Whether a person may put a scope in a token: a permission they hold, or a scope family they are
+ * allowed (`mcp.use`; `mcp.*` when every `mcp.` family is allowed and no permission is needed).
+ */
+export function scopeGrantable(scope: string, grants: string[]): boolean {
+  if (scopeCovered(scope, grants)) return true;
+  const family = SCOPE_FAMILIES.get(scope);
+  if (family) return family.allowed(grants);
+  if (scope.endsWith('.*') && scope !== '*') {
+    const prefix = scope.slice(0, -1);
+    const members = [...SCOPE_FAMILIES.entries()].filter(([s]) => s.startsWith(prefix));
+    const permissionsOfArea = grants.some((g) => g.startsWith(prefix) || g === '*');
+    return members.length > 0 && !permissionsOfArea && members.every(([, f]) => f.allowed(grants));
+  }
+  return false;
+}
+
+/** The scope families a person may put in a token, for the token screen. */
+export const grantableFamilies = (grants: string[]) =>
+  [...SCOPE_FAMILIES.entries()].filter(([, f]) => f.allowed(grants)).map(([scope, f]) => ({ scope, description: f.description }));
+
 export interface ApiTokenInfo { id: string; name: string }
 
 interface Deps {
@@ -131,6 +173,8 @@ export function registerTokens(app: FastifyInstance, deps: Deps) {
     maxDays: await maxDays(),
     // What this person may put in a token today.
     grants: req.user!.permissions,
+    // Capability scopes (not permissions) they may add, such as `mcp.use`.
+    scopeFamilies: grantableFamilies(req.user!.permissions),
   }));
 
   app.post('/api/me/tokens', async (req, reply) => {
@@ -146,7 +190,7 @@ export function registerTokens(app: FastifyInstance, deps: Deps) {
     if (!scopes.length) fields.scopes = 'Choose at least one permission for the token.';
     else if (scopes.some((s) => !SCOPE_RE.test(s))) fields.scopes = 'Permissions look like "tickets.view", "tickets.*" or "*".';
     else {
-      const beyond = scopes.filter((s) => !scopeCovered(s, me.permissions));
+      const beyond = scopes.filter((s) => !scopeGrantable(s, me.permissions));
       if (beyond.length) fields.scopes = `You do not hold these permissions yourself: ${beyond.join(', ')}.`;
     }
     const limit = await maxDays();

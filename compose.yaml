@@ -1,0 +1,93 @@
+# Sandpiper GRC with Docker Compose (or Podman Compose). Two ways to run, chosen by profile:
+#
+#   docker compose --profile embedded up -d   the application alone, embedded database in its volume
+#   docker compose --profile server up -d     the application and a PostgreSQL server
+#
+# Before the first start, create the secret files (see docs/installation.md, "Containers"):
+#   deploy/secrets/secret_key.txt    64 hex characters: openssl rand -hex 32
+#   deploy/secrets/db_password.txt   the database password (server profile only)
+#
+# The application is published on 127.0.0.1:8080 over plain HTTP: put a reverse proxy that
+# terminates HTTPS in front of it (docs/installation.md, "Reverse proxy"), or give it a
+# certificate (GRC_TLS_CERT / GRC_TLS_KEY) and publish it on another address.
+
+x-app: &app
+  build: .
+  image: sandpiper-grc:local
+  restart: unless-stopped
+  init: true
+  read_only: true
+  tmpfs:
+    - /tmp
+  cap_drop: [ALL]
+  security_opt:
+    - no-new-privileges:true
+  ports:
+    - "127.0.0.1:8080:8080"
+  secrets:
+    - grc_secret_key
+  environment: &app-env
+    GRC_SECRET_KEY_FILE: /run/secrets/grc_secret_key
+    # Inside the container the server listens on every interface of its own network, so it must
+    # be told that HTTPS is handled in front of it. Remove this when you set GRC_TLS_CERT/KEY.
+    GRC_ALLOW_INSECURE: "1"
+    # Docker's own networks: the proxy reaches the application from one of these.
+    GRC_TRUST_PROXY: private
+    # Add your own settings here, for example GRC_TIMEZONE (an IANA name) and GRC_CURRENCY.
+
+services:
+  app-embedded:
+    <<: *app
+    profiles: [embedded]
+    volumes:
+      - grc-data:/var/lib/sandpiper
+
+  app:
+    <<: *app
+    profiles: [server]
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - grc-files:/var/lib/sandpiper
+    secrets:
+      - grc_secret_key
+      - db_password
+    environment:
+      <<: *app-env
+      GRC_DATABASE_URL: postgres://grc@db:5432/grc
+      GRC_DATABASE_PASSWORD_FILE: /run/secrets/db_password
+      # The database is on the compose network only. Use require or verify for a server elsewhere.
+      GRC_DATABASE_SSL: "off"
+
+  db:
+    image: postgres:17-bookworm
+    profiles: [server]
+    restart: unless-stopped
+    shm_size: 128mb
+    environment:
+      POSTGRES_USER: grc
+      POSTGRES_DB: grc
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+      # Byte-order sorting and UTF-8, the same as the embedded database.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale-provider=builtin --locale=C.UTF-8"
+    secrets:
+      - db_password
+    volumes:
+      - grc-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U grc -d grc"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+secrets:
+  grc_secret_key:
+    file: ./deploy/secrets/secret_key.txt
+  db_password:
+    file: ./deploy/secrets/db_password.txt
+
+volumes:
+  grc-data:
+  grc-files:
+  grc-pg:

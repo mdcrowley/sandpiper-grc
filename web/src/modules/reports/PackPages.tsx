@@ -7,7 +7,7 @@ import {
   ResourceList, Select, TextArea, TextField, api, errorMessage, formatDate, formatDateTime, useAuth, useFetch, useToast,
 } from '../../core';
 import type { ApiError, ListResult } from '../../core';
-import { openDocument } from './data';
+import { downloadFile, fileName, openDocument } from './data';
 import { ShareDialog, useCanChange } from './dialogs';
 import { ResultView } from './ResultView';
 import type { ChartSpec, PackSection, ReportDefinition, ReportPack, ReportResult, Snapshot } from './types';
@@ -79,7 +79,13 @@ export function PackPage() {
         actions={(
           <>
             <Button icon="file-text" onClick={() => window.print()}>Print</Button>
-            {can('reports.export') && <Button icon="download" onClick={() => openDocument('GET', `/api/report-packs/${p.id}/export`).catch((err) => toast.error(errorMessage(err)))}>Print-ready document</Button>}
+            {can('reports.export') && (
+              <Menu label="Download" icon="download" align="end" items={[
+                { label: 'PDF', icon: 'file-text', onSelect: () => downloadFile(fileName(p.cover_title || p.name, 'pdf'), 'GET', `/api/report-packs/${p.id}/export?format=pdf`).catch((err) => toast.error(errorMessage(err))) },
+                { label: 'Excel (XLSX)', icon: 'download', onSelect: () => downloadFile(fileName(p.cover_title || p.name, 'xlsx'), 'GET', `/api/report-packs/${p.id}/export?format=xlsx`).catch((err) => toast.error(errorMessage(err))) },
+                { label: 'Print-ready page', icon: 'external', separated: true, onSelect: () => openDocument('GET', `/api/report-packs/${p.id}/export`).catch((err) => toast.error(errorMessage(err))) },
+              ]} />
+            )}
             {can('reports.export') && <Button variant="primary" icon="check" loading={producing} onClick={produce}>Produce dated copy</Button>}
             <Menu label="More" icon="more" iconOnly align="end" items={[
               ...(canChange ? [{ label: 'Edit sections', icon: 'edit' as const, onSelect: () => setEdit(true) }, { label: 'Share…', icon: 'users' as const, onSelect: () => setDialog('share') }] : []),

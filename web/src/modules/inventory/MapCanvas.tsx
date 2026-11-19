@@ -24,7 +24,16 @@ interface View { k: number; x: number; y: number }
 const MIN_K = 0.15;
 const MAX_K = 2.5;
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
-const short = (s: string, n = 22) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+/**
+ * Shortens a label to n characters, at a word boundary where one is near, so the words drawn on a
+ * node are whole words of its accessible name (speech users say what they see).
+ */
+const short = (s: string, n = 22) => {
+  if (s.length <= n) return s;
+  const cut = s.slice(0, n - 1);
+  const space = cut.lastIndexOf(' ');
+  return `${space >= n / 2 ? cut.slice(0, space) : cut}…`;
+};
 
 export function MapCanvas({ layout, label, selectedId, onSelect, impacted, centre, full, onToggleFull }: MapCanvasProps) {
   const ref = useRef<HTMLDivElement>(null);
@@ -142,7 +151,8 @@ export function MapCanvas({ layout, label, selectedId, onSelect, impacted, centr
       onKeyDown={onKeyDown}
     >
       <svg
-        width="100%" height="100%" role="img" aria-label={label}
+        // A group, not an image: its nodes are buttons, and an image may not hold controls.
+        width="100%" height="100%" role="group" aria-label={label}
         onPointerDown={onPointerDown}
         onClick={() => { if (!wasDrag()) onSelect(null); }}
       >
@@ -192,7 +202,8 @@ export function MapCanvas({ layout, label, selectedId, onSelect, impacted, centr
               <g
                 key={n.id} className={nodeClass(n)} transform={`translate(${n.x} ${n.y})`}
                 tabIndex={0} role="button" aria-pressed={n.id === selectedId}
-                aria-label={`${typeInfo(n.type).label}: ${n.label}${hot?.has(n.id) ? ', affected' : ''}`}
+                // The name starts with the label drawn on the node, so speech users can say what they see.
+                aria-label={`${n.label} (${typeInfo(n.type).label.toLowerCase()})${hot?.has(n.id) ? ', affected' : ''}`}
                 onClick={(e) => { e.stopPropagation(); if (!wasDrag()) onSelect(n.id === selectedId ? null : n.id); }}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onSelect(n.id === selectedId ? null : n.id); } }}
                 onPointerEnter={() => setHoverId(n.id)} onPointerLeave={() => setHoverId((h) => (h === n.id ? null : h))}

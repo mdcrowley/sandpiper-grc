@@ -101,7 +101,7 @@ export function registerReports(ctx: ModuleContext) {
       perms: ['assets.view'], recordType: 'asset', group: 'Assets', kind: 'issues',
       list: async () => `/assets?${await heldFilter()}&f.support_end.lt=${todayInZone()}&sort=support_end&dir=asc`,
       columns: [...assetColumns, { key: 'support_end', label: 'Support ended', type: 'date' }, { key: 'days_past', label: 'Days past', type: 'number' }],
-      run: async (user) => (await assetRows(user, `${ACTIVE} and a.support_end < current_date`, 'a.support_end, a.tag'))
+      run: async (user) => (await assetRows(user, `${ACTIVE} and a.support_end < $1::date`, 'a.support_end, a.tag', [todayInZone()]))
         .map((r) => ({ ...r, days_past: daysBetween(r.support_end, null) })),
     },
     {
@@ -113,7 +113,7 @@ export function registerReports(ctx: ModuleContext) {
       run: async (user, query) => {
         const days = Math.min(730, Math.max(1, Number(query.days) || 90));
         const rows = await assetRows(
-          user, `${ACTIVE} and a.warranty_end >= current_date and a.warranty_end <= current_date + $1::int`, 'a.warranty_end, a.tag', [days],
+          user, `${ACTIVE} and a.warranty_end >= $2::date and a.warranty_end <= $2::date + $1::int`, 'a.warranty_end, a.tag', [days, todayInZone()],
         );
         return rows.map((r) => ({ ...r, days_left: daysBetween(null, r.warranty_end) }));
       },
@@ -262,11 +262,11 @@ export function registerReports(ctx: ModuleContext) {
   });
 }
 
-/** Whole days from `from` to `to`; a null end means today. Dates are 'YYYY-MM-DD'. */
-function daysBetween(from: string | null, to: string | null): number {
-  const midnight = (s: string | null) => {
-    const d = s ? new Date(`${s}T00:00:00`) : new Date();
-    return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+/** Whole days from `from` to `to`; a null end means today in the organisation's time zone. Dates are 'YYYY-MM-DD'. */
+function daysBetween(from: string | Date | null, to: string | Date | null): number {
+  const midnight = (s: string | Date | null) => {
+    const ymd = s === null ? todayInZone() : s instanceof Date ? s.toISOString().slice(0, 10) : String(s).slice(0, 10);
+    return Date.parse(`${ymd}T00:00:00Z`);
   };
   return Math.round((midnight(to) - midnight(from)) / 86_400_000);
 }

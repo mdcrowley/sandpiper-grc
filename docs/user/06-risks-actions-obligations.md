@@ -17,7 +17,7 @@ Without both, risks do not appear anywhere for that person: not in the register,
 
 Recording or revoking an acceptance needs **Approve** on **Risks**. Editing the risk scales needs **Administer** on **Risks**. Roles are managed by an administrator; see [Administration](09-administration.md).
 
-Obligations are not restricted. An action is restricted when the record it was raised from is: an action raised from a risk, a security incident or any other restricted record is hidden from people without **View** on **Security incidents and restricted records**, including its owner. Such an action can be shared with one named person; see "Sharing a restricted action" below. Other actions are visible to anyone with **View** on **Actions**. You cannot raise an action on, or move one to, a record you cannot see.
+Obligations are not restricted. An action is restricted when the record it was raised from is: an action raised from a risk, a security incident or any other restricted record is hidden from people without **View** on **Security incidents and restricted records**, including its owner. It still counts in the action tracker's tiles, which are the same for everyone, so a tile can be higher than the list you see. Such an action can be shared with one named person; see "Sharing a restricted action" below. Other actions are visible to anyone with **View** on **Actions**. You cannot raise an action on, or move one to, a record you cannot see.
 
 ## The risk register
 

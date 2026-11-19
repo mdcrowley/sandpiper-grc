@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { registerApiStore } from './api/conventions.ts';
 import type { Db } from './db.ts';
 import { fail, UUID_RE } from './errors.ts';
 import type { ResourceDef, Row, SessionUser } from './module.ts';
@@ -21,6 +22,8 @@ interface Deps {
 /** Cross-cutting routes: metadata, search, pickers, comments, links, history, audit, lookups. */
 export function registerCoreRoutes({ app, db, audit, lookups, res, custom, notifyWatchers }: Deps) {
   const { registry, labelsFor, mayAccess, visibilitySql } = res;
+  // Idempotency keys for the API conventions (core/api/conventions.ts): their table and database.
+  registerApiStore(app, db);
 
   /** The record, if the caller may see it; otherwise a 404 that does not reveal whether it exists. */
   async function visibleRecord(req: FastifyRequest, type: string, id: string, action = 'view'): Promise<{ def: ResourceDef; row: Row }> {

@@ -266,7 +266,17 @@ describe('"IT agents only" articles (E03-16)', () => {
     expect(list.body.total).toBe(1);
     expect((await reader.get('/api/knowledge?q=Lanyard&f.audience=agents')).body.total).toBe(0);
     expect((await reader.get('/api/knowledge?q=Lanyard&f.audience=agents,staff')).body.total).toBe(1);
-    expect((await reader.get('/api/knowledge/stats?group=audience')).body.groups.map((g: any) => g.value)).not.toContain('agents');
+    // Statistics are figures, the same for everyone: agent-only articles count, but a search or
+    // grouping that reads their words leaves them out for everyone.
+    const byAudience = (await reader.get('/api/knowledge/stats?group=audience')).body;
+    expect(byAudience).toEqual((await agent.get('/api/knowledge/stats?group=audience')).body);
+    expect(byAudience.groups.map((g: any) => g.value)).toContain('agents');
+    for (const q of ['group=status&q=Lanyard', 'group=title', 'group=status&f.title=Lanyard%20printer%3A%20service%20password']) {
+      const mine = (await reader.get(`/api/knowledge/stats?${q}`)).body;
+      expect(mine).toEqual((await agent.get(`/api/knowledge/stats?${q}`)).body);
+      expect(JSON.stringify(mine)).not.toContain('service password');
+    }
+    expect((await reader.get('/api/knowledge/stats?group=status&q=Lanyard')).body.total).toBe(1);
     expect((await reader.get('/api/knowledge?format=csv')).status).toBe(403); // no export permission at all
     expect((await reader.get(`/api/knowledge/${open.body.id}`)).status).toBe(200);
     for (const path of ['', '/versions']) expect((await reader.get(`/api/knowledge/${closed.body.id}${path}`)).status).toBe(404);

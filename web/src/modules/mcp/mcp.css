@@ -1,0 +1,49 @@
+/* AI assistant access (MCP) pages. Tokens only, so both themes work. */
+
+.mcp-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(240px, 1fr);
+  gap: var(--s-5);
+  align-items: start;
+}
+@media (max-width: 1100px) {
+  .mcp-layout { grid-template-columns: minmax(0, 1fr); }
+}
+.mcp-aside-title { margin: 0; font-size: var(--fs-lg); }
+.mcp-list { margin: 0; padding-left: var(--s-5); display: grid; gap: var(--s-2); list-style: disc; }
+
+.mcp-tokens { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--radius); }
+.mcp-token { display: flex; gap: var(--s-3); align-items: center; justify-content: space-between; padding: var(--s-3) var(--s-4); }
+.mcp-token + .mcp-token { border-top: 1px solid var(--border); }
+.mcp-token-main { display: grid; gap: var(--s-1); min-width: 0; }
+.mcp-token-name { font-weight: 600; display: inline-flex; gap: var(--s-2); align-items: center; flex-wrap: wrap; }
+.mcp-token-facts { display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-4); font-size: var(--fs-sm); }
+
+.mcp-fold > summary { cursor: pointer; display: inline-flex; gap: var(--s-2); align-items: center; color: var(--link); font-weight: 500; }
+.mcp-fold[open] > summary { margin-bottom: var(--s-3); }
+
+.mcp-snippet { display: grid; gap: var(--s-2); }
+.mcp-snippet-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); }
+.mcp-code {
+  margin: 0; padding: var(--s-3); max-width: 100%; overflow-x: auto;
+  background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  font-family: var(--font-mono); font-size: var(--fs-sm); line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.mcp-bridge { display: grid; gap: var(--s-3); }
+.mcp-bridge p { margin: 0; }
+
+.mcp-row { display: flex; gap: var(--s-3); align-items: flex-start; flex-wrap: wrap; }
+.mcp-row > :first-child { flex: 0 1 260px; }
+.mcp-row > button { margin-top: 26px; }
+
+.mcp-tools td { vertical-align: top; white-space: normal; }
+.mcp-tools th:first-child, .mcp-tools td:first-child { width: 1%; text-align: center; }
+.mcp-check { width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--brand); cursor: pointer; }
+.mcp-tools .mcp-group th { background: var(--surface-2); font-size: var(--fs-sm); text-transform: none; text-align: left; }
+.mcp-tool-name { white-space: nowrap; }
+.mcp-tool-name code, .mcp-calls code { font-size: var(--fs-xs); color: var(--text-muted); }
+.mcp-desc { white-space: normal; min-width: 200px; color: var(--text-muted); font-size: var(--fs-sm); }
+
+.mcp-calls { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-2); }
+.mcp-calls li { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-3); align-items: center; font-size: var(--fs-sm); }
+.mcp-error { flex-basis: 100%; overflow-wrap: anywhere; }

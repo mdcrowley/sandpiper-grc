@@ -24,6 +24,9 @@ export interface AdminUser {
   roles: RoleRef[];
   link_pending: boolean;
   sessions: number;
+  /** Linked single sign-on identities. */
+  identities: number;
+  break_glass: boolean;
 }
 
 export interface Role {
@@ -62,12 +65,13 @@ const STATUS: Record<string, { color: ColorName; label: string }> = {
   disabled: { color: 'gray', label: 'Disabled' },
 };
 
-export function UserStatus({ user }: { user: Pick<AdminUser, 'status' | 'locked'> }) {
+export function UserStatus({ user }: { user: Pick<AdminUser, 'status' | 'locked'> & { break_glass?: boolean } }) {
   const s = STATUS[user.status] ?? { color: 'gray' as ColorName, label: user.status };
   return (
     <span className="row adm-chips">
       <StatusChip color={s.color} label={s.label} />
       {user.locked && <StatusChip color="red" label="Locked" />}
+      {user.break_glass && <StatusChip color="red" label="Break-glass" title="The emergency administrator account: password only, every sign-in alerts administrators" />}
     </span>
   );
 }
