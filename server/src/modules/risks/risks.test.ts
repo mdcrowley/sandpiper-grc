@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '../../app.ts';
+import { dayInZone } from '../../core/timezone.ts';
 import { testApp } from '../../test/helpers.ts';
 import mod from './index.ts';
 import { HAZARD_SCALE_NAME, LEGACY_HAZARD_SCALE_NAME } from './scales.ts';
@@ -13,11 +14,7 @@ let t: Awaited<ReturnType<typeof testApp>>;
 beforeAll(async () => { t = await testApp(); });
 afterAll(async () => { await t.close(); });
 
-const plus = (days: number) => {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
+const plus = (days: number) => dayInZone(days);
 
 describe('risk scales', () => {
   it('seeds the 5 by 5 scale and the safety hazard scale', async () => {

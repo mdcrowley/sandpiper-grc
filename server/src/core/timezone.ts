@@ -17,3 +17,13 @@ export const TIME_ZONE: string = (() => {
 export function todayInZone(at: Date = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: TIME_ZONE }).format(at);
 }
+
+/**
+ * The calendar date (YYYY-MM-DD) `offsetDays` days from today, in the organisation's time zone.
+ * Use this, never `new Date().getDate()` or `toISOString().slice(0, 10)`: those give the
+ * machine's or UTC's date, which differs from the organisation's for part of every day.
+ */
+export function dayInZone(offsetDays = 0, at: Date = new Date()): string {
+  const base = Date.parse(`${todayInZone(at)}T00:00:00Z`);
+  return new Date(base + offsetDays * 86_400_000).toISOString().slice(0, 10);
+}

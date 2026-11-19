@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { dayInZone } from '../../core/timezone.ts';
 import { testApp } from '../../test/helpers.ts';
 
 // Revoking and expiry of acceptances, reviews, the board report, the scale preview, action
@@ -19,11 +20,7 @@ beforeAll(async () => {
 });
 afterAll(async () => { await t.close(); });
 
-const plus = (days: number) => {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
+const plus = (days: number) => dayInZone(days);
 const hasNotify = () => t.app.hasDecorator('notify');
 const notes = (userId: string, kind?: string) => t.db.query<{ title: string; kind: string; route: string | null }>(
   `select title, kind, route from notifications where user_id = $1 ${kind ? 'and kind = $2' : 'and $2::text is null'} order by created_at`, [userId, kind ?? null]);

@@ -4,6 +4,7 @@ import { fail, UUID_RE } from './errors.ts';
 import type { Row } from './module.ts';
 import type { makeResources } from './resource.ts';
 import { requirePerm, type makeAudit, type makeLookups } from './services.ts';
+import { dayInZone } from './timezone.ts';
 
 /**
  * Retention (E14-11).
@@ -188,8 +189,8 @@ export function registerRetention({ app, db, audit, lookups, res, requireRecentA
     const reason = reasonOf(b);
     const months = Number(b.months);
     const until = b.until ? String(b.until) : Number.isInteger(months) && months > 0 && months <= 1200
-      ? new Date(Date.now() + months * 30.4375 * 86_400_000).toISOString().slice(0, 10) : '';
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(until) || Number.isNaN(Date.parse(until)) || until <= new Date().toISOString().slice(0, 10)) {
+      ? dayInZone(Math.round(months * 30.4375)) : '';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(until) || Number.isNaN(Date.parse(until)) || until <= dayInZone()) {
       invalid({ until: 'Give a future date (YYYY-MM-DD) or a number of months.' });
     }
     const row = await db.one<Row>(

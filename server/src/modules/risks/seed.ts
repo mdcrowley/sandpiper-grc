@@ -1,16 +1,13 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ModuleContext, Row, SeedOptions } from '../../core/module.ts';
+import { dayInZone } from '../../core/timezone.ts';
 
 // Seed loader. Pilot: information requests from the seed folder, when the file is there (read
 // at run time, never copied into the repository). Dev: invented actions and example
 // obligations. Both: obligations from the organisation profile and clearly invented sample risks.
 
-const day = (offset: number): string => {
-  const d = new Date();
-  d.setDate(d.getDate() + offset);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
+const day = (offset: number): string => dayInZone(offset);
 
 const REQUESTS_FILE = 'information_requests.psv';
 
