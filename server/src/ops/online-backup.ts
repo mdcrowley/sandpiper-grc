@@ -111,13 +111,44 @@ function checkExportEntries(hashed: Awaited<ReturnType<typeof hashArchive>>): { 
 }
 
 /** Takes one backup while the server runs. Throws OpsError with a plain message on failure. */
+/** An archive name without its extension: `sandpiper-backup-20261119-061701_2`. */
+export const archiveStem = (name: string): string => name.replace(/\.tar(\.sgrc)?$/, '');
+
+/** Orders archive names oldest first by time, then by same-second sequence (none = 1). */
+export function byAge(a: string, b: string): number {
+  const key = (n: string) => {
+    const m = /^sandpiper-backup-(\d{8}-\d{6})(?:_(\d+))?/.exec(n);
+    return m ? [m[1], Number(m[2] ?? 1)] as const : [n, 0] as const;
+  };
+  const [ta, sa] = key(a);
+  const [tb, sb] = key(b);
+  return ta < tb ? -1 : ta > tb ? 1 : sa - sb;
+}
+
+/**
+ * The name for a new archive whose stem would be `base` (`sandpiper-backup-YYYYMMDD-HHMMSS`):
+ * numbered after the highest sequence already used that second, whatever the extension.
+ */
+export function nextArchiveName(existing: string[], base: string, ext: string): string {
+  let highest = 0;
+  for (const n of existing) {
+    const stem = archiveStem(n);
+    if (stem === base) highest = Math.max(highest, 1);
+    else if (stem.startsWith(`${base}_`)) highest = Math.max(highest, Number(stem.slice(base.length + 1)) || 0);
+  }
+  return `${highest === 0 ? base : `${base}_${highest + 1}`}${ext}`;
+}
+
 export async function runOnlineBackup(opts: OnlineBackupOptions): Promise<OnlineBackupResult> {
   if (!Number.isInteger(opts.keep) || opts.keep < 1) throw new OpsError('The number of backups to keep must be 1 or more.');
   const now = opts.now ?? new Date();
   const ext = opts.key ? ENCRYPTED_EXT : ARCHIVE_EXT;
-  const taken = new Set((await opts.destination.list().catch(() => [])).map((o) => o.name));
-  let name = `${ONLINE_PREFIX}${timestamp(now)}${ext}`;
-  for (let n = 2; taken.has(name); n += 1) name = `${ONLINE_PREFIX}${timestamp(now)}_${n}${ext}`;
+  // Names are unique by time and sequence, whatever the extension: an encrypted and a plain archive
+  // taken in the same second must not share a stem, or pruning could not tell which is newer.
+  // Number after the highest sequence already used this second, never into a gap left by pruning:
+  // a reused lower number would make the new archive look older than the ones it follows.
+  const existing = (await opts.destination.list().catch(() => [])).map((o) => o.name);
+  const name = nextArchiveName(existing, `${ONLINE_PREFIX}${timestamp(now)}`, ext);
 
   await mkdir(opts.workDir, { recursive: true });
   const work = join(opts.workDir, `${name}.work`);
@@ -167,7 +198,7 @@ export async function runOnlineBackup(opts: OnlineBackupOptions): Promise<Online
     }
 
     // 4. Keep the newest `keep` archives there.
-    const ours = (await opts.destination.list()).filter((o) => NAME_RE.test(o.name)).map((o) => o.name).sort().reverse();
+    const ours = (await opts.destination.list()).filter((o) => NAME_RE.test(o.name)).map((o) => o.name).sort(byAge).reverse();
     const pruned: string[] = [];
     for (const old of ours.slice(opts.keep)) {
       await opts.destination.delete(old);

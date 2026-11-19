@@ -152,11 +152,11 @@ status `done`; issues in progress, open or blocked are counted in the total only
 | [E15](epics/E15-self-service-portal.md) | Self-service portal | in progress | 10 / 14 |
 | [E16](epics/E16-hosting-operations-and-hardening.md) | Hosting, operations and hardening | in progress | 18 / 30 |
 | [E17](epics/E17-documentation.md) | Documentation | in progress | 6 / 14 |
-| [E18](epics/E18-quality-and-known-defects.md) | Quality and known defects | in progress | 25 / 40 |
+| [E18](epics/E18-quality-and-known-defects.md) | Quality and known defects | in progress | 26 / 41 |
 | [E19](epics/E19-fleet-and-services.md) | Fleet and services | in progress | 8 / 13 |
 | [E20](epics/E20-safety-management.md) | Safety management | in progress | 10 / 14 |
 | [E21](epics/E21-mcp-server.md) | MCP server (AI assistant access) | in progress | 13 / 20 |
-| | **Total** | | **331 / 453** |
+| | **Total** | | **332 / 454** |
 
 Of the 122 issues not done, 34 are in progress and 88 are open or blocked.
 SAML single sign-on).

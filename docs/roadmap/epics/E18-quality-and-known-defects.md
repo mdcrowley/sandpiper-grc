@@ -61,6 +61,7 @@ has never been checked, so nobody relies on something untested.
 | E18-38 | A report on records the role cannot see makes a refused request | open | P3 |
 | E18-39 | Accessibility audit: findings left for other owners | open | P2 |
 | E18-40 | People never see different numbers: figures include restricted records | done | P1 |
+| E18-41 | Backups taken in the same second could be pruned at once | done | P1 |
 
 ---
 
@@ -717,3 +718,21 @@ reasoning are in `docs/security.md`, "Figures are the same for everyone".
 work, not an organizational record. Revisit if anyone shows those counts.
 
 **Implemented in:** `server/src/core/resource.ts`, `server/src/modules/reports/spec.ts`, `query.ts`, `server/src/modules/risks/index.ts`, `server/src/modules/vendors/index.ts`, `server/src/modules/vulnerabilities/summary.ts`, `server/src/modules/tickets/audience.ts`; `docs/security.md`
+
+### E18-41 Backups taken in the same second could be pruned at once
+
+**Status:** done · **Priority:** P1 · **Type:** bug
+
+Backup archives are named by the second they are taken, with `_2`, `_3` for more in the same
+second. Pruning sorted the names as text, so an encrypted archive (`.tar.sgrc`) ranked below a
+plain one from the same second, and a new archive could reuse a lower number freed by pruning.
+Either way the newest backup could be treated as the oldest and deleted straight after it was
+written. Found by an intermittent test failure in CI (macOS and PostgreSQL legs).
+
+**Acceptance criteria**
+
+- [x] Archives are ordered by time, then by same-second sequence, whatever the extension
+- [x] A new archive is numbered after the highest sequence used that second, never into a gap
+- [x] Regression tests; the affected test passed 10 runs in a row
+
+**Done:** `server/src/ops/online-backup.ts` (`byAge`, `nextArchiveName`), `server/src/ops/online-backup-order.test.ts`.
