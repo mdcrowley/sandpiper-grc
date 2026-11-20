@@ -37,6 +37,8 @@ function relation(e: GraphEdge, self: string): string {
   if (e.kind === 'asset') return out ? 'Runs on' : 'Supports';
   if (e.kind === 'location') return out ? 'Located at' : 'Holds equipment';
   if (e.kind === 'service') return out ? 'Needed by services' : 'Depends on';
+  if (e.kind === 'vehicle') return out ? 'Equipment on vehicles' : 'Carries equipment of';
+  if (e.kind === 'depot') return out ? 'Based at' : 'Depot of';
   return e.label;
 }
 

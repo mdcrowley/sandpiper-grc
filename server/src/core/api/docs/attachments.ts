@@ -17,7 +17,7 @@ export const DOCS: RouteDoc[] = [
   }),
   route('PATCH', '/api/attachments/settings', 'Change the upload size limit and allowed file types', {
     tag: A, permission: 'admin.administer',
-    description: 'Programs and scripts can never be allowed. Invalid input answers 400 `validation`. Stored as settings, which are audited.',
+    description: 'Programs and scripts can never be allowed. Adding a file type needs a recent identity confirmation (403 `reauth_required`; never with an API token). Invalid input answers 400 `validation`. Stored as settings, which are audited.',
     body: '{ maxMb?: integer "Megabytes", allowedExtensions?: [string] | string }',
     response: SETTINGS,
   }),

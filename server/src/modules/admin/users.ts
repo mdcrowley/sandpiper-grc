@@ -168,6 +168,12 @@ export function registerUsers(ctx: ModuleContext) {
       const held = (before.roles as { key: string }[]).map((r) => r.key).sort();
       if (JSON.stringify(wanted) !== JSON.stringify(held)) await sensitive(ctx, req, `changing the roles of ${before.username}`);
     }
+    // E01-33: enabling a disabled account gives its access back (like creating one), and the email
+    // address is where a password-reset link goes (like issuing one).
+    if (b.status === 'active' && before.status === 'disabled') await sensitive(ctx, req, `enabling ${before.username} again`);
+    if (out.email !== undefined && String(out.email ?? '').toLowerCase() !== String(before.email ?? '').toLowerCase()) {
+      await sensitive(ctx, req, `changing the email address of ${before.username}`);
+    }
 
     // Read before the transaction: the embedded database has one connection, which the transaction holds.
     const localOff = before.break_glass && (await ctx.settings.get('auth.local_signin', true)) === false;

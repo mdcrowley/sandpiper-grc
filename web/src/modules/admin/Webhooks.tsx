@@ -1,4 +1,5 @@
-// Outbound webhooks (/admin/webhooks): tell another system when records change.
+// Outbound webhooks (/admin/webhooks): tell another system when records change, or when one of the
+// other events in the server's catalog happens (E13-19).
 import { useMemo, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -24,6 +25,15 @@ interface Webhook {
   last_delivered_at: string | null;
 }
 interface RecordTypeRef { type: string; label: string; restricted: boolean | 'flag' }
+/** An event that is not a record change (only those of areas that are switched on). */
+interface OtherEvent {
+  event: string;
+  label: string;
+  description: string;
+  restricted: 'always' | 'record' | 'never';
+  recordType: string | null;
+  data: Record<string, string>;
+}
 interface WebhooksResponse {
   webhooks: Webhook[];
   outboundEnabled: boolean;
@@ -31,6 +41,7 @@ interface WebhooksResponse {
   retryMinutes: number[];
   recordTypes: RecordTypeRef[];
   actions: string[];
+  otherEvents?: OtherEvent[];
 }
 interface Delivery {
   id: string;
@@ -71,11 +82,18 @@ function hostAllowed(raw: string, allowList: string[]): boolean {
 }
 const hostOf = (raw: string) => { try { return new URL(raw).host; } catch { return raw; } };
 
-function eventLabel(event: string, types: RecordTypeRef[]): string {
-  if (event === '*') return 'Every change to every record';
+function eventLabel(event: string, types: RecordTypeRef[], other: OtherEvent[] = []): string {
+  if (event === '*') return 'Every change and every other event';
+  const named = other.find((o) => o.event === event);
+  if (named) return named.label;
   const [type, action] = event.split('.');
-  const label = types.find((t) => t.type === type)?.label ?? type;
-  return `${label}: ${ACTION_WORDS[action] ?? action}`;
+  const recordType = types.find((t) => t.type === type);
+  // A whole family of other events, such as "notification_clock.*".
+  if (!recordType && action === '*' && other.some((o) => o.event.startsWith(`${type}.`))) {
+    const words = type.replace(/_/g, ' ');
+    return `Every ${words} event`;
+  }
+  return `${recordType?.label ?? type}: ${ACTION_WORDS[action] ?? action}`;
 }
 
 function minutesText(m: number) {
@@ -132,7 +150,7 @@ export function WebhooksPage() {
     <>
       <PageHeader
         title="Webhooks"
-        subtitle="Tell another system, straight away, when records are added, changed or deleted."
+        subtitle="Tell another system, straight away, when records are added, changed or deleted, or when something else happens, such as a notification clock running out."
         actions={<Button variant="primary" icon="plus" disabled={!data} onClick={() => setEditing('new')}>Add webhook</Button>}
       />
       {error ? <ErrorState error={error} onRetry={reload} />
@@ -171,7 +189,7 @@ export function WebhooksPage() {
                             </td>
                             <td className="adm-wrap">
                               <span className="adm-events-list">
-                                {w.events.slice(0, 3).map((e) => <span key={e} className="adm-small">{eventLabel(e, data.recordTypes)}</span>)}
+                                {w.events.slice(0, 3).map((e) => <span key={e} className="adm-small">{eventLabel(e, data.recordTypes, data.otherEvents)}</span>)}
                                 {w.events.length > 3 && <span className="muted adm-small">and {w.events.length - 3} more</span>}
                               </span>
                             </td>
@@ -272,6 +290,7 @@ function HowItWorks({ retry }: { retry: number[] }) {
     <Card title="How deliveries work">
       <ul className="adm-facts">
         <li><Icon name="upload" size={16} /> <span>Each event is sent as a JSON <code>POST</code> to the webhook's address: the record's type, reference, title and fields, and for a change the values before and after.</span></li>
+        <li><Icon name="bell" size={16} /> <span>Other events (a notification clock about to run out, a backup that failed, and the rest of the list in the webhook form) carry the event's own details and, where there is one, the record it is about. Events of a part of the application that is switched off are not sent.</span></li>
         <li><Icon name="key" size={16} /> <span>Every delivery is signed with the webhook's secret: <code>X-GRC-Signature</code> holds <code>sha256=</code> and the HMAC-SHA256 of <code>X-GRC-Timestamp</code>, a full stop and the body. The receiver should check it and refuse old timestamps.</span></li>
         <li><Icon name="refresh" size={16} /> <span>A delivery that fails (no answer within 10 seconds, or an answer other than 2xx) is tried again after {joinAnd(retry.map(minutesText))}, then marked failed. Redirects are never followed. A failed or blocked delivery can be sent again from <strong>Deliveries</strong>.</span></li>
         <li><Icon name="lock" size={16} /> <span>Restricted records (security incidents, risks and anything flagged restricted) are left out unless someone holding <code>security.view</code> switches on <strong>Include restricted records</strong>, and they stop again if that person loses it.</span></li>
@@ -296,15 +315,27 @@ function WebhookDialog({ hook, data, onClose, onSaved }: {
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
 
+  const other = data.otherEvents ?? [];
+  const otherNames = new Set(other.map((o) => o.event));
+  // Record changes go in the multi-select; other events have their own boxes below it.
+  const recordEvents = events.filter((e) => !otherNames.has(e));
+  const otherChosen = events.filter((e) => otherNames.has(e));
   const options = useMemo(() => {
     const list: Option[] = [];
     for (const t of data.recordTypes) {
       list.push({ value: `${t.type}.*`, label: `${t.label}: any change` });
       for (const a of data.actions) list.push({ value: `${t.type}.${a}`, label: `${t.label}: ${ACTION_WORDS[a] ?? a}` });
     }
-    for (const e of events) if (!list.some((o) => o.value === e)) list.push({ value: e, label: eventLabel(e, data.recordTypes) });
+    const named = new Set((data.otherEvents ?? []).map((o) => o.event));
+    for (const e of events) {
+      if (!named.has(e) && !list.some((o) => o.value === e)) list.push({ value: e, label: eventLabel(e, data.recordTypes, data.otherEvents) });
+    }
     return list;
   }, [data, events]);
+  const toggleOther = (event: string, on: boolean) => {
+    setEvents((old) => (on ? [...old.filter((e) => e !== event), event] : old.filter((e) => e !== event)));
+    clearError('events');
+  };
   const allowed = /^https?:\/\/./.test(url) ? hostAllowed(url, data.allowedHosts) : true;
   const clearError = (k: string) => setErrors(({ [k]: _gone, ...rest }) => rest);
 
@@ -353,15 +384,27 @@ function WebhookDialog({ hook, data, onClose, onSaved }: {
         )}
         <fieldset className="adm-fieldset">
           <legend className="field-label">Events</legend>
-          <Checkbox label="Every change to every record type" checked={all} onChange={(on) => { setAll(on); clearError('events'); }} hint="Includes record types added later." />
+          <Checkbox label="Every change to every record type, and every other event" checked={all} onChange={(on) => { setAll(on); clearError('events'); }} hint="Includes record types and events added later." />
           {!all && (
             <ChoicesField
-              label="Send when" hideLabel value={events} onChange={(v) => { setEvents(v); clearError('events'); }} options={options}
+              label="Record changes" value={recordEvents} onChange={(v) => { setEvents([...v, ...otherChosen]); clearError('events'); }} options={options}
               placeholder="Choose record types and changes" error={errors.events}
             />
           )}
           {all && errors.events && <p className="field-error" role="alert">{errors.events}</p>}
         </fieldset>
+        {!all && other.length > 0 && (
+          <fieldset className="adm-fieldset">
+            <legend className="field-label">Other events</legend>
+            {other.map((o) => (
+              <Checkbox
+                key={o.event} label={o.label} checked={otherChosen.includes(o.event)} onChange={(on) => toggleOther(o.event, on)}
+                hint={`${o.description}${o.restricted === 'always' ? ' Sent only when restricted records are included.'
+                  : o.restricted === 'record' ? ' Left out for a restricted record unless restricted records are included.' : ''}`}
+              />
+            ))}
+          </fieldset>
+        )}
         <Checkbox
           label="Include restricted records" checked={restricted} disabled={!mayRestrict && !restricted}
           onChange={setRestricted} error={errors.includeRestricted}
@@ -426,7 +469,7 @@ function DeliveriesDrawer({ hook, data, onClose }: { hook: Webhook; data: Webhoo
         {error ? <ErrorState error={error} onRetry={reload} />
           : !log ? <Loading lines={5} label="Loading deliveries" />
           : log.rows.length === 0 ? (
-            <EmptyState icon="history" title={status ? 'No deliveries with this status' : 'Nothing has been sent yet'} message={status ? undefined : 'Deliveries appear here as soon as a matching record changes, or when you send a test.'} />
+            <EmptyState icon="history" title={status ? 'No deliveries with this status' : 'Nothing has been sent yet'} message={status ? undefined : 'Deliveries appear here as soon as a matching record changes or a chosen event happens, or when you send a test.'} />
           ) : (
             <div className="adm-deliveries-frame">
               <ul className={`adm-deliveries${loading ? ' table-loading' : ''}`} aria-label="Deliveries" aria-busy={loading}>

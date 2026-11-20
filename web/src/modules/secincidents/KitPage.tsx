@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
-import { Button, ErrorState, formatDateTime, Loading, PageHeader, useAuth, useFetch } from '../../core';
+import { Button, ErrorState, formatDateTime, Loading, PageHeader, useAuth, useFetch, useResource } from '../../core';
+import { KitCopies } from './KitCopies';
 import { zoneName } from './shared';
 import type { Kit } from './types';
 import { deadlineText } from './types';
@@ -34,6 +35,8 @@ function LogSheet({ page, n }: { page: number; n: number }) {
 export function KitPage() {
   const { appName } = useAuth();
   const { data, error, reload } = useFetch<Kit>('/api/security-incidents/kit');
+  // The ransom rule follows the "recorded approval of a ransom payment" option and its name (Administration > Features).
+  const approval = useResource('security_incident')?.fields.board_resolution_ref;
 
   const header = (
     <div className="si-no-print">
@@ -49,7 +52,7 @@ export function KitPage() {
     </div>
   );
 
-  if (error) return <div className="stack">{header}<ErrorState title="The kit could not be loaded" error={error} onRetry={reload} /></div>;
+  if (error) return <div className="stack">{header}<KitCopies /><ErrorState title="The kit could not be loaded" error={error} onRetry={reload} /></div>;
   if (!data) return <div className="stack">{header}<Loading lines={8} label="Loading kit" /></div>;
 
   const isOn = (r: Kit['rules'][number]) => r.active && r.deadline_hours !== null;
@@ -63,6 +66,7 @@ export function KitPage() {
   return (
     <div className="stack">
       {header}
+      <KitCopies />
       <p className="si-preview-label si-no-print">Print preview · {contents.length} sections · A4 or Letter, portrait</p>
       <article className="si-doc si-kit">
         <Sheet className="si-cover">
@@ -166,7 +170,10 @@ export function KitPage() {
             </tbody>
           </table>
           <div className="si-kit-panel">
-            <p><strong>Ransom.</strong> Do not negotiate or pay without formal approval. A payment cannot be recorded as approved without a governing body approval reference.</p>
+            <p>
+              <strong>Ransom.</strong> Do not negotiate or pay without formal approval.
+              {approval ? ` A payment cannot be recorded as approved without the ${/^[A-Z][a-z]/.test(approval.label) ? approval.label.charAt(0).toLowerCase() + approval.label.slice(1) : approval.label}.` : ''}
+            </p>
           </div>
         </Sheet>
 

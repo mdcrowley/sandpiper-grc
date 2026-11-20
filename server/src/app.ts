@@ -3,7 +3,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import cookie from '@fastify/cookie';
 import fastifyStatic from '@fastify/static';
-import Fastify, { type FastifyRequest } from 'fastify';
+import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import { registerApiDocs } from './core/apidocs.ts';
 import { loadUser, registerAuth, requireRecentAuth, secretBox } from './core/auth.ts';
 import { registerCustomFieldRoutes } from './core/customfield-routes.ts';
@@ -40,6 +40,47 @@ export interface BuildOptions {
   https?: { cert: Buffer | string; key: Buffer | string };
 }
 
+/**
+ * Times every start-up step (`onReady` hook, E16-39), named by where it was added. A step that
+ * takes more than `GRC_STARTUP_WARN_MS` (default 2,000) is logged, and so is the whole when it
+ * took longer, so a slow start can be traced to its step.
+ */
+export function timeStartupSteps(app: FastifyInstance) {
+  const steps: { where: string; ms: number }[] = [];
+  const warnRaw = Number(process.env.GRC_STARTUP_WARN_MS ?? 2000);
+  const warnMs = Number.isFinite(warnRaw) && warnRaw >= 0 ? warnRaw : 2000;
+  const add = app.addHook.bind(app) as (name: string, fn: (...a: unknown[]) => unknown) => FastifyInstance;
+  (app as unknown as { addHook: typeof add }).addHook = (name, fn) => {
+    if (name !== 'onReady' || fn.length > 0) return add(name, fn); // a step with a callback is left as it is
+    // The caller's file and line: the first stack frame outside this file.
+    const frame = (new Error().stack ?? '').split('\n').slice(2).find((l) => !l.includes('app.ts')) ?? '';
+    const where = (/\(?((?:[A-Za-z]:)?[^():]+):(\d+):\d+\)?\s*$/.exec(frame.trim()) ?? [])
+      .slice(1, 3).join(':').replace(/\\/g, '/').replace(/^.*\/server\/src\//, '') || 'unknown';
+    const step = async function (this: unknown) {
+      const started = performance.now();
+      try {
+        return await fn.apply(this, []);
+      } finally {
+        steps.push({ where, ms: Math.round(performance.now() - started) });
+      }
+    };
+    // Named after where it was added, so Fastify's time-out message says which step it was.
+    Object.defineProperty(step, 'name', { value: where });
+    return add(name, step);
+  };
+  return {
+    steps,
+    report() {
+      if (process.env.VITEST) return;
+      const total = steps.reduce((n, s) => n + s.ms, 0);
+      const slow = steps.filter((s) => s.ms >= warnMs);
+      if (slow.length || total >= warnMs) {
+        console.warn(`[start] start-up steps took ${total} ms; the longest: ${[...steps].sort((a, b) => b.ms - a.ms).slice(0, 5).map((s) => `${s.where} ${s.ms} ms`).join(', ')}`);
+      }
+    },
+  };
+}
+
 export async function buildApp(opts: BuildOptions) {
   const db = await openDb(opts.dataDir);
 
@@ -63,6 +104,7 @@ export async function buildApp(opts: BuildOptions) {
   const serverOptions = { logger: false, bodyLimit: 10 * 1024 * 1024, trustProxy: trustProxyFn() };
   // With a certificate the same server speaks HTTPS (E16-07); its type is the plain one for everything that uses it.
   const app = Fastify({ ...serverOptions, ...(opts.https ? { https: opts.https } : {}) } as typeof serverOptions);
+  const startup = timeStartupSteps(app);
   await app.register(cookie);
   // Sees every route as it is registered, for GET /api/openapi.json: keep it ahead of all routes.
   const openapi = makeOpenApi(app);
@@ -174,6 +216,9 @@ export async function buildApp(opts: BuildOptions) {
   });
 
   await app.ready();
+  startup.report();
+  // Background upkeep of the embedded database (analyze) waits until start-up is done (E16-39).
+  db.started?.();
   gate.activate();
   return {
     app, db, ctx, modules,

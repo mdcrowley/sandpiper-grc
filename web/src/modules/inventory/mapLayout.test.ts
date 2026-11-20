@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { computeLayout, neighborhood, NODE_H, NODE_W, pruneEdges, shortLabel } from './mapLayout';
+import { PALETTE_COLORS, renderMapSvg } from './mapExport';
+import type { Palette } from './mapExport';
+import { computeLayout, neighborhood, NODE_H, NODE_W, NODE_TYPES, pruneEdges, shortLabel } from './mapLayout';
 import type { GraphEdge, GraphNode, GroupBy, Layout, NodeType } from './mapLayout';
 
-// An invented estate: systems in a few groups, with vendors, sites, data, assets and services.
-function estate(systems: number, groups: string[], extra = { vendors: 6, sites: 4, data: 5, assets: 8, services: 6 }) {
+// An invented estate: systems in a few groups, with vendors, sites, data, assets, services and
+// vehicle groups (one node per depot and mode).
+interface Extra { vendors: number; sites: number; data: number; assets: number; services: number; vehicles?: number }
+function estate(systems: number, groups: string[], extra: Extra = { vendors: 6, sites: 4, data: 5, assets: 8, services: 6, vehicles: 3 }) {
   const nodes: GraphNode[] = [];
   const edges: GraphEdge[] = [];
   const add = (type: NodeType, i: number, group: string, attrs?: Record<string, string>) => {
@@ -18,6 +22,7 @@ function estate(systems: number, groups: string[], extra = { vendors: 6, sites: 
   const around: [NodeType, number, string, string][] = [
     ['vendor', extra.vendors, 'vendor', 'supplied by'], ['site', extra.sites, 'site', 'serves'], ['data_category', extra.data, 'data', 'holds'],
     ['asset', extra.assets, 'asset', 'runs on'], ['service', extra.services, 'service', 'needed for CAD/AVL'],
+    ['vehicle', extra.vehicles ?? 0, 'vehicle', 'equipment on 12 of 40'],
   ];
   for (const [type, count, kind, label] of around) {
     for (let i = 0; i < count; i++) {
@@ -128,10 +133,40 @@ describe('relationship map layout', () => {
     const systemsRight = Math.max(...layout.nodes.filter((n) => n.type === 'system').map((n) => n.x + n.w));
     for (const n of layout.nodes) {
       if (n.type === 'vendor') expect(n.x + n.w).toBeLessThanOrEqual(systemsLeft);
-      if (['site', 'data_category', 'asset', 'service'].includes(n.type)) expect(n.x).toBeGreaterThanOrEqual(systemsRight);
+      if (['site', 'data_category', 'asset', 'service', 'vehicle'].includes(n.type)) expect(n.x).toBeGreaterThanOrEqual(systemsRight);
     }
-    expect(layout.lanes.map((l) => l.type)).toEqual(expect.arrayContaining(['system', 'vendor', 'site', 'data_category', 'asset', 'service']));
+    expect(layout.lanes.map((l) => l.type)).toEqual(expect.arrayContaining(['system', 'vendor', 'site', 'data_category', 'asset', 'service', 'vehicle']));
     expect(layout.lanes.find((l) => l.type === 'service')?.label).toBe('Services');
+    expect(layout.lanes.find((l) => l.type === 'vehicle')?.label).toBe('Vehicles');
+  });
+
+  it('draws vehicle groups in their own lane, beside the systems whose equipment they carry, and in the picture', () => {
+    // A large fleet arrives as a few groups (depot and mode), so the lane stays short.
+    const data = estate(10, ['A', 'B'], { vendors: 0, sites: 2, data: 0, assets: 0, services: 0, vehicles: 4 });
+    data.edges.push({ from: 'vehicle-000', to: 'site-000', kind: 'depot', label: 'based at' });
+    const layout = layoutOf(data);
+    expectNoOverlap(layout);
+    const vehicles = layout.nodes.filter((n) => n.type === 'vehicle');
+    expect(vehicles).toHaveLength(4);
+    const lane = layout.lanes.find((l) => l.type === 'vehicle')!;
+    for (const v of vehicles) {
+      expect(v.x).toBeGreaterThanOrEqual(lane.x);
+      expect(v.y).toBeGreaterThan(lane.y);
+    }
+    expect(layout.edges.filter((e) => e.kind === 'vehicle')).toHaveLength(8);
+    expect(layout.edges.some((e) => e.kind === 'depot')).toBe(true);
+    expect(NODE_TYPES.find((t) => t.type === 'vehicle')).toMatchObject({ plural: 'Vehicles', color: 'gray' });
+
+    const palette: Palette = {
+      bg: '#ffffff', grid: false, surface: '#ffffff', border: '#dddddd', borderControl: '#bbbbbb', text: '#111111', textMuted: '#555555', font: 'sans-serif',
+      colors: Object.fromEntries(PALETTE_COLORS.map((c, i) => [c, { bg: `#e0000${i}`, fg: `#20000${i}`, solid: `#90000${i}` }])) as Palette['colors'],
+    };
+    const { svg } = renderMapSvg(layout, { palette, title: 'Relationship map' });
+    expect(svg).toContain('>VEHICLES</text>');
+    expect(svg).toContain('vehicle 0');
+    // The legend names them, in the palette's gray (its first color).
+    expect(svg).toMatch(/fill="#e00000" stroke="#900000"\/><text[^>]*>Vehicles<\/text>/);
+    expect(svg).not.toContain('var(--');
   });
 
   it('draws an empty map without failing', () => {

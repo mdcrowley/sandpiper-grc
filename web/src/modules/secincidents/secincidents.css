@@ -406,6 +406,13 @@
 .si-kit-tall td { height: 56px; }
 .si-kit-time { min-width: 72px; padding-top: 4px; border-bottom: 1px solid var(--text); color: var(--text-muted); font-size: 10px; }
 .si-kit-phase { display: grid; gap: var(--s-2); }
+/* Stored PDF copies of the kit (E09-16), above the printable sheets. */
+.si-kit-copies .table td { white-space: normal; vertical-align: top; }
+.si-kit-delivery { min-width: 18ch; max-width: 42ch; color: var(--text-muted); font-size: var(--fs-sm); }
+.si-kit-chip { margin-inline-start: var(--s-2); }
+.si-kit-copies .table td.si-kit-nowrap { white-space: nowrap; }
+.si-kit-schedule { display: grid; gap: var(--s-3); padding-top: var(--s-3); border-top: 1px solid var(--border); }
+.si-kit-schedule-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--s-3); }
 
 @media print {
   .si-no-print, .notice-pilot { display: none !important; }

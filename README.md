@@ -23,7 +23,7 @@ regulator, and nothing in it is specific to one organization.
 - **Security incidents**: a restricted workspace with notification clocks you configure
 - **Projects and reporting**: portfolio and stage gates, dashboards, a report builder,
   exports to Excel, CSV and PDF
-- **Sign-in and security**: single sign-on (OpenID Connect), passkeys, second factor,
+- **Sign-in and security**: single sign-on (OpenID Connect or SAML 2.0), passkeys, second factor,
   roles, restricted records and a full audit log
 - **Integrations**: a REST API with an OpenAPI description, webhooks, and AI assistant
   access over MCP (Claude Desktop, Claude Code and other MCP clients, by token or OAuth),

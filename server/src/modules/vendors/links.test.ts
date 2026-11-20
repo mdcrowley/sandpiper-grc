@@ -2,7 +2,7 @@
 // item and its files (E06-20). Invented data only.
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { testApp } from '../../test/helpers.ts';
+import { ADMIN, testApp } from '../../test/helpers.ts';
 import { DEFAULT_QUESTIONS } from './assessments.ts';
 
 let t: Awaited<ReturnType<typeof testApp>>;
@@ -28,6 +28,20 @@ describe('vendor response links (E06-21)', () => {
     const agent = await t.as('agent');
     expect((await agent.put('/api/vendors/response-links/settings', { enabled: true })).status).toBe(403);
     expect((await t.api.put('/api/vendors/response-links/settings', { enabled: true, default_days: 7 })).body).toMatchObject({ enabled: true, default_days: 7 });
+  });
+
+  it('asks to confirm your identity before switching links on, never after a token (E01-34)', async () => {
+    const token = (await t.api.post('/api/me/tokens', { name: 'Vendor script', scopes: ['*'], expiresInDays: 1 })).body.token;
+    expect((await t.api.put('/api/vendors/response-links/settings', { enabled: false })).body.enabled).toBe(false);
+    await t.db.query(`update sessions set confirmed_at = now() - interval '1 day'`);
+    const refused = await t.api.put('/api/vendors/response-links/settings', { enabled: true });
+    expect([refused.status, refused.body.error.code]).toEqual([403, 'reauth_required']);
+    // Other settings, and switching off, do not ask.
+    expect((await t.api.put('/api/vendors/response-links/settings', { default_days: 7 })).status).toBe(200);
+    const viaToken = await t.app.inject({ method: 'PUT', url: '/api/vendors/response-links/settings', headers: { authorization: `Bearer ${token}` }, payload: { enabled: true } });
+    expect([viaToken.statusCode, viaToken.json().error.code]).toEqual([403, 'reauth_required']);
+    expect((await t.api.post('/api/auth/confirm', { password: ADMIN.password })).status).toBe(200);
+    expect((await t.api.put('/api/vendors/response-links/settings', { enabled: true })).body.enabled).toBe(true);
   });
 
   it('lets a vendor answer without an account, and staff take the answers over', async () => {

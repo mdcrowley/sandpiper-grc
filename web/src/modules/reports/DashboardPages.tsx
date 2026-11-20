@@ -4,8 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   Badge, Button, Checkbox, ConfirmDialog, EmptyState, ErrorState, Forbidden, Icon, Loading, LookupChip, Menu, Modal, NotFound, NumberField,
-  PageHeader, Select, TextArea, TextField, api, errorMessage, formatDateTime, relativeTime, useAuth, useFetch, useToast,
+  PageHeader, Select, TextArea, TextField, api, errorMessage, formatDateTime, relativeTime, useAuth, useCustomFieldInputs, useFetch, useToast,
+  CustomFieldsCard, type CustomFieldInputs,
 } from '../../core';
+import { CustomFieldsLink, customValues, fieldMessages } from './custom';
 import type { ApiError, ListResult } from '../../core';
 import { useUndo } from './BuilderParts';
 import { DashboardGrid } from './DashboardGrid';
@@ -34,19 +36,24 @@ export function DashboardsPage() {
   const nameRef = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState(false);
   const creating = params.get('new') === '1' && can('dashboards.create');
+  // An administrator's custom fields on dashboards, asked when one is created (E18-45).
+  const custom = useCustomFieldInputs('dashboard', { resetKey: creating ? 'open' : 'closed' });
   const close = () => { const p = new URLSearchParams(params); p.delete('new'); setParams(p, { replace: true }); setName(''); setNameError(''); };
 
   async function create() {
     // The message sits under the field, and focus goes back to it, so nobody misses it (E18-37).
     const refuse = (message: string) => { setNameError(message); nameRef.current?.querySelector('input')?.focus(); };
+    const extra = custom.collect();
     if (!name.trim()) return refuse('Give the dashboard a name.');
+    if (!extra) return; // a required custom field is empty: the message is beside it
     setBusy(true);
     try {
-      const d = await api.post<Dashboard>('/api/dashboards', { name: name.trim(), widgets: [], filters: [{ kind: 'date', label: 'Dates' }] });
+      const d = await api.post<Dashboard>('/api/dashboards', { name: name.trim(), widgets: [], filters: [{ kind: 'date', label: 'Dates' }], ...extra });
       navigate(`/dashboards/${d.id}?edit=1`);
     } catch (err) {
-      const field = (err as { fields?: Record<string, string> }).fields?.name;
-      if (field) refuse(field); else toast.error(errorMessage(err));
+      const fields = (err as { fields?: Record<string, string> }).fields;
+      if (fields?.name) refuse(fields.name);
+      else if (!custom.showErrors(fields)) toast.error(errorMessage(err));
     } finally { setBusy(false); }
   }
 
@@ -73,7 +80,12 @@ export function DashboardsPage() {
   return (
     <div className="stack">
       <PageHeader title="Dashboards" subtitle="Figures at a glance, the same for everyone who may see them. Lists of records show what your role allows."
-        actions={can('dashboards.create') ? <Button variant="primary" icon="plus" onClick={() => setParams({ new: '1' })}>New dashboard</Button> : undefined} />
+        actions={(
+          <>
+            <CustomFieldsLink type="dashboard" />
+            {can('dashboards.create') && <Button variant="primary" icon="plus" onClick={() => setParams({ new: '1' })}>New dashboard</Button>}
+          </>
+        )} />
       {list.error ? <ErrorState title="Dashboards could not be loaded" error={list.error} onRetry={list.reload} />
         : !list.data ? <Loading lines={6} label="Loading dashboards" />
         : (
@@ -95,6 +107,7 @@ export function DashboardsPage() {
             <TextField label="Name" required value={name} error={nameError} onChange={(v) => { setName(v); if (nameError) setNameError(''); }} placeholder="For example: Depot technology" autoFocus />
           </div>
           <p className="muted">It starts empty and private to you. Add widgets, then share it when it is ready.</p>
+          {custom.inputs}
         </form>
       </Modal>
     </div>
@@ -144,6 +157,9 @@ export function DashboardPage() {
   const wallRef = useRef<HTMLDivElement>(null);
   const draft = useUndo<Draft>({ name: '', description: '', widgets: [], filters: [], refresh_seconds: null });
   const { types } = useCatalog();
+  // An administrator's custom fields on dashboards: asked in the settings while editing, starting
+  // again from the saved values each time editing starts (E18-45).
+  const custom = useCustomFieldInputs('dashboard', { initial: dash.data, resetKey: editing && dash.data ? `${dash.data.id}:${dash.data.updated_at}` : 'view' });
 
   // Each time edit mode starts, the draft starts from the saved dashboard.
   useEffect(() => {
@@ -188,15 +204,19 @@ export function DashboardPage() {
   const setWidgets = (widgets: Widget[]) => draft.set((p) => ({ ...p, widgets }));
 
   async function save() {
-    if (!draft.value.name.trim()) { setDialog('settings'); return; }
+    const extra = custom.collect();
+    if (!draft.value.name.trim() || !extra) { setDialog('settings'); return; }
     setSaving(true);
     try {
       const v = draft.value;
-      await api.patch(`/api/dashboards/${d.id}`, { name: v.name.trim(), description: v.description, widgets: readingOrder(v.widgets), filters: v.filters, refresh_seconds: v.refresh_seconds });
+      await api.patch(`/api/dashboards/${d.id}`, { name: v.name.trim(), description: v.description, widgets: readingOrder(v.widgets), filters: v.filters, refresh_seconds: v.refresh_seconds, ...extra });
       toast.success('Dashboard saved.');
       dash.reload();
       setEdit(false);
-    } catch (err) { toast.error(errorMessage(err)); } finally { setSaving(false); }
+    } catch (err) {
+      if (custom.showErrors((err as { fields?: Record<string, string> }).fields)) setDialog('settings');
+      else toast.error(errorMessage(err));
+    } finally { setSaving(false); }
   }
   async function setAsHome(on: boolean) {
     try {
@@ -207,10 +227,10 @@ export function DashboardPage() {
   }
   async function copy() {
     try {
-      const c = await api.post<Dashboard>('/api/dashboards', { name: `${d.name} (copy)`, description: d.description, widgets: d.widgets, filters: d.filters, refresh_seconds: d.refresh_seconds });
+      const c = await api.post<Dashboard>('/api/dashboards', { name: `${d.name} (copy)`, description: d.description, widgets: d.widgets, filters: d.filters, refresh_seconds: d.refresh_seconds, ...customValues(d) });
       toast.success('Copy saved. It is yours to change.');
       navigate(`/dashboards/${c.id}?edit=1`);
-    } catch (err) { toast.error(errorMessage(err)); }
+    } catch (err) { toast.error(fieldMessages(err) ?? errorMessage(err)); }
   }
   async function remove() {
     try { await api.del(`/api/dashboards/${d.id}`); toast.success('Dashboard deleted.'); navigate('/dashboards'); } catch (err) { toast.error(errorMessage(err)); }
@@ -301,12 +321,13 @@ export function DashboardPage() {
           onRemove={(w) => setWidgets(draft.value.widgets.filter((x) => x.id !== w.id))}
         />
       )}
+      {!editing && !wall && <CustomFieldsCard type="dashboard" row={d} onSaved={dash.reload} />}
       {!editing && !wall && <p className="rp-dash-foot muted no-print">Figures as at {formatDateTime(lastRun.toISOString())}{every ? `; refreshed every ${every >= 60 ? `${Math.round(every / 60)} min` : `${every} s`}` : ''}. Select any figure or chart segment to see the records behind it.</p>}
 
       <WidgetLibrary open={dialog === 'library'} onClose={() => setDialog(null)} onAdd={addWidget} />
       <WidgetEditor widget={editingWidget} types={types ?? []} onClose={() => setEditingWidget(null)}
         onSave={(w) => { setWidgets(draft.value.widgets.map((x) => (x.id === w.id ? w : x))); setEditingWidget(null); }} />
-      <SettingsDialog open={dialog === 'settings'} value={draft.value} onClose={() => setDialog(null)}
+      <SettingsDialog open={dialog === 'settings'} value={draft.value} custom={custom} onClose={() => setDialog(null)}
         onChange={(patch) => draft.set((p) => ({ ...p, ...patch }))} />
       <ShareDialog open={dialog === 'share'} onClose={() => setDialog(null)} path="/api/dashboards" item={d} what="dashboard" onSaved={dash.reload} />
       <ScheduleDialog open={dialog === 'schedule'} onClose={() => setDialog(null)} target={{ type: 'dashboard', id: d.id, name: d.name }} />
@@ -318,7 +339,7 @@ export function DashboardPage() {
   );
 }
 
-function SettingsDialog({ open, value, onClose, onChange }: { open: boolean; value: Draft; onClose: () => void; onChange: (p: Partial<Draft>) => void }) {
+function SettingsDialog({ open, value, custom, onClose, onChange }: { open: boolean; value: Draft; custom: CustomFieldInputs; onClose: () => void; onChange: (p: Partial<Draft>) => void }) {
   const has = (k: GlobalKind) => value.filters.some((f) => f.kind === k);
   const toggle = (k: GlobalKind, on: boolean) => onChange({
     filters: on ? GLOBAL_CHOICES.filter((c) => c.kind === k || has(c.kind)).map((c) => value.filters.find((f) => f.kind === c.kind) ?? { kind: c.kind, label: c.label }) : value.filters.filter((f) => f.kind !== k),
@@ -336,6 +357,7 @@ function SettingsDialog({ open, value, onClose, onChange }: { open: boolean; val
         <Select label="Refresh the figures" value={value.refresh_seconds ? String(value.refresh_seconds) : ''} options={REFRESH}
           onChange={(v) => onChange({ refresh_seconds: v ? Number(v) : null })} hint="Useful for a screen on the wall. Wall mode refreshes at least every 5 minutes." />
         <NumberField label="Or every (seconds)" min={30} max={3600} value={value.refresh_seconds} onChange={(v) => onChange({ refresh_seconds: v })} hint="Between 30 and 3,600." />
+        {custom.inputs}
       </form>
     </Modal>
   );

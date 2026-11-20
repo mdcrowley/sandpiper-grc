@@ -69,7 +69,7 @@ const DOCS: [RouteDoc['method'], string, string, Extra?][] = [
   ['DELETE', '/api/views/:id', 'Stop sharing a view (its author or an administrator; audited)', { tag: 'Preferences' }],
 
   // ---- audit and lists ----
-  ['GET', '/api/audit', 'Search the audit log', { tag: 'Audit', permission: 'audit.view', query: { q: 'Text in the summary, actor or action.', action: 'Exact action.', record_type: 'Record type.', record_id: 'Record id.', actor_id: 'User id.', from: 'Date or date and time.', to: 'Date or date and time.', page: 'Page number.', pageSize: 'Rows a page (max 500).', format: '`csv` exports instead.' }, response: '{ rows, total, page, pageSize }' }],
+  ['GET', '/api/audit', 'Search the audit log', { tag: 'Audit', permission: 'audit.view', query: { q: 'Text in the summary, actor or action.', action: 'Exact action.', record_type: 'Record type.', record_id: 'Record id.', actor_id: 'User id.', request_id: 'Every event of one request (the X-Request-Id of its answer).', from: 'Date or date and time.', to: 'Date or date and time.', page: 'Page number.', pageSize: 'Rows a page (max 500).', format: '`csv` exports instead.' }, response: '{ rows, total, page, pageSize }' }],
   ['GET', '/api/lookups', 'Every configurable list with its number of values', { tag: 'Lists', permission: A }],
   ['GET', '/api/lookups/:list', 'The values of one list the caller may read', { tag: 'Lists', response: '[{ id, list_key, value, label, color, sort, active, meta }]' }],
   ['POST', '/api/lookups', 'Add a value to a list', { tag: 'Lists', permission: A, body: '{ list_key, value, label, color?, sort?, meta? }' }],
@@ -83,8 +83,8 @@ const DOCS: [RouteDoc['method'], string, string, Extra?][] = [
   ['DELETE', '/api/admin/custom-fields/:id', 'Switch a custom field off (its values are kept)', { tag: 'Custom fields', permission: A }],
 
   // ---- webhooks ----
-  ['GET', '/api/admin/webhooks', 'Webhook subscriptions, with whether outbound connections are on and the allow-list', { tag: 'Webhooks', permission: A, response: '{ webhooks: [{ id, name, url, events, active, include_restricted, pending, failed_recently, last_delivered_at, ... }], outboundEnabled, allowedHosts, retryMinutes, recordTypes, actions }' }],
-  ['POST', '/api/admin/webhooks', 'Add a webhook (the secret is in this answer and never shown again)', { tag: 'Webhooks', permission: A, body: '{ name, url, events: ["ticket.create", "risk.*", "*"], active?, includeRestricted?, secret? }', description: 'Needs a recent password confirmation. `includeRestricted` needs `security.view`.' }],
+  ['GET', '/api/admin/webhooks', 'Webhook subscriptions, with whether outbound connections are on and the allow-list', { tag: 'Webhooks', permission: A, response: '{ webhooks: [{ id, name, url, events, active, include_restricted, pending, failed_recently, last_delivered_at, ... }], outboundEnabled, allowedHosts, retryMinutes, recordTypes, actions, otherEvents: [{ event, label, description, restricted, recordType, data }] }' }],
+  ['POST', '/api/admin/webhooks', 'Add a webhook (the secret is in this answer and never shown again)', { tag: 'Webhooks', permission: A, body: '{ name, url, events: ["ticket.create", "risk.*", "*"], active?, includeRestricted?, secret? }', description: 'Needs a recent password confirmation. `includeRestricted` needs `security.view`. `events` may also name other events (`backup.failed`, `notification_clock.*`; see the integration guide).' }],
   ['PATCH', '/api/admin/webhooks/:id', 'Change a webhook', { tag: 'Webhooks', permission: A, body: '{ name?, url?, events?, active?, includeRestricted? }' }],
   ['DELETE', '/api/admin/webhooks/:id', 'Remove a webhook; its waiting deliveries are canceled', { tag: 'Webhooks', permission: A }],
   ['POST', '/api/admin/webhooks/:id/rotate-secret', 'Replace the signing secret (shown once)', { tag: 'Webhooks', permission: A, response: '{ ok, secret }' }],

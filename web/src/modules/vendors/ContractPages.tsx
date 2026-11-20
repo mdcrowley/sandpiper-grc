@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Tooltip } from '@mantine/core';
 import {
-  Countdown, cx, EditableSummary, formatDate, formatDateTime, Icon, RecordPage, ResourceList, todayInZone, useFetch,
+  Countdown, cx, EditableSummary, formatDate, formatDateTime, Icon, RecordPage, ResourceList, todayInZone, useFetch, useResource,
 } from '../../core';
 import type { Row } from '../../core';
 import { Checklist } from './Checklist';
@@ -16,9 +16,13 @@ import { ValueByYear } from './ValueByYear';
 
 const DAY = 24 * 3600 * 1000;
 
+/** Whether contracts carry an approval number (an option under Administration > Features: E18-28). */
+const useApprovalNumber = () => Boolean(useResource('contract')?.fields.resolution_number);
+
 export function ContractList() {
   const missing = useFetch<{ rows: unknown[] }>('/api/contracts/missing-dates');
   const count = missing.data?.rows.length ?? 0;
+  const approval = useApprovalNumber();
   return (
     <ResourceList
       type="contract"
@@ -28,7 +32,7 @@ export function ContractList() {
         { field: 'notice_date', label: 'Notice date', sortable: true, render: (row) => <NoticeChip date={row.notice_date} /> },
         'end_date', 'renewal_mechanism', 'total_value', 'owner_id',
         { field: 'document_type', hidden: true }, { field: 'start_date', hidden: true },
-        { field: 'notice_days', hidden: true }, { field: 'resolution_number', hidden: true },
+        { field: 'notice_days', hidden: true }, ...(approval ? [{ field: 'resolution_number', hidden: true }] : []),
       ]}
       filters={['status', 'vendor_id', 'renewal_mechanism', 'document_type', 'owner_id', 'notice_date', 'end_date']}
       bulkFields={['status', 'owner_id', 'renewal_mechanism', 'document_type']}
@@ -185,6 +189,8 @@ function ContractEvidence({ row }: { row: Row }) {
 
 export function ContractDetail() {
   const actions = useActionsAvailable();
+  const approval = useApprovalNumber();
+  const valueFields = ['total_value', ...(approval ? ['resolution_number'] : []), 'notes'];
   return (
     <RecordPage
       type="contract"
@@ -203,7 +209,7 @@ export function ContractDetail() {
             fields={[
               'title', 'vendor_id', 'status', 'document_type', 'parties', 'owner_id',
               'start_date', 'end_date', 'term', 'renewal_mechanism', 'notice_days',
-              'total_value', 'resolution_number', 'notes',
+              ...valueFields,
             ]}
             sections={[
               { title: 'Agreement', fields: ['title', 'vendor_id', 'status', 'document_type', 'parties', 'owner_id'] },
@@ -212,7 +218,7 @@ export function ContractDetail() {
                 description: 'The notice date is worked out for you: the end date less the notice period.',
                 fields: ['start_date', 'end_date', 'term', 'renewal_mechanism', 'notice_days'],
               },
-              { title: 'Value and approval', fields: ['total_value', 'resolution_number', 'notes'] },
+              { title: approval ? 'Value and approval' : 'Value', fields: valueFields },
             ]}
           />
           <div className="stack">

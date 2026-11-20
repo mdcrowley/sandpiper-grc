@@ -4,7 +4,7 @@ import { Alert, Button, Text } from '@mantine/core';
 import { IconAlertTriangle } from '@tabler/icons-react';
 import { api, ApiError, errorMessage, type Row } from './api';
 import { FieldControl, isMissing, toApiValue, toFormValue } from './FieldControl';
-import { fieldMeta } from './FieldValue';
+import { fieldMeta, knownFields } from './FieldValue';
 import { customFieldNames, useResource } from './meta';
 import { ErrorState } from './ui';
 import './records.css';
@@ -55,16 +55,20 @@ export function ResourceForm({
 }: ResourceFormProps) {
   const resource = useResource(type);
   // Custom fields the author did not place themselves follow the given ones, each under its own section.
-  const extra = customFields ? customFieldNames(resource).filter((f) => !given.includes(f)) : [];
-  const fields = extra.length ? [...given, ...extra] : given;
+  const placed = knownFields(resource, given);
+  const extra = customFields ? customFieldNames(resource).filter((f) => !placed.includes(f)) : [];
+  const fields = extra.length ? [...placed, ...extra] : placed;
   const sections = useMemo<FormSection[] | undefined>(() => {
-    if (!extra.length || !resource) return givenSections;
+    const placedSections = resource && givenSections
+      ? givenSections.map((x) => ({ ...x, fields: knownFields(resource, x.fields) })).filter((x) => x.fields.length > 0)
+      : givenSections;
+    if (!extra.length || !resource) return placedSections;
     const bySection = new Map<string, string[]>();
     for (const f of extra) {
       const title = resource.fields[f]?.section || 'More details';
       bySection.set(title, [...(bySection.get(title) ?? []), f]);
     }
-    return [...(givenSections ?? []), ...[...bySection].map(([title, names]) => ({ title, fields: names }))];
+    return [...(placedSections ?? []), ...[...bySection].map(([title, names]) => ({ title, fields: names }))];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [givenSections, resource, extra.join('|')]);
   const formRef = useRef<HTMLFormElement>(null);

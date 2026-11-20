@@ -118,9 +118,11 @@ export interface ResultViewProps {
   withTable?: boolean;
   maxRows?: number;
   label: string;
+  /** A dashboard widget: the note on multi-choice groupings in one short line (the full sentence on hover and for screen readers). */
+  shortNote?: boolean;
 }
 
-export function ResultView({ result, chart, height = 300, withTable, maxRows, label }: ResultViewProps) {
+export function ResultView({ result, chart, height = 300, withTable, maxRows, label, shortNote }: ResultViewProps) {
   const drill = useDrill();
   const kind = chart?.kind ?? 'table';
   const misfit = chartFit(kind, result);
@@ -129,8 +131,12 @@ export function ResultView({ result, chart, height = 300, withTable, maxRows, la
   if (result.mode !== 'total' && result.rows.length === 0) {
     return <EmptyState icon="search" title="No records match" message="Nothing fits the filters at the moment. Loosen a filter to see more." />;
   }
+  // Grouped by a multi-choice field: say how records are counted, under the table or chart.
+  const counting = !result.countingNote ? null : shortNote
+    ? <p className="rp-table-note rp-counting-short muted" title={result.countingNote}><Icon name="info" size={14} /> <span aria-hidden="true">Records with several values count under each.</span><span className="sr-only">{result.countingNote}</span></p>
+    : <p className="rp-table-note muted"><Icon name="info" size={14} /> {result.countingNote}</p>;
   const table = <ResultTable result={result} maxRows={maxRows} />;
-  if (kind === 'table') return result.mode === 'total' ? <Figures result={result} /> : table;
+  if (kind === 'table') return result.mode === 'total' ? <Figures result={result} /> : counting ? <div className="rp-result">{table}{counting}</div> : table;
 
   let visual: React.ReactNode = null;
   if (!misfit && (kind === 'number' || result.mode === 'total') && kind !== 'gauge') visual = <Figures result={result} big />;
@@ -151,6 +157,7 @@ export function ResultView({ result, chart, height = 300, withTable, maxRows, la
       {misfit && <p className="notice rp-misfit"><Icon name="info" size={16} /> This chart cannot be drawn yet. {misfit} The table shows the same figures.</p>}
       {visual}
       {(withTable || misfit) && result.mode !== 'total' && table}
+      {counting}
     </div>
   );
 }

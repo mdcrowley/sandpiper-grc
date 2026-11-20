@@ -96,7 +96,7 @@ POST /api/me/tokens
 
 **What a token cannot do.** It cannot call the sign-in, account-security, password,
 second-factor or token routes (`403 token_not_allowed`), and it cannot pass a password
-confirmation, so administrative actions that need one answer `403 reauth_required`. A token
+confirmation, so actions that need one (see [Security](security.md#actions-that-ask-you-to-confirm-your-identity)) answer `403 reauth_required`. A token
 request needs no `X-GRC-CSRF` header and never falls back to a browser session. Every change
 made with a token is audited with the token's name. You or an administrator can revoke a token
 at any time; see [Security](security.md#personal-access-tokens).
@@ -248,7 +248,11 @@ watermarked. `GET /api/v1/records/{type}/{id}/pdf` gives one record as a PDF fac
   `POST /api/v1/import/{type}/read` (headers, sample rows, a suggested mapping), and
   `POST /api/v1/import/{type}` with `dryRun: true` (the default) to check, then
   `dryRun: false` to import. `mode` is `create`, `update` or `upsert`, with a `matchKey`.
-  Every record goes through the same validation, rules and audit as one made by hand.
+  Every record goes through the same validation, rules and audit as one made by hand. The
+  check runs the record type's own rules too (its before-save checks and, for a record that
+  takes its restriction from another, the check that you can see that record), without
+  writing, so a row the check passes is not refused by the import unless something changed
+  in between.
 - **Assets from a discovery or endpoint-management tool**: `POST /api/v1/assets/ingest`
   (below).
 - **Vulnerability findings from a scanner**: `POST /api/v1/vulnerabilities/import` (below).
@@ -268,6 +272,44 @@ must be switched on and the receiving host allowed. See
 `examples/webhook-receiver.mjs` for checking a signature. Webhooks are managed through
 `/api/v1/admin/webhooks` (administrators, with a recent password confirmation, so not with a
 token).
+
+A record change is sent as `<type>.create`, `<type>.update` or `<type>.delete`:
+
+```json
+{ "id": "<delivery id>", "event": "ticket.update", "occurredAt": "2026-11-19T14:05:00.000Z",
+  "record": { "type": "ticket", "id": "…", "ref": "TKT-00042", "label": "TKT-00042 Ticket machine offline", "route": "/tickets/…" },
+  "data": { "title": "…", "status": "in_progress", "…": "…" },
+  "changes": { "before": { "status": "new" }, "after": { "status": "in_progress" } },
+  "actor": { "id": "…", "name": "…" } }
+```
+
+### Other events
+
+A webhook can also ask for these events, which are not record changes. The payload has the
+same envelope, with the event's own fields in `data`; `record` names the record the event is
+about (or is `null`), and `actor` is the person whose action caused it (`null` for scheduled
+work). Subscribe by name, by family (`notification_clock.*`), or with `*`, which takes every
+record change and every other event. A family name that is also a record type
+(`security_incident.*`, `change.*`) takes that type's record changes and its other events.
+
+| Event | When | Restricted | `data` |
+|---|---|---|---|
+| `notification_clock.warning` | A security incident's notification deadline is close (the clock turned amber); once per notification task. `record` is the notification task | always | `incidentId`, `incidentRef`, `party`, `required`, `dueAt`, `secondsRemaining` |
+| `notification_clock.overdue` | The deadline passed with the notification still pending (the clock turned red); once per notification task | always | `incidentId`, `incidentRef`, `party`, `required`, `dueAt` |
+| `security_incident.declared` | A security incident was declared, starting its notification clocks. `record` is the incident | always | `severity`, `declaredAt`, `clocks`, `firstDeadline` |
+| `change.approval_decided` | An approver approved or rejected a change. `record` is the change | as the change | `decision` (`approved` or `rejected`), `approver`, `approvalsReceived`, `approvalsRequired`, `status` |
+| `report_schedule.delivered` | A report schedule ran and reached at least one person. Counts only: the figures stay in the application | never | `name`, `delivered`, `skipped`, `failed` |
+| `backup.failed` | A scheduled or manual backup failed | never | `runId`, `trigger` (`scheduled` or `manual`), `destination`, `message` |
+
+The rules are those of record changes. An event marked **always** (about security incidents)
+goes only to a webhook that includes restricted records, chosen by a person who still holds
+`security.view`; one marked **as the change** is held back in the same way when that change is
+restricted. Nothing is sent for a part of the application that is switched off
+(Administration > Features), and its events are not offered: the notification clock and
+incident events belong to Security incidents, the change approval to Change enablement, and
+the report delivery to Dashboards and reports. `GET /api/v1/admin/webhooks` lists the events
+on offer in `otherEvents`. Receivers should ignore events and fields they do not know: new
+ones may be added within v1.
 
 ## Errors
 
@@ -302,7 +344,9 @@ your own records, and quote it when you report a problem: it ties your call to t
 answer.
 
 The same id is stored on every audit event the request causes (`request_id`), so you can find
-your own changes in the audit log. Requests to the MCP endpoint (`/mcp`) carry it too: every
+your own changes in the audit log: `GET /api/v1/audit?request_id=<id>` (needs `audit.view`)
+returns every event of that one request, and the audit log screen has a **Request id**
+filter. The CSV export (`format=csv`) has `token_name` and `request_id` columns. Requests to the MCP endpoint (`/mcp`) carry it too: every
 tool call an assistant makes in that request, and every change the tool causes, records the
 id of the `/mcp` request, and the AI assistant call log shows it.
 

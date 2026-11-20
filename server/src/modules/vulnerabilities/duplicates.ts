@@ -6,6 +6,7 @@
 // others are removed (soft-deleted) with an audit event on both sides naming the other.
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { requireRecentAuth } from '../../core/auth.ts';
 import { secured } from './policy.ts';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -80,6 +81,8 @@ export function registerDuplicates(ctx: ModuleContext) {
     if (others.some((r) => r.host_key !== keep!.host_key || r.finding_key !== keep!.finding_key || r.port_key !== keep!.port_key || !r.host_key || !r.finding_key)) {
       ctx.fail(400, 'not_duplicates', 'Only findings with the same host, port and identifier can be merged.');
     }
+    // A merge cannot be undone, so it asks to confirm your identity (E01-33).
+    await requireRecentAuth({ db: ctx.db, audit: ctx.audit, settings: ctx.settings }, req, `merging ${others.length + 1} duplicate findings`);
     const files = await tableExists('attachments');
     const moved = { comments: 0, files: 0, links: 0, tags: 0, watchers: 0 };
     await db.tx(async (tx) => {
@@ -138,7 +141,7 @@ export function registerDuplicates(ctx: ModuleContext) {
   ctx.describeRoute({
     method: 'POST', path: '/api/vulnerabilities/duplicates/merge', tag: 'Vulnerabilities', permission: 'vulnerabilities.administer',
     summary: 'Merge duplicate findings into the one kept (comments, files, links, tags and watchers move across)',
-    description: 'Also needs `security.view`. The findings must share host, port and identifier. The others are removed, with an audit event on each naming the kept finding, and the kept finding takes the earliest first-seen and latest last-seen dates.',
+    description: 'Also needs `security.view`. The findings must share host, port and identifier. The others are removed, with an audit event on each naming the kept finding, and the kept finding takes the earliest first-seen and latest last-seen dates. A merge cannot be undone, so it needs a recent identity confirmation (403 `reauth_required` otherwise; never with an API token).',
     body: { type: 'object', required: ['keep_id', 'merge_ids'], properties: { keep_id: { type: 'string', format: 'uuid' }, merge_ids: { type: 'array', items: { type: 'string', format: 'uuid' } } } },
   });
 }

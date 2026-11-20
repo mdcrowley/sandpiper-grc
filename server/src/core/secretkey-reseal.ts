@@ -47,8 +47,33 @@ export const SEALED_KINDS: SealedKind[] = [
   column('webhook', 'webhook signing secrets', 'webhooks', 'id', 'secret', (id) => `webhook:${id}`),
   column('idp', 'sign-in provider client secrets', 'identity_providers', 'id', 'secret', (id) => `idp:${id}`),
   column('sso_flow', 'single sign-on requests in progress', 'identity_flows', 'state_hash', 'remember', (id) => `sso:${id}`, 'expires_at > now()'),
+  column('sso_post', 'SAML responses waiting for their browser', 'identity_flows', 'state_hash', 'posted', (id) => `sso-post:${id}`, 'expires_at > now()'),
   column('sso_session', 'provider sign-out details of open sessions', 'identity_sessions', 'token_hash', 'id_token_sealed', (id) => `sso-session:${id}`),
   column('mail', 'the mail server password', 'mail_config', 'id', 'password_sealed', () => 'mail:smtp'),
+  {
+    key: 'mail_providers', label: 'Microsoft Graph and Gmail API credentials', table: 'mail_config',
+    async list(db) {
+      if (!(await columnExists(db, 'mail_config', 'provider_secrets'))) return [];
+      const rows = await db.query<{ k: string; v: string }>(`select e.key as k, e.value as v from mail_config, jsonb_each_text(provider_secrets) e where id = 1`);
+      return rows.filter((r) => r.v).map((r) => ({ id: r.k, stored: r.v, context: `mail:${r.k}` }));
+    },
+    async write(db, v, sealed) {
+      await db.query(`update mail_config set provider_secrets = jsonb_set(provider_secrets, array[$1::text], to_jsonb($2::text)) where id = 1 and provider_secrets->>$1 = $3`, [v.id, sealed, v.stored]);
+    },
+  },
+  {
+    key: 'email_intake', label: 'the email-to-ticket mailbox password', table: 'settings',
+    async list(db) {
+      const row = await db.one<{ v: string | null }>(`select value->>'password_sealed' as v from settings where key = 'tickets.email_intake'`);
+      return row?.v ? [{ id: 'tickets.email_intake', stored: row.v, context: 'tickets:email_intake' }] : [];
+    },
+    async write(db, v, sealed) {
+      await db.query(
+        `update settings set value = jsonb_set(value, '{password_sealed}', to_jsonb($2::text)) where key = $1 and value->>'password_sealed' = $3`,
+        [v.id, sealed, v.stored],
+      );
+    },
+  },
   {
     key: 'mail_link', label: 'set-up and reset links waiting to be emailed', table: 'jobs',
     async list(db) {
@@ -102,6 +127,7 @@ export async function resealStoredSecrets(db: Queryable, box: SecretBox, opts: {
   for (const kind of opts.kinds ?? SEALED_KINDS) {
     if (!(await tableExists(db, kind.table))) continue;
     if (kind.key === 'sso_session' && !(await columnExists(db, 'identity_sessions', 'id_token_sealed'))) continue;
+    if (kind.key === 'sso_post' && !(await columnExists(db, 'identity_flows', 'posted'))) continue;
     const count: ResealCount = { key: kind.key, label: kind.label, total: 0, current: 0, changed: 0, unreadable: 0 };
     for (const v of await kind.list(db)) {
       count.total += 1;

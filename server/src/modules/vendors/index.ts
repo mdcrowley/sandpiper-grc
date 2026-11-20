@@ -692,7 +692,7 @@ const mod: ModuleDef = {
 
     // ---------- assessments ----------
 
-    registerAssessments(ctx);
+    await registerAssessments(ctx);
 
     // ---------- reminders, hourly on the job queue (Administration > Background jobs) ----------
 

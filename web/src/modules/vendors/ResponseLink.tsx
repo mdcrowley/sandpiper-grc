@@ -1,14 +1,16 @@
-// Staff side of vendors answering an assessment themselves (E06-21): create, copy and revoke the
-// link for a draft assessment, then review what the vendor answered and take over the answers
-// you accept. Taken-over answers can still be changed before the assessment is completed.
+// Staff side of vendors answering an assessment themselves (E06-21): create, copy, email (E06-23)
+// and revoke the link for a draft assessment, then review what the vendor answered and the files
+// they sent (E06-22), and take over what you accept. Taken-over answers can still be changed
+// before the assessment is completed.
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import {
   api, ApiError, Button, ConfirmDialog, errorMessage, formatDate, formatDateTime, Modal, NumberField, StatusChip, Switch, TextField,
-  useAuth, useFetch, useToast,
+  useAuth, useFetch, useToast, withReauth,
 } from '../../core';
 import type { ColorName } from '../../core';
 import type { Question } from './Assessment';
+import { formatSize, HeldFiles, type HeldFile } from './ResponseFiles';
 
 type Answer = 'yes' | 'partial' | 'no' | 'na';
 interface Entry { answer?: Answer | null; note?: string | null }
@@ -16,9 +18,13 @@ interface Link {
   id: string; recipient: string | null; expires_at: string; created_at: string; created_by_name: string | null;
   opened_at: string | null; saved_at: string | null; submitted_at: string | null; revoked_at: string | null;
   responder_name: string | null; state: 'active' | 'submitted' | 'expired' | 'revoked' | 'closed'; answered: number;
-  answers: Record<string, Entry>;
+  answers: Record<string, Entry>; emailed_to: string | null; emailed_at: string | null; reminded_at: string | null; files: HeldFile[];
 }
-interface Links { enabled: boolean; default_days: number; max_days: number; rows: Link[] }
+interface LinkSettings {
+  enabled: boolean; default_days: number; max_days: number; max_files: number; max_mb: number; file_types: string[];
+  reminder_days: number; files_available: boolean; email_available: boolean;
+}
+interface Links extends LinkSettings { rows: Link[] }
 
 const LABEL: Record<Answer, string> = { yes: 'Yes', partial: 'Partly', no: 'No', na: 'Not applicable' };
 const STATE: Record<Link['state'], { label: string; color: ColorName }> = {
@@ -39,6 +45,8 @@ export function ResponseLinkPanel({ assessmentId, questions, answers, onAccepted
   const { data, reload } = useFetch<Links>(`/api/vendor-assessments/${assessmentId}/links`);
   const [creating, setCreating] = useState(false);
   const [recipient, setRecipient] = useState('');
+  const [email, setEmail] = useState('');
+  const [emailed, setEmailed] = useState<string | null>(null);
   const [days, setDays] = useState<number | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [made, setMade] = useState<string | null>(null);
@@ -53,8 +61,14 @@ export function ResponseLinkPanel({ assessmentId, questions, answers, onAccepted
     setBusy('create');
     setErrors({});
     try {
-      const res = await api.post<{ path: string }>(`/api/vendor-assessments/${assessmentId}/links`, { recipient, days: days ?? undefined });
-      setMade(`${window.location.origin}${res.path}`);
+      if (data?.email_available && email.trim()) {
+        // The application emails the link; nobody here sees it.
+        const res = await api.post<{ emailed_to: string }>(`/api/vendor-assessments/${assessmentId}/links/email`, { email, recipient: recipient || undefined, days: days ?? undefined });
+        setEmailed(res.emailed_to);
+      } else {
+        const res = await api.post<{ path: string }>(`/api/vendor-assessments/${assessmentId}/links`, { recipient, days: days ?? undefined });
+        setMade(`${window.location.origin}${res.path}`);
+      }
       reload();
     } catch (err) {
       if (err instanceof ApiError && err.fields) setErrors(err.fields);
@@ -102,6 +116,12 @@ export function ResponseLinkPanel({ assessmentId, questions, answers, onAccepted
   }) : [];
   const state = latest ? STATE[latest.state] : null;
   const open = latest?.state === 'active';
+  // Files wait on whichever link they came through, including a link that has since been replaced.
+  const held = data.rows.flatMap((l) => (l.files ?? []).map((f) => ({ ...f, link_id: l.id })));
+  const startNew = () => {
+    setMade(null); setEmailed(null); setRecipient(latest?.recipient ?? ''); setEmail(latest?.emailed_to ?? '');
+    setDays(data.default_days); setErrors({}); setCreating(true);
+  };
 
   return (
     <section className="vnd-link" aria-labelledby="vnd-link-title">
@@ -117,6 +137,7 @@ export function ResponseLinkPanel({ assessmentId, questions, answers, onAccepted
               {latest.submitted_at ? `Sent ${formatDateTime(latest.submitted_at)}${latest.responder_name ? ` by ${latest.responder_name}` : ''}. `
                 : latest.opened_at ? `Opened ${formatDateTime(latest.opened_at)}; ${latest.answered} of ${questions.length} answered so far. ` : 'Not opened yet. '}
               {open && `Works until ${formatDate(latest.expires_at)}.`}
+              {latest.emailed_to && ` Emailed to ${latest.emailed_to} ${formatDateTime(latest.emailed_at!)}${latest.reminded_at ? `; reminder sent ${formatDateTime(latest.reminded_at)}` : ''}.`}
             </p>
           )}
         </div>
@@ -124,8 +145,8 @@ export function ResponseLinkPanel({ assessmentId, questions, answers, onAccepted
           <div className="row">
             {open && <Button size="sm" variant="ghost" onClick={() => setRevoking(latest!)}>Withdraw link</Button>}
             {data.enabled && (
-              <Button size="sm" icon="link" onClick={() => { setMade(null); setRecipient(latest?.recipient ?? ''); setDays(data.default_days); setErrors({}); setCreating(true); }}>
-                {latest ? 'New link' : 'Create link'}
+              <Button size="sm" icon="link" onClick={startNew}>
+                {latest ? (data.email_available && latest.emailed_to ? 'Send a new link' : 'New link') : 'Create link'}
               </Button>
             )}
           </div>
@@ -161,8 +182,15 @@ export function ResponseLinkPanel({ assessmentId, questions, answers, onAccepted
         </div>
       )}
 
-      <Modal open={creating} title={made ? 'Link ready' : 'Create a link for the vendor'} size="md" onClose={() => setCreating(false)}>
-        {made ? (
+      <HeldFiles assessmentId={assessmentId} files={held} editable={editable} onChange={reload} />
+
+      <Modal open={creating} title={emailed ? 'Link sent' : made ? 'Link ready' : 'Create a link for the vendor'} size="md" onClose={() => setCreating(false)}>
+        {emailed ? (
+          <div className="form">
+            <p>A new link is on its way to <strong>{emailed}</strong>. Nobody else sees it: if it is lost, send a new one (the old one then stops working).</p>
+            <div className="form-actions"><Button variant="primary" onClick={() => setCreating(false)}>Done</Button></div>
+          </div>
+        ) : made ? (
           <div className="form">
             <p>Send this address to the vendor. It is shown <strong>only now</strong>; if it is lost, create a new link (the old one then stops working).</p>
             <TextField label="Link for the vendor" value={made} onChange={() => undefined} />
@@ -178,10 +206,14 @@ export function ResponseLinkPanel({ assessmentId, questions, answers, onAccepted
               {latest && latest.state === 'active' ? ' The link sent earlier stops working.' : ''}
             </p>
             <TextField label="Who it is for" value={recipient} onChange={setRecipient} error={errors.recipient} hint="Optional: a name or team at the vendor, for your own reference." />
+            {data.email_available && (
+              <TextField label="Email it to" type="email" value={email} onChange={setEmail} error={errors.email} autoComplete="off"
+                hint="Optional: the application emails the link to this address, and you never see it. Leave empty to copy the link and send it yourself." />
+            )}
             <NumberField label="Days it works" required min={1} max={data.max_days} step={1} decimals={0} value={days} onChange={setDays} error={errors.days} />
             <div className="form-actions">
               <Button onClick={() => setCreating(false)}>Cancel</Button>
-              <Button type="submit" variant="primary" loading={busy === 'create'}>Create link</Button>
+              <Button type="submit" variant="primary" loading={busy === 'create'}>{data.email_available && email.trim() ? 'Create and email link' : 'Create link'}</Button>
             </div>
           </form>
         )}
@@ -198,18 +230,39 @@ export function ResponseLinkPanel({ assessmentId, questions, answers, onAccepted
 /** Administrators switch vendor response links on or off and set how long a new link lasts. */
 export function ResponseLinkSettings() {
   const toast = useToast();
-  const { data, reload } = useFetch<{ enabled: boolean; default_days: number; max_days: number; can_administer: boolean }>('/api/vendors/response-links/settings');
+  const { data, reload } = useFetch<LinkSettings & { can_administer: boolean }>('/api/vendors/response-links/settings');
   const [days, setDays] = useState<number | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [files, setFiles] = useState<{ max_files: number | null; max_mb: number | null; file_types: string; reminder_days: number | null } | null>(null);
+  const [fileErrors, setFileErrors] = useState<Record<string, string>>({});
   if (!data) return null;
   const value = days ?? data.default_days;
+  const form = files ?? { max_files: data.max_files, max_mb: data.max_mb, file_types: data.file_types.join(', '), reminder_days: data.reminder_days };
+
+  async function saveFiles() {
+    setBusy(true);
+    setFileErrors({});
+    try {
+      await api.put('/api/vendors/response-links/settings', {
+        max_files: form.max_files, max_mb: form.max_mb, file_types: form.file_types, reminder_days: form.reminder_days,
+      });
+      toast.success('Saved.');
+      setFiles(null);
+      reload();
+    } catch (err) {
+      if (err instanceof ApiError && Object.keys(err.fields ?? {}).length) setFileErrors(err.fields!);
+      else toast.error(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function put(body: Record<string, unknown>, done: string) {
     setBusy(true);
     setError('');
     try {
-      await api.put('/api/vendors/response-links/settings', body);
+      await withReauth(() => api.put('/api/vendors/response-links/settings', body));
       toast.success(done);
       setDays(null);
       reload();
@@ -235,6 +288,23 @@ export function ResponseLinkSettings() {
           <Button loading={busy} onClick={() => void put({ default_days: days }, 'Saved.')}>Save</Button>
         )}
       </div>
+      <div className="vnd-link-files">
+        <NumberField label="Files a vendor may send per link" min={0} max={50} step={1} decimals={0} value={form.max_files}
+          onChange={(v) => setFiles({ ...form, max_files: v })} disabled={!data.can_administer} error={fileErrors.max_files}
+          hint={data.files_available ? '0 = no files. Each file is checked like any upload, then waits for staff review.' : 'Files cannot be received here: file attachments are not installed.'} />
+        <NumberField label="Total size per link (MB)" min={1} max={500} step={1} decimals={0} value={form.max_mb}
+          onChange={(v) => setFiles({ ...form, max_mb: v })} disabled={!data.can_administer} error={fileErrors.max_mb}
+          hint="Each file is also held to the upload limit under File settings." />
+        <TextField label="File types vendors may send" value={form.file_types} onChange={(v) => setFiles({ ...form, file_types: v })}
+          disabled={!data.can_administer} error={fileErrors.file_types} hint="Separated by commas. Only types also allowed under File settings are accepted." />
+        <NumberField label="Reminder before an emailed link expires (days)" min={0} max={30} step={1} decimals={0} value={form.reminder_days}
+          onChange={(v) => setFiles({ ...form, reminder_days: v })} disabled={!data.can_administer} error={fileErrors.reminder_days}
+          hint={data.email_available ? '0 = no reminder. The reminder does not repeat the link.' : 'Applies once email is set up (Administration > Email).'} />
+      </div>
+      {data.can_administer && files !== null && (
+        <div className="row"><Button loading={busy} onClick={() => void saveFiles()}>Save file and reminder settings</Button></div>
+      )}
+      {data.max_files > 0 && <p className="muted vnd-link-limits">Now: up to {data.max_files} files and {formatSize(data.max_mb * 1024 * 1024)} per link.</p>}
     </div>
   );
 }

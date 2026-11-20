@@ -3,11 +3,12 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
-  Button, ConfirmDialog, Drawer, EmptyState, ErrorState, Icon, Loading, NotFound, PageHeader, ResourceList, StatusChip,
+  Button, ConfirmDialog, CustomFieldsCard, Drawer, EmptyState, ErrorState, Icon, Loading, NotFound, PageHeader, ResourceList, StatusChip,
   api, errorMessage, formatDateTime, useAuth, useFetch, useToast,
 } from '../../core';
 import type { ApiError, Row } from '../../core';
 import { downloadFile } from './data';
+import { CustomFieldsLink } from './custom';
 import { ScheduleDialog } from './dialogs';
 import type { Snapshot } from './types';
 
@@ -28,7 +29,7 @@ export function SchedulesPage() {
         filters={['cadence', 'target_type', 'email', 'active', 'owner_id']}
         bulkFields={[]}
         onRowClick={(row) => setOpen(row)}
-        actions={<span className="muted">To add one, open a report or dashboard and choose Schedule.</span>}
+        actions={<><span className="muted">To add one, open a report or dashboard and choose Schedule.</span><CustomFieldsLink type="report_schedule" /></>}
       />
       <ScheduleDrawer schedule={open} onClose={() => setOpen(null)} onChanged={() => setTick((n) => n + 1)} />
     </>
@@ -71,6 +72,7 @@ function ScheduleDrawer({ schedule, onClose, onChanged }: { schedule: Row | null
       <div className="stack">
         <p><Link to={target}>Open the {schedule.target_type === 'dashboard' ? 'dashboard' : 'report'} <Icon name="arrow-right" size={14} /></Link></p>
         <p className="muted">{schedule.active ? `Next delivery ${formatDateTime(schedule.next_run_at)}.` : 'Switched off.'}</p>
+        <CustomFieldsCard type="report_schedule" row={schedule} onSaved={() => onChanged()} />
         <h3 className="rp-h3">Deliveries</h3>
         {log.error ? <ErrorState error={log.error} onRetry={log.reload} />
           : !log.data ? <Loading lines={3} />

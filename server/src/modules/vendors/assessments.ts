@@ -124,10 +124,10 @@ export async function latestAssessment(ctx: ModuleContext, vendorId: string) {
   };
 }
 
-export function registerAssessments(ctx: ModuleContext) {
+export async function registerAssessments(ctx: ModuleContext) {
   const { db } = ctx;
   // Vendors answering through a link (E06-21) and one expiry date for evidence (E06-20).
-  registerResponseLinks(ctx);
+  await registerResponseLinks(ctx);
   registerEvidenceExpiry(ctx);
 
   const setView = (s: Row) => ({

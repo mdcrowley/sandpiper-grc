@@ -3,8 +3,12 @@ import type { FastifyRequest } from 'fastify';
 import { requireRecentAuth, secretBox } from '../auth.ts';
 import { DEFAULT_APP_NAME } from '../config.ts';
 import type { ModuleContext, Row } from '../module.ts';
+import { PROVIDER_LABELS, sealedSecret, secretContext } from './accounts.ts';
+import { MICROSOFT_CLOUDS, readCertificate, readServiceAccountKey } from './cloud.ts';
+import { GMAIL_READ_SCOPE, GMAIL_SEND_SCOPE, gmailSettings, type GmailSettings } from './gmail.ts';
+import { graphSettings, type GraphSettings } from './graph.ts';
 import { providerNames } from './provider.ts';
-import { EMAIL_RE, loadConfig, SECRET_CONTEXT, type MailService } from './service.ts';
+import { EMAIL_RE, loadConfig, SECRET_CONTEXT, type MailService, type StoredMailConfig } from './service.ts';
 import { DEFAULT_TEMPLATES, render, textToHtml, validateTemplate } from './templates.ts';
 
 const A = 'admin.administer';
@@ -12,11 +16,44 @@ const TAG = 'Email';
 const TLS_MODES = ['none', 'starttls', 'tls'];
 const LOG_STATUSES = ['queued', 'sent', 'failed', 'dead', 'skipped'];
 
-const publicConfig = (c: Row) => ({
-  enabled: c.enabled, provider: c.provider, host: c.host, port: c.port, tlsMode: c.tls_mode, username: c.username,
-  passwordSet: Boolean(c.password_sealed), fromAddress: c.from_address, fromName: c.from_name, replyTo: c.reply_to,
-  baseUrl: c.base_url, updatedAt: c.updated_at,
+const publicConfig = (c: Row) => {
+  const g = graphSettings(c);
+  const gm = gmailSettings(c);
+  return {
+    enabled: c.enabled, provider: c.provider, host: c.host, port: c.port, tlsMode: c.tls_mode, username: c.username,
+    passwordSet: Boolean(c.password_sealed), fromAddress: c.from_address, fromName: c.from_name, replyTo: c.reply_to,
+    baseUrl: c.base_url, updatedAt: c.updated_at,
+    graph: {
+      tenantId: g.tenantId, clientId: g.clientId, authMethod: g.authMethod, mailbox: g.mailbox, cloud: g.cloud,
+      thumbprint: g.thumbprint ?? null, certExpires: g.certExpires ?? null, credentialSet: Boolean(sealedSecret(c as StoredMailConfig, 'graph')),
+    },
+    gmail: {
+      mailbox: gm.mailbox, clientEmail: gm.clientEmail ?? null, clientId: gm.clientId ?? null,
+      credentialSet: Boolean(sealedSecret(c as StoredMailConfig, 'gmail')),
+    },
+  };
+};
+
+const CLOUDS = Object.entries(MICROSOFT_CLOUDS).map(([value, c]) => ({ value, label: c.label }));
+const GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const TENANT_RE = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[a-z0-9-]+(\.[a-z0-9-]+)+)$/i;
+const extras = () => ({
+  providers: providerNames(), providerLabels: PROVIDER_LABELS, tlsModes: TLS_MODES, clouds: CLOUDS,
+  scopes: { gmailSend: GMAIL_SEND_SCOPE, gmailRead: GMAIL_READ_SCOPE },
 });
+
+/** Whether the chosen provider has what it needs to send (the from address and application address aside). */
+function providerProblems(provider: string, c: { host: string; graph: GraphSettings; graphCredential: boolean; gmailKey: boolean }): Record<string, string> {
+  if (provider === 'graph') {
+    const f: Record<string, string> = {};
+    if (!c.graph.tenantId) f['graph.tenantId'] = 'Enter the directory (tenant) ID to use Microsoft Graph.';
+    if (!c.graph.clientId) f['graph.clientId'] = 'Enter the application (client) ID to use Microsoft Graph.';
+    if (!c.graphCredential) f.graphCredential = c.graph.authMethod === 'certificate' ? 'Enter the certificate and its private key.' : 'Enter the client secret.';
+    return f;
+  }
+  if (provider === 'gmail') return c.gmailKey ? {} : { gmailKey: 'Enter the service account\'s JSON key.' };
+  return c.host ? {} : { host: 'Enter the mail server to switch email on.' };
+}
 
 /** Sample values for a template preview. */
 const SAMPLE: Row = {
@@ -33,10 +70,8 @@ export function registerMailRoutes(ctx: ModuleContext, mail: MailService) {
 
   // ---------- settings ----------
 
-  app.get('/api/admin/mail/settings', admin, async () => ({
-    ...publicConfig(await loadConfig(ctx)), providers: providerNames(), tlsModes: TLS_MODES,
-  }));
-  ctx.describeRoute({ method: 'GET', path: '/api/admin/mail/settings', tag: TAG, permission: A, summary: 'Email settings (the password is never returned)' });
+  app.get('/api/admin/mail/settings', admin, async () => ({ ...publicConfig(await loadConfig(ctx)), ...extras() }));
+  ctx.describeRoute({ method: 'GET', path: '/api/admin/mail/settings', tag: TAG, permission: A, summary: 'Email settings (the password, client secret, certificate and key are never returned)' });
 
   app.put('/api/admin/mail/settings', admin, async (req) => {
     const b = (req.body ?? {}) as Row;
@@ -70,41 +105,125 @@ export function registerMailRoutes(ctx: ModuleContext, mail: MailService) {
         fields.baseUrl = 'Enter the address people use to open the application, such as https://grc.example.org.';
       }
     }
+    const password = b.password === undefined || b.password === null || b.password === '' ? undefined : String(b.password);
+    if (password !== undefined && password.length > 500) fields.password = 'Keep the password under 500 characters.';
+
+    // Microsoft Graph: the app registration, and a client secret or a certificate.
+    const gb = (b.graph && typeof b.graph === 'object' ? b.graph : {}) as Row;
+    const graphBefore = graphSettings(before);
+    const graph: GraphSettings = {
+      ...graphBefore,
+      tenantId: str(gb.tenantId, graphBefore.tenantId),
+      clientId: str(gb.clientId, graphBefore.clientId).toLowerCase(),
+      authMethod: str(gb.authMethod, graphBefore.authMethod) as GraphSettings['authMethod'],
+      mailbox: str(gb.mailbox, graphBefore.mailbox).toLowerCase(),
+      cloud: str(gb.cloud, graphBefore.cloud) as GraphSettings['cloud'],
+    };
+    if (graph.tenantId && !TENANT_RE.test(graph.tenantId)) fields['graph.tenantId'] = 'Enter the directory (tenant) ID, such as 00000000-0000-0000-0000-000000000000, or the tenant\'s domain name.';
+    if (graph.clientId && !GUID_RE.test(graph.clientId)) fields['graph.clientId'] = 'Enter the application (client) ID, such as 00000000-0000-0000-0000-000000000000.';
+    if (!['secret', 'certificate'].includes(graph.authMethod)) fields['graph.authMethod'] = 'Choose a client secret or a certificate.';
+    if (!(graph.cloud in MICROSOFT_CLOUDS)) fields['graph.cloud'] = 'Choose the Microsoft cloud your tenant is in.';
+    if (graph.mailbox && !EMAIL_RE.test(graph.mailbox)) fields['graph.mailbox'] = 'Enter the mailbox\'s email address, or leave it empty to send as the from address.';
+    const graphCredential = typeof b.graphCredential === 'string' && b.graphCredential.trim() ? b.graphCredential.trim() : undefined;
+    const clearGraph = b.clearGraphCredential === true;
+    if (graphCredential !== undefined) {
+      if (graphCredential.length > 20000) fields.graphCredential = 'This is too long for a client secret or a certificate.';
+      else if (graph.authMethod === 'certificate') {
+        try {
+          const cert = readCertificate(graphCredential);
+          graph.thumbprint = cert.thumbprint;
+          graph.certExpires = cert.expires;
+        } catch (err) {
+          fields.graphCredential = (err as Error).message;
+        }
+      } else if (/-----BEGIN /.test(graphCredential)) {
+        fields.graphCredential = 'This looks like a certificate. Choose "Certificate" as the sign-in method, or enter the client secret\'s value.';
+      } else if (graphCredential.length > 500 || /\s/.test(graphCredential)) {
+        fields.graphCredential = 'Enter the client secret\'s value: one line, with no spaces.';
+      } else {
+        delete graph.thumbprint;
+        delete graph.certExpires;
+      }
+    } else if (graph.authMethod !== graphBefore.authMethod && sealedSecret(before, 'graph') && !clearGraph) {
+      fields.graphCredential = graph.authMethod === 'certificate'
+        ? 'Enter the certificate and its private key for the new sign-in method.' : 'Enter the client secret for the new sign-in method.';
+    }
+    if (clearGraph) { delete graph.thumbprint; delete graph.certExpires; }
+
+    // Gmail API: a service account with domain-wide delegation.
+    const mb = (b.gmail && typeof b.gmail === 'object' ? b.gmail : {}) as Row;
+    const gmailBefore = gmailSettings(before);
+    const gmail: GmailSettings = { ...gmailBefore, mailbox: str(mb.mailbox, gmailBefore.mailbox).toLowerCase() };
+    if (gmail.mailbox && !EMAIL_RE.test(gmail.mailbox)) fields['gmail.mailbox'] = 'Enter the mailbox\'s email address, or leave it empty to send as the from address.';
+    const gmailKey = typeof b.gmailKey === 'string' && b.gmailKey.trim() ? b.gmailKey.trim() : undefined;
+    const clearGmail = b.clearGmailKey === true;
+    if (gmailKey !== undefined) {
+      if (gmailKey.length > 20000) fields.gmailKey = 'This is too long for a service account key.';
+      else {
+        try {
+          const key = readServiceAccountKey(gmailKey);
+          Object.assign(gmail, { clientEmail: key.clientEmail, clientId: key.clientId, keyId: key.keyId });
+        } catch (err) {
+          fields.gmailKey = (err as Error).message;
+        }
+      }
+    }
+    if (clearGmail) { delete gmail.clientEmail; delete gmail.clientId; delete gmail.keyId; }
+
     if (next.enabled) {
-      if (!next.host) fields.host ??= 'Enter the mail server to switch email on.';
+      const problems = providerProblems(next.provider, {
+        host: next.host, graph,
+        graphCredential: graphCredential !== undefined || (Boolean(sealedSecret(before, 'graph')) && !clearGraph),
+        gmailKey: gmailKey !== undefined || (Boolean(sealedSecret(before, 'gmail')) && !clearGmail),
+      });
+      for (const [k, v] of Object.entries(problems)) fields[k] ??= v;
       if (!next.from_address) fields.fromAddress ??= 'Enter the address messages come from to switch email on.';
       if (!next.base_url) fields.baseUrl ??= 'Enter the application address to switch email on: messages link back to it.';
     }
-    const password = b.password === undefined || b.password === null || b.password === '' ? undefined : String(b.password);
-    if (password !== undefined && password.length > 500) fields.password = 'Keep the password under 500 characters.';
     if (Object.keys(fields).length) invalid(fields);
 
+    const settingsAfter = { ...before.provider_settings, graph, gmail } as unknown as Record<string, Record<string, unknown>>;
+    const secretsAfter: Record<string, string> = { ...before.provider_secrets };
+    if (clearGraph) delete secretsAfter.graph;
+    if (graphCredential !== undefined) secretsAfter.graph = secretBox(db).encrypt(graphCredential, secretContext('graph'));
+    if (clearGmail) delete secretsAfter.gmail;
+    if (gmailKey !== undefined) secretsAfter.gmail = secretBox(db).encrypt(gmailKey, secretContext('gmail'));
+
     const pick = (c: Row) => ({ ...publicConfig(c), updatedAt: undefined });
-    const passwordChange = password !== undefined || b.clearPassword === true;
-    const changed = JSON.stringify(pick({ ...before, ...next })) !== JSON.stringify(pick(before)) || passwordChange;
-    if (!changed) return { ...publicConfig(before), providers: providerNames(), tlsModes: TLS_MODES };
+    const credentialChanges = [
+      password !== undefined || b.clearPassword === true ? 'password' : '',
+      graphCredential !== undefined || clearGraph ? (graph.authMethod === 'certificate' ? 'Microsoft Graph certificate' : 'Microsoft Graph client secret') : '',
+      gmailKey !== undefined || clearGmail ? 'Gmail service account key' : '',
+    ].filter(Boolean);
+    const candidate = { ...before, ...next, provider_settings: settingsAfter, provider_secrets: secretsAfter };
+    const changed = JSON.stringify(pick(candidate)) !== JSON.stringify(pick(before)) || credentialChanges.length > 0;
+    if (!changed) return { ...publicConfig(before), ...extras() };
     await recentAuth(req, 'changing the email settings');
 
     const sealed = password !== undefined ? secretBox(db).encrypt(password, SECRET_CONTEXT) : b.clearPassword === true ? null : before.password_sealed;
     await db.query(
       `update mail_config set enabled = $1, provider = $2, host = $3, port = $4, tls_mode = $5, username = $6, from_address = $7,
-         from_name = $8, reply_to = $9, base_url = $10, password_sealed = $11, updated_at = now(), updated_by = $12 where id = 1`,
+         from_name = $8, reply_to = $9, base_url = $10, password_sealed = $11, updated_at = now(), updated_by = $12,
+         provider_settings = $13::jsonb, provider_secrets = $14::jsonb where id = 1`,
       [next.enabled, next.provider, next.host, next.port, next.tls_mode, next.username, next.from_address, next.from_name,
-        next.reply_to, next.base_url, sealed, req.user!.id],
+        next.reply_to, next.base_url, sealed, req.user!.id, JSON.stringify(settingsAfter), JSON.stringify(secretsAfter)],
     );
     const after = await loadConfig(ctx);
+    const what = credentialChanges.length ? ` (${credentialChanges.join(', ')} changed)` : '';
+    const label = PROVIDER_LABELS[after.provider] ?? after.provider;
     await ctx.audit(req, {
-      action: 'mail.settings', recordType: 'mail', summary: before.enabled !== after.enabled
-        ? `Email ${after.enabled ? 'switched on' : 'switched off'}${passwordChange ? '; password changed' : ''}`
-        : `Email settings changed${passwordChange ? ' (password changed)' : ''}`,
+      action: 'mail.settings', recordType: 'mail',
+      summary: before.enabled !== after.enabled ? `Email ${after.enabled ? `switched on, sent through ${label}` : 'switched off'}${what}`
+        : before.provider !== after.provider ? `Email now sent through ${label}${what}`
+          : `Email settings changed${what}`,
       before: pick(before), after: pick(after),
     });
-    return { ...publicConfig(after), providers: providerNames(), tlsModes: TLS_MODES };
+    return { ...publicConfig(after), ...extras() };
   });
   ctx.describeRoute({
     method: 'PUT', path: '/api/admin/mail/settings', tag: TAG, permission: A, summary: 'Change the email settings',
-    description: 'Needs a recent password confirmation. `password` replaces the stored password (kept encrypted); leave it out to keep it, or send `clearPassword: true`.',
-    body: '{ enabled, provider, host, port, tlsMode: none|starttls|tls, username, password?, clearPassword?, fromAddress, fromName, replyTo, baseUrl }',
+    description: 'Needs a recent password confirmation. `provider` is smtp, graph (Microsoft Graph) or gmail (Gmail API). Secrets are kept encrypted and never returned: `password` (SMTP), `graphCredential` (the client secret, or the certificate and its private key as PEM, as `graph.authMethod` says) and `gmailKey` (the service account\'s JSON key). Leave one out to keep it, or send `clearPassword`, `clearGraphCredential` or `clearGmailKey: true` to remove it.',
+    body: '{ enabled, provider: smtp|graph|gmail, host, port, tlsMode: none|starttls|tls, username, password?, clearPassword?, fromAddress, fromName, replyTo, baseUrl, graph: { tenantId, clientId, authMethod: secret|certificate, mailbox, cloud: global|usgov|usgov_dod }, graphCredential?, clearGraphCredential?, gmail: { mailbox }, gmailKey?, clearGmailKey? }',
   });
 
   app.post('/api/admin/mail/test', admin, async (req) => {
@@ -112,9 +231,19 @@ export function registerMailRoutes(ctx: ModuleContext, mail: MailService) {
     const to = String(b.to ?? req.user!.email ?? '').trim();
     if (!EMAIL_RE.test(to)) invalid({ to: 'Enter the email address to send the test to.' });
     const config = await loadConfig(ctx);
-    if (!config.host || !config.from_address) ctx.fail(409, 'not_configured', 'Save the mail server and the from address first.');
+    const missing = providerProblems(config.provider, {
+      host: config.host, graph: graphSettings(config),
+      graphCredential: Boolean(sealedSecret(config, 'graph')), gmailKey: Boolean(sealedSecret(config, 'gmail')),
+    });
+    if (Object.keys(missing).length || !config.from_address) {
+      ctx.fail(409, 'not_configured', config.provider === 'smtp' ? 'Save the mail server and the from address first.'
+        : `Save the ${PROVIDER_LABELS[config.provider] ?? config.provider} sign-in and the from address first.`);
+    }
     const result = await mail.sendTest(to, req.user!);
-    await ctx.audit(req, { action: 'mail.test', recordType: 'mail', summary: `Test email to ${to}: ${result.status}` });
+    await ctx.audit(req, {
+      action: 'mail.test', recordType: 'mail',
+      summary: `Test email to ${to} through ${PROVIDER_LABELS[config.provider] ?? config.provider}: ${result.status}${result.error ? ` (${String(result.error).slice(0, 200)})` : ''}`,
+    });
     return result;
   });
   ctx.describeRoute({

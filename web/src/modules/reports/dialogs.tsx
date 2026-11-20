@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Button, IconButton, Modal, MultiSelect, NumberField, Select, Switch, TextField, UserPicker,
-  api, errorMessage, formatDateTime, timeZone, useAuth, useFetch, useToast,
+  api, errorMessage, formatDateTime, timeZone, useAuth, useCustomFieldInputs, useFetch, useToast,
 } from '../../core';
 import type { ListResult } from '../../core';
 
@@ -64,6 +64,8 @@ export function ScheduleDialog({ open, onClose, target, existing, onSaved }: {
   const [busy, setBusy] = useState(false);
   const { user } = useAuth();
   const isDash = (existing?.target_type ?? target?.type) === 'dashboard';
+  // An administrator's custom fields on report schedules (E18-45), starting again each time the dialog opens.
+  const custom = useCustomFieldInputs('report_schedule', { initial: existing ? { ...existing, id: String(existing.id) } : undefined, resetKey: open ? `${existing?.id ?? 'new'}:${existing?.updated_at ?? ''}` : 'closed' });
 
   useEffect(() => {
     if (!open) return;
@@ -79,9 +81,12 @@ export function ScheduleDialog({ open, onClose, target, existing, onSaved }: {
 
   const set = (patch: Row) => setF((prev) => ({ ...prev, ...patch }));
   async function save() {
+    const extra = custom.collect();
+    if (!extra) return; // a required custom field is empty: the message is beside it
     setBusy(true);
     setErrors({});
     const body = {
+      ...extra,
       name: String(f.name ?? '').trim(), cadence: f.cadence, weekday: f.weekday, month_day: f.month_day, hour: Number(f.hour), format: isDash && f.format === 'csv' ? 'html' : f.format,
       email: f.email === 'attach' && !isFile(f.format) ? 'link' : f.email ?? 'link',
       recipient_users: people.map((p) => p.id), recipient_roles: f.recipient_roles ?? [], active: f.active !== false,
@@ -95,6 +100,7 @@ export function ScheduleDialog({ open, onClose, target, existing, onSaved }: {
     } catch (err) {
       const fields = (err as { fields?: Record<string, string> }).fields ?? {};
       setErrors(fields);
+      custom.showErrors(fields);
       if (!Object.keys(fields).length) toast.error(errorMessage(err));
     } finally { setBusy(false); }
   }
@@ -148,6 +154,7 @@ export function ScheduleDialog({ open, onClose, target, existing, onSaved }: {
           {errors.recipient_roles && <p className="field-error">{errors.recipient_roles}</p>}
         </fieldset>
         <Switch label="Switched on" checked={f.active !== false} onChange={(active) => set({ active })} />
+        {custom.inputs}
       </form>
     </Modal>
   );
@@ -165,6 +172,8 @@ export function AddToDashboardDialog({ open, onClose, report }: { open: boolean;
   const [busy, setBusy] = useState(false);
   useEffect(() => { if (open) { setChoice(''); setName(''); } }, [open]);
   const creating = choice === 'new' || (list.data !== undefined && mine.length === 0);
+  // A new dashboard asks the administrator's custom fields on dashboards (E18-45).
+  const custom = useCustomFieldInputs('dashboard', { resetKey: open ? 'open' : 'closed' });
 
   async function add() {
     setBusy(true);
@@ -175,7 +184,9 @@ export function AddToDashboardDialog({ open, onClose, report }: { open: boolean;
       let dash: Dashboard;
       if (creating) {
         if (!name.trim()) { toast.error('Give the new dashboard a name.'); return; }
-        dash = await api.post<Dashboard>('/api/dashboards', { name: name.trim(), widgets: [widget([])], filters: [{ kind: 'date', label: 'Dates' }] });
+        const extra = custom.collect();
+        if (!extra) return; // a required custom field is empty: the message is beside it
+        dash = await api.post<Dashboard>('/api/dashboards', { name: name.trim(), widgets: [widget([])], filters: [{ kind: 'date', label: 'Dates' }], ...extra });
       } else {
         const current = mine.find((d) => d.id === choice);
         if (!current) { toast.error('Choose a dashboard.'); return; }
@@ -184,7 +195,9 @@ export function AddToDashboardDialog({ open, onClose, report }: { open: boolean;
       toast.success(`Added to "${dash.name}".`);
       onClose();
       navigate(`/dashboards/${dash.id}`);
-    } catch (err) { toast.error(errorMessage(err)); } finally { setBusy(false); }
+    } catch (err) {
+      if (!custom.showErrors((err as { fields?: Record<string, string> }).fields)) toast.error(errorMessage(err));
+    } finally { setBusy(false); }
   }
 
   return (
@@ -196,6 +209,7 @@ export function AddToDashboardDialog({ open, onClose, report }: { open: boolean;
             options={[...mine.map((d) => ({ value: d.id, label: d.name })), ...(can('dashboards.create') ? [{ value: 'new', label: 'A new dashboard…' }] : [])]} />
         )}
         {creating && can('dashboards.create') && <TextField label="Name of the new dashboard" required value={name} onChange={setName} />}
+        {creating && can('dashboards.create') && custom.inputs}
         {list.data !== undefined && mine.length === 0 && !can('dashboards.create') && <p className="notice">Your role does not allow changing dashboards.</p>}
         <p className="muted">The report appears as a widget. You can move and resize it on the dashboard.</p>
       </form>

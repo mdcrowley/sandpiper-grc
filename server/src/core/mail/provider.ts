@@ -1,4 +1,5 @@
-// How a message leaves the application. SMTP is the one provider supplied.
+// How a message leaves the application: SMTP (here), Microsoft Graph (graph.ts) and the Gmail
+// API (gmail.ts), E14-25.
 //
 // Adding another (for example a cloud mail service's HTTP API) needs no change elsewhere:
 //   1. Write a file that calls `registerMailProvider('name', (config, secret) => provider)`,
@@ -6,8 +7,9 @@
 //      never rejects; it says whether trying again could help (`retryable`).
 //   2. Import that file once (for example from a module's index.ts).
 //   3. An administrator chooses it as the provider; `config` is the stored mail settings
-//      (host, port and user name may be reused as endpoint, region and key id) and `secret`
-//      the decrypted password or API key.
+//      (host, port and user name may be reused as endpoint, region and key id; or the provider's
+//      own section of `provider_settings`) and `secret` the decrypted password, or the provider's
+//      own credential from `provider_secrets`, decrypted with the context "mail:<name>".
 // The queue, the delivery log, the templates and every caller stay as they are.
 import nodemailer from 'nodemailer';
 
@@ -64,6 +66,8 @@ export interface MailConfig {
   from_name: string;
   reply_to: string;
   base_url: string;
+  /** Each web-interface provider's own settings (never secrets), by provider name. */
+  provider_settings?: Record<string, Record<string, unknown>>;
 }
 
 export type ProviderFactory = (config: MailConfig, secret: string | null) => MailProvider;

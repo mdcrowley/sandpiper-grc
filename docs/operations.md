@@ -265,6 +265,12 @@ PostScript name, for example `/usr/share/fonts/opentype/noto/NotoSansCJK-Regular
 `GRC_PDF_FONTS=none` switches embedding off (characters outside Western European are then
 left out). A file that cannot be read is skipped with a warning in the log.
 
+Text that mixes scripts is printed piece by piece, each piece in the first listed font that
+has it, so it helps to list one broad font first and fonts for particular scripts (Chinese,
+Japanese, Korean, Arabic, Hebrew, Indic) after it. Right-to-left text is put in reading
+order by the server itself (the essentials of the Unicode bidirectional algorithm, in
+`server/src/core/export/fonts.ts`); no extra package or setting is needed.
+
 ## Running as a service on Linux and macOS
 
 `./grc.sh service install` runs the server as a **user service** of the account you are

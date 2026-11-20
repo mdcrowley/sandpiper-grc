@@ -5,11 +5,14 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { loadUser, requireRecentAuth, sha256 } from '../../core/auth.ts';
 import { linkIdentity } from '../../core/identity/accounts.ts';
 import {
-  auditFailure, beginFlow, consumeFlow, DRIVERS, enabledProviders, finishSignIn, LINK_COOKIE, localSignInOn, providerById,
-  providerByKey, readSecret, registerSignInPolicy, safeReturn, signinLimiter, type IdentityDeps,
+  acceptAssertionOnce, auditFailure, beginFlow, callbackPath, consumeFlow, DRIVERS, enabledProviders, finishSignIn, keepPostedResponse,
+  LINK_COOKIE, localSignInOn, providerById, providerByKey, publicBase, readSecret, registerSignInPolicy, safeReturn, signinLimiter,
+  type IdentityDeps,
 } from '../../core/identity/service.ts';
 import { IdentityError, type ExternalIdentity, type ProviderRecord } from '../../core/identity/types.ts';
 import { verifyLogoutToken } from '../../core/identity/oidc.ts';
+import { serviceProviderMetadata } from '../../core/identity/saml.ts';
+import { LIMITS } from '../../core/identity/samlxml.ts';
 import { providerMfaSatisfied } from '../../core/identity/config.ts';
 import type { ModuleContext } from '../../core/module.ts';
 import { clientIp } from '../../core/request.ts';
@@ -86,7 +89,10 @@ export function registerSso(ctx: ModuleContext) {
     const sep = back.includes('?') ? '&' : '?';
     let identity: ExternalIdentity;
     try {
-      identity = await DRIVERS[p.type].complete!(p, readSecret(db, p), { params: q, redirectUri: flow.redirectUri, remember: flow.remember });
+      // SAML: the response is the one posted to the assertion consumer service for this sign-in, never one from the address.
+      const params = p.type === 'saml' ? { SAMLResponse: flow.posted ?? '' } : q;
+      identity = await DRIVERS[p.type].complete!(p, readSecret(db, p), { params, redirectUri: flow.redirectUri, remember: flow.remember });
+      await acceptAssertionOnce(deps, p, identity); // SAML: each assertion works once
     } catch (err) {
       const reason = err instanceof IdentityError ? err.reason : 'unexpected error';
       if (!(err instanceof IdentityError)) console.error('[identity] sign-in could not be completed:', err);
@@ -254,6 +260,61 @@ export function registerSso(ctx: ModuleContext) {
     await unlinkIdentity(ctx, req, me.id, row!, 'by the person');
     return { ok: true };
   });
+
+  // ---------- SAML 2.0 (E02-10) ----------
+  // The identity provider posts its response here (HTTP-POST binding) from its own site. A browser
+  // sends no SameSite=Lax cookie with that cross-site POST, so the response is only kept for the
+  // sign-in its RelayState names, and the browser is sent on to the callback with a GET that does
+  // carry the state cookie; the response is checked there. It is a top-level form post from another
+  // site, not a call from this application, so the CSRF header is not asked for (route `noCsrf`).
+  app.register(async (scoped) => {
+    const bodyLimit = Math.ceil(LIMITS.messageBytes / 3) * 4 * 2 + 4096; // base64, then form-encoded
+    scoped.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string', bodyLimit }, (_req, raw, done) => {
+      try { done(null, Object.fromEntries(new URLSearchParams(String(raw)))); } catch (err) { done(err as Error, undefined); }
+    });
+    scoped.post('/api/auth/sso/:key/acs', { config: { public: true, noCsrf: true }, bodyLimit }, async (req, reply) => {
+      const go = (path: string) => reply.header('cache-control', 'no-store').redirect(path, 303);
+      if (await signinLimiter(db).blocked(clientIp(req))) return go('/?sso=failed');
+      const p = await providerByKey(db, String((req.params as Record<string, string>).key ?? ''));
+      if (!p || !p.enabled || p.type !== 'saml') {
+        await auditFailure(deps, req, p, 'SAML response for a provider that is unknown, switched off or not SAML');
+        return go('/?sso=failed');
+      }
+      const form = (req.body ?? {}) as Record<string, unknown>;
+      const response = form.SAMLResponse;
+      const relay = form.RelayState;
+      if (typeof response !== 'string' || !response) {
+        await auditFailure(deps, req, p, 'no SAMLResponse posted');
+        return go('/?sso=failed');
+      }
+      if (!(await keepPostedResponse(deps, p, relay, response))) {
+        await auditFailure(deps, req, p, typeof relay === 'string' && relay
+          ? 'SAML response for a sign-in that is unknown, used, expired or already answered'
+          : 'unsolicited SAML response (no RelayState): only sign-ins started here are accepted');
+        return go('/?sso=failed');
+      }
+      return go(`${callbackPath(p.key)}?state=${encodeURIComponent(String(relay))}`);
+    });
+  });
+
+  /** This application's service-provider metadata for one SAML provider, to give to the identity provider. */
+  app.get('/api/auth/sso/:key/metadata', { config: { public: true } }, async (req, reply) => {
+    const p = await providerByKey(db, String((req.params as Record<string, string>).key ?? ''));
+    if (!p || p.type !== 'saml') return ctx.fail(404, 'not_found', 'There is no SAML provider with that short name.');
+    let base: string;
+    try { base = await publicBase(deps, req); } catch { return ctx.fail(409, 'no_address', 'Set the application address under Sign-in providers first.'); }
+    const download = (req.query as Record<string, string>).download === '1';
+    reply.header('content-type', 'application/samlmetadata+xml; charset=utf-8').header('cache-control', 'no-store');
+    if (download) reply.header('content-disposition', `attachment; filename="${p.key}-metadata.xml"`);
+    return reply.send(serviceProviderMetadata(p, `${base}${callbackPath(p.key)}`));
+  });
+
+  /**
+   * Where the identity provider sends the browser after signing out there (SP-initiated single
+   * logout). The session here has already ended, so its LogoutResponse needs nothing more.
+   * Sign-outs that the identity provider starts are not acted on (see docs/security.md).
+   */
+  app.get('/api/auth/sso/:key/slo', { config: { public: true } }, async (_req, reply) => reply.header('cache-control', 'no-store').redirect('/', 302));
 
   // ---------- back-channel sign-out (E02-23) ----------
   // The provider calls this, server to server, when a person signs out there or their directory

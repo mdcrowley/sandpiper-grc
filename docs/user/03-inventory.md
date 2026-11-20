@@ -164,7 +164,7 @@ Use the column chooser to add **Disposal approval**, **Department**, **Owner**, 
 3. Choose the **Status**: **Ordered**, **In stock**, **In use**, **In repair** or **Retired**. Do not choose **Disposed** here; use the disposal step below.
 4. Enter **Make**, **Model** and **Serial number**, the **Site** and **Location**.
 5. Enter the **Purchase date**, **Cost** and **Funding source**. Costs are in the organization's currency, here and in an import; an amount written with another currency's symbol is refused.
-6. If an outside funder paid for some or all of it and keeps an interest, check **Funder interest** and enter **Funder interest (%)**.
+6. If an outside funder paid for some or all of it and keeps an interest, check **Funder interest** and enter **Funder interest (%)**. These two fields appear only while the **Outside funder interest in equipment** option is on, and your administrator may have given them another name, such as **Grant interest** (see [Features](09-administration.md#options-within-the-parts)).
 7. Enter the **Warranty end** and **Support end** dates if you know them.
 8. Select **Create asset**.
 
@@ -231,6 +231,8 @@ Either way, the asset is checked in if it was out, its status becomes **Disposed
 
 ### The funder-interest rule
 
+This rule suits organizations whose equipment is part-paid by an outside funder, such as a grant program or a public body. It applies while the **Outside funder interest in equipment** option is on, which it is unless an administrator switches it off under **Administration > Features** (see [Features](09-administration.md#options-within-the-parts)). While it is off, the **Funder interest** fields, notices and report column are hidden, disposal needs only the approval above, and values already recorded are kept. An administrator can also rename it; the screens then use that name.
+
 If **Funder interest** is checked, the asset cannot be disposed of until the **Disposal approval reference** is entered. This is the reference of the funder's own approval, for example a letter or email reference. It is needed as well as the approval above.
 
 - The asset record shows a **Funder interest** notice saying so, and the **Disposal** tab explains the rule.
@@ -281,7 +283,7 @@ Open **Inventory reports** in the **Inventory** group. Each card is a ready-made
 |---|---|
 | **Assets past support** | Assets still held whose support end date has passed |
 | **Warranty expiring** | Assets whose warranty ends in the next 90 days |
-| **Assets by site** | Number of assets at each site, how many are in use or carry a funder interest, and their recorded cost |
+| **Assets by site** | Number of assets at each site, how many are in use or carry a funder interest, and their recorded cost (the funder-interest column only while that option is on) |
 | **Assets by department** | The same, for each department |
 | **Unassigned assets** | Assets that are not retired or disposed and have nobody assigned |
 | **Systems without an owner** | Systems with no business owner or no technical owner |
@@ -310,7 +312,7 @@ Use the import to load many assets at once from a spreadsheet saved as CSV. Noth
 - For **Type**, **Status** and **Funding source**, use the value as it appears on screen.
 - For **Site**, use the site's name. For **System**, use its name or reference. For **Owner** and **User**, use the person's username, email or display name.
 - For **Department**, use a name from the department list.
-- For **Funder interest**, use yes or no.
+- For **Funder interest** (while that option is on, under the name your organization gave it), use yes or no.
 - A file can hold up to 5,000 rows. Save a spreadsheet workbook as CSV first.
 
 ### Run the import
@@ -333,4 +335,4 @@ Vendor, contract and disposal fields cannot be imported. A row with the status *
 - Automatic discovery of assets on the network.
 - Changing an asset's department for several assets at once, or filtering the asset list by department. Use the **Assets by department** report.
 - Reminders by email. Reminders appear in the application only.
-- Vehicles as records on the relationship map. They are listed under **If this fails** and on the fleet pages.
+- Individual vehicles on the relationship map: they are drawn in groups by depot and mode (see [Fleet and services](19-fleet-and-services.md)).

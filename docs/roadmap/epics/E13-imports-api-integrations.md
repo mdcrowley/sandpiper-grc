@@ -1,6 +1,6 @@
 # E13 Imports, API and integrations
 
-**Status:** in progress (16 of 20 issues done)
+**Status:** in progress (21 of 23 issues done)
 
 ## Goal
 
@@ -32,11 +32,11 @@ the application in a documented, authenticated way.
 | E13-03 | Delimited seed files for first load | done | P2 |
 | E13-04 | Spreadsheet (XLSX) import | done | P3 |
 | E13-05 | OpenAPI document | done | P2 |
-| E13-06 | Webhooks | in progress | P3 |
+| E13-06 | Webhooks | done | P3 |
 | E13-07 | CSV import for other record types | done | P2 |
 | E13-08 | Webhook address checks after name resolution | done | P3 |
 | E13-09 | Describe every module's hand-written routes | done | P3 |
-| E13-10 | Import follow-ups | open | P3 |
+| E13-10 | Import follow-ups | done | P3 |
 | E13-11 | Stable versioned base path `/api/v1` | done | P2 |
 | E13-12 | ETag and If-Match optimistic concurrency | done | P2 |
 | E13-13 | Idempotency-Key on creates | done | P2 |
@@ -45,8 +45,11 @@ the application in a documented, authenticated way.
 | E13-16 | Rate-limit headers on token requests | done | P3 |
 | E13-17 | API reference page and integration guide | done | P2 |
 | E13-18 | Capability scopes for tokens (`mcp.use`) | done | P2 |
-| E13-19 | Webhook events other than record changes | open | P3 |
-| E13-20 | Find audit events by request id | open | P3 |
+| E13-19 | Webhook events other than record changes | done | P3 |
+| E13-20 | Find audit events by request id | done | P3 |
+| E13-21 | Asset import screen on the generic import | open | P3 |
+| E13-22 | Import check in a rolled-back transaction | open | P3 |
+| E13-23 | Index audit events by request id | done | P3 |
 
 ---
 
@@ -143,7 +146,7 @@ routes), `server/src/core/openapi-cli.ts`, `server/src/modules/admin/docs.ts`,
 
 ### E13-06 Webhooks
 
-**Status:** in progress (server and screens done; events other than record changes open) · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 As an administrator, I register a URL to be called when chosen events happen (for
 example a ticket is created or a notification clock turns red).
@@ -165,9 +168,8 @@ example a ticket is created or a notification clock turns red).
 - [x] **Webhooks** administration page (list, add, edit, deliveries, retry, test) and the
   two outbound settings on the settings page (web): `web/src/modules/admin/Webhooks.tsx`
   (`/admin/webhooks`), the **Outbound connections** group in `web/src/modules/admin/Settings.tsx`
-- [ ] Events for things other than record changes (moved to E13-19) (for example a notification clock
-  turning red) — needs modules to publish them; to be split into its own issue (see the
-  wave 4 report: `webhooks.ts` belongs to another work stream)
+- [x] Events for things other than record changes (for example a notification clock
+  turning red): built as E13-19
 
 **Implemented in:** `server/src/core/webhooks.ts`,
 `server/src/core/migrations/003_platform_services.sql`; tests against a local
@@ -188,7 +190,7 @@ types from CSV through the same mapping and dry-run screen that assets have.
 
 - [x] The importer is generalized to any registered record type
 - [x] Each list page offers "Import" to people who can create that type
-- [x] Validation, hooks and audit run exactly as for records created by hand (the check runs the engine's validation; hooks run on the real import)
+- [x] Validation, hooks and audit run exactly as for records created by hand (the check runs the engine's validation and before-hooks too since E13-10; after-hooks run on the real import)
 - [x] A match key can be chosen for updating existing rows (create, update only, or update and create)
 - [x] Restricted types need the same permissions as creating them by hand
 - [x] Column mapping suggested by label; values of lists, people and records matched by value, label, user name, email, reference or title, with a screen to map what matched nothing
@@ -198,11 +200,20 @@ types from CSV through the same mapping and dry-run screen that assets have.
 
 ### E13-10 Import follow-ups
 
-**Status:** open · **Priority:** P3 · **Type:** improvement
+**Status:** done · **Priority:** P3 · **Type:** improvement
 
-- [ ] Run `beforeCreate`/`beforeUpdate` hooks in the check without writing (today a hook's refusal shows only on the real import)
+- [x] Run `beforeCreate`/`beforeUpdate` hooks in the check without writing (today a hook's refusal shows only on the real import).
+  The check now runs the engine's validation, the record type's before-hook (on copies, custom
+  fields held back as the engine does) and the source-visibility check of a type that inherits
+  its restriction, so its verdict matches the real import. Not a rolled-back transaction: the
+  resource engine writes through the shared database handle, which cannot run inside a
+  transaction (PGlite would wait for itself); after-hooks and database constraints are still
+  checked only by the real import (E13-22). Before-hooks must not write (they never did)
 - [x] Describe the import and fact-sheet routes for the OpenAPI document (`core/export/docs.ts`, registered from `core/apidocs.ts`)
-- [ ] Let the asset screen delegate to the generic import once it can express the asset-specific checks
+- [ ] Let the asset screen delegate to the generic import once it can express the asset-specific checks (moved to E13-21)
+
+**Implemented in:** `checkWithoutWriting` in `server/src/core/import/service.ts`; tests
+`server/src/core/import/check.test.ts` (create hook, update hook, restricted source)
 
 ### E13-08 Webhook address checks after name resolution
 
@@ -348,7 +359,7 @@ administrators could put it in a token.
 
 ### E13-19 Webhook events other than record changes
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 Webhooks are sent when records are created, changed or deleted. An integrator may also want
 events that are not record changes, for example a notification clock about to run out or a
@@ -356,17 +367,82 @@ backup failing. Split from E13-06.
 
 **Acceptance criteria**
 
-- [ ] A list of non-record events a webhook can subscribe to, each with a documented payload
-- [ ] Restricted-record rules apply to them as to record events
+- [x] A list of non-record events a webhook can subscribe to, each with a documented payload:
+  `notification_clock.warning`, `notification_clock.overdue`, `security_incident.declared`,
+  `change.approval_decided`, `report_schedule.delivered`, `backup.failed` (`WEBHOOK_EVENTS`;
+  `docs/api.md#other-events`). Subscribed to by name, by family (`notification_clock.*`) or `*`
+- [x] Restricted-record rules apply to them as to record events (an event is restricted always,
+  never, or as its record is; a restricted one goes only to a webhook that includes restricted
+  records, chosen by someone who still holds `security.view`)
+- [x] Feature switches respected: an event of a switched-off area is not emitted and not offered
+- [x] Offered on the webhook screen (**Other events** in the form), listed in
+  `GET /api/admin/webhooks` as `otherEvents`
+
+**Implemented in:** `WEBHOOK_EVENTS`, `emitWebhookEvent` and the `app.webhookEvent` decorator in
+`server/src/core/webhooks.ts`; emitted from `server/src/modules/secincidents/alerts.ts` (clocks),
+`secincidents/index.ts` (declared), `changes/workflow.ts` (approval), `reports/schedule.ts`
+(delivery), `attachments/backups.ts` (backup failed); `web/src/modules/admin/Webhooks.tsx`;
+tests `server/src/core/webhook-events.test.ts`
 
 ### E13-20 Find audit events by request id
 
-**Status:** open · **Priority:** P3 · **Type:** improvement
+**Status:** done · **Priority:** P3 · **Type:** improvement
 
 Every answer carries an `X-Request-Id` and audit events store it, but the audit search cannot
 filter by it, and the CSV export leaves it out.
 
 **Acceptance criteria**
 
-- [ ] `GET /api/audit?request_id=` returns the events of one request (documented in the API description)
-- [ ] The CSV export has `token_name` and `request_id` columns
+- [x] `GET /api/audit?request_id=` returns the events of one request (documented in the API description)
+- [x] The CSV export has `token_name` and `request_id` columns
+- [x] The audit log screen has a **Request id** filter, shows the token and request id of an
+  event, and offers **Everything this request did**
+
+**Implemented in:** `GET /api/audit` in `server/src/core/routes.ts`;
+`web/src/modules/admin/AuditLog.tsx`; `docs/api.md#request-ids`; tests
+`server/src/core/audit-request-id.test.ts`. The column has no index yet (E13-23).
+
+### E13-21 Asset import screen on the generic import
+
+**Status:** open · **Priority:** P3 · **Type:** improvement
+
+Split from E13-10. The asset import under Inventory (`inventory/importer.ts`,
+`AssetImport.tsx`) has its own parser, mapping and checks. The generic import already imports
+assets; the asset screen should become the generic wizard once the generic import can express
+the asset-specific checks (disposal rules, matching by serial number then tag).
+
+**Acceptance criteria**
+
+- [ ] The asset-specific checks run as hooks or import options of the generic import
+- [ ] The Inventory asset import opens the generic wizard; `POST /api/assets/import` stays as a
+  documented, deprecated alias
+- [ ] `POST /api/assets/ingest` keeps its behavior
+
+### E13-22 Import check in a rolled-back transaction
+
+**Status:** open · **Priority:** P3 · **Type:** improvement
+
+Split from E13-10. The import check runs validation and before-hooks without writing, so it
+cannot see what only a write shows: after-hooks that refuse, and database constraints. Running
+the real create and update inside a transaction that is rolled back would, but the resource
+engine writes through the shared database handle; it would need to accept a transaction handle
+(for hooks too).
+
+**Acceptance criteria**
+
+- [ ] The resource engine's create and update can run on a transaction handle, hooks included
+- [ ] The import check runs the real writes in a transaction that is always rolled back, with
+  nothing audited, emitted (webhooks, notifications) or queued
+
+### E13-23 Index audit events by request id
+
+**Status:** done · **Priority:** P3 · **Type:** improvement
+
+Found while building E13-20. `GET /api/audit?request_id=` scans the audit table, which grows
+without limit (audit events are never deleted).
+
+**Acceptance criteria**
+
+- [x] A core migration adds an index on `audit_events (request_id)` where it is not null
+
+**Implemented in:** `server/src/core/migrations/011_audit_request_id_index.sql` (partial index where `request_id` is not null).

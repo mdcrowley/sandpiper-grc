@@ -30,7 +30,7 @@ Each item below names the file that implements it.
   HTTPS server or behind a trusted proxy, and `off` otherwise.
 - **Outbound connections are off until an administrator switches one on.** There is no
   telemetry and there are no externally hosted fonts or scripts. The application connects
-  out only to: webhook receivers (see "Outbound webhooks"), a mail server (once email is
+  out only to: webhook receivers (see "Outbound webhooks"), a mail server, or Microsoft Graph or the Gmail API at their fixed published addresses (once email is
   set up), a sign-in provider (once switched on, or on **Test connection**), a ClamAV
   scanner and an S3-compatible object store (each once chosen; see "Files").
 
@@ -100,32 +100,19 @@ once they fall outside the window.
 - Users can see and end their own sessions; administrators can end a user's sessions.
 - Signing out deletes the session on the server.
 
-### Password confirmation before sensitive administrative actions
+### Password confirmation before sensitive actions
 
 `requireRecentAuth` in `server/src/core/auth.ts`; `sensitive` in
-`server/src/modules/admin/shared.ts`; prompt in `web/src/modules/admin/reauth.ts`
+`server/src/modules/admin/shared.ts`; prompt `withReauth` in `web/src/core/reauth.ts`
 
-So that an unattended, signed-in browser cannot be used to change who can do what, these
-actions need the password to have been proved **in the same session within the last 10
-minutes** (setting `auth.reauth_minutes`, 1 to 60):
-
-- creating a role; changing a role's permissions, its on/off switch or its
-  "second factor required" flag; applying default permissions;
-- creating a user; changing a user's roles;
-- resetting a user's second factor; issuing a setup or password-reset link;
-- changing any sign-in, API-token or outbound-connection setting (every setting whose key
-  starts with `auth.`, `tokens.` or `integrations.`);
-- creating a personal access token;
-- adding a webhook, changing its address or switching on "include restricted records",
-  and replacing its secret;
-- removing a record for good from the retention review;
-- adding, changing or removing a sign-in provider; a person's sign-in limits, link permissions,
-  unlinking and the break-glass designation; linking or unlinking one's own provider;
-- changing the mail server, the malware-scanning, storage and removed-file settings, the
-  backup settings or AI assistant access; making a token for an AI assistant.
+So that an unattended, signed-in browser cannot be used to change who can do what, to open
+a way in from outside or to destroy data, the actions marked "Ask" in the table below need
+the password to have been proved **in the same session within the last 10 minutes**
+(setting `auth.reauth_minutes`, 1 to 60). An API token never carries a confirmation, so a
+token can never do them.
 
 Signing in counts as proof. After that the server answers `403 reauth_required`; the
-administration screens then ask for the password in place (`POST /api/auth/confirm`) and
+screens then ask for the password in place (`POST /api/auth/confirm`) and
 carry on with the action. **A person who has a second factor is asked for it too** (E01-29):
 after the right password the server answers `400 second_factor_required` (not counted as a
 failure), and the prompt asks for a 6-digit code, a recovery code, or the person's passkey or
@@ -136,9 +123,49 @@ refusal, each wrong password or code and each successful confirmation is audited
 with no password confirms through a linked sign-in provider instead; when that provider is
 trusted for multi-factor sign-in, the confirmation must show one too.
 
-Not covered: editing a user's name, email or department, disabling or unlocking an
-account, ending sessions, departments, configurable lists and non-security settings; and
-high-impact actions outside the administration screens (E01-30).
+#### Actions that ask you to confirm your identity
+
+Reviewed module by module (E01-33). The rule: ask when an action changes who can do what,
+opens a way in or out of the application (an integration, a secret, a link for outsiders),
+switches a part of the application on or off for everyone, or removes or merges data in a way
+that cannot be undone. Do not ask for ordinary configuration that is audited and can be put
+back, for work on one record, or for anything that only narrows access. A new sensitive
+action is added to this table and to its module's tests in the same change.
+
+| Area | Action | Decision | Why |
+|---|---|---|---|
+| Administration | Create a role; change a role's permissions, on/off switch or "second factor required" flag; apply default permissions | Ask | Changes who can do what |
+| Administration | Create a user; change a user's roles | Ask | Changes who can do what |
+| Administration | Enable a disabled user again | Ask | Gives the account its access back, like creating it |
+| Administration | Change a user's email address | Ask | Password-reset links go to that address |
+| Administration | Reset a user's second factor; issue a setup or password-reset link | Ask | Lets someone take over the account |
+| Administration | Change a sign-in, API-token or outbound-connection setting (keys starting `auth.`, `tokens.`, `integrations.`) | Ask | Sign-in rules and ways out of the application |
+| Administration | Sign-in providers: add, change, remove; a person's sign-in limits, link permits, unlinking, break-glass designation | Ask | Who can sign in, and how |
+| Administration | Switch parts of the application on or off (Features) | Ask | Changes what everyone can use |
+| Administration | Webhooks: add, change the address or switch on "include restricted records", replace the secret | Ask | Sends data out; a secret |
+| Administration | Remove a record for good from the retention review | Ask | Cannot be undone |
+| Administration | Change a retention period | Don't ask | Nothing is removed until the review, which asks |
+| Administration | Disable a user, unlock an account, end sessions, rename a user or move department | Don't ask | Takes access away or changes nothing about access |
+| Administration | Departments, configurable lists, custom fields (retiring keeps the values), tag renames, email templates, background jobs, non-security settings | Don't ask | Ordinary configuration, audited and reversible |
+| Your account | Create a personal access token; add or remove a passkey; new recovery codes; link or unlink a sign-in provider | Ask | Credentials for your account |
+| Your account | End your own sessions, read and change your preferences | Don't ask | Only narrows access, or affects only you |
+| Notifications and email | Change the mail server or mail provider (including its password, client secret, certificate or service account key) | Ask | A secret, and a way out of the application |
+| Notifications and email | Reminder settings, email digest runs, your own notification preferences | Don't ask | Timing only; audited |
+| Files | Change where files are stored, malware scanning, how long removed files are kept; purge removed files now; move every stored file; backup settings | Ask | Safeguards, secrets and data that cannot be brought back |
+| Files | Allow another file type for uploads | Ask | Widens what may be uploaded |
+| Files | Remove a file type, change the size limit, rescan, restore a removed file, check stored files, back up now | Don't ask | Narrows, or changes nothing about access |
+| AI assistants | AI assistant access settings; make an assistant token; approve a connector sign-in; add a connector | Ask | Lets a program act for you |
+| AI assistants | Limit an assistant's tools, revoke a connection, remove a connector | Don't ask | Only narrows access |
+| Service desk | Email-to-ticket settings (mailbox password) and a new mail relay key | Ask | Secrets, and a way in from outside |
+| Service desk | Switch the self-service portal on or off (portal settings) | Ask | The same feature switch as Administration > Features |
+| Service desk | Portal title, welcome line, banner, reopen window, who may ask for a colleague, safety reports from the portal; service levels, calendars, priority matrix, escalation rules, catalog | Don't ask | Service configuration, audited and reversible |
+| Vendors | Switch on vendor response links | Ask | Opens a way in for people outside the organization |
+| Vendors | Switch response links off, link length and files; make or revoke a link for one assessment; set many contract terms at once | Don't ask | Narrows access, or one record at a time; links expire and can be revoked |
+| Vulnerabilities | Merge duplicate findings | Ask | Cannot be undone |
+| Vulnerabilities | Remediation policy, imports and import presets | Don't ask | Configuration and new records, audited; imports are made for scripts |
+| Changes, Frameworks, Risks, Security incidents, Policies, Training, Projects, Fleet, Safety, Inventory | Module settings (templates, blackout windows, scoring weights, risk scales, incident lists and clocks, reminder intervals, requirements, exposure figures, disposal routing), imports, reminder runs | Don't ask | Configuration of how work is done, audited and reversible; access is unchanged |
+| Reports and records | Export lists, reports, dashboards and packs (CSV, Excel, PDF), including restricted records; schedule and share reports | Don't ask | Only what the person may already see; restricted rows are watermarked and every export is audited; schedules run with each recipient's own permissions |
+| Any record | Mark or clear "restricted" on one record | Don't ask | Work on one record by someone who already holds security access; audited with before and after |
 
 ### Personal access tokens
 
@@ -189,7 +216,7 @@ is kept in memory (a restart resets the current minute).
 
 `server/src/core/webhooks.ts`
 
-The only outbound connection the application makes. Fenced in three ways:
+Outbound connections the administrator configures (webhooks here; also the mail provider, sign-in providers and, when allowed, the object store and malware scanner). Webhooks are fenced in three ways:
 
 1. **Off by default.** Nothing is queued or sent unless the setting
    `integrations.outbound_enabled` is on. Switching it off again stops deliveries already
@@ -208,6 +235,11 @@ The only outbound connection the application makes. Fenced in three ways:
    the webhook has "include restricted records" switched on, which only a person holding
    `security.view` can do, and which stops applying if the person who switched it on no
    longer holds `security.view`.
+
+Events that are not record changes (E13-19: notification clocks, a declared incident, an
+approval decided, a scheduled report delivered, a failed backup) follow the same rules:
+restricted ones go only to webhooks that include restricted records, and a switched-off area
+emits nothing.
 
 Webhooks are managed by administrators only, and changing a webhook's address or
 restricted-records choice needs a recent password confirmation. Each delivery is signed:
@@ -456,7 +488,7 @@ separate, tamper-evident copy.
 - Each key is stored as `enc:v1:<iv>:<tag>:<ciphertext>`: AES-256-GCM with a random
   12-byte iv, bound to the user it belongs to (a ciphertext copied onto another user's row
   does not decrypt). `v1` is the format version. Webhook secrets, sign-in provider client
-  secrets, the mail server password, the object store secret key, set-up and reset links
+  secrets, the mail server password, the Microsoft Graph client secret or certificate and the Gmail service account key, the object store secret key, set-up and reset links
   waiting to be emailed, single sign-on requests in progress and the provider sign-out details
   of open sessions are encrypted the same way with the same key. Every kind is listed in
   `core/secretkey-reseal.ts`.
@@ -520,14 +552,14 @@ separate, tamper-evident copy.
 ### Sign-in providers (single sign-on)
 
 `server/src/core/identity/` (protocol and policy), `server/src/modules/admin/sso.ts` and
-`providers.ts` (routes), `server/src/modules/admin/migrations/001_identity.sql`
+`providers.ts` (routes), `server/src/modules/admin/migrations/001_identity.sql` to `003_saml.sql`
 
 - **OpenID Connect, any compliant provider.** Issuer, client and claims are entered by an
   administrator; every endpoint comes from the issuer's discovery document, whose `issuer`
   must match exactly. Nothing is hard-coded, so commercial, government and sovereign cloud
   tenants and self-hosted servers are configured the same way. Providers sit behind a driver
-  interface (`core/identity/types.ts`): a redirect-style driver (OpenID Connect; SAML would be
-  another) or a credentials-style driver (a directory over LDAP, not built). Everything after
+  interface (`core/identity/types.ts`): a redirect-style driver (OpenID Connect, SAML 2.0) or a
+  credentials-style driver (a directory over LDAP, not built). Everything after
   "the provider says this is subject X" is shared.
 - **Off until switched on.** A provider that is not switched on is never contacted. The only
   other outbound call is **Test connection**, made when an administrator selects it. Calls go
@@ -597,8 +629,65 @@ separate, tamper-evident copy.
   cannot be had, role mapping leaves the person's roles as they are (audited as
   `identity.groups_unknown`) instead of removing them. An administrator can also choose to read
   groups from userinfo at every sign-in.
-- **SAML 2.0 is not built**, on purpose: it cannot be done safely without an XML-signature
-  implementation (see E02-10).
+- **SAML 2.0** (E02-10; `core/identity/saml.ts`, `samlxml.ts`, `x509.ts`). Web Browser SSO
+  started here: the AuthnRequest goes out with the HTTP-Redirect binding (optionally signed with
+  RSA-SHA256), the Response comes back with the HTTP-POST binding to the provider's assertion
+  consumer service, `POST /api/auth/sso/<key>/acs`. XML signature verification is done by
+  **@node-saml/node-saml** (MIT; on **xml-crypto** and **@xmldom/xmldom**, MIT, with
+  **xml-encryption**, MIT, for encrypted assertions), pinned to exact versions: only the
+  configured certificates are trusted (several, for a certificate change; RSA of 2048 bits or
+  more), never a key carried in the message; what is read is the signed bytes the library
+  returns, not the message as received. Around the library, this application adds:
+  - **Hardened parsing first.** Every message and metadata document is refused if it has a
+    document type declaration (so no external entities and no entity expansion), any other
+    markup declaration or processing instruction, is over 256 KB (1 MB for metadata), has more
+    than 5,000 elements or is nested more than 40 deep, is not UTF-8, or is not well formed.
+  - **Signature wrapping defenses.** Exactly one assertion in the whole message (encrypted or
+    not), as a direct child of the Response; ID values unique in the message; a signature only
+    directly on the Response or the Assertion, with exactly one reference, to its own parent.
+  - **An algorithm allow-list.** RSA-SHA256, RSA-SHA256-MGF1 (PSS) and RSA-SHA512 signatures;
+    SHA-256 and SHA-512 digests; exclusive or inclusive canonicalization **without comments**
+    and the enveloped-signature transform, at most two. Encrypted assertions: AES-128/256-GCM
+    with RSA-OAEP only (no CBC or RSA 1.5 padding oracles); the inner signature is checked
+    against the same list after decryption, and an encrypted assertion must still be signed.
+  - **Exact matching.** Status Success; `Destination` equal to the ACS address (required on a
+    signed Response); `InResponseTo` equal to the request this sign-in sent (unsolicited,
+    identity-provider-initiated responses are refused); issuer equal to the configured entity
+    ID (Response and Assertion); audience equal to this application's entity ID; a **bearer**
+    `SubjectConfirmation` whose `Recipient` is the ACS address and whose `InResponseTo` is
+    the request, in time; `NotBefore`/`NotOnOrAfter` on the conditions and the
+    confirmation, with 60 seconds of clock tolerance, and no assertion older than 10 minutes.
+    The NameID read here must equal the library's (text split by a comment is read whole, as
+    signed), and a transient NameID is refused.
+  - **One use.** The request ID is kept (encrypted) with the sign-in in flight and works once;
+    each assertion ID is remembered per provider until it could no longer be presented
+    (`identity_saml_assertions`), in the database, so a replay is refused on every server.
+  - **Bound to the browser.** The provider's POST is cross-site, so the `SameSite=Lax` state
+    cookie is not sent with it. The ACS therefore only keeps the posted response (encrypted,
+    once) for the sign-in its `RelayState` names, and redirects the browser (303) to the
+    callback with a GET, which does carry the cookie; the response is checked there, against the
+    browser that started the sign-in. A response is never read from an address. The ACS asks for
+    no CSRF header (route `noCsrf`: it is a top-level form post from another site) and counts
+    failures against the sign-in limit.
+  - **Keys.** Each SAML provider gets its own RSA-3072 key pair and a self-signed certificate
+    when it is added; the private key is stored encrypted with the application key (as a client
+    secret is), never returned by the API, and can be replaced on request. The certificate is
+    published in the provider's metadata (`GET /api/auth/sso/<key>/metadata`) for request
+    signing and, when encryption is asked for, for encryption.
+  - **No outbound calls by default.** The application never calls a SAML identity provider.
+    Its metadata is pasted or uploaded; fetching it by address happens only when an
+    administrator asks, outbound connections are on (`integrations.outbound_enabled`) and the
+    host is on `integrations.allowed_hosts` (https only, no redirects, 1 MB), and is audited.
+    Metadata signatures are not checked: the administrator vouches for what they import.
+  - **The same rules as OpenID Connect** for accounts, linking, just-in-time accounts, role
+    mapping (from a groups attribute), break-glass, audit and rate limits. Email addresses are
+    trusted only when the administrator says so (SAML has no "email verified"). The provider's
+    multi-factor sign-in counts only when the assertion's `AuthnContextClassRef` is in the
+    administrator's list (also sent as `RequestedAuthnContext`).
+  - **Single logout, SP-initiated only.** With signing out at the provider on, signing out here
+    sends a signed LogoutRequest (NameID and SessionIndex, kept encrypted with the session) to
+    the identity provider's sign-out address; it returns to `/api/auth/sso/<key>/slo`. A
+    LogoutRequest started at the identity provider is not acted on.
 
 ### AI assistant access (MCP)
 
@@ -637,17 +726,43 @@ separate, tamper-evident copy.
 
 ### Vendor response links
 
-`server/src/modules/vendors/responseLinks.ts`
+`server/src/modules/vendors/responseLinks.ts`, `responseFiles.ts`, `responseEmail.ts`
 
 Vendors can answer an assessment through a link without an account (E06-21). Off by default
 (`vendors.response_links_enabled`; switching it off revokes every open link). A link expires
 (1 to 90 days), can be revoked, stops working once the assessment is completed, and only a
 SHA-256 hash of its secret is stored. The public routes are rate limited per address (60 a
 minute, and 20 wrong links in 15 minutes block the address) and answer the same "not valid"
-for an unknown, expired or revoked link and when the feature is off. The vendor sees the
+for an unknown, expired or revoked link and when the feature is off. Every public route that
+changes something (saving answers, sending or removing a file) needs the `X-GRC-CSRF` header
+like any other, so a form posted from another site is refused. The vendor sees the
 questions only, never the weights or staff answers; their answers stay apart until staff take
 them over. Link tokens in paths are masked in the server log, and pages send
 `Referrer-Policy: same-origin`.
+
+- **Files through the link (E06-22).** Only while the link works and the answers have not been
+  sent. The link is checked (and the address rate limited) before any byte of the file is
+  read. Each file goes through the attachments module's own intake
+  (`modules/attachments/intake.ts`, the same code as every upload): allowed types, the content
+  compared with the type the name claims (programs and scripts refused whatever their name),
+  the malware scanner when one is set up, and the size limit while the bytes arrive. A link
+  adds its own limits, which can only narrow the attachments settings: a list of file types
+  (documents and pictures as installed; no archives, web pages or images that can carry
+  script), at most 10 files and 50 MB per link as installed (checked again under a lock on the
+  link before the file is kept), and 30 uploads an hour per link. The name is reduced to a
+  display name (no path, control or direction characters); the stored object's key is random.
+  A received file waits in a holding area tied to the link (record type
+  `vendor_response_link`), which no record page, list, search or download route serves; staff
+  download it from the link panel (`Content-Disposition: attachment`, a sandboxing content
+  policy, `nosniff`, checksum verified first), then take it over onto the vendor or discard it,
+  which deletes the content at once. Every file sent, refused, withdrawn, taken over or
+  discarded is audited on the vendor, never with the link's secret.
+- **Emailing the link (E06-23).** Only when outgoing email is on. The secret is never stored,
+  so emailing creates a new link (the open one is revoked) and puts it in that message only: it
+  is sealed with the secret key in the queued message, as account set-up links are, and
+  decrypted only to send it; it is not in the answer to staff, the delivery log or the audit
+  log. At most 5 emails a day per assessment. The one reminder before expiry does not carry the
+  link.
 
 ### Files: malware scanning, storage and purge
 
@@ -692,7 +807,9 @@ put the prototype on a network or to hold sensitive real records in it.
   it to `required`.
 - Passkeys and security keys have been checked with a virtual authenticator in the
   browser, not yet with hardware keys over real HTTPS.
-- Single sign-on is OpenID Connect only: no SAML 2.0 and no directory (LDAP) sign-in. A
+- Single sign-on is OpenID Connect and SAML 2.0: no directory (LDAP) sign-in. SAML sign-in must
+  start here, a sign-out started at a SAML identity provider is not acted on, and SAML metadata
+  signatures are not checked.
   provider sign-in does not ask for this application's own second factor; it counts as one only
   when the provider is trusted for multi-factor sign-in and its token shows it. There is no
   front-channel logout. Groups by reference are read from userinfo or a JSON source only: a

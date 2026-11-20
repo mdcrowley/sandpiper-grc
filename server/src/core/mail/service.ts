@@ -9,6 +9,7 @@ import { DEFAULT_APP_NAME } from '../config.ts';
 import { UUID_RE } from '../errors.ts';
 import { PermanentJobError, type JobQueue } from '../jobs/index.ts';
 import type { ModuleContext, Row, SessionUser } from '../module.ts';
+import { providerSecret } from './accounts.ts';
 import { makeProvider, type MailAttachment, type MailConfig } from './provider.ts';
 import { DEFAULT_TEMPLATES, escapeHtml, render, textToHtml } from './templates.ts';
 
@@ -93,9 +94,16 @@ const PURPOSE_RE = /^[a-z][a-z0-9_.-]{0,39}$/;
 
 export const SECRET_CONTEXT = 'mail:smtp';
 
-export async function loadConfig(ctx: ModuleContext): Promise<MailConfig & { password_sealed: string | null }> {
+export type StoredMailConfig = MailConfig & {
+  password_sealed: string | null;
+  provider_settings: Record<string, Record<string, unknown>>;
+  provider_secrets: Record<string, string>;
+  updated_at?: string;
+};
+
+export async function loadConfig(ctx: ModuleContext): Promise<StoredMailConfig> {
   const row = await ctx.db.one<Row>('select * from mail_config where id = 1');
-  return row as MailConfig & { password_sealed: string | null };
+  return { ...row, provider_settings: row?.provider_settings ?? {}, provider_secrets: row?.provider_secrets ?? {} } as StoredMailConfig;
 }
 
 export const absolute = (base: string, link: unknown) => {
@@ -215,9 +223,9 @@ export function makeMail(ctx: ModuleContext, jobs: JobQueue) {
 
     let secret: string | null = null;
     try {
-      secret = config.password_sealed ? secretBox(db).decrypt(config.password_sealed, SECRET_CONTEXT) : null;
+      secret = providerSecret(db, config, config.provider);
     } catch {
-      return giveUp('dead', 'The stored mail password could not be decrypted (the secret key has changed). Enter it again.');
+      return giveUp('dead', `The stored mail ${config.provider === 'smtp' ? 'password' : 'credential'} could not be decrypted (the secret key has changed). Enter it again.`);
     }
     const provider = makeProvider(config, secret);
     if (!provider) return giveUp('dead', `Unknown mail provider "${config.provider}".`);

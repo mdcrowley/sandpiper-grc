@@ -5,7 +5,7 @@ import { Button } from '@mantine/core';
 import { IconPencil } from '@tabler/icons-react';
 import { ApiError, type Row } from './api';
 import { useAuth } from './auth';
-import { fieldMeta, FieldValue } from './FieldValue';
+import { fieldMeta, FieldValue, knownFields } from './FieldValue';
 import { relativeTime } from './format';
 import { useFetch, useRecord } from './hooks';
 import { customFieldNames, LookupChip, useResource, type ResourceMeta } from './meta';
@@ -53,7 +53,8 @@ export function EditableSummary({ type, row, fields, onSaved, title = 'Details',
   if (!resource) return <ErrorState title={`Unknown record type "${type}"`} />;
   const canEdit = editable ?? can(`${resource.module}.edit`);
   // The record type's custom fields follow the given ones (the form adds them the same way).
-  const shownFields = customFields ? [...fields, ...customFieldNames(resource).filter((f) => !fields.includes(f))] : fields;
+  const named = knownFields(resource, fields);
+  const shownFields = customFields ? [...named, ...customFieldNames(resource).filter((f) => !named.includes(f))] : named;
 
   return (
     <Card

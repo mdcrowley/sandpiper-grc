@@ -46,6 +46,11 @@ export interface ReportResult {
   /** Address parameters for all matching records; `drillExact` is false when some filter has no list equivalent. */
   drill: string; drillExact: boolean;
   globalsApplied: string[];
+  /**
+   * Grouped by a multi-choice field (E12-15): how the figures count, in words, shown under the
+   * table and chart and in every export. Absent otherwise.
+   */
+  countingNote?: string;
   /** True when restricted records are (or may be) among the figures: exports carry a watermark. */
   restricted: boolean;
   recordTypes: string[];
@@ -175,20 +180,32 @@ export async function runCompiled(ctx: ModuleContext, user: SessionUser | null, 
     const order = c.order.length ? c.order : [dateDim(0) ? 'g0 asc' : 'a0 desc nulls last'];
     sql = `select ${dims.map((d, i) => (dateDim(i) ? `to_char(q.${d.key}, 'YYYY-MM-DD') as ${d.key}` : `q.${d.key}`)).join(', ')}, ${aggs.map((a) => `q.${a.key}`).join(', ')}
            from (select ${dims.map((d) => `${d.expr} as ${d.key}`).join(', ')}, ${aggs.map((a) => `${a.expr} as ${a.key}`).join(', ')}
-                 from ${c.from} where ${c.where} group by ${dims.map((_, i) => i + 1).join(', ')}) q
+                 from ${c.groupFrom ?? c.from} where ${c.where} group by ${dims.map((_, i) => i + 1).join(', ')}) q
            order by ${[...order, ...dims.map((d) => `q.${d.key} nulls last`)].join(', ')} limit ${limit + 1}`;
   } else {
     sql = `select ${aggs.map((a) => `${a.expr} as ${a.key}`).join(', ')} from ${c.from} where ${c.where}`;
   }
 
-  const { data, total, flagged } = await guarded(async () => {
+  const multi = c.mode === 'groups' && c.groupFrom !== undefined;
+  const { data, total, flagged, distinct } = await guarded(async () => {
     const found = await ctx.db.query<Row>(sql, c.params);
+    // A pivot grouped by a multi-choice field: its totals count each record once (E12-15).
+    let once: { rows: Map<string, number>; cols: Map<string, number> } | undefined;
+    if (multi && c.spec.pivot && dims.length === 2 && aggs[0]?.fn === 'count') {
+      const by = async (d: typeof dims[number]) => {
+        const sel = d.bucket ? `to_char(${d.expr}, 'YYYY-MM-DD')` : d.expr;
+        const rows = await ctx.db.query<{ k: string | null; n: number }>(
+          `select ${sel} as k, count(distinct t.id)::int as n from ${c.groupFrom} where ${c.where} group by 1`, c.params);
+        return new Map(rows.map((r) => [r.k === null ? ' ' : String(r.k), r.n]));
+      };
+      once = { rows: await by(dims[0]), cols: await by(dims[1]) };
+    }
     const count = (await ctx.db.one<{ n: number }>(`select count(*)::int n from ${c.from} where ${c.where}`, c.params))!.n;
     // A figure shows no restricted record's details (they are masked), so only rows decide this.
     const hasFlagged = def.restricted === 'flag' && !c.figures
       ? Boolean(await ctx.db.one(`select 1 from ${c.from} where ${c.where} and coalesce(t.restricted, false) limit 1`, c.params))
       : false;
-    return { data: found, total: count, flagged: hasFlagged };
+    return { data: found, total: count, flagged: hasFlagged, distinct: once };
   });
   const truncated = data.length > limit;
   if (truncated) data.length = limit;
@@ -232,7 +249,7 @@ export async function runCompiled(ctx: ModuleContext, user: SessionUser | null, 
   }
 
   result.columns = [
-    ...dims.map((d): ResultColumn => ({ key: d.key, label: d.label, type: d.def.type, role: 'dim', field: d.path, bucket: d.bucket, list: d.def.list, to: d.def.to })),
+    ...dims.map((d): ResultColumn => ({ key: d.key, label: d.label, type: d.def.type, role: 'dim', field: d.path, bucket: d.bucket, list: d.def.list, to: d.def.to, ...(d.def.multiple ? { multiple: true } : {}) })),
     ...aggs.map((a): ResultColumn => ({ key: a.key, label: a.label, type: a.type, role: 'agg', fn: a.fn, field: a.field?.path })),
   ];
   const labellers = await Promise.all(dims.map((d) => (d.bucket ? null : labeller(ctx, user, d.def, data.map((r) => r[d.key])))));
@@ -302,14 +319,28 @@ export async function runCompiled(ctx: ModuleContext, user: SessionUser | null, 
     result.rows.sort((a, b) => first.get(a.d.g0)! - first.get(b.d.g0)! || (pos.get(a.d.g1) ?? 0) - (pos.get(b.d.g1) ?? 0));
   }
 
-  if (c.spec.pivot && dims.length === 2) result.pivot = pivot(result, dims[1].bucket ? null : labellers[1], qsOf, base, dimDrill);
+  if (c.spec.pivot && dims.length === 2) result.pivot = pivot(result, dims[1].bucket ? null : labellers[1], qsOf, base, dimDrill, multi ? { distinct, total } : undefined);
+  if (multi) result.countingNote = countingNote(dims.filter((d) => d.def.multiple).map((d) => d.label), total, def.plural, Boolean(result.pivot));
   return result;
+}
+
+/**
+ * The sentence that explains figures grouped by a multi-choice field. It is made from the report's
+ * fields and the number of matching records only, so it reads the same for everyone.
+ */
+export function countingNote(fields: string[], total: number, plural: string, pivot: boolean): string {
+  const names = fields.length === 1 ? fields[0] : fields.join(' and ');
+  const things = plural.toLowerCase();
+  return `A record with several values in ${names} is counted once under each of them, so the groups can add up to more than the ${total} ${things} that match.`
+    + (pivot ? ' The totals count each record once.' : '')
+    + ` Records with no value are counted under "None".`;
 }
 
 /** Turns two-dimension groups into a matrix of the first measure, with totals where they add up. */
 function pivot(
   r: ReportResult, colLabeller: Labeller | null, qs: typeof qsOf, base: [string, string][],
   dimDrill: (i: number, v: unknown) => [string, string][],
+  multi?: { distinct?: { rows: Map<string, number>; cols: Map<string, number> }; total: number },
 ): Pivot {
   const measure = r.columns.find((col) => col.role === 'agg')!;
   const keyOf = (v: unknown) => (v === null ? '\u0000' : String(v));
@@ -332,6 +363,17 @@ function pivot(
   for (const row of r.rows) {
     const v = row.v[measure.key];
     if (typeof v === 'number') cells[ri.get(keyOf(row.v.g0))!][ci.get(keyOf(row.v.g1))!] = { v, drill: row.drill ?? '' };
+  }
+  // Grouped by a multi-choice field, cells do not add up: totals count distinct records, and are left
+  // out for any other measure.
+  if (multi) {
+    const d = multi.distinct;
+    return {
+      rows: rowList, cols: colList, cells, measure: measure.label,
+      rowTotals: rowList.map((x) => (d ? d.rows.get(keyOf(x.value)) ?? 0 : null)),
+      colTotals: colList.map((x) => (d ? d.cols.get(keyOf(x.value)) ?? 0 : null)),
+      grand: d ? multi.total : null,
+    };
   }
   const adds = measure.fn === 'count' || measure.fn === 'sum';
   const sum = (xs: (number | undefined)[]) => (adds ? xs.reduce<number>((n, x) => n + (x ?? 0), 0) : null);

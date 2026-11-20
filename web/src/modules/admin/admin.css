@@ -333,3 +333,10 @@
 .adm-feature-about { min-width: 0; }
 .adm-feature-deps { margin: var(--s-1) 0 0; font-size: var(--fs-sm); color: var(--text-muted); font-style: italic; }
 .adm-feature-control { padding-top: 2px; }
+/* Options within the parts of the application (Features page, E18-28) */
+.adm-options-intro { margin: 0 0 var(--s-4); }
+.adm-option-group + .adm-option-group { margin-top: var(--s-5); }
+.adm-option-group-title { margin: 0 0 var(--s-2); font-size: var(--fs-lg); font-weight: 650; }
+.adm-option-name { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--s-2) var(--s-3); margin-top: var(--s-3); }
+.adm-option-name > :first-child { flex: 1 1 260px; min-width: 0; max-width: 420px; }
+.adm-option-name-actions { display: flex; gap: var(--s-2); margin-top: 1.6rem; }

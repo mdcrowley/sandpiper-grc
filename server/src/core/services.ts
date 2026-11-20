@@ -269,7 +269,7 @@ export function makeSettings(db: Db, audit: ReturnType<typeof makeAudit>) {
         [key, JSON.stringify(value), req?.user?.id ?? null],
       );
       // Feature switches apply at once, without a restart (core/features.ts).
-      if (key === 'features') invalidateFeatures(db);
+      if (key === 'features' || key === 'feature_options') invalidateFeatures(db);
       await audit(req, {
         action: 'setting.change', recordType: 'setting', recordId: key,
         summary: `Setting ${key} changed`, before: before?.value, after: value,

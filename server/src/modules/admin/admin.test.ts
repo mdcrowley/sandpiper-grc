@@ -488,6 +488,29 @@ describe('re-authentication (E01-21)', () => {
     expect((await t.api.patch('/api/admin/settings', { 'auth.reauth_minutes': 10 })).status).toBe(200);
     await t.api.post('/api/auth/confirm', { password: ADMIN.password });
   });
+
+  it('asks before enabling a disabled account or changing its email address, not for other profile edits (E01-33)', async () => {
+    const target = (await makeUser('reauth3')).id;
+    expect((await t.api.post(`/api/admin/users/${target}/disable`)).status).toBe(200);
+    const token = (await t.api.post('/api/me/tokens', { name: 'User script', scopes: ['*'], expiresInDays: 1 })).body.token;
+    await stale();
+    // A token never carries a confirmation.
+    const viaToken = await t.app.inject({ method: 'POST', url: `/api/admin/users/${target}/enable`, headers: { authorization: `Bearer ${token}` } });
+    expect([viaToken.statusCode, viaToken.json().error.code]).toEqual([403, 'reauth_required']);
+    // Disabling, renaming and moving department are not interrupted.
+    expect((await t.api.patch(`/api/admin/users/${target}`, { displayName: 'Person Three', email: 'REAUTH3@example.test' })).status).toBe(200);
+    for (const attempt of [
+      () => t.api.post(`/api/admin/users/${target}/enable`),
+      () => t.api.patch(`/api/admin/users/${target}`, { email: 'someone.else@example.test' }),
+    ]) {
+      const res = await attempt();
+      expect([res.status, res.body.error.code]).toEqual([403, 'reauth_required']);
+    }
+    expect((await t.api.get(`/api/admin/users/${target}`)).body).toMatchObject({ status: 'disabled', email: 'REAUTH3@example.test' });
+    await t.api.post('/api/auth/confirm', { password: ADMIN.password });
+    expect((await t.api.post(`/api/admin/users/${target}/enable`)).body.status).toBe('active');
+    expect((await t.api.patch(`/api/admin/users/${target}`, { email: 'someone.else@example.test' })).body.email).toBe('someone.else@example.test');
+  });
 });
 
 describe('default role grants (E18-21)', () => {

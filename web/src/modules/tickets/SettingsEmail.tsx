@@ -1,5 +1,5 @@
 // Service desk settings, "Email to ticket" tab (E15-06): where mail comes from (a mailbox read
-// over POP3, or a mail relay that posts each message), what a new ticket gets, who may write,
+// over POP3 or through Microsoft Graph or the Gmail API (E14-25), or a mail relay that posts each message), what a new ticket gets, who may write,
 // and the log of every message received. Administrators only: it holds a mailbox password.
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -10,11 +10,11 @@ import {
 import { useReauth } from './reauth';
 
 interface Intake {
-  enabled: boolean; source: 'pop3' | 'relay'; host: string; port: number; tls: 'tls' | 'starttls' | 'none'; username: string;
+  enabled: boolean; source: 'pop3' | 'graph' | 'gmail' | 'relay'; host: string; port: number; tls: 'tls' | 'starttls' | 'none'; username: string;
   password_set: boolean; poll_minutes: number; leave_on_server: boolean; address: string; unknown_senders: 'create' | 'ignore';
   allowed_domains: string[]; ticket_type: string; assignment_group: string | null; acknowledge: boolean; reply_by_email: boolean;
   max_per_hour: number; relay_key_set: boolean; relay_key_hint: string | null; last_poll_at: string | null; last_poll_error: string | null;
-  mail_enabled: boolean; files: boolean;
+  mail_enabled: boolean; files: boolean; service_accounts?: { graph: boolean; gmail: boolean };
 }
 interface LogRow {
   id: string; received_at: string; source: string; from_address: string | null; from_name: string | null; subject: string | null;
@@ -23,8 +23,11 @@ interface LogRow {
 
 const SOURCES = [
   { value: 'pop3', label: 'Read a mailbox (POP3)' },
+  { value: 'graph', label: 'Read a Microsoft 365 mailbox (Microsoft Graph)' },
+  { value: 'gmail', label: 'Read a Google Workspace mailbox (Gmail API)' },
   { value: 'relay', label: 'A mail relay hands each message over' },
 ];
+const SERVICE_LABEL = { graph: 'Microsoft Graph', gmail: 'Gmail API' } as const;
 const TLS = [
   { value: 'tls', label: 'TLS from the start (usually port 995)' },
   { value: 'starttls', label: 'STARTTLS (usually port 110)' },
@@ -135,7 +138,11 @@ export function EmailSettingsTab() {
     try {
       const r = await api.post<{ ok: boolean; error?: string; messages?: number; fetched?: number; created?: number; commented?: number; ignored?: number }>(`/api/tickets/email/${what}`);
       if (!r.ok) toast.error(r.error ?? 'The mailbox could not be read.');
-      else if (what === 'test') toast.success(`Signed in. The mailbox holds ${r.messages} message${r.messages === 1 ? '' : 's'}.`);
+      else if (what === 'test') {
+        toast.success(data?.source === 'pop3'
+          ? `Signed in. The mailbox holds ${r.messages} message${r.messages === 1 ? '' : 's'}.`
+          : `Signed in. The inbox has ${r.messages === 50 ? '50 or more' : r.messages} unread message${r.messages === 1 ? '' : 's'}.`);
+      }
       else toast.success(`Read ${r.fetched} message${r.fetched === 1 ? '' : 's'}: ${r.created} new ticket${r.created === 1 ? '' : 's'}, ${r.commented} repl${r.commented === 1 ? 'y' : 'ies'}, ${r.ignored} ignored.`);
       reload();
       setLogTick((n) => n + 1);
@@ -172,17 +179,17 @@ export function EmailSettingsTab() {
           Automatic replies, delivery reports, mailing lists and the application’s own messages are never turned into tickets.
         </p>
         <Switch label="Email to ticket switched on" checked={data.enabled} disabled={busy !== ''}
-          hint={data.source === 'pop3' ? 'Needs the mailbox below.' : 'Needs a relay key below.'} error={errors.source}
+          hint={data.source === 'relay' ? 'Needs a relay key below.' : 'Needs the mailbox below.'} error={errors.source}
           onChange={(on) => void save({ enabled: on }, on ? 'Email to ticket is switched on.' : 'Email to ticket is switched off.')} />
         {!data.mail_enabled && (
           <p className="notice"><Icon name="info" size={16} /><span>Outgoing email is off, so no acknowledgments or replies are sent by email. Set it up under <Link to="/admin/email">Administration, Email</Link>.</span></p>
         )}
-        {data.source === 'pop3' && data.last_poll_at && (
+        {data.source !== 'relay' && data.last_poll_at && (
           <p className={data.last_poll_error ? 'notice notice-warn' : 'muted'} role={data.last_poll_error ? 'alert' : undefined}>
             Mailbox last read {relativeTime(data.last_poll_at)}{data.last_poll_error ? `: ${data.last_poll_error}` : ', without problems.'}
           </p>
         )}
-        {data.enabled && data.source === 'pop3' && (
+        {data.enabled && data.source !== 'relay' && (
           <div className="form-actions"><Button icon="refresh" loading={busy === 'check'} disabled={busy !== '' && busy !== 'check'} onClick={() => void act('check')}>Read the mailbox now</Button></div>
         )}
       </Card>
@@ -205,7 +212,36 @@ export function EmailSettingsTab() {
               <Switch label="Leave messages in the mailbox after reading them" checked={f.leave_on_server} onChange={(v) => set({ leave_on_server: v })}
                 hint="Off: each message is removed once it is a ticket or a reply. On: each is read once and left where it is." />
               <div className="form-actions">
-                <Button icon="check" loading={busy === 'test'} disabled={busy !== '' || !data.host || !data.password_set} onClick={() => void act('test')}>Test the saved connection</Button>
+                <Button icon="check" loading={busy === 'test'} disabled={busy !== '' || data.source !== 'pop3' || !data.host || !data.password_set} onClick={() => void act('test')}>Test the saved connection</Button>
+              </div>
+            </>
+          ) : f.source === 'graph' || f.source === 'gmail' ? (
+            <>
+              {!data.service_accounts?.[f.source] && (
+                <p className="notice">
+                  <Icon name="info" size={16} />
+                  <span>
+                    No {SERVICE_LABEL[f.source]} sign-in is saved yet. Enter it under <Link to="/admin/email">Administration, Email</Link>;
+                    email can still be sent over SMTP.
+                  </span>
+                </p>
+              )}
+              <p className="muted">
+                Uses the {SERVICE_LABEL[f.source]} sign-in saved under Administration, Email.{' '}
+                {f.source === 'graph'
+                  ? 'The app registration needs the Mail.ReadWrite application permission, with administrator consent, for this mailbox.'
+                  : 'Its domain-wide delegation needs the scope https://www.googleapis.com/auth/gmail.modify.'}
+                {' '}Unread messages in the inbox are read.
+              </p>
+              <div className="form-grid">
+                <TextField label="Mailbox address" type="email" required value={f.username} onChange={(v) => set({ username: v })} error={errors.username}
+                  autoComplete="off" placeholder="servicedesk@example.org" hint="The mailbox people write to, or one their messages are forwarded to." />
+                <NumberField label="Read the mailbox every (minutes)" min={1} max={60} step={1} value={f.poll_minutes} onChange={(v) => set({ poll_minutes: Number(v) || 5 })} error={errors.poll_minutes} />
+              </div>
+              <Switch label="Leave messages in the mailbox after reading them" checked={f.leave_on_server} onChange={(v) => set({ leave_on_server: v })}
+                hint={`Off: each message is moved to ${f.source === 'graph' ? 'Deleted Items' : 'Trash'} once it is a ticket or a reply. On: each is marked read and left where it is.`} />
+              <div className="form-actions">
+                <Button icon="check" loading={busy === 'test'} disabled={busy !== '' || data.source !== f.source || !data.username} onClick={() => void act('test')}>Test the saved connection</Button>
               </div>
             </>
           ) : (

@@ -1,6 +1,6 @@
 # E12 Dashboards and reporting
 
-**Status:** in progress (14 of 16 issues done)
+**Status:** done (16 of 16 issues done)
 
 ## Goal
 
@@ -41,8 +41,8 @@ build, schedule and hand out the reports they need without asking for a develope
 | E12-12 | Default roles and scheduled delivery | done | P2 |
 | E12-13 | Report builder polish | done | P3 |
 | E12-14 | Non-Latin text in server-made PDFs | done | P3 |
-| E12-15 | Group by a multi-choice field | open | P3 |
-| E12-16 | Right-to-left and mixed-script text in server-made PDFs | open | P3 |
+| E12-15 | Group by a multi-choice field | done | P3 |
+| E12-16 | Right-to-left and mixed-script text in server-made PDFs | done | P3 |
 
 ---
 
@@ -231,21 +231,59 @@ lives in `server/src/core/export/` (shared): in progress until it is merged ther
 
 ### E12-15 Group by a multi-choice field
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 A multi-choice custom field can be a column and a filter (E12-13) but not a group: one record
 holding several values would be counted in each, so totals would no longer add up. Group by each
 value (`jsonb_array_elements_text`), with the table and chart saying that a record can be counted
 more than once and the pivot's totals counting distinct records.
 
+- [x] A multi-choice field is offered as a group (`group: true` in the catalog); the compiler joins
+  `jsonb_array_elements_text` laterally (`groupFrom`), so each record counts once under each of its
+  values and a record with none under "None"; drill-down opens the records holding that value
+- [x] The count of records (`total`) stays one per record; a count measure counts distinct records;
+  "Share of total" becomes "Share of records" (of all matching records, so shares can pass 100%);
+  a share of a field's total is refused with a clear message
+- [x] A pivot's row, column and grand totals count distinct records (other measures leave them blank)
+- [x] `countingNote` explains it in words, built from the field labels and the record count only (the
+  same for every viewer), under the table and chart, in dashboard widgets (one line), and in the PDF,
+  Excel and print-ready exports
+- [x] Figures stay the same for everyone (tested with a second role)
+
+**Implemented in:** `server/src/modules/reports/spec.ts` (lateral join, `groupFrom`, distinct counts and
+shares), `query.ts` (`countingNote`, distinct pivot totals), `catalog.ts`, `custom.ts`, `files.ts`,
+`render.ts`; `web/src/modules/reports/ResultView.tsx`, `Widget.tsx`, `types.ts`, `reports.css`.
+Tests: `query.test.ts` ("shows a multi-choice field as a column, filters by it and groups by it").
+
 ### E12-16 Right-to-left and mixed-script text in server-made PDFs
 
-**Status:** open · **Priority:** P3 · **Type:** improvement
+**Status:** done · **Priority:** P3 · **Type:** improvement
 
 PDFKit shapes Arabic and Hebrew but does not reorder right-to-left runs, so they print left to
 right; and the builder chooses one font per piece of text, so text mixing scripts that no single
 font covers prints the missing characters as "?". Split text into runs by script and direction
 (a bidi pass) and print each run in a font that has it.
+
+Decided: the essentials of the Unicode Bidirectional Algorithm are written in the repository
+(about 250 lines, with a compact table of bidirectional classes) rather than adding a package: no
+suitable package is already installed, the brief adds none, and the parts needed are small. Not
+applied: explicit embeddings and isolates (U+202A to U+202E, U+2066 to U+2069), which are ignored.
+
+- [x] Bidi essentials (P2, P3, W1 to W7, N1, N2, I1, I2, and per line L1, L2, L4 mirrored brackets);
+  the left-to-right, right-to-left and Arabic letter marks count and are not printed
+- [x] Text with right-to-left characters, or mixing scripts that no single font covers, is laid out
+  by the builder: a font per character (the one before it when it can), lines broken at spaces and
+  between ideographs, each line reordered, and each run printed whole (so fontkit shapes Arabic and
+  keeps a right-to-left run in order); a right-to-left paragraph aligns to the right
+- [x] Text one font prints whole, left to right, still goes straight to PDFKit (Western European
+  output unchanged); only a character no available font has prints as "?"
+- [x] Tests with Hebrew, Arabic and mixed samples (`fonts.test.ts`), and a PDF with every part
+  (title, table, charts, facts, figures, note, list) in those scripts
+
+**Implemented in:** `server/src/core/export/fonts.ts` (`bidiClass`, `bidiLevels`, `visualOrder`,
+`toVisual`, `FontFace.reverses`), `server/src/core/export/pdf.ts` (`needsRuns`, `facesFor`,
+`layoutText`, `PdfBuilder.write` / `heightOf` / `widthOf`); `docs/operations.md`. Tests:
+`server/src/core/export/fonts.test.ts`.
 
 ### E12-10 Email delivery of scheduled reports
 
@@ -284,7 +322,7 @@ deliveries; only downloading a copy needs export permission. No change to the de
 **Status:** done · **Priority:** P3 · **Type:** improvement
 
 - [x] Series and pivot columns follow each grouping's natural order (`values` on each dimension column: a list's configured order, dates in time order, words alphabetically, "None" and "Restricted records" last), and with no sort chosen the second grouping follows it inside the first
-- [x] Multi-choice custom fields: shown as a column (labels joined), filtered with "has any of", "has none of", "has no value", "has a value"; refused as a group with a clear message (grouping: E12-15)
+- [x] Multi-choice custom fields: shown as a column (labels joined), filtered with "has any of", "has none of", "has no value", "has a value"; refused as a group with a clear message (grouping added since by E12-15)
 - [x] Dashboard drag-and-drop works while editing down to 480px of content width (tablets); below that a note points to the keyboard moves
 - [x] A plain-language sentence describing the report above the preview; one-click Quick starts (count by status, each month, by owner, status by a second choice); Ctrl+S to save; a warning before leaving with unsaved changes; columns reordered by dragging
 - [x] Wording says figures are the same for everyone (lists show what each role allows)

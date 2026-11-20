@@ -1,6 +1,6 @@
 import { Link, useParams } from 'react-router-dom';
 import {
-  ApiError, Button, ErrorState, Forbidden, formatDate, formatDateTime, formatDuration, Loading, NotFound, PageHeader, useAuth, useFetch,
+  ApiError, Button, ErrorState, Forbidden, formatDate, formatDateTime, formatDuration, Loading, NotFound, PageHeader, useAuth, useFetch, useResource,
 } from '../../core';
 import { dayKey, formatDay, formatTime, metText, zoneName } from './shared';
 import type { Clock, Report } from './types';
@@ -33,6 +33,8 @@ export function ReportPage() {
   const { id = '' } = useParams();
   const { appName } = useAuth();
   const { data, error, reload } = useFetch<Report>(`/api/security-incidents/${id}/report`);
+  // The ransom approval reference shows only while that option is on, under its configured name (Administration > Features).
+  const approval = useResource('security_incident')?.fields.board_resolution_ref;
 
   if (error) {
     if (error instanceof ApiError && error.status === 404) return <NotFound />;
@@ -142,7 +144,7 @@ export function ReportPage() {
           )}
           {i.ransom_applies && (
             <p className="si-doc-text">
-              <strong>Ransom payment:</strong> {i.ransom_status_label}{i.board_resolution_ref ? `. Governing body approval reference: ${i.board_resolution_ref}` : ''}.
+              <strong>Ransom payment:</strong> {i.ransom_status_label}{approval && i.board_resolution_ref ? `. ${approval.label}: ${i.board_resolution_ref}` : ''}.
             </p>
           )}
         </section>

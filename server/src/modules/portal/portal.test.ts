@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createSession, SESSION_COOKIE } from '../../core/auth.ts';
-import { testApp, type TestApi } from '../../test/helpers.ts';
+import { ADMIN, testApp, type TestApi } from '../../test/helpers.ts';
 
 // Invented people and data only.
 let t: Awaited<ReturnType<typeof testApp>>;
@@ -82,6 +82,22 @@ describe('portal switch', () => {
     expect((await pat.get('/api/portal/config')).body.banner).toBeNull();
     // The shared feature switch moved too.
     expect((await t.api.get('/api/auth/state')).body.features.portal).toBe(true);
+  });
+
+  it('asks to confirm your identity before switching, as Administration > Features does (E01-33)', async () => {
+    const token = (await t.api.post('/api/me/tokens', { name: 'Portal script', scopes: ['*'], expiresInDays: 1 })).body.token;
+    await t.db.query(`update sessions set confirmed_at = now() - interval '1 day'`);
+    const refused = await t.api.put('/api/portal/settings', { enabled: false });
+    expect([refused.status, refused.body.error.code]).toEqual([403, 'reauth_required']);
+    // The other settings do not ask, and saving the switch unchanged does not either.
+    expect((await t.api.put('/api/portal/settings', { enabled: true, title: 'Depot help' })).status).toBe(200);
+    // A token never carries a confirmation.
+    const viaToken = await t.app.inject({ method: 'PUT', url: '/api/portal/settings', headers: { authorization: `Bearer ${token}` }, payload: { enabled: false } });
+    expect([viaToken.statusCode, viaToken.json().error.code]).toEqual([403, 'reauth_required']);
+    expect((await t.api.get('/api/auth/state')).body.features.portal).toBe(true);
+    expect((await t.api.post('/api/auth/confirm', { password: ADMIN.password })).status).toBe(200);
+    expect((await t.api.put('/api/portal/settings', { enabled: false })).body.enabled).toBe(false);
+    expect((await t.api.put('/api/portal/settings', { enabled: true })).body.enabled).toBe(true);
   });
 
   it('refuses people without portal permissions', async () => {

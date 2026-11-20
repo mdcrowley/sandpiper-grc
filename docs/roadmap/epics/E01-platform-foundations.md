@@ -1,6 +1,6 @@
 # E01 Platform foundations
 
-**Status:** in progress (32 of 33 issues done)
+**Status:** done (34 of 34 issues done)
 
 ## Goal
 
@@ -54,7 +54,8 @@ user should find every list and record behaving the same way.
 | E01-30 | Password confirmation outside the administration screens | done | P3 |
 | E01-31 | Trusted-proxy handling in the server itself | done | P2 |
 | E01-32 | Labels for known ids (records and people) | done | P2 |
-| E01-33 | Review which actions ask to confirm your identity | open | P3 |
+| E01-33 | Review which actions ask to confirm your identity | done | P3 |
+| E01-34 | Switching on vendor response links asks to confirm your identity | done | P3 |
 
 ---
 
@@ -633,7 +634,7 @@ a request per id.
 
 ### E01-33 Review which actions ask to confirm your identity
 
-**Status:** open · **Priority:** P3 · **Type:** improvement
+**Status:** done · **Priority:** P3 · **Type:** improvement
 
 The identity prompt (`withReauth`, now in the shared web code) can be used by any screen, but
 only administration routes and a few module settings require a recent confirmation. Other
@@ -642,5 +643,40 @@ rules) should be reviewed module by module. Split from E01-30.
 
 **Acceptance criteria**
 
-- [ ] Each module's sensitive actions are listed, with a decision for each
-- [ ] The ones that should ask call `requireRecentAuth` on the server and `withReauth` on screen, with tests
+- [x] Each module's sensitive actions are listed, with a decision for each (the table "Actions
+  that ask you to confirm your identity" in `docs/security.md`)
+- [x] The ones that should ask call `requireRecentAuth` on the server and `withReauth` on
+  screen, with tests. Newly asking: switching the self-service portal on or off from the
+  service desk settings (it already asked under Administration > Features), allowing another
+  file type for uploads, merging duplicate vulnerability findings, enabling a disabled user
+  and changing a user's email address. Switching on vendor response links is split to E01-34
+- [x] Tests show each of them refused without a recent confirmation and for an API token, and
+  done after a confirmation
+
+**Implemented in:** `server/src/modules/portal/settings.ts` (test in `portal.test.ts`);
+`server/src/modules/attachments/index.ts` (test in `attachments.test.ts`);
+`server/src/modules/vulnerabilities/duplicates.ts` (test in `duplicates.test.ts`);
+`server/src/modules/admin/users.ts` (test in `admin.test.ts`); screens
+`web/src/modules/tickets/SettingsPortal.tsx`, `web/src/modules/attachments/UploadLimits.tsx`,
+`web/src/modules/admin/Settings.tsx`, `web/src/modules/vulnerabilities/Duplicates.tsx` (the
+user screens already go through `adminApi`); decisions in `docs/security.md`
+
+### E01-34 Switching on vendor response links asks to confirm your identity
+
+**Status:** done · **Priority:** P3 · **Type:** improvement
+
+Decided in E01-33: switching on vendor response links opens a way in for people outside the
+organization, so it should ask, like the other integrations. Switching them off and the other
+response-link settings do not ask. Split from E01-33 because the vendors module was being
+changed at the same time.
+
+**Acceptance criteria**
+
+- [x] `PUT /api/vendors/response-links/settings` with `enabled: true` while links are off calls
+  `requireRecentAuth` (403 `reauth_required`), after validation and before anything is saved
+- [x] The settings card in `web/src/modules/vendors/ResponseLink.tsx` wraps the call in `withReauth`
+- [x] A test shows it refused without a recent confirmation and for an API token, and done after one
+- [x] The vendors chapter of the user guide says that switching links on asks
+
+**Implemented in:** `server/src/modules/vendors/responseLinks.ts` (requireRecentAuth when switching links on), `web/src/modules/vendors/ResponseLink.tsx` (withReauth), `server/src/modules/vendors/links.test.ts`.
+

@@ -88,6 +88,30 @@ export function bodySql(def: ResourceDef, row: string): string {
 }
 
 /**
+ * The table a type's search trigger sits on: its own table, or, when its records are a view that
+ * reads exactly one table holding every searched column under the same name (a view that adds
+ * computed columns, such as `vulnerability_records`), that table. Null when there is none. Read
+ * from the system catalog, which every role may read.
+ */
+export async function indexedTable(db: Db, def: ResourceDef, needsCustom: boolean): Promise<string | null> {
+  const rel = await db.one<{ kind: string }>(`select c.relkind::text as kind from pg_class c where c.oid = to_regclass($1)`, [def.table]);
+  if (!rel) return null;
+  if (rel.kind === 'r' || rel.kind === 'p') return def.table;
+  if (rel.kind !== 'v') return null;
+  const bases = await db.query<{ base: string }>(
+    `select distinct d.refobjid::regclass::text as base
+     from pg_rewrite rw join pg_depend d on d.classid = 'pg_rewrite'::regclass and d.objid = rw.oid
+     join pg_class c on c.oid = d.refobjid and c.relkind in ('r', 'p')
+     where rw.ev_class = to_regclass($1) and d.refclassid = 'pg_class'::regclass and d.refobjid <> rw.ev_class`, [def.table]);
+  if (bases.length !== 1 || !IDENT.test(bases[0].base)) return null;
+  const base = bases[0].base;
+  const cols = new Set((await db.query<{ name: string }>(
+    `select attname::text as name from pg_attribute where attrelid = to_regclass($1) and attnum > 0 and not attisdropped`, [base])).map((r) => r.name));
+  const needed = ['id', def.titleField, ...(def.ref ? [def.ref.field] : []), ...(def.searchable ?? []), ...(needsCustom ? ['custom'] : [])];
+  return needed.every((c) => cols.has(c)) ? base : null;
+}
+
+/**
  * Creates or refreshes the trigger that indexes one record type, and indexes rows that are missing.
  * Does nothing when the definition has not changed since the last start. Returns false when the
  * type cannot be indexed (the caller then searches it by substring).
@@ -95,10 +119,23 @@ export function bodySql(def: ResourceDef, row: string): string {
 export async function ensureSearchIndex(db: Db, def: ResourceDef, customKeys: string[], known?: Map<string, string>): Promise<boolean> {
   if (![def.type, def.table, def.titleField, def.ref?.field ?? 'x', ...(def.searchable ?? [])].every((n) => IDENT.test(n))) return false;
   const fn = `${def.type}_search_tg`;
-  const signature = createHash('sha256').update(`v2|${def.table}|${vectorSql(def, customKeys, 'new')}|${bodySql(def, 'new')}`).digest('hex');
+  // A type whose records are a view over one table (vulnerabilities, E16-38) is indexed through that
+  // table: a trigger cannot sit on a view, and every write through the view reaches the table.
+  let table: string | null;
+  try {
+    table = await indexedTable(db, def, customKeys.length > 0);
+  } catch {
+    table = null;
+  }
+  if (!table) {
+    if (!process.env.VITEST) console.warn(`[search] ${def.type} is searched by substring only: ${def.table} is not a table or a view over one table`);
+    return false;
+  }
+  const via = table === def.table ? '' : `|via ${table}`;
+  const signature = createHash('sha256').update(`v2|${def.table}${via}|${vectorSql(def, customKeys, 'new')}|${bodySql(def, 'new')}`).digest('hex');
   const backfill = (onlyMissing: boolean) => `
     insert into search_index (record_type, record_id, vector, body)
-    select '${def.type}', t.id, ${vectorSql(def, customKeys, 't')}, ${bodySql(def, 't')} from ${def.table} t
+    select '${def.type}', t.id, ${vectorSql(def, customKeys, 't')}, ${bodySql(def, 't')} from ${table} t
     ${onlyMissing ? `where not exists (select 1 from search_index si where si.record_type = '${def.type}' and si.record_id = t.id)` : ''}
     on conflict (record_type, record_id) do update set vector = excluded.vector, body = excluded.body;`;
   try {
@@ -128,8 +165,8 @@ export async function ensureSearchIndex(db: Db, def: ResourceDef, customKeys: st
         end;
         return null;
       end $search$;
-      drop trigger if exists ${def.type}_search on ${def.table};
-      create trigger ${def.type}_search after insert or update on ${def.table}
+      drop trigger if exists ${def.type}_search on ${table};
+      create trigger ${def.type}_search after insert or update on ${table}
         for each row execute function ${fn}();
       ${backfill(false)}
       insert into search_index_state (table_name, signature) values ('${def.type}', '${signature}')

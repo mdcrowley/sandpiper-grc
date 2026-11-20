@@ -1,4 +1,5 @@
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { emitWebhookEvent } from '../../core/webhooks.ts';
 import { amberFraction, clockOf, duration, stamp } from './clocks.ts';
 
 // In-app notifications for security incidents (E09-17). Everything goes through `app.notify`
@@ -79,6 +80,15 @@ export async function sweepClocks(
         ? `Overdue: notify ${t.party} (${t.incident_ref})`
         : `${duration(clock.seconds_remaining)} left to notify ${t.party} (${t.incident_ref})`,
       body: `${t.incident_title}. ${t.required ? 'Required' : 'Recommended'} notification, due ${due}.`,
+    });
+    // Webhooks that ask for it (E13-19); restricted, so only those that include restricted records.
+    await emitWebhookEvent(ctx.app, {
+      event: level === 'red' ? 'notification_clock.overdue' : 'notification_clock.warning',
+      record: { type: 'notification_task', id: t.id },
+      data: {
+        incidentId: t.incident_id, incidentRef: t.incident_ref ?? null, party: t.party, required: Boolean(t.required),
+        dueAt: new Date(t.due_at).toISOString(), ...(level === 'amber' ? { secondsRemaining: clock.seconds_remaining ?? null } : {}),
+      },
     });
     out[level] += 1;
   }

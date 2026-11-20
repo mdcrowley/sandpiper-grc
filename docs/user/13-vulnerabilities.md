@@ -27,7 +27,7 @@ The tiles above the list each open the findings they count: **Open**, **Overdue*
 
 The **View** menu beside **Filters** holds ready-made saved views, which you can keep, rename or delete like your own: **Open**, **Overdue**, **Open: critical and high**, **Open: known exploited**, **Open: no owner** and **Open: mine**. **All vulnerabilities** shows every finding.
 
-You can search, select **Filters**, sort by a column, save a view and select **Export**. The search looks at the title, host name, IP address, finding ID, CVE and description. The address in the browser keeps the search, filters and sort, so you can bookmark a view or send it to a colleague.
+You can search, select **Filters**, sort by a column, save a view and select **Export**. The search looks at the title, host name, IP address, finding ID, CVE and description. It matches whole words with their other forms (for example "gateways" finds "gateway") and, for a single word, any part of a word, so part of a host name, address or CVE number finds the finding too. Findings are found the same way in the global search. The address in the browser keeps the search, filters and sort, so you can bookmark a view or send it to a colleague.
 
 The columns are the reference, title, **Severity**, **Host** (with the IP address and port beneath), **Status**, **Owner**, **Fix by** and **Age (days)**. A red **Overdue** label follows a fix-by date that has passed. More columns, such as **CVSS**, **Finding ID**, **System** and **Last seen**, can be switched on with the column button.
 
@@ -240,7 +240,7 @@ Findings recorded before hosts were matched by name and address, and before port
 Each group lists its findings with how each was recorded, severity, status, first and last seen, owner, and how many comments and files it has. The first finding, an open one seen most recently, is suggested to keep. With the **Administer** permission on vulnerabilities:
 
 1. Choose the finding to keep with **Keep**.
-2. Select **Merge into …** and confirm.
+2. Select **Merge into …** and confirm. A merge cannot be undone, so you are asked to confirm your password if you have not done so in the last few minutes.
 
 The other findings are removed. Their comments, files, links, tags and watchers move to the finding kept, which keeps its own status and owner and takes the earliest **First seen** and latest **Last seen** of the group. The kept finding's **History** records the merge with the details of every finding removed, and each removed finding's history records which finding it was merged into.
 

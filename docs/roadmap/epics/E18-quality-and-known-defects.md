@@ -1,6 +1,6 @@
 # E18 Quality and known defects
 
-**Status:** in progress (37 of 46 issues done)
+**Status:** in progress (40 of 48 issues done)
 
 ## Goal
 
@@ -48,7 +48,7 @@ has never been checked, so nobody relies on something untested.
 | E18-25 | Permissions granted but never checked | in progress | P2 |
 | E18-26 | Only risks have an Actions tab | done | P2 |
 | E18-27 | Dev mode ignored a custom port | done | P3 |
-| E18-28 | Features that suit some transit organizations but not all | open | P2 |
+| E18-28 | Features that suit some transit organizations but not all | done | P2 |
 | E18-29 | Reading a ticket list runs the service-level sweep | done | P3 |
 | E18-30 | Escalating a project item creates a risk without a risk permission | done | P3 |
 | E18-31 | Review the newer modules for permission and restricted-record checks | done | P1 |
@@ -65,8 +65,10 @@ has never been checked, so nobody relies on something untested.
 | E18-42 | Chart drill-down works only with a pointer | done | P2 |
 | E18-43 | Component tests for the generic list, form and record page | open | P3 |
 | E18-44 | The role editor offers actions nothing checks | open | P3 |
-| E18-45 | Custom fields on saved reports and dashboards are not asked or shown | open | P3 |
+| E18-45 | Custom fields on saved reports and dashboards are not asked or shown | done | P3 |
 | E18-46 | A malformed date and time could be read as a date | done | P3 |
+| E18-47 | Agency-flavored wording in editable defaults | open | P3 |
+| E18-48 | Generic list and form show a field the metadata lacks | done | P3 |
 
 ---
 
@@ -540,7 +542,7 @@ The web dev server proxied to port 8080 whatever GRC_PORT was.
 
 ### E18-28 Features that suit some transit organizations but not all
 
-**Status:** open · **Priority:** P2 · **Type:** debt
+**Status:** done · **Priority:** P2 · **Type:** debt
 
 A few built-in features, not just words, follow how a publicly funded transit agency
 works: the asset "funder interest" flag and its disposal rule (equipment part-paid by an
@@ -552,10 +554,15 @@ jurisdiction's funding rules.
 
 **Acceptance criteria**
 
-- [ ] Each is either made a setting that an installation can switch off or rename, or confirmed as general enough for the range of transit organizations
-- [ ] The user guide follows
+- [x] Each is either made a setting that an installation can switch off or rename, or confirmed as general enough for the range of transit organizations: all three are **options within an area** (`OPTIONS` in `core/features.ts`, setting `feature_options`, Administration > Features), on by default with today's names so an installation that upgrades sees no change. Options rather than new areas, because each is one field and rule inside a part that otherwise suits everyone (inventory is not an area at all). **Outside funder interest in equipment** (inventory; also the vehicle fields), **Approval number on contracts** (vendors) and **Recorded approval of a ransom payment** (security incidents) can each be switched off or renamed ("Board resolution", "Approval reference", "Grant interest")
+- [x] While an option is off its fields leave the record type's definition, so forms, lists, filters, record pages, exports, imports, the report builder, the API description and MCP tools drop them; values written to them are ignored and stored values are kept. Its rule stops: the disposal block, the ransom-approval check. Hand-written screens (asset disposal dialog, lifecycle band, disposal tab and queue, contract record, ransom tab, incident report, offline kit) and the inventory report column follow the metadata. A renamed option relabels the fields, the rule's messages and the report column
+- [x] Each change needs a recent password confirmation and is audited (`features.option_change`)
+- [x] Other agency-only assumptions reviewed in inventory, vendors, security incidents, policies, projects and safety: the rest is editable configuration (list values, rule templates, approval tiers) and is raised as E18-47; the generic list and form still show a field a page names but the metadata lacks (E18-48)
+- [x] The user guide follows (Inventory, Vendors and contracts, Security incidents, Administration > Features)
 
 **Where:** `server/src/modules/inventory/index.ts`, `server/src/modules/vendors/index.ts`, `server/src/modules/secincidents/index.ts`
+
+**Implemented in:** `server/src/core/features.ts` (`OPTIONS`, `effectiveOptions`, `optionOn`, `optionName`, the gate's `applyOptions`); `server/src/modules/admin/features.ts`; `server/src/modules/inventory/lifecycle.ts`, `index.ts`, `importer.ts`, `reports.ts`; `server/src/modules/secincidents/index.ts`, `defaults.ts`; `web/src/modules/admin/Features.tsx`; `web/src/modules/inventory/*`; `web/src/modules/vendors/ContractPages.tsx`; `web/src/modules/secincidents/RansomTab.tsx`, `ReportPage.tsx`, `KitPage.tsx`; `server/src/modules/admin/feature-options.test.ts`
 
 ### E18-29 Reading a ticket list runs the service-level sweep
 
@@ -834,7 +841,7 @@ written. Found by an intermittent test failure in CI (macOS and PostgreSQL legs)
 
 ### E18-45 Custom fields on saved reports and dashboards are not asked or shown
 
-**Status:** open · **Priority:** P3 · **Type:** bug
+**Status:** done · **Priority:** P3 · **Type:** bug
 
 Split from E18-34. **Administration > Custom fields** offers every record type, including saved
 reports (`report_definition`), dashboards, report schedules and report packs. These are saved
@@ -845,12 +852,27 @@ fail with a message about a field the dialog does not show.
 
 **Acceptance criteria**
 
-- [ ] Decide: leave the reporting types out of the custom-fields record type list (preferred;
-  `server/src/core/customfield-routes.ts` refuses them and `recordTypes` leaves them out), or ask
-  them in the reporting dialogs with `useCustomFieldInputs` and show them with `CustomFieldsCard`
-- [ ] Either way, a required custom field can never block saving a report or a dashboard
+- [x] Decided (owner): allow them, ask them in the reporting dialogs with `useCustomFieldInputs` and
+  show them with `CustomFieldsCard`
+- [x] Asked in the report builder's save dialog, the New dashboard dialog, the dashboard settings
+  (Save opens them when one is missing), Add to a dashboard (new dashboard), the schedule dialog,
+  the New report pack dialog (generic form) and the pack editor; a required one is checked before
+  sending, with the message beside the field, and a server refusal is shown there too
+- [x] Shown (and editable by people who may change the item) under More details on the report page,
+  the dashboard, the pack and the schedule panel; Save a copy carries the values over
+- [x] Administration > Custom fields offers the four types with clear names ("Report schedule" rather
+  than "Schedule"); a **Custom fields** button for administrators on the Reports, Dashboards, Report
+  packs and Schedules pages opens it at the right type
+- [x] A required custom field never blocks system work: the standard items are still seeded (core
+  applies "required" to people only)
+- [x] Tests: `server/src/modules/reports/customfields.test.ts` (values saved, required refused beside the
+  field, history, seeding); browser check with an invented required field on dashboards, reports and
+  schedules
 
-**Where:** `server/src/core/customfield-routes.ts` (core), `web/src/modules/reports`
+**Implemented in:** `web/src/modules/reports/` (`custom.tsx`, `Builder.tsx`, `ReportPages.tsx`,
+`DashboardPages.tsx`, `dialogs.tsx`, `PackPages.tsx`, `DeliveryPages.tsx`), `web/src/core/CustomFieldInputs.tsx`
+(new optional `resetKey`, for a form whose record loads later or that reopens for another record),
+`server/src/modules/reports/resources.ts` (label "Report schedule"). Tests: `customfields.test.ts`.
 
 ### E18-42 Chart drill-down works only with a pointer
 
@@ -905,3 +927,47 @@ web unit tests (E18-14).
 - [x] Only a `YYYY-MM-DDTHH:MM` value is converted; anything else gives an empty value
 
 **Implemented in:** `web/src/core/format.ts`.
+
+### E18-47 Agency-flavored wording in editable defaults
+
+**Status:** open · **Priority:** P3 · **Type:** debt
+
+Found while reviewing E18-28. These defaults are configuration an administrator can change,
+so they do not stop a private operator or a contractor using the product, but they read as
+written for a publicly funded agency with a board:
+
+- the ransom payment status "Approved by the governing body" (list `ransom_payment_status`)
+  and the incident role note "Links the response team to the executive team and the governing body";
+- the project approval tiers whose top tier adds a "Governing body" approver
+  (`server/src/modules/projects/rules.ts`) and the sample milestone "Governing body date for the award";
+- the funding source value "Grant or outside funder" (inventory and projects), and the
+  inactive notification rule template "Funding agencies and partner operators";
+- the report pack "Governing body security pack" and its cover subtitle;
+- the contract field "Date and resolution (as recorded)", filled only from an earlier register.
+
+**Acceptance criteria**
+
+- [ ] Each is either reworded so it reads for owners, directors and boards alike ("approving body", "the people your policy names"), or confirmed as general enough
+- [ ] A change to a list label reaches only new installations (`ensure` never overwrites an edited value), and the user guide says how to rename the rest
+
+**Where:** `server/src/modules/secincidents/defaults.ts`, `server/src/modules/projects/rules.ts`, `server/src/modules/inventory/index.ts`, `server/src/modules/projects/defaults.ts`, `server/src/modules/reports/standard.ts`, `server/src/modules/vendors/index.ts`
+
+### E18-48 Generic list and form show a field the metadata lacks
+
+**Status:** done · **Priority:** P3 · **Type:** debt
+
+A page that names a field in `columns`, `filters`, `createFields` or a summary's `fields`
+shows it even when `/api/meta` does not have it (a field of an option that is switched off,
+E18-28): `fieldMeta()` falls back to a text field named after the key. The inventory, vendor
+and security-incident pages filter their own lists; the fleet vehicle pages and any later page
+would have to do the same.
+
+**Acceptance criteria**
+
+- [x] `ResourceList`, `ResourceForm`, `RecordPage` and `EditableSummary` leave out a named field that is neither in the metadata nor a system field (a column with its own `render` stays)
+- [x] The vehicle list and record drop the funder-interest fields while that option is off without their own code
+
+**Where:** `web/src/core/ResourceList.tsx`, `ResourceForm.tsx`, `RecordPage.tsx`, `FieldValue.tsx`; `web/src/modules/fleet/Vehicles.tsx`
+
+**Implemented in:** `web/src/core/fieldNames.ts` (`knownFields`), used by `ResourceList`, `ResourceForm` (fields and sections) and `EditableSummary`; `web/src/core/knownFields.test.ts`. The fleet vehicle pages need no code of their own.
+

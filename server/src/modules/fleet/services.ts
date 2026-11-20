@@ -31,6 +31,26 @@ export interface FleetApi {
    * systems: what the relationship map draws. Empty when the caller lacks `fleet.view`.
    */
   serviceDependencies(user: SessionUser | null): Promise<AffectedService[]>;
+  /**
+   * Vehicles that have not left the fleet, grouped by depot and mode, with how many in each
+   * group carry equipment of each system: what the relationship map draws, so a large fleet
+   * stays readable. Empty when the caller lacks `fleet.view` or `assets.view` (equipment is asset
+   * information, as in `affected`), or when the inventory module is not loaded.
+   */
+  vehicleGroups(user: SessionUser | null): Promise<VehicleGroup[]>;
+}
+
+/** Vehicles of one mode at one depot (or with no depot), and the systems whose equipment they carry. */
+export interface VehicleGroup {
+  /** `vehicles:<depot id or none>:<mode or none>`: stable, so the map draws the same way each time. */
+  id: string;
+  mode: string | null; mode_label: string | null; depot_id: string | null; depot_name: string | null;
+  /** Vehicles in the group that have not left the fleet. */
+  count: number;
+  /** The vehicle list filtered to this group. */
+  route: string;
+  /** Systems whose equipment is installed on vehicles of the group, and on how many of them. */
+  systems: { system_id: string; vehicles: number }[];
 }
 
 declare module 'fastify' {
@@ -193,7 +213,41 @@ export function registerServices(ctx: ModuleContext) {
     return [...out.values()];
   }
 
-  if (!app.hasDecorator('fleet')) app.decorate('fleet', { affected, serviceDependencies } satisfies FleetApi);
+  async function vehicleGroups(user: SessionUser | null): Promise<VehicleGroup[]> {
+    // Both checks follow the feature switch: an area that is off has no record types and no permissions.
+    if (!ctx.resources.get('vehicle') || !ctx.resources.get('asset')) return [];
+    if (user && (!ctx.can(user, 'fleet.view') || !ctx.can(user, 'assets.view'))) return [];
+    const modes = await ctx.lookups.values('vehicle_mode');
+    const retired = (await ctx.lookups.values('vehicle_status')).filter((s) => s.meta?.retired === true).map((s) => s.value);
+    const counts = await db.query<Row>(
+      `select v.depot_id, v.mode, st.name as depot_name, count(*)::int as n
+       from vehicles v left join sites st on st.id = v.depot_id and st.deleted_at is null
+       where v.deleted_at is null and not (coalesce(v.status, '') = any($1::text[]))
+       group by v.depot_id, v.mode, st.name`, [retired]);
+    const carried = await db.query<Row>(
+      `select v.depot_id, v.mode, a.system_id, count(distinct v.id)::int as n
+       from vehicle_equipment e
+       join vehicles v on v.id = e.vehicle_id and v.deleted_at is null
+       join assets a on a.id = e.asset_id and a.deleted_at is null
+       where e.removed_on is null and a.system_id is not null and not (coalesce(v.status, '') = any($1::text[]))
+       group by v.depot_id, v.mode, a.system_id
+       order by a.system_id`, [retired]);
+    const keyOf = (r: Row) => `vehicles:${r.depot_id ?? 'none'}:${r.mode ?? 'none'}`;
+    const groups = new Map<string, VehicleGroup>();
+    for (const r of counts) {
+      const filters = [r.mode ? `f.mode=${encodeURIComponent(r.mode)}` : '', r.depot_id ? `f.depot_id=${r.depot_id}` : ''].filter(Boolean).join('&');
+      groups.set(keyOf(r), {
+        id: keyOf(r), mode: r.mode ?? null, mode_label: label(modes, r.mode), depot_id: r.depot_id ?? null,
+        depot_name: r.depot_id ? r.depot_name ?? null : null, count: r.n, route: `/vehicles${filters ? `?${filters}` : ''}`, systems: [],
+      });
+    }
+    for (const r of carried) groups.get(keyOf(r))?.systems.push({ system_id: r.system_id, vehicles: r.n });
+    const last = '￿';
+    return [...groups.values()].sort((a, b) =>
+      (a.depot_name ?? last).localeCompare(b.depot_name ?? last) || (a.mode_label ?? last).localeCompare(b.mode_label ?? last) || a.id.localeCompare(b.id));
+  }
+
+  if (!app.hasDecorator('fleet')) app.decorate('fleet', { affected, serviceDependencies, vehicleGroups } satisfies FleetApi);
 
   app.get('/api/fleet/affected', { preHandler: ctx.requirePerm('fleet.view') }, async (req) => {
     const q = req.query as Record<string, string>;

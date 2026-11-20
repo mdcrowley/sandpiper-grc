@@ -98,7 +98,7 @@ The panel is green, amber within 120 days and red within 30 days or once passed.
 
 Below it:
 
-- **Details**, in three sections: **Agreement**, **Dates and renewal**, and **Value and approval**.
+- **Details**, in three sections: **Agreement**, **Dates and renewal**, and **Value and approval**. **Value and approval** holds the **Total value**, the **Approval or resolution number** (the number of the decision that approved the contract, such as a board resolution, a purchase approval or a delegated-authority reference) and **Notes**. Your administrator may have renamed that field, for example to **Board resolution** or **Approval reference**, or switched it off under **Administration > Features** if your contracts are not approved that way; the section is then called **Value**, and the field is left out of the list columns, exports and imports too (see [Features](09-administration.md#options-within-the-parts)).
 - **Value by year**: the contract's value year by year (see below).
 - **As recorded in the contract register**: free-text notes carried over from an earlier register, such as **Document on file** and **Term and renewal (as recorded)**.
 
@@ -251,12 +251,31 @@ If **Save as an evidence item** is checked (it is, unless you cannot add evidenc
 When **Let vendors answer through a link** is on (see below), a draft assessment shows **Vendor's own answers** at the top:
 
 1. Select **Create link**. Optionally say **Who it is for**, and how many **Days it works** (the default is set by the administrator, at most 90).
-2. Copy the link with **Copy link** and send it to your contact at the vendor. It is shown **only once**; if it is lost, create a new link (the earlier one then stops working).
-3. The vendor opens the link without an account, answers each question (with a note where it helps), can **Save and finish later** while the link lasts, and finally **Send answers** with their name. Every question must be answered first.
-4. The panel shows whether the link has been opened, how many questions are answered so far, and when the answers were sent. Whoever created the link is notified when they are sent.
+2. Send the link to your contact at the vendor, in one of two ways:
+   - **Email it from the application** (only when email is set up, under Administration > Email): fill in **Email it to** and select **Create and email link**. The application sends the link to that address; nobody, you included, sees it.
+   - **Send it yourself**: leave **Email it to** empty, select **Create link**, then **Copy link** and send it. It is shown **only once**.
+
+   Either way, if the link is lost, make a new one (**New link**, or **Send a new link** when the last one was emailed): the earlier link then stops working.
+3. The vendor opens the link without an account, answers each question (with a note where it helps), can **Save and finish later** while the link lasts, and finally **Send answers** with their name. Every question must be answered first. Until they send their answers, they can also send **Supporting files** (see [Files from the vendor](#files-from-the-vendor)).
+4. The panel shows whether the link has been opened, how many questions are answered so far, when the answers were sent, and, for an emailed link, the address, when it was sent and when a reminder went. Whoever created the link is notified when the answers are sent.
 5. Under **answers from the vendor to review**, each answer that differs from the assessment is listed. **Take over** copies one into the assessment, **Take over all** copies them all. Nothing the vendor says counts until you take it over, and you can still change any answer before you **Complete assessment**.
 
-**Withdraw link** stops a link at once; answers already saved stay for review. A link also stops working when it expires, when the assessment is completed or discarded, and when the feature is switched off. The vendor sees the questions, their guidance and their own answers only: never the weights, the score or your answers. Opening, sending, creating and withdrawing links, and taking answers over, are recorded in the vendor's history. The link's page refuses too many requests from one address.
+**Withdraw link** stops a link at once; answers and files already sent stay for review. A link also stops working when it expires, when the assessment is completed or discarded, and when the feature is switched off. The vendor sees the questions, their guidance, their own answers and the files they sent only: never the weights, the score or your answers. Opening, sending, creating, emailing and withdrawing links, files sent, refused, taken over or discarded, and answers taken over, are recorded in the vendor's history. The link's page refuses too many requests from one address.
+
+#### The email
+
+The email names your organization (the application name), the vendor and the assessment, and says until when the link works; it has a plain-text and an HTML version. The link itself is never stored, shown to staff, or written to the delivery log or the audit log: it is kept encrypted in the queued message until it is sent. A link can be emailed at most 5 times a day for one assessment.
+
+If the vendor has not sent their answers a set number of days before an emailed link expires (2 as installed), the application sends one reminder to the same address. The reminder cannot repeat the link: it asks them to use the earlier email, or to ask you for a new link.
+
+#### Files from the vendor
+
+While the link works and before they send their answers, the vendor can send files that back their answers, such as a certificate or an assurance report, with an optional note on what the files show. They can remove a file they sent until they send their answers.
+
+- Every file goes through the same checks as any upload: the allowed types (see [Attachments and notifications](14-attachments-and-notifications.md)), the content compared with the type its name claims, the malware scanner when one is set up, and the size limit. On top of that, a link takes only the **File types vendors may send**, up to **Files a vendor may send per link** and **Total size per link** (see below). A refused file is not kept, and the refusal is recorded in the vendor's history.
+- A file the vendor sends is **not** attached to anything. It waits on the link, under **files from the vendor to review** in the **Vendor's own answers** panel, with its size, when it was sent, the vendor's note and whether it was scanned.
+- Select the file name to download it and look at it. Then select **Take over** to keep it as **Evidence of the vendor** (with an optional **Expires on** date) or as **An ordinary file**: it moves to the vendor's **Attachments** tab. Or select **Discard**: the file is deleted at once and cannot be brought back. The vendor is not told either way.
+- Files stay for review after the link expires, is withdrawn or replaced, or the assessment is completed.
 
 ### Scores and gaps
 
@@ -278,8 +297,14 @@ Each save makes a new version. New assessments use the latest version; completed
 
 The **Vendors answering for themselves** card (people who administer vendors can change it) has:
 
-- **Let vendors answer through a link**: off as installed. Switching it off stops every open link.
+- **Let vendors answer through a link**: off as installed. Switching it on asks you to confirm it is you (your password, and your second factor if you have one), because it opens a way in for people outside your organization. Switching it off stops every open link.
 - **Days a new link works**: from 1 to 90, 14 as installed. Staff can choose another length for each link.
+- **Files a vendor may send per link**: from 0 (no files) to 50, 10 as installed.
+- **Total size per link (MB)**: from 1 to 500, 50 as installed. Each file is also held to the upload limit under **File settings**.
+- **File types vendors may send**: separated by commas; as installed csv, doc, docx, jpeg, jpg, pdf, png, pptx, txt, xls and xlsx. Only types also allowed under **File settings** are accepted, so this list can narrow what may be uploaded but never widen it.
+- **Reminder before an emailed link expires (days)**: from 0 (no reminder) to 30, 2 as installed.
+
+Select **Save file and reminder settings** after changing any of the last four.
 
 ## The renewal calendar and reminders
 
@@ -337,5 +362,5 @@ Each value must be a whole number of days from 1 to 3650, with no repeats and at
 
 - Email delivery of reminders. They arrive as in-application notifications.
 - Approval steps for signing or renewing a contract.
-- A vendor's own sign-in. Vendors can answer an assessment through a link, but cannot see anything else; the link is not emailed by the application (staff send it).
-- A vendor attaching files (certificates, reports) through the link.
+- A vendor's own sign-in. Vendors can answer an assessment and send files through a link, but cannot see anything else.
+- A template of its own for the email that carries the response link: it uses the **General message** template under Administration > Email > Templates.

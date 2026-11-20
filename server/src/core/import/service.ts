@@ -343,6 +343,42 @@ async function existingByKey(deps: ImportDeps, def: ResourceDef, key: string, us
   return map;
 }
 
+/**
+ * Everything the resource engine does before it writes a row, without writing it (E13-10): the
+ * engine's validation, then the record type's `beforeCreate` or `beforeUpdate` hook (on copies, with
+ * custom fields held back as the engine does), then the check that a row inheriting its restriction
+ * points at a source record the person can see. Throws as the engine would. Before-hooks only
+ * prepare and check a row (writes belong in after-hooks), so running them here changes nothing; the
+ * after-hooks and database constraints are left to the real import.
+ */
+export async function checkWithoutWriting(
+  deps: ImportDeps, def: ResourceDef, req: FastifyRequest, action: 'create' | 'update', data: Row, id?: string,
+): Promise<void> {
+  const valid = await deps.validate(def, { ...data }, action, false);
+  const builtIn: Row = Object.fromEntries(Object.entries(valid).filter(([k]) => !k.startsWith('cf_')));
+  let existing: Row | undefined;
+  let prepared: Row = builtIn;
+  if (action === 'create') {
+    if (def.hooks?.beforeCreate) prepared = await def.hooks.beforeCreate(req, { ...builtIn });
+  } else {
+    existing = id ? await deps.registry.find(def.type, id, req.user) : undefined;
+    if (!existing) throw Object.assign(new Error(`The ${def.label.toLowerCase()} to update was not found.`), { fields: {} });
+    if (def.hooks?.beforeUpdate) prepared = await def.hooks.beforeUpdate(req, { ...existing }, { ...builtIn });
+  }
+  const from = def.restrictedFrom;
+  if (from && (action === 'create' || from.typeField in prepared || from.idField in prepared)) {
+    const merged: Row = { ...(existing ?? {}), ...prepared };
+    const type = merged[from.typeField];
+    const sourceId = merged[from.idField];
+    const src = typeof type === 'string' ? deps.registry.get(type) : undefined;
+    if (src && sourceId && (!deps.mayAccess(req.user, src, 'view') || !(await deps.registry.find(src.type, String(sourceId), req.user)))) {
+      throw Object.assign(new Error('Check the highlighted fields.'), {
+        fields: { [from.idField]: `${def.fields[from.idField]?.label ?? 'Source record'} was not found.` },
+      });
+    }
+  }
+}
+
 const describe = (err: unknown): Record<string, string> => {
   const e = err as { fields?: Record<string, string>; message?: string };
   return e.fields && Object.keys(e.fields).length ? e.fields : { _row: e.message ?? 'Could not be saved.' };
@@ -394,9 +430,11 @@ export async function runImport(deps: ImportDeps, def: ResourceDef, req: Fastify
     } else {
       result.action = match ? 'update' : 'create';
       if (match) { result.id = match; out.duplicates++; }
-      // The same validation as a record made by hand (hooks also run on a real import).
+      // The same validation as a record made by hand. The check (dry run) also runs the record
+      // type's before-hooks and the source check, so it refuses what the real import would (E13-10).
       try {
-        await deps.validate(def, data, result.action, false);
+        if (input.dryRun) await checkWithoutWriting(deps, def, req, result.action, data, result.id);
+        else await deps.validate(def, data, result.action, false);
       } catch (err) {
         result.action = 'error';
         result.errors = describe(err);

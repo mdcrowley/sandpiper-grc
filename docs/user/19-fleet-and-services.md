@@ -94,6 +94,7 @@ Switch on **Include systems it feeds** to follow the recorded integrations downs
 ## Elsewhere in the application
 
 - **Relationship map**: services that depend on at least one system can be drawn on the map, in their own lane, tied to the systems they need (select **Services** under **Show**). Each line says what the service needs the system for.
+- **Vehicles on the relationship map**: select **Vehicles** under **Show**. So that a fleet of hundreds stays readable, vehicles are drawn in groups, one box per depot and mode, for example "Bus ×40 · Example Depot North" (a group with no depot says "no depot"). A group is drawn when its vehicles carry equipment of a system on the map; the line from the system says on how many of the group's vehicles that equipment is installed ("equipment on 12 of 40"), and a line joins the group to its depot when the depot is on the map. Retired vehicles are left out. Select a group to see its connections; its link opens the vehicle list filtered to that depot and mode. Vehicle groups are included when you save the map as a picture (PNG or SVG). They are shown to people whose roles include **View** on fleet and on assets (equipment is asset information, as in the impact answer), and not at all while **Fleet and services** is switched off.
 - **Security incidents**: the **Affected** tab of an incident lists the services and vehicles reached by the systems linked to the incident (see [Security incidents](07-security-incidents.md)).
 - **Safety events** name the vehicle and route involved; see [Safety management](20-safety-management.md).
 
@@ -106,5 +107,5 @@ The `dev` sample profile loads an invented operator: 40 buses at two depots and 
 ## Not available yet
 
 - Vehicle blocks and daily assignments of vehicles to services.
-- Vehicles on the relationship map itself (they are listed in its impact answer). Services are drawn on it.
+- Individual vehicles on the relationship map: they are drawn as groups by depot and mode. Open a group's vehicle list to see each one.
 - Vehicle mileage, inspections and maintenance work orders; these belong in a fleet maintenance system.

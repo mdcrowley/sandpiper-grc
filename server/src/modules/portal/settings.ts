@@ -2,6 +2,7 @@
 // Features), the title and welcome line, the service status banner, the reopen window, who may
 // raise a request for a colleague, and whether safety events may be reported from the portal.
 import type { FastifyRequest } from 'fastify';
+import { requireRecentAuth } from '../../core/auth.ts';
 import { effectiveFeatures } from '../../core/features.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 
@@ -107,6 +108,8 @@ export async function saveSettings(ctx: ModuleContext, req: FastifyRequest, body
 
   if (body.enabled !== undefined && body.enabled !== (await isEnabled(ctx))) {
     if (!ctx.can(req.user, 'admin.administer')) ctx.fail(403, 'forbidden', 'Only an administrator can switch the portal on or off.');
+    // The same feature switch as Administration > Features, so the same recent confirmation (E01-33).
+    await requireRecentAuth({ db: ctx.db, audit: ctx.audit, settings: ctx.settings }, req, `switching the portal ${body.enabled ? 'on' : 'off'}`);
     const features = await ctx.settings.get<Row>('features', { portal: false });
     // The portal needs the service desk (core/features.ts); Administration > Features says the same.
     if (body.enabled && !effectiveFeatures(features).tickets) {

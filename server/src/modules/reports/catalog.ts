@@ -58,8 +58,8 @@ export function fieldsOf(ctx: ModuleContext, user: SessionUser | null, def: Reso
   }
   // Fields an administrator added to this record type.
   for (const [name, f] of Object.entries(custom)) {
-    // A multi-choice field can be a column and a filter; one record can hold several values, so it is no group or total.
-    out.push({ path: name, label: f.label, type: f.type, list: f.list, to: f.to, custom: true, ...usable(f.type), ...(f.multiple ? { multiple: true, group: false, sum: false } : {}) });
+    // A multi-choice field can be a column, a filter and a group (each record under each of its values).
+    out.push({ path: name, label: f.label, type: f.type, list: f.list, to: f.to, custom: true, ...usable(f.type), ...(f.multiple ? { multiple: true, sum: false } : {}) });
   }
   for (const [name, f] of Object.entries({ ...def.fields, ...custom })) {
     if (f.multiple) continue;

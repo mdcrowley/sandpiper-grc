@@ -1,6 +1,6 @@
 // File settings > Uploads: the size limit and the allowed types.
 import { useEffect, useState, type FormEvent } from 'react';
-import { api, ApiError, Button, Card, ErrorState, errorMessage, Loading, NumberField, TextArea, useFetch, useToast } from '../../core';
+import { api, ApiError, Button, Card, ErrorState, errorMessage, Loading, NumberField, TextArea, useFetch, useToast, withReauth } from '../../core';
 import type { FileConfig } from './shared';
 
 export function UploadLimits() {
@@ -22,7 +22,8 @@ export function UploadLimits() {
     setSaving(true);
     setErrors({});
     try {
-      await api.patch('/api/attachments/settings', { maxMb, allowedExtensions: types });
+      // Allowing another file type asks to confirm your identity first (E01-33).
+      await withReauth(() => api.patch('/api/attachments/settings', { maxMb, allowedExtensions: types }));
       toast.success('Upload limits saved.');
       reload();
     } catch (err) {

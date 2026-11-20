@@ -54,6 +54,8 @@ Matching ignores capital letters. A row that repeats the key of an earlier row i
 
 **Check the file** goes through every row without saving anything and shows how many rows would be created, updated, skipped, or have problems. **Rows** lists each skipped row and each problem (choose **All rows** to see the rest), by the row number in the file.
 
+The check applies the same rules as saving the record would: required fields and allowed values, the rules of that kind of record (for example a ticket that is closed needs a resolution code, or a change that is no longer a draft cannot change its type), and, for a record that takes its restriction from another one, that you can see that other record. So a row that passes the check is saved by the import. The one exception is something that changes between the check and the import, such as another person editing the same record in between.
+
 Values are read like this:
 
 - **Lists** (status, priority and so on): the value or its label, in any capitals.

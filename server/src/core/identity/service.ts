@@ -11,6 +11,7 @@ import { isBreakGlass, resolveSignIn, syncMappedRoles, type Audit } from './acco
 import { providerMfaSatisfied } from './config.ts';
 import { addSignInPolicy, afterSignIn, checkSignIn } from './hooks.ts';
 import { endSessionUrl, oidcDriver } from './oidc.ts';
+import { samlDriver, samlLogoutUrl } from './saml.ts';
 import { IdentityError, type ExternalIdentity, type ProviderDriver, type ProviderRecord, type RedirectStart } from './types.ts';
 
 export interface IdentityDeps {
@@ -21,11 +22,10 @@ export interface IdentityDeps {
 }
 
 /**
- * The kinds of provider. SAML 2.0 is not here: verifying signed XML safely needs an XML-signature
- * implementation (canonicalisation, reference checks, wrapping defenses), which Node does not have and
- * this project does not carry. See docs/roadmap/epics/E02-account-security.md, E02-10.
+ * The kinds of provider: OpenID Connect (oidc.ts) and SAML 2.0 (saml.ts, E02-10; XML signatures
+ * checked by @node-saml/node-saml with this application's own hardening in samlxml.ts).
  */
-export const DRIVERS: Record<string, ProviderDriver> = { oidc: oidcDriver };
+export const DRIVERS: Record<string, ProviderDriver> = { oidc: oidcDriver, saml: samlDriver };
 
 export const FLOW_COOKIE = 'grc_sso';
 export const LINK_COOKIE = 'grc_sso_link';
@@ -94,7 +94,7 @@ export async function beginFlow(
   const state = randomBytes(32).toString('base64url');
   const stateHash = sha256(state);
   const redirectUri = `${await publicBase(deps, req)}${callbackPath(provider.key)}`;
-  const started: RedirectStart = await driver.start(provider, { redirectUri, state, reauth: purpose === 'reauth' });
+  const started: RedirectStart = await driver.start(provider, { redirectUri, state, reauth: purpose === 'reauth', secret: readSecret(deps.db, provider) });
   await deps.db.query('delete from identity_flows where expires_at < now()');
   await deps.db.query(
     `insert into identity_flows (state_hash, provider_id, purpose, remember, redirect_uri, user_id, session_hash, return_to, expires_at)
@@ -110,6 +110,41 @@ export async function beginFlow(
 export interface Flow {
   stateHash: string; providerId: string; purpose: FlowPurpose; redirectUri: string;
   userId: string | null; sessionHash: string | null; returnTo: string | null; remember: RedirectStart['remember'];
+  /** SAML: the response the provider posted to the assertion consumer service, kept until this browser comes for it. */
+  posted: string | null;
+}
+
+/**
+ * SAML (E02-10): the identity provider posts its response from its own site, and a browser does not
+ * send this application's SameSite=Lax state cookie with a cross-site POST. So the posted response
+ * is only kept (encrypted, at most once, for a sign-in in flight that the RelayState names) and the
+ * browser is sent on to the callback with a GET, which carries the cookie: the response is checked
+ * there, bound to the browser that started the sign-in, exactly like an OpenID Connect callback.
+ */
+export async function keepPostedResponse(deps: IdentityDeps, provider: ProviderRecord, state: unknown, response: string): Promise<boolean> {
+  if (typeof state !== 'string' || !state || state.length > 200) return false;
+  const stateHash = sha256(state);
+  const row = await deps.db.one(
+    `update identity_flows set posted = $3
+     where state_hash = $1 and provider_id = $2 and used_at is null and expires_at > now() and purpose <> 'pending_link' and posted is null
+     returning 1`,
+    [stateHash, provider.id, secretBox(deps.db).encrypt(response, `sso-post:${stateHash}`)],
+  );
+  return Boolean(row);
+}
+
+/**
+ * SAML (E02-10): an assertion is accepted once. Its ID is remembered, per provider, until it could
+ * no longer be presented; a second use is refused, on every server sharing the database.
+ */
+export async function acceptAssertionOnce(deps: Pick<IdentityDeps, 'db'>, provider: ProviderRecord, identity: ExternalIdentity): Promise<void> {
+  if (!identity.assertion) return;
+  await deps.db.query('delete from identity_saml_assertions where expires_at < now()');
+  const fresh = await deps.db.one(
+    'insert into identity_saml_assertions (provider_id, assertion_id, expires_at) values ($1,$2,$3) on conflict do nothing returning 1',
+    [provider.id, identity.assertion.id, identity.assertion.until.toISOString()],
+  );
+  if (!fresh) throw new IdentityError('assertion replayed');
 }
 
 /** Takes the flow named by `state` once: it must match this browser's cookie, be unused, unexpired and for this provider. */
@@ -120,22 +155,25 @@ export async function consumeFlow(deps: IdentityDeps, req: FastifyRequest, reply
   if (!cookie || cookie !== state) throw new IdentityError('state does not match this browser');
   const stateHash = sha256(state);
   const row = await deps.db.one<any>(
-    `update identity_flows set used_at = now()
-     where state_hash = $1 and used_at is null and expires_at > now() and purpose <> 'pending_link'
-     returning provider_id, purpose, remember, redirect_uri, user_id, session_hash, return_to`,
+    `update identity_flows f set used_at = now(), posted = null
+     from (select state_hash, posted from identity_flows where state_hash = $1) old
+     where f.state_hash = old.state_hash and f.used_at is null and f.expires_at > now() and f.purpose <> 'pending_link'
+     returning f.provider_id, f.purpose, f.remember, f.redirect_uri, f.user_id, f.session_hash, f.return_to, old.posted`,
     [stateHash],
   );
   if (!row) throw new IdentityError('state unknown, used or expired');
   if (row.provider_id !== provider.id) throw new IdentityError('state belongs to another provider');
   let remember: RedirectStart['remember'];
+  let posted: string | null = null;
   try {
     remember = JSON.parse(secretBox(deps.db).decrypt(row.remember, `sso:${stateHash}`));
+    if (row.posted) posted = secretBox(deps.db).decrypt(row.posted, `sso-post:${stateHash}`);
   } catch {
     throw new IdentityError('state unreadable');
   }
   return {
     stateHash, providerId: row.provider_id, purpose: row.purpose, redirectUri: row.redirect_uri,
-    userId: row.user_id, sessionHash: row.session_hash, returnTo: row.return_to, remember,
+    userId: row.user_id, sessionHash: row.session_hash, returnTo: row.return_to, remember, posted,
   };
 }
 
@@ -213,7 +251,11 @@ export async function finishSignIn(
   });
   await afterSignIn(deps.app, req, {
     userId: user.id, method: provider.key, sessionToken: token,
-    provider: { mfa, sid: identity.sid ?? null, idToken: provider.config.endSession === true ? identity.idToken ?? null : null },
+    provider: {
+      mfa, sid: identity.sid ?? null,
+      // Kept (encrypted) only to name the session when signing out at the provider: the ID token, or the SAML NameID and session index.
+      idToken: provider.config.endSession === true ? identity.idToken ?? (identity.samlSession ? JSON.stringify(identity.samlSession) : null) : null,
+    },
   });
   return { ok: true, userId: user.id };
 }
@@ -272,6 +314,9 @@ export function registerSignInPolicy(deps: IdentityDeps): void {
       }
       let base: string;
       try { base = await publicBase(deps, req); } catch { return null; }
+      if (provider.type === 'saml') {
+        return samlLogoutUrl(provider, readSecret(deps.db, provider), { session: idToken, callbackUrl: `${base}${callbackPath(provider.key)}` });
+      }
       return endSessionUrl(provider, { idToken, postLogoutRedirectUri: `${base}/` });
     },
   });

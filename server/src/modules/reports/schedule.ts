@@ -6,6 +6,7 @@
 import { TIME_ZONE } from '../../core/config.ts';
 import { UUID_RE } from '../../core/errors.ts';
 import type { ModuleContext, Row, SessionUser } from '../../core/module.ts';
+import { emitWebhookEvent } from '../../core/webhooks.ts';
 import type { Documents, BuiltDocument } from './documents.ts';
 import { FILE_TYPES, renderFile, type FileKind } from './files.ts';
 import { AccessError } from './query.ts';
@@ -246,6 +247,13 @@ export async function runSchedule(ctx: ModuleContext, deps: ScheduleDeps, s: Row
     action: 'report_schedule.run', recordType: 'report_schedule', recordId: s.id,
     summary: `Scheduled delivery "${s.name}": ${status}`, after: { snapshots: out.snapshots.length, target_type: s.target_type, target_id: s.target_id },
   });
+  // Counts only, never the figures (E13-19).
+  if (out.delivered) {
+    await emitWebhookEvent(ctx.app, {
+      event: 'report_schedule.delivered', record: { type: 'report_schedule', id: s.id },
+      data: { name: s.name, delivered: out.delivered, skipped: out.skipped, failed: out.failed },
+    });
+  }
   return out;
 }
 

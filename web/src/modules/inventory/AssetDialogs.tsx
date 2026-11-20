@@ -6,7 +6,7 @@ import {
   useFetch, UserPicker, useToast,
 } from '../../core';
 import type { Row } from '../../core';
-import { Callout, todayIso } from './shared';
+import { Callout, todayIso, useFunder } from './shared';
 
 interface DialogProps { asset: Row; onClose: (changed: boolean) => void }
 const fieldErrors = (err: unknown): Record<string, string> =>
@@ -165,9 +165,10 @@ export function WhereDialog({ asset, onClose }: DialogProps) {
  */
 export function DisposeDialog({ asset, onClose }: DialogProps) {
   const toast = useToast();
+  const funderOption = useFunder();
   const settings = useFetch<{ disposalRoutedOnly: boolean }>('/api/inventory/settings');
   const routedOnly = settings.data?.disposalRoutedOnly === true;
-  const funder = !!asset.funder_interest;
+  const funder = funderOption.on && !!asset.funder_interest;
   const state: string | null = asset.disposal_request_status ?? null;
   const approved = state === 'approved';
   const pending = state === 'pending';
@@ -247,7 +248,7 @@ export function DisposeDialog({ asset, onClose }: DialogProps) {
             letter or email reference){asking ? ' now or when the asset is marked as disposed.' : '; until then the disposal cannot be completed.'}
           </Callout>
         ) : !approved && (
-          <Callout color="blue" title="No funder interest is recorded for this asset">
+          <Callout color="blue" title={funderOption.on ? `No ${funderOption.label.toLowerCase()} is recorded for this asset` : 'A disposal needs a recorded approval'}>
             {asking ? 'An approver other than you decides the request. You are told the outcome.' : 'A disposal still needs a recorded approval: who approved it and when.'}
           </Callout>
         ))}

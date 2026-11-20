@@ -1,7 +1,7 @@
 // Sign-in providers: the shapes every kind of provider shares.
 //
 // A provider is one way of proving who someone is, besides the local password: an OpenID Connect
-// identity provider today; a SAML 2.0 identity provider or a directory (LDAP) later. Each kind is a
+// identity provider or a SAML 2.0 identity provider today; a directory (LDAP) later. Each kind is a
 // `ProviderDriver`. Everything after "the provider says this is subject X with email Y and groups Z"
 // (finding the account, linking, just-in-time creation, role mapping, sessions, audit) is shared and
 // lives in `service.ts`, so a new kind only has to produce an `ExternalIdentity`.
@@ -28,6 +28,10 @@ export interface ExternalIdentity {
   sid?: string | null;
   /** The raw ID token, kept (encrypted) only to name the session when signing out at the provider. Never logged. */
   idToken?: string | null;
+  /** SAML (E02-10): the assertion's ID and how long it could be presented, so that it is accepted once only. */
+  assertion?: { id: string; until: Date };
+  /** SAML: the NameID and session index, kept (encrypted) only to name the session when signing out at the provider. */
+  samlSession?: { nameId: string; format: string | null; nameQualifier: string | null; spNameQualifier: string | null; sessionIndex: string | null };
 }
 
 /** One mapping rule: people whose group claim holds `value` get role `role` (a role key). */
@@ -80,6 +84,36 @@ export interface OidcConfig extends CommonProviderConfig {
   backchannelLogout: boolean;
 }
 
+/** SAML 2.0 settings (E02-10). The identity provider's side comes from its metadata or is typed in. */
+export interface SamlConfig extends CommonProviderConfig {
+  /** The identity provider's entity ID (the Issuer of its responses). */
+  idpEntityId: string;
+  /** Its single sign-on address for the HTTP-Redirect binding. */
+  ssoUrl: string;
+  /** Its single logout address for the HTTP-Redirect binding, or empty. */
+  sloUrl: string;
+  /** Its signing certificates (PEM); more than one during a certificate change. Only these keys are trusted. */
+  idpCerts: string[];
+  /** This application's entity ID; empty means its metadata address. */
+  spEntityId: string;
+  /** This application's certificate for this provider (made when the provider is added; its key is the stored secret). */
+  spCert: string;
+  /** The name identifier format asked for. Transient identifiers are refused. */
+  nameIdFormat: 'persistent' | 'email' | 'unspecified';
+  /** Attributes holding the email address, the display name and groups; empty = the usual names (not for groups). */
+  emailAttribute: string;
+  nameAttribute: string;
+  groupsAttribute: string;
+  /** Sign the AuthnRequest (for a provider that wants signed requests). */
+  signRequests: boolean;
+  /** Require the assertion itself to be signed (otherwise a signed Response around it is enough). */
+  wantAssertionsSigned: boolean;
+  /** Ask for encrypted assertions (the metadata then offers an encryption key) and refuse unencrypted ones. */
+  encryptAssertions: boolean;
+  /** Signing out here also signs out at the provider (SP-initiated single logout). */
+  endSession: boolean;
+}
+
 /** A provider row as the service uses it. `secret` is decrypted only when needed. */
 export interface ProviderRecord {
   id: string;
@@ -97,7 +131,7 @@ export interface ProviderRecord {
 export interface RedirectStart {
   url: string;
   /** Kept with the sign-in state and handed back to `complete`. Never sent to the browser. */
-  remember: { nonce: string; codeVerifier: string };
+  remember: Record<string, string>;
 }
 
 /** The result of a "test connection": what was fetched, in plain words. */
@@ -124,7 +158,8 @@ export interface ProviderDriver {
   cleanConfig(input: Record<string, unknown>, existing: Record<string, any> | null): { config: Record<string, any>; fields: Record<string, string> };
   /** Fetches whatever proves the settings work (discovery for OpenID Connect). Only when an administrator asks. */
   test(provider: ProviderRecord, secret: string | null): Promise<TestResult>;
-  start?(provider: ProviderRecord, opts: { redirectUri: string; state: string; reauth: boolean }): Promise<RedirectStart>;
+  /** `secret` is the decrypted stored secret (SAML: the key that signs requests). */
+  start?(provider: ProviderRecord, opts: { redirectUri: string; state: string; reauth: boolean; secret?: string | null }): Promise<RedirectStart>;
   complete?(
     provider: ProviderRecord, secret: string | null,
     opts: { params: Record<string, string>; redirectUri: string; remember: RedirectStart['remember'] },

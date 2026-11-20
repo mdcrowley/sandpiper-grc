@@ -1,7 +1,7 @@
 // Custom fields (fields an administrator adds to a record type, named `cf_<key>` and kept in the
 // record's `custom` JSON column) in the shape the report engine uses. A multi-choice field holds a
-// list of values: it can be shown as a column (its labels, joined) and filtered ("has any of",
-// "has none of", empty), but not grouped by or totalled, because one record can hold several values.
+// list of values: it can be shown as a column (its labels, joined), filtered ("has any of",
+// "has none of", empty) and grouped by, each record counted once under each of its values (E12-15).
 import { CUSTOM_KEY_RE, CUSTOM_PREFIX, customFieldDef, type CustomField } from '../../core/customfields.ts';
 import type { FieldDef, ModuleContext } from '../../core/module.ts';
 

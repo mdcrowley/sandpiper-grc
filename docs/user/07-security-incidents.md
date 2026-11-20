@@ -258,9 +258,11 @@ The **Ransom** tab records whether paying a ransom is being considered and what 
 
 **The status cannot be set to "Approved by the governing body" until a governing body approval reference is entered.**
 
+Who must approve a ransom payment differs between organizations: a public agency's board, a company's directors or owners, or the agency a contractor runs service for. An administrator can therefore rename the reference field under **Administration > Features** (for example to **Board resolution** or **Owner approval reference**); the field, the rule's messages, the incident report and the printable kit then use that name. The status names, such as "Approved by the governing body", are changed under **Administration > Lists** (list **Ransom payment status**). If your policy records the decision elsewhere, the administrator can switch the **Recorded approval of a ransom payment** option off: the reference field disappears and "Approved" can be chosen without it. Every decision is still recorded. See [Features](09-administration.md#options-within-the-parts).
+
 1. Open the **Ransom** tab.
 2. Choose the **Status**: **Not applicable**, **Under consideration**, **Approved by the governing body** or **Refused**.
-3. If the status is approved, enter the **Governing body approval reference**: for example the resolution or decision number and the meeting date, as recorded in the minutes.
+3. If the status is approved, enter the **Governing body approval reference** (or the name your organization gave it): for example the resolution or decision number and its date, as recorded.
 4. Select **Save decision**.
 
 Every change is written to the history and to the log as a Decision. Recording a status here is a record of a decision; it does not itself authorize anything.
@@ -393,9 +395,27 @@ The kit contains, each part starting on a new page:
 
 The kit is a restricted document: handle it as a security record. Each time it is opened the fact is recorded in the audit log. Reprint it after any change to the rules, contacts or checklists and destroy the old copies.
 
+### PDF copies made by the server
+
+The kit is only useful if a current copy exists somewhere other than this application on the day the application is down. So the server also makes the kit as a PDF by itself, and keeps the copies. The **PDF copies** panel at the top of the kit page shows them.
+
+- **When a copy is made.** After any change to what the kit contains (the notification rules, contacts, checklists, questions, severities or the ransom rule), checked every 15 minutes; at least every 7 days even when nothing changed; and whenever someone selects **Make a PDF copy now**. The first copy is made a few minutes after the feature is first started.
+- **The date on every page.** Each page of the PDF carries, at the top, "Restricted security record · Produced" with the date and time it was made and the organization's time zone, so a sheet found on its own still says how old it is. The cover also says who or what produced it.
+- **Is my paper copy current?** The panel says whether the latest PDF copy matches the kit as it is now. When it does, it gives the time since which printed copies are up to date: a paper copy printed before that time is out of date. When the kit has changed since the last copy, it says so in amber until the next copy is made. Each copy in the list is marked **Current** or **Out of date**.
+- **Downloading.** Select **PDF** beside a copy. Downloading or making a copy needs **Export** on **Security incidents and restricted records** as well as **View**, because the file leaves the application; people with **View** only see the list and print from the browser instead. Every copy made and every download is recorded in the audit log.
+- **How many are kept.** The newest 12 copies; older ones are deleted. The copies are stored in the database, so they are in every backup.
+
+People with **Administer** on security incidents see a **Schedule** under the list:
+
+- **Fresh copy every (days)**: 7 by default, from 0 to 90. With 0, copies are made only after a change and on request.
+- **Copies kept**: 1 to 100.
+- **Email each automatic copy to**: people who receive every automatic copy (first, scheduled and after a change, never one made on request) by email, with the PDF attached. This is the copy that survives an outage of the application: it sits in their mailbox and on their phone, ready to print. Only active people whose roles include **View** and **Export** on security incidents can be chosen. The kit holds standing material only (rules, contacts, checklists and guides, never an incident), and all of it is visible to anyone with **View**; so the check is repeated each time a copy is sent, and anyone who has lost those permissions or has been deactivated is skipped, with the reason shown against the copy. Changing who receives it asks you to confirm your identity. Nothing is sent unless an administrator has switched email on (see [Administration](09-administration.md)); the **Email** column then says "Not emailed: email is switched off".
+
+The email names no incident and tells the reader not to forward it. While **Security incidents** is switched off under **Administration > Features**, no copies are made and the panel is not available.
+
 ## Not available yet
 
 - The application is in pilot. Do not record live incident details until your administrator confirms it is approved for that.
-- The offline kit is printed from the browser by hand. It is not produced as a PDF on a schedule, and the screen does not warn when a printed copy is out of date.
+- PDF copies of the offline kit are kept in the application and sent by email; they are not written to a shared folder or printer automatically. The application cannot know when someone prints a copy, so it says from when paper copies are current rather than tracking each one.
 - Alerts appear in the application's notifications only; no email or text message is sent.
 - The names of the lists used on these screens, such as the scenario and severity names, can be seen by every signed-in user, although the incidents themselves cannot.

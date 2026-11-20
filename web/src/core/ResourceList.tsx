@@ -11,7 +11,7 @@ import {
 import { api, ApiError, errorMessage, listQuery, type ListResult, type Row } from './api';
 import { useAuth } from './auth';
 import { Checkbox, TextField } from './fields';
-import { fieldMeta } from './FieldValue';
+import { fieldMeta, knownFields } from './FieldValue';
 import { formatNumber } from './format';
 import { useDebounced, useFetch } from './hooks';
 import { knownLabel, rememberLabel } from './labels';
@@ -118,9 +118,10 @@ export function ResourceList({
     : [];
   const extraKeys = extraColumns.map((c) => (typeof c === 'string' ? c : c.field));
   const columns = useMemo(() => [...givenColumns, ...extraColumns], [givenColumns, extraKeys.join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
+  const named = resource ? givenFilters.filter((f) => f === TAGS_FILTER || knownFields(resource, [f]).length > 0) : givenFilters;
   const filters = extras && resource
-    ? [...givenFilters, ...custom.filter((f) => !givenFilters.includes(f) && FILTERABLE.includes(resource.fields[f].type)), ...(givenFilters.includes(TAGS_FILTER) ? [] : [TAGS_FILTER])]
-    : givenFilters;
+    ? [...named, ...custom.filter((f) => !givenFilters.includes(f) && FILTERABLE.includes(resource.fields[f].type)), ...(givenFilters.includes(TAGS_FILTER) ? [] : [TAGS_FILTER])]
+    : named;
   const [density, setDensity] = usePref<'comfortable' | 'compact'>(`${prefKey}.density`, 'comfortable');
   const [pageSize, setPageSize] = usePref<number>(`${prefKey}.pageSize.${type}`, defaultPageSize);
 
@@ -207,7 +208,8 @@ export function ResourceList({
 
   const cols = useMemo<ListColumn[]>(() => {
     if (!resource) return [];
-    return columns.map((c) => {
+    // A column with its own rendering stays; a plain field the record type does not have is left out (E18-48).
+    return columns.filter((c) => typeof c !== 'string' && c.render ? true : knownFields(resource, [typeof c === 'string' ? c : c.field]).length > 0).map((c) => {
       const def = typeof c === 'string' ? { field: c } : c;
       const meta = fieldMeta(resource, def.field);
       const known = def.field in resource.fields || ['created_at', 'updated_at'].includes(def.field);
@@ -579,7 +581,7 @@ export function ResourceList({
       <Modal open={creating} title={`New ${resource.label.toLowerCase()}`} size="lg" onClose={closeCreate}>
         <ResourceForm
           type={type}
-          fields={createFields ?? []}
+          fields={knownFields(resource, createFields ?? [])}
           initial={createInitial}
           onDirtyChange={(d) => { formDirty.current = d; }}
           onCancel={() => setCreating(false)}

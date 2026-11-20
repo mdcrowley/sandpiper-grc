@@ -213,9 +213,11 @@ export type MfaEnforcement = 'off' | 'notice' | 'required';
  * `required` - a person who must enroll and has not can reach only the enrollment routes.
  */
 export async function mfaEnforcement(deps: Deps): Promise<MfaEnforcement> {
-  const v = await deps.settings.get<string>('auth.mfa_enforcement', 'notice');
-  return v === 'off' || v === 'required' ? v : 'notice';
+  return enforcementOf(await deps.settings.get<string>('auth.mfa_enforcement', 'notice'));
 }
+
+/** A stored `auth.mfa_enforcement` value as one of the three modes (anything else is `notice`). */
+const enforcementOf = (v: unknown): MfaEnforcement => (v === 'off' || v === 'required' ? v : 'notice');
 
 /** What a person who must enroll may still call: their own state, enrollment, password and sign-out. */
 export const MFA_ENROLLMENT_ROUTES = [
@@ -330,18 +332,49 @@ export async function loadUser(db: Db, userId: string): Promise<SessionUser | nu
   };
 }
 
-async function sessionUser(db: Db, token: string | undefined, idleMinutes: number) {
+/** The settings every signed-in request needs, read with its session (E16-38). */
+const REQUEST_SETTINGS = ['auth.idle_minutes', 'auth.mfa_enforcement'];
+
+/** Those settings as read for one request, so it never reads them twice. */
+const requestSettings = new WeakMap<FastifyRequest, Record<string, unknown>>();
+
+/**
+ * The session, its person, their roles and permissions, and the settings a request needs, in one
+ * statement (E16-38; it was four on every request). Settings are read fresh each time, so a change
+ * applies to the next request without any cache to invalidate. `last_seen_at` is written at most
+ * once a minute.
+ */
+async function sessionUser(db: Db, token: string | undefined) {
   if (!token) return null;
   const hashed = sha256(token);
-  const s = await db.one<{ user_id: string; stale: boolean }>(
-    `select user_id, last_seen_at < now() - interval '1 minute' as stale from sessions
-     where token_hash = $1 and expires_at > now() and last_seen_at > now() - make_interval(mins => $2::int)`,
-    [hashed, idleMinutes],
+  const row = await db.one<any>(
+    `select u.id, u.username, u.display_name, u.email,
+        coalesce(array_agg(distinct r.key) filter (where r.enabled), '{}') as roles,
+        coalesce(array_agg(distinct rp.permission) filter (where r.enabled and rp.permission is not null), '{}') as permissions,
+        extract(epoch from now() - s.last_seen_at)::float8 as idle_seconds,
+        (select jsonb_object_agg(st.key, st.value) from settings st where st.key = any($2::text[])) as settings
+     from sessions s
+     join users u on u.id = s.user_id and u.status = 'active' and u.deleted_at is null
+     left join user_roles ur on ur.user_id = u.id
+     left join roles r on r.id = ur.role_id
+     left join role_permissions rp on rp.role_id = r.id
+     where s.token_hash = $1 and s.expires_at > now()
+     group by u.id, s.last_seen_at`,
+    [hashed, REQUEST_SETTINGS],
   );
-  if (!s) return null;
-  if (s.stale) await db.query('update sessions set last_seen_at = now() where token_hash = $1', [hashed]);
-  const user = await loadUser(db, s.user_id);
-  return user ? { user, hashed } : null;
+  if (!row) return null;
+  const settings: Record<string, unknown> = row.settings ?? {};
+  // The idle time-out (setting auth.idle_minutes, default 30), as `last_seen_at > now() - idle` did.
+  const idleMinutes = Number(settings['auth.idle_minutes'] ?? 30);
+  if (!(Number(row.idle_seconds) < (Number.isFinite(idleMinutes) ? idleMinutes : 30) * 60)) return null;
+  if (Number(row.idle_seconds) > 60) await db.query('update sessions set last_seen_at = now() where token_hash = $1', [hashed]);
+  const user: SessionUser = {
+    id: row.id, username: row.username, displayName: row.display_name, email: row.email,
+    roles: row.roles, permissions: row.permissions,
+    // Permission modules of switched-off areas: nobody holds them (core/features.ts).
+    off: [...(await featureState(db)).offPermissions],
+  };
+  return { user, hashed, settings };
 }
 
 // ---------- routes ----------
@@ -372,10 +405,10 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
       if (!m) fail(401, 'invalid_token', 'Use "Authorization: Bearer <token>".');
       await tokens.authenticate(req, m![1]);
     } else {
-      const idle = await settings.get('auth.idle_minutes', 30);
-      const s = await sessionUser(db, req.cookies[SESSION_COOKIE], idle);
+      const s = await sessionUser(db, req.cookies[SESSION_COOKIE]);
       req.user = s?.user ?? null;
       req.sessionHash = s?.hashed ?? null;
+      if (s) requestSettings.set(req, s.settings);
       // `noCsrf`: a server-to-server route that proves itself with a signed token, not a cookie
       // (the provider's back-channel sign-out); it must also be public, so a session is never used there.
       const serverToServer = req.routeOptions?.config?.noCsrf === true && req.routeOptions?.config?.public === true;
@@ -386,7 +419,10 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
     if (!req.user && !req.routeOptions?.config?.public) fail(401, 'unauthenticated', 'Sign in to continue.');
     // A required second factor that is missing limits the person to enrollment (and signing out).
     if (req.user && !req.routeOptions?.config?.public && !MFA_ENROLLMENT_ROUTES.includes(req.url.split('?')[0])) {
-      if ((await mfaEnforcement(deps)) === 'required' && (await mfaStatusForSession(deps, app, req.user.id, req.sessionHash)).blocked) {
+      // Read with the session when there is one (one statement per request); a token reads it here.
+      const known = requestSettings.get(req);
+      const mode = known ? enforcementOf(known['auth.mfa_enforcement']) : await mfaEnforcement(deps);
+      if (mode === 'required' && (await mfaStatusForSession(deps, app, req.user.id, req.sessionHash)).blocked) {
         fail(403, 'mfa_enrolment_required', 'Set up your second factor to continue. Open Account security to do it.');
       }
     }

@@ -256,7 +256,7 @@ export const CHECKLISTS: Record<string, Steps> = {
       'Reset every password and sign-in token in the affected environment',
       'Bring services back in the agreed priority order and confirm each with its business owner',
       'Watch closely for re-infection for at least two weeks',
-      'Record any ransom decision. Payment needs a recorded approval from the governing body',
+      'Record any ransom decision. Payment needs the approval your policy requires, recorded with its reference',
     ],
   },
   account_compromise: {

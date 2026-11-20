@@ -139,7 +139,7 @@ Some requests need more than one approval ("Needs 2 approvals: 1 given so far"),
 
 Open **Service desk settings** in the **Administration** group and choose the **Self-service portal** tab. Reading needs permission to see tickets; changing the settings needs permission to administer the service desk.
 
-- **Portal**: **Self-service portal switched on**. Only an administrator can switch it on or off (it is the same switch as under Administration, Features). People use the portal with the **Requester** role, which an administrator switches on under Administration, Roles. **Open the portal** goes there.
+- **Portal**: **Self-service portal switched on**. Only an administrator can switch it on or off (it is the same switch as under Administration, Features), and, as there, you are asked to confirm your password if you have not done so in the last few minutes. People use the portal with the **Requester** role, which an administrator switches on under Administration, Roles. **Open the portal** goes there.
 - **Service status banner**: write the **Message**, choose **How serious** (**Information**, **Warning: some things may not work**, **Service problem: something is down**, **Restored: back to normal**) and select **Save banner**. **Clear banner** removes it.
 - **Wording and reopening**: the **Portal title**, the **Days a requester may reopen a resolved request** (0 means never; at most 90) and the **Welcome line**. Select **Save**.
 - **Requests for colleagues and safety reports**: **Who may raise a request for a colleague** (**Anyone, for a colleague in their own department**, the default; **Anyone, for any colleague**; or **Nobody**), and **Staff can report a safety event** (on by default; shown when the safety module is in use). Select **Save**.

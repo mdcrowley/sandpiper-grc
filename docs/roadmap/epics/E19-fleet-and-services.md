@@ -1,6 +1,6 @@
 # E19 Fleet and services
 
-**Status:** in progress (12 of 14 issues done)
+**Status:** in progress (13 of 14 issues done)
 
 ## Goal
 
@@ -34,7 +34,7 @@ vehicles lack working equipment and which vehicles and services a system failure
 | E19-11 | Affected services in the security incident workspace | done | P2 |
 | E19-12 | A bus or vehicle icon | done | P3 |
 | E19-13 | Vehicles and services in the pilot seed profile | open | P3 |
-| E19-14 | Vehicles drawn on the relationship map | open | P3 |
+| E19-14 | Vehicles drawn on the relationship map | done | P3 |
 
 ---
 
@@ -212,12 +212,14 @@ As an administrator, I can grant fleet permissions in the role editor. `fleet` w
 
 ### E19-14 Vehicles drawn on the relationship map
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 Services can be drawn on the relationship map, and the impact panel lists the vehicles a
 system supports, but vehicles themselves are not drawn on the map. Split from E19-10.
 
 **Acceptance criteria**
 
-- [ ] Vehicles can be shown on the map (grouped by service or depot so a large fleet stays readable), for people with `fleet.view`
-- [ ] The map picture (PNG, SVG) and the layout tests include them
+- [x] Vehicles can be shown on the map (grouped by depot and mode, one node per group, so a large fleet stays readable), tied to the systems whose equipment they carry ("equipment on 12 of 40") and to their depot when it is on the map; for people with `fleet.view` and `assets.view` (equipment is asset information, as in the impact answer); never while the fleet area is switched off. Grouped by depot rather than service because vehicles are not assigned to services yet
+- [x] The map picture (PNG, SVG) and the layout tests include them
+
+**Implemented in:** `vehicleGroups` in `server/src/modules/fleet/services.ts` (the `app.fleet` read API); `buildGraph` in `server/src/modules/inventory/relations.ts`; `web/src/modules/inventory/mapLayout.ts` (type `vehicle`, gray, its own lane), `MapCanvas.tsx`; tests in `fleet.test.ts` and `mapLayout.test.ts`

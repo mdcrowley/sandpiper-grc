@@ -13,16 +13,21 @@ What it does:
 
 1. Starts a throw-away instance of the application (the code in this folder) in a new
    temporary data folder on `--port` (default 8190), and completes the setup wizard.
-2. Creates invented records through the API, with random words: at scale 1, 10,000 tickets,
+2. Creates invented records through the API: at scale 1, 10,000 tickets,
    3,000 assets, 2,000 actions, 1,500 changes, 1,500 vulnerabilities and some hundreds of
    each other type. A record a type's own rule refuses (an end before a start, an override
-   without a reason) is tried again with fewer fields.
+   without a reason) is tried again with fewer fields. The words follow a Zipf distribution
+   over a vocabulary of about 500 transit and IT words (the word of rank r is about 1/r as
+   common as the first), as real text does: a few words are in thousands of records, most in
+   a handful. A search is what a person might type: one word of the vocabulary (65 %), two
+   (20 %), a number (10 %) or a misspelled word that matches nothing (5 %).
 3. Has `--concurrency` simulated people repeat each scenario for `--duration` seconds, and
    reports requests, errors, requests per second and the 50th, 95th and 99th percentile and
    longest times: ticket list pages (first, random and sorted, filtered, full-text), ticket
    statistics, the first page of every list, global search, one record, the whole Overview
-   dashboard (every call it makes, timed until the last answer), and creating and updating
-   a ticket.
+   dashboard (every call it makes, timed until the last answer, with the 95th percentile of
+   each call), and creating and updating a ticket. The time the instance took to start (until
+   it answered) is reported too.
 4. With `--ops`: stops the instance and times `backup`, `export-all`, `verify-backup`,
    `restore` and `import-all` into an empty installation at that volume.
 5. Writes `load-<time>.json` and `load-<time>.md` to `--out` (default `tools/load/out/`,
@@ -38,7 +43,9 @@ What it does:
 | `--port n` | `8190` | Port of the throw-away instance (`GRC_PORT`) |
 | `--data-parent dir` | the system temporary folder | Where the temporary data folder is made |
 | `--out dir` | `tools/load/out` | Where results are written |
-| `--keep` | off | Keep the temporary data folder |
+| `--keep` | off | Keep the temporary data folder (with `created.json`, the records made) |
+| `--seed-only` | off | Create the records and stop (with `--keep`: a folder to measure again) |
+| `--reuse dir` | (seed) | Measure a copy of a folder kept with `--keep` instead of seeding again; the copy is deleted afterwards. Lets two versions be measured on the same records, and saves the hour that seeding scale 4 takes |
 | `--base url --user u --password p` | (own instance) | Measure an instance that is already running. It **adds thousands of invented records** to it: never use this on a real installation |
 
 With `GRC_DATABASE_URL` set (a PostgreSQL server; use an empty database made for the

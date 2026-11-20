@@ -254,7 +254,7 @@ export function MapPage() {
   const header = (
     <PageHeader
       title="Relationship map"
-      subtitle="Systems, the integrations between them, and the vendors, sites, data, assets and services around them."
+      subtitle="Systems, the integrations between them, and the vendors, sites, data, assets, services and vehicle groups around them."
       breadcrumbs={[{ label: 'Systems', to: '/systems' }, { label: 'Relationship map' }]}
     />
   );

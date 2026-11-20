@@ -4,8 +4,10 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   Button, Card, ConfirmDialog, EmptyState, ErrorState, Forbidden, Icon, IconButton, Loading, LookupChip, Menu, NotFound, PageHeader,
-  ResourceList, Select, TextArea, TextField, api, errorMessage, formatDate, formatDateTime, useAuth, useFetch, useToast,
+  ResourceList, Select, TextArea, TextField, api, errorMessage, formatDate, formatDateTime, useAuth, useCustomFieldInputs, useFetch, useToast,
+  CustomFieldsCard,
 } from '../../core';
+import { CustomFieldsLink } from './custom';
 import type { ApiError, ListResult } from '../../core';
 import { downloadFile, fileName, openDocument } from './data';
 import { ShareDialog, useCanChange } from './dialogs';
@@ -22,6 +24,7 @@ export function PacksPage() {
       filters={['sharing', 'owner_id']}
       bulkFields={[]}
       createFields={['name', 'description', 'cover_title', 'cover_subtitle']}
+      actions={<CustomFieldsLink type="report_pack" />}
     />
   );
 }
@@ -119,6 +122,7 @@ export function PackPage() {
               )}
           </Card>
           {canChange && <Button icon="edit" onClick={() => setEdit(true)}>Edit sections</Button>}
+          <CustomFieldsCard type="report_pack" row={p} onSaved={pack.reload} />
         </aside>
       </div>
 
@@ -176,19 +180,26 @@ function PackEditor({ pack, onDone }: { pack: ReportPack; onDone: (saved: boolea
   const [sections, setSections] = useState<PackSection[]>(pack.sections ?? []);
   const [busy, setBusy] = useState(false);
   const [pick, setPick] = useState('');
+  // An administrator's custom fields on report packs (E18-45).
+  const custom = useCustomFieldInputs('report_pack', { initial: pack });
   useEffect(() => { setSections(pack.sections ?? []); }, [pack]);
   const nameOf = (rid: string) => reports.data?.rows.find((r) => r.id === rid)?.name;
   const move = (i: number, by: number) => { const next = [...sections]; const [s] = next.splice(i, 1); next.splice(i + by, 0, s); setSections(next); };
   const set = (i: number, patch: Partial<PackSection>) => setSections(sections.map((s, j) => (j === i ? { ...s, ...patch } as PackSection : s)));
 
   async function save() {
+    const extra = custom.collect();
     if (!f.name.trim()) return toast.error('Give the pack a name.');
+    if (!extra) return toast.error('Fill in the required details on the cover page card.');
     setBusy(true);
     try {
-      await api.patch(`/api/report-packs/${pack.id}`, { ...f, name: f.name.trim(), sections });
+      await api.patch(`/api/report-packs/${pack.id}`, { ...f, name: f.name.trim(), sections, ...extra });
       toast.success('Pack saved.');
       onDone(true);
-    } catch (err) { toast.error(errorMessage(err)); } finally { setBusy(false); }
+    } catch (err) {
+      if (custom.showErrors((err as { fields?: Record<string, string> }).fields)) toast.error('Check the highlighted details.');
+      else toast.error(errorMessage(err));
+    } finally { setBusy(false); }
   }
 
   return (
@@ -202,6 +213,7 @@ function PackEditor({ pack, onDone }: { pack: ReportPack; onDone: (saved: boolea
             <TextField label="Cover title" value={f.cover_title} onChange={(cover_title) => setF({ ...f, cover_title })} placeholder={f.name} />
             <TextField label="Cover subtitle" value={f.cover_subtitle} onChange={(cover_subtitle) => setF({ ...f, cover_subtitle })} placeholder="For example: Prepared for the governing body" />
             <TextArea label="Description" rows={2} value={f.description} onChange={(description) => setF({ ...f, description })} />
+            {custom.inputs}
           </div>
         </Card>
         <Card title="Sections" actions={<span className="muted">{sections.length} of 40</span>}>

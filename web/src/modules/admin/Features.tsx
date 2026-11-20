@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Badge, Card, ConfirmDialog, ErrorState, errorMessage, Loading, PageHeader, useAuth, useFetch, useToast,
+  Badge, Button, Card, ConfirmDialog, ErrorState, errorMessage, Loading, PageHeader, TextField, useAuth, useFetch, useMeta, useToast,
 } from '../../core';
 import { Notice } from './common';
 import { adminApi } from './reauth';
@@ -14,7 +14,12 @@ interface Area {
   key: string; label: string; description: string; on: boolean; defaultOn: boolean;
   requires: string[]; requiredBy: string[];
 }
-interface FeaturesResponse { areas: Area[]; assistant: { enabled: boolean } }
+/** An option within an area (E18-28): on or off, and a name the installation may change. */
+interface AreaOption {
+  key: string; area: string | null; group: string; label: string; description: string; on: boolean; defaultOn: boolean;
+  name: string | null; defaultName: string | null; nameHint: string | null;
+}
+interface FeaturesResponse { areas: Area[]; options?: AreaOption[]; assistant: { enabled: boolean } }
 interface Pending { area: Area; on: boolean; also: Area[] }
 
 const names = (areas: Area[]) => {
@@ -115,6 +120,7 @@ export function FeaturesPage() {
             The audience roles (Requester, Approver, Executive viewer, Auditor) are switched on the <Link to="/admin/roles">Roles</Link> page.
           </p>
         </Card>
+        {data.options && data.options.length > 0 && <OptionsCard options={data.options} areas={byKey} onChanged={reload} />}
       </div>
 
       <ConfirmDialog
@@ -147,5 +153,118 @@ export function FeaturesPage() {
         )}
       />
     </>
+  );
+}
+
+/**
+ * Options within the parts of the application (E18-28): features that suit some transit organizations
+ * but not all. An option that is off hides its fields everywhere and stops its rule; a renamed option
+ * relabels its fields. Each change needs the password again and is recorded in the audit log.
+ */
+function OptionsCard({ options, areas, onChanged }: { options: AreaOption[]; areas: Map<string, Area>; onChanged: () => void }) {
+  const toast = useToast();
+  const meta = useMeta();
+  const [names, setNames] = useState<Record<string, string>>({});
+  const [asking, setAsking] = useState<AreaOption | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const send = async (o: AreaOption, change: { on?: boolean; name?: string }, done: string) => {
+    setBusy(o.key);
+    setErrors((e) => ({ ...e, [o.key]: '' }));
+    try {
+      await adminApi.patch('/api/admin/features', { options: { [o.key]: change } });
+      toast.success(done);
+      setAsking(null);
+      setNames((n) => { const next = { ...n }; delete next[o.key]; return next; });
+      onChanged();
+      meta.reload(); // forms, lists and record pages pick up the fields and their names at once
+    } catch (err) {
+      setErrors((e) => ({ ...e, [o.key]: errorMessage(err) }));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const groups = [...new Set(options.map((o) => o.group))];
+  return (
+    <Card title="Options within the parts">
+      <p className="adm-setting-text adm-options-intro">
+        Some features suit some transit organizations but not others: a public agency, a private operator, a contractor
+        running service for an agency. Switch off what your organization does not use, and give the rest the name your
+        organization uses. An option that is off disappears from forms, lists, exports, imports, reports, the API and AI
+        assistants, and its rule stops; recorded values are kept.
+      </p>
+      {groups.map((g) => (
+        <section key={g} className="adm-option-group" aria-label={g}>
+          <h3 className="adm-option-group-title">{g}</h3>
+          <ul className="adm-feature-list">
+            {options.filter((o) => o.group === g).map((o) => {
+              const area = o.area ? areas.get(o.area) : undefined;
+              const areaOff = Boolean(area && !area.on);
+              const typed = names[o.key] ?? o.name ?? '';
+              const renamed = o.name !== null && typed.trim() !== (o.name ?? '');
+              return (
+                <li key={o.key} className="adm-feature">
+                  <div className="adm-feature-about">
+                    <div className="adm-setting-title">
+                      <span>{o.label}</span>
+                      <Badge color={o.on && !areaOff ? 'green' : 'gray'}>{areaOff ? `Off with ${area!.label.toLowerCase()}` : o.on ? 'On' : 'Off'}</Badge>
+                    </div>
+                    <p className="adm-setting-text">{o.description}</p>
+                    {o.name !== null && o.on && (
+                      <form
+                        className="adm-option-name"
+                        onSubmit={(e) => { e.preventDefault(); if (renamed) void send(o, { name: typed }, `${o.label}: name saved.`); }}
+                      >
+                        <TextField
+                          label="Name shown on screens" value={typed} disabled={areaOff}
+                          onChange={(v) => setNames((n) => ({ ...n, [o.key]: v }))}
+                          hint={`${o.nameHint ?? ''} The default is "${o.defaultName}".`.trim()}
+                        />
+                        <div className="adm-option-name-actions">
+                          <Button type="submit" disabled={!renamed || areaOff} loading={busy === o.key}>Save name</Button>
+                          {o.name !== o.defaultName && (
+                            <Button variant="ghost" disabled={areaOff || busy === o.key}
+                              onClick={() => void send(o, { name: '' }, `${o.label}: default name restored.`)}>
+                              Use the default
+                            </Button>
+                          )}
+                        </div>
+                      </form>
+                    )}
+                    {errors[o.key] && <p className="field-error" role="alert">{errors[o.key]}</p>}
+                  </div>
+                  <div className="adm-feature-control">
+                    <Switch
+                      label={`${o.label}: ${o.on ? 'on' : 'off'}`} hideLabel checked={o.on} disabled={areaOff || busy === o.key}
+                      onChange={(on) => (on ? void send(o, { on: true }, `${o.label} switched on.`) : setAsking(o))}
+                    />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ))}
+      <ConfirmDialog
+        open={asking !== null}
+        title={asking ? `Switch off "${asking.label.toLowerCase()}"?` : ''}
+        confirmLabel="Switch off"
+        danger
+        busy={busy !== null}
+        onCancel={() => setAsking(null)}
+        onConfirm={() => asking && void send(asking, { on: false }, `${asking.label} switched off.`)}
+        message={asking && (
+          <div className="stack">
+            <p>
+              Its fields disappear for everyone and its rule stops applying. Values already recorded are kept, and switching it
+              back on shows them again.
+            </p>
+            {errors[asking.key] && <p className="field-error" role="alert">{errors[asking.key]}</p>}
+          </div>
+        )}
+      />
+    </Card>
   );
 }

@@ -1,6 +1,6 @@
 # E06 Vendors and contracts
 
-**Status:** in progress (21 of 23 issues done)
+**Status:** in progress (23 of 25 issues done)
 
 ## Goal
 
@@ -43,8 +43,10 @@ contract must be renewed or ended, with enough warning to act.
 | E06-19 | Security-terms matrix as a heat grid; fast checklist editing | done | P2 |
 | E06-20 | One expiry date for an evidence item and its file | done | P3 |
 | E06-21 | Vendors answer the assessment themselves | done | P3 |
-| E06-22 | Vendors attach files through the response link | open | P3 |
-| E06-23 | Send the response link by email from the application | open | P3 |
+| E06-22 | Vendors attach files through the response link | done | P3 |
+| E06-23 | Send the response link by email from the application | done | P3 |
+| E06-24 | Clear away vendor files that nobody reviews | open | P4 |
+| E06-25 | An email template of its own for the vendor response link | open | P4 |
 
 ---
 
@@ -402,8 +404,8 @@ account, with staff reviewing before the assessment is completed.
 - [x] Staff review and can change answers before completing: the vendor's answers wait on the link; staff take
       over one or all of them into the draft (audited), then change any answer and complete as before; the person
       who created the link is notified when the answers are sent
-- [ ] Vendors attach files through the link (split out as E06-22)
-- [ ] The application emails the link (split out as E06-23)
+- [x] Vendors attach files through the link (split out as E06-22, done)
+- [x] The application emails the link (split out as E06-23, done)
 
 **Implemented in** `server/src/modules/vendors/responseLinks.ts` (`GET/PUT /api/vendors/response-links/settings`,
 `GET/POST /api/vendor-assessments/:aid/links`, `DELETE …/links/:lid`, `POST …/links/:lid/accept`, public
@@ -412,22 +414,70 @@ account, with staff reviewing before the assessment is completed.
 
 ### E06-22 Vendors attach files through the response link
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 Split out of E06-21. A vendor answering through the link often has a certificate or an assurance
 report to back an answer. Today they must send it separately and staff attach it.
 
 **Acceptance criteria**
 
-- [ ] The response page accepts files (same checks and malware scan as other uploads, a small limit per link)
-- [ ] Files wait with the answers until staff take them over as evidence of the vendor
+- [x] The response page accepts files (same checks and malware scan as other uploads, a small limit per link): only while
+      the link works and before the answers are sent; through the attachments module's own intake (allowed types, content
+      sniffing, malware scanner, size), shared with the upload route; per link a narrower list of types
+      (`vendors.response_link_file_types`), a file count (`vendors.response_link_max_files`, 10) and a total size
+      (`vendors.response_link_max_mb`, 50), checked again under a lock on the link, and 30 uploads an hour; the
+      `X-GRC-CSRF` header as on the other public routes; the vendor can remove a file before sending; every refusal audited
+- [x] Files wait with the answers until staff take them over as evidence of the vendor: a holding area tied to the link
+      (record type `vendor_response_link`) that no record, list, search or download route shows; staff download a file to
+      review it, then take it over (evidence by default, with an optional expiry, or an ordinary file) onto the vendor, or
+      discard it (content deleted at once); all audited without the link's secret
+
+**Implemented in** `server/src/modules/vendors/responseFiles.ts` (public `PUT /api/vendor-response/:token/files`,
+`DELETE …/files/:fid`; `GET /api/vendor-assessments/:aid/links/:lid/files/:fid/download`, `POST …/accept`, `POST …/discard`),
+`responseLinks.ts` (settings, files in the link and public views), `responseFiles.test.ts`;
+`server/src/modules/attachments/intake.ts` (the shared intake: `prepareFile`, `receiveFile`, `insertAttachment`,
+`sendStoredFile`; the upload and download routes use it too); `web/src/modules/vendors/ResponseFiles.tsx`,
+`ResponseLink.tsx`, `VendorResponse.tsx`
 
 ### E06-23 Send the response link by email from the application
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 Split out of E06-21. Staff copy the link and send it themselves.
 
 **Acceptance criteria**
 
-- [ ] When email is set up, staff can send the link to a vendor contact from the assessment, with a reminder before it expires
+- [x] When email is set up, staff can send the link to a vendor contact from the assessment, with a reminder before it expires:
+      **Email it to** in the link dialog creates a new link (the open one is revoked, since the secret is never stored) and
+      emails it; the secret is sealed in the queued message only (never in the answer, the delivery log or the audit log);
+      the message names the organization, the vendor and the assessment, in plain text and HTML; at most 5 a day per
+      assessment; audited; one reminder, without the link, `vendors.response_link_reminder_days` (2) before an emailed
+      link expires while the answers have not been sent (hourly job `vendors.response_link_reminders`)
+
+**Implemented in** `server/src/modules/vendors/responseEmail.ts` (`POST /api/vendor-assessments/:aid/links/email`, the
+reminder job), `migrations/004_response_link_files_and_email.sql`, `responseFiles.test.ts`; `web/src/modules/vendors/ResponseLink.tsx`
+
+### E06-24 Clear away vendor files that nobody reviews
+
+**Status:** open · **Priority:** P4 · **Type:** improvement
+
+Found with E06-22. A file a vendor sends through a response link waits until staff take it over or discard it. If nobody
+does, it stays in storage indefinitely (counted in File settings usage and the storage check).
+
+**Acceptance criteria**
+
+- [ ] Files still waiting a set time after their link closed are discarded by a daily job, audited, with a notice to the
+      person who created the link beforehand
+
+### E06-25 An email template of its own for the vendor response link
+
+**Status:** open · **Priority:** P4 · **Type:** improvement
+
+Found with E06-23. The email that carries a response link is built on the **General message** template, so administrators
+cannot word it separately. The application already passes `organization`, `vendorName`, `assessmentTitle`, `expiresAt`
+and `link` under the template key `vendor_response_link`.
+
+**Acceptance criteria**
+
+- [ ] A **Vendor response link** template under Administration > Email > Templates (a core default template), used by the
+      link email and the reminder

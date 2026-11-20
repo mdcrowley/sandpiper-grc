@@ -64,8 +64,8 @@ and usable by everyone.
 | E16-35 | Confirm the user services on a real systemd and launchd | open | P3 |
 | E16-36 | Load test on a PostgreSQL server, and tune the slowest queries | done | P2 |
 | E16-37 | Schema changes at run time without the owner account | open | P3 |
-| E16-38 | Embedded database under load: Overview and global search, and scale 4 | open | P3 |
-| E16-39 | Start-up work within the time limit at volume | open | P3 |
+| E16-38 | Embedded database under load: Overview and global search, and scale 4 | in progress | P3 |
+| E16-39 | Start-up work within the time limit at volume | in progress | P3 |
 | E16-40 | Independent security review or penetration test | open | P2 |
 
 ---
@@ -766,7 +766,7 @@ Note (E16-36): this release changes every search trigger once (substring text in
 
 ### E16-38 Embedded database under load: Overview and global search, and scale 4
 
-**Status:** open · **Priority:** P3 · **Type:** improvement
+**Status:** in progress · **Priority:** P3 · **Type:** improvement
 
 As an evaluator using the embedded database, the Overview and global search stay usable
 when several people use the application at once. Split from E16-36: after tuning, each costs
@@ -778,15 +778,33 @@ scale 1.
 
 **Acceptance criteria**
 
-- [ ] Fewer statements per request: the session and user lookup on every request (four statements today, `core/auth.ts`) made one, and settings read once per request
-- [ ] The Overview's figures cached for a short time or computed together, with figures still identical for every viewer
-- [ ] Global search with real text (a load-test vocabulary closer to real use than a hundred random words)
+- [x] Fewer statements per request: the session and user lookup on every request (four statements today, `core/auth.ts`) made one, and settings read once per request
+- [x] The Overview's figures cached for a short time or computed together, with figures still identical for every viewer
+- [x] Global search with real text (a load-test vocabulary closer to real use than a hundred random words)
 - [ ] Scale 4 measured, on the embedded database and on a PostgreSQL server on its own machine
-- [ ] The vulnerability type searched through the index (its records are a view, so it is matched by substring today)
+- [x] The vulnerability type searched through the index (its records are a view, so it is matched by substring today)
+
+**Progress (wave 5, not yet measured).** Built and covered by the test suite, but the load test
+was not re-run before the work stopped, so there are no new figures yet:
+
+- One statement per signed-in request for the session, person, roles, permissions and the settings
+  it needs (`core/auth.ts`), instead of four.
+- The Overview's figure routes kept for a few seconds while nothing has been written
+  (`core/routes.ts`, using a write counter on the database handle, `Db.generation` in
+  `core/db.ts`); figures that hold the caller's own counts are kept per person.
+- Global search finds every type's matches in one statement over the search index rather than
+  once per type (`core/routes.ts`).
+- A type whose records are a view (vulnerabilities) is searched through the index of the table
+  behind it (`core/search.ts`).
+- The load tool draws words with a Zipf distribution from a few hundred invented words, and can
+  measure a kept folder again without seeding (`tools/load/run.mjs`).
+
+Left: measure before and after at scale 0.5, 1 and 4, on the embedded database and on a
+PostgreSQL server on its own machine, and update the figures in `docs/operations.md`.
 
 ### E16-39 Start-up work within the time limit at volume
 
-**Status:** open · **Priority:** P3 · **Type:** defect
+**Status:** in progress · **Priority:** P3 · **Type:** defect
 
 As an operator, the server starts on a large installation even when the machine is busy.
 Once, at scale 1 on a busy machine, a start stopped with "A callback for 'onReady' hook
@@ -795,9 +813,14 @@ the same folder took a few seconds.
 
 **Acceptance criteria**
 
-- [ ] The start-up hook that ran long identified (time each `onReady` hook)
-- [ ] Long start-up work moved out of `onReady` (to the job queue or after listening), or the limit raised with a reason
+- [x] The start-up hook that ran long identified (time each `onReady` hook)
+- [x] Long start-up work moved out of `onReady` (to the job queue or after listening), or the limit raised with a reason
 - [ ] A start of a scale-4 installation measured
+
+**Progress (wave 5).** Every start-up step is timed and named after where it was added; one over
+`GRC_STARTUP_WARN_MS` (default 2,000) is logged (`server/src/app.ts`). The embedded database's
+first `analyze` now waits until start-up has finished, since running it in the middle of start-up
+held up its steps (`core/db.ts`). Left: measure a start of a scale-4 installation.
 
 ### E16-40 Independent security review or penetration test
 

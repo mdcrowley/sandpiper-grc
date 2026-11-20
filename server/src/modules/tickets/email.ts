@@ -3,6 +3,10 @@
 // Off by default. An administrator sets it up under Service desk settings > Email to ticket:
 //   - POP3: the service desk mailbox is read on a schedule (POP3 over TLS, or STARTTLS; plain
 //     only for a relay on the same machine), each message once, and removed unless asked not to.
+//   - Microsoft Graph or the Gmail API (E14-25): the same, for a mailbox at a service that has
+//     switched POP3 sign-in off, with the sign-in saved under Administration > Email. Unread
+//     messages in the inbox are read; done with, each goes to Deleted Items or Trash (or is marked
+//     read when left in the mailbox).
 //   - Relay: a mail server posts each message to POST /api/tickets/email/inbound with the relay
 //     key in the `X-GRC-Relay-Key` header (and `X-GRC-CSRF: 1`), as message/rfc822.
 //
@@ -18,7 +22,9 @@ import type { FastifyRequest } from 'fastify';
 import { loadUser, requireRecentAuth, secretBox } from '../../core/auth.ts';
 import { ensureJobs } from '../../core/jobs/index.ts';
 import { parseMessage, stripQuoted, type ParsedMessage } from '../../core/mail/mime.ts';
-import { Pop3, Pop3Error, type Pop3Tls } from '../../core/mail/pop3.ts';
+import { openServiceMailbox, savedServiceAccounts, type ServiceProvider } from '../../core/mail/accounts.ts';
+import { pop3Mailbox, type InboundMailbox } from '../../core/mail/mailbox.ts';
+import { Pop3Error, type Pop3Tls } from '../../core/mail/pop3.ts';
 import { EMAIL_RE } from '../../core/mail/service.ts';
 import type { ModuleContext, Row, SessionUser } from '../../core/module.ts';
 import { canStoreFiles, storeTicketFile } from './mail-files.ts';
@@ -33,13 +39,24 @@ const MAX_FILES = 10;
 /** Small inline images (signature logos) are left out; larger ones are usually pasted photos. */
 const INLINE_KEEP_BYTES = 30 * 1024;
 const TLS_MODES: Pop3Tls[] = ['tls', 'starttls', 'none'];
+/** Sources that are a mailbox read on a schedule (the relay posts instead). */
+const MAILBOX_SOURCES = ['pop3', 'graph', 'gmail'] as const;
+type Source = typeof MAILBOX_SOURCES[number] | 'relay';
+const isMailbox = (s: string): s is typeof MAILBOX_SOURCES[number] => (MAILBOX_SOURCES as readonly string[]).includes(s);
+const isService = (s: string): s is ServiceProvider => s === 'graph' || s === 'gmail';
+const SERVICE_LABEL: Record<ServiceProvider, string> = { graph: 'Microsoft Graph', gmail: 'Gmail API' };
 
 export interface IntakeSettings {
   enabled: boolean;
-  source: 'pop3' | 'relay';
+  /**
+   * pop3: a mailbox read over POP3; graph / gmail: a mailbox read through Microsoft Graph or the
+   * Gmail API, with the sign-in saved under Administration > Email (E14-25); relay: a mail server posts each message.
+   */
+  source: Source;
   host: string;
   port: number;
   tls: Pop3Tls;
+  /** The POP3 user name; for graph and gmail, the mailbox's address. */
   username: string;
   password_sealed: string | null;
   poll_minutes: number;
@@ -177,7 +194,7 @@ export function makeEmailIntake(ctx: ModuleContext, notify: TicketNotify) {
 
   // ---------- one message ----------
 
-  async function processMessage(raw: Buffer, source: 'pop3' | 'relay'): Promise<Outcome> {
+  async function processMessage(raw: Buffer, source: Source): Promise<Outcome> {
     const s = await read();
     let m: ParsedMessage;
     try {
@@ -271,7 +288,7 @@ export function makeEmailIntake(ctx: ModuleContext, notify: TicketNotify) {
     return log(base, { outcome: 'created', reason: files.refused.length ? files.refused.join('; ') : null, ticket_id: row.id, ref: row.ref }, { attachments: files.stored });
   }
 
-  async function processSafely(raw: Buffer, source: 'pop3' | 'relay'): Promise<Outcome> {
+  async function processSafely(raw: Buffer, source: Source): Promise<Outcome> {
     try {
       return await processMessage(raw, source);
     } catch (err) {
@@ -294,8 +311,10 @@ export function makeEmailIntake(ctx: ModuleContext, notify: TicketNotify) {
     }
   }
 
-  async function connect(s: IntakeSettings): Promise<Pop3> {
-    return Pop3.connect({ host: s.host, port: s.port, tls: s.tls, username: s.username, password: password(s) });
+  /** The mailbox, over POP3 or through a mail service's web interface. */
+  async function connect(s: IntakeSettings): Promise<InboundMailbox> {
+    if (isService(s.source)) return openServiceMailbox(ctx, s.source, s.username);
+    return pop3Mailbox({ host: s.host, port: s.port, tls: s.tls, username: s.username, password: password(s) });
   }
 
   let running: Promise<Row> | null = null;
@@ -308,24 +327,30 @@ export function makeEmailIntake(ctx: ModuleContext, notify: TicketNotify) {
         const box = await connect(s);
         try {
           const list = await box.list();
+          const source = s.source;
           for (const item of list.slice(0, MAX_PER_POLL)) {
             const seen = await db.one('select 1 from mail_inbound_seen where uid = $1', [item.uid]);
             if (seen) {
-              if (!s.leave_on_server) await box.delete(item.number);
+              if (!s.leave_on_server) await box.delete(item);
+              else await box.keep?.(item);
               continue;
             }
             let outcome: Outcome;
             if (item.size > MAX_MESSAGE_BYTES) {
-              outcome = await log({ source: 'pop3', size_bytes: item.size }, { outcome: 'refused', reason: 'The message is larger than 30 MB', ticket_id: null });
+              outcome = await log({ source, size_bytes: item.size }, { outcome: 'refused', reason: 'The message is larger than 30 MB', ticket_id: null });
             } else {
-              const raw = await box.retrieve(item.number, MAX_MESSAGE_BYTES * 2);
-              outcome = await processSafely(raw, 'pop3');
+              const raw = await box.retrieve(item, MAX_MESSAGE_BYTES * 2);
+              outcome = raw.length > MAX_MESSAGE_BYTES
+                ? await log({ source, size_bytes: raw.length }, { outcome: 'refused', reason: 'The message is larger than 30 MB', ticket_id: null })
+                : await processSafely(raw, source);
             }
             result.fetched += 1;
             result[outcome.outcome] += 1;
             await db.query('insert into mail_inbound_seen (uid) values ($1) on conflict do nothing', [item.uid]);
             // A message that failed is kept on the server for another look; everything else is done with.
-            if (!s.leave_on_server && outcome.outcome !== 'failed') await box.delete(item.number);
+            // Left on the server, a message read through a web interface is marked read so it is not listed again.
+            if (!s.leave_on_server && outcome.outcome !== 'failed') await box.delete(item);
+            else if (s.leave_on_server) await box.keep?.(item);
           }
           await box.quit();
         } finally {
@@ -353,6 +378,8 @@ export function makeEmailIntake(ctx: ModuleContext, notify: TicketNotify) {
       ...publicView(await read()),
       mail_enabled: app.hasDecorator('mailEnabled') ? await app.mailEnabled() : false,
       files: canStoreFiles(ctx),
+      // Whether a Microsoft Graph or Gmail API sign-in is saved under Administration > Email.
+      service_accounts: await savedServiceAccounts(ctx),
     }));
     ctx.describeRoute({ method: 'GET', path: '/api/tickets/email/settings', tag: TAG, permission: A, summary: 'Email-to-ticket settings (the mailbox password and relay key are never returned)' });
 
@@ -364,7 +391,7 @@ export function makeEmailIntake(ctx: ModuleContext, notify: TicketNotify) {
       const str = (k: string) => String(b[k] ?? '').trim();
       const bool = (k: keyof IntakeSettings) => { if (b[k] !== undefined) { if (typeof b[k] !== 'boolean') fields[k] = 'Choose on or off.'; else (next as unknown as Row)[k] = b[k]; } };
       bool('enabled'); bool('leave_on_server'); bool('acknowledge'); bool('reply_by_email');
-      if (b.source !== undefined) { if (b.source !== 'pop3' && b.source !== 'relay') fields.source = 'Choose a mailbox or a mail relay.'; else next.source = b.source; }
+      if (b.source !== undefined) { if (!isMailbox(String(b.source)) && b.source !== 'relay') fields.source = 'Choose a mailbox or a mail relay.'; else next.source = b.source; }
       if (b.host !== undefined) { const h = str('host'); if (h.length > 253 || /[\s/]/.test(h)) fields.host = 'Enter a host name or address, with no spaces or slashes.'; else next.host = h; }
       if (b.port !== undefined) { const p = Number(b.port); if (!Number.isInteger(p) || p < 1 || p > 65535) fields.port = 'Enter a port from 1 to 65535.'; else next.port = p; }
       if (b.tls !== undefined) { if (!TLS_MODES.includes(b.tls)) fields.tls = 'Choose TLS, STARTTLS or none.'; else next.tls = b.tls; }
@@ -396,6 +423,13 @@ export function makeEmailIntake(ctx: ModuleContext, notify: TicketNotify) {
         if (!next.username) fields.username ??= 'Enter the mailbox user name to switch email to ticket on.';
         if (!next.password_sealed && pw === undefined) fields.password ??= 'Enter the mailbox password to switch email to ticket on.';
       }
+      if (isService(next.source) && (next.enabled || b.username !== undefined)) {
+        if (next.enabled && !next.username) fields.username ??= 'Enter the mailbox\'s address to switch email to ticket on.';
+        else if (next.username && !EMAIL_RE.test(next.username.toLowerCase())) fields.username ??= 'Enter the mailbox\'s email address.';
+      }
+      if (next.enabled && isService(next.source) && !(await savedServiceAccounts(ctx))[next.source]) {
+        fields.source ??= `Save the ${SERVICE_LABEL[next.source]} sign-in under Administration > Email first.`;
+      }
       if (next.enabled && next.source === 'relay' && !next.relay_key_hash) fields.source ??= 'Create a relay key first, then switch email to ticket on.';
       if (Object.keys(fields).length) ctx.fail(400, 'validation', 'Check the highlighted fields.', fields);
       if (pw !== undefined) next.password_sealed = secretBox(db).encrypt(pw, SECRET_CONTEXT);
@@ -415,7 +449,7 @@ export function makeEmailIntake(ctx: ModuleContext, notify: TicketNotify) {
     ctx.describeRoute({
       method: 'PUT', path: '/api/tickets/email/settings', tag: TAG, permission: A, summary: 'Change the email-to-ticket settings',
       description: 'Needs a recent password confirmation. `password` replaces the stored mailbox password (kept encrypted); leave it out to keep it.',
-      body: '{ enabled, source: pop3|relay, host, port, tls: tls|starttls|none, username, password?, poll_minutes, leave_on_server, address, unknown_senders: create|ignore, allowed_domains: [], ticket_type, assignment_group, acknowledge, reply_by_email, max_per_hour }',
+      body: '{ enabled, source: pop3|graph|gmail|relay, host, port, tls: tls|starttls|none, username, password?, poll_minutes, leave_on_server, address, unknown_senders: create|ignore, allowed_domains: [], ticket_type, assignment_group, acknowledge, reply_by_email, max_per_hour }',
     });
 
     app.post('/api/tickets/email/relay-key', admin, async (req) => {
@@ -430,7 +464,10 @@ export function makeEmailIntake(ctx: ModuleContext, notify: TicketNotify) {
 
     app.post('/api/tickets/email/test', admin, async () => {
       const s = await read();
-      if (!s.host || !s.username) ctx.fail(409, 'not_configured', 'Save the mail server, user name and password first.');
+      if (s.source === 'relay') ctx.fail(409, 'not_configured', 'A mail relay posts its messages; there is no mailbox to test.');
+      if (isService(s.source) ? !s.username : !s.host || !s.username) {
+        ctx.fail(409, 'not_configured', isService(s.source) ? 'Save the mailbox address first.' : 'Save the mail server, user name and password first.');
+      }
       try {
         const box = await connect(s);
         const list = await box.list();
@@ -444,7 +481,7 @@ export function makeEmailIntake(ctx: ModuleContext, notify: TicketNotify) {
 
     app.post('/api/tickets/email/check', admin, async (req) => {
       const s = await read();
-      if (!s.enabled || s.source !== 'pop3') ctx.fail(409, 'not_enabled', 'Switch email to ticket on with a mailbox first.');
+      if (!s.enabled || !isMailbox(s.source)) ctx.fail(409, 'not_enabled', 'Switch email to ticket on with a mailbox first.');
       try {
         const result = await poll();
         await ctx.audit(req, { action: 'tickets.email_check', recordType: 'mail', summary: `Mailbox read by hand: ${result.fetched} message(s)` });
@@ -521,7 +558,7 @@ export function makeEmailIntake(ctx: ModuleContext, notify: TicketNotify) {
     const jobs = await ensureJobs(ctx);
     jobs.register('tickets.email_poll', async () => {
       const s = await read();
-      if (!s.enabled || s.source !== 'pop3') return { skipped: 'email to ticket is off' };
+      if (!s.enabled || !isMailbox(s.source)) return { skipped: 'email to ticket is off' };
       return poll();
     }, { maxAttempts: 2, backoffSeconds: 60 });
     await schedule();

@@ -129,7 +129,7 @@ This page is separate from **Expiring evidence** in the **Vendors** group, which
 | **Largest file (MB)** | The largest size allowed for one file, from 1 to 2048 megabytes. A new installation uses 25 |
 | **Allowed file types** | The file extensions that are accepted, separated by commas, for example `pdf, docx, png` |
 
-Select **Save upload limits**. The new limits apply to files attached from then on; files already attached are not affected.
+Select **Save upload limits**. The new limits apply to files attached from then on; files already attached are not affected. Adding a file type to the list asks you to confirm your password if you have not done so in the last few minutes; removing one or changing the size does not.
 
 - A file is checked twice: its extension must be on the list, and its content must be what that extension says. For a type the application does not recognize, only the extension is checked.
 - Programs and scripts (for example `.exe`, `.bat`, `.ps1`, `.js` and documents with macros such as `.docm`) cannot be added to the list.
@@ -316,11 +316,19 @@ Requests are limited: five from one place in 15 minutes, and at most three links
 
 ## Email settings
 
-*Administrators.* Open **Administration** > **Email**. Email is **off** until you switch it on: it is the one connection the application makes to another server, and nothing is sent while it is off.
+*Administrators.* Open **Administration** > **Email**. Email is **off** until you switch it on: nothing is sent while it is off, and when it is on the application connects only to the mail service you choose.
 
 ### Settings
 
-1. Under **Mail server**, enter the details your mail service gave you:
+Under **How messages are sent**, choose **Send through**:
+
+- **SMTP**: a mail server that accepts a user name and password, or a relay on your own network.
+- **Microsoft Graph**: Microsoft 365 or Exchange Online, for a tenant that has switched off SMTP sign-in with a password.
+- **Gmail API**: Google Workspace, for a domain that has switched off SMTP sign-in with a password.
+
+Whoever runs your mail service sets up the sign-in for Microsoft Graph or the Gmail API; the [installation guide](../installation.md#mail-providers) walks through it. The details you enter for each are kept when you choose another, so email to ticket can still read a mailbox through Microsoft Graph or the Gmail API while messages go out over SMTP.
+
+1. For **SMTP**, under **Mail server (SMTP)**, enter the details your mail service gave you:
 
    | Field | What to enter |
    |---|---|
@@ -328,15 +336,39 @@ Requests are limited: five from one place in 15 minutes, and at most three links
    | **Port** | Usually 587 for STARTTLS or 465 for TLS |
    | **Secure connection** | **STARTTLS (port 587)**, **TLS (port 465)**, or **None (plain connection)**. Use None only for a mail relay on your own network |
    | **User name** and **Password** | Leave empty if the server does not ask for a sign-in. The password is kept encrypted and is never shown again; leave the box empty to keep the saved one, or check **Remove the saved password** |
-   | **From address** and **From name** | Who messages come from |
+
+   For **Microsoft Graph**, under **Microsoft Graph**:
+
+   | Field | What to enter |
+   |---|---|
+   | **Microsoft cloud** | **Worldwide (including GCC)**, **US Government (GCC High)** or **US Government (DoD)** |
+   | **Directory (tenant) ID** and **Application (client) ID** | From the app registration's Overview page |
+   | **Sign-in method** | **Certificate (recommended)** or **Client secret** |
+   | **Client secret**, or **Certificate and private key (PEM)** | The secret's Value (not its Secret ID), or the certificate uploaded to the app registration pasted together with its private key (without a passphrase). Kept encrypted and never shown again; for a certificate the page shows its thumbprint and expiry date. Check **Remove the saved Microsoft Graph sign-in** to delete it |
+   | **Send as mailbox** | The mailbox messages are sent from. Empty: the from address |
+
+   For **Gmail API**, under **Gmail API**:
+
+   | Field | What to enter |
+   |---|---|
+   | **Service account key (JSON)** | The whole key file of the service account. Kept encrypted and never shown again; the page shows the service account and its client ID, which your Google Workspace administrator needs for domain-wide delegation |
+   | **Send as mailbox** | A user in your domain whose mailbox sends the messages. Empty: the from address |
+
+   Then, under **Sender**, for every choice:
+
+   | Field | What to enter |
+   |---|---|
+   | **From address** and **From name** | Who messages come from. With Microsoft Graph or the Gmail API, use the sending mailbox's own address or one it may send as |
    | **Reply-to address** | Optional: where replies go, such as the service desk |
    | **Application address** | The address people use to open the application, such as `https://grc.example.org`. Links in messages start with it |
 
 2. Select **Save settings**. You may be asked to confirm your password.
-3. Under **Send test email**, check the address and select **Send test email**. The test is sent at once with the saved settings, even while email is off, and the page says whether it was sent or why not.
-4. Switch **Send email** on. The mail server, from address and application address must be filled in first.
+3. Under **Send a test message**, check the address and select **Send a test message**. The test is sent at once through the saved choice, even while email is off, and the page says whether it was sent or why not, in plain words: for example a wrong client secret, a permission or delegation that is missing (with the permission or scope to add), or a mailbox that does not exist.
+4. Switch **Send email** on. The from address, the application address and what the chosen way of sending needs (the mail server; or the tenant ID, client ID and secret or certificate; or the key) must be filled in first.
 
-Switching email off stops everything at once: messages still waiting are not sent, and notifications go to the bell. Every change is recorded in the audit log, without the password.
+Switching email off stops everything at once: messages still waiting are not sent, and notifications go to the bell. Every change, and every test, is recorded in the audit log, naming the way of sending but never the password, secret, certificate or key.
+
+If the mail service is busy or limits how fast messages are sent, the message is tried again later like any other failure (see **Delivery log**). Microsoft Graph takes messages of about 3 MB at most with their files; a larger one is not sent and the log says why.
 
 When email is on:
 
@@ -401,7 +433,8 @@ Each job runs once even if more than one copy of the server is using the same da
 ## Not available yet
 
 - Changing the email address on your own account: ask an administrator.
-- Sending email through anything other than a mail server (SMTP), such as a mail service's web interface.
+- Sending a message larger than about 3 MB with its files through Microsoft Graph (use SMTP or the Gmail API, or send large files as links).
+- Signing in to Gmail with a person's own account (a refresh token): the Gmail API is used with a service account only, so a personal Gmail account must use SMTP with an app password.
 - Malware scanners other than ClamAV, or scanning through an outside service.
 - Viewing a file inside the application. Files are downloaded and opened on your computer.
 - Renaming a file, replacing its content while keeping its history, or keeping several versions of one file.

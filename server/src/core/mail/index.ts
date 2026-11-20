@@ -26,6 +26,13 @@ export { OWN_MAIL_HEADER } from './service.ts';
 // Inbound mail (E15-06): a message reader and a POP3 client, used by email-to-ticket.
 export { htmlToText, parseAddresses, parseMessage, stripQuoted, type ParsedAddress, type ParsedAttachment, type ParsedMessage } from './mime.ts';
 export { Pop3, Pop3Error, type Pop3Message, type Pop3Options, type Pop3Tls } from './pop3.ts';
+// A mailbox read through POP3, Microsoft Graph or the Gmail API (E14-25).
+export { pop3Mailbox, type InboundItem, type InboundMailbox } from './mailbox.ts';
+export { openServiceMailbox, PROVIDER_LABELS, savedServiceAccounts, SERVICE_PROVIDERS, type ServiceProvider } from './accounts.ts';
+export { CloudError } from './cloud.ts';
+// The providers other than SMTP register themselves when loaded.
+import './graph.ts';
+import './gmail.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const services = new WeakMap<object, MailService>();

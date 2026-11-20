@@ -432,9 +432,10 @@ built; see [Known gaps](known-gaps.md).
 - **Database.** Still to design: a transaction-per-request story, and a database role for
   the application that cannot alter the audit trigger (today the role owns its tables).
   Backups in server mode use `pg_dump`; `grc.ps1 backup` covers the embedded database only.
-- **Single sign-on.** OpenID Connect, account linking and a break-glass administrator are
-  built. Still to decide: SAML (it needs an XML-signature library) and whether a
-  provider's own second factor can stand in for this application's.
+- **Single sign-on.** OpenID Connect, SAML 2.0 (XML signatures checked by the
+  @node-saml/node-saml library, with hardening of our own in core/identity/samlxml.ts),
+  account linking and a break-glass administrator are built. Still to do: sign-outs started
+  at a SAML identity provider (E02-27) and directory (LDAP) sign-in (E02-26).
 - **More than one process.** The job queue already works across processes. Still to do:
   move the remaining timers onto it, and move the per-token request count, the `If-Match`
   lock and the webhook worker out of process memory, before running several instances.

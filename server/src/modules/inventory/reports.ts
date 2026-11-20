@@ -1,3 +1,4 @@
+import { featureState, optionName, optionOn } from '../../core/features.ts';
 import type { ModuleContext, Row, SessionUser } from '../../core/module.ts';
 import { todayInZone } from '../../core/timezone.ts';
 
@@ -224,8 +225,17 @@ export function registerReports(ctx: ModuleContext) {
 
   const allowed = (user: SessionUser | null, r: ReportDef) => r.perms.every((p) => ctx.can(user, p));
 
+  /** A report's columns now: the funder-interest count follows that option (Administration > Features; E18-28). */
+  const columnsOf = async (r: ReportDef): Promise<Column[]> => {
+    if (!r.columns.some((c) => c.key === 'funder_interest')) return r.columns;
+    const state = await featureState(db);
+    if (!optionOn(state, 'funder_interest')) return r.columns.filter((c) => c.key !== 'funder_interest');
+    const name = optionName(state, 'funder_interest');
+    return r.columns.map((c) => (c.key === 'funder_interest' ? { ...c, label: `With ${/^[A-Z][a-z]/.test(name) ? name.charAt(0).toLowerCase() + name.slice(1) : name}` } : c));
+  };
+
   const info = async (r: ReportDef) => ({
-    key: r.key, title: r.title, description: r.description, columns: r.columns, recordType: r.recordType,
+    key: r.key, title: r.title, description: r.description, columns: await columnsOf(r), recordType: r.recordType,
     group: r.group, kind: r.kind, list: r.list ? await r.list() : null,
   });
 
@@ -248,8 +258,9 @@ export function registerReports(ctx: ModuleContext) {
     if (query.format === 'csv') {
       const exportPerm = `${report.perms[0].split('.')[0]}.export`;
       if (!ctx.can(req.user, exportPerm)) ctx.fail(403, 'forbidden', 'You do not have permission to export this report.');
-      const lines = [report.columns.map((c) => csvCell(c.label)).join(',')];
-      for (const r of rows) lines.push(report.columns.map((c) => csvCell(r[c.key])).join(','));
+      const columns = await columnsOf(report);
+      const lines = [columns.map((c) => csvCell(c.label)).join(',')];
+      for (const r of rows) lines.push(columns.map((c) => csvCell(r[c.key])).join(','));
       await ctx.audit(req, { action: 'report.export', recordType: 'report', summary: `Exported report "${report.title}" (${rows.length} rows) to CSV` });
       reply.header('content-type', 'text/csv; charset=utf-8');
       reply.header('content-disposition', `attachment; filename="${report.key}.csv"`);

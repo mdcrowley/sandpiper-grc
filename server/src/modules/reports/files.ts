@@ -111,6 +111,7 @@ function pdfSection(pdf: PdfBuilder, s: DocSection) {
       pdf.table(r.columns.map((c) => ({ header: c.label, align: numeric(c) ? 'right' : 'left' })), r.rows.map((row) => r.columns.map((c) => cellText(c, row))));
     }
   }
+  if (r.countingNote) pdf.paragraph(r.countingNote, { muted: true, size: 8.5 });
   pdf.paragraph(`${r.total} ${(r.total === 1 ? r.typeLabel : r.plural).toLowerCase()}${r.truncated ? ' (the list is cut short; export to Excel for every row)' : ''}`, { muted: true, size: 8.5 });
 }
 
@@ -160,7 +161,7 @@ function sheetFor(s: DocSection, who: string, at: string): Sheet | null {
   const r = s.result;
   if (!r) return null;
   const mark = r.restricted ? watermark(who, at) : undefined;
-  const preface = [s.title, ...(s.filters?.length ? [`Filters: ${s.filters.join('; ')}`] : []), `As at ${formatStamp(at)} · prepared for ${who}`];
+  const preface = [s.title, ...(s.filters?.length ? [`Filters: ${s.filters.join('; ')}`] : []), `As at ${formatStamp(at)} · prepared for ${who}`, ...(r.countingNote ? [r.countingNote] : [])];
   if (r.pivot) {
     const p = r.pivot;
     return {

@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  api, Button, Card, ConfirmDialog, EmptyState, ErrorState, errorMessage, formatDate, Loading, PageHeader, StatusChip, useFetch, useToast,
+  api, Button, Card, ConfirmDialog, EmptyState, ErrorState, errorMessage, formatDate, Loading, PageHeader, StatusChip, useFetch, useToast, withReauth,
 } from '../../core';
 import { SectionTabs, SeverityChip } from './shared';
 
@@ -28,7 +28,8 @@ function GroupCard({ group, canMerge, onMerged }: { group: Group; canMerge: bool
   async function merge() {
     setBusy(true);
     try {
-      await api.post('/api/vulnerabilities/duplicates/merge', { keep_id: keep, merge_ids: others.map((f) => f.id) });
+      // A merge cannot be undone, so it asks to confirm your identity first (E01-33).
+      await withReauth(() => api.post('/api/vulnerabilities/duplicates/merge', { keep_id: keep, merge_ids: others.map((f) => f.id) }));
       toast.success(`${others.map((f) => f.ref).join(', ')} merged into ${kept.ref}.`);
       onMerged();
     } catch (err) {

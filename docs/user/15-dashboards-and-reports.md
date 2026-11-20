@@ -37,12 +37,21 @@ On an open report you can:
 
 Under **Columns**, the chosen fields are listed in the order they will appear. Drag a column by its grip (the three lines) to a new place, or use the arrows to move it up or down; the cross removes it, and **Add a column…** adds one. With no columns chosen, a standard set is shown.
 
-A field your organization added that holds several choices (a multi-choice field) shows all of a record's choices in its column, separated by commas. It can be filtered by (see below) but not grouped by, because one record can hold several values.
+A field your organization added that holds several choices (a multi-choice field) shows all of a record's choices in its column, separated by commas. It can be filtered by (see below) and grouped by (see [Grouping by a multi-choice field](#grouping-by-a-multi-choice-field)).
 
 ### Summaries
 
 - **Group**: choose a field under **Group by**, and optionally a second one under **Then by**. Records with the same value are counted together. A date field can be grouped **by day**, **by week**, **by month**, **by quarter** or **by year**, always in the organization's time zone. With two groups, **Show as a pivot table** puts the first field down the side and the second across the top, with totals.
 - **Totals**: **Count of records**, **Total of**, **Average of**, **Lowest (or earliest)**, **Highest (or latest)** or **Share of total (%)**. Select **Add another total** for more than one.
+
+#### Grouping by a multi-choice field
+
+A multi-choice field can be a group like any other. A record is counted once under **each** of its choices, and a record with none is counted under **None**. So a ticket that affects both the Red line and the Blue line appears in both groups, and the groups can add up to more than the number of records. The table, the chart, the pivot table and every export (PDF, Excel and the print-ready page) say so in a note under the figures, for example: "A record with several values in Lines affected is counted once under each of them, so the groups can add up to more than the 40 tickets that match." The figures are the same for everyone who opens the report.
+
+- The record count under the preview, and under a saved report, is the number of records, each counted once.
+- In a pivot table, the **Total** column, the **Total** row and the grand total count each record once (the note says so), so they can be less than the sum of the cells. With a measure other than a count, the totals are left blank.
+- **Share of total (%)** becomes **Share of records**: the share of all matching records that has each choice, so the shares can add up to more than 100%. A share of a field's total (**Share of** an amount) is not available while grouping by a multi-choice field, because a record would be shared out more than once.
+- Selecting a group opens the records that have that choice.
 
 ### Filters
 
@@ -138,10 +147,20 @@ Everyone else sees **My work** first, then the **Dashboard**.
 4. Select **Done**.
 5. **Move** a widget by dragging its handle (the three lines beside its title), and **resize** it by dragging its bottom-right corner. Other widgets move out of the way. This works with a mouse, a pen or a finger, on any screen at least about 480 pixels wide (a tablet held either way); on a narrower screen a note says to use the keyboard instead. With the keyboard, Tab to a widget's handle and use the arrow keys to move it, or Shift and the arrow keys to make it wider, narrower, taller or shorter.
 6. Each widget has buttons to change it, duplicate it and remove it.
-7. **Settings** sets the **Name**, **Description**, the **Filters across the whole dashboard** and how often to **Refresh the figures**.
+7. **Settings** sets the **Name**, **Description**, the **Filters across the whole dashboard**, how often to **Refresh the figures** and any [custom fields](#custom-fields-on-reports-dashboards-schedules-and-packs) your administrator added to dashboards.
 8. **Undo** and **Redo** work as in the report builder. Select **Save** to keep your changes, or **Cancel** to leave them (you are asked first if you changed anything).
 
 A saved report placed on a dashboard runs only for people the report is shared with; everyone else sees "This report has been removed or is not shared with you" in its place. You can only place reports you can see yourself.
+
+## Custom fields on reports, dashboards, schedules and packs
+
+An administrator can add the organization's own fields to saved reports, dashboards, report schedules and report packs (for example an audience, the screen a dashboard is shown on, or the meeting a pack is for), under **Administration > Custom fields** with the record type **Report**, **Dashboard**, **Report schedule** or **Report pack**. Administrators also find a **Custom fields** button on the **Reports**, **Dashboards**, **Report packs** and **Schedules** pages, which opens that page at the right record type; it shows how many fields are in use.
+
+- They are asked where these items are saved: in the report builder's **Save report** dialog, the **New dashboard** dialog, a dashboard's **Settings** while editing, the **Add to a dashboard** dialog when it makes a new dashboard, the schedule dialog, the **New report pack** dialog and the pack's **Edit sections** page.
+- A **required** field must be filled in: if it is empty, the message appears beside the field and nothing is saved. On a dashboard being edited, **Save** opens **Settings** to show it.
+- They are shown under **More details** on the report's page, the dashboard (below its widgets), the pack (beside the preview) and the schedule's panel, where people who may change the item can edit them.
+- **Save a copy** of a report or dashboard keeps their values.
+- The standard reports, dashboards and pack are added by the application even when a field is required; the field is asked the next time someone saves one of them.
 
 ## Sharing
 
@@ -154,7 +173,7 @@ A report pack is a document for a governing body or an auditor: a cover page fol
 - Open a pack to see it as it will print: the cover page with the title, subtitle, "Figures as at" and "Prepared by", a contents list, then one section per page.
 - **Print** prints the page from the browser (each section starts on a new sheet). **Download** (needs the reports export permission) offers **PDF** (a cover page, then one section per page, with page numbers), **Excel (XLSX)** (one sheet per report) or **Print-ready page**, which opens the same pack as a separate page.
 - **Produce dated copy** (needs the reports export permission) freezes the figures as they are now and keeps the copy under **Produced documents**, so it can be opened again later. Anyone who can see the pack and every saved report in it, and can see every kind of record in it, can read the copy in the application; a copy that lists restricted records needs security access too.
-- **Edit sections** (under **More**, or the button beside the preview): change the **Name**, **Cover title**, **Cover subtitle** and **Description**; add sections with **Add a saved report** or **Add text**; give each a **Heading**; move them with the arrows and remove them with the cross. Select **Save**.
+- **Edit sections** (under **More**, or the button beside the preview): change the **Name**, **Cover title**, **Cover subtitle**, **Description** and any custom fields; add sections with **Add a saved report** or **Add text**; give each a **Heading**; move them with the arrows and remove them with the cross. Select **Save**.
 
 To start a new pack, select **New report pack** on the **Report packs** page, or **Create** then **Report pack**.
 
@@ -182,7 +201,7 @@ At each delivery, every recipient gets a notification in the application with a 
 
 ## Text in other scripts in PDFs
 
-PDF files made by the server (exports, scheduled PDF files, report packs and record fact sheets) print Western European text in a standard font. Any other text is printed in a font that the server already has, with only the letters used embedded in the file, so names and titles in Greek, Cyrillic, Hebrew, Arabic, Chinese, Japanese, Korean, Indic scripts and so on read as written. The server looks for well-known fonts with wide coverage (Noto Sans and DejaVu Sans on Linux, Arial Unicode on macOS, Segoe UI, Arial, Microsoft YaHei, Yu Gothic, Malgun Gothic and Nirmala UI on Windows); an administrator can name others (see [Operations](../operations.md)). A character that no available font has still prints as `?`, and so does a character in a piece of text that mixes scripts no single font covers. Right-to-left text (Hebrew, Arabic) is shaped but printed left to right. Excel and CSV files hold any text.
+PDF files made by the server (exports, scheduled PDF files, report packs and record fact sheets) print Western European text in a standard font. Any other text is printed in a font that the server already has, with only the letters used embedded in the file, so names and titles in Greek, Cyrillic, Hebrew, Arabic, Chinese, Japanese, Korean, Indic scripts and so on read as written. The server looks for well-known fonts with wide coverage (Noto Sans and DejaVu Sans on Linux, Arial Unicode on macOS, Segoe UI, Arial, Microsoft YaHei, Yu Gothic, Malgun Gothic and Nirmala UI on Windows); an administrator can name others (see [Operations](../operations.md)). Text that mixes scripts is printed piece by piece, each piece in a font that has it, so a title such as "Depot 北 – Αμαξοστάσιο" prints in full even when no single font covers all of it; only a character that no available font has prints as `?`. Right-to-left text (Hebrew, Arabic and the like) is printed in reading order: words run from right to left, numbers and Latin words inside it keep their own order, brackets face the right way, and a paragraph that starts in a right-to-left script is aligned to the right (in a table cell too). Arabic letters take their joined forms. Excel and CSV files hold any text.
 
 ## Permissions
 

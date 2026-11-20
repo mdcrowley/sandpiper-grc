@@ -36,6 +36,36 @@ export interface Db extends Queryable {
   dataDir: string;
   /** Which driver is in use: the embedded database, or a PostgreSQL server. */
   driver?: 'embedded' | 'server';
+  /**
+   * A number that grows whenever this handle changes a row (and again when a transaction ends), so a
+   * cache can tell that nothing was written since it was filled (E16-38). Writes made by another
+   * process on the same PostgreSQL server are not seen; such caches also expire by time.
+   */
+  generation?(): number;
+  /** Called once the server has started: background upkeep (the embedded database's analyze) may begin. */
+  started?(): void;
+}
+
+/** Counts this handle's writes (see Db.generation). */
+export function makeWriteCounter() {
+  let n = 0;
+  return {
+    get: () => n,
+    bump: () => { n++; },
+    /**
+     * After a statement: counts it when it changed at least one row, or may have (a write inside a
+     * `with`, whose count is that of its final select).
+     */
+    after(sql: string, changed: number | null | undefined) {
+      if (WRITE_RE.test(sql) ? changed !== 0 : isWrite(sql)) n++;
+    },
+  };
+}
+export type WriteCounter = ReturnType<typeof makeWriteCounter>;
+
+/** Whether a statement can change rows: insert, update or delete, alone or inside a `with`. */
+export function isWrite(sql: string): boolean {
+  return WRITE_RE.test(sql) || (/^\s*with\b/i.test(sql) && /\b(insert\s+into|update\s+\w|delete\s+from)\b/i.test(sql));
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -199,21 +229,24 @@ const EXTENSIONS = { pg_trgm };
 
 const WRITE_RE = /^\s*(insert|update|delete)\b/i;
 
-function wrapLite(q: { query: Function; exec: Function }, onWrite?: () => void): Queryable {
+function wrapLite(q: { query: Function; exec: Function }, onWrite: (() => void) | undefined, writes: WriteCounter): Queryable {
   const timed = slowStatementLog();
+  const run = async (sql: string, params: unknown[]) => {
+    const res: any = await timed(sql, () => q.query(sql, params));
+    writes.after(sql, res.affectedRows);
+    if (onWrite && WRITE_RE.test(sql)) onWrite();
+    return res;
+  };
   return {
     async query<T>(sql: string, params: unknown[] = []) {
-      const res: any = await timed(sql, () => q.query(sql, params));
-      if (onWrite && WRITE_RE.test(sql)) onWrite();
-      return res.rows as T[];
+      return (await run(sql, params)).rows as T[];
     },
     async one<T>(sql: string, params: unknown[] = []) {
-      const res: any = await timed(sql, () => q.query(sql, params));
-      if (onWrite && WRITE_RE.test(sql)) onWrite();
-      return res.rows[0] as T | undefined;
+      return (await run(sql, params)).rows[0] as T | undefined;
     },
     async exec(sql: string) {
       await timed(sql, () => q.exec(sql));
+      writes.bump();
       onWrite?.();
     },
   };
@@ -223,11 +256,12 @@ function wrapLite(q: { query: Function; exec: Function }, onWrite?: () => void):
  * Planner statistics for the embedded database (E16-36). PGlite runs no autovacuum, so without
  * this its tables are never analyzed and the planner guesses every row count (21 rows for a table
  * of 6,000), choosing poor plans as the data grows. `analyze` reads a bounded sample of each
- * table (under a second at 30,000 records). It runs shortly after the database opens, then again
- * after every `GRC_ANALYZE_AFTER_WRITES` write statements (default 2,000; 0 switches it off), at
+ * table (under a second at 30,000 records). It runs shortly after the database opens (with
+ * `waitForStart`: shortly after `start()`, once the server has finished starting, E16-39: an
+ * analyze in the middle of start-up held up its steps), then again after every `GRC_ANALYZE_AFTER_WRITES` write statements (default 2,000; 0 switches it off), at
  * most once every ten minutes. A PostgreSQL server does this itself (autovacuum).
  */
-export function makeAutoAnalyze(run: () => Promise<void>, opts: { every?: number; minGapMs?: number; firstAfterMs?: number } = {}) {
+export function makeAutoAnalyze(run: () => Promise<void>, opts: { every?: number; minGapMs?: number; firstAfterMs?: number; waitForStart?: boolean } = {}) {
   const every = opts.every ?? intSetting('GRC_ANALYZE_AFTER_WRITES', 2000);
   const minGapMs = opts.minGapMs ?? 10 * 60_000;
   let writes = 0;
@@ -235,6 +269,7 @@ export function makeAutoAnalyze(run: () => Promise<void>, opts: { every?: number
   let timer: ReturnType<typeof setTimeout> | null = null;
   let running: Promise<void> | null = null;
   let closed = false;
+  let started = !opts.waitForStart;
   const fire = () => {
     timer = null;
     if (closed || running) return;
@@ -243,12 +278,18 @@ export function makeAutoAnalyze(run: () => Promise<void>, opts: { every?: number
     running = run().catch((err) => console.warn(`[db] analyze failed: ${(err as Error).message}`)).finally(() => { running = null; });
   };
   const schedule = (ms: number) => {
-    if (closed || timer || !every) return;
+    if (closed || timer || !every || !started) return;
     timer = setTimeout(fire, ms);
     timer.unref?.();
   };
   schedule(opts.firstAfterMs ?? 5000);
   return {
+    /** With `waitForStart`: the first run is due from now (writes counted until now still count). */
+    start() {
+      if (started) return;
+      started = true;
+      schedule(opts.firstAfterMs ?? 5000);
+    },
     wrote() {
       if (!every || ++writes < every) return;
       schedule(Math.max(1000, last + minGapMs - Date.now()));
@@ -274,11 +315,20 @@ async function openEmbedded(dataDir: string): Promise<Db> {
   await lite.waitReady;
   await lite.exec(`set timezone to ${literal(TIME_ZONE)}`);
   // Throw-away test databases are left alone: their plans do not matter and timers would outlive them.
-  const analyze = dataDir === 'memory' ? null : makeAutoAnalyze(async () => { await lite.exec('analyze'); });
+  const analyze = dataDir === 'memory' ? null : makeAutoAnalyze(async () => { await lite.exec('analyze'); }, { waitForStart: true });
   const wrote = analyze ? () => analyze.wrote() : undefined;
+  const writes = makeWriteCounter();
   return {
-    ...wrapLite(lite, wrote),
-    tx: (fn) => lite.transaction((tx) => fn(wrapLite(tx, wrote))) as Promise<any>,
+    ...wrapLite(lite, wrote, writes),
+    tx: async (fn) => {
+      try {
+        return await lite.transaction((tx) => fn(wrapLite(tx, wrote, writes))) as any;
+      } finally {
+        writes.bump(); // committed or rolled back: whatever was read meanwhile is stale either way
+      }
+    },
+    generation: writes.get,
+    started: () => analyze?.start(),
     close: async () => {
       await analyze?.stop();
       await lite.close();
@@ -293,12 +343,14 @@ async function openEmbedded(dataDir: string): Promise<Db> {
 
 type WithClient = <T>(work: (client: pg.ClientBase) => Promise<T>) => Promise<T>;
 
-function wrapPg(withClient: WithClient): Queryable {
+function wrapPg(withClient: WithClient, writes: WriteCounter): Queryable {
   const timed = slowStatementLog();
   const run = (sql: string, params: unknown[]) =>
     withClient(async (client) => {
       const values = params.length ? await prepareParams(client, sql, params) : undefined;
-      return timed(sql, () => client.query(values ? { text: sql, values } : sql));
+      const res = await timed(sql, () => client.query(values ? { text: sql, values } : sql));
+      writes.after(sql, res.rowCount);
+      return res;
     });
   return {
     async query<T>(sql: string, params: unknown[] = []) {
@@ -310,6 +362,7 @@ function wrapPg(withClient: WithClient): Queryable {
     async exec(sql: string) {
       // No parameters: the simple protocol, so a script of several statements runs as one.
       await withClient((client) => timed(sql, () => client.query(sql)));
+      writes.bump();
     },
   };
 }
@@ -372,15 +425,17 @@ export async function openServerDb(opts: ServerDbOptions): Promise<Db> {
   }
 
   let closed = false;
+  const writes = makeWriteCounter();
   return {
-    ...wrapPg(fromPool),
+    ...wrapPg(fromPool, writes),
+    generation: writes.get,
     async tx<T>(fn: (tx: Queryable) => Promise<T>): Promise<T> {
       // A transaction needs one connection for its whole life.
       const client = await acquire();
       let broken: Error | undefined;
       try {
         await client.query('begin');
-        const result = await fn(wrapPg((work) => work(client)));
+        const result = await fn(wrapPg((work) => work(client), writes));
         await client.query('commit');
         return result;
       } catch (err) {
@@ -392,6 +447,9 @@ export async function openServerDb(opts: ServerDbOptions): Promise<Db> {
         throw err;
       } finally {
         client.release(broken);
+        // Other connections read the transaction's rows only from its commit: a figure computed
+        // meanwhile must not be kept as current.
+        writes.bump();
       }
     },
     async close() {

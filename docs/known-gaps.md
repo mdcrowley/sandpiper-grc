@@ -5,22 +5,15 @@ What the prototype does not do yet. Update with every change. The roadmap
 
 ## Not built
 
-- **Sign-in**: single sign-on supports OpenID Connect only. There is no SAML 2.0 (blocked:
-  it cannot be done safely without an XML-signature library) and no directory (LDAP)
-  sign-in.
-- **Email**: email goes out through an SMTP server only; there is no other mail provider
-  (E14-25).
+- **Sign-in**: single sign-on supports OpenID Connect and SAML 2.0, but there is no
+  directory (LDAP) sign-in (E02-26). A sign-out started at a SAML identity provider does not
+  end sessions here (E02-27), and SAML metadata signatures are not checked nor metadata
+  refreshed on a schedule (E02-28).
 - **Workflow engine**: lifecycles are per-module code plus configurable lists, not a
   general workflow designer.
 - **AI assistants (MCP)**: connectors cannot identify themselves with a client ID metadata
   document (E21-21); a connector registers itself (when an administrator allows it) or is
   added by an administrator.
-- **Webhooks** are sent for record changes only, not for other events such as a
-  notification clock running out (E13-19).
-- **Audit log**: events cannot be searched by request id, and the export leaves it out
-  (E13-20).
-- **Vendor response links**: a vendor answers the questions but cannot upload files through
-  the link (E06-22), and the application does not email the link (E06-23).
 
 ## Built but incomplete
 
@@ -29,45 +22,42 @@ What the prototype does not do yet. Update with every change. The roadmap
   existing installation keeps its setting.
 - **Passkeys and security keys**: checked in the browser with a virtual authenticator, not
   yet with hardware keys over real HTTPS.
-- **Identity confirmation**: the prompt (password and second factor) can be used by any
-  screen, but only administration and a few module settings ask for it; the rest have not
-  been reviewed module by module (E01-33).
 - **Default role changes** reach an existing database only when an administrator applies
   them on the Roles page.
 - **Feature switches** (Administration > Features): while Risks and obligations is
   switched off, the hazard risk matrix (kept with the risk scales) cannot be edited, and
   Safety keeps using the saved one. The email digest may still list notifications about a
-  part switched off since. The portal's own switch (service desk portal settings) does
-  not ask to confirm your identity; Administration > Features does.
+  part switched off since. Some editable default wording still reads like a public agency's
+  (for example "Approved by the governing body"; E18-47).
+- **Email**: email goes out over SMTP, Microsoft Graph or the Gmail API. Graph takes
+  messages up to about 3 MB (E14-29), and a throttled message waits the queue's usual
+  back-off rather than the time the service asks for (E14-30).
 - **Backups**: `backup` and `restore` cover the embedded database only; with a PostgreSQL
   server, use `pg_dump` and `pg_restore` (see [Operations](operations.md)). Files kept in
   the object store are not in backups. Restoring a backup and moving files between the
   disk and the object store are done from the command line only. Scheduled backups to a
   second location still need proving on a real installation (E16-08).
 - **Exports and imports**: PDFs made by the server print text outside Western European
-  languages with a font found on the machine (or named in `GRC_PDF_FONTS`); right-to-left
-  text is not reordered, and text mixing scripts that no one font covers prints "?"
-  (E12-16). The check before an import does not run record hooks, so a hook can still
-  refuse a row on the real import (E13-10).
-- **Reports**: a report cannot be grouped by a multi-choice field (E12-15). Saved reports
-  and dashboards can be given custom fields that their dialogs do not ask for (E18-45).
+  languages with a font found on the machine (or named in `GRC_PDF_FONTS`); explicit
+  bidirectional embedding characters are ignored. The check before an import runs
+  validation and before-save rules, but not after-save steps or database constraints
+  (E13-22).
 - **Custom fields**: the portal deliberately does not ask ticket custom fields of
   requesters (they are the service desk's own classification); catalog questions do that
   job.
+- **Vendor response links**: files a vendor sends stay in storage until staff take them
+  over or discard them (E06-24), and the email carrying the link uses the General message
+  template (E06-25).
 - **API**: the `If-Match` check takes its lock in one server process only; several
   processes on one database do not share it.
 - **Hosting**: with a least-privilege database account, adding a custom field still needs
   the database owner (E16-37). The systemd and launchd user services have not been run on
   a real Linux or Mac (E16-35).
 - **Performance**: the embedded database is for evaluation. With several people at once it
-  is slow for the Overview and global search (E16-38); a PostgreSQL server meets the
-  targets.
-- **Fleet**: services are drawn on the relationship map; vehicles are listed in the impact
-  panel but not drawn on the map.
+  was slow for the Overview and global search; changes to both are built but not yet
+  measured (E16-38). A PostgreSQL server meets the targets.
 - **Vendors**: the contract import fills structured dates only where the text is
   unambiguous; the "Complete the dates" queue lists the rest.
-- **Security incidents**: the offline kit prints from the browser (no scheduled PDF,
-  E09-16).
 
 ## Verification status
 
@@ -86,6 +76,7 @@ What the prototype does not do yet. Update with every change. The roadmap
   PostgreSQL 17.
 - Load tested (E16-14, E16-36): a PostgreSQL server meets the targets at about 22,000
   records with 8 people at once; see [Operations](operations.md).
-- Tested only against stand-ins: email to ticket (a fake mail server), OAuth for remote
-  MCP connectors (the MCP SDK's own client), webhook delivery over HTTPS.
+- Tested only against stand-ins: email to ticket, Microsoft Graph and the Gmail API (fake
+  services), SAML sign-in (a stand-in identity provider), OAuth for remote MCP connectors
+  (the MCP SDK's own client), webhook delivery over HTTPS.
 - Not done: an independent security review or penetration test (E16-40).

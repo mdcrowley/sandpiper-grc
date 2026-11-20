@@ -188,7 +188,7 @@ export function defineReportResources(ctx: ModuleContext, sharing: Sharing) {
 
   ctx.defineResource({
     type: 'report_schedule', table: 'report_schedules', module: 'reports',
-    label: 'Schedule', plural: 'Schedules', path: '/api/report-schedules', route: '/reports/schedules', titleField: 'name',
+    label: 'Report schedule', plural: 'Report schedules', path: '/api/report-schedules', route: '/reports/schedules', titleField: 'name',
     searchable: ['name'], defaultSort: { field: 'name', dir: 'asc' },
     fields: {
       name: { label: 'Name', type: 'text', required: true },

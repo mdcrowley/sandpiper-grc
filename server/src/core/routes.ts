@@ -27,6 +27,8 @@ export function registerCoreRoutes({ app, db, audit, lookups, res, custom, notif
   registerApiStore(app, db);
   // List views shared with everyone who can see the list (core/views.ts).
   registerSharedViews({ app, db, audit, res });
+  // The Overview's figures, kept for a few seconds while nothing is written (E16-38).
+  registerFiguresCache(app, db, res);
 
   /** The record, if the caller may see it; otherwise a 404 that does not reveal whether it exists. */
   async function visibleRecord(req: FastifyRequest, type: string, id: string, action = 'view'): Promise<{ def: ResourceDef; row: Row }> {
@@ -177,6 +179,55 @@ export function registerCoreRoutes({ app, db, audit, lookups, res, custom, notif
     // fields matched by substring), so no record table is scanned for it; more words match the
     // title and reference by substring as before.
     const useIndex = s.fts && !s.text.includes(BODY_SEPARATOR);
+    const types = registry.all().filter((def) => mayAccess(req.user, def, 'view'));
+
+    /**
+     * Every indexed type's own matches in one statement (E16-38). The matching rows of the search
+     * index are found once, through its indexes, for all types together (`m`), rather than once per
+     * type, which for a common word read the same index entries some forty times; each type then
+     * ranks only its own, reads its table by id, and only its best few in full for the snippet.
+     */
+    async function indexedMatches(): Promise<Map<string, Row[]>> {
+      const out = new Map<string, Row[]>();
+      const defs = types.filter((def) => res.ftsTypes.has(def.type));
+      if (!useIndex || !defs.length) return out;
+      const params: unknown[] = [];
+      const add = (v: unknown) => { params.push(v); return `$${params.length}`; };
+      const tsq = s.tsquery(add);
+      const like = add(s.like);
+      const text = add(s.text);
+      const parts = defs.map((def) => {
+        const type = add(def.type);
+        const visible = `t.deleted_at is null and ${visibilitySql(def, req.user, 't')}`;
+        const exact = def.ref ? `lower(t.${def.ref.field}::text) = lower(${text}::text)` : 'false';
+        const mine = `(select m.id, m.r from m where m.record_type = ${type}) m`;
+        const from = s.single
+          ? `${mine} join ${def.table} t on t.id = m.id where ${visible}`
+          : `${def.table} t left join ${mine} on m.id = t.id
+             where ${visible} and (m.id is not null or ${exact} or t.${def.titleField}::text ilike ${like}${def.ref ? ` or t.${def.ref.field}::text ilike ${like}` : ''})`;
+        const body = [...new Set([def.titleField, ...(def.searchable ?? [])])].map((c) => `t.${c}::text`).join(', ');
+        return `select ${type}::text as type, x.id, t.${def.titleField}::text as label, ${def.ref ? `t.${def.ref.field}::text` : 'null::text'} as ref,
+                  x.rank::float8 as rank, ts_headline('${SEARCH_CONFIG}', concat_ws(' - ', ${body}), ${tsq}, '${HEADLINE_OPTIONS}') as headline,
+                  row_number() over (order by x.rank desc, x.updated_at desc) as n
+           from (select t.id, t.updated_at,
+                   (coalesce(m.r, 0) + case when ${exact} then 10 else 0 end
+                    + case when t.${def.titleField}::text ilike ${like} then 0.5 else 0 end) as rank
+                 from ${from}
+                 order by rank desc, t.updated_at desc limit ${PER_TYPE}) x
+           join ${def.table} t on t.id = x.id`;
+      });
+      const rows = await db.query<Row>(
+        `with m as materialized (
+           select si.record_type, si.record_id as id, ts_rank(si.vector, ${tsq}) as r from search_index si
+           where si.record_type = any(${add(defs.map((d) => d.type))}::text[]) and (si.vector @@ ${tsq}${s.single ? ` or si.body ilike ${like}` : ''}))
+         ${parts.map((p) => `(${p})`).join('\nunion all\n')}`, params);
+      for (const r of rows.sort((a, b) => Number(a.n) - Number(b.n))) {
+        if (!out.has(r.type)) out.set(r.type, []);
+        out.get(r.type)!.push(r);
+      }
+      return out;
+    }
+    const indexed = await indexedMatches();
 
     /** One type's matches, in the order they are added to the results. */
     async function searchType(def: ResourceDef): Promise<[Row, 'record' | 'comment' | 'attachment', string | null][]> {
@@ -191,26 +242,7 @@ export function registerCoreRoutes({ app, db, audit, lookups, res, custom, notif
       const fts = s.fts && res.ftsTypes.has(def.type);
 
       if (fts && useIndex) {
-        const tsq = s.tsquery(add);
-        const exact = def.ref ? `lower(t.${def.ref.field}::text) = lower(${add(s.text)}::text)` : 'false';
-        const matches = `(select si.record_id as id, ts_rank(si.vector, ${tsq}) as r from search_index si
-          where si.record_type = ${add(def.type)} and (si.vector @@ ${tsq}${s.single ? ` or si.body ilike ${like}` : ''})) m`;
-        const from = s.single
-          ? `${matches} join ${def.table} t on t.id = m.id where ${visible}`
-          : `${def.table} t left join ${matches} on m.id = t.id
-             where ${visible} and (m.id is not null or ${exact} or t.${def.titleField}::text ilike ${like}${def.ref ? ` or t.${def.ref.field}::text ilike ${like}` : ''})`;
-        const body = [...new Set([def.titleField, ...(def.searchable ?? [])])].map((c) => `t.${c}::text`).join(', ');
-        // The best few are chosen on ids and ranks alone; only they are read in full for the snippet.
-        const rows = await db.query<Row>(
-          `select x.id, ${label}, x.rank, ts_headline('${SEARCH_CONFIG}', concat_ws(' - ', ${body}), ${tsq}, '${HEADLINE_OPTIONS}') as headline
-           from (select t.id, t.updated_at,
-                   (coalesce(m.r, 0) + case when ${exact} then 10 else 0 end
-                    + case when t.${def.titleField}::text ilike ${like} then 0.5 else 0 end) as rank
-                 from ${from}
-                 order by rank desc, t.updated_at desc limit ${PER_TYPE}) x
-           join ${def.table} t on t.id = x.id
-           order by x.rank desc, x.updated_at desc`, params);
-        for (const r of rows) out.push([r, 'record', r.headline]);
+        for (const r of indexed.get(def.type) ?? []) out.push([r, 'record', r.headline]);
       } else if (fts) {
         // A query holding the substring separator (never typed in practice): read the type's table.
         const tsq = s.tsquery(add);
@@ -259,7 +291,6 @@ export function registerCoreRoutes({ app, db, audit, lookups, res, custom, notif
     // A few types at a time: a PostgreSQL server answers them side by side; the embedded database
     // takes them in turn either way. Results are merged in the registry's order, so ties come out
     // the same whatever finished first.
-    const types = registry.all().filter((def) => mayAccess(req.user, def, 'view'));
     const results: Awaited<ReturnType<typeof searchType>>[] = new Array(types.length);
     let next = 0;
     await Promise.all(Array.from({ length: Math.min(4, types.length) }, async () => {
@@ -385,6 +416,12 @@ export function registerCoreRoutes({ app, db, audit, lookups, res, custom, notif
     if (query.record_type) where.push(`record_type = ${add(query.record_type)}`);
     if (query.record_id) where.push(`record_id = ${add(query.record_id)}`);
     if (query.actor_id) where.push(`actor_id::text = ${add(query.actor_id)}`);
+    // Every event of one request (E13-20): the id is the answer's X-Request-Id header.
+    if (query.request_id) {
+      const rid = String(query.request_id).trim();
+      if (rid.length > 200) fail(400, 'bad_filter', '"request_id" is too long.');
+      if (rid) where.push(`request_id = ${add(rid)}`);
+    }
     for (const k of ['from', 'to'] as const) {
       if (query[k] && Number.isNaN(Date.parse(query[k]))) fail(400, 'bad_filter', `"${k}" must be a date or a date and time.`);
     }
@@ -411,7 +448,7 @@ export function registerCoreRoutes({ app, db, audit, lookups, res, custom, notif
       await audit(req, { action: 'audit.export', summary: `Exported ${rows.length} audit events to CSV` });
       reply.header('content-type', 'text/csv; charset=utf-8');
       reply.header('content-disposition', 'attachment; filename="audit-export.csv"');
-      const cols = ['id', 'at', 'actor_name', 'ip', 'action', 'record_type', 'record_id', 'summary', 'before', 'after'];
+      const cols = ['id', 'at', 'actor_name', 'token_name', 'request_id', 'ip', 'action', 'record_type', 'record_id', 'summary', 'before', 'after'];
       return '﻿' + [cols.join(','), ...rows.map((r) => cols.map((c) => esc(r[c])).join(','))].join('\r\n');
     }
     const pageSize = Math.min(500, Math.max(1, Number(query.pageSize) || 50));
@@ -478,4 +515,112 @@ export function registerCoreRoutes({ app, db, audit, lookups, res, custom, notif
     await audit(req, { action: 'lookup.retire', recordType: 'lookup', recordId: id, summary: `Retired "${row!.label}" in ${row!.list_key}` });
     return { ok: true };
   });
+}
+
+// ---------- figures cache (E16-38) ----------
+
+/**
+ * The Overview's figure routes, and whether a figure depends on who asks beyond their permissions
+ * (`person`: it holds the caller's own counts, such as "mine"). A record type's `/stats` route is a
+ * figure too; it depends on the person only when a filter names "me".
+ */
+export const FIGURE_ROUTES: Record<string, 'viewer' | 'person'> = {
+  '/api/tickets/metrics': 'viewer',
+  '/api/risks/summary': 'viewer',
+  '/api/actions/summary': 'person',
+  '/api/vulnerabilities/summary': 'viewer',
+  '/api/projects/portfolio': 'viewer',
+  '/api/contracts/renewals': 'viewer',
+  '/api/training/summary': 'viewer',
+};
+
+/** `GRC_FIGURES_CACHE_SECONDS` (default 10; 0 switches the cache off). Off by default in tests. */
+export function figuresCacheMs(): number {
+  const raw = process.env.GRC_FIGURES_CACHE_SECONDS;
+  if (raw === undefined || raw.trim() === '') return process.env.VITEST ? 0 : 10_000;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? Math.min(n, 300) * 1000 : 0;
+}
+
+interface Kept { generation: number; at: number; body: string; type: string }
+interface Pending { key: string; generation: number; done: Promise<Kept | null>; resolve: (k: Kept | null) => void }
+
+/**
+ * Keeps the answer of a figure route for a few seconds, and only while nothing has been written
+ * (`db.generation()` grows on every change; a write anywhere empties it at once). Answers are kept
+ * per set of permissions and switched-off areas (they decide every figure, which is the same for
+ * everyone who sees it; restricted records are counted for all), and per person for the routes
+ * that hold the caller's own counts. Callers asking at the same moment wait for one computation
+ * instead of each running it, which is what makes the Overview fast with several people at once
+ * on the embedded database (it answers one statement at a time). Only a 200 answer is kept. The
+ * feature switches and the route's own permission check run before the cache is looked at.
+ */
+export function registerFiguresCache(app: FastifyInstance, db: Db, res: ReturnType<typeof makeResources>) {
+  const ttl = figuresCacheMs();
+  if (!ttl || !db.generation) return { clear() { /* off */ }, size: () => 0 };
+  const generation = db.generation.bind(db);
+  const kept = new Map<string, Kept>();
+  const pending = new Map<string, Pending>();
+  const mine = new WeakMap<FastifyRequest, Pending>();
+  let statsRoutes = new Set<string>();
+  app.addHook('onReady', async () => { statsRoutes = new Set(res.registry.all().map((d) => `${d.path}/stats`)); });
+
+  const keyOf = (req: FastifyRequest): string | null => {
+    if (req.method !== 'GET' || !req.user) return null;
+    const route = req.routeOptions?.url ?? '';
+    const query = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+    let scope = FIGURE_ROUTES[route];
+    if (!scope && statsRoutes.has(route)) scope = /(^|[=,])me(,|&|$)/.test(decodeURIComponent(query.slice(1))) ? 'person' : 'viewer';
+    if (!scope) return null;
+    const u = req.user;
+    const who = scope === 'person' ? `u:${u.id}` : `p:${[...u.permissions].sort().join(',')}`;
+    return `${who}|off:${[...(u.off ?? [])].sort().join(',')}|${route}${query}`;
+  };
+
+  // Registered after the feature gate (core/features.ts), so a switched-off area answers 404 first;
+  // the route's own permission check (its preHandler) runs after this, and a stored answer exists
+  // only for a set of permissions that passed it.
+  app.addHook('preHandler', async (req, reply) => {
+    const key = keyOf(req);
+    if (!key) return;
+    const now = generation();
+    const hit = kept.get(key);
+    if (hit && hit.generation === now && Date.now() - hit.at < ttl) return reply.type(hit.type).send(hit.body);
+    const busy = pending.get(key);
+    if (busy && busy.generation === now) {
+      // Someone with the same permissions is computing it right now: wait for that answer (at most 30 s).
+      const done = await Promise.race([busy.done, new Promise<null>((r) => setTimeout(() => r(null), 30_000).unref())]);
+      if (done && done.generation === generation()) return reply.type(done.type).send(done.body);
+    }
+    let resolve!: (k: Kept | null) => void;
+    const entry: Pending = { key, generation: now, done: new Promise<Kept | null>((r) => { resolve = r; }), resolve: (k) => resolve(k) };
+    pending.set(key, entry);
+    mine.set(req, entry);
+  });
+
+  const finish = (req: FastifyRequest, value: Kept | null) => {
+    const entry = mine.get(req);
+    if (!entry) return;
+    mine.delete(req);
+    if (pending.get(entry.key) === entry) pending.delete(entry.key);
+    entry.resolve(value);
+  };
+
+  app.addHook('onSend', async (req, reply, payload) => {
+    const m = mine.get(req);
+    if (!m) return payload;
+    let value: Kept | null = null;
+    if (reply.statusCode === 200 && typeof payload === 'string') {
+      value = { generation: m.generation, at: Date.now(), body: payload, type: String(reply.getHeader('content-type') ?? 'application/json; charset=utf-8') };
+      if (kept.size >= 1000) kept.clear();
+      kept.set(m.key, value);
+    }
+    finish(req, value);
+    return payload;
+  });
+  // A request that ended without an answer (an error, a closed connection) lets the others compute.
+  app.addHook('onResponse', async (req) => finish(req, null));
+  app.addHook('onRequestAbort', async (req) => finish(req, null));
+
+  return { clear: () => kept.clear(), size: () => kept.size };
 }

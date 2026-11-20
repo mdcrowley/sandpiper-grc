@@ -294,7 +294,7 @@ describe('report query: custom fields', () => {
 });
 
 describe('report query: multi-choice custom fields and value order (E12-13)', () => {
-  it('shows a multi-choice field as a column and filters by it, but never groups by it', async () => {
+  it('shows a multi-choice field as a column, filters by it and groups by it (E12-15)', async () => {
     const tags = await t.api.post('/api/admin/custom-fields', {
       record_type: 'rt_thing', label: 'Lines served', key: 'lines', type: 'multiselect',
       options: [{ value: 'red', label: 'Red line', color: 'red' }, { value: 'blue', label: 'Blue line', color: 'blue' }, { value: 'green', label: 'Green line', color: 'green' }],
@@ -306,7 +306,7 @@ describe('report query: multi-choice custom fields and value order (E12-13)', ()
     await t.ctx.resources.update('rt_thing', by.B, { cf_lines: ['green'] });
 
     const cat = (await t.api.get('/api/reports/catalog')).body.types.find((x: any) => x.type === 'rt_thing');
-    expect(cat.fields.find((f: any) => f.path === 'cf_lines')).toMatchObject({ type: 'lookup', multiple: true, group: false, sum: false });
+    expect(cat.fields.find((f: any) => f.path === 'cf_lines')).toMatchObject({ type: 'lookup', multiple: true, group: true, sum: false });
 
     const cols = await run(t.api, { type: 'rt_thing', columns: ['name', 'cf_lines'], sort: [{ by: 'name' }] });
     expect(cols.status, JSON.stringify(cols.body)).toBe(200);
@@ -322,9 +322,34 @@ describe('report query: multi-choice custom fields and value order (E12-13)', ()
     const empty = await run(t.api, { type: 'rt_thing', filters: { op: 'and', items: [{ field: 'cf_lines', op: 'empty' }] }, aggregates: [{ fn: 'count' }] });
     expect(empty.body.rows[0].v.a0).toBe(4);
 
-    const grouped = await run(t.api, { type: 'rt_thing', groupBy: [{ field: 'cf_lines' }] });
-    expect(grouped.status).toBe(400);
-    expect(grouped.body.error.message).toMatch(/several values/);
+    // Grouped: each record counts once under each of its values, records with none under "None",
+    // and the result says so; the total stays the number of records.
+    const all = (await t.db.one<{ n: number }>(`select count(*)::int n from rt_things where deleted_at is null`))!.n;
+    const grouped = await run(t.api, { type: 'rt_thing', groupBy: [{ field: 'cf_lines' }], aggregates: [{ fn: 'count' }, { fn: 'pct' }] });
+    expect(grouped.status, JSON.stringify(grouped.body)).toBe(200);
+    expect(byLabel(grouped.body)).toEqual({ 'Red line': 1, 'Blue line': 1, 'Green line': 1, None: all - 2 });
+    expect(grouped.body.total).toBe(all);
+    expect(grouped.body.columns[0]).toMatchObject({ multiple: true, values: ['Red line', 'Blue line', 'Green line', 'None'] });
+    expect(grouped.body.columns[2].label).toBe('Share of records');
+    expect(byLabel(grouped.body, 'a1')['Red line']).toBe(Math.round((1000 / all)) / 10);
+    expect(grouped.body.countingNote).toMatch(/counted once under each of them.*more than the \d+ test things that match/);
+    const red = grouped.body.rows.find((r: any) => r.d.g0 === 'Red line');
+    expect(decodeURIComponent(red.drill)).toBe('f.cf_lines=red');
+    // The same figures for a role that may see fewer records (figures count every record).
+    const viewer = await run(await t.as('agent'), { type: 'rt_thing', groupBy: [{ field: 'cf_lines' }] });
+    if (viewer.status === 200) expect(byLabel(viewer.body)).toEqual(byLabel(grouped.body));
+    // A pivot's totals count each record once.
+    const p = await run(t.api, { type: 'rt_thing', groupBy: [{ field: 'status' }, { field: 'cf_lines' }], pivot: true });
+    expect(p.status, JSON.stringify(p.body)).toBe(200);
+    expect(p.body.pivot.grand).toBe(all);
+    expect(p.body.pivot.rowTotals.reduce((n: number, v: number) => n + v, 0)).toBe(all);
+    expect(p.body.pivot.colTotals.reduce((n: number, v: number) => n + v, 0)).toBe(all + 1);
+    expect(p.body.countingNote).toMatch(/The totals count each record once/);
+    // A share of a field's total would share a record more than once: refused.
+    const share = await run(t.api, { type: 'rt_thing', groupBy: [{ field: 'cf_lines' }], aggregates: [{ fn: 'pct', field: 'amount' }] });
+    expect(share.status).toBe(400);
+    // Without a multi-choice grouping nothing changes.
+    expect((await run(t.api, { type: 'rt_thing', groupBy: [{ field: 'status' }] })).body.countingNote).toBeUndefined();
     expect((await run(t.api, { type: 'rt_thing', filters: { op: 'and', items: [{ field: 'cf_lines', op: 'contains', value: 'x' }] } })).status).toBe(400);
   });
 

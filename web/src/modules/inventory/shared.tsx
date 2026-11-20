@@ -145,3 +145,18 @@ export function RelatedWork({ field, id, noun }: { field: 'system_id' | 'asset_i
     </Stack>
   );
 }
+
+/** The asset fields of the "outside funder interest" option (Administration > Features; E18-28). */
+export const FUNDER_FIELDS = ['funder_interest', 'funder_interest_pct'];
+
+/**
+ * Whether the "outside funder interest" option is on, and the name the installation gives it. The
+ * fields are in the asset metadata only while it is on; the disposal rule follows it on the server.
+ */
+export function useFunder(): { on: boolean; label: string } {
+  const field = useResource('asset')?.fields.funder_interest;
+  return { on: Boolean(field), label: field?.label ?? 'Funder interest' };
+}
+
+/** A list of asset fields without the funder-interest ones when that option is off. */
+export const funderFields = (fields: string[], on: boolean) => (on ? fields : fields.filter((f) => !FUNDER_FIELDS.includes(f)));

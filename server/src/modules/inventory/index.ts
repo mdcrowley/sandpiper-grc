@@ -2,7 +2,7 @@ import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
 import { registerDisposalRequests, ROUTED_ONLY } from './disposal.ts';
 import { registerImport } from './importer.ts';
 import { registerReminders } from './reminders.ts';
-import { disposalProblem, registerLifecycle, today } from './lifecycle.ts';
+import { disposalProblem, funderRuleOn, registerLifecycle, today } from './lifecycle.ts';
 import { registerRelations } from './relations.ts';
 import { registerReports } from './reports.ts';
 import { seedInventory } from './seed.ts';
@@ -291,7 +291,7 @@ async function checkAsset(ctx: ModuleContext, merged: Row, patch: Row, existing:
     ctx.fail(400, 'validation', 'Check the highlighted fields.', { funder_interest_pct: 'Enter a percentage between 0 and 100.' });
   }
   if (merged.status === 'disposed' && existing?.status !== 'disposed') {
-    const problem = disposalProblem(merged, (await ctx.settings.get<boolean>(ROUTED_ONLY, false)) === true);
+    const problem = disposalProblem(merged, (await ctx.settings.get<boolean>(ROUTED_ONLY, false)) === true, await funderRuleOn(ctx));
     if (problem) ctx.fail(problem.status, problem.code, problem.message, problem.fields);
     if (!merged.disposed_on) patch.disposed_on = today();
   }

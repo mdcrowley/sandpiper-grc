@@ -15,7 +15,7 @@
 // Never point it at a real installation: it creates thousands of invented records.
 
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { cpus, tmpdir, totalmem } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -35,7 +35,7 @@ if (flag('help')) {
   console.log(readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(1, 17).map((l) => l.replace(/^\/\/ ?/, '')).join('\n'));
   process.exit(0);
 }
-const scale = Number(opt('scale', '1'));
+let scale = Number(opt('scale', '1')); // with --reuse: the scale of the kept records
 const concurrency = Number(opt('concurrency', '8'));
 const duration = Number(opt('duration', '15')) * 1000;
 const port = Number(opt('port', process.env.GRC_PORT ?? '8190'));
@@ -43,7 +43,11 @@ const outDir = resolve(opt('out', join(root, 'tools/load/out')));
 const ops = flag('ops');
 const keep = flag('keep');
 const only = opt('only', '') ? opt('only', '').split(',') : null;
+// A folder kept by an earlier run (--keep): its data is copied and measured again without seeding.
+const reuse = opt('reuse', '') ? resolve(opt('reuse', '')) : '';
+const seedOnly = flag('seed-only');
 let base = opt('base', '');
+if (reuse && base) throw new Error('--reuse starts its own instance; leave out --base.');
 const user = opt('user', 'loadtest');
 const password = opt('password', 'load-test-Passw0rd-only');
 
@@ -54,17 +58,70 @@ const VOLUME = {
   change: 1500, vulnerability: 1500, policy: 120, project: 150, vehicle: 400, hazard: 300, knowledge_article: 400,
 };
 
-// Invented words for titles and descriptions (nothing real).
+// Invented text for titles and descriptions (nothing real). Real text is far from uniform: a few
+// words are in many records and most words are in few (E16-38). Words are therefore drawn with a
+// Zipf distribution (the word of rank r about 1/r as often as the first) from a vocabulary of a
+// few hundred, transit and IT words first, so common words match thousands of records and most
+// match a handful. Searches pick a word of the vocabulary at random, as people search for the
+// particular thing they want, sometimes two words, sometimes a code or a word nothing contains.
 const WORDS = ('depot bus railcar platform fare validator dispatch radio signal shelter timetable route garage ' +
   'paratransit scheduling camera badge door brake battery charger network switch firewall laptop tablet printer ' +
   'portal backup outage update patch training inspection hazard slip lighting ramp escalator elevator kiosk ' +
   'invoice renewal contract license audit review policy exception incident alert phishing password account ' +
-  'access request replacement failure delay noise leak heater cooling sensor counter display announcement').split(' ');
+  'access request replacement failure delay noise leak heater cooling sensor counter display announcement ' +
+  'server router cable fiber antenna modem keyboard monitor screen mouse headset phone voicemail email mailbox ' +
+  'calendar spreadsheet report dashboard database query login token certificate encryption malware virus ' +
+  'quarantine scanner vulnerability firmware driver installer subscription renewal warranty repair ' +
+  'maintenance overhaul wheel axle tire wiper mirror seat handrail stanchion ticket machine turnstile gate ' +
+  'barrier fence canopy bench bin graffiti vandalism litter spill fuel diesel electric hybrid hydrogen pantograph ' +
+  'catenary substation transformer breaker fuse generator inverter compressor pump valve pipe drain gutter roof ' +
+  'window glass frame panel bracket bolt weld crack corrosion rust paint coating marking stripe sign beacon ' +
+  'horn bell chime speaker intercom alarm smoke fire extinguisher sprinkler exit stair corridor tunnel bridge ' +
+  'viaduct track rail sleeper ballast switchgear interlocking crossing level siding yard workshop wash bay ' +
+  'lift hoist crane forklift pallet shelf locker uniform glove helmet vest goggles harness ladder scaffold ' +
+  'driver operator mechanic technician supervisor controller planner analyst manager inspector cleaner guard ' +
+  'passenger customer complaint feedback survey compliment refund claim lost property wheelchair stroller ' +
+  'bicycle rack accessibility hearing loop braille tactile paving announcement audio visual timetable headway ' +
+  'frequency punctuality detour diversion closure roadwork weather snow ice flood heat wind storm lightning ' +
+  'power cut blackout restart reboot freeze crash slow timeout error warning message popup notification ' +
+  'sync upload download transfer import export archive retention deletion privacy consent breach exposure ' +
+  'leakage disclosure ransom extortion spoofing impersonation fraud theft loss damage injury collision ' +
+  'near miss trip fall burn cut strain fatigue stress shift roster overtime leave absence handover briefing ' +
+  'toolbox talk drill exercise rehearsal tabletop scenario plan procedure checklist standard guideline ' +
+  'framework control objective outcome evidence finding observation recommendation remediation mitigation ' +
+  'owner deadline milestone budget estimate quote purchase order receipt delivery shipment supplier ' +
+  'onboarding offboarding termination transfer promotion vacancy recruitment induction mentoring coaching').split(' ');
 let seed = 42;
+let serial = 0;
 const rand = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
 const pick = (a) => a[Math.floor(rand() * a.length)];
-const phrase = (n) => Array.from({ length: n }, () => pick(WORDS)).join(' ');
+// Cumulative Zipf weights over WORDS, for a binary search per word.
+const ZIPF = (() => {
+  const acc = [];
+  let sum = 0;
+  for (let r = 1; r <= WORDS.length; r++) acc.push((sum += 1 / r));
+  return acc.map((v) => v / sum);
+})();
+const zipfWord = () => {
+  const x = rand();
+  let lo = 0;
+  let hi = ZIPF.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (ZIPF[mid] < x) lo = mid + 1; else hi = mid;
+  }
+  return WORDS[lo];
+};
+const phrase = (n) => Array.from({ length: n }, zipfWord).join(' ');
 const sentence = () => `${phrase(1)[0].toUpperCase()}${phrase(8).slice(1)}.`;
+/** What one person types into a search box: usually one word, sometimes two, a number or a miss. */
+const searchText = () => {
+  const x = rand();
+  if (x < 0.65) return pick(WORDS);
+  if (x < 0.85) return `${pick(WORDS)} ${pick(WORDS)}`;
+  if (x < 0.95) return String(Math.floor(rand() * 99999));
+  return `${pick(WORDS)}x${Math.floor(rand() * 99)}`; // a typing mistake: matches nothing
+};
 
 // ---------------------------------------------------------------------------------------------
 // HTTP
@@ -162,7 +219,7 @@ function cli(...args) {
 // Seeding
 
 async function signIn() {
-  if (scratch) {
+  if (scratch && !reuse) {
     const r = await call('POST', '/api/setup', { username: user, email: 'loadtest@example.test', displayName: 'Load test', password, secondFactor: 'notice' });
     if (r.status !== 200) throw new Error(`setup failed: ${r.status} ${JSON.stringify(r.json)}`);
     cookie = (r.headers.get('set-cookie') ?? '').split(';')[0];
@@ -179,7 +236,8 @@ const created = {}; // type -> ids
 
 function valueFor(name, field, type) {
   switch (field.type) {
-    case 'text': return name === 'ref' ? undefined : `${phrase(3)} ${Math.floor(rand() * 9999)}`;
+    // A number that never repeats, so a field that must be unique (a fleet number) is.
+    case 'text': return name === 'ref' ? undefined : `${phrase(3)} ${10000 + ++serial}`;
     case 'longtext': return `${sentence()} ${sentence()}`;
     case 'number': return Math.floor(rand() * 100);
     case 'currency': return Math.round(rand() * 50000);
@@ -316,10 +374,10 @@ async function scenarios() {
     const status = pick(meta.lookups.ticket_status ?? [{ value: 'new' }]).value;
     return ok(await call('GET', `${tickets}?f.status=${status}&pageSize=50`));
   });
-  await run('ticket list, full-text query', async () => ok(await call('GET', `${tickets}?q=${encodeURIComponent(phrase(1))}&pageSize=50`)));
+  await run('ticket list, full-text query', async () => ok(await call('GET', `${tickets}?q=${encodeURIComponent(searchText())}&pageSize=50`)));
   await run('ticket stats by status', async () => ok(await call('GET', `${tickets}/stats?group=status`)));
   await run('any list, first page (all types)', async () => ok(await call('GET', `${pick(lists).path}?page=1&pageSize=50`)));
-  await run('global search', async () => ok(await call('GET', `/api/search?q=${encodeURIComponent(phrase(1))}`)));
+  await run('global search', async () => ok(await call('GET', `/api/search?q=${encodeURIComponent(searchText())}`)));
   await run('one record', async () => {
     const d = pick(lists);
     return ok(await call('GET', `${d.path}/${pick(created[d.type])}`));
@@ -331,10 +389,18 @@ async function scenarios() {
     '/api/notifications?unread=true&pageSize=5', '/api/me/watching'];
   const present = [];
   for (const path of overview) if ((await call('GET', path)).status !== 404) present.push(path);
+  const parts = Object.fromEntries(present.map((p) => [p, []]));
   await run(`overview dashboard (${present.length} calls together)`, async () => {
     const all = await Promise.all(present.map((p) => call('GET', p)));
+    all.forEach((r, i) => parts[present[i]].push(r.ms));
     return all.map(ok).find(Boolean) ?? null;
   });
+  // Which of the Overview's calls people waited for: the 95th percentile of each, under the same load.
+  const overviewRow = rows.find((r) => r.scenario.startsWith('overview'));
+  if (overviewRow) {
+    overviewRow.calls = Object.fromEntries(Object.entries(parts).map(([p, t]) => [p, Math.round(percentile(t.sort((a, b) => a - b), 95))]));
+    console.log(`    each call, p95 ms: ${Object.entries(overviewRow.calls).map(([p, ms]) => `${p.replace('/api/', '')} ${ms}`).join(', ')}`);
+  }
 
   await run('save: create a ticket', async () => {
     const r = await create('ticket', recordFor('ticket'));
@@ -381,7 +447,7 @@ function markdown(result) {
     '',
     `Scale ${result.scale}, ${result.concurrency} people at once, ${result.durationSeconds} s per scenario, ${result.database}.`,
     `Machine: ${result.machine.cpus} x ${result.machine.cpu}, ${result.machine.memoryGb} GB, ${result.machine.platform}, Node.js ${result.machine.node}. Version ${result.version}.`,
-    `Requests that got no answer at all (each tried again once): ${result.networkErrors}.`,
+    `Requests that got no answer at all (each tried again once): ${result.networkErrors}.${result.startSeconds !== null ? ` The instance started (answered) in ${result.startSeconds} s.` : ''}`,
     '',
     '| Records | Created | Refused | Seconds | Per second |', '|---|---:|---:|---:|---:|',
     ...result.seeded.map((s) => `| ${s.type} | ${s.created} | ${s.failed} | ${s.seconds} | ${s.perSecond} |`),
@@ -389,26 +455,62 @@ function markdown(result) {
     '| Scenario | Requests | Errors | Per second | p50 ms | p95 ms | p99 ms | max ms |', '|---|---:|---:|---:|---:|---:|---:|---:|',
     ...result.scenarios.map((r) => `| ${r.scenario} | ${r.requests} | ${r.errors} | ${r.perSecond} | ${r.p50} | ${r.p95} | ${r.p99} | ${r.max} |`),
   ];
+  const overview = result.scenarios.find((r) => r.calls);
+  if (overview) {
+    lines.push('', '| Overview call (under the same load) | p95 ms |', '|---|---:|', ...Object.entries(overview.calls).map(([p, ms]) => `| ${p} | ${ms} |`));
+  }
   if (result.operations?.length) {
     lines.push('', '| Operation | Seconds |', '|---|---:|', ...result.operations.map((o) => `| ${o.operation} | ${o.seconds} |`));
   }
   return `${lines.join('\n')}\n`;
 }
 
+/** Seconds from starting the instance until it answered (its start-up work at this volume, E16-39). */
+let startSeconds = null;
+
 async function main() {
   if (!base) {
     if (!existsSync(tsx)) throw new Error('Install the packages first (npm install).');
     base = `http://127.0.0.1:${port}`;
     mkdirSync(env.GRC_SEED_DIR, { recursive: true });
+    if (reuse) {
+      if (!existsSync(join(reuse, 'data')) || !existsSync(join(reuse, 'created.json'))) throw new Error(`${reuse} is not a folder kept by --keep (no data or created.json).`);
+      console.log(`Copying the data kept in ${reuse}...`);
+      cpSync(join(reuse, 'data'), env.GRC_DATA_DIR, { recursive: true, filter: (src) => !/grc\.(pid|stop)$/.test(src) });
+    }
     console.log(`Starting a throw-away instance in ${scratch} on port ${port}...`);
+    const t0 = performance.now();
     startServer();
-    if (!(await waitHealthy(120000))) throw new Error('The instance did not start (LOAD_VERBOSE=1 shows its output).');
+    if (!(await waitHealthy(300000))) throw new Error(`The instance did not start${serverExit ? ` (${serverExit}): ${serverTail.join('').slice(-1500)}` : ' (LOAD_VERBOSE=1 shows its output)'}.`);
+    startSeconds = Math.round((performance.now() - t0) / 100) / 10;
+    console.log(`  started in ${startSeconds} s`);
   } else {
     console.log(`Using ${base}: it gets thousands of invented records.`);
   }
   await signIn();
-  console.log(`Seeding (scale ${scale})...`);
-  const seeded = await seedAll();
+  let seeded;
+  if (reuse) {
+    const kept = JSON.parse(readFileSync(join(reuse, 'created.json'), 'utf8'));
+    meta = (await call('GET', '/api/meta')).json;
+    me = (await call('GET', '/api/auth/state')).json?.user?.id;
+    Object.assign(created, kept.created);
+    seeded = kept.seeded;
+    scale = kept.scale;
+    console.log(`Measuring the records kept in ${reuse} (scale ${kept.scale}).`);
+    // A copied folder starts with the planner statistics of when it was kept; the embedded database
+    // gathers them again shortly after it starts (core/db.ts). Measure after that, as a long-running
+    // installation would be.
+    await new Promise((r) => setTimeout(r, 12_000));
+  } else {
+    console.log(`Seeding (scale ${scale})...`);
+    seeded = await seedAll();
+    // Kept beside the data, so that --reuse can measure the same records again.
+    if (scratch) writeFileSync(join(scratch, 'created.json'), JSON.stringify({ scale, seeded, created }));
+  }
+  if (seedOnly) {
+    console.log('Seeded; nothing measured (--seed-only, usually with --keep).');
+    return 0;
+  }
   console.log(`Measuring (${concurrency} at once, ${duration / 1000} s each)...`);
   const rows = await scenarios();
   const state = (await call('GET', '/api/version')).json;
@@ -421,7 +523,7 @@ async function main() {
     at: new Date().toISOString(), version: state?.version ?? 'unknown', scale, concurrency, durationSeconds: duration / 1000,
     database: process.env.GRC_DATABASE_URL ? 'PostgreSQL server' : 'embedded database',
     machine: { cpus: cpus().length, cpu: cpus()[0]?.model.trim(), memoryGb: Math.round(totalmem() / 1073741824), platform: `${process.platform}-${process.arch}`, node: process.version },
-    seeded, scenarios: rows, operations: opsRows, networkErrors,
+    startSeconds, seeded, scenarios: rows, operations: opsRows, networkErrors,
   };
   mkdirSync(outDir, { recursive: true });
   const stamp = result.at.replace(/[:.]/g, '-');

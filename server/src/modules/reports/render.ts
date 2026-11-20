@@ -145,7 +145,8 @@ function section(s: DocSection): string {
     body = `${r.mode === 'groups' && !r.pivot && s.chart !== 'table' ? bars(r) : ''}${table(r)}`;
   }
   const foot = `${r.total} ${(r.total === 1 ? r.typeLabel : r.plural).toLowerCase()}${r.truncated ? ' (the list is cut short; export to CSV for every row)' : ''}`;
-  return `<section>${head}${body}<p class="foot">${esc(foot)}</p></section>`;
+  const counting = r.countingNote ? `<p class="foot">${esc(r.countingNote)}</p>` : '';
+  return `<section>${head}${body}${counting}<p class="foot">${esc(foot)}</p></section>`;
 }
 
 const CSS = `

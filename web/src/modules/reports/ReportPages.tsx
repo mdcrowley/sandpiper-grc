@@ -2,11 +2,12 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
-  Button, Card, ConfirmDialog, EmptyState, ErrorState, Forbidden, Icon, Loading, LookupChip, Menu, NotFound, PageHeader, ResourceList,
+  Button, Card, ConfirmDialog, CustomFieldsCard, EmptyState, ErrorState, Forbidden, Icon, Loading, LookupChip, Menu, NotFound, PageHeader, ResourceList,
   api, errorMessage, formatDateTime, useAuth, useFetch, useMeta, useToast,
 } from '../../core';
 import type { ApiError } from '../../core';
 import { CHART_KINDS } from './BuilderParts';
+import { CustomFieldsLink, customValues, fieldMessages } from './custom';
 import { downloadFile, fileName, openDocument } from './data';
 import { AddToDashboardDialog, ScheduleDialog, ShareDialog, useCanChange } from './dialogs';
 import { ResultView, useDrill } from './ResultView';
@@ -29,7 +30,12 @@ export function ReportsPage() {
       ]}
       filters={['sharing', 'owner_id']}
       bulkFields={[]}
-      actions={can('reports.create') ? <Link className="btn btn-primary" to="/reports/new"><Icon name="plus" size={16} /> New report</Link> : undefined}
+      actions={(
+        <>
+          <CustomFieldsLink type="report_definition" />
+          {can('reports.create') && <Link className="btn btn-primary" to="/reports/new"><Icon name="plus" size={16} /> New report</Link>}
+        </>
+      )}
     />
   );
 }
@@ -94,10 +100,10 @@ export function ReportView() {
               { label: 'Refresh the figures', icon: 'refresh', onSelect: run.reload },
               ...(can('reports.create') ? [{ label: 'Save a copy', icon: 'plus' as const, onSelect: async () => {
                 try {
-                  const copy = await api.post<ReportDefinition>('/api/reports', { name: `${report.name} (copy)`, description: report.description, spec: report.spec, chart: report.chart });
+                  const copy = await api.post<ReportDefinition>('/api/reports', { name: `${report.name} (copy)`, description: report.description, spec: report.spec, chart: report.chart, ...customValues(report) });
                   toast.success('Copy saved. It is yours to change.');
                   navigate(`/reports/${copy.id}/edit`);
-                } catch (err) { toast.error(errorMessage(err)); }
+                } catch (err) { toast.error(fieldMessages(err) ?? errorMessage(err)); }
               } }] : []),
               ...(canChange && can('reports.delete') ? [{ label: 'Delete', icon: 'trash' as const, danger: true, separated: true, onSelect: () => setDialog('delete') }] : []),
             ]} />
@@ -124,6 +130,8 @@ export function ReportView() {
             </div>
           )}
       </Card>
+
+      <CustomFieldsCard type="report_definition" row={report} onSaved={def.reload} />
 
       <ShareDialog open={dialog === 'share'} onClose={() => setDialog(null)} path="/api/reports" item={report} what="report" onSaved={def.reload} />
       <ScheduleDialog open={dialog === 'schedule'} onClose={() => setDialog(null)} target={{ type: 'report', id: report.id, name: report.name }} />

@@ -8,7 +8,7 @@ import type { ModuleContext, Row, SessionUser } from '../../core/module.ts';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export type NodeType = 'system' | 'vendor' | 'site' | 'asset' | 'data_category' | 'service';
+export type NodeType = 'system' | 'vendor' | 'site' | 'asset' | 'data_category' | 'service' | 'vehicle';
 /** `attrs` carries what the map groups and colors by: criticality, hosting and status of a system; sensitivity of a data category. */
 export interface GraphNode { id: string; type: NodeType; label: string; group: string; route: string | null; ref?: string | null; attrs?: Record<string, string | null> }
 export interface GraphEdge { from: string; to: string; kind: string; label: string; direction?: string }
@@ -412,6 +412,24 @@ export function registerRelations(ctx: ModuleContext) {
         nodes.set(s.id, { id: s.id, type: 'service', label: s.name, group: 'Services', route: s.route, ref: s.route_code, attrs: { mode: s.mode } });
         for (const d of deps) {
           edges.push({ from: d.system_id, to: s.id, kind: 'service', label: d.dependency_label ? `needed for ${d.dependency_label}` : 'needed by' });
+        }
+      }
+      // Vehicles, one node per depot and mode (not one per vehicle), so a fleet of hundreds stays
+      // readable. A group is drawn when its vehicles carry equipment of a system on the map; the
+      // edge runs from the system to the group and says how many of its vehicles carry it.
+      if (typeof app.fleet.vehicleGroups === 'function') {
+        for (const g of await app.fleet.vehicleGroups(user)) {
+          const carried = g.systems.filter((s) => nodes.get(s.system_id)?.type === 'system');
+          if (!carried.length) continue;
+          nodes.set(g.id, {
+            id: g.id, type: 'vehicle', label: `${g.mode_label ?? 'Vehicles'} ×${g.count} · ${g.depot_name ?? 'no depot'}`, group: 'Vehicles',
+            route: g.route, ref: `${g.count} vehicle${g.count === 1 ? '' : 's'}`,
+            attrs: { mode: g.mode, depot: g.depot_id, count: String(g.count) },
+          });
+          for (const s of carried) {
+            edges.push({ from: s.system_id, to: g.id, kind: 'vehicle', label: `equipment on ${s.vehicles} of ${g.count}` });
+          }
+          if (g.depot_id && nodes.get(g.depot_id)?.type === 'site') edges.push({ from: g.id, to: g.depot_id, kind: 'depot', label: 'based at' });
         }
       }
     }

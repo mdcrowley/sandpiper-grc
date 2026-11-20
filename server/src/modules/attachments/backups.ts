@@ -14,6 +14,7 @@ import { requireRecentAuth } from '../../core/auth.ts';
 import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { TIME_ZONE, todayInZone } from '../../core/timezone.ts';
+import { emitWebhookEvent } from '../../core/webhooks.ts';
 import { describeKeySource, loadArchiveKey } from '../../ops/archive.ts';
 import { OpsError } from '../../ops/errors.ts';
 import { repoRoot } from '../../ops/files.ts';
@@ -193,6 +194,10 @@ export async function registerBackups(ctx: ModuleContext) {
       ))!;
       await ctx.audit(req, { action: 'backup.failed', recordType: 'backup', recordId: row.id, summary: `Backup failed: ${message}` });
       await alert('A backup failed', message);
+      await emitWebhookEvent(app, {
+        event: 'backup.failed', req,
+        data: { runId: row.id, trigger, destination: failed.destination ?? null, message },
+      });
       return failed;
     } finally {
       await writeStatus();

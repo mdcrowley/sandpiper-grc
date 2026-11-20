@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createSession, SESSION_COOKIE } from '../../core/auth.ts';
 import type { ModuleDef } from '../../core/module.ts';
 import { todayInZone } from '../../core/timezone.ts';
-import { testApp } from '../../test/helpers.ts';
+import { ADMIN, testApp } from '../../test/helpers.ts';
 import { checkContent, contentDisposition, extensionOf, sanitizeFileName } from './filetypes.ts';
 import { diskStorage, newStorageKey } from './storage.ts';
 
@@ -221,6 +221,23 @@ describe('file types', () => {
     await t.api.patch('/api/attachments/settings', { allowedExtensions: ['pdf'] });
     expect((await upload(admin, on(widget, 'photo.png'), PNG)).status).toBe(415);
     await t.api.patch('/api/attachments/settings', { allowedExtensions: original });
+  });
+
+  it('asks to confirm your identity before allowing another type, never for removing one (E01-33)', async () => {
+    const original: string[] = (await t.api.get('/api/attachments/config')).body.allowedExtensions;
+    const token = (await t.api.post('/api/me/tokens', { name: 'File script', scopes: ['*'], expiresInDays: 1 })).body.token;
+    await t.db.query(`update sessions set confirmed_at = now() - interval '1 day'`);
+    const refused = await t.api.patch('/api/attachments/settings', { allowedExtensions: [...original, 'dwg'], maxMb: 30 });
+    expect([refused.status, refused.body.error.code]).toEqual([403, 'reauth_required']);
+    const viaToken = await t.app.inject({ method: 'PATCH', url: '/api/attachments/settings', headers: { authorization: `Bearer ${token}` }, payload: { allowedExtensions: [...original, 'dwg'] } });
+    expect([viaToken.statusCode, viaToken.json().error.code]).toEqual([403, 'reauth_required']);
+    // Nothing was saved, not even the size limit sent with it.
+    const config = (await t.api.get('/api/attachments/config')).body;
+    expect([config.allowedExtensions, config.maxBytes]).toEqual([original, 25 * 1024 * 1024]);
+    // Narrowing the list and the size limit do not ask.
+    expect((await t.api.patch('/api/attachments/settings', { allowedExtensions: original.filter((x) => x !== 'txt') })).status).toBe(200);
+    expect((await t.api.post('/api/auth/confirm', { password: ADMIN.password })).status).toBe(200);
+    expect((await t.api.patch('/api/attachments/settings', { allowedExtensions: original })).body.allowedExtensions).toEqual(original);
   });
 
   it('refuses content that does not match the extension', async () => {

@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { Queryable } from './db.ts';
 import { fail } from './errors.ts';
-import type { ResourceDef, ResourceRegistry, Row } from './module.ts';
+import type { FieldDef, ResourceDef, ResourceRegistry, Row } from './module.ts';
 
 /**
  * Feature switches (E14-28): optional parts of the application ("areas") that an administrator
@@ -114,6 +114,100 @@ export const AREAS: Area[] = [
 
 export const AREA_KEYS = AREAS.map((a) => a.key);
 
+/**
+ * Options within an area (E18-28): one feature of a part of the application that suits some
+ * transit organizations but not all (a publicly funded agency, a private operator, a contractor
+ * running service for an agency). An option is on unless an administrator switches it off, so an
+ * upgrade changes nothing, and it may carry a name the installation can change ("Board resolution",
+ * "Approval reference") where the idea is general but the word is not.
+ *
+ * While an option is off its fields disappear from the record type everywhere fields are listed
+ * (forms, lists, record pages, filters, exports, imports, the report builder, the API description
+ * and MCP tools; values written to them are ignored and stored values are kept), and the module
+ * stops applying its rule. A renamed option relabels its fields the same way. Modules read the
+ * state with `optionOn(state, key)` and `optionName(state, key)`; the web reads the fields from
+ * `/api/meta`. Stored in the `feature_options` setting: `{ <option>: { on?: boolean, name?: string } }`.
+ */
+export interface AreaOption {
+  key: string;
+  /** The area it belongs to, or null for a part that is always on (inventory). */
+  area: string | null;
+  /** Where it is shown when `area` is null. */
+  group?: string;
+  label: string;
+  description: string;
+  defaultOn: boolean;
+  /** Fields hidden while the option is off, by record type. */
+  fields: Record<string, string[]>;
+  /** A name the installation may change, and the field labels that follow it (`{name}` is replaced). */
+  name?: { default: string; hint: string; labels: Record<string, Record<string, string>> };
+}
+
+export const OPTIONS: AreaOption[] = [
+  {
+    key: 'funder_interest', area: null, group: 'Inventory', defaultOn: true,
+    label: 'Outside funder interest in equipment',
+    description: 'Records that an outside funder (for example a grant program or a public body that paid for part of the equipment) keeps an interest in an asset or vehicle, and refuses to dispose of such an asset until the reference of the funder\'s approval is entered. Switch it off if nobody outside your organization keeps an interest in what you own.',
+    fields: { asset: ['funder_interest', 'funder_interest_pct'], vehicle: ['funder_interest', 'funder_interest_pct'] },
+    name: {
+      default: 'Funder interest', hint: 'For example "Grant interest" or "Lender interest".',
+      labels: {
+        asset: { funder_interest: '{name}', funder_interest_pct: '{name} (%)' },
+        vehicle: { funder_interest: '{name}', funder_interest_pct: '{name} (%)' },
+      },
+    },
+  },
+  {
+    key: 'contract_approval_number', area: 'vendors', defaultOn: true,
+    label: 'Approval number on contracts',
+    description: 'A field on each contract for the number of the decision that approved it (a board resolution, a purchase approval or a delegated-authority reference). Switch it off if your contracts are not approved that way.',
+    fields: { contract: ['resolution_number'] },
+    name: {
+      default: 'Approval or resolution number', hint: 'For example "Board resolution" or "Approval reference".',
+      labels: { contract: { resolution_number: '{name}' } },
+    },
+  },
+  {
+    key: 'ransom_approval', area: 'secincidents', defaultOn: true,
+    label: 'Recorded approval of a ransom payment',
+    description: 'A ransom payment cannot be marked approved on a security incident until the reference of the approval is recorded (for example a governing body resolution or the owners\' written decision). Switch it off only if your policy records that decision elsewhere.',
+    fields: { security_incident: ['board_resolution_ref'] },
+    name: {
+      default: 'Governing body approval reference', hint: 'For example "Board resolution" or "Approval reference".',
+      labels: { security_incident: { board_resolution_ref: '{name}' } },
+    },
+  },
+];
+
+export const OPTION_KEYS = OPTIONS.map((o) => o.key);
+
+export interface OptionState { on: boolean; name: string }
+
+/** Longest name an option may be given. */
+export const OPTION_NAME_MAX = 60;
+
+/** The stored `feature_options` setting merged over the defaults (unknown keys and bad values dropped). */
+export function effectiveOptions(stored: unknown): Record<string, OptionState> {
+  const s = stored && typeof stored === 'object' && !Array.isArray(stored) ? stored as Row : {};
+  return Object.fromEntries(OPTIONS.map((o) => {
+    const v = s[o.key] && typeof s[o.key] === 'object' ? s[o.key] as Row : {};
+    const name = typeof v.name === 'string' && v.name.trim() && o.name ? v.name.trim().slice(0, OPTION_NAME_MAX) : o.name?.default ?? '';
+    return [o.key, { on: typeof v.on === 'boolean' ? v.on : o.defaultOn, name }];
+  }));
+}
+
+/** Field labels of one record type under the given option state (only fields an option renames or hides). */
+export function optionFields(options: Record<string, OptionState>, type: string): { hidden: Set<string>; labels: Record<string, string> } {
+  const hidden = new Set<string>();
+  const labels: Record<string, string> = {};
+  for (const o of OPTIONS) {
+    const st = options[o.key] ?? { on: o.defaultOn, name: o.name?.default ?? '' };
+    if (!st.on) for (const f of o.fields[type] ?? []) hidden.add(f);
+    for (const [f, tpl] of Object.entries(o.name?.labels[type] ?? {})) labels[f] = tpl.replace('{name}', st.name);
+  }
+  return { hidden, labels };
+}
+
 /** The defaults: every area on except the portal. */
 export const FEATURE_DEFAULTS: Record<string, boolean> = Object.fromEntries(AREAS.map((a) => [a.key, a.defaultOn]));
 
@@ -158,12 +252,14 @@ export interface FeatureState {
   /** Server module folders whose routes answer 404. */
   offModules: Set<string>;
   offJobs: string[];
+  /** Options within areas (E18-28): whether each is on and its name. */
+  options: Record<string, OptionState>;
 }
 
-export function stateFrom(on: Record<string, boolean>): FeatureState {
+export function stateFrom(on: Record<string, boolean>, options: Record<string, OptionState> = effectiveOptions(null)): FeatureState {
   const off = AREAS.filter((a) => !on[a.key]);
   return {
-    on, off,
+    on, off, options,
     offPermissions: new Set(off.flatMap((a) => a.permissions)),
     offTypes: new Set(off.flatMap((a) => a.types ?? [])),
     offModules: new Set(off.flatMap((a) => a.modules)),
@@ -184,10 +280,13 @@ export async function featureState(db: Queryable): Promise<FeatureState> {
   if (hit?.loading) return hit.loading;
   const loading = (async () => {
     let stored: unknown = null;
+    let storedOptions: unknown = null;
     try {
-      stored = (await db.one<{ value: unknown }>(`select value from settings where key = 'features'`))?.value ?? null;
+      for (const r of await db.query<{ key: string; value: unknown }>(`select key, value from settings where key in ('features', 'feature_options')`)) {
+        if (r.key === 'features') stored = r.value; else storedOptions = r.value;
+      }
     } catch { /* settings table not created yet (very first start) */ }
-    const state = stateFrom(effectiveFeatures(stored));
+    const state = stateFrom(effectiveFeatures(stored), effectiveOptions(storedOptions));
     cache.set(db, { state, at: Date.now() });
     return state;
   })();
@@ -210,6 +309,18 @@ export const permissionOff = (state: FeatureState, perm: string) => state.offPer
 
 /** Whether a record type belongs to a switched-off area. */
 export const typeOff = (state: FeatureState, def: ResourceDef) => state.offPermissions.has(def.module) || state.offTypes.has(def.type);
+
+/** Whether an option within an area is on (an option of a switched-off area counts as off). */
+export function optionOn(state: FeatureState, key: string): boolean {
+  const o = OPTIONS.find((x) => x.key === key);
+  if (!o) return true;
+  if (o.area && state.on[o.area] === false) return false;
+  return state.options[key]?.on ?? o.defaultOn;
+}
+
+/** The name an installation gives an option (its default when not renamed). */
+export const optionName = (state: FeatureState, key: string): string =>
+  state.options[key]?.name || OPTIONS.find((x) => x.key === key)?.name?.default || key;
 
 /** Whether background work of this job type belongs to a switched-off area. */
 export const jobOff = (state: FeatureState, type: string) => state.offJobs.some((p) => type.startsWith(p));
@@ -263,9 +374,32 @@ export function makeFeatureGate(app: FastifyInstance, db: Queryable) {
     return baseAll().some((d) => typeOff(s, d) && (url === d.path || url.startsWith(`${d.path}/`)));
   }
 
+  /**
+   * Options within areas: the fields of an option that is off are taken out of their record type's
+   * definition, and a renamed option relabels its fields, so every place that lists fields follows.
+   * The module's own field list is kept and the fields are rebuilt from it whenever the state changes.
+   */
+  const original = new Map<ResourceDef, Record<string, FieldDef>>();
+  let appliedFor: FeatureState | null = null;
+  function applyOptions(s: FeatureState) {
+    if (!active || s === appliedFor) return;
+    appliedFor = s;
+    for (const def of baseAll()) {
+      if (!OPTIONS.some((o) => o.fields[def.type] || o.name?.labels[def.type])) continue;
+      const fields = original.get(def) ?? def.fields;
+      original.set(def, fields);
+      const { hidden, labels } = optionFields(s.options, def.type);
+      def.fields = Object.fromEntries(Object.entries(fields)
+        .filter(([name]) => !hidden.has(name))
+        .map(([name, f]) => [name, labels[name] && labels[name] !== f.label ? { ...f, label: labels[name] } : f]));
+    }
+  }
+
   app.addHook('preHandler', async (req: FastifyRequest) => {
-    if (!req.url.startsWith('/api/')) return;
+    if (!req.url.startsWith('/api/') && !req.url.startsWith('/mcp')) return;
     const s = await featureState(db);
+    applyOptions(s);
+    if (!req.url.startsWith('/api/')) return;
     if (!s.off.length) return;
     const module = req.routeOptions?.config?.grcModule;
     const url = req.routeOptions?.url ?? '';
@@ -297,7 +431,12 @@ export function makeFeatureGate(app: FastifyInstance, db: Queryable) {
       reg.all = () => (active ? baseAll().filter((d) => !typeOff(known(), d)) : baseAll());
     },
     /** Start hiding (after every module has registered, so registration sees every type). */
-    activate() { active = Boolean(registry); },
+    activate() {
+      active = Boolean(registry);
+      void featureState(db).then(applyOptions, () => {});
+    },
+    /** Applies the options within areas to the record types now (also done before every API request). */
+    async applyOptions() { applyOptions(await featureState(db)); },
     routeOff,
     /** The module folder that registered a route url, if a module did. */
     moduleOf: (url: string) => routeModules.get(url),

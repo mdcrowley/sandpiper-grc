@@ -1,7 +1,9 @@
 import type { FastifyRequest } from 'fastify';
+import { featureState, optionName, optionOn } from '../../core/features.ts';
 import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
 import { TIME_ZONE, todayInZone } from '../../core/timezone.ts';
+import { emitWebhookEvent } from '../../core/webhooks.ts';
 import { notifyPerson, notifyViewers, sweepClocks } from './alerts.ts';
 import { amberFraction as readAmberFraction, byUrgency, clockOf, stamp } from './clocks.ts';
 import {
@@ -9,6 +11,7 @@ import {
   triggerApplies, triggerOptions,
 } from './defaults.ts';
 import type { ReviewStage, Stage } from './defaults.ts';
+import { registerKit, scheduleKit } from './kit.ts';
 import { registerLists } from './lists.ts';
 import { buildReport } from './report.ts';
 import { seedSample } from './seed.ts';
@@ -335,7 +338,7 @@ const mod: ModuleDef = {
           data.data_kinds = await cleanKinds(data.data_kinds, []);
           if (!data.discovered_at) data.discovered_at = now;
           checkTimes(data, {});
-          checkRansom(data.ransom_payment_status, data.board_resolution_ref);
+          await checkRansom(data.ransom_payment_status, data.board_resolution_ref);
           await stampStatus(data.status, {}, data, now);
           await checkReview(_req, {}, data, now);
           return data;
@@ -351,7 +354,7 @@ const mod: ModuleDef = {
           }
           checkTimes(patch, existing);
           const merged = { ...existing, ...patch };
-          checkRansom(merged.ransom_payment_status, merged.board_resolution_ref);
+          await checkRansom(merged.ransom_payment_status, merged.board_resolution_ref);
           if (patch.status !== undefined && patch.status !== existing.status) await stampStatus(patch.status, existing, patch, now);
           return patch;
         },
@@ -401,6 +404,13 @@ const mod: ModuleDef = {
           + (open.length
             ? `${open.length} notification clock${open.length === 1 ? ' is' : 's are'} running${next ? `; the first deadline is ${stamp(next.due_at)} (${next.party})` : ''}.`
             : 'No notification clocks were started.'),
+      });
+      await emitWebhookEvent(ctx.app, {
+        event: 'security_incident.declared', record: { type: 'security_incident', id: incident.id },
+        data: {
+          severity: incident.severity ?? null, declaredAt: incident.declared_at ? new Date(incident.declared_at).toISOString() : null,
+          clocks: open.length, firstDeadline: next ? new Date(next.due_at).toISOString() : null,
+        },
       });
       await sweep(incident.id);
     }
@@ -509,13 +519,17 @@ const mod: ModuleDef = {
     /**
      * Ransom payment control: the organization's policy or the law may require formal approval
      * before a ransom is paid, so "approved" is refused until an approval reference is recorded.
+     * The rule and the field's name follow the "ransom_approval" option (Administration > Features; E18-28).
      */
-    function checkRansom(status: unknown, resolution: unknown) {
-      if (status === 'approved' && !String(resolution ?? '').trim()) {
-        ctx.fail(400, 'validation', 'A ransom payment cannot be marked approved without a governing body approval reference.', {
-          board_resolution_ref: 'Enter the governing body approval reference before marking the ransom payment approved.',
-        });
-      }
+    async function checkRansom(status: unknown, resolution: unknown) {
+      if (status !== 'approved' || String(resolution ?? '').trim()) return;
+      const state = await featureState(db);
+      if (!optionOn(state, 'ransom_approval')) return;
+      const name = optionName(state, 'ransom_approval');
+      const lower = /^[A-Z][a-z]/.test(name) ? name.charAt(0).toLowerCase() + name.slice(1) : name;
+      ctx.fail(400, 'validation', `A ransom payment cannot be marked approved without the ${lower}.`, {
+        board_resolution_ref: `Enter the ${lower} before marking the ransom payment approved.`,
+      });
     }
 
     /** What a status means comes from the lifecycle list (lookup meta "stage"), not from its name. */
@@ -729,37 +743,9 @@ const mod: ModuleDef = {
       triggers: await triggerOptions(ctx),
     }));
 
-    // ---------- offline incident kit ----------
+    // ---------- offline incident kit, and its PDF copies on a schedule (kit.ts) ----------
 
-    app.get('/api/security-incidents/kit', view, async (req) => {
-      const rules = await db.query<Row>(
-        `select id, trigger_attribute, party, deadline_hours, required, guidance, active from notification_rules
-         where deleted_at is null order by sort, party`,
-      );
-      const triggers = await triggerOptions(ctx);
-      const contacts = await db.query<Row>(
-        `select id, role, person_name, contact, notes from incident_contacts where deleted_at is null order by sort, role`,
-      );
-      const templates = await db.query<Row>(
-        `select scenario, phase, step from incident_checklist_templates where deleted_at is null and active order by scenario, phase, sort`,
-      );
-      const scenarios = await ctx.lookups.values('security_incident_scenario');
-      const checklists = scenarios.map((s) => ({
-        scenario: s.value, label: s.label,
-        containment: templates.filter((t) => t.scenario === s.value && t.phase === 'containment').map((t) => t.step),
-        recovery: templates.filter((t) => t.scenario === s.value && t.phase === 'recovery').map((t) => t.step),
-      })).filter((c) => c.containment.length || c.recovery.length);
-      await ctx.audit(req, { action: 'security_incident.kit_export', summary: 'Offline incident kit opened' });
-      return {
-        generated_at: new Date().toISOString(),
-        generated_by: req.user!.displayName,
-        rules: rules.map((r) => ({ ...r, trigger_label: triggers.find((t) => t.value === r.trigger_attribute)?.label ?? r.trigger_attribute })),
-        questions: await incidentQuestions(ctx),
-        contacts,
-        checklists,
-        severities: await ctx.lookups.values('security_incident_severity'),
-      };
-    });
+    const kitCopies = registerKit(ctx, { view, exporter: { preHandler: guard('export') }, administer });
 
     // ---------- incident log (append-only: list and add, nothing else) ----------
 
@@ -1028,6 +1014,8 @@ const mod: ModuleDef = {
 
     // Every minute on the job queue (Administration > Background jobs), once however many processes there are.
     await scheduleWork(ctx, 'secincidents.clock_sweep', () => sweep(), { every: 60_000, firstRunInMs: 20_000 });
+    // A PDF copy of the offline kit after any change and on a schedule (E09-16).
+    await scheduleKit(ctx, kitCopies);
   },
 
   async seed(ctx, opts) {

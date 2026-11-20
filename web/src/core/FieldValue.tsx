@@ -3,14 +3,10 @@ import { Link } from 'react-router-dom';
 import type { Row } from './api';
 import { EMPTY, formatCurrency, formatDate, formatDateTime, formatNumber, humanize, relativeTime } from './format';
 import { LookupChip, recordHref, useMeta, type FieldMeta, type ResourceMeta } from './meta';
+import { knownFields, SYSTEM_FIELDS } from './fieldNames';
 import './records.css';
 
-const SYSTEM_FIELDS: Record<string, FieldMeta> = {
-  created_at: { label: 'Created', type: 'datetime', readOnly: true },
-  updated_at: { label: 'Updated', type: 'datetime', readOnly: true },
-  created_by: { label: 'Created by', type: 'user', readOnly: true },
-  updated_by: { label: 'Updated by', type: 'user', readOnly: true },
-};
+export { knownFields };
 
 /** Field metadata, with sensible fallbacks for the standard columns and for unknown names. */
 export function fieldMeta(resource: ResourceMeta, field: string): FieldMeta {

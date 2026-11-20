@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   Button, Card, EmptyState, ErrorState, Icon, Loading, Menu, Modal, PageHeader, TextArea, TextField,
-  api, errorMessage, lookupLabel, useAuth, useDebounced, useFetch, useToast,
+  api, errorMessage, lookupLabel, useAuth, useCustomFieldInputs, useDebounced, useFetch, useToast,
 } from '../../core';
 import { ChartPicker, FieldList, ShareFields, TypePicker, useUndo } from './BuilderParts';
 import { downloadFile, fileName, openDocument, useCatalog, usePost } from './data';
@@ -92,6 +92,8 @@ export function Builder() {
   const type = types?.find((t) => t.type === d.spec?.type);
   const saved = useRef(false);
   const openSave = useRef<() => void>(() => undefined);
+  // An administrator's custom fields on reports, asked in the save dialog (E18-45).
+  const custom = useCustomFieldInputs('report_definition', { initial: existing.data, resetKey: id ? (existing.data ? `${id}:${existing.data.updated_at}` : 'loading') : 'new' });
 
   // Ctrl+S (or Cmd+S) saves, as in any editor.
   useEffect(() => {
@@ -167,17 +169,21 @@ export function Builder() {
   }
 
   async function save() {
+    const extra = custom.collect();
     if (!d.name.trim()) { setNameError('Give the report a name.'); return; }
+    if (!extra) return; // a required custom field is empty: the message is beside it
     setSaving(true);
     try {
-      const body = { name: d.name.trim(), description: d.description, spec: sendable(spec, type!), chart: d.chart, sharing: d.sharing, shared_roles: d.shared_roles };
+      const body = { name: d.name.trim(), description: d.description, spec: sendable(spec, type!), chart: d.chart, sharing: d.sharing, shared_roles: d.shared_roles, ...extra };
       const result = id ? await api.patch<ReportDefinition>(`/api/reports/${id}`, body) : await api.post<ReportDefinition>('/api/reports', body);
       saved.current = true;
       toast.success('Report saved.');
       setSaveOpen(false);
       navigate(`/reports/${result.id}`);
     } catch (err) {
-      toast.error(errorMessage(err));
+      const fields = (err as { fields?: Record<string, string> }).fields;
+      if (fields?.name) setNameError(fields.name);
+      if (!custom.showErrors(fields) && !fields?.name) toast.error(errorMessage(err));
     } finally {
       setSaving(false);
     }
@@ -282,6 +288,7 @@ export function Builder() {
           <TextField label="Name" required value={d.name} error={nameError} onChange={(name) => { setNameError(''); draft.set((p) => ({ ...p, name })); }} placeholder="For example: Open tickets by team" />
           <TextArea label="Description" rows={2} value={d.description} onChange={(description) => draft.set((p) => ({ ...p, description }))} hint="One line saying what the report is for." />
           <ShareFields what="report" sharing={d.sharing} roles={d.shared_roles} onChange={(sharing, shared_roles) => draft.set((p) => ({ ...p, sharing, shared_roles }))} />
+          {custom.inputs}
         </form>
       </Modal>
 

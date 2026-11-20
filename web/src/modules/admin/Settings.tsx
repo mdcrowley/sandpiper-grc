@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { SegmentedControl } from '@mantine/core';
 import {
-  api, ApiError, Button, Card, ErrorState, errorMessage, Loading, NumberField, PageHeader, TextArea, TextField, useAuth, useFetch, useToast,
+  ApiError, Button, Card, ErrorState, errorMessage, Loading, NumberField, PageHeader, TextArea, TextField, useAuth, useFetch, useToast,
 } from '../../core';
 import { Notice } from './common';
 import { DepartmentsCard } from './Departments';
@@ -365,7 +365,8 @@ function FilesCard() {
     setErrors({});
     setFormError('');
     try {
-      await api.patch('/api/attachments/settings', { maxMb, allowedExtensions: types });
+      // Allowing another file type asks to confirm your identity first (E01-33).
+      await adminApi.patch('/api/attachments/settings', { maxMb, allowedExtensions: types });
       toast.success('File settings saved.');
       reload();
     } catch (err) {

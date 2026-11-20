@@ -54,7 +54,7 @@ const run = () => t.app.jobs.runDue({ types: ['mail.send'] });
 describe('email is off by default', () => {
   it('queues nothing and says so', async () => {
     const s = await t.api.get('/api/admin/mail/settings');
-    expect(s.body).toMatchObject({ enabled: false, passwordSet: false, provider: 'smtp', providers: ['smtp'] });
+    expect(s.body).toMatchObject({ enabled: false, passwordSet: false, provider: 'smtp', providers: ['gmail', 'graph', 'smtp'] });
     const agent = await t.as('agent');
     expect(await t.app.sendMail({ userIds: [agent.userId], data: { subject: 'Hello', message: 'Hi' } })).toEqual({ queued: 0, skipped: 0, enabled: false, logIds: [] });
     expect(await t.app.mailEnabled()).toBe(false);

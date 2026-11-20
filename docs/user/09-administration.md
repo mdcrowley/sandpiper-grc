@@ -17,6 +17,7 @@ Some changes decide who can do what, so the application checks it is really you 
 - add a role, change a role's permissions, switch a role on or off, or change **Members must use a second factor**;
 - select **Apply default permissions**;
 - add a user or change a person's roles;
+- **Enable** a person whose account was disabled, or change a person's email address (password-reset links go there);
 - reset a person's second factor, or issue a setup or password-reset link;
 - change anything under **Security**, **API tokens** or **Outbound connections** in **Settings**, or the **Idle time-out** under **Sessions**;
 - switch a part of the application on or off under **Features**;
@@ -25,6 +26,8 @@ Some changes decide who can do what, so the application checks it is really you 
 - add, change or remove a sign-in provider, switch **Allow sign-in with a password** off or on, or change the **Application address**;
 - on a person's **Single sign-on** card: save **Ways to sign in**, **Allow** a link at next sign-in, **Unlink** an identity, or make or remove the break-glass account;
 - link or unlink a provider on your own **Account security** page.
+
+Outside this section, the same box appears when you allow another file type for uploads, change file storage, scanning or backups, change the email settings, switch the self-service portal on or off from the service desk settings, switch on vendor response links, merge duplicate vulnerability findings, or connect an AI assistant. The full list, with the reason for each and the actions that deliberately do not ask, is in [Security](../security.md#actions-that-ask-you-to-confirm-your-identity).
 
 Enter your password and select **Confirm and continue**. If you have a second factor, the box then asks for it too: type the **6-digit code** from your authenticator app (or a recovery code), or select **Use your passkey or security key**, and select **Confirm and continue** again. A wrong code is refused with "That code was not accepted", and too many wrong attempts make you wait a few minutes. The change you asked for is then made; you do not need to repeat it. Select **Cancel** and nothing is changed. You are not asked again for the next 10 minutes (an administrator can change this under **Settings**). Signing in counts, so you will not see the box straight after signing in; that includes signing in through a provider. If you have no password here (you only sign in through a provider), the **Single sign-on** card on **Account security** offers **Confirm with …** instead: you sign in at the provider again and come back.
 
@@ -276,11 +279,11 @@ A person whose only second factor is a passkey can make recovery codes too (see 
 
 ## Sign-in providers (single sign-on)
 
-Single sign-on lets people sign in with their organization account, at your organization's identity provider, instead of a password kept here. Any provider that supports **OpenID Connect** works. Open **Administration > Sign-in providers**.
+Single sign-on lets people sign in with their organization account, at your organization's identity provider, instead of a password kept here. Any provider that supports **OpenID Connect** or **SAML 2.0** works. Open **Administration > Sign-in providers**.
 
-**Nothing is contacted until you switch a provider on.** A provider you have added but not switched on is never called, except when you select **Test connection**. Nobody can register themself: people sign in through a provider only to an account an administrator has added or linked, unless you switch on **Create an account at first sign-in**.
+**Nothing is contacted until you switch a provider on.** A provider you have added but not switched on is never called, except when you select **Test connection** (OpenID Connect). A SAML provider is never called by the application at all: the browser carries every message, and its metadata is fetched only if you ask (see [SAML 2.0 providers](#saml-20-providers)). Nobody can register themself: people sign in through a provider only to an account an administrator has added or linked, unless you switch on **Create an account at first sign-in**.
 
-The list shows each provider's name (with **Default** beside the default one) and issuer address, its **Kind**, how many **Linked people** it has, its **Options** (**Role mapping**, **Creates accounts**, or **No client secret** in red when one is missing) and an **On** switch. The **…** menu offers **Edit**, **Test connection**, **Make default** and **Remove** (only for a provider that is switched off).
+The list shows each provider's name (with **Default** beside the default one) and issuer address (for SAML, its entity ID), its **Kind** (**OpenID Connect** or **SAML 2.0**), how many **Linked people** it has, its **Options** (**Role mapping**, **Creates accounts**, **No client secret** in red when one is missing; for SAML also **Certificate expired** or **Certificate expires soon**, **Key unreadable** and **Encrypted**) and an **On** switch. The **…** menu offers **Edit**, **Test connection** (for SAML, **Check settings** and **Download metadata**), **Make default** and **Remove** (only for a provider that is switched off).
 
 ### Registering the application with your provider
 
@@ -300,7 +303,9 @@ The issuer must match the provider's discovery document exactly, including any t
 
 ### Adding a provider
 
-1. Select **Add provider**.
+These steps are for **OpenID Connect**. For SAML 2.0, see [SAML 2.0 providers](#saml-20-providers).
+
+1. Select **Add provider**, and keep **OpenID Connect** chosen under **Kind of provider**.
 2. Under **About**, enter the **Name** shown on the sign-in button ("Sign in with …") and a **Short name** (lower-case letters, numbers and dashes; it is part of the redirect address and cannot be changed later). Check **Default provider** to make its button come first. Leave **Switched on** off until you have tested it.
 3. Under **Connection**, enter the **Issuer** and **Client ID**, choose the **Client authentication** (most providers: **Client secret, sent in the Authorization header**) and enter the **Client secret**. The secret is stored encrypted and never shown again; to replace it later, type a new one. **Scopes** start as `openid email profile`. **Accepted signature algorithms** are RS256, ES256 and PS256; clear any you do not want. **Extra sign-in parameters** (one `name=value` to a line, for example a domain hint) are optional.
 4. Under **Who the person is**, the **Email claim** is usually `email`. Check **Treat the provider's email address as verified** only for a directory that controls every address it issues but does not send `email_verified`: matching accounts by email relies on it.
@@ -309,6 +314,28 @@ The issuer must match the provider's discovery document exactly, including any t
 7. Switch it on with the **On** switch. Its button appears on the sign-in page at once.
 
 The sign-in uses the authorization code flow with PKCE, a one-time `state` and a `nonce`; the ID token's signature, issuer, audience, expiry and nonce are all checked. A provider whose discovery document is not on `https` is refused (plain `http` is accepted only on the same machine, for trials).
+
+### SAML 2.0 providers
+
+Use SAML when your identity provider offers SAML only, or your organization runs it that way. The application signs people in with the SAML 2.0 **Web Browser SSO** profile, started here: the sign-in request goes to the identity provider with the **HTTP-Redirect** binding, and its answer comes back with the **HTTP-POST** binding.
+
+1. Select **Add provider** and choose **SAML 2.0** under **Kind of provider**.
+2. Under **About**, enter the **Name** shown on the sign-in button and a **Short name** (it is part of every address below and cannot be changed later). Leave **Switched on** off for now.
+3. The box **Give these to your identity provider** shows this application's **Entity ID (audience)**, its **Assertion consumer service (ACS) address** and its **Metadata address**, each with **Copy**. Most identity providers read everything from the metadata address (or from the metadata file) in one step; otherwise, enter the entity ID and the ACS address (HTTP-POST binding) in the identity provider's application settings. Have it release the person's email address, display name and, for role mapping, groups as attributes, and a **persistent** name identifier.
+4. Under **Identity provider**, read its metadata: **Paste the metadata (XML)** and select **Read pasted metadata**, or **Upload a metadata file**, or (only when outbound connections are switched on under **Settings** and its host is on the allowed hosts list) enter its address and select **Fetch**. The **Identity provider entity ID**, **Sign-in address (HTTP-Redirect binding)**, sign-out address and **Signing certificates** are filled in. You can also type them yourself. Nothing is saved until you save the provider.
+5. Under **Who the person is**, choose the **Name identifier (NameID) format** (persistent unless your identity provider can only send the email address). The person is recognized by the NameID from then on; transient identifiers are refused because they change at every sign-in. **Email attribute** and **Display name attribute** can stay empty: the usual names (`email`, `mail`, the email address claim URI, `displayName` and so on) are tried. **Trust the email addresses this identity provider sends** starts checked for a SAML provider: SAML has no "email verified" statement, and matching existing accounts by email and creating accounts both need it. Uncheck it for an identity provider that lets people choose their own address.
+6. Select **Add provider**. The application makes its own key and certificate for this provider at that moment (the private key is stored encrypted and never shown); open the provider again for **Download the metadata file**.
+7. Give the metadata to the identity provider if you have not already, switch the provider on and sign in once through it to try the whole exchange (**Check settings** checks only what is stored).
+
+**Message security.** Every answer must carry a valid signature, by one of the **Signing certificates** you entered, on the assertion or on the response around it; an unsigned answer is refused, and so is one signed with SHA-1 or anything weaker than RSA-SHA256. The answer must be for this application (audience), sent to this address (destination and recipient), in reply to this very sign-in (InResponseTo), from the identity provider's entity ID, and within its time limits (one minute of clock difference is allowed). Each assertion is accepted once. Answers the identity provider sends without being asked (identity-provider-initiated sign-in) are refused: people start at this application's sign-in page. Under **Message security** you can also:
+
+- **Require the assertion itself to be signed** (otherwise a signed response around it is enough).
+- **Sign sign-in requests**, for an identity provider that wants signed requests (reading metadata that asks for them switches this on).
+- **Ask for encrypted assertions, and refuse unencrypted ones**: the metadata then offers an encryption key. Only AES-GCM with RSA-OAEP is accepted.
+
+**Certificate changes.** When the identity provider announces a new signing certificate, add it under **Signing certificates** beside the old one and save; both are trusted. Remove the old one once the identity provider has switched. Each stored certificate is shown with its expiry date, and the list warns 30 days ahead; **Check settings** reports expired certificates. If this application's own key is lost (for example after the secret key was changed) or due for a change, check **Make a new key and certificate for this application when saving** and give the new metadata to the identity provider at once.
+
+Role mapping, the provider's second factor, signing out and accounts created at first sign-in work as for OpenID Connect (below), with these differences: role mapping reads the **Groups attribute** (the attribute's `Name`, for example `groups`, `memberOf` or a role claim URI); the provider's multi-factor sign-in is shown by the assertion's **AuthnContextClassRef** (list the values your identity provider uses, for example `https://refeds.org/profile/mfa`; they are also asked for at sign-in); and signing out at the provider sends a signed logout request to the **Identity provider sign-out address**, after which the identity provider sends the browser back here. A sign-out started at the identity provider does not end sessions here.
 
 ### Role mapping (off unless you switch it on)
 
@@ -356,7 +383,7 @@ The account must be active, hold the Administrator role, have a password and no 
 
 ### What is recorded
 
-Every sign-in through a provider (`signin.success`, naming the provider, and saying when the provider's multi-factor sign-in counted), every failure with its reason (`signin.failure`, for example "bad signature", "wrong audience", "token expired", "no account for this email"), every provider change (`identity_provider.create`, `.update`, `.enable`, `.disable`, `.test`, `.delete`), every link and unlink (`identity.link`, `identity.unlink`), link permissions, changes to a person's ways to sign in, and break-glass designations and uses, each with the time and the network address it came from.
+Every sign-in through a provider (`signin.success`, naming the provider, and saying when the provider's multi-factor sign-in counted), every failure with its reason (`signin.failure`, for example "bad signature", "wrong audience", "token expired", "no account for this email", or for SAML "wrong InResponseTo", "assertion replayed", "unsolicited SAML response"), every provider change (`identity_provider.create`, `.update`, `.enable`, `.disable`, `.test`, `.delete`), every fetch of SAML metadata (`identity_provider.metadata_fetch`), every link and unlink (`identity.link`, `identity.unlink`), link permissions, changes to a person's ways to sign in, and break-glass designations and uses, each with the time and the network address it came from.
 
 ## Lists
 
@@ -470,7 +497,7 @@ The limits for files attached to records. They apply to new uploads; files alrea
 | Setting | Allowed | Notes |
 |---|---|---|
 | **Largest file** | 1 to 2048 megabytes | Each attached file may be up to this size. |
-| **Allowed file types** | Extensions separated by commas, for example `pdf, docx, png` | A file is refused when its content does not match its extension. Programs and scripts can never be allowed. |
+| **Allowed file types** | Extensions separated by commas, for example `pdf, docx, png` | A file is refused when its content does not match its extension. Programs and scripts can never be allowed. Adding a type asks you to confirm your password. |
 | **Malware scanning** | Shown only | Says whether a scanner is installed. It is set where the application is installed, not on this page. |
 
 The same settings are on **Administration > File settings**. If file attachments are not part of your installation, the group says so.
@@ -534,6 +561,28 @@ The part disappears for everyone, administrators and API tokens included:
 Notifications already sent about its records stay in people's lists, shown as "A record you can no longer open".
 
 Nothing is deleted. Switching the part back on restores everything: records, links, history, permissions and reminders.
+
+### Options within the parts
+
+Some features suit some transit organizations but not others. A public agency, a private operator and a contractor running service for an agency fund equipment, approve contracts and decide on a ransom payment in different ways. The **Options within the parts** card on the same page lists these features under the part they belong to (the inventory ones under **Inventory**, which is always on). Each has a switch, a line saying what it does and, where the idea is general but the word is not, a **Name shown on screens**:
+
+| Option | Part | What it does | Name to start with |
+|---|---|---|---|
+| **Outside funder interest in equipment** | Inventory (and vehicles in Fleet and services) | The **Funder interest** and **Funder interest (%)** fields on assets and vehicles, and the rule that an asset with a funder interest cannot be disposed of until the funder's approval reference is entered | Funder interest |
+| **Approval number on contracts** | Vendors and contracts | The field for the number of the decision that approved a contract | Approval or resolution number |
+| **Recorded approval of a ransom payment** | Security incidents | The reference field on the **Ransom** tab, and the rule that a ransom payment cannot be marked approved without it | Governing body approval reference |
+
+Every option starts **On** with the name shown, so an upgrade changes nothing.
+
+To rename one, type the name your organization uses in **Name shown on screens** (for example **Board resolution**, **Approval reference** or **Grant interest**, up to 60 characters) and select **Save name**. **Use the default** puts the name back. Forms, lists, record pages, exports, imports, report columns, the rule's messages, the API reference and the tools offered to AI assistants all use the new name at once.
+
+To switch one off, select its switch and confirm with **Switch off**. While an option is off:
+
+- its fields disappear everywhere: forms, list columns and filters, record pages, exports, import columns, reports and the report builder, the API reference and AI assistants. A value sent for one is ignored;
+- its rule stops: assets are disposed of without a funder approval reference, and a ransom payment can be marked approved without a reference;
+- values already recorded are kept, and come back when the option is switched on again.
+
+An option of a part that is switched off counts as off and cannot be changed until the part is on again; its card says **Off with** that part. Each change needs your password again (**Confirm it is you**) and is recorded in the audit log, for example "Approval number on contracts: renamed "Board resolution"".
 
 ## Custom fields
 
@@ -606,7 +655,7 @@ When making a token, its owner can fill in **Allowed source addresses** (up to 2
 
 ## Webhooks
 
-A webhook tells another system, straight away, when records are added, changed or deleted. Open **Administration > Webhooks**.
+A webhook tells another system, straight away, when records are added, changed or deleted, or when one of the other events listed below happens (a notification clock about to run out, a backup that failed, and so on). Open **Administration > Webhooks**.
 
 **Nothing is sent until outbound connections are switched on.** Under **Settings > Outbound connections**, switch on **Outbound connections** and add the receiving host to **Allowed hosts**. Until then every delivery is recorded as blocked, and the page says so at the top. A webhook whose host is not allowed is marked **Host not allowed**. A receiver on your internal network must be listed by its address as well as its name: a name that leads to a private address is blocked with the reason "... resolves to ..., which is a private, loopback or reserved address".
 
@@ -614,7 +663,7 @@ A webhook tells another system, straight away, when records are added, changed o
 
 1. Select **Add webhook**.
 2. Enter a **Name** and the **Address** the receiving system gave you (an `https` address with no user name or password in it).
-3. Under **Events**, check **Every change to every record type**, or choose the record types and changes (added, changed, deleted or any change) to send.
+3. Under **Events**, check **Every change to every record type, and every other event**, or choose the record types and changes (added, changed, deleted or any change) under **Record changes** and check the events you want under **Other events**.
 4. Check **Include restricted records** only if the receiver should get security incidents, risks and records flagged restricted. Only someone holding **View** on **Security incidents and restricted records** can switch this on, and those records stop being sent if that person loses it.
 5. Leave **Secret** empty to have a strong one made for you, and select **Add webhook**.
 
@@ -623,6 +672,21 @@ The **signing secret** is then shown once. Select **Copy secret** and give it to
 ### What is sent
 
 Each event is sent as a JSON `POST`: the record's type, reference, title and fields, and for a change the values before and after. Every delivery is signed: the header `X-GRC-Signature` holds `sha256=` and the HMAC-SHA256, made with the secret, of the `X-GRC-Timestamp` header, a period and the body. A delivery that fails (no answer within 10 seconds, or an answer other than 2xx) is tried again after 1, 5, 30, 120 and 720 minutes, then marked failed. Redirects are never followed.
+
+### Other events
+
+Besides record changes, a webhook can send these events. Each carries its own details and, where there is one, the record it is about; the [integration guide](../api.md#other-events) lists every field.
+
+| Event | Sent when | Restricted |
+|---|---|---|
+| **Notification clock about to run out** | A security incident's deadline to notify someone is close (the clock turned amber) | Yes |
+| **Notification clock ran out** | That deadline passed and the notification is still pending (the clock turned red) | Yes |
+| **Security incident declared** | An incident is declared and its notification clocks start | Yes |
+| **Change approval decided** | An approver approves or rejects a change | When the change is |
+| **Scheduled report delivered** | A report schedule ran and reached at least one person; only the counts are sent, never the figures | No |
+| **Backup failed** | A scheduled or manual backup failed | No |
+
+A restricted event is sent only by a webhook with **Include restricted records** switched on, as for restricted records. When a part of the application is switched off under **Features**, its events are not sent and are not offered in the form: the clock and incident events belong to **Security incidents**, the change approval to **Change enablement** and the report delivery to **Dashboards and reports**.
 
 ### Managing webhooks
 
@@ -647,6 +711,7 @@ Events are listed newest first, 50 to a page. Use **Older** and **Newer** to mov
 | **Search** | Find text in the summary, the person's name or the action. |
 | **Action** | Show one exact action name, for example `signin.failure`. The action name is shown in small print under **What happened** on every event. |
 | **Record type** | Show events for one kind of record, such as Risk, Project, User or Role. |
+| **Request id** | Show everything one request did. Every answer from the application carries an `X-Request-Id`, and an integration usually logs it; paste it here to see the changes that one call made. |
 | **Done by** | Show one person's actions. |
 | **From** and **To** | Limit the dates. Both days are included. |
 
@@ -663,7 +728,7 @@ Select the arrow at the start of a row to open its details. Each field that chan
 - A long value, or one stored as structured data, is folded to one line. Select **Show all** to open it.
 - Some events, such as a sign-in, record no field values and say so.
 
-Under the values are the event number and shortcuts: a link to open the record (where it has a page), **Only "…" events** to filter the log to that action, and **Only this record** to see everything that happened to that record.
+Under the values are the event number, the API token used (if any) and the request id, then shortcuts: a link to open the record (where it has a page), **Only "…" events** to filter the log to that action, **Only this record** to see everything that happened to that record, and **Everything this request did** to see the other events of the same request.
 
 To see the history of one record without leaving it, use the **History** tab on the record itself.
 
@@ -672,7 +737,7 @@ To see the history of one record without leaving it, use the **History** tab on 
 1. Set the filters so that the list shows the events you want.
 2. Select **Export CSV**.
 
-A file named with today's date is downloaded, containing every event that matches the filters, not only the page on screen, up to the newest 50,000. The export is itself recorded in the audit log.
+A file named with today's date is downloaded, containing every event that matches the filters, not only the page on screen, up to the newest 50,000. Besides the columns on screen it has the API token used (`token_name`) and the request id (`request_id`). The export is itself recorded in the audit log.
 
 ## My account: the Account security page
 
@@ -738,11 +803,10 @@ The token is shown once. Select **Copy token** and keep it somewhere safe, such 
 
 ## Not available yet
 
-- Single sign-on supports OpenID Connect only. SAML 2.0 providers and directory (LDAP) sign-in are not available.
+- Directory (LDAP) sign-in is not available. SAML 2.0 sign-in must start at this application (identity-provider-initiated sign-in is refused), a sign-out started at a SAML identity provider does not end sessions here, and SAML metadata signatures are not checked (paste or upload metadata you obtained from your identity provider yourself).
 - A directory whose group list can be fetched only with its own kind of request gives no groups when a person is in too many to list; their roles are then left unchanged. Use application roles or a filtered groups claim instead.
 - Signing in through a provider never asks for this application's own second factor; it counts as one only when you trust the provider for it (see "The provider's own second factor").
 - Setup and reset links are emailed only when email is set up (see [Attachments and notifications](14-attachments-and-notifications.md#email-settings)); otherwise you pass them on by hand.
-- Only the administration screens (and Account security) ask you to confirm it is you; other high-impact actions elsewhere do not yet.
 - The **Self-service portal** permissions can be checked on a role but do not control anything yet. They are marked **not yet used** on the role page.
 - The audit log's filters are not kept in the page address, so a filtered view cannot be bookmarked.
 - Roles cannot be deleted and user accounts cannot be removed; switch off or disable them instead.

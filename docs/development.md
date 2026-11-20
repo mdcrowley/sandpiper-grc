@@ -219,6 +219,10 @@ never with a token:
 | `mcp.role_tools` | `{}` | Tool names offered per role |
 | `mcp.oauth_enabled` | `false` | Remote connectors may sign in with OAuth |
 | `mcp.oauth_registration` | `false` | Connectors may register themselves (dynamic client registration) |
+| `feature_options` | `{}` | Options within areas (`OPTIONS` in `core/features.ts`): `{ <option>: { on, name } }`, for example the funder interest or the contract approval reference; changed under Administration > Features |
+| `security.kit_every_days` | `7` | The offline incident kit is made as a PDF at least this often (and after any change to it) |
+| `security.kit_keep` | `12` | PDF copies of the kit kept |
+| `security.kit_recipients` | `[]` | People the automatic kit PDF is emailed to (each must hold `security.view` and `security.export` when it is sent) |
 
 Modules keep their own settings too (for example
 `knowledge.agent_permission`, `frameworks.review_reminder_days`); each is described in the
@@ -267,7 +271,7 @@ server/src/core/              db, migrations, auth, rbac, audit, resources, look
                               search, tags and watchers, custom fields, tokens, webhooks, OpenAPI, retention,
                               feature switches (features.ts)
 server/src/core/migrations/   core SQL
-server/src/core/identity/     single sign-on (OpenID Connect), account linking, sign-in policy hooks
+server/src/core/identity/     single sign-on (OpenID Connect and SAML 2.0), account linking, sign-in policy hooks
 server/src/core/webauthn/     passkeys and security keys
 server/src/core/jobs/         the table-backed job queue (app.jobs)
 server/src/core/mail/         outbound email, templates and set-up and reset links (app.sendMail)
@@ -464,6 +468,10 @@ ctx.defineResource({
   },
 });
 ```
+
+Before-hooks must not write: the import check runs them without saving (E13-10). To raise a
+webhook event that is not a record change, add it to `WEBHOOK_EVENTS` in `core/webhooks.ts`
+and call `emitWebhookEvent(ctx.app, { event, data, record?, req? })`.
 
 Field types: `text`, `longtext`, `number`, `currency`, `date`, `datetime`, `boolean`,
 `lookup` (needs `list`), `user`, `ref` (needs `to`), `json`. Field names are column names.
@@ -724,8 +732,7 @@ policy → `policies`; policy_exception → `exceptions`; course → `training`;
 report_schedule, report_pack → `reports`; dashboard → `dashboards`; vehicle, service →
 `fleet`; hazard, safety_event, safety_indicator → `safety`.
 
-Not yet built: SAML single sign-on (blocked: it needs an XML-signature library) and LDAP
-sign-in; another mail provider; a general workflow designer. See [Known gaps](known-gaps.md) and the
+Not yet built: LDAP sign-in; a general workflow designer. See [Known gaps](known-gaps.md) and the
 [roadmap](roadmap/README.md).
 
 ## Known gaps

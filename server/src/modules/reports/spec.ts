@@ -52,6 +52,8 @@ export const USER_SUBFIELDS: Record<string, { label: string; type: FieldType; sq
 };
 
 const IDENT = /^[a-z_][a-z0-9_]*$/;
+/** Stands for the record-count subquery until the FROM and WHERE clauses are known. */
+const RECORDS = '__records__';
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const RELATED_TYPES: FieldType[] = ['text', 'number', 'currency', 'date', 'datetime', 'boolean', 'lookup'];
 
@@ -99,6 +101,12 @@ export interface Compiled {
   aggs: CompiledAgg[];
   /** ORDER BY terms built from validated fields and keys only. */
   order: string[];
+  /**
+   * Grouped by a multi-choice field (E12-15): the FROM clause with each record repeated once per
+   * value (a record with no value appears once, as "None"). `from` stays one row per record, for
+   * the count of records.
+   */
+  groupFrom?: string;
   /** Filters expressed as generic-list address parameters, for drill-down. */
   drill: { params: [string, string][]; exact: boolean };
   globalsApplied: string[];
@@ -376,12 +384,18 @@ export function compile(
   // ---------- grouping and aggregates ----------
 
   const groupBy = Array.isArray(spec.groupBy) ? spec.groupBy : [];
+  const laterals: string[] = [];
   if (groupBy.length > 2) throw new SpecError('Group by one or two fields.', 'groupBy');
   const dims: CompiledDim[] = groupBy.map((gs, i) => {
     const f = resolve(gs?.field);
     const t = f.def.type;
     if (t === 'json' || t === 'longtext') throw new SpecError(`${f.label} cannot be used for grouping.`, f.path);
-    if (f.def.multiple) throw new SpecError(`${f.label} can hold several values for one record, so it cannot be used for grouping. Filter by it instead.`, f.path);
+    if (f.def.multiple) {
+      // Each record counts once under each of its values (E12-15); the result says so.
+      if (f.related) throw new SpecError(`${f.label} cannot be used for grouping.`, f.path);
+      laterals.push(`left join lateral jsonb_array_elements_text(${f.sql}) mv${i}(v) on true`);
+      return { ...f, key: `g${i}`, expr: `mv${i}.v` };
+    }
     const isDate = t === 'date' || t === 'datetime';
     let bucket = isDate ? gs.bucket ?? (t === 'datetime' ? 'month' : undefined) : undefined;
     if (gs.bucket !== undefined && (!isDate || !BUCKETS.includes(gs.bucket))) throw new SpecError(`${f.label}: that date grouping is not available.`, f.path);
@@ -401,8 +415,10 @@ export function compile(
   const aggs: CompiledAgg[] = aggList.map((a, i) => {
     const key = `a${i}`;
     if (!a || !AGG_FNS.includes(a.fn)) throw new SpecError('A total is not valid.', 'aggregates');
-    if (a.fn === 'count') return { key, fn: a.fn, label: `Number of ${def.plural.toLowerCase()}`, expr: 'count(*)::int', type: 'number' };
+    if (a.fn === 'count') return { key, fn: a.fn, label: `Number of ${def.plural.toLowerCase()}`, expr: laterals.length ? 'count(distinct t.id)::int' : 'count(*)::int', type: 'number' };
     if (a.fn === 'pct' && !a.field) {
+      // Grouped by a multi-choice field, a share is of the records (the shares may add up to more than 100).
+      if (laterals.length) return { key, fn: a.fn, label: 'Share of records', expr: `round(count(distinct t.id) * 100.0 / nullif(${RECORDS}, 0), 1)`, type: 'number' };
       return { key, fn: a.fn, label: 'Share of total', expr: 'round(count(*) * 100.0 / nullif(sum(count(*)) over (), 0), 1)', type: 'number' };
     }
     const f = resolve(a.field);
@@ -410,6 +426,7 @@ export function compile(
     const numeric = t === 'number' || t === 'currency';
     const dated = t === 'date' || t === 'datetime';
     if (!(numeric || (dated && (a.fn === 'min' || a.fn === 'max')))) throw new SpecError(`${f.label} cannot be totalled that way.`, f.path);
+    if (a.fn === 'pct' && laterals.length) throw new SpecError(`A share of ${f.label.toLowerCase()} cannot be worked out while grouping by a field with several values: a record would be shared more than once.`, f.path);
     const names: Record<string, string> = { sum: 'Total', avg: 'Average', min: dated ? 'Earliest' : 'Lowest', max: dated ? 'Latest' : 'Highest', pct: 'Share of' };
     const expr = a.fn === 'pct' ? `round(sum(${f.sql}) * 100.0 / nullif(sum(sum(${f.sql})) over (), 0), 1)`
       : a.fn === 'avg' ? `round(avg(${f.sql})::numeric, 2)`
@@ -445,9 +462,14 @@ export function compile(
     return `${k.key} ${dir} nulls last`;
   });
 
+  const from = `${def.table} t ${joins.join(' ')}`;
+  const whereSql = where.join(' and ');
+  // The number of records (one row each), for shares when grouped by a multi-choice field.
+  for (const a of aggs) a.expr = a.expr.replace(RECORDS, `(select count(*) from ${from} where ${whereSql})`);
   return {
     order,
-    def, spec, mode, from: `${def.table} t ${joins.join(' ')}`, where: where.join(' and '), params,
+    def, spec, mode, from, where: whereSql, params,
+    ...(laterals.length ? { groupFrom: `${from} ${laterals.join(' ')}` } : {}),
     columns, dims, aggs, drill, globalsApplied, types: [...types.values()], figures,
   };
 }

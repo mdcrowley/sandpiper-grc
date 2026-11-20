@@ -138,6 +138,29 @@ describe('services and what is affected', () => {
     expect(focus.nodes.map((n: any) => n.id)).toContain(ids.svc);
   });
 
+  it('draws vehicles on the map grouped by depot and mode, tied to the systems whose equipment they carry', async () => {
+    await t.api.post(`/api/systems/${ids.avl}/sites`, { site_id: ids.depot }); // puts the depot on the map
+    const graph = (await t.api.get('/api/systems/graph')).body;
+    const groups = graph.nodes.filter((n: any) => n.type === 'vehicle');
+    // 3001 (bus at the depot) and T90 (light rail, no depot): one node per group, never one per vehicle.
+    const bus = groups.find((n: any) => n.id === `vehicles:${ids.depot}:bus`);
+    expect(bus).toMatchObject({ label: 'Bus ×1 · Test Depot East', group: 'Vehicles', ref: '1 vehicle', route: `/vehicles?f.mode=bus&f.depot_id=${ids.depot}` });
+    expect(groups.find((n: any) => n.id === 'vehicles:none:light_rail')).toMatchObject({ label: 'Light rail ×1 · no depot', route: '/vehicles?f.mode=light_rail' });
+    expect(graph.edges).toContainEqual({ from: ids.avl, to: bus.id, kind: 'vehicle', label: 'equipment on 1 of 1' });
+    expect(graph.edges).toContainEqual({ from: ids.video, to: bus.id, kind: 'vehicle', label: 'equipment on 1 of 1' });
+    expect(graph.edges).toContainEqual({ from: bus.id, to: ids.depot, kind: 'depot', label: 'based at' });
+    // More vehicles in the same group make the count grow, not the map.
+    const extra = (await t.api.post('/api/vehicles', { fleet_number: '3005', mode: 'bus', depot_id: ids.depot })).body.id;
+    const again = (await t.api.get('/api/systems/graph')).body;
+    expect(again.nodes.filter((n: any) => n.type === 'vehicle')).toHaveLength(groups.length);
+    expect(again.nodes.find((n: any) => n.id === bus.id).label).toBe('Bus ×2 · Test Depot East');
+    expect(again.edges).toContainEqual({ from: ids.avl, to: bus.id, kind: 'vehicle', label: 'equipment on 1 of 2' });
+    await t.api.del(`/api/vehicles/${extra}`);
+    // A system's own map reaches its vehicle groups.
+    const focus = (await t.api.get(`/api/systems/graph?focus=${ids.video}`)).body;
+    expect(focus.nodes.map((n: any) => n.id)).toContain(bus.id);
+  });
+
   it('names the vehicles and services affected by an on-vehicle system outage, directly and downstream', async () => {
     const direct = (await t.api.get(`/api/fleet/impact?system_id=${ids.avl}`)).body;
     expect(direct.vehicles.map((v: any) => v.fleet_number).sort()).toEqual(['3001', 'T90']);
@@ -210,6 +233,25 @@ describe('permissions', () => {
     expect(inv.vehicles).toEqual([]);
     const graph = (await agent.get('/api/systems/graph')).body;
     expect(graph.nodes.some((n: any) => n.type === 'service')).toBe(false);
+    expect(graph.nodes.some((n: any) => n.type === 'vehicle')).toBe(false);
+    // fleet.view without assets.view: services, but no vehicles (their equipment is asset information).
+    const fleetOnly = await withGrants('fleet_systems', ['fleet.view', 'systems.view']);
+    const seen = (await fleetOnly.get('/api/systems/graph')).body;
+    expect(seen.nodes.some((n: any) => n.type === 'vehicle')).toBe(false);
+    const both = await withGrants('fleet_assets_systems', ['fleet.view', 'systems.view', 'assets.view']);
+    expect((await both.get('/api/systems/graph')).body.nodes.some((n: any) => n.type === 'vehicle')).toBe(true);
+  });
+
+  it('leaves vehicles off the map while the fleet area is switched off', async () => {
+    expect((await t.api.get('/api/systems/graph')).body.nodes.some((n: any) => n.type === 'vehicle')).toBe(true);
+    await t.ctx.settings.set('features', { fleet: false });
+    try {
+      const graph = (await t.api.get('/api/systems/graph')).body;
+      expect(graph.nodes.some((n: any) => n.type === 'vehicle' || n.type === 'service')).toBe(false);
+    } finally {
+      await t.ctx.settings.set('features', { fleet: true });
+    }
+    expect((await t.api.get('/api/systems/graph')).body.nodes.some((n: any) => n.type === 'vehicle')).toBe(true);
   });
 
   it('gives the default roles their fleet grants', async () => {

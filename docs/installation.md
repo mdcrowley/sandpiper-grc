@@ -387,6 +387,7 @@ rest). `.\grc.ps1 schedule-backup` writes the values in force into its scheduled
 | `GRC_COMMIT` | the git checkout's commit | The commit shown with the version; the container image has it built in |
 | `GRC_PDF_FONTS` | well-known system fonts | Font files for PDF text outside Western European, `;`-separated on Windows and `:` elsewhere; `file.ttc#PostScriptName` picks one font of a collection; `none` switches it off ([Operations](operations.md#fonts-for-pdf-exports)) |
 | `GRC_SLOW_QUERY_MS` | not set | Log database statements taking this many milliseconds or more (their text only, never their values) |
+| `GRC_STARTUP_WARN_MS` | `2000` | Log a start-up step that takes longer than this many milliseconds, named after where it was added |
 | `GRC_ANALYZE_AFTER_WRITES` | `2000` | Embedded database only: refresh the query planner's statistics after this many writes (at most every ten minutes); `0` switches it off |
 | `GRC_SERVICE_NAME` | `sandpiper-grc` | Name of the user service `./grc.sh service install` writes |
 
@@ -599,18 +600,97 @@ providers ([Security](security.md)).
 See [Docker](docker.md): the published image, `compose.yaml` (embedded database) and
 `compose.postgres.yaml` (with PostgreSQL), volumes, backups, the secret key and upgrades.
 
+### Mail providers
+
+Outgoing email (Administration > Email) is sent in one of three ways. Many mail services no
+longer accept SMTP sign-in with a password; for those, use the service's web interface.
+
+| Send through | For | The server connects out to |
+|---|---|---|
+| SMTP | Any mail server or relay | The mail server you enter |
+| Microsoft Graph | Microsoft 365, Exchange Online | `login.microsoftonline.com` and `graph.microsoft.com` (GCC High: `login.microsoftonline.us` and `graph.microsoft.us`; DoD: `login.microsoftonline.us` and `dod-graph.microsoft.us`), port 443 |
+| Gmail API | Google Workspace | `oauth2.googleapis.com` and `gmail.googleapis.com`, port 443 |
+
+These addresses are fixed in the application, not taken from the settings or from a key file.
+Calls use HTTPS only, follow no redirects and time out after 20 seconds. Nothing is sent
+until email is switched on, apart from **Send a test message**. The secret, certificate or key is
+kept encrypted with the installation's secret key, like the SMTP password, and is never shown again.
+If you rotate the secret key, the old key must stay available as a retired key, or these
+credentials must be entered again ([Security](security.md)).
+
+**Microsoft Graph.** In the Microsoft Entra admin center:
+
+1. **App registrations > New registration**: a single-tenant application with any name, such as
+   "Sandpiper GRC mail". No redirect address is needed. Note the **Directory (tenant) ID** and
+   **Application (client) ID**.
+2. **API permissions > Add a permission > Microsoft Graph > Application permissions**: add
+   **Mail.Send**, and also **Mail.ReadWrite** if email to ticket reads a mailbox through Graph.
+   Select **Grant admin consent**.
+3. **Certificates & secrets**: upload a certificate (recommended), or create a client secret and
+   copy its **Value**. A self-signed certificate is fine, for example
+   `openssl req -x509 -newkey rsa:2048 -nodes -keyout mail.key -out mail.crt -days 730 -subj "/CN=Sandpiper GRC mail"`.
+   Upload `mail.crt`, and paste the contents of `mail.crt` and `mail.key` together into the
+   application. Note the expiry date: the settings page shows it. A secret expires too, after at
+   most two years.
+4. Limit the application to the mailboxes it uses. Without a limit, the Mail permissions let
+   it act on every mailbox in the tenant. In Exchange Online, use RBAC for Applications, or an
+   application access policy
+   (`New-ApplicationAccessPolicy -AppId <client id> -PolicyScopeGroupId <mail-enabled security group> -AccessRight RestrictAccess`).
+5. In the application, choose **Microsoft Graph**, enter the IDs and the certificate or secret,
+   and the **Send as mailbox**: a user or shared mailbox (by default, the from address). The from
+   address must be that mailbox's address or one it has Send As permission for.
+
+Graph takes one message of at most about 3 MB with its files; a larger one is refused with a
+plain reason (use SMTP, or send large files as links).
+
+**Gmail API.** A service account with domain-wide delegation. This was chosen over a person's
+own sign-in (an OAuth refresh token) because it needs no browser sign-in and belongs to no one
+person, so it does not stop working when someone leaves or changes their password. Your Workspace
+administrator grants and withdraws it scope by scope. A personal Gmail account cannot use it; use
+SMTP with an app password there.
+
+1. In the Google Cloud console, in a project for this purpose: enable the **Gmail API**, create a
+   **service account**, and create a **JSON key** for it (**Keys > Add key**). Organization
+   policies may need to allow service account keys.
+2. In the Google Admin console: **Security > Access and data control > API controls > Domain-wide
+   delegation > Add new**. Enter the service account's client ID (shown on the settings page once
+   the key is saved), with the scope `https://www.googleapis.com/auth/gmail.send`, and also
+   `https://www.googleapis.com/auth/gmail.modify` if email to ticket reads a mailbox through
+   the Gmail API.
+3. In the application, choose **Gmail API**, paste the whole key file, and enter the **Send as
+   mailbox**: a user in the domain (by default, the from address). Gmail sends from that mailbox's
+   address unless the from address is one of its send-as addresses.
+
+**When the test is refused**, the reason says what to fix:
+
+| The test says | Fix |
+|---|---|
+| The directory (tenant) ID was not found, or the application (client) ID is not registered | Copy both again from the app registration's Overview page; check the Microsoft cloud |
+| The client secret is wrong, or has expired | Enter the secret's Value (not its Secret ID), or create a new secret |
+| The certificate was not accepted | Upload this certificate to the app registration |
+| Permission missing: grant the Mail.Send application permission | Add the permission, grant admin consent, and include the mailbox in the application access policy |
+| Domain-wide delegation is missing | Add the client ID and the scope named in the message in the Admin console (it can take some minutes to apply) |
+| Wrong mailbox | Use the address of an existing user or shared mailbox (Microsoft) or user (Google) |
+| Busy or throttled | Nothing to fix: the message is tried again later (1, 2, 4 and 8 minutes) |
+
 ### Email to ticket
 
 Email to ticket turns messages sent to a service desk address into tickets, and replies into
 comments on them. It is off by default and is switched on by an administrator under
 **Service desk > Settings > Email to ticket**, which shows each message received and what was
 done with it. Outgoing email must be set up too (see [Email settings](user/14-attachments-and-notifications.md#email-settings)), for the
-acknowledgments and for replies to reach the requester. Choose one of two ways for messages to
+acknowledgments and for replies to reach the requester. Choose one of these ways for messages to
 arrive:
 
 - **The server reads a mailbox (POP3).** Use a mailbox kept for this alone: messages are
   deleted from it once they are handled, unless **Leave messages in the mailbox after reading them** is on. Port 995 with TLS, or 110 with STARTTLS. The server
   connects out to the mail server, so allow that connection.
+- **The server reads a mailbox through Microsoft Graph or the Gmail API**, for a service that
+  has switched POP3 sign-in off. It uses the sign-in saved under Administration > Email (see
+  [Mail providers](#mail-providers)). Save the sign-in there even if outgoing email stays on SMTP. The Microsoft app needs
+  **Mail.ReadWrite**, and the Google delegation needs `https://www.googleapis.com/auth/gmail.modify`.
+  Unread messages in the inbox are read, at most 50 at a time. Once handled, each is moved to
+  Deleted Items or Trash (or marked read, when left in the mailbox).
 - **A mail relay posts each message.** The mail server (or a small relay script) sends every
   message for the service desk address, as the raw message (`content-type: message/rfc822`),
   to `POST /api/tickets/email/inbound` with the headers `X-GRC-Relay-Key: <key>` (created on

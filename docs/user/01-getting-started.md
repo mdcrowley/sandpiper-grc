@@ -163,6 +163,8 @@ Figures, charts and tables for the areas you can see. You need the dashboards pe
 
 The link at the top right of a widget opens the full page for that area. If a widget cannot load its figures it says so and offers **Try again**; the rest of the page still works.
 
+The figures are the same for everyone who can see them. To keep the page quick when many people open it at once, the server may answer with figures it worked out a few seconds earlier (ten at most, by default), but never with figures from before a change: as soon as anything is saved, the next visit counts again.
+
 #### Your home dashboard
 
 A chosen home dashboard (see [Dashboards and reports](15-dashboards-and-reports.md)) is shown in the Overview's **Dashboard** part, with a switch back to the Overview's own figures and an **Open in full** link. The Overview stays the page you land on. People whose role only looks (for example Executive viewer or Auditor) see the figures first, then **Where to look** (links to each area they can open), then **For you**.

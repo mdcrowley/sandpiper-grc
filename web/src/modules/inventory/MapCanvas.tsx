@@ -29,6 +29,16 @@ const MIN_K = 0.15;
 const MAX_K = 2.5;
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
+/**
+ * A node's colors as custom properties, from its type's design-token color. The stylesheet's
+ * `inv-node-<color>` classes say the same for the original colors; these cover any token color
+ * (vehicle groups are gray) without a rule per color.
+ */
+const nodeVars = (color: string) => ({
+  '--node-bg': `var(--c-${color}-bg)`, '--node-fg': `var(--c-${color}-fg)`, '--node-solid': `var(--c-${color}-solid)`,
+  '--node-line': `color-mix(in srgb, var(--c-${color}-solid) 45%, transparent)`,
+}) as React.CSSProperties;
+
 export function MapCanvas({ layout, label, selectedId, onSelect, impacted, center, full, onToggleFull, onSave, marked }: MapCanvasProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [{ width, height }, setSize] = useState({ width: 0, height: 0 });
@@ -191,10 +201,13 @@ export function MapCanvas({ layout, label, selectedId, onSelect, impacted, cente
               const state = isHot ? 'hot' : isNear ? 'near' : near ? 'dim' : 'rest';
               const marker = flow ? `url(#inv-arrow-${isHot ? 'hot' : isNear ? 'near' : 'flow'})` : undefined;
               const target = layout.byId.get(e.to);
+              const color = typeInfo(target?.type ?? 'system').color;
               return (
                 <path
                   key={e.index} d={e.path}
-                  className={`inv-edge inv-edge-${flow ? 'flow' : typeInfo(target?.type ?? 'system').color} is-${state}`}
+                  className={`inv-edge inv-edge-${flow ? 'flow' : color} is-${state}`}
+                  // Presentation attributes: any stylesheet rule (the color classes, hot, near) wins over them.
+                  {...(flow ? {} : { stroke: 'currentColor', strokeDasharray: '4 4', style: { color: `var(--c-${color}-solid)` } })}
                   markerEnd={marker} markerStart={flow && e.direction === 'two_way' ? marker : undefined}
                 />
               );
@@ -204,7 +217,7 @@ export function MapCanvas({ layout, label, selectedId, onSelect, impacted, cente
             const crit = n.type === 'system' ? n.attrs?.criticality : null;
             return (
               <g
-                key={n.id} className={nodeClass(n)} transform={`translate(${n.x} ${n.y})`}
+                key={n.id} className={nodeClass(n)} transform={`translate(${n.x} ${n.y})`} style={nodeVars(typeInfo(n.type).color)}
                 tabIndex={0} role="button" aria-pressed={n.id === selectedId}
                 // The name starts with the label drawn on the node, so speech users can say what they see.
                 aria-label={`${n.label} (${typeInfo(n.type).label.toLowerCase()})${hot?.has(n.id) ? ', affected' : marked?.has(n.id) ? ', affected by the change' : ''}`}

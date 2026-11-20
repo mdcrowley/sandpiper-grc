@@ -109,7 +109,7 @@ export const DOCS: RouteDoc[] = [
       rules: [{ id: uuid, trigger_attribute: string, trigger_label: string, party: string, deadline_hours: number | null, required: boolean, guidance: string | null, active: boolean }],
       questions: [${QUESTION}], contacts: [{ id: uuid, role: string, person_name: string | null, contact: string | null, notes: string | null }],
       checklists: [{ scenario: string, label: string, containment: [string], recovery: [string] }],
-      severities: [{ value: string, label: string, ... }] }`,
+      severities: [{ value: string, label: string, ... }], ransom_approval: { on: boolean, name: string } }`,
   }),
 
   // ---------- report and log ----------

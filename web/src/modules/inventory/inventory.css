@@ -154,6 +154,7 @@ button.inv-nudge:hover { box-shadow: inset 0 0 0 1px var(--c-amber-solid); }
 .inv-swatch-amber { background: var(--c-amber-solid); }
 .inv-swatch-orange { background: var(--c-orange-solid); }
 .inv-swatch-teal { background: var(--c-teal-solid); }
+.inv-swatch-gray { background: var(--c-gray-solid); }
 .inv-swatch-line { display: inline-block; width: 14px; height: 2px; background: var(--text-muted); }
 
 .inv-legend { list-style: none; display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-5); margin: 0; padding: 0; color: var(--text-muted); font-size: var(--fs-sm); }

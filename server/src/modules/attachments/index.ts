@@ -4,28 +4,24 @@
 // download its files; `<module>.edit` on it lets you add, describe and remove them. A record
 // the caller may not see (including a restricted one) answers "not found" for everything, so
 // neither its files nor their existence leak.
-import { createHash } from 'node:crypto';
 import type { Readable } from 'node:stream';
 import type { FastifyRequest } from 'fastify';
+import { requireRecentAuth } from '../../core/auth.ts';
 import { UUID_RE } from '../../core/errors.ts';
 import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleDef, ResourceDef, Row } from '../../core/module.ts';
 import { todayInZone } from '../../core/timezone.ts';
-import {
-  BLOCKED_EXTENSIONS, checkContent, contentDisposition, contentTypeFor, downloadContentType, extensionOf, sanitizeFileName,
-} from './filetypes.ts';
 import { registerFileAdmin } from './admin.ts';
 import { registerBackgroundFileJobs } from './background.ts';
 import { registerBackups } from './backups.ts';
 import { clamdScanner } from './clamd.ts';
 import { clamdConfig, readScanner } from './config.ts';
 import { dailyHousekeeping } from './housekeeping.ts';
-import { makeScannerRegistry, type ScanResult } from './scanner.ts';
+import { insertAttachment, prepareFile, receiveFile, sandboxDownload, sendStoredFile, type Refusal } from './intake.ts';
+import { makeScannerRegistry } from './scanner.ts';
 import {
-  formatBytes, Meter, present, readSettings, SETTING_EXTENSIONS, SETTING_MAX_BYTES, TooLargeError,
-  validateDescriptive, validateSettings,
+  formatBytes, present, readSettings, SETTING_EXTENSIONS, SETTING_MAX_BYTES, validateDescriptive, validateSettings,
 } from './service.ts';
-import { newStorageKey, type FileStorage } from './storage.ts';
 import { makeStores } from './stores.ts';
 
 interface Parent { def: ResourceDef; row: Row; restricted: boolean; label: string }
@@ -117,6 +113,9 @@ const mod: ModuleDef = {
     app.patch('/api/attachments/settings', { preHandler: ctx.requirePerm('admin.administer') }, async (req) => {
       const change = validateSettings(ctx, (req.body ?? {}) as Row);
       const current = await readSettings(ctx);
+      // Allowing a new file type widens what may be uploaded, so it asks to confirm your identity (E01-33).
+      const added = (change.allowedExtensions ?? []).filter((x) => !current.allowedExtensions.includes(x));
+      if (added.length) await requireRecentAuth({ db: ctx.db, audit: ctx.audit, settings: ctx.settings }, req, `allowing more file types (${added.join(', ')})`);
       if (change.maxBytes !== undefined && change.maxBytes !== current.maxBytes) {
         await ctx.settings.set(SETTING_MAX_BYTES, change.maxBytes, req);
       }
@@ -184,107 +183,46 @@ const mod: ModuleDef = {
 
         // Everything that can be decided without the content is decided before reading it.
         const parent = await needParent(req, q.record_type, q.record_id, 'edit');
-        const settings = await readSettings(ctx);
-        const fileName = sanitizeFileName(q.name);
-        const extension = extensionOf(fileName);
-        const refuse = async (status: number, code: string, message: string, reason: string): Promise<never> => {
-          await ctx.audit(req, {
-            action: 'attachment.refused', recordType: parent.def.type, recordId: parent.row.id,
-            summary: `File refused: ${fileName} (${reason})`,
-          });
-          return ctx.fail(status, code, message);
-        };
-        if (!extension || BLOCKED_EXTENSIONS.has(extension) || !settings.allowedExtensions.includes(extension)) {
-          await refuse(
-            415, 'type_not_allowed',
-            extension
-              ? `Files of type .${extension} cannot be attached. Allowed types: ${settings.allowedExtensions.join(', ')}.`
-              : `The file name needs an extension such as .pdf. Allowed types: ${settings.allowedExtensions.join(', ')}.`,
-            'type not allowed',
-          );
-        }
-        const meta = validateDescriptive(ctx, q);
-        const tooLarge = `The file is larger than the limit of ${formatBytes(settings.maxBytes)}.`;
-        const declared = Number(req.headers['content-length']);
-        if (Number.isFinite(declared) && declared > settings.maxBytes) await refuse(413, 'too_large', tooLarge, 'too large');
-
-        // Receive: straight to storage, counting and hashing on the way.
-        let storage: FileStorage;
-        try {
-          storage = stores.current();
-        } catch (err) {
-          console.error('[attachments] no storage for uploads:', (err as Error).message);
-          return ctx.fail(503, 'storage_unavailable', 'Files cannot be stored at the moment. Tell an administrator.');
-        }
-        const key = newStorageKey();
-        const meter = new Meter(settings.maxBytes);
-        body!.on('error', (err) => meter.destroy(err));
-        try {
-          await storage.put(key, body!.pipe(meter));
-        } catch (err) {
-          await storage.delete(key).catch(() => undefined);
-          if (err instanceof TooLargeError) await refuse(413, 'too_large', tooLarge, 'too large');
-          throw err;
-        }
-        const size = meter.size;
-        const sha256 = meter.digest();
-        const discard = async (status: number, code: string, message: string, reason: string) => {
-          await storage.delete(key).catch(() => undefined);
-          return refuse(status, code, message, reason);
-        };
-        if (size === 0) await discard(400, 'empty_file', 'The file is empty.', 'empty');
-
-        // Check: the content against the name, then the malware scanner.
-        const verdict = checkContent(extension, meter.head);
-        if (!verdict.ok) await discard(415, verdict.code, verdict.message, verdict.code === 'executable' ? 'program or script' : 'content does not match the type');
-
-        const scanner = scanners.current();
-        let scan: ScanResult;
-        try {
-          scan = await scanner.scan({ fileName, extension, size, sha256, open: () => storage.get(key) });
-        } catch (err) {
-          scan = { verdict: 'error', detail: err instanceof Error ? err.message : 'scanner failed' };
-        }
-        if (scan.verdict === 'infected') {
-          await discard(422, 'malware', 'This file was refused by the malware scanner.', `malware scanner ${scanner.name}: ${scan.detail ?? 'infected'}`);
-        }
-        let scanWarning: string | null = null;
-        if (scan.verdict === 'error') {
-          // The administrator decides: refuse the file, or accept it as "Not scanned" with a warning.
-          const policy = (await readScanner(ctx)).whenUnavailable;
-          if (policy === 'refuse') {
-            await discard(503, 'scan_failed', 'The file could not be checked for malware, so it was not accepted. Try again later.', `malware scanner ${scanner.name} failed: ${scan.detail ?? 'no detail'}`);
+        const prepared = await prepareFile(ctx, q.name);
+        const fileName = prepared.ok ? prepared.file.fileName : prepared.fileName;
+        const refuse = async (refusal: Refusal): Promise<never> => {
+          if (refusal.audit) {
+            await ctx.audit(req, {
+              action: 'attachment.refused', recordType: parent.def.type, recordId: parent.row.id,
+              summary: `File refused: ${fileName} (${refusal.reason})`,
+            });
           }
-          scanWarning = 'The malware scanner could not check this file, so it was accepted without a scan and marked "Not scanned".';
+          return ctx.fail(refusal.status, refusal.code, refusal.message);
+        };
+        if (!prepared.ok) return refuse(prepared.refusal);
+        const meta = validateDescriptive(ctx, q);
+
+        // Receive straight to storage, then check the content and scan it (intake.ts).
+        const received = await receiveFile(ctx, prepared.file, body!, Number(req.headers['content-length']));
+        if (!received.ok) return refuse(received.refusal);
+        const file = received.file;
+        if (file.scanUnavailable) {
           await ctx.audit(req, {
             action: 'attachment.scan_unavailable', recordType: parent.def.type, recordId: parent.row.id,
-            summary: `File accepted without a malware scan: ${fileName} (malware scanner ${scanner.name} failed: ${scan.detail ?? 'no detail'})`,
+            summary: `File accepted without a malware scan: ${fileName} (malware scanner ${file.scanUnavailable.engine} failed: ${file.scanUnavailable.detail})`,
           });
         }
-        const scanned = scan.verdict === 'clean';
 
         // Accept.
-        const row = (await db.one<Row>(
-          `insert into attachments (record_type, record_id, file_name, extension, content_type, size_bytes, sha256,
-             storage_driver, storage_key, kind, description, collected_on, expires_on, scan_status, scan_engine, scanned_at,
-             uploaded_by_name, created_by, updated_by)
-           values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,${scanned ? 'now()' : 'null'},$16,$17,$17) returning *`,
-          [
-            parent.def.type, parent.row.id, fileName, extension, contentTypeFor(extension), size, sha256, storage.driver, key,
-            meta.kind, meta.description, meta.collected_on, meta.expires_on, scanned ? 'clean' : 'not_scanned',
-            scanned ? scanner.name : null, req.user!.displayName, req.user!.id,
-          ],
-        ))!;
+        const row = await insertAttachment(db, file, {
+          recordType: parent.def.type, recordId: parent.row.id, kind: meta.kind, description: meta.description,
+          collectedOn: meta.collected_on, expiresOn: meta.expires_on, uploadedByName: req.user!.displayName, userId: req.user!.id,
+        });
         await ctx.audit(req, {
           action: 'attachment.upload', recordType: parent.def.type, recordId: parent.row.id,
-          summary: `${meta.kind === 'evidence' ? 'Evidence file' : 'File'} attached: ${fileName} (${formatBytes(size)})`,
+          summary: `${meta.kind === 'evidence' ? 'Evidence file' : 'File'} attached: ${fileName} (${formatBytes(file.size)})`,
           after: {
-            attachment_id: row.id, file_name: fileName, size_bytes: size, sha256, kind: meta.kind,
+            attachment_id: row.id, file_name: fileName, size_bytes: file.size, sha256: file.sha256, kind: meta.kind,
             collected_on: meta.collected_on, expires_on: meta.expires_on, scan_status: row.scan_status,
           },
         });
         reply.code(201);
-        return scanWarning ? { ...present(row), scan_warning: scanWarning } : present(row);
+        return file.scanUnavailable ? { ...present(row), scan_warning: file.scanUnavailable.warning } : present(row);
       });
     });
 
@@ -292,10 +230,7 @@ const mod: ModuleDef = {
 
     app.get('/api/attachments/:id/download', {
       // Runs after the application-wide headers: a downloaded file gets the tightest policy there is.
-      onSend: async (_req, reply, payload) => {
-        reply.header('content-security-policy', "default-src 'none'; sandbox");
-        return payload;
-      },
+      onSend: sandboxDownload,
     }, async (req, reply) => {
       const { att, parent } = await needAttachment(req, 'view');
       const problem = async (code: string, message: string, reason: string): Promise<never> => {
@@ -305,35 +240,13 @@ const mod: ModuleDef = {
         });
         return ctx.fail(500, code, message);
       };
-      let storage: FileStorage;
-      try {
-        storage = stores.forDriver(att.storage_driver);
-      } catch (err) {
-        console.error('[attachments] download:', (err as Error).message);
-        return ctx.fail(503, 'storage_unavailable', 'The store that holds this file cannot be reached. Tell an administrator.');
-      }
-      const stat = await storage.stat(att.storage_key);
-      if (!stat) await problem('file_missing', 'The stored file is missing. Tell an administrator.', 'stored file missing');
-
-      // Verify before sending anything: read once to check the checksum, then again to send.
-      const hash = createHash('sha256');
-      for await (const chunk of await storage.get(att.storage_key)) hash.update(chunk as Buffer);
-      if (hash.digest('hex') !== att.sha256) {
-        await problem('integrity', 'This file failed its integrity check and was not sent. Tell an administrator.', 'checksum mismatch');
-      }
-
-      if (parent.restricted) {
+      return sendStoredFile(ctx, reply, att, problem, async () => {
+        if (!parent.restricted) return;
         await ctx.audit(req, {
           action: 'attachment.download', recordType: parent.def.type, recordId: parent.row.id,
           summary: `File downloaded from a restricted record: ${att.file_name}`, after: { attachment_id: att.id },
         });
-      }
-      reply.header('content-type', downloadContentType(att.content_type));
-      reply.header('content-length', stat!.size);
-      reply.header('content-disposition', contentDisposition(att.file_name));
-      reply.header('x-content-type-options', 'nosniff');
-      reply.header('cache-control', 'private, no-store');
-      return reply.send(await storage.get(att.storage_key));
+      });
     });
 
     // ---------- describe and remove ----------

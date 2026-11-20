@@ -1,7 +1,7 @@
 import type { FastifyRequest } from 'fastify';
 import { CURRENCY } from '../../core/config.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
-import { disposalProblem } from './lifecycle.ts';
+import { disposalProblem, funderRuleOn } from './lifecycle.ts';
 
 /**
  * Asset import (CSV text + column mapping, with a dry run) and the generic JSON ingest
@@ -99,6 +99,7 @@ async function assetNormalizer(ctx: ModuleContext): Promise<Normalizer> {
       `select id, name as k from systems where deleted_at is null union all select id, ref as k from systems where deleted_at is null`,
     ),
   };
+  const funderRule = await funderRuleOn(ctx);
   const users = await byName(
     `select id, username as k from users where deleted_at is null union all
      select id, email as k from users where deleted_at is null union all
@@ -162,7 +163,7 @@ async function assetNormalizer(ctx: ModuleContext): Promise<Normalizer> {
       const pct = data.funder_interest_pct;
       if (pct !== undefined && (pct < 0 || pct > 100)) errors.funder_interest_pct = 'Enter a percentage between 0 and 100.';
       if (data.status === 'disposed') {
-        const problem = disposalProblem(data);
+        const problem = disposalProblem(data, false, funderRule);
         if (problem) Object.assign(errors, problem.fields ?? { status: problem.message });
       }
       return { data, errors };

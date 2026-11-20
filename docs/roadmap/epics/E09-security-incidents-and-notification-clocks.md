@@ -1,6 +1,6 @@
 # E09 Security incidents and notification clocks
 
-**Status:** in progress (23 of 25 issues done)
+**Status:** in progress (24 of 25 issues done)
 
 ## Goal
 
@@ -40,7 +40,7 @@ for every party that must be told, counting down from the moment of discovery.
 | E09-13 | Lifecycle times and lessons learned | done | P2 |
 | E09-14 | Offline incident kit | done | P2 |
 | E09-15 | Screen for rules, checklists and contacts | done | P1 |
-| E09-16 | Scheduled PDF of the offline kit | open | P2 |
+| E09-16 | Scheduled PDF of the offline kit | done | P2 |
 | E09-17 | Alerts as a notification deadline approaches | done | P2 |
 | E09-18 | Incident lifecycle statuses as lookup data | done | P2 |
 | E09-19 | Notification deadlines across incidents | done | P1 |
@@ -270,9 +270,9 @@ severity guide and the scenario checklists.
 - [x] One page bundles rules, contacts, severity guide and checklists
 - [x] Prints cleanly from the browser
 - [x] Empty states when nothing has been set up
-- [ ] Produced on a schedule as a PDF (see E09-16)
+- [x] Produced on a schedule as a PDF (see E09-16)
 
-**Implemented in:** `GET /api/security-incidents/kit` (`server/src/modules/secincidents/index.ts`); `web/src/modules/secincidents/KitPage.tsx`
+**Implemented in:** `GET /api/security-incidents/kit` (`server/src/modules/secincidents/kit.ts`); `web/src/modules/secincidents/KitPage.tsx`
 
 ### E09-15 Screen for rules, checklists and contacts
 
@@ -294,7 +294,7 @@ page was checked at 1440 and 820 wide, light and dark, with no horizontal scroll
 
 ### E09-16 Scheduled PDF of the offline kit
 
-**Status:** open · **Priority:** P2 · **Type:** feature
+**Status:** done · **Priority:** P2 · **Type:** feature
 
 As an incident lead, a current copy of the kit is produced as a PDF on a schedule and
 whenever the rules, contacts or checklists change, so the paper copy never goes stale
@@ -302,10 +302,15 @@ unnoticed.
 
 **Acceptance criteria**
 
-- [ ] The kit is rendered to PDF on the server
-- [ ] A new copy is produced on a schedule and after any change to its contents
-- [ ] The kit shows when it was produced; the screen warns when the printed copy is out of date
-- [ ] Depends on a job queue ([E14-12](E14-platform-services.md))
+- [x] The kit is rendered to PDF on the server, with the core PDF builder; the time it was made is printed at the top of every page with the restricted marking
+- [x] A new copy is produced on a schedule (setting `security.kit_every_days`, default 7, 0 = only after changes) and after any change to its contents (a fingerprint of the contents, checked every 15 minutes by the job `secincidents.kit_pdf`), and on request
+- [x] The kit shows when it was produced; the screen says whether the latest copy matches the kit and since when paper copies are current, and warns when the kit has changed since the last copy
+- [x] Copies are kept in the database (in every backup; newest `security.kit_keep`, default 12); listing needs `security.view`, making and downloading also `security.export`; made and downloaded copies are audited
+- [x] Automatic copies are optionally emailed, as an attachment, to people an administrator names (`security.kit_recipients`; changing them needs a recent password confirmation). A recipient must be active and hold `security.view` and `security.export` when each email is sent (the kit holds standing material only, all visible with `security.view`); others are skipped and the copy says so. Nothing is sent while email is off
+- [x] Follows the security incidents feature switch: routes answer 404 and the job is skipped while the area is off
+- [x] Depends on a job queue ([E14-12](E14-platform-services.md))
+
+**Implemented in:** `server/src/modules/secincidents/kit.ts`, migration `004_kit_copies.sql`; `GET/POST /api/security-incidents/kit/copies`, `GET /api/security-incidents/kit/copies/:copyId/pdf`, `PATCH /api/security-incidents/kit/settings`; `web/src/modules/secincidents/KitCopies.tsx`; tests in `kit.test.ts`
 
 ### E09-17 Alerts as a notification deadline approaches
 

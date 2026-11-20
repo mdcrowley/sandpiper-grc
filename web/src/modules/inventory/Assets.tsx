@@ -10,10 +10,11 @@ import type { Row } from '../../core';
 import { CheckInDialog, CheckOutDialog, DisposeDialog } from './AssetDialogs';
 import type { DisposalRequest } from './AssetDialogs';
 import { AssignmentTab, DisposalTab, LifecycleBand, RequestCard, WhereCard } from './AssetLifecycle';
-import { RelatedWork } from './shared';
+import { funderFields, RelatedWork, useFunder } from './shared';
 
 export function AssetList() {
   const { can } = useAuth();
+  const funder = useFunder();
   return (
     <ResourceList
       type="asset"
@@ -22,7 +23,7 @@ export function AssetList() {
         'tag', 'name', 'asset_type', 'status',
         { field: 'user_id', label: 'Assigned to', render: (row) => row._display?.user_id ?? row.assigned_to_name ?? '—' },
         'site_id', 'warranty_end', 'support_end',
-        { field: 'funder_interest', label: 'Funder interest', sortable: true, render: (row) => (row.funder_interest ? <Badge color="amber">Funder{row.funder_interest_pct != null ? ` ${row.funder_interest_pct}%` : ''}</Badge> : '—') },
+        ...(funder.on ? [{ field: 'funder_interest', label: funder.label, sortable: true, render: (row: Row) => (row.funder_interest ? <Badge color="amber">{funder.label}{row.funder_interest_pct != null ? ` ${row.funder_interest_pct}%` : ''}</Badge> : '—') }] : []),
         { field: 'disposal_request_status', hidden: true },
         { field: 'department', hidden: true },
         { field: 'owner_id', hidden: true },
@@ -31,9 +32,9 @@ export function AssetList() {
         { field: 'cost', hidden: true },
         { field: 'purchase_date', hidden: true },
       ]}
-      filters={['status', 'asset_type', 'site_id', 'system_id', 'user_id', 'owner_id', 'funding_source', 'funder_interest', 'disposal_request_status', 'warranty_end', 'support_end', 'purchase_date']}
+      filters={funderFields(['status', 'asset_type', 'site_id', 'system_id', 'user_id', 'owner_id', 'funding_source', 'funder_interest', 'disposal_request_status', 'warranty_end', 'support_end', 'purchase_date'], funder.on)}
       bulkFields={['status', 'asset_type', 'site_id', 'owner_id', 'system_id', 'funding_source', 'warranty_end', 'support_end']}
-      createFields={['name', 'asset_type', 'status', 'make', 'model', 'serial', 'site_id', 'location', 'purchase_date', 'cost', 'funding_source', 'funder_interest', 'funder_interest_pct', 'warranty_end', 'support_end']}
+      createFields={funderFields(['name', 'asset_type', 'status', 'make', 'model', 'serial', 'site_id', 'location', 'purchase_date', 'cost', 'funding_source', 'funder_interest', 'funder_interest_pct', 'warranty_end', 'support_end'], funder.on)}
       actions={(
         <>
           {can('assets.create') && <Link className="btn btn-secondary" to="/assets/import">Import</Link>}
@@ -69,6 +70,7 @@ function AssetActions({ row, canEdit, onChanged }: { row: Row; canEdit: boolean;
 export function AssetDetail() {
   // Bumped after a lifecycle action so the assignment and disposal lists reload with the record.
   const [version, setVersion] = useState(0);
+  const purchase = funderFields(PURCHASE, useFunder().on);
   return (
     <RecordPage
       type="asset"
@@ -95,7 +97,7 @@ export function AssetDetail() {
           key: 'details', label: 'Purchase and support',
           content: ({ row, reload }) => (
             <div className="stack">
-              <EditableSummary type="asset" row={row} fields={PURCHASE} title="Purchase, funding and support" onSaved={reload} />
+              <EditableSummary type="asset" row={row} fields={purchase} title="Purchase, funding and support" onSaved={reload} />
               <EditableSummary type="asset" row={row} fields={TECHNICAL} title="Technical" onSaved={reload} />
             </div>
           ),

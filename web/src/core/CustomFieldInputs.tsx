@@ -26,6 +26,12 @@ export interface CustomFieldInputsOptions {
   defaultSection?: string;
   /** Leave out the section headings (for a form that already sits under one). */
   flat?: boolean;
+  /**
+   * For a form whose record loads after the form appears, or that is opened again for another
+   * record: when this changes, the controls start again from `initial` (edits are dropped).
+   * Leave it out and the starting values are fixed when the form first shows its fields.
+   */
+  resetKey?: string;
 }
 
 export interface CustomFieldInputs {
@@ -54,7 +60,7 @@ const WIDE = ['longtext', 'json'];
 /** Custom fields for a hand-written create or edit form. */
 export function useCustomFieldInputs(type: string, options: CustomFieldInputsOptions = {}): CustomFieldInputs {
   const resource = useResource(type);
-  const { initial, only, defaultSection = 'More details', flat = false } = options;
+  const { initial, only, defaultSection = 'More details', flat = false, resetKey } = options;
   const names = useMemo(
     () => customFieldNames(resource).filter((f) => !only || only.includes(f)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -63,12 +69,19 @@ export function useCustomFieldInputs(type: string, options: CustomFieldInputsOpt
   const metaOf = (f: string): FieldMeta => resource!.fields[f];
   const start = useMemo(
     () => Object.fromEntries(names.map((f) => [f, toFormValue(metaOf(f), initial?.[f])])),
-    // The starting values are fixed when the form opens (or when the field list changes).
+    // The starting values are fixed when the form opens (or when the field list or resetKey changes).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [names.join('|')],
+    [names.join('|'), resetKey],
   );
   const [values, setValues] = useState<Record<string, unknown>>(start);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  // A new resetKey: start again from the (new) starting values.
+  const [seenKey, setSeenKey] = useState(resetKey);
+  if (seenKey !== resetKey) {
+    setSeenKey(resetKey);
+    setValues(start);
+    setErrors({});
+  }
   // Fields added after the first render (metadata reloaded) get their starting value.
   const current = useMemo(() => ({ ...start, ...values }), [start, values]);
 

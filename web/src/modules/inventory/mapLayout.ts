@@ -1,10 +1,10 @@
 // Relationship map: types and the layout. The layout is worked out from the data alone (no
 // simulation), so the same estate always draws the same way: systems sit in labeled boxes in
-// the middle, vendors in a lane on the left, sites, data categories, assets and services in lanes on the
-// right, each placed level with the systems it belongs to (or, when they are short, stacked in
+// the middle, vendors in a lane on the left, sites, data categories, assets, services and vehicle
+// groups in lanes on the right, each placed level with the systems it belongs to (or, when they are short, stacked in
 // one column so the map stays narrow enough to read).
 
-export type NodeType = 'system' | 'vendor' | 'site' | 'asset' | 'data_category' | 'service';
+export type NodeType = 'system' | 'vendor' | 'site' | 'asset' | 'data_category' | 'service' | 'vehicle';
 export interface GraphNode {
   id: string; type: NodeType; label: string; group: string; route: string | null; ref?: string | null;
   attrs?: Record<string, string | null>;
@@ -19,6 +19,8 @@ export const NODE_TYPES: { type: NodeType; label: string; plural: string; color:
   { type: 'data_category', label: 'Data category', plural: 'Data categories', color: 'amber' },
   { type: 'asset', label: 'Asset', plural: 'Assets', color: 'orange' },
   { type: 'service', label: 'Service', plural: 'Services', color: 'teal' },
+  // One node per depot and mode ("Bus ×40 · North Depot"), never one per vehicle.
+  { type: 'vehicle', label: 'Vehicle group', plural: 'Vehicles', color: 'gray' },
 ];
 export const typeInfo = (t: NodeType) => NODE_TYPES.find((x) => x.type === t) ?? NODE_TYPES[0];
 
@@ -126,7 +128,7 @@ export function computeLayout(
   };
   // Lanes on the right (sites, data, assets, services) share one column, one under another, when they are
   // short enough to fit beside the systems: the map is then narrower and easier to read.
-  const right = (['site', 'data_category', 'asset', 'service'] as NodeType[]).map((t) => ({ t, items: of(t) })).filter((l) => l.items.length);
+  const right = (['site', 'data_category', 'asset', 'service', 'vehicle'] as NodeType[]).map((t) => ({ t, items: of(t) })).filter((l) => l.items.length);
   const stackedH = (count: number) => LANE_HEAD + count * STEP - GAP_Y;
   const stacks = (height: number) => right.length > 1
     && right.every((l) => laneCols(l.items.length, height) === 1)

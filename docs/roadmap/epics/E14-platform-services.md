@@ -1,6 +1,6 @@
 # E14 Platform services not yet built
 
-**Status:** in progress (23 of 28 issues done)
+**Status:** in progress (24 of 30 issues done)
 full-text search built; custom fields, tags and watchers built with their screens; retention
 built on the server and screens; evidence files on record pages built, their reminders open;
 feature switches for optional areas built)
@@ -58,10 +58,12 @@ bulk edit) that make daily use quicker.
 | E14-22 | Move the other modules' timers onto the job queue | done | P2 |
 | E14-23 | Start the job queue and email from core | done | P3 |
 | E14-24 | "Forgot your password?" link and help for the new pages | done | P2 |
-| E14-25 | Another mail provider (a mail service's web interface) | open | P3 |
+| E14-25 | Another mail provider (a mail service's web interface) | done | P3 |
 | E14-26 | Other modules' tests stand in for `notify` and `sendMail` safely | done | P3 |
 | E14-27 | File housekeeping, rescans and moves as background jobs | done | P3 |
 | E14-28 | Switch optional parts of the application on and off | done | P2 |
+| E14-29 | Larger messages through Microsoft Graph | open | P3 |
+| E14-30 | Wait as long as a throttled mail service asks | open | P3 |
 
 ---
 
@@ -722,18 +724,86 @@ The `/forgot-password` page exists (E14-05) but nothing links to it.
 
 ### E14-25 Another mail provider (a mail service's web interface)
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
-As an administrator whose mail service offers only a web interface, I send through it. The
-provider interface is in place (`MailProvider` and `registerMailProvider` in
-`server/src/core/mail/provider.ts`); nothing else needs to change.
+As an administrator whose mail service has switched off SMTP sign-in with a password, I send
+through the service's web interface instead: Microsoft Graph (Microsoft 365, Exchange Online)
+or the Gmail API (Google Workspace). Email to ticket can read its mailbox the same way.
 
 **Acceptance criteria**
 
-- [ ] A provider file registering itself, reusing the stored settings (host as the endpoint,
-  user name as the key id, the encrypted password as the secret)
-- [ ] Only to the configured host; no redirects; a time-out; 4xx-like answers retried, others not
-- [ ] A test with a stand-in HTTP server on port 0
+- [x] Two providers registering themselves beside SMTP (`registerMailProvider`), chosen under
+  Administration > Email (**Send through**); `app.sendMail` and every caller unchanged
+- [x] Microsoft Graph: an app registration signs in as itself (client credentials) with a client
+  secret or, recommended, a certificate (a signed client assertion; the certificate and key are
+  checked on save, the thumbprint and expiry shown), and sends as one named mailbox (default:
+  the from address) with `sendMail`; worldwide, GCC High and DoD clouds
+- [x] Gmail API: a service account with domain-wide delegation (chosen over a person's OAuth
+  refresh token: no browser sign-in, tied to no one person, granted and withdrawn scope by scope
+  by the Workspace administrator), acting as one named mailbox with the `gmail.send` scope; the
+  `token_uri` inside the key file is never used
+- [x] The message goes as MIME (built with nodemailer's stream transport, no new package), so
+  every header the application sets reaches the recipient (threading, `Auto-Submitted`,
+  `X-GRC-Mail`)
+- [x] Secrets encrypted with the secret key like the SMTP password (context `mail:<provider>`),
+  never returned, never in the audit trail; each provider's credential is kept when another is
+  chosen
+- [x] Only to the provider's published addresses (fixed in code, not settings); HTTPS only; no
+  redirects; a time-out; answer size limit; access tokens cached until shortly before expiry, a
+  refused token replaced once
+- [x] Plain errors: wrong tenant, client ID, secret or expired secret, certificate not uploaded,
+  consent or permission missing, delegation missing (naming the client ID and scope), wrong
+  mailbox, send-as refused, message too large; throttling (429, 503, 504, rate-limit reasons) and
+  server errors retried through the mail queue with its back-off, the rest not retried
+- [x] **Send a test message** works for every provider; settings changes and tests are audited,
+  naming the provider
+- [x] Email to ticket reads a mailbox through Microsoft Graph (`Mail.ReadWrite`) or the Gmail API
+  (`gmail.modify`) as well as POP3, with the sign-in saved under Email: unread inbox messages;
+  done with, each moves to Deleted Items or Trash, or is marked read when left in the mailbox
+  (`InboundMailbox` in `core/mail/mailbox.ts` is the seam)
+- [x] Tests against stand-in Microsoft and Google services on port 0 (no network): sending,
+  certificate sign-in, token reuse and refresh, throttling and retry, every error above, reading
+  and tidying mailboxes, and email to ticket end to end
+
+**Implemented in:** `server/src/core/mail/cloud.ts` (fixed addresses, HTTPS calls, token cache,
+RS256 signing, certificate and key-file checks, MIME), `graph.ts`, `gmail.ts`, `accounts.ts`
+(stored credentials, `openServiceMailbox`), `mailbox.ts` (`InboundMailbox`, `pop3Mailbox`),
+`service.ts` (the provider's credential), `routes.ts` (settings and test),
+`migrations/002_providers.sql` (`provider_settings`, `provider_secrets`); tests `providers.test.ts`
+with `cloud-fake.ts`; `server/src/modules/tickets/email.ts` (sources `graph` and `gmail`) and
+`email-services.test.ts`; web `modules/notifications/EmailSettings.tsx`,
+`modules/tickets/SettingsEmail.tsx`. Larger messages through Graph (E14-29) and waiting as long
+as a throttled service asks (E14-30) are separate issues.
+
+### E14-29 Larger messages through Microsoft Graph
+
+**Status:** open · **Priority:** P3 · **Type:** feature
+
+Microsoft Graph takes one `sendMail` request of at most 4 MB, so a message larger than about
+3 MB with its files is refused (non-retryable, with a plain reason) when sending through Graph;
+SMTP and the Gmail API take up to 10 MB of files. Graph accepts larger messages by creating a
+draft and uploading each large file in an upload session, but a draft cannot carry
+`Auto-Submitted` or `References` (only `X-` headers), which the loop guards and threading need.
+
+**Acceptance criteria**
+
+- [ ] Messages up to the 10 MB attachment limit go through Graph, keeping the headers the loop
+  guards and threading need (or an equivalent the receiving side recognizes)
+- [ ] A test with the stand-in Graph service
+
+### E14-30 Wait as long as a throttled mail service asks
+
+**Status:** open · **Priority:** P3 · **Type:** feature
+
+A throttled message (Graph or Gmail answering 429 with `Retry-After`) is retried with the mail
+queue's usual back-off (1, 2, 4 and 8 minutes), and the delivery log shows how long the service
+asked to wait. The job queue cannot yet be told to wait a given time before the next attempt.
+
+**Acceptance criteria**
+
+- [ ] A job handler can ask for its next attempt no sooner than a given time (`core/jobs`)
+- [ ] The mail providers pass the service's `Retry-After` through it
+- [ ] Tests
 
 ### E14-26 Other modules' tests stand in for `notify` and `sendMail` safely
 

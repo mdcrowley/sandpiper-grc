@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   api, ApiError, Badge, Button, Card, errorMessage, ErrorState, formatDateTime, Loading, NumberField, Select, Switch, TextArea, TextField,
-  useAuth, useFetch, useToast,
+  useAuth, useFetch, useToast, withReauth,
 } from '../../core';
 import type { ListResult } from '../../core';
 
@@ -85,7 +85,8 @@ export function PortalSettingsTab() {
     setBusy(true);
     setErrors({});
     try {
-      await api.put('/api/portal/settings', patch);
+      // Switching the portal on or off asks to confirm your identity first (E01-33).
+      await withReauth(() => api.put('/api/portal/settings', patch));
       toast.success(done);
       reload();
     } catch (err) {

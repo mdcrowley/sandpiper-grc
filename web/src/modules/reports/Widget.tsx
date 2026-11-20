@@ -168,7 +168,8 @@ export function WidgetBody({ widget, dashboardId, globals, tick, height }: Widge
       return <CalendarGrid month={month} days={days} today={todayInZone()} onMonth={setMonth} onDay={(q) => drill(result, q)} noun={result.plural.toLowerCase()} />;
     }
     default:
-      return result ? <ResultView result={result} chart={data!.chart ?? { kind: 'table' }} label={widget.title || 'Chart'} height={Math.max(140, height)} maxRows={50} /> : null;
+      // Grouped by a multi-choice field: a one-line note under the chart says how records are counted.
+      return result ? <ResultView result={result} chart={data!.chart ?? { kind: 'table' }} label={widget.title || 'Chart'} height={Math.max(140, height - (result.countingNote ? 28 : 0))} maxRows={50} shortNote /> : null;
     }
   }
 }

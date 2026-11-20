@@ -8,6 +8,9 @@ import type { ListResult } from '../../core';
 import { AuditDiff, FilterPills, Pager } from './common';
 import type { AuditEvent, FilterPill } from './common';
 
+/** An audit event with the token and request that made it, when there were any. */
+type Event = AuditEvent & { token_name?: string | null; request_id?: string | null };
+
 const PAGE_SIZE = 50;
 const CORE_TYPES = ['user', 'role', 'setting', 'lookup', 'department'];
 /** Pages for the record types that are not ordinary records. */
@@ -22,6 +25,7 @@ export function AuditLogPage() {
   const [action, setAction] = useState(params.get('action') ?? '');
   const [recordType, setRecordType] = useState(params.get('record_type') ?? '');
   const [recordId, setRecordId] = useState(params.get('record_id') ?? '');
+  const [requestId, setRequestId] = useState(params.get('request_id') ?? '');
   const [actor, setActor] = useState<{ id: string; label: string } | null>(null);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
@@ -30,16 +34,17 @@ export function AuditLogPage() {
   const [exporting, setExporting] = useState(false);
   const search = useDebounced(q.trim(), 300);
   const actionSearch = useDebounced(action.trim(), 300);
+  const requestSearch = useDebounced(requestId.trim(), 300);
 
   // Dates are whole days in the organization's time zone.
   const filters = {
-    q: search, action: actionSearch, record_type: recordType, record_id: recordId, actor_id: actor?.id,
+    q: search, action: actionSearch, record_type: recordType, record_id: recordId, actor_id: actor?.id, request_id: requestSearch,
     from: from ? `${from} 00:00:00` : '', to: to ? `${to} 23:59:59.999` : '',
   };
-  const { data, error, loading, reload } = useFetch<ListResult<AuditEvent>>(`/api/audit${qs({ ...filters, page, pageSize: PAGE_SIZE })}`, { keepPrevious: true });
+  const { data, error, loading, reload } = useFetch<ListResult<Event>>(`/api/audit${qs({ ...filters, page, pageSize: PAGE_SIZE })}`, { keepPrevious: true });
   const pages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;
   const first = <T,>(setter: (v: T) => void) => (v: T) => { setter(v); setPage(1); };
-  const clear = () => { setQ(''); setAction(''); setRecordType(''); setRecordId(''); setActor(null); setFrom(''); setTo(''); setPage(1); };
+  const clear = () => { setQ(''); setAction(''); setRecordType(''); setRecordId(''); setRequestId(''); setActor(null); setFrom(''); setTo(''); setPage(1); };
   const typeLabel = (t: string) => resources?.[t]?.label ?? humanize(t);
 
   const typeOptions = [...new Set([...CORE_TYPES, ...Object.keys(resources ?? {})])].sort()
@@ -50,6 +55,7 @@ export function AuditLogPage() {
   if (action.trim()) pills.push({ key: 'action', label: 'Action', value: action.trim(), onRemove: () => first(setAction)('') });
   if (recordType) pills.push({ key: 'type', label: 'Record type', value: typeLabel(recordType), onRemove: () => { setRecordType(''); setRecordId(''); setPage(1); } });
   if (recordId) pills.push({ key: 'record', label: 'Record', value: recordId.length > 13 ? `${recordId.slice(0, 8)}…` : recordId, onRemove: () => first(setRecordId)('') });
+  if (requestId.trim()) pills.push({ key: 'request', label: 'Request', value: requestId.trim().length > 13 ? `${requestId.trim().slice(0, 8)}…` : requestId.trim(), onRemove: () => first(setRequestId)('') });
   if (actor) pills.push({ key: 'actor', label: 'Done by', value: actor.label || 'One person', onRemove: () => first(setActor)(null) });
   if (from) pills.push({ key: 'from', label: 'From', value: formatDate(from), onRemove: () => first(setFrom)('') });
   if (to) pills.push({ key: 'to', label: 'To', value: formatDate(to), onRemove: () => first(setTo)('') });
@@ -80,7 +86,7 @@ export function AuditLogPage() {
     return next;
   });
 
-  const recordLink = (e: AuditEvent) => {
+  const recordLink = (e: Event) => {
     if (!e.record_type || !e.record_id) return null;
     const route = CORE_ROUTES[e.record_type] ?? resources?.[e.record_type]?.route;
     return route ? `${route}/${e.record_id}` : null;
@@ -103,6 +109,7 @@ export function AuditLogPage() {
           <TextField className="adm-toolbar-grow" label="Search" type="search" placeholder="Summary, person or action" leftSection={<Icon name="search" size={16} />} value={q} onChange={first(setQ)} />
           <TextField label="Action" placeholder="For example signin.failure" value={action} onChange={first(setAction)} />
           <Select label="Record type" placeholder="Any type" options={typeOptions} value={recordType} onChange={(v) => { setRecordType(v); setRecordId(''); setPage(1); }} />
+          <TextField label="Request id" placeholder="From an X-Request-Id header" value={requestId} onChange={first(setRequestId)} />
           <UserPicker label="Done by" placeholder="Anyone" value={actor?.id ?? null} display={actor?.label}
             onChange={(id, option) => { setActor(id ? { id, label: option?.label ?? '' } : null); setPage(1); }} />
           <DateField label="From" value={from} max={to || undefined} onChange={first(setFrom)} />
@@ -157,11 +164,18 @@ export function AuditLogPage() {
                               <td colSpan={5} className="adm-wrap">
                                 <AuditDiff before={e.before} after={e.after} recordType={e.record_type} />
                                 <div className="adm-audit-foot">
-                                  <span className="muted">Event {e.id}{e.record_id ? ` · record ${e.record_id}` : ''}</span>
+                                  <span className="muted">
+                                    Event {e.id}{e.record_id ? ` · record ${e.record_id}` : ''}
+                                    {e.token_name ? ` · token “${e.token_name}”` : ''}
+                                    {e.request_id ? ` · request ${e.request_id}` : ''}
+                                  </span>
                                   {href && <Link to={href}>Open the {typeLabel(e.record_type!).toLowerCase()}</Link>}
                                   {action.trim() !== e.action && <Button size="sm" variant="ghost" icon="filter" onClick={() => first(setAction)(e.action)}>Only “{e.action}” events</Button>}
                                   {e.record_type && e.record_id && recordId !== e.record_id && (
                                     <Button size="sm" variant="ghost" icon="filter" onClick={() => { setRecordType(e.record_type!); setRecordId(e.record_id!); setPage(1); }}>Only this record</Button>
+                                  )}
+                                  {e.request_id && requestId.trim() !== e.request_id && (
+                                    <Button size="sm" variant="ghost" icon="filter" onClick={() => first(setRequestId)(e.request_id!)}>Everything this request did</Button>
                                   )}
                                 </div>
                               </td>

@@ -1,6 +1,6 @@
 # E02 Account security
 
-**Status:** in progress (21 of 26 issues done)
+**Status:** in progress (22 of 28 issues done)
 
 ## Goal
 
@@ -15,7 +15,8 @@ everything else fails.
 - The second factor (authenticator app, passkeys and recovery codes) can be enforced. The
   setting's own default is `notice` so an upgrade locks nobody out; a new installation set up
   through the wizard starts at `required` (E02-17).
-- Single sign-on (OpenID Connect) needs outbound access to the identity provider. It is off
+- Single sign-on with OpenID Connect needs outbound access to the identity provider; SAML 2.0
+  (E02-10) needs none (the browser carries every message). It is off
   until an administrator switches a provider on; the application works without it. Running it
   for real also needs HTTPS on a real host name ([E16](E16-hosting-operations-and-hardening.md)).
 
@@ -32,7 +33,7 @@ everything else fails.
 | E02-07 | Encrypt second-factor secrets at rest | done | P1 |
 | E02-08 | Passkeys and security keys (WebAuthn) | in progress | P3 |
 | E02-09 | Single sign-on with OpenID Connect | done | P2 |
-| E02-10 | Single sign-on with SAML | blocked | P3 |
+| E02-10 | Single sign-on with SAML | done | P3 |
 | E02-11 | Link local accounts to single sign-on identities | done | P3 |
 | E02-12 | Personal API tokens | in progress | P2 |
 | E02-13 | Break-glass account | done | P2 |
@@ -49,6 +50,8 @@ everything else fails.
 | E02-24 | Groups by reference (group overage) | done | P3 |
 | E02-25 | Break-glass banner on every page | done | P2 |
 | E02-26 | Directory (LDAP) sign-in | open | P3 |
+| E02-27 | SAML: act on sign-outs started at the identity provider | open | P3 |
+| E02-28 | SAML: check metadata signatures and refresh metadata | open | P3 |
 
 ---
 
@@ -230,35 +233,33 @@ identity provider in settings and map its groups to roles.
 
 ### E02-10 Single sign-on with SAML
 
-**Status:** blocked · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 As an administrator whose identity provider only offers SAML, I can connect it in the
 same way as OpenID Connect.
 
-**Why it is not built.** Verifying a SAML response safely needs a complete XML Signature
-implementation: a hardened XML parser (no DTDs or external entities), Exclusive XML
-Canonicalization 1.0 (with and without comments, in-scope namespaces), resolving each
-`Reference` by ID and applying only the enveloped-signature and exc-c14n transforms, digest
-and signature checks against the configured certificate only (never a `KeyInfo` key), and
-defenses against signature wrapping (the signed element must be exactly the assertion that is
-then read; one assertion; IDs unique). Node has no XML parser or canonicalizer, and writing
-one here would be the riskiest code in the application. It needs either an approved, maintained
-XML-signature package, or a decision to support SAML only through an OpenID Connect bridge
-(many identity providers offer both).
-
-**When unblocked:** a `saml` driver in `server/src/core/identity/` with `style: 'redirect'`:
-`start` builds the AuthnRequest (HTTP-Redirect binding), the callback (POST binding, which needs
-a `SameSite=None` state cookie or a relay-state store) calls `complete`, which returns the same
-`ExternalIdentity` (NameID, email attribute, groups attribute); linking, mapping, just-in-time
-accounts, break-glass and audit then work unchanged. Also: service-provider metadata at
-`/api/auth/sso/:key/metadata`, `InResponseTo`, `NotOnOrAfter`, `Audience` and `Recipient` checks,
-and replay protection by assertion ID.
+Unblocked by decision: no paid service; an open-source XML-signature library inside the
+application. **@node-saml/node-saml** 5.2.0 (MIT, the maintained successor of passport-saml's
+core; on xml-crypto 6.4.0 and @xmldom/xmldom 0.8.15, with xml-encryption 3.1.0), pinned to exact
+versions; `npm audit` clean. It checks the XML signatures (configured certificates only, signed
+bytes read, one assertion, InResponseTo, audience, issuer, times); this application adds hardened
+parsing, a signature-wrapping and algorithm allow-list check, exact Destination and Recipient,
+browser binding and one-time assertion IDs (see [Security](../../security.md)).
 
 **Acceptance criteria**
 
-- [ ] Service-provider metadata is published and identity-provider metadata imported
-- [ ] Signed assertions are verified; unsigned ones are refused
-- [ ] Attributes map to roles
+- [x] Service-provider metadata is published per provider (`GET /api/auth/sso/:key/metadata`), with this application's own RSA-3072 key and self-signed certificate (key stored encrypted, replaceable)
+- [x] Identity-provider metadata imported by pasting or uploading it, or fetched by address only when outbound connections are on and the host is allowed; or entity ID, sign-in address and several signing certificates (for a rollover) entered by hand
+- [x] SP-initiated Web Browser SSO: AuthnRequest with the HTTP-Redirect binding (optionally signed), Response with the HTTP-POST binding to the assertion consumer service; the posted response is bound to the browser that started the sign-in
+- [x] Signed assertions (or a signed response around them) are verified; unsigned ones are refused; only RSA-SHA256 or stronger
+- [x] Exact Destination, Recipient, Audience, issuer and InResponseTo (request IDs single-use, 10 minutes); NotBefore/NotOnOrAfter with 60 s skew; assertion IDs accepted once (database); signature wrapping, DTD/XXE, entity expansion and size limits refused
+- [x] Optional encrypted assertions (AES-GCM, RSA-OAEP)
+- [x] NameID and attributes (email, display name, groups) map to accounts and roles exactly as for OpenID Connect: linking, just-in-time accounts, role mapping, break-glass, audit and rate limits; the provider's multi-factor sign-in through AuthnContextClassRef
+- [x] SP-initiated single logout (signed LogoutRequest, HTTP-Redirect); sign-outs started at the identity provider are E02-27
+- [x] Tests with a stand-in identity provider whose key is made at test time: happy paths, and refusals for unsigned, untrusted key, SHA-1, wrong audience, expired, not yet valid, wrong InResponseTo, unsolicited, wrong Recipient, Destination and issuer, transient NameID, error status, DTD/XXE, entity expansion, changed content, two kinds of signature wrapping, a reference to another element, replayed assertion, replayed response, another browser, oversized response, rate limit
+- [x] Checked in a browser: the provider screens (light and dark, 1440 and 820) and a whole sign-in through the stand-in identity provider
+
+**Implemented in:** `server/src/core/identity/saml.ts` (driver, metadata, logout), `samlxml.ts` (hardened XML, response and assertion checks, metadata), `x509.ts` (certificates), `saml-fake-idp.ts` (stand-in identity provider), `saml.test.ts`; `keepPostedResponse`, `acceptAssertionOnce`, `consumeFlow` (`service.ts`); routes `/api/auth/sso/:key/acs`, `/metadata`, `/slo` (`server/src/modules/admin/sso.ts`), `POST /api/admin/identity-providers/saml-metadata` and key handling (`providers.ts`), `migrations/003_saml.sql`, `saml.test.ts`; web `ProviderEditor.tsx`, `SamlFields.tsx`, `saml.css`, `Providers.tsx`; [user guide](../../user/09-administration.md#saml-20-providers), [Security](../../security.md)
 
 ### E02-11 Link local accounts to single sign-on identities
 
@@ -538,3 +539,24 @@ the shell does not yet show it on every page. Render `BreakGlassBanner` (exporte
 A `credentials`-style driver in `server/src/core/identity/` (`authenticate(provider, secret,
 username, password)` returning an `ExternalIdentity`) offered on the password form. Needs an LDAP
 client (a new package) and LDAPS only.
+
+### E02-27 SAML: act on sign-outs started at the identity provider
+
+**Status:** open · **Priority:** P3 · **Type:** feature
+
+Split from E02-10. Signing out here already signs out at a SAML identity provider (SP-initiated).
+A LogoutRequest the identity provider sends to `/api/auth/sso/:key/slo` (when the person signs out
+there, or elsewhere) is not acted on: the browser is just sent to `/`. Validate the signed
+LogoutRequest (redirect binding signature or POST signature, issuer, destination, time), end the
+sessions made through that provider for that NameID and SessionIndex, answer with a signed
+LogoutResponse, and audit it.
+
+### E02-28 SAML: check metadata signatures and refresh metadata
+
+**Status:** open · **Priority:** P3 · **Type:** improvement
+
+Split from E02-10. Identity-provider metadata is pasted, uploaded or fetched once, and its own
+signature is not checked: the administrator vouches for it. For federations and identity
+providers that publish signed metadata, offer verifying it against a configured signing
+certificate, and an optional scheduled refresh (only with outbound connections on) that picks up
+new signing certificates before a rollover.

@@ -10,7 +10,7 @@ import {
 import type { ColorName, Row } from '../../core';
 import { DecideDialog, WhereDialog } from './AssetDialogs';
 import type { DisposalRequest } from './AssetDialogs';
-import { Callout, daysPhrase, daysUntil } from './shared';
+import { Callout, daysPhrase, daysUntil, useFunder } from './shared';
 
 /* ---------- stage band ---------- */
 
@@ -43,6 +43,7 @@ function DateTile({ label, date, from, endedWord, soonDays }: { label: string; d
 }
 
 export function LifecycleBand({ row }: { row: Row }) {
+  const funder = useFunder();
   const statuses = useLookup('asset_status');
   // "In repair" is a detour rather than a stage: it shows only while the asset is there.
   const steps = statuses.filter((s) => s.value !== 'in_repair' || row.status === 'in_repair').map((s) => ({ key: s.value, label: s.label }));
@@ -68,8 +69,8 @@ export function LifecycleBand({ row }: { row: Row }) {
               Approved by {row.disposal_approved_by}{row.disposal_approved_on ? ` on ${formatDate(row.disposal_approved_on)}` : ''}. Select Dispose to complete it.
             </Callout>
           )}
-          {row.funder_interest && (
-            <Callout color="amber" title={`Funder interest${row.funder_interest_pct != null ? `: ${row.funder_interest_pct}%` : ''}`}>
+          {funder.on && row.funder_interest && (
+            <Callout color="amber" title={`${funder.label}${row.funder_interest_pct != null ? `: ${row.funder_interest_pct}%` : ''}`}>
               An outside funder keeps an interest in this asset. It cannot be disposed of until the funder's approval reference is entered.
             </Callout>
           )}
@@ -187,6 +188,7 @@ const REQUEST_STATE: Record<DisposalRequest['status'], { label: string; color: C
 
 /** One disposal request with its decision, and the buttons the reader may use on it. */
 export function RequestCard({ request, label, onChanged, showAsset }: { request: DisposalRequest; label: string; onChanged: () => void; showAsset?: boolean }) {
+  const funder = useFunder();
   const { can } = useAuth();
   const toast = useToast();
   const [deciding, setDeciding] = useState<'approve' | 'refuse' | null>(null);
@@ -214,7 +216,7 @@ export function RequestCard({ request, label, onChanged, showAsset }: { request:
           <Text size="sm"><strong>{request.requested_by_name ?? 'Someone'}</strong> asked on {formatDateTime(request.requested_at)}</Text>
         </div>
         <Group gap={6} wrap="nowrap">
-          {request.funder_interest && <Badge color="amber" variant="light">Funder interest</Badge>}
+          {funder.on && request.funder_interest && <Badge color="amber" variant="light">{funder.label}</Badge>}
           <Badge color={state.color} variant="light">{state.label}</Badge>
         </Group>
       </Group>
@@ -251,6 +253,7 @@ export function RequestCard({ request, label, onChanged, showAsset }: { request:
 const DISPOSAL = ['disposal_approved_by', 'disposal_approved_on', 'disposal_approval_ref', 'disposal_method', 'disposed_on'];
 
 export function DisposalTab({ row, version, onChanged }: { row: Row; version: number; onChanged: () => void }) {
+  const funder = useFunder();
   const { data, error, reload } = useFetch<DisposalRequest[]>(`/api/assets/${row.id}/disposal-requests?v=${version}`);
   const state: string | null = row.disposal_request_status ?? null;
   const gone = row.status === 'disposed';
@@ -269,14 +272,14 @@ export function DisposalTab({ row, version, onChanged }: { row: Row; version: nu
           approve are told, and the one who asked cannot approve it. An approval given outside the application can be recorded
           as a name and date instead, unless your organization has switched that off.
         </Text>
-        {row.funder_interest ? (
-          <Callout color={gone ? 'gray' : 'amber'} title="The funder-interest rule applies to this asset">
+        {!funder.on ? null : row.funder_interest ? (
+          <Callout color={gone ? 'gray' : 'amber'} title={`${funder.label}: the disposal rule applies to this asset`}>
             An outside funder paid for {row.funder_interest_pct != null ? `${row.funder_interest_pct}% of` : 'part of'} this asset and keeps an
             interest in it. As well as the approval above, the reference of the funder's own approval (a letter or email reference)
             must be entered before the asset can be marked as disposed. The rule holds however the status is changed, and a blocked attempt is kept in the history.
           </Callout>
         ) : (
-          <Text size="sm" c="dimmed">No funder interest is recorded for this asset, so no funder approval reference is needed.</Text>
+          <Text size="sm" c="dimmed">No {funder.label.toLowerCase()} is recorded for this asset, so no funder approval reference is needed.</Text>
         )}
         {state === 'refused' && !gone && <Callout color="red" title="The last request was refused">Read the approver's comment below. A new request can be made with the Dispose button.</Callout>}
       </Card>

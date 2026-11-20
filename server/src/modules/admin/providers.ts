@@ -7,6 +7,10 @@ import {
   callbackPath, DRIVERS, providerById, publicBase, readSecret, sealSecret, type IdentityDeps,
 } from '../../core/identity/service.ts';
 import { IdentityError, type ProviderRecord } from '../../core/identity/types.ts';
+import { certificateFacts, newServiceProviderKey, samlAddresses } from '../../core/identity/saml.ts';
+import { parseIdpMetadata } from '../../core/identity/samlxml.ts';
+import { fetchText } from '../../core/identity/http.ts';
+import { hostAllowed } from '../../core/webhooks.ts';
 import { UUID_RE } from '../../core/errors.ts';
 import { adminRoute, body, idParam, invalid, sensitive } from './shared.ts';
 import { identityDeps, signInMethods, unlinkIdentity } from './sso.ts';
@@ -44,15 +48,25 @@ export async function localOffProblem(ctx: ModuleContext): Promise<string | null
   return null;
 }
 
-const providerView = async (ctx: ModuleContext, r: Row) => ({
+const providerView = async (ctx: ModuleContext, r: Row, base = '') => ({
   id: r.id, key: r.key, type: r.type, name: r.name, enabled: r.enabled, isDefault: r.is_default, sort: r.sort,
   config: r.config, hasSecret: Boolean(r.secret), linked: r.linked ?? 0, createdAt: r.created_at, updatedAt: r.updated_at,
   typeLabel: DRIVERS[r.type]?.label ?? r.type,
+  // SAML (E02-10): what to give the identity provider, and the certificates' facts.
+  ...(r.type === 'saml' ? {
+    sp: {
+      ...samlAddresses(`${base}${callbackPath(r.key)}`, r.config ?? {}),
+      certificate: certificateFacts([r.config?.spCert])[0] ?? null,
+      keyReadable: Boolean(r.secret) && readSecret(ctx.db, toRecord(r)) !== null,
+    },
+    idpCertificates: certificateFacts(r.config?.idpCerts),
+  } : {}),
 });
 
 export function registerProviders(ctx: ModuleContext) {
   const { db } = ctx;
   const deps: IdentityDeps = identityDeps(ctx);
+  const baseOf = async (req: FastifyRequest) => { try { return await publicBase(deps, req); } catch { return ''; } };
 
   const listRows = () => db.query<Row>(
     `select p.*, (select count(*)::int from user_identities i where i.provider_id = p.id) as linked
@@ -73,8 +87,10 @@ export function registerProviders(ctx: ModuleContext) {
     try { base = await publicBase(deps, req); } catch { base = ''; }
     const bg = await breakGlassUser(ctx);
     return {
-      providers: await Promise.all((await listRows()).map((r) => providerView(ctx, r))),
+      providers: await Promise.all((await listRows()).map((r) => providerView(ctx, r, base))),
       kinds: Object.values(DRIVERS).map((d) => ({ type: d.type, label: d.label })),
+      // SAML metadata can be fetched from an address only when outbound connections are on (and to an allowed host).
+      outboundEnabled: (await ctx.settings.get<unknown>('integrations.outbound_enabled', false)) === true,
       callbackBase: base,
       callbackPathTemplate: callbackPath('{key}'),
       publicUrl: await ctx.settings.get('auth.public_url', ''),
@@ -114,7 +130,9 @@ export function registerProviders(ctx: ModuleContext) {
       if (unknown) fields['config.mappings'] = `There is no role "${unknown.role}".`;
     }
     let secret: string | null | undefined; // undefined = keep
-    if (typeof b.secret === 'string' && b.secret !== '') {
+    if (type === 'saml') {
+      // SAML: the stored secret is this application's own key, made here; it never comes from input.
+    } else if (typeof b.secret === 'string' && b.secret !== '') {
       if (b.secret.length > 1000) fields.secret = 'The client secret is too long.';
       secret = b.secret;
     } else if (b.clearSecret === true) secret = null;
@@ -123,11 +141,21 @@ export function registerProviders(ctx: ModuleContext) {
       fields.secret = 'Enter the client secret before switching the provider on.';
     }
     if (Object.keys(fields).length) invalid(fields);
-    return { type, key: key!, name, enabled, isDefault: isDefault && enabled, sort, config, secret };
+    return { type, key: key!, name, enabled, isDefault: isDefault && enabled, sort, config, secret, newKey: type === 'saml' && (!existing || b.newServiceProviderKey === true) };
+  }
+
+  /** SAML: a new key pair for this application's side (on adding the provider, or when asked). */
+  async function samlKey(v: { type: string; name: string; config: Record<string, any>; secret: string | null | undefined; newKey: boolean }) {
+    if (!v.newKey) return;
+    const made = await newServiceProviderKey(`${v.name} (Sandpiper GRC)`);
+    v.config = { ...v.config, spCert: made.certificate };
+    v.secret = made.privateKey;
   }
 
   const summaryOf = (r: Row) => ({
-    name: r.name, enabled: r.enabled, isDefault: r.is_default, issuer: r.config?.issuer, clientId: r.config?.clientId,
+    name: r.name, enabled: r.enabled, isDefault: r.is_default, issuer: r.config?.issuer ?? r.config?.idpEntityId, clientId: r.config?.clientId,
+    ssoUrl: r.config?.ssoUrl, signingCertificates: r.type === 'saml' ? certificateFacts(r.config?.idpCerts).map((c) => c.fingerprint) : undefined,
+    serviceProviderCertificate: r.type === 'saml' ? certificateFacts([r.config?.spCert])[0]?.fingerprint : undefined,
     mappingEnabled: r.config?.mappingEnabled, mappings: r.config?.mappings, jitEnabled: r.config?.jitEnabled,
     jitDomains: r.config?.jitDomains, trustEmail: r.config?.trustEmail, secret: r.secret ? 'stored' : 'none',
   });
@@ -135,6 +163,7 @@ export function registerProviders(ctx: ModuleContext) {
   adminRoute(ctx, 'POST', '/api/admin/identity-providers', async (req, reply) => {
     const v = await clean(req, null);
     await sensitive(ctx, req, 'adding a sign-in provider');
+    await samlKey(v);
     const row = await db.tx(async (tx) => {
       if (v.isDefault) await tx.query('update identity_providers set is_default = false where is_default');
       const created = await tx.one<Row>(
@@ -151,13 +180,14 @@ export function registerProviders(ctx: ModuleContext) {
       summary: `Sign-in provider "${v.name}" (${DRIVERS[v.type].label}) added${v.enabled ? ' and switched on' : ''}`, after: summaryOf(after),
     });
     reply.code(201);
-    return providerView(ctx, after);
+    return providerView(ctx, after, await baseOf(req));
   });
 
   adminRoute(ctx, 'PATCH', '/api/admin/identity-providers/:id', async (req) => {
     const before = await getRow(idParam(req, 'Sign-in provider'));
     const v = await clean(req, before);
     await sensitive(ctx, req, `changing the sign-in provider "${before.name}"`);
+    await samlKey(v);
     if (before.enabled && !v.enabled && !(await ctx.settings.get('auth.local_signin', true))) {
       const stillOk = await db.one(
         `select 1 from users u where u.deleted_at is null and u.status = 'active'
@@ -190,7 +220,7 @@ export function registerProviders(ctx: ModuleContext) {
         before: Object.fromEntries(changed.map((k) => [k, b[k]])), after: Object.fromEntries(changed.map((k) => [k, a[k]])),
       });
     }
-    return providerView(ctx, after);
+    return providerView(ctx, after, await baseOf(req));
   });
 
   adminRoute(ctx, 'POST', '/api/admin/identity-providers/:id/test', async (req) => {
@@ -203,6 +233,42 @@ export function registerProviders(ctx: ModuleContext) {
       summary: `Connection to "${p.name}" tested: ${result.ok ? 'worked' : 'failed'}. ${result.message}`.slice(0, 500),
     });
     return result;
+  });
+
+  // SAML (E02-10): read an identity provider's metadata, pasted or uploaded as text, or fetched from its
+  // address when outbound connections are on and the host is allowed. Nothing is saved: the editor
+  // fills its fields from the answer, and the administrator saves.
+  adminRoute(ctx, 'POST', '/api/admin/identity-providers/saml-metadata', async (req) => {
+    const b = body(req);
+    let xml = typeof b.xml === 'string' ? b.xml : '';
+    const url = typeof b.url === 'string' ? b.url.trim() : '';
+    if (!xml && !url) invalid({ xml: 'Paste the metadata, upload its file, or give its address.' });
+    if (!xml) {
+      if ((await ctx.settings.get<unknown>('integrations.outbound_enabled', false)) !== true) {
+        ctx.fail(409, 'outbound_off', 'Outbound connections are switched off (Settings > Integrations), so metadata cannot be fetched. Download it yourself and upload the file.');
+      }
+      let target: URL | null = null;
+      try { target = new URL(url); } catch { target = null; }
+      if (!target) invalid({ url: 'Enter the metadata address, starting with https://.' });
+      if (!hostAllowed(target!, await ctx.settings.get<unknown>('integrations.allowed_hosts', []))) {
+        invalid({ url: `${target!.host} is not on the list of allowed hosts (integrations.allowed_hosts). Add it there, or upload the file.` });
+      }
+      try {
+        xml = await fetchText(url, 'metadata address');
+      } catch (err) {
+        await ctx.audit(req, { action: 'identity_provider.metadata_fetch', summary: `SAML metadata could not be fetched from ${target!.host}: ${err instanceof IdentityError ? err.reason : 'error'}` });
+        invalid({ url: err instanceof IdentityError ? err.message : 'The metadata could not be fetched.' });
+      }
+      await ctx.audit(req, { action: 'identity_provider.metadata_fetch', summary: `SAML metadata fetched from ${target!.host}` });
+    }
+    try {
+      const meta = parseIdpMetadata(xml);
+      return { ...meta, certificateFacts: certificateFacts(meta.certificates.map((c) => `-----BEGIN CERTIFICATE-----
+${c}
+-----END CERTIFICATE-----`)) };
+    } catch (err) {
+      return invalid({ [url && !b.xml ? 'url' : 'xml']: err instanceof IdentityError ? err.message : 'The metadata could not be read.' });
+    }
   });
 
   adminRoute(ctx, 'DELETE', '/api/admin/identity-providers/:id', async (req) => {

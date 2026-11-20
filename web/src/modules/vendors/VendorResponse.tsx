@@ -1,10 +1,12 @@
 // The vendor's side of an assessment response link (E06-21): a public page, no account. The
 // vendor answers each question, can save and come back while the link lasts, and sends the
-// answers once every question has one. Staff then review them inside the application.
+// answers once every question has one, with supporting files if the link allows them (E06-22).
+// Staff then review them inside the application.
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { SegmentedControl } from '@mantine/core';
 import { api, ApiError, Button, EmptyState, errorMessage, formatDate, formatDateTime, Loading, TextArea, TextField } from '../../core';
+import { VendorFiles, type SentFile, type UploadLimits } from './ResponseFiles';
 
 type Answer = 'yes' | 'partial' | 'no' | 'na';
 interface Entry { answer?: Answer | null; note?: string | null }
@@ -12,6 +14,7 @@ interface PublicQuestion { key: string; section: string | null; text: string; gu
 interface Response {
   organization: string; vendor_name: string; title: string; expires_at: string; submitted_at: string | null;
   responder_name: string | null; questions: PublicQuestion[]; answers: Record<string, Entry>;
+  files?: SentFile[]; upload?: UploadLimits;
 }
 
 const CHOICES: { value: Answer; label: string }[] = [
@@ -121,6 +124,11 @@ export function VendorResponsePage() {
           })}
         </fieldset>
       ))}
+
+      {data.upload && (
+        <VendorFiles token={token} files={data.files ?? []} limits={data.upload} sent={sent}
+          onChange={(files) => setData((d) => (d ? { ...d, files } : d))} />
+      )}
 
       {!sent && (
         <>

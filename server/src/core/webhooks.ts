@@ -6,6 +6,7 @@ import { BlockList, isIP } from 'node:net';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { Db } from './db.ts';
 import { fail, UUID_RE } from './errors.ts';
+import { featureState } from './features.ts';
 import type { ResourceDef, Row, SessionUser } from './module.ts';
 import type { makeResources, RecordChange } from './resource.ts';
 import type { SecretBox } from './secretbox.ts';
@@ -24,6 +25,9 @@ import { can, requirePerm, type makeAudit, type makeSettings } from './services.
  *  3. Restricted records are left out unless the subscription says `include_restricted`, which only
  *     a person holding `security.view` can switch on, and which stops applying if the person who
  *     created the subscription no longer holds it.
+ *
+ * Besides record changes, modules raise the events of a small catalog (WEBHOOK_EVENTS, E13-19) with
+ * `emitWebhookEvent`; the same three fences apply, and an event of a switched-off area is not sent.
  *
  * Deliveries are rows in `webhook_deliveries`, worked through by an in-process timer, so a restart
  * loses nothing. Each is signed: `X-GRC-Signature: sha256=<hex HMAC-SHA256(secret, timestamp + "." + body)>`
@@ -171,6 +175,107 @@ export function postWebhook(
 const matches = (events: string[], type: string, action: string) =>
   events.some((e) => e === '*' || e === `${type}.*` || e === `${type}.${action}`);
 
+// ---------- events other than record changes (E13-19) ----------
+
+/**
+ * One event that is not a record change. Modules raise it with `emitWebhookEvent`; nothing else
+ * may be emitted, so this list is the whole catalog (documented in docs/api.md).
+ *  - `area`: the feature area it belongs to; while that area is switched off nothing is emitted
+ *    and the event is not offered on the webhook screen. `null` = always on.
+ *  - `restricted`: `always` (about restricted records, such as security incidents), `record` (as
+ *    restricted as the record it names) or `never`. A restricted event goes only to a webhook that
+ *    includes restricted records, exactly as for record changes.
+ *  - `data`: the fields of the payload's `data` object, for the documentation and the screen.
+ */
+export interface WebhookEventDef {
+  event: string;
+  label: string;
+  description: string;
+  area: string | null;
+  restricted: 'always' | 'record' | 'never';
+  /** The record type the payload's `record` names, when it names one. */
+  recordType?: string;
+  data: Record<string, string>;
+}
+
+export const WEBHOOK_EVENTS: WebhookEventDef[] = [
+  {
+    event: 'notification_clock.warning', label: 'Notification clock about to run out', area: 'secincidents', restricted: 'always',
+    recordType: 'notification_task',
+    description: 'A security incident\'s notification deadline is close (the clock turned amber). Raised once per notification task.',
+    data: { incidentId: 'Incident id', incidentRef: 'Incident reference', party: 'Who must be notified', required: 'Whether the notification is required (else recommended)', dueAt: 'Deadline (ISO time)', secondsRemaining: 'Seconds left when raised' },
+  },
+  {
+    event: 'notification_clock.overdue', label: 'Notification clock ran out', area: 'secincidents', restricted: 'always',
+    recordType: 'notification_task',
+    description: 'A security incident\'s notification deadline passed with the notification still pending (the clock turned red). Raised once per notification task.',
+    data: { incidentId: 'Incident id', incidentRef: 'Incident reference', party: 'Who must be notified', required: 'Whether the notification is required (else recommended)', dueAt: 'Deadline (ISO time)' },
+  },
+  {
+    event: 'security_incident.declared', label: 'Security incident declared', area: 'secincidents', restricted: 'always',
+    recordType: 'security_incident',
+    description: 'A security incident was declared, which starts its notification clocks.',
+    data: { severity: 'Severity value', declaredAt: 'When it was declared (ISO time)', clocks: 'Notification clocks started', firstDeadline: 'Earliest deadline (ISO time) or null' },
+  },
+  {
+    event: 'change.approval_decided', label: 'Change approval decided', area: 'changes', restricted: 'record',
+    recordType: 'change',
+    description: 'An approver approved or rejected a change.',
+    data: { decision: '`approved` or `rejected`', approver: 'Name of the approver', approvalsReceived: 'Approvals so far', approvalsRequired: 'Approvals needed', status: 'Status of the change afterwards' },
+  },
+  {
+    event: 'report_schedule.delivered', label: 'Scheduled report delivered', area: 'reports', restricted: 'never',
+    recordType: 'report_schedule',
+    description: 'A report schedule ran. The payload has counts only, never the figures: those are read in the application.',
+    data: { name: 'Schedule name', delivered: 'People it reached', skipped: 'People skipped', failed: 'Deliveries that failed' },
+  },
+  {
+    event: 'backup.failed', label: 'Backup failed', area: null, restricted: 'never',
+    description: 'A scheduled or manual backup failed.',
+    data: { runId: 'Backup run id', trigger: '`scheduled` or `manual`', destination: 'Where it was to be written', message: 'Why it failed' },
+  },
+];
+
+const EVENT_DEFS = new Map(WEBHOOK_EVENTS.map((e) => [e.event, e]));
+const EVENT_FAMILIES = new Set(WEBHOOK_EVENTS.map((e) => e.event.split('.')[0]));
+
+/** Whether a subscription list asks for a catalog event: by name, by `<family>.*`, or `*`. */
+const matchesEvent = (events: string[], event: string) =>
+  events.some((e) => e === '*' || e === event || e === `${event.split('.')[0]}.*`);
+
+export interface WebhookEventInput {
+  /** A name from WEBHOOK_EVENTS. */
+  event: string;
+  /** The payload's `data` (the fields the catalog documents). */
+  data: Row;
+  /** The record the event is about, when there is one (restriction and the payload's `record` come from it). */
+  record?: { type: string; id: string } | null;
+  /** The request that caused it, if a person did (for the payload's `actor`). */
+  req?: FastifyRequest | null;
+}
+
+declare module 'fastify' {
+  interface FastifyInstance {
+    /** Queues a catalog event for the webhooks that ask for it (core/webhooks.ts). Returns how many. */
+    webhookEvent?: (input: WebhookEventInput) => Promise<number>;
+  }
+}
+
+/**
+ * Raises a catalog event for the webhooks that subscribe to it. Safe to call from any module: it
+ * never throws (a failure is logged), does nothing when outbound connections are off, and does
+ * nothing when the event's area is switched off.
+ */
+export async function emitWebhookEvent(app: FastifyInstance, input: WebhookEventInput): Promise<number> {
+  if (typeof app.webhookEvent !== 'function') return 0;
+  try {
+    return await app.webhookEvent(input);
+  } catch (err) {
+    console.error('[webhooks] event not queued:', input.event, err);
+    return 0;
+  }
+}
+
 interface Deps {
   app: FastifyInstance;
   db: Db;
@@ -208,12 +313,8 @@ export function registerWebhooks({ app, db, audit, settings, res, box, loadUser,
     let queued = 0;
     for (const hook of hooks) {
       if (!matches(hook.events as string[], def.type, action)) continue;
-      if (isRestricted(def, row)) {
-        // Only by explicit choice, and only while the person who made that choice still holds security.view.
-        if (!hook.include_restricted) continue;
-        const creator = hook.created_by ? await loadUser(db, hook.created_by) : null;
-        if (!creator || !can(creator, 'security.view')) continue;
-      }
+      // Only by explicit choice, and only while the person who made that choice still holds security.view.
+      if (isRestricted(def, row) && !(await mayReceiveRestricted(hook))) continue;
       await enqueue(hook, `${def.type}.${action}`, {
         event: `${def.type}.${action}`,
         occurredAt: new Date().toISOString(),
@@ -226,6 +327,49 @@ export function registerWebhooks({ app, db, audit, settings, res, box, loadUser,
     }
     if (queued && autoRun) setImmediate(() => { void processDue().catch((err) => console.error('[webhooks]', err)); });
   });
+
+  /** Whether a hook may receive something restricted: by explicit choice of someone who still holds security.view. */
+  async function mayReceiveRestricted(hook: Row): Promise<boolean> {
+    if (!hook.include_restricted) return false;
+    const creator = hook.created_by ? await loadUser(db, hook.created_by) : null;
+    return Boolean(creator && can(creator, 'security.view'));
+  }
+
+  // Events other than record changes (E13-19): the same switches, allow-list and restriction rules.
+  async function emitEvent(input: WebhookEventInput): Promise<number> {
+    const def = EVENT_DEFS.get(input.event);
+    if (!def) throw new Error(`Unknown webhook event "${input.event}": add it to WEBHOOK_EVENTS first.`);
+    if (!(await enabled())) return 0;
+    if (def.area && !(await featureState(db)).on[def.area]) return 0;
+    let restricted = def.restricted === 'always';
+    let record: Row | null = null;
+    if (input.record) {
+      // Through the registry, which hides switched-off types: an event about one is not sent.
+      const rdef = res.registry.get(input.record.type);
+      if (!rdef) return 0;
+      const row = await res.registry.find(input.record.type, input.record.id);
+      if (!row) return 0;
+      if (def.restricted === 'record' && isRestricted(rdef, row)) restricted = true;
+      record = { type: rdef.type, id: row.id, ref: rdef.ref ? row[rdef.ref.field] ?? null : null, label: res.labelOf(rdef, row), route: `${rdef.route}/${row.id}` };
+    }
+    const hooks = await db.query<Row>('select * from webhooks where active and deleted_at is null');
+    let queued = 0;
+    for (const hook of hooks) {
+      if (!matchesEvent(hook.events as string[], def.event)) continue;
+      if (restricted && !(await mayReceiveRestricted(hook))) continue;
+      await enqueue(hook, def.event, {
+        event: def.event,
+        occurredAt: new Date().toISOString(),
+        record,
+        data: input.data,
+        actor: input.req?.user ? { id: input.req.user.id, name: input.req.user.displayName } : null,
+      }, record?.type, record?.id);
+      queued += 1;
+    }
+    if (queued && autoRun) setImmediate(() => { void processDue().catch((err) => console.error('[webhooks]', err)); });
+    return queued;
+  }
+  if (!app.hasDecorator('webhookEvent')) app.decorate('webhookEvent', emitEvent);
 
   // ---------- sending ----------
 
@@ -327,10 +471,16 @@ export function registerWebhooks({ app, db, audit, settings, res, box, loadUser,
     if (b.events !== undefined || !existing) {
       out.events = Array.isArray(b.events) ? [...new Set(b.events.map((e: unknown) => String(e).trim()))] : [];
       if (!out.events.length) fields.events = 'Choose at least one event.';
-      else if (out.events.some((e: string) => !EVENT_RE.test(e))) fields.events = 'Events look like "ticket.create", "ticket.*" or "*" (actions: create, update, delete).';
-      else {
-        const unknown = out.events.map((e: string) => e.split('.')[0]).filter((t: string) => t !== '*' && !res.registry.get(t));
-        if (unknown.length) fields.events = `Unknown record type: ${unknown.join(', ')}.`;
+      else if (out.events.some((e: string) => !EVENT_RE.test(e) && !EVENT_DEFS.has(e))) {
+        fields.events = 'Events look like "ticket.create", "ticket.*" or "*" (actions: create, update, delete), or a name from the list of other events.';
+      } else {
+        // A family of other events (`backup.*`) is known even where no record type has that name.
+        const unknown = out.events.filter((e: string) => {
+          if (e === '*' || EVENT_DEFS.has(e)) return false;
+          const t = e.split('.')[0];
+          return !res.registry.get(t) && !(EVENT_FAMILIES.has(t) && e === `${t}.*`);
+        }).map((e: string) => e.split('.')[0]);
+        if (unknown.length) fields.events = `Unknown record type: ${[...new Set(unknown)].join(', ')}.`;
       }
     }
     if (b.active !== undefined) out.active = b.active === true;
@@ -345,7 +495,15 @@ export function registerWebhooks({ app, db, audit, settings, res, box, loadUser,
     retryMinutes: RETRY_MINUTES,
     recordTypes: res.registry.all().map((d) => ({ type: d.type, label: d.label, restricted: d.restricted ?? false })).sort((a, b) => a.label.localeCompare(b.label)),
     actions: ['create', 'update', 'delete'],
+    // Other events (E13-19), without those of a switched-off area.
+    otherEvents: await offeredEvents(),
   }));
+
+  async function offeredEvents() {
+    const on = (await featureState(db)).on;
+    return WEBHOOK_EVENTS.filter((e) => !e.area || on[e.area]).map(({ event, label, description, restricted, recordType, data }) =>
+      ({ event, label, description, restricted, recordType: recordType ?? null, data }));
+  }
 
   app.post('/api/admin/webhooks', admin, async (req, reply) => {
     const b = (req.body ?? {}) as Row;

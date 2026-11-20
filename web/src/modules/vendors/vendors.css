@@ -331,3 +331,21 @@ a.vnd-cell:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px;
 .vnd-resp-bar { position: sticky; bottom: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); padding: var(--s-3) 0; background: var(--bg, var(--surface)); border-top: 1px solid var(--border); }
 .vnd-resp-bar .vnd-resp-state { margin-inline-start: auto; font-size: var(--fs-sm); color: var(--text-muted); }
 .vnd-link-days { align-items: flex-end; flex-wrap: wrap; }
+
+/* Files sent through a response link (E06-22) */
+.vnd-link-list li > .vnd-link-actions { grid-column: 2; grid-row: 1 / span 2; align-self: center; flex-wrap: nowrap; }
+.vnd-link-files { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--s-3); align-items: start; }
+.vnd-link-limits { margin: 0; font-size: var(--fs-sm); }
+.vnd-files { display: grid; gap: var(--s-2); padding: var(--s-3); border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.vnd-files-title { margin: 0; font-size: var(--fs-md); }
+.vnd-files > p { margin: 0; }
+.vnd-files-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-1); }
+.vnd-files-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px var(--s-2); padding: var(--s-2); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.vnd-files-name { grid-column: 1; overflow-wrap: anywhere; font-weight: 600; }
+.vnd-files-meta { grid-column: 1; font-size: var(--fs-sm); color: var(--text-muted); overflow-wrap: anywhere; }
+.vnd-files-list li > button, .vnd-files-list li > .ui-btn { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+.vnd-files-add { display: grid; gap: var(--s-2); }
+.vnd-files-used { font-size: var(--fs-sm); }
+@media (max-width: 640px) {
+  .vnd-link-list li > .vnd-link-actions { grid-column: 1; grid-row: auto; }
+}

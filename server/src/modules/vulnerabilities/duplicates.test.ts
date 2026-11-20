@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { testApp } from '../../test/helpers.ts';
+import { ADMIN, testApp } from '../../test/helpers.ts';
 
 // E10-16: findings recorded before host and port matching that are now the same finding.
 let t: Awaited<ReturnType<typeof testApp>>;
@@ -50,5 +50,22 @@ describe('duplicate findings (E10-16)', () => {
 
     expect((await t.api.get('/api/vulnerabilities/duplicates')).body.groups.some((g: any) => g.findings.some((f: any) => f.id === named.id))).toBe(false);
     expect((await lead.post('/api/vulnerabilities/duplicates/merge', { keep_id: named.id, merge_ids: [byAddress.id] })).status).toBe(404);
+  });
+
+  it('asks to confirm your identity before merging, and never merges for a token (E01-33)', async () => {
+    const a = await finding({ host_name: 'yard-cam-07', port: '554/tcp' });
+    const b = await finding({ host_ip: '10.9.3.7', port: '554' });
+    await t.db.query(`update vulnerabilities set host_key = 'yard-cam-07', port_key = '554/tcp' where id = any($1::uuid[])`, [[a.id, b.id]]);
+    const token = (await t.api.post('/api/me/tokens', { name: 'Scanner script', scopes: ['*'], expiresInDays: 1 })).body.token;
+    await t.db.query(`update sessions set confirmed_at = now() - interval '1 day'`);
+    const body = { keep_id: a.id, merge_ids: [b.id] };
+    const refused = await t.api.post('/api/vulnerabilities/duplicates/merge', body);
+    expect([refused.status, refused.body.error.code]).toEqual([403, 'reauth_required']);
+    const viaToken = await t.app.inject({ method: 'POST', url: '/api/vulnerabilities/duplicates/merge', headers: { authorization: `Bearer ${token}` }, payload: body });
+    expect([viaToken.statusCode, viaToken.json().error.code]).toEqual([403, 'reauth_required']);
+    expect((await t.api.get(`/api/vulnerabilities/${b.id}`)).status).toBe(200);
+    expect((await t.api.post('/api/auth/confirm', { password: ADMIN.password })).status).toBe(200);
+    expect((await t.api.post('/api/vulnerabilities/duplicates/merge', body)).status).toBe(200);
+    expect((await t.api.get(`/api/vulnerabilities/${b.id}`)).status).toBe(404);
   });
 });

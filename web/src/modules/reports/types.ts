@@ -44,6 +44,8 @@ export interface ReportResult {
   total: number; truncated: boolean; pivot?: Pivot;
   drill: string; drillExact: boolean; globalsApplied: string[];
   restricted: boolean; recordTypes: string[]; generatedAt: string;
+  /** Grouped by a multi-choice field: how the figures count, in words (E12-15). */
+  countingNote?: string;
 }
 
 export interface CatalogField {

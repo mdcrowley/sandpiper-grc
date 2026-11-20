@@ -1,5 +1,6 @@
 import { todayInZone } from '../../core/timezone.ts';
 import type { ModuleContext, Row, SessionUser } from '../../core/module.ts';
+import { emitWebhookEvent } from '../../core/webhooks.ts';
 import type { Base, Req } from './base.ts';
 import type { Conflicts } from './conflicts.ts';
 import { notifyApprovalRequested, notifyDecision } from './notify.ts';
@@ -155,6 +156,10 @@ export function makeWorkflow(ctx: ModuleContext, base: Base, conflicts: Conflict
     });
     const updated = await base.setFields(req, change.id, patch);
     await notifyDecision(ctx, updated, { decision: d.decision, by: d.approver_name, actorId: req?.user?.id ?? null, received, required });
+    await emitWebhookEvent(ctx.app, {
+      event: 'change.approval_decided', record: { type: 'change', id: change.id }, req,
+      data: { decision: d.decision, approver: d.approver_name, approvalsReceived: received, approvalsRequired: required, status: updated.status },
+    });
     return { change: updated, approvals: await approvalsFor(updated, req?.user) };
   }
 

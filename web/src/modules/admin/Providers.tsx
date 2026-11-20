@@ -1,5 +1,5 @@
 // Administration > Sign-in providers (/admin/sign-in-providers): single sign-on with the
-// organization's identity provider, the password switch and the break-glass account.
+// organization's identity provider (OpenID Connect or SAML 2.0), the password switch and the break-glass account.
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -21,14 +21,24 @@ export interface ProviderConfig {
   groupsFromUserinfo?: boolean;
   /** E02-23: sign out at the provider too; let the provider end sessions here (back-channel). */
   endSession?: boolean; backchannelLogout?: boolean;
+  /** E02-10: SAML 2.0 settings (the identity provider's side, attributes and message security). */
+  idpEntityId?: string; ssoUrl?: string; sloUrl?: string; idpCerts?: string[]; spEntityId?: string;
+  nameIdFormat?: string; emailAttribute?: string; nameAttribute?: string; groupsAttribute?: string;
+  signRequests?: boolean; wantAssertionsSigned?: boolean; encryptAssertions?: boolean;
 }
+export interface CertificateFacts { fingerprint: string; subject: string; notBefore: string; notAfter: string; expired: boolean; key: string }
 export interface Provider {
   id: string; key: string; type: string; typeLabel: string; name: string; enabled: boolean; isDefault: boolean; sort: number;
   config: ProviderConfig; hasSecret: boolean; linked: number;
+  /** SAML: this application's addresses and certificate for this provider, and the identity provider's certificates. */
+  sp?: { entityId: string; acsUrl: string; metadataUrl: string; sloUrl: string; certificate: CertificateFacts | null; keyReadable: boolean };
+  idpCertificates?: CertificateFacts[];
 }
 export interface ProvidersResponse {
   providers: Provider[];
   kinds: { type: string; label: string }[];
+  /** Outbound connections are on: SAML metadata can be fetched from its address. */
+  outboundEnabled: boolean;
   callbackBase: string;
   callbackPathTemplate: string;
   publicUrl: string;
@@ -89,7 +99,7 @@ export function ProvidersPage() {
               {data.providers.length === 0 ? (
                 <EmptyState
                   icon="lock" title="No sign-in providers yet"
-                  message="Everyone signs in with a password. Add your organization's OpenID Connect provider to offer single sign-on."
+                  message="Everyone signs in with a password. Add your organization's OpenID Connect or SAML 2.0 identity provider to offer single sign-on."
                   action={<Button variant="primary" icon="plus" onClick={() => setEditing('new')}>Add provider</Button>}
                 />
               ) : (
@@ -107,7 +117,7 @@ export function ProvidersPage() {
                           <td className="adm-wrap">
                             <button type="button" className="adm-link-button" onClick={() => setEditing(p)}>{p.name}</button>
                             {p.isDefault && <> <StatusChip color="blue" label="Default" size="sm" /></>}
-                            <div className="muted adm-small adm-break">{p.config.issuer}</div>
+                            <div className="muted adm-small adm-break">{p.type === 'saml' ? p.config.idpEntityId : p.config.issuer}</div>
                           </td>
                           <td className="adm-small">{p.typeLabel}</td>
                           <td>{p.linked}</td>
@@ -115,8 +125,9 @@ export function ProvidersPage() {
                             <span className="row adm-chips">
                               {p.config.mappingEnabled && <StatusChip color="purple" label="Role mapping" size="sm" />}
                               {p.config.jitEnabled && <StatusChip color="amber" label="Creates accounts" size="sm" />}
-                              {!p.hasSecret && p.config.tokenAuth !== 'none' && <StatusChip color="red" label="No client secret" size="sm" />}
-                              {!p.config.mappingEnabled && !p.config.jitEnabled && (p.hasSecret || p.config.tokenAuth === 'none') && <span className="muted adm-small">None</span>}
+                              {p.type !== 'saml' && !p.hasSecret && p.config.tokenAuth !== 'none' && <StatusChip color="red" label="No client secret" size="sm" />}
+                              {p.type === 'saml' && <SamlChips p={p} />}
+                              {!p.config.mappingEnabled && !p.config.jitEnabled && p.type !== 'saml' && (p.hasSecret || p.config.tokenAuth === 'none') && <span className="muted adm-small">None</span>}
                             </span>
                           </td>
                           <td><Switch label={`${p.name} switched on`} hideLabel checked={p.enabled} disabled={busy === `toggle-${p.id}`} onChange={(on) => void toggle(p, on)} /></td>
@@ -125,7 +136,8 @@ export function ProvidersPage() {
                               label={`Actions for ${p.name}`} icon="more" iconOnly size="sm" align="end"
                               items={[
                                 { label: 'Edit', icon: 'edit', onSelect: () => setEditing(p) },
-                                { label: busy === `test-${p.id}` ? 'Testing…' : 'Test connection', icon: 'refresh', disabled: busy !== '', onSelect: () => void test(p) },
+                                { label: busy === `test-${p.id}` ? 'Testing…' : p.type === 'saml' ? 'Check settings' : 'Test connection', icon: 'refresh', disabled: busy !== '', onSelect: () => void test(p) },
+                                ...(p.type === 'saml' ? [{ label: 'Download metadata', icon: 'download' as const, onSelect: () => { window.location.href = `/api/auth/sso/${encodeURIComponent(p.key)}/metadata?download=1`; } }] : []),
                                 ...(!p.isDefault && p.enabled ? [{ label: 'Make default', icon: 'star' as const, onSelect: () => void makeDefault(p) }] : []),
                                 { label: 'Remove', icon: 'trash', danger: true, separated: true, disabled: p.enabled, onSelect: () => setRemoving(p) },
                               ]}
@@ -155,6 +167,22 @@ export function ProvidersPage() {
         message={<p><strong>{removing?.name}</strong> disappears from the sign-in page for good, and its {removing?.linked ?? 0} linked identities stop working. The audit log keeps its history. To pause it instead, switch it off.</p>}
         onConfirm={() => void remove()} onCancel={() => setRemoving(null)}
       />
+    </>
+  );
+}
+
+/** SAML: the facts an administrator should see in the list (certificates running out, an unreadable key, encryption). */
+function SamlChips({ p }: { p: Provider }) {
+  const certs = p.idpCertificates ?? [];
+  const live = certs.filter((c) => !c.expired);
+  const soon = live.length > 0 && live.every((c) => new Date(c.notAfter).getTime() - Date.now() < 30 * 86_400_000);
+  return (
+    <>
+      {live.length === 0 ? <StatusChip color="red" label="Certificate expired" size="sm" />
+        : soon ? <StatusChip color="amber" label="Certificate expires soon" size="sm" /> : null}
+      {p.sp && !p.sp.keyReadable && <StatusChip color="red" label="Key unreadable" size="sm" />}
+      {p.config.encryptAssertions && <StatusChip color="blue" label="Encrypted" size="sm" />}
+      {!p.config.mappingEnabled && !p.config.jitEnabled && live.length > 0 && !soon && p.sp?.keyReadable !== false && !p.config.encryptAssertions && <span className="muted adm-small">None</span>}
     </>
   );
 }
@@ -239,7 +267,7 @@ function AddressCard({ data, onChanged }: { data: ProvidersResponse; onChanged: 
   return (
     <Card title="Redirect address">
       <div className="stack">
-        <p>Each provider needs to know where to send people back. Register this address with the provider, replacing the short name:</p>
+        <p>Each provider needs to know where to send people back. Register this address with an OpenID Connect provider, replacing the short name (a SAML provider's addresses are shown in its settings):</p>
         <code className="adm-code-block adm-break">{redirectAddress(data, '')}</code>
         <TextField
           label="Application address" placeholder="https://grc.example.org" value={value} onChange={(v) => { setValue(v); setError(''); }} error={error || undefined}

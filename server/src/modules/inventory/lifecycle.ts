@@ -1,5 +1,6 @@
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { featureState, optionOn } from '../../core/features.ts';
 import { dayInZone } from '../../core/timezone.ts';
 
 const ROUTED_ONLY = 'inventory.disposal_routed_only'; // same key as disposal.ts (which imports nothing from here)
@@ -19,9 +20,10 @@ export interface Problem { status: number; code: string; message: string; fields
 /**
  * Why an asset may not be marked disposed, or null when it may. Disposal always needs a
  * recorded approval (who and when). Equipment in which an outside funder (such as a grant body) keeps an interest also needs the
- * reference of the approval to dispose of it, and is blocked until that is entered.
+ * reference of the approval to dispose of it, and is blocked until that is entered; that rule
+ * applies only while the "outside funder interest" option is on (`funderRule`, E18-28).
  */
-export function disposalProblem(asset: Row, routedOnly = false): Problem | null {
+export function disposalProblem(asset: Row, routedOnly = false, funderRule = true): Problem | null {
   const fields: Record<string, string> = {};
   // With routed approval switched on, a typed-in name is not enough: an approver must have decided a request.
   if (routedOnly && asset.disposal_request_status !== 'approved') {
@@ -32,7 +34,7 @@ export function disposalProblem(asset: Row, routedOnly = false): Problem | null 
   }
   if (!String(asset.disposal_approved_by ?? '').trim()) fields.disposal_approved_by = 'Enter the name of the person who approved the disposal.';
   if (!asset.disposal_approved_on) fields.disposal_approved_on = 'Enter the date the disposal was approved.';
-  if (asset.funder_interest && !String(asset.disposal_approval_ref ?? '').trim()) {
+  if (funderRule && asset.funder_interest && !String(asset.disposal_approval_ref ?? '').trim()) {
     return {
       status: 409, code: 'funder_interest_block',
       message: 'An outside funder keeps an interest in this asset. It cannot be disposed of until the disposal approval reference is entered.',
@@ -43,6 +45,11 @@ export function disposalProblem(asset: Row, routedOnly = false): Problem | null 
     return { status: 400, code: 'disposal_approval_required', message: 'A disposal needs a recorded approval: who approved it and when.', fields };
   }
   return null;
+}
+
+/** Whether the funder-interest option is on (Administration > Features; E18-28). */
+export async function funderRuleOn(ctx: Pick<ModuleContext, 'db'>): Promise<boolean> {
+  return optionOn(await featureState(ctx.db), 'funder_interest');
 }
 
 export function registerLifecycle(ctx: ModuleContext) {
@@ -171,7 +178,8 @@ export function registerLifecycle(ctx: ModuleContext) {
       delete patch.disposal_approved_on;
     }
     const routedOnly = (await ctx.settings.get<boolean>(ROUTED_ONLY, false)) === true;
-    const problem = disposalProblem({ ...asset, ...patch }, routedOnly);
+    const funderRule = await funderRuleOn(ctx);
+    const problem = disposalProblem({ ...asset, ...patch }, routedOnly, funderRule);
     if (problem) {
       const why = problem.code === 'funder_interest_block' ? 'funder interest, no approval reference'
         : problem.code === 'approval_required' ? 'no approval decided in the application' : 'no recorded approval';
@@ -200,7 +208,7 @@ export function registerLifecycle(ctx: ModuleContext) {
     await ctx.audit(req, {
       action: 'asset.dispose', recordType: 'asset', recordId: asset.id,
       summary: `Asset ${asset.tag ?? asset.name} disposed; approved by ${row.disposal_approved_by} on ${row.disposal_approved_on}`
-        + (row.funder_interest ? ` (funder interest, approval reference ${row.disposal_approval_ref})` : ''),
+        + (funderRule && row.funder_interest ? ` (funder interest, approval reference ${row.disposal_approval_ref})` : ''),
     });
     return row;
   });
