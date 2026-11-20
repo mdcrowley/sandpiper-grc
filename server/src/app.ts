@@ -13,6 +13,7 @@ import { registerPermissionUse } from './core/permission-use.ts';
 import { ApiError, fail } from './core/errors.ts';
 import { addHsts, trustProxyFn } from './core/http.ts';
 import { migrate } from './core/migrate.ts';
+import { registerBranding } from './core/organization.ts';
 import type { ModuleContext, ModuleDef, Row } from './core/module.ts';
 import { makeOpenApi } from './core/openapi.ts';
 import { registerPreferences } from './core/preferences.ts';
@@ -174,6 +175,7 @@ export async function buildApp(opts: BuildOptions) {
   const lookups = makeLookups(db);
   const settings = makeSettings(db, audit);
   registerAuth(app, { db, audit, settings });
+  registerBranding(app, db); // the public look before sign-in (Administration > Organization)
   const custom = makeCustomFields(db);
   const res = makeResources({ app, db, audit, lookups, custom });
   gate.attach(res.registry);

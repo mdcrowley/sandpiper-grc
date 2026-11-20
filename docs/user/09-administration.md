@@ -445,6 +445,68 @@ Rename supplied values freely, but be cautious about retiring them. You cannot c
 
 The **Tags** tab on the same page lists the tags used on each kind of record, with how many records carry each one; select a count to open those records. **Rename** changes a tag on every record at once; renaming it to a tag that already exists merges the two. Every rename and merge is recorded in the audit log.
 
+## Organization
+
+Open **Administration > Organization** to say who the organization is and how the application looks for it. The page is always there (it is not one of the optional parts under Features), and only administrators can open it. The links at the side of the page (at the top on a narrow screen) jump to **Names**, **Address**, **Contacts**, **Logo** and **Colors**.
+
+Change the names, address, contacts and colors, then select **Save organization** at the top right, or **Undo changes** to discard them. Changed parts are marked **Changed**. If a value is not allowed, nothing is saved and the field shows the reason in red. A logo is different: it is saved as soon as you upload it. Every change, including each logo upload and removal, is recorded in the audit log (for a logo, its size and type, not the picture).
+
+### Names
+
+| Field | What it does |
+|---|---|
+| **Application name** | The application's name, 1 to 60 characters. Shown on the sign-in page, in the header, at the end of the browser tab's title, in emails and as the account name in authenticator apps. It used to be under Settings; it is now only here. |
+| **Organization name** | How the organization is usually named, such as "Example Transit Authority". Up to 120 characters. Shown on the vendor response page, above every email, in the footer of PDF documents and on the offline incident kit. Where it is empty, the application name is used instead. |
+| **Legal name** | The registered name, when it differs. Up to 200 characters. Printed in the footer of emails and PDF documents. |
+| **Short name** | An abbreviation, such as "ETA". Up to 20 characters. |
+
+### Address
+
+Up to three **Street** lines (each up to 120 characters), then **City**, **State or region**, **Postal code** (up to 20 characters) and **Country** (each up to 80 characters). Write the address the way it is written where the organization is: no country's format is assumed, and every part is optional. The address is printed on one line in the footer of emails and PDF documents and on the incident kit's contacts sheet.
+
+### Contacts
+
+| Field | What it does |
+|---|---|
+| **Main phone** | Digits, spaces and `+ ( ) - . /`, with an optional extension (`ext 12` or `x12`). Printed in email and PDF footers. |
+| **General email** | Printed in email and PDF footers. |
+| **Website** | An http or https address; `www.example.org` becomes `https://www.example.org`. Printed in email and PDF footers. |
+| **Security contact phone** and **email** | Optional: who to contact about a security incident. Printed on the offline incident kit's contacts sheet, and nowhere else. Shown on this page only while Security incidents is switched on (the values are kept while it is off). |
+
+The address and contacts are never shown before sign-in. The sign-in page, the portal and the vendor response page show only the names, the logo and the colors.
+
+Email templates (Administration > Email > Templates) may use `{{organizationName}}`, `{{organizationAddress}}`, `{{organizationPhone}}`, `{{organizationEmail}}` and `{{organizationWebsite}}`. Every email, except a text message sent to a phone, also has the organization's name above it and its legal name, address and contacts underneath.
+
+### Logo
+
+There are two logos, both optional:
+
+- **Logo for the light theme**: used everywhere unless a dark-theme logo is set.
+- **Logo for the dark theme**: used in the dark theme, and in the sidebar, which is dark in both themes. Without one, the light-theme logo is used there too.
+
+Select **Upload logo** (or **Replace**) and choose a file. The rules:
+
+- **PNG, JPEG or WebP only.** The application checks what the file really is from its content, not its name. **SVG is refused**, because an SVG picture can carry scripts.
+- **Up to 512 KB**, and from **16 to 2048 pixels** each way.
+- A logo about four times as wide as it is tall, with a see-through background, fits best. It is shown at a fixed height and keeps its proportions; a very wide logo is narrowed to fit.
+- PDF documents can hold PNG and JPEG pictures only, so a WebP logo is left off PDFs.
+
+**Remove** takes a logo away; the standard mark comes back.
+
+The logo replaces the standard mark in the header and sidebar, on the sign-in and second-factor pages, in the self-service portal, on the vendor response page, on the offline incident kit, on the first page (or cover) of PDF exports, report documents and packs, and as the browser tab's icon.
+
+### Colors
+
+Pick a **Brand color** and an **Accent color**, with the color square or by typing six hexadecimal digits such as `#17656f`. Leave a box empty for the standard color; **Reset to default** empties both. The brand color fills buttons and tints the sidebar, and colors links; the accent marks the current page in the sidebar and highlights.
+
+You can pick any color. The application does not use it exactly as typed: it works out a shade of it for the light theme and another for the dark theme, so that everything stays readable to the standard of WCAG 2.2 AA:
+
+- text on the brand color (buttons), and links in the brand color on every background, reach a contrast of at least 4.5 to 1;
+- the accent and the focus outline, which are marks rather than text, reach at least 3 to 1;
+- the sidebar's text stays readable on its brand-tinted background.
+
+So a pale brand color is made darker for the light theme, and a dark one lighter for the dark theme. The **Preview** shows the header, a button, a light button and a link in both themes with the shades that will be used, a note saying which colors were adjusted, and, under **contrast checks**, every pair checked with its ratio. The colors take effect for everyone when you save, in both themes, and also color the rules of PDF documents and the name above emails.
+
 ## Settings
 
 Open **Administration > Settings**. The settings are in groups: **Identity**, **Security**, **Sessions**, **API tokens**, **Outbound connections**, **Retention**, **Features**, **Files** and **Departments**. The links at the side of the page (at the top on a narrow screen) jump to each group.
@@ -457,7 +519,7 @@ If a value is not allowed, nothing is saved. A message at the top says how many 
 
 | Setting | What it does |
 |---|---|
-| **Application name** | The application's name, 1 to 60 characters. Shown on the sign-in page, in the header and as the account name in authenticator apps. |
+| **Name, logo and colors** | A link to [Organization](#organization), where the application name, the organization's details, the logo and the colors are set. |
 | **Pilot mode** | While on, every page carries a label saying this is a pilot, so nobody mistakes it for the system of record. Switch it off only when the application is approved for real use. It starts switched on. |
 
 ### Security

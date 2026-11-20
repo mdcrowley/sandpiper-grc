@@ -2,6 +2,7 @@
 import type { FastifyRequest } from 'fastify';
 import { requireRecentAuth, secretBox } from '../auth.ts';
 import { DEFAULT_APP_NAME } from '../config.ts';
+import { mailBranding } from '../organization.ts';
 import type { ModuleContext, Row } from '../module.ts';
 import { PROVIDER_LABELS, sealedSecret, secretContext } from './accounts.ts';
 import { MICROSOFT_CLOUDS, readCertificate, readServiceAccountKey } from './cloud.ts';
@@ -329,11 +330,12 @@ export function registerMailRoutes(ctx: ModuleContext, mail: MailService) {
     if (Object.keys(fields).length) invalid(fields);
     const base = (await loadConfig(ctx)).base_url || 'https://grc.example.org';
     const abs = (p: string) => `${base}${p}`;
-    const values = { ...SAMPLE, appName: await ctx.settings.get('app.name', DEFAULT_APP_NAME), link: abs(SAMPLE.link), preferencesLink: abs(SAMPLE.preferencesLink) };
+    const org = await mailBranding(db);
+    const values = { ...SAMPLE, ...org.values, appName: await ctx.settings.get('app.name', DEFAULT_APP_NAME), link: abs(SAMPLE.link), preferencesLink: abs(SAMPLE.preferencesLink) };
     const sample = ['Action overdue: Replace depot gate controller', 'Approval waiting: Timetable server patch', 'Contract notice date: Fare system support'];
     return render({ subject: t.subject, text_body: t.text, html_body: t.html }, values, {
       items: { text: sample.map((s) => `- ${s}`).join('\n'), html: `<ul>${sample.map((s) => `<li><a href="${abs('/notifications')}">${s}</a></li>`).join('')}</ul>` },
-    });
+    }, def.key === 'text_message' ? null : { name: org.name, footer: org.footer, color: org.color });
   });
   ctx.describeRoute({ method: 'POST', path: '/api/admin/mail/templates/:key/preview', tag: TAG, permission: A, summary: 'Render a template with sample values', body: '{ subject, text, html }', response: '{ subject, text, html }' });
 }

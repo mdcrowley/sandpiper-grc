@@ -15,7 +15,11 @@ export interface TemplateDef {
   text: string;
 }
 
-const COMMON = ['appName', 'recipientName'];
+/**
+ * Placeholders every template accepts. The organization's ones come from Administration >
+ * Organization (core/organization.ts); each is empty when it is not set.
+ */
+const COMMON = ['appName', 'recipientName', 'organizationName', 'organizationAddress', 'organizationPhone', 'organizationEmail', 'organizationWebsite'];
 
 export const DEFAULT_TEMPLATES: TemplateDef[] = [
   {
@@ -159,6 +163,12 @@ function htmlProblem(html: string): string | null {
 export interface Rendered { subject: string; text: string; html: string }
 
 /**
+ * The organization around a message (Administration > Organization): its name above the HTML body
+ * and its name, address and contacts under both bodies. Left out of text messages.
+ */
+export interface MailFrame { name: string; footer: string[]; color?: string | null }
+
+/**
  * Fills a template. `values` are plain strings; `blocks.items` is the digest list as
  * `{ text, html }`. Link values that are not http(s) addresses are dropped.
  */
@@ -166,6 +176,7 @@ export function render(
   t: { subject: string; text_body: string; html_body: string },
   values: Record<string, string | number | null | undefined>,
   blocks: Record<string, { text: string; html: string }> = {},
+  frame: MailFrame | null = null,
 ): Rendered {
   const value = (name: string) => {
     const v = values[name];
@@ -179,8 +190,15 @@ export function render(
     if (mode === 'subject') return v.replace(/[\r\n]+/g, ' ');
     return mode === 'html' ? escapeHtml(v) : v;
   });
-  const text = fill(t.text_body, 'text').replace(/\n{3,}/g, '\n\n').trim();
+  const footer = (frame?.footer ?? []).map((l) => l.replace(/[\r\n]+/g, ' ').trim()).filter(Boolean);
+  const body = fill(t.text_body, 'text').replace(/\n{3,}/g, '\n\n').trim();
+  const text = footer.length ? `${body}\n\n-- \n${footer.join('\n')}` : body;
   const htmlBody = t.html_body.trim() ? t.html_body : textToHtml(t.text_body);
-  const html = `<!doctype html><html><body style="font-family: system-ui, sans-serif; font-size: 15px; line-height: 1.5; color: #1a1f2b;">\n${fill(htmlBody, 'html')}\n</body></html>`;
+  const color = frame?.color && /^#[0-9a-f]{6}$/i.test(frame.color) ? frame.color : '#17656f';
+  const head = frame?.name ? `<p style="margin: 0 0 16px; font-weight: 600; font-size: 16px; color: ${color};">${escapeHtml(frame.name)}</p>\n` : '';
+  const foot = footer.length
+    ? `\n<hr style="border: 0; border-top: 1px solid #d5dde0; margin: 24px 0 12px;">\n<p style="margin: 0; font-size: 12px; color: #50626a;">${footer.map(escapeHtml).join('<br>')}</p>`
+    : '';
+  const html = `<!doctype html><html><body style="font-family: system-ui, sans-serif; font-size: 15px; line-height: 1.5; color: #1a1f2b;">\n${head}${fill(htmlBody, 'html')}${foot}\n</body></html>`;
   return { subject: fill(t.subject, 'subject').replace(/\s+/g, ' ').trim().slice(0, 250) || '(no subject)', text, html };
 }

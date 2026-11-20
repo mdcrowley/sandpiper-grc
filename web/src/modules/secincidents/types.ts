@@ -145,6 +145,8 @@ export interface Kit {
   contacts: Contact[];
   checklists: { scenario: string; label: string; containment: string[]; recovery: string[] }[];
   severities: { value: string; label: string; meta?: { level?: number; guide?: string } }[];
+  /** The organization and its security contact (Administration > Organization); empty strings when not set. */
+  organization?: { name: string; address: string; phone: string; security_phone: string; security_email: string };
 }
 
 /**

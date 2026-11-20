@@ -1,4 +1,5 @@
 import { DEFAULT_APP_NAME } from '../../core/config.ts';
+import { ORGANIZATION_SETTINGS } from '../../core/organization.ts';
 import { AREA_KEYS, effectiveFeatures, FEATURE_DEFAULTS } from '../../core/features.ts';
 import { checkFeatures, featureChangeProblem } from './features.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
@@ -23,6 +24,8 @@ export const SETTINGS: Record<string, { fallback: unknown; check: Check }> = {
     check: (v) => (typeof v === 'string' && v.trim().length >= 1 && v.trim().length <= 60
       ? { value: v.trim() } : 'Enter a name of 1 to 60 characters.'),
   },
+  // The organization's details and colors (Administration > Organization, core/organization.ts).
+  ...ORGANIZATION_SETTINGS,
   pilot_mode: { fallback: true, check: bool },
   // Areas missing from the stored value take their default (on, except the portal): see core/features.ts.
   features: { fallback: FEATURE_DEFAULTS, check: checkFeatures },

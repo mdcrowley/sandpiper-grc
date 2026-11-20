@@ -6,6 +6,7 @@ import { AuditLogPage } from './AuditLog';
 import { CustomFieldsPage } from './CustomFields';
 import { FeaturesPage } from './Features';
 import { ListsPage } from './Lists';
+import { OrganizationPage } from './Organization';
 import { ProvidersPage } from './Providers';
 import { RecoverySignInPage, RedeemPage } from './Redeem';
 import { RetentionPage } from './Retention';
@@ -25,6 +26,7 @@ const mod: ModuleDef = {
     { group: 'Administration', label: 'Roles', path: '/admin/roles', icon: 'shield', permission: ADMIN, order: 20 },
     { group: 'Administration', label: 'Sign-in providers', path: '/admin/sign-in-providers', icon: 'lock', permission: ADMIN, order: 25 },
     { group: 'Administration', label: 'Lists', path: '/admin/lists', icon: 'clipboard', permission: ADMIN, order: 30 },
+    { group: 'Administration', label: 'Organization', path: '/admin/organization', icon: 'building', permission: ADMIN, order: 39 },
     { group: 'Administration', label: 'Settings', path: '/admin/settings', icon: 'settings', permission: ADMIN, order: 40 },
     { group: 'Administration', label: 'Features', path: '/admin/features', icon: 'check-square', permission: ADMIN, order: 41 },
     { group: 'Administration', label: 'Custom fields', path: '/admin/custom-fields', icon: 'edit', permission: ADMIN, order: 42 },
@@ -40,6 +42,7 @@ const mod: ModuleDef = {
     { path: '/admin/roles/:id', element: <RoleDetailPage />, permission: ADMIN },
     { path: '/admin/sign-in-providers', element: <ProvidersPage />, permission: ADMIN },
     { path: '/admin/lists', element: <ListsPage />, permission: ADMIN },
+    { path: '/admin/organization', element: <OrganizationPage />, permission: ADMIN },
     { path: '/admin/settings', element: <SettingsPage />, permission: ADMIN },
     { path: '/admin/features', element: <FeaturesPage />, permission: ADMIN },
     { path: '/admin/custom-fields', element: <CustomFieldsPage />, permission: ADMIN },

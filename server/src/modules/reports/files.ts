@@ -126,7 +126,7 @@ export async function documentPdf(doc: DocInput, opts: { kind: 'report' | 'dashb
   const restricted = doc.sections.some((s) => s.result?.restricted);
   const wide = doc.sections.some((s) => (s.result?.pivot ? s.result.pivot.cols.length + 2 : s.result?.columns.length ?? 0) > 6);
   const pdf = new PdfBuilder({
-    title: doc.title, subtitle: doc.subtitle, appName: doc.appName, author: doc.preparedFor,
+    title: doc.title, subtitle: doc.subtitle, appName: doc.appName, author: doc.preparedFor, branding: doc.branding,
     cover: opts.kind === 'pack', landscape: wide && opts.kind === 'report',
     watermark: restricted ? watermark(doc.preparedFor, doc.generatedAt) : null,
     meta: metaLines(doc),

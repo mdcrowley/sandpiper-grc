@@ -5,6 +5,7 @@ import { PDF_TYPE, PdfBuilder } from '../../core/export/pdf.ts';
 import { featureState, optionName, optionOn } from '../../core/features.ts';
 import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleContext, Row, SessionUser } from '../../core/module.ts';
+import { addressLine, organizationName, printBranding, readOrganization, type PrintBranding } from '../../core/organization.ts';
 import { dayInZone, TIME_ZONE } from '../../core/timezone.ts';
 import { stamp } from './clocks.ts';
 import { incidentQuestions, triggerOptions } from './defaults.ts';
@@ -47,6 +48,8 @@ export interface Kit {
   severities: Row[];
   /** The ransom rule as this installation has set it up (the "ransom_approval" option). */
   ransom_approval: { on: boolean; name: string };
+  /** The organization and its security contact (Administration > Organization); empty strings when not set. */
+  organization: { name: string; address: string; phone: string; security_phone: string; security_email: string };
 }
 
 /** Everything the kit prints, read fresh. `by` is who it is produced for or by. */
@@ -70,6 +73,7 @@ export async function loadKit(ctx: ModuleContext, by: string): Promise<Kit> {
     recovery: templates.filter((t) => t.scenario === s.value && t.phase === 'recovery').map((t) => String(t.step)),
   })).filter((c) => c.containment.length || c.recovery.length);
   const state = await featureState(db);
+  const org = await readOrganization(db);
   return {
     generated_at: new Date().toISOString(),
     generated_by: by,
@@ -79,6 +83,10 @@ export async function loadKit(ctx: ModuleContext, by: string): Promise<Kit> {
     checklists,
     severities: await ctx.lookups.values('security_incident_severity'),
     ransom_approval: { on: optionOn(state, 'ransom_approval'), name: optionName(state, 'ransom_approval') },
+    organization: {
+      name: organizationName(org), address: addressLine(org), phone: org.phone,
+      security_phone: org.securityPhone, security_email: org.securityEmail,
+    },
   };
 }
 
@@ -104,7 +112,7 @@ const BLANK = '__________________________';
  * time it was made is printed at the top of every page (with the restricted marking), so a sheet
  * found on its own still says how old it is.
  */
-export async function renderKitPdf(kit: Kit, appName: string): Promise<{ pdf: Buffer; made: string }> {
+export async function renderKitPdf(kit: Kit, appName: string, branding: PrintBranding | null = null): Promise<{ pdf: Buffer; made: string }> {
   const made = `${stamp(kit.generated_at)} (${TIME_ZONE})`;
   const isOn = (r: Row) => r.active && r.deadline_hours !== null;
   const active = kit.rules.filter(isOn);
@@ -119,7 +127,7 @@ export async function renderKitPdf(kit: Kit, appName: string): Promise<{ pdf: Bu
     subtitle: 'What to do, who to call and who must be told when the network or this system is down.',
     meta: [`Produced ${made}`, `Produced by ${kit.generated_by}`, `This copy is kept by: ${BLANK}`],
     watermark: `Restricted security record · Produced ${made} · Reprint after any change`,
-    appName, cover: true, author: appName,
+    appName, cover: true, author: appName, branding,
   });
   const page = (title: string, n: number) => {
     if (n > 1) pdf.doc.addPage();
@@ -152,6 +160,16 @@ export async function renderKitPdf(kit: Kit, appName: string): Promise<{ pdf: Bu
   );
 
   page('Incident roles and contacts', 2);
+  // The organization's own numbers (Administration > Organization), for whoever picks up the kit.
+  const o = kit.organization;
+  const own = o ? [
+    { label: 'Organization', value: o.name },
+    { label: 'Address', value: o.address },
+    { label: 'Main phone', value: o.phone },
+    { label: 'Security contact phone', value: o.security_phone },
+    { label: 'Security contact email', value: o.security_email },
+  ].filter((r) => r.value) : [];
+  if (own.length > 1) pdf.keyValues(own);
   if (!kit.contacts.length) pdf.note('No contacts are set up. Add them under Notification rules and checklists, then reprint.');
   else {
     pdf.table(
@@ -310,7 +328,7 @@ export function makeKitCopies(ctx: ModuleContext) {
     const appName = String(await ctx.settings.get('app.name', 'Sandpiper GRC'));
     const kit = await loadKit(ctx, by?.displayName ?? 'Scheduled job');
     const fingerprint = kitFingerprint(kit);
-    const { pdf, made } = await renderKitPdf(kit, appName);
+    const { pdf, made } = await renderKitPdf(kit, appName, await printBranding(db));
     const pages = (pdf.toString('latin1').match(/\/Type\s*\/Page\b(?!s)/g) ?? []).length;
     const row = (await db.one<Row>(
       `insert into incident_kit_copies (created_at, reason, produced_by, produced_by_name, fingerprint, pages, size_bytes, content)

@@ -38,6 +38,8 @@ To check what you typed, select the eye button at the end of a password box. It 
 
 You are signed in straight away as an administrator. This account can add other users and manage settings. The setup page never appears again once one account exists.
 
+A good first step is **Administration > Organization**: enter the organization's name, address and contacts, choose the application name, and upload your logo and colors. They then appear on the sign-in page, in the header, in emails and on printed documents. See [Organization](09-administration.md#organization).
+
 Other people get their accounts from an administrator, who gives each person a one-time link. The link opens a **Set your password** page. It works once only and stops working after 24 hours; if yours has expired, ask an administrator for a new one. See [Administration](09-administration.md).
 
 ## Signing in
@@ -114,7 +116,7 @@ The menu on the left is divided into groups. You see only the items your role al
 | Cybersecurity | **Framework outcomes**, **Assessments**, **Risk register**, **Risk reviews**, **Security incidents**, **Notification deadlines**, **Rules and checklists**, **Offline incident kit**, **Vulnerabilities**, **Vulnerability dashboard**, **Action tracker**, **Obligations**, **Policies**, **Training overview**, **Courses**, **My training**, **My acknowledgments**, **Exercises**, **Exercise calendar**, **Exceptions** |
 | Projects | **Project portfolio**, **New project request**, **Project settings** |
 | Reports | **Dashboards**, **Reports**, **Report packs**, **Schedules**, **Risk report**, **Delivered to me**, **Expiring evidence files** |
-| Administration | **Users**, **Roles**, **Lists**, **Settings**, **Custom fields**, **Retention**, **API tokens**, **Webhooks**, **Audit log**, **Risk scales**, **Service desk settings**, **File settings** |
+| Administration | **Users**, **Roles**, **Lists**, **Organization**, **Settings**, **Custom fields**, **Retention**, **API tokens**, **Webhooks**, **Audit log**, **Risk scales**, **Service desk settings**, **File settings** |
 | Help | **User guide**, **API reference** |
 
 A few entries are for everyone and have no permission of their own: **Overview**, **Notifications**, **My training**, **My acknowledgments**, **Expiring evidence files** and **User guide**. The settings entries (**Change settings**, **Project settings**, **File settings**) appear only for people who administer that area.
@@ -277,6 +279,7 @@ On the main list pages the search, filters, sort order and page number are kept 
 - Your browser's **Back** button undoes the last filter, sort or page change.
 - You can bookmark the address, or copy it and send it to a colleague. They see the same search, filters and sort (and only the records their role allows).
 - Reloading the page keeps the list as you left it.
+- A filter in an address or a saved view on a field the list no longer has (for example one whose option an administrator has switched off under **Features**) is ignored and taken out of the address, so the list shows everything else the address asks for.
 
 Lists that sit inside another page, such as the contracts on a vendor's page, do not change the address.
 

@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { api, setUnauthorizedHandler } from './api';
+import { applyBranding, type Branding } from './branding';
 import { setLocaleSettings } from './format';
 import { resetPreferences } from './preferences';
 import { ErrorState, Loading } from './ui';
@@ -14,6 +15,8 @@ export interface AuthUser {
 
 interface AuthStateResponse {
   appName: string;
+  /** The organization's public look (Administration > Organization). */
+  branding?: Branding;
   setupRequired: boolean;
   user: AuthUser | null;
   permissions: string[];
@@ -80,6 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const next = await api.get<AuthStateResponse>('/api/auth/state');
       setLocaleSettings({ timeZone: next.timeZone, currency: next.currency });
+      applyBranding(next.branding, next.appName);
       setState(next);
       setError(null);
     } catch (err) {

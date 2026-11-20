@@ -6,6 +6,7 @@
 // is never described â€” its recipients get the content-free "security notification" message.
 import { loadUser, secretBox } from '../auth.ts';
 import { DEFAULT_APP_NAME } from '../config.ts';
+import { mailBranding } from '../organization.ts';
 import { UUID_RE } from '../errors.ts';
 import { PermanentJobError, RetryLaterError, type JobQueue } from '../jobs/index.ts';
 import type { ModuleContext, Row, SessionUser } from '../module.ts';
@@ -220,8 +221,10 @@ export function makeMail(ctx: ModuleContext, jobs: JobQueue) {
 
     const base = config.base_url;
     const appName = await ctx.settings.get('app.name', DEFAULT_APP_NAME);
+    // The organization's name, address and contacts (Administration > Organization).
+    const org = await mailBranding(db);
     const values: Row = {
-      ...data, appName, recipientName: user?.displayName ?? to,
+      ...org.values, ...data, appName, recipientName: user?.displayName ?? to,
       link: absolute(base, data.link), preferencesLink: absolute(base, '/notifications?tab=preferences'),
     };
     const block = {
@@ -231,7 +234,9 @@ export function makeMail(ctx: ModuleContext, jobs: JobQueue) {
         return `<li>${href ? `<a href="${escapeHtml(href)}">${escapeHtml(i.title)}</a>` : escapeHtml(i.title)}</li>`;
       }).join('')}</ul>`,
     };
-    const message = render(await templateRow(ctx, template), values, { items: block });
+    // A text message (email-to-text) stays short: no name above it and no footer under it.
+    const frame = template === 'text_message' ? null : { name: org.name, footer: org.footer, color: org.color };
+    const message = render(await templateRow(ctx, template), values, { items: block }, frame);
 
     let secret: string | null = null;
     try {

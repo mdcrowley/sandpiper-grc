@@ -1,7 +1,26 @@
 // The Sandpiper mark: a small wading bird at the water's edge. An original drawing; the same
-// shapes are in web/public/favicon.svg. Change both to re-brand.
+// shapes are in web/public/favicon.svg. An organization replaces it with its own logo under
+// Administration > Organization (core/branding.ts): every place that draws the mark shows that
+// logo instead, the dark theme's one where the background is dark.
+import { useBranding } from './branding';
+import { useTheme } from './theme';
 
-export function Logo({ size = 28, className }: { size?: number; className?: string }) {
+/**
+ * The mark, or the organization's logo. `surface` says what it sits on: `auto` follows the theme,
+ * `dark` is for places that are dark in both themes (the sidebar).
+ */
+export function Logo({ size = 28, className, surface = 'auto' }: { size?: number; className?: string; surface?: 'auto' | 'dark' }) {
+  const { logo } = useBranding();
+  const { theme } = useTheme();
+  const src = surface === 'dark' || theme === 'dark' ? logo.dark ?? logo.light : logo.light;
+  if (src) {
+    return (
+      <img
+        className={['logo-img', className].filter(Boolean).join(' ')} src={src} alt="" aria-hidden="true"
+        style={{ height: size }} draggable={false}
+      />
+    );
+  }
   return (
     <svg className={className} width={size} height={size} viewBox="0 0 32 32" aria-hidden="true" focusable="false">
       <rect width="32" height="32" rx="8" fill="var(--logo-bg, #17656f)" />
@@ -22,11 +41,11 @@ export function Logo({ size = 28, className }: { size?: number; className?: stri
 }
 
 /** Logo plus the application name, split so the first word carries the weight. */
-export function Wordmark({ name, size = 28 }: { name: string; size?: number }) {
+export function Wordmark({ name, size = 28, surface = 'auto' }: { name: string; size?: number; surface?: 'auto' | 'dark' }) {
   const [first, ...rest] = name.split(' ');
   return (
     <span className="wordmark">
-      <Logo size={size} />
+      <Logo size={size} surface={surface} />
       <span className="wordmark-text">
         <span className="wordmark-first">{first}</span>
         {rest.length > 0 && <span className="wordmark-rest"> {rest.join(' ')}</span>}

@@ -2,6 +2,7 @@ import type { ModuleDef } from '../../core/module.ts';
 import { registerAccount } from './account.ts';
 import { describeAdminRoutes } from './docs.ts';
 import { registerFeatures } from './features.ts';
+import { registerOrganization } from './organization.ts';
 import { registerProviders } from './providers.ts';
 import { registerRoles } from './roles.ts';
 import { registerSettings } from './settings.ts';
@@ -23,6 +24,7 @@ const mod: ModuleDef = {
     registerUsers(ctx);
     registerRoles(ctx);
     registerSettings(ctx);
+    registerOrganization(ctx); // Administration > Organization: details, logos, colors (core/organization.ts)
     registerFeatures(ctx); // Administration > Features (core/features.ts)
     // Single sign-on (server/src/core/identity): sign-in providers, linking, break-glass.
     registerSso(ctx);

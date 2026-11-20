@@ -9,6 +9,7 @@ import { fail, UUID_RE } from './errors.ts';
 import { featureState } from './features.ts';
 import { afterSignIn, checkSignIn, sessionSecondFactor, signOutRedirect } from './identity/hooks.ts';
 import type { SessionUser } from './module.ts';
+import { publicBranding } from './organization.ts';
 import { makeDbLimiter } from './ratelimit.ts';
 import { clientIp, cookieSecure } from './request.ts';
 import { loadSecretBox, type SecretBox } from './secretbox.ts';
@@ -439,6 +440,8 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
     const mfa = req.user ? await mfaStatusForSession(deps, app, req.user.id, req.sessionHash) : { required: false, blocked: false, graceEndsAt: null };
     return {
     appName: await settings.get('app.name', DEFAULT_APP_NAME),
+    // The organization's public look (Administration > Organization): names, colors, logos.
+    branding: await publicBranding(db),
     timeZone: TIME_ZONE,
     currency: CURRENCY,
     setupRequired: (await userCount()) === 0,

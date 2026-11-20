@@ -6,6 +6,7 @@ import type { CustomFields } from '../customfields.ts';
 import type { Db } from '../db.ts';
 import type { AuditInput, FieldDef, ResourceDef, Row, SessionUser } from '../module.ts';
 import { appName, cellString, restrictedLine, slug } from './list.ts';
+import { printBranding } from '../organization.ts';
 import { PdfBuilder, PDF_TYPE } from './pdf.ts';
 import { formatStamp } from './zone.ts';
 
@@ -31,6 +32,7 @@ export async function factSheet(deps: ExportDeps, user: SessionUser, def: Resour
     title: ref ? `${ref} ${title}` : title,
     subtitle: def.label,
     appName: await appName(deps.db),
+    branding: await printBranding(deps.db),
     author: user.displayName,
     watermark: restricted ? restrictedLine(user.displayName, now) : null,
     meta: [`Generated ${formatStamp(now)} for ${user.displayName}`],

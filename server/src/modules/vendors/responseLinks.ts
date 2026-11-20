@@ -14,6 +14,7 @@ import type { FastifyRequest } from 'fastify';
 import { requireRecentAuth } from '../../core/auth.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { makeDbLimiter } from '../../core/ratelimit.ts';
+import { organizationName, readOrganization } from '../../core/organization.ts';
 import { clientIp } from '../../core/request.ts';
 import { ANSWERS, type AnswerEntry, type Answers, type Question } from './assessments.ts';
 import { registerResponseEmail } from './responseEmail.ts';
@@ -332,7 +333,8 @@ export async function registerResponseLinks(ctx: ModuleContext) {
     const s = await settings();
     const files = await heldFiles(ctx, [l.id]);
     return {
-      organization: await ctx.settings.get<string>('app.name', 'Sandpiper GRC'),
+      // The organization's name (Administration > Organization), else the application name.
+      organization: organizationName(await readOrganization(db)),
       vendor_name: vendor?.name ?? '',
       title: l.set_title,
       expires_at: l.expires_at,

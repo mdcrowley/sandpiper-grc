@@ -4,7 +4,8 @@ import { isAbsolute, join, relative, resolve } from 'node:path';
 import { buildApp, repoRoot } from './app.ts';
 import { openDb } from './core/db.ts';
 import { AREAS, featureState } from './core/features.ts';
-import { readOrganizationProfile } from './core/profile.ts';
+import { applyOrganizationProfile } from './core/organization.ts';
+import { DEV_ORGANIZATION, readOrganizationProfile } from './core/profile.ts';
 import type { LookupValue, SeedOptions } from './core/module.ts';
 import { decryptToTar, ENCRYPTED_EXT, isArchivePath, loadArchiveKey, newKeyText, readArchiveInfo } from './ops/archive.ts';
 import {
@@ -101,9 +102,13 @@ async function run(): Promise<number> {
 
     // Organization profile: only read in the pilot profile, so `dev` never needs private files.
     const organization = profile === 'pilot' ? readOrganizationProfile(seedDir) : {};
-    if (typeof organization.appName === 'string' && !(await ctx.db.one(`select 1 from settings where key = 'app.name'`))) {
-      await ctx.settings.set('app.name', organization.appName);
-    }
+    // The organization's details become settings (Administration > Organization), only where none
+    // are stored yet: the profile is a one-time import, and the application is where they live.
+    // The `dev` profile fills them with an invented example.
+    const details = await applyOrganizationProfile(ctx, profile === 'pilot' ? organization : DEV_ORGANIZATION, profile === 'pilot' ? seedDir : null);
+    if (details.set.length) console.log(`seed organization details: set ${details.set.join(', ')}`);
+    if (details.kept.length) console.log(`seed organization details: kept the values already set for ${details.kept.join(', ')}`);
+    for (const p of details.problems) console.error(`seed organization details: skipped ${p}`);
     for (const [list, values] of Object.entries(organization.lookups ?? {})) {
       await ctx.lookups.ensure(list, values as LookupValue[]);
     }

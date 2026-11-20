@@ -15,6 +15,10 @@ What the prototype does not do yet. Update with every change. The roadmap
 
 ## Built but incomplete
 
+- **Organization branding** (Administration > Organization): emails carry the organization's
+  name and footer but not its logo; the HTML form of report documents and pack previews shows the
+  application name only; a WebP logo is left off PDFs (they hold PNG and JPEG only); the browser
+  tab icon is the logo as uploaded, not a square icon made from it (E14-36).
 - **Sign-in**: single sign-on supports OpenID Connect, SAML 2.0 and a directory (LDAP).
   After a directory password, a person whose only second factor is a passkey must use a
   recovery code; a directory cannot be linked from Account security, nor used to confirm

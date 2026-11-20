@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Button, ErrorState, formatDateTime, Loading, PageHeader, useAuth, useFetch, useResource } from '../../core';
+import { Logo } from '../../core/Logo';
 import { KitCopies } from './KitCopies';
 import { zoneName } from './shared';
 import type { Kit } from './types';
@@ -55,6 +56,11 @@ export function KitPage() {
   if (error) return <div className="stack">{header}<KitCopies /><ErrorState title="The kit could not be loaded" error={error} onRetry={reload} /></div>;
   if (!data) return <div className="stack">{header}<Loading lines={8} label="Loading kit" /></div>;
 
+  const o = data.organization;
+  const own = (o ? [
+    ['Organization', o.name], ['Address', o.address], ['Main phone', o.phone],
+    ['Security contact phone', o.security_phone], ['Security contact email', o.security_email],
+  ] : []).filter(([, v]) => v) as [string, string][];
   const isOn = (r: Kit['rules'][number]) => r.active && r.deadline_hours !== null;
   const active = data.rules.filter(isOn);
   const other = data.rules.filter((r) => !isOn(r));
@@ -72,6 +78,7 @@ export function KitPage() {
         <Sheet className="si-cover">
           <p className="si-doc-mark">Restricted · handle as a security record</p>
           <div className="si-cover-main">
+            {data.organization?.name && <p className="si-doc-kicker si-kit-org"><Logo size={36} /><span>{data.organization.name}</span></p>}
             <p className="si-doc-kicker">{appName}</p>
             <h2 className="si-cover-title">Security incident kit</h2>
             <p className="si-cover-sub">What to do, who to call and who must be told when the network or this system is down.</p>
@@ -116,6 +123,12 @@ export function KitPage() {
         </Sheet>
 
         <Sheet title="Incident roles and contacts" n={2}>
+          {/* The organization's own numbers (Administration > Organization). */}
+          {own.length > 1 && (
+            <dl className="si-cover-facts si-kit-own">
+              {own.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
+            </dl>
+          )}
           {!data.contacts.length ? <p className="si-doc-empty">No contacts are set up. Add them under Notification rules and checklists, then reprint.</p> : (
             <table className="si-doc-table">
               <thead><tr><th scope="col" style={{ width: '22%' }}>Role</th><th scope="col" style={{ width: '22%' }}>Person</th><th scope="col" style={{ width: '22%' }}>Contact</th><th scope="col">What the role does</th></tr></thead>

@@ -8,6 +8,7 @@ import {
 import { ActionIcon, Button as MButton, Skeleton, Tabs as MTabs, Tooltip } from '@mantine/core';
 import { Link } from 'react-router-dom';
 import { errorMessage } from './api';
+import { appTitle } from './branding';
 import { formatDateTime, formatDuration } from './format';
 import { Icon, type IconName } from './Icon';
 import type { ColorName } from './meta';
@@ -517,13 +518,11 @@ export interface PageHeaderProps {
   breadcrumbs?: Crumb[];
 }
 
-const APP_TITLE = document.title;
-
-/** Page heading. Also sets the browser tab title. */
+/** Page heading. Also sets the browser tab title, which ends with the application name (core/branding.ts). */
 export function PageHeader({ title, reference, subtitle, status, actions, breadcrumbs }: PageHeaderProps) {
   useEffect(() => {
-    document.title = `${reference ? `${reference} ` : ''}${title} · ${APP_TITLE}`;
-    return () => { document.title = APP_TITLE; };
+    document.title = `${reference ? `${reference} ` : ''}${title} · ${appTitle()}`;
+    return () => { document.title = appTitle(); };
   }, [title, reference]);
 
   return (

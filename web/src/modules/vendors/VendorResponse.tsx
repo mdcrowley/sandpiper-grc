@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { SegmentedControl } from '@mantine/core';
 import { api, ApiError, Button, EmptyState, errorMessage, formatDate, formatDateTime, Loading, TextArea, TextField } from '../../core';
+import { Logo } from '../../core/Logo';
 import { VendorFiles, type SentFile, type UploadLimits } from './ResponseFiles';
 
 type Answer = 'yes' | 'partial' | 'no' | 'na';
@@ -89,7 +90,8 @@ export function VendorResponsePage() {
   return (
     <main className="vnd-resp" id="main">
       <header className="vnd-resp-head">
-        <p className="muted">{data.organization}</p>
+        {/* The organization's logo and name (Administration > Organization). */}
+        <p className="vnd-resp-org"><Logo size={32} /><span>{data.organization}</span></p>
         <h1>{data.title}</h1>
         <p>
           For <strong>{data.vendor_name}</strong>. {sent

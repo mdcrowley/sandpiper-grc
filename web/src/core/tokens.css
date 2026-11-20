@@ -2,7 +2,9 @@
    Themes switch on <html data-theme="light|dark"> (kept in step with Mantine's color scheme
    by theme.ts). The Mantine theme in mantine.tsx points its own variables at these tokens, so
    Mantine components and hand-written CSS can never disagree.
-   To re-brand: change the --brand* values here and the `brand` scale in mantine.tsx. */
+   To re-brand: change the --brand* values here and the `brand` scale in mantine.tsx. An organization
+   re-brands its own installation under Administration > Organization: core/branding.ts lays the
+   tokens worked out from its colors over these (server/src/core/branding-colors.ts). */
 
 @layer reset, mantine;
 
@@ -16,6 +18,9 @@
   --brand-soft: #e1f0f0;
   --brand-strong: #0a3d45;
   --accent: #b9782a;          /* warm sand, used sparingly (logo, highlights) */
+  /* The standard mark's colors (Logo.tsx), in both themes; an organization's brand colors replace them */
+  --logo-bg: #1f7a84;
+  --logo-accent: #f0c078;
 
   /* Surfaces and ink */
   --bg: #f3f6f6;

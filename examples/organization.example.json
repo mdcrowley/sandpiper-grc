@@ -1,5 +1,20 @@
 {
   "appName": "Example Org GRC",
+  "name": "Example Transit Authority",
+  "legalName": "Example Transit Authority Board",
+  "shortName": "ETA",
+  "address": {
+    "street": ["100 Depot Street", "Suite 200"],
+    "city": "Example City",
+    "region": "Example Region",
+    "postalCode": "00000",
+    "country": "Example Country"
+  },
+  "phone": "+1 555 0100",
+  "email": "info@example.org",
+  "website": "https://www.example.org",
+  "securityContact": { "phone": "+1 555 0199", "email": "security@example.org" },
+  "branding": { "primaryColor": "#17656f", "accentColor": "#b9782a" },
   "lookups": {
     "asset_type": [
       { "value": "kiosk", "label": "Kiosk" },

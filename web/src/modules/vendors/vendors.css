@@ -328,6 +328,7 @@ a.vnd-cell:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px;
 .vnd-resp-head { display: grid; gap: var(--s-1); }
 .vnd-resp-head h1 { margin: 0; font-size: var(--fs-xl, 1.5rem); }
 .vnd-resp-head p { margin: 0; }
+.vnd-resp-org { display: flex; align-items: center; gap: var(--s-2); color: var(--text-muted); font-weight: 600; }
 .vnd-resp-bar { position: sticky; bottom: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); padding: var(--s-3) 0; background: var(--bg, var(--surface)); border-top: 1px solid var(--border); }
 .vnd-resp-bar .vnd-resp-state { margin-inline-start: auto; font-size: var(--fs-sm); color: var(--text-muted); }
 .vnd-link-days { align-items: flex-end; flex-wrap: wrap; }

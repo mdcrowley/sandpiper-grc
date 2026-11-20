@@ -242,6 +242,12 @@ export interface PdfOptions {
   /** A cover page with the title, subtitle and meta; the body starts on page 2. */
   cover?: boolean;
   author?: string;
+  /**
+   * The organization (Administration > Organization, `printBranding` in core/organization.ts): its
+   * name and address lines in the footer of every page, its logo on the first page, its brand color
+   * for rules.
+   */
+  branding?: { name: string; lines: string[]; logo: Buffer | null; color: string | null } | null;
 }
 
 export interface PdfColumn { header: string; align?: 'left' | 'right'; /** Relative width; worked out from the content when left out. */ weight?: number }
@@ -253,9 +259,12 @@ export class PdfBuilder {
   private done: Promise<Buffer>;
   private readonly opts: PdfOptions;
   private readonly registered = new Set<string>();
+  /** The brand color for rules: the organization's when it has one. */
+  private readonly brand: string;
 
   constructor(opts: PdfOptions) {
     this.opts = opts;
+    this.brand = opts.branding?.color && /^#[0-9a-f]{6}$/i.test(opts.branding.color) ? opts.branding.color : BRAND;
     this.doc = new PDFDocument({
       size: 'A4', layout: opts.landscape ? 'landscape' : 'portrait', bufferPages: true,
       margins: { top: 64, bottom: 56, left: 48, right: 48 },
@@ -271,6 +280,17 @@ export class PdfBuilder {
     });
     this.doc.font('Helvetica').fontSize(10).fillColor(INK);
     if (opts.cover) this.coverPage(); else this.titleBlock();
+  }
+
+  /** The organization's logo, fitted into a box; nothing when there is none or it cannot be read. */
+  private logo(x: number, y: number, w: number, h: number, align: 'left' | 'right') {
+    const logo = this.opts.branding?.logo;
+    if (!logo) return;
+    try {
+      this.doc.image(logo, x, y, { fit: [w, h], valign: 'center', ...(align === 'right' ? { align: 'right' as const } : {}) });
+    } catch {
+      // A picture PDFKit cannot read is left out rather than failing the export.
+    }
   }
 
   /** Sets the font that can print `text` (bold or regular) and returns the text to print with it. */
@@ -384,20 +404,23 @@ export class PdfBuilder {
 
   private titleBlock() {
     const { doc } = this;
+    // The organization's logo in the top margin, at the right (where a restricted marking is not).
+    if (!this.opts.watermark) this.logo(this.left + this.width - 140, 14, 140, 40, 'right');
     doc.fontSize(20).fillColor(INK);
     this.write(this.opts.title, this.left, doc.page.margins.top, { width: this.width, bold: true });
     if (this.opts.subtitle) { doc.fontSize(11).fillColor(MUTED); this.write(this.opts.subtitle, doc.x, doc.y, { width: this.width }); }
     doc.moveDown(0.3);
     this.metaLines();
     doc.moveDown(0.4);
-    doc.moveTo(this.left, doc.y).lineTo(this.left + this.width, doc.y).lineWidth(1.5).strokeColor(BRAND).stroke();
+    doc.moveTo(this.left, doc.y).lineTo(this.left + this.width, doc.y).lineWidth(1.5).strokeColor(this.brand).stroke();
     doc.moveDown(0.8);
   }
 
   private coverPage() {
     const { doc } = this;
     const top = doc.page.height * 0.32;
-    doc.rect(this.left, top - 28, 56, 5).fill(BRAND);
+    this.logo(this.left, top - 120, 220, 72, 'left');
+    doc.rect(this.left, top - 28, 56, 5).fill(this.brand);
     doc.fontSize(28).fillColor(INK);
     this.write(this.opts.title, this.left, top, { width: this.width, bold: true });
     if (this.opts.subtitle) { doc.moveDown(0.3).fontSize(13).fillColor(MUTED); this.write(this.opts.subtitle, doc.x, doc.y, { width: this.width }); }
@@ -555,7 +578,7 @@ export class PdfBuilder {
         this.write(c, x + pad, y + pad, { width: widths[i] - pad * 2, align: columns[i].align === 'right' ? 'right' : 'left', bold: isBold(style, i) });
         x += widths[i];
       });
-      doc.moveTo(this.left, y + h).lineTo(this.left + this.width, y + h).lineWidth(style === 'head' ? 1 : 0.4).strokeColor(style === 'head' ? BRAND : RULE).stroke();
+      doc.moveTo(this.left, y + h).lineTo(this.left + this.width, y + h).lineWidth(style === 'head' ? 1 : 0.4).strokeColor(style === 'head' ? this.brand : RULE).stroke();
     };
     const head = columns.map((c) => cellText(c.header));
     const headH = rowHeight(head, 'head');
@@ -710,7 +733,15 @@ export class PdfBuilder {
         this.write(this.opts.title, margins.left, 28, { width: w, lineBreak: false, ellipsis: true });
       }
       doc.fontSize(8).fillColor(MUTED);
-      this.write(this.opts.appName ?? '', margins.left, doc.page.height - 34, { width: w / 2, lineBreak: false, ellipsis: true });
+      // The organization's name beside the application's, and its address and contacts underneath.
+      const names = [...new Set([this.opts.branding?.name, this.opts.appName].filter((n): n is string => Boolean(n)))];
+      this.write(names.join(' · '), margins.left, doc.page.height - 34, { width: w / 2, lineBreak: false, ellipsis: true });
+      const lines = this.opts.branding?.lines ?? [];
+      if (lines.length) {
+        doc.fontSize(7).fillColor(MUTED);
+        this.write(lines.join(' · '), margins.left, doc.page.height - 23, { width: w, lineBreak: false, ellipsis: true });
+        doc.fontSize(8);
+      }
       doc.font('Helvetica').text(`Page ${i + 1} of ${total}`, margins.left + w / 2, doc.page.height - 34, { width: w / 2, align: 'right', lineBreak: false });
       margins.bottom = keep;
     }

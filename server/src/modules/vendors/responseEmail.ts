@@ -13,6 +13,7 @@ import { ensureMail } from '../../core/mail/index.ts';
 import { expiresText } from '../../core/mail/links.ts';
 import { EMAIL_RE } from '../../core/mail/service.ts';
 import { makeDbLimiter } from '../../core/ratelimit.ts';
+import { organizationName, readOrganization } from '../../core/organization.ts';
 import type { LinkKit } from './responseLinks.ts';
 
 /** Emails of a link for one assessment in a day. */
@@ -23,7 +24,8 @@ export async function registerResponseEmail(ctx: ModuleContext, kit: LinkKit) {
   const { app, db } = ctx;
   const mail = await ensureMail(ctx);
   const perAssessment = makeDbLimiter(db, 'vendor_link_email', EMAILS_PER_DAY, 24 * HOUR);
-  const organization = () => ctx.settings.get<string>('app.name', 'Sandpiper GRC');
+  // The organization's name (Administration > Organization), else the application name.
+  const organization = async () => organizationName(await readOrganization(ctx.db));
 
   app.post('/api/vendor-assessments/:aid/links/email', { preHandler: ctx.requirePerm('vendors.edit') }, async (req, reply) => {
     const s = await kit.settings();

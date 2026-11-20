@@ -253,9 +253,20 @@ Be aware of two things:
 A JSON object. Every section is optional. An invented example is in
 [`examples/organization.example.json`](../examples/organization.example.json).
 
+The organization's details in it (names, address, contacts, colors and logos) are **only an
+optional, one-time import** into the settings under **Administration > Organization**: each is
+written only where nothing is stored yet, so a later seed never overwrites what an administrator
+has changed, and you may leave them out and enter everything in the application instead. The
+`dev` profile fills them with an invented example organization.
+
 | Field | Purpose | Behavior |
 |---|---|---|
-| `appName` | The name shown in the application | Applied only if no name has been set yet. Change it later under Administration, Settings |
+| `appName` | The name shown in the application | Applied only if no name has been set yet. Change it later under Administration > Organization |
+| `name`, `legalName`, `shortName` | The organization's names | Each applied only if not set yet; afterwards they live in the application (Administration > Organization) |
+| `address` | `{ "street": [up to three lines], "city", "region", "postalCode", "country" }`, all optional | As above |
+| `phone`, `email`, `website` | General contacts | As above. Checked as in the application; a value that is not allowed is skipped and named in the output |
+| `securityContact` | `{ "phone", "email" }`, printed in the offline incident kit | As above |
+| `branding` | `{ "primaryColor": "#rrggbb", "accentColor": "#rrggbb", "logo": "file.png", "logoDark": "file.png" }`; logo files sit directly in the `seed/` folder (PNG, JPEG or WebP, up to 512 KB) | As above |
 | `lookups` | Extra values for any configurable list, as `{ "<list key>": [ { "value", "label", "color"?, "sort"?, "meta"? } ] }` | Adds values that do not exist. Never changes an existing value |
 | `obligations` | Entries for the obligations register | Each needs `title`; optional `source`, `requirement`, `how_met`, `evidence`, `next_due_on` (`YYYY-MM-DD`). Matched by title: an existing or deleted obligation is never changed or recreated |
 | `notificationRules` | Who must be told about a security incident, and by when | See below |

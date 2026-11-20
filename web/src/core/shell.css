@@ -48,11 +48,14 @@
 }
 .sidebar-rail .brand { justify-content: center; padding: 0; }
 .wordmark { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
-.wordmark svg { flex: none; --logo-bg: #1f7a84; }
+.wordmark svg, .wordmark .logo-img { flex: none; }
+/* An organization's logo (Administration > Organization) keeps its proportions; a wide one is capped. */
+.logo-img { display: block; flex: none; width: auto; max-width: 160px; object-fit: contain; }
+.sidebar .brand .logo-img { max-width: 132px; }
+.sidebar-rail .brand .logo-img { max-width: 44px; }
 .wordmark-text { overflow: hidden; font-size: 1.0625rem; letter-spacing: -0.01em; text-overflow: ellipsis; white-space: nowrap; }
 .wordmark-first { font-weight: 700; }
 .wordmark-rest { font-weight: 400; opacity: 0.78; }
-.sidebar .brand svg { --logo-bg: #1f7a84; }
 .sidebar-scroll { position: relative; flex: 1; min-height: 0; overflow: hidden auto; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.22) transparent; }
 
 .nav { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; padding: var(--s-2) var(--s-3) var(--s-5); align-content: start; }

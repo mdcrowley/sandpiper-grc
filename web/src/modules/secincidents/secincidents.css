@@ -458,3 +458,7 @@
 .si-alert-reach { display: inline-flex; flex-wrap: wrap; gap: var(--s-1); }
 .si-alert-options { border: 0; margin: 0; padding: 0; display: grid; gap: var(--s-2); }
 .si-alert-options legend { font-weight: 600; font-size: var(--fs-sm, 0.875rem); margin-bottom: var(--s-1); }
+
+/* The organization on the kit's cover and contacts sheet (Administration > Organization). */
+.si-kit-org { display: flex; align-items: center; gap: var(--s-2); }
+.si-kit-own { margin-bottom: var(--s-4); }

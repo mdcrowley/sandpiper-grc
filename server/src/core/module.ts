@@ -126,7 +126,8 @@ export interface SeedOptions {
   /**
    * The organization profile: `<seedDir>/organization.json` when it exists, else {}.
    * It holds everything specific to one organization (see examples/organization.example.json),
-   * so that nothing organization-specific lives in code. Core applies `appName` and `lookups`;
+   * so that nothing organization-specific lives in code. Core imports the organization's details
+   * into the settings (`applyOrganizationProfile`, core/organization.ts) and applies `lookups`;
    * modules read their own sections (for example `obligations`, `notificationRules`).
    */
   organization?: Row;

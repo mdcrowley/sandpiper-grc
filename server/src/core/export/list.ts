@@ -6,6 +6,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { CURRENCY, DEFAULT_APP_NAME } from '../config.ts';
 import type { Db } from '../db.ts';
 import type { AuditInput, FieldDef, ResourceDef, Row } from '../module.ts';
+import { printBranding } from '../organization.ts';
 import { PdfBuilder, PDF_TYPE } from './pdf.ts';
 import { formatDay, formatStamp } from './zone.ts';
 import { writeXlsx, XLSX_TYPE, type CellType } from './xlsx.ts';
@@ -148,7 +149,7 @@ export async function sendListExport(x: ListExportInput): Promise<Buffer> {
     }));
   } else {
     const pdf = new PdfBuilder({
-      title: def.plural, appName: name, author: user.displayName, watermark: mark,
+      title: def.plural, appName: name, author: user.displayName, watermark: mark, branding: await printBranding(x.db),
       landscape: cols.length > 5,
       meta: [`Generated ${formatStamp(now)} for ${user.displayName}`, `Filters: ${filters.join(' · ')}`,
         `${rows.length} ${(rows.length === 1 ? def.label : def.plural).toLowerCase()}`],

@@ -62,13 +62,18 @@ version for a first pull request.
 `.\grc.ps1 seed` loads data into the database; it is idempotent. Two profiles:
 
 - `dev` (`-Profile dev`): generated, invented sample data only (an invented bus and
-  light-rail operator). Needs no files.
+  light-rail operator, with invented organization details: `DEV_ORGANIZATION` in
+  `core/profile.ts`). Needs no files.
 - `pilot` (default): reads the private `seed/` folder. Every file is optional; a missing
   file is skipped.
   - `organization.json`: the organization profile (a file still named
     `organisation.json` is read too). Shape and an invented example are in
-    `examples/organization.example.json`: `appName`, `lookups` (extra values for any
-    configurable list), `obligations`, `notificationRules`. Core applies `appName` and
+    `examples/organization.example.json` (type `OrganizationProfile` in `core/profile.ts`):
+    `appName`, `name`, `legalName`, `shortName`, `address`, `phone`, `email`, `website`,
+    `securityContact`, `branding` (colors and logo files), `lookups` (extra values for any
+    configurable list), `obligations`, `notificationRules`. Core imports the organization's
+    details into the settings once, only where none is stored (`applyOrganizationProfile` in
+    `core/organization.ts`; they then live under Administration > Organization), and applies
     `lookups`; modules read their own sections from `opts.organization`.
   - Optional pipe-delimited import files (first line is the header): `systems.psv`,
     `sites.psv`, `data_categories.psv`, `vendor_contracts.psv`, `csf_target_profile.psv`,
@@ -189,7 +194,13 @@ Read them in code with `ctx.settings.get(key, fallback)`, using the same fallbac
 
 | Key | Default | Meaning |
 |---|---|---|
-| `app.name` | `Sandpiper GRC` | Name shown in the application |
+| `app.name` | `Sandpiper GRC` | Name shown in the application; changed under Administration > Organization |
+| `organization.name`, `.legal_name`, `.short_name` | `''` | The organization's names (Administration > Organization, `core/organization.ts`). Read with `readOrganization(db)`; `organizationName(o)` falls back to `app.name` |
+| `organization.street`, `.city`, `.region`, `.postal_code`, `.country` | `''` | Postal address, free text; `street` is up to three lines joined by line breaks. `addressLine(o)` gives one line |
+| `organization.phone`, `.email`, `.website` | `''` | General contacts, printed in email and PDF footers |
+| `organization.security_phone`, `.security_email` | `''` | Security contact, printed only in the offline incident kit |
+| `branding.primary_color`, `branding.accent_color` | `''` (the standard look) | `#rrggbb`. Never used as typed: `deriveBrandColors` (`core/branding-colors.ts`) works out WCAG 2.2 AA shades per theme, which the web app lays over `tokens.css` (`web/src/core/branding.ts`) |
+| `branding.logo_light`, `branding.logo_dark` | none | Logos (PNG, JPEG or WebP by content, at most 512 KB and 2048 pixels; never SVG) with their description, stored as settings so they are in every backup; set only through `POST/DELETE /api/admin/organization/logo/:variant`, never PATCHed. Served publicly at `/api/branding/logo/:variant` |
 | `pilot_mode` | `true` | Shows the "sample and test data only" notice |
 | `features` | every area on except `portal` | Feature switches, one boolean per optional area (`core/features.ts`); changed under Administration > Features (needs a recent password confirmation). An area missing from the stored value takes its default |
 | `auth.password_min_length` | `14` | Minimum password length (never below 12) |
@@ -414,6 +425,10 @@ Services other modules may offer are Fastify decorators; check before use:
   least one second, at most six hours; it still counts as an attempt). Administrators
   see the queue under Background jobs. The poller starts when the server listens (never
   under tests, which call `app.jobs.runDue()`); `GRC_JOBS=off` keeps it stopped.
+- PDFs (`PdfBuilder`, `core/export/pdf.ts`) take `branding: await printBranding(db)` (`core/organization.ts`):
+  the organization's name and address in every page's footer, its logo on the first page or
+  cover, its brand color for rules. Pass it in every new PDF. Emails get the organization's
+  name and footer by themselves.
 - `app.sendMail({ userIds, template, purpose, data, record?, attachments? })` and
   `app.mailEnabled()` (`core/mail`): email through the job queue. Off until an
   administrator sets up a mail server (Administration > Email), so always guard with
@@ -539,7 +554,8 @@ Generated routes:
 | Route | Purpose |
 |---|---|
 | `GET /api/health` | `{ ok: true }` (public) |
-| `GET /api/auth/state` | `{ appName, timeZone, currency, setupRequired, user, permissions, features, areasOff, pilot, mfa... }` (public) |
+| `GET /api/branding`, `/api/branding/logo/:variant` | The organization's public look: names, colors as tokens per theme, logo addresses (public; `publicBranding` in `core/organization.ts` never includes the address or contacts) |
+| `GET /api/auth/state` | `{ appName, branding, timeZone, currency, setupRequired, user, permissions, features, areasOff, pilot, mfa... }` (public) |
 | `POST /api/setup` | First-run administrator (public, only while no users exist) |
 | `POST /api/auth/login`, `/logout`, `/change-password`, `/confirm` | Local sign-in; `confirm` proves the password again before a sensitive action |
 | `GET /api/meta` | `{ resources: { [type]: meta }, lookups: { [list]: [{ value, label, color, sort }] } }` |

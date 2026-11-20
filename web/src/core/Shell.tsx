@@ -396,7 +396,7 @@ export function Shell({ children }: { children: ReactNode }) {
 
       <AppShell.Navbar className={cx('sidebar', rail && 'sidebar-rail')}>
         <Link className="brand" to="/" aria-label={`${appName}: overview`}>
-          {rail ? <Logo size={30} /> : <Wordmark name={appName} />}
+          {rail ? <Logo size={30} surface="dark" /> : <Wordmark name={appName} surface="dark" />}
         </Link>
         <div className="sidebar-scroll">
           {rail ? <NavRail groups={nav.groups} current={nav.current} /> : <NavFull groups={nav.groups} current={nav.current} closed={closed} onToggle={toggleGroup} />}
@@ -412,7 +412,7 @@ export function Shell({ children }: { children: ReactNode }) {
         opened={drawerOpen && (small || medium)}
         onClose={() => setDrawerOpen(false)}
         size={288}
-        title={<Wordmark name={appName} />}
+        title={<Wordmark name={appName} surface="dark" />}
         closeButtonProps={{ 'aria-label': 'Close navigation' }}
         classNames={{ content: 'nav-drawer', header: 'nav-drawer-head', body: 'nav-drawer-body' }}
       >

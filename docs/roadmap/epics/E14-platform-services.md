@@ -1,6 +1,6 @@
 # E14 Platform services not yet built
 
-**Status:** in progress (30 of 34 issues done)
+**Status:** in progress (31 of 36 issues done)
 full-text search built; custom fields, tags and watchers built with their screens; retention
 built on the server and screens, with anonymizing; evidence files on record pages built, with expiry reminders;
 feature switches for optional areas built; approval workflows built)
@@ -71,6 +71,8 @@ bulk edit) that make daily use quicker.
 | E14-32 | Approval workflows that branch, run steps side by side or delegate | open | P3 |
 | E14-33 | Retention decisions raise webhook events | open | P3 |
 | E14-34 | A switched-off part is shown nowhere but its switch | done | P2 |
+| E14-35 | Organization settings: details, logo and accessible brand colors | done | P2 |
+| E14-36 | Branding in the remaining places: email logo, HTML report documents, WebP logos in PDFs | open | P3 |
 
 ---
 
@@ -1086,3 +1088,74 @@ preferences, reminder groups), `modules/mcp` (`installedTools`, neutral descript
 `widgetsSummary`), `modules/mcp/ConnectPage.tsx`, `modules/help` (`areas.ts`, `ApiReference.tsx`);
 tests `tools/e2e/suites/09-features-off.mjs`, `modules/admin/features-hidden.test.ts`, and the
 portal, features, safety intake and OpenAPI tests updated.
+
+### E14-35 Organization settings: details, logo and accessible brand colors
+
+**Status:** done · **Priority:** P2 · **Type:** feature
+
+The organization's details lived only in `seed/organization.json`, read once by the seed, and the
+only branding was the application name. Administrators need one page to keep the organization's
+names, address and contacts, and to give the application its logo and colors, with every change
+audited and nothing that makes text unreadable.
+
+Acceptance criteria:
+
+- [x] Administration > Organization, always on (not a feature area), for administrators: application
+  name (moved from Settings, which now links here), organization, legal and short names; address
+  (up to three street lines, city, state or region, postal code, country, all free text with no
+  country assumed); main phone, general email, website; optional security contact phone and email.
+  Saved through `PATCH /api/admin/settings` like every setting, each change audited
+- [x] Validation with field messages: lengths, phone, email and web address forms, control
+  characters, at most three street lines
+- [x] Logos for the light and dark themes (dark falls back to light): PNG, JPEG or WebP recognized
+  by content (magic bytes and header dimensions read without a library), at most 512 KB and 16 to
+  2048 pixels, SVG refused; stored as settings so they are in every backup and survive an upgrade;
+  audited without the picture; Remove brings back the standard mark
+- [x] Public, cacheable routes `GET /api/branding` and `GET /api/branding/logo/:variant` (hash in
+  the address: cached for a year; ETag and 304); `branding` in `/api/auth/state`; never the address,
+  contacts or security contact before sign-in
+- [x] Brand and accent colors with a color square and hex text, Reset to default, and a live
+  preview of header, buttons and a link in both themes. The server derives a shade per theme so
+  text on the brand color, links on every surface, the brand tint, the sidebar text (4.5:1) and the
+  accent and focus outline (3:1) meet WCAG 2.2 AA, shows every check and says what was adjusted
+- [x] Applied everywhere the application shows identity: shell header and sidebar (tinted to the
+  brand hue), browser tab title and icon, sign-in and second-factor pages, portal, vendor response
+  page, OAuth consent (inside the shell), emails (name above; legal name, address, contacts below;
+  new template placeholders; not on text messages), PDF exports, fact sheets, report documents and
+  packs, and the incident kit (name, logo, address, footer, brand-colored rules; the kit's contacts
+  sheet lists the organization's numbers and security contact)
+- [x] `grc seed --profile pilot` imports the profile's details (names, address, contacts, colors,
+  logo files in the seed folder) only where nothing is stored; `dev` sets an invented example
+- [x] Tests: `core/organization.test.ts` (picture sniffing and limits, contrast derivation for
+  extreme colors, validation, audit, the public and private split, logo routes and caching, email
+  frame and PDF footer, profile import), `web/src/core/branding.test.ts`
+
+**Implemented in:** `server/src/core/organization.ts`, `core/branding-colors.ts`,
+`core/image-info.ts`, `core/profile.ts`, `core/auth.ts` (state), `app.ts`, `cli.ts` (seed),
+`core/mail/templates.ts`, `core/mail/service.ts`, `core/mail/routes.ts`, `core/export/pdf.ts`,
+`core/export/list.ts`, `core/export/routes.ts`, `core/apidocs.ts`, `modules/admin/organization.ts`,
+`modules/admin/settings.ts`, `modules/admin/docs.ts`, `modules/reports` (`documents.ts`,
+`files.ts`, `render.ts`), `modules/secincidents/kit.ts`, `modules/vendors` (`responseEmail.ts`,
+`responseLinks.ts`); web `core/branding.ts`, `core/Logo.tsx`, `core/auth.tsx`, `core/ui.tsx`,
+`core/Shell.tsx`, `core/shell.css`, `core/tokens.css`, `modules/admin/Organization.tsx`,
+`Settings.tsx`, `admin.css`, `modules/vendors/VendorResponse.tsx`, `modules/secincidents/KitPage.tsx`.
+
+### E14-36 Branding in the remaining places: email logo, HTML report documents, WebP logos in PDFs
+
+**Status:** open · **Priority:** P3 · **Type:** improvement
+
+Left out of E14-35: emails carry the organization's name but not its logo (it would need an
+absolute address or an inline attachment, and many mail programs block remote pictures); the HTML
+form of report documents and packs (download and on-screen preview) shows the application name
+only; a WebP logo cannot be embedded in a PDF, so PDFs show none when only a WebP logo is set; the
+favicon is the logo as uploaded rather than a square icon made from it; and Mantine's numbered brand
+scale (used by a few components outside the design tokens) keeps the standard hues.
+
+Acceptance criteria:
+
+- [ ] The logo in emails, as an inline attachment, with a setting to leave it out
+- [ ] The organization's name, address and logo in HTML report documents and pack previews
+- [ ] WebP logos converted for PDFs, or the page asks for a PNG for printing
+- [ ] A square favicon made from the logo
+- [ ] Mantine's brand scale generated from the brand color
+

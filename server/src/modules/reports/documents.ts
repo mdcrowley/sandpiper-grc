@@ -1,6 +1,7 @@
 // Builds the print-ready document for a report, a dashboard or a pack, as one person: every
 // figure in it is worked out with that person's permissions.
 import { DEFAULT_APP_NAME } from '../../core/config.ts';
+import { printBranding } from '../../core/organization.ts';
 import type { ModuleContext, Row, SessionUser } from '../../core/module.ts';
 import { AccessError, runReport, type ReportResult } from './query.ts';
 import { describeSpecFilters } from './files.ts';
@@ -51,7 +52,7 @@ export function makeDocuments(ctx: ModuleContext, loadReport: (user: SessionUser
     const sections = given.map((s) => (s.result && allow && !allow(s.result)
       ? { title: s.title, note: `Not included: your role does not allow exporting ${s.result.plural.toLowerCase()}.` } : s));
     const results = sections.map((s) => s.result).filter((r): r is ReportResult => Boolean(r));
-    const input: DocInput = { title, subtitle, cover, sections, preparedFor: user.displayName, generatedAt: now.toISOString(), appName: await appName(), filtersNote };
+    const input: DocInput = { title, subtitle, cover, sections, preparedFor: user.displayName, generatedAt: now.toISOString(), appName: await appName(), branding: await printBranding(ctx.db), filtersNote };
     return {
       title,
       input,

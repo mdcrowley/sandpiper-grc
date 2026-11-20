@@ -1,6 +1,7 @@
 // Export renderers: CSV, and a self-contained print-ready HTML document (no scripts, no outside
 // resources) that the browser saves as PDF. Restricted content is watermarked as the core export is.
 import { CURRENCY } from '../../core/config.ts';
+import type { PrintBranding } from '../../core/organization.ts';
 import type { ReportResult, ResultColumn, ResultRow } from './query.ts';
 import { formatStamp } from './query.ts';
 
@@ -101,6 +102,8 @@ export interface DocInput {
   preparedFor: string;
   generatedAt: string;
   appName?: string;
+  /** The organization for the PDF's footer and logo (Administration > Organization). */
+  branding?: PrintBranding | null;
   filtersNote?: string;
 }
 

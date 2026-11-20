@@ -65,7 +65,7 @@ const GROUPS: { id: string; title: string; needs?: keyof Values }[] = [
 ];
 
 /** One setting: what it is on the left, its control on the right, a server or validation message underneath. */
-function Setting({ title, text, children, error, changed }: { title: string; text: ReactNode; children: ReactNode; error?: string; changed?: boolean }) {
+export function Setting({ title, text, children, error, changed }: { title: string; text: ReactNode; children: ReactNode; error?: string; changed?: boolean }) {
   return (
     <div className={`adm-setting${error ? ' adm-setting-invalid' : ''}`}>
       <div className="adm-setting-about">
@@ -80,7 +80,7 @@ function Setting({ title, text, children, error, changed }: { title: string; tex
   );
 }
 
-function Group({ id, title, text, children }: { id: string; title: string; text: string; children: ReactNode }) {
+export function Group({ id, title, text, children }: { id: string; title: string; text: string; children: ReactNode }) {
   return (
     <section id={`settings-${id}`} className="adm-group" tabIndex={-1} aria-labelledby={`settings-${id}-title`}>
       <header className="adm-group-head">
@@ -132,8 +132,6 @@ export function SettingsPage() {
 
   const save = async () => {
     const found: Record<string, string> = {};
-    const name = form['app.name'].trim();
-    if (name.length < 1 || name.length > 60) found['app.name'] = 'Enter a name of 1 to 60 characters.';
     for (const [key, range] of Object.entries(RANGES) as [keyof Values, { min: number; max: number; what: string }][]) {
       if (!(key in data.values)) continue; // a setting this server does not offer
       const v = form[key];
@@ -195,8 +193,8 @@ export function SettingsPage() {
 
           <Group id="identity" title="Identity" text="What the application calls itself.">
             <Card>
-              <Setting title="Application name" changed={isChanged('app.name')} text="Shown on the sign-in page, in the header and as the account name in authenticator apps. Up to 60 characters.">
-                <TextField label="Application name" hideLabel maxLength={60} value={form['app.name']} onChange={(v) => set('app.name', v)} error={errors['app.name']} />
+              <Setting title="Name, logo and colors" text={<>The application name, the organization's name, address and contacts, its logo and its colors are set in one place, under <Link to="/admin/organization">Organization</Link>.</>}>
+                <Link className="btn btn-secondary" to="/admin/organization">Open Organization</Link>
               </Setting>
               <Setting
                 title="Pilot mode" error={errors.pilot_mode} changed={isChanged('pilot_mode')}
