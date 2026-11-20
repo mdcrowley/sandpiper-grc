@@ -16,6 +16,7 @@
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { UUID_RE } from '../errors.ts';
+import { featureState } from '../features.ts';
 import { migrate } from '../migrate.ts';
 import type { ModuleContext, Row } from '../module.ts';
 import { makeJobQueue, type JobQueue } from './queue.ts';
@@ -108,13 +109,17 @@ export async function ensureJobs(ctx: ModuleContext): Promise<JobQueue> {
     const type = typeof q.type === 'string' && q.type ? q.type.slice(0, 80) : null;
     const pageSize = Math.min(200, Math.max(1, Number(q.pageSize) || 50));
     const page = Math.min(100000, Math.max(1, Math.trunc(Number(q.page)) || 1));
-    const where = `($1::text is null or status = $1) and ($2::text is null or type = $2)`;
-    const total = (await db.one<{ c: number }>(`select count(*)::int c from jobs where ${where}`, [status, type]))!.c;
+    // Work of a switched-off area (Administration > Features) is skipped, and not shown here either (E14-34).
+    const offPrefixes = (await featureState(db)).offJobs;
+    const where = `($1::text is null or status = $1) and ($2::text is null or type = $2) and not (type like any($3::text[]))`;
+    const offLike = offPrefixes.map((p) => `${p.replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
+    const total = (await db.one<{ c: number }>(`select count(*)::int c from jobs where ${where}`, [status, type, offLike]))!.c;
     const rows = await db.query<Row>(
       `select id, type, status, attempts, max_attempts, run_at, created_at, started_at, finished_at, locked_until, last_error, schedule
        from jobs where ${where} order by created_at desc, id limit ${pageSize} offset ${(page - 1) * pageSize}`,
-      [status, type],
+      [status, type, offLike],
     );
+    const isOff = (t: string) => offPrefixes.some((p) => t.startsWith(p));
     const counts = Object.fromEntries(STATUSES.map((s) => [s, 0])) as Record<string, number>;
     for (const c of await db.query<{ status: string; c: number }>('select status, count(*)::int c from jobs group by status')) counts[c.status] = c.c;
     const schedules = await db.query<Row>(
@@ -125,8 +130,8 @@ export async function ensureJobs(ctx: ModuleContext): Promise<JobQueue> {
     const known = new Set(jobs.types());
     return {
       rows, total, page, pageSize, counts,
-      schedules: schedules.map((s) => ({ ...s, handled: known.has(s.type) })),
-      types: (await db.query<{ type: string }>('select distinct type from jobs order by type')).map((r) => r.type),
+      schedules: schedules.filter((s) => !isOff(String(s.type))).map((s) => ({ ...s, handled: known.has(s.type) })),
+      types: (await db.query<{ type: string }>('select distinct type from jobs order by type')).map((r) => r.type).filter((t) => !isOff(t)),
       pollerRunning: jobs.started,
     };
   });

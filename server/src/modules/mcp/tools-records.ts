@@ -28,7 +28,7 @@ function cleanValues(t: ToolContext, type: TypeMeta, values: Record<string, unkn
 
 const listRecordTypes: ToolSpec = {
   name: 'list_record_types', title: 'List record types', group: 'Records', idempotent: true,
-  description: 'Lists the kinds of record you can see in Sandpiper GRC (tickets, assets, risks, contracts, ...). '
+  description: 'Lists the kinds of record you can see in Sandpiper GRC (systems, assets, actions, ...). '
     + 'With "type", describes that type\'s fields: label, kind of value, whether it is required or read-only, and the allowed choices for list fields. '
     + 'Use it before list_records, create_record or update_record to learn the field names.',
   input: { type: typeArg.optional() },
@@ -162,7 +162,7 @@ const getRecord: ToolSpec = {
 
 const getRelated: ToolSpec = {
   name: 'get_related', title: 'Get related records', group: 'Records', idempotent: true,
-  description: 'The records linked to one record (both directions), with the relation, e.g. a risk\'s actions or a system\'s vendors. Links you may not see are left out.',
+  description: 'The records linked to one record (both directions), with the relation, e.g. a system\'s assets or the record an action arose from. Links you may not see are left out.',
   input: { type: typeArg, id: idArg },
   async run(args, t) {
     const type = await t.typeOf(args.type);
@@ -203,7 +203,7 @@ const getHistory: ToolSpec = {
 
 const addComment: ToolSpec = {
   name: 'add_comment', title: 'Add a comment', group: 'Changes', write: true,
-  description: 'Adds a comment to a record you may see. Comments are internal notes unless "internal" is false (a public comment, which requesters can see on tickets).',
+  description: 'Adds a comment to a record you may see. Comments are internal notes unless "internal" is false (a public comment, which the person who raised the record can see where the application shows it to them).',
   input: {
     type: typeArg, id: idArg,
     body: z.string().min(1).max(20000).describe('The comment text.'),
@@ -269,7 +269,7 @@ const updateRecord: ToolSpec = {
 
 const linkRecords: ToolSpec = {
   name: 'link_records', title: 'Link two records', group: 'Changes', write: true, idempotent: true,
-  description: 'Links two records you may see (you need edit permission on the first), for example a ticket to the system it concerns. Linking the same pair again changes nothing.',
+  description: 'Links two records you may see (you need edit permission on the first), for example an asset to the system it belongs to. Linking the same pair again changes nothing.',
   input: {
     from_type: typeArg, from_id: idArg, to_type: typeArg, to_id: idArg,
     relation: z.string().max(60).optional().describe('How they relate, e.g. "related", "caused by", "affects" (default "related").'),

@@ -48,7 +48,7 @@ beforeAll(async () => {
   lee = await person('Lee Operator', ['requester'], 'North depot');
   robin = await person('Robin Elsewhere', ['requester'], 'Finance');
   agent = await t.as('agent');
-  await t.api.put('/api/portal/settings', { enabled: true });
+  await t.api.patch('/api/admin/features', { features: { portal: true } });
 });
 afterAll(async () => { await t.close(); });
 

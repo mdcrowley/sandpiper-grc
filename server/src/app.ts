@@ -179,7 +179,7 @@ export async function buildApp(opts: BuildOptions) {
   gate.attach(res.registry);
   const recentAuth = (req: FastifyRequest, what: string) => requireRecentAuth({ db, audit, settings }, req, what);
   const watchers = registerTagsAndWatchers({ app, db, audit, lookups, res });
-  registerCoreRoutes({ app, db, audit, lookups, res, custom, notifyWatchers: watchers.notifyWatchers });
+  registerCoreRoutes({ app, db, audit, lookups, res, custom, gate, notifyWatchers: watchers.notifyWatchers });
   registerVersion({ app, can, describeRoute: openapi.describe });
   registerCustomFieldRoutes({ app, db, audit, res, custom });
   registerPreferences(app, db);

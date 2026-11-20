@@ -42,7 +42,7 @@ function SignedInApp() {
   if (!user) return <LoginPage />;
   // The server refuses everything but second-factor set-up: offer only that (and sign out).
   if (mfaEnrollmentBlocked) return <EnrollmentGate />;
-  if (PortalApp) {
+  if (PortalApp && areaOn('portal')) {
     if (isPortalPath(pathname)) {
       return <Suspense fallback={<RouteLoading bare />}><PortalApp /></Suspense>;
     }
@@ -54,6 +54,8 @@ function SignedInApp() {
     <MetaProvider>
       <Shell>
         <Routes>
+          {/* The portal's own pages while it is switched off (Administration > Features). */}
+          {PortalApp && !areaOn('portal') && <Route path="/portal/*" element={<SwitchedOff />} />}
           {routes.map((r) => (
             <Route key={r.path} path={r.path} element={!moduleOn(r.module, areaOn) || switchedOff(r.permission) ? <SwitchedOff /> : can(r.permission) ? r.element : <Forbidden />} />
           ))}

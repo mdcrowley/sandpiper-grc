@@ -76,7 +76,7 @@ export function OverviewPage() {
   }, []);
 
   const dashboards = can(DASHBOARD_PERMISSION);
-  const reports = modules.some((m) => m.key === 'reports');
+  const reports = modules.some((m) => m.key === 'reports') && areaOn('reports');
   // Answers for everyone (never refused): the chosen home dashboard, a suggestion, and whether the person only looks.
   const homeDash = useFetch<HomeChoice>(reports ? '/api/dashboards/home' : null);
   const mode: OverviewMode = homeDash.data?.readOnly ? 'look' : 'work';
@@ -180,7 +180,7 @@ export function OverviewPage() {
     <section className="home-section" aria-labelledby="home-dashboard" key="dashboard">
       <div className="home-section-head">
         <h2 className="home-section-title" id="home-dashboard">
-          {showHome && home ? <>{home.suggested ? 'Suggested for you' : 'Your dashboard'}: {home.name}</> : mode === 'look' ? 'At a glance' : 'Dashboard'}
+          {showHome && home ? <>{home.suggested ? 'Suggested for you' : 'Your dashboard'}: {home.name}</> : mode === 'look' || !reports ? 'At a glance' : 'Dashboard'}
         </h2>
         {dashboards && home && (
           <div className="home-section-tools no-print">

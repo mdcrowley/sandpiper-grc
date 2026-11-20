@@ -4,6 +4,7 @@ import type { Db } from './db.ts';
 import { fail, UUID_RE } from './errors.ts';
 import type { ResourceDef, Row, SessionUser } from './module.ts';
 import type { CustomFields } from './customfields.ts';
+import { featureState, visibleValues, type FeatureGate } from './features.ts';
 import type { makeResources } from './resource.ts';
 import { BODY_SEPARATOR, HEADLINE_OPTIONS, parseSearch, SEARCH_CONFIG, snippetParts, substringColumns } from './search.ts';
 import { can, requirePerm, type makeAudit, type makeLookups } from './services.ts';
@@ -16,13 +17,26 @@ interface Deps {
   lookups: ReturnType<typeof makeLookups>;
   res: ReturnType<typeof makeResources>;
   custom: CustomFields;
+  /** Feature switches (core/features.ts): lists and list values of switched-off areas are hidden. */
+  gate?: Pick<FeatureGate, 'listOff'>;
   /** Tells the watchers of a record about a comment (core/tags.ts). */
   notifyWatchers?: (type: string, id: string, title: string, actorId?: string | null, body?: string) => Promise<void>;
 }
 
 /** Cross-cutting routes: metadata, search, pickers, comments, links, history, audit, lookups. */
-export function registerCoreRoutes({ app, db, audit, lookups, res, custom, notifyWatchers }: Deps) {
+export function registerCoreRoutes({ app, db, audit, lookups, res, custom, gate, notifyWatchers }: Deps) {
   const { registry, labelsFor, mayAccess, visibilitySql } = res;
+
+  /**
+   * Lists of switched-off areas are left out and so are the values that belong to one (an action's
+   * source "Risk" while risks are off): E14-34. Stored values are untouched.
+   */
+  async function featureLists(): Promise<{ listOn: (list: string) => boolean; values: <T extends { value: string }>(list: string, v: T[]) => T[] }> {
+    const st = await featureState(db);
+    if (!st.off.length || !gate) return { listOn: () => true, values: (_l, v) => v };
+    const owners = new Map((await db.query<{ list_key: string; module: string | null }>('select list_key, module from lookup_lists')).map((r) => [r.list_key, r.module]));
+    return { listOn: (list) => !gate.listOff(list, owners.get(list)), values: (list, v) => visibleValues(st, list, v) };
+  }
   // Idempotency keys for the API conventions (core/api/conventions.ts): their table and database.
   registerApiStore(app, db);
   // List views shared with everyone who can see the list (core/views.ts).
@@ -98,7 +112,11 @@ export function registerCoreRoutes({ app, db, audit, lookups, res, custom, notif
     // Only the lists this person may read: list names and labels can themselves be sensitive.
     const readable = await listReader(req.user);
     const all = await lookups.all();
-    return { resources, lookups: Object.fromEntries(Object.entries(all).filter(([list]) => readable(list))) };
+    const fl = await featureLists();
+    return {
+      resources,
+      lookups: Object.fromEntries(Object.entries(all).filter(([list]) => readable(list) && fl.listOn(list)).map(([list, v]) => [list, fl.values(list, v)])),
+    };
   });
 
   app.get('/api/records/lookup', async (req) => {
@@ -464,8 +482,11 @@ export function registerCoreRoutes({ app, db, audit, lookups, res, custom, notif
 
   // ---------- lookups (configurable lists) ----------
 
-  app.get('/api/lookups', { preHandler: requirePerm('admin.administer') }, async () =>
-    db.query('select list_key, count(*)::int as count from lookups group by 1 order by 1'));
+  app.get('/api/lookups', { preHandler: requirePerm('admin.administer') }, async () => {
+    const fl = await featureLists();
+    const rows = await db.query<{ list_key: string; count: number }>('select list_key, count(*)::int as count from lookups group by 1 order by 1');
+    return rows.filter((r) => fl.listOn(r.list_key));
+  });
 
   app.get('/api/lookups/:list', async (req) => {
     const list = String((req.params as any).list);
@@ -473,7 +494,9 @@ export function registerCoreRoutes({ app, db, audit, lookups, res, custom, notif
       // The same answer whether or not the list exists.
       fail(403, 'forbidden', 'You do not have permission to read that list.');
     }
-    return db.query('select id, list_key, value, label, color, sort, active, meta from lookups where list_key = $1 order by sort, label', [list]);
+    const fl = await featureLists();
+    if (!fl.listOn(list)) return [];
+    return fl.values(list, await db.query<Row & { value: string }>('select id, list_key, value, label, color, sort, active, meta from lookups where list_key = $1 order by sort, label', [list]));
   });
 
   app.post('/api/lookups', { preHandler: requirePerm('admin.administer') }, async (req, reply) => {

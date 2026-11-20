@@ -148,7 +148,7 @@ status `done`; issues in progress, open or blocked are counted in the total only
 | [E11](epics/E11-projects-and-portfolio.md) | Projects and portfolio | in progress | 24 / 25 |
 | [E12](epics/E12-dashboards-and-reporting.md) | Dashboards and reporting | done | 16 / 16 |
 | [E13](epics/E13-imports-api-integrations.md) | Imports, API and integrations | done | 23 / 23 |
-| [E14](epics/E14-platform-services.md) | Platform services | in progress | 29 / 33 |
+| [E14](epics/E14-platform-services.md) | Platform services | in progress | 30 / 34 |
 | [E15](epics/E15-self-service-portal.md) | Self-service portal | done | 14 / 14 |
 | [E16](epics/E16-hosting-operations-and-hardening.md) | Hosting, operations and hardening | in progress | 30 / 37 |
 | [E17](epics/E17-documentation.md) | Documentation | in progress | 7 / 14 |
@@ -156,7 +156,7 @@ status `done`; issues in progress, open or blocked are counted in the total only
 | [E19](epics/E19-fleet-and-services.md) | Fleet and services | in progress | 13 / 14 |
 | [E20](epics/E20-safety-management.md) | Safety management | done | 14 / 14 |
 | [E21](epics/E21-mcp-server.md) | MCP server (AI assistant access) | done | 23 / 23 |
-| | **Total** | | **471 / 505** |
+| | **Total** | | **472 / 506** |
 
 Of the 34 issues not done, 18 are in progress and 16 are open or blocked.
 

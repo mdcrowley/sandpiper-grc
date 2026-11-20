@@ -33,7 +33,7 @@ afterAll(async () => { await t.close(); });
 describe('reporting a safety event from the portal', () => {
   it('is closed while the portal is off, and needs portal permissions', async () => {
     expect((await staff.post('/api/portal/safety-reports', good)).status).toBe(404);
-    await t.api.put('/api/portal/settings', { enabled: true });
+    await t.api.patch('/api/admin/features', { features: { portal: true } });
     const viewer = await t.as('executive_viewer');
     expect((await viewer.post('/api/portal/safety-reports', good)).status).toBe(403);
     expect((await staff.get('/api/portal/config')).body.has.safety).toBe(true);

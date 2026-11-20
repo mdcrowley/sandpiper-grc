@@ -148,7 +148,7 @@ export function TicketActions({ rec }: { rec: RecordContext }) {
         <div className="stack">
           {tasksNote}
           <LookupSelect label="Resolution code" list="resolution_code" required value={f.resolution_code ?? ''} onChange={set('resolution_code')} error={errors.resolution_code} />
-          <p className="muted">Until the portal is switched on, ask the requester and record their answer here.</p>
+          <p className="muted">Ask the requester how satisfied they are and record their answer here.</p>
           <ScorePicker value={f.score ?? null} onChange={set('score')} />
           {errors.satisfaction_score && <p className="form-error" role="alert">{errors.satisfaction_score}</p>}
           <TextArea label="Comment" rows={3} value={f.comment ?? ''} onChange={set('comment')} />

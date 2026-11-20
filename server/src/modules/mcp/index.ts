@@ -19,7 +19,7 @@ import { registerEndpoint } from './http.ts';
 import { oauthBase, registerOAuth, secureBase } from './oauth.ts';
 import { chosenTools, hasMcpScope, KEYS, MCP_SCOPE, mayConnect, readSettings, type McpSettings } from './settings.ts';
 import type { Session } from './toolkit.ts';
-import { ALL_TOOLS, toolState } from './tools.ts';
+import { ALL_TOOLS, installedTools, toolState } from './tools.ts';
 
 const ADMIN = 'admin.administer';
 const TOOL_NAMES = new Set(ALL_TOOLS.map((t) => t.name));
@@ -117,7 +117,7 @@ const mod: ModuleDef = {
         canWrite: me.permissions.some((p) => p === '*' || /\.(\*|create|edit)$/.test(p)),
         allowed: mayConnect(settings, me),
         oauthEnabled: settings.enabled && settings.oauthEnabled,
-        tools: ALL_TOOLS.filter((t) => toolState(t, settings, null, null).offered || t.write).map((t) => ({ name: t.name, title: t.title, write: !!t.write })),
+        tools: installedTools(ctx).filter((t) => toolState(t, settings, null, null).offered || t.write).map((t) => ({ name: t.name, title: t.title, write: !!t.write })),
         tokens, connections,
       };
     });
@@ -226,7 +226,7 @@ const mod: ModuleDef = {
       const roles = await db.query<Row>('select key, name, enabled from roles order by name');
       return {
         settings, days, activeTokens: tokens, roles,
-        tools: ALL_TOOLS.map((t) => ({
+        tools: installedTools(ctx).map((t) => ({
           name: t.name, title: t.title, group: t.group, write: !!t.write, description: t.description,
           allowed: !settings.allowedTools || settings.allowedTools.includes(t.name),
           offered: toolState(t, settings, null, null).offered,

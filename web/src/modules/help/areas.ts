@@ -1,7 +1,8 @@
 // Guide pages that describe one optional part of the application (Administration > Features).
 // While that part is switched off its page is left out of the Help home page and search, and the
 // page itself, opened by a link, says so. Keys are page slugs (file names without the number).
-// The portal page stays: the portal starts switched off, and its page explains how to set it up.
+// The portal's page follows its switch like every other part (E14-34): Administration > Features says
+// what the portal is, and its page comes back once it is switched on.
 import { useAuth } from '../../core';
 
 export const PAGE_AREA: Record<string, string> = {
@@ -17,6 +18,7 @@ export const PAGE_AREA: Record<string, string> = {
   'dashboards-and-reports': 'reports',
   'fleet-and-services': 'fleet',
   'safety-management': 'safety',
+  'self-service-portal': 'portal',
 };
 
 /** Whether a guide page's part of the application is on (pages of no particular part always are). */

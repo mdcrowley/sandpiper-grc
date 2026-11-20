@@ -4,8 +4,22 @@ import type { ComponentType, ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Chip, Group, SegmentedControl, Select as MantineSelect, Text } from '@mantine/core';
 import {
-  Button, EmptyState, ErrorState, Icon, Loading, lookupColor, lookupLabel, PageHeader, Select, TextField, useFetch, useLookup, useMediaQuery,
+  Button, EmptyState, ErrorState, Icon, Loading, lookupColor, lookupLabel, PageHeader, Select, TextField, useAuth, useFetch, useLookup, useMediaQuery,
 } from '../../core';
+
+/** What the map can hold, in words, without the parts that are switched off (Administration > Features). */
+function useMapWords() {
+  const { areaOn } = useAuth();
+  const vendors = areaOn('vendors');
+  const fleet = areaOn('fleet');
+  const around = [vendors && 'vendors', 'sites', 'data', 'assets', fleet && 'services and vehicle groups'].filter(Boolean) as string[];
+  const list = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}` : xs[0]);
+  return {
+    subtitle: `Systems, the integrations between them, and the ${list(around)} around them.`,
+    caption: `Relationships between ${list(['systems', ...(vendors ? ['vendors'] : []), 'sites', 'data categories', 'assets', ...(fleet ? ['services'] : [])])}`,
+    placeholder: vendors ? 'System, vendor, site…' : 'System, site, asset…',
+  };
+}
 import { MapCanvas } from './MapCanvas';
 import { MapPanel } from './MapPanel';
 import { MapPictureDialog } from './MapPicture';
@@ -33,6 +47,7 @@ const GROUP_BY: { value: GroupBy; label: string; list?: string; none: string }[]
 
 /** The same relationships as a searchable table, for keyboard and screen-reader use. */
 export function RelationshipTable({ nodes, edges }: GraphData) {
+  const words = useMapWords();
   const [q, setQ] = useState('');
   const byId = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
   const rows = useMemo(() => {
@@ -50,7 +65,7 @@ export function RelationshipTable({ nodes, edges }: GraphData) {
     <div className="stack inv-map-table">
       <Group justify="space-between" align="flex-end">
         <div className="inv-narrow">
-          <TextField label="Search relationships" type="search" value={q} onChange={setQ} placeholder="System, vendor, site…" />
+          <TextField label="Search relationships" type="search" value={q} onChange={setQ} placeholder={words.placeholder} />
         </div>
         <Text c="dimmed" size="sm" role="status">{rows.length} of {edges.length} relationships</Text>
       </Group>
@@ -59,7 +74,7 @@ export function RelationshipTable({ nodes, edges }: GraphData) {
       ) : (
         <div className="table-wrap">
           <table className="table">
-            <caption className="sr-only">Relationships between systems, vendors, sites, data categories, assets and services</caption>
+            <caption className="sr-only">{words.caption}</caption>
             <thead>
               <tr><th scope="col">From</th><th scope="col">Type</th><th scope="col">Relationship</th><th scope="col">To</th><th scope="col">Type</th></tr>
             </thead>
@@ -115,6 +130,7 @@ export interface MapExplorerProps {
 
 /** Toolbar, canvas, side panel, legend and the table alternative. */
 export function MapExplorer({ data, label, title, initialId = null, toolbar, compact, marked }: MapExplorerProps) {
+  const words = useMapWords();
   const [types, setTypes] = useState<string[]>(compact ? NODE_TYPES.map((t) => t.type) : DEFAULT_TYPES);
   const [groupBy, setGroupBy] = useState<GroupBy>('group');
   const [group, setGroup] = useState('');
@@ -192,7 +208,7 @@ export function MapExplorer({ data, label, title, initialId = null, toolbar, com
       <div className="inv-map-bar">
         {toolbar}
         <MantineSelect
-          className="inv-map-search" aria-label="Find on the map" placeholder="Find a system, vendor, site…" searchable clearable
+          className="inv-map-search" aria-label="Find on the map" placeholder={`Find a ${words.placeholder.toLowerCase()}`} searchable clearable
           leftSection={<Icon name="search" size={16} />} nothingFoundMessage="Nothing on the map matches"
           data={options} value={selectedId && selected ? selectedId : null} maxDropdownHeight={320}
           onChange={(id) => { setMode('map'); select(id); }} comboboxProps={{ withinPortal: !full }}
@@ -245,6 +261,7 @@ export function MapExplorer({ data, label, title, initialId = null, toolbar, com
 
 export function MapPage() {
   const { data, error, reload } = useFetch<GraphData>('/api/systems/graph');
+  const words = useMapWords();
   const [params, setParams] = useSearchParams();
   const changeId = params.get('change');
   const affected = useChangeAffected(changeId);
@@ -254,7 +271,7 @@ export function MapPage() {
   const header = (
     <PageHeader
       title="Relationship map"
-      subtitle="Systems, the integrations between them, and the vendors, sites, data, assets, services and vehicle groups around them."
+      subtitle={words.subtitle}
       breadcrumbs={[{ label: 'Systems', to: '/systems' }, { label: 'Relationship map' }]}
     />
   );

@@ -14,6 +14,8 @@ const loaded = (path: string) => t.core.openapi.routes().some((r) => r.url === p
 
 beforeAll(async () => {
   t = await testApp();
+  // Every optional part on, the portal included (off by default), so every route is described (E14-34).
+  await t.api.patch('/api/admin/features', { features: { portal: true } });
   const admin = await t.db.one<{ id: string }>(`select id from users where username = 'admin'`);
   cookie = await createSession(t.db, admin!.id);
 });

@@ -39,7 +39,7 @@ const STATUS: Record<Status, { color: ColorName; label: string }> = {
 };
 const TYPE_LABELS: Record<string, string> = {
   'mail.send': 'Send an email',
-  'notifications.reminders': 'Daily reminders (actions due, tickets near target)',
+  'notifications.reminders': 'Daily reminders (actions due and other dates)',
   'notifications.email_digest': 'Daily email summaries',
   'jobs.cleanup': 'Clear out old jobs',
 };

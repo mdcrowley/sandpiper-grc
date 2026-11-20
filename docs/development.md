@@ -613,6 +613,9 @@ once, in `AREAS` in `server/src/core/features.ts`:
   types: [],                   // extra record types to hide (when their permission module is shared)
   modules: ['fleet'],          // server module folders whose routes answer 404 `switched_off`
   jobs: ['fleet.'],            // job type prefixes that are skipped while off
+  lookupValues: {},            // values of shared lists that belong to it: { action_source: ['safety'] }
+  fields: {},                  // fields of types that stay on that are about it: { system: ['vendor_name'] }
+  lists: [],                   // its public lists it does not own by permission module
   requires: [] }               // areas that must be on for this one (the portal needs tickets)
 ```
 
@@ -630,6 +633,18 @@ needed. The web app reads `features` and `areasOff` from `/api/auth/state`: `can
 answers false for an off permission, `areaOn(key)` says whether an area is on, and
 `MODULE_AREA` in `web/src/core/module.ts` drops a whole web module's menu entries, Create
 entries and pages (the pages show "switched off").
+
+An off area is shown nowhere but its switch (E14-34). Besides the above, core hides the fields of
+types that stay on that `ref` an off type or that the area lists in `fields` (kept in storage,
+like an option's fields); `/api/meta` and `/api/lookups` leave out its lists (owned by an off
+permission module, used only by off types, or named in `lists`) and its `lookupValues`
+(`visibleValues(state, list, values)` for a hand-written list); notifications about its types or
+leading to its pages are not listed or counted (`app.switchedOffTypes()`,
+`app.switchedOffPaths()`); notification kinds, MCP tools (`installedTools`), job schedules and
+retention categories follow. On the web, text that names parts of the application is written
+from `areaOn` or from the fields `/api/meta` gives, never as a fixed list. The browser suite
+`09-features-off` switches every area off (and then the portal, fleet and safety) and fails on
+any link, label, text, drop-down option or server answer that still names one.
 
 A new module that is optional adds itself to `AREAS` (and to `MODULE_AREA` on the web, and
 `PAGE_AREA` in `web/src/modules/help/areas.ts` for its guide page). Guard cross-module code
@@ -667,7 +682,8 @@ The test commands:
 - `npm run test:e2e`: the browser suite (`tools/e2e/suites`). It builds the web app (or
   serves the build in `E2E_WEB_DIST`), starts a throw-away instance and drives a real
   browser through every route, every role, every record type, the hand-written dialogs and
-  the keyboard, module by module (suites `01-smoke` to `08-keyboard-modules`). Options
+  the keyboard, module by module, and every page with the optional parts switched off (suites
+  `01-smoke` to `09-features-off`). Options
   after `--`: `--only smoke,roles` (some suites), `--grep ticket` (tests whose name
   contains it), `--headed` (show the browser), `--keep` (keep the scratch data folder).
   Logs and screenshots go to `tools/e2e/out`. `node tools/e2e/serve.mjs` keeps an

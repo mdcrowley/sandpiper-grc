@@ -313,10 +313,10 @@ export function SettingsPage() {
 
           <Group id="features" title="Features" text="The optional parts of the application your organization uses.">
             <Card>
-              <Setting title="Parts of the application" text="The service desk, the self-service portal, change enablement, vendors, frameworks, risks, security incidents, policies, training, vulnerabilities, projects, dashboards and reports, fleet and safety can each be switched off. A part that is off is hidden for everyone; its records are kept.">
+              <Setting title="Parts of the application" text="Optional parts of the application can each be switched on or off. A part that is off is hidden for everyone; its records are kept.">
                 <Link className="btn btn-secondary" to="/admin/features">Open Features</Link>
               </Setting>
-              <p className="muted adm-setting-note">The audience roles (Requester, Approver, Executive viewer, Auditor) are switched on the <Link to="/admin/roles">Roles</Link> page.</p>
+              <p className="muted adm-setting-note">The audience roles ({auth.areaOn('portal') ? 'Requester, ' : ''}Approver, Executive viewer, Auditor) are switched on the <Link to="/admin/roles">Roles</Link> page.</p>
             </Card>
           </Group>
 

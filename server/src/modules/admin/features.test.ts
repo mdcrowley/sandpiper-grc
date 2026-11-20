@@ -117,8 +117,8 @@ describe('feature switches', () => {
     expect((await setFeatures({ tickets: false })).status).toBe(400);
     expect((await setFeatures({ portal: false, tickets: false })).status).toBe(200);
     expect((await t.api.get('/api/tickets')).status).toBe(404);
-    // The portal's own switch cannot bring it back either (its settings need the service desk's permissions).
-    expect((await t.api.put('/api/portal/settings', { enabled: true })).status).toBe(403);
+    // The portal's own settings answer "switched off" while it is off, so they cannot bring it back (E14-34).
+    expect((await t.api.put('/api/portal/settings', { enabled: true })).status).toBe(404);
     expect((await t.anon.get('/api/auth/state')).body.features.portal).toBe(false);
     expect((await setFeatures({ tickets: true })).status).toBe(200);
     expect((await setFeatures({ teleporter: false })).body.error.fields.features).toMatch(/Unknown/);

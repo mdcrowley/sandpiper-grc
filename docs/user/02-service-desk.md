@@ -346,7 +346,7 @@ If your role allows editing tickets, a **Manage items** tab is shown.
 
 - To add an item, select **New catalog item** and enter a **Name**, **Description** and **Category**. Check **Needs approval before work starts** if someone must approve each request.
 - To hide an item without losing it, edit it and clear **Active**.
-- To offer an item to staff in the self-service portal, check **Show in the self-service portal** (or use the switches on the **Self-service portal** tab of the service desk settings). The **Portal** column shows **Shown** for those items, and their tiles say **In the portal**.
+- To offer an item to staff in the self-service portal, check **Show in the self-service portal** (or use the switches on the **Self-service portal** tab of the service desk settings). The **Portal** column shows **Shown** for those items, and their tiles say **In the portal**. While the portal is switched off (Administration > Features) the field, the column and the tab are not shown; each item keeps its choice for when the portal is switched on.
 
 Open an item to design its form on the **Form and tasks** tab:
 

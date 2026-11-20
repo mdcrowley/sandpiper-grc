@@ -2,7 +2,7 @@
 // email-to-text address. Personal data: each person edits their own (Account security), and
 // administrators anyone's (the user's page).
 import { useEffect, useState, type FormEvent } from 'react';
-import { api, ApiError, Button, Card, ErrorState, errorMessage, Loading, TextField, useFetch, useToast } from '../../core';
+import { api, ApiError, Button, Card, ErrorState, errorMessage, Loading, TextField, useAuth, useFetch, useToast } from '../../core';
 
 interface AlertContact {
   mobile: string;
@@ -12,7 +12,13 @@ interface AlertContact {
 interface TestRow { id: string; status: string; error: string | null; provider: string | null }
 
 /** `userId` set: an administrator editing that person; otherwise the signed-in person's own. */
+/** Text messages carry security incident alerts only: hidden while that part is switched off (E14-34). */
 export function AlertContactCard({ userId }: { userId?: string }) {
+  const { areaOn } = useAuth();
+  return areaOn('secincidents') ? <AlertContactForm userId={userId} /> : null;
+}
+
+function AlertContactForm({ userId }: { userId?: string }) {
   const base = userId ? `/api/admin/users/${userId}/alert-contact` : '/api/me/alert-contact';
   const toast = useToast();
   const { data, error, reload } = useFetch<AlertContact>(base);

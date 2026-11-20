@@ -144,7 +144,7 @@ function HeadlineNumbers() {
 export const SUMMARY_WIDGETS: WidgetDef[] = [
   {
     id: 'attention', title: 'Needs attention', group: 'dashboard', wide: true, sources: ATTENTION_SOURCES,
-    description: 'Things that are late or at risk: missed ticket targets, overdue actions and fixes, notification clocks, notice dates, expired risk acceptances and risks to review.',
+    description: 'Things that are late or at risk: overdue actions and every other target, deadline or review date that has passed.',
     visible: anyAllowed(ATTENTION_SOURCES), render: () => <NeedsAttention />,
   },
   {

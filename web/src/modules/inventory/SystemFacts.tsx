@@ -49,8 +49,9 @@ export function factChecks(row: Row, resource: ResourceMeta | undefined, dataCou
     { key: 'hosting_type', label: 'the hosting', section: 'hosting', done: filled(row.hosting_type) },
     { key: 'authentication_method', label: 'how people sign in', section: 'signin', done: filled(row.authentication_method) },
     { key: 'mfa_status', label: 'the multi-factor status', section: 'signin', done: filled(row.mfa_status) && row.mfa_status !== 'unknown' },
-    { key: 'vendor', label: 'the vendor', section: 'vendor', done: filled(row.vendor_id) || filled(row.vendor_name) },
   ];
+  // The vendor facts exist while vendors are on (Administration > Features hides the fields otherwise).
+  if (resource?.fields.vendor_name || resource?.fields.vendor_id) checks.push({ key: 'vendor', label: 'the vendor', section: 'vendor', done: filled(row.vendor_id) || filled(row.vendor_name) });
   if (resource?.fields.contract_id) checks.push({ key: 'contract_id', label: 'the contract', section: 'vendor', done: filled(row.contract_id) });
   if (dataCount !== undefined) checks.push({ key: 'data', label: 'the data it holds', section: 'data', done: dataCount > 0 });
   return checks;
@@ -101,7 +102,7 @@ export function FactStrip({ row, checks, canEdit, onFill }: { row: Row; checks: 
         <KeyFact label="Hosting" missing={!filled(row.hosting_type)}><LookupChip list="hosting_type" value={row.hosting_type} /></KeyFact>
         <KeyFact label="Recovery time / point" missing={!filled(row.rto_hours) && !filled(row.rpo_hours)}>{hours(row.rto_hours)} / {hours(row.rpo_hours)}</KeyFact>
         <KeyFact label="Multi-factor" missing={!filled(row.mfa_status)}><LookupChip list="mfa_status" value={row.mfa_status} /></KeyFact>
-        <KeyFact label="Vendor" missing={!filled(row.vendor_id) && !filled(row.vendor_name)}>{row._display?.vendor_id ?? row.vendor_name}</KeyFact>
+        {checks.some((c) => c.key === 'vendor') && <KeyFact label="Vendor" missing={!filled(row.vendor_id) && !filled(row.vendor_name)}>{row._display?.vendor_id ?? row.vendor_name}</KeyFact>}
       </dl>
     </Paper>
   );
@@ -119,6 +120,8 @@ function FactCard({ section, row, gaps, canEdit, editing, onEdit, onSaved }: {
   }, [editing]);
   if (!resource) return null;
   const fields = section.fields.filter((f) => resource.fields[f]);
+  // A section whose fields are all hidden (a part of the application switched off) is not shown.
+  if (!fields.length) return null;
   const gapKeys = new Set(gaps.map((g) => (g.key === 'vendor' ? 'vendor_id' : g.key)));
   const title = (
     <span className="inv-fact-title"><Icon name={section.icon} size={16} /> {section.title}</span>
@@ -179,7 +182,7 @@ export function FactSheet({ row, checks, editKey, setEditKey, onSaved }: {
     <div className="stack">
       <Text c="dimmed" size="sm">
         {done === checks.length
-          ? 'Every key fact is recorded. Review the sheet when the system, its owner or its contract changes.'
+          ? 'Every key fact is recorded. Review the sheet when the system or its owner changes.'
           : `${plural(checks.length - done, 'key fact')} still to record. Cards with gaps are marked; reports and the relationship map are only as good as what is written here.`}
       </Text>
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md" className="inv-fact-grid">

@@ -297,7 +297,7 @@ export default function ApiReference() {
               </div>
             </Card>
             <div className="api-search" role="search">
-              <TextField label="Filter routes" type="search" value={q} onChange={setQ} placeholder="For example: tickets, POST, webhook, /api/admin" />
+              <TextField label="Filter routes" type="search" value={q} onChange={setQ} placeholder="For example: systems, POST, webhook, /api/admin" />
               <p className="muted api-count" role="status">
                 {words.length ? `${shown.length} of ${entries.length} routes match` : `${entries.length} routes in ${groups.length} groups`}
               </p>

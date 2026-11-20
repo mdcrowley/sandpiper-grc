@@ -160,7 +160,7 @@ export const DOCS: RouteDoc[] = [
   }),
 
   // ---- systems: relationships ----
-  route('GET', '/api/systems/graph', 'Relationship map of systems, vendors, sites, data categories, assets, services and vehicle groups', {
+  route('GET', '/api/systems/graph', 'Relationship map of systems and the records around them (sites, data categories, assets and more)', {
     tag: 'Systems', permission: 'systems.view',
     description: 'Sites, data categories and assets appear only for callers holding `sites.view`, `data.view` and `assets.view`; vendor names and links need `vendors.view`. Services (routes and lines that depend on a system) need `fleet.view` and the fleet module; vehicle groups (one per depot and mode) need `fleet.view` and `assets.view`. 404 when `focus` is not a system.',
     query: {

@@ -150,7 +150,7 @@ export function WebhooksPage() {
     <>
       <PageHeader
         title="Webhooks"
-        subtitle="Tell another system, straight away, when records are added, changed or deleted, or when something else happens, such as a notification clock running out."
+        subtitle="Tell another system, straight away, when records are added, changed or deleted, or when something else happens, such as a backup that failed."
         actions={<Button variant="primary" icon="plus" disabled={!data} onClick={() => setEditing('new')}>Add webhook</Button>}
       />
       {error ? <ErrorState error={error} onRetry={reload} />
@@ -290,10 +290,10 @@ function HowItWorks({ retry }: { retry: number[] }) {
     <Card title="How deliveries work">
       <ul className="adm-facts">
         <li><Icon name="upload" size={16} /> <span>Each event is sent as a JSON <code>POST</code> to the webhook's address: the record's type, reference, title and fields, and for a change the values before and after.</span></li>
-        <li><Icon name="bell" size={16} /> <span>Other events (a notification clock about to run out, a backup that failed, and the rest of the list in the webhook form) carry the event's own details and, where there is one, the record it is about. Events of a part of the application that is switched off are not sent.</span></li>
+        <li><Icon name="bell" size={16} /> <span>Other events (a backup that failed, and the rest of the list in the webhook form) carry the event's own details and, where there is one, the record it is about. Events of a part of the application that is switched off are not sent.</span></li>
         <li><Icon name="key" size={16} /> <span>Every delivery is signed with the webhook's secret: <code>X-GRC-Signature</code> holds <code>sha256=</code> and the HMAC-SHA256 of <code>X-GRC-Timestamp</code>, a full stop and the body. The receiver should check it and refuse old timestamps.</span></li>
         <li><Icon name="refresh" size={16} /> <span>A delivery that fails (no answer within 10 seconds, or an answer other than 2xx) is tried again after {joinAnd(retry.map(minutesText))}, then marked failed. Redirects are never followed. A failed or blocked delivery can be sent again from <strong>Deliveries</strong>.</span></li>
-        <li><Icon name="lock" size={16} /> <span>Restricted records (security incidents, risks and anything flagged restricted) are left out unless someone holding <code>security.view</code> switches on <strong>Include restricted records</strong>, and they stop again if that person loses it.</span></li>
+        <li><Icon name="lock" size={16} /> <span>Restricted records (of a restricted record type, or flagged restricted) are left out unless someone holding <code>security.view</code> switches on <strong>Include restricted records</strong>, and they stop again if that person loses it.</span></li>
       </ul>
     </Card>
   );

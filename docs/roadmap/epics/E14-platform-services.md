@@ -1,6 +1,6 @@
 # E14 Platform services not yet built
 
-**Status:** in progress (29 of 33 issues done)
+**Status:** in progress (30 of 34 issues done)
 full-text search built; custom fields, tags and watchers built with their screens; retention
 built on the server and screens, with anonymizing; evidence files on record pages built, with expiry reminders;
 feature switches for optional areas built; approval workflows built)
@@ -70,6 +70,7 @@ bulk edit) that make daily use quicker.
 | E14-31 | Allowed status changes and required fields as data per record type | open | P3 |
 | E14-32 | Approval workflows that branch, run steps side by side or delegate | open | P3 |
 | E14-33 | Retention decisions raise webhook events | open | P3 |
+| E14-34 | A switched-off part is shown nowhere but its switch | done | P2 |
 
 ---
 
@@ -983,8 +984,9 @@ back whole when it changes its mind.
 `modules/portal/settings.ts`; web `core/auth.tsx` (`areaOn`, `switchedOff`), `core/module.ts`
 (`MODULE_AREA`), `core/Shell.tsx`, `App.tsx`, `core/pages.tsx` (`SwitchedOff`),
 `modules/admin/Features.tsx`, `RoleDetail.tsx`, `Settings.tsx`, `modules/home/OverviewPage.tsx`,
-`modules/help/areas.ts`; tests `modules/admin/features.test.ts`. Notifications already sent about
-a switched-off area's records stay, shown as "A record you can no longer open".
+`modules/help/areas.ts`; tests `modules/admin/features.test.ts`. What was still shown of a
+switched-off area (links, fields, list values, notifications, the portal's settings) was removed in
+E14-34.
 
 ### E14-31 Allowed status changes and required fields as data per record type
 
@@ -1031,3 +1033,56 @@ personal data it was sent earlier.
 - [ ] Anonymizing raises a record-updated event (with the replaced fields only) and removing raises a record-deleted event, in the `WEBHOOK_EVENTS` catalog
 - [ ] The event carries no personal values from before the change
 - [ ] Tested, and listed in the webhook guide
+
+### E14-34 A switched-off part is shown nowhere but its switch
+
+**Status:** done · **Priority:** P2 · **Type:** improvement
+
+An administrator who switches a part off (the self-service portal, fleet, safety) still saw it: a
+sidebar link to the portal, a system's vendor and contract fields, "Risk" and "Safety" as action
+sources, notification kinds and notifications about it, its AI assistant tools, background jobs,
+lists, retention category and API routes, and text naming it on pages that stay. A part that is off
+must be shown nowhere except Administration > Features, and come back whole when switched on.
+
+**Acceptance criteria**
+
+- [x] The portal is an area like the others: while off nobody holds its permissions, its routes
+  (its settings included) answer 404 `switched_off`, and its sidebar entry, settings tab, catalog
+  field, ticket notes and shared files, role-editor area and guide page are hidden; a Requester role
+  keeps its grants
+- [x] Fields of types that stay on that refer to an off type, or that an area lists as its own
+  (`fields`), are hidden like an option's fields; values are kept and come back
+- [x] Values of shared lists that belong to an off area (`lookupValues`: action sources,
+  notification kinds, the retention category) and the area's own lists are left out of `/api/meta`,
+  `/api/lookups`, notification preferences and the retention page; saving preferences keeps the
+  choices for hidden kinds
+- [x] Notifications about an off area's records, or leading to its pages, are neither listed nor
+  counted while it is off
+- [x] AI assistant tools, background jobs and schedules, reminder groups, the role editor and the
+  permissions offered to new API tokens leave out an off area; the relationship map has no vendors
+  lane while vendors are off; text-message alerts are hidden while security incidents are off
+- [x] Text on pages that stay (settings, webhooks, email, the AI assistant pages and tool
+  descriptions, the map, the Overview, API route summaries) no longer names a part that may be off,
+  or is written from the switches
+- [x] Browser suite `09-features-off`: every area off, then the portal, fleet and safety off; every
+  page an administrator can open, with its New form, drop-down lists, the Create menu and search, and
+  the server answers behind them (metadata, search, OpenAPI, notification preferences, MCP, report
+  catalog, retention, custom fields, imports, workflows); everything is checked to be back after
+  switching on. Server tests in `modules/admin/features-hidden.test.ts`
+- [x] What deliberately stays (the organization's own text: role names and descriptions, record
+  names, incident playbooks, risk scales, guide prose on pages that stay; search snippets of hidden
+  fields) is listed in the user guide and Known gaps
+
+**Implemented in:** `server/src/core/features.ts` (`lookupValues`, `fields`, `lists` per area,
+`visibleValues`, `listOff`, ref fields to off types hidden with the options, `switchedOffTypes` and
+`switchedOffPaths`), `core/routes.ts` (metadata and lists), `core/retention.ts`, `core/jobs/index.ts`,
+`core/openapi.ts`, `core/api/docs/inventory.ts`, `app.ts`; `modules/notifications` (list, count,
+preferences, reminder groups), `modules/mcp` (`installedTools`, neutral descriptions),
+`modules/inventory/relations.ts`, `modules/tickets/shared-files.ts`; web `App.tsx` (portal pages),
+`core/module.ts` (`MODULE_AREA` portal, route owners for the suite), `modules/admin` (`RoleDetail`,
+`ApiTokens`, `AlertContact`, `Settings`, `Webhooks`), `modules/notifications` (`EmailSettings`,
+`JobsPage`), `modules/tickets` (`Settings`, `Catalog`, `TicketDetail`, `TicketActions`),
+`modules/inventory` (`SystemMap`, `SystemFacts`, `Sites`), `modules/home` (`OverviewPage`,
+`widgetsSummary`), `modules/mcp/ConnectPage.tsx`, `modules/help` (`areas.ts`, `ApiReference.tsx`);
+tests `tools/e2e/suites/09-features-off.mjs`, `modules/admin/features-hidden.test.ts`, and the
+portal, features, safety intake and OpenAPI tests updated.

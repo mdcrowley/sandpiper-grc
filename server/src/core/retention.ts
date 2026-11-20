@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { Db } from './db.ts';
 import { fail, UUID_RE } from './errors.ts';
+import { featureState, visibleValues } from './features.ts';
 import type { FieldDef, ResourceDef, Row } from './module.ts';
 import type { makeResources } from './resource.ts';
 import { requirePerm, type makeAudit, type makeLookups } from './services.ts';
@@ -119,7 +120,7 @@ export function registerRetention({ app, db, audit, lookups, res, requireRecentA
           personalFields: personalFields(d).map((f) => d.fields[f].label),
         };
       }).sort((a, b) => a.label.localeCompare(b.label)),
-      categories: await lookups.values('retention_category'),
+      categories: visibleValues(await featureState(db), 'retention_category', await lookups.values('retention_category')),
       bases: BASES,
       disposals: DISPOSALS,
     };

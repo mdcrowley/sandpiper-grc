@@ -31,6 +31,15 @@ export function toolState(tool: ToolSpec, settings: McpSettings, a: Availability
   return { offered: true, reason: null };
 }
 
+/**
+ * The tools this installation has now: a tool whose part of the application is switched off
+ * (Administration > Features) is left out of every list, administrators' included (E14-34).
+ */
+export function installedTools(ctx: ModuleContext): ToolSpec[] {
+  const a = availability(ctx, ['*']);
+  return ALL_TOOLS.filter((t) => !t.available || t.available(a));
+}
+
 /** The tools one caller is offered. */
 export function offeredTools(ctx: ModuleContext, settings: McpSettings, session: Session): ToolSpec[] {
   const a = availability(ctx, session.permissions);

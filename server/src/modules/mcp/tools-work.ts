@@ -34,8 +34,8 @@ async function typeMeta(t: ToolContext, key: string) { return (await t.meta()).r
 
 const myWork: ToolSpec = {
   name: 'my_work', title: 'My work', group: 'Work and insight', idempotent: true,
-  description: 'What is waiting for you: open tickets assigned to you, your open actions, changes waiting for your approval, '
-    + 'policies waiting for your acknowledgment and unread notifications, soonest due first.',
+  description: 'What is waiting for you in the parts of the application you use: work assigned to you, your open actions, '
+    + 'approvals and acknowledgments waiting for you and unread notifications, soonest due first.',
   input: {},
   async run(_args, t) {
     const sections: Section[] = [];
@@ -84,9 +84,8 @@ const myWork: ToolSpec = {
 
 const overdueSummary: ToolSpec = {
   name: 'overdue_summary', title: 'Overdue summary', group: 'Work and insight', idempotent: true,
-  description: 'Everything past its date that you may see, across the application: actions, tickets past their resolution target, '
-    + 'vulnerabilities past their fix-by date, security incident notifications past their deadline, obligations and exercises past due, '
-    + 'and risk reviews and safety investigations that are late. Counts with the oldest items first.',
+  description: 'Everything past its date that you may see, across the parts of the application in use: actions and every other record '
+    + 'whose due date, target or deadline has passed. Counts with the oldest items first.',
   input: { per_kind: z.number().int().min(1).max(20).optional().describe('Items to show for each kind (default 5).') },
   async run(args, t) {
     const n = args.per_kind ?? 5;
@@ -419,7 +418,7 @@ const runReportTool: ToolSpec = {
 const systemImpact: ToolSpec = {
   name: 'system_impact', title: 'What is affected if a system fails', group: 'Work and insight', idempotent: true,
   description: 'Everything that depends on one system: the systems downstream of it through integrations (with how far away), '
-    + 'and the sites, data categories, assets, vehicles and services of it and of those systems, where you may see them. '
+    + 'and the sites, data categories, assets and other records that depend on it and on those systems, where you may see them. '
     + 'Use it to judge the impact of an outage or a change.',
   available: (a) => a.sees('system'),
   input: { system: z.string().describe('System id, reference (e.g. SYS-00012) or name.') },

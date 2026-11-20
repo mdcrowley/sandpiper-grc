@@ -17,12 +17,12 @@ import { lazyRouteElement } from './lazyRoutes';
  * The optional area (Administration > Features, server/src/core/features.ts) each whole web module
  * belongs to: while the area is off its menu entries, Create entries and pages are gone. Modules
  * not listed are always on, or follow their permissions alone: the risks module also holds the
- * action tracker, and the portal has a layout and switch of its own.
+ * action tracker.
  */
 export const MODULE_AREA: Record<string, string> = {
   tickets: 'tickets', changes: 'changes', vendors: 'vendors', frameworks: 'frameworks', secincidents: 'secincidents',
   policies: 'policies', training: 'training', vulnerabilities: 'vulnerabilities', projects: 'projects',
-  reports: 'reports', fleet: 'fleet', safety: 'safety',
+  reports: 'reports', fleet: 'fleet', safety: 'safety', portal: 'portal',
 };
 
 /** Whether a web module's area is on (always true for a module that is not part of an area). */
@@ -146,3 +146,9 @@ export async function loadModule(key: string): Promise<ModuleDef | undefined> {
 
 // For tools/browse.mjs --all-routes and for debugging: the route table, without loading any page.
 (window as unknown as { __grcRoutes?: string[] }).__grcRoutes = routePaths;
+// For the feature-switch browser test (tools/e2e/suites/09-features-off.mjs): which module owns each
+// route, and the area each module belongs to.
+(window as unknown as { __grcRouteModules?: Record<string, string> }).__grcRouteModules = Object.fromEntries(
+  modules.flatMap((m) => [...(m.routes ?? []), ...(m.publicRoutes ?? [])].map((r) => [r.path, m.key])),
+);
+(window as unknown as { __grcModuleArea?: Record<string, string> }).__grcModuleArea = MODULE_AREA;

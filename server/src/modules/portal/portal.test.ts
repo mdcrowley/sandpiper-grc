@@ -42,6 +42,8 @@ beforeAll(async () => {
   pat = await person('Pat Example', ['requester']);
   lee = await person('Lee Sample', ['requester']);
   agent = await t.as('agent');
+  // "Show in the portal" is a field of the portal: it is offered (and written) only while the portal is on.
+  expect((await t.api.patch('/api/admin/features', { features: { portal: true } })).status).toBe(200);
   const item = await t.api.post('/api/catalog-items', {
     name: 'Driver tablet not working', category: 'equipment', active: true, portal: true,
     defaults: { type: 'incident', category: 'hardware', title: 'Driver tablet fault: ', impact: 'individual', urgency: 'high' },
@@ -49,22 +51,30 @@ beforeAll(async () => {
   });
   itemId = item.body.id;
   plainItemId = (await t.api.post('/api/catalog-items', { name: 'Agent-only item', active: true })).body.id;
+  expect((await t.api.patch('/api/admin/features', { features: { portal: false } })).status).toBe(200);
 });
 afterAll(async () => { await t.close(); });
 
 describe('portal switch', () => {
-  it('is off by default, and every portal route says so', async () => {
-    expect((await pat.get('/api/portal/config')).body).toEqual({ enabled: false, allowed: true });
-    for (const url of ['/api/portal/requests', '/api/portal/catalog', '/api/portal/knowledge', '/api/portal/assets', '/api/portal/approvals']) {
+  it('is off by default, and every portal route says so, its settings included (E14-34)', async () => {
+    for (const url of ['/api/portal/config', '/api/portal/requests', '/api/portal/catalog', '/api/portal/knowledge', '/api/portal/assets', '/api/portal/approvals', '/api/portal/settings']) {
       const r = await pat.get(url);
       expect(r.status, url).toBe(404);
-      expect(r.body.error.code).toBe('portal_off');
+      expect(r.body.error.code).toBe('switched_off');
     }
+    expect((await t.api.get('/api/portal/settings')).status).toBe(404);
     expect((await pat.post('/api/portal/requests', { title: 'x' })).status).toBe(404);
+    // Nobody holds the portal permissions while it is off; the Requester role keeps its grants.
+    expect((await pat.get('/api/auth/state')).body.permissions.some((p: string) => p.startsWith('portal.'))).toBe(true);
+    expect((await pat.get('/api/auth/state')).body.areasOff).toContain('portal');
+    // The catalog's "show in the portal" field is hidden, and its value kept.
+    expect((await t.api.get('/api/meta')).body.resources.catalog_item.fields.portal).toBeUndefined();
   });
 
-  it('is switched on by an administrator only; other settings need tickets.administer', async () => {
-    expect((await agent.put('/api/portal/settings', { enabled: true })).status).toBe(403);
+  it('is switched on under Administration > Features; other settings need tickets.administer', async () => {
+    expect((await t.api.patch('/api/admin/features', { features: { portal: true } })).status).toBe(200);
+    expect((await t.api.get('/api/meta')).body.resources.catalog_item.fields.portal).toBeDefined();
+    expect((await agent.put('/api/portal/settings', { enabled: false })).status).toBe(403);
     expect((await pat.put('/api/portal/settings', { title: 'Mine' })).status).toBe(403);
     const bad = await t.api.put('/api/portal/settings', { title: '', reopen_days: 400, banner: { message: 'x', tone: 'loud' } });
     expect(bad.status).toBe(400);
@@ -97,7 +107,10 @@ describe('portal switch', () => {
     expect((await t.api.get('/api/auth/state')).body.features.portal).toBe(true);
     expect((await t.api.post('/api/auth/confirm', { password: ADMIN.password })).status).toBe(200);
     expect((await t.api.put('/api/portal/settings', { enabled: false })).body.enabled).toBe(false);
-    expect((await t.api.put('/api/portal/settings', { enabled: true })).body.enabled).toBe(true);
+    // Once off, its settings answer "switched off" too: it comes back on under Administration > Features.
+    expect((await t.api.put('/api/portal/settings', { enabled: true })).status).toBe(404);
+    expect((await t.api.patch('/api/admin/features', { features: { portal: true } })).status).toBe(200);
+    expect((await t.api.get('/api/portal/settings')).body.enabled).toBe(true);
   });
 
   it('refuses people without portal permissions', async () => {

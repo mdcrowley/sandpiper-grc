@@ -569,16 +569,20 @@ The change applies at once for everyone, without a restart. It is recorded in th
 
 ### What happens when a part is off
 
-The part disappears for everyone, administrators and API tokens included:
+The part disappears for everyone, administrators and API tokens included. The only place it still appears is its switch on this page (and past entries in the audit log):
 
 - its menu entries, **Create** entries and pages go; an old link to one of its pages says "This part of the application is switched off";
+- the fields of other records that refer to it go: with **Vendors and contracts** off, a system's and an asset's **Vendor** and **Contract** (and a system's **Vendor (as recorded)**, **Agreement on file**, its fact-sheet card and the vendors lane of the relationship map); with the portal off, a catalog item's **Show in the self-service portal**, the portal tab of the service desk settings and the portal notes and shared files on tickets. The values are kept;
+- its choices leave the drop-down lists of the parts that stay (an action's **Source** loses **Risk**, **Project**, **Safety** and so on), and its own lists leave **Administration > Lists**;
+- its notification kinds leave everyone's **Preferences**, and notifications about its records or pages are not shown or counted (they come back when it is switched on);
+- its AI assistant tools, background jobs and schedules, reminders, its retention category (**Contracts and suppliers** with vendors), its API routes in the **API reference**, and its permissions on a role's page and in the permissions a new API token may carry, are left out. With **Security incidents** off, the text-message alerts (the **Alerts by text message** card and the **Text messages** tab of **Email**) go too, since only incidents send them; with **Dashboards and reports** off, the **Overview**'s figures are headed **At a glance**;
 - its records are left out of search, record links, the relationship map and impact panels (for example the vehicles and services on a system's impact panel and on a security incident's **Affected** tab), the **Overview** widgets, the report catalog and dashboards, imports, exports, custom fields, retention, webhooks, the API reference and the tools offered to AI assistants;
 - its reminders and other background work stop (the **Background jobs** page shows those runs as skipped), and the sample data command does not load its sample records;
-- its permissions are held by nobody: on a role's page those areas are marked **switched off**. The ticks are kept and work again when the part is switched back on;
+- its permissions are held by nobody and are not listed on a role's page. The ticks are kept and work again when the part is switched back on;
 - its guide pages are left out of **Help** and its search; a guide page opened by a link says the part is switched off;
 - the API answers 404 with the code `switched_off` for its routes.
 
-Notifications already sent about its records stay in people's lists, shown as "A record you can no longer open".
+What stays, because it is your organization's own data rather than the part itself: the names and descriptions of roles (for example **Safety manager**), the names of records that stay (a system called "Fleet Maintenance System"), the incident playbooks and notification parties, the risk scales (the hazard matrix is a scale risks may use too) and the user guide's wording on the pages that stay. Search may still find a record that stays by the text of a field that is hidden (for example a system's vendor name).
 
 Nothing is deleted. Switching the part back on restores everything: records, links, history, permissions and reminders.
 

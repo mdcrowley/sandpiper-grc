@@ -288,7 +288,7 @@ function SettingsForm({ initial, onSaved }: { initial: MailSettings; onSaved: (s
               <TextField label="From address" type="email" placeholder="grc@example.org" value={form.fromAddress} onChange={(v) => set('fromAddress', v)} error={errors.fromAddress}
                 hint={form.provider === 'smtp' ? undefined : 'Use the sending mailbox\'s own address, or one it may send as.'} />
               <TextField label="From name" placeholder="Sandpiper GRC" value={form.fromName} onChange={(v) => set('fromName', v)} error={errors.fromName} />
-              <TextField label="Reply-to address" type="email" hint="Optional: where replies go, such as the service desk." value={form.replyTo} onChange={(v) => set('replyTo', v)} error={errors.replyTo} />
+              <TextField label="Reply-to address" type="email" hint="Optional: where replies go, such as a shared mailbox." value={form.replyTo} onChange={(v) => set('replyTo', v)} error={errors.replyTo} />
               <TextField label="Application address" type="url" placeholder="https://grc.example.org" hint="The address people use to open the application. Links in messages start with it." value={form.baseUrl} onChange={(v) => set('baseUrl', v)} error={errors.baseUrl} />
             </div>
             <div className="form-actions">
@@ -323,6 +323,8 @@ function SettingsForm({ initial, onSaved }: { initial: MailSettings; onSaved: (s
 
 export function EmailSettingsPage() {
   const [search, setSearch] = useSearchParams();
+  // Text messages carry security incident alerts only (E14-34).
+  const { areaOn } = useAuth();
   const { data, error, reload } = useFetch<MailSettings>('/api/admin/mail/settings');
   const [saved, setSaved] = useState<MailSettings | null>(null);
   const settings = saved ?? data;
@@ -343,7 +345,7 @@ export function EmailSettingsPage() {
           },
           { key: 'templates', label: 'Templates', content: <MailTemplates /> },
           { key: 'log', label: 'Delivery log', content: <MailLog /> },
-          { key: 'texts', label: 'Text messages', content: <TextMessageSettings /> },
+          ...(areaOn('secincidents') ? [{ key: 'texts', label: 'Text messages', content: <TextMessageSettings /> }] : []),
         ]}
       />
     </div>

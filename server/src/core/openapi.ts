@@ -107,6 +107,8 @@ export function makeOpenApi(app: FastifyInstance) {
   async function build(user: SessionUser | null, opts: BuildOptions = {}): Promise<Json> {
     if (!deps) throw new Error('OpenAPI: not attached');
     const { res, custom, settings } = deps;
+    // The switches as they are now (not a cached guess), so the document matches what answers.
+    await deps.gate?.applyOptions();
     const allowed = (perm: string | undefined) => !perm || !user || can(user, perm);
     const defs = res.registry.all().filter((d) => !user || res.mayAccess(user, d, 'view'));
     const hidden = res.registry.all().filter((d) => !defs.includes(d));

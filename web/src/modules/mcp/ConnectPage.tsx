@@ -17,8 +17,8 @@ export function ConnectAssistantPage() {
           <section className="card card-body stack">
             <h2 className="mcp-aside-title">What an assistant can do</h2>
             <ul className="mcp-list">
-              <li>Find and read records you can see: tickets, assets, changes, contracts, risks and more.</li>
-              <li>Summarize your work, what is overdue, risks, framework progress, incidents and service levels.</li>
+              <li>Find and read records you can see: systems, assets, actions and more.</li>
+              <li>Summarize your work, what is overdue and how things stand in the parts of the application you use.</li>
               <li>With a read-and-write connection, and if your administrator allows it: create and update records, comment and link.</li>
             </ul>
           </section>

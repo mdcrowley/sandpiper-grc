@@ -68,9 +68,11 @@ export function scopeLabel(scope: string): string {
   return `${areaName(m)}: ${a}`;
 }
 
-function scopeOptions(grants: string[], extraAreas: string[]): Option[] {
-  const areas = [...new Set([...AREAS, ...extraAreas, ...grants.filter((g) => g !== '*').map((g) => g.split('.')[0])])].sort((a, b) => areaName(a).localeCompare(areaName(b)));
-  const wanted = ['*', ...areas.flatMap((m) => [`${m}.view`, `${m}.*`]), ...grants];
+function scopeOptions(grants: string[], extraAreas: string[], off: (perm: string) => boolean = () => false): Option[] {
+  // Areas of a switched-off part (Administration > Features) are not offered: nobody holds them (E14-34).
+  const areas = [...new Set([...AREAS, ...extraAreas, ...grants.filter((g) => g !== '*').map((g) => g.split('.')[0])])]
+    .filter((m) => !off(`${m}.view`)).sort((a, b) => areaName(a).localeCompare(areaName(b)));
+  const wanted = ['*', ...areas.flatMap((m) => [`${m}.view`, `${m}.*`]), ...grants.filter((g) => !off(g))];
   return [...new Set(wanted)].filter((s) => covered(s, grants)).map((s) => ({ value: s, label: scopeLabel(s) }));
 }
 
@@ -199,13 +201,14 @@ const DAY_CHOICES = [7, 30, 90, 180, 365];
 function NewTokenDialog({ open, data, onClose, onCreated }: { open: boolean; data: MyTokens; onClose: () => void; onCreated: () => void }) {
   const toast = useToast();
   const { resources } = useMeta();
+  const { switchedOff } = useAuth();
   const options = useMemo(
     () => [
-      ...scopeOptions(data.grants, Object.values(resources ?? {}).map((r) => r.module)),
+      ...scopeOptions(data.grants, Object.values(resources ?? {}).map((r) => r.module), (p) => p !== '*' && switchedOff(p)),
       // Extra abilities that are not permissions, such as using the token with an AI assistant (MCP).
       ...(data.scopeFamilies ?? []).map((f) => ({ value: f.scope, label: f.description })),
     ],
-    [data.grants, data.scopeFamilies, resources],
+    [data.grants, data.scopeFamilies, resources, switchedOff],
   );
   const dayOptions = useMemo(() => {
     const days = [...new Set([...DAY_CHOICES.filter((d) => d <= data.maxDays), data.maxDays])].sort((a, b) => a - b);

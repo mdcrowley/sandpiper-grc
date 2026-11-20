@@ -8,6 +8,7 @@
 // changes here.
 import type { FastifyRequest } from 'fastify';
 import { UUID_RE } from '../../core/errors.ts';
+import { featureState, visibleValues } from '../../core/features.ts';
 import { ensureJobs } from '../../core/jobs/index.ts';
 import { ensureMail } from '../../core/mail/index.ts';
 import type { ModuleDef, Row } from '../../core/module.ts';
@@ -31,7 +32,7 @@ const mod: ModuleDef = {
       { value: 'approval', label: 'Approvals', color: 'purple', sort: 20, meta: { description: 'Something is waiting for your decision.' } },
       { value: 'due', label: 'Due dates', color: 'amber', sort: 30, meta: { description: 'Your actions and decisions that are due soon or overdue.' } },
       { value: 'sla', label: 'Service-level targets', color: 'orange', sort: 40, meta: { description: 'Your tickets that are close to their target time.' } },
-      { value: 'reminder', label: 'Reminders', color: 'teal', sort: 50, meta: { description: 'Dates set on records, such as contract notice dates.' } },
+      { value: 'reminder', label: 'Reminders', color: 'teal', sort: 50, meta: { description: 'Dates set on records, such as notice or review dates.' } },
       { value: 'acknowledgement', label: 'Acknowledgments', color: 'green', sort: 60, meta: { description: 'You have been asked to read and acknowledge something.' } },
       { value: 'clock', label: 'Notification clocks', color: 'red', sort: 70, meta: { description: 'A deadline to notify someone outside the organization is close or has passed.' } },
       { value: 'watch', label: 'Records I watch', color: 'gray', sort: 80, meta: { description: 'A record you watch has changed status or has a new comment.' } },
@@ -48,8 +49,14 @@ const mod: ModuleDef = {
     if (!app.hasDecorator('notify')) app.decorate('notify', notify);
 
     const me = (req: FastifyRequest) => req.user!.id;
+    // Notifications about records of a switched-off area (Administration > Features), or leading to one
+    // of its pages, are kept but not shown or counted until the area is on again (E14-34).
+    // Parameter $2 is the list of those types, $3 the first segments of their pages' addresses.
+    const offTypes = () => (app.hasDecorator('switchedOffTypes') ? app.switchedOffTypes() : []);
+    const offPaths = () => (app.hasDecorator('switchedOffPaths') ? app.switchedOffPaths() : []);
+    const shown = `not (coalesce(record_type, '') = any($2::text[])) and not (coalesce(substring(route from '^/([^/?#]+)'), '') = any($3::text[]))`;
     const unreadCount = async (userId: string) =>
-      (await db.one<{ c: number }>('select count(*)::int c from notifications where user_id = $1 and in_app and dismissed_at is null and read_at is null', [userId]))!.c;
+      (await db.one<{ c: number }>(`select count(*)::int c from notifications where user_id = $1 and in_app and dismissed_at is null and read_at is null and ${shown}`, [userId, offTypes(), offPaths()]))!.c;
 
     // ---------- my notifications ----------
 
@@ -57,12 +64,12 @@ const mod: ModuleDef = {
       const q = req.query as Record<string, string>;
       const pageSize = Math.min(100, Math.max(1, Number(q.pageSize) || 20));
       const page = Math.max(1, Number(q.page) || 1);
-      const where = `user_id = $1 and in_app and dismissed_at is null${q.unread === 'true' ? ' and read_at is null' : ''}`;
-      const total = (await db.one<{ c: number }>(`select count(*)::int c from notifications where ${where}`, [me(req)]))!.c;
+      const where = `user_id = $1 and in_app and dismissed_at is null and ${shown}${q.unread === 'true' ? ' and read_at is null' : ''}`;
+      const total = (await db.one<{ c: number }>(`select count(*)::int c from notifications where ${where}`, [me(req), offTypes(), offPaths()]))!.c;
       const found = await db.query<Row>(
         `select id, kind, title, body, route, record_type, record_id, created_at, read_at from notifications
          where ${where} order by created_at desc, id limit ${pageSize} offset ${(page - 1) * pageSize}`,
-        [me(req)],
+        [me(req), offTypes(), offPaths()],
       );
       // Access is checked again at reading time: if the record has since been restricted,
       // removed, or the reader's role has changed, the notification no longer names it.
@@ -128,8 +135,10 @@ const mod: ModuleDef = {
 
     // ---------- preferences ----------
 
-    async function preferences(userId: string) {
-      const kinds = await ctx.lookups.values(KIND_LIST);
+    /** `all`: include the kinds of switched-off areas (kept when saving, never shown). */
+    async function preferences(userId: string, all = false) {
+      const every = await ctx.lookups.values(KIND_LIST);
+      const kinds = all ? every : visibleValues(await featureState(db), KIND_LIST, every);
       const row = await db.one<{ muted_kinds: string[]; daily_digest: boolean; channels: Record<string, string> }>(
         'select muted_kinds, daily_digest, channels from notification_preferences where user_id = $1', [userId],
       );
@@ -155,7 +164,7 @@ const mod: ModuleDef = {
 
     app.patch('/api/notifications/preferences', async (req) => {
       const b = (req.body ?? {}) as Row;
-      const before = await preferences(me(req));
+      const before = await preferences(me(req), true);
       const known = new Set(before.kinds.map((k) => k.value));
       const fields: Record<string, string> = {};
       const channels: Record<string, Channel> = Object.fromEntries(before.kinds.map((k) => [k.value, k.channel]));
@@ -226,7 +235,7 @@ const mod: ModuleDef = {
 
     app.post('/api/notifications/digest/run', { preHandler: ctx.requirePerm('admin.administer') }, async () => runDigest(ctx, notify));
     app.post('/api/notifications/email-digest/run', { preHandler: ctx.requirePerm('admin.administer') }, async () => runEmailDigest(ctx));
-    ctx.describeRoute({ method: 'POST', path: '/api/notifications/digest/run', permission: 'admin.administer', summary: 'Raise the daily reminders now (actions due, tickets near their target)' });
+    ctx.describeRoute({ method: 'POST', path: '/api/notifications/digest/run', permission: 'admin.administer', summary: 'Raise the daily reminders now (actions due and other dates)' });
     ctx.describeRoute({ method: 'POST', path: '/api/notifications/email-digest/run', permission: 'admin.administer', summary: 'Send the daily email summaries that are due now' });
   },
 };

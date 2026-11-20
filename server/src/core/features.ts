@@ -17,7 +17,12 @@ import type { FieldDef, ResourceDef, ResourceRegistry, Row } from './module.ts';
  *  - `types`: record types hidden besides those whose permission module is off (security incidents
  *    use the shared `security` module, which also governs restricted records, so they are listed);
  *  - `modules`: server module folders whose routes answer 404 "switched off";
- *  - `jobs`: prefixes of the background job types that are skipped while it is off.
+ *  - `jobs`: prefixes of the background job types that are skipped while it is off;
+ *  - `lookupValues`: values of shared lists that belong to it (an action's source "Risk", the
+ *    notification kind "Service-level targets"), left out of every list offered while it is off;
+ *  - `fields`: fields of record types that stay on that are about it (a system's vendor name).
+ *    Fields that refer to a switched-off record type (`ref` to it) are hidden without being listed.
+ * A list owned by a switched-off area, or used only by its record types, is hidden as a whole.
  * Inventory, the action tracker, notifications, attachments, administration, the Overview and Help
  * are not areas: they are always on.
  */
@@ -29,6 +34,12 @@ export interface Area {
   types?: string[];
   modules: string[];
   jobs: string[];
+  /** Values of shared lists that belong to this area: `{ <list>: [value] }`. */
+  lookupValues?: Record<string, string[]>;
+  /** Fields of other record types that are about this area: `{ <type>: [field] }`. */
+  fields?: Record<string, string[]>;
+  /** Configurable lists of this area that it does not own by permission module (public ones). */
+  lists?: string[];
   /** Areas that must be on for this one to be on. */
   requires?: string[];
   /** On when an administrator has never set it. */
@@ -40,59 +51,71 @@ export const AREAS: Area[] = [
     key: 'tickets', label: 'Service desk', defaultOn: true,
     description: 'Tickets, problems, the knowledge base and the service catalog.',
     permissions: ['tickets', 'knowledge'], modules: ['tickets'], jobs: ['tickets.'],
+    lookupValues: { notification_kind: ['sla'], action_source: ['problem'] },
   },
   {
     key: 'portal', label: 'Self-service portal', defaultOn: false, requires: ['tickets'],
     description: 'Simpler pages where anyone in the organization submits and tracks their own requests. Switch it on together with the Requester role.',
-    // The portal module answers "switched off" (404 `portal_off`) itself and keeps its settings page
-    // working while off, as it always has; its permissions stay so a Requester role can be prepared first.
-    permissions: [], modules: [], jobs: ['portal.'],
+    // Like every other area (E14-34): while off nobody holds the portal permissions, its routes (its
+    // settings included) answer "switched off", and its settings tab, menu entry and guide page are hidden.
+    // A Requester role keeps its grants, which apply again once the portal is switched on.
+    permissions: ['portal'], modules: ['portal'], jobs: ['portal.'],
+    fields: { catalog_item: ['portal'] },
   },
   {
     key: 'changes', label: 'Change enablement', defaultOn: true,
     description: 'Change requests, approvals, the change calendar and post-implementation reviews.',
     permissions: ['changes'], modules: ['changes'], jobs: ['changes.'],
+    lookupValues: { action_source: ['change'] },
   },
   {
     key: 'vendors', label: 'Vendors and contracts', defaultOn: true,
     description: 'Vendors, contracts, renewals and vendor evidence.',
     permissions: ['vendors', 'contracts'], modules: ['vendors'], jobs: ['vendors.'],
+    lookupValues: { action_source: ['vendor'], retention_category: ['contractual'] }, fields: { system: ['vendor_name', 'agreement_on_file'] },
   },
   {
     key: 'frameworks', label: 'Framework outcomes', defaultOn: true,
     description: 'Cybersecurity framework outcomes, assessments and target profiles.',
     permissions: ['frameworks'], modules: ['frameworks'], jobs: ['frameworks.'],
+    lookupValues: { action_source: ['assessment'] },
   },
   {
     key: 'risks', label: 'Risks and obligations', defaultOn: true,
     description: 'The risk register, risk reviews and acceptances, and compliance obligations. The action tracker stays on.',
     // The risks folder also holds the action tracker, which stays on: its routes are not switched off wholesale.
     permissions: ['risks', 'obligations'], modules: [], jobs: ['risks.', 'obligations.'],
+    lookupValues: { action_source: ['risk'] },
   },
   {
     key: 'secincidents', label: 'Security incidents', defaultOn: true,
     description: 'Security incidents, their notification clocks and notification tasks.',
     permissions: [], types: ['security_incident', 'notification_task'], modules: ['secincidents'], jobs: ['secincidents.'],
+    lookupValues: { notification_kind: ['clock'], action_source: ['incident'] },
   },
   {
     key: 'policies', label: 'Policies and exceptions', defaultOn: true,
     description: 'Policies, attestations and policy exceptions.',
     permissions: ['policies', 'exceptions'], modules: ['policies'], jobs: ['policies.'],
+    lookupValues: { notification_kind: ['acknowledgement'], action_source: ['policy'] },
   },
   {
     key: 'training', label: 'Training and exercises', defaultOn: true,
     description: 'Training courses, assignments and exercises.',
     permissions: ['training', 'exercises'], modules: ['training'], jobs: ['training.'],
+    lookupValues: { action_source: ['training', 'exercise'] }, lists: ['training_result'],
   },
   {
     key: 'vulnerabilities', label: 'Vulnerabilities', defaultOn: true,
     description: 'Vulnerability records, scanner imports and remediation deadlines.',
     permissions: ['vulnerabilities'], modules: ['vulnerabilities'], jobs: ['vulnerabilities.'],
+    lookupValues: { action_source: ['vulnerability'] },
   },
   {
     key: 'projects', label: 'Projects', defaultOn: true,
     description: 'Projects, the portfolio and project reminders.',
     permissions: ['projects'], modules: ['projects'], jobs: ['projects.'],
+    lookupValues: { action_source: ['project'] },
   },
   {
     key: 'reports', label: 'Dashboards and reports', defaultOn: true,
@@ -109,6 +132,7 @@ export const AREAS: Area[] = [
     key: 'safety', label: 'Safety management', defaultOn: true,
     description: 'Hazards, safety events, safety performance indicators and safety reporting from the portal.',
     permissions: ['safety'], modules: ['safety'], jobs: ['safety.'],
+    lookupValues: { notification_kind: ['safety'], action_source: ['safety'] },
   },
 ];
 
@@ -252,8 +276,24 @@ export interface FeatureState {
   /** Server module folders whose routes answer 404. */
   offModules: Set<string>;
   offJobs: string[];
+  /** Values of shared lists that are hidden, by list. */
+  offLookupValues: Map<string, Set<string>>;
+  /** Fields hidden by area (besides those referring to a switched-off type), by record type. */
+  offFields: Map<string, Set<string>>;
   /** Options within areas (E18-28): whether each is on and its name. */
   options: Record<string, OptionState>;
+}
+
+function collect(maps: Record<string, string[]>[]): Map<string, Set<string>> {
+  const out = new Map<string, Set<string>>();
+  for (const m of maps) for (const [k, vs] of Object.entries(m)) out.set(k, new Set([...(out.get(k) ?? []), ...vs]));
+  return out;
+}
+
+/** The values of a list without those of switched-off areas (E14-34). */
+export function visibleValues<T extends { value: string }>(state: FeatureState, list: string, values: T[]): T[] {
+  const off = state.offLookupValues.get(list);
+  return off ? values.filter((v) => !off.has(v.value)) : values;
 }
 
 export function stateFrom(on: Record<string, boolean>, options: Record<string, OptionState> = effectiveOptions(null)): FeatureState {
@@ -264,6 +304,8 @@ export function stateFrom(on: Record<string, boolean>, options: Record<string, O
     offTypes: new Set(off.flatMap((a) => a.types ?? [])),
     offModules: new Set(off.flatMap((a) => a.modules)),
     offJobs: off.flatMap((a) => a.jobs),
+    offLookupValues: collect(off.map((a) => a.lookupValues ?? {})),
+    offFields: collect(off.map((a) => a.fields ?? {})),
   };
 }
 
@@ -332,6 +374,15 @@ declare module 'fastify' {
     /** The module folder that registered the route (set by the feature gate). */
     grcModule?: string;
   }
+  interface FastifyInstance {
+    /** Record types of switched-off areas (for records stored by key, such as notifications): E14-34. */
+    switchedOffTypes(): string[];
+    /**
+     * First segments of the web addresses of switched-off record types ("training" for
+     * /training/courses) that no record type still on uses: for links stored as text (E14-34).
+     */
+    switchedOffPaths(): string[];
+  }
 }
 
 /**
@@ -353,6 +404,19 @@ export function makeFeatureGate(app: FastifyInstance, db: Queryable) {
   let active = false;
   const routeModules = new Map<string, string>();
 
+  if (!app.hasDecorator('switchedOffTypes')) {
+    app.decorate('switchedOffTypes', () => (active ? baseAll().filter((d) => typeOff(known(), d)).map((d) => d.type) : []));
+  }
+  if (!app.hasDecorator('switchedOffPaths')) {
+    app.decorate('switchedOffPaths', () => {
+      if (!active) return [];
+      const s = known();
+      const first = (route?: string) => /^\/([^/?#]+)/.exec(route ?? '')?.[1];
+      const on = new Set(baseAll().filter((d) => !typeOff(s, d)).map((d) => first(d.route)));
+      return [...new Set(baseAll().filter((d) => typeOff(s, d)).map((d) => first(d.route)))].filter((p): p is string => Boolean(p) && !on.has(p));
+    });
+  }
+
   app.addHook('onRoute', (r) => {
     if (!current || !r.url?.startsWith('/api/')) return;
     routeModules.set(r.url, current);
@@ -360,6 +424,10 @@ export function makeFeatureGate(app: FastifyInstance, db: Queryable) {
   });
 
   const known = () => knownFeatureState(db);
+  const isTypeOffIn = (s: FeatureState, type: string) => {
+    const def = baseGet(type);
+    return Boolean(def && typeOff(s, def));
+  };
   const isTypeOff = (type: unknown) => {
     if (typeof type !== 'string') return false;
     const def = baseGet(type);
@@ -377,6 +445,8 @@ export function makeFeatureGate(app: FastifyInstance, db: Queryable) {
   /**
    * Options within areas: the fields of an option that is off are taken out of their record type's
    * definition, and a renamed option relabels its fields, so every place that lists fields follows.
+   * The same goes for the fields of a type that stays on that refer to a switched-off type (a
+   * system's vendor and contract) or that an area lists as its own (E14-34): stored values are kept.
    * The module's own field list is kept and the fields are rebuilt from it whenever the state changes.
    */
   const original = new Map<ResourceDef, Record<string, FieldDef>>();
@@ -385,10 +455,13 @@ export function makeFeatureGate(app: FastifyInstance, db: Queryable) {
     if (!active || s === appliedFor) return;
     appliedFor = s;
     for (const def of baseAll()) {
-      if (!OPTIONS.some((o) => o.fields[def.type] || o.name?.labels[def.type])) continue;
       const fields = original.get(def) ?? def.fields;
+      const refsOff = Object.entries(fields).some(([, f]) => f.type === 'ref' && f.to && isTypeOffIn(s, f.to));
+      if (!original.has(def) && !refsOff && !s.offFields.has(def.type) && !OPTIONS.some((o) => o.fields[def.type] || o.name?.labels[def.type])) continue;
       original.set(def, fields);
       const { hidden, labels } = optionFields(s.options, def.type);
+      for (const f of s.offFields.get(def.type) ?? []) hidden.add(f);
+      for (const [name, f] of Object.entries(fields)) if (f.type === 'ref' && f.to && isTypeOffIn(s, f.to)) hidden.add(name);
       def.fields = Object.fromEntries(Object.entries(fields)
         .filter(([name]) => !hidden.has(name))
         .map(([name, f]) => [name, labels[name] && labels[name] !== f.label ? { ...f, label: labels[name] } : f]));
@@ -438,6 +511,18 @@ export function makeFeatureGate(app: FastifyInstance, db: Queryable) {
     /** Applies the options within areas to the record types now (also done before every API request). */
     async applyOptions() { applyOptions(await featureState(db)); },
     routeOff,
+    /**
+     * Whether a configurable list belongs to a switched-off area (E14-34): its owning permission
+     * module is off, or record types use it and every one of them is off.
+     */
+    listOff(list: string, owner: string | null | undefined): boolean {
+      const s = known();
+      if (!s.off.length) return false;
+      if (owner && s.offPermissions.has(owner)) return true;
+      if (s.off.some((a) => a.lists?.includes(list))) return true;
+      const users = baseAll().filter((d) => Object.values(original.get(d) ?? d.fields).some((f) => f.type === 'lookup' && f.list === list));
+      return users.length > 0 && users.every((d) => typeOff(s, d));
+    },
     /** The module folder that registered a route url, if a module did. */
     moduleOf: (url: string) => routeModules.get(url),
     state: () => featureState(db),

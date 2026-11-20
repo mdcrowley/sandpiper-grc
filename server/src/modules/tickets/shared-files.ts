@@ -29,7 +29,7 @@ export function registerSharedFiles(ctx: ModuleContext, notify: TicketNotify) {
   });
   ctx.describeRoute({
     method: 'GET', path: '/api/tickets/:id/shared-files', permission: 'tickets.view',
-    summary: 'Files on a ticket and which of them the requester sees in the portal',
+    summary: 'Files on a ticket and which of them its requester sees',
     response: '{ rows: [{ id, file_name, size_bytes, created_at, uploaded_by_name, from_requester, shared, shared_by_name, shared_at }], requester_can_see }',
   });
 
@@ -66,7 +66,7 @@ export function registerSharedFiles(ctx: ModuleContext, notify: TicketNotify) {
   });
   ctx.describeRoute({
     method: 'PUT', path: '/api/tickets/:id/shared-files/:attachmentId', permission: 'tickets.edit',
-    summary: 'Share a file on a ticket with its requester (shown in the self-service portal), or stop sharing it',
+    summary: 'Share a file on a ticket with its requester, or stop sharing it',
     body: '{ shared: boolean }', response: '{ shared }',
   });
 }

@@ -218,16 +218,17 @@ function TargetSettings({ canEdit }: { canEdit: boolean }) {
 /* ---------- Page ---------- */
 
 export function ServiceDeskSettings() {
-  const { can } = useAuth();
+  const { can, areaOn } = useAuth();
   const canEdit = can('tickets.administer');
   const [params, setParams] = useSearchParams();
+  // The portal's settings are part of the portal: hidden while it is switched off (Administration > Features).
   const tabs = [
     { key: 'priorities', label: 'Priorities', content: <MatrixSettings canEdit={canEdit} /> },
     { key: 'targets', label: 'Targets', content: <TargetSettings canEdit={canEdit} /> },
     { key: 'calendars', label: 'Calendars and holidays', content: <CalendarSettings canEdit={canEdit} /> },
     { key: 'escalation', label: 'Escalation', content: <EscalationSettings canEdit={canEdit} /> },
     { key: 'notifications', label: 'Notifications', content: <NotificationSettings canEdit={canEdit} /> },
-    { key: 'portal', label: 'Self-service portal', content: <PortalSettingsTab /> },
+    ...(areaOn('portal') ? [{ key: 'portal', label: 'Self-service portal', content: <PortalSettingsTab /> }] : []),
     { key: 'email', label: 'Email to ticket', content: <EmailSettingsTab /> },
   ];
   const active = tabs.some((t) => t.key === params.get('tab')) ? (params.get('tab') as string) : 'priorities';

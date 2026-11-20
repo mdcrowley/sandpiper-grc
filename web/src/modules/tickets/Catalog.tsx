@@ -10,10 +10,12 @@ import type { IconName, ListResult, Row } from '../../core';
 import { CatalogDesigner } from './CatalogDesigner';
 
 const FIELDS = ['name', 'description', 'category', 'active', 'requires_approval', 'portal'];
+/** The "show in the portal" field is part of the portal: left out while it is switched off (E14-34). */
+const withPortal = (portal: boolean, fields: string[]) => (portal ? fields : fields.filter((f) => f !== 'portal'));
 const ICONS: Record<string, IconName> = { people: 'users', access: 'key', equipment: 'box', software: 'file-text', vendors: 'building' };
 
 function Tiles() {
-  const { can } = useAuth();
+  const { can, areaOn } = useAuth();
   const navigate = useNavigate();
   const [q, setQ] = useState('');
   const { data, error, reload } = useFetch<ListResult>('/api/catalog-items?f.active=true&sort=name&pageSize=200');
@@ -53,7 +55,7 @@ function Tiles() {
                     <p className="muted">{item.description || 'No description.'}</p>
                     <div className="row sd-tile-meta">
                       {item.requires_approval && <Badge color="amber">Needs approval</Badge>}
-                      {item.portal && <Badge color="blue">In the portal</Badge>}
+                      {item.portal && areaOn('portal') && <Badge color="blue">In the portal</Badge>}
                       {questions > 0 && <Badge color="gray">{questions} question{questions === 1 ? '' : 's'}</Badge>}
                       {tasks > 0 && <Badge color="gray">{tasks} task{tasks === 1 ? '' : 's'}</Badge>}
                     </div>
@@ -74,20 +76,21 @@ function Tiles() {
 }
 
 export function CatalogList() {
-  const { can } = useAuth();
+  const { can, areaOn } = useAuth();
+  const portal = areaOn('portal');
   const manage = (
     <ResourceList
       type="catalog_item"
       columns={['name', 'category',
         { field: 'active', sortable: true, render: (row) => (row.active ? <Badge color="green">Active</Badge> : <Badge color="gray">Hidden</Badge>) },
         { field: 'requires_approval', label: 'Approval', sortable: true, render: (row) => (row.requires_approval ? <Badge color="amber">Needed</Badge> : '—') },
-        { field: 'portal', label: 'Portal', sortable: true, render: (row) => (row.portal ? <Badge color="blue">Shown</Badge> : '—') },
+        ...(portal ? [{ field: 'portal', label: 'Portal', sortable: true, render: (row: Row) => (row.portal ? <Badge color="blue">Shown</Badge> : '—') }] : []),
         { field: 'questions', label: 'Questions', render: (row) => (row.questions ?? []).length || '—' },
         { field: 'tasks', label: 'Tasks', render: (row) => (row.tasks ?? []).length || '—' },
         'updated_at']}
-      filters={['category', 'active', 'requires_approval', 'portal']}
-      bulkFields={['category', 'active', 'requires_approval', 'portal']}
-      createFields={FIELDS}
+      filters={withPortal(portal, ['category', 'active', 'requires_approval', 'portal'])}
+      bulkFields={withPortal(portal, ['category', 'active', 'requires_approval', 'portal'])}
+      createFields={withPortal(portal, FIELDS)}
     />
   );
   return (
@@ -102,6 +105,7 @@ export function CatalogList() {
 
 export function CatalogDetail() {
   const navigate = useNavigate();
+  const portal = useAuth().areaOn('portal');
   return (
     <RecordPage
       type="catalog_item"
@@ -110,15 +114,15 @@ export function CatalogDetail() {
         <span className="row">
           {row.active ? <Badge color="green">Active</Badge> : <Badge color="gray">Hidden</Badge>}
           {row.requires_approval && <Badge color="amber">Needs approval</Badge>}
-          {row.portal && <Badge color="blue">In the portal</Badge>}
+          {row.portal && portal && <Badge color="blue">In the portal</Badge>}
         </span>
       )}
       actions={({ row }) => row.active && (
         <Button variant="primary" icon="plus" onClick={() => navigate(`/tickets?catalog=${row.id}`)}>Create a ticket from this</Button>
       )}
       summary={({ row, reload }) => (
-        <EditableSummary type="catalog_item" row={row} fields={FIELDS} onSaved={reload}
-          sections={[{ fields: ['name', 'description', 'category'] }, { title: 'Behavior', fields: ['active', 'requires_approval', 'portal'] }]} />
+        <EditableSummary type="catalog_item" row={row} fields={withPortal(portal, FIELDS)} onSaved={reload}
+          sections={[{ fields: ['name', 'description', 'category'] }, { title: 'Behavior', fields: withPortal(portal, ['active', 'requires_approval', 'portal']) }]} />
       )}
       tabs={[
         { key: 'form', label: 'Form and tasks', content: (rec) => <CatalogDesigner rec={rec} /> },

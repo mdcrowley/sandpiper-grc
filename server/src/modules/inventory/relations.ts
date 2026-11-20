@@ -342,7 +342,10 @@ export function registerRelations(ctx: ModuleContext) {
     // Vendors: one node per vendor record when linked, otherwise one per distinct recorded name.
     const vendorDef = ctx.resources.get('vendor');
     const vendorRoute = vendorDef && ctx.can(user, 'vendors.view') ? vendorDef.route : null;
-    for (const s of systems) {
+    // While vendors are switched off (Administration > Features) the system's vendor fields are hidden,
+    // and so is the vendors lane (E14-34).
+    const vendorsShown = Boolean(ctx.resources.get('system')?.fields.vendor_name);
+    for (const s of vendorsShown ? systems : []) {
       const name = String(s.vendor_name ?? '').trim();
       let key: string | null = null;
       if (s.vendor_id) {

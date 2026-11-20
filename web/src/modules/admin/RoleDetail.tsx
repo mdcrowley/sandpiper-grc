@@ -15,7 +15,7 @@ const MODULE_LABELS: Record<string, string> = {
   frameworks: 'Frameworks and assessments', audit: 'Audit log', admin: 'Administration', portal: 'Self-service portal',
   dashboards: 'Dashboards and overview', exceptions: 'Policy exceptions',
 };
-const moduleLabel = (key: string) => MODULE_LABELS[key] ?? humanize(key);
+const baseModuleLabel = (key: string) => MODULE_LABELS[key] ?? humanize(key);
 
 /**
  * What this installation checks (E18-44): the server lists every `<area>.<action>` that some route
@@ -29,7 +29,9 @@ export function RoleDetailPage() {
   const { id } = useParams();
   const toast = useToast();
   // Areas switched off under Administration > Features: their grants are kept but nobody holds them.
-  const { switchedOff } = useAuth();
+  const { switchedOff, areaOn } = useAuth();
+  // While saved dashboards are switched off, the dashboards permissions open the Overview's figures only.
+  const moduleLabel = (key: string) => (key === 'dashboards' && !areaOn('reports') ? 'Overview' : baseModuleLabel(key));
   const vocab = useFetch<RolesResponse>('/api/admin/roles');
   const { data: role, error, reload } = useFetch<Role>(`/api/admin/roles/${id}`);
   const [form, setForm] = useState({ name: '', description: '', requiresMfa: false, enabled: true });
@@ -106,9 +108,11 @@ export function RoleDetailPage() {
   };
 
   const needle = find.trim().toLowerCase();
-  const shown = modules.filter((m) =>
-    (!needle || m.includes(needle) || moduleLabel(m).toLowerCase().includes(needle)) && (!onlyGranted || countFor(m) > 0));
-  const areasGranted = modules.filter((m) => countFor(m) > 0).length;
+  // Permission areas of a switched-off part (Administration > Features) are not shown; the role keeps
+  // its ticks for them, which apply again once the part is switched on (E14-34).
+  const shown = modules.filter((m) => !switchedOff(`${m}.view`)
+    && (!needle || m.includes(needle) || moduleLabel(m).toLowerCase().includes(needle)) && (!onlyGranted || countFor(m) > 0));
+  const areasGranted = modules.filter((m) => !switchedOff(`${m}.view`) && countFor(m) > 0).length;
 
   return (
     <>

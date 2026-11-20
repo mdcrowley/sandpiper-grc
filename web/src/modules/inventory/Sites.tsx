@@ -1,6 +1,6 @@
 // Sites: list and record, with the systems that serve the site and the assets held there.
 import { Link } from 'react-router-dom';
-import { Card, EditableSummary, EmptyState, ErrorState, Loading, LookupChip, RecordPage, ResourceList, useAuth, useFetch } from '../../core';
+import { Card, EditableSummary, EmptyState, ErrorState, Loading, LookupChip, RecordPage, ResourceList, useAuth, useFetch, useResource } from '../../core';
 
 export function SiteList() {
   return (
@@ -18,6 +18,8 @@ interface SystemRow { id: string; ref: string | null; name: string; system_group
 
 function SiteSystems({ siteId }: { siteId: string }) {
   const { data, error, reload } = useFetch<SystemRow[]>(`/api/sites/${siteId}/systems`);
+  // The vendor column follows the system's vendor field (hidden while vendors are switched off).
+  const vendor = Boolean(useResource('system')?.fields.vendor_name);
   return (
     <Card title="Systems serving this site" flush={!!data?.length}>
       {error ? <ErrorState error={error} onRetry={reload} />
@@ -27,14 +29,14 @@ function SiteSystems({ siteId }: { siteId: string }) {
         ) : (
           <div className="table-wrap">
             <table className="table">
-              <thead><tr><th scope="col">Reference</th><th scope="col">System</th><th scope="col">Group</th><th scope="col">Vendor</th><th scope="col">Criticality</th></tr></thead>
+              <thead><tr><th scope="col">Reference</th><th scope="col">System</th><th scope="col">Group</th>{vendor && <th scope="col">Vendor</th>}<th scope="col">Criticality</th></tr></thead>
               <tbody>
                 {data.map((s) => (
                   <tr key={s.id}>
                     <td className="ref">{s.ref}</td>
                     <td className="row-title"><Link to={`/systems/${s.id}`}>{s.name}</Link></td>
                     <td>{s.system_group ?? '—'}</td>
-                    <td>{s.vendor_name ?? '—'}</td>
+                    {vendor && <td>{s.vendor_name ?? '—'}</td>}
                     <td>{s.criticality_tier ? <LookupChip list="criticality_tier" value={s.criticality_tier} /> : '—'}</td>
                   </tr>
                 ))}

@@ -31,7 +31,10 @@ What the prototype does not do yet. Update with every change. The roadmap
   switched off, the hazard risk matrix (kept with the risk scales) cannot be edited, and
   Safety keeps using the saved one. The email digest may still list notifications about a
   part switched off since. A list filter in a page address on a field a type does not have
-  is still applied (E18-49).
+  is still applied (E18-49). A switched-off part is hidden everywhere but its switch (E14-34);
+  what stays is the organization's own text: role names and descriptions, record names, incident
+  playbooks and the guide's wording on pages that stay. Search still matches, and its snippet
+  may show, the text of a field hidden by a switch (a system's vendor name).
 - **Retention**: anonymizing or removing a record from the review list is recorded in the
   audit log but does not raise a webhook event (E14-33). The fields anonymizing replaces are chosen
   broadly (for example a ticket's description); check the list shown for each type before
@@ -66,10 +69,11 @@ What the prototype does not do yet. Update with every change. The roadmap
 
 - The full unit test suite (server and web) passes on Windows, and again with the clock
   on UTC; `.\grc.ps1 ci` runs it both ways, with the typecheck and a production build.
-- The browser suite (`npm run test:e2e`, 92 tests in 8 suites) covers every route as an
+- The browser suite (`npm run test:e2e`, 94 tests in 9 suites) covers every route as an
   administrator in the light theme at 1440px and the dark theme at 820px, every default
   role, the create and edit form of every record type, the hand-written dialogs (submitted
-  empty, then filled in), keyboard-only use module by module, and list features.
+  empty, then filled in), keyboard-only use module by module, list features, and every page
+  with all optional parts switched off (and with a mix) showing nothing of them.
 - Accessibility: the automated axe-core audit (`npm run test:a11y`; see
   [Accessibility](accessibility.md)) finds no violations on any page in light and dark at
   1440 and 820 pixels, and fails the build on a new one. There has been no screen-reader

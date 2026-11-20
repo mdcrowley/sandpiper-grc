@@ -277,7 +277,7 @@ Select **Watch** at the top of a record page to be told when that record's statu
 
 ### Notifications and restricted records
 
-You are never sent a notification about a record you are not allowed to open. If a record is restricted, or your role changes, after a notification was sent, the notification changes to "A record you can no longer open" and no longer names the record or links to it.
+You are never sent a notification about a record you are not allowed to open. If a record is restricted, or your role changes, after a notification was sent, the notification changes to "A record you can no longer open" and no longer names the record or links to it. Notifications about a part of the application that an administrator has switched off (Administration > Features), or leading to one of its pages, are not shown or counted while it is off, and the kinds that belong to it (for example **Service-level targets** with the service desk, **Notification clocks** with security incidents, **Acknowledgments** with policies) leave **Preferences**; both come back, with your choices, when it is switched on.
 
 ### Preferences
 

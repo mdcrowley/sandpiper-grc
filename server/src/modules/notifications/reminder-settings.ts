@@ -32,17 +32,17 @@ export const DEFAULT_KEEP_READ_DAYS = 90;
 
 export const REMINDER_SETTINGS: ReminderSettingDef[] = [
   {
-    key: 'notifications.action_due_days', group: 'Actions and tickets', requires: 'action', kind: 'number', unit: 'days', min: 0, max: 60, default: 3,
+    key: 'notifications.action_due_days', group: 'Actions', requires: 'action', kind: 'number', unit: 'days', min: 0, max: 60, default: 3,
     label: 'Remind action owners before the due date',
     description: 'An action’s owner is reminded once a day from this many days before its due date until it is closed.',
   },
   {
-    key: 'notifications.action_closed_statuses', group: 'Actions and tickets', requires: 'action', kind: 'statuses', list: 'action_status', default: ['done', 'cancelled'],
+    key: 'notifications.action_closed_statuses', group: 'Actions', requires: 'action', kind: 'statuses', list: 'action_status', default: ['done', 'cancelled'],
     label: 'Action statuses that need no reminder',
     description: 'Actions in these statuses are finished: their owners are not reminded.',
   },
   {
-    key: 'notifications.ticket_breach_hours', group: 'Actions and tickets', requires: 'ticket', kind: 'number', unit: 'hours', min: 1, max: 72, default: 4,
+    key: 'notifications.ticket_breach_hours', group: 'Service desk', requires: 'ticket', kind: 'number', unit: 'hours', min: 1, max: 72, default: 4,
     label: 'Warn ticket assignees before the resolution target',
     description: 'The assignee is told once a day when a ticket’s resolution target is this close.',
   },
