@@ -116,7 +116,9 @@ Open **Expiring evidence files** in the **Reports** group. The page lists every 
 3. The table lists the files, soonest first, with the record each one is **Attached to**, the dates and a status chip.
 4. Select a file's name to download it, or the record's name to open the record and attach a current copy.
 
-This page is separate from **Expiring evidence** in the **Vendors** group, which lists vendor evidence records; see [Vendors and contracts](04-vendors-and-contracts.md).
+This page is separate from **Expiring evidence** in the **Vendors** group, which lists vendor evidence records with the dates recorded on them; see [Vendors and contracts](04-vendors-and-contracts.md). When you can view vendors, **Expiring vendor evidence** at the top of this page opens it, and that page links back here.
+
+The owner of the record is reminded as an evidence file's expiry date approaches: a **Reminders** notification 30 days before, 7 days before and on the day it expires, each once (only the nearest one when a file is attached with less time left). The owner is the person in the record's **Owner** field; on a record without one, the person who attached the file is told. Only someone who can open the record is told. Files on vendor evidence items are left out, because the evidence item's own expiry reminders cover them (see [Vendors and contracts](04-vendors-and-contracts.md#reminders)). Changing the file's **Expires on** date starts its reminders again.
 
 ## File settings
 
@@ -264,6 +266,7 @@ Besides the notifications each part of the application sends as things happen, t
 | An overdue project milestone, or an overdue risk, issue, decision or change request in a project's register (**Due dates**) | The item's owner, or the project manager | Once for each due date that passes, while the project is active or on hold |
 | An evidence note on a framework outcome about to expire, or expired (**Reminders**) | The outcome's owner, or everyone who may edit framework outcomes | Once when the expiry is 30 days away, and once when it has passed |
 | A hazard's review date (**Reminders**) | The hazard's owner, or everyone who may edit safety records | Once when the date is 14 days away, and once when it is reached; not for closed hazards |
+| An evidence file about to expire, or expired (**Reminders**) | The owner of its record, or the person who attached it | 30 days before, 7 days before and on the day, each once; see [Expiring evidence files](#expiring-evidence-files) |
 | Warranty and support end dates of assets, contract notice dates, review dates of framework outcomes, risk acceptances, policy acknowledgments and training due | As described in the guide for each part | |
 
 A date that passed more than 30 days before a reminder could be sent (for example on the day these reminders were first switched on) is not announced. Changing a due or review date starts its reminders again.
@@ -368,7 +371,9 @@ Whoever runs your mail service sets up the sign-in for Microsoft Graph or the Gm
 
 Switching email off stops everything at once: messages still waiting are not sent, and notifications go to the bell. Every change, and every test, is recorded in the audit log, naming the way of sending but never the password, secret, certificate or key.
 
-If the mail service is busy or limits how fast messages are sent, the message is tried again later like any other failure (see **Delivery log**). Microsoft Graph takes messages of about 3 MB at most with their files; a larger one is not sent and the log says why.
+If the mail service is busy or limits how fast messages are sent, the message is tried again later (see **Delivery log**). When the service says how long to wait (Microsoft Graph and the Gmail API send `Retry-After`; some mail servers write "try again in 5 minutes"), the next try waits exactly that long, up to an hour, instead of the usual wait.
+
+Messages up to the 10 MB limit for files go through every way of sending. Through Microsoft Graph, a message larger than one request (about 3 MB with its files) is sent another way: as a draft, with each large file uploaded in parts, then sent. It keeps its message ID and its threading, and the marks that stop auto-replies and stop the application taking its own messages back in.
 
 When email is on:
 
@@ -378,11 +383,13 @@ When email is on:
 
 ### Templates
 
-The **Templates** tab lists each kind of message: **Test message**, **Notification**, **Security notification**, **Daily summary**, **Account set-up link**, **Password reset link** and **General message** (used by other parts of the application, such as scheduled reports).
+The **Templates** tab lists each kind of message: **Test message**, **Notification**, **Security notification**, **Daily summary**, **Account set-up link**, **Password reset link**, **General message** (used by other parts of the application, such as scheduled reports and security incident alerts) and **Text message (email-to-text)**.
 
 1. Select a template. The placeholders it accepts are listed above the fields, for example `{{title}}` or `{{link}}`.
 2. Change the **Subject**, the **Plain-text body** and, if you like, the **HTML body**. The HTML body may use only simple tags (p, br, strong, em, ul, ol, li, h1 to h3, hr, blockquote and a), and links may point only at `{{link}}`, `{{preferencesLink}}`, an `https:` address or a `mailto:` address. Leave it empty to build it from the plain text. Values put into the HTML are always escaped.
 3. Select **Preview** to see the message with sample values, then **Save template**.
+
+Two templates belong to vendor assessments: **Vendor response link** (the email that carries a response link to a vendor contact) and **Vendor response link reminder** (sent once before an emailed link expires; it cannot carry the link). See [Vendors and contracts](04-vendors-and-contracts.md#the-email).
 
 A template you have changed shows **Changed here**; **Put back the default** restores the original. The **Security notification** template may not contain the title or text of the notification.
 
@@ -398,7 +405,24 @@ The **Delivery log** tab lists every message the application tried to send, newe
 | **Gave up** | It failed too often, or the server refused it for good (for example a wrong password). Open its **job** to try again |
 | **Not sent** | There was nothing to send: the person has no address, is no longer active, or can no longer see the record |
 
-A message that fails is tried up to five times, waiting 1, 2, 4 and 8 minutes in between.
+A message that fails is tried up to five times, waiting 1, 2, 4 and 8 minutes in between, or as long as the mail service asked (at most an hour).
+
+Text messages (below) are listed here too, as **Text message (email-to-text)** with the address, or with the provider **webhook** and the mobile number partly hidden.
+
+### Text messages
+
+Urgent alerts, such as a security incident that needs attention, can also reach people's phones as text messages ([Security incidents](07-security-incidents.md#alerts-by-email-and-text-message)). No paid service is built in. On the **Text messages** tab choose one or both ways:
+
+- **Send to email-to-text addresses**: the text is emailed, through the email settings above, to the person's email-to-text address. Many mobile carriers and enterprise messaging services give each phone such an address. Needs email switched on.
+- **Send through the webhook**: each text is posted, signed, to your own text-message system's webhook, which sends it on. Enter the **Webhook address** (https) and a **Signing secret** of at least 16 characters (kept encrypted, never shown again). It is an outbound connection: it needs outbound connections switched on and the host on the allow-list under **Administration** > **Settings**, exactly like webhooks. The format your system receives is in the [installation guide](../installation.md#text-messages-for-alerts).
+
+Select **Save text-message settings**; you may be asked to confirm your password. Changes are recorded in the audit log, never the secret.
+
+A text names only what needs attention, never details, so it is safe on a lock screen: "Sandpiper GRC: security incident SEC-0042 needs attention: a notification deadline has passed. Open the app." The **Text message (email-to-text)** template on the **Templates** tab sets how the emailed form looks; keep it short, as many services cut a text at 160 characters.
+
+### Your mobile number and email-to-text address
+
+Each person adds their own under **Account security** > **Alerts by text message**: a **Mobile number** with its country code (used through the webhook) and an **Email-to-text address**. These are personal: only the person and administrators see them, and administrators can change them on the person's page under **Administration** > **Users**. The audit log records that they changed, not the numbers. **Send a test text** sends one straight away through each way that is switched on.
 
 ## Reminders
 

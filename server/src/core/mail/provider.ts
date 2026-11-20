@@ -44,6 +44,11 @@ export interface MailResult {
   error?: string;
   /** True when trying again later might succeed (a time-out, a busy server, a 4xx reply). */
   retryable?: boolean;
+  /**
+   * How long the service asked to wait before trying again, in seconds (HTTP `Retry-After`, or a
+   * "try again in N seconds" SMTP reply), when it said (E14-30). The queue waits that long.
+   */
+  retryAfterSeconds?: number;
 }
 
 export interface MailProvider {
@@ -85,6 +90,19 @@ export function makeProvider(config: MailConfig, secret: string | null): MailPro
 
 const TIMEOUT_MS = 15_000;
 
+/**
+ * The wait a busy SMTP server names in its 4xx reply, in seconds, or null. SMTP has no standard
+ * field for it; servers write it in words: "try again in 5 minutes", "retry after 300 seconds",
+ * "try again later (60s)".
+ */
+export function smtpRetryAfter(text: string): number | null {
+  const m = /(?:try(?:ing)? again|retry|wait)\b[^0-9]{0,20}?(\d{1,5})\s*(seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h)\b/i.exec(text);
+  if (!m) return null;
+  const n = Number(m[1]);
+  const unit = m[2].toLowerCase();
+  return unit.startsWith('h') ? n * 3600 : unit.startsWith('m') ? n * 60 : n;
+}
+
 /** Turns a nodemailer error into a log line and a retry decision. */
 export function describeSmtpError(err: unknown): MailResult {
   const e = err as { code?: string; responseCode?: number; response?: string; message?: string };
@@ -93,7 +111,8 @@ export function describeSmtpError(err: unknown): MailResult {
   if (e?.code === 'EAUTH' || e?.code === 'ENOAUTH') return { ok: false, retryable: false, error: `The mail server refused the user name or password: ${text}` };
   if (typeof code === 'number') {
     // 4xx: try again later; 5xx: the server will not take this message.
-    return { ok: false, retryable: code < 500, error: `The mail server answered ${code}: ${text}` };
+    const wait = code < 500 ? smtpRetryAfter(text) : null;
+    return { ok: false, retryable: code < 500, error: `The mail server answered ${code}: ${text}`, ...(wait !== null ? { retryAfterSeconds: wait } : {}) };
   }
   if (e?.code === 'ETLS') return { ok: false, retryable: false, error: `The secure connection failed (check the TLS setting): ${text}` };
   return { ok: false, retryable: true, error: `Could not reach the mail server: ${text}` };

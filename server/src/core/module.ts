@@ -42,6 +42,12 @@ export interface FieldDef {
   /** Target record type, for type 'ref'. */
   to?: string;
   default?: unknown;
+  /**
+   * Whether the field holds personal data, which anonymizing a record at the end of its retention
+   * period replaces (E14-19, core/retention.ts). Default: true for `user` and `longtext` fields and
+   * for text fields named like an email address, a phone number or a person's name; false otherwise.
+   */
+  personal?: boolean;
   /** True for a field an administrator defined (core/customfields.ts). Its name is `cf_<key>`. */
   custom?: boolean;
   /** Custom fields: a value is a list of lookup values (multi select). */

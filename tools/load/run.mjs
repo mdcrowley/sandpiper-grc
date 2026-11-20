@@ -37,6 +37,8 @@ if (flag('help')) {
 }
 let scale = Number(opt('scale', '1')); // with --reuse: the scale of the kept records
 const concurrency = Number(opt('concurrency', '8'));
+// Records created at once while seeding: a PostgreSQL server takes more than the embedded database.
+const seedConcurrency = Math.max(1, Number(opt('seed-concurrency', '8')) || 8);
 const duration = Number(opt('duration', '15')) * 1000;
 const port = Number(opt('port', process.env.GRC_PORT ?? '8190'));
 const outDir = resolve(opt('out', join(root, 'tools/load/out')));
@@ -286,6 +288,12 @@ async function create(type, body) {
     r = await call('POST', meta.resources[type].path, body);
     const fields = r.json?.error?.fields;
     if (r.status !== 400 || !fields) break;
+    // A name that must be unique and happens to be taken (a vendor's): made unique and tried again.
+    const taken = Object.keys(fields).filter((f) => typeof body[f] === 'string' && /already (exists|in use)/i.test(String(fields[f])));
+    if (taken.length) {
+      for (const f of taken) body[f] = `${body[f]} ${++serial}`;
+      continue;
+    }
     const named = Object.keys(fields).filter((f) => f in body && !meta.resources[type].fields[f]?.required);
     if (!named.length) break;
     for (const f of named) delete body[f];
@@ -312,7 +320,7 @@ async function seedAll() {
     let failed = 0;
     let firstError = '';
     created[type] = [];
-    await pool(n, 8, async () => {
+    await pool(n, seedConcurrency, async () => {
       const r = await create(type, recordFor(type));
       if (r.status === 200 || r.status === 201) created[type].push(r.json.id);
       else { failed++; firstError ||= `${r.status} ${JSON.stringify(r.json?.error ?? r.json).slice(0, 200)}`; }
@@ -361,6 +369,20 @@ async function measure(name, once) {
 
 const ok = (r) => (r.status >= 400 ? `${r.status} ${JSON.stringify(r.json?.error ?? '').slice(0, 120)}` : null);
 
+/** Runs `fn` once every `everyMs` (one at a time) until the returned function is awaited. */
+function meanwhile(everyMs, fn) {
+  let on = true;
+  const loop = (async () => {
+    while (on) {
+      const t0 = performance.now();
+      try { await fn(); } catch { /* a failed save is not what is measured here */ }
+      const left = everyMs - (performance.now() - t0);
+      if (on && left > 0) await new Promise((r) => setTimeout(r, left));
+    }
+  })();
+  return async () => { on = false; await loop; };
+}
+
 async function scenarios() {
   const rows = [];
   const tickets = meta.resources.ticket?.path ?? '/api/tickets';
@@ -390,11 +412,23 @@ async function scenarios() {
   const present = [];
   for (const path of overview) if ((await call('GET', path)).status !== 404) present.push(path);
   const parts = Object.fromEntries(present.map((p) => [p, []]));
-  await run(`overview dashboard (${present.length} calls together)`, async () => {
+  const overviewOnce = async (record) => {
     const all = await Promise.all(present.map((p) => call('GET', p)));
-    all.forEach((r, i) => parts[present[i]].push(r.ms));
+    if (record) all.forEach((r, i) => parts[present[i]].push(r.ms));
     return all.map(ok).find(Boolean) ?? null;
+  };
+  await run(`overview dashboard (${present.length} calls together)`, () => overviewOnce(true));
+  // The same while someone saves a ticket every second (E16-38): the server keeps the Overview's
+  // figures only while nothing is written, so this is what it costs when people are also working.
+  const stop = meanwhile(1000, async () => {
+    const r = await create('ticket', recordFor('ticket'));
+    if (r.status < 400) created.ticket.push(r.json.id);
   });
+  try {
+    await run('overview dashboard, a save every second', () => overviewOnce(false));
+  } finally {
+    await stop();
+  }
   // Which of the Overview's calls people waited for: the 95th percentile of each, under the same load.
   const overviewRow = rows.find((r) => r.scenario.startsWith('overview'));
   if (overviewRow) {

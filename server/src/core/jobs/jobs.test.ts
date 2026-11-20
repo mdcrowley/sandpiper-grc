@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { ModuleDef } from '../module.ts';
 import { testApp } from '../../test/helpers.ts';
-import { ensureJobs, PermanentJobError, scheduleWork } from './index.ts';
+import { ensureJobs, PermanentJobError, RetryLaterError, requestedWait, scheduleWork } from './index.ts';
 import { makeJobQueue } from './queue.ts';
 
 // Starts the queue without relying on any module being loaded (GRC_MODULES may be anything).
@@ -15,6 +15,44 @@ const job = (id: string) => t.db.one<any>('select * from jobs where id = $1', [i
 const makeDue = (id: string) => t.db.query(`update jobs set run_at = now() - interval '1 second' where id = $1`, [id]);
 
 describe('job queue', () => {
+  it('waits as long as a handler asks before the next attempt, within bounds (E14-30)', async () => {
+    let calls = 0;
+    t.app.jobs.register('test.throttled', async () => {
+      calls += 1;
+      if (calls === 1) throw new RetryLaterError('Busy: try again in 2 minutes', 120);
+      if (calls === 2) throw Object.assign(new Error('Busy for a day'), { retryAfterSeconds: 86_400 });
+      return 'sent';
+    }, { maxAttempts: 3, backoffSeconds: 5 });
+    const { id } = await t.app.jobs.enqueue('test.throttled', {});
+    await t.app.jobs.runDue({ types: ['test.throttled'] });
+    let row = await job(id!);
+    expect(row).toMatchObject({ status: 'failed', attempts: 1, last_error: 'Busy: try again in 2 minutes' });
+    const wait = (new Date(row.run_at).getTime() - Date.now()) / 1000;
+    expect(wait).toBeGreaterThan(110);
+    expect(wait).toBeLessThan(121);
+    await makeDue(id!);
+    await t.app.jobs.runDue({ types: ['test.throttled'] });
+    row = await job(id!);
+    // At most six hours, however long the service asks for.
+    const capped = (new Date(row.run_at).getTime() - Date.now()) / 1000;
+    expect(capped).toBeGreaterThan(6 * 3600 - 15);
+    expect(capped).toBeLessThanOrEqual(6 * 3600 + 1);
+    await makeDue(id!);
+    await t.app.jobs.runDue({ types: ['test.throttled'] });
+    expect(await job(id!)).toMatchObject({ status: 'done', attempts: 3 });
+  });
+
+  it('still gives up after the last attempt, even when asked to wait', async () => {
+    t.app.jobs.register('test.always_busy', async () => { throw new RetryLaterError('Still busy', 30); }, { maxAttempts: 1 });
+    const { id } = await t.app.jobs.enqueue('test.always_busy', {});
+    await t.app.jobs.runDue({ types: ['test.always_busy'] });
+    expect(await job(id!)).toMatchObject({ status: 'dead', attempts: 1 });
+    expect(requestedWait(new Error('plain'))).toBeNull();
+    expect(requestedWait({ retryAt: new Date(Date.now() - 5000) })).toBe(1);
+    expect(requestedWait({ retryAt: new Date(Date.now() + 90_500) })).toBeGreaterThanOrEqual(90);
+  });
+
+
   it('runs a queued job once and keeps its result', async () => {
     let calls = 0;
     t.app.jobs.register('test.ok', async (payload) => { calls += 1; return { doubled: payload.n * 2 }; });

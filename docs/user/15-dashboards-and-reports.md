@@ -168,7 +168,7 @@ Reports, dashboards and report packs each have **Who can see it**: **Only me**, 
 
 ## Report packs
 
-A report pack is a document for a governing body or an auditor: a cover page followed by an ordered set of saved reports and text sections. Open **Report packs**. The **Governing body security pack** comes with the application (a summary to write, framework progress, top risks, overdue actions and incidents).
+A report pack is a document for a board, directors, owners, senior leadership or an auditor: a cover page followed by an ordered set of saved reports and text sections. Open **Report packs**. The **Leadership security pack** comes with the application (installations set up before this version have it as the **Governing body security pack**; rename it on its page if you like) (a summary to write, framework progress, top risks, overdue actions and incidents).
 
 - Open a pack to see it as it will print: the cover page with the title, subtitle, "Figures as at" and "Prepared by", a contents list, then one section per page.
 - **Print** prints the page from the browser (each section starts on a new sheet). **Download** (needs the reports export permission) offers **PDF** (a cover page, then one section per page, with page numbers), **Excel (XLSX)** (one sheet per report) or **Print-ready page**, which opens the same pack as a separate page.

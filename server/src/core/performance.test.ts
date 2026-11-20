@@ -1,4 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import Fastify from 'fastify';
+import { startupTimeoutMs, timeStartupSteps } from '../app.ts';
 import { testApp } from '../test/helpers.ts';
 import { isWrite, openDb } from './db.ts';
 import { indexedTable } from './search.ts';
@@ -73,6 +75,10 @@ describe('statements per request (E16-38)', () => {
     }
   });
 
+  it('gives the start-up steps of the server the start-up time limit (E16-39)', () => {
+    expect(t.app.initialConfig.pluginTimeout).toBe(startupTimeoutMs());
+  });
+
   it('refuses a disabled person at once', async () => {
     const agent = await t.as('agent');
     expect((await agent.get('/api/users/options')).status).toBe(200);
@@ -97,6 +103,17 @@ describe('write generation (E16-38)', () => {
       expect(db.generation!()).toBe(start + 2);
       await db.tx(async (tx) => { await tx.query('select 1'); });
       expect(db.generation!()).toBe(start + 3);
+      // A trial (always rolled back, E13-22): its writes and its end count, so nothing read while
+      // it ran is kept as current, and its rows are gone afterwards.
+      const before = db.generation!();
+      let during = 0;
+      await db.trial!(async () => {
+        await db.query(`insert into g values (2, 'trial')`);
+        during = db.generation!();
+      });
+      expect(during).toBeGreaterThan(before);
+      expect(db.generation!()).toBeGreaterThan(during);
+      expect(await db.one(`select 1 from g where id = 2`)).toBeUndefined();
     } finally {
       await db.close();
     }
@@ -155,6 +172,33 @@ describe('figures cache (E16-38)', () => {
     expect((await two.get('/api/actions/summary')).body.mine.open).toBe(0);
   });
 
+  it('never gives a person\'s kept figures to their API token when the token lacks the permission', async () => {
+    const lead = await t.as('security_lead');
+    const made = await lead.post('/api/me/tokens', { name: 'Tickets only', scopes: ['tickets.view'], expiresInDays: 5 });
+    expect(made.status).toBe(201);
+    const withToken = (url: string) => t.app.inject({ method: 'GET', url, headers: { authorization: `Bearer ${made.body.token}` } });
+    expect((await withToken('/api/tickets?pageSize=1')).statusCode).toBe(200); // records its first use (a write)
+    expect((await lead.get('/api/actions/summary')).status).toBe(200);
+    expect(routeStatements(await statements(t, () => lead.get('/api/actions/summary')))).toEqual([]); // kept
+    expect((await withToken('/api/actions/summary')).statusCode).toBe(403);
+    // The same for a figure about "me".
+    expect((await lead.get('/api/actions/stats?group=status&f.owner_id=me')).status).toBe(200);
+    expect((await withToken('/api/actions/stats?group=status&f.owner_id=me')).statusCode).toBe(403);
+  });
+
+  it('keeps a figure about "me" per person, however the query spells it', async () => {
+    const one = await t.as('security_lead');
+    const two = await t.as('security_lead');
+    await one.post('/api/actions', { title: 'Counted for one', source: 'other', owner_id: one.userId });
+    for (const q of ['f.owner_id=me', 'f.owner_id=%6De', 'f.owner_id=x,me']) {
+      const a = (await one.get(`/api/actions/stats?group=status&${q}`)).body.total;
+      const b = (await two.get(`/api/actions/stats?group=status&${q}`)).body.total;
+      expect(a).toBeGreaterThan(0);
+      expect(b).toBe(0);
+    }
+    expect((await one.get('/api/actions/stats?group=status&f.owner_id=%E0%A4%A')).status).toBeLessThan(500);
+  });
+
   it('expires by time even with nothing written', async () => {
     await t.api.get('/api/risks/summary');
     const kept = await statements(t, () => t.api.get('/api/risks/summary'));
@@ -205,5 +249,100 @@ describe('a record type that is a view is searched through the index (E16-38)', 
     // A change through the view reaches the index.
     await t.api.patch(`/api/vulnerabilities/${made.body.id}`, { title: 'Expired certificate on depot gateways' });
     expect((await t.api.get('/api/vulnerabilities?q=certificate')).body.rows.map((r: any) => r.id)).toContain(made.body.id);
+  });
+});
+
+describe('start-up timing (E16-39)', () => {
+  const env = process.env.GRC_STARTUP_WARN_MS;
+  afterEach(() => { if (env === undefined) delete process.env.GRC_STARTUP_WARN_MS; else process.env.GRC_STARTUP_WARN_MS = env; });
+
+  it('names a slow start-up step after where it was added, with the phases before it', async () => {
+    process.env.GRC_STARTUP_WARN_MS = '20';
+    const app = Fastify();
+    const timing = timeStartupSteps(app, [{ name: 'opening the database', ms: 3 }, { name: 'migrations', ms: 4 }]);
+    app.addHook('onReady', async () => { await new Promise((r) => setTimeout(r, 40)); });
+    app.addHook('onReady', async () => { /* quick */ });
+    await app.ready();
+    expect(timing.steps).toHaveLength(2);
+    const line = timing.report();
+    expect(line).toMatch(/^\[start\] start-up took \d+ ms: opening the database 3 ms, migrations 4 ms, start-up steps \d+ ms/);
+    expect(line).toMatch(/the longest steps: core\/performance\.test\.ts:\d+ \d+ ms/);
+    await app.close();
+  });
+
+  it('stays quiet when the start was quick', async () => {
+    process.env.GRC_STARTUP_WARN_MS = '5000';
+    const app = Fastify();
+    const timing = timeStartupSteps(app, [{ name: 'opening the database', ms: 3 }]);
+    app.addHook('onReady', async () => { /* quick */ });
+    await app.ready();
+    expect(timing.report()).toBeNull();
+    await app.close();
+  });
+});
+
+describe('global search with no type that has a reference (E16-38)', () => {
+  let t: T;
+  const env = process.env.GRC_MODULES;
+  beforeAll(async () => {
+    process.env.GRC_MODULES = 'none-of-the-modules';
+    t = await testApp({
+      extraModules: [{
+        key: 'refless',
+        async seedDefaults(ctx) {
+          await ctx.db.exec(`create table if not exists refless_notes (
+            id uuid primary key default gen_random_uuid(), title text not null,
+            created_at timestamptz not null default now(), created_by uuid,
+            updated_at timestamptz not null default now(), updated_by uuid, deleted_at timestamptz);`);
+        },
+        async register(ctx) {
+          ctx.defineResource({
+            type: 'reflessnote', table: 'refless_notes', module: 'tickets', label: 'Note', plural: 'Notes',
+            path: '/api/refless-notes', route: '/refless-notes', titleField: 'title', searchable: ['title'],
+            fields: { title: { label: 'Title', type: 'text', required: true } },
+          });
+        },
+      }],
+    });
+  });
+  afterAll(async () => {
+    await t.close();
+    if (env === undefined) delete process.env.GRC_MODULES; else process.env.GRC_MODULES = env;
+  });
+
+  it('finds by one word and by two (no unused, untyped parameter)', async () => {
+    const made = await t.api.post('/api/refless-notes', { title: 'River terminal display outage' });
+    expect(made.status).toBeLessThan(300);
+    for (const q of ['terminal', 'river terminal']) {
+      const found = await t.api.get(`/api/search?q=${encodeURIComponent(q)}`);
+      expect(found.status).toBe(200);
+      expect(found.body.map((r: any) => r.id)).toContain(made.body.id);
+    }
+  });
+});
+
+describe('start-up time limit (E16-39)', () => {
+  const env = process.env.GRC_STARTUP_TIMEOUT_SECONDS;
+  afterEach(() => { if (env === undefined) delete process.env.GRC_STARTUP_TIMEOUT_SECONDS; else process.env.GRC_STARTUP_TIMEOUT_SECONDS = env; });
+
+  it('gives a start-up step ten minutes by default, and takes a setting of at least ten seconds', () => {
+    delete process.env.GRC_STARTUP_TIMEOUT_SECONDS;
+    expect(startupTimeoutMs()).toBe(600_000);
+    process.env.GRC_STARTUP_TIMEOUT_SECONDS = '120';
+    expect(startupTimeoutMs()).toBe(120_000);
+    process.env.GRC_STARTUP_TIMEOUT_SECONDS = '2';
+    expect(startupTimeoutMs()).toBe(600_000);
+  });
+
+  it('lets a step run longer than Fastify\'s own ten seconds would (shown with a shorter limit)', async () => {
+    const app = Fastify({ pluginTimeout: 300 });
+    timeStartupSteps(app);
+    app.addHook('onReady', async () => { await new Promise((r) => setTimeout(r, 600)); });
+    await expect(app.ready()).rejects.toThrow(/timed out/);
+    const roomy = Fastify({ pluginTimeout: 2000 });
+    timeStartupSteps(roomy);
+    roomy.addHook('onReady', async () => { await new Promise((r) => setTimeout(r, 600)); });
+    await expect(roomy.ready()).resolves.toBeTruthy();
+    await roomy.close();
   });
 });

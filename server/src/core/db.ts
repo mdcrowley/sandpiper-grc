@@ -1,4 +1,5 @@
 import { mkdirSync, readFileSync } from 'node:fs';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomBytes } from 'node:crypto';
 import { PGlite } from '@electric-sql/pglite';
 import { pg_trgm } from '@electric-sql/pglite/contrib/pg_trgm';
@@ -31,6 +32,13 @@ export interface Queryable {
 export interface Db extends Queryable {
   /** Inside the callback use ONLY the `tx` argument: the outer handle waits for the transaction. */
   tx<T>(fn: (tx: Queryable) => Promise<T>): Promise<T>;
+  /**
+   * Runs `fn` inside a transaction that is always rolled back (E13-22: the import check). While it
+   * runs, every query made on this handle from `fn`'s own work (the resource engine, hooks, audit,
+   * lookups) goes into that transaction, so nothing waits for it and nothing it writes is kept; a
+   * `tx` inside it is a savepoint. Code with effects outside the database checks `inTrial()`.
+   */
+  trial?<T>(fn: () => Promise<T>): Promise<T>;
   close(): Promise<void>;
   /** The folder the database lives in, or 'memory'. Files that belong beside the database (the secret key) go here. */
   dataDir: string;
@@ -44,6 +52,77 @@ export interface Db extends Queryable {
   generation?(): number;
   /** Called once the server has started: background upkeep (the embedded database's analyze) may begin. */
   started?(): void;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Trials: work run in a transaction that is always rolled back (E13-22)
+
+interface TrialScope { owner: Db; tx: Queryable; open: boolean }
+const trials = new AsyncLocalStorage<TrialScope>();
+class TrialRollback extends Error {}
+
+/**
+ * True while the current work runs inside `Db.trial` (and in anything it scheduled meanwhile).
+ * Work with effects outside the database (sending, delivering, running queued jobs) is skipped then.
+ */
+export function inTrial(): boolean {
+  return trials.getStore() !== undefined;
+}
+
+/**
+ * Adds `trial` to a handle. Queries on the handle from work running inside a trial go to the trial's
+ * transaction: the embedded database serves one transaction at a time, so a query on the outer
+ * handle there would wait for ever, and on a server it would not see the trial's own rows.
+ */
+export function withTrials(db: Db): Db {
+  const base = { query: db.query, one: db.one, exec: db.exec, tx: db.tx };
+  let savepoints = 0;
+  const current = (): Queryable | null => {
+    const s = trials.getStore();
+    if (!s || s.owner !== routed) return null;
+    // Work a trial started but did not wait for (a promise left running) is discarded with it.
+    if (!s.open) throw new Error('The check has finished; work it started is discarded.');
+    return s.tx;
+  };
+  const routed: Db = {
+    ...db,
+    query: (sql, params) => (current() ?? base).query(sql, params),
+    one: (sql, params) => (current() ?? base).one(sql, params),
+    exec: (sql) => (current() ?? base).exec(sql),
+    async tx(fn) {
+      const t = current();
+      if (!t) return base.tx(fn);
+      const name = `grc_trial_${++savepoints}`;
+      await t.exec(`savepoint ${name}`);
+      try {
+        const result = await fn(t);
+        await t.exec(`release savepoint ${name}`);
+        return result;
+      } catch (err) {
+        await t.exec(`rollback to savepoint ${name}`);
+        throw err;
+      }
+    },
+    async trial<T>(fn: () => Promise<T>): Promise<T> {
+      if (trials.getStore()) throw new Error('A trial cannot start inside another one.');
+      let result: T | undefined;
+      try {
+        await base.tx(async (tx) => {
+          const scope: TrialScope = { owner: routed, tx, open: true };
+          try {
+            result = await trials.run(scope, fn);
+          } finally {
+            scope.open = false;
+          }
+          throw new TrialRollback();
+        });
+      } catch (err) {
+        if (!(err instanceof TrialRollback)) throw err;
+      }
+      return result as T;
+    },
+  };
+  return routed;
 }
 
 /** Counts this handle's writes (see Db.generation). */
@@ -318,7 +397,7 @@ async function openEmbedded(dataDir: string): Promise<Db> {
   const analyze = dataDir === 'memory' ? null : makeAutoAnalyze(async () => { await lite.exec('analyze'); }, { waitForStart: true });
   const wrote = analyze ? () => analyze.wrote() : undefined;
   const writes = makeWriteCounter();
-  return {
+  return withTrials({
     ...wrapLite(lite, wrote, writes),
     tx: async (fn) => {
       try {
@@ -335,7 +414,7 @@ async function openEmbedded(dataDir: string): Promise<Db> {
     },
     dataDir,
     driver: 'embedded',
-  };
+  });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -426,7 +505,7 @@ export async function openServerDb(opts: ServerDbOptions): Promise<Db> {
 
   let closed = false;
   const writes = makeWriteCounter();
-  return {
+  return withTrials({
     ...wrapPg(fromPool, writes),
     generation: writes.get,
     async tx<T>(fn: (tx: Queryable) => Promise<T>): Promise<T> {
@@ -460,7 +539,7 @@ export async function openServerDb(opts: ServerDbOptions): Promise<Db> {
     },
     dataDir: opts.dataDir,
     driver: 'server',
-  };
+  });
 }
 
 // ---------------------------------------------------------------------------------------------

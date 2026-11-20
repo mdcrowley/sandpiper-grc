@@ -13,6 +13,17 @@ import { OpsError } from './errors.ts';
 //
 // After each migration run as the owner, the run-time role is granted what it needs on every
 // table and sequence in the schema. See docs/installation.md, "A least-privilege database role".
+//
+// Schema changes at run time (E16-37). Two things used to change the schema while the server ran:
+// a new custom field added the `custom` column to its record table, and a changed search
+// definition rebuilt that type's search trigger. The run-time role now never attempts either:
+// - the owner's run gives every record table the `custom` column up front (`addCustomColumns`),
+//   so custom fields need no schema change when they are defined;
+// - a search trigger whose definition changed (a text custom field added, an upgrade) is recorded
+//   in `schema_requests` and rebuilt by the owner's next run, from the application's own
+//   definitions; meanwhile the type keeps its earlier trigger, so search keeps working.
+// Chosen over a SECURITY DEFINER function, which would give the run-time role a standing way to
+// change the schema and would need the trigger text passed to it (core/search.ts builds it).
 
 const DB_VARS = ['GRC_DATABASE_URL', 'GRC_DATABASE_URL_FILE', 'GRC_DATABASE_PASSWORD', 'GRC_DATABASE_PASSWORD_FILE'] as const;
 
@@ -85,8 +96,45 @@ export async function asOwner<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
+/**
+ * Gives every record table the `custom` column for custom fields (E16-37), so that defining a custom
+ * field never needs a schema change from the run-time role. Views are skipped (they cannot hold
+ * custom values). Run as the owner. Returns the tables changed.
+ */
+export async function addCustomColumns(db: Queryable, tables: string[]): Promise<string[]> {
+  const names = [...new Set(tables)].filter((t) => /^[a-z_][a-z0-9_]*$/.test(t));
+  if (!names.length) return [];
+  const missing = await db.query<{ t: string }>(
+    `select c.relname::text as t from pg_class c
+     where c.relnamespace = to_regnamespace(current_schema()) and c.relkind in ('r', 'p') and c.relname = any($1::text[])
+       and not exists (select 1 from pg_attribute a where a.attrelid = c.oid and a.attname = 'custom' and not a.attisdropped)
+     order by 1`, [names]);
+  for (const { t } of missing) await db.exec(`alter table ${ident(t)} add column if not exists custom jsonb not null default '{}'`);
+  if (await db.one(`select to_regclass('schema_requests')::text as t`).then((r) => r?.t)) {
+    await db.query(`delete from schema_requests where kind = 'custom_column'`);
+  }
+  return missing.map((m) => m.t);
+}
+
+/** Schema changes the server recorded because it could not make them (E16-37). */
+export async function pendingSchemaRequests(db: Queryable): Promise<{ kind: string; target: string; detail: string | null }[]> {
+  if (!(await db.one(`select to_regclass('schema_requests')::text as t`))?.t) return [];
+  return db.query('select kind, target, detail from schema_requests order by requested_at, kind, target');
+}
+
+/** What the application gives `migrateAsOwner`: its database and, when built, its record types. */
+export interface OwnerBuild {
+  db: Queryable;
+  close: () => Promise<void>;
+  core?: { resources?: { registry: { all(): { table: string }[] } } };
+}
+
 export interface OwnerMigration {
   applied: string[];
+  /** Record tables given the custom-field column (E16-37). */
+  customColumns: string[];
+  /** Schema changes still waiting after the run (normally none). */
+  pending: string[];
   /** The role granted run-time privileges, or null when none was named. */
   granted: string | null;
   tables: number;
@@ -98,23 +146,27 @@ export interface OwnerMigration {
  */
 export async function migrateAsOwner(
   dataDir: string,
-  build: (dataDir: string) => Promise<{ db: Queryable; close: () => Promise<void> }>,
+  build: (dataDir: string) => Promise<OwnerBuild>,
 ): Promise<OwnerMigration | null> {
   if (!migrateUrl()) return null;
   if (!databaseUrl()) throw new OpsError('GRC_DATABASE_MIGRATE_URL is for a PostgreSQL server: set GRC_DATABASE_URL (the run-time account) too.');
   const role = runtimeRole();
   return asOwner(async () => {
     const before = new Set((await readAppliedMigrations(dataDir)) ?? []);
-    const { db, close } = await build(dataDir);
+    const { db, close, core } = await build(dataDir);
     try {
       const applied = (await appliedMigrations(db)).filter((n) => !before.has(n));
+      // Building the application as the owner already rebuilt every search trigger whose
+      // definition changed (and cleared those requests); give every record table its custom column.
+      const customColumns = await addCustomColumns(db, (core?.resources?.registry.all() ?? []).map((d) => d.table));
+      const pending = (await pendingSchemaRequests(db)).map((r) => r.detail ?? `${r.kind} ${r.target}`);
       let granted: string | null = null;
       let tables = 0;
       if (role) {
         tables = (await grantRuntimeRole(db, role)).tables;
         granted = role;
       }
-      return { applied, granted, tables };
+      return { applied, customColumns, pending, granted, tables };
     } finally {
       await close();
     }

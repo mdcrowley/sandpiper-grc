@@ -1,5 +1,5 @@
 // Administration > Sign-in providers (/admin/sign-in-providers): single sign-on with the
-// organization's identity provider (OpenID Connect or SAML 2.0), the password switch and the break-glass account.
+// organization's identity provider (OpenID Connect or SAML 2.0) or directory (LDAP), the password switch and the break-glass account.
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -25,6 +25,11 @@ export interface ProviderConfig {
   idpEntityId?: string; ssoUrl?: string; sloUrl?: string; idpCerts?: string[]; spEntityId?: string;
   nameIdFormat?: string; emailAttribute?: string; nameAttribute?: string; groupsAttribute?: string;
   signRequests?: boolean; wantAssertionsSigned?: boolean; encryptAssertions?: boolean;
+  /** E02-27: act on sign-outs the identity provider starts. E02-28: signed metadata and its daily refresh. */
+  idpLogout?: boolean; metadataUrl?: string; metadataCert?: string; metadataRefresh?: boolean; metadataCheckedAt?: string | null; metadataStatus?: string;
+  /** E02-26: directory (LDAP) settings. */
+  directory?: 'ad' | 'openldap' | 'other'; url?: string; startTls?: boolean; caCert?: string; bindDn?: string; userDnTemplate?: string;
+  baseDn?: string; userFilter?: string; idAttribute?: string; groupSource?: 'memberOf' | 'search'; groupBaseDn?: string; groupFilter?: string; nestedGroups?: boolean;
 }
 export interface CertificateFacts { fingerprint: string; subject: string; notBefore: string; notAfter: string; expired: boolean; key: string }
 export interface Provider {
@@ -99,7 +104,7 @@ export function ProvidersPage() {
               {data.providers.length === 0 ? (
                 <EmptyState
                   icon="lock" title="No sign-in providers yet"
-                  message="Everyone signs in with a password. Add your organization's OpenID Connect or SAML 2.0 identity provider to offer single sign-on."
+                  message="Everyone signs in with a password. Add your organization's OpenID Connect or SAML 2.0 identity provider to offer single sign-on, or its directory (LDAP) to sign in with directory passwords."
                   action={<Button variant="primary" icon="plus" onClick={() => setEditing('new')}>Add provider</Button>}
                 />
               ) : (
@@ -117,7 +122,7 @@ export function ProvidersPage() {
                           <td className="adm-wrap">
                             <button type="button" className="adm-link-button" onClick={() => setEditing(p)}>{p.name}</button>
                             {p.isDefault && <> <StatusChip color="blue" label="Default" size="sm" /></>}
-                            <div className="muted adm-small adm-break">{p.type === 'saml' ? p.config.idpEntityId : p.config.issuer}</div>
+                            <div className="muted adm-small adm-break">{p.type === 'saml' ? p.config.idpEntityId : p.type === 'ldap' ? p.config.url : p.config.issuer}</div>
                           </td>
                           <td className="adm-small">{p.typeLabel}</td>
                           <td>{p.linked}</td>
@@ -125,9 +130,12 @@ export function ProvidersPage() {
                             <span className="row adm-chips">
                               {p.config.mappingEnabled && <StatusChip color="purple" label="Role mapping" size="sm" />}
                               {p.config.jitEnabled && <StatusChip color="amber" label="Creates accounts" size="sm" />}
-                              {p.type !== 'saml' && !p.hasSecret && p.config.tokenAuth !== 'none' && <StatusChip color="red" label="No client secret" size="sm" />}
+                              {p.type === 'oidc' && !p.hasSecret && p.config.tokenAuth !== 'none' && <StatusChip color="red" label="No client secret" size="sm" />}
+                              {p.type === 'ldap' && p.config.bindDn && !p.hasSecret && <StatusChip color="red" label="No service account password" size="sm" />}
+                              {p.type === 'ldap' && p.config.caCert && <StatusChip color="blue" label="Pinned CA" size="sm" />}
                               {p.type === 'saml' && <SamlChips p={p} />}
-                              {!p.config.mappingEnabled && !p.config.jitEnabled && p.type !== 'saml' && (p.hasSecret || p.config.tokenAuth === 'none') && <span className="muted adm-small">None</span>}
+                              {!p.config.mappingEnabled && !p.config.jitEnabled && p.type === 'oidc' && (p.hasSecret || p.config.tokenAuth === 'none') && <span className="muted adm-small">None</span>}
+                              {!p.config.mappingEnabled && !p.config.jitEnabled && p.type === 'ldap' && !p.config.caCert && (p.hasSecret || !p.config.bindDn) && <span className="muted adm-small">None</span>}
                             </span>
                           </td>
                           <td><Switch label={`${p.name} switched on`} hideLabel checked={p.enabled} disabled={busy === `toggle-${p.id}`} onChange={(on) => void toggle(p, on)} /></td>
@@ -182,7 +190,8 @@ function SamlChips({ p }: { p: Provider }) {
         : soon ? <StatusChip color="amber" label="Certificate expires soon" size="sm" /> : null}
       {p.sp && !p.sp.keyReadable && <StatusChip color="red" label="Key unreadable" size="sm" />}
       {p.config.encryptAssertions && <StatusChip color="blue" label="Encrypted" size="sm" />}
-      {!p.config.mappingEnabled && !p.config.jitEnabled && live.length > 0 && !soon && p.sp?.keyReadable !== false && !p.config.encryptAssertions && <span className="muted adm-small">None</span>}
+      {p.config.metadataRefresh && <StatusChip color={/^Not refreshed/.test(p.config.metadataStatus ?? '') ? 'red' : 'green'} label={/^Not refreshed/.test(p.config.metadataStatus ?? '') ? 'Metadata refresh failing' : 'Metadata refreshed daily'} size="sm" />}
+      {!p.config.mappingEnabled && !p.config.jitEnabled && live.length > 0 && !soon && p.sp?.keyReadable !== false && !p.config.encryptAssertions && !p.config.metadataRefresh && <span className="muted adm-small">None</span>}
     </>
   );
 }

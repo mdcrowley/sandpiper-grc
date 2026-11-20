@@ -27,6 +27,7 @@ const put = (patch: Record<string, unknown>) => t.api.put('/api/admin/mail/setti
 const testTo = () => t.api.post('/api/admin/mail/test', { to: 'checker@example.org' });
 const log = (id: string) => t.db.one<any>('select * from mail_log where id = $1', [id]);
 const run = () => t.app.jobs.runDue({ types: ['mail.send'] });
+const jobRow = (logId: string) => t.db.one<any>('select j.* from jobs j join mail_log l on l.job_id = j.id where l.id = $1', [logId]);
 const due = (logId: string) => t.db.query(`update jobs set run_at = now() - interval '1 second' where id = (select job_id from mail_log where id = $1)`, [logId]);
 const base = { fromAddress: 'grc@example.org', fromName: 'Sandpiper', baseUrl: 'https://grc.example.org' };
 
@@ -89,6 +90,18 @@ describe('Microsoft Graph', () => {
     const failed = await log(res.logIds[0]);
     expect(failed).toMatchObject({ status: 'failed', attempts: 1 });
     expect(failed.error).toMatch(/throttled.*7 seconds/);
+    // The next attempt waits as long as Graph asked (E14-30), not the queue's one minute.
+    const wait = (new Date((await jobRow(res.logIds[0])).run_at).getTime() - Date.now()) / 1000;
+    expect(wait).toBeGreaterThan(4);
+    expect(wait).toBeLessThan(9);
+    // A date works too, and a wait longer than an hour is cut to an hour.
+    fake.failNext('/sendMail', { status: 503, body: { error: { code: 'ServiceUnavailable', message: 'Busy.' } }, headers: { 'retry-after': new Date(Date.now() + 3 * 3600_000).toUTCString() } });
+    const later = await t.app.sendMail({ to: 'later@example.org', subject: 'Much later', text: 'Busy.' });
+    await run();
+    const hour = (new Date((await jobRow(later.logIds[0])).run_at).getTime() - Date.now()) / 1000;
+    expect(hour).toBeGreaterThan(3500);
+    expect(hour).toBeLessThanOrEqual(3601);
+    await due(later.logIds[0]);
     await due(res.logIds[0]);
     await run();
     expect(await log(res.logIds[0])).toMatchObject({ status: 'sent', attempts: 2 });
@@ -136,13 +149,45 @@ describe('Microsoft Graph', () => {
     expect(res.body.status).toBe('sent');
   });
 
-  it('refuses a message too large for one Graph request', async () => {
-    const big = Buffer.alloc(3_500_000, 1);
-    const res = await t.app.sendMail({ to: 'big@example.org', subject: 'Big', text: 'Files.', attachments: [{ filename: 'big.bin', content: big }] });
+  it('sends a message larger than one Graph request as a draft with its files uploaded in chunks (E14-29)', async () => {
+    const big = Buffer.alloc(5_000_000, 7);
+    const small = Buffer.from('Depot gate inspection notes.');
+    fake.microsoft.chunks = [];
+    const res = await t.app.sendMail({
+      to: 'big@example.org', subject: 'Big', text: 'Files.', headers: { References: '<ticket.1@grc.invalid>', 'X-GRC-Ticket': 'TKT-00042' },
+      attachments: [{ filename: 'big.bin', content: big, contentType: 'application/octet-stream' }, { filename: 'notes.txt', content: small, contentType: 'text/plain' }],
+    });
     await run();
     const row = await log(res.logIds[0]);
-    expect(row.status).toBe('dead');
-    expect(row.error).toMatch(/at most about 3 MB/);
+    expect(row).toMatchObject({ status: 'sent', provider: 'graph' });
+    const sent = fake.microsoft.sent.at(-1)!;
+    expect(sent.mime).toBe('');
+    const d = sent.draft!;
+    expect(d.mailbox).toBe('grc@example.org');
+    expect(d.message).toMatchObject({ subject: 'Big', toRecipients: [{ emailAddress: { address: 'big@example.org' } }], internetMessageId: expect.stringMatching(/^<.+>$/) });
+    expect(d.message.internetMessageId).toBe(row.message_id);
+    // The loop guards stay headers; threading goes in the properties Exchange writes those headers from.
+    const names = d.message.internetMessageHeaders.map((h: any) => h.name);
+    expect(names).toEqual(expect.arrayContaining(['X-GRC-Mail', 'X-Auto-Response-Suppress', 'X-GRC-Ticket']));
+    expect(names.length).toBeLessThanOrEqual(5);
+    expect(d.message.singleValueExtendedProperties).toEqual([{ id: 'String 0x1039', value: '<ticket.1@grc.invalid>' }]);
+    expect(d.attachments.map((a) => [a.name, a.content.length])).toEqual([['big.bin', 5_000_000], ['notes.txt', small.length]]);
+    expect(d.attachments[0].content.equals(big)).toBe(true);
+    // Two chunks, the access token never sent to the upload address.
+    expect(fake.microsoft.chunks.map((c) => c.range)).toEqual(['bytes 0-3276799/5000000', 'bytes 3276800-4999999/5000000']);
+    expect(fake.microsoft.chunks.every((c) => !c.authorized)).toBe(true);
+    expect(fake.microsoft.drafts.size).toBe(0);
+  });
+
+  it('removes the draft when a larger message fails part way, and tries again', async () => {
+    fake.failNext('/graph-upload/', { status: 503, body: { error: { code: 'ServiceUnavailable', message: 'Busy.' } }, headers: { 'retry-after': '3' } });
+    const res = await t.app.sendMail({ to: 'big@example.org', subject: 'Big again', text: 'Files.', attachments: [{ filename: 'big.bin', content: Buffer.alloc(4_000_000, 2) }] });
+    await run();
+    expect(await log(res.logIds[0])).toMatchObject({ status: 'failed' });
+    expect(fake.microsoft.drafts.size).toBe(0);
+    await due(res.logIds[0]);
+    await run();
+    expect(await log(res.logIds[0])).toMatchObject({ status: 'sent', attempts: 2 });
   });
 });
 

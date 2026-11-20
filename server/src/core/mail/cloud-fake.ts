@@ -9,6 +9,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from 'node:net';
 
 export interface FakeMessage { id: string; raw: string; read: boolean; folder: 'inbox' | 'deleted' }
+export interface FakeDraft { id: string; mailbox: string; message: any; attachments: { name: string; contentType: string; content: Buffer }[] }
 export interface CannedAnswer { status: number; body?: unknown; headers?: Record<string, string> }
 
 export interface FakeCloud {
@@ -21,8 +22,13 @@ export interface FakeCloud {
     /** Mailboxes that exist, and the ones the app may use. */
     mailboxes: Set<string>; allowed: Set<string>;
     tokensIssued: number;
-    sent: { mailbox: string; mime: string }[];
+    /** Messages sent: as MIME through sendMail, or as a sent draft (E14-29; `mime` is then empty). */
+    sent: { mailbox: string; mime: string; draft?: FakeDraft }[];
     inbox: Map<string, FakeMessage[]>;
+    /** Drafts waiting to be sent, by id. */
+    drafts: Map<string, FakeDraft>;
+    /** Every upload-session chunk received, for checking the chunking. */
+    chunks: { range: string; bytes: number; authorized: boolean }[];
   };
   google: {
     clientEmail: string; key: KeyObject; publicKey: KeyObject;
@@ -60,13 +66,14 @@ export async function startFakeCloud(): Promise<FakeCloud> {
   const calls: { method: string; path: string }[] = [];
   const msTokens = new Set<string>();
   const gTokens = new Map<string, { sub: string; scope: string }>();
+  const uploads = new Map<string, { draft: FakeDraft; name: string; contentType: string; size: number; received: Buffer }>();
 
   const fake: FakeCloud = {
     base: '', endpoints: { microsoftLogin: '', graph: '', googleToken: '', gmail: '' },
     microsoft: {
       tenantId: '11111111-2222-3333-4444-555555555555', clientId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', clientSecret: 'fake~graph.secret_value',
       certificateKey: null, mailboxes: new Set(['desk@example.org', 'grc@example.org']), allowed: new Set(['desk@example.org', 'grc@example.org']),
-      tokensIssued: 0, sent: [], inbox: new Map(),
+      tokensIssued: 0, sent: [], inbox: new Map(), drafts: new Map(), chunks: [],
     },
     google: {
       clientEmail: 'grc-mailer@example-project.iam.gserviceaccount.test', key: gKey, publicKey: gPub,
@@ -116,6 +123,43 @@ export async function startFakeCloud(): Promise<FakeCloud> {
     if (!ms.allowed.has(mailbox)) return json(res, 403, { error: { code: 'ErrorAccessDenied', message: 'Access is denied. Check credentials and try again.' } });
     const box = ms.inbox.get(mailbox) ?? [];
     ms.inbox.set(mailbox, box);
+    // Larger messages (E14-29): a draft, its files, an upload session, then send. Graph takes at most 4 MB a request.
+    const draftPath = /^\/messages(?:\/([^/]+)(\/attachments(?:\/createUploadSession)?|\/send)?)?$/.exec(rest);
+    const draftId = draftPath?.[1] ? decodeURIComponent(draftPath[1]) : null;
+    if (draftPath && (!draftId || ms.drafts.has(draftId))) {
+      const raw = await bodyOf(req);
+      if (raw.length > 4 * 1024 * 1024) return json(res, 413, { error: { code: 'RequestEntityTooLarge', message: 'The request is larger than 4 MB.' } });
+      const b = raw.length ? JSON.parse(raw.toString('utf8')) : {};
+      if (req.method === 'POST' && !draftId) {
+        const headers: { name: string; value: string }[] = b.internetMessageHeaders ?? [];
+        if (headers.length > 5) return json(res, 400, { error: { code: 'InvalidInternetMessageHeaderCollection', message: 'Maximum number of headers in one message should be less than or equal to 5.' } });
+        if (headers.some((h) => !/^x-/i.test(h.name))) return json(res, 400, { error: { code: 'InvalidInternetMessageHeader', message: 'The internet message header name should start with \'x-\' or \'X-\'.' } });
+        const id = `draft-${randomUUID()}`;
+        ms.drafts.set(id, { id, mailbox, message: b, attachments: [] });
+        return json(res, 201, { id, isDraft: true });
+      }
+      const draft = ms.drafts.get(draftId!)!;
+      if (req.method === 'DELETE' && !draftPath[2]) { ms.drafts.delete(draft.id); res.writeHead(204); return res.end(); }
+      if (req.method === 'POST' && draftPath[2] === '/attachments') {
+        if (b['@odata.type'] !== '#microsoft.graph.fileAttachment') return json(res, 400, { error: { code: 'ErrorInvalidRequest', message: 'Expected a file attachment.' } });
+        draft.attachments.push({ name: b.name, contentType: b.contentType, content: Buffer.from(b.contentBytes, 'base64') });
+        return json(res, 201, { id: `att-${draft.attachments.length}` });
+      }
+      if (req.method === 'POST' && draftPath[2] === '/attachments/createUploadSession') {
+        const item = b.AttachmentItem ?? {};
+        if (item.attachmentType !== 'file' || !(item.size > 3 * 1024 * 1024)) return json(res, 400, { error: { code: 'ErrorAttachmentSizeShouldNotBeLessThanMinimumSize', message: 'Attachment size must be greater than the minimum size.' } });
+        const session = randomUUID();
+        uploads.set(session, { draft, name: item.name, contentType: item.contentType, size: item.size, received: Buffer.alloc(0) });
+        return json(res, 201, { uploadUrl: `${fake.base}/graph-upload/${session}?authtoken=fake`, nextExpectedRanges: ['0-'] });
+      }
+      if (req.method === 'POST' && draftPath[2] === '/send') {
+        ms.drafts.delete(draft.id);
+        ms.sent.push({ mailbox, mime: '', draft });
+        res.writeHead(202);
+        return res.end();
+      }
+      return json(res, 405, { error: { code: 'MethodNotAllowed', message: 'No.' } });
+    }
     if (req.method === 'POST' && rest === '/sendMail') {
       if (!/^text\/plain/.test(String(req.headers['content-type']))) return json(res, 400, { error: { code: 'ErrorMimeContentInvalid', message: 'Expected MIME.' } });
       const mime = Buffer.from((await bodyOf(req)).toString('utf8'), 'base64').toString('utf8');
@@ -201,6 +245,27 @@ export async function startFakeCloud(): Promise<FakeCloud> {
     return json(res, 405, { error: { code: 405, message: 'No.' } });
   }
 
+  /** An upload session's address: chunks in order, each with its Content-Range; the file joins the draft when complete. */
+  async function upload(req: IncomingMessage, res: ServerResponse, session: string) {
+    const s = uploads.get(session);
+    if (!s || req.method !== 'PUT') return json(res, 404, { error: { code: 'ErrorItemNotFound', message: 'Upload session not found.' } });
+    const chunk = await bodyOf(req);
+    const range = String(req.headers['content-range'] ?? '');
+    fake.microsoft.chunks.push({ range, bytes: chunk.length, authorized: Boolean(req.headers.authorization) });
+    const m = /^bytes (\d+)-(\d+)\/(\d+)$/.exec(range);
+    if (!m || Number(m[1]) !== s.received.length || Number(m[2]) - Number(m[1]) + 1 !== chunk.length || Number(m[3]) !== s.size) {
+      return json(res, 416, { error: { code: 'InvalidRange', message: 'The Content-Range does not match the next expected range.' } });
+    }
+    if (chunk.length > 4 * 1024 * 1024 || (Number(m[2]) + 1 < s.size && chunk.length % (320 * 1024) !== 0)) {
+      return json(res, 400, { error: { code: 'InvalidChunkSize', message: 'Chunks must be multiples of 320 KiB.' } });
+    }
+    s.received = Buffer.concat([s.received, chunk]);
+    if (s.received.length < s.size) return json(res, 200, { nextExpectedRanges: [`${s.received.length}-`] });
+    s.draft.attachments.push({ name: s.name, contentType: s.contentType, content: s.received });
+    uploads.delete(session);
+    return json(res, 201, undefined);
+  }
+
   const server: Server = createServer((req, res) => {
     const url = new URL(req.url ?? '/', 'http://127.0.0.1');
     calls.push({ method: req.method ?? 'GET', path: url.pathname });
@@ -215,6 +280,7 @@ export async function startFakeCloud(): Promise<FakeCloud> {
       : p.startsWith('/graph/') ? graph(req, res, p.slice('/graph'.length), url.searchParams)
         : p === '/google-token' ? googleToken(req, res)
           : p.startsWith('/gmail/') ? gmail(req, res, p.slice('/gmail'.length), url.searchParams)
+            : p.startsWith('/graph-upload/') ? upload(req, res, p.slice('/graph-upload/'.length))
             : Promise.resolve(json(res, 404, { error: 'not found' }));
     route.catch((err) => json(res, 500, { error: String(err) }));
   });

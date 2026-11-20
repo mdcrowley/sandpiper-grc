@@ -2,6 +2,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { Db, Queryable } from './db.ts';
 import { fail } from './errors.ts';
 import { invalidateFeatures } from './features.ts';
+import { notePermission } from './permission-use.ts';
 import type { AuditInput, LookupListOptions, LookupValue, SessionUser } from './module.ts';
 import { clientIp } from './request.ts';
 
@@ -19,6 +20,7 @@ export function can(user: SessionUser | null, perm: string): boolean {
 }
 
 export function requirePerm(perm: string) {
+  notePermission(perm); // the role editor greys out what nothing checks (E18-44)
   return async (req: FastifyRequest, _reply: FastifyReply) => {
     if (!req.user) fail(401, 'unauthenticated', 'Sign in to continue.');
     if (!can(req.user, perm)) fail(403, 'forbidden', 'You do not have permission to do that.');

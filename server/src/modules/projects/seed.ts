@@ -78,7 +78,7 @@ const SAMPLES: Sample[] = [
     items: [
       { kind: 'risk', title: 'Only one compliant proposal received', detail: 'Weak competition may raise the price or delay the award.', status: 'open', likelihood: 3, impact: 4 },
       { kind: 'change_request', title: 'Add mobile payments to the scope', detail: 'Requested after the request for proposals was issued.', status: 'open', due_on: day(15) },
-      { kind: 'decision', title: 'Governing body date for the award', status: 'open', due_on: day(30) },
+      { kind: 'decision', title: 'Award decision by the approving body', status: 'open', due_on: day(30) },
     ],
   },
   {

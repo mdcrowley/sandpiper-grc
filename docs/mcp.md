@@ -94,6 +94,9 @@ not on the general Settings screen, so a token can never change them.
 | `mcp.role_tools` | `{}` | Tools per role key; a role without a list is not narrowed |
 | `mcp.oauth_enabled` | `false` | Remote connectors may sign in with OAuth 2.1 |
 | `mcp.oauth_registration` | `false` | Connectors may register themselves (dynamic client registration) |
+| `mcp.oauth_client_metadata` | `false` | Connectors may use the `https` address of a client ID metadata document as `client_id` (also needs `integrations.outbound_enabled`) |
+| `mcp.oauth_client_metadata_hosts` | `[]` (any public host) | Hosts those addresses may be on: `host`, `host:port` or `*.domain` |
+| `mcp.oauth_client_metadata_approval` | `false` | A connector seen for the first time waits for an administrator's approval |
 
 ## Who may connect
 
@@ -150,6 +153,7 @@ reference (`TKT-00012`).
 | `create_record` | `type`, `fields` | Write. Unknown and read-only fields refused before sending; `POST {path}` |
 | `update_record` | `type`, `id`, `changes` | Write. `PATCH {path}/:id` |
 | `link_records` | `from_type`, `from_id`, `to_type`, `to_id`, `relation?` | Write. `POST /api/links` |
+| `decide_approval` | `step_id` (from `my_approvals`), `decision` (`approve` or `reject`), `comment?` (required to reject) | Write. `POST /api/workflows/steps/:id/decision`; refuses a step not waiting for you, including your own request |
 
 ### Work and insight
 
@@ -167,6 +171,8 @@ reference (`TKT-00012`).
 | `safety_summary` | safety module loaded, `safety.view` | `GET /api/safety/summary` |
 | `run_report` (`report?`, `max_rows?` ≤ 200) | can see `report_definition` | Without `report`: the saved reports you can run. With an id or name: `GET /api/reports/:id/run` as labeled rows. Reports progress |
 | `system_impact` (`system`: id, reference or name) | can see `system` | `GET /api/systems/:id/impact`: downstream systems with depth and criticality, and the sites, data categories, assets, vehicles and services affected (each only where visible). Reports progress |
+| `my_approvals` | always (answers "not available" without the workflows module) | `GET /api/workflows/approvals`: the approval steps waiting for your decision, soonest due first, each with its `step_id` |
+| `search_audit_log` (`request_id?`, `text?`, `action?`, `record_type?`, `record_id?`, `from?`, `to?`, `limit?` ≤ 100) | `audit.view` | `GET /api/audit`: who, when, action, summary, token and request id, newest first; at least one filter; before and after values left out. Events about records the person may not see stay hidden. Assistant tokens carry `audit.view` when their owner holds it |
 
 ### Progress notifications
 
@@ -205,7 +211,7 @@ to reach that address, which usually means a reverse proxy on a reachable host
 | Address | Standard | Purpose |
 |---|---|---|
 | `GET /.well-known/oauth-protected-resource/mcp` (and without `/mcp`) | RFC 9728 | `resource`, `authorization_servers`, `scopes_supported` (`mcp:read`, `mcp:write`), `bearer_methods_supported: ["header"]` |
-| `GET /.well-known/oauth-authorization-server` | RFC 8414 | Endpoints; `code_challenge_methods_supported: ["S256"]`; `grant_types_supported: ["authorization_code", "refresh_token"]`; `registration_endpoint` only while self-registration is on; `authorization_response_iss_parameter_supported: true` |
+| `GET /.well-known/oauth-authorization-server` | RFC 8414 | Endpoints; `code_challenge_methods_supported: ["S256"]`; `grant_types_supported: ["authorization_code", "refresh_token"]`; `registration_endpoint` only while self-registration is on; `authorization_response_iss_parameter_supported: true`; `client_id_metadata_document_supported` true only while metadata documents are accepted and outbound connections are on |
 | `GET /oauth/authorize` | OAuth 2.1 | The consent screen (a page of the web application; signs the person in first) |
 | `POST /oauth/token` | OAuth 2.1 | `authorization_code` (with `code_verifier`) and `refresh_token` |
 | `POST /oauth/register` | RFC 7591 | Dynamic client registration, only when `mcp.oauth_registration` is on |
@@ -214,7 +220,8 @@ to reach that address, which usually means a reverse proxy on a reachable host
 While OAuth is off, all of these answer `404` and the `401` from `/mcp` does not mention them.
 
 **The flow.** The connector calls `/mcp`, gets `401` with `resource_metadata`, reads both
-metadata documents, registers (or uses a client an administrator added), and sends the person's
+metadata documents, registers (or uses a client an administrator added, or its own client ID
+metadata document address, below), and sends the person's
 browser to `/oauth/authorize` with PKCE (`code_challenge_method=S256`, the only method), `state`
 and `resource=<public address>/mcp`. The person signs in if needed and sees the consent screen:
 the connector's name (as it gave it, or as the administrator entered it), where they return to,
@@ -249,8 +256,48 @@ for native apps), or an app's own scheme; `javascript:`, `data:`, `file:` and si
 as are fragments and user names. An authorization request with an unknown client or an
 unregistered redirect address is **never redirected**: the consent screen shows the error.
 Self-registration is limited to 10 an hour per address and 1000 connectors in all.
-Client ID metadata documents are not supported (`client_id_metadata_document_supported: false`),
-as they would need outbound connections.
+
+**Client ID metadata documents (E21-21).** The specification's preferred way for a connector
+with no prior relationship: its `client_id` is an `https` address serving a JSON document that
+describes it ([draft-ietf-oauth-client-id-metadata-document](https://datatracker.ietf.org/doc/draft-ietf-oauth-client-id-metadata-document/)).
+**Off by default**, and only while outbound connections are on (`integrations.outbound_enabled`),
+because the document must be fetched:
+
+- Settings: `mcp.oauth_client_metadata` (accept them), `mcp.oauth_client_metadata_hosts` (hosts
+  they may come from: `host`, `host:port` or `*.domain`; empty = any public host) and
+  `mcp.oauth_client_metadata_approval` (a connector seen for the first time waits until an
+  administrator approves it, `POST /api/mcp/admin/oauth/clients/:id/approve`).
+- The address must be `https`, have a path, and carry no fragment, user name, dot segments or
+  default port (written in its normal form); at most 400 characters.
+- It is fetched only from the consent screen's API (`POST /api/mcp/oauth/authorize`, someone
+  signed in), at most 20 lookups per person in 10 minutes. The token endpoint never fetches.
+- Fetching is fenced like webhooks, more tightly (`server/src/modules/mcp/client-metadata.ts`):
+  port 443 only, unless the host list names that host with another port; the name is resolved at
+  connection time and **every** address checked, so private, loopback, link-local and reserved
+  addresses are refused unless that exact address is on the host list; **no redirect is
+  followed** (any 3xx is a refusal); only a `200` with a JSON media type counts; at most **5 KB**
+  is read; the whole exchange is limited to **5 seconds**; the certificate must be valid; no
+  cookies or credentials are sent.
+- The document must give `client_id` exactly equal to its address, a `client_name`, and one to
+  ten `redirect_uris` (the same rules as above). Only known registration fields are accepted
+  (RFC 7591 and common OpenID ones, with `#language` variants); `client_secret`,
+  `client_secret_expires_at` and private key material are refused, and
+  `token_endpoint_auth_method` must be `none` or absent (these connectors are public clients with
+  PKCE). Redirect addresses must match **exactly** (no loopback port leeway). URLs inside the
+  document (`logo_uri` and so on) are never fetched.
+- A valid document is kept in `mcp_oauth_clients` (`registered_by = 'metadata'`) for its
+  `Cache-Control` max-age, between one minute and a day (an hour when none is given), then fetched
+  again; a change of name or redirect addresses is audited. Errors and invalid documents are never
+  cached. Refusals answer on the consent screen, never redirect to the connector: `400
+  invalid_client` with the reason, `403 client_host_not_allowed`, `client_pending` or
+  `client_blocked`, `409 outbound_disabled`, `429 rate_limited`.
+- The consent screen shows the **host of the document** prominently with the full address, says
+  the name is self-declared, and warns when the connector returns to an address on the person's
+  own computer (any local program could receive it).
+- Removing such a connector ends its connections and keeps it **blocked**; the administrators'
+  page lists blocked connectors with **Allow again** (`DELETE /api/mcp/admin/oauth/blocked/:id`),
+  after which the document is fetched afresh. Switching the feature or outbound connections off
+  stops these connections at once.
 
 **Who sees what.** Each person sees their connections on Connect an AI assistant and can
 **Disconnect** them (`DELETE /api/mcp/oauth/grants/:id`). Administrators see every connector
@@ -275,7 +322,12 @@ stops every connection at once.
 - Changing an `mcp.*` setting writes a `setting.change` event; making an assistant token writes
   `token.create`; choosing its tools `mcp.tools`. OAuth writes `mcp.oauth.client_register`,
   `mcp.oauth.consent`, `mcp.oauth.deny`, `mcp.oauth.revoke`, `mcp.oauth.client_remove`,
-  `mcp.oauth.code_reuse` and `mcp.oauth.refresh_reuse`.
+  `mcp.oauth.code_reuse` and `mcp.oauth.refresh_reuse`; client ID metadata documents add
+  `mcp.oauth.client_metadata` (first seen, or changed), `mcp.oauth.client_metadata_refused`
+  (with the address and reason), `mcp.oauth.client_approve` and `mcp.oauth.client_unblock`.
+- To find everything one `/mcp` request did, an assistant can call `search_audit_log` with the
+  request id (from the call log or an error), or open Administration > Audit log with
+  **Request id**.
 
 ## Connecting clients
 
@@ -373,6 +425,9 @@ It has no dependencies and runs on any Node.js 18 or later, including the portab
 | A connector says the server has no sign-in, or the metadata is `404` | OAuth is off, MCP access is off, or the address is not HTTPS: set the public address (`auth.public_url`) to the `https://` address |
 | The consent screen says the connector "asked to return to an address it did not register" | The redirect address differs from its registration. Remove the connector and let it register again, or fix the address an administrator entered |
 | "Connectors cannot register themselves here" | Self-registration is off: an administrator adds the connector and gives you its client id |
+| "identifies itself by a web address" / `outbound_disabled` | The connector uses a client ID metadata document: an administrator switches on **Accept connectors known by their web address** and outbound connections, or adds the connector by hand |
+| "metadata document ... was not accepted" | The reason follows: not reachable over HTTPS on a public address, a redirect, too large, not JSON, `client_id` not exactly its address, or a field this server refuses. Fix the document; nothing was cached |
+| `client_host_not_allowed`, `client_pending`, `client_blocked` | Its host is not on the allowed list, it waits for approval, or an administrator removed it (Allow again on AI assistant access) |
 | A connector keeps asking to sign in again | Its connection ended (disconnected, expired, connector removed, OAuth switched off, or a refresh token was used twice) |
 
 ## Security notes and limits
@@ -387,7 +442,11 @@ It has no dependencies and runs on any Node.js 18 or later, including the portab
   which roles may connect and what their assistants may use.
 - A connector's name on the consent screen is what the connector registered with; the screen
   says so, and shows where the person returns to. Prefer adding connectors by hand (and leaving
-  self-registration off) where only a few known connectors are used.
-- Not built (see the epic E21): client ID metadata documents (they would need outbound
-  connections), sign-in through the stdio bridge, and keeping the per-token request counts
+  self-registration off) where only a few known connectors are used. For a connector known by
+  its metadata document, the screen leads with the document's host: the name is what that host
+  says, so an allowed-host list or approval first suits installations that want only known
+  connectors. A loopback redirect address cannot prove which program receives the answer; the
+  screen warns about it.
+- Not built (see the epic E21): `private_key_jwt` for metadata-document connectors, sign-in
+  through the stdio bridge, and keeping the per-token request counts
   outside process memory (E14-12).

@@ -25,6 +25,10 @@ export const MAX_FILES_SETTING = 'vendors.response_link_max_files';
 export const MAX_MB_SETTING = 'vendors.response_link_max_mb';
 export const FILE_TYPES_SETTING = 'vendors.response_link_file_types';
 export const REMINDER_SETTING = 'vendors.response_link_reminder_days';
+/** Days after a link closes that files still waiting on it are discarded (E06-24); 0 = never. */
+export const DISCARD_SETTING = 'vendors.response_link_discard_days';
+const DEFAULT_DISCARD_DAYS = 30;
+const MAX_DISCARD_DAYS = 365;
 const DEFAULT_DAYS = 14;
 const MAX_DAYS = 90;
 /** Files a vendor may send through one link, and their total size. */
@@ -63,7 +67,7 @@ export function stateOf(l: Row): LinkState {
 
 export interface LinkSettings {
   enabled: boolean; default_days: number; max_days: number;
-  max_files: number; max_mb: number; max_bytes: number; file_types: string[]; reminder_days: number;
+  max_files: number; max_mb: number; max_bytes: number; file_types: string[]; reminder_days: number; discard_days: number;
   /** Whether files can be received at all (the attachments module is loaded). */
   files_available: boolean;
   /** Whether the application can email the link (email is switched on). */
@@ -99,9 +103,10 @@ export async function registerResponseLinks(ctx: ModuleContext) {
     const rawTypes = await ctx.settings.get<unknown>(FILE_TYPES_SETTING, DEFAULT_FILE_TYPES);
     const fileTypes = (Array.isArray(rawTypes) ? rawTypes : DEFAULT_FILE_TYPES).map((x) => String(x).toLowerCase()).filter((x) => EXTENSION.test(x));
     const reminder = intIn(await ctx.settings.get<number>(REMINDER_SETTING, DEFAULT_REMINDER_DAYS), DEFAULT_REMINDER_DAYS, 0, 30);
+    const discard = intIn(await ctx.settings.get<number>(DISCARD_SETTING, DEFAULT_DISCARD_DAYS), DEFAULT_DISCARD_DAYS, 0, MAX_DISCARD_DAYS);
     return {
       enabled, default_days: days, max_days: MAX_DAYS, max_files: maxFiles, max_mb: maxMb, max_bytes: maxMb * MB,
-      file_types: [...new Set(fileTypes)].sort(), reminder_days: reminder,
+      file_types: [...new Set(fileTypes)].sort(), reminder_days: reminder, discard_days: discard,
       files_available: app.hasDecorator('attachmentStores') && app.hasDecorator('fileScanner'),
       email_available: app.hasDecorator('mailEnabled') ? await app.mailEnabled() : false,
     };
@@ -174,6 +179,7 @@ export async function registerResponseLinks(ctx: ModuleContext) {
     const maxFiles = whole('max_files', 0, MAX_MAX_FILES, `Enter a whole number of files from 0 to ${MAX_MAX_FILES} (0 = no files).`);
     const maxMb = whole('max_mb', 1, MAX_MAX_MB, `Enter a whole number of megabytes from 1 to ${MAX_MAX_MB}.`);
     const reminder = whole('reminder_days', 0, 30, 'Enter a whole number of days from 0 to 30 (0 = no reminder).');
+    const discard = whole('discard_days', 0, MAX_DISCARD_DAYS, `Enter a whole number of days from 0 to ${MAX_DISCARD_DAYS} (0 = never discard).`);
     let types: string[] | undefined;
     if (b.file_types !== undefined) {
       const list = (Array.isArray(b.file_types) ? b.file_types as unknown[] : String(b.file_types).split(/[\s,;]+/))
@@ -190,6 +196,7 @@ export async function registerResponseLinks(ctx: ModuleContext) {
     if (maxFiles !== undefined && maxFiles !== now.max_files) await ctx.settings.set(MAX_FILES_SETTING, maxFiles, req);
     if (maxMb !== undefined && maxMb !== now.max_mb) await ctx.settings.set(MAX_MB_SETTING, maxMb, req);
     if (reminder !== undefined && reminder !== now.reminder_days) await ctx.settings.set(REMINDER_SETTING, reminder, req);
+    if (discard !== undefined && discard !== now.discard_days) await ctx.settings.set(DISCARD_SETTING, discard, req);
     if (types && types.join() !== now.file_types.join()) await ctx.settings.set(FILE_TYPES_SETTING, types, req);
     if (b.enabled !== undefined && b.enabled !== now.enabled) {
       await ctx.settings.set(ENABLED_SETTING, b.enabled, req);
@@ -202,13 +209,14 @@ export async function registerResponseLinks(ctx: ModuleContext) {
   });
   ctx.describeRoute({
     method: 'PUT', path: '/api/vendors/response-links/settings', tag: 'Vendors', permission: 'vendors.administer',
-    summary: 'Switch vendor response links on or off (off revokes open links); how long a new link lasts, the files a vendor may send, and the reminder before an emailed link expires',
+    summary: 'Switch vendor response links on or off (off revokes open links); how long a new link lasts, the files a vendor may send, how long unreviewed files are kept after the link closes, and the reminder before an emailed link expires',
     body: {
       type: 'object',
       properties: {
         enabled: { type: 'boolean' }, default_days: { type: 'integer', minimum: 1, maximum: MAX_DAYS },
         max_files: { type: 'integer', minimum: 0, maximum: MAX_MAX_FILES }, max_mb: { type: 'integer', minimum: 1, maximum: MAX_MAX_MB },
         file_types: { type: 'array', items: { type: 'string' } }, reminder_days: { type: 'integer', minimum: 0, maximum: 30 },
+        discard_days: { type: 'integer', minimum: 0, maximum: MAX_DISCARD_DAYS },
       },
     },
   });

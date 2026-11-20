@@ -1,6 +1,7 @@
-// Add or change one sign-in provider: OpenID Connect or SAML 2.0 (E02-10). Connection, who the
-// person is, role mapping, the provider's second factor, signing out and just-in-time accounts.
-// Opened from Administration > Sign-in providers. The SAML parts are in SamlFields.tsx.
+// Add or change one sign-in provider: OpenID Connect, SAML 2.0 (E02-10) or a directory (LDAP, E02-26).
+// Connection, who the person is, role mapping, the provider's second factor, signing out and
+// just-in-time accounts. Opened from Administration > Sign-in providers. The SAML parts are in
+// SamlFields.tsx, the directory parts in LdapFields.tsx.
 import { useState, type FormEvent } from 'react';
 import {
   api, ApiError, Button, Checkbox, ChoicesField, Drawer, errorMessage, IconButton, Select, TextArea, TextField,
@@ -12,6 +13,7 @@ import {
   SamlIdentityFields, SamlIdentityProviderFields, samlInitial, SamlSecurityFields, SamlServiceProviderBox, type SamlState,
 } from './SamlFields';
 import { Switch } from './Switch';
+import { LdapConnectionFields, ldapConfig, LdapGroupFields, LdapIdentityFields, ldapInitial, ldapProblems, type LdapState } from './LdapFields';
 
 const TOKEN_AUTH = [
   { value: 'client_secret_basic', label: 'Client secret, sent in the Authorization header (most providers)' },
@@ -24,12 +26,16 @@ const ALGORITHMS = [
 const KINDS = [
   { value: 'oidc', name: 'OpenID Connect', text: 'Most cloud directories and modern identity providers. Needs a client ID and usually a secret.' },
   { value: 'saml', name: 'SAML 2.0', text: 'For an identity provider that offers SAML only, or that your organization runs that way. Uses metadata and certificates.' },
+  { value: 'ldap', name: 'Directory (LDAP)', text: 'People type their directory user name and password here (Active Directory, OpenLDAP). Needs an encrypted connection to the directory.' },
 ] as const;
 const DETAIL_LABELS: Record<string, string> = {
   issuer: 'Issuer', authorizationEndpoint: 'Sign-in address', tokenEndpoint: 'Token address', jwksUri: 'Key set address',
   signingAlgorithms: 'Signs ID tokens with', keys: 'Signing keys', pkce: 'Offers PKCE (S256)',
   endSessionEndpoint: 'Sign-out address', backchannelLogout: 'Back-channel sign-out',
   entityId: 'Entity ID', ssoUrl: 'Sign-in address', sloUrl: 'Sign-out address', certificates: 'Signing certificates',
+  tls: 'Encryption', certificate: 'Directory certificate', certificateIssuer: 'Issued by', certificateExpires: 'Certificate expires',
+  serviceAccount: 'Service account', baseDn: 'Base DN', dn: 'DN', identifier: 'Identifier', email: 'Email', displayName: 'Display name',
+  disabled: 'Disabled or locked', groups: 'Groups',
 };
 const words = (text: string) => text.split(/[\s,]+/).map((w) => w.trim()).filter(Boolean);
 const lines = (text: string) => text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
@@ -40,6 +46,7 @@ export function ProviderEditor({ provider, data, onClose, onSaved }: {
   const c = provider?.config;
   const [type, setType] = useState<string>(provider?.type ?? 'oidc');
   const saml = type === 'saml';
+  const ldap = type === 'ldap';
   const [name, setName] = useState(provider?.name ?? '');
   const [key, setKey] = useState(provider?.key ?? '');
   const [enabled, setEnabled] = useState(provider?.enabled ?? false);
@@ -65,6 +72,10 @@ export function ProviderEditor({ provider, data, onClose, onSaved }: {
   const [groupsFromUserinfo, setGroupsFromUserinfo] = useState(c?.groupsFromUserinfo ?? false);
   const [endSession, setEndSession] = useState(c?.endSession ?? false);
   const [backchannelLogout, setBackchannelLogout] = useState(c?.backchannelLogout ?? false);
+  const [idpLogout, setIdpLogout] = useState(c?.idpLogout ?? false);
+  const [ld, setLd] = useState<LdapState>(() => ldapInitial(provider));
+  const setLdap = (patch: Partial<LdapState>) => setLd((old) => ({ ...old, ...patch }));
+  const [lookup, setLookup] = useState('');
   const [s, setS] = useState<SamlState>(() => samlInitial(provider));
   const [renewKey, setRenewKey] = useState(false);
   const setSaml = (patch: Partial<SamlState>) => setS((old) => ({ ...old, ...patch }));
@@ -79,8 +90,8 @@ export function ProviderEditor({ provider, data, onClose, onSaved }: {
   const chooseKind = (next: string) => {
     setType(next);
     setErrors({});
-    // SAML has no "email verified" statement, so a new SAML provider starts by trusting its addresses (see the hint).
-    if (!provider) setTrustEmail(next === 'saml');
+    // SAML and directories have no "email verified" statement, so a new one starts by trusting its addresses (see the hint).
+    if (!provider) setTrustEmail(next === 'saml' || next === 'ldap');
   };
 
   const submit = async (e: FormEvent) => {
@@ -95,6 +106,11 @@ export function ProviderEditor({ provider, data, onClose, onSaved }: {
       if (!s.idpCerts.trim()) found.idpCerts = 'Add the identity provider\'s signing certificate, or read the metadata above.';
       if (endSession && !s.sloUrl.trim()) found.sloUrl = 'Enter the identity provider\'s sign-out address, or switch signing out there off.';
       if (providerMfa && !words(mfaAcr).length) found.mfaAcr = 'Name at least one AuthnContextClassRef value that shows a multi-factor sign-in.';
+      if (idpLogout && !s.sloUrl.trim()) found.sloUrl = 'Enter the identity provider\'s sign-out address: the answer to its sign-out request goes there.';
+      if (s.metadataRefresh && !s.metadataUrl.trim()) found.metadataUrl = 'Enter the metadata address to refresh from.';
+      if (s.metadataRefresh && !s.metadataCert.trim()) found.metadataCert = 'A scheduled refresh accepts signed metadata only: give the certificate that signs it.';
+    } else if (ldap) {
+      Object.assign(found, ldapProblems(ld, Boolean(provider?.hasSecret), secret, enabled));
     } else {
       if (!/^https?:\/\/./.test(issuer.trim())) found.issuer = 'Enter the issuer address the provider gives you.';
       if (!clientId.trim()) found.clientId = 'Enter the client ID.';
@@ -122,6 +138,9 @@ export function ProviderEditor({ provider, data, onClose, onSaved }: {
       idpEntityId: s.idpEntityId.trim(), ssoUrl: s.ssoUrl.trim(), sloUrl: s.sloUrl.trim(), idpCerts: s.idpCerts,
       spEntityId: s.spEntityId.trim(), nameIdFormat: s.nameIdFormat, emailAttribute: s.emailAttribute.trim(), nameAttribute: s.nameAttribute.trim(),
       groupsAttribute: groupsClaim.trim(), signRequests: s.signRequests, wantAssertionsSigned: s.wantAssertionsSigned, encryptAssertions: s.encryptAssertions,
+      idpLogout, metadataUrl: s.metadataUrl.trim(), metadataCert: s.metadataCert.trim(), metadataRefresh: s.metadataRefresh,
+    } : ldap ? {
+      ...common, providerMfa: false, endSession: false, ...ldapConfig(ld),
     } : {
       ...common,
       issuer: issuer.trim(), clientId: clientId.trim(), tokenAuth, scopes, algorithms, extraParams, emailClaim: emailClaim.trim(),
@@ -150,7 +169,7 @@ export function ProviderEditor({ provider, data, onClose, onSaved }: {
     setTesting(true);
     setTested(null);
     try {
-      setTested(await api.post<TestResult>(`/api/admin/identity-providers/${provider.id}/test`));
+      setTested(await api.post<TestResult>(`/api/admin/identity-providers/${provider.id}/test`, ldap && lookup.trim() ? { username: lookup.trim() } : {}));
     } catch (error) {
       setTested({ ok: false, message: errorMessage(error) });
     } finally {
@@ -164,9 +183,14 @@ export function ProviderEditor({ provider, data, onClose, onSaved }: {
         <Button icon="refresh" loading={testing} onClick={() => void test()}>{saml ? 'Check settings' : 'Test connection'}</Button>
         <span className="muted adm-small">
           {saml ? 'Checks the saved certificates and addresses. Nothing is fetched: sign in once to try the whole exchange.'
+            : ldap ? 'Connects to the saved directory now, checks its certificate and the service account, and looks the person below up. No password is checked.'
             : 'Reads the saved issuer\'s discovery document and key set now. Nothing else is fetched until the provider is switched on.'}
         </span>
       </div>
+      {ldap && (
+        <TextField label="Look up a person (optional)" value={lookup} onChange={setLookup} placeholder="A user name, as people type it"
+          hint="Shows the entry found: its DN, identifier, email and groups (to copy into role mapping). Save first: the saved settings are used." />
+      )}
       {tested && (
         <Notice tone={tested.ok ? 'success' : 'danger'} role="status">
           <p>{tested.message}</p>
@@ -206,19 +230,31 @@ export function ProviderEditor({ provider, data, onClose, onSaved }: {
           <TextField label="Name" required maxLength={60} value={name} onChange={setName} error={err('name')} hint="Shown on the sign-in button: Sign in with …" />
           {!provider && (
             <TextField label="Short name" required maxLength={40} value={key} onChange={(v) => setKey(v.toLowerCase())} error={err('key')}
-              hint={`Lower-case letters, numbers and dashes. Part of the ${saml ? 'addresses given to the identity provider' : 'redirect address'}; it cannot be changed later.`} />
+              hint={`Lower-case letters, numbers and dashes. Part of the ${saml ? 'addresses given to the identity provider' : ldap ? 'sign-in address' : 'redirect address'}; it cannot be changed later.`} />
           )}
-          {!saml && (
+          {!saml && !ldap && (
             <div className="adm-copy">
               <span className="field-label">Redirect address to register with the provider</span>
               <code className="adm-code-block adm-break">{redirectAddress(data, provider?.key ?? key)}</code>
             </div>
           )}
-          <Switch label="Switched on: show the button and allow sign-in" checked={enabled} onChange={setEnabled} />
+          <Switch label={ldap ? 'Switched on: offer it on the sign-in form and allow sign-in' : 'Switched on: show the button and allow sign-in'} checked={enabled} onChange={setEnabled} />
           <Checkbox label="Default provider" checked={isDefault} onChange={setIsDefault} hint="Its button comes first and is the most prominent. Only a switched-on provider can be the default." />
         </fieldset>
 
-        {saml ? (
+        {ldap ? (
+          <>
+            <fieldset className="adm-fieldset">
+              <legend className="adm-legend">Connection</legend>
+              <LdapConnectionFields value={ld} set={setLdap} err={err} isNew={!provider} secret={secret} setSecret={setSecret} hasSecret={Boolean(provider?.hasSecret)} />
+              {testBox}
+            </fieldset>
+            <fieldset className="adm-fieldset">
+              <legend className="adm-legend">Who the person is</legend>
+              <LdapIdentityFields value={ld} set={setLdap} err={err} trustEmail={trustEmail} setTrustEmail={setTrustEmail} />
+            </fieldset>
+          </>
+        ) : saml ? (
           <>
             <SamlServiceProviderBox data={data} provider={provider} keyName={provider?.key ?? key} spEntityId={s.spEntityId} renewKey={renewKey} onRenewKey={setRenewKey} />
             <fieldset className="adm-fieldset">
@@ -273,7 +309,9 @@ export function ProviderEditor({ provider, data, onClose, onSaved }: {
           <p className="muted adm-small">Off by default. When on, each rule's role follows the group at every sign-in: added when the person is in the group, taken away when they are not. Roles without a rule are never touched.</p>
           {mappingEnabled && (
             <>
-              {saml ? (
+              {ldap ? (
+                <LdapGroupFields value={ld} set={setLdap} err={err} />
+              ) : saml ? (
                 <TextField label="Groups attribute" required value={groupsClaim} onChange={setGroupsClaim} error={err('groupsAttribute')}
                   hint="The attribute (its Name) that lists groups or roles, for example groups, memberOf or the role claim URI. Ask the identity provider to release it." />
               ) : (
@@ -301,6 +339,15 @@ export function ProviderEditor({ provider, data, onClose, onSaved }: {
           )}
         </fieldset>
 
+        {ldap ? (
+          <fieldset className="adm-fieldset">
+            <legend className="adm-legend">Second factor</legend>
+            <p className="muted adm-small">
+              A directory password is one factor. People who have a second factor here (an authenticator app, or recovery codes) are asked
+              for it after their directory password, and the second-factor requirement applies to them as to everyone else.
+            </p>
+          </fieldset>
+        ) : (
         <fieldset className="adm-fieldset">
           <legend className="adm-legend">Second factor</legend>
           <Switch label="The provider enforces multi-factor sign-in" checked={providerMfa} onChange={setProviderMfa} />
@@ -320,7 +367,9 @@ export function ProviderEditor({ provider, data, onClose, onSaved }: {
             </>
           ))}
         </fieldset>
+        )}
 
+        {!ldap && (
         <fieldset className="adm-fieldset">
           <legend className="adm-legend">Signing out</legend>
           <Switch label="Signing out here also signs out at the provider" checked={endSession} onChange={setEndSession} />
@@ -328,11 +377,16 @@ export function ProviderEditor({ provider, data, onClose, onSaved }: {
             <>
               <p className="muted adm-small">
                 Off by default. When on, signing out sends a signed logout request to the identity provider's sign-out address, which then
-                returns here. The return address is in this application's metadata. A sign-out started at the identity provider does not end
-                sessions here.
+                returns here. The return address is in this application's metadata.
+              </p>
+              <Switch label="Act on sign-outs started at the identity provider" checked={idpLogout} onChange={setIdpLogout} />
+              <p className="muted adm-small">
+                Off by default. When on, a signed logout request from the identity provider (when the person signs out there or in another
+                application) ends the sessions here made through it for that person, and a signed answer goes back. Both bindings are accepted at
+                this application's single logout address, which its metadata lists.
               </p>
               <TextField label="Identity provider sign-out address (HTTP-Redirect binding)" type="url" value={s.sloUrl} onChange={(v) => setSaml({ sloUrl: v })} error={err('sloUrl')}
-                required={endSession} hint="Its single logout service address. Read from the metadata when it offers one." />
+                required={endSession || idpLogout} hint="Its single logout service address. Read from the metadata when it offers one." />
             </>
           ) : (
             <>
@@ -350,6 +404,7 @@ export function ProviderEditor({ provider, data, onClose, onSaved }: {
             </>
           )}
         </fieldset>
+        )}
 
         <fieldset className="adm-fieldset">
           <legend className="adm-legend">New people</legend>

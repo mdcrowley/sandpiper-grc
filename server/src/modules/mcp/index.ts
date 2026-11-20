@@ -52,6 +52,8 @@ const mod: ModuleDef = {
       const modules = new Set<string>([...ctx.resources.all().map((d) => d.module), 'security', 'reports', 'dashboards']);
       const actions = access === 'write' ? ['view', 'create', 'edit'] : ['view'];
       const out = [...modules].sort().flatMap((m) => actions.map((a) => `${m}.${a}`)).filter((s) => scopeCovered(s, perms));
+      // Reading the audit log (search_audit_log) for people who may; never more than viewing.
+      if (scopeCovered('audit.view', perms)) out.push('audit.view');
       return [...out, MCP_SCOPE];
     };
 
@@ -232,7 +234,11 @@ const mod: ModuleDef = {
         usage: usage.map((u) => ({ ...u, tools: Object.fromEntries(perTool.filter((p) => p.token_id === u.token_id).sort((a, b) => b.n - a.n).map((p) => [p.tool, p.n])) })),
         recent,
         // secure: this installation was reached over HTTPS or on this computer, as OAuth requires.
-        oauth: { ...(await oauth.adminView()), secure: secureBase(await oauthBase(ctx, req)), base: await oauthBase(ctx, req) },
+        // outboundEnabled: connectors known by a metadata document (E21-21) also need outbound connections on.
+        oauth: {
+          ...(await oauth.adminView()), secure: secureBase(await oauthBase(ctx, req)), base: await oauthBase(ctx, req),
+          outboundEnabled: (await ctx.settings.get<unknown>('integrations.outbound_enabled', false)) === true,
+        },
       };
     });
     ctx.describeRoute({ method: 'GET', path: '/api/mcp/admin', summary: 'AI assistant access: settings, tools, roles, connectors and the per-token call log', permission: ADMIN, tag: 'AI assistants', query: { days: 'Days of the call log to count (1 to 90, default 30)' } });
@@ -243,12 +249,20 @@ const mod: ModuleDef = {
       const current = await readSettings(ctx);
       const fields: Record<string, string> = {};
       const next: Partial<Record<keyof typeof KEYS, unknown>> = {};
-      const flag = (key: 'enabled' | 'writeEnabled' | 'oauthEnabled' | 'oauthRegistration') => {
+      const flag = (key: 'enabled' | 'writeEnabled' | 'oauthEnabled' | 'oauthRegistration' | 'clientMetadata' | 'clientMetadataApproval') => {
         if (b[key] === undefined) return;
         if (typeof b[key] !== 'boolean') fields[key] = 'On or off.';
         else next[key] = b[key];
       };
-      flag('enabled'); flag('writeEnabled'); flag('oauthEnabled'); flag('oauthRegistration');
+      flag('enabled'); flag('writeEnabled'); flag('oauthEnabled'); flag('oauthRegistration'); flag('clientMetadata'); flag('clientMetadataApproval');
+      if (b.clientMetadataHosts !== undefined) {
+        const list = Array.isArray(b.clientMetadataHosts)
+          ? [...new Set(b.clientMetadataHosts.map((s: unknown) => String(s).trim().toLowerCase()).filter(Boolean))] as string[] : null;
+        const bad = list?.find((h) => !/^(\*\.)?[a-z0-9.-]+(:\d{1,5})?$/.test(h) && !/^\[[0-9a-f:.]+\](:\d{1,5})?$/.test(h));
+        if (!list || list.length > 50) fields.clientMetadataHosts = 'List up to 50 hosts.';
+        else if (bad) fields.clientMetadataHosts = `"${bad}" is not a host. Write a host name (assistant.example.org), a host and port, or *.example.org.`;
+        else next.clientMetadataHosts = list;
+      }
       if (b.allowedTools !== undefined) {
         const r = toolList(b.allowedTools);
         if ('error' in r) fields.allowedTools = r.error;
@@ -302,7 +316,7 @@ const mod: ModuleDef = {
     });
     ctx.describeRoute({
       method: 'PUT', path: '/api/mcp/admin/settings', summary: 'Change AI assistant access (needs a recent password confirmation)', permission: ADMIN, tag: 'AI assistants',
-      body: '{ enabled?, writeEnabled?, allowedTools?: string[] | null, ratePerMinute?, allowedOrigins?: string[], allowedRoles?: string[] | null, roleTools?: { [role]: string[] | null }, oauthEnabled?, oauthRegistration? }',
+      body: '{ enabled?, writeEnabled?, allowedTools?: string[] | null, ratePerMinute?, allowedOrigins?: string[], allowedRoles?: string[] | null, roleTools?: { [role]: string[] | null }, oauthEnabled?, oauthRegistration?, clientMetadata?, clientMetadataHosts?: string[], clientMetadataApproval? }',
     });
   },
 };

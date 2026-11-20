@@ -7,6 +7,7 @@ import { DEFAULT_APP_NAME } from './config.ts';
 import type { CustomFields } from './customfields.ts';
 import type { FeatureGate } from './features.ts';
 import type { FieldDef, RouteDoc, SessionUser } from './module.ts';
+import { notePermission } from './permission-use.ts';
 import type { makeResources } from './resource.ts';
 import { can, type makeSettings } from './services.ts';
 
@@ -99,6 +100,7 @@ export function makeOpenApi(app: FastifyInstance) {
 
   function describe(doc: RouteDoc): void {
     docs.set(key(doc.method, doc.path), doc);
+    notePermission(doc.permission); // what the route checks (E18-44, core/permission-use.ts)
   }
 
   /** The document for one caller; `null` builds it whole (the openapi-cli command). */

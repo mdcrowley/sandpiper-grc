@@ -13,6 +13,7 @@ import {
 import type { ReviewStage, Stage } from './defaults.ts';
 import { registerKit, scheduleKit } from './kit.ts';
 import { registerLists } from './lists.ts';
+import { alertResponders, registerAlertRoutes } from './responders.ts';
 import { buildReport } from './report.ts';
 import { seedSample } from './seed.ts';
 
@@ -329,7 +330,7 @@ const mod: ModuleDef = {
         review_completed_at: { label: 'Review completed', type: 'datetime', readOnly: true },
         review_completed_by: { label: 'Review completed by', type: 'user', readOnly: true },
         ransom_payment_status: { label: 'Ransom payment', type: 'lookup', list: 'ransom_payment_status', default: 'not_applicable', required: true },
-        board_resolution_ref: { label: 'Governing body approval reference', type: 'text' },
+        board_resolution_ref: { label: 'Payment approval reference', type: 'text' },
       },
       hooks: {
         beforeCreate: async (_req, data) => {
@@ -412,6 +413,7 @@ const mod: ModuleDef = {
           clocks: open.length, firstDeadline: next ? new Date(next.due_at).toISOString() : null,
         },
       });
+      await alertResponders(ctx, incident, 'declared'); // by email and text message (E09-25)
       await sweep(incident.id);
     }
 
@@ -1009,6 +1011,7 @@ const mod: ModuleDef = {
     // ---------- kinds of data and lifecycle statuses, editable on the rules screen ----------
 
     registerLists(ctx, { view, administer });
+    registerAlertRoutes(ctx, { view, administer }); // alerts by email and text message (E09-25)
 
     // ---------- alerts as a clock turns amber or red ----------
 

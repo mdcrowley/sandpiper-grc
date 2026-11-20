@@ -1,6 +1,6 @@
 # E18 Quality and known defects
 
-**Status:** in progress (40 of 48 issues done)
+**Status:** in progress (45 of 51 issues done)
 
 ## Goal
 
@@ -63,12 +63,15 @@ has never been checked, so nobody relies on something untested.
 | E18-40 | People never see different numbers: figures include restricted records | done | P1 |
 | E18-41 | Backups taken in the same second could be pruned at once | done | P1 |
 | E18-42 | Chart drill-down works only with a pointer | done | P2 |
-| E18-43 | Component tests for the generic list, form and record page | open | P3 |
-| E18-44 | The role editor offers actions nothing checks | open | P3 |
+| E18-43 | Component tests for the generic list, form and record page | done | P3 |
+| E18-44 | The role editor offers actions nothing checks | done | P3 |
 | E18-45 | Custom fields on saved reports and dashboards are not asked or shown | done | P3 |
 | E18-46 | A malformed date and time could be read as a date | done | P3 |
-| E18-47 | Agency-flavored wording in editable defaults | open | P3 |
+| E18-47 | Agency-flavored wording in editable defaults | done | P3 |
 | E18-48 | Generic list and form show a field the metadata lacks | done | P3 |
+| E18-49 | A list filter in the page address on a field the type lacks is still applied | open | P3 |
+| E18-50 | Agency wording left in a core option name and an assistant prompt | done | P3 |
+| E18-51 | A public reply on an email ticket could be emailed before it was saved | done | P2 |
 
 ---
 
@@ -891,7 +894,7 @@ keyboard tour (E18-06).
 
 ### E18-43 Component tests for the generic list, form and record page
 
-**Status:** open · **Priority:** P3 · **Type:** debt
+**Status:** done · **Priority:** P3 · **Type:** debt
 
 The read-only display components have rendering tests, but the generic list, form and record
 page need a browser-like test environment (jsdom or happy-dom, a new development package) or an
@@ -899,12 +902,22 @@ exported metadata context before they can be tested on their own. Split from E18
 
 **Acceptance criteria**
 
-- [ ] A decision on the test environment (new package or exported context)
-- [ ] Tests for list filters and paging, form validation messages and the record page's tabs
+- [x] A decision on the test environment (new package or exported context): the `happy-dom`
+  development package (MIT, pinned 21.0.4; chosen over jsdom for its size and few dependencies),
+  used only by files that ask for it with `// @vitest-environment happy-dom`; no testing library:
+  React's own `act` and a small harness. The components render inside the application's real
+  providers against a stand-in `fetch`
+- [x] Tests for list filters and paging, form validation messages and the record page's tabs (also
+  search, the tab kept in the address, the server's field messages beside their fields, and
+  fields the record type lacks being left out)
+
+**Implemented in:** `web/src/core/componentHarness.tsx`, `componentMeta.ts`;
+`ResourceList.component.test.ts`, `ResourceForm.component.test.ts`, `RecordPage.component.test.ts`.
+Found while writing them: E18-49.
 
 ### E18-44 The role editor offers actions nothing checks
 
-**Status:** open · **Priority:** P3 · **Type:** debt
+**Status:** done · **Priority:** P3 · **Type:** debt
 
 The role editor offers about 40 combinations of area and action that no route checks, so an
 administrator can grant a permission that does nothing. Found by the permissions audit (E18-25).
@@ -912,7 +925,15 @@ administrator can grant a permission that does nothing. Found by the permissions
 **Acceptance criteria**
 
 - [x] The "not yet used" hint no longer names `portal`, which is now checked
-- [ ] The server lists the permissions its routes check, and the role editor greys out the rest
+- [x] The server lists the permissions its routes check, and the role editor greys out the rest
+  (`GET /api/admin/permissions/checked`: every `requirePerm`, every route description's
+  `permission`, the record-type actions and `HOOK_CHECKS`; a test scans the source for
+  permissions named in `can(`, `requirePerm(` and `permission:` and fails on one not listed. A
+  greyed box cannot be newly checked; one already granted can be removed)
+
+**Implemented in:** `server/src/core/permission-use.ts` (noted from `requirePerm` in
+`core/services.ts` and `describe` in `core/openapi.ts`, registered in `app.ts`),
+`permission-use.test.ts`; `web/src/modules/admin/RoleDetail.tsx`
 
 ### E18-46 A malformed date and time could be read as a date
 
@@ -930,7 +951,7 @@ web unit tests (E18-14).
 
 ### E18-47 Agency-flavored wording in editable defaults
 
-**Status:** open · **Priority:** P3 · **Type:** debt
+**Status:** done · **Priority:** P3 · **Type:** debt
 
 Found while reviewing E18-28. These defaults are configuration an administrator can change,
 so they do not stop a private operator or a contractor using the product, but they read as
@@ -947,8 +968,22 @@ written for a publicly funded agency with a board:
 
 **Acceptance criteria**
 
-- [ ] Each is either reworded so it reads for owners, directors and boards alike ("approving body", "the people your policy names"), or confirmed as general enough
-- [ ] A change to a list label reaches only new installations (`ensure` never overwrites an edited value), and the user guide says how to rename the rest
+- [x] Each is either reworded so it reads for owners, directors and boards alike ("approving body", "the people your policy names"), or confirmed as general enough:
+  ransom status "Approved for payment"; role note "Links the response team to senior leadership
+  and to whoever approves major decisions (a board, directors or owners)"; top approver
+  "Approving body (board, directors or owners)"; sample milestone "Award decision by the
+  approving body"; notification rule "Funders and partner operators" (guidance "Grant or loan
+  conditions..."); report pack "Leadership security pack", subtitle "Prepared for the board and
+  senior leadership" (its key `governing_body_pack` kept). Confirmed as general enough: the
+  funding value "Grant or outside funder" (private operators receive grants too) and the
+  contract field "Date and resolution (as recorded)" (filled only from an earlier register)
+- [x] A change to a list label reaches only new installations (`ensure` never overwrites an edited value), and the user guide says how to rename the rest
+  (no stored value is rewritten: whether an administrator edited one cannot be told; the
+  security incidents, projects and reports chapters say where to rename)
+
+**Implemented in:** `server/src/modules/secincidents/defaults.ts`, `projects/rules.ts`,
+`projects/seed.ts`, `reports/standard.ts`; `docs/user/07-security-incidents.md`,
+`08-projects.md`, `15-dashboards-and-reports.md`. Left over: E18-50.
 
 **Where:** `server/src/modules/secincidents/defaults.ts`, `server/src/modules/projects/rules.ts`, `server/src/modules/inventory/index.ts`, `server/src/modules/projects/defaults.ts`, `server/src/modules/reports/standard.ts`, `server/src/modules/vendors/index.ts`
 
@@ -971,3 +1006,50 @@ would have to do the same.
 
 **Implemented in:** `web/src/core/fieldNames.ts` (`knownFields`), used by `ResourceList`, `ResourceForm` (fields and sections) and `EditableSummary`; `web/src/core/knownFields.test.ts`. The fleet vehicle pages need no code of their own.
 
+### E18-49 A list filter in the page address on a field the type lacks is still applied
+
+**Status:** open · **Priority:** P3 · **Type:** bug
+
+Found by the component tests (E18-43). A page address or saved view with `f.<field>=` for a
+field the record type does not have (an option switched off since, E18-28) still shows a filter
+pill ("Funder interest: true") and sends the filter to the server. E18-48 left such fields out of
+the columns, the Filters popover and the forms, but not out of filters read from the address.
+
+**Acceptance criteria**
+
+- [ ] `ResourceList` ignores (and drops from the address) a filter on a field that `knownFields` leaves out
+- [ ] A component test covers it (`web/src/core/ResourceList.component.test.ts`)
+
+**Where:** `web/src/core/ResourceList.tsx`, `listState.ts`, `ListFilters.tsx`
+
+### E18-50 Agency wording left in a core option name and an assistant prompt
+
+**Status:** done · **Priority:** P3 · **Type:** debt
+
+Split from E18-47. Defaults outside the files reworded there still read as written for a public
+agency: the default name of the ransom approval reference ("Governing body approval reference",
+`OPTIONS` in `server/src/core/features.ts`, with its test in `modules/admin/feature-options.test.ts`
+and the field label in `modules/secincidents/index.ts`), the assistant prompt "A one-page summary
+for the governing body" (`modules/mcp/prompts.ts`), and the cover subtitle placeholder in
+`web/src/modules/reports/PackPages.tsx`.
+
+**Acceptance criteria**
+
+- [x] Each reads for owners, directors and boards alike (for example "Payment approval reference", "a one-page summary for leadership or the board")
+
+**Implemented in:** `server/src/core/features.ts` and `modules/secincidents/index.ts` (default name "Payment approval reference"; a name an administrator saved is kept), `modules/mcp/prompts.ts` ("leadership or the board"), `web/src/modules/reports/PackPages.tsx`; tests in `modules/admin/feature-options.test.ts` and `modules/secincidents/secincidents.test.ts`.
+
+### E18-51 A public reply on an email ticket could be emailed before it was saved
+
+**Status:** done · **Priority:** P2 · **Type:** defect
+
+When a service desk agent posted a public reply on a ticket that came in by email, the email to
+the requester was queued in a response hook that could run after the test (or a fast client) had
+already read the outbox, and on the PostgreSQL wire-protocol run the reply was sometimes missing.
+
+**Acceptance criteria**
+
+- [x] The reply email is queued before the answer is sent, so a caller that sees the answer also sees the queued email
+- [x] Passes on the embedded database and through the PostgreSQL wire protocol
+
+**Implemented in:** `server/src/modules/tickets/email.ts` (the hook moved from `onResponse` to `onSend` and returns the payload on every path).

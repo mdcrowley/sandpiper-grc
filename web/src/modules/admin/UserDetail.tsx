@@ -8,6 +8,7 @@ import type { ListResult } from '../../core';
 import { Notice, RoleChips, UserStatus } from './common';
 import type { AdminUser, AuditEvent, Department, IssuedLink, RolesResponse } from './common';
 import { adminApi } from './reauth';
+import { AlertContactCard } from './AlertContact';
 import { PasskeysCard } from '../account-keys/PasskeysCard';
 import { UserSignInCard } from './UserSignIn';
 import { LinkIssued } from './Users';
@@ -62,6 +63,7 @@ export function UserDetailPage() {
         <div className="stack">
           <ProfileCard user={user} onSaved={refresh} />
           <RolesCard user={user} isSelf={isSelf} onSaved={refresh} />
+          <AlertContactCard userId={user.id} />
         </div>
         <div className="stack">
           <Card title="Sign-in and security">

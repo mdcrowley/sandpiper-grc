@@ -19,7 +19,7 @@ export interface SmtpSink {
   port: number;
   messages: SunkMessage[];
   /** Refuse the next `count` messages with this reply code (default 451, "try later"). */
-  refuseNext(count: number, code?: number): void;
+  refuseNext(count: number, code?: number, text?: string): void;
   /** Resolves when at least `count` messages have arrived (or rejects after `ms`). */
   waitFor(count: number, ms?: number): Promise<SunkMessage[]>;
   close(): Promise<void>;
@@ -62,6 +62,7 @@ export async function startSmtpSink(opts: { auth?: { user: string; pass: string 
   const messages: SunkMessage[] = [];
   let refuse = 0;
   let refuseCode = 451;
+  let refuseText = '';
   const waiters: (() => void)[] = [];
   const sockets = new Set<Socket>();
 
@@ -93,7 +94,7 @@ export async function startSmtpSink(opts: { auth?: { user: string; pass: string 
           const raw = data.join('\r\n');
           if (refuse > 0) {
             refuse -= 1;
-            send(`${refuseCode} ${refuseCode >= 500 ? '5.7.1 Refused' : '4.3.0 Try again later'}`);
+            send(`${refuseCode} ${refuseText || (refuseCode >= 500 ? '5.7.1 Refused' : '4.3.0 Try again later')}`);
           } else {
             messages.push({ from, to, raw, subject: headerOf(raw, 'Subject'), body: readableBody(raw), user });
             send('250 2.0.0 Ok: queued');
@@ -165,7 +166,7 @@ export async function startSmtpSink(opts: { auth?: { user: string; pass: string 
   return {
     port,
     messages,
-    refuseNext(count, code = 451) { refuse = count; refuseCode = code; },
+    refuseNext(count, code = 451, text = '') { refuse = count; refuseCode = code; refuseText = text; },
     waitFor(count, ms = 5000) {
       return new Promise((resolve, reject) => {
         const timer = setTimeout(() => reject(new Error(`Only ${messages.length} of ${count} message(s) arrived`)), ms);

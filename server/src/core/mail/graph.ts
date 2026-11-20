@@ -10,10 +10,10 @@
 import { randomUUID } from 'node:crypto';
 import {
   bareAddress, cacheKey, cachedToken, CloudError, cloudFetch, composeMime, forgetToken, microsoftEndpoints, readCertificate, signJwt,
-  throttledText, type CloudAnswer, type MicrosoftCloud,
+  throttledError, type CloudAnswer, type MicrosoftCloud,
 } from './cloud.ts';
 import type { InboundMailbox } from './mailbox.ts';
-import { registerMailProvider, type MailConfig, type MailResult } from './provider.ts';
+import { registerMailProvider, type MailConfig, type MailResult, type OutgoingMessage } from './provider.ts';
 
 export interface GraphSettings {
   tenantId: string;
@@ -47,7 +47,7 @@ const TOKEN_ERRORS: Record<string, string> = {
 };
 
 function tokenError(a: CloudAnswer): CloudError {
-  if (a.status === 429) return new CloudError(throttledText(a.headers), true, 429);
+  if (a.status === 429) return throttledError(a.headers, 429);
   const desc = String(a.json?.error_description ?? a.json?.error ?? '').split(/\r?\n/)[0].slice(0, 300);
   const code = /AADSTS(\d+)/.exec(desc)?.[1];
   const why = (code && TOKEN_ERRORS[code]) || desc || `the sign-in service answered ${a.status}`;
@@ -59,7 +59,7 @@ export function graphError(a: CloudAnswer, mailbox: string, purpose: 'send' | 'r
   const code = String(a.json?.error?.code ?? '');
   const msg = String(a.json?.error?.message ?? '').split(/\r?\n/)[0].slice(0, 300);
   const detail = `(${code || a.status}${msg ? `: ${msg}` : ''})`;
-  if (a.status === 429 || a.status === 503 || a.status === 504 || /throttl|concurrency|TooManyRequests/i.test(code)) return new CloudError(throttledText(a.headers), true, a.status);
+  if (a.status === 429 || a.status === 503 || a.status === 504 || /throttl|concurrency|TooManyRequests/i.test(code)) return throttledError(a.headers, a.status);
   if (code === 'ErrorSendAsDenied') {
     return new CloudError(`The mailbox ${mailbox} may not send as the from address. Use the mailbox's own address as the from address, or give it Send As permission. ${detail}`, false, a.status);
   }
@@ -77,7 +77,9 @@ export function graphError(a: CloudAnswer, mailbox: string, purpose: 'send' | 'r
 }
 
 export function asMailResult(err: unknown): MailResult {
-  if (err instanceof CloudError) return { ok: false, retryable: err.retryable, error: err.message };
+  if (err instanceof CloudError) {
+    return { ok: false, retryable: err.retryable, error: err.message, ...(err.retryAfterSeconds !== undefined ? { retryAfterSeconds: err.retryAfterSeconds } : {}) };
+  }
   return { ok: false, retryable: false, error: (err as Error)?.message ?? String(err) };
 }
 
@@ -115,6 +117,114 @@ export function graphClient(s: GraphSettings, credential: string) {
   return { token, call };
 }
 
+// ---------- larger messages (E14-29) ----------
+//
+// One `sendMail` request carries at most 4 MB. A larger message is created as a draft, each file
+// is added to it (a small one in one request, a large one through an upload session in chunks),
+// and the draft is sent. A draft cannot carry `Auto-Submitted` or `References` as headers (Graph
+// takes only `X-` headers, at most five), so their equivalents are set instead:
+//   - the message keeps its Message-ID (`internetMessageId`, writable on a draft), so replies
+//     point at it as they would at a message sent the other way;
+//   - `References` and `In-Reply-To` become the MAPI properties Exchange writes those headers
+//     from (PidTagInternetReferences 0x1039, PidTagInReplyToId 0x1042);
+//   - `X-Auto-Response-Suppress: All` (which Exchange and Outlook honor in place of
+//     `Auto-Submitted`) and `X-GRC-Mail` (the application's own loop guard) stay headers.
+
+/** Files up to this size are added to the draft in one request; larger ones through an upload session. */
+export const GRAPH_INLINE_ATTACHMENT = 3 * 1024 * 1024;
+/** Upload-session chunks must be multiples of 320 KiB. */
+export const GRAPH_UPLOAD_CHUNK = 10 * 320 * 1024;
+/** Graph takes at most five custom headers on a message. */
+const GRAPH_MAX_HEADERS = 5;
+/** Hosts an upload session may point at (Graph answers with an Outlook address); tests use the stand-in's host. */
+const UPLOAD_HOSTS = ['.office.com', '.office365.com', '.office365.us', '.microsoft.com', '.microsoft.us', '.outlook.com'];
+
+function nameAndAddress(s: string): { name?: string; address: string } {
+  const m = /^\s*"?([^"<]*?)"?\s*<([^>]+)>\s*$/.exec(s);
+  return m ? { ...(m[1].trim() ? { name: m[1].trim() } : {}), address: m[2].trim() } : { address: s.trim() };
+}
+
+/** The draft's JSON: the message as Graph describes one, with the headers' equivalents. */
+export function graphDraft(m: OutgoingMessage, messageId: string): Record<string, unknown> {
+  const headers = Object.entries(m.headers ?? {});
+  const value = (name: string) => headers.find(([k]) => k.toLowerCase() === name)?.[1];
+  const custom = headers.filter(([k]) => /^x-/i.test(k))
+    // The loop guards first, so they are never the ones left out.
+    .sort(([a], [b]) => Number(!/^(x-grc-mail|x-auto-response-suppress)$/i.test(a)) - Number(!/^(x-grc-mail|x-auto-response-suppress)$/i.test(b)))
+    .slice(0, GRAPH_MAX_HEADERS)
+    .map(([name, v]) => ({ name, value: v }));
+  const extended = [
+    value('references') ? { id: 'String 0x1039', value: value('references') } : null,
+    value('in-reply-to') ? { id: 'String 0x1042', value: value('in-reply-to') } : null,
+  ].filter(Boolean);
+  return {
+    subject: m.subject,
+    body: m.html ? { contentType: 'HTML', content: m.html } : { contentType: 'Text', content: m.text },
+    from: { emailAddress: nameAndAddress(m.from) },
+    toRecipients: [{ emailAddress: { address: m.to } }],
+    ...(m.replyTo ? { replyTo: [{ emailAddress: { address: m.replyTo } }] } : {}),
+    internetMessageId: messageId,
+    ...(custom.length ? { internetMessageHeaders: custom } : {}),
+    ...(extended.length ? { singleValueExtendedProperties: extended } : {}),
+  };
+}
+
+function uploadUrlAllowed(url: string, graphBase: string): boolean {
+  let u: URL;
+  try { u = new URL(url); } catch { return false; }
+  if (u.host === new URL(graphBase).host) return true;
+  return u.protocol === 'https:' && UPLOAD_HOSTS.some((h) => u.hostname.toLowerCase().endsWith(h));
+}
+
+async function sendLarge(client: ReturnType<typeof graphClient>, s: GraphSettings, mailbox: string, m: OutgoingMessage, messageId: string): Promise<MailResult> {
+  const base = `/users/${enc(mailbox)}/messages`;
+  const ok = (a: CloudAnswer) => {
+    if (a.status >= 200 && a.status < 300) return a;
+    throw graphError(a, mailbox, 'send');
+  };
+  const created = ok(await client.call('POST', base, { body: JSON.stringify(graphDraft(m, messageId)), contentType: 'application/json' }));
+  const id = typeof created.json?.id === 'string' ? created.json.id : null;
+  if (!id) throw new CloudError('Microsoft Graph did not return the draft it created.', true);
+  const draft = `${base}/${enc(id)}`;
+  try {
+    for (const file of m.attachments ?? []) {
+      const bytes = Buffer.from(file.contentBase64, 'base64');
+      const contentType = file.contentType || 'application/octet-stream';
+      if (bytes.length <= GRAPH_INLINE_ATTACHMENT) {
+        ok(await client.call('POST', `${draft}/attachments`, {
+          body: JSON.stringify({ '@odata.type': '#microsoft.graph.fileAttachment', name: file.filename, contentType, contentBytes: file.contentBase64 }),
+          contentType: 'application/json',
+        }));
+        continue;
+      }
+      const session = ok(await client.call('POST', `${draft}/attachments/createUploadSession`, {
+        body: JSON.stringify({ AttachmentItem: { attachmentType: 'file', name: file.filename, size: bytes.length, contentType } }),
+        contentType: 'application/json',
+      }));
+      const uploadUrl = String(session.json?.uploadUrl ?? '');
+      if (!uploadUrlAllowed(uploadUrl, microsoftEndpoints(s.cloud).graph)) {
+        throw new CloudError('Microsoft Graph answered with an upload address that is not a Microsoft address; the file was not sent.', false);
+      }
+      // The upload address carries its own authorization: no access token is sent to it.
+      for (let start = 0; start < bytes.length; start += GRAPH_UPLOAD_CHUNK) {
+        const chunk = bytes.subarray(start, Math.min(bytes.length, start + GRAPH_UPLOAD_CHUNK));
+        const a = await cloudFetch(uploadUrl, {
+          method: 'PUT', body: chunk,
+          headers: { 'content-type': 'application/octet-stream', 'content-range': `bytes ${start}-${start + chunk.length - 1}/${bytes.length}` },
+        }, 'The Microsoft Graph upload session');
+        if (a.status !== 200 && a.status !== 201) throw graphError(a, mailbox, 'send');
+      }
+    }
+    const sent = await client.call('POST', `${draft}/send`);
+    if (sent.status !== 202 && sent.status !== 200) throw graphError(sent, mailbox, 'send');
+    return { ok: true, messageId };
+  } catch (err) {
+    // A draft left behind would sit in the mailbox's Drafts folder; the next attempt makes a new one.
+    await client.call('DELETE', draft).catch(() => undefined);
+    throw err;
+  }
+}
+
 registerMailProvider('graph', (config, secret) => {
   const s = graphSettings(config);
   const mailbox = s.mailbox || bareAddress(config.from_address);
@@ -131,10 +241,10 @@ registerMailProvider('graph', (config, secret) => {
       try {
         const { raw, messageId } = await composeMime(m);
         const body = raw.toString('base64');
-        if (body.length > GRAPH_MAX_REQUEST) {
-          return { ok: false, retryable: false, error: `The message is ${(raw.length / 1024 / 1024).toFixed(1)} MB with its files; Microsoft Graph takes at most about 3 MB in one message. Send large files as links, or use SMTP.` };
-        }
-        const a = await graphClient(s, secret!).call('POST', `/users/${enc(mailbox)}/sendMail`, { body, contentType: 'text/plain' });
+        const client = graphClient(s, secret!);
+        // Too large for one request (E14-29): a draft, its files uploaded one by one, then sent.
+        if (body.length > GRAPH_MAX_REQUEST) return await sendLarge(client, s, mailbox, m, messageId);
+        const a = await client.call('POST', `/users/${enc(mailbox)}/sendMail`, { body, contentType: 'text/plain' });
         if (a.status === 202 || a.status === 200) return { ok: true, messageId };
         throw graphError(a, mailbox, 'send');
       } catch (err) {

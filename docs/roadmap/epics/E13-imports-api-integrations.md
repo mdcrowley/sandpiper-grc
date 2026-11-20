@@ -1,6 +1,6 @@
 # E13 Imports, API and integrations
 
-**Status:** in progress (21 of 23 issues done)
+**Status:** done (23 of 23 issues done)
 
 ## Goal
 
@@ -47,8 +47,8 @@ the application in a documented, authenticated way.
 | E13-18 | Capability scopes for tokens (`mcp.use`) | done | P2 |
 | E13-19 | Webhook events other than record changes | done | P3 |
 | E13-20 | Find audit events by request id | done | P3 |
-| E13-21 | Asset import screen on the generic import | open | P3 |
-| E13-22 | Import check in a rolled-back transaction | open | P3 |
+| E13-21 | Asset import screen on the generic import | done | P3 |
+| E13-22 | Import check in a rolled-back transaction | done | P3 |
 | E13-23 | Index audit events by request id | done | P3 |
 
 ---
@@ -212,7 +212,7 @@ types from CSV through the same mapping and dry-run screen that assets have.
 - [x] Describe the import and fact-sheet routes for the OpenAPI document (`core/export/docs.ts`, registered from `core/apidocs.ts`)
 - [ ] Let the asset screen delegate to the generic import once it can express the asset-specific checks (moved to E13-21)
 
-**Implemented in:** `checkWithoutWriting` in `server/src/core/import/service.ts`; tests
+**Implemented in:** `checkWithoutWriting` in `server/src/core/import/service.ts` (replaced by the rolled-back check of E13-22); tests
 `server/src/core/import/check.test.ts` (create hook, update hook, restricted source)
 
 ### E13-08 Webhook address checks after name resolution
@@ -404,7 +404,7 @@ filter by it, and the CSV export leaves it out.
 
 ### E13-21 Asset import screen on the generic import
 
-**Status:** open · **Priority:** P3 · **Type:** improvement
+**Status:** done · **Priority:** P3 · **Type:** improvement
 
 Split from E13-10. The asset import under Inventory (`inventory/importer.ts`,
 `AssetImport.tsx`) has its own parser, mapping and checks. The generic import already imports
@@ -413,14 +413,22 @@ the asset-specific checks (disposal rules, matching by serial number then tag).
 
 **Acceptance criteria**
 
-- [ ] The asset-specific checks run as hooks or import options of the generic import
-- [ ] The Inventory asset import opens the generic wizard; `POST /api/assets/import` stays as a
-  documented, deprecated alias
-- [ ] `POST /api/assets/ingest` keeps its behavior
+- [x] The asset-specific checks run as hooks or import options of the generic import: they were
+  already the asset type's hooks (`checkAsset`: unique tag in any capitals, funder percentage,
+  the disposal gate), and the check now runs them for real (E13-22). Matching is by the field the
+  person chooses (Tag or Serial number); matching by serial then tag stays with the ingest route
+- [x] The Inventory asset import opens the generic wizard (`/assets/import` opens the asset list
+  with it; the list's own Import button replaces the separate one); `POST /api/assets/import`
+  stays, unchanged, documented as deprecated (`DEPRECATIONS` in `core/api/deprecations.ts`:
+  `Deprecation` header, `deprecated: true` in the document, pointing at `POST /api/import/asset`)
+- [x] `POST /api/assets/ingest` keeps its behavior
+
+**Implemented in:** `web/src/modules/inventory/AssetImport.tsx`, `Assets.tsx`;
+`server/src/core/api/deprecations.ts`; tests `server/src/modules/inventory/asset-import.test.ts`
 
 ### E13-22 Import check in a rolled-back transaction
 
-**Status:** open · **Priority:** P3 · **Type:** improvement
+**Status:** done · **Priority:** P3 · **Type:** improvement
 
 Split from E13-10. The import check runs validation and before-hooks without writing, so it
 cannot see what only a write shows: after-hooks that refuse, and database constraints. Running
@@ -430,9 +438,22 @@ engine writes through the shared database handle; it would need to accept a tran
 
 **Acceptance criteria**
 
-- [ ] The resource engine's create and update can run on a transaction handle, hooks included
-- [ ] The import check runs the real writes in a transaction that is always rolled back, with
-  nothing audited, emitted (webhooks, notifications) or queued
+- [x] The resource engine's create and update can run on a transaction handle, hooks included:
+  `db.trial(fn)` (`core/db.ts`, both drivers) runs `fn` in a transaction that is always rolled
+  back and, through `AsyncLocalStorage`, sends every query on the shared handle made by that
+  work (the engine, module hooks, audit, lookups, settings) into it, so nothing waits for the
+  transaction (the embedded database deadlock) and a `tx` inside it becomes a savepoint. The
+  outer request holds no transaction of its own
+- [x] The import check runs the real writes in a transaction that is always rolled back, with
+  nothing audited, emitted (webhooks, notifications) or queued: each row in its own savepoint
+  (a refused row does not spoil the next; later rows see earlier ones); record-change listeners
+  are not called, and webhook deliveries and the job queue do nothing inside a trial (`inTrial()`)
+
+**Implemented in:** `server/src/core/db.ts` (`withTrials`, `inTrial`), `core/import/service.ts`
+(`runImport`), guards in `core/resource.ts` (`emit`), `core/webhooks.ts` (`processDue`) and
+`core/jobs/queue.ts` (`enqueue`, `runDue`); tests `server/src/core/import/check.test.ts` (after-hook,
+unique index, a hook writing through `ctx.db`, nothing kept, audited or queued), on the embedded
+database, the wire protocol and PostgreSQL 17
 
 ### E13-23 Index audit events by request id
 

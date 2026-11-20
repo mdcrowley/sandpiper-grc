@@ -13,6 +13,7 @@
 // the answers are sent. Every step is audited on the vendor, without the link's secret.
 import type { Readable } from 'node:stream';
 import type { FastifyRequest } from 'fastify';
+import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { makeDbLimiter } from '../../core/ratelimit.ts';
 import { typeGroup } from '../attachments/filetypes.ts';
@@ -27,6 +28,8 @@ export const HOLD_TYPE = 'vendor_response_link';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Uploads through one link in an hour, whatever happens to them (each one is scanned). */
 const UPLOADS_PER_HOUR = 30;
+/** Days before unreviewed files are discarded that the person who created the link is told (E06-24). */
+const NOTICE_DAYS = 3;
 
 /** Files waiting on these links (not yet taken over, discarded or withdrawn). */
 export async function heldFiles(ctx: ModuleContext, linkIds: string[]): Promise<Row[]> {
@@ -68,11 +71,62 @@ export async function registerResponseFiles(ctx: ModuleContext, kit: LinkKit) {
   }
 
   /** Content deleted now and the row kept as the record of what was there. */
-  async function removeHeld(f: Row, reason: 'withdrawn' | 'rejected') {
+  async function removeHeld(f: Row, reason: 'withdrawn' | 'rejected' | 'unreviewed') {
     await discardReceived(ctx, { driver: f.storage_driver, key: f.storage_key });
     await db.query(
       `update attachments set deleted_at = now(), purged_at = now(), removed_reason = $2, updated_at = now() where id = $1`, [f.id, reason]);
   }
+
+  // ---------- housekeeping: files nobody reviewed (E06-24) ----------
+
+  /**
+   * Daily: a file still waiting on a link `discard_days` after the link closed (answers sent, link
+   * revoked or expired) is discarded like a file staff discard: its content deleted, the row kept,
+   * audited on the vendor. The person who created the link is told once, NOTICE_DAYS beforehand.
+   */
+  async function discardUnreviewed(): Promise<{ noticed: number; discarded: number }> {
+    const s = await kit.settings();
+    if (s.discard_days === 0 || !canReceiveFiles(ctx)) return { noticed: 0, discarded: 0 };
+    const closedAt = `least(l.submitted_at, l.revoked_at, case when l.expires_at <= now() then l.expires_at end)`;
+    const waiting = (withinDays: number) => db.query<Row>(
+      `select f.*, l.created_by as link_created_by, l.assessment_id, a.vendor_id, v.name as vendor_name, ${closedAt} as closed_at
+       from attachments f join vendor_assessment_links l on l.id = f.record_id
+       join vendor_assessments a on a.id = l.assessment_id join vendors v on v.id = a.vendor_id
+       where f.record_type = $1 and f.deleted_at is null and ${closedAt} is not null
+         and ${closedAt} <= now() - make_interval(days => $2::int)
+       order by f.created_at limit 5000`, [HOLD_TYPE, withinDays]);
+
+    // The notice: once per link, before its files go.
+    let noticed = 0;
+    const lead = Math.max(0, s.discard_days - NOTICE_DAYS);
+    const byLink = new Map<string, Row[]>();
+    for (const f of await waiting(lead)) (byLink.get(f.record_id) ?? byLink.set(f.record_id, []).get(f.record_id)!).push(f);
+    for (const [linkId, files] of byLink) {
+      const first = files[0];
+      if (!first.link_created_by || !ctx.app.hasDecorator('notify')) continue;
+      const send = (ctx.app as unknown as { notify: (i: Row) => Promise<{ sent: number }> }).notify;
+      const r = await send({
+        userIds: [first.link_created_by], kind: 'reminder', recordType: 'vendor', recordId: first.vendor_id,
+        route: `/vendors/${first.vendor_id}`, once: `vendors.response_files_discard:${linkId}`,
+        title: `${files.length} file${files.length === 1 ? '' : 's'} sent by ${first.vendor_name} will be discarded unless reviewed`,
+        body: `Files sent through a response link that closed ${s.discard_days} days ago are discarded. Open the assessment to take them over or discard them yourself.`,
+      });
+      noticed += r.sent;
+    }
+
+    let discarded = 0;
+    for (const f of await waiting(s.discard_days)) {
+      await removeHeld(f, 'unreviewed');
+      await ctx.audit(null, {
+        action: 'vendor.response_file_expire', recordType: 'vendor', recordId: f.vendor_id,
+        summary: `File sent through the response link discarded unreviewed, ${s.discard_days} days after the link closed: ${f.file_name}`,
+        before: { attachment_id: f.id, link_id: f.record_id, sha256: f.sha256, size_bytes: Number(f.size_bytes) },
+      });
+      discarded += 1;
+    }
+    return { noticed, discarded };
+  }
+  await scheduleWork(ctx, 'vendors.response_files_discard', discardUnreviewed, { every: 24 * 3_600_000, firstRunInMs: 150_000 });
 
   // ---------- public: the vendor sends, lists (with the questions) and withdraws files ----------
 

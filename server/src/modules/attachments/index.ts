@@ -16,6 +16,7 @@ import { registerBackgroundFileJobs } from './background.ts';
 import { registerBackups } from './backups.ts';
 import { clamdScanner } from './clamd.ts';
 import { clamdConfig, readScanner } from './config.ts';
+import { runEvidenceFileReminders } from './evidenceReminders.ts';
 import { dailyHousekeeping } from './housekeeping.ts';
 import { insertAttachment, prepareFile, receiveFile, sandboxDownload, sendStoredFile, type Refusal } from './intake.ts';
 import { makeScannerRegistry } from './scanner.ts';
@@ -59,6 +60,9 @@ const mod: ModuleDef = {
       const r = await dailyHousekeeping(ctx);
       return { orphans: r.orphans, purged: r.purge.purged, failed: r.purge.failed };
     }, { every: DAY, firstRunInMs: 120_000, leaseSeconds: 1800 });
+
+    // Daily: evidence files about to expire remind their record's owner (E14-18, evidenceReminders.ts).
+    await scheduleWork(ctx, 'attachments.evidence_reminders', () => runEvidenceFileReminders(ctx), { every: DAY, firstRunInMs: 140_000 });
 
     // ---------- who may see and change the files of a record ----------
 

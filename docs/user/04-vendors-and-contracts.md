@@ -222,6 +222,8 @@ To see everything that needs chasing, open **Expiring evidence** in the **Vendor
 3. The items are listed in those groups, soonest first, each with its date, vendor, type and how long is left. Select the evidence to open it, or the vendor to open its **Evidence** tab.
 4. Ask the vendor for a current copy. When it arrives, record it as a new evidence item so the old one remains as history.
 
+Select **Expiring evidence files on any record** at the top of the page to see evidence *files* attached to any record you can see (not only vendor evidence items), with their own expiry dates; that page links back here (see [Attachments and notifications](14-attachments-and-notifications.md)).
+
 ### One expiry date for the item and its file
 
 An evidence item has its own **Expires on** date, and a file attached to it as evidence may carry another. Only the item's date drives the reminders and the lists above. When the two disagree (for example, you attach a renewed certificate that runs a year longer, or the item has no date but the file does), the evidence page shows **The expiry dates do not agree**, with each date. With **Edit** on vendors:
@@ -268,6 +270,8 @@ The email names your organization (the application name), the vendor and the ass
 
 If the vendor has not sent their answers a set number of days before an emailed link expires (2 as installed), the application sends one reminder to the same address. The reminder cannot repeat the link: it asks them to use the earlier email, or to ask you for a new link.
 
+An administrator can word both messages under **Administration > Email > Templates**: **Vendor response link** (placeholders `{{organization}}`, `{{vendorName}}`, `{{assessmentTitle}}`, `{{expiresAt}}` and `{{link}}`) and **Vendor response link reminder** (the same without `{{link}}`, plus `{{sentAt}}`, when the link was emailed).
+
 #### Files from the vendor
 
 While the link works and before they send their answers, the vendor can send files that back their answers, such as a certificate or an assurance report, with an optional note on what the files show. They can remove a file they sent until they send their answers.
@@ -275,7 +279,7 @@ While the link works and before they send their answers, the vendor can send fil
 - Every file goes through the same checks as any upload: the allowed types (see [Attachments and notifications](14-attachments-and-notifications.md)), the content compared with the type its name claims, the malware scanner when one is set up, and the size limit. On top of that, a link takes only the **File types vendors may send**, up to **Files a vendor may send per link** and **Total size per link** (see below). A refused file is not kept, and the refusal is recorded in the vendor's history.
 - A file the vendor sends is **not** attached to anything. It waits on the link, under **files from the vendor to review** in the **Vendor's own answers** panel, with its size, when it was sent, the vendor's note and whether it was scanned.
 - Select the file name to download it and look at it. Then select **Take over** to keep it as **Evidence of the vendor** (with an optional **Expires on** date) or as **An ordinary file**: it moves to the vendor's **Attachments** tab. Or select **Discard**: the file is deleted at once and cannot be brought back. The vendor is not told either way.
-- Files stay for review after the link expires, is withdrawn or replaced, or the assessment is completed.
+- Files stay for review after the link expires, is withdrawn or replaced, or the assessment is completed, but not for ever: a file still waiting **Discard unreviewed files after the link closes (days)** after the link closed (30 as installed; the link closes when the answers are sent, or it expires or is withdrawn) is discarded by a daily check, like a file you discard, and the discard is recorded in the vendor's history. Three days before, the person who created the link gets a **Reminders** notification saying how many files will go. Set the number of days to 0 to keep waiting files until someone decides.
 
 ### Scores and gaps
 
@@ -303,8 +307,9 @@ The **Vendors answering for themselves** card (people who administer vendors can
 - **Total size per link (MB)**: from 1 to 500, 50 as installed. Each file is also held to the upload limit under **File settings**.
 - **File types vendors may send**: separated by commas; as installed csv, doc, docx, jpeg, jpg, pdf, png, pptx, txt, xls and xlsx. Only types also allowed under **File settings** are accepted, so this list can narrow what may be uploaded but never widen it.
 - **Reminder before an emailed link expires (days)**: from 0 (no reminder) to 30, 2 as installed.
+- **Discard unreviewed files after the link closes (days)**: from 0 (never) to 365, 30 as installed.
 
-Select **Save file and reminder settings** after changing any of the last four.
+Select **Save file and reminder settings** after changing any of the last five.
 
 ## The renewal calendar and reminders
 
@@ -363,4 +368,3 @@ Each value must be a whole number of days from 1 to 3650, with no repeats and at
 - Email delivery of reminders. They arrive as in-application notifications.
 - Approval steps for signing or renewing a contract.
 - A vendor's own sign-in. Vendors can answer an assessment and send files through a link, but cannot see anything else.
-- A template of its own for the email that carries the response link: it uses the **General message** template under Administration > Email > Templates.

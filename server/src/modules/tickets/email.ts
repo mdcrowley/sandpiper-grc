@@ -530,20 +530,22 @@ export function makeEmailIntake(ctx: ModuleContext, notify: TicketNotify) {
       response: '{ outcome: created|commented|ignored|refused|failed, reason, ref }',
     });
 
-    // Public replies by an agent on an email ticket go to the requester by email.
-    app.addHook('onResponse', async (req, reply) => {
-      if (req.method !== 'POST' || reply.statusCode !== 201 || req.url.split('?')[0] !== '/api/comments' || !req.user) return;
+    // Public replies by an agent on an email ticket go to the requester by email. Queued before the
+    // answer is sent (onSend, not onResponse), so whoever gets the 201 can rely on the email being queued.
+    app.addHook('onSend', async (req, reply, payload) => {
+      if (req.method !== 'POST' || reply.statusCode !== 201 || req.url.split('?')[0] !== '/api/comments' || !req.user) return payload;
       const b = (req.body ?? {}) as Row;
-      if (b.record_type !== 'ticket' || b.internal !== false) return;
+      if (b.record_type !== 'ticket' || b.internal !== false) return payload;
       try {
         const s = await read();
-        if (!s.enabled || !s.reply_by_email) return;
+        if (!s.enabled || !s.reply_by_email) return payload;
         const t = await db.one<Row>(`select id, ref, title, channel, requester_email, requester_id from tickets where id::text = $1 and deleted_at is null`, [String(b.record_id)]);
-        if (!t || t.channel !== 'email' || t.requester_id === req.user.id) return;
+        if (!t || t.channel !== 'email' || t.requester_id === req.user.id) return payload;
         await mailRequester(t, t.title, `${req.user.displayName} wrote:\n\n${String(b.body ?? '').trim()}\n\nReply to this message to answer. Keep [${t.ref}] in the subject.`, s);
       } catch (err) {
         console.error('[tickets] could not email the requester:', err);
       }
+      return payload;
     });
   }
 

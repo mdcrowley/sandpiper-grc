@@ -16,7 +16,8 @@ What it does:
 2. Creates invented records through the API: at scale 1, 10,000 tickets,
    3,000 assets, 2,000 actions, 1,500 changes, 1,500 vulnerabilities and some hundreds of
    each other type. A record a type's own rule refuses (an end before a start, an override
-   without a reason) is tried again with fewer fields. The words follow a Zipf distribution
+   without a reason) is tried again with fewer fields, and a name that must be unique and is
+   already taken (a vendor's name, a vehicle's fleet number) is made unique. The words follow a Zipf distribution
    over a vocabulary of about 500 transit and IT words (the word of rank r is about 1/r as
    common as the first), as real text does: a few words are in thousands of records, most in
    a handful. A search is what a person might type: one word of the vocabulary (65 %), two
@@ -26,7 +27,9 @@ What it does:
    longest times: ticket list pages (first, random and sorted, filtered, full-text), ticket
    statistics, the first page of every list, global search, one record, the whole Overview
    dashboard (every call it makes, timed until the last answer, with the 95th percentile of
-   each call), and creating and updating a ticket. The time the instance took to start (until
+   each call), the Overview again while someone saves a ticket every second (the server keeps
+   the Overview's figures only while nothing is written, so this is its cost when people are
+   also working), and creating and updating a ticket. The time the instance took to start (until
    it answered) is reported too.
 4. With `--ops`: stops the instance and times `backup`, `export-all`, `verify-backup`,
    `restore` and `import-all` into an empty installation at that volume.
@@ -37,6 +40,7 @@ What it does:
 |---|---|---|
 | `--scale n` | `1` | Multiplies every record count (`0.1` for a quick check) |
 | `--concurrency n` | `8` | Simulated people at once |
+| `--seed-concurrency n` | `8` | Records created at once while seeding (a PostgreSQL server takes 16 or more) |
 | `--duration s` | `15` | Seconds per scenario |
 | `--only a,b` | all | Scenarios whose name contains one of these words |
 | `--ops` | off | Also time backup, export, verification, restore and import |
@@ -51,6 +55,15 @@ What it does:
 With `GRC_DATABASE_URL` set (a PostgreSQL server; use an empty database made for the
 test), the throw-away instance uses that server instead of the embedded database.
 `LOAD_VERBOSE=1` shows the instance's own output.
+
+The instance gets the environment the tool runs in, so any server setting can be tried. For
+example `GRC_FIGURES_CACHE_SECONDS=0` measures the Overview without its kept figures: every
+simulated person signs in as the same administrator, so with the cache on they share one
+kept answer per figure, which is the best case (people with different roles each get their
+own). To compare two versions on the same records, seed once with `--seed-only --keep`, then
+run each version with `--reuse <kept folder>` (an older version in a separate `git worktree`,
+with this `run.mjs` copied into it). The measured results are in
+[Operations](../../docs/operations.md#performance-and-load-testing).
 
 A request that gets no answer at all (a dropped connection) is tried again once and counted;
 the count is in the results ("Requests that got no answer at all"). If the instance stops by
@@ -77,3 +90,8 @@ GRC_DATABASE_URL=postgres://grc:load-test-only@127.0.0.1:55432/grc_load node too
 (In PowerShell: `$env:GRC_DATABASE_URL = '...'` on its own line first.) The server and the
 load generator then share the machine's processors, so the figures are a lower bound for a
 database on its own machine.
+
+With `--reuse`, keep `GRC_DATABASE_URL` pointing at the database that was seeded: the kept
+folder holds only the files beside it. A newer version brings that database up to date when
+it starts, so measure the older version first. Seeding goes faster on a server with
+`--seed-concurrency 16`.

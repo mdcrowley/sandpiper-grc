@@ -1,6 +1,6 @@
 # E02 Account security
 
-**Status:** in progress (22 of 28 issues done)
+**Status:** in progress (25 of 29 issues done)
 
 ## Goal
 
@@ -19,6 +19,8 @@ everything else fails.
   (E02-10) needs none (the browser carries every message). It is off
   until an administrator switches a provider on; the application works without it. Running it
   for real also needs HTTPS on a real host name ([E16](E16-hosting-operations-and-hardening.md)).
+- Directory (LDAP) sign-in (E02-26) needs an encrypted connection from this server to the
+  directory (LDAPS or StartTLS); it too is off until switched on.
 
 ## Issues
 
@@ -49,9 +51,10 @@ everything else fails.
 | E02-23 | Sign out at the provider too | done | P3 |
 | E02-24 | Groups by reference (group overage) | done | P3 |
 | E02-25 | Break-glass banner on every page | done | P2 |
-| E02-26 | Directory (LDAP) sign-in | open | P3 |
-| E02-27 | SAML: act on sign-outs started at the identity provider | open | P3 |
-| E02-28 | SAML: check metadata signatures and refresh metadata | open | P3 |
+| E02-26 | Directory (LDAP) sign-in | done | P3 |
+| E02-27 | SAML: act on sign-outs started at the identity provider | done | P3 |
+| E02-28 | SAML: check metadata signatures and refresh metadata | done | P3 |
+| E02-29 | Directory sign-in: passkey as second factor, linking and confirming from Account security | open | P3 |
 
 ---
 
@@ -534,29 +537,71 @@ the shell does not yet show it on every page. Render `BreakGlassBanner` (exporte
 
 ### E02-26 Directory (LDAP) sign-in
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
-A `credentials`-style driver in `server/src/core/identity/` (`authenticate(provider, secret,
-username, password)` returning an `ExternalIdentity`) offered on the password form. Needs an LDAP
-client (a new package) and LDAPS only.
+As an administrator of an organization whose people have directory accounts, I can let them sign
+in here with their directory user name and password (Active Directory, OpenLDAP), configured as a
+sign-in provider beside OpenID Connect and SAML.
+
+**Acceptance criteria**
+
+- [x] A `credentials`-style driver (`authenticate(provider, secret, username, password)` returning an `ExternalIdentity`) offered on the password form as a **Sign in with** choice; the provider list shows it as **Directory (LDAP)**
+- [x] Encrypted only: `ldaps://` or `ldap://` with StartTLS; plain LDAP refused except to 127.0.0.1 (tests); TLS 1.2+, certificate and host name checked; optional pinned CA certificate
+- [x] Service account bind (its password stored encrypted with the secret key, covered by `SEALED_KINDS`), then a search with the administrator's filter and the user name escaped (RFC 4515), sent in binary form; exactly one entry; a DN template without a service account (RFC 4514 escaping)
+- [x] The password checked by binding as the entry on its own connection; an empty password never sent; disabled, expired and locked accounts refused
+- [x] Groups from `memberOf`, a group search, or Active Directory nested groups (`LDAP_MATCHING_RULE_IN_CHAIN`), mapped to roles like the other providers; account matching, linking and just-in-time accounts as for the other providers
+- [x] The second factor still applies (authenticator code or recovery code); the provider never counts as a second factor
+- [x] Rate limits and lockout as for a password (by address, by user name, and the linked account's progressive lockout); audited; passwords and service account details never logged
+- [x] **Test connection** reports the TLS version and certificate, the service account and base DN, and can look a person up (DN, identifier, email, disabled, groups) without a password
+- [x] Tests against an in-process stand-in directory (no network): LDAPS, StartTLS, StartTLS refused, untrusted certificate, wrong password, disabled and locked accounts, ambiguous and unknown names, injection attempts, second factor, lockout
+- [x] Checked in a browser: the provider editor and list, and a directory sign-in on the sign-in page (light and dark, 1440 and 820)
+
+**Implemented in:** `server/src/core/identity/ldap.ts` (driver), `ldapclient.ts` (LDAP v3 client on `node:tls`: no package), `ldapfilter.ts` (RFC 4515 filters, RFC 4514 DN escaping), `ber.ts`, `ldap-fake-server.ts` (stand-in directory), `ldap.test.ts`; the second-factor step in `finishSignIn` (`service.ts`); `POST /api/auth/sso/:key/login` (`server/src/modules/admin/sso.ts`), the test with a user name and the service account password (`providers.ts`), `ldap.test.ts`; web `LdapFields.tsx`, `ProviderEditor.tsx`, `Providers.tsx`, `web/src/core/AuthPages.tsx`; [user guide](../../user/09-administration.md#directory-ldap-sign-in), [Security](../../security.md)
 
 ### E02-27 SAML: act on sign-outs started at the identity provider
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 Split from E02-10. Signing out here already signs out at a SAML identity provider (SP-initiated).
 A LogoutRequest the identity provider sends to `/api/auth/sso/:key/slo` (when the person signs out
-there, or elsewhere) is not acted on: the browser is just sent to `/`. Validate the signed
-LogoutRequest (redirect binding signature or POST signature, issuer, destination, time), end the
-sessions made through that provider for that NameID and SessionIndex, answer with a signed
-LogoutResponse, and audit it.
+there, or elsewhere) is now acted on when the administrator switches it on for the provider.
+
+**Acceptance criteria**
+
+- [x] Off by default (**Act on sign-outs started at the identity provider**); while off, requests are ignored as before
+- [x] HTTP-Redirect (query-string signature) and HTTP-POST (XML signature) bindings; unsigned requests refused, SHA-1 refused, only the configured certificates trusted
+- [x] Issuer, `Destination`, issue time (five minutes) and `NotOnOrAfter` checked; each request ID works once; hardened parsing and a size limit on the inflated message
+- [x] The sessions made through that provider for the NameID (and the SessionIndex, when given) end; a signed LogoutResponse goes back to the identity provider's sign-out address; audited (`identity.saml_logout`); refusals audited as failures
+- [x] The service-provider metadata lists the single logout address for both bindings
+- [x] Tests with the stand-in identity provider: both bindings, one session index or all, replay, unsigned, foreign key, SHA-1, wrong or missing destination, stale and future, wrong issuer, changed after signing, switched off
+
+**Implemented in:** `verifyIdpLogoutRequest`, `idpLogoutResponseUrl` (`server/src/core/identity/saml.ts`), `inspectLogoutRequest` (`samlxml.ts`), `logoutRequest` in `saml-fake-idp.ts`; GET and POST `/api/auth/sso/:key/slo` (`server/src/modules/admin/sso.ts`), `saml-slo.test.ts`; web `ProviderEditor.tsx`; [user guide](../../user/09-administration.md#saml-20-providers), [Security](../../security.md)
 
 ### E02-28 SAML: check metadata signatures and refresh metadata
 
+**Status:** done · **Priority:** P3 · **Type:** improvement
+
+Split from E02-10. Identity-provider metadata was pasted, uploaded or fetched once, and its own
+signature was not checked.
+
+**Acceptance criteria**
+
+- [x] An optional metadata signing certificate on the provider: metadata read with it must carry one valid signature on its root, with the sign-in algorithm allow-list; only the signed bytes are read; out-of-date metadata (`validUntil`) refused
+- [x] An optional daily refresh through the job queue (`scheduleWork`, `admin.saml_metadata_refresh`), and **Refresh now**: only with outbound connections on and the host allowed, signed metadata only, never changing the entity ID
+- [x] New signing certificates are added; ones the metadata stops listing are kept for 7 days (rollover), then removed; sign-in and sign-out addresses follow the metadata
+- [x] Every refresh and every failure audited (`identity_provider.metadata_refresh`), the last result shown on the provider
+- [x] Tests: valid, unsigned, foreign-signed, changed after signing, out of date; refresh with outbound off, a rollover, removal after 7 days, a bad signature changing nothing
+
+**Implemented in:** `verifyMetadataSignature` and `validUntil` (`server/src/core/identity/samlxml.ts`), `mergeRefreshedCertificates` (`saml.ts`), signed metadata in `saml-fake-idp.ts`; `refreshMetadata`, `POST /api/admin/identity-providers/:id/refresh-metadata`, the daily job and `metadataCert` on `POST /api/admin/identity-providers/saml-metadata` (`server/src/modules/admin/providers.ts`), `saml-slo.test.ts`; web `SamlFields.tsx`, `Providers.tsx`; [user guide](../../user/09-administration.md#saml-20-providers), [Security](../../security.md)
+
+### E02-29 Directory sign-in: passkey as second factor, linking and confirming from Account security
+
 **Status:** open · **Priority:** P3 · **Type:** improvement
 
-Split from E02-10. Identity-provider metadata is pasted, uploaded or fetched once, and its own
-signature is not checked: the administrator vouches for it. For federations and identity
-providers that publish signed metadata, offer verifying it against a configured signing
-certificate, and an optional scheduled refresh (only with outbound connections on) that picks up
-new signing certificates before a rollover.
+Split from E02-26. After a directory password, a person whose only second factor is a passkey must
+use a recovery code: the passkey step (`/api/auth/webauthn/login/options` with a user name and
+password) checks a local password. Also, a directory cannot be linked from **Account security**
+(it is linked at sign-in), and a person without a local password cannot confirm their identity
+with the directory password for sensitive actions. Offer a passkey challenge after a successful
+directory password, linking a directory from Account security and a directory confirmation in the
+confirmation dialog, and hide **Confirm with …** for a directory in `LinkedIdentities.tsx` until then.

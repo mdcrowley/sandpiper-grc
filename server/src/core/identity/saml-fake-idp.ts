@@ -8,14 +8,15 @@
 // InResponseTo or issuer, expired, transient NameID, encrypted, and `mutate` for hand-made attacks
 // such as signature wrapping or a DTD).
 //
-// It also serves, on 127.0.0.1 (port 0 = any free port): `/metadata` (its metadata), `/sso` (a page
+// It also makes LogoutRequests (E02-27) and signed metadata (E02-28, with a key of its own), and serves,
+// on 127.0.0.1 (port 0 = any free port): `/metadata` (its metadata), `/metadata-signed`, `/sso` (a page
 // with a Continue button that posts the response to the assertion consumer service, for a browser
 // run) and `/slo` (a "signed out" page).
-import { generateKeyPairSync, randomBytes, X509Certificate, type KeyObject } from 'node:crypto';
+import { generateKeyPairSync, randomBytes, sign as cryptoSign, X509Certificate, type KeyObject } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { promisify } from 'node:util';
-import { inflateRawSync } from 'node:zlib';
+import { deflateRawSync, inflateRawSync } from 'node:zlib';
 import { SignedXml } from 'xml-crypto';
 import xmlenc from 'xml-encryption';
 import { selfSignedCertificate } from './x509.ts';
@@ -61,6 +62,22 @@ export interface RespondOptions {
   mutate?: (xml: string) => string;
 }
 
+export interface LogoutRequestOptions {
+  binding: 'redirect' | 'post';
+  /** The application's single logout address (the Destination); null leaves it out. */
+  destination: string | null;
+  nameId: string;
+  sessionIndex?: string;
+  /** Default true. */
+  sign?: boolean;
+  foreignKey?: boolean;
+  sigAlg?: 'sha256' | 'sha1';
+  issuer?: string;
+  shiftMs?: number;
+  id?: string;
+  relayState?: string;
+}
+
 export interface FakeSamlIdp {
   entityId: string;
   port: number;
@@ -76,6 +93,13 @@ export interface FakeSamlIdp {
   pageOptions: RespondOptions;
   hits: Record<string, number>;
   metadataXml(): string;
+  /** E02-28: the certificate that signs its metadata (a key of its own), and the signing certificates the metadata lists (default: `cert`). */
+  metadataCert: string;
+  metadataCerts: string[];
+  /** Its metadata signed with the metadata key (or `foreignKey`); also served at /metadata-signed. `mutate` changes it after signing. */
+  signedMetadataXml(opts?: { foreignKey?: boolean; mutate?: (xml: string) => string; validUntil?: string }): string;
+  /** E02-27: a LogoutRequest from the identity provider, for either binding (signed unless `sign: false`). */
+  logoutRequest(opts: LogoutRequestOptions): { query: string; form: { SAMLRequest: string; RelayState?: string }; xml: string; id: string };
   /** Reads the AuthnRequest out of the redirect address the application sent the browser to. */
   readRequest(redirectUrl: string): AuthnRequestFacts;
   /** Makes the response to that request: the form fields to post, and where. */
@@ -114,6 +138,23 @@ export async function startFakeSamlIdp(opts: { port?: number } = {}): Promise<Fa
   const port = (server.address() as AddressInfo).port;
   const base = `http://127.0.0.1:${port}`;
 
+  const metaSigner = keyAndCert('Example federation metadata signer (test)');
+  /** Its metadata; `rootAttrs` adds attributes to the root (an ID for signing, validUntil). */
+  const metadataDocument = (rootAttrs: string) => {
+    const keys = idp.metadataCerts.map((c) => `    <md:KeyDescriptor use="signing"><ds:KeyInfo><ds:X509Data><ds:X509Certificate>${c.replace(/-----(BEGIN|END) CERTIFICATE-----|\s+/g, '')}</ds:X509Certificate></ds:X509Data></ds:KeyInfo></md:KeyDescriptor>`).join('\n');
+    return `<?xml version="1.0"?>
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="${esc(idp.entityId)}"${rootAttrs}>
+  <md:IDPSSODescriptor protocolSupportEnumeration="${P}" WantAuthnRequestsSigned="false">
+${keys}
+    <md:SingleLogoutService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="${esc(idp.sloUrl)}"/>
+    <md:NameIDFormat>urn:oasis:names:tc:SAML:2.0:nameid-format:persistent</md:NameIDFormat>
+    <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="${esc(idp.ssoUrl)}/post"/>
+    <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="${esc(idp.ssoUrl)}"/>
+  </md:IDPSSODescriptor>
+</md:EntityDescriptor>
+`;
+  };
+
   const idp: FakeSamlIdp = {
     entityId: `${base}/idp`,
     port,
@@ -125,19 +166,61 @@ export async function startFakeSamlIdp(opts: { port?: number } = {}): Promise<Fa
     user: { nameId: 'person-0001', attributes: { email: ['person@example.test'], displayName: ['Test Person'], groups: [] } },
     pageOptions: {},
     hits,
-    metadataXml() {
-      const body = signer.cert.replace(/-----(BEGIN|END) CERTIFICATE-----|\s+/g, '');
-      return `<?xml version="1.0"?>
-<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="${esc(idp.entityId)}">
-  <md:IDPSSODescriptor protocolSupportEnumeration="${P}" WantAuthnRequestsSigned="false">
-    <md:KeyDescriptor use="signing"><ds:KeyInfo><ds:X509Data><ds:X509Certificate>${body}</ds:X509Certificate></ds:X509Data></ds:KeyInfo></md:KeyDescriptor>
-    <md:SingleLogoutService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="${esc(idp.sloUrl)}"/>
-    <md:NameIDFormat>urn:oasis:names:tc:SAML:2.0:nameid-format:persistent</md:NameIDFormat>
-    <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="${esc(idp.ssoUrl)}/post"/>
-    <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="${esc(idp.ssoUrl)}"/>
-  </md:IDPSSODescriptor>
-</md:EntityDescriptor>
-`;
+    metadataCert: metaSigner.cert,
+    metadataCerts: [signer.cert],
+    metadataXml() { return metadataDocument(''); },
+    signedMetadataXml(o = {}) {
+      const key = o.foreignKey ? foreign : metaSigner;
+      const xml = metadataDocument(` ID="_m${randomBytes(8).toString('hex')}"${o.validUntil ? ` validUntil="${o.validUntil}"` : ''}`);
+      const sig = new SignedXml({
+        privateKey: key.key.export({ type: 'pkcs8', format: 'pem' }), publicCert: key.cert,
+        signatureAlgorithm: 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha256', canonicalizationAlgorithm: 'http://www.w3.org/2001/10/xml-exc-c14n#',
+      });
+      sig.addReference({
+        xpath: "/*[local-name(.)='EntityDescriptor']",
+        transforms: ['http://www.w3.org/2000/09/xmldsig#enveloped-signature', 'http://www.w3.org/2001/10/xml-exc-c14n#'],
+        digestAlgorithm: 'http://www.w3.org/2001/04/xmlenc#sha256',
+      });
+      sig.computeSignature(xml, { location: { reference: "/*[local-name(.)='EntityDescriptor']/*[1]", action: 'before' } });
+      const signed = sig.getSignedXml();
+      return o.mutate ? o.mutate(signed) : signed;
+    },
+    logoutRequest(o) {
+      const now = Date.now() + (o.shiftMs ?? 0);
+      const id = o.id ?? `_l${randomBytes(16).toString('hex')}`;
+      const key = o.foreignKey ? foreign : signer;
+      let xml = `<samlp:LogoutRequest xmlns:samlp="${P}" xmlns:saml="${A}" ID="${id}" Version="2.0" IssueInstant="${iso(now)}"`
+        + `${o.destination === null ? '' : ` Destination="${esc(o.destination)}"`}>`
+        + `<saml:Issuer>${esc(o.issuer ?? idp.entityId)}</saml:Issuer>`
+        + `<saml:NameID Format="urn:oasis:names:tc:SAML:2.0:nameid-format:persistent">${esc(o.nameId)}</saml:NameID>`
+        + (o.sessionIndex ? `<samlp:SessionIndex>${esc(o.sessionIndex)}</samlp:SessionIndex>` : '')
+        + '</samlp:LogoutRequest>';
+      const alg = o.sigAlg === 'sha1' ? 'http://www.w3.org/2000/09/xmldsig#rsa-sha1' : 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha256';
+      if (o.binding === 'post') {
+        if (o.sign !== false) {
+          const sig = new SignedXml({
+            privateKey: key.key.export({ type: 'pkcs8', format: 'pem' }), publicCert: key.cert,
+            signatureAlgorithm: alg, canonicalizationAlgorithm: 'http://www.w3.org/2001/10/xml-exc-c14n#',
+          });
+          sig.addReference({
+            xpath: "/*[local-name(.)='LogoutRequest']",
+            transforms: ['http://www.w3.org/2000/09/xmldsig#enveloped-signature', 'http://www.w3.org/2001/10/xml-exc-c14n#'],
+            digestAlgorithm: o.sigAlg === 'sha1' ? 'http://www.w3.org/2000/09/xmldsig#sha1' : 'http://www.w3.org/2001/04/xmlenc#sha256',
+          });
+          sig.computeSignature(xml, { location: { reference: "/*[local-name(.)='LogoutRequest']/*[local-name(.)='Issuer']", action: 'after' } });
+          xml = sig.getSignedXml();
+        }
+        return { query: '', form: { SAMLRequest: Buffer.from(xml, 'utf8').toString('base64'), ...(o.relayState ? { RelayState: o.relayState } : {}) }, xml, id };
+      }
+      // HTTP-Redirect binding (SAML bindings 3.4.4.1): deflate, base64, and sign the query string.
+      let query = `SAMLRequest=${encodeURIComponent(deflateRawSync(Buffer.from(xml, 'utf8')).toString('base64'))}`
+        + (o.relayState ? `&RelayState=${encodeURIComponent(o.relayState)}` : '');
+      if (o.sign !== false) {
+        query += `&SigAlg=${encodeURIComponent(alg)}`;
+        const signature = cryptoSign(o.sigAlg === 'sha1' ? 'sha1' : 'sha256', Buffer.from(query, 'utf8'), key.key).toString('base64');
+        query += `&Signature=${encodeURIComponent(signature)}`;
+      }
+      return { query, form: { SAMLRequest: '' }, xml, id };
     },
     readRequest(redirectUrl) {
       const u = new URL(redirectUrl);
@@ -205,6 +288,10 @@ export async function startFakeSamlIdp(opts: { port?: number } = {}): Promise<Fa
   server.on('request', (req, res) => {
     const url = new URL(req.url ?? '/', base);
     hits[url.pathname] = (hits[url.pathname] ?? 0) + 1;
+    if (url.pathname === '/metadata-signed') {
+      res.writeHead(200, { 'content-type': 'application/samlmetadata+xml' });
+      return res.end(idp.signedMetadataXml());
+    }
     if (url.pathname === '/metadata') {
       res.writeHead(200, { 'content-type': 'application/samlmetadata+xml' });
       return res.end(idp.metadataXml());

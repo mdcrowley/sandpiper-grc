@@ -157,7 +157,12 @@ export function EvidenceExpiring() {
         title="Expiring evidence"
         subtitle="Vendor assurance evidence that has run out or soon will. When a current copy arrives, record it as a new evidence item."
         breadcrumbs={[{ label: 'Evidence', to: '/evidence' }, { label: 'Expiring' }]}
-        actions={<Link className="btn btn-secondary" to="/evidence">All evidence</Link>}
+        actions={(
+          <span className="row">
+            {filesAvailable && <Link className="btn btn-secondary" to="/attachments/expiring">Expiring evidence files on any record</Link>}
+            <Link className="btn btn-secondary" to="/evidence">All evidence</Link>
+          </span>
+        )}
       />
       <Card>
         <div className="vnd-toolbar">

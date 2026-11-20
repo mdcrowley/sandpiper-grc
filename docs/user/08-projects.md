@@ -127,7 +127,7 @@ On a gate that asks for one (by default **Go-live**), and where change records a
 
 ### Approvers
 
-The **Approvers** card lists the roles expected to approve this gate for the project's tier. Open **Approvers for every tier** to see the full table. The list is guidance for whoever records the decision; the application does not check the approver's name against it.
+The **Approvers** card lists the roles expected to approve this gate for the project's tier. Open **Approvers for every tier** to see the full table. The list is guidance for whoever records the decision; the application does not check the approver's name against it. For the largest projects the supplied list ends with **Approving body (board, directors or owners)** (installations set up before this version show **Governing body**); an administrator changes the approvers of each gate under **Project settings**.
 
 ### Recording a decision
 

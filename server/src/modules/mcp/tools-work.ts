@@ -461,7 +461,43 @@ const systemImpact: ToolSpec = {
   },
 };
 
+const searchAuditLog: ToolSpec = {
+  name: 'search_audit_log', title: 'Search the audit log', group: 'Work and insight', idempotent: true,
+  description: 'Finds audit events: everything one request did (its X-Request-Id, as shown on an error or in the AI assistant call log), '
+    + 'or events matching text, an action, a record or a time span. Newest first; who, when, what and the token used. '
+    + 'Field values before and after a change are not included. Needs permission to read the audit log; events about records you may not see stay hidden.',
+  available: (a) => a.can('audit.view'),
+  input: {
+    request_id: z.string().max(200).optional().describe('Every event of one request (the X-Request-Id of its answer).'),
+    text: z.string().max(200).optional().describe('Text in the summary, the person\'s name or the action.'),
+    action: z.string().max(100).optional().describe('An exact action, for example mcp.write or record.update.'),
+    record_type: z.string().max(100).optional().describe('Record type key, for example ticket.'),
+    record_id: z.string().max(100).optional().describe('Record id (with record_type).'),
+    from: z.string().max(40).optional().describe('Start date or date and time (ISO 8601).'),
+    to: z.string().max(40).optional().describe('End date or date and time (ISO 8601).'),
+    limit: z.number().int().min(1).max(100).optional().describe('Most events to return (default 25).'),
+  },
+  async run(args, t) {
+    const filters = { request_id: args.request_id, q: args.text, action: args.action, record_type: args.record_type, record_id: args.record_id, from: args.from, to: args.to };
+    if (!Object.values(filters).some((v) => v !== undefined && String(v).trim() !== '')) {
+      fail('Give at least one of request_id, text, action, record_type, record_id, from or to.');
+    }
+    const limit = args.limit ?? 25;
+    const res = await t.api.get<{ rows: any[]; total: number }>(`/api/audit${qs({ ...filters, pageSize: limit })}`);
+    const events = res.rows.map((e) => ({
+      at: e.at, actor: e.actor_name ?? null, token: e.token_name ?? null, action: e.action,
+      record_type: e.record_type ?? null, record_id: e.record_id ?? null, summary: e.summary ?? null, request_id: e.request_id ?? null,
+    }));
+    const params = Object.fromEntries(Object.entries({ ...filters }).filter(([, v]) => v !== undefined && v !== ''));
+    const lines = events.map((e) => `- ${e.at instanceof Date ? e.at.toISOString() : e.at} ${e.actor ?? 'System'}${e.token ? ` (token ${e.token})` : ''}: ${e.action}${e.summary ? `, ${e.summary}` : ''}`);
+    return {
+      text: res.total ? `${plural(res.total, 'audit event')}${res.total > events.length ? ` (newest ${events.length} shown)` : ''}:\n${lines.join('\n')}` : 'No audit events match.',
+      data: { total: res.total, events, url: `${t.link('/admin/audit')}${qs(params)}` },
+    };
+  },
+};
+
 export const WORK_TOOLS: ToolSpec[] = [
   myWork, overdueSummary, riskHeatmap, frameworkProgress, incidentClocks, contractsNearingNotice,
-  vulnerabilitySummary, serviceDeskMetrics, fleetEquipmentGaps, safetySummary, runReportTool, systemImpact,
+  vulnerabilitySummary, serviceDeskMetrics, fleetEquipmentGaps, safetySummary, runReportTool, systemImpact, searchAuditLog,
 ];

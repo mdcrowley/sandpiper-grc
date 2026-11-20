@@ -34,9 +34,15 @@ Some assistants connect from the provider's cloud instead of from someone's comp
 2. Decide how connectors are added:
    - Turn on **Let connectors register themselves** to let any connector introduce itself the first time someone connects it. Each person still has to approve it.
    - Or leave it off and select **Add a connector** for each connector you trust: enter its **Name** and its **Redirect addresses** (from the connector's documentation), and tick **The connector keeps a client secret** only for connectors that run on a server. Give the **Client id** (and the **Client secret**, shown once) to the people who will use it.
-3. The table lists the connectors with where they return to, how they were added and how many people are connected. **Remove** stops a connector and ends all its connections. **Connections people approved** lists each person's connection; **End** stops one.
+3. Newer connectors identify themselves by a **web address** instead of registering: the address of a small document published by the connector's maker that describes it (a client ID metadata document). Sandpiper GRC must fetch that document, so this needs **Allow outbound connections** under **Settings** > **Outbound connections** as well. Under **Connectors known by their web address**:
+   - Turn on **Accept connectors known by their web address**.
+   - In **Hosts they may come from**, list the hosts you trust, one per line (for example `assistant.example.org` or `*.example.net`), then select **Save hosts**. Leave it empty to accept any public host.
+   - Turn on **An administrator approves each new connector first** if you want to look at each new connector before anyone can connect it. A new one then appears in the table as **Waiting for approval**; select **Approve** to let people connect it.
 
-Turning sign-in for connectors off ends every connector connection at once.
+   Sandpiper GRC fetches the document only from public addresses, never follows a redirect, reads at most 5 KB within 5 seconds, and keeps the document for up to a day. A document that is not exactly right (for example one naming a different address, or asking to keep a secret) is refused, and the person connecting sees why.
+4. The table lists the connectors with where they return to, how they were added (**By an administrator**, **Registered itself** or **Known by its web address**, with the host the document comes from) and how many people are connected. **Remove** stops a connector and ends all its connections; a connector known by its web address then stays refused, listed under **Removed connectors known by their web address**, until you select **Allow again**. **Connections people approved** lists each person's connection; **End** stops one.
+
+Turning sign-in for connectors off ends every connector connection at once. Turning off **Accept connectors known by their web address**, or outbound connections, ends the connections of those connectors at once.
 
 Turning **AI assistant access (MCP)** off refuses every assistant immediately. Assistant tokens are personal API tokens too, so they still work with the REST API within their permissions; revoke them to stop that as well.
 
@@ -69,6 +75,8 @@ When your administrator has switched on sign-in for remote connectors, the card 
 
 The connector sends you to the **Connect an AI assistant** consent screen in Sandpiper GRC (sign in first if asked). It shows which connector is asking, that it will act as you, and where you will return. Allow only if it is the assistant you just started connecting. Choose **What it may do** (**Read and write** is offered only when the connector asked for it and you can change records yourself) and **Allow for** (how long before it must sign in again), then select **Allow** and give your password if asked, or select **Decline**. You return to the assistant, connected.
 
+If the connector is known by its **web address**, the consent screen shows, at the top, the **host** that published its description, with the full address. The connector's name is only what that description says about itself: anyone can publish any name, so allow only if you trust that host. When the connector returns to an address on your own computer (such as `127.0.0.1`), the screen warns you: any program on your computer could receive the answer, so allow only if you started the connection yourself, just now. If the screen says the connector is **waiting for an administrator**, ask an administrator to approve it.
+
 Connectors you approved are listed on the card as **Signed in**; select **Disconnect** to end one at once.
 
 If the card says AI assistant access is switched off, ask an administrator.
@@ -80,13 +88,15 @@ With a **read only** connection it can:
 - list the kinds of record you can see and their fields, search everything you can see, list and filter records, read a record with its comments, related records and history;
 - summarize **your work** (tickets assigned to you, your actions, changes waiting for your approval, policies to acknowledge, unread notifications) and **what is overdue**;
 - show the **risk heat map**, **framework progress**, **security incident clocks** (notification deadlines), **contracts nearing their notice date**, **vulnerabilities**, **service desk metrics**, **fleet equipment gaps** and the **safety summary**, where you may see them and those parts of the application are in use;
+- list the **approvals waiting for your decision** ([Approval workflows](22-approval-workflows.md));
 - run a **saved report** you can open;
 - say **what is affected if a system fails**: the systems that depend on it, and the sites, data, assets, vehicles and services involved, where you may see them;
+- **search the audit log**, if you may read it: for example everything one request did (give it the request id shown with an error or in the call log), or what happened to a record in a time span. It sees who, when and what, never the values before and after a change;
 - read the pages of this user guide.
 
 For the longer summaries (your work, what is overdue, framework progress, saved reports and what a failure affects) the assistant can show progress while it works, if it supports that.
 
-With a **read and write** connection, and while your administrator allows write access, it can also **create records**, **update fields**, **add comments** (internal notes unless asked otherwise) and **link records**. The same rules apply as on screen: required fields, allowed values and permissions. If something is not valid, the assistant is told which field and why.
+With a **read and write** connection, and while your administrator allows write access, it can also **create records**, **update fields**, **add comments** (internal notes unless asked otherwise), **link records** and **approve or reject** an approval step waiting for you (a rejection needs a reason, and it can never decide a request you made yourself). The same rules apply as on screen: required fields, allowed values and permissions. If something is not valid, the assistant is told which field and why.
 
 Assistants also offer ready-made requests: **Weekly risk and action review**, **Prepare a board summary**, **Triage open tickets** and **Incident status update**.
 

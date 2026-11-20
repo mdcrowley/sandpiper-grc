@@ -22,7 +22,7 @@ interface Link {
 }
 interface LinkSettings {
   enabled: boolean; default_days: number; max_days: number; max_files: number; max_mb: number; file_types: string[];
-  reminder_days: number; files_available: boolean; email_available: boolean;
+  reminder_days: number; discard_days: number; files_available: boolean; email_available: boolean;
 }
 interface Links extends LinkSettings { rows: Link[] }
 
@@ -234,18 +234,18 @@ export function ResponseLinkSettings() {
   const [days, setDays] = useState<number | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [files, setFiles] = useState<{ max_files: number | null; max_mb: number | null; file_types: string; reminder_days: number | null } | null>(null);
+  const [files, setFiles] = useState<{ max_files: number | null; max_mb: number | null; file_types: string; reminder_days: number | null; discard_days: number | null } | null>(null);
   const [fileErrors, setFileErrors] = useState<Record<string, string>>({});
   if (!data) return null;
   const value = days ?? data.default_days;
-  const form = files ?? { max_files: data.max_files, max_mb: data.max_mb, file_types: data.file_types.join(', '), reminder_days: data.reminder_days };
+  const form = files ?? { max_files: data.max_files, max_mb: data.max_mb, file_types: data.file_types.join(', '), reminder_days: data.reminder_days, discard_days: data.discard_days };
 
   async function saveFiles() {
     setBusy(true);
     setFileErrors({});
     try {
       await api.put('/api/vendors/response-links/settings', {
-        max_files: form.max_files, max_mb: form.max_mb, file_types: form.file_types, reminder_days: form.reminder_days,
+        max_files: form.max_files, max_mb: form.max_mb, file_types: form.file_types, reminder_days: form.reminder_days, discard_days: form.discard_days,
       });
       toast.success('Saved.');
       setFiles(null);
@@ -300,6 +300,9 @@ export function ResponseLinkSettings() {
         <NumberField label="Reminder before an emailed link expires (days)" min={0} max={30} step={1} decimals={0} value={form.reminder_days}
           onChange={(v) => setFiles({ ...form, reminder_days: v })} disabled={!data.can_administer} error={fileErrors.reminder_days}
           hint={data.email_available ? '0 = no reminder. The reminder does not repeat the link.' : 'Applies once email is set up (Administration > Email).'} />
+        <NumberField label="Discard unreviewed files after the link closes (days)" min={0} max={365} step={1} decimals={0} value={form.discard_days}
+          onChange={(v) => setFiles({ ...form, discard_days: v })} disabled={!data.can_administer} error={fileErrors.discard_days}
+          hint="0 = never. Files still waiting this long after the answers are sent or the link expires or is revoked are discarded; the person who created the link is told 3 days before." />
       </div>
       {data.can_administer && files !== null && (
         <div className="row"><Button loading={busy} onClick={() => void saveFiles()}>Save file and reminder settings</Button></div>

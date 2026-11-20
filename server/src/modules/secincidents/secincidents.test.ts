@@ -350,10 +350,10 @@ describe('incident workspace', () => {
     expect((await t.api.del(`/api/security-incidents/${id}/log`)).status).toBe(404);
   });
 
-  it('blocks ransom approval without a governing body approval reference, and audits the decision', async () => {
+  it('blocks ransom approval without a payment approval reference, and audits the decision', async () => {
     const blocked = await t.api.patch(`/api/security-incidents/${id}`, { ransom_payment_status: 'approved' });
     expect(blocked.status).toBe(400);
-    expect(blocked.body.error.fields.board_resolution_ref).toMatch(/governing body approval reference/);
+    expect(blocked.body.error.fields.board_resolution_ref).toMatch(/payment approval reference/);
     expect((await t.api.patch(`/api/security-incidents/${id}`, { ransom_payment_status: 'approved', board_resolution_ref: '   ' })).status).toBe(400);
     expect((await t.api.post('/api/security-incidents', { title: 'Test incident: approve at once', ransom_payment_status: 'approved' })).status).toBe(400);
 

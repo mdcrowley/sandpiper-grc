@@ -23,8 +23,11 @@ interface Policy {
   notes: string | null;
   updatedAt: string | null;
   pendingReviews: number;
+  disposal: Disposal;
+  personalFields: string[];
 }
-interface RetentionResponse { types: Policy[]; categories: { value: string; label: string }[]; bases: string[] }
+type Disposal = 'keep' | 'anonymize' | 'delete';
+interface RetentionResponse { types: Policy[]; categories: { value: string; label: string }[]; bases: string[]; disposals: Disposal[] }
 interface Review {
   id: string;
   record_type: string;
@@ -32,7 +35,7 @@ interface Review {
   record_label: string | null;
   flagged_at: string;
   basis_at: string | null;
-  status: 'pending' | 'extended' | 'deleted';
+  status: 'pending' | 'extended' | 'anonymized' | 'deleted';
   extended_until: string | null;
   reason: string | null;
   decided_at: string | null;
@@ -48,9 +51,16 @@ const BASIS_NAMES: Record<string, string> = { updated_at: 'Last change', created
 const REVIEW_STATUS = [
   { value: 'pending', label: 'Waiting for a decision' },
   { value: 'extended', label: 'Kept longer' },
+  { value: 'anonymized', label: 'Anonymized' },
   { value: 'deleted', label: 'Removed for good' },
 ];
 const PAGE_SIZE = 25;
+const DISPOSAL_OPTIONS: { value: Disposal; label: string; hint: string }[] = [
+  { value: 'keep', label: 'Only keep longer', hint: 'Records past their period can only be kept for longer: nothing is anonymized or removed.' },
+  { value: 'anonymize', label: 'Keep longer or anonymize', hint: 'A flagged record can be kept longer, or anonymized: its personal details, comments’ text and files are removed, and the record and its figures stay.' },
+  { value: 'delete', label: 'Keep longer, anonymize or remove for good', hint: 'A flagged record can also be removed for good, with its comments, tags and links.' },
+];
+const DISPOSAL_SHORT: Record<Disposal, string> = { keep: 'Keep only', anonymize: 'Anonymize', delete: 'Remove' };
 
 export function periodText(months: number | null): string {
   if (!months) return 'Not set';
@@ -92,8 +102,9 @@ export function RetentionPage() {
       <div className="adm-notices"><Notice icon="clock">
         <p>
           <strong>The daily check flags records. It never deletes anything.</strong> Once a day the application looks for records older than their
-          retention period and lists them under <strong>Waiting for a decision</strong>. Each stays there until an administrator keeps it for longer
-          or removes it for good. Removing a record is the only permanent deletion in the application, and it asks for your password.
+          retention period and lists them under <strong>Waiting for a decision</strong>. Each stays there until an administrator keeps it for longer,
+          anonymizes it or removes it for good, as far as the record type’s period allows. Anonymizing and removing cannot be undone and ask you to
+          confirm your identity. The audit log is never changed: it keeps who changed what.
         </p>
       </Notice></div>
       {policies.error ? <ErrorState error={policies.error} onRetry={policies.reload} />
@@ -125,7 +136,8 @@ function PolicyTable({ data, onSaved }: { data: RetentionResponse; onSaved: () =
         {set.length === 0
           ? 'No retention periods are set yet, so nothing is ever flagged. Set a period for each kind of record your schedule covers.'
           : `${set.length} of ${data.types.length} record types have a retention period.`}{' '}
-        The audit log has its own period under <Link to="/admin/settings#settings-retention">Settings</Link>; audit events are never deleted.
+        The audit log has its own period under <Link to="/admin/settings#settings-retention">Settings</Link>. It is recorded, not enforced: audit
+        events are never deleted or changed, so the log keeps who changed what even after a record is anonymized.
       </p>
       <Card flush>
         {data.types.length === 0 ? <EmptyState icon="clock" title="No record types" message="This installation has no record types to keep." /> : (
@@ -134,7 +146,8 @@ function PolicyTable({ data, onSaved }: { data: RetentionResponse; onSaved: () =
               <thead>
                 <tr>
                   <th scope="col">Record type</th><th scope="col">Kept for</th><th scope="col">Counted from</th>
-                  <th scope="col">Schedule category</th><th scope="col">State</th><th scope="col"><span className="sr-only">Actions</span></th>
+                  <th scope="col">Schedule category</th><th scope="col">At the end</th><th scope="col">State</th>
+                  <th scope="col"><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -148,6 +161,7 @@ function PolicyTable({ data, onSaved }: { data: RetentionResponse; onSaved: () =
                     <td>{t.periodMonths ? periodText(t.periodMonths) : <span className="muted">Not set</span>}</td>
                     <td>{t.periodMonths ? BASIS_NAMES[t.basis] ?? t.basis : <span className="muted">—</span>}</td>
                     <td className="adm-wrap">{categoryName(t.category) ?? <span className="muted">—</span>}</td>
+                    <td>{t.periodMonths ? DISPOSAL_SHORT[t.disposal] : <span className="muted">—</span>}</td>
                     <td>
                       {!t.periodMonths ? <span className="muted">—</span>
                         : t.active ? <StatusChip color="green" label="Checked" /> : <StatusChip color="gray" label="Paused" />}
@@ -181,6 +195,7 @@ function PolicyDialog({ policy, data, onClose, onSaved }: { policy: Policy; data
   const [category, setCategory] = useState(policy.category ?? '');
   const [active, setActive] = useState(policy.periodMonths ? policy.active : true);
   const [notes, setNotes] = useState(policy.notes ?? '');
+  const [disposal, setDisposal] = useState<Disposal>(policy.disposal ?? 'delete');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -194,7 +209,7 @@ function PolicyDialog({ policy, data, onClose, onSaved }: { policy: Policy; data
     if (Object.keys(found).length) return;
     setBusy(true);
     try {
-      await withReauth(() => api.put(`/api/admin/retention/${encodeURIComponent(policy.type)}`, { periodMonths: months, basis, category: category || null, active, notes: notes.trim() }));
+      await withReauth(() => api.put(`/api/admin/retention/${encodeURIComponent(policy.type)}`, { periodMonths: months, basis, category: category || null, active, notes: notes.trim(), disposal }));
       onSaved();
     } catch (err) {
       const fields = fieldErrors(err);
@@ -224,6 +239,14 @@ function PolicyDialog({ policy, data, onClose, onSaved }: { policy: Policy; data
             options={data.categories.map((c) => ({ value: c.value, label: c.label }))}
             hint="The heading in your records schedule this falls under. The choices are the list “Retention category” under Lists."
           />
+          <Select
+            className="form-cell-wide" label="At the end of the period, the review may" required value={disposal}
+            onChange={(v) => setDisposal((v || 'delete') as Disposal)} error={errors.disposal}
+            options={DISPOSAL_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+            hint={`${DISPOSAL_OPTIONS.find((o) => o.value === disposal)?.hint ?? ''}${disposal !== 'keep'
+              ? ` Personal fields of ${policy.plural.toLowerCase()}: ${policy.personalFields.length ? policy.personalFields.join(', ') : 'none declared'}, plus long-text and person custom fields.`
+              : ''}`}
+          />
           <TextArea className="form-cell-wide" label="Notes" rows={2} maxRows={6} value={notes} onChange={setNotes} error={errors.notes} hint="Optional: where the period comes from, for example the schedule item. Up to 500 characters." />
         </div>
         <Switch label="Check these records every day" checked={active} onChange={setActive} />
@@ -246,12 +269,13 @@ function ReviewList({ data, onDecided }: { data: RetentionResponse; onDecided: (
   const [page, setPage] = useState(1);
   const [keeping, setKeeping] = useState<Review | null>(null);
   const [removing, setRemoving] = useState<Review | null>(null);
+  const [anonymizing, setAnonymizing] = useState<Review | null>(null);
   const { data: list, error, reload, loading } = useFetch<ReviewPage>(
     `/api/admin/retention/reviews${qs({ status, record_type: type, page, pageSize: PAGE_SIZE })}`, { keepPrevious: true },
   );
   const pages = list ? Math.max(1, Math.ceil(list.total / PAGE_SIZE)) : 1;
   const policyOf = (t: string) => data.types.find((p) => p.type === t);
-  const decided = (message: string) => { toast.success(message); setKeeping(null); setRemoving(null); reload(); onDecided(); };
+  const decided = (message: string) => { toast.success(message); setKeeping(null); setRemoving(null); setAnonymizing(null); reload(); onDecided(); };
 
   return (
     <div className="stack">
@@ -268,7 +292,8 @@ function ReviewList({ data, onDecided }: { data: RetentionResponse; onDecided: (
           : list.rows.length === 0 ? (
             <EmptyState
               icon={status === 'pending' ? 'check-circle' : 'history'}
-              title={status === 'pending' ? 'Nothing is waiting for a decision' : status === 'extended' ? 'No records have been kept longer' : 'No records have been removed'}
+              title={status === 'pending' ? 'Nothing is waiting for a decision' : status === 'extended' ? 'No records have been kept longer'
+                : status === 'anonymized' ? 'No records have been anonymized' : 'No records have been removed'}
               message={status === 'pending'
                 ? (data.types.some((t) => t.periodMonths && t.active)
                   ? 'No record is past its retention period. The check runs every day; use Run the check now after changing a period.'
@@ -307,7 +332,12 @@ function ReviewList({ data, onDecided }: { data: RetentionResponse; onDecided: (
                               <td className="adm-row-actions">
                                 <span className="row adm-row-buttons">
                                   <Button size="sm" aria-label={`Keep ${r.label} longer`} onClick={() => setKeeping(r)}>Keep longer</Button>
-                                  <Button size="sm" variant="danger" aria-label={`Remove ${r.label} for good`} onClick={() => setRemoving(r)}>Remove…</Button>
+                                  {p && p.disposal !== 'keep' && (
+                                    <Button size="sm" aria-label={`Anonymize ${r.label}`} onClick={() => setAnonymizing(r)}>Anonymize…</Button>
+                                  )}
+                                  {(!p || p.disposal === 'delete') && (
+                                    <Button size="sm" variant="danger" aria-label={`Remove ${r.label} for good`} onClick={() => setRemoving(r)}>Remove…</Button>
+                                  )}
                                 </span>
                               </td>
                             </>
@@ -315,7 +345,8 @@ function ReviewList({ data, onDecided }: { data: RetentionResponse; onDecided: (
                           {status !== 'pending' && (
                             <>
                               <td className="adm-wrap">
-                                {r.status === 'extended' ? <>Kept until <strong>{formatDate(r.extended_until)}</strong></> : <strong>Removed for good</strong>}
+                                {r.status === 'extended' ? <>Kept until <strong>{formatDate(r.extended_until)}</strong></>
+                                  : r.status === 'anonymized' ? <strong>Anonymized</strong> : <strong>Removed for good</strong>}
                                 <div className="muted adm-small">{r.decided_by_name ?? 'Unknown user'}{r.decided_at ? `, ${formatDate(r.decided_at)}` : ''}</div>
                               </td>
                               <td className="adm-wrap adm-reason">{r.reason ?? <span className="muted">—</span>}</td>
@@ -332,6 +363,12 @@ function ReviewList({ data, onDecided }: { data: RetentionResponse; onDecided: (
           )}
       </Card>
       {keeping && <KeepDialog review={keeping} onClose={() => setKeeping(null)} onDone={(until) => decided(`Kept until ${formatDate(until)}. It will be flagged again after that.`)} />}
+      {anonymizing && (
+        <AnonymizeDialog
+          review={anonymizing} policy={policyOf(anonymizing.record_type)} onClose={() => setAnonymizing(null)}
+          onDone={() => decided('Anonymized. The record and its figures stay; the audit log records the change and your reason.')}
+        />
+      )}
       {removing && <RemoveDialog review={removing} onClose={() => setRemoving(null)} onDone={() => decided('Removed for good. The audit log records the removal and your reason.')} />}
     </div>
   );
@@ -444,6 +481,60 @@ function RemoveDialog({ review, onClose, onDone }: { review: Review; onClose: ()
         <div className="form-actions">
           <Button onClick={onClose}>Cancel</Button>
           <Button type="submit" variant="danger" loading={busy}>Remove for good</Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function AnonymizeDialog({ review, policy, onClose, onDone }: { review: Review; policy: Policy | undefined; onClose: () => void; onDone: () => void }) {
+  const [reason, setReason] = useState('');
+  const [sure, setSure] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [formError, setFormError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const fields = policy?.personalFields ?? [];
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    const found: Record<string, string> = {};
+    if (reason.trim().length < 5) found.reason = 'Give a reason (at least 5 characters).';
+    if (!sure) found.confirm = 'Tick the box to confirm that the personal details are to be removed for good.';
+    setErrors(found);
+    setFormError('');
+    if (Object.keys(found).length) return;
+    setBusy(true);
+    try {
+      await adminApi.post(`/api/admin/retention/reviews/${review.id}/anonymize`, { reason: reason.trim(), confirm: true });
+      onDone();
+    } catch (err) {
+      const fieldErrs = fieldErrors(err);
+      setErrors(fieldErrs);
+      if (Object.keys(fieldErrs).length === 0) setFormError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal open size="sm" title="Anonymize this record?" onClose={onClose}>
+      <form className="form" onSubmit={submit} noValidate>
+        {formError && <p className="form-error" role="alert">{formError}</p>}
+        <p><strong>{review.ref ? `${review.ref} ` : ''}{review.label}</strong> <span className="muted">({review.typeLabel})</span></p>
+        <Notice tone="danger" role="alert">
+          <p>
+            The personal details are removed and <strong>cannot be brought back</strong>, not even by an administrator:
+            {' '}{fields.length ? fields.join(', ') : 'no fields of this type are declared personal'}, long-text and person custom fields, the text and
+            authors of its comments, the names and contents of its files, and the titles of notifications about it. The record, its status, dates,
+            numbers, tags and links stay, so counts and charts do not change. The audit log is not changed: it keeps who changed what.
+          </p>
+        </Notice>
+        <TextArea label="Reason" required rows={3} value={reason} onChange={setReason} error={errors.reason} hint="For example the schedule item that allows disposal. Recorded in the audit log." />
+        <Checkbox label="I understand that the personal details will be removed permanently" checked={sure} onChange={setSure} error={errors.confirm} />
+        <p className="field-hint">You will be asked to confirm your identity if you have not done so in the last few minutes.</p>
+        <div className="form-actions">
+          <Button onClick={onClose}>Cancel</Button>
+          <Button type="submit" variant="danger" loading={busy}>Anonymize</Button>
         </div>
       </form>
     </Modal>

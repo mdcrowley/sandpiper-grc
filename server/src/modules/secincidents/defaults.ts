@@ -42,7 +42,8 @@ export const LOOKUPS: Record<string, LookupValue[]> = {
   ransom_payment_status: [
     { value: 'not_applicable', label: 'Not applicable', color: 'gray', sort: 10 },
     { value: 'under_consideration', label: 'Under consideration', color: 'amber', sort: 20 },
-    { value: 'approved', label: 'Approved by the governing body', color: 'red', sort: 30 },
+    // Neutral wording (E18-47): a board, directors or owners, whoever the organization's policy names.
+    { value: 'approved', label: 'Approved for payment', color: 'red', sort: 30 },
     { value: 'refused', label: 'Refused', color: 'green', sort: 40 },
   ],
   notification_task_status: [
@@ -218,8 +219,8 @@ export const RULES: RuleSeed[] = [
     guidance: `${SET_UP} Some operators must report incidents that affect safety-critical or passenger-facing services; others are asked to report voluntarily.`,
   },
   {
-    key: 'funding_partners', trigger: 'any', party: 'Funding agencies and partner operators', hours: null, required: false, active: false,
-    guidance: `${SET_UP} Grant conditions and joint service agreements may ask to be told of incidents that disrupt service.`,
+    key: 'funding_partners', trigger: 'any', party: 'Funders and partner operators', hours: null, required: false, active: false,
+    guidance: `${SET_UP} Grant or loan conditions and joint service agreements may ask to be told of incidents that disrupt service.`,
   },
 ];
 
@@ -229,7 +230,7 @@ export const CONTACTS: { key: string; role: string; notes: string }[] = [
   { key: 'technical_lead', role: 'Technical lead', notes: 'Directs containment, investigation and recovery work.' },
   { key: 'communications', role: 'Communications', notes: 'Prepares and clears every message to staff, customers, media and partners.' },
   { key: 'scribe', role: 'Scribe', notes: 'Keeps the incident log: times, decisions, actions and who took them.' },
-  { key: 'executive_sponsor', role: 'Executive sponsor', notes: 'Links the response team to the executive team and the governing body.' },
+  { key: 'executive_sponsor', role: 'Executive sponsor', notes: 'Links the response team to senior leadership and to whoever approves major decisions (a board, directors or owners).' },
   { key: 'legal_counsel', role: 'Legal counsel', notes: 'Advises on notification duties, privilege and contracts.' },
   { key: 'insurer_contact', role: 'Cyber insurer contact', notes: 'First call for coverage and approved response firms.' },
   { key: 'operations_control', role: 'Operations control liaison', notes: 'Links the response team to the control center: service impact, fallback working and safety decisions.' },

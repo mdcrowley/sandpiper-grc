@@ -10,12 +10,14 @@
 // Recipient, a bearer confirmation for this very request, and (in sso.ts) assertion IDs that work once.
 import { generateKeyPair, randomBytes } from 'node:crypto';
 import { promisify } from 'node:util';
+import { inflateRawSync } from 'node:zlib';
 import { SAML, ValidateInResponseTo, type CacheProvider, type Profile } from '@node-saml/node-saml';
 import xmlenc from 'xml-encryption';
 import { cleanCommonConfig } from './config.ts';
 import { addressProblem } from './http.ts';
 import {
-  BINDING, decodeSamlResponse, inspectDecryptedAssertion, inspectResponse, NAMEID, NS, readAssertion, type AssertionFacts,
+  BINDING, decodeSamlResponse, inspectDecryptedAssertion, inspectLogoutRequest, inspectResponse, LIMITS, NAMEID, NS, readAssertion,
+  type AssertionFacts, type LogoutRequestFacts,
 } from './samlxml.ts';
 import { certificateBody, describeCertificate, readCertificates, selfSignedCertificate } from './x509.ts';
 import { IdentityError, type ExternalIdentity, type ProviderDriver, type ProviderRecord, type SamlConfig, type TestResult } from './types.ts';
@@ -164,7 +166,8 @@ export function serviceProviderMetadata(provider: ProviderRecord, callbackUrl: s
     `<md:EntityDescriptor xmlns:md="${NS.metadata}" xmlns:ds="${NS.ds}" entityID="${esc(addr.entityId)}">`,
     `  <md:SPSSODescriptor protocolSupportEnumeration="${NS.protocol}" AuthnRequestsSigned="${config.signRequests ? 'true' : 'false'}" WantAssertionsSigned="${config.wantAssertionsSigned ? 'true' : 'false'}">`,
     ...keys,
-    ...(config.endSession ? [`    <md:SingleLogoutService Binding="${BINDING.redirect}" Location="${esc(addr.sloUrl)}"/>`] : []),
+    ...(config.endSession || config.idpLogout ? [`    <md:SingleLogoutService Binding="${BINDING.redirect}" Location="${esc(addr.sloUrl)}"/>`] : []),
+    ...(config.idpLogout ? [`    <md:SingleLogoutService Binding="${BINDING.post}" Location="${esc(addr.sloUrl)}"/>`] : []),
     `    <md:NameIDFormat>${NAME_ID_FORMATS[config.nameIdFormat] ?? NAMEID.persistent}</md:NameIDFormat>`,
     `    <md:AssertionConsumerService Binding="${BINDING.post}" Location="${esc(addr.acsUrl)}" index="0" isDefault="true"/>`,
     '  </md:SPSSODescriptor>',
@@ -256,11 +259,31 @@ export const samlDriver: ProviderDriver = {
       wantAssertionsSigned: onOff('wantAssertionsSigned'),
       encryptAssertions: onOff('encryptAssertions'),
       endSession: onOff('endSession'),
+      idpLogout: false, metadataUrl: '', metadataCert: '', metadataRefresh: false, certsDropped: {}, metadataCheckedAt: null, metadataStatus: '',
     };
     if (common.mappingEnabled && !config.groupsAttribute) fields.groupsAttribute = 'Name the attribute that holds groups or roles, or switch role mapping off.';
     // A SAML assertion shows how the person signed in only through its AuthnContextClassRef.
     if (common.providerMfa && !common.mfaAcr.length) fields.mfaAcr = 'Name at least one AuthnContextClassRef value that shows a multi-factor sign-in.';
     if (config.endSession && !sloUrl) fields.sloUrl = 'Enter the identity provider\'s sign-out address, or switch signing out there off.';
+    // E02-27: sign-outs started at the identity provider are answered at its sign-out address.
+    config.idpLogout = onOff('idpLogout');
+    if (config.idpLogout && !sloUrl) fields.sloUrl = 'Enter the identity provider\'s sign-out address: the answer to its sign-out request goes there.';
+    // E02-28: signed metadata and its scheduled refresh.
+    config.metadataUrl = url('metadataUrl', false, 'metadata address');
+    const rawMetaCert = input.metadataCert !== undefined ? String(input.metadataCert ?? '') : String(existing?.metadataCert ?? '');
+    if (rawMetaCert.trim()) {
+      const read = readCertificates(rawMetaCert);
+      if (read.problem) fields.metadataCert = read.problem;
+      else if (read.certs.length !== 1) fields.metadataCert = 'Give exactly one metadata signing certificate.';
+      else config.metadataCert = read.certs[0];
+    }
+    config.metadataRefresh = onOff('metadataRefresh');
+    if (config.metadataRefresh && !config.metadataUrl) fields.metadataUrl = 'Enter the metadata address to refresh from, or switch the refresh off.';
+    if (config.metadataRefresh && !config.metadataCert && !fields.metadataCert) fields.metadataCert = 'A scheduled refresh accepts signed metadata only: give the certificate that signs it.';
+    // Kept by the refresh itself, never from input.
+    config.certsDropped = existing?.certsDropped && typeof existing.certsDropped === 'object' ? existing.certsDropped : {};
+    config.metadataCheckedAt = typeof existing?.metadataCheckedAt === 'string' ? existing.metadataCheckedAt : null;
+    config.metadataStatus = typeof existing?.metadataStatus === 'string' ? existing.metadataStatus : '';
     return { config: { ...config, mfaAmr: [] }, fields };
   },
 
@@ -347,4 +370,142 @@ export function certificateFacts(pems: unknown): ReturnType<typeof describeCerti
     try { out.push(describeCertificate(String(p))); } catch { /* not shown */ }
   }
   return out;
+}
+
+// ---------- sign-outs started at the identity provider (E02-27) ----------
+
+/** A LogoutRequest is accepted no later than this after it was issued. */
+const LOGOUT_MAX_AGE_MS = 5 * 60_000;
+/** Signature algorithms accepted on the HTTP-Redirect binding's query string. */
+const REDIRECT_SIG_ALGS = new Set(['http://www.w3.org/2001/04/xmldsig-more#rsa-sha256', 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha512']);
+
+export interface VerifiedLogoutRequest {
+  id: string;
+  nameId: string;
+  sessionIndexes: string[];
+  relayState: string | null;
+  binding: 'redirect' | 'post';
+}
+
+/** Reads one query parameter from the raw query string (each must appear once). */
+function rawParam(rawQuery: string, name: string): string | null {
+  const found = rawQuery.split('&').filter((p) => p.split('=')[0] === name);
+  if (found.length > 1) throw new IdentityError(`${name} given more than once`);
+  if (!found.length) return null;
+  try { return decodeURIComponent(found[0].slice(name.length + 1).replace(/\+/g, ' ')); } catch { throw new IdentityError(`${name} is not readable`); }
+}
+
+/**
+ * Checks a LogoutRequest the identity provider sent (E02-27), on either binding. It must be signed
+ * by one of the configured certificates (the query string for HTTP-Redirect, the XML for HTTP-POST;
+ * unsigned requests are refused, although the library would accept them), come from the configured
+ * issuer, name this application's sign-out address as its Destination, and be fresh.
+ */
+export async function verifyIdpLogoutRequest(
+  provider: ProviderRecord,
+  opts: { binding: 'redirect'; rawQuery: string; callbackUrl: string } | { binding: 'post'; form: Record<string, unknown>; callbackUrl: string },
+): Promise<VerifiedLogoutRequest> {
+  const config = provider.config as SamlConfig;
+  const addr = samlAddresses(opts.callbackUrl, config);
+  const saml = client(config, addr, null, { cache: oneRequestCache(null) });
+  if (opts.binding === 'redirect') {
+    const raw = opts.rawQuery;
+    if (raw.length > Math.ceil(LIMITS.messageBytes / 3) * 4 * 3) throw new IdentityError('LogoutRequest too large');
+    const request = rawParam(raw, 'SAMLRequest');
+    const sigAlg = rawParam(raw, 'SigAlg');
+    const signature = rawParam(raw, 'Signature');
+    const relayState = rawParam(raw, 'RelayState');
+    if (!request) throw new IdentityError('no SAMLRequest');
+    if (!signature || !sigAlg) throw new IdentityError('LogoutRequest is not signed (the HTTP-Redirect binding needs Signature and SigAlg)');
+    if (!REDIRECT_SIG_ALGS.has(sigAlg)) throw new IdentityError(`signature algorithm not accepted (${sigAlg.slice(0, 80)})`);
+    let inflated: Buffer;
+    try {
+      inflated = inflateRawSync(Buffer.from(request.replace(/\s+/g, ''), 'base64'), { maxOutputLength: LIMITS.messageBytes });
+    } catch {
+      throw new IdentityError('LogoutRequest could not be inflated (or is too large)');
+    }
+    const facts = inspectLogoutRequest(inflated.toString('utf8'), { requireXmlSignature: false });
+    checkLogoutFacts(facts, config, addr.sloUrl);
+    try {
+      await saml.validateRedirectAsync(Object.fromEntries(new URLSearchParams(raw)), raw);
+    } catch (err) {
+      throw new IdentityError(`LogoutRequest refused: ${String((err as Error)?.message ?? err).replace(/\s+/g, ' ').slice(0, 120)}`);
+    }
+    return { id: facts.id, nameId: facts.nameId, sessionIndexes: facts.sessionIndexes, relayState, binding: 'redirect' };
+  }
+  const value = opts.form.SAMLRequest;
+  const relayState = typeof opts.form.RelayState === 'string' && opts.form.RelayState.length <= 200 ? opts.form.RelayState : null;
+  const facts = inspectLogoutRequest(decodeSamlResponse(value), { requireXmlSignature: true });
+  checkLogoutFacts(facts, config, addr.sloUrl);
+  let profile: Profile | null;
+  try {
+    ({ profile } = await saml.validatePostRequestAsync({ SAMLRequest: String(value) }));
+  } catch (err) {
+    throw new IdentityError(`LogoutRequest refused: ${String((err as Error)?.message ?? err).replace(/\s+/g, ' ').slice(0, 120)}`);
+  }
+  // The library read the signed bytes; it and this reader must agree on who it is.
+  if (!profile || profile.nameID !== facts.nameId || profile.ID !== facts.id) throw new IdentityError('LogoutRequest NameID unreadable');
+  return { id: facts.id, nameId: facts.nameId, sessionIndexes: facts.sessionIndexes, relayState, binding: 'post' };
+}
+
+function checkLogoutFacts(facts: LogoutRequestFacts, config: SamlConfig, sloUrl: string): void {
+  if (facts.issuer !== config.idpEntityId) throw new IdentityError('wrong issuer');
+  // Destination: exact, and required on a signed message (SAML bindings 3.4.5.2, 3.5.5.2).
+  if (facts.destination !== sloUrl) throw new IdentityError(facts.destination === null ? 'LogoutRequest without Destination' : 'wrong Destination');
+  const now = Date.now();
+  if (facts.issueInstant > now + SKEW_MS) throw new IdentityError('LogoutRequest issued in the future');
+  if (facts.issueInstant < now - LOGOUT_MAX_AGE_MS - SKEW_MS) throw new IdentityError('LogoutRequest too old');
+  if (facts.notOnOrAfter !== null && now - SKEW_MS >= facts.notOnOrAfter) throw new IdentityError('LogoutRequest expired');
+}
+
+/** The signed LogoutResponse, sent back to the identity provider's sign-out address (HTTP-Redirect binding). */
+export async function idpLogoutResponseUrl(
+  provider: ProviderRecord, key: string, opts: { requestId: string; relayState: string | null; success: boolean; callbackUrl: string },
+): Promise<string> {
+  const config = provider.config as SamlConfig;
+  if (!config.sloUrl) throw new IdentityError('no sign-out address for the answer');
+  const addr = samlAddresses(opts.callbackUrl, config);
+  const saml = client({ ...config, signRequests: true }, addr, key, { cache: oneRequestCache(null) });
+  return saml.getLogoutResponseUrlAsync(
+    { ID: opts.requestId, issuer: config.idpEntityId, nameID: '', nameIDFormat: '' } as Profile, opts.relayState ?? '', {}, opts.success,
+  );
+}
+
+// ---------- metadata refresh (E02-28) ----------
+
+/** How long a signing certificate the metadata no longer lists is still trusted (for a rollover in progress). */
+export const ROLLOVER_DAYS = 7;
+
+/**
+ * The signing certificates after a refresh: every one the metadata lists, and, for a few days, the
+ * ones it has stopped listing (the identity provider may still sign with them during a rollover).
+ */
+export function mergeRefreshedCertificates(
+  current: string[], dropped: Record<string, string>, fromMetadata: string[], now = new Date(),
+): { idpCerts: string[]; certsDropped: Record<string, string>; added: string[]; removed: string[]; keptForRollover: string[] } {
+  const fp = (pem: string) => { try { return describeCertificate(pem).fingerprint; } catch { return ''; } };
+  const fresh = fromMetadata.filter((p) => fp(p));
+  const freshFps = new Set(fresh.map(fp));
+  const currentFps = new Set(current.map(fp));
+  const certsDropped: Record<string, string> = {};
+  const keptForRollover: string[] = [];
+  const removed: string[] = [];
+  for (const pem of current) {
+    const f = fp(pem);
+    if (!f || freshFps.has(f)) continue;
+    const since = dropped[f] ?? now.toISOString();
+    let expired = true;
+    try { expired = describeCertificate(pem).expired; } catch { expired = true; }
+    if (!expired && now.getTime() - Date.parse(since) < ROLLOVER_DAYS * 86_400_000) {
+      certsDropped[f] = since;
+      keptForRollover.push(pem);
+    } else removed.push(f);
+  }
+  return {
+    idpCerts: [...fresh, ...keptForRollover].slice(0, 5),
+    certsDropped,
+    added: fresh.map(fp).filter((f) => !currentFps.has(f)),
+    removed,
+    keptForRollover: keptForRollover.map(fp),
+  };
 }

@@ -451,3 +451,10 @@
 .si-fleet-head h2 { margin: 0; font-size: var(--fs-lg); }
 .si-fleet-head p, .si-fleet-empty { margin: 0; font-size: var(--fs-sm); }
 .si-fleet-empty { padding: var(--s-3) var(--s-4); border: 1px dashed var(--border-control); border-radius: var(--radius-lg); }
+
+/* Alerts by email and text message (E09-25) */
+.si-alert-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-2); }
+.si-alert-list li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-2); padding: var(--s-2) 0; border-bottom: 1px solid var(--border); }
+.si-alert-reach { display: inline-flex; flex-wrap: wrap; gap: var(--s-1); }
+.si-alert-options { border: 0; margin: 0; padding: 0; display: grid; gap: var(--s-2); }
+.si-alert-options legend { font-weight: 600; font-size: var(--fs-sm, 0.875rem); margin-bottom: var(--s-1); }

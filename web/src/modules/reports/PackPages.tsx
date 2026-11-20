@@ -211,7 +211,7 @@ function PackEditor({ pack, onDone }: { pack: ReportPack; onDone: (saved: boolea
           <div className="form">
             <TextField label="Name" required value={f.name} onChange={(name) => setF({ ...f, name })} />
             <TextField label="Cover title" value={f.cover_title} onChange={(cover_title) => setF({ ...f, cover_title })} placeholder={f.name} />
-            <TextField label="Cover subtitle" value={f.cover_subtitle} onChange={(cover_subtitle) => setF({ ...f, cover_subtitle })} placeholder="For example: Prepared for the governing body" />
+            <TextField label="Cover subtitle" value={f.cover_subtitle} onChange={(cover_subtitle) => setF({ ...f, cover_subtitle })} placeholder="For example: Prepared for the board" />
             <TextArea label="Description" rows={2} value={f.description} onChange={(description) => setF({ ...f, description })} />
             {custom.inputs}
           </div>

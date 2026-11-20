@@ -7,7 +7,7 @@
 // one person (it does not stop working when someone leaves or changes their password), and a
 // Workspace administrator grants and withdraws it, scope by scope, in the Admin console. A
 // personal Gmail account cannot use it; use SMTP with an app password there.
-import { CloudError, cacheKey, cachedToken, cloudFetch, composeMime, forgetToken, googleEndpoints, bareAddress, readServiceAccountKey, signJwt, throttledText, type CloudAnswer } from './cloud.ts';
+import { CloudError, cacheKey, cachedToken, cloudFetch, composeMime, forgetToken, googleEndpoints, bareAddress, readServiceAccountKey, signJwt, throttledError, type CloudAnswer } from './cloud.ts';
 import { asMailResult } from './graph.ts';
 import type { InboundMailbox } from './mailbox.ts';
 import { registerMailProvider, type MailConfig, type MailResult } from './provider.ts';
@@ -28,7 +28,7 @@ export const gmailSettings = (config: Pick<MailConfig, 'provider_settings'>): Gm
   ({ mailbox: '', ...((config.provider_settings?.gmail ?? {}) as Partial<GmailSettings>) });
 
 function tokenError(a: CloudAnswer, mailbox: string, scope: string, clientId: string): CloudError {
-  if (a.status === 429) return new CloudError(throttledText(a.headers), true, 429);
+  if (a.status === 429) return throttledError(a.headers, 429);
   const err = String(a.json?.error ?? '');
   const desc = String(a.json?.error_description ?? '').slice(0, 300);
   if (err === 'unauthorized_client') {
@@ -46,7 +46,7 @@ export function gmailError(a: CloudAnswer, mailbox: string, purpose: 'send' | 'r
   const reason = String(a.json?.error?.errors?.[0]?.reason ?? a.json?.error?.status ?? '');
   const msg = String(a.json?.error?.message ?? '').split(/\r?\n/)[0].slice(0, 300);
   const detail = `(${reason || a.status}${msg ? `: ${msg}` : ''})`;
-  if (a.status === 429 || /rateLimitExceeded|userRateLimitExceeded|RESOURCE_EXHAUSTED/.test(reason)) return new CloudError(throttledText(a.headers), true, a.status);
+  if (a.status === 429 || /rateLimitExceeded|userRateLimitExceeded|RESOURCE_EXHAUSTED/.test(reason)) return throttledError(a.headers, a.status);
   if (a.status >= 500) return new CloudError(`The Gmail API had a problem (${a.status}); the message will be tried again. ${detail}`, true, a.status);
   if (a.status === 403) {
     return new CloudError(`Permission missing: the service account may not ${purpose === 'send' ? 'send as' : 'read'} ${mailbox}. Check that the Gmail API is enabled in its Google Cloud project and that domain-wide delegation includes ${purpose === 'send' ? GMAIL_SEND_SCOPE : GMAIL_READ_SCOPE}. ${detail}`, false, a.status);

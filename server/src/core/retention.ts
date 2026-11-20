@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { Db } from './db.ts';
 import { fail, UUID_RE } from './errors.ts';
-import type { Row } from './module.ts';
+import type { FieldDef, ResourceDef, Row } from './module.ts';
 import type { makeResources } from './resource.ts';
 import { requirePerm, type makeAudit, type makeLookups } from './services.ts';
 import { dayInZone } from './timezone.ts';
@@ -12,11 +12,43 @@ import { dayInZone } from './timezone.ts';
  * A retention policy is data: per record type, a period in months, what the period is counted from
  * (`updated_at` or `created_at`) and a schedule category (the configurable list `retention_category`).
  * A daily sweep flags records that are past their period for review. **It never deletes anything.**
- * An administrator then decides each flagged record: keep it for longer (with a reason), or remove
- * it for good, which is an explicit, password-confirmed, audited action.
+ * An administrator then decides each flagged record: keep it for longer (with a reason), anonymize it
+ * (E14-19), or remove it for good. What the review of a type may do is the policy's `disposal`:
+ * `keep` (only keep longer), `anonymize` (also anonymize) or `delete` (also remove for good).
+ * Anonymizing and removing are explicit, identity-confirmed, audited actions that cannot be undone.
+ *
+ * The audit log is append-only and never changed here: it keeps who changed what, by design. Its own
+ * period (`retention.audit_months`) is recorded, not enforced.
  */
 
 const BASES = ['updated_at', 'created_at'];
+export const DISPOSALS = ['keep', 'anonymize', 'delete'] as const;
+export type Disposal = typeof DISPOSALS[number];
+const DISPOSAL_RANK: Record<Disposal, number> = { keep: 0, anonymize: 1, delete: 2 };
+/** What anonymizing writes in place of personal text. */
+export const ANONYMIZED_TEXT = 'Removed at the end of the retention period';
+const UNDECIDED = ['pending', 'extended'];
+
+/** Text fields named like these hold a person's contact details or name. */
+const PERSONAL_NAME_RE = /(^|_)(email|phone|mobile)(_|$)|_name$/;
+const NOT_PERSONAL_NAMES = /^(host|template|vendor|system|product|asset|file|service|company|organization|supplier|site|model)_name$/;
+
+/**
+ * Whether a field holds personal data (FieldDef.personal, E14-19). Default: `user` and `longtext`
+ * fields, and text fields named like an email address, a phone number or a person's name.
+ */
+export function isPersonal(name: string, f: FieldDef): boolean {
+  if (f.personal !== undefined) return f.personal;
+  if (f.type === 'user' || f.type === 'longtext') return true;
+  return f.type === 'text' && PERSONAL_NAME_RE.test(name) && !NOT_PERSONAL_NAMES.test(name);
+}
+
+/** The built-in fields of a type that anonymizing replaces. */
+export function personalFields(def: ResourceDef): string[] {
+  return Object.entries(def.fields).filter(([name, f]) => !f.custom && isPersonal(name, f)).map(([name]) => name);
+}
+
+const disposalOf = (p: Row | undefined): Disposal => (DISPOSALS.includes(p?.disposal) ? p!.disposal : 'delete');
 
 interface Deps {
   app: FastifyInstance;
@@ -83,10 +115,13 @@ export function registerRetention({ app, db, audit, lookups, res, requireRecentA
           type: d.type, label: d.label, plural: d.plural, restricted: d.restricted ?? false,
           periodMonths: p?.period_months ?? null, category: p?.category ?? null, basis: p?.basis ?? 'updated_at',
           active: p?.active ?? false, notes: p?.notes ?? null, updatedAt: p?.updated_at ?? null, pendingReviews: pending.get(d.type) ?? 0,
+          disposal: disposalOf(p),
+          personalFields: personalFields(d).map((f) => d.fields[f].label),
         };
       }).sort((a, b) => a.label.localeCompare(b.label)),
       categories: await lookups.values('retention_category'),
       bases: BASES,
+      disposals: DISPOSALS,
     };
   });
 
@@ -101,16 +136,19 @@ export function registerRetention({ app, db, audit, lookups, res, requireRecentA
     if (!BASES.includes(basis)) fields.basis = 'Count from when the record was last updated or when it was created.';
     const category = b.category ? String(b.category) : null;
     if (category && !(await lookups.values('retention_category')).some((v) => v.value === category)) fields.category = 'Choose a schedule category from the list.';
-    if (Object.keys(fields).length) invalid(fields);
     const before = await db.one<Row>('select * from retention_policies where record_type = $1', [def!.type]);
+    const disposal = b.disposal === undefined ? disposalOf(before) : String(b.disposal);
+    if (!DISPOSALS.includes(disposal as Disposal)) fields.disposal = 'Choose keep, anonymize or remove for good.';
+    if (Object.keys(fields).length) invalid(fields);
     const row = await db.one<Row>(
-      `insert into retention_policies (record_type, period_months, category, basis, active, notes, updated_by) values ($1,$2,$3,$4,$5,$6,$7)
+      `insert into retention_policies (record_type, period_months, category, basis, active, notes, updated_by, disposal) values ($1,$2,$3,$4,$5,$6,$7,$8)
        on conflict (record_type) do update set period_months = excluded.period_months, category = excluded.category, basis = excluded.basis,
-         active = excluded.active, notes = excluded.notes, updated_at = now(), updated_by = excluded.updated_by returning *`,
-      [def!.type, months, category, basis, b.active !== false, String(b.notes ?? '').trim().slice(0, 500) || null, req.user!.id]);
+         active = excluded.active, notes = excluded.notes, disposal = excluded.disposal, updated_at = now(), updated_by = excluded.updated_by returning *`,
+      [def!.type, months, category, basis, b.active !== false, String(b.notes ?? '').trim().slice(0, 500) || null, req.user!.id, disposal]);
+    const allows = { keep: 'only keeping longer', anonymize: 'keeping longer or anonymizing', delete: 'keeping longer, anonymizing or removing for good' }[disposal as Disposal];
     await audit(req, {
       action: 'retention.policy', recordType: 'retention_policy', recordId: def!.type,
-      summary: `Retention for ${def!.plural.toLowerCase()} set to ${months} months${row!.active ? '' : ' (not active)'}`, before, after: row,
+      summary: `Retention for ${def!.plural.toLowerCase()} set to ${months} months, review allows ${allows}${row!.active ? '' : ' (not active)'}`, before, after: row,
     });
     return row;
   });
@@ -125,7 +163,7 @@ export function registerRetention({ app, db, audit, lookups, res, requireRecentA
 
   app.get('/api/admin/retention/reviews', admin, async (req) => {
     const q = req.query as Record<string, string>;
-    const status = ['pending', 'extended', 'deleted'].includes(q.status) ? q.status : 'pending';
+    const status = ['pending', 'extended', 'anonymized', 'deleted'].includes(q.status) ? q.status : 'pending';
     const type = q.record_type && res.registry.get(q.record_type) ? q.record_type : null;
     const pageSize = Math.min(200, Math.max(1, Number(q.pageSize) || 50));
     const page = Math.min(100000, Math.max(1, Math.trunc(Number(q.page)) || 1));
@@ -165,7 +203,7 @@ export function registerRetention({ app, db, audit, lookups, res, requireRecentA
 
   const reviewOf = async (req: FastifyRequest) => {
     const id = String((req.params as Row).id ?? '');
-    const row = UUID_RE.test(id) ? await db.one<Row>(`select * from retention_reviews where id = $1 and status <> 'deleted'`, [id]) : undefined;
+    const row = UUID_RE.test(id) ? await db.one<Row>(`select * from retention_reviews where id = $1 and status = any($2::text[])`, [id, UNDECIDED]) : undefined;
     const def = row ? res.registry.get(row.record_type) : undefined;
     if (!row || !def || !res.mayAccess(req.user, def, 'view')) fail(404, 'not_found', 'Review not found.');
     // A row the reviewer may not see (a restricted row of a 'flag' type) is not theirs to decide.
@@ -180,6 +218,15 @@ export function registerRetention({ app, db, audit, lookups, res, requireRecentA
     if (reason.length < 5 || reason.length > 1000) invalid({ reason: 'Give a reason (5 to 1000 characters).' });
     return reason;
   };
+  /** Refuses a decision the type's policy does not allow (its `disposal`). */
+  const mustAllow = async (def: ResourceDef, wanted: Disposal) => {
+    const disposal = disposalOf(await db.one<Row>('select disposal from retention_policies where record_type = $1', [def.type]));
+    if (DISPOSAL_RANK[disposal] >= DISPOSAL_RANK[wanted]) return;
+    fail(409, 'not_allowed', disposal === 'keep'
+      ? `The retention policy for ${def.plural.toLowerCase()} only allows keeping them longer. An administrator can change it under Retention periods.`
+      : `The retention policy for ${def.plural.toLowerCase()} allows anonymizing, not removing for good. An administrator can change it under Retention periods.`);
+  };
+  const filesTable = async () => Boolean((await db.one<{ t: string | null }>(`select to_regclass('public.attachments')::text as t`))?.t);
 
   // Keep the record for longer: it leaves the list and is flagged again after the date given.
   app.post('/api/admin/retention/reviews/:id/extend', admin, async (req) => {
@@ -208,11 +255,12 @@ export function registerRetention({ app, db, audit, lookups, res, requireRecentA
     const b = (req.body ?? {}) as Row;
     const reason = reasonOf(b);
     if (b.confirm !== true) invalid({ confirm: 'Confirm that the record is to be removed for good.' });
+    await mustAllow(def, 'delete');
     await requireRecentAuth(req, `removing a ${def.label.toLowerCase()} for good`);
     const existing = await db.one<Row>(`select * from ${def.table} where id = $1 and ${res.visibilitySql(def, req.user)}`, [review.record_id]);
     if (!existing) fail(404, 'not_found', 'Record not found.');
     // Files belong to the attachments module: they are removed there first, so no bytes are orphaned.
-    const hasFiles = (await db.one<{ t: string | null }>(`select to_regclass('public.attachments')::text as t`))?.t
+    const hasFiles = await filesTable()
       && await db.one('select 1 from attachments where record_type = $1 and record_id = $2 and deleted_at is null limit 1', [def.type, review.record_id]);
     if (hasFiles) fail(409, 'has_attachments', 'This record still has files attached. Remove them first.');
     const label = res.labelOf(def, existing!);
@@ -227,5 +275,115 @@ export function registerRetention({ app, db, audit, lookups, res, requireRecentA
     return row;
   });
 
-  return { sweep };
+  /**
+   * Anonymizes a record (E14-19): its personal fields (FieldDef.personal, and custom long-text and
+   * person fields) are replaced, its comments' text and authors, the titles of notifications about
+   * it and the names and contents of its files are removed, and its watchers are dropped. Its shape
+   * and figures stay: the row, its status, dates, numbers, tags, links and the count of its comments
+   * and files. The search index follows through its triggers. The audit log is not changed.
+   */
+  async function anonymize(def: ResourceDef, id: string): Promise<{ fields: string[]; comments: number; files: number; kept: string[] }> {
+    const row = (await db.one<Row>(`select * from ${def.table} where id = $1`, [id])) ?? fail(404, 'not_found', 'Record not found.');
+    const nullable = new Map((await db.query<{ column_name: string; is_nullable: string }>(
+      `select column_name, is_nullable from information_schema.columns where table_schema = current_schema() and table_name = $1`, [def.table],
+    )).map((c) => [c.column_name, c.is_nullable === 'YES']));
+    const sets: string[] = [];
+    const params: unknown[] = [id];
+    const changed: string[] = [];
+    const kept: string[] = [];
+    for (const name of personalFields(def)) {
+      const f = def.fields[name];
+      if (!nullable.has(name) || row[name] === null || row[name] === undefined) continue;
+      let value: unknown;
+      if (f.type === 'text' || f.type === 'longtext') value = ANONYMIZED_TEXT;
+      else if (nullable.get(name)) value = null;
+      else if (f.type === 'json') value = {};
+      else { kept.push(f.label); continue; } // a required person or other value: nothing can stand in for it
+      params.push(f.type === 'json' && value !== null ? JSON.stringify(value) : value);
+      sets.push(`${name} = $${params.length}`);
+      changed.push(f.label);
+    }
+    // Custom fields, including ones no longer in use: long text and people.
+    if (nullable.has('custom') && row.custom && typeof row.custom === 'object') {
+      const custom = { ...row.custom };
+      const cfs = await db.query<{ key: string; label: string; type: string }>('select key, label, type from custom_fields where record_type = $1', [def.type]);
+      for (const cf of cfs) {
+        if (custom[cf.key] === null || custom[cf.key] === undefined || custom[cf.key] === '') continue;
+        if (cf.type === 'longtext') custom[cf.key] = ANONYMIZED_TEXT;
+        else if (cf.type === 'user') custom[cf.key] = null;
+        else continue;
+        changed.push(cf.label);
+      }
+      params.push(JSON.stringify(custom));
+      sets.push(`custom = $${params.length}::jsonb`);
+    }
+    for (const who of ['created_by', 'updated_by']) if (nullable.get(who)) sets.push(`${who} = null`);
+
+    let files: Row[] = [];
+    if (await filesTable()) {
+      files = await db.query<Row>('select * from attachments where record_type = $1 and record_id = $2', [def.type, id]);
+      if (files.some((f) => !f.purged_at) && !app.hasDecorator('attachmentStores')) {
+        fail(409, 'files_unavailable', 'This record has files, and the files part of the application is not running, so their contents cannot be removed.');
+      }
+    }
+    // The stored bytes first: a file whose content cannot be deleted stops the whole change.
+    const stores = (app as unknown as { attachmentStores?: { forDriver(d: string): { delete(key: string): Promise<void> } } }).attachmentStores;
+    for (const f of files.filter((x) => !x.purged_at)) {
+      try {
+        await stores!.forDriver(f.storage_driver).delete(f.storage_key);
+      } catch (err) {
+        fail(502, 'storage_failed', `The content of a file on this record could not be deleted (${(err as Error).message}). Nothing was anonymized; try again.`);
+      }
+    }
+    let comments = 0;
+    await db.tx(async (tx) => {
+      if (sets.length) await tx.query(`update ${def.table} set ${sets.join(', ')} where id = $1`, params);
+      comments = (await tx.query(
+        `update comments set body = $3, author_id = null, author_name = null where record_type = $1 and record_id = $2 returning 1`,
+        [def.type, id, ANONYMIZED_TEXT])).length;
+      await tx.query('delete from record_watchers where record_type = $1 and record_id = $2', [def.type, id]);
+      if (files.length) {
+        await tx.query(
+          `update attachments set file_name = 'Removed file' || case when extension <> '' then '.' || extension else '' end,
+             description = null, uploaded_by_name = null, created_by = null, updated_by = null,
+             deleted_at = coalesce(deleted_at, now()), purged_at = coalesce(purged_at, now()), removed_reason = 'anonymized', updated_at = now()
+           where record_type = $1 and record_id = $2`, [def.type, id]);
+      }
+      if ((await tx.one<{ t: string | null }>(`select to_regclass('public.notifications')::text as t`))?.t) {
+        await tx.query(`update notifications set title = $3, body = null where record_type = $1 and record_id = $2`,
+          [def.type, id, `${def.label} (details removed at the end of its retention period)`]);
+      }
+    });
+    return { fields: changed, comments, files: files.length, kept };
+  }
+
+  // Anonymize the record: keep its shape and figures, remove the personal details. Cannot be undone.
+  app.post('/api/admin/retention/reviews/:id/anonymize', admin, async (req) => {
+    const { review, def } = await reviewOf(req);
+    const b = (req.body ?? {}) as Row;
+    const reason = reasonOf(b);
+    if (b.confirm !== true) invalid({ confirm: 'Confirm that the personal details are to be removed for good.' });
+    await mustAllow(def, 'anonymize');
+    await requireRecentAuth(req, `anonymizing a ${def.label.toLowerCase()}`);
+    const existing = await db.one<Row>(`select * from ${def.table} where id = $1 and ${res.visibilitySql(def, req.user)}`, [review.record_id]);
+    if (!existing) fail(404, 'not_found', 'Record not found.');
+    // The reference only: the title may itself be personal.
+    const name = (def.ref && existing![def.ref.field]) || `(${review.record_id})`;
+    const done = await anonymize(def, review.record_id);
+    const row = await db.one<Row>(
+      `update retention_reviews set status = 'anonymized', record_label = $2, reason = $3, decided_at = now(), decided_by = $4 where id = $1 returning *`,
+      [review.id, name, reason, req.user!.id]);
+    const parts = [
+      `${done.fields.length} field${done.fields.length === 1 ? '' : 's'}${done.fields.length ? ` (${done.fields.join(', ')})` : ''}`,
+      `${done.comments} comment${done.comments === 1 ? '' : 's'}`, `${done.files} file${done.files === 1 ? '' : 's'}`,
+    ];
+    await audit(req, {
+      action: 'retention.anonymize', recordType: review.record_type, recordId: review.record_id,
+      summary: `${def.label} ${name} anonymized at the end of its retention period (${parts.join(', ')})`
+        + `${done.kept.length ? `; kept because required: ${done.kept.join(', ')}` : ''}: ${reason}`,
+    });
+    return { ...row, anonymized: done };
+  });
+
+  return { sweep, anonymize };
 }

@@ -39,4 +39,10 @@ export const DEPRECATIONS: Deprecation[] = [
   renamed('GET', '/api/policies/:id/acknowledgements', '/api/policies/:id/acknowledgments'),
   renamed('GET', '/api/portal/catalogue', '/api/portal/catalog'),
   renamed('GET', '/api/reports/catalogue', '/api/reports/catalog'),
+  // E13-21: the asset screen uses the generic import, which checks rows by really writing them in a
+  // rolled-back transaction and reads Excel files too. The old route keeps working unchanged.
+  {
+    method: 'POST', path: '/api/assets/import', since: '2026-11-19',
+    notice: 'Use the generic import instead: POST /api/import/asset (a dry run by default; CSV or Excel, sent as base64 in content). POST /api/assets/ingest is not affected.',
+  },
 ];

@@ -2,8 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { ModuleDef } from '../module.ts';
 import { testApp } from '../../test/helpers.ts';
 
-// E13-10: the import check (dry run) gives the same verdict as the real import, because it runs the
-// record type's before-hooks and the source check too, without writing anything.
+// E13-10, E13-22: the import check (dry run) gives the same verdict as the real import, because it
+// runs the real writes (hooks, constraints, audit) inside a transaction that is always rolled back.
 
 const sprockets: ModuleDef = {
   key: 'testsprockets',
@@ -17,7 +17,9 @@ const sprockets: ModuleDef = {
       create table if not exists test_crates (
         id uuid primary key default gen_random_uuid(), title text not null, restricted boolean not null default false,
         created_at timestamptz not null default now(), created_by uuid,
-        updated_at timestamptz not null default now(), updated_by uuid, deleted_at timestamptz);`);
+        updated_at timestamptz not null default now(), updated_by uuid, deleted_at timestamptz);
+      create unique index if not exists test_sprockets_name_ux on test_sprockets (lower(name)) where deleted_at is null;
+      create table if not exists test_sprocket_log (sprocket_id uuid, note text);`);
   },
   async register(ctx) {
     ctx.defineResource({
@@ -37,6 +39,14 @@ const sprockets: ModuleDef = {
         restricted: { label: 'Restricted', type: 'boolean', readOnly: true },
       },
       hooks: {
+        // Written through the shared handle, as module hooks do: inside a check it must reach the
+        // check's transaction (the embedded database would otherwise wait for ever) and be undone.
+        afterCreate: async (req, row) => {
+          await ctx.db.query('insert into test_sprocket_log (sprocket_id, note) values ($1, $2)', [row.id, 'made']);
+          if (req?.user) await ctx.audit(req, { action: 'sprocket.logged', recordType: 'sprocket', recordId: row.id, summary: 'Logged' });
+          // A rule only known once the row exists.
+          if (String(row.name).includes('cursed')) ctx.fail(400, 'validation', 'Check the highlighted fields.', { name: 'That name is cursed.' });
+        },
         // A rule only the hook knows: an odd number of teeth is refused.
         beforeCreate: async (_req, data) => {
           if (Number(data.teeth ?? 0) % 2) ctx.fail(400, 'validation', 'Check the highlighted fields.', { teeth: 'Sprockets have an even number of teeth.' });
@@ -92,5 +102,47 @@ describe('the import check runs the hooks', () => {
     expect(real.body.rows[0].errors).toEqual(dry.body.rows[0].errors);
     // The administrator sees the crate, so the same row passes the check for them.
     expect((await t.api.post('/api/import/sprocket', { ...body, dryRun: true })).body.rows[0].action).toBe('create');
+  });
+});
+
+describe('the import check runs the real writes and keeps nothing (E13-22)', () => {
+  const count = async (sql: string) => Number((await t.db.one<{ n: number }>(sql))!.n);
+
+  it('reports what an after-hook and a database constraint refuse, with no deadlock and nothing kept', async () => {
+    const before = {
+      sprockets: await count('select count(*)::int n from test_sprockets'),
+      log: await count('select count(*)::int n from test_sprocket_log'),
+      audit: await count('select count(*)::int n from audit_events'),
+      jobs: await count('select count(*)::int n from jobs'),
+    };
+    // Drive sprocket already exists (unique name), the cursed one is refused after it is written,
+    // and the last row repeats the first new name with other capitals: only the database index
+    // (case-insensitive) refuses it, because the match key is not mapped.
+    const csv = 'Name,Teeth\nDrive sprocket,14\nTension sprocket,8\ncursed sprocket,4\nTENSION SPROCKET,6\n';
+    const body = { ...file(csv), mapping: { Name: 'name', Teeth: 'teeth' }, mode: 'create' };
+    const dry = await t.api.post('/api/import/sprocket', { ...body, dryRun: true });
+    expect(dry.status).toBe(200);
+    expect(dry.body.rows.map((r: { action: string }) => r.action)).toEqual(['error', 'create', 'error', 'error']);
+    expect(dry.body.rows[2].errors).toEqual({ name: 'That name is cursed.' });
+    // A check names no reference or ID for a record it did not keep.
+    expect(dry.body.rows[1].id).toBeUndefined();
+    expect({
+      sprockets: await count('select count(*)::int n from test_sprockets'),
+      log: await count('select count(*)::int n from test_sprocket_log'),
+      audit: await count('select count(*)::int n from audit_events'),
+      jobs: await count('select count(*)::int n from jobs'),
+    }).toEqual(before);
+
+    const real = await t.api.post('/api/import/sprocket', { ...body, dryRun: false });
+    expect(real.body.rows.map((r: { action: string }) => r.action)).toEqual(dry.body.rows.map((r: { action: string }) => r.action));
+    expect(real.body.rows[0].errors).toEqual(dry.body.rows[0].errors);
+    expect(real.body.rows[3].errors).toEqual(dry.body.rows[3].errors);
+  });
+
+  it('the handle answers other work normally once a check has finished', async () => {
+    expect(await t.db.trial!(async () => (await t.db.one<{ n: number }>('select 1 as n'))!.n)).toBe(1);
+    expect((await t.api.get('/api/test-sprockets')).status).toBe(200);
+    // A trial inside a trial is refused rather than nested silently.
+    await expect(t.db.trial!(() => t.db.trial!(async () => 1))).rejects.toThrow(/inside another/);
   });
 });

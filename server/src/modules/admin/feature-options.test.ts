@@ -16,7 +16,7 @@ describe('options within areas', () => {
     expect(page.options.map((o: any) => [o.key, o.on, o.name])).toEqual([
       ['funder_interest', true, 'Funder interest'],
       ['contract_approval_number', true, 'Approval or resolution number'],
-      ['ransom_approval', true, 'Governing body approval reference'],
+      ['ransom_approval', true, 'Payment approval reference'],
     ]);
     expect(page.options[0]).toMatchObject({ area: null, group: 'Inventory', defaultOn: true, defaultName: 'Funder interest' });
     expect(page.options[1]).toMatchObject({ area: 'vendors', group: 'Vendors and contracts' });
@@ -24,7 +24,7 @@ describe('options within areas', () => {
     expect(m.resources.asset.fields.funder_interest.label).toBe('Funder interest');
     expect(m.resources.asset.fields.funder_interest_pct.label).toBe('Funder interest (%)');
     expect(m.resources.contract.fields.resolution_number.label).toBe('Approval or resolution number');
-    expect(m.resources.security_incident.fields.board_resolution_ref.label).toBe('Governing body approval reference');
+    expect(m.resources.security_incident.fields.board_resolution_ref.label).toBe('Payment approval reference');
   });
 
   it('refuses unknown options and unsafe names', async () => {

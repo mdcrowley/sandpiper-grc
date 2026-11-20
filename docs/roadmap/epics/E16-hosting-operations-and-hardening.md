@@ -1,6 +1,6 @@
 # E16 Hosting, operations and hardening
 
-**Status:** in progress (27 of 36 issues done)
+**Status:** in progress (30 of 37 issues done)
 
 ## Goal
 
@@ -63,10 +63,11 @@ and usable by everyone.
 | E16-34 | macOS and Linux scripts | done | P1 |
 | E16-35 | Confirm the user services on a real systemd and launchd | open | P3 |
 | E16-36 | Load test on a PostgreSQL server, and tune the slowest queries | done | P2 |
-| E16-37 | Schema changes at run time without the owner account | open | P3 |
-| E16-38 | Embedded database under load: Overview and global search, and scale 4 | in progress | P3 |
-| E16-39 | Start-up work within the time limit at volume | in progress | P3 |
+| E16-37 | Schema changes at run time without the owner account | done | P3 |
+| E16-38 | Embedded database under load: Overview and global search, and scale 4 | done | P3 |
+| E16-39 | Start-up work within the time limit at volume | done | P3 |
 | E16-40 | Independent security review or penetration test | open | P2 |
+| E16-41 | Load test with the database server on its own machine | open | P3 |
 
 ---
 
@@ -731,11 +732,11 @@ about 100 ms, full-text lists 126 ms, global search 312 ms, the Overview 593 ms,
 and sorted lists, full-text lists and saves now meet the embedded targets; the Overview and
 global search under load do not, and are split into E16-38. The server ran in a container
 on the same laptop rather than on its own machine; a run on separate machines is part of
-E16-38.
+E16-41 (split from E16-38).
 
 **Acceptance criteria**
 
-- [x] `tools/load/run.mjs` run against a PostgreSQL server (`GRC_DATABASE_URL`), results recorded beside the embedded ones (a PostgreSQL 17 container on the same machine; on its own machine: E16-38)
+- [x] `tools/load/run.mjs` run against a PostgreSQL server (`GRC_DATABASE_URL`), results recorded beside the embedded ones (a PostgreSQL 17 container on the same machine; on its own machine: E16-41)
 - [x] The slowest scenarios looked at with `explain analyze`, a CPU profile and the new slow statement log, and indexed or rewritten: planner statistics for the embedded database (it never ran `analyze`), list pages found on ids with the total from the same statement, full-text matches found once through the index, substring text in the search index with a trigram index (migration 009), global search reading only each type's matching index rows, value labels read only for the lists a type uses, service desk figures in one pass
 - [x] Targets set realistically, separately for a PostgreSQL server and the embedded database
 - [x] The run repeated at scale 1 (embedded with `--ops`, and on the server); it completed without a lost connection. The load tool retries a dropped request once, counts it, and reports an instance that stopped by itself. Scale 4: E16-38
@@ -745,7 +746,7 @@ E16-38.
 
 ### E16-37 Schema changes at run time without the owner account
 
-**Status:** open · **Priority:** P3 · **Type:** debt
+**Status:** done · **Priority:** P3 · **Type:** debt
 
 As a security lead using a least-privilege database role (E16-31), adding a custom field
 or upgrading to a version that searches different fields works without the owner account.
@@ -756,17 +757,32 @@ type falls back to plain matching) until `migrate` is run as the owner.
 
 **Acceptance criteria**
 
-- [ ] Custom field values stored without a schema change, or the change run through the owner connection
-- [ ] Search triggers built only by migrations (or the owner), and the run-time role never attempts DDL
+- [x] Custom field values stored without a schema change, or the change run through the owner connection:
+  the owner's run (`migrateAsOwner`) gives every record table the `custom` column up front
+  (`addCustomColumns`), so a new custom field needs no schema change
+- [x] Search triggers built only by migrations (or the owner), and the run-time role never attempts DDL:
+  without the right to change a table (`maySchemaChange`: owner of the table and create on the
+  schema) the server records the change in `schema_requests` (core migration 014) and logs it,
+  keeps the earlier trigger (search keeps working), and the owner's next run rebuilds it from the
+  application's definitions and clears the request; nothing stored is ever run. A SECURITY
+  DEFINER function was considered and not used: it would give the run-time role a standing way
+  to change the schema, and the trigger text it would need is built by the application
 - [x] `ensureCustomColumn` checks that the column exists before `alter table`, so a restart logs no error (it looks in `information_schema.columns` first; test in `core/platform.test.ts`, "custom fields")
 
 Note (E16-36): this release changes every search trigger once (substring text in `search_index.body`), so with the run-time role run `migrate` as the owner after upgrading, as for any change of search definition.
 
-**Implemented in (so far):** `server/src/core/resource.ts` (`ensureCustomColumn`)
+**Implemented in:** `server/src/core/resource.ts` (`ensureCustomColumn`), `core/search.ts`
+(`maySchemaChange`, `requestSchemaChange`, `schemaChangeDone`, `ensureSearchIndex`,
+`ensureCommentSearch`), `core/migrations/014_schema_requests.sql`, `server/src/ops/db-roles.ts`
+(`addCustomColumns`, `pendingSchemaRequests`, `migrateAsOwner`); tests
+`server/src/ops/db-roles-runtime.test.ts` (the run-time role taken inside `db.trial`: no DDL sent,
+requests recorded; embedded, wire protocol and PostgreSQL 17), and checked by hand on PostgreSQL 17
+with separate owner and run-time accounts (server as `grc_app`, a custom field added and used,
+then `migrate` as the owner cleared the request and indexed the field)
 
 ### E16-38 Embedded database under load: Overview and global search, and scale 4
 
-**Status:** in progress · **Priority:** P3 · **Type:** improvement
+**Status:** done · **Priority:** P3 · **Type:** improvement
 
 As an evaluator using the embedded database, the Overview and global search stay usable
 when several people use the application at once. Split from E16-36: after tuning, each costs
@@ -781,30 +797,36 @@ scale 1.
 - [x] Fewer statements per request: the session and user lookup on every request (four statements today, `core/auth.ts`) made one, and settings read once per request
 - [x] The Overview's figures cached for a short time or computed together, with figures still identical for every viewer
 - [x] Global search with real text (a load-test vocabulary closer to real use than a hundred random words)
-- [ ] Scale 4 measured, on the embedded database and on a PostgreSQL server on its own machine
+- [x] Scale 4 measured on the embedded database and on a PostgreSQL server (in a container on the same machine; on its own machine: E16-41)
 - [x] The vulnerability type searched through the index (its records are a view, so it is matched by substring today)
 
-**Progress (wave 5, not yet measured).** Built and covered by the test suite, but the load test
-was not re-run before the work stopped, so there are no new figures yet:
+**Outcome.** Measured before and after on copies of the same records (median of four runs of
+each version at scale 0.5 on the embedded database, 8 people at once, 95th percentile): the
+Overview 3.5 s to 0.7 s (with a ticket saved every second meanwhile, 2.6 s to 1.1 s), global
+search 2.6 s to 1.3 s. At scale 1: global search 0.9 s, Overview 0.4 s; at scale 4 (about
+82,000 records): global search 1.2 s, Overview 0.2 s, full-text list query 0.8 s, every list
+under 0.5 s. On PostgreSQL at scale 1 the Overview went from 465 to 144 ms and global search
+from 257 to 197 ms. Full table in `docs/operations.md`, "Performance and load testing".
 
-- One statement per signed-in request for the session, person, roles, permissions and the settings
-  it needs (`core/auth.ts`), instead of four.
-- The Overview's figure routes kept for a few seconds while nothing has been written
-  (`core/routes.ts`, using a write counter on the database handle, `Db.generation` in
-  `core/db.ts`); figures that hold the caller's own counts are kept per person.
-- Global search finds every type's matches in one statement over the search index rather than
-  once per type (`core/routes.ts`).
-- A type whose records are a view (vulnerabilities) is searched through the index of the table
-  behind it (`core/search.ts`).
-- The load tool draws words with a Zipf distribution from a few hundred invented words, and can
-  measure a kept folder again without seeding (`tools/load/run.mjs`).
+Review fixes in this wave: a figure kept for one person was given to that person's API token
+even when the token lacked the permission (a kept answer is given before the route checks
+permissions; every key now holds the caller's permissions, also for "mine" figures); a
+malformed query on a statistics route is not kept; global search failed ("could not determine
+data type of parameter") when no searchable type had a reference number, as with only a few
+modules loaded (the parameter is now added only when used); writes inside an import check
+(`Db.trial`, always rolled back) are counted, so nothing read meanwhile is kept. The load
+tool gained an Overview scenario with a save every second (the figures then are mostly
+recomputed), `--seed-concurrency`, and unique names where a type requires them.
 
-Left: measure before and after at scale 0.5, 1 and 4, on the embedded database and on a
-PostgreSQL server on its own machine, and update the figures in `docs/operations.md`.
+**Implemented in:** `server/src/core/auth.ts` (`sessionUser`), `core/routes.ts`
+(`registerFiguresCache`, `FIGURE_ROUTES`, `GET /api/search`), `core/db.ts` (`Db.generation`,
+`makeWriteCounter`), `core/search.ts` (`indexedTable`); tests `server/src/core/performance.test.ts`;
+`tools/load/run.mjs`, `tools/load/README.md`; `docs/operations.md`, `docs/installation.md`
+(`GRC_FIGURES_CACHE_SECONDS`)
 
 ### E16-39 Start-up work within the time limit at volume
 
-**Status:** in progress · **Priority:** P3 · **Type:** defect
+**Status:** done · **Priority:** P3 · **Type:** defect
 
 As an operator, the server starts on a large installation even when the machine is busy.
 Once, at scale 1 on a busy machine, a start stopped with "A callback for 'onReady' hook
@@ -815,12 +837,22 @@ the same folder took a few seconds.
 
 - [x] The start-up hook that ran long identified (time each `onReady` hook)
 - [x] Long start-up work moved out of `onReady` (to the job queue or after listening), or the limit raised with a reason
-- [ ] A start of a scale-4 installation measured
+- [x] A start of a scale-4 installation measured
 
-**Progress (wave 5).** Every start-up step is timed and named after where it was added; one over
-`GRC_STARTUP_WARN_MS` (default 2,000) is logged (`server/src/app.ts`). The embedded database's
-first `analyze` now waits until start-up has finished, since running it in the middle of start-up
-held up its steps (`core/db.ts`). Left: measure a start of a scale-4 installation.
+**Outcome.** Every start-up step is timed and named after where it was added, together with
+the parts before them (opening the database, migrations, modules and routes); the start is
+logged when it, or one part, takes longer than `GRC_STARTUP_WARN_MS` (default 2,000). The
+step that grows with the data is the search index (`core/resource.ts`), rebuilt at start
+after an upgrade that changes how a type is searched: with every definition changed, a
+scale-4 embedded installation (40,000 tickets) took 18.7 s for it. That work must finish
+before search is right, so the limit per step was raised rather than the work moved: ten
+minutes (`GRC_STARTUP_TIMEOUT_SECONDS`, default 600) instead of Fastify's 10 seconds. A
+normal start of the scale-4 installation answered in 2.6 s. The embedded database's first
+`analyze` waits until the start is over.
+
+**Implemented in:** `server/src/app.ts` (`timeStartupSteps`, `startupTimeoutMs`, the start's
+phases), `core/db.ts` (`makeAutoAnalyze` `waitForStart`); tests `server/src/core/performance.test.ts`
+("start-up timing", "start-up time limit"); `docs/operations.md`, `docs/installation.md`
 
 ### E16-40 Independent security review or penetration test
 
@@ -835,3 +867,17 @@ one before it relies on the application for sensitive records.
 
 - [ ] A review or test by someone independent, against a running installation set up as for production
 - [ ] Findings raised as issues, and the outcome summarized in `docs/security.md`
+
+### E16-41 Load test with the database server on its own machine
+
+**Status:** open · **Priority:** P3 · **Type:** improvement
+
+Split from E16-38. Every PostgreSQL figure so far came from a server in a container on the
+same laptop as the application and the load generator, so they shared its processors. A
+pilot runs the database on its own machine (or a managed service).
+
+**Acceptance criteria**
+
+- [ ] `tools/load/run.mjs` at scale 1 and 4 with the database on a separate machine (or a managed PostgreSQL service), the application and the load generator on others
+- [ ] People with different roles in the Overview scenario (each set of permissions computes its own figures), and a run with `GRC_FIGURES_CACHE_SECONDS=0`
+- [ ] Results recorded in `docs/operations.md` beside the others

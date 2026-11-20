@@ -7,8 +7,10 @@ import {
   callbackPath, DRIVERS, providerById, publicBase, readSecret, sealSecret, type IdentityDeps,
 } from '../../core/identity/service.ts';
 import { IdentityError, type ProviderRecord } from '../../core/identity/types.ts';
-import { certificateFacts, newServiceProviderKey, samlAddresses } from '../../core/identity/saml.ts';
-import { parseIdpMetadata } from '../../core/identity/samlxml.ts';
+import { certificateFacts, mergeRefreshedCertificates, newServiceProviderKey, ROLLOVER_DAYS, samlAddresses } from '../../core/identity/saml.ts';
+import { parseIdpMetadata, verifyMetadataSignature } from '../../core/identity/samlxml.ts';
+import { readCertificates } from '../../core/identity/x509.ts';
+import { scheduleWork } from '../../core/jobs/index.ts';
 import { fetchText } from '../../core/identity/http.ts';
 import { hostAllowed } from '../../core/webhooks.ts';
 import { UUID_RE } from '../../core/errors.ts';
@@ -16,6 +18,7 @@ import { adminRoute, body, idParam, invalid, sensitive } from './shared.ts';
 import { identityDeps, signInMethods, unlinkIdentity } from './sso.ts';
 
 const KEY_RE = /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/;
+const pemOf = (b64: string) => `-----BEGIN CERTIFICATE-----\n${b64}\n-----END CERTIFICATE-----`;
 const PERMIT_DAYS = 7;
 
 /** Active people who could not sign in if local passwords were switched off (break-glass aside). */
@@ -133,13 +136,18 @@ export function registerProviders(ctx: ModuleContext) {
     if (type === 'saml') {
       // SAML: the stored secret is this application's own key, made here; it never comes from input.
     } else if (typeof b.secret === 'string' && b.secret !== '') {
-      if (b.secret.length > 1000) fields.secret = 'The client secret is too long.';
+      if (b.secret.length > 1000) fields.secret = type === 'ldap' ? 'The service account password is too long.' : 'The client secret is too long.';
       secret = b.secret;
     } else if (b.clearSecret === true) secret = null;
     if (config.tokenAuth && config.tokenAuth !== 'none' && enabled && secret === null) fields.secret = 'This provider needs a client secret while it is switched on.';
     if (config.tokenAuth && config.tokenAuth !== 'none' && enabled && secret === undefined && !existing?.secret) {
       fields.secret = 'Enter the client secret before switching the provider on.';
     }
+    // E02-26: a directory's service account password is the stored secret (encrypted with the secret key).
+    if (type === 'ldap' && config.bindDn && enabled && (secret === null || (secret === undefined && !existing?.secret))) {
+      fields.secret = 'Enter the service account password before switching the provider on.';
+    }
+    if (type === 'ldap' && !config.bindDn && secret === undefined && existing?.secret) secret = null; // no service account: nothing to keep
     if (Object.keys(fields).length) invalid(fields);
     return { type, key: key!, name, enabled, isDefault: isDefault && enabled, sort, config, secret, newKey: type === 'saml' && (!existing || b.newServiceProviderKey === true) };
   }
@@ -156,6 +164,14 @@ export function registerProviders(ctx: ModuleContext) {
     name: r.name, enabled: r.enabled, isDefault: r.is_default, issuer: r.config?.issuer ?? r.config?.idpEntityId, clientId: r.config?.clientId,
     ssoUrl: r.config?.ssoUrl, signingCertificates: r.type === 'saml' ? certificateFacts(r.config?.idpCerts).map((c) => c.fingerprint) : undefined,
     serviceProviderCertificate: r.type === 'saml' ? certificateFacts([r.config?.spCert])[0]?.fingerprint : undefined,
+    // SAML (E02-27, E02-28): sign-outs from the identity provider, signed metadata and its refresh.
+    idpLogout: r.type === 'saml' ? r.config?.idpLogout === true : undefined,
+    metadataUrl: r.type === 'saml' ? r.config?.metadataUrl || undefined : undefined,
+    metadataSigningCertificate: r.type === 'saml' && r.config?.metadataCert ? certificateFacts([r.config.metadataCert])[0]?.fingerprint : undefined,
+    metadataRefresh: r.type === 'saml' ? r.config?.metadataRefresh === true : undefined,
+    // Directory (E02-26): where, and how it is trusted. The service account's password is only ever "stored".
+    directoryUrl: r.config?.url, baseDn: r.config?.baseDn, userFilter: r.config?.userFilter, serviceAccount: r.type === 'ldap' ? (r.config?.bindDn ? 'set' : 'none') : undefined,
+    pinnedCaCertificate: r.type === 'ldap' ? (r.config?.caCert ? certificateFacts([r.config.caCert])[0]?.fingerprint ?? 'set' : 'none') : undefined,
     mappingEnabled: r.config?.mappingEnabled, mappings: r.config?.mappings, jitEnabled: r.config?.jitEnabled,
     jitDomains: r.config?.jitDomains, trustEmail: r.config?.trustEmail, secret: r.secret ? 'stored' : 'none',
   });
@@ -226,11 +242,13 @@ export function registerProviders(ctx: ModuleContext) {
   adminRoute(ctx, 'POST', '/api/admin/identity-providers/:id/test', async (req) => {
     const row = await getRow(idParam(req, 'Sign-in provider'));
     const p = toRecord(row);
-    // Fetches the discovery document and key set now, because an administrator asked; nothing else calls out.
-    const result = await DRIVERS[p.type].test(p, readSecret(db, p));
+    // Fetches the discovery document and key set now (OpenID Connect), or connects to the directory and
+    // optionally looks one person up (E02-26), because an administrator asked; nothing else calls out.
+    const username = typeof body(req).username === 'string' ? String(body(req).username).trim().slice(0, 256) : '';
+    const result = await DRIVERS[p.type].test(p, readSecret(db, p), { username });
     await ctx.audit(req, {
       action: 'identity_provider.test', recordType: 'identity_provider', recordId: p.id,
-      summary: `Connection to "${p.name}" tested: ${result.ok ? 'worked' : 'failed'}. ${result.message}`.slice(0, 500),
+      summary: `Connection to "${p.name}" tested${username ? ` (looking up "${username.slice(0, 80)}")` : ''}: ${result.ok ? 'worked' : 'failed'}. ${result.message}`.slice(0, 500),
     });
     return result;
   });
@@ -261,14 +279,109 @@ export function registerProviders(ctx: ModuleContext) {
       }
       await ctx.audit(req, { action: 'identity_provider.metadata_fetch', summary: `SAML metadata fetched from ${target!.host}` });
     }
+    // E02-28: with a metadata signing certificate, the metadata must be signed by it, and only what the
+    // signature covers is read.
+    let signed = false;
+    const rawCert = typeof b.metadataCert === 'string' ? b.metadataCert.trim() : '';
     try {
+      if (rawCert) {
+        const read = readCertificates(rawCert);
+        if (read.problem || read.certs.length !== 1) invalid({ metadataCert: read.problem ?? 'Give exactly one metadata signing certificate.' });
+        xml = verifyMetadataSignature(xml, read.certs[0]);
+        signed = true;
+      }
       const meta = parseIdpMetadata(xml);
-      return { ...meta, certificateFacts: certificateFacts(meta.certificates.map((c) => `-----BEGIN CERTIFICATE-----
-${c}
------END CERTIFICATE-----`)) };
+      if (signed && meta.validUntil && Date.parse(meta.validUntil) < Date.now()) {
+        throw new IdentityError('metadata out of date', `The metadata was valid until ${meta.validUntil.slice(0, 10)} and is out of date.`);
+      }
+      return { ...meta, signed, certificateFacts: certificateFacts(meta.certificates.map(pemOf)) };
     } catch (err) {
-      return invalid({ [url && !b.xml ? 'url' : 'xml']: err instanceof IdentityError ? err.message : 'The metadata could not be read.' });
+      if (!(err instanceof IdentityError)) throw err;
+      return invalid({ [url && !b.xml ? 'url' : 'xml']: err.message || 'The metadata could not be read.' });
     }
+  });
+
+  // ---------- E02-28: refreshing SAML metadata ----------
+  // Only for providers with the refresh on, only with outbound connections on and the host allowed,
+  // and only signed metadata (checked against the pinned certificate). New signing certificates are
+  // added; ones the metadata stops listing are kept for a few days (a rollover in progress). Each
+  // change is audited; a failure is recorded on the provider and audited, and nothing changes.
+  async function refreshMetadata(row: Row, req: FastifyRequest | null): Promise<{ ok: boolean; message: string }> {
+    const c = row.config ?? {};
+    // Only the keys the refresh owns are written, so an administrator's change made meanwhile is kept.
+    const record = async (ok: boolean, message: string, changed: Record<string, unknown> = {}) => {
+      await db.query('update identity_providers set config = config || $2::jsonb, updated_at = now() where id = $1',
+        [row.id, JSON.stringify({ ...changed, metadataCheckedAt: new Date().toISOString(), metadataStatus: message.slice(0, 300) })]);
+      return { ok, message };
+    };
+    if ((await ctx.settings.get<unknown>('integrations.outbound_enabled', false)) !== true) {
+      return record(false, 'Not refreshed: outbound connections are switched off.');
+    }
+    let target: URL;
+    try { target = new URL(String(c.metadataUrl ?? '')); } catch { return record(false, 'Not refreshed: no usable metadata address.'); }
+    if (!hostAllowed(target, await ctx.settings.get<unknown>('integrations.allowed_hosts', []))) {
+      return record(false, `Not refreshed: ${target.host} is not on the list of allowed hosts.`);
+    }
+    if (!c.metadataCert) return record(false, 'Not refreshed: no metadata signing certificate is set.');
+    let meta;
+    let certs: string[];
+    try {
+      const xml = await fetchText(target.toString(), 'metadata address');
+      meta = parseIdpMetadata(verifyMetadataSignature(xml, c.metadataCert));
+      if (meta.validUntil && Date.parse(meta.validUntil) < Date.now()) throw new IdentityError('metadata out of date', `the metadata was valid until ${meta.validUntil.slice(0, 10)}`);
+      if (meta.entityId !== c.idpEntityId) throw new IdentityError('entity ID changed', `the metadata names another entity ID (${meta.entityId.slice(0, 100)}); change it by hand if that is right`);
+      // Each certificate on its own: one that cannot be used (a weak key) is skipped, not the whole list.
+      certs = meta.certificates.flatMap((b64) => readCertificates(b64).certs);
+      if (!certs.length) throw new IdentityError('no usable signing certificate', 'the metadata lists no usable signing certificate');
+    } catch (err) {
+      const why = err instanceof IdentityError ? err.message || err.reason : 'error';
+      await ctx.audit(req, { action: 'identity_provider.metadata_refresh', recordType: 'identity_provider', recordId: row.id, summary: `SAML metadata of "${row.name}" not refreshed from ${target.host}: ${why}`.slice(0, 500) });
+      return record(false, `Not refreshed: ${why}`);
+    }
+    const merged = mergeRefreshedCertificates(c.idpCerts ?? [], c.certsDropped ?? {}, certs);
+    const next = { ...c, idpCerts: merged.idpCerts, certsDropped: merged.certsDropped, ssoUrl: meta.ssoUrl, ...(meta.sloUrl ? { sloUrl: meta.sloUrl } : {}) };
+    const changes = [
+      ...merged.added.map((f) => `signing certificate added (${f.slice(0, 23)}…)`),
+      ...merged.removed.map((f) => `signing certificate removed (${f.slice(0, 23)}…)`),
+      ...(merged.keptForRollover.length ? [`${merged.keptForRollover.length} certificate(s) no longer listed, kept for up to ${ROLLOVER_DAYS} days`] : []),
+      ...(meta.ssoUrl !== c.ssoUrl ? ['sign-in address changed'] : []),
+      ...(meta.sloUrl && meta.sloUrl !== c.sloUrl ? ['sign-out address changed'] : []),
+    ];
+    const message = changes.length ? `Refreshed: ${changes.join('; ')}.` : 'Refreshed: no change.';
+    const out = await record(true, message, { idpCerts: next.idpCerts, certsDropped: next.certsDropped, ssoUrl: next.ssoUrl, sloUrl: next.sloUrl });
+    DRIVERS.saml.forget?.(toRecord(row));
+    await ctx.audit(req, {
+      action: 'identity_provider.metadata_refresh', recordType: 'identity_provider', recordId: row.id,
+      summary: `SAML metadata of "${row.name}" refreshed from ${target.host} (signature checked). ${message}`.slice(0, 500),
+      ...(changes.length ? {
+        before: { signingCertificates: certificateFacts(c.idpCerts).map((x) => x.fingerprint), ssoUrl: c.ssoUrl, sloUrl: c.sloUrl },
+        after: { signingCertificates: certificateFacts(next.idpCerts).map((x) => x.fingerprint), ssoUrl: next.ssoUrl, sloUrl: next.sloUrl },
+      } : {}),
+    });
+    return out;
+  }
+
+  adminRoute(ctx, 'POST', '/api/admin/identity-providers/:id/refresh-metadata', async (req) => {
+    const row = await getRow(idParam(req, 'Sign-in provider'));
+    if (row.type !== 'saml') ctx.fail(409, 'not_saml', 'Only a SAML provider has metadata to refresh.');
+    if (!row.config?.metadataUrl || !row.config?.metadataCert) ctx.fail(409, 'not_set_up', 'Set the metadata address and its signing certificate first.');
+    if ((await ctx.settings.get<unknown>('integrations.outbound_enabled', false)) !== true) {
+      ctx.fail(409, 'outbound_off', 'Outbound connections are switched off (Settings > Integrations), so metadata cannot be fetched.');
+    }
+    await sensitive(ctx, req, `refreshing the metadata of "${row.name}"`);
+    return refreshMetadata(row, req);
+  });
+
+  // Every day, for the providers with the refresh on (through the job queue: once however many servers share the database).
+  ctx.app.addHook('onReady', async () => {
+    await scheduleWork(ctx, 'admin.saml_metadata_refresh', async () => {
+      const rows = await db.query<Row>(
+        `select * from identity_providers where deleted_at is null and type = 'saml' and coalesce((config->>'metadataRefresh')::boolean, false)`,
+      );
+      const results = [];
+      for (const row of rows) results.push({ provider: row.key, ...(await refreshMetadata(row, null)) });
+      return { providers: results.length, refreshed: results.filter((r) => r.ok).length };
+    }, { every: 24 * 3_600_000, firstRunInMs: 15 * 60_000 });
   });
 
   adminRoute(ctx, 'DELETE', '/api/admin/identity-providers/:id', async (req) => {

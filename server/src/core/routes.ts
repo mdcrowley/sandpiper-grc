@@ -195,11 +195,13 @@ export function registerCoreRoutes({ app, db, audit, lookups, res, custom, notif
       const add = (v: unknown) => { params.push(v); return `$${params.length}`; };
       const tsq = s.tsquery(add);
       const like = add(s.like);
-      const text = add(s.text);
+      // Added only when a type has a reference: a parameter no statement uses has no type, which PostgreSQL refuses.
+      let textParam: string | null = null;
+      const text = () => (textParam ??= add(s.text));
       const parts = defs.map((def) => {
         const type = add(def.type);
         const visible = `t.deleted_at is null and ${visibilitySql(def, req.user, 't')}`;
-        const exact = def.ref ? `lower(t.${def.ref.field}::text) = lower(${text}::text)` : 'false';
+        const exact = def.ref ? `lower(t.${def.ref.field}::text) = lower(${text()}::text)` : 'false';
         const mine = `(select m.id, m.r from m where m.record_type = ${type}) m`;
         const from = s.single
           ? `${mine} join ${def.table} t on t.id = m.id where ${visible}`
@@ -570,10 +572,20 @@ export function registerFiguresCache(app: FastifyInstance, db: Db, res: ReturnTy
     const route = req.routeOptions?.url ?? '';
     const query = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
     let scope = FIGURE_ROUTES[route];
-    if (!scope && statsRoutes.has(route)) scope = /(^|[=,])me(,|&|$)/.test(decodeURIComponent(query.slice(1))) ? 'person' : 'viewer';
+    if (!scope && statsRoutes.has(route)) {
+      let plain: string;
+      try {
+        plain = decodeURIComponent(query.slice(1).replace(/\+/g, ' '));
+      } catch {
+        return null; // a malformed query is not kept: the route answers it
+      }
+      scope = /(^|[=,])\s*me\s*(,|&|$)/.test(plain) ? 'person' : 'viewer';
+    }
     if (!scope) return null;
     const u = req.user;
-    const who = scope === 'person' ? `u:${u.id}` : `p:${[...u.permissions].sort().join(',')}`;
+    // The permissions are part of every key, also for a person's own figures: an API token holds
+    // fewer than its owner, and a kept answer is given before the route checks them.
+    const who = `p:${[...u.permissions].sort().join(',')}${scope === 'person' ? `|u:${u.id}` : ''}`;
     return `${who}|off:${[...(u.off ?? [])].sort().join(',')}|${route}${query}`;
   };
 

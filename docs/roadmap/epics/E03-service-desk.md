@@ -1,6 +1,6 @@
 # E03 Service desk
 
-**Status:** done (21 of 21 issues done)
+**Status:** in progress (21 of 22 issues done)
 
 ## Goal
 
@@ -41,6 +41,7 @@ what they know in a knowledge base.
 | E03-19 | Follow-up actions on problems | done | P2 |
 | E03-20 | Server-side saved views for ticket queues | done | P3 |
 | E03-21 | Approval by more than one person, or by answer | done | P3 |
+| E03-22 | Catalog request approvals on the shared approval workflows | open | P3 |
 ---
 
 ### E03-01 Tickets for incidents and requests
@@ -386,3 +387,14 @@ particular answer is given (for example access to a restricted system).
 
 **Implemented in:** `server/src/modules/tickets/catalog.ts` (`POST /api/tickets/:id/approval`, `GET /api/tickets/:id/approvals`), migration `tickets/005_sharing_approvals_email.sql` (`ticket_approvals`); `/api/portal/approvals`; `web/src/modules/tickets/CatalogDesigner.tsx`, `Cockpit.tsx`, `web/src/modules/portal/Approvals.tsx`; tests `server/src/modules/tickets/approvals.test.ts`, `server/src/modules/portal/sharing.test.ts`
 
+### E03-22 Catalog request approvals on the shared approval workflows
+
+**Status:** open · **Priority:** P3 · **Type:** improvement
+
+As a service desk lead, the approvals a catalog item asks for (how many, from whom, only for some answers) run on the shared approval workflows (E14-06), so they get due times, escalation, department heads and the Approvals page like every other approval.
+
+**Acceptance criteria**
+
+- [ ] A catalog item can name an approval workflow in place of its own approval settings
+- [ ] Existing approval settings and decisions keep working and stay visible
+- [ ] The ticket strip and the portal's approvals read the workflow's state

@@ -163,7 +163,7 @@ Figures, charts and tables for the areas you can see. You need the dashboards pe
 
 The link at the top right of a widget opens the full page for that area. If a widget cannot load its figures it says so and offers **Try again**; the rest of the page still works.
 
-The figures are the same for everyone who can see them. To keep the page quick when many people open it at once, the server may answer with figures it worked out a few seconds earlier (ten at most, by default), but never with figures from before a change: as soon as anything is saved, the next visit counts again.
+The figures are the same for everyone who can see them. To keep the page quick when many people open it at once, the server may answer with figures it worked out a few seconds earlier (ten at most, by default), but never with figures from before a change: as soon as anything is saved, the next visit counts again. (An installation that runs several copies of the server on one database is the exception: a change saved through another copy shows within those few seconds.)
 
 #### Your home dashboard
 

@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Card, cx, EmptyState, ErrorState, errorMessage, formatDate, Loading, PageHeader, Select, Stat, StatusChip, useAuth,
+  Card, cx, EmptyState, ErrorState, errorMessage, formatDate, Loading, PageHeader, routePaths, Select, Stat, StatusChip, useAuth,
   useFetch, useToast,
 } from '../../core';
 import { downloadAttachment, expiryState, FileTypeIcon, type Attachment } from './shared';
@@ -20,7 +20,9 @@ const WINDOWS = [30, 60, 90, 180, 365].map((d) => ({ value: String(d), label: `N
 
 export function ExpiringEvidenceFiles() {
   const toast = useToast();
-  const { can } = useAuth();
+  const { can, areaOn } = useAuth();
+  // Vendor evidence items have a page of their own, with the item's expiry date (E14-18).
+  const vendorPage = routePaths.includes('/evidence/expiring') && areaOn('vendors') && can('vendors.view');
   const [days, setDays] = useState('90');
   const { data, error, loading, reload } = useFetch<{ today: string; days: number; rows: ExpiringRow[] }>(
     `/api/attachments/evidence-expiring?days=${days}`,
@@ -92,7 +94,12 @@ export function ExpiringEvidenceFiles() {
       <PageHeader
         title="Expiring evidence files"
         subtitle="Files attached to records as evidence that have passed their expiry date or soon will. Open the record to attach a current copy."
-        actions={can('admin.administer') ? <Link className="att-settings-link" to="/admin/attachments">File settings</Link> : undefined}
+        actions={(vendorPage || can('admin.administer')) ? (
+          <span className="row">
+            {vendorPage && <Link className="att-settings-link" to="/evidence/expiring">Expiring vendor evidence</Link>}
+            {can('admin.administer') && <Link className="att-settings-link" to="/admin/attachments">File settings</Link>}
+          </span>
+        ) : undefined}
       />
       <Card>
         <div className="att-toolbar">

@@ -10,6 +10,10 @@
 // - Dynamic client registration (RFC 7591) at /oauth/register, only when an administrator allows
 //   it; administrators can also register connectors by hand.
 // - Revocation (RFC 7009) at /oauth/revoke.
+// - Client ID metadata documents (E21-21): a client_id that is an https address is fetched (fenced as
+//   in client-metadata.ts) when someone signed in opens the consent screen, only while an
+//   administrator allows it and outbound connections are on. The last valid document is kept in
+//   mcp_oauth_clients (registered_by = 'metadata') until it expires. The token endpoint never fetches.
 // - The resource indicator (RFC 8707), when sent, must name this server's /mcp.
 //
 // Everything is off until an administrator switches it on (mcp.oauth_enabled). Access tokens are
@@ -24,6 +28,9 @@ import type { ModuleContext, Row } from '../../core/module.ts';
 import { makeDbLimiter } from '../../core/ratelimit.ts';
 import { clientIp, isHttps } from '../../core/request.ts';
 import { tokenHash } from '../../core/tokens.ts';
+import {
+  cacheSeconds, clientHostAllowed, clientIdUrlProblem, fetchClientMetadata, isUrlClientId, MAX_CLIENT_ID_LENGTH, MetadataError, validateClientMetadata as checkMetadataDocument,
+} from './client-metadata.ts';
 import { readSettings, mayConnect, type McpSettings } from './settings.ts';
 
 export const ACCESS_PREFIX = 'grc_oat_';
@@ -119,6 +126,11 @@ export function parseScope(scope: unknown): string[] | null {
   return parts;
 }
 
+/** A redirect address on this computer (http://localhost, 127.0.0.1 or [::1]). */
+export function isLoopbackRedirect(uri: string): boolean {
+  try { return LOOPBACK.has(new URL(uri).hostname); } catch { return false; }
+}
+
 /** Up to 100 printable characters, for names given by connectors. */
 const cleanName = (s: unknown) => String(s ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 100);
 
@@ -145,7 +157,12 @@ export function registerOAuth(ctx: ModuleContext, deps: OAuthDeps) {
   const internalSecret = randomBytes(32).toString('base64url');
   const failures = makeDbLimiter(db, 'mcp_oauth', 30, 5 * 60_000);
   const registrations = makeDbLimiter(db, 'mcp_oauth_register', 10, 60 * 60_000);
+  const metadataFetches = makeDbLimiter(db, 'mcp_oauth_metadata', 20, 10 * 60_000);
   let sweeps = 0;
+
+  /** Client ID metadata documents are usable: allowed by an administrator and outbound connections on. */
+  const metadataOn = async (settings: McpSettings) =>
+    settings.clientMetadata && (await ctx.settings.get<unknown>('integrations.outbound_enabled', false)) === true;
 
   const sessionOnly = (req: FastifyRequest) => {
     if (req.apiToken) ctx.fail(403, 'token_not_allowed', 'This cannot be done with an API token. Sign in to do it.');
@@ -167,12 +184,14 @@ export function registerOAuth(ctx: ModuleContext, deps: OAuthDeps) {
     }
     const settings = await readSettings(ctx);
     if (!settings.oauthEnabled) return null;
+    // Connectors known by a metadata document stop working at once when that is switched off.
     const row = await db.one<Row>(
       `select g.id, g.name, g.user_id, g.permissions, (g.last_used_at is null or g.last_used_at < now() - interval '1 minute') as stale
        from mcp_oauth_tokens t join mcp_oauth_grants g on g.id = t.grant_id
        join mcp_oauth_clients c on c.client_id = g.client_id
        where t.token_hash = $1 and t.kind = 'access' and t.expires_at > now()
-         and g.revoked_at is null and g.expires_at > now() and c.revoked_at is null`, [sha(token)]);
+         and g.revoked_at is null and g.expires_at > now() and c.revoked_at is null and not c.pending
+         and (c.registered_by <> 'metadata' or $2::boolean)`, [sha(token), await metadataOn(settings)]);
     if (!row) return null;
     if (row.stale) await db.query('update mcp_oauth_grants set last_used_at = now(), last_used_ip = $2 where id = $1', [row.id, clientIp(req)]);
     return { id: row.id, name: row.name, userId: row.user_id, scopes: [...(row.permissions as string[]), 'mcp.use'] };
@@ -236,7 +255,7 @@ export function registerOAuth(ctx: ModuleContext, deps: OAuthDeps) {
       token_endpoint_auth_methods_supported: AUTH_METHODS,
       revocation_endpoint_auth_methods_supported: AUTH_METHODS,
       authorization_response_iss_parameter_supported: true,
-      client_id_metadata_document_supported: false,
+      client_id_metadata_document_supported: await metadataOn(on.settings),
       service_documentation: `${b}/help/ai-assistants-and-mcp`,
     };
   });
@@ -279,8 +298,11 @@ export function registerOAuth(ctx: ModuleContext, deps: OAuthDeps) {
       method = 'client_secret_basic';
     }
     if (!id) return { status: 401, error: 'invalid_client', description: 'Send the client_id.', basic: !!basic };
-    const client = await db.one<Row>('select * from mcp_oauth_clients where client_id = $1 and revoked_at is null', [String(id).slice(0, 200)]);
+    const client = await db.one<Row>('select * from mcp_oauth_clients where client_id = $1 and revoked_at is null and not pending', [String(id).slice(0, MAX_CLIENT_ID_LENGTH)]);
     if (!client) return { status: 401, error: 'invalid_client', description: 'Unknown client.', basic: !!basic };
+    if (client.registered_by === 'metadata' && !(await metadataOn(await readSettings(ctx)))) {
+      return { status: 401, error: 'invalid_client', description: 'Connectors known by a metadata document are switched off here.', basic: !!basic };
+    }
     if (client.auth_method === 'none') {
       if (method !== 'none') return { status: 401, error: 'invalid_client', description: 'This client was registered without a secret; send only its client_id.', basic: !!basic };
     } else {
@@ -527,15 +549,105 @@ export function registerOAuth(ctx: ModuleContext, deps: OAuthDeps) {
 
   // ---------- the consent screen's API (signed-in person, never a token) ----------
 
+  // ---------- connectors known by a client ID metadata document (E21-21) ----------
+
+  type Stop = { stop: { status: number; code: string; message: string } };
+  const stop = (status: number, code: string, message: string): Stop => ({ stop: { status, code, message } });
+
+  /**
+   * The connector a URL client_id names: from the cache while its document is fresh, otherwise
+   * fetched and checked now. Only reached from the consent screen's API, by someone signed in.
+   */
+  async function urlClient(req: FastifyRequest, clientId: string, settings: McpSettings): Promise<{ client: Row } | Stop> {
+    if (!settings.clientMetadata) {
+      return stop(400, 'invalid_client', 'This connector identifies itself by a web address (a client ID metadata document), which is not switched on here. An administrator can switch it on under Administration > AI assistant access, or add the connector by hand.');
+    }
+    if (!(await metadataOn(settings))) {
+      return stop(409, 'outbound_disabled', 'This connector identifies itself by a web address, which this installation would have to fetch, but outbound connections are switched off. An administrator can switch them on under Administration > Settings > Outbound connections.');
+    }
+    const problem = clientIdUrlProblem(clientId);
+    if (problem) return stop(400, 'invalid_client', problem);
+    const url = new URL(clientId);
+    const refuse = async (reason: string, message: string, status = 400, code = 'invalid_client') => {
+      await ctx.audit(req, {
+        action: 'mcp.oauth.client_metadata_refused', recordType: 'mcp_oauth_client',
+        summary: `Refused the connector at ${url.host}: ${message}`.slice(0, 400), after: { client_id: clientId, reason },
+      });
+      return stop(status, code, message);
+    };
+    if (!clientHostAllowed(url, settings.clientMetadataHosts)) {
+      return refuse('host_not_allowed', `Connectors from ${url.host} are not on this installation's list of allowed hosts. Ask an administrator.`, 403, 'client_host_not_allowed');
+    }
+    const cached = await db.one<Row>(`select *, (metadata_expires_at > now()) as fresh from mcp_oauth_clients where client_id = $1`, [clientId]);
+    if (cached?.revoked_at) {
+      return stop(403, 'client_blocked', `An administrator removed the connector at ${url.host}. Ask an administrator to allow it again.`);
+    }
+    if (cached?.fresh) {
+      if (cached.pending) return stop(403, 'client_pending', `The connector "${cached.name}" (${url.host}) is waiting for an administrator to approve it under Administration > AI assistant access.`);
+      return { client: cached };
+    }
+    const who = req.user?.id ?? clientIp(req);
+    if (await metadataFetches.blocked(who)) return stop(429, 'rate_limited', 'Too many connectors were looked up in a short time. Wait a few minutes and try again.');
+    await metadataFetches.hit(who);
+    let meta;
+    let seconds;
+    try {
+      const got = await fetchClientMetadata(url, settings.clientMetadataHosts);
+      meta = checkMetadataDocument(got.body, clientId, redirectProblem, parseScope);
+      seconds = cacheSeconds(got.cacheControl);
+    } catch (err) {
+      const reason = err instanceof MetadataError ? err.reason : 'error';
+      const text = err instanceof MetadataError ? err.message : 'The document could not be read.';
+      // Errors are never cached: the next attempt fetches again.
+      return refuse(reason, `The connector's metadata document at ${clientId} was not accepted: ${text}`);
+    }
+    const pending = cached ? cached.pending : settings.clientMetadataApproval;
+    const row = (await db.one<Row>(
+      `insert into mcp_oauth_clients (client_id, name, redirect_uris, auth_method, client_uri, registered_by, created_by, created_ip,
+                                      pending, metadata_fetched_at, metadata_expires_at)
+       values ($1, $2, $3::jsonb, 'none', $4, 'metadata', $5, $6, $7, now(), now() + make_interval(secs => $8::int))
+       on conflict (client_id) do update set name = excluded.name, redirect_uris = excluded.redirect_uris, client_uri = excluded.client_uri,
+         metadata_fetched_at = excluded.metadata_fetched_at, metadata_expires_at = excluded.metadata_expires_at
+       returning *`,
+      [clientId, meta.name, JSON.stringify(meta.redirectUris), meta.clientUri, req.user?.id ?? null, clientIp(req), pending, seconds]))!;
+    const returnsTo = meta.redirectUris.map((u) => hostOf(u)).join(', ');
+    if (!cached) {
+      await ctx.audit(req, {
+        action: 'mcp.oauth.client_metadata', recordType: 'mcp_oauth_client', recordId: row.id,
+        summary: `Connector "${meta.name}" from ${url.host} identified itself by its metadata document (returns to ${returnsTo})${pending ? '; waiting for an administrator to approve it' : ''}`,
+        after: { client_id: clientId, redirect_uris: meta.redirectUris },
+      });
+    } else if (cached.name !== meta.name || JSON.stringify(cached.redirect_uris) !== JSON.stringify(meta.redirectUris)) {
+      await ctx.audit(req, {
+        action: 'mcp.oauth.client_metadata', recordType: 'mcp_oauth_client', recordId: row.id,
+        summary: `Connector "${meta.name}" from ${url.host} changed its metadata document (returns to ${returnsTo})`,
+        before: { name: cached.name, redirect_uris: cached.redirect_uris }, after: { name: meta.name, redirect_uris: meta.redirectUris },
+      });
+    }
+    if (row.pending) return stop(403, 'client_pending', `The connector "${row.name}" (${url.host}) is new here. An administrator must approve it under Administration > AI assistant access before anyone can connect it.`);
+    return { client: row };
+  }
+
   async function checkAuthorize(req: FastifyRequest, p: AuthorizeParams): Promise<Checked> {
     const settings = await readSettings(ctx);
     const issuer = await oauthBase(ctx, req);
     if (!settings.enabled || !settings.oauthEnabled) return { kind: 'stop', status: 409, code: 'oauth_disabled', message: 'Sign-in for remote connectors is switched off here. An administrator can switch it on under Administration > AI assistant access.' };
     if (!secureBase(issuer)) return { kind: 'stop', status: 409, code: 'oauth_insecure', message: 'Sign-in for remote connectors needs this installation to be reached over HTTPS.' };
-    const client = p.client_id ? await db.one<Row>('select * from mcp_oauth_clients where client_id = $1 and revoked_at is null', [String(p.client_id).slice(0, 200)]) : undefined;
+    let client: Row | undefined;
+    if (isUrlClientId(p.client_id)) {
+      const found = await urlClient(req, String(p.client_id), settings);
+      if ('stop' in found) return { kind: 'stop', ...found.stop };
+      client = found.client;
+    } else {
+      client = p.client_id ? await db.one<Row>('select * from mcp_oauth_clients where client_id = $1 and revoked_at is null and not pending', [String(p.client_id).slice(0, 200)]) : undefined;
+    }
     if (!client) return { kind: 'stop', status: 400, code: 'invalid_client', message: 'This connector is not known here (unknown or removed client_id). Add it again, or ask an administrator.' };
     const registered = client.redirect_uris as string[];
-    const redirectUri = p.redirect_uri ? matchRedirect(registered, String(p.redirect_uri)) : registered.length === 1 ? registered[0] : null;
+    // A metadata document's redirect addresses must match exactly (no port leeway on loopback).
+    const exact = client.registered_by === 'metadata';
+    const redirectUri = p.redirect_uri
+      ? (exact ? (registered.includes(String(p.redirect_uri)) ? String(p.redirect_uri) : null) : matchRedirect(registered, String(p.redirect_uri)))
+      : registered.length === 1 ? registered[0] : null;
     if (!redirectUri || redirectProblem(redirectUri)) {
       // Never redirect to an address that was not registered.
       return { kind: 'stop', status: 400, code: 'invalid_redirect_uri', message: 'The connector asked to return to an address it did not register. Nothing was sent to it.' };
@@ -580,6 +692,10 @@ export function registerOAuth(ctx: ModuleContext, deps: OAuthDeps) {
       client: {
         name: ok.client.name, clientUri: ok.client.client_uri, redirectHost: hostOf(ok.redirectUri), redirectUri: ok.redirectUri,
         registeredBy: ok.client.registered_by, registeredAt: ok.client.created_at,
+        // A connector known by its metadata document: where the document is (its name is self-declared).
+        ...(ok.client.registered_by === 'metadata' ? { clientId: ok.client.client_id, clientIdHost: hostOf(ok.client.client_id) } : {}),
+        // A loopback redirect can be received by any program on the person's computer.
+        localRedirect: isLoopbackRedirect(ok.redirectUri),
       },
       requestedWrite: ok.scopes.includes(SCOPES.write),
       canWrite: me.permissions.some((p) => p === '*' || /\.(\*|create|edit)$/.test(p)),
@@ -592,7 +708,8 @@ export function registerOAuth(ctx: ModuleContext, deps: OAuthDeps) {
     method: 'POST', path: '/api/mcp/oauth/authorize', tag: 'AI assistants',
     summary: 'Check an OAuth authorization request for the consent screen (signed-in session only)',
     body: '{ response_type, client_id, redirect_uri, code_challenge, code_challenge_method, scope?, state?, resource? } (the query of /oauth/authorize)',
-    response: '{ ok: true, client: { name, clientUri, redirectHost, registeredBy }, requestedWrite, canWrite, writeEnabled, mayConnect, maxDays } | { ok: false, redirect }',
+    response: '{ ok: true, client: { name, clientUri, redirectHost, redirectUri, registeredBy: "dynamic" | "administrator" | "metadata", registeredAt, clientId?, clientIdHost?, localRedirect }, requestedWrite, canWrite, writeEnabled, mayConnect, maxDays } | { ok: false, redirect }',
+    description: 'A client_id that is an https address is a client ID metadata document (E21-21): while allowed, the document is fetched, checked and cached here. Refusals: 400 `invalid_client`, 403 `client_host_not_allowed`, `client_pending` or `client_blocked`, 409 `outbound_disabled`, 429 `rate_limited`.',
   });
 
   app.post('/api/mcp/oauth/decision', async (req) => {
@@ -670,10 +787,14 @@ export function registerOAuth(ctx: ModuleContext, deps: OAuthDeps) {
   async function adminView() {
     const clients = await db.query<Row>(
       `select c.id, c.client_id, c.name, c.redirect_uris, c.auth_method, c.client_uri, c.registered_by, c.created_at, c.last_used_at,
+              c.pending, c.metadata_fetched_at, c.metadata_expires_at, c.approved_at,
               (select count(*)::int from mcp_oauth_grants g where g.client_id = c.client_id and g.revoked_at is null and g.expires_at > now()) as connections
-       from mcp_oauth_clients c where c.revoked_at is null order by c.created_at desc limit 500`);
+       from mcp_oauth_clients c where c.revoked_at is null order by c.pending desc, c.created_at desc limit 500`);
     const grants = await db.query<Row>(`${GRANTS_SQL} order by g.created_at desc limit 500`);
-    return { clients, grants };
+    // Connectors known by a metadata document that an administrator removed stay blocked until allowed again.
+    const blocked = await db.query<Row>(
+      `select id, client_id, name, revoked_at from mcp_oauth_clients where registered_by = 'metadata' and revoked_at is not null order by revoked_at desc limit 200`);
+    return { clients, grants, blocked };
   }
 
   app.post('/api/mcp/admin/oauth/clients', { preHandler: ctx.requirePerm('admin.administer') }, async (req, reply) => {
@@ -709,7 +830,40 @@ export function registerOAuth(ctx: ModuleContext, deps: OAuthDeps) {
     await ctx.audit(req, { action: 'mcp.oauth.client_remove', recordType: 'mcp_oauth_client', recordId: row!.id, summary: `Connector "${row!.name}" removed with its ${grants.length} connection(s)` });
     return { ok: true, connectionsEnded: grants.length };
   });
-  ctx.describeRoute({ method: 'DELETE', path: '/api/mcp/admin/oauth/clients/:id', permission: 'admin.administer', tag: 'AI assistants', summary: 'Remove a connector and end all its connections' });
+  ctx.describeRoute({
+    method: 'DELETE', path: '/api/mcp/admin/oauth/clients/:id', permission: 'admin.administer', tag: 'AI assistants', summary: 'Remove a connector and end all its connections',
+    description: 'A connector known by its metadata document stays blocked (listed under `blocked`) until allowed again.',
+  });
+
+  app.post('/api/mcp/admin/oauth/clients/:id/approve', { preHandler: ctx.requirePerm('admin.administer') }, async (req) => {
+    sessionOnly(req);
+    const id = String((req.params as Row).id ?? '');
+    const found = UUID_RE.test(id) ? await db.one<Row>('select id, name, client_id from mcp_oauth_clients where id = $1 and pending and revoked_at is null', [id]) : undefined;
+    if (!found) ctx.fail(404, 'not_found', 'No connector waiting for approval with that id.');
+    await recentAuth(req, 'approving a connector');
+    await db.query('update mcp_oauth_clients set pending = false, approved_at = now(), approved_by = $2 where id = $1', [id, req.user!.id]);
+    await ctx.audit(req, { action: 'mcp.oauth.client_approve', recordType: 'mcp_oauth_client', recordId: id, summary: `Connector "${found!.name}" (${hostOf(found!.client_id)}) approved; people may now connect it` });
+    return { ok: true };
+  });
+  ctx.describeRoute({
+    method: 'POST', path: '/api/mcp/admin/oauth/clients/:id/approve', permission: 'admin.administer', tag: 'AI assistants',
+    summary: 'Approve a connector known by its metadata document that is waiting for approval (recent password confirmation)',
+  });
+
+  app.delete('/api/mcp/admin/oauth/blocked/:id', { preHandler: ctx.requirePerm('admin.administer') }, async (req) => {
+    sessionOnly(req);
+    const id = String((req.params as Row).id ?? '');
+    const row = UUID_RE.test(id)
+      ? await db.one<Row>(`delete from mcp_oauth_clients where id = $1 and registered_by = 'metadata' and revoked_at is not null returning id, name, client_id`, [id])
+      : undefined;
+    if (!row) ctx.fail(404, 'not_found', 'No blocked connector with that id.');
+    await ctx.audit(req, { action: 'mcp.oauth.client_unblock', recordType: 'mcp_oauth_client', recordId: row!.id, summary: `Connector "${row!.name}" (${hostOf(row!.client_id)}) allowed again; its document is fetched afresh next time` });
+    return { ok: true };
+  });
+  ctx.describeRoute({
+    method: 'DELETE', path: '/api/mcp/admin/oauth/blocked/:id', permission: 'admin.administer', tag: 'AI assistants',
+    summary: 'Allow a removed connector known by its metadata document again (it is looked up afresh, and approved again if approval is on)',
+  });
 
   return { challenge, internalHeaders, myGrants, adminView, available };
 }

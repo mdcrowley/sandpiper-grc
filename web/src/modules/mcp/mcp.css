@@ -64,3 +64,10 @@
 }
 .mcp-role-name { padding-top: 6px; font-weight: 600; }
 .mcp-clients td { white-space: normal; vertical-align: top; }
+
+.mcp-fieldset { margin: 0; padding: var(--s-4); border: 1px solid var(--border); border-radius: var(--radius); min-width: 0; }
+.mcp-fieldset > legend { padding: 0 var(--s-2); font-weight: 600; }
+.mcp-fieldset p { margin: 0; }
+.mcp-origin { display: grid; gap: var(--s-1); padding: var(--s-3) var(--s-4); background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.mcp-origin-host { font-size: var(--fs-lg); font-weight: 600; overflow-wrap: anywhere; }
+.mcp-clients .mcp-token-actions { flex-wrap: wrap; }

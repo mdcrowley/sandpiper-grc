@@ -10,6 +10,7 @@ import { clientIp, cookieSecure, isHttps } from '../request.ts';
 import { isBreakGlass, resolveSignIn, syncMappedRoles, type Audit } from './accounts.ts';
 import { providerMfaSatisfied } from './config.ts';
 import { addSignInPolicy, afterSignIn, checkSignIn } from './hooks.ts';
+import { ldapDriver } from './ldap.ts';
 import { endSessionUrl, oidcDriver } from './oidc.ts';
 import { samlDriver, samlLogoutUrl } from './saml.ts';
 import { IdentityError, type ExternalIdentity, type ProviderDriver, type ProviderRecord, type RedirectStart } from './types.ts';
@@ -22,10 +23,11 @@ export interface IdentityDeps {
 }
 
 /**
- * The kinds of provider: OpenID Connect (oidc.ts) and SAML 2.0 (saml.ts, E02-10; XML signatures
- * checked by @node-saml/node-saml with this application's own hardening in samlxml.ts).
+ * The kinds of provider: OpenID Connect (oidc.ts), SAML 2.0 (saml.ts, E02-10; XML signatures
+ * checked by @node-saml/node-saml with this application's own hardening in samlxml.ts) and a
+ * directory (ldap.ts, E02-26: a user name and password typed here, checked by the directory).
  */
-export const DRIVERS: Record<string, ProviderDriver> = { oidc: oidcDriver, saml: samlDriver };
+export const DRIVERS: Record<string, ProviderDriver> = { oidc: oidcDriver, saml: samlDriver, ldap: ldapDriver };
 
 export const FLOW_COOKIE = 'grc_sso';
 export const LINK_COOKIE = 'grc_sso_link';
@@ -193,11 +195,21 @@ export async function auditFailure(deps: IdentityDeps, req: FastifyRequest, prov
 
 // ---------- finishing a sign-in ----------
 
-export type SignInOutcome = { ok: true; userId: string } | { ok: false; code: 'failed' | 'no_account' | 'link' };
+export type SignInOutcome = { ok: true; userId: string } | { ok: false; code: 'failed' | 'no_account' | 'link' | 'mfa_required' | 'recovery_required' };
+
+/**
+ * E02-26: a directory password is one factor, so a directory sign-in asks for the person's own second
+ * factor here before the session is made. `passed` (with how, for the audit event), `none` (the
+ * person has none), a step still missing, or a failure reason (audited, and counted toward lockout).
+ */
+export type SecondFactorCheck = (userId: string) => Promise<
+  { result: 'passed'; how: string } | { result: 'none' } | { result: 'mfa_required' | 'recovery_required' } | { result: 'failed'; reason: string }
+>;
 
 /** Signs in as the person the identity resolves to (or says what is missing). Audits either way. */
 export async function finishSignIn(
   deps: IdentityDeps, req: FastifyRequest, reply: FastifyReply, provider: ProviderRecord, identity: ExternalIdentity,
+  opts: { secondFactor?: SecondFactorCheck } = {},
 ): Promise<SignInOutcome> {
   const resolved = await resolveSignIn(deps, req, provider, identity);
   if (resolved.kind === 'refused') {
@@ -228,6 +240,16 @@ export async function finishSignIn(
     await auditFailure(deps, req, provider, refused, user.id);
     return { ok: false, code: 'failed' };
   }
+  let factor = '';
+  if (opts.secondFactor) {
+    const second = await opts.secondFactor(user.id);
+    if (second.result === 'mfa_required' || second.result === 'recovery_required') return { ok: false, code: second.result };
+    if (second.result === 'failed') {
+      await auditFailure(deps, req, provider, second.reason, user.id);
+      return { ok: false, code: 'failed' };
+    }
+    if (second.result === 'passed') factor = ` with ${second.how}`;
+  }
   if (identity.groupsUnknown && provider.config.mappingEnabled) {
     // E02-24: the provider has groups for this person but did not send them. Removing roles because
     // "no group matched" would be wrong, so roles are left as they are, and that is recorded.
@@ -247,7 +269,7 @@ export async function finishSignIn(
   req.user = await loadUser(deps.db, user.id);
   await deps.audit(req, {
     action: 'signin.success', recordType: 'user', recordId: user.id,
-    summary: `Signed in via ${provider.name} (${DRIVERS[provider.type]?.label ?? provider.type})${mfa ? ' with a multi-factor sign-in at the provider' : ''} from ${clientIp(req)}`,
+    summary: `Signed in via ${provider.name} (${DRIVERS[provider.type]?.label ?? provider.type})${mfa ? ' with a multi-factor sign-in at the provider' : ''}${factor} from ${clientIp(req)}`,
   });
   await afterSignIn(deps.app, req, {
     userId: user.id, method: provider.key, sessionToken: token,

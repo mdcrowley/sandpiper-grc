@@ -1,6 +1,6 @@
 # E04 Inventory and relationship map
 
-**Status:** done (23 of 23 issues done)
+**Status:** in progress (23 of 24 issues done)
 
 ## Goal
 
@@ -43,6 +43,7 @@ other. Other modules (tickets, risks, vendors, incidents) point at these records
 | E04-21 | Reminder steps chosen on screen | done | P3 |
 | E04-22 | Export the relationship map as a picture | done | P3 |
 | E04-23 | Automated tests for the map layout | done | P3 |
+| E04-24 | Asset disposal requests on the shared approval workflows | open | P3 |
 
 ---
 
@@ -410,3 +411,14 @@ eye in the browser.
 
 **Implemented in:** `web/src/modules/inventory/mapLayout.test.ts`
 
+### E04-24 Asset disposal requests on the shared approval workflows
+
+**Status:** open · **Priority:** P3 · **Type:** improvement
+
+As an inventory manager, a disposal request runs on the shared approval workflows (E14-06), with the outcome writing the approver and the date onto the asset as the disposal request does today.
+
+**Acceptance criteria**
+
+- [ ] A ready-made "Asset disposal" workflow (inventory manager, then optionally the funder when the asset has a funder interest) whose outcome sets the approver and approval date
+- [ ] The setting that makes a decided request the only way to record approval also accepts an approved workflow
+- [ ] Earlier disposal requests stay readable

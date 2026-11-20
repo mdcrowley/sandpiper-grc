@@ -1,6 +1,6 @@
 # E05 Change enablement
 
-**Status:** done (12 of 12 issues done)
+**Status:** in progress (12 of 13 issues done)
 
 ## Goal
 
@@ -25,8 +25,8 @@ wrong can be traced back to a change.
   links (`record_links`); affected systems use the relation `affects`. The main system and
   asset are also `ref` fields on the change and are kept in step with their link.
 - Approvals are recorded by hand (approver name, role, date, reference), in the same way
-  as project gate decisions. There is no shared approval service yet
-  ([E14-06](E14-platform-services.md)); see E05-09.
+  as project gate decisions. The shared approval workflows ([E14-06](E14-platform-services.md))
+  can run beside them; moving change approval onto them is E05-13. See also E05-09.
 - Follow-up actions use the shared Actions contract and appear only when that module is
   loaded. Until the `action_source` list has a `change` value they are filed under
   `other` (E05-10).
@@ -47,6 +47,7 @@ wrong can be traced back to a change.
 | E05-10 | A "change" source for follow-up actions | done | P3 |
 | E05-11 | Calendar and blackout refinements | done | P3 |
 | E05-12 | Move a change by dragging it on the calendar | done | P3 |
+| E05-13 | Change approval on the shared approval workflows | open | P3 |
 
 ---
 
@@ -360,3 +361,15 @@ browser with a scripted drag and the keyboard
 - Changing the main system or asset writes its own link event in the change's history (`base.ts` `syncPrimaryLink`)
 - `/changes/new?start=<ISO>&end=<ISO>` fills the planned window
 - Transit-flavored sample data, including a monthly month-end fare reconciliation blackout
+
+### E05-13 Change approval on the shared approval workflows
+
+**Status:** open · **Priority:** P3 · **Type:** improvement
+
+As a change manager, the approval rules by change type and risk level become approval workflows (E14-06), so changes get due times, escalation and the Approvals page, and `change.approval_decided` gives way to `workflow.decided`.
+
+**Acceptance criteria**
+
+- [ ] Each approval rule can be expressed as a workflow with conditions on change type and risk level
+- [ ] Submitting a change starts the matching workflow; its outcome moves the status as approvals do today
+- [ ] Approvals already recorded stay on the change; the old webhook event is kept for a release with a note

@@ -7,9 +7,11 @@
 // administrator (Administration > Background jobs). Recurring work is a row in `job_schedules`.
 import { randomBytes } from 'node:crypto';
 import { hostname } from 'node:os';
-import type { Db } from '../db.ts';
+import { inTrial, type Db } from '../db.ts';
 import { featureState, jobOff, SWITCHED_OFF } from '../features.ts';
 import type { Row } from '../module.ts';
+
+const MAX_WAIT_SECONDS = 6 * 3600;
 
 export interface JobInfo {
   id: string;
@@ -62,6 +64,36 @@ export class PermanentJobError extends Error {
   readonly permanent = true;
 }
 
+/**
+ * Throw this from a handler to fail this attempt and ask for the next one no sooner than `retryAt`
+ * (E14-30), for example when a service answered "busy, try again in 120 seconds". The wait replaces
+ * the doubling back-off for this attempt only; it is at least one second and at most six hours, and
+ * the attempt still counts towards `maxAttempts`. Any error with a `retryAt` date (or
+ * `retryAfterSeconds` number) property is treated the same way.
+ */
+export class RetryLaterError extends Error {
+  readonly retryAt: Date;
+  constructor(message: string, retryAt: Date | number) {
+    super(message);
+    this.retryAt = retryAt instanceof Date ? retryAt : new Date(Date.now() + Math.max(0, retryAt) * 1000);
+  }
+}
+
+/** The wait, in seconds, an error asks for before the next attempt; null when it asks for none. */
+export function requestedWait(err: unknown, now = Date.now()): number | null {
+  const e = err as { retryAt?: unknown; retryAfterSeconds?: unknown } | null;
+  if (!e || typeof e !== 'object') return null;
+  let seconds: number | null = null;
+  if (e.retryAt instanceof Date || typeof e.retryAt === 'string') {
+    const at = new Date(e.retryAt as Date | string).getTime();
+    if (Number.isFinite(at)) seconds = (at - now) / 1000;
+  } else if (typeof e.retryAfterSeconds === 'number' && Number.isFinite(e.retryAfterSeconds)) {
+    seconds = e.retryAfterSeconds;
+  }
+  if (seconds === null) return null;
+  return Math.min(MAX_WAIT_SECONDS, Math.max(1, Math.ceil(seconds)));
+}
+
 export interface JobQueue {
   /** Registers the handler for a job type. Call it from a module's `register()`. */
   register(type: string, handler: JobHandler, opts?: HandlerOptions): void;
@@ -81,7 +113,6 @@ export interface JobQueue {
   readonly started: boolean;
 }
 
-const MAX_WAIT_SECONDS = 6 * 3600;
 const clip = (s: unknown, n = 2000) => String(s ?? '').slice(0, n);
 
 export function makeJobQueue(db: Db): JobQueue {
@@ -105,7 +136,8 @@ export function makeJobQueue(db: Db): JobQueue {
     const err = outcome.error as Error & { permanent?: boolean };
     const message = clip(err?.message ?? err, 1000) || 'The job failed without saying why.';
     const dead = err?.permanent === true || job.attempts >= job.max_attempts;
-    const wait = Math.min(MAX_WAIT_SECONDS, job.backoff_seconds * 2 ** Math.max(0, job.attempts - 1));
+    // The handler may ask for a given time (RetryLaterError); otherwise the wait doubles each time.
+    const wait = requestedWait(err) ?? Math.min(MAX_WAIT_SECONDS, job.backoff_seconds * 2 ** Math.max(0, job.attempts - 1));
     await db.query(
       `update jobs set status = $2, last_error = $3, locked_by = null, locked_until = null,
          finished_at = case when $2 = 'dead' then now() else null end,
@@ -202,7 +234,8 @@ export function makeJobQueue(db: Db): JobQueue {
         [type, JSON.stringify(payload ?? {}), runAt.toISOString(), opts.maxAttempts ?? h?.maxAttempts ?? 5,
           opts.backoffSeconds ?? h?.backoffSeconds ?? 60, opts.key ?? null],
       );
-      if (row && timer && !kick && runAt.getTime() <= Date.now()) {
+      // Not from inside a trial (E13-22): its rows are rolled back, and the job must not run in it.
+      if (row && timer && !kick && !inTrial() && runAt.getTime() <= Date.now()) {
         // The poller is running: do not make a new job wait for the next tick.
         kick = setImmediate(() => { kick = null; void queue.runDue().catch((err) => console.error('[jobs]', err)); });
       }
@@ -222,7 +255,7 @@ export function makeJobQueue(db: Db): JobQueue {
     },
 
     async runDue(opts = {}) {
-      if (running) return 0;
+      if (running || inTrial()) return 0;
       running = true;
       try {
         const types = (opts.types ?? [...handlers.keys()]).filter((t) => handlers.has(t));

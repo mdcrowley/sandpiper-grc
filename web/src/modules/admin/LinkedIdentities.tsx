@@ -8,7 +8,7 @@ import { withReauth } from './reauth';
 import { LINK_METHOD } from './UserSignIn';
 
 interface Mine {
-  identities: { id: string; email: string | null; linked_at: string; last_used_at: string | null; link_method: string; provider_key: string; provider_name: string; enabled: boolean }[];
+  identities: { id: string; email: string | null; linked_at: string; last_used_at: string | null; link_method: string; provider_key: string; provider_name: string; provider_type?: string; enabled: boolean }[];
   available: { key: string; name: string }[];
   hasPassword: boolean;
   localSignIn: boolean;
@@ -120,11 +120,12 @@ export function LinkedIdentitiesCard() {
                 </div>
               </>
             )}
-            {needConfirm && !data.hasPassword && data.identities.some((i) => i.enabled) && (
+            {needConfirm && !data.hasPassword && data.identities.some((i) => i.enabled && i.provider_type !== 'ldap') && (
               <Notice tone="caution" role="status">
                 <p>Confirm it is you first. You have no password here, so confirm through your provider, then try again.</p>
                 <div className="row">
-                  {data.identities.filter((i) => i.enabled).map((i) => (
+                  {/* A directory (LDAP) cannot confirm by redirect: it is checked at sign-in only (E02-29). */}
+                  {data.identities.filter((i) => i.enabled && i.provider_type !== 'ldap').map((i) => (
                     <Button key={i.id} size="sm" loading={busy === `re-${i.provider_key}`} onClick={() => void go(`/api/auth/sso/${encodeURIComponent(i.provider_key)}/reauth`, `re-${i.provider_key}`)}>Confirm with {i.provider_name}</Button>
                   ))}
                 </div>

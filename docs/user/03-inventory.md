@@ -302,36 +302,18 @@ In an open report:
 
 ## Importing assets from CSV
 
-Use the import to load many assets at once from a spreadsheet saved as CSV. Nothing is written until you have seen the preview and chosen to import. The steps are shown across the top: **File**, **Map columns**, **Preview**, **Imported**.
+Assets are imported with the same import as every other kind of record: open **Assets** and select **Import** (the older address `/assets/import` opens it too). It reads a CSV or Excel (.xlsx) file, lets you match its columns to asset fields, checks every row, and only then imports. The steps are described in [Importing and exporting](17-importing-and-exporting.md#importing-records).
 
-### Prepare the file
+What is particular to assets:
 
-- The first row must hold the column names.
-- Every asset needs a name. Other columns are optional.
-- Write dates as `YYYY-MM-DD` or month/day/year.
-- For **Type**, **Status** and **Funding source**, use the value as it appears on screen.
-- For **Site**, use the site's name. For **System**, use its name or reference. For **Owner** and **User**, use the person's username, email or display name.
-- For **Department**, use a name from the department list.
-- For **Funder interest** (while that option is on, under the name your organization gave it), use yes or no.
-- A file can hold up to 5,000 rows. Save a spreadsheet workbook as CSV first.
+- **Find existing assets by** the **Tag** or the **Serial number** (choose **Update existing** or **Update or create** to change assets that are already there). Matching ignores capital letters.
+- The asset rules apply to every row, in the check as on import: a tag already in use is refused, **Funder interest (%)** must be between 0 and 100, and a row with the status **Disposed** needs the disposal approval (who approved it and when, and, while the funder-interest option is on, the approval reference). Disposing of an asset from its record is usually simpler.
+- For **Site**, use the site's name; for **System**, its name or reference; for **Owner** and **User**, the person's username, email or display name; for **Department**, a name from the department list.
 
-### Run the import
-
-1. Open **Assets** and select **Import**.
-2. Under **1. Choose or paste a CSV file**, drop the file on the box, select **Choose file**, or paste its text into **Or paste the CSV text**. The box confirms the file name and how many rows and columns it found. Select **Next: map columns**.
-3. Under **2. Match your columns to asset fields**, check each field. Columns are matched by name where possible, and under each choice is the value from the first row of your file. Change any that are wrong and leave unwanted fields as **Not imported**. The **Name** field must be matched.
-4. Check **Update assets that already exist (matched by tag or serial number) instead of skipping them** if you want the file to update existing assets.
-5. Select **Next: preview**.
-6. Read the preview. The tiles count **Rows in file**, **Will be created**, **Will be updated**, **Duplicates** and **Rows with errors**. Each row is marked **New**, **Update**, **Duplicate, skipped** or **Error**, and the **Problems** column explains why. Check **Only show problems** to shorten the list.
-7. Select **Import** (the button shows the number of assets), or **Back** to change the mapping.
-
-A duplicate is a row whose tag or serial number matches an existing asset or an earlier row in the file. Rows with errors are never imported: fix them in the file and import again, or import the rest now. When the import finishes, select **Go to assets** or **Import another file**.
-
-Vendor, contract and disposal fields cannot be imported. A row with the status **Disposed** is rejected unless the disposal approval is complete, so dispose of assets from their records instead.
+Tools that push assets automatically (endpoint management or discovery) use `POST /api/assets/ingest`, which matches by serial number, then by tag. The older `POST /api/assets/import` still works but is deprecated: integrations should move to `POST /api/import/asset` ([integration guide](../api.md)).
 
 ## Not available yet
 
-- Importing spreadsheet workbooks directly; importing systems, sites or data categories from the screens.
 - Automatic discovery of assets on the network.
 - Changing an asset's department for several assets at once, or filtering the asset list by department. Use the **Assets by department** report.
 - Reminders by email. Reminders appear in the application only.

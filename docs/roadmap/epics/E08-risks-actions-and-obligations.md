@@ -1,6 +1,6 @@
 # E08 Risks, actions and obligations
 
-**Status:** done (22 of 22 issues done)
+**Status:** in progress (22 of 23 issues done)
 
 ## Goal
 
@@ -47,6 +47,7 @@ module; and a register of the obligations the organization must meet.
 | E08-20 | Risk page as a story | done | P2 |
 | E08-21 | Expired-acceptance count on the overview dashboard | done | P3 |
 | E08-22 | Obligation due-date reminders | done | P3 |
+| E08-23 | Risk acceptance on the shared approval workflows | open | P3 |
 
 ---
 
@@ -419,3 +420,15 @@ As an obligation owner, I am reminded before an obligation's next due date.
 **Implemented in:** `server/src/modules/risks/obligation-reminders.ts` (job
 `obligations.reminders`, every six hours, scheduled in `risks/index.ts`); tests
 `risks/obligation-reminders.test.ts`.
+
+### E08-23 Risk acceptance on the shared approval workflows
+
+**Status:** open · **Priority:** P3 · **Type:** improvement
+
+As a risk owner, accepting a risk asks for approval through the shared approval workflows (E14-06); risks are restricted, so only approvers who may see restricted records are asked.
+
+**Acceptance criteria**
+
+- [ ] The acceptance approver rule becomes a workflow started by asking for acceptance
+- [ ] Approval records the acceptance (approver, date, expiry) as today; rejection leaves the risk open with the reason
+- [ ] Revoking an acceptance is unchanged

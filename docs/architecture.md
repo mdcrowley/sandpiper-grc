@@ -23,7 +23,8 @@ rather than repeating its tables.
 There is no ORM: SQL is written by hand with parameters. Background work goes through a
 table-backed job queue (`server/src/core/jobs`, `app.jobs`): jobs are rows that a poller
 claims with a lease, so two processes on one database never run the same job and a job
-whose process died is taken up again; failures are retried with back-off. Email, the
+whose process died is taken up again; failures are retried with back-off, or after the time a
+handler asks for (`RetryLaterError`, for example a mail service's `Retry-After`). Email, the
 notification digests and every module's scheduled work (the service-level sweep, the
 notification clocks, reminders, report schedules, the file purge, the backup schedule)
 run there as schedules, registered with one call (`scheduleWork`), so each runs once
@@ -434,8 +435,10 @@ built; see [Known gaps](known-gaps.md).
   Backups in server mode use `pg_dump`; `grc.ps1 backup` covers the embedded database only.
 - **Single sign-on.** OpenID Connect, SAML 2.0 (XML signatures checked by the
   @node-saml/node-saml library, with hardening of our own in core/identity/samlxml.ts),
-  account linking and a break-glass administrator are built. Still to do: sign-outs started
-  at a SAML identity provider (E02-27) and directory (LDAP) sign-in (E02-26).
+  directory (LDAP) sign-in over TLS (a small client of our own in core/identity/ldapclient.ts),
+  sign-outs started at a SAML identity provider, account linking and a break-glass
+  administrator are built. Still to do: a passkey second factor after a directory password
+  and linking a directory from Account security (E02-29).
 - **More than one process.** The job queue already works across processes. Still to do:
   move the remaining timers onto it, and move the per-token request count, the `If-Match`
   lock and the webhook worker out of process memory, before running several instances.

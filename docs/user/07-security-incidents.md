@@ -152,6 +152,8 @@ You do not have to watch the screen. The application checks the clocks every min
 
 Alerts go to the incident lead and to everyone else who can see security incidents, and never to anyone who cannot. Each alert is also written to the incident log. If the discovery time is corrected and a deadline moves, the alerts start afresh.
 
+Named responders can also be told by email and text message, away from the application: see [Alerts by email and text message](#alerts-by-email-and-text-message).
+
 ### Recording a notification
 
 When the party has been told:
@@ -193,6 +195,26 @@ If a declared incident shows "No notifications required", no active rule matches
 The **Deadlines** tab shows four figures, **Overdue**, **Due soon**, **On track** and **Recorded**, then a table, most urgent first, with the deadline and time left, the party, and the incident. Choose what to show with **To make**, **Recorded**, **Not required** or **All**. **Record notification**, **Not required** and **Correct record** work exactly as they do on the incident.
 
 The **Register** tab is the full list of notification tasks with filters, saved views and export. Selecting a row opens its incident.
+
+### Alerts by email and text message
+
+The **Alerts by email and text** tab names the **Responders** who are told, by email and by text message, when:
+
+- an incident is declared;
+- a notification deadline is close (amber);
+- a notification deadline has passed (red).
+
+Each is sent once: once when the incident is declared, and once for each clock state (if several clocks of one incident turn red together, one alert goes). The messages name only the incident's reference and what needs attention, such as "Security incident SEC-0042 needs attention: a notification deadline has passed", and link to the incident; never its title, the party to notify or any other detail.
+
+People with `security.administer` choose:
+
+- **Responders**: active people with `security.view`. Someone who loses that access is skipped when a message is sent, and shown as **Cannot receive alerts**. Beside each name, **Email** and **Text** say whether they can be reached that way; each person adds a mobile number or email-to-text address under **Account security** ([Text messages](14-attachments-and-notifications.md#your-mobile-number-and-email-to-text-address)).
+- **Send**: **By email**, **By text message**, and **Also to the incident's lead**.
+- **When**: any of the three events above.
+
+Select **Save alert settings**. Adding a responder, or the lead, asks you to confirm your password, because the alerts leave the application. **Send a test alert** sends a test to the responders by each chosen way. Changes, tests and every alert sent are recorded in the audit log.
+
+Email must be set up, and text messages switched on, by an administrator (**Administration** > **Email**); until then that way sends nothing. While the security incidents area is switched off under **Administration** > **Features**, no alerts are sent.
 
 ## The log
 
@@ -256,13 +278,13 @@ The **Affected** tab has these parts:
 
 The **Ransom** tab records whether paying a ransom is being considered and what was decided. Your organization's policy or the law may require formal approval before a ransom is paid, so the application enforces one rule:
 
-**The status cannot be set to "Approved by the governing body" until a governing body approval reference is entered.**
+**The status cannot be set to "Approved for payment" until the approval reference is entered.**
 
-Who must approve a ransom payment differs between organizations: a public agency's board, a company's directors or owners, or the agency a contractor runs service for. An administrator can therefore rename the reference field under **Administration > Features** (for example to **Board resolution** or **Owner approval reference**); the field, the rule's messages, the incident report and the printable kit then use that name. The status names, such as "Approved by the governing body", are changed under **Administration > Lists** (list **Ransom payment status**). If your policy records the decision elsewhere, the administrator can switch the **Recorded approval of a ransom payment** option off: the reference field disappears and "Approved" can be chosen without it. Every decision is still recorded. See [Features](09-administration.md#options-within-the-parts).
+Who must approve a ransom payment differs between organizations: a public agency's board, a company's directors or owners, or the agency a contractor runs service for. An administrator can therefore rename the reference field under **Administration > Features** (for example to **Board resolution** or **Owner approval reference**); the field, the rule's messages, the incident report and the printable kit then use that name. The status names are changed under **Administration > Lists** (list **Ransom payment status**). Installations set up before this version show the approved status as "Approved by the governing body"; rename it there (for example to "Approved for payment") if that does not fit your organization. A new version never renames a list value, a notification rule, a standing role or a report pack you already have, in case you edited it: the wording of the defaults reaches new installations only. If your policy records the decision elsewhere, the administrator can switch the **Recorded approval of a ransom payment** option off: the reference field disappears and "Approved" can be chosen without it. Every decision is still recorded. See [Features](09-administration.md#options-within-the-parts).
 
 1. Open the **Ransom** tab.
-2. Choose the **Status**: **Not applicable**, **Under consideration**, **Approved by the governing body** or **Refused**.
-3. If the status is approved, enter the **Governing body approval reference** (or the name your organization gave it): for example the resolution or decision number and its date, as recorded.
+2. Choose the **Status**: **Not applicable**, **Under consideration**, **Approved for payment** or **Refused**.
+3. If the status is approved, enter the **Payment approval reference** (or the name your organization gave it; installations set up before this version may show **Governing body approval reference**): for example the resolution or decision number and its date, as recorded.
 4. Select **Save decision**.
 
 Every change is written to the history and to the log as a Decision. Recording a status here is a record of a decision; it does not itself authorize anything.
@@ -321,7 +343,7 @@ Seven starter rules are supplied:
 | Cyber insurer | Any incident | Required |
 | Affected individuals | Personal information involved | Required |
 | Transport safety or oversight authority | Any cybersecurity or ransomware incident | Required |
-| Funding agencies and partner operators | Any incident | Recommended |
+| Funders and partner operators | Any incident | Recommended |
 
 All of them are switched off and have **no deadline**; the table shows them as **Off: no deadline**, and a note at the top says how many are switched off. This is deliberate. Who must be told, and how quickly, depends on the law where you operate, your contracts and your insurance policy. The application cannot know these, and a wrong deadline is worse than none. **A rule stays inactive until you set a deadline**, and until then declaring an incident starts no clock for it.
 

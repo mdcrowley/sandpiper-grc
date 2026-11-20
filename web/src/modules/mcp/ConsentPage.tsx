@@ -10,7 +10,13 @@ import './mcp.css';
 
 interface Check {
   ok: true;
-  client: { name: string; clientUri: string | null; redirectHost: string; redirectUri: string; registeredBy: 'dynamic' | 'administrator'; registeredAt: string };
+  client: {
+    name: string; clientUri: string | null; redirectHost: string; redirectUri: string; registeredBy: 'dynamic' | 'administrator' | 'metadata'; registeredAt: string;
+    /** A connector known by its metadata document (E21-21): the document's address and host. */
+    clientId?: string; clientIdHost?: string;
+    /** It returns to an address on this computer, which any program here could receive. */
+    localRedirect?: boolean;
+  };
   requestedWrite: boolean; canWrite: boolean; writeEnabled: boolean; mayConnect: boolean; maxDays: number;
 }
 
@@ -90,10 +96,24 @@ export function ConsentPage() {
         : leaving ? <Loading lines={2} label="Returning to the connector" />
         : !check ? <Loading lines={6} label="Checking the request" />
         : (
-          <Card title={`Allow "${check.client.name}" to use Sandpiper GRC as you?`}>
+          <Card title={`Allow "${check.client.name}"${check.client.clientIdHost ? ` (from ${check.client.clientIdHost})` : ''} to use Sandpiper GRC as you?`}>
             <div className="stack">
               {!check.mayConnect && (
                 <Notice tone="caution" icon="lock">Your role may not connect AI assistants here. You can only decline. Ask an administrator if you need this.</Notice>
+              )}
+              {check.client.registeredBy === 'metadata' && check.client.clientIdHost && (
+                <div className="mcp-origin" data-testid="mcp-client-host">
+                  <span className="muted">This connector is described by a document published at</span>
+                  <span className="mcp-origin-host">{check.client.clientIdHost}</span>
+                  <span className="muted mcp-break">{check.client.clientId}</span>
+                  <span className="muted">The name &ldquo;{check.client.name}&rdquo; is what that document says about itself; anyone can publish any name. Allow only if you trust this host.</span>
+                </div>
+              )}
+              {check.client.localRedirect && (
+                <Notice tone="caution" icon="alert">
+                  It returns to an address on your own computer ({check.client.redirectHost}). Any program running on this computer could receive the answer, so allow only if
+                  you started this connection yourself, just now, from the assistant you expect.
+                </Notice>
               )}
               <ul className="mcp-list">
                 <li>It will act as <strong>{user?.displayName}</strong> and see only what you can see. Nothing can be deleted through it.</li>
@@ -101,7 +121,9 @@ export function ConsentPage() {
                 <li>
                   {check.client.registeredBy === 'administrator'
                     ? <>Added by an administrator on {formatDate(check.client.registeredAt)}.</>
-                    : <>It registered itself on {formatDate(check.client.registeredAt)}; its name is the one it gave.</>}
+                    : check.client.registeredBy === 'metadata'
+                      ? <>First seen here on {formatDate(check.client.registeredAt)}.</>
+                      : <>It registered itself on {formatDate(check.client.registeredAt)}; its name is the one it gave.</>}
                   {check.client.clientUri && <> It says it comes from <span className="mcp-break">{check.client.clientUri}</span>.</>}
                 </li>
               </ul>

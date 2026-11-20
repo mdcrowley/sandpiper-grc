@@ -1,6 +1,6 @@
 # E09 Security incidents and notification clocks
 
-**Status:** in progress (24 of 25 issues done)
+**Status:** done (25 of 25 issues done)
 
 ## Goal
 
@@ -49,7 +49,7 @@ for every party that must be told, counting down from the moment of discovery.
 | E09-22 | Post-incident review workflow | done | P2 |
 | E09-23 | Command-center workspace and calm declare flow | done | P1 |
 | E09-24 | Transit starter scenarios and kinds of data | done | P2 |
-| E09-25 | Alerts by email or text message | open | P3 |
+| E09-25 | Alerts by email or text message | done | P3 |
 
 ---
 
@@ -443,11 +443,41 @@ As a transit operator, the starter content covers the incidents I am most likely
 
 ### E09-25 Alerts by email or text message
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 As an incident lead away from the application, I receive clock alerts by email or text.
 
+No paid service is built in: a text goes to the person's email-to-text address (through the
+email settings) and/or to an administrator-configured, signed webhook in a documented format, so
+an organization can point it at whatever text-message system it already has.
+
 **Acceptance criteria**
 
-- [ ] Amber and red alerts are also sent by email or text, to people with `security.view` only
-- [ ] Depends on outbound email, which the prototype does not have
+- [x] Named responders (and, if chosen, the incident lead) are told by email and by text message
+  when an incident is declared and when a notification clock turns amber or red; each event can be
+  switched off, and each channel
+- [x] Only people holding `security.view` when the message is sent; the messages carry the
+  incident's reference and what needs attention, never its title, party or other detail
+- [x] Once per clock state (the sweep's stamps), one alert per incident and state however many
+  clocks change together
+- [x] Text messages: email-to-text addresses, and a generic signed webhook that obeys
+  `integrations.outbound_enabled`, the allow-list and the private-address check; no commercial
+  vendor built in. The format is documented in `docs/installation.md`
+- [x] Each person's mobile number and email-to-text address on Account security, editable by
+  them and by administrators on the user's page; personal data, shown to no one else, and the
+  audit trail records that they changed, never the values (no `personal` field flag exists for
+  them: they are not a record type)
+- [x] Settings, contact changes, tests and every alert sent are audited; test text (per person)
+  and test alert (to the responders)
+- [x] Nothing runs while the security incidents area is switched off (the clock sweep and the
+  declare flow belong to it)
+- [x] Tests with stand-in SMTP and webhook servers
+
+**Implemented in:** `server/src/modules/secincidents/responders.ts` (setting `security.alerts`;
+`GET`/`PATCH /api/security-incidents/alerts/settings`, `POST /api/security-incidents/alerts/test`),
+calls from `alerts.ts` (sweep) and `index.ts` (declared); `server/src/core/mail/texts.ts`
+(`app.sendText`, job `text.webhook`, `/api/me/alert-contact`, `/api/admin/users/:id/alert-contact`,
+`/api/admin/text/settings`), `core/mail/migrations/003_alert_contacts.sql`, template
+`text_message`; `web/src/modules/secincidents/AlertResponders.tsx`,
+`web/src/modules/admin/AlertContact.tsx`, `web/src/modules/notifications/TextMessageSettings.tsx`;
+tests `secincidents/responders.test.ts`, `core/mail/texts.test.ts`

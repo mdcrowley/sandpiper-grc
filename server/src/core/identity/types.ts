@@ -1,7 +1,7 @@
 // Sign-in providers: the shapes every kind of provider shares.
 //
 // A provider is one way of proving who someone is, besides the local password: an OpenID Connect
-// identity provider or a SAML 2.0 identity provider today; a directory (LDAP) later. Each kind is a
+// identity provider, a SAML 2.0 identity provider or a directory (LDAP). Each kind is a
 // `ProviderDriver`. Everything after "the provider says this is subject X with email Y and groups Z"
 // (finding the account, linking, just-in-time creation, role mapping, sessions, audit) is shared and
 // lives in `service.ts`, so a new kind only has to produce an `ExternalIdentity`.
@@ -112,6 +112,49 @@ export interface SamlConfig extends CommonProviderConfig {
   encryptAssertions: boolean;
   /** Signing out here also signs out at the provider (SP-initiated single logout). */
   endSession: boolean;
+  /** E02-27: act on sign-outs the identity provider starts (LogoutRequest to the single logout address). Off by default. */
+  idpLogout: boolean;
+  /** E02-28: the identity provider's metadata address, for a scheduled refresh. */
+  metadataUrl: string;
+  /** E02-28: the certificate (PEM) that signs the metadata. When set, metadata must carry a valid signature by it. */
+  metadataCert: string;
+  /** E02-28: fetch the metadata again every day (outbound connections on, signed metadata only) and pick up new signing certificates. */
+  metadataRefresh: boolean;
+  /** E02-28: signing certificates the refreshed metadata no longer lists, by SHA-256 fingerprint: when they were first missing (kept a while for rollover). */
+  certsDropped: Record<string, string>;
+  /** E02-28: the last refresh: when, and what happened, in plain words. */
+  metadataCheckedAt: string | null;
+  metadataStatus: string;
+}
+
+/** Directory (LDAP) settings (E02-26). A credentials provider: the person types a directory user name and password here. */
+export interface LdapConfig extends CommonProviderConfig {
+  /** Which defaults the screen offered; nothing depends on it at sign-in. */
+  directory: 'ad' | 'openldap' | 'other';
+  /** ldaps://host[:port], or ldap://host[:port] with StartTLS. Plain LDAP only to 127.0.0.1 (tests). */
+  url: string;
+  startTls: boolean;
+  /** PEM: trust only this CA certificate (or this very server certificate). Empty = the system trust store. */
+  caCert: string;
+  /** The service account that searches for people. Its password is the stored secret. Empty = bind with `userDnTemplate`. */
+  bindDn: string;
+  /** Without a service account: the person's DN, with {username} (DN-escaped), for example uid={username},ou=people,dc=example,dc=org. */
+  userDnTemplate: string;
+  /** Where people are searched for. */
+  baseDn: string;
+  /** The search for one person, with {username} (filter-escaped). */
+  userFilter: string;
+  /** The attribute that identifies the entry for good (objectGUID, entryUUID): what links it to an account here. */
+  idAttribute: string;
+  emailAttribute: string;
+  nameAttribute: string;
+  /** Where groups come from for role mapping: the entry's memberOf values, or a search for groups that list the person. */
+  groupSource: 'memberOf' | 'search';
+  groupBaseDn: string;
+  /** The group search, with {dn} (the person's DN) and {username}, both filter-escaped. */
+  groupFilter: string;
+  /** Active Directory: include groups the person is in through other groups (LDAP_MATCHING_RULE_IN_CHAIN). */
+  nestedGroups: boolean;
 }
 
 /** A provider row as the service uses it. `secret` is decrypted only when needed. */
@@ -146,8 +189,8 @@ export interface TestResult {
  *
  * - `redirect` providers (OpenID Connect, SAML) send the browser away and back: `start`, then `complete`
  *   with the parameters the provider returned.
- * - `credentials` providers (a directory, LDAP; not built) check a username and password typed into the
- *   sign-in page: `authenticate`. The local sign-in form would offer them as a choice.
+ * - `credentials` providers (a directory, LDAP: E02-26) check a user name and password typed into the
+ *   sign-in page: `authenticate`. The sign-in form offers them as a choice beside the local password.
  */
 export interface ProviderDriver {
   type: string;
@@ -157,7 +200,7 @@ export interface ProviderDriver {
   /** Checks and cleans an administrator's input. Returns field errors keyed as the input. */
   cleanConfig(input: Record<string, unknown>, existing: Record<string, any> | null): { config: Record<string, any>; fields: Record<string, string> };
   /** Fetches whatever proves the settings work (discovery for OpenID Connect). Only when an administrator asks. */
-  test(provider: ProviderRecord, secret: string | null): Promise<TestResult>;
+  test(provider: ProviderRecord, secret: string | null, opts?: { username?: string }): Promise<TestResult>;
   /** `secret` is the decrypted stored secret (SAML: the key that signs requests). */
   start?(provider: ProviderRecord, opts: { redirectUri: string; state: string; reauth: boolean; secret?: string | null }): Promise<RedirectStart>;
   complete?(

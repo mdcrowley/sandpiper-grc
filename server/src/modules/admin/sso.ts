@@ -2,7 +2,9 @@
 // linking, confirming and unlinking identities on Account security. Protocol and policy are in
 // server/src/core/identity; the administrator's screens are in providers.ts.
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { loadUser, requireRecentAuth, sha256 } from '../../core/auth.ts';
+import { acceptTotpCode, consumeRecoveryCode, loadUser, requireRecentAuth, SESSION_COOKIE, sha256 } from '../../core/auth.ts';
+import { DirectoryRefusal } from '../../core/identity/ldap.ts';
+import { makeDbLimiter } from '../../core/ratelimit.ts';
 import { linkIdentity } from '../../core/identity/accounts.ts';
 import {
   acceptAssertionOnce, auditFailure, beginFlow, callbackPath, consumeFlow, DRIVERS, enabledProviders, finishSignIn, keepPostedResponse,
@@ -11,7 +13,7 @@ import {
 } from '../../core/identity/service.ts';
 import { IdentityError, type ExternalIdentity, type ProviderRecord } from '../../core/identity/types.ts';
 import { verifyLogoutToken } from '../../core/identity/oidc.ts';
-import { serviceProviderMetadata } from '../../core/identity/saml.ts';
+import { idpLogoutResponseUrl, serviceProviderMetadata, verifyIdpLogoutRequest, type VerifiedLogoutRequest } from '../../core/identity/saml.ts';
 import { LIMITS } from '../../core/identity/samlxml.ts';
 import { providerMfaSatisfied } from '../../core/identity/config.ts';
 import type { ModuleContext } from '../../core/module.ts';
@@ -53,10 +55,101 @@ export function registerSso(ctx: ModuleContext) {
 
   // ---------- the sign-in page ----------
 
+  // `style`: `redirect` providers get a button; `credentials` providers (a directory, E02-26) are a
+  // choice on the password form.
   app.get('/api/auth/providers', { config: { public: true } }, async () => ({
-    providers: (await enabledProviders(db)).map((p) => ({ key: p.key, name: p.name, isDefault: p.isDefault })),
+    providers: (await enabledProviders(db)).map((p) => ({ key: p.key, name: p.name, isDefault: p.isDefault, style: DRIVERS[p.type]?.style ?? 'redirect' })),
     localSignIn: await localSignInOn(ctx),
   }));
+
+  // ---------- directory (LDAP) sign-in (E02-26) ----------
+  // The person types a directory user name and password into this application's form; the directory
+  // checks them (core/identity/ldap.ts). Rate limits as for a password: failures by source address
+  // (the shared sign-in bucket), and by user name at this directory; a wrong password also counts
+  // toward the progressive lockout of the account it is linked to. The second factor still applies.
+  const directoryFailures = makeDbLimiter(db, 'signin_directory', 5, 15 * 60_000); // by provider and user name
+  const GENERIC = 'Sign-in failed. Check your details, or wait a few minutes and try again.';
+
+  /** Progressive lockout of a local account, as for a wrong local password (from the 5th failure, 1 minute doubling to 15). */
+  async function countAccountFailure(req: FastifyRequest, userId: string) {
+    const row = await db.one<{ failed_attempts: number }>('update users set failed_attempts = failed_attempts + 1 where id = $1 returning failed_attempts', [userId]);
+    const attempts = row?.failed_attempts ?? 0;
+    const lockMinutes = attempts >= 5 ? Math.min(15, 2 ** (attempts - 5)) : 0;
+    if (!lockMinutes) return;
+    await db.query('update users set locked_until = now() + make_interval(mins => $2::int) where id = $1', [userId, lockMinutes]);
+    await ctx.audit(null, { action: 'signin.lockout', recordType: 'user', recordId: userId, summary: `Account locked for ${lockMinutes} minute(s) after ${attempts} failed attempts (directory sign-in)` });
+  }
+
+  app.post('/api/auth/sso/:key/login', { config: { public: true } }, async (req, reply) => {
+    reply.header('cache-control', 'no-store');
+    const ip = clientIp(req);
+    if (await signinLimiter(db).blocked(ip)) ctx.fail(429, 'rate_limited', GENERIC);
+    const p = await providerByKey(db, String((req.params as Record<string, string>).key ?? ''));
+    if (!p || !p.enabled || DRIVERS[p.type]?.style !== 'credentials' || !DRIVERS[p.type].authenticate) ctx.fail(404, 'not_found', 'That sign-in provider is not available.');
+    const b = body(req);
+    const username = String(b.username ?? '').trim();
+    const password = typeof b.password === 'string' ? b.password : '';
+    if (!username || !password) ctx.fail(400, 'validation', 'Check the highlighted fields.', { ...(!username ? { username: 'Enter your user name.' } : {}), ...(!password ? { password: 'Enter your password.' } : {}) });
+    // Never logged: the password. The user name is shortened and shown as typed, like a local sign-in.
+    const who = `"${username.slice(0, 80).replace(/[\u0000-\u001f]/g, '?')}"`;
+    const accountKey = `${p!.id}:${username.toLowerCase()}`;
+    if (await directoryFailures.blocked(accountKey)) {
+      await auditFailure(deps, req, p, `too many failed directory sign-ins for ${who}; refused for a while`);
+      ctx.fail(401, 'invalid_credentials', GENERIC);
+    }
+    let identity: ExternalIdentity;
+    try {
+      identity = await DRIVERS[p!.type].authenticate!(p!, readSecret(db, p!), username, password);
+    } catch (err) {
+      const refusal = err instanceof DirectoryRefusal ? err : null;
+      const reason = err instanceof IdentityError ? err.reason : 'unexpected error';
+      if (!(err instanceof IdentityError)) console.error('[identity] directory sign-in failed:', (err as Error)?.message);
+      const linked = refusal?.subject
+        ? await db.one<{ user_id: string }>('select user_id from user_identities where provider_id = $1 and subject = $2', [p!.id, refusal.subject]) : undefined;
+      if (refusal?.kind === 'password') {
+        await directoryFailures.hit(accountKey);
+        if (linked) await countAccountFailure(req, linked.user_id);
+      }
+      await auditFailure(deps, req, p, `${reason} for ${who}`, linked?.user_id);
+      if (refusal?.kind === 'unavailable' || refusal?.kind === 'config') {
+        return ctx.fail(502, 'provider_unavailable', `${p!.name} cannot be reached just now. Try again, or ask an administrator.`);
+      }
+      return ctx.fail(401, 'invalid_credentials', GENERIC);
+    }
+    const code = String(b.totp ?? b.recoveryCode ?? '').trim();
+    const out = await finishSignIn(deps, req, reply, p!, identity, {
+      // A directory password is one factor: the person's own second factor still applies.
+      secondFactor: async (userId) => {
+        const u = await db.one<{ totp_enabled: boolean; locked: boolean }>(
+          'select totp_enabled, (locked_until is not null and locked_until > now()) as locked from users where id = $1', [userId],
+        );
+        if (u?.locked) return { result: 'failed', reason: 'account locked' };
+        const hasKey = Boolean(await db.one('select 1 from webauthn_credentials where user_id = $1 and revoked_at is null limit 1', [userId]).catch(() => undefined));
+        if (!u?.totp_enabled && !hasKey) return { result: 'none' };
+        if (!code) return { result: u?.totp_enabled ? 'mfa_required' : 'recovery_required' };
+        if (u?.totp_enabled && (await acceptTotpCode(db, userId, code))) return { result: 'passed', how: 'second factor' };
+        if (await consumeRecoveryCode(db, userId, code)) {
+          const left = await db.one<{ n: number }>('select jsonb_array_length(recovery_codes) as n from users where id = $1', [userId]);
+          await ctx.audit(req, { action: 'mfa.recovery_code_used', recordType: 'user', recordId: userId, summary: `Recovery code used to sign in; ${left?.n ?? 0} left` });
+          return { result: 'passed', how: 'a recovery code' };
+        }
+        await countAccountFailure(req, userId);
+        return { result: 'failed', reason: u?.totp_enabled ? 'wrong authenticator or recovery code' : 'wrong recovery code' };
+      },
+    });
+    if (out.ok) {
+      await directoryFailures.clear(accountKey);
+      return { ok: true };
+    }
+    if (out.code === 'mfa_required') return ctx.fail(401, 'mfa_required', 'Enter the 6-digit code from your authenticator app.');
+    if (out.code === 'recovery_required') {
+      // E02-29: a passkey cannot yet be the second step after a directory password; a recovery code can.
+      return ctx.fail(401, 'mfa_required', 'Enter one of your recovery codes to finish signing in.', { recovery: 'required' });
+    }
+    if (out.code === 'link') return { ok: false, link: true };
+    if (out.code === 'no_account') return ctx.fail(403, 'no_account', 'Your directory sign-in worked, but there is no account here for you. Ask an administrator to add you.');
+    return ctx.fail(401, 'invalid_credentials', GENERIC);
+  });
 
   app.post('/api/auth/sso/:key/start', { config: { public: true } }, async (req, reply) => {
     if (await signinLimiter(db).blocked(clientIp(req))) ctx.fail(429, 'rate_limited', 'Too many failed sign-ins from this address. Wait a few minutes and try again.');
@@ -196,7 +289,7 @@ export function registerSso(ctx: ModuleContext) {
     const me = req.user!;
     const methods = await signInMethods(ctx, me.id);
     const linked = await db.query(
-      `select i.id, i.email, i.linked_at, i.last_used_at, i.link_method, p.key as provider_key, p.name as provider_name, p.enabled
+      `select i.id, i.email, i.linked_at, i.last_used_at, i.link_method, p.key as provider_key, p.name as provider_name, p.type as provider_type, p.enabled
        from user_identities i join identity_providers p on p.id = i.provider_id and p.deleted_at is null
        where i.user_id = $1 order by p.name`, [me.id],
     );
@@ -207,7 +300,8 @@ export function registerSso(ctx: ModuleContext) {
     return {
       identities: linked,
       available: (await enabledProviders(db))
-        .filter((p) => !linked.some((l: any) => l.provider_key === p.key) && methods.allows(p.key))
+        // A directory (E02-26) is linked at sign-in, not from here (E02-29).
+        .filter((p) => !linked.some((l: any) => l.provider_key === p.key) && methods.allows(p.key) && DRIVERS[p.type]?.style !== 'credentials')
         .map((p) => ({ key: p.key, name: p.name })),
       hasPassword: methods.hasPassword,
       localSignIn: methods.local,
@@ -309,12 +403,73 @@ export function registerSso(ctx: ModuleContext) {
     return reply.send(serviceProviderMetadata(p, `${base}${callbackPath(p.key)}`));
   });
 
-  /**
-   * Where the identity provider sends the browser after signing out there (SP-initiated single
-   * logout). The session here has already ended, so its LogoutResponse needs nothing more.
-   * Sign-outs that the identity provider starts are not acted on (see docs/security.md).
-   */
-  app.get('/api/auth/sso/:key/slo', { config: { public: true } }, async (_req, reply) => reply.header('cache-control', 'no-store').redirect('/', 302));
+  // ---------- SAML single logout ----------
+  // GET with a SAMLResponse: the identity provider sends the browser back after a sign-out started
+  // here (SP-initiated); the session here has already ended, so nothing more is needed.
+  // GET (HTTP-Redirect) or POST (HTTP-POST) with a SAMLRequest: a sign-out started at the identity
+  // provider (E02-27). Acted on only when the provider has it switched on: the signed request is
+  // checked, the sessions made through this provider for that NameID (and SessionIndex, when given)
+  // end, and a signed LogoutResponse is sent back. A form post from another site: no CSRF header
+  // (route `noCsrf`); the request's signature is the proof.
+  async function idpLogout(req: FastifyRequest, reply: FastifyReply, binding: 'redirect' | 'post') {
+    reply.header('cache-control', 'no-store');
+    const go = (url: string) => reply.redirect(url, binding === 'post' ? 303 : 302);
+    const p = await providerByKey(db, String((req.params as Record<string, string>).key ?? ''));
+    const rawQuery = (req.raw.url ?? '').split('?')[1] ?? '';
+    const form = (binding === 'post' ? req.body ?? {} : {}) as Record<string, unknown>;
+    const hasRequest = binding === 'post' ? typeof form.SAMLRequest === 'string' : new URLSearchParams(rawQuery).has('SAMLRequest');
+    if (!hasRequest || !p || p.type !== 'saml') return go('/');
+    // Not switched on for this provider: as before, the browser just comes home (an identity provider
+    // sends these to every application at once, so it is not counted as a failure).
+    if (!p.enabled || p.config.idpLogout !== true) return go('/');
+    const ip = clientIp(req);
+    if (await signinLimiter(db).blocked(ip)) return go('/');
+    let base: string;
+    try { base = await publicBase(deps, req); } catch { return go('/'); }
+    const callbackUrl = `${base}${callbackPath(p.key)}`;
+    let request: VerifiedLogoutRequest;
+    try {
+      request = await verifyIdpLogoutRequest(p, binding === 'post' ? { binding, form, callbackUrl } : { binding, rawQuery, callbackUrl });
+      // Each request works once.
+      await db.query('delete from identity_saml_assertions where expires_at < now()');
+      const fresh = await db.one(
+        `insert into identity_saml_assertions (provider_id, assertion_id, expires_at) values ($1,$2, now() + interval '15 minutes') on conflict do nothing returning 1`,
+        [p.id, `logout:${request.id}`],
+      );
+      if (!fresh) throw new IdentityError('LogoutRequest replayed');
+    } catch (err) {
+      await auditFailure(deps, req, p, err instanceof IdentityError ? err.reason : 'unexpected error', undefined, 'Single logout');
+      return go('/?sso=failed');
+    }
+    const linked = await db.one<{ user_id: string }>('select user_id from user_identities where provider_id = $1 and subject = $2', [p.id, request.nameId]);
+    const ended = linked ? await db.query<{ user_id: string }>(
+      `delete from sessions where token_hash in (
+         select s.token_hash from identity_sessions s join sessions x on x.token_hash = s.token_hash
+         where s.provider_id = $1 and x.user_id = $2 and (cardinality($3::text[]) = 0 or s.sid = any($3::text[])))
+       returning user_id`,
+      [p.id, linked.user_id, request.sessionIndexes],
+    ) : [];
+    reply.clearCookie(SESSION_COOKIE, { path: '/' });
+    await ctx.audit(req, {
+      action: 'identity.saml_logout', recordType: 'user', recordId: linked?.user_id,
+      summary: `${p.name} signed ${ended.length} session(s) out (sign-out started at the identity provider, HTTP-${binding === 'post' ? 'POST' : 'Redirect'} binding) from ${ip}${linked ? '' : ' (the NameID is not linked to an account here)'}`,
+    });
+    const key = readSecret(db, p);
+    if (!key) return go('/');
+    try {
+      return go(await idpLogoutResponseUrl(p, key, { requestId: request.id, relayState: request.relayState, success: true, callbackUrl }));
+    } catch {
+      return go('/');
+    }
+  }
+
+  app.get('/api/auth/sso/:key/slo', { config: { public: true } }, async (req, reply) => idpLogout(req, reply, 'redirect'));
+  app.register(async (scoped) => {
+    scoped.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string', bodyLimit: Math.ceil(LIMITS.messageBytes / 3) * 4 * 2 + 4096 }, (_req, raw, done) => {
+      try { done(null, Object.fromEntries(new URLSearchParams(String(raw)))); } catch (err) { done(err as Error, undefined); }
+    });
+    scoped.post('/api/auth/sso/:key/slo', { config: { public: true, noCsrf: true } }, async (req, reply) => idpLogout(req, reply, 'post'));
+  });
 
   // ---------- back-channel sign-out (E02-23) ----------
   // The provider calls this, server to server, when a person signs out there or their directory

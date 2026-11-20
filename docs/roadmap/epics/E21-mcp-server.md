@@ -1,6 +1,6 @@
 # E21 MCP server (AI assistant access)
 
-**Status:** in progress (21 of 22 issues done)
+**Status:** done (23 of 23 issues done)
 
 ## Goal
 
@@ -44,8 +44,9 @@ rights than they have.
 | E21-18 | Help for this page: route map entries | done | P3 |
 | E21-19 | Tool-level choice per token and per role | done | P3 |
 | E21-20 | Progress notifications for long-running tools | done | P3 |
-| E21-21 | Client ID metadata documents for connectors | open | P3 |
+| E21-21 | Client ID metadata documents for connectors | done | P3 |
 | E21-22 | "What is affected if this system fails" tool | done | P2 |
+| E21-23 | Audit log search tool (by request id) | done | P3 |
 
 ---
 
@@ -309,17 +310,27 @@ the same POST.
 
 ### E21-21 Client ID metadata documents for connectors
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 Found while building E21-16. The 2025-11-25 MCP authorization specification prefers client ids
-that are https addresses of a metadata document. Supporting them means fetching that document,
-an outbound connection, so it needs an administrator switch and an allowed-host list like
-webhooks. Today connectors register themselves (when allowed) or are added by hand.
+that are https addresses of a metadata document (draft-ietf-oauth-client-id-metadata-document).
+Supporting them means fetching that document, an outbound connection, so it is fenced like
+webhooks and more tightly.
 
 **Acceptance criteria**
 
-- [ ] Off by default; allowed hosts; fetched with a size and time limit; cached
-- [ ] `client_id_metadata_document_supported` true only when on
+- [x] Off by default (`mcp.oauth_client_metadata`), and only while outbound connections are on; switching either off ends these connections at once
+- [x] Fetched only from the consent screen's API (signed in, 20 lookups per person in 10 minutes), never by the token endpoint
+- [x] SSRF fences: https only, port 443 unless listed, every resolved address public unless that exact address is listed, no redirects, 200 and JSON only, 5 KB, 5 seconds, valid certificate
+- [x] Validated: `client_id` exactly its address, `client_name`, `redirect_uris` (same rules as registration), known fields only, no secret or private key, `token_endpoint_auth_method` `none`; redirect addresses matched exactly
+- [x] Cached for the document's max-age (one minute to a day); errors never cached; changes audited
+- [x] Administrators' host allow-list (`mcp.oauth_client_metadata_hosts`) and "approve each new connector first" (`mcp.oauth_client_metadata_approval`); removed connectors stay blocked until allowed again
+- [x] Consent screen shows the document's host and address, says the name is self-declared, and warns about loopback redirect addresses
+- [x] `client_id_metadata_document_supported` true only when on
+- [x] Audited: first seen, changed, refused (with reason), approved, unblocked
+- [x] Tests with a local HTTPS server (certificate made at test time): private address, name resolving to private or mixed addresses, redirects (to private and same origin), too large (declared and streamed), wrong type, 404, timeout, untrusted certificate, mismatched `client_id`, forbidden and unknown fields, unknown redirect address, rate limit, approval and blocking, switch-off
+
+**Implemented in:** `server/src/modules/mcp/client-metadata.ts`, `oauth.ts` (`urlClient`), `settings.ts`, `index.ts`, `migrations/003_client_metadata.sql`; `web/src/modules/mcp/AdminAccess.tsx`, `ConsentPage.tsx`, `AdminPage.tsx`; test `server/src/modules/mcp/client-metadata.test.ts`; `POST /api/mcp/admin/oauth/clients/:id/approve`, `DELETE /api/mcp/admin/oauth/blocked/:id`
 
 ### E21-22 "What is affected if this system fails" tool
 
@@ -331,3 +342,17 @@ webhooks. Today connectors register themselves (when allowed) or are added by ha
 - [x] Offered only to people who can see systems; reports progress
 
 **Implemented in:** `server/src/modules/mcp/tools-work.ts` (`GET /api/systems/:id/impact`); test `access.test.ts`
+
+### E21-23 Audit log search tool (by request id)
+
+**Status:** done · **Priority:** P3 · **Type:** feature
+
+Follow-up of E13-20: an assistant can find everything one request did.
+
+**Acceptance criteria**
+
+- [x] `search_audit_log` (request id, text, action, record type and id, time span, up to 100 events) through `GET /api/audit`; at least one filter; before and after values left out
+- [x] Offered only with `audit.view`; assistant tokens and connector sign-ins carry `audit.view` when their owner holds it
+- [x] Restricted records' events stay hidden as on the audit log screen
+
+**Implemented in:** `server/src/modules/mcp/tools-work.ts`, `index.ts` (`scopesFor`); test `access.test.ts`

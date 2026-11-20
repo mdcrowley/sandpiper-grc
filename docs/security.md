@@ -30,7 +30,8 @@ Each item below names the file that implements it.
   HTTPS server or behind a trusted proxy, and `off` otherwise.
 - **Outbound connections are off until an administrator switches one on.** There is no
   telemetry and there are no externally hosted fonts or scripts. The application connects
-  out only to: webhook receivers (see "Outbound webhooks"), a mail server, or Microsoft Graph or the Gmail API at their fixed published addresses (once email is
+  out only to: webhook receivers (see "Outbound webhooks"), the text-message webhook for alerts
+  (once switched on, with the same fences as webhooks; see [Installation](installation.md#text-messages-for-alerts)), a mail server, or Microsoft Graph or the Gmail API at their fixed published addresses (once email is
   set up), a sign-in provider (once switched on, or on **Test connection**), a ClamAV
   scanner and an S3-compatible object store (each once chosen; see "Files").
 
@@ -143,8 +144,8 @@ action is added to this table and to its module's tests in the same change.
 | Administration | Sign-in providers: add, change, remove; a person's sign-in limits, link permits, unlinking, break-glass designation | Ask | Who can sign in, and how |
 | Administration | Switch parts of the application on or off (Features) | Ask | Changes what everyone can use |
 | Administration | Webhooks: add, change the address or switch on "include restricted records", replace the secret | Ask | Sends data out; a secret |
-| Administration | Remove a record for good from the retention review | Ask | Cannot be undone |
-| Administration | Change a retention period | Don't ask | Nothing is removed until the review, which asks |
+| Administration | Anonymize a record, or remove it for good, from the retention review | Ask | Cannot be undone |
+| Administration | Change a retention period or what its review may do | Don't ask | Nothing is changed until the review, which asks |
 | Administration | Disable a user, unlock an account, end sessions, rename a user or move department | Don't ask | Takes access away or changes nothing about access |
 | Administration | Departments, configurable lists, custom fields (retiring keeps the values), tag renames, email templates, background jobs, non-security settings | Don't ask | Ordinary configuration, audited and reversible |
 | Your account | Create a personal access token; add or remove a passkey; new recovery codes; link or unlink a sign-in provider | Ask | Credentials for your account |
@@ -216,7 +217,7 @@ is kept in memory (a restart resets the current minute).
 
 `server/src/core/webhooks.ts`
 
-Outbound connections the administrator configures (webhooks here; also the mail provider, sign-in providers and, when allowed, the object store and malware scanner). Webhooks are fenced in three ways:
+Outbound connections the administrator configures (webhooks here; also the mail provider, sign-in providers and, when allowed, the object store and malware scanner, the SAML metadata refresh, and the fetch of an MCP connector's client ID metadata document). Webhooks are fenced in three ways:
 
 1. **Off by default.** Nothing is queued or sent unless the setting
    `integrations.outbound_enabled` is on. Switching it off again stops deliveries already
@@ -262,6 +263,17 @@ reason, an explicit confirmation and a recent password confirmation; it is refus
 the record still has files attached; it removes the record with its comments, tags,
 watchers, links and search entry; and it is audited (`retention.delete`). Its audit
 history is kept.
+
+Anonymizing a flagged record (E14-19) keeps the record and its figures and removes its
+personal details: the fields its definition marks `personal` (by default person, long-text
+and contact-detail fields), long-text and person custom fields, the creator and last editor,
+its comments' text and authors, its files' contents and names, the titles of notifications
+about it, and its watchers; the search index follows. It needs the same reason,
+confirmation and recent identity confirmation, is allowed only when the type's policy
+allows it (`disposal`: keep, anonymize or delete), and is audited (`retention.anonymize`,
+without the removed values). **The audit log is append-only and is not changed**: it keeps
+who changed what, by design, including earlier values in its before-and-after entries, and
+its own period (`retention.audit_months`) is recorded, not enforced.
 
 ### Cross-site request forgery (CSRF)
 
@@ -488,7 +500,7 @@ separate, tamper-evident copy.
 - Each key is stored as `enc:v1:<iv>:<tag>:<ciphertext>`: AES-256-GCM with a random
   12-byte iv, bound to the user it belongs to (a ciphertext copied onto another user's row
   does not decrypt). `v1` is the format version. Webhook secrets, sign-in provider client
-  secrets, the mail server password, the Microsoft Graph client secret or certificate and the Gmail service account key, the object store secret key, set-up and reset links
+  secrets and directory (LDAP) service account passwords, the mail server password, the Microsoft Graph client secret or certificate and the Gmail service account key, the object store secret key, set-up and reset links
   waiting to be emailed, single sign-on requests in progress and the provider sign-out details
   of open sessions are encrypted the same way with the same key. Every kind is listed in
   `core/secretkey-reseal.ts`.
@@ -559,7 +571,7 @@ separate, tamper-evident copy.
   must match exactly. Nothing is hard-coded, so commercial, government and sovereign cloud
   tenants and self-hosted servers are configured the same way. Providers sit behind a driver
   interface (`core/identity/types.ts`): a redirect-style driver (OpenID Connect, SAML 2.0) or a
-  credentials-style driver (a directory over LDAP, not built). Everything after
+  credentials-style driver (a directory over LDAP, E02-26). Everything after
   "the provider says this is subject X" is shared.
 - **Off until switched on.** A provider that is not switched on is never contacted. The only
   other outbound call is **Test connection**, made when an administrator selects it. Calls go
@@ -678,16 +690,94 @@ separate, tamper-evident copy.
     Its metadata is pasted or uploaded; fetching it by address happens only when an
     administrator asks, outbound connections are on (`integrations.outbound_enabled`) and the
     host is on `integrations.allowed_hosts` (https only, no redirects, 1 MB), and is audited.
-    Metadata signatures are not checked: the administrator vouches for what they import.
+    Without a pinned metadata signing certificate, metadata signatures are not checked: the
+    administrator vouches for what they import.
+  - **Signed metadata and its refresh (E02-28).** With a **metadata signing certificate** (PEM,
+    one, RSA of 2048 bits or more) on the provider, imported metadata must carry exactly one
+    signature, directly on the root element and covering it (a reference to its ID, or the whole
+    document), with the same algorithm allow-list as sign-in, valid for that certificate and no
+    other (`verifyMetadataSignature` in `samlxml.ts`, on **xml-crypto**). Only the signed bytes
+    are read afterwards; metadata past its `validUntil` is refused. An optional daily refresh
+    runs through the job queue (`admin.saml_metadata_refresh`, `scheduleWork`), only with
+    outbound connections on and the host allowed, and accepts signed metadata only. It adds new
+    signing certificates, updates the sign-in and sign-out addresses, never changes the entity ID
+    (metadata naming another one is refused), and keeps a certificate the metadata stops listing
+    for 7 days (`certsDropped`) so a rollover in progress does not break sign-in. It writes only
+    the keys it owns. Every refresh and every failure is audited
+    (`identity_provider.metadata_refresh`, with the certificate fingerprints before and after).
   - **The same rules as OpenID Connect** for accounts, linking, just-in-time accounts, role
     mapping (from a groups attribute), break-glass, audit and rate limits. Email addresses are
     trusted only when the administrator says so (SAML has no "email verified"). The provider's
     multi-factor sign-in counts only when the assertion's `AuthnContextClassRef` is in the
     administrator's list (also sent as `RequestedAuthnContext`).
-  - **Single logout, SP-initiated only.** With signing out at the provider on, signing out here
-    sends a signed LogoutRequest (NameID and SessionIndex, kept encrypted with the session) to
-    the identity provider's sign-out address; it returns to `/api/auth/sso/<key>/slo`. A
-    LogoutRequest started at the identity provider is not acted on.
+  - **Single logout.** With signing out at the provider on, signing out here sends a signed
+    LogoutRequest (NameID and SessionIndex, kept encrypted with the session) to the identity
+    provider's sign-out address; it returns to `/api/auth/sso/<key>/slo`.
+  - **Sign-outs started at the identity provider (E02-27)**, off unless the administrator
+    switches them on for the provider. A LogoutRequest to `/api/auth/sso/<key>/slo`, with the
+    HTTP-Redirect binding (GET) or the HTTP-POST binding (a cross-site form post: no CSRF header,
+    route `noCsrf`), is acted on only when it is signed by one of the configured certificates:
+    for HTTP-Redirect a query-string signature with RSA-SHA256 or RSA-SHA512 (an unsigned request
+    is refused, although the library would accept it), for HTTP-POST one XML signature directly on
+    the request, checked like a sign-in response. The deflated message is inflated to at most
+    256 KB and parsed with the same hardening (no DTD, limits, unique IDs). Its issuer must be the
+    configured entity ID, its `Destination` this provider's single logout address, its
+    `IssueInstant` no more than five minutes old (60 seconds of clock tolerance) and its
+    `NotOnOrAfter`, when present, not passed; an encrypted or base identifier is refused, and
+    each request ID works once (remembered per provider in `identity_saml_assertions`). Then the
+    sessions made through that provider for the account linked to the NameID end (only those
+    whose SessionIndex the request names, when it names any), the session cookie is cleared, the
+    sign-out is audited (`identity.saml_logout`, with the number of sessions) and a LogoutResponse
+    signed with this application's key goes back to the identity provider's sign-out address with
+    the HTTP-Redirect binding. A refused request is audited as a failure, counts against the
+    sign-in limit and gets no answer. While the option is off, such requests are ignored, as
+    before. The service-provider metadata then lists the single logout address for both bindings.
+- **Directory (LDAP) sign-in** (E02-26; `core/identity/ldap.ts`, `ldapclient.ts`,
+  `ldapfilter.ts`, `ber.ts`). A credentials provider: the person types a directory user name
+  and password into this application's form (`POST /api/auth/sso/<key>/login`), and the
+  directory checks them. The LDAP client is this application's own (simple bind, search,
+  StartTLS and unbind on `node:tls`, a few hundred lines with its BER codec), not a package:
+  the subset is small, the stand-in directory the tests use shares the codec, and the security
+  rules stay in one place.
+  - **Encrypted only.** `ldaps://`, or `ldap://` with StartTLS before anything else is sent.
+    Plain LDAP is refused in the settings and in the client, except to `127.0.0.1` (tests). TLS
+    1.2 or later; the certificate chain and the host name are always checked. With a **pinned CA
+    certificate** only that CA (or that very certificate) is trusted; otherwise the built-in and
+    operating-system trust stores. Every operation times out after 10 seconds; answers are limited
+    to 1 MB a message and 1,000 entries; continuation references are not followed; aliases are
+    never dereferenced.
+  - **The service account** (DN and password) finds the person. Its password is the provider's
+    stored secret, encrypted with the secret key (re-encrypted after a key change like every
+    other secret: `SEALED_KINDS` in `core/secretkey-reseal.ts`), never returned by the API and
+    never written to the audit log or the server log (the audit records only that one is set).
+    Without a service account, a DN template can be used instead; the user name is then escaped
+    for a DN (RFC 4514).
+  - **No injection.** The user name goes into the administrator's search filter only through
+    RFC 4515 escaping (`\ * ( )`, NUL, and every byte that is not printable ASCII), and the filled
+    filter is parsed and sent in binary (BER) form, so it can only ever be one value. Exactly one
+    entry must match. Group searches put the person's DN in the same way.
+  - **The password.** Checked by binding as the entry found, on a connection of its own (the
+    service account's connection is never re-bound as the person). An empty password is never
+    sent: an "unauthenticated bind" (RFC 4513 5.1.2) would succeed. Disabled, expired and locked
+    accounts are refused (Active Directory bind sub-codes and `userAccountControl`, OpenLDAP
+    `pwdAccountLockedTime`, `nsAccountLock`).
+  - **Identity and groups.** The entry is linked by an attribute that never changes
+    (`objectGUID`, shown as a GUID, or `entryUUID`). Groups for role mapping come from
+    `memberOf`, a group search, and optionally Active Directory nested groups through the
+    `LDAP_MATCHING_RULE_IN_CHAIN` matching rule; rules match the group's full DN.
+  - **One factor.** A directory password never counts as a second factor (the provider's
+    multi-factor option is forced off). A person with an authenticator app is asked for its code,
+    or a recovery code; a person whose only factor is a passkey uses a recovery code (E02-29). The
+    enrollment requirement applies as for everyone.
+  - **Limits and lockout as for a password.** Failures count against the sign-in limit by source
+    address (shared with password sign-in), and against a limit by provider and user name (5 wrong
+    passwords in 15 minutes); a wrong password also counts toward the progressive lockout of the
+    account the entry is linked to, and a locked account is refused. Every answer to a failure is
+    the same generic message; the reason is audited (`signin.failure`), with the user name as
+    typed but never the password. `no_account` is told only after the directory accepted the
+    password. Accounts, linking (an existing account matched by verified email needs its own
+    password first), just-in-time accounts, role mapping, break-glass and per-person limits are
+    the shared rules.
 
 ### AI assistant access (MCP)
 
@@ -807,10 +897,12 @@ put the prototype on a network or to hold sensitive real records in it.
   it to `required`.
 - Passkeys and security keys have been checked with a virtual authenticator in the
   browser, not yet with hardware keys over real HTTPS.
-- Single sign-on is OpenID Connect and SAML 2.0: no directory (LDAP) sign-in. SAML sign-in must
-  start here, a sign-out started at a SAML identity provider is not acted on, and SAML metadata
-  signatures are not checked.
-  provider sign-in does not ask for this application's own second factor; it counts as one only
+- SAML sign-in must start here (identity-provider-initiated sign-in is refused). A SAML
+  sign-out started at the identity provider is acted on only when switched on, and answered with
+  the HTTP-Redirect binding only. After a directory (LDAP) password, a passkey cannot yet be the
+  second factor (a recovery code can), and a directory is linked at sign-in, not from Account
+  security (E02-29).
+  An OpenID Connect or SAML sign-in does not ask for this application's own second factor; it counts as one only
   when the provider is trusted for multi-factor sign-in and its token shows it. There is no
   front-channel logout. Groups by reference are read from userinfo or a JSON source only: a
   directory whose group source needs a provider-specific call (for example a POST) gives no
@@ -827,11 +919,12 @@ put the prototype on a network or to hold sensitive real records in it.
   up with its own tools. Files in the object store are not in backups.
 - No alerting. The server log (JSON lines, one per request with its request id) rotates by
   size; secrets in messages, query strings and link tokens in paths are masked.
-- Retention flags records for review but nothing anonymizes them, and audit events are
-  kept indefinitely (`retention.audit_months` is recorded, not enforced).
+- Audit events are kept indefinitely and are not anonymized with a record
+  (`retention.audit_months` is recorded, not enforced): the audit log keeps earlier values
+  of a record's personal fields.
 - Personal access tokens cannot be limited to particular records.
-- MCP connectors cannot use client ID metadata documents (E21-21): a connector registers
-  itself (when allowed) or is added by an administrator.
+- Anonymizing or removing a record from the retention review raises no webhook event
+  (E14-33).
 
 **Access control details**
 

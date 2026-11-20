@@ -14,6 +14,7 @@ import './mcp.css';
 interface Settings {
   enabled: boolean; writeEnabled: boolean; allowedTools: string[] | null; ratePerMinute: number; allowedOrigins: string[];
   allowedRoles: string[] | null; roleTools: Record<string, string[]>; oauthEnabled: boolean; oauthRegistration: boolean;
+  clientMetadata: boolean; clientMetadataHosts: string[]; clientMetadataApproval: boolean;
 }
 interface Tool { name: string; title: string; group: string; write: boolean; description: string; allowed: boolean; offered: boolean }
 interface Usage { token_id: string; token_name: string; user_name: string | null; calls: number; errors: number; last_at: string; active: boolean | null; tools: Record<string, number> }

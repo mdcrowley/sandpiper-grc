@@ -885,7 +885,87 @@ The embedded database answers one statement at a time inside the server process,
 and it is meant for evaluation, not for a pilot ([What must change before real
 use](#what-must-change-before-real-use)).
 
-**Results.** All on the same 14-core laptop (31 GB, Windows 11), the load generator on the
+**Current results (E16-38, E16-39).** Same laptop, load generator on the same machine, 8
+people at once, 15 seconds per scenario. Records were made once per scale with the load
+tool's Zipf vocabulary (below) and kept (`--keep`); the version before these changes (wave 4)
+and this one were then measured on copies of the same records (`--reuse`), alternately, so
+both met the same machine. Other development work kept the machine between about half and
+fully busy and moved single runs by a factor of two or more, so the scale-0.5 figures for
+global search and the Overview are the median of four runs of each version (the others are
+single runs). 95th percentile, and 50th in brackets, in milliseconds:
+
+| Scenario | Embedded 0.5, before | Embedded 0.5, after | Embedded 1, after | Embedded 4, after | PostgreSQL 1, before | PostgreSQL 1, after | PostgreSQL 4, after |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Ticket list, first page | 239 (140) | 136 (90) | 983 (348) | 281 (254) | 71 (48) | 67 (43) | 119 (90) |
+| Ticket list, random page, sorted | 479 (348) | 464 (155) | 427 (215) | 471 (426) | 99 (80) | 100 (81) | 225 (201) |
+| Ticket list, filtered by status | 250 (154) | 307 (90) | 87 (74) | 119 (102) | 61 (49) | 57 (46) | 70 (55) |
+| Ticket list, full-text query | 540 (298) | 326 (216) | 334 (255) | 777 (632) | 114 (58) | 105 (86) | 370 (146) |
+| Ticket statistics by status | 214 (151) | 35 (24) | 24 (12) | 12 (8) | 22 (19) | 7 (6) | 7 (6) |
+| First page of any list | 290 (190) | 132 (55) | 205 (99) | 101 (58) | 50 (37) | 45 (32) | 86 (34) |
+| Global search | 2,642 (1,896) | 1,335 (857) | 874 (494) | 1,162 (789) | 257 (177) | 197 (149) | 356 (120) |
+| One record | 217 (79) | 143 (49) | 41 (30) | 26 (18) | 32 (24) | 22 (18) | 20 (17) |
+| Overview dashboard (12 calls together) | 3,460 (2,008) | 704 (456) | 369 (220) | 179 (159) | 465 (427) | 144 (122) | 146 (127) |
+| Overview, a ticket saved every second meanwhile | 2,632 (979) | 1,056 (549) | 408 (185) | 502 (173) | 493 (421) | 213 (139) | 989 (138) |
+| Save: create a ticket | 379 (133) | 281 (141) | 336 (165) | 88 (65) | 91 (82) | 91 (76) | 86 (74) |
+| Save: update a ticket | 109 (69) | 122 (83) | 244 (115) | 58 (46) | 66 (56) | 57 (50) | 59 (49) |
+
+Scale 1 is about 21,000 records and scale 4 about 82,000 (40,000 tickets, 12,000 assets,
+8,000 actions, 6,000 changes and 6,000 vulnerabilities and the rest); the PostgreSQL server
+was PostgreSQL 17 in a container on the same laptop. A scale-1 run of the earlier version on
+the embedded database in the same session met a fully busy machine (global search 5.1 s,
+Overview 5.8 s, full-text 7.0 s) and is left out of the table; its recorded figures from
+before (global search 4.3 s, Overview 3.7 s) are the fairer comparison. Every embedded
+target is met at scale 0.5 in the medians, and the same figures held at scale 4 on a
+quieter machine; single runs on a fully busy machine still went over for global search (3.0
+and 4.0 s) and came close for the Overview (2.6 s). Every server target is met at scale 1;
+at scale 4, with the server sharing the laptop, all but the full-text list query (370 ms
+against 300 ms) are met, the Overview with saves meanwhile only just (989 ms).
+
+What made the difference:
+
+- **The Overview's figures are kept for a few seconds** while nothing is written
+  (`GRC_FIGURES_CACHE_SECONDS`, default 10, `0` switches it off), and people asking at the same
+  moment wait for one computation instead of each running it. A kept answer is shared only by
+  callers holding exactly the same permissions (and the same switched-off areas), and, for
+  figures that hold the caller's own counts ("mine", a statistic filtered on "me"), only by
+  the same person with the same permissions; the route's permission check, the feature
+  switches and the restriction rules decide what is computed, so the figures stay the same
+  for everyone who sees them. Any change written through the server empties it at once (a
+  write counter on the database handle, which also counts the end of every transaction,
+  rolled back or not). Changes made by another server process on the same PostgreSQL
+  database are not seen until the few seconds are over. With 8 people at once and nothing
+  written, the Overview went from about 3.5 s to 0.7 s at scale 0.5; with a ticket saved
+  every second, so that the figures are mostly recomputed, from about 2.6 s to 1.1 s. With
+  the cache off (`0`) the same run gave 1.2 s and 2.4 s: the rest of the gain is the
+  statements saved on every request (next point).
+- **One statement per signed-in request** for the session, the person, their roles and
+  permissions and the settings every request needs, instead of four.
+- **Global search in one statement** over the search index for every record type, instead
+  of one per type. One search at a time on scale-1 data went from about 380 ms to 140 ms on
+  a busy machine (60 ms on a quiet one); with 8 people at once on the embedded database it
+  is mostly waiting in line (it answers one statement at a time). About a fifth of its cost
+  is the highlighted snippets.
+- **Vulnerabilities are searched through the index** of the table behind their view.
+
+**Start-up at volume (E16-39).** Starts of the embedded database answered in 2 to 10 s at
+scale 1 and 2.6 s at scale 4 (more on a busy machine, up to about 24 s once for the earlier
+version). The server now times the parts of its start and logs them when the whole, or one
+part, takes longer than `GRC_STARTUP_WARN_MS` (default 2,000), for example:
+`[start] start-up took 4585 ms: opening the database 261 ms, migrations 681 ms, modules and
+routes 1560 ms, start-up steps 2083 ms; the longest steps: core/resource.ts:110 1963 ms, ...`.
+The one step that grows with the data is the search index: after an upgrade that changes how
+a type is searched it is rebuilt at start. With every type's search definition changed, a
+scale-4 embedded installation took 18.7 s for that step (20 s for the whole start), over
+Fastify's 10-second limit per step; the limit is now ten minutes
+(`GRC_STARTUP_TIMEOUT_SECONDS`, default 600). The embedded database's first `analyze` waits
+until the start is over. At scale 4 with `--ops`: backup with verification 4.7 s, `export-all`
+50.6 s (259,443 rows), `verify-backup` 1.9 s, `restore` 9.9 s, `import-all` into an empty
+installation 38.4 s; the data folder was 921 MB. Seeding scale 4 through the API took about
+ten minutes on the embedded database (130 tickets a second) and about twelve on the PostgreSQL
+server (105 a second, `--seed-concurrency 16`, sharing the laptop); a start of the scale-4
+installation on the server answered in 2.6 s.
+
+**Earlier results (E16-36).** All on the same 14-core laptop (31 GB, Windows 11), the load generator on the
 same machine, 8 people at once, 15 seconds per scenario, version 0.1.0. Scale 0.5 is about
 10,500 records (5,000 tickets, 1,500 assets, 1,000 actions, 750 changes, 750
 vulnerabilities and the rest). Other heavy work (test suites and browsers of other
@@ -961,8 +1041,8 @@ slow statement log (below):
   every open ticket.
 
 On the embedded database the Overview and global search did not get faster under load in
-these runs (the differences are within the noise of the busy machine; each costs less on its
-own, as above). What remains is tracked in E16-38.
+these runs (the differences were within the noise of the busy machine); E16-38 then did
+(**Current results**, above).
 
 **Upgrading to this version** rebuilds every record type's search index once at the first
 start (about 4 seconds for 6,000 tickets on the embedded database). With a least-privilege
@@ -982,17 +1062,21 @@ that gets no answer once more, counts such requests in its results, and, when th
 stops by itself, reports its exit code and last output instead of only "fetch failed". One
 start of a restored scale-1 folder stopped with "A callback for 'onReady' hook timed out"
 (start-up work over Fastify's 10-second limit) while the machine was very busy; the next
-starts took a few seconds and logged no statement over 40 ms. That is tracked in E16-39.
+starts took a few seconds and logged no statement over 40 ms. Fixed in E16-39 (**Start-up at volume**, above).
 
 **Limits of these figures**, stated plainly:
 
 - One development laptop, busy with other work, with the load generator and (for the server
   figures) the database on the same machine. A PostgreSQL server on its own machine should
   do better than the server column.
-- Records were created through the API, so they look like real use, but the words come from
-  a list of about a hundred, so every word is in roughly a fifth of all records. Real text
-  is far more selective, which makes full-text queries and global search cheaper than here.
-- Scale 4 has not been run yet (E16-38).
+- The earlier results drew words from a list of about a hundred, so every word was in
+  roughly a fifth of all records. The current ones use a Zipf vocabulary of about 500 words
+  (a few words in thousands of records, most in a handful), closer to real text.
+- Every simulated person signs in as the same administrator, so they all share one kept
+  answer for each Overview figure. People holding different roles each get their own (one
+  computation per set of permissions), which costs more than measured here; the run with the
+  cache off (above) is the upper bound.
+- Scale 4 on a PostgreSQL server on its own machine has not been measured (E16-41).
 
 ## Emergency access (break-glass)
 

@@ -181,9 +181,11 @@ export const STANDARD_REPORTS: StandardReport[] = [
 ];
 
 export const STANDARD_PACK = {
-  key: 'governing_body_pack', name: 'Governing body security pack',
+  // The key is kept (an existing installation already has this pack); the wording reads for a
+  // board, directors or owners alike (E18-47).
+  key: 'governing_body_pack', name: 'Leadership security pack',
   description: 'Framework progress, top risks, open actions and incidents as one dated document.',
-  cover_title: 'Technology and security report', cover_subtitle: 'Prepared for the governing body',
+  cover_title: 'Technology and security report', cover_subtitle: 'Prepared for the board and senior leadership',
   sections: [
     { kind: 'text', title: 'Summary', body: 'Replace this text with a short summary of the period: what improved, what needs a decision, and what you are asking for.\n\n- One point per line\n- Keep it to what the reader needs to decide' },
     { kind: 'report', reportKey: 'framework_progress' },

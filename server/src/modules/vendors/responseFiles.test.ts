@@ -1,16 +1,25 @@
 // Vendors send files through the response link (E06-22), and the application emails the link
 // (E06-23). Every refusal path has a test. Invented data only.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { ModuleDef } from '../../core/module.ts';
 import { startSmtpSink, type SmtpSink } from '../../core/mail/smtp-sink.ts';
 import { testApp } from '../../test/helpers.ts';
 import { HOLD_TYPE } from './responseFiles.ts';
 
 let t: Awaited<ReturnType<typeof testApp>>;
+// Stands in for the notifications module, which these tests do not load.
+const notified: any[] = [];
+const notifyStub: ModuleDef = {
+  key: 'testnotify',
+  async register(ctx) {
+    if (!ctx.app.hasDecorator('notify')) (ctx.app as any).decorate('notify', async (input: any) => { notified.push(input); return { sent: 1, skipped: 0 }; });
+  },
+};
 let sink: SmtpSink;
 const before = process.env.GRC_MODULES;
 beforeAll(async () => {
   process.env.GRC_MODULES = 'vendors,attachments';
-  t = await testApp();
+  t = await testApp({ extraModules: [notifyStub] });
   sink = await startSmtpSink();
   await t.api.put('/api/vendors/response-links/settings', { enabled: true });
 });
@@ -306,6 +315,30 @@ describe('emailing the link (E06-23)', () => {
     expect(sixth.status).toBe(429);
   });
 
+  it('uses its own templates, which administrators can word (E06-25)', async () => {
+    const keys = (await t.api.get('/api/admin/mail/templates')).body.map((x: any) => x.key);
+    expect(keys).toEqual(expect.arrayContaining(['vendor_response_link', 'vendor_response_reminder']));
+    const edited = await t.api.put('/api/admin/mail/templates/vendor_response_link', {
+      subject: 'Questions from {{organization}} for {{vendorName}}',
+      text: 'Please answer "{{assessmentTitle}}" by {{expiresAt}}:\n\n{{link}}', html: '',
+    });
+    expect(edited.status).toBe(200);
+    expect((await t.api.put('/api/admin/mail/templates/vendor_response_link', { subject: '{{title}}', text: 'x', html: '' })).body.error.fields.subject).toMatch(/Unknown placeholder/);
+    const { assessment } = await fresh();
+    const before = sink.messages.length;
+    expect((await t.api.post(`/api/vendor-assessments/${assessment}/links/email`, { email: 'worded@vendor.example' })).status).toBe(201);
+    const log = await t.db.one<any>(`select template, job_id from mail_log where to_address = 'worded@vendor.example'`);
+    expect(log.template).toBe('vendor_response_link');
+    await t.db.query(`update jobs set run_at = now() - interval '1 second' where id = $1`, [log.job_id]);
+    await t.app.jobs.runDue({ types: ['mail.send'] });
+    await sink.waitFor(before + 1);
+    const m = sink.messages[before];
+    expect(m.subject).toMatch(/^Questions from .+ for Invented Supplier/);
+    expect(m.body).toMatch(/Please answer "/);
+    expect(m.body).toMatch(/https:\/\/grc\.example\.test\/vendor-response\/[A-Za-z0-9_-]{43}/);
+    await t.api.post('/api/admin/mail/templates/vendor_response_link/reset');
+  });
+
   it('reminds the recipient once before the link expires, without the link', async () => {
     const { vendor, assessment } = await fresh();
     const made = (await t.api.post(`/api/vendor-assessments/${assessment}/links/email`, { email: 'remind@vendor.example', days: 10 })).body;
@@ -318,6 +351,7 @@ describe('emailing the link (E06-23)', () => {
     await run();
     const reminders = await t.db.query<any>(`select m.id, j.payload::text as payload from mail_log m join jobs j on j.id = m.job_id where m.to_address = 'remind@vendor.example' and m.subject like 'Reminder:%'`);
     expect(reminders).toHaveLength(1);
+    expect((await t.db.one<any>('select template from mail_log where id = $1', [reminders[0].id])).template).toBe('vendor_response_reminder');
     expect(reminders[0].payload).not.toMatch(/vendor-response\//);
     expect((await t.api.get(`/api/vendor-assessments/${assessment}/links`)).body.rows[0].reminded_at).toBeTruthy();
     expect((await history(vendor)).map((h) => h.action)).toContain('vendor.response_link_remind');
@@ -332,3 +366,49 @@ async function cookieOf(): Promise<string> {
   adminCookie = `grc_session=${c.value}`;
   return adminCookie;
 }
+
+describe('files nobody reviews (E06-24)', () => {
+  it('discards files still waiting a set time after the link closed, telling the link creator beforehand', async () => {
+    expect((await t.api.get('/api/vendors/response-links/settings')).body.discard_days).toBe(30);
+    expect((await t.api.put('/api/vendors/response-links/settings', { discard_days: 400 })).body.error.fields.discard_days).toBeTruthy();
+    expect((await t.api.put('/api/vendors/response-links/settings', { discard_days: 10 })).body.discard_days).toBe(10);
+
+    const { vendor, token, linkId } = await fresh();
+    const open = await fresh();
+    const sent = (await send(token, 'Old report.pdf', PDF)).json();
+    const kept = (await send(open.token, 'New report.pdf', PDF)).json();
+    const stored = await t.db.one<any>('select storage_key from attachments where id = $1', [sent.id]);
+    expect(memoryFiles().has(stored.storage_key)).toBe(true);
+    const run = async () => {
+      await t.app.jobs.enqueue('vendors.response_files_discard', {}, {});
+      await t.app.jobs.runDue({ types: ['vendors.response_files_discard'] });
+    };
+
+    // Closed 8 days ago: within the notice period, not yet discarded.
+    await t.db.query(`update vendor_assessment_links set revoked_at = now() - interval '8 days' where id = $1`, [linkId]);
+    await run();
+    const notice = notified.filter((x) => x.once === `vendors.response_files_discard:${linkId}`);
+    expect(notice).toHaveLength(1);
+    expect(notice[0]).toMatchObject({ kind: 'reminder', recordType: 'vendor', recordId: vendor });
+    expect(notice[0].title).toMatch(/1 file sent by Invented Supplier .* will be discarded/);
+    expect((await t.db.one<any>('select deleted_at from attachments where id = $1', [sent.id])).deleted_at).toBeNull();
+
+    // Closed 11 days ago: discarded, audited; the open link's file stays.
+    await t.db.query(`update vendor_assessment_links set revoked_at = now() - interval '11 days' where id = $1`, [linkId]);
+    await run();
+    const row = await t.db.one<any>('select deleted_at, purged_at, removed_reason from attachments where id = $1', [sent.id]);
+    expect(row).toMatchObject({ removed_reason: 'unreviewed' });
+    expect(row.purged_at).toBeTruthy();
+    expect(memoryFiles().has(stored.storage_key)).toBe(false);
+    const ev = (await history(vendor)).find((h) => h.action === 'vendor.response_file_expire');
+    expect(ev?.summary).toMatch(/Old report\.pdf/);
+    expect((await t.db.one<any>('select deleted_at from attachments where id = $1', [kept.id])).deleted_at).toBeNull();
+
+    // 0 = never.
+    await t.api.put('/api/vendors/response-links/settings', { discard_days: 0 });
+    await t.db.query(`update vendor_assessment_links set revoked_at = now() - interval '400 days' where id = $1`, [open.linkId]);
+    await run();
+    expect((await t.db.one<any>('select deleted_at from attachments where id = $1', [kept.id])).deleted_at).toBeNull();
+    await t.api.put('/api/vendors/response-links/settings', { discard_days: 30 });
+  });
+});

@@ -60,6 +60,7 @@ const SAMPLE: Row = {
   appName: '', recipientName: 'Alex Example', senderName: 'Sam Administrator', title: 'Ticket assigned to you: Depot printer offline',
   body: 'Priority high, raised by the service desk.', kindLabel: 'Assigned to me', link: '/tickets', preferencesLink: '/notifications?tab=preferences',
   username: 'alex.example', expiresAt: 'in 24 hours', count: 3, subject: 'Monthly service report', message: 'The report you subscribed to is ready.',
+  organization: 'Sandpiper GRC', vendorName: 'Invented Supplier', assessmentTitle: 'Vendor security assessment', sentAt: 'November 2, 2026',
 };
 
 export function registerMailRoutes(ctx: ModuleContext, mail: MailService) {

@@ -110,6 +110,8 @@ export const ROUTE_HELP: RouteHelp[] = [
   { prefix: '/admin/users', exact: true, page: '09-administration', section: 'users' },
   { prefix: '/admin/users', page: '09-administration', section: 'changing-a-persons-details-and-roles' },
   { prefix: '/admin/roles', page: '09-administration', section: 'roles-and-permissions' },
+  { prefix: '/admin/workflows', page: '22-approval-workflows', section: 'setting-up-workflows-administrators' },
+  { prefix: '/approvals', page: '22-approval-workflows', section: 'approvals-waiting-for-you' },
   { prefix: '/admin/reminders', page: '14-attachments-and-notifications', section: 'reminders' },
   { prefix: '/admin/lists', page: '09-administration', section: 'lists' },
   { prefix: '/admin/settings', page: '09-administration', section: 'settings' },

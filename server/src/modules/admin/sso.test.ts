@@ -106,7 +106,7 @@ describe('sign-in providers (E02-09)', () => {
 
     const on = await t.api.patch(`/api/admin/identity-providers/${providerId}`, { enabled: true, isDefault: true });
     expect(on.status).toBe(200);
-    expect((await t.anon.get('/api/auth/providers')).body.providers).toEqual([{ key: KEY, name: 'Example directory', isDefault: true }]);
+    expect((await t.anon.get('/api/auth/providers')).body.providers).toEqual([{ key: KEY, name: 'Example directory', isDefault: true, style: 'redirect' }]);
     expect((await audited('identity_provider.create')).length).toBe(1);
     expect((await audited('identity_provider.test')).length).toBe(1);
   });

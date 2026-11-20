@@ -61,6 +61,31 @@ export const DEFAULT_TEMPLATES: TemplateDef[] = [
     subject: '{{subject}}',
     text: 'Hello {{recipientName}},\n\n{{message}}\n\n{{link}}',
   },
+  {
+    key: 'text_message', name: 'Text message (email-to-text)',
+    description: 'A short alert sent to a person\'s email-to-text address, which their phone receives as a text message. Keep it short: many services cut a text at 160 characters.',
+    placeholders: [...COMMON, 'message'],
+    subject: '{{appName}}',
+    text: '{{message}}',
+  },
+  {
+    key: 'vendor_response_link', name: 'Vendor response link',
+    description: 'Sent to a vendor contact with the link to answer an assessment\'s questions (Vendors > assessment > Response link > Email it to).',
+    placeholders: [...COMMON, 'organization', 'vendorName', 'assessmentTitle', 'expiresAt', 'link'],
+    subject: '{{organization}}: assessment questions for {{vendorName}}',
+    text: 'Hello,\n\n{{organization}} asks {{vendorName}} to answer the questions of its assessment "{{assessmentTitle}}".\n\n'
+      + 'Open the link below to answer. No account is needed. You can save your answers and come back before you send them, and send supporting files such as certificates or reports if the page offers it. The link works until {{expiresAt}}.\n\n'
+      + '{{link}}\n\nThe link is meant for you: please do not forward it. If you were not expecting this message, you can ignore it.',
+  },
+  {
+    key: 'vendor_response_reminder', name: 'Vendor response link reminder',
+    description: 'Sent once to the vendor contact before an emailed response link expires while the answers have not been sent. It cannot carry the link.',
+    placeholders: [...COMMON, 'organization', 'vendorName', 'assessmentTitle', 'expiresAt', 'sentAt'],
+    subject: 'Reminder: {{organization}} assessment questions for {{vendorName}}',
+    text: 'Hello,\n\nOn {{sentAt}}, {{organization}} sent you a link to answer the questions of its assessment "{{assessmentTitle}}" for {{vendorName}}. '
+      + 'The answers have not been sent yet, and the link stops working {{expiresAt}}.\n\n'
+      + 'Use the link in that earlier message. If you can no longer find it, ask your contact for a new one.',
+  },
 ];
 
 export const LINK_PLACEHOLDERS = ['link', 'preferencesLink'];

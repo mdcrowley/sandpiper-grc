@@ -21,9 +21,11 @@ regulator, and nothing in it is specific to one organization.
 - **Risk, safety and compliance**: risk register and heat map, a safety hazard log and safety
   events, NIST CSF 2.0 outcomes, obligations, policies, training and vulnerabilities
 - **Security incidents**: a restricted workspace with notification clocks you configure
+- **Approval workflows**: ordered approval steps on any kind of record, with due times,
+  escalation and an Approvals page for each person
 - **Projects and reporting**: portfolio and stage gates, dashboards, a report builder,
   exports to Excel, CSV and PDF
-- **Sign-in and security**: single sign-on (OpenID Connect or SAML 2.0), passkeys, second factor,
+- **Sign-in and security**: single sign-on (OpenID Connect, SAML 2.0 or a directory over LDAP), passkeys, second factor,
   roles, restricted records and a full audit log
 - **Integrations**: a REST API with an OpenAPI description, webhooks, and AI assistant
   access over MCP (Claude Desktop, Claude Code and other MCP clients, by token or OAuth),

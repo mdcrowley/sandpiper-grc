@@ -1,6 +1,6 @@
 # E11 Projects and portfolio
 
-**Status:** done (24 of 24 issues done)
+**Status:** in progress (24 of 25 issues done)
 
 ## Goal
 
@@ -44,6 +44,7 @@ it is at, how it is going, what it costs and whether too much is running at once
 | E11-22 | Notifications for gates, reports and red projects | done | P2 |
 | E11-23 | Redesign on the Mantine foundation | done | P1 |
 | E11-24 | Reminders for overdue milestones and register items | done | P3 |
+| E11-25 | Project gate decisions on the shared approval workflows | open | P3 |
 
 ---
 
@@ -421,3 +422,15 @@ date. Today only status reports and gates send reminders.
 **Implemented in:** `server/src/modules/projects/overdue-reminders.ts` (job
 `projects.overdue_reminders`, every six hours, scheduled in `projects/index.ts`); tests
 `projects/overdue-reminders.test.ts`.
+
+### E11-25 Project gate decisions on the shared approval workflows
+
+**Status:** open · **Priority:** P3 · **Type:** improvement
+
+As a portfolio manager, a gate can ask for its approval through the shared approval workflows (E14-06), with the checklist and required documents still checked before the request is sent.
+
+**Acceptance criteria**
+
+- [ ] A gate template can name a workflow; the gate's blockers must clear before it starts
+- [ ] Approval passes the gate as a recorded decision does today
+- [ ] Gate decisions recorded by hand stay possible and visible

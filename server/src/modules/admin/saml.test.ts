@@ -93,7 +93,7 @@ describe('SAML providers: settings and metadata (E02-10)', () => {
     // A secret cannot be set from outside for a SAML provider.
     await t.api.patch(`/api/admin/identity-providers/${providerId}`, { secret: '-----BEGIN PRIVATE KEY-----x' });
     expect((await t.db.one<{ secret: string }>('select secret from identity_providers where id = $1', [providerId]))!.secret).toBe(row!.secret);
-    expect((await t.anon.get('/api/auth/providers')).body.providers).toEqual([{ key: KEY, name: 'Example SAML directory', isDefault: false }]);
+    expect((await t.anon.get('/api/auth/providers')).body.providers).toEqual([{ key: KEY, name: 'Example SAML directory', isDefault: false, style: 'redirect' }]);
   });
 
   it('checks the settings', async () => {

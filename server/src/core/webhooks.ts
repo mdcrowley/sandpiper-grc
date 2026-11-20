@@ -4,7 +4,7 @@ import { request as httpRequest, type IncomingMessage, type RequestOptions } fro
 import { request as httpsRequest } from 'node:https';
 import { BlockList, isIP } from 'node:net';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import type { Db } from './db.ts';
+import { inTrial, type Db } from './db.ts';
 import { fail, UUID_RE } from './errors.ts';
 import { featureState } from './features.ts';
 import type { ResourceDef, Row, SessionUser } from './module.ts';
@@ -230,6 +230,16 @@ export const WEBHOOK_EVENTS: WebhookEventDef[] = [
     data: { name: 'Schedule name', delivered: 'People it reached', skipped: 'People skipped', failed: 'Deliveries that failed' },
   },
   {
+    event: 'workflow.decided', label: 'Approval decided', area: null, restricted: 'record',
+    description: 'Someone approved or rejected a step of an approval workflow (Administration > Approval workflows) on any record type. Not sent for a record type whose area is switched off.',
+    data: { workflow: 'Workflow name', step: 'Step name', decision: '`approved` or `rejected`', approver: 'Name of the approver', comment: 'Their comment, if any', approvalsReceived: 'Approvals of the step so far', approvalsRequired: 'Approvals the step needs', stepOutcome: '`approved`, `rejected` or `pending` (the step still waits for more)' },
+  },
+  {
+    event: 'workflow.finished', label: 'Approval workflow finished', area: null, restricted: 'record',
+    description: 'An approval workflow on a record ended: approved after its last step, rejected, or canceled.',
+    data: { workflow: 'Workflow name', outcome: '`approved`, `rejected` or `canceled`', reason: 'The rejection comment or why it was canceled, if any', outcomeError: 'Why the fields the workflow sets at the end could not be set, or null' },
+  },
+  {
     event: 'backup.failed', label: 'Backup failed', area: null, restricted: 'never',
     description: 'A scheduled or manual backup failed.',
     data: { runId: 'Backup run id', trigger: '`scheduled` or `manual`', destination: 'Where it was to be written', message: 'Why it failed' },
@@ -422,7 +432,7 @@ export function registerWebhooks({ app, db, audit, settings, res, box, loadUser,
   let running = false;
   /** Sends every delivery that is due. Returns how many were attempted. */
   async function processDue(limit = 25): Promise<number> {
-    if (running) return 0;
+    if (running || inTrial()) return 0; // never deliver from inside a rolled-back check (E13-22)
     running = true;
     try {
       const due = await db.query<Row>(

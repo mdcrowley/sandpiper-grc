@@ -1,6 +1,6 @@
 # E06 Vendors and contracts
 
-**Status:** in progress (23 of 25 issues done)
+**Status:** done (25 of 25 issues done)
 
 ## Goal
 
@@ -45,8 +45,8 @@ contract must be renewed or ended, with enough warning to act.
 | E06-21 | Vendors answer the assessment themselves | done | P3 |
 | E06-22 | Vendors attach files through the response link | done | P3 |
 | E06-23 | Send the response link by email from the application | done | P3 |
-| E06-24 | Clear away vendor files that nobody reviews | open | P4 |
-| E06-25 | An email template of its own for the vendor response link | open | P4 |
+| E06-24 | Clear away vendor files that nobody reviews | done | P4 |
+| E06-25 | An email template of its own for the vendor response link | done | P4 |
 
 ---
 
@@ -459,19 +459,26 @@ reminder job), `migrations/004_response_link_files_and_email.sql`, `responseFile
 
 ### E06-24 Clear away vendor files that nobody reviews
 
-**Status:** open · **Priority:** P4 · **Type:** improvement
+**Status:** done · **Priority:** P4 · **Type:** improvement
 
 Found with E06-22. A file a vendor sends through a response link waits until staff take it over or discard it. If nobody
 does, it stays in storage indefinitely (counted in File settings usage and the storage check).
 
 **Acceptance criteria**
 
-- [ ] Files still waiting a set time after their link closed are discarded by a daily job, audited, with a notice to the
-      person who created the link beforehand
+- [x] Files still waiting a set time after their link closed are discarded by a daily job, audited, with a notice to the
+      person who created the link beforehand: setting `vendors.response_link_discard_days` (30; 0 = never; **Discard
+      unreviewed files after the link closes** on Assessment questions), daily job `vendors.response_files_discard`; a
+      link closes when its answers are sent or it expires or is revoked; the content is deleted and the row kept
+      (`removed_reason` `unreviewed`), audited on the vendor (`vendor.response_file_expire`); a `reminder` notification to
+      the link's creator 3 days before, once per link
+
+**Implemented in** `server/src/modules/vendors/responseFiles.ts` (`discardUnreviewed`), `responseLinks.ts` (setting),
+`responseFiles.test.ts`; `web/src/modules/vendors/ResponseLink.tsx`
 
 ### E06-25 An email template of its own for the vendor response link
 
-**Status:** open · **Priority:** P4 · **Type:** improvement
+**Status:** done · **Priority:** P4 · **Type:** improvement
 
 Found with E06-23. The email that carries a response link is built on the **General message** template, so administrators
 cannot word it separately. The application already passes `organization`, `vendorName`, `assessmentTitle`, `expiresAt`
@@ -479,5 +486,8 @@ and `link` under the template key `vendor_response_link`.
 
 **Acceptance criteria**
 
-- [ ] A **Vendor response link** template under Administration > Email > Templates (a core default template), used by the
-      link email and the reminder
+- [x] A **Vendor response link** template under Administration > Email > Templates (a core default template), used by the
+      link email, and a **Vendor response link reminder** template (it cannot carry the link) used by the reminder
+
+**Implemented in** `server/src/core/mail/templates.ts` (`vendor_response_link`, `vendor_response_reminder`),
+`server/src/modules/vendors/responseEmail.ts`; test in `responseFiles.test.ts`

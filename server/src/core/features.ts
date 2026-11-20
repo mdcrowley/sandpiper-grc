@@ -173,7 +173,7 @@ export const OPTIONS: AreaOption[] = [
     description: 'A ransom payment cannot be marked approved on a security incident until the reference of the approval is recorded (for example a governing body resolution or the owners\' written decision). Switch it off only if your policy records that decision elsewhere.',
     fields: { security_incident: ['board_resolution_ref'] },
     name: {
-      default: 'Governing body approval reference', hint: 'For example "Board resolution" or "Approval reference".',
+      default: 'Payment approval reference', hint: 'For example "Board resolution" or "Approval reference".',
       labels: { security_incident: { board_resolution_ref: '{name}' } },
     },
   },

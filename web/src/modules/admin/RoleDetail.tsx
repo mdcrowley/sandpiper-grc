@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   ApiError, Button, Card, Checkbox, EmptyState, ErrorState, errorMessage, humanize, Icon, Loading, NotFound, PageHeader,
-  StatusChip, TextArea, TextField, useAuth, useFetch, useMeta, useToast,
+  StatusChip, TextArea, TextField, useAuth, useFetch, useToast,
 } from '../../core';
 import { Notice } from './common';
 import type { Role, RolesResponse } from './common';
@@ -18,12 +18,12 @@ const MODULE_LABELS: Record<string, string> = {
 const moduleLabel = (key: string) => MODULE_LABELS[key] ?? humanize(key);
 
 /**
- * Permission areas that may have nothing checking them: the portal is not built, and reports are checked
- * only when the reports part of the server is installed. An area here carries the "not yet used" hint
- * unless a record type that belongs to it is loaded (see `unusedAreas`). The list of areas itself always
- * comes from the server; this only decides which rows carry the hint.
+ * What this installation checks (E18-44): the server lists every `<area>.<action>` that some route
+ * or record type checks (core/permission-use.ts). A combination nothing checks is greyed out and
+ * cannot be newly ticked, since granting it would do nothing; one already granted can still be
+ * unticked. An area with nothing checked at all carries the "not yet used" hint.
  */
-const MAYBE_UNUSED = ['reports'];
+const NOT_CHECKED = 'Nothing in this installation checks this permission, so granting it would have no effect.';
 
 export function RoleDetailPage() {
   const { id } = useParams();
@@ -38,11 +38,10 @@ export function RoleDetailPage() {
   const [busy, setBusy] = useState(false);
   const [find, setFind] = useState('');
   const [onlyGranted, setOnlyGranted] = useState(false);
-  const { resources } = useMeta();
-  const unusedAreas = useMemo(() => {
-    const inUse = new Set(Object.values(resources ?? {}).map((r) => r.module));
-    return new Set(MAYBE_UNUSED.filter((m) => !inUse.has(m)));
-  }, [resources]);
+  const checkedList = useFetch<{ checked: string[] }>('/api/admin/permissions/checked');
+  // While the list loads (or if it cannot be read) nothing is greyed out.
+  const checked = useMemo(() => (checkedList.data ? new Set(checkedList.data.checked) : null), [checkedList.data]);
+  const isChecked = (m: string, a: string) => !checked || checked.has(`${m}.${a}`);
 
   const reset = () => {
     if (!role) return;
@@ -54,6 +53,8 @@ export function RoleDetailPage() {
 
   const modules = vocab.data?.modules ?? [];
   const actions = vocab.data?.actions ?? [];
+  const unusedAreas = new Set(checked ? modules.filter((m) => !actions.some((a) => checked.has(`${m}.${a}`))) : []);
+  const uncheckedCells = checked ? modules.reduce((n, m) => n + actions.filter((a) => !checked.has(`${m}.${a}`)).length, 0) : 0;
   const extras = useMemo(
     () => [...grants].filter((g) => g !== '*' && !(modules.includes(g.split('.')[0]) && (g.endsWith('.*') || actions.includes(g.split('.')[1])))),
     [grants, modules, actions],
@@ -215,7 +216,7 @@ export function RoleDetailPage() {
                           <span className="adm-matrix-name">{moduleLabel(m)}</span>
                           <span className="adm-matrix-key">
                             <code>{m}</code>
-                            {unused && <span className="adm-matrix-hint" title="Nothing in this version checks these permissions yet. Ticking them has no effect today.">not yet used</span>}
+                            {unused && <span className="adm-matrix-hint" title="Nothing in this installation checks these permissions. Ticking them has no effect.">not yet used</span>}
                             {off && <Link className="adm-matrix-hint" to="/admin/features" title="This part of the application is switched off under Features: nobody holds these permissions until it is switched on again. Ticks are kept.">switched off</Link>}
                           </span>
                         </th>
@@ -225,14 +226,19 @@ export function RoleDetailPage() {
                               checked={everything || grants.has(`${m}.*`)} onChange={() => toggleAll(m)} />
                           </label>
                         </td>
-                        {actions.map((a) => (
-                          <td key={a}>
-                            <label className="adm-matrix-cell">
-                              <input type="checkbox" aria-label={`${moduleLabel(m)}: ${humanize(a)}`} disabled={everything}
-                                checked={has(m, a)} onChange={() => toggle(m, a)} />
-                            </label>
-                          </td>
-                        ))}
+                        {actions.map((a) => {
+                          const live = off || isChecked(m, a);
+                          const held = has(m, a);
+                          return (
+                            <td key={a} title={live ? undefined : NOT_CHECKED}>
+                              <label className="adm-matrix-cell">
+                                <input type="checkbox" aria-label={`${moduleLabel(m)}: ${humanize(a)}${live ? '' : ' (not checked by anything)'}`}
+                                  disabled={everything || (!live && !(grants.has(`${m}.${a}`)))}
+                                  checked={held} onChange={() => toggle(m, a)} />
+                              </label>
+                            </td>
+                          );
+                        })}
                       </tr>
                     );
                   })}
@@ -240,9 +246,14 @@ export function RoleDetailPage() {
               </table>
             </div>
           )}
-          {unusedAreas.size > 0 && (
+          {uncheckedCells > 0 && (
             <p className="card-body adm-card-foot muted">
-              Areas marked <span className="adm-matrix-hint">not yet used</span> can be ticked, but nothing in this installation checks them yet.
+              <span>
+                Greyed-out boxes are permissions nothing in this installation checks: granting one would have no effect, so it
+                cannot be ticked (one already granted can be removed).
+                {unusedAreas.size > 0 && <> Areas marked <span className="adm-matrix-hint">not yet used</span> have nothing checked at all.</>}
+                {' '}<strong>All</strong> still covers every action, including any a later version checks.
+              </span>
             </p>
           )}
         </Card>

@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { ModuleDef } from '../module.ts';
 import { ADMIN, testApp } from '../../test/helpers.ts';
 import { ensureMail } from './index.ts';
+import { smtpRetryAfter } from './provider.ts';
 import { startSmtpSink, type SmtpSink } from './smtp-sink.ts';
 
 // Starts mail without relying on any module, and adds two invented record types:
@@ -112,6 +113,25 @@ describe('test email', () => {
 });
 
 describe('sending through the queue', () => {
+  it('waits as long as a busy SMTP server says before trying again (E14-30)', async () => {
+    await settings({ ...goodSettings(), enabled: true });
+    sink.refuseNext(1, 421, '4.7.0 Too many messages, try again in 3 minutes');
+    const res = await t.app.sendMail({ to: 'outside@example.test', data: { subject: 'Busy', message: 'x' } });
+    await run();
+    const row = await log(res.logIds[0]);
+    expect(row).toMatchObject({ status: 'failed', attempts: 1 });
+    const job = await t.db.one<any>('select run_at from jobs where id = $1', [row.job_id]);
+    const wait = (new Date(job.run_at).getTime() - Date.now()) / 1000;
+    expect(wait).toBeGreaterThan(170);
+    expect(wait).toBeLessThan(181);
+    await due(row.job_id);
+    await run();
+    expect(await log(res.logIds[0])).toMatchObject({ status: 'sent', attempts: 2 });
+    expect(smtpRetryAfter('451 4.3.0 Try again later')).toBeNull();
+    expect(smtpRetryAfter('450 4.2.1 Rate limited: retry after 90 seconds')).toBe(90);
+    expect(smtpRetryAfter('421 4.7.28 Please wait 2 hours')).toBe(7200);
+  });
+
   it('retries a busy server and logs every attempt', async () => {
     await settings({ enabled: true });
     const agent = await t.as('agent');
@@ -215,7 +235,7 @@ describe('sending through the queue', () => {
 describe('templates', () => {
   it('can be edited, are checked, previewed and put back', async () => {
     const list = (await t.api.get('/api/admin/mail/templates')).body;
-    expect(list.map((x: any) => x.key)).toEqual(['test', 'notification', 'notification_restricted', 'digest', 'setup_link', 'reset_link', 'message']);
+    expect(list.map((x: any) => x.key)).toEqual(['test', 'notification', 'notification_restricted', 'digest', 'setup_link', 'reset_link', 'message', 'text_message', 'vendor_response_link', 'vendor_response_reminder']);
     const n = list.find((x: any) => x.key === 'notification');
     expect(n.placeholders).toContain('title');
     expect(n.html).toContain('<a href="{{link}}">');

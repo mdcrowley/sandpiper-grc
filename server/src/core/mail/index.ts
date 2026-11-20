@@ -19,10 +19,12 @@ import type { ModuleContext } from '../module.ts';
 import { registerAccountLinks } from './links.ts';
 import { ensureTemplates, registerMailRoutes } from './routes.ts';
 import { makeMail, type MailService } from './service.ts';
+import { makeTexts, registerTextRoutes } from './texts.ts';
 
 export { registerMailProvider, type MailAttachment, type MailProvider, type MailResult, type OutgoingMessage } from './provider.ts';
 export type { SendMailInput, SendMailResult } from './service.ts';
 export { OWN_MAIL_HEADER } from './service.ts';
+export { contactOf, type SendTextInput, type SendTextResult } from './texts.ts';
 // Inbound mail (E15-06): a message reader and a POP3 client, used by email-to-ticket.
 export { htmlToText, parseAddresses, parseMessage, stripQuoted, type ParsedAddress, type ParsedAttachment, type ParsedMessage } from './mime.ts';
 export { Pop3, Pop3Error, type Pop3Message, type Pop3Options, type Pop3Tls } from './pop3.ts';
@@ -49,5 +51,9 @@ export async function ensureMail(ctx: ModuleContext): Promise<MailService> {
   if (!ctx.app.hasDecorator('mailEnabled')) ctx.app.decorate('mailEnabled', mail.enabled);
   registerMailRoutes(ctx, mail);
   registerAccountLinks(ctx, mail);
+  // Text messages for urgent alerts (E09-25): email-to-text addresses and a webhook.
+  const texts = makeTexts(ctx, jobs, mail);
+  if (!ctx.app.hasDecorator('sendText')) ctx.app.decorate('sendText', texts.sendText);
+  registerTextRoutes(ctx, texts);
   return mail;
 }

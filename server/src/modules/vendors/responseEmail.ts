@@ -47,6 +47,7 @@ export async function registerResponseEmail(ctx: ModuleContext, kit: LinkKit) {
       `Open the link below to answer. No account is needed. You can save your answers and come back${files ? ', and send supporting files such as certificates or reports' : ''}. The link works until ${expires}.`,
       'The link is meant for you: please do not forward it. If you were not expecting this message, you can ignore it.',
     ].join('\n\n');
+    // The "Vendor response link" template (E06-25); `subject` and `message` name it in the delivery log.
     // `accountLink` seals the link in the queued message, as for set-up links: it is decrypted only to send.
     await mail.queueOne(
       {
@@ -92,14 +93,13 @@ export async function registerResponseEmail(ctx: ModuleContext, kit: LinkKit) {
     const org = await organization();
     for (const l of due) {
       const expires = expiresText(l.expires_at);
+      // The "Vendor response link reminder" template (E06-25); `subject` names the message in the delivery log.
       await mail.queueOne({
-        template: 'message', purpose: 'vendor_response',
+        template: 'vendor_response_reminder', purpose: 'vendor_response',
         data: {
           subject: `Reminder: ${org} assessment questions for ${l.vendor_name}`,
-          message: [
-            `On ${expiresText(l.emailed_at).replace(/^on /, '')}, ${org} sent you a link to answer the questions of its assessment "${l.title}" for ${l.vendor_name}. The answers have not been sent yet, and the link stops working ${expires}.`,
-            'Use the link in that earlier message. If you can no longer find it, ask your contact for a new one.',
-          ].join('\n\n'),
+          organization: org, vendorName: l.vendor_name, assessmentTitle: l.title, expiresAt: expires,
+          sentAt: expiresText(l.emailed_at).replace(/^on /, ''),
         },
       }, { to: l.emailed_to }, {}, { maxAttempts: 3 });
       await ctx.audit(null, {

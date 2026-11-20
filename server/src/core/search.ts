@@ -111,8 +111,41 @@ export async function indexedTable(db: Db, def: ResourceDef, needsCustom: boolea
   return needed.every((c) => cols.has(c)) ? base : null;
 }
 
+// ---------- schema changes and the run-time role (E16-37) ----------
+
+/**
+ * Whether this connection may change `table`'s schema (its triggers, its columns): it owns the
+ * table, or is a member of the role that does, and may create in the schema. False for a
+ * least-privilege run-time role (E16-31), which must never attempt a schema change.
+ */
+export async function maySchemaChange(db: Pick<Db, 'one'>, table: string): Promise<boolean> {
+  const row = await db.one<{ ok: boolean }>(
+    `select pg_has_role(current_user, c.relowner, 'USAGE') and has_schema_privilege(current_user, c.relnamespace, 'CREATE') as ok
+     from pg_class c where c.oid = to_regclass($1)`, [table]);
+  return row?.ok === true;
+}
+
+/** Records a schema change the owner's migrate step must make (table `schema_requests`, migration 014). */
+export async function requestSchemaChange(db: Pick<Db, 'query'>, kind: 'search' | 'custom_column', target: string, detail: string): Promise<void> {
+  const fresh = await db.query(
+    `insert into schema_requests (kind, target, detail) values ($1, $2, $3)
+     on conflict (kind, target) do update set detail = excluded.detail where schema_requests.detail is distinct from excluded.detail
+     returning kind`, [kind, target, detail]);
+  if (fresh.length && !process.env.VITEST) {
+    console.warn(`[schema] waiting for the owner account: ${detail} Run migrate with GRC_DATABASE_MIGRATE_URL set (or restart the server with it set).`);
+  }
+}
+
+/** Marks a recorded schema change as made. */
+export async function schemaChangeDone(db: Pick<Db, 'query'>, kind: 'search' | 'custom_column', target: string): Promise<void> {
+  await db.query('delete from schema_requests where kind = $1 and target = $2', [kind, target]);
+}
+
 /**
  * Creates or refreshes the trigger that indexes one record type, and indexes rows that are missing.
+ * Without the right to change the table (a least-privilege run-time role, E16-37) no trigger is
+ * touched: the change is recorded for the owner's migrate step, and the type keeps its current
+ * trigger (and so full-text search, on its earlier definition) until then.
  * Does nothing when the definition has not changed since the last start. Returns false when the
  * type cannot be indexed (the caller then searches it by substring).
  */
@@ -146,6 +179,12 @@ export async function ensureSearchIndex(db: Db, def: ResourceDef, customKeys: st
       await db.exec(backfill(true));
       return true;
     }
+    if (!(await maySchemaChange(db, table))) {
+      await requestSchemaChange(db, 'search', def.type, `The search index of ${def.plural.toLowerCase()} must be rebuilt (its searched fields changed).`);
+      if (current === undefined) return false; // never built: substring matching until the owner builds it
+      await db.exec(backfill(true));
+      return true;
+    }
     await db.exec(`
       create or replace function ${fn}() returns trigger language plpgsql as $search$
       begin
@@ -171,6 +210,7 @@ export async function ensureSearchIndex(db: Db, def: ResourceDef, customKeys: st
       ${backfill(false)}
       insert into search_index_state (table_name, signature) values ('${def.type}', '${signature}')
       on conflict (table_name) do update set signature = excluded.signature, built_at = now();`);
+    await schemaChangeDone(db, 'search', def.type);
     return true;
   } catch (err) {
     if (!process.env.VITEST) console.warn(`[search] ${def.type} is searched by substring only: ${(err as Error).message}`);
@@ -224,6 +264,10 @@ export async function ensureCommentSearch(db: Db, config: string = SEARCH_CONFIG
       return true;
     }
     if (current === signature) return true;
+    if (!(await maySchemaChange(db, 'comments'))) {
+      await requestSchemaChange(db, 'search', '__comments', `Comments must be indexed in the search language "${config}".`);
+      return false;
+    }
     await db.exec(`
       create or replace function comments_search_tg() returns trigger language plpgsql as $cs$
       begin
@@ -233,6 +277,7 @@ export async function ensureCommentSearch(db: Db, config: string = SEARCH_CONFIG
       update comments c set search_vector = ${commentVectorSql(config, 'c')};
       insert into search_index_state (table_name, signature) values ('__comments', '${signature}')
       on conflict (table_name) do update set signature = excluded.signature, built_at = now();`);
+    await schemaChangeDone(db, 'search', '__comments');
     return true;
   } catch (err) {
     if (!process.env.VITEST) console.warn(`[search] comments keep their earlier search language: ${(err as Error).message}`);

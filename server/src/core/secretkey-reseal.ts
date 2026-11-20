@@ -45,13 +45,14 @@ const column = (
 export const SEALED_KINDS: SealedKind[] = [
   column('totp', 'authenticator keys', 'users', 'id', 'totp_secret', (id) => `totp:${id}`),
   column('webhook', 'webhook signing secrets', 'webhooks', 'id', 'secret', (id) => `webhook:${id}`),
-  column('idp', 'sign-in provider client secrets', 'identity_providers', 'id', 'secret', (id) => `idp:${id}`),
+  // Client secrets (OpenID Connect), this application's SAML keys and directory (LDAP) service account passwords (E02-26).
+  column('idp', 'sign-in provider secrets (client secrets, SAML keys, directory service account passwords)', 'identity_providers', 'id', 'secret', (id) => `idp:${id}`),
   column('sso_flow', 'single sign-on requests in progress', 'identity_flows', 'state_hash', 'remember', (id) => `sso:${id}`, 'expires_at > now()'),
   column('sso_post', 'SAML responses waiting for their browser', 'identity_flows', 'state_hash', 'posted', (id) => `sso-post:${id}`, 'expires_at > now()'),
   column('sso_session', 'provider sign-out details of open sessions', 'identity_sessions', 'token_hash', 'id_token_sealed', (id) => `sso-session:${id}`),
   column('mail', 'the mail server password', 'mail_config', 'id', 'password_sealed', () => 'mail:smtp'),
   {
-    key: 'mail_providers', label: 'Microsoft Graph and Gmail API credentials', table: 'mail_config',
+    key: 'mail_providers', label: 'Microsoft Graph and Gmail API credentials, and the text-message webhook secret', table: 'mail_config',
     async list(db) {
       if (!(await columnExists(db, 'mail_config', 'provider_secrets'))) return [];
       const rows = await db.query<{ k: string; v: string }>(`select e.key as k, e.value as v from mail_config, jsonb_each_text(provider_secrets) e where id = 1`);

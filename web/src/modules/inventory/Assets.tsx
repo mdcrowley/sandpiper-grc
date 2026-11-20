@@ -13,7 +13,6 @@ import { AssignmentTab, DisposalTab, LifecycleBand, RequestCard, WhereCard } fro
 import { funderFields, RelatedWork, useFunder } from './shared';
 
 export function AssetList() {
-  const { can } = useAuth();
   const funder = useFunder();
   return (
     <ResourceList
@@ -35,12 +34,8 @@ export function AssetList() {
       filters={funderFields(['status', 'asset_type', 'site_id', 'system_id', 'user_id', 'owner_id', 'funding_source', 'funder_interest', 'disposal_request_status', 'warranty_end', 'support_end', 'purchase_date'], funder.on)}
       bulkFields={['status', 'asset_type', 'site_id', 'owner_id', 'system_id', 'funding_source', 'warranty_end', 'support_end']}
       createFields={funderFields(['name', 'asset_type', 'status', 'make', 'model', 'serial', 'site_id', 'location', 'purchase_date', 'cost', 'funding_source', 'funder_interest', 'funder_interest_pct', 'warranty_end', 'support_end'], funder.on)}
-      actions={(
-        <>
-          {can('assets.create') && <Link className="btn btn-secondary" to="/assets/import">Import</Link>}
-          <Link className="btn btn-secondary" to="/assets/disposals">Disposal approvals</Link>
-        </>
-      )}
+      // Import is the list's own (the generic import wizard, E13-21).
+      actions={<Link className="btn btn-secondary" to="/assets/disposals">Disposal approvals</Link>}
     />
   );
 }

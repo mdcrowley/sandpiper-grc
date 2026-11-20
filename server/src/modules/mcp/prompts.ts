@@ -30,10 +30,10 @@ export const PROMPTS: PromptSpec[] = [
   {
     name: 'board_summary',
     title: 'Prepare a board summary',
-    description: 'A one-page summary for the governing body: risk position, framework progress, incidents, vulnerabilities, safety and service.',
+    description: 'A one-page summary for leadership or the board: risk position, framework progress, incidents, vulnerabilities, safety and service.',
     args: { period: 'The period covered, e.g. "the last quarter".' },
     text: (a) => [
-      `Prepare a one-page summary for our governing body covering ${a.period || 'the last quarter'}, in plain language for non-specialists.`,
+      `Prepare a one-page summary for our leadership or board covering ${a.period || 'the last quarter'}, in plain language for non-specialists.`,
       'Use: risk_heatmap (risk position and the top risks), framework_progress (outcomes at target and change since the last assessment), '
         + 'incident_clocks (open security incidents and any notification deadlines), vulnerability_summary (open, overdue, known exploited), '
         + 'safety_summary (events, hazards and indicators against target), service_desk_metrics (service levels for the period) and contracts_nearing_notice (decisions due).',

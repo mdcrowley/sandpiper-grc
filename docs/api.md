@@ -299,6 +299,8 @@ record change and every other event. A family name that is also a record type
 | `security_incident.declared` | A security incident was declared, starting its notification clocks. `record` is the incident | always | `severity`, `declaredAt`, `clocks`, `firstDeadline` |
 | `change.approval_decided` | An approver approved or rejected a change. `record` is the change | as the change | `decision` (`approved` or `rejected`), `approver`, `approvalsReceived`, `approvalsRequired`, `status` |
 | `report_schedule.delivered` | A report schedule ran and reached at least one person. Counts only: the figures stay in the application | never | `name`, `delivered`, `skipped`, `failed` |
+| `workflow.decided` | Someone approved or rejected a step of an approval workflow, on any record type. `record` is the record | as the record | `workflow`, `step`, `decision` (`approved` or `rejected`), `approver`, `comment`, `approvalsReceived`, `approvalsRequired`, `stepOutcome` (`approved`, `rejected` or `pending`) |
+| `workflow.finished` | An approval workflow ended: approved after its last step, rejected, or canceled. `record` is the record | as the record | `workflow`, `outcome` (`approved`, `rejected` or `canceled`), `reason`, `outcomeError` |
 | `backup.failed` | A scheduled or manual backup failed | never | `runId`, `trigger` (`scheduled` or `manual`), `destination`, `message` |
 
 The rules are those of record changes. An event marked **always** (about security incidents)

@@ -12,6 +12,7 @@ import { LinkedIdentitiesCard } from './LinkedIdentities';
 import { encodeQr, qrPath } from './qr';
 import { withReauth } from './reauth';
 import { SessionsCard } from './Sessions';
+import { AlertContactCard } from './AlertContact';
 
 interface Security {
   totpEnabled: boolean; recoveryCodesLeft: number; mfaEnrollmentRequired: boolean; mfaEnrollmentBlocked?: boolean;
@@ -131,6 +132,7 @@ export function AccountSecurityPage() {
                 </p>
               </Card>
               <SessionsCard />
+              {!blocked && !codes && <AlertContactCard />}
             </div>
           </div>
           {/* Not while access is blocked for want of a second factor: tokens are for people who can already work. */}

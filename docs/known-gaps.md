@@ -5,18 +5,21 @@ What the prototype does not do yet. Update with every change. The roadmap
 
 ## Not built
 
-- **Sign-in**: single sign-on supports OpenID Connect and SAML 2.0, but there is no
-  directory (LDAP) sign-in (E02-26). A sign-out started at a SAML identity provider does not
-  end sessions here (E02-27), and SAML metadata signatures are not checked nor metadata
-  refreshed on a schedule (E02-28).
-- **Workflow engine**: lifecycles are per-module code plus configurable lists, not a
-  general workflow designer.
-- **AI assistants (MCP)**: connectors cannot identify themselves with a client ID metadata
-  document (E21-21); a connector registers itself (when an administrator allows it) or is
-  added by an administrator.
+- **Workflow engine**: approval workflows (Administration > Approval workflows) run ordered
+  approval steps on any record type, but the allowed status changes and required fields of
+  each type are still per-module code plus configurable lists (E14-31), and a workflow
+  cannot branch, run steps side by side or delegate (E14-32). The approval rules some parts
+  keep of their own (catalog requests, asset disposal, change approval, risk acceptance,
+  project gates) do not yet run on the shared workflows (E03-22, E04-24, E05-13, E08-23,
+  E11-25).
 
 ## Built but incomplete
 
+- **Sign-in**: single sign-on supports OpenID Connect, SAML 2.0 and a directory (LDAP).
+  After a directory password, a person whose only second factor is a passkey must use a
+  recovery code; a directory cannot be linked from Account security, nor used to confirm
+  your identity for sensitive actions (E02-29). Directory sign-in has been tried against a
+  stand-in directory, not a real Active Directory.
 - **Second factor**: a new installation requires it for the roles that expect one
   (Administrator and Security lead) unless setup explicitly asks for a reminder only. An
   existing installation keeps its setting.
@@ -27,11 +30,12 @@ What the prototype does not do yet. Update with every change. The roadmap
 - **Feature switches** (Administration > Features): while Risks and obligations is
   switched off, the hazard risk matrix (kept with the risk scales) cannot be edited, and
   Safety keeps using the saved one. The email digest may still list notifications about a
-  part switched off since. Some editable default wording still reads like a public agency's
-  (for example "Approved by the governing body"; E18-47).
-- **Email**: email goes out over SMTP, Microsoft Graph or the Gmail API. Graph takes
-  messages up to about 3 MB (E14-29), and a throttled message waits the queue's usual
-  back-off rather than the time the service asks for (E14-30).
+  part switched off since. A list filter in a page address on a field a type does not have
+  is still applied (E18-49).
+- **Retention**: anonymizing or removing a record from the review list is recorded in the
+  audit log but does not raise a webhook event (E14-33). The fields anonymizing replaces are chosen
+  broadly (for example a ticket's description); check the list shown for each type before
+  allowing it.
 - **Backups**: `backup` and `restore` cover the embedded database only; with a PostgreSQL
   server, use `pg_dump` and `pg_restore` (see [Operations](operations.md)). Files kept in
   the object store are not in backups. Restoring a backup and moving files between the
@@ -39,23 +43,22 @@ What the prototype does not do yet. Update with every change. The roadmap
   second location still need proving on a real installation (E16-08).
 - **Exports and imports**: PDFs made by the server print text outside Western European
   languages with a font found on the machine (or named in `GRC_PDF_FONTS`); explicit
-  bidirectional embedding characters are ignored. The check before an import runs
-  validation and before-save rules, but not after-save steps or database constraints
-  (E13-22).
+  bidirectional embedding characters are ignored.
 - **Custom fields**: the portal deliberately does not ask ticket custom fields of
   requesters (they are the service desk's own classification); catalog questions do that
   job.
-- **Vendor response links**: files a vendor sends stay in storage until staff take them
-  over or discard them (E06-24), and the email carrying the link uses the General message
-  template (E06-25).
 - **API**: the `If-Match` check takes its lock in one server process only; several
-  processes on one database do not share it.
-- **Hosting**: with a least-privilege database account, adding a custom field still needs
-  the database owner (E16-37). The systemd and launchd user services have not been run on
-  a real Linux or Mac (E16-35).
-- **Performance**: the embedded database is for evaluation. With several people at once it
-  was slow for the Overview and global search; changes to both are built but not yet
-  measured (E16-38). A PostgreSQL server meets the targets.
+  processes on one database do not share it. The Overview's figures are kept for a few
+  seconds per process, so a change saved through another process shows up there after up
+  to 10 seconds.
+- **Hosting**: with a least-privilege database account, adding a custom field is queued
+  for the database owner, and a new text custom field is searched only after the owner's
+  next `migrate` step. The systemd and launchd user services have not been run on a real
+  Linux or Mac (E16-35).
+- **Performance**: the embedded database is for evaluation. A PostgreSQL server meets the
+  targets in the load test, but only with the server on the same machine and everyone
+  signed in as one administrator; a run with the database on its own machine and people in
+  different roles is still to do (E16-41).
 - **Vendors**: the contract import fills structured dates only where the text is
   unambiguous; the "Complete the dates" queue lists the rest.
 
@@ -74,9 +77,9 @@ What the prototype does not do yet. Update with every change. The roadmap
 - Containers and the PostgreSQL server are proven in continuous integration: the container
   build and smoke test, the test suite through the PostgreSQL wire protocol and on
   PostgreSQL 17.
-- Load tested (E16-14, E16-36): a PostgreSQL server meets the targets at about 22,000
-  records with 8 people at once; see [Operations](operations.md).
+- Load tested (E16-14, E16-36, E16-38): see [Operations](operations.md#performance-and-load-testing).
 - Tested only against stand-ins: email to ticket, Microsoft Graph and the Gmail API (fake
-  services), SAML sign-in (a stand-in identity provider), OAuth for remote MCP connectors
-  (the MCP SDK's own client), webhook delivery over HTTPS.
+  services), SAML sign-in (a stand-in identity provider), directory sign-in (a stand-in
+  directory), OAuth for remote MCP connectors (the MCP SDK's own client), webhook delivery
+  over HTTPS, incident alerts by text message (email-to-text and webhook stand-ins).
 - Not done: an independent security review or penetration test (E16-40).

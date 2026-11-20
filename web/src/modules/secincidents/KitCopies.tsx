@@ -162,7 +162,7 @@ export function KitCopies() {
                     <td>
                       {shown.can_export && (
                         <a className="btn btn-ghost btn-sm" href={`/api/security-incidents/kit/copies/${c.id}/pdf`} download
-                          aria-label={`Download the copy made ${formatDateTime(c.created_at)}`}>
+                          aria-label={`PDF: download the copy made ${formatDateTime(c.created_at)}`}>
                           <Icon name="download" size={16} /> PDF
                         </a>
                       )}

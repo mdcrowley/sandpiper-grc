@@ -1,6 +1,6 @@
-// First-run setup, sign-in (password and single sign-on buttons) and change-password.
+// First-run setup, sign-in (password, directory (LDAP) and single sign-on buttons) and change-password.
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { PasswordInput, TextInput } from '@mantine/core';
+import { NativeSelect, PasswordInput, TextInput } from '@mantine/core';
 import { api, ApiError, errorMessage } from './api';
 import { useAuth } from './auth';
 import { Icon } from './Icon';
@@ -137,7 +137,8 @@ export function SetupPage() {
 
 // ---------- single sign-on on the sign-in page ----------
 
-interface SignInOptions { providers: { key: string; name: string; isDefault: boolean }[]; localSignIn: boolean }
+/** `style`: `redirect` providers are buttons; `credentials` providers (a directory, E02-26) are a choice on the password form. */
+interface SignInOptions { providers: { key: string; name: string; isDefault: boolean; style?: 'redirect' | 'credentials' }[]; localSignIn: boolean }
 interface PendingLink { pending: boolean; provider?: string; email?: string }
 
 const SSO_MESSAGES: Record<string, string> = {
@@ -156,6 +157,7 @@ function useSsoResult(): string {
 
 /** Buttons for the enabled sign-in providers. Starting one sends the browser to the provider. */
 function ProviderButtons({ options, onError }: { options: SignInOptions; onError: (message: string) => void }) {
+  const buttons = options.providers.filter((p) => p.style !== 'credentials');
   const [starting, setStarting] = useState('');
   const start = async (key: string) => {
     setStarting(key);
@@ -169,9 +171,9 @@ function ProviderButtons({ options, onError }: { options: SignInOptions; onError
   };
   return (
     <div className="stack" style={{ gap: 'var(--s-2)' }} role="group" aria-label="Sign in with your organization">
-      {options.providers.map((p, i) => (
+      {buttons.map((p, i) => (
         <Button
-          key={p.key} variant={p.isDefault || (i === 0 && !options.providers.some((x) => x.isDefault)) ? 'primary' : 'secondary'}
+          key={p.key} variant={p.isDefault || (i === 0 && !buttons.some((x) => x.isDefault)) ? 'primary' : 'secondary'}
           icon="enter" loading={starting === p.key} disabled={Boolean(starting) && starting !== p.key} onClick={() => void start(p.key)}
         >
           Sign in with {p.name}
@@ -231,6 +233,8 @@ export function LoginPage() {
   const [missing, setMissing] = useState<Record<string, string>>({});
   const [error, setError] = useState(SSO_MESSAGES[sso] ?? '');
   const [busy, setBusy] = useState(false);
+  // E02-26: '' signs in with this application's own password; a directory's key, with that directory's.
+  const [method, setMethod] = useState<string | null>(null);
 
   useEffect(() => {
     // Without single sign-on installed (or reachable) the page is the plain password form.
@@ -254,6 +258,27 @@ export function LoginPage() {
     }
   };
 
+  const directories = (options?.providers ?? []).filter((p) => p.style === 'credentials');
+  // The form starts on the default directory, or on a directory when local passwords are off.
+  const chosen = method ?? (pending?.pending ? '' : directories.find((d) => d.isDefault)?.key ?? (options && !options.localSignIn && directories[0] ? directories[0].key : ''));
+  const directory = directories.find((d) => d.key === chosen) ?? null;
+
+  /** Sign-in with a directory's user name and password (E02-26); the second factor still applies. */
+  const directorySignIn = async (key: string) => {
+    const res = await api.post<{ ok: boolean; link?: boolean }>(`/api/auth/sso/${encodeURIComponent(key)}/login`, {
+      username: username.trim(), password, ...(needsCode ? (keyOnly ? { recoveryCode: totp.trim() } : { totp: totp.trim() }) : {}),
+    });
+    if (res.link) {
+      // The directory matched an account here by email: sign in once with that account's password to link them.
+      setPending(await api.get<PendingLink>('/api/auth/sso/pending'));
+      setMethod('');
+      setPassword('');
+      setNeedsCode(false);
+      return;
+    }
+    await refresh();
+  };
+
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     const found: Record<string, string> = {};
@@ -266,12 +291,23 @@ export function LoginPage() {
 
     setBusy(true);
     try {
+      if (directory) {
+        await directorySignIn(directory.key);
+        return;
+      }
       await api.post('/api/auth/login', { username: username.trim(), password, ...(needsCode ? (keyOnly ? { recoveryCode: totp.trim() } : { totp: totp.trim() }) : {}) });
       if (pending?.pending) await finishLink();
       await refresh();
     } catch (err) {
       const code = err instanceof ApiError ? err.code : '';
-      if (code === 'mfa_required' && err instanceof ApiError && err.fields.passkey) {
+      if (directory && code === 'mfa_required' && err instanceof ApiError && err.fields.recovery) {
+        // After a directory password, a passkey cannot be the second step yet (E02-29): a recovery code can.
+        setKeyOnly(true);
+        setNeedsCode(true);
+        if (needsCode) { setError('Sign-in failed. Check your details and try again.'); setTotp(''); }
+      } else if (directory && (code === 'no_account' || code === 'provider_unavailable')) {
+        setError(errorMessage(err));
+      } else if (code === 'mfa_required' && err instanceof ApiError && err.fields.passkey) {
         // The account's second factor is a passkey only: ask the browser for it straight away.
         try {
           await signInWithKeyAfterPassword(username.trim(), password);
@@ -299,11 +335,15 @@ export function LoginPage() {
     }
   };
 
-  const providers = options?.providers ?? [];
+  const providers = (options?.providers ?? []).filter((p) => p.style !== 'credentials');
   const linking = Boolean(pending?.pending);
-  // With local passwords switched off the form stays folded away: only the break-glass account can use it.
-  const passwordFolded = Boolean(options && !options.localSignIn && !linking && !showPassword && !needsCode);
-  const intro = needsCode && keyOnly ? 'One more step: use your passkey or security key, or enter a recovery code.'
+  // With local passwords switched off the form stays folded away (only the break-glass account can use it), unless a directory signs in there.
+  const passwordFolded = Boolean(options && !options.localSignIn && !linking && !showPassword && !needsCode && !directories.length);
+  // The ways the password form can sign in: each directory, and this application's own password.
+  const localOffered = Boolean(options?.localSignIn !== false || showPassword || linking);
+  const ways = [...directories.map((d) => ({ value: d.key, label: d.name })), ...(localOffered ? [{ value: '', label: 'Password for this application' }] : [])];
+  const intro = needsCode && keyOnly && directory ? 'One more step: enter one of your recovery codes.'
+    : needsCode && keyOnly ? 'One more step: use your passkey or security key, or enter a recovery code.'
     : needsCode ? 'One more step: enter the code from your authenticator app.'
     : linking ? undefined
     : providers.length ? 'Use your organization account.' : undefined;
@@ -324,7 +364,7 @@ export function LoginPage() {
         <>
           {error && <FormError>{error}</FormError>}
           <ProviderButtons options={options!} onError={setError} />
-          {options!.localSignIn && <OrDivider>or use a password</OrDivider>}
+          {(options!.localSignIn || directories.length > 0) && <OrDivider>or use a password</OrDivider>}
         </>
       )}
       {passwordFolded ? (
@@ -335,8 +375,15 @@ export function LoginPage() {
       ) : (
       <form className="form" onSubmit={submit} noValidate style={!linking && providers.length > 0 && !options?.localSignIn && !needsCode ? { marginTop: 'var(--s-4)' } : undefined}>
         {error && (linking || providers.length === 0 || needsCode) && <FormError>{error}</FormError>}
+        {ways.length > 1 && !needsCode && !linking && (
+          <NativeSelect
+            label="Sign in with" data={ways} value={chosen}
+            onChange={(e) => { setMethod(e.currentTarget.value); setError(''); setKeyOnly(false); }}
+            description={directory ? `Your user name and password at ${directory.name}.` : undefined}
+          />
+        )}
         <TextInput
-          label="Username" required autoFocus={!needsCode && (providers.length === 0 || linking || showPassword)} autoComplete="username" autoCapitalize="none" spellCheck={false}
+          label={directory ? 'User name' : 'Username'} required autoFocus={!needsCode && (providers.length === 0 || linking || showPassword)} autoComplete="username" autoCapitalize="none" spellCheck={false}
           value={username} error={missing.username} onChange={(e) => setUsername(e.currentTarget.value)}
         />
         <PasswordInput
@@ -359,15 +406,21 @@ export function LoginPage() {
           )
         )}
         <Button type="submit" variant={providers.length && !linking && !needsCode ? 'secondary' : 'primary'} loading={busy}>
-          {needsCode && keyOnly ? 'Sign in with the recovery code' : needsCode ? 'Verify and sign in' : linking ? 'Sign in and link' : 'Sign in'}
+          {needsCode && keyOnly ? 'Sign in with the recovery code' : needsCode ? 'Verify and sign in' : linking ? 'Sign in and link' : directory ? `Sign in with ${directory.name}` : 'Sign in'}
         </Button>
-        {needsCode && <PasskeySecondFactorButton username={username.trim()} password={password} label={keyOnly ? 'Try your passkey or security key again' : undefined} />}
+        {needsCode && !directory && <PasskeySecondFactorButton username={username.trim()} password={password} label={keyOnly ? 'Try your passkey or security key again' : undefined} />}
       </form>
       )}
       {/* A passkey alone, as another way in beside the password (not while linking or at the code step). */}
-      {!passwordFolded && !linking && !needsCode && options?.localSignIn !== false && <PasskeySignIn />}
-      {!passwordFolded && !needsCode && options?.localSignIn !== false && forgotAvailable && (
+      {!passwordFolded && !linking && !needsCode && !directory && options?.localSignIn !== false && <PasskeySignIn />}
+      {!passwordFolded && !needsCode && !directory && options?.localSignIn !== false && forgotAvailable && (
         <p className="auth-foot"><a href="/forgot-password">Forgot your password?</a></p>
+      )}
+      {/* Local passwords off, with a directory on the form: the break-glass account still needs a way in. */}
+      {directories.length > 0 && options && !options.localSignIn && !showPassword && !linking && !needsCode && (
+        <p className="auth-foot">
+          <button type="button" style={LINK_BUTTON} onClick={() => { setShowPassword(true); setMethod(''); }}>Emergency access with a password</button>
+        </p>
       )}
     </AuthLayout>
   );

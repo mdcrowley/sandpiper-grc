@@ -179,3 +179,27 @@ describe('what a system failure affects', () => {
     if (none.status === 201) expect(await names(await connect(none.body.token))).not.toContain('system_impact');
   });
 });
+
+describe('search_audit_log', () => {
+  it('finds everything one request did, for people who may read the audit log', async () => {
+    const tok = (await t.api.post('/api/mcp/tokens', { name: 'Auditor', access: 'read', expiresInDays: 7 })).body.token;
+    const c = await connect(tok);
+    expect(await names(c)).toContain('search_audit_log');
+    // The audit log is append-only: take the request id of an event already there.
+    const last = await t.db.one<any>(`select request_id from audit_events where request_id is not null order by id desc limit 1`);
+    const rid = String(last.request_id);
+    const count = (await t.db.one<any>('select count(*)::int as n from audit_events where request_id = $1', [rid])).n;
+    const res = await c.callTool({ name: 'search_audit_log', arguments: { request_id: rid } });
+    expect(res.isError, JSON.stringify(res.content)).toBeFalsy();
+    const data = res.structuredContent as any;
+    expect(data.total).toBe(count);
+    expect(data.events.every((e: any) => e.request_id === rid)).toBe(true);
+    expect(data.events[0]).not.toHaveProperty('before');
+    expect(data.url).toContain(`/admin/audit?request_id=${encodeURIComponent(rid)}`);
+    expect((await c.callTool({ name: 'search_audit_log', arguments: {} })).isError).toBe(true);
+    // Someone who cannot read the audit log is not offered the tool.
+    const requester = await t.as('requester');
+    const theirs = await requester.post('/api/mcp/tokens', { name: 'No audit', access: 'read', expiresInDays: 7 });
+    if (theirs.status === 201) expect(await names(await connect(theirs.body.token))).not.toContain('search_audit_log');
+  });
+});

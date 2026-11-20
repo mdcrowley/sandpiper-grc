@@ -388,6 +388,8 @@ rest). `.\grc.ps1 schedule-backup` writes the values in force into its scheduled
 | `GRC_PDF_FONTS` | well-known system fonts | Font files for PDF text outside Western European, `;`-separated on Windows and `:` elsewhere; `file.ttc#PostScriptName` picks one font of a collection; `none` switches it off ([Operations](operations.md#fonts-for-pdf-exports)) |
 | `GRC_SLOW_QUERY_MS` | not set | Log database statements taking this many milliseconds or more (their text only, never their values) |
 | `GRC_STARTUP_WARN_MS` | `2000` | Log a start-up step that takes longer than this many milliseconds, named after where it was added |
+| `GRC_STARTUP_TIMEOUT_SECONDS` | `600` | How long one start-up step may take before the start is abandoned (at least `10`). Rebuilding a search index after an upgrade grows with the data |
+| `GRC_FIGURES_CACHE_SECONDS` | `10` | How long the Overview's figures are kept while nothing is written (at most `300`); `0` switches the cache off ([Operations](operations.md#performance-and-load-testing)) |
 | `GRC_ANALYZE_AFTER_WRITES` | `2000` | Embedded database only: refresh the query planner's statistics after this many writes (at most every ten minutes); `0` switches it off |
 | `GRC_SERVICE_NAME` | `sandpiper-grc` | Name of the user service `./grc.sh service install` writes |
 
@@ -520,10 +522,17 @@ GRC_DATABASE_MIGRATE_PASSWORD_FILE=/etc/sandpiper-grc/owner-password
   owner role`.
 - `grc_app` owns nothing, so it cannot create, alter or drop tables or triggers (tested in
   `server/src/core/migrate.test.ts`, and in continuous integration against PostgreSQL 17).
-- Two things still need the owner, so run `migrate` as the owner after them: **new custom
-  fields** (each adds a column) and an upgrade that changes what is searched (it rebuilds a
-  search trigger; until then that record type is searched by plain matching and the log says
-  so). `import-all` also runs as the owner when `GRC_DATABASE_MIGRATE_URL` is set.
+- The run-time account never attempts a schema change (E16-37). The owner's run gives every
+  record table the column that holds custom-field values, so **new custom fields** work at
+  once. A change to what is searched (a new text custom field, or an upgrade) needs a search
+  trigger rebuilt: the server records it in the `schema_requests` table and logs
+  `[schema] waiting for the owner account: ...`, keeps searching that record type with its
+  earlier trigger, and the owner's next run (the next start with `GRC_DATABASE_MIGRATE_URL`
+  set, or `migrate`) rebuilds it from the application's own definitions and clears the
+  request. Nothing stored in that table is ever run. A SECURITY DEFINER function was
+  considered and not used: it would give the run-time account a standing way to change the
+  schema. Tested in `server/src/ops/db-roles-runtime.test.ts` (embedded, wire protocol and
+  PostgreSQL 17). `import-all` also runs as the owner when `GRC_DATABASE_MIGRATE_URL` is set.
 
 ### HTTPS
 
@@ -640,8 +649,15 @@ credentials must be entered again ([Security](security.md)).
    and the **Send as mailbox**: a user or shared mailbox (by default, the from address). The from
    address must be that mailbox's address or one it has Send As permission for.
 
-Graph takes one message of at most about 3 MB with its files; a larger one is refused with a
-plain reason (use SMTP, or send large files as links).
+Graph takes one request of at most 4 MB. A larger message (up to the application's 10 MB limit
+for files) is created as a draft, each file over 3 MB is uploaded through an upload session in
+parts of 3,200 KiB (the upload address Graph returns must be a Microsoft one, and no access token
+is sent to it), and the draft is sent; a draft left by a failed attempt is deleted. A draft cannot
+carry `Auto-Submitted` or `References` headers, so their equivalents are used: the message keeps
+its Message-ID, `References` and `In-Reply-To` are set through the properties Exchange writes them
+from, and `X-Auto-Response-Suppress: All` and `X-GRC-Mail` stay as headers. The large-file upload
+connects to the Outlook address Graph names (`outlook.office.com` or `outlook.office365.us`),
+port 443.
 
 **Gmail API.** A service account with domain-wide delegation. This was chosen over a person's
 own sign-in (an OAuth refresh token) because it needs no browser sign-in and belongs to no one
@@ -671,7 +687,45 @@ SMTP with an app password there.
 | Permission missing: grant the Mail.Send application permission | Add the permission, grant admin consent, and include the mailbox in the application access policy |
 | Domain-wide delegation is missing | Add the client ID and the scope named in the message in the Admin console (it can take some minutes to apply) |
 | Wrong mailbox | Use the address of an existing user or shared mailbox (Microsoft) or user (Google) |
-| Busy or throttled | Nothing to fix: the message is tried again later (1, 2, 4 and 8 minutes) |
+| Busy or throttled | Nothing to fix: the message is tried again later: after as long as the service asked (`Retry-After`, in seconds or as a date, or an SMTP reply such as "try again in 5 minutes"), at most an hour; otherwise after 1, 2, 4 and 8 minutes |
+
+### Text messages for alerts
+
+Urgent alerts (security incidents declared, notification clocks turning amber or red) can be sent
+as text messages. No paid service is built in. Administration > Email > Text messages offers two
+ways, used together or alone:
+
+- **Email-to-text addresses.** The text is emailed, through the mail settings above, to each
+  person's email-to-text address (a carrier's or messaging service's address that turns email into
+  a text). Nothing else to set up.
+- **A webhook to your own text-message system.** Each text is posted to the address you enter. It
+  is an outbound connection with the same fences as webhooks: `integrations.outbound_enabled`
+  must be on and the host on `integrations.allowed_hosts`; a host that resolves to a private
+  address is refused unless that address is listed; redirects are not followed; the address must
+  be https (plain http only to this machine, for a relay running beside the application). The
+  signing secret is kept encrypted with the installation's secret key (with the mail credentials).
+
+The webhook request:
+
+```
+POST <your address>
+Content-Type: application/json
+User-Agent: grc-text/1
+X-GRC-Event: text.message
+X-GRC-Delivery: <delivery id>
+X-GRC-Timestamp: <seconds since 1970>
+X-GRC-Signature: sha256=<hex HMAC-SHA256(secret, timestamp + "." + body)>
+
+{ "type": "text_message", "id": "<delivery id>", "to": "+15550100123",
+  "text": "Sandpiper GRC: security incident SEC-0042 needs attention: a notification deadline has passed. Open the app.",
+  "purpose": "security", "test": false, "createdAt": "2026-11-19T14:05:00.000Z" }
+```
+
+`to` is the person's mobile number as digits with an optional leading `+`. `text` is at most 300
+characters and never carries restricted detail. Check the signature and reject a timestamp more
+than a few minutes old. Answer any 2xx when you have taken the message; 408, 429 and 5xx are tried
+again (four attempts in all), and any other answer is final. Each text is listed in the email
+delivery log with the provider **webhook**.
 
 ### Email to ticket
 

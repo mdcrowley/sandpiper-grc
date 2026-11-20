@@ -14,6 +14,7 @@
 // confirmation's Recipient and InResponseTo, the assertion ID for replay protection, and the
 // authentication context.
 import { DOMParser } from '@xmldom/xmldom';
+import { SignedXml } from 'xml-crypto';
 import { IdentityError } from './types.ts';
 
 export const NS = {
@@ -332,6 +333,8 @@ export interface IdpMetadata {
   certificates: string[];
   wantAuthnRequestsSigned: boolean;
   nameIdFormats: string[];
+  /** E02-28: the earliest validUntil on the document or the entity (ISO), or null when it states none. */
+  validUntil: string | null;
 }
 
 /** Reads an identity provider's metadata (an EntityDescriptor, or an EntitiesDescriptor with one identity provider). */
@@ -374,5 +377,109 @@ export function parseIdpMetadata(xml: string): IdpMetadata {
     certificates,
     wantAuthnRequestsSigned: attr(idp, 'WantAuthnRequestsSigned') === 'true',
     nameIdFormats: children(idp, NS.metadata, 'NameIDFormat').map((e) => text(e)).filter(Boolean).slice(0, 10),
+    validUntil: [attr(root, 'validUntil'), attr(entity, 'validUntil')].map((v) => (v ? Date.parse(v) : NaN)).filter(Number.isFinite)
+      .sort((a, b) => a - b).map((t) => new Date(t).toISOString())[0] ?? null,
   };
+}
+
+// ---------- sign-outs started at the identity provider (E02-27) ----------
+
+export interface LogoutRequestFacts {
+  id: string;
+  issuer: string;
+  destination: string | null;
+  issueInstant: number;
+  notOnOrAfter: number | null;
+  nameId: string;
+  nameIdFormat: string | null;
+  sessionIndexes: string[];
+  /** The request carries an XML signature on its root (HTTP-POST binding). */
+  signed: boolean;
+}
+
+/**
+ * The checks made on a LogoutRequest before (and beside) the library's signature check: hardened
+ * parsing, one signature at most and only on the root element with accepted algorithms, unique IDs,
+ * SAML 2.0, a readable issue time, a NameID in the clear. `requireXmlSignature` for the HTTP-POST
+ * binding (the HTTP-Redirect binding signs the query string instead).
+ */
+export function inspectLogoutRequest(xml: string, opts: { requireXmlSignature: boolean }): LogoutRequestFacts {
+  const doc = parseXml(xml);
+  const root = doc.documentElement;
+  if (root.localName !== 'LogoutRequest' || root.namespaceURI !== NS.protocol) throw new IdentityError('not a SAML LogoutRequest');
+  if (attr(root, 'Version') !== '2.0') throw new IdentityError('LogoutRequest is not SAML 2.0');
+  checkUniqueIds(doc);
+  checkSignatures(doc, [root]);
+  const signed = children(root, NS.ds, 'Signature').length === 1;
+  if (opts.requireXmlSignature && !signed) throw new IdentityError('LogoutRequest is not signed');
+  const id = attr(root, 'ID');
+  if (!id || id.length > 256) throw new IdentityError('LogoutRequest has no usable ID');
+  const time = (v: string | null) => {
+    if (v === null) return null;
+    const t = Date.parse(v);
+    if (!Number.isFinite(t) || !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z$/.test(v)) throw new IdentityError('unreadable time in LogoutRequest');
+    return t;
+  };
+  const issueInstant = time(attr(root, 'IssueInstant'));
+  if (issueInstant === null) throw new IdentityError('LogoutRequest has no IssueInstant');
+  if (child(root, NS.assertion, 'EncryptedID') || child(root, NS.assertion, 'BaseID')) throw new IdentityError('LogoutRequest names the person in a way that is not supported (encrypted or base ID)');
+  const nameIdEl = child(root, NS.assertion, 'NameID');
+  const nameId = text(nameIdEl);
+  if (!nameId || nameId.length > 255) throw new IdentityError('LogoutRequest has no usable NameID');
+  const sessionIndexes = children(root, NS.protocol, 'SessionIndex').map((e) => text(e)).filter((s) => s && s.length <= 256);
+  if (sessionIndexes.length > 50) throw new IdentityError('LogoutRequest has too many session indexes');
+  return {
+    id,
+    issuer: text(child(root, NS.assertion, 'Issuer')),
+    destination: attr(root, 'Destination'),
+    issueInstant,
+    notOnOrAfter: time(attr(root, 'NotOnOrAfter')),
+    nameId,
+    nameIdFormat: attr(nameIdEl, 'Format'),
+    sessionIndexes,
+    signed,
+  };
+}
+
+// ---------- signed metadata (E02-28) ----------
+
+/**
+ * Checks the signature on a metadata document against the one certificate an administrator pinned
+ * for it, and returns what that signature covers (the signed bytes, canonicalized): only those are
+ * read afterwards, never the document as received. The signature must be the only one, directly on
+ * the root element, covering the root (a reference to its ID, or the whole document), with the
+ * same algorithms accepted as for sign-in.
+ */
+export function verifyMetadataSignature(xml: string, certPem: string): string {
+  const doc = parseXml(xml, LIMITS.metadataBytes);
+  const root = doc.documentElement;
+  const signatures = elements(root).filter((e) => e.localName === 'Signature' && e.namespaceURI === NS.ds);
+  if (!signatures.length) throw new IdentityError('metadata is not signed', 'The metadata is not signed, but a metadata signing certificate is set.');
+  if (signatures.length > 1 || signatures[0].parentNode !== root) throw new IdentityError('metadata signature in an unexpected place', 'The metadata must carry exactly one signature, on its root element.');
+  const sig = signatures[0];
+  const signedInfo = child(sig, NS.ds, 'SignedInfo');
+  const method = attr(child(signedInfo, NS.ds, 'SignatureMethod'), 'Algorithm');
+  if (!method || !SIGNATURE_ALGORITHMS.has(method)) throw new IdentityError('metadata signature algorithm not accepted', 'The metadata is signed with an algorithm that is not accepted (RSA-SHA256 or stronger is needed).');
+  const refs = signedInfo ? children(signedInfo, NS.ds, 'Reference') : [];
+  if (refs.length !== 1) throw new IdentityError('metadata signature must have one reference', 'The metadata signature must cover the whole document.');
+  const digest = attr(child(refs[0], NS.ds, 'DigestMethod'), 'Algorithm');
+  if (!digest || !DIGEST_ALGORITHMS.has(digest)) throw new IdentityError('metadata digest algorithm not accepted', 'The metadata signature uses a digest that is not accepted (SHA-256 or stronger is needed).');
+  for (const t of children(child(refs[0], NS.ds, 'Transforms') ?? sig, NS.ds, 'Transform')) {
+    if (!TRANSFORMS.has(attr(t, 'Algorithm') ?? '')) throw new IdentityError('metadata signature transform not accepted', 'The metadata signature uses a transform that is not accepted.');
+  }
+  const uri = attr(refs[0], 'URI') ?? '';
+  const rootId = attr(root, 'ID');
+  if (uri !== '' && !(rootId && uri === `#${rootId}`)) throw new IdentityError('metadata signature does not cover the root', 'The metadata signature must cover the whole document.');
+  checkUniqueIds(doc);
+  let verified: SignedXml;
+  try {
+    verified = new SignedXml({ publicCert: certPem, getCertFromKeyInfo: () => null });
+    verified.loadSignature(sig);
+    if (!verified.checkSignature(xml)) throw new Error('bad');
+  } catch {
+    throw new IdentityError('metadata signature not valid', 'The metadata signature is not valid for the metadata signing certificate.');
+  }
+  const signed = verified.getSignedReferences();
+  if (signed.length !== 1 || !signed[0]) throw new IdentityError('metadata signature covers nothing', 'The metadata signature must cover the whole document.');
+  return signed[0];
 }

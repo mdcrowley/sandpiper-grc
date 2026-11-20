@@ -1,9 +1,9 @@
 # E14 Platform services not yet built
 
-**Status:** in progress (24 of 30 issues done)
+**Status:** in progress (29 of 33 issues done)
 full-text search built; custom fields, tags and watchers built with their screens; retention
-built on the server and screens; evidence files on record pages built, their reminders open;
-feature switches for optional areas built)
+built on the server and screens, with anonymizing; evidence files on record pages built, with expiry reminders;
+feature switches for optional areas built; approval workflows built)
 
 ## Goal
 
@@ -27,8 +27,11 @@ bulk edit) that make daily use quicker.
 - The job queue and email are core services (`server/src/core/jobs`, `server/src/core/mail`).
   Until `app.ts` starts them itself, the notifications module starts both in its
   `seedDefaults`, so they exist before any module's `register` runs.
-- Workflow today is per-module code plus configurable lists. That is adequate for a
-  pilot; the general engine is a later item.
+- Approval workflows (E14-06) are the `workflows` module: ordered approval steps any record
+  type can use, defined by an administrator. The modules' own approval rules (changes, catalog
+  requests, project gates, asset disposal, risk acceptance) keep working beside it until each
+  moves across (E05-13, E03-22, E11-25, E04-24, E08-23). Status lifecycles are still per-module
+  code plus configurable lists (E14-31).
 
 ## Issues
 
@@ -39,7 +42,7 @@ bulk edit) that make daily use quicker.
 | E14-03 | In-app notifications | done | P1 |
 | E14-04 | Email delivery | done | P2 |
 | E14-05 | Email setup and reset links | done | P2 |
-| E14-06 | Workflow engine with approvals | open | P3 |
+| E14-06 | Workflow engine with approvals | done | P3 |
 | E14-07 | Full-text search | done | P2 |
 | E14-08 | Tags | done | P3 |
 | E14-09 | Watchers | done | P3 |
@@ -51,8 +54,8 @@ bulk edit) that make daily use quicker.
 | E14-15 | Purge and retention of removed files | done | P2 |
 | E14-16 | Notifications from the other modules | done | P1 |
 | E14-17 | Notification housekeeping | done | P3 |
-| E14-18 | Evidence files on evidence-bearing records | in progress | P2 |
-| E14-19 | Anonymize a record at the end of its retention period | open | P3 |
+| E14-18 | Evidence files on evidence-bearing records | done | P2 |
+| E14-19 | Anonymize a record at the end of its retention period | done | P3 |
 | E14-20 | Retention review counts follow row-level restriction | done | P3 |
 | E14-21 | Comment search follows the search language setting | done | P3 |
 | E14-22 | Move the other modules' timers onto the job queue | done | P2 |
@@ -62,8 +65,11 @@ bulk edit) that make daily use quicker.
 | E14-26 | Other modules' tests stand in for `notify` and `sendMail` safely | done | P3 |
 | E14-27 | File housekeeping, rescans and moves as background jobs | done | P3 |
 | E14-28 | Switch optional parts of the application on and off | done | P2 |
-| E14-29 | Larger messages through Microsoft Graph | open | P3 |
-| E14-30 | Wait as long as a throttled mail service asks | open | P3 |
+| E14-29 | Larger messages through Microsoft Graph | done | P3 |
+| E14-30 | Wait as long as a throttled mail service asks | done | P3 |
+| E14-31 | Allowed status changes and required fields as data per record type | open | P3 |
+| E14-32 | Approval workflows that branch, run steps side by side or delegate | open | P3 |
+| E14-33 | Retention decisions raise webhook events | open | P3 |
 
 ---
 
@@ -245,18 +251,52 @@ tests in `server/src/core/mail/mail.test.ts` ("forgotten password")
 
 ### E14-06 Workflow engine with approvals
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
-As an administrator, I define for a record type which status changes are allowed, who
-may make them, and which need approval, instead of this being written in each module.
+As an administrator, I define for a record type which changes need approval, who approves
+them and what happens at the end, instead of this being written in each module.
 
 **Acceptance criteria**
 
-- [ ] Transitions, conditions and required fields are data per record type
-- [ ] An approval step routes to a person, a role or the record's owner
-- [ ] Approvers see a list of what is waiting for them
-- [ ] Existing per-module rules keep working until moved across
-- [ ] First users: asset disposal, change approval, risk acceptance
+- [ ] Transitions, conditions and required fields are data per record type: split out as E14-31
+  (allowed status changes and required fields); conditions are built here, on starting a
+  workflow and on each step
+- [x] Per record type, workflows with ordered steps; each step approved by named people, a role,
+  a person field of the record (owner, manager) or a department head (of the requester's
+  department or the one a field names; heads set on the Department heads tab), with a quorum
+  (any one, all, or a number), optional conditions on the record's fields (lists, numbers,
+  amounts, dates, text, people, yes/no) that skip the step when they do not hold, and a due time
+  with escalation through the job queue and notifications
+- [x] Started on create, when a list field changes to a value, or by hand from the record page
+  (anyone who may edit the record), with conditions on which records; one running copy per
+  record; running workflows keep the version they started with
+- [x] At the end, fields are set on approval and on rejection (with "today", "the last approver"
+  and "the requester"); a refused outcome is recorded and shown, never lost
+- [x] Approvers act from a notification, the **Approvals** page (waiting for me, decided by me,
+  my requests) and the record's approval panel; nobody approves their own request; a rejection
+  needs a reason; each person decides once
+- [x] Every start, decision, escalation, cancelation and outcome is an audit event on the
+  record; restricted records go only to approvers who may see them; a switched-off area's
+  workflows do nothing and leave every list until it is back on
+- [x] Webhook events `workflow.decided` and `workflow.finished`; MCP tools `my_approvals` and
+  `decide_approval`
+- [x] Administration > Approval workflows: workflows by record type with a picture of their
+  steps, an editor with the flow drawn beside it, running workflows (with cancel) and
+  department heads
+- [x] Existing per-module rules keep working until moved across
+- [ ] First users: moving change approval, asset disposal and risk acceptance (and catalog request
+  approvals and project gates) across is raised per module: E05-13, E04-24, E08-23, E03-22, E11-25
+
+**Implemented in:** `server/src/modules/workflows/` (`engine.ts` rules, `service.ts`,
+`routes.ts`, `index.ts`, `migrations/001_workflows.sql`), `WEBHOOK_EVENTS` in
+`server/src/core/webhooks.ts`, `server/src/modules/mcp/tools-approvals.ts`; web
+`web/src/modules/workflows/` (`ApprovalsPage.tsx`, `WorkflowsAdmin.tsx`, `WorkflowEditor.tsx`,
+`FlowDiagram.tsx`, `WorkflowPanel.tsx`), the panel's slot in `web/src/core/RecordPage.tsx`;
+routes `/api/workflows/options`, `/definitions`, `/department-heads/:id`, `/running`,
+`/approvals`, `/approvals/count`, `/records/:type/:id` (and `/start`), `/steps/:id/decision`,
+`/instances/:id/cancel`; tests `engine.test.ts`, `workflows.test.ts`, `mcp-approvals.test.ts`;
+user guide [Approval workflows](../../user/22-approval-workflows.md); module adoption in
+[the developer guide](../../development.md#approval-workflows-shared-engine)
 
 ### E14-07 Full-text search
 
@@ -375,7 +415,7 @@ age are flagged for review rather than deleted silently.
   for review; an extension that runs out flags the record again
 - [x] A reviewer can extend (to a date or by months) or remove each one, with a reason;
   removal needs confirmation and a recent password confirmation, is refused while files
-  are attached, and is the only hard delete in the application (anonymizing: E14-19)
+  are attached, and is the only hard delete in the application (anonymizing: E14-19, done)
 - [x] Nothing is removed automatically
 - [x] The audit log has its own, longer period (`retention.audit_months`, default 84),
   recorded only: audit events are never deleted
@@ -565,7 +605,7 @@ database's.
 
 ### E14-18 Evidence files on evidence-bearing records
 
-**Status:** in progress (record pages done; reminders and the two expiring pages open) · **Priority:** P2 · **Type:** improvement
+**Status:** done · **Priority:** P2 · **Type:** improvement
 
 As a compliance lead, I attach the evidence itself where I record that it exists.
 
@@ -578,20 +618,30 @@ As a compliance lead, I attach the evidence itself where I record that it exists
   its files tab **Evidence files** and opens the panel with `evidence` (prop `evidence` overrides).
   Pages with an Evidence tab of their own (framework outcomes, obligations, security incidents,
   vendor evidence items) keep it
-- [ ] The vendor **Expiring evidence** page and the **Expiring evidence files** page link
-  to each other, or are merged (vendors and attachments modules)
-- [ ] An expiring evidence file raises a `reminder` notification to the record's owner
-  (attachments module, on the job queue)
-- [ ] Closes E06-17, E07-12 and E11-17 where they only waited for attachments
+- [x] The vendor **Expiring evidence** page and the **Expiring evidence files** page link
+  to each other (kept apart: one lists vendor evidence items by their own date, the other
+  evidence files on any record): **Expiring evidence files on any record** and **Expiring
+  vendor evidence** (shown when vendors are on and the person can view them)
+- [x] An expiring evidence file raises a `reminder` notification to the record's owner
+  (attachments module, daily job `attachments.evidence_reminders`): 30 and 7 days before and
+  on the day, each once per file and date (the nearest step only when several are due); the
+  owner is the record's `owner_id` (or first owner-like person field), else the person who
+  attached the file; files on vendor evidence items are left out (the item's own reminders)
+- [x] Closes E06-17, E07-12 and E11-17 where they only waited for attachments (all three
+  were already done)
 
-**Implemented in (so far):** `server/src/core/module.ts` (`evidence`), `server/src/core/resource.ts`
+**Implemented in:** `server/src/core/module.ts` (`evidence`), `server/src/core/resource.ts`
 (`EVIDENCE_TYPES`, `evidenceFor`), `server/src/core/routes.ts` (`/api/meta`),
 `web/src/core/RecordPage.tsx`, `web/src/core/meta.tsx`; test in
 `server/src/core/records-platform.test.ts` ("evidence files in metadata").
+Reminders: `server/src/modules/attachments/evidenceReminders.ts` (scheduled in `index.ts`),
+test `evidenceReminders.test.ts`. Links between the pages:
+`web/src/modules/attachments/ExpiringEvidenceFiles.tsx`, `EvidenceExpiring` in
+`web/src/modules/vendors/EvidencePages.tsx`.
 
 ### E14-19 Anonymize a record at the end of its retention period
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 As an administrator, I keep a record's shape and figures but remove the personal details
 in it, as a third choice in the retention review beside extending and removing. Split
@@ -599,9 +649,28 @@ from E14-11.
 
 **Acceptance criteria**
 
-- [ ] Each record type declares which fields are personal (people, names, free text)
-- [ ] Anonymizing blanks or replaces those fields and the record's comments, and is audited
-- [ ] The review entry records the decision and reason
+- [x] Each record type declares which fields are personal (people, names, free text):
+  `FieldDef.personal`, defaulting to person and long-text fields and text fields named like
+  an email address, phone number or person's name (`isPersonal` in `core/retention.ts`)
+- [x] Per record type an administrator chooses what the review may do
+  (`retention_policies.disposal`: keep, anonymize or delete; core migration 013)
+- [x] Anonymizing replaces those fields (and long-text and person custom fields,
+  `created_by`, `updated_by`), the record's comments (text and author), the contents and names
+  of its files, the titles of notifications about it, and drops its watchers; the search
+  index follows by its triggers. The row, its figures, tags and links stay, so counts are
+  identical for everyone
+- [x] Needs a reason, an explicit confirmation and a recent identity confirmation; cannot be
+  undone (the confirmation says so); audited (`retention.anonymize`, without the removed values)
+- [x] The audit log is append-only and not changed (it keeps who changed what, by design);
+  `retention.audit_months` is recorded, not enforced
+- [x] The review entry records the decision and reason (status `anonymized`)
+- [x] **Anonymize…** on the review list and the choice in the period dialog
+
+**Implemented in:** `server/src/core/retention.ts` (`anonymize`, `personalFields`),
+`server/src/core/module.ts` (`FieldDef.personal`),
+`server/src/core/migrations/013_retention_anonymize.sql`, `web/src/modules/admin/Retention.tsx`;
+test `server/src/core/retention.test.ts`. Routes: `PUT /api/admin/retention/:type` takes
+`disposal`; `POST /api/admin/retention/reviews/:id/anonymize` (`{ reason, confirm: true }`).
 
 ### E14-20 Retention review counts follow row-level restriction
 
@@ -777,33 +846,52 @@ as a throttled service asks (E14-30) are separate issues.
 
 ### E14-29 Larger messages through Microsoft Graph
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 Microsoft Graph takes one `sendMail` request of at most 4 MB, so a message larger than about
-3 MB with its files is refused (non-retryable, with a plain reason) when sending through Graph;
-SMTP and the Gmail API take up to 10 MB of files. Graph accepts larger messages by creating a
-draft and uploading each large file in an upload session, but a draft cannot carry
-`Auto-Submitted` or `References` (only `X-` headers), which the loop guards and threading need.
+3 MB with its files was refused when sending through Graph; SMTP and the Gmail API take up to
+10 MB of files. Graph accepts larger messages by creating a draft and uploading each large file in
+an upload session, but a draft cannot carry `Auto-Submitted` or `References` (only up to five `X-`
+headers), which the loop guards and threading need.
 
 **Acceptance criteria**
 
-- [ ] Messages up to the 10 MB attachment limit go through Graph, keeping the headers the loop
-  guards and threading need (or an equivalent the receiving side recognizes)
-- [ ] A test with the stand-in Graph service
+- [x] Messages up to the 10 MB attachment limit go through Graph: a message over one request is
+  created as a draft, files over 3 MB are uploaded through an upload session in 3,200 KiB chunks
+  (the upload address must be a Microsoft one; no access token is sent to it), smaller ones added
+  directly, then the draft is sent; a draft left by a failed attempt is deleted
+- [x] Equivalents for the headers: the Message-ID is kept (`internetMessageId`), `References` and
+  `In-Reply-To` are set through the MAPI properties Exchange writes them from (0x1039, 0x1042),
+  `X-Auto-Response-Suppress: All` (honored by Exchange and Outlook in place of `Auto-Submitted`)
+  and `X-GRC-Mail` (the application's own loop guard) stay headers, the loop guards first
+- [x] A test with the stand-in Graph service (draft, attachments, chunked upload session with
+  Content-Range checks, send, the 4 MB and five-header limits, the draft removed after a failure)
+
+**Implemented in:** `server/src/core/mail/graph.ts` (`sendLarge`, `graphDraft`),
+`server/src/core/mail/cloud-fake.ts` (drafts, `/graph-upload/`); tests in `providers.test.ts`
 
 ### E14-30 Wait as long as a throttled mail service asks
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
-A throttled message (Graph or Gmail answering 429 with `Retry-After`) is retried with the mail
-queue's usual back-off (1, 2, 4 and 8 minutes), and the delivery log shows how long the service
-asked to wait. The job queue cannot yet be told to wait a given time before the next attempt.
+A throttled message (Graph or Gmail answering 429 or 503 with `Retry-After`, or an SMTP 4xx reply
+such as "try again in 5 minutes") waits as long as the service asked before the next attempt, at
+most an hour, instead of the mail queue's usual back-off (1, 2, 4 and 8 minutes).
 
 **Acceptance criteria**
 
-- [ ] A job handler can ask for its next attempt no sooner than a given time (`core/jobs`)
-- [ ] The mail providers pass the service's `Retry-After` through it
-- [ ] Tests
+- [x] A job handler can ask for its next attempt no sooner than a given time (`core/jobs`):
+  `RetryLaterError(message, seconds | date)`, or any error with `retryAt` / `retryAfterSeconds`;
+  at least one second, at most six hours; the attempt still counts towards `maxAttempts`
+- [x] The mail providers pass the service's `Retry-After` (seconds or an HTTP date) through it,
+  and SMTP's "try again in N seconds/minutes/hours" (`smtpRetryAfter`); the mail job bounds the
+  wait to an hour
+- [x] Tests (queue, Graph seconds and date, SMTP reply text)
+
+**Implemented in:** `server/src/core/jobs/queue.ts` (`RetryLaterError`, `requestedWait`),
+`server/src/core/mail/cloud.ts` (`throttledError`), `provider.ts` (`retryAfterSeconds`,
+`smtpRetryAfter`), `service.ts` (`MAX_MAIL_WAIT_SECONDS`); tests in `core/jobs/jobs.test.ts`,
+`core/mail/providers.test.ts`, `core/mail/mail.test.ts`
 
 ### E14-26 Other modules' tests stand in for `notify` and `sendMail` safely
 
@@ -897,3 +985,49 @@ back whole when it changes its mind.
 `modules/admin/Features.tsx`, `RoleDetail.tsx`, `Settings.tsx`, `modules/home/OverviewPage.tsx`,
 `modules/help/areas.ts`; tests `modules/admin/features.test.ts`. Notifications already sent about
 a switched-off area's records stay, shown as "A record you can no longer open".
+
+### E14-31 Allowed status changes and required fields as data per record type
+
+**Status:** open · **Priority:** P3 · **Type:** feature
+
+As an administrator, I say for a record type which status changes are allowed, who may make
+them and which fields must be filled in first, instead of this being written in each module.
+Split from E14-06, which built the approval workflows.
+
+**Acceptance criteria**
+
+- [ ] Allowed moves between the values of a status field, per record type, kept as data (some
+  modules already keep `meta.next` on their status lists)
+- [ ] Fields required before a move, and who may make it (a permission or role)
+- [ ] A move that needs approval starts an approval workflow (E14-06) and waits for it
+- [ ] Modules with their own lifecycle rules keep them until moved across
+
+### E14-32 Approval workflows that branch, run steps side by side or delegate
+
+**Status:** open · **Priority:** P3 · **Type:** feature
+
+As an administrator, some approvals need two groups at once (finance and safety together), a
+different route for different records, or someone to stand in while an approver is away. E14-06
+built ordered steps only.
+
+**Acceptance criteria**
+
+- [ ] Steps that run side by side and all must finish
+- [ ] A choice of route by condition, beyond skipping a step
+- [ ] An approver names a stand-in for a period; their approvals go to the stand-in and are recorded as such
+- [ ] Reassign a waiting step to someone else (administrators), audited
+
+### E14-33 Retention decisions raise webhook events
+
+**Status:** open · **Priority:** P3 · **Type:** improvement
+
+Anonymizing or removing a record from the retention review (E14-11, E14-19) writes the record
+directly rather than through the resource engine, so it is audited but raises no webhook event and
+runs no after-save hooks. A system that mirrors records through webhooks therefore keeps the
+personal data it was sent earlier.
+
+**Acceptance criteria**
+
+- [ ] Anonymizing raises a record-updated event (with the replaced fields only) and removing raises a record-deleted event, in the `WEBHOOK_EVENTS` catalog
+- [ ] The event carries no personal values from before the change
+- [ ] Tested, and listed in the webhook guide

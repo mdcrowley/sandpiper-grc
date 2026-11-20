@@ -136,29 +136,29 @@ status `done`; issues in progress, open or blocked are counted in the total only
 | ID | Epic | Status | Done / total |
 |---|---|---|---|
 | [E01](epics/E01-platform-foundations.md) | Platform foundations | done | 34 / 34 |
-| [E02](epics/E02-account-security.md) | Account security | in progress | 22 / 28 |
-| [E03](epics/E03-service-desk.md) | Service desk | done | 21 / 21 |
-| [E04](epics/E04-inventory-and-relationship-map.md) | Inventory and relationship map | done | 23 / 23 |
-| [E05](epics/E05-change-enablement.md) | Change enablement | done | 12 / 12 |
-| [E06](epics/E06-vendors-and-contracts.md) | Vendors and contracts | in progress | 23 / 25 |
+| [E02](epics/E02-account-security.md) | Account security | in progress | 25 / 29 |
+| [E03](epics/E03-service-desk.md) | Service desk | in progress | 21 / 22 |
+| [E04](epics/E04-inventory-and-relationship-map.md) | Inventory and relationship map | in progress | 23 / 24 |
+| [E05](epics/E05-change-enablement.md) | Change enablement | in progress | 12 / 13 |
+| [E06](epics/E06-vendors-and-contracts.md) | Vendors and contracts | done | 25 / 25 |
 | [E07](epics/E07-framework-outcomes-and-assessments.md) | Framework outcomes and assessments | done | 25 / 25 |
-| [E08](epics/E08-risks-actions-and-obligations.md) | Risks, actions and obligations | done | 22 / 22 |
-| [E09](epics/E09-security-incidents-and-notification-clocks.md) | Security incidents and notification clocks | in progress | 24 / 25 |
+| [E08](epics/E08-risks-actions-and-obligations.md) | Risks, actions and obligations | in progress | 22 / 23 |
+| [E09](epics/E09-security-incidents-and-notification-clocks.md) | Security incidents and notification clocks | done | 25 / 25 |
 | [E10](epics/E10-policies-training-exceptions-exercises-vulnerabilities.md) | Policies, training, exceptions, exercises and vulnerabilities | done | 18 / 18 |
-| [E11](epics/E11-projects-and-portfolio.md) | Projects and portfolio | done | 24 / 24 |
+| [E11](epics/E11-projects-and-portfolio.md) | Projects and portfolio | in progress | 24 / 25 |
 | [E12](epics/E12-dashboards-and-reporting.md) | Dashboards and reporting | done | 16 / 16 |
-| [E13](epics/E13-imports-api-integrations.md) | Imports, API and integrations | in progress | 21 / 23 |
-| [E14](epics/E14-platform-services.md) | Platform services | in progress | 24 / 30 |
+| [E13](epics/E13-imports-api-integrations.md) | Imports, API and integrations | done | 23 / 23 |
+| [E14](epics/E14-platform-services.md) | Platform services | in progress | 29 / 33 |
 | [E15](epics/E15-self-service-portal.md) | Self-service portal | done | 14 / 14 |
-| [E16](epics/E16-hosting-operations-and-hardening.md) | Hosting, operations and hardening | in progress | 27 / 36 |
+| [E16](epics/E16-hosting-operations-and-hardening.md) | Hosting, operations and hardening | in progress | 30 / 37 |
 | [E17](epics/E17-documentation.md) | Documentation | in progress | 7 / 14 |
-| [E18](epics/E18-quality-and-known-defects.md) | Quality and known defects | in progress | 40 / 48 |
+| [E18](epics/E18-quality-and-known-defects.md) | Quality and known defects | in progress | 45 / 51 |
 | [E19](epics/E19-fleet-and-services.md) | Fleet and services | in progress | 13 / 14 |
 | [E20](epics/E20-safety-management.md) | Safety management | done | 14 / 14 |
-| [E21](epics/E21-mcp-server.md) | MCP server (AI assistant access) | in progress | 21 / 22 |
-| | **Total** | | **445 / 488** |
+| [E21](epics/E21-mcp-server.md) | MCP server (AI assistant access) | done | 23 / 23 |
+| | **Total** | | **468 / 502** |
 
-Of the 43 issues not done, 21 are in progress and 22 are open or blocked.
+Of the 34 issues not done, 18 are in progress and 16 are open or blocked.
 
 ## Next up
 
@@ -171,9 +171,9 @@ with real data, then those that close the main known gaps.
 | 2 | [E16-08](epics/E16-hosting-operations-and-hardening.md) Scheduled backups | Backups are built; a scheduled, off-machine run needs proving on a real installation |
 | 3 | [E16-40](epics/E16-hosting-operations-and-hardening.md) Independent security review or penetration test | Before the application holds sensitive records |
 | 4 | [E16-15](epics/E16-hosting-operations-and-hardening.md) A screen-reader walkthrough | The automated audit is clean; no one has used the application with a screen reader |
-| 5 | [E16-38](epics/E16-hosting-operations-and-hardening.md) Measure the embedded database changes | Built in wave 5; the load test has not been re-run |
-| 6 | [E02-27](epics/E02-account-security.md) Sign-outs started at a SAML identity provider | Sessions here stay open when people sign out at the provider |
-| 7 | [E18-47](epics/E18-quality-and-known-defects.md) Agency-flavored default wording | Editable defaults still read like a public agency's |
+| 5 | [E16-41](epics/E16-hosting-operations-and-hardening.md) Load test with the database on its own machine | The PostgreSQL figures so far come from a server on the same laptop |
+| 6 | [E02-29](epics/E02-account-security.md) Directory sign-in with a passkey second factor | People whose only second factor is a passkey need a recovery code after a directory password |
+| 7 | [E05-13](epics/E05-change-enablement.md) Change approval on the shared approval workflows | The first of the per-module approval rules to move onto approval workflows |
 | 8 | [E16-35](epics/E16-hosting-operations-and-hardening.md) Confirm the user services on a real systemd and launchd | Written and linted, not yet run on a real Linux or Mac |
 
 ## Known gaps coverage
@@ -185,23 +185,20 @@ table in step with that file.
 
 | Gap | Issues |
 |---|---|
-| No directory (LDAP) sign-in; SAML sign-outs from the provider and metadata signatures | E02-26, E02-27, E02-28 |
-| No general workflow engine | E14-06 |
-| MCP connectors cannot use client ID metadata documents | E21-21 |
+| Status changes and required fields are per-module code; workflows do not branch; per-module approval rules not on the shared workflows | E14-31, E14-32, E03-22, E04-24, E05-13, E08-23, E11-25 |
 
 ### Built but incomplete
 
 | Gap | Issues |
 |---|---|
+| Directory sign-in: passkey second factor, linking and confirming | E02-29 |
 | Passkeys not yet checked with hardware keys over HTTPS | E02-08 |
-| Feature switches: hazard matrix while Risks is off; digest; agency-flavored default wording | E14-28 (done; limits recorded there), E18-47 |
-| Graph message size; throttling back-off | E14-29, E14-30 |
+| Feature switches: hazard matrix while Risks is off; digest; filters in the page address | E14-28 (done; limits recorded there), E18-49 |
+| Retention: anonymizing raises no webhook event; broad personal fields | E14-33 |
 | Backups cover the embedded database only; scheduled backups not proven on a real installation | E16-08 |
-| The import check does not run after-save steps or database constraints | E13-22 |
-| Vendor response links: files nobody reviews are kept; no email template of their own | E06-24, E06-25 |
-| The If-Match lock is per process | E13-12 (done; the limit is recorded there) |
-| Least-privilege account cannot add custom fields; user services not run on a real system | E16-37, E16-35 |
-| Embedded database under load: changes built, not measured | E16-38, E16-39 |
+| The If-Match lock and the Overview cache are per process | E13-12, E16-38 (done; the limits are recorded there) |
+| Least-privilege account queues custom fields for the owner; user services not run on a real system | E16-37 (done; recorded there), E16-35 |
+| Load test with the database on its own machine and people in different roles | E16-41 |
 
 ### Verification status
 

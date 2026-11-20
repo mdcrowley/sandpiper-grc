@@ -1,6 +1,7 @@
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { emitWebhookEvent } from '../../core/webhooks.ts';
 import { amberFraction, clockOf, duration, stamp } from './clocks.ts';
+import { alertResponders } from './responders.ts';
 
 // In-app notifications for security incidents (E09-17). Everything goes through `app.notify`
 // with the incident as the record, so the notifications module itself drops every recipient
@@ -53,6 +54,8 @@ export async function sweepClocks(
     [incidentId ?? null],
   );
   const out: SweepResult = { amber: 0, red: 0 };
+  // One alert by email and text per incident and state, however many clocks changed together (E09-25).
+  const outside = new Map<string, Row>();
   for (const t of rows) {
     const clock = clockOf(t, t.discovered_at, now, fraction);
     const level = clock.state === 'red' ? 'red' : clock.state === 'amber' && !t.alerted_amber_at ? 'amber' : null;
@@ -90,7 +93,9 @@ export async function sweepClocks(
         dueAt: new Date(t.due_at).toISOString(), ...(level === 'amber' ? { secondsRemaining: clock.seconds_remaining ?? null } : {}),
       },
     });
+    outside.set(`${t.incident_id}:${level}`, { id: t.incident_id, ref: t.incident_ref, lead_id: t.lead_id, level });
     out[level] += 1;
   }
+  for (const a of outside.values()) await alertResponders(ctx, a, a.level);
   return out;
 }

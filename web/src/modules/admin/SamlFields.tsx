@@ -1,6 +1,7 @@
 // The SAML 2.0 parts of the sign-in provider editor (E02-10): what to give the identity provider,
-// reading its metadata (pasted, uploaded or fetched), its addresses and certificates, and the
-// message security choices. Used by ProviderEditor.tsx.
+// reading its metadata (pasted, uploaded or fetched; signed metadata checked against a pinned
+// certificate and refreshed daily, E02-28), its addresses and certificates, and the message security
+// choices. Used by ProviderEditor.tsx.
 import { useId, useRef, useState } from 'react';
 import { ApiError, Button, Checkbox, errorMessage, Select, StatusChip, TextArea, TextField } from '../../core';
 import { CopyBox, Notice } from './common';
@@ -12,6 +13,8 @@ export interface SamlState {
   idpEntityId: string; ssoUrl: string; sloUrl: string; idpCerts: string;
   spEntityId: string; nameIdFormat: string; emailAttribute: string; nameAttribute: string;
   signRequests: boolean; wantAssertionsSigned: boolean; encryptAssertions: boolean;
+  /** E02-28: the metadata address, the certificate that signs the metadata, and the daily refresh. */
+  metadataUrl: string; metadataCert: string; metadataRefresh: boolean;
 }
 
 export const NAME_ID_FORMATS = [
@@ -27,6 +30,7 @@ export function samlInitial(provider: Provider | null): SamlState {
     spEntityId: c?.spEntityId ?? '', nameIdFormat: c?.nameIdFormat ?? 'persistent',
     emailAttribute: c?.emailAttribute ?? '', nameAttribute: c?.nameAttribute ?? '',
     signRequests: c?.signRequests ?? false, wantAssertionsSigned: c?.wantAssertionsSigned ?? false, encryptAssertions: c?.encryptAssertions ?? false,
+    metadataUrl: c?.metadataUrl ?? '', metadataCert: c?.metadataCert ?? '', metadataRefresh: c?.metadataRefresh ?? false,
   };
 }
 
@@ -94,33 +98,50 @@ export function SamlIdentityProviderFields({ value, set, err, data, provider }: 
   const fileRef = useRef<HTMLInputElement>(null);
   const fileId = useId();
 
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshed, setRefreshed] = useState<{ ok: boolean; text: string } | null>(null);
   const read = async (body: { xml: string } | { url: string }, kind: 'xml' | 'url') => {
     setBusy(kind);
     setResult(null);
     try {
       const m = await adminApi.post<{
         entityId: string; ssoUrl: string; sloUrl: string | null; certificates: string[]; wantAuthnRequestsSigned: boolean;
-        nameIdFormats: string[]; certificateFacts: CertificateFacts[];
-      }>('/api/admin/identity-providers/saml-metadata', body);
+        nameIdFormats: string[]; certificateFacts: CertificateFacts[]; signed: boolean;
+      }>('/api/admin/identity-providers/saml-metadata', { ...body, ...(value.metadataCert.trim() ? { metadataCert: value.metadataCert.trim() } : {}) });
       const pem = m.certificates.map((c) => `-----BEGIN CERTIFICATE-----\n${c.replace(/(.{64})/g, '$1\n').replace(/\n$/, '')}\n-----END CERTIFICATE-----`);
       set({
         idpEntityId: m.entityId, ssoUrl: m.ssoUrl, sloUrl: m.sloUrl ?? '', idpCerts: pem.join('\n'),
         ...(m.wantAuthnRequestsSigned ? { signRequests: true } : {}),
         ...(m.nameIdFormats.includes('urn:oasis:names:tc:SAML:2.0:nameid-format:persistent') ? {}
           : m.nameIdFormats.includes('urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress') ? { nameIdFormat: 'email' } : {}),
+        ...('url' in body ? { metadataUrl: body.url } : {}),
       });
       const expired = m.certificateFacts.filter((c) => c.expired).length;
       setResult({
         ok: true,
-        text: `Filled in from the metadata: entity ID, sign-in address${m.sloUrl ? ', sign-out address' : ''} and ${m.certificates.length} signing certificate${m.certificates.length === 1 ? '' : 's'}`
+        text: `${m.signed ? 'The metadata signature checked out. ' : ''}Filled in from the metadata: entity ID, sign-in address${m.sloUrl ? ', sign-out address' : ''} and ${m.certificates.length} signing certificate${m.certificates.length === 1 ? '' : 's'}`
           + `${expired ? ` (${expired} expired)` : ''}${m.wantAuthnRequestsSigned ? '. It wants signed requests, so they are switched on' : ''}. Check them, then save.`,
       });
       setPasted('');
     } catch (error) {
       const fields = error instanceof ApiError ? error.fields : {};
-      setResult({ ok: false, text: fields.xml ?? fields.url ?? errorMessage(error) });
+      setResult({ ok: false, text: fields.xml ?? fields.url ?? fields.metadataCert ?? errorMessage(error) });
     } finally {
       setBusy('');
+    }
+  };
+
+  const refreshNow = async () => {
+    if (!provider) return;
+    setRefreshing(true);
+    setRefreshed(null);
+    try {
+      const res = await adminApi.post<{ ok: boolean; message: string }>(`/api/admin/identity-providers/${provider.id}/refresh-metadata`);
+      setRefreshed({ ok: res.ok, text: `${res.message} Close and open the provider again to see the certificates.` });
+    } catch (error) {
+      setRefreshed({ ok: false, text: errorMessage(error) });
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -153,6 +174,32 @@ export function SamlIdentityProviderFields({ value, set, err, data, provider }: 
           <Button size="sm" icon="download" disabled={!data.outboundEnabled || !url.trim()} loading={busy === 'url'} onClick={() => void read({ url: url.trim() }, 'url')}>Fetch</Button>
         </div>
         {result && <Notice tone={result.ok ? 'success' : 'danger'} role={result.ok ? 'status' : 'alert'}>{result.text}</Notice>}
+        <details className="saml-signed" open={Boolean(value.metadataCert || value.metadataRefresh)}>
+          <summary className="adm-small">Signed metadata and a daily refresh</summary>
+          <div className="stack" style={{ marginTop: 'var(--s-2)' }}>
+          <p className="muted adm-small">
+            For a federation or identity provider that signs its metadata. With the certificate that signs it, metadata read here must carry a valid
+            signature by it, and only what the signature covers is used.
+          </p>
+          <TextArea label="Metadata signing certificate (optional)" rows={3} maxRows={8} value={value.metadataCert} onChange={(v) => set({ metadataCert: v })}
+            error={err('metadataCert')} placeholder="-----BEGIN CERTIFICATE-----"
+            hint="PEM. Get it from the federation or identity provider by a trusted route, not from the metadata itself." />
+          <TextField label="Metadata address" type="url" value={value.metadataUrl} onChange={(v) => set({ metadataUrl: v })} error={err('metadataUrl')}
+            placeholder="https://idp.example.org/metadata" hint="Where the daily refresh fetches it from (https)." />
+          <Checkbox label="Refresh the metadata every day" checked={value.metadataRefresh} onChange={(v) => set({ metadataRefresh: v })}
+            hint={`Picks up new signing certificates before a certificate change; ones the metadata stops listing are trusted for 7 more days. Signed metadata only, and only with outbound connections on and the host allowed (Settings > Integrations)${data.outboundEnabled ? '' : ', which they are not at the moment'}. Every refresh is audited.`} />
+          {provider?.config.metadataCheckedAt && (
+            <p className="muted adm-small" role="status">Last refresh {new Date(provider.config.metadataCheckedAt).toLocaleString('en-US')}: {provider.config.metadataStatus}</p>
+          )}
+          {provider?.config.metadataRefresh && provider.config.metadataUrl && provider.config.metadataCert && (
+            <div className="row">
+              <Button size="sm" icon="refresh" loading={refreshing} disabled={!data.outboundEnabled} onClick={() => void refreshNow()}>Refresh now</Button>
+              <span className="muted adm-small">Uses the saved address and certificate.</span>
+            </div>
+          )}
+          {refreshed && <Notice tone={refreshed.ok ? 'success' : 'danger'} role={refreshed.ok ? 'status' : 'alert'}>{refreshed.text}</Notice>}
+          </div>
+        </details>
       </div>
 
       <TextField label="Identity provider entity ID" required value={value.idpEntityId} onChange={(v) => set({ idpEntityId: v })} error={err('idpEntityId')}

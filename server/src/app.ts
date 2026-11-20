@@ -9,6 +9,7 @@ import { loadUser, registerAuth, requireRecentAuth, secretBox } from './core/aut
 import { registerCustomFieldRoutes } from './core/customfield-routes.ts';
 import { makeCustomFields } from './core/customfields.ts';
 import { openDb } from './core/db.ts';
+import { registerPermissionUse } from './core/permission-use.ts';
 import { ApiError, fail } from './core/errors.ts';
 import { addHsts, trustProxyFn } from './core/http.ts';
 import { migrate } from './core/migrate.ts';
@@ -41,11 +42,21 @@ export interface BuildOptions {
 }
 
 /**
+ * How long one start-up step may take before the start is abandoned (E16-39):
+ * `GRC_STARTUP_TIMEOUT_SECONDS`, default 600 (ten minutes; Fastify's own default is 10 seconds).
+ */
+export function startupTimeoutMs(): number {
+  const n = Number(process.env.GRC_STARTUP_TIMEOUT_SECONDS ?? 600);
+  return Number.isFinite(n) && n >= 10 ? Math.round(n * 1000) : 600_000;
+}
+
+/**
  * Times every start-up step (`onReady` hook, E16-39), named by where it was added. A step that
  * takes more than `GRC_STARTUP_WARN_MS` (default 2,000) is logged, and so is the whole when it
- * took longer, so a slow start can be traced to its step.
+ * took longer, so a slow start can be traced to its step. `phases` are the parts of the start
+ * before them (opening the database, migrations, modules and routes), reported with them.
  */
-export function timeStartupSteps(app: FastifyInstance) {
+export function timeStartupSteps(app: FastifyInstance, phases: { name: string; ms: number }[] = []) {
   const steps: { where: string; ms: number }[] = [];
   const warnRaw = Number(process.env.GRC_STARTUP_WARN_MS ?? 2000);
   const warnMs = Number.isFinite(warnRaw) && warnRaw >= 0 ? warnRaw : 2000;
@@ -70,19 +81,31 @@ export function timeStartupSteps(app: FastifyInstance) {
   };
   return {
     steps,
-    report() {
-      if (process.env.VITEST) return;
+    /** Logs the start when it, or one step or phase, took `GRC_STARTUP_WARN_MS` or more; returns the line (null when quiet). */
+    report(): string | null {
       const total = steps.reduce((n, s) => n + s.ms, 0);
-      const slow = steps.filter((s) => s.ms >= warnMs);
-      if (slow.length || total >= warnMs) {
-        console.warn(`[start] start-up steps took ${total} ms; the longest: ${[...steps].sort((a, b) => b.ms - a.ms).slice(0, 5).map((s) => `${s.where} ${s.ms} ms`).join(', ')}`);
-      }
+      const whole = phases.reduce((n, p) => n + p.ms, total);
+      if (!steps.some((s) => s.ms >= warnMs) && !phases.some((p) => p.ms >= warnMs) && whole < warnMs) return null;
+      const longest = [...steps].sort((a, b) => b.ms - a.ms).slice(0, 5).map((s) => `${s.where} ${s.ms} ms`).join(', ');
+      const line = `[start] start-up took ${whole} ms: ${[...phases.map((p) => `${p.name} ${p.ms} ms`), `start-up steps ${total} ms`].join(', ')}`
+        + (longest ? `; the longest steps: ${longest}` : '');
+      if (!process.env.VITEST) console.warn(line);
+      return line;
     },
   };
 }
 
 export async function buildApp(opts: BuildOptions) {
+  // The parts of the start before its steps, timed for the start-up report (E16-39).
+  const phases: { name: string; ms: number }[] = [];
+  let lap = performance.now();
+  const phase = (name: string) => {
+    const now = performance.now();
+    phases.push({ name, ms: Math.round(now - lap) });
+    lap = now;
+  };
   const db = await openDb(opts.dataDir);
+  phase('opening the database');
 
   const modulesDir = join(here, 'modules');
   const moduleKeys = existsSync(modulesDir)
@@ -99,12 +122,16 @@ export async function buildApp(opts: BuildOptions) {
     ...moduleKeys.map((k) => ({ scope: k, dir: join(modulesDir, k, 'migrations') })),
   ]);
   await ensureDefaultRoles(db);
+  phase('migrations');
 
   // trustProxy: req.ip, req.protocol and req.hostname follow X-Forwarded-* only from GRC_TRUST_PROXY (E01-31).
-  const serverOptions = { logger: false, bodyLimit: 10 * 1024 * 1024, trustProxy: trustProxyFn() };
+  // pluginTimeout: how long one start-up step may take (E16-39). Fastify's default of 10 seconds is too
+  // short for work that grows with the data: after an upgrade that changes how a type is searched,
+  // its search index is rebuilt at start (about 19 s for 40,000 tickets on the embedded database).
+  const serverOptions = { logger: false, bodyLimit: 10 * 1024 * 1024, trustProxy: trustProxyFn(), pluginTimeout: startupTimeoutMs() };
   // With a certificate the same server speaks HTTPS (E16-07); its type is the plain one for everything that uses it.
   const app = Fastify({ ...serverOptions, ...(opts.https ? { https: opts.https } : {}) } as typeof serverOptions);
-  const startup = timeStartupSteps(app);
+  const startup = timeStartupSteps(app, phases);
   await app.register(cookie);
   // Sees every route as it is registered, for GET /api/openapi.json: keep it ahead of all routes.
   const openapi = makeOpenApi(app);
@@ -160,6 +187,7 @@ export async function buildApp(opts: BuildOptions) {
   const retention = registerRetention({ app, db, audit, lookups, res, requireRecentAuth: recentAuth });
   openapi.attach({ res, custom, settings, gate });
   registerApiDocs(openapi);
+  registerPermissionUse({ app, registry: res.registry, describeRoute: openapi.describe, requirePerm });
   openapi.modulesFromHere();
 
   const ctx: ModuleContext = {
@@ -215,6 +243,7 @@ export async function buildApp(opts: BuildOptions) {
     return reply.code(404).send({ error: { code: 'not_found', message: 'Not found.' } });
   });
 
+  phase('modules and routes');
   await app.ready();
   startup.report();
   // Background upkeep of the embedded database (analyze) waits until start-up is done (E16-39).

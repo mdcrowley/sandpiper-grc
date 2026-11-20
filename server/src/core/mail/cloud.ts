@@ -47,7 +47,17 @@ export function googleEndpoints(): { token: string; gmail: string } {
 
 /** A failed call, in words an administrator can act on. Never contains a secret. */
 export class CloudError extends Error {
+  /** Seconds the service asked to wait before the next attempt (Retry-After), when it said. */
+  retryAfterSeconds?: number;
   constructor(message: string, readonly retryable: boolean, readonly status = 0) { super(message); }
+}
+
+/** The "throttled" error, carrying the wait the service asked for (E14-30). */
+export function throttledError(headers: Headers, status: number): CloudError {
+  const err = new CloudError(throttledText(headers), true, status);
+  const wait = retryAfter(headers);
+  if (wait !== null) err.retryAfterSeconds = wait;
+  return err;
 }
 
 export interface CloudAnswer { status: number; headers: Headers; body: Buffer; json: any }

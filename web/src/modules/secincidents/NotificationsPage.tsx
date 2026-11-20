@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   Badge, Button, EmptyState, ErrorState, formatDateTime, Icon, Loading, LookupChip, PageHeader, ResourceList, Stat, Tabs, useAuth, useFetch,
 } from '../../core';
+import { AlertResponders } from './AlertResponders';
 import { NotRequiredDialog, RecordNotificationDialog } from './Clocks';
 import { metText, PilotNotice, remainingText, sortClocks, STATE_COLOR, STATE_ICON, stateAt, useNow } from './shared';
 import type { AllClocks, Clock } from './types';
@@ -140,6 +141,7 @@ export function NotificationsPage() {
               onRowClick={(row) => navigate(`/security-incidents/${row.incident_id}`)} />
           ),
         },
+        { key: 'alerts', label: 'Alerts by email and text', content: <AlertResponders /> },
       ]} />
     </div>
   );

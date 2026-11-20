@@ -29,7 +29,7 @@ version for a first pull request.
 - **Local by default.** The server binds to 127.0.0.1 unless it is configured for a
   server installation. No telemetry, no CDN fonts or scripts, no calls to outside
   services from application code, except the deliberate ones an administrator switches
-  on: webhooks (only to allowed hosts), email, sign-in providers, the malware scanner and
+  on: webhooks and the text-message webhook (only to allowed hosts), email, sign-in providers, the malware scanner and
   the object store. Each is off by default.
 - **Documentation and the roadmap change with the code, always.** A change is not finished
   until every place that describes it is updated in the same piece of work:
@@ -223,6 +223,7 @@ never with a token:
 | `security.kit_every_days` | `7` | The offline incident kit is made as a PDF at least this often (and after any change to it) |
 | `security.kit_keep` | `12` | PDF copies of the kit kept |
 | `security.kit_recipients` | `[]` | People the automatic kit PDF is emailed to (each must hold `security.view` and `security.export` when it is sent) |
+| `security.alerts` | no responders | Security incident alerts by email and text message (E09-25): `{ responders: [user ids], includeLead, email, text, declared, amber, red }`; changed under Notification deadlines > Alerts by email and text |
 
 Modules keep their own settings too (for example
 `knowledge.agent_permission`, `frameworks.review_reminder_days`); each is described in the
@@ -271,7 +272,7 @@ server/src/core/              db, migrations, auth, rbac, audit, resources, look
                               search, tags and watchers, custom fields, tokens, webhooks, OpenAPI, retention,
                               feature switches (features.ts)
 server/src/core/migrations/   core SQL
-server/src/core/identity/     single sign-on (OpenID Connect and SAML 2.0), account linking, sign-in policy hooks
+server/src/core/identity/     single sign-on (OpenID Connect, SAML 2.0 and directory (LDAP)), account linking, sign-in policy hooks
 server/src/core/webauthn/     passkeys and security keys
 server/src/core/jobs/         the table-backed job queue (app.jobs)
 server/src/core/mail/         outbound email, templates and set-up and reset links (app.sendMail)
@@ -339,7 +340,12 @@ export default mod;
 - `ctx.db.query<T>(sql, params) => T[]`, `ctx.db.one<T>(sql, params) => T | undefined`,
   `ctx.db.tx(async (tx) => ...)`. Parameterized queries only (`$1`, `$2`).
 - `ctx.dataDir` - the folder holding the database and stored files, or `memory` in tests.
-- `ctx.requirePerm('tickets.edit')` - preHandler. `ctx.can(user, perm)` - boolean.
+- `ctx.requirePerm('tickets.edit')` - preHandler. `ctx.can(user, perm)` - boolean. The role editor greys
+  out permissions nothing checks (`GET /api/admin/permissions/checked`, `core/permission-use.ts`):
+  it collects `requirePerm` calls, the `permission` of every route description and the record-type
+  actions, so a hand-written route that checks with `ctx.can` must name that permission in its
+  description; a check made only inside a record type's hook goes in `HOOK_CHECKS` there
+  (`permission-use.test.ts` scans the source and fails when one is missing).
 - `ctx.audit(req, { action, recordType, recordId, summary, before, after })`. When the
   request used a token, the audit event records the token too.
 - `ctx.lookups.ensure(list, values, opts?)` / `ctx.lookups.values(list)`. `ensure` adds
@@ -395,13 +401,20 @@ Services other modules may offer are Fastify decorators; check before use:
   firstRunInMs? })` (`core/jobs`), never `setInterval`: it registers the handler and a
   schedule of the same name. A handler may report progress with `job.progress(value)`
   (shown as the job's result while it runs). A handler throws to
-  fail and is retried with back-off; `PermanentJobError` stops the retries. Administrators
+  fail and is retried with back-off; `PermanentJobError` stops the retries, and
+  `RetryLaterError(message, seconds | date)` asks for the next attempt no sooner than then (at
+  least one second, at most six hours; it still counts as an attempt). Administrators
   see the queue under Background jobs. The poller starts when the server listens (never
   under tests, which call `app.jobs.runDue()`); `GRC_JOBS=off` keeps it stopped.
 - `app.sendMail({ userIds, template, purpose, data, record?, attachments? })` and
   `app.mailEnabled()` (`core/mail`): email through the job queue. Off until an
   administrator sets up a mail server (Administration > Email), so always guard with
-  `ctx.app.hasDecorator('sendMail')`.
+  `ctx.app.hasDecorator('sendMail')`. `requirePermission: 'security.view'` drops a user
+  recipient who no longer holds it when the message is sent.
+- `app.sendText({ userIds, text, purpose, permission? })` (`core/mail/texts.ts`): short text
+  messages to people's email-to-text address or mobile number (through the administrator's
+  text-message webhook), each a row of the delivery log. Never put restricted detail in `text`.
+  Guard with `ctx.app.hasDecorator('sendText')`.
 
 Core starts the job queue and email in `app.ts` before any module registers, so both exist
 whichever modules are loaded (`ensureJobs` and `ensureMail` are safe to call again).
@@ -469,12 +482,29 @@ ctx.defineResource({
 });
 ```
 
-Before-hooks must not write: the import check runs them without saving (E13-10). To raise a
+Hooks write through `ctx.db` as usual. The import check (dry run) runs the real create and
+update, hooks included, inside `ctx.db.trial(fn)` (`core/db.ts`, E13-22): a transaction that is
+always rolled back, into which every query on the shared handle made by that work is routed (on
+the embedded database a query on the outer handle would otherwise wait for ever). Record-change
+listeners, webhook deliveries and the job queue do nothing inside a trial (`inTrial()`); a hook
+with effects outside the database (a file, an outside call) checks `inTrial()` too. To raise a
 webhook event that is not a record change, add it to `WEBHOOK_EVENTS` in `core/webhooks.ts`
 and call `emitWebhookEvent(ctx.app, { event, data, record?, req? })`.
 
 Field types: `text`, `longtext`, `number`, `currency`, `date`, `datetime`, `boolean`,
 `lookup` (needs `list`), `user`, `ref` (needs `to`), `json`. Field names are column names.
+
+`personal: true | false` on a field says whether it holds personal data, which anonymizing a
+record at the end of its retention period replaces (E14-19, `core/retention.ts`): text with
+"Removed at the end of the retention period", people and other values with `null` (a
+required person field is kept and named in the audit entry). Default: `user` and `longtext`
+fields, and `text` fields named like an email address, phone number or person's name
+(`*email*`, `*phone*`, `*mobile*`, `*_name` except names such as `vendor_name` or
+`host_name`); everything else is not personal. Set `personal: false` on a long-text field
+that never names anyone (a technical description) and `personal: true` on any other field
+that may. Anonymizing also covers long-text and person custom fields, `created_by` and
+`updated_by`, the record's comments, files, watchers and notifications, and the search
+index; it never changes the audit log, which is append-only by design.
 
 Custom fields that an administrator defines (Administration > Custom fields,
 `core/customfields.ts`) appear beside the built-in fields as `cf_<key>`, marked
@@ -622,6 +652,14 @@ Run one module's tests in isolation (other modules not loaded):
 `$env:GRC_TEST_DATABASE='pg'; npm test` runs the suite through the PostgreSQL server
 driver (over the wire protocol) instead of the embedded database.
 
+Component tests (E18-43) render the generic list, form and record page in a browser-like document:
+name the file `*.component.test.ts`, put `// @vitest-environment happy-dom` (the `happy-dom`
+development package) on its first line, and use `render`, `waitFor`, `click` and `typeInto` from
+`web/src/core/componentHarness.tsx`, which wraps the component in the application's providers
+and answers `fetch` from handlers the test gives, recording every call (see
+`ResourceList.component.test.ts`). The files are `.ts` (`createElement`), so the test runner's
+include pattern finds them.
+
 The test commands:
 
 - `npm test` (or `.\grc.ps1 test`): server and web unit tests. `.\grc.ps1 ci` runs them
@@ -659,6 +697,39 @@ from), `department`, `notes`, `restricted` (read-only: true when the source reco
 restricted; such actions are hidden without `security.view`). Any module may create one with
 `ctx.resources.create('action', {...})` after checking `ctx.resources.get('action')`.
 Always pass `source_type` and `source_id` so the restriction is inherited.
+
+### Approval workflows (shared engine)
+
+The `workflows` module (E14-06) runs administrator-defined approval workflows on any record
+type: ordered steps, each approved by named people, a role, a person field of the record or a
+department head, with a quorum (`any`, `all` or a number), optional conditions on the record's
+fields, a due time and escalation; started on create, when a lookup field changes to a value, or
+by hand; at the end it sets fields (`on_approve`, `on_reject`). The rules are plain functions in
+`modules/workflows/engine.ts`; `service.ts` stores, notifies and escalates (job type
+`workflows.escalate` at a step's due time, and the sweep `workflows.escalations` every 15
+minutes). It is always on (not a feature area) and needs no permission key of its own: defining
+workflows needs `admin.administer`; deciding needs only to be a named approver who may see the
+record. It follows each record type's area: a switched-off type is skipped everywhere.
+
+How it sees record changes: once every module has defined its types (`onReady`), it wraps each
+type's `afterCreate` and `afterUpdate` hooks; the module's own hook runs first, and a workflow
+failure never fails the change. Changes the engine makes itself (outcomes) start nothing.
+
+A module that wants to move its own approval rules onto the engine:
+
+1. Keep its fields (status, approver, approval date) and have the workflow's outcome set them
+   (`approver`, `requester` and `today` are special outcome values). An administrator defines the
+   workflow, or the module offers a ready-made one in `seedDefaults` (insert into
+   `workflow_definitions` only when that table exists and no definition of the same name does).
+2. Start it from the module's own route with `app.workflows.start(definitionRow, def, record,
+   requesterId, req, note)` (guard with `app.hasDecorator('workflows')`), or let a status change
+   start it.
+3. Drop its own approve and reject buttons: `RecordPage` shows the approval panel by itself, and
+   `GET /api/workflows/records/:type/:id` gives the state.
+4. Keep its old approval tables readable for history, and point integrators from its own webhook
+   event to `workflow.decided` and `workflow.finished`.
+
+The follow-up issues per module are listed under E14-06 in the roadmap.
 
 Risk scales: the two built-in scale keys are `cyber_5x5` and `hazard_4x5` (the safety
 hazard matrix: four severity levels by five likelihood levels; it was `asp` before
@@ -719,6 +790,7 @@ has filter, sort, saved view and export; every record shows its history.
 | `mcp` | no record type: the `/mcp` endpoint for AI assistants and its settings |
 | `notifications` | no record type: in-app notifications (tables `notifications`, `notification_preferences`; `app.notify(...)`, `NotificationBell`) |
 | `admin` | users, roles, second factor, audit viewer, lookups, settings, custom fields, tokens, webhooks, retention screens |
+| `workflows` | no record type: approval workflows (tables `workflow_definitions`, `workflow_instances`, `workflow_steps`, `workflow_decisions`, `workflow_department_heads`; `/api/workflows`; the record page's approval panel `WorkflowPanel`) |
 | `home` | the Overview page (web only) |
 | `help` | the user guide, rendered from `docs/user/*.md` (web only) |
 
@@ -732,7 +804,7 @@ policy → `policies`; policy_exception → `exceptions`; course → `training`;
 report_schedule, report_pack → `reports`; dashboard → `dashboards`; vehicle, service →
 `fleet`; hazard, safety_event, safety_indicator → `safety`.
 
-Not yet built: LDAP sign-in; a general workflow designer. See [Known gaps](known-gaps.md) and the
+Not yet built: approval workflows that branch or run steps side by side (they are ordered steps). See [Known gaps](known-gaps.md) and the
 [roadmap](roadmap/README.md).
 
 ## Known gaps

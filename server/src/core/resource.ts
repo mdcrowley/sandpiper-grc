@@ -1,10 +1,10 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { CURRENCY } from './config.ts';
-import type { Db } from './db.ts';
+import { inTrial, type Db } from './db.ts';
 import { fail, UUID_RE } from './errors.ts';
 import type { CreateOptions, FieldDef, ResourceDef, ResourceRegistry, Row, SessionUser } from './module.ts';
 import { CUSTOM_PREFIX, customFieldDef, customName, type CustomField, type CustomFields } from './customfields.ts';
-import { BODY_SEPARATOR, ensureCommentSearch, ensureSearchIndex, parseSearch, substringColumns } from './search.ts';
+import { BODY_SEPARATOR, ensureCommentSearch, ensureSearchIndex, maySchemaChange, parseSearch, requestSchemaChange, schemaChangeDone, substringColumns } from './search.ts';
 import { can, type makeAudit, type makeLookups } from './services.ts';
 // Spreadsheet and PDF exports, record fact sheets and the generic import (core/export, core/import).
 import { exportColumns, sendListExport } from './export/list.ts';
@@ -73,6 +73,7 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
 
   /** Tells listeners (webhooks, watchers) about a change. A failing listener never fails the change. */
   async function emit(change: RecordChange): Promise<void> {
+    if (inTrial()) return; // a rolled-back check (E13-22) tells nobody
     for (const fn of listeners) {
       try { await fn(change); } catch (err) { console.error(`[events] listener failed on ${change.def.type}.${change.action}:`, err); }
     }
@@ -88,7 +89,14 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
       `select 1 from information_schema.columns
        where table_schema = current_schema() and table_name = $1 and column_name = 'custom'`, [def.table]);
     if (exists) return;
+    // A least-privilege run-time role never changes the schema (E16-37). The owner's migrate step
+    // gives every record table this column, so this happens only for a table added since then.
+    if (!(await maySchemaChange(db, def.table))) {
+      await requestSchemaChange(db, 'custom_column', def.type, `${def.plural} need a column for custom fields.`);
+      throw new Error(`Custom fields on ${def.plural.toLowerCase()} need a database change that the owner account makes: run migrate with GRC_DATABASE_MIGRATE_URL set.`);
+    }
     await db.exec(`alter table ${def.table} add column if not exists custom jsonb not null default '{}'`);
+    await schemaChangeDone(db, 'custom_column', def.type);
   }
 
   const textKeys = (fields: CustomField[]) => fields.filter((f) => f.type === 'text' || f.type === 'longtext').map((f) => f.key);

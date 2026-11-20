@@ -141,6 +141,14 @@ const attachmentLoaders = import.meta.glob<{ AttachmentsPanel: ComponentType<{ r
 const loadAttachments = Object.values(attachmentLoaders)[0];
 const AttachmentsPanel = loadAttachments ? lazy(() => loadAttachments().then((m) => ({ default: m.AttachmentsPanel }))) : null;
 
+// The workflows module supplies the approval panel (E14-06) the same way: shown under the header
+// when an approval workflow has run on the record or may be started; it draws nothing otherwise.
+const workflowLoaders = import.meta.glob<{ WorkflowPanel: ComponentType<{ recordType: string; recordId: string; version?: string; onChange?: () => void }> }>(
+  '../modules/workflows/WorkflowPanel.tsx',
+);
+const loadWorkflows = Object.values(workflowLoaders)[0];
+const WorkflowPanel = loadWorkflows ? lazy(() => loadWorkflows().then((m) => ({ default: m.WorkflowPanel }))) : null;
+
 export interface RecordPageProps {
   /** Record type key, e.g. "ticket". */
   type: string;
@@ -283,6 +291,7 @@ export function RecordPage({
         breadcrumbs={breadcrumbs ?? [{ label: resource.plural, to: resource.route }, { label: reference ?? heading }]}
       />
       {tags && <RecordTags recordType={type} recordId={id} canEdit={rec.canEdit} />}
+      {WorkflowPanel && <Suspense fallback={null}><WorkflowPanel recordType={type} recordId={id} version={String(row.updated_at ?? '')} onChange={reload} /></Suspense>}
       {banner && <div className="rc-record-banner">{banner(rec)}</div>}
       {summary
         ? <>{summary(rec)}<CustomFieldsCard type={type} row={row} onSaved={reload} /></>

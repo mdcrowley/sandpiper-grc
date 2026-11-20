@@ -7,6 +7,7 @@ import {
   Tabs, TextArea, TextField, useAuth, useFetch, useToast,
 } from '../../core';
 import { MailLog } from './MailLog';
+import { TextMessageSettings } from './TextMessageSettings';
 import { MailTemplates } from './MailTemplates';
 import { useReauth } from './reauth';
 import './notifications.css';
@@ -342,6 +343,7 @@ export function EmailSettingsPage() {
           },
           { key: 'templates', label: 'Templates', content: <MailTemplates /> },
           { key: 'log', label: 'Delivery log', content: <MailLog /> },
+          { key: 'texts', label: 'Text messages', content: <TextMessageSettings /> },
         ]}
       />
     </div>

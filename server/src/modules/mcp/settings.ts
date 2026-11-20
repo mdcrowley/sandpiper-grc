@@ -24,6 +24,12 @@ export interface McpSettings {
   oauthEnabled: boolean;
   /** Connectors may register themselves (RFC 7591 dynamic client registration). */
   oauthRegistration: boolean;
+  /** Connectors may use an https address of a client ID metadata document as their client_id (E21-21). */
+  clientMetadata: boolean;
+  /** Hosts such client ids may be on (host, host:port or *.domain); empty = any public host. */
+  clientMetadataHosts: string[];
+  /** A connector seen for the first time waits until an administrator approves it. */
+  clientMetadataApproval: boolean;
 }
 
 export const KEYS = {
@@ -36,11 +42,15 @@ export const KEYS = {
   roleTools: 'mcp.role_tools',
   oauthEnabled: 'mcp.oauth_enabled',
   oauthRegistration: 'mcp.oauth_registration',
+  clientMetadata: 'mcp.oauth_client_metadata',
+  clientMetadataHosts: 'mcp.oauth_client_metadata_hosts',
+  clientMetadataApproval: 'mcp.oauth_client_metadata_approval',
 } as const;
 
 export const DEFAULTS: McpSettings = {
   enabled: false, writeEnabled: false, allowedTools: null, ratePerMinute: 120, allowedOrigins: [],
   allowedRoles: null, roleTools: {}, oauthEnabled: false, oauthRegistration: false,
+  clientMetadata: false, clientMetadataHosts: [], clientMetadataApproval: false,
 };
 
 const strings = (v: unknown) => (Array.isArray(v) ? v.map(String) : null);
@@ -60,6 +70,9 @@ export async function readSettings(ctx: ModuleContext): Promise<McpSettings> {
       : {},
     oauthEnabled: (await s.get<unknown>(KEYS.oauthEnabled, false)) === true,
     oauthRegistration: (await s.get<unknown>(KEYS.oauthRegistration, false)) === true,
+    clientMetadata: (await s.get<unknown>(KEYS.clientMetadata, false)) === true,
+    clientMetadataHosts: strings(await s.get<unknown>(KEYS.clientMetadataHosts, [])) ?? [],
+    clientMetadataApproval: (await s.get<unknown>(KEYS.clientMetadataApproval, false)) === true,
   };
 }
 

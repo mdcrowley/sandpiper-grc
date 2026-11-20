@@ -7,7 +7,7 @@
 import { loadUser, secretBox } from '../auth.ts';
 import { DEFAULT_APP_NAME } from '../config.ts';
 import { UUID_RE } from '../errors.ts';
-import { PermanentJobError, type JobQueue } from '../jobs/index.ts';
+import { PermanentJobError, RetryLaterError, type JobQueue } from '../jobs/index.ts';
 import type { ModuleContext, Row, SessionUser } from '../module.ts';
 import { providerSecret } from './accounts.ts';
 import { makeProvider, type MailAttachment, type MailConfig } from './provider.ts';
@@ -50,6 +50,8 @@ export interface SendMailInput {
   headers?: Record<string, string>;
   /** Where replies should go, instead of the reply-to address in the email settings (for example the service desk mailbox). */
   replyTo?: string;
+  /** Each user recipient must hold this permission when the message is sent, or gets nothing (for example "security.view"). */
+  requirePermission?: string;
 }
 
 /** Marks every message the application sends, so auto-replies are suppressed and inbound mail can recognize it. */
@@ -90,6 +92,8 @@ type Normalized = Omit<SendMailInput, 'to' | 'attachments'> & { to?: string[]; a
 
 export const EMAIL_RE =/^[^\s@<>"',;]+@[^\s@<>"',;]+\.[^\s@<>"',;]+$/;
 const MAX_ATTACH_BYTES = 10 * 1024 * 1024;
+/** The longest wait a throttled service may ask for before the next attempt (E14-30). */
+export const MAX_MAIL_WAIT_SECONDS = 3600;
 const PURPOSE_RE = /^[a-z][a-z0-9_.-]{0,39}$/;
 
 export const SECRET_CONTEXT = 'mail:smtp';
@@ -170,7 +174,14 @@ export function makeMail(ctx: ModuleContext, jobs: JobQueue) {
     // The recipient, as they are now.
     let user: SessionUser | null = null;
     let to: string = typeof p.to === 'string' ? p.to : '';
-    if (p.userId && p.accountLink) {
+    if (p.textUserId) {
+      // A text message through an email-to-text address (texts.ts): the person's address as it is now.
+      user = await loadUser(db, p.textUserId);
+      if (!user) return giveUp('skipped', 'The person is no longer an active user.');
+      if (typeof p.permission === 'string' && p.permission && !ctx.can(user, p.permission)) return giveUp('skipped', `The person no longer holds ${p.permission}.`);
+      to = (await db.one<{ sms_address: string }>('select sms_address from user_alert_contacts where user_id = $1', [user.id]))?.sms_address ?? '';
+      if (!to) return giveUp('skipped', 'The person has no email-to-text address.');
+    } else if (p.userId && p.accountLink) {
       // A set-up link goes to someone who has not signed in yet (status "pending"); never to a disabled account.
       const u = await db.one<Row>(`select id, username, display_name, email from users where id = $1 and deleted_at is null and status <> 'disabled'`, [p.userId]);
       if (!u) return giveUp('skipped', 'The account is disabled or removed.');
@@ -179,6 +190,7 @@ export function makeMail(ctx: ModuleContext, jobs: JobQueue) {
     } else if (p.userId) {
       user = await loadUser(db, p.userId);
       if (!user) return giveUp('skipped', 'The person is no longer an active user.');
+      if (typeof p.requirePermission === 'string' && !ctx.can(user, p.requirePermission)) return giveUp('skipped', `The person no longer holds ${p.requirePermission}.`);
       to = user.email;
     }
     if (!EMAIL_RE.test(to)) return giveUp('skipped', 'No valid email address.');
@@ -244,6 +256,10 @@ export function makeMail(ctx: ModuleContext, jobs: JobQueue) {
       const final = last || result.retryable === false;
       await logStatus(logId, final ? 'dead' : 'failed', { error: result.error, attempts: job.attempt, provider: provider.name, subject: message.subject, to });
       if (result.retryable === false) throw new PermanentJobError(result.error ?? 'The message was refused.');
+      // A throttled service said how long to wait (E14-30): the next attempt is no sooner, and at most an hour away.
+      if (typeof result.retryAfterSeconds === 'number' && Number.isFinite(result.retryAfterSeconds)) {
+        throw new RetryLaterError(result.error ?? 'The mail service asked to wait.', Math.min(MAX_MAIL_WAIT_SECONDS, result.retryAfterSeconds));
+      }
       throw new Error(result.error ?? 'The message could not be sent.');
     } finally {
       provider.close?.();
@@ -308,7 +324,8 @@ export function makeMail(ctx: ModuleContext, jobs: JobQueue) {
     const job = await jobs.enqueue('mail.send', {
       logId: log!.id, userId: target.userId, to: target.userId ? undefined : target.to, template,
       data, items: input.items, record: input.record, attachments: input.attachments, headers: safeHeaders(input.headers),
-      replyTo: typeof input.replyTo === 'string' && EMAIL_RE.test(input.replyTo.trim()) ? input.replyTo.trim() : undefined, purpose, ...extra, sealedLink,
+      replyTo: typeof input.replyTo === 'string' && EMAIL_RE.test(input.replyTo.trim()) ? input.replyTo.trim() : undefined, purpose,
+      requirePermission: typeof input.requirePermission === 'string' ? input.requirePermission : undefined, ...extra, sealedLink,
     }, opts);
     await db.query('update mail_log set job_id = $2 where id = $1', [log!.id, job.id]);
     return log!.id;

@@ -156,7 +156,8 @@ export function reportDue(lastReportOn: string | null | undefined, today: string
 const CIO = 'Chief Information Officer';
 const CFO = 'Chief Financial Officer';
 const CEO = 'Chief Executive Officer';
-const GOVERNING_BODY = 'Governing body';
+// Whoever approves the largest commitments: a board, directors or owners (E18-47).
+const APPROVING_BODY = 'Approving body (board, directors or owners)';
 const SPONSOR = 'Project sponsor';
 
 export const DEFAULT_GATES: GateTemplate[] = [
@@ -191,7 +192,7 @@ export const DEFAULT_GATES: GateTemplate[] = [
       'Project risks recorded and owners assigned',
     ],
     documents: ['Project plan', 'Budget', 'Requirements'],
-    approvers: { tier_3: [CIO], tier_2: [CIO, CFO], tier_1: [CIO, CFO, CEO, GOVERNING_BODY] },
+    approvers: { tier_3: [CIO], tier_2: [CIO, CFO], tier_1: [CIO, CFO, CEO, APPROVING_BODY] },
   },
   {
     key: 'award', name: 'Contract award', from: 'procure', to: 'deliver',
@@ -202,7 +203,7 @@ export const DEFAULT_GATES: GateTemplate[] = [
       'Contract signed and recorded in the contract register',
     ],
     documents: ['Evaluation summary', 'Signed contract'],
-    approvers: { tier_3: [CIO], tier_2: [CIO, CFO], tier_1: [CIO, CFO, CEO, GOVERNING_BODY] },
+    approvers: { tier_3: [CIO], tier_2: [CIO, CFO], tier_1: [CIO, CFO, CEO, APPROVING_BODY] },
   },
   {
     key: 'go_live', name: 'Go-live', from: 'deliver', to: 'close',

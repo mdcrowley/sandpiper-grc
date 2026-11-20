@@ -22,7 +22,7 @@ Some changes decide who can do what, so the application checks it is really you 
 - change anything under **Security**, **API tokens** or **Outbound connections** in **Settings**, or the **Idle time-out** under **Sessions**;
 - switch a part of the application on or off under **Features**;
 - make an API token, add a webhook, change where a webhook sends or whether it includes restricted records, or replace a webhook's secret;
-- remove a record for good from the **Retention** review list;
+- anonymize a record or remove it for good from the **Retention** review list;
 - add, change or remove a sign-in provider, switch **Allow sign-in with a password** off or on, or change the **Application address**;
 - on a person's **Single sign-on** card: save **Ways to sign in**, **Allow** a link at next sign-in, **Unlink** an identity, or make or remove the break-glass account;
 - link or unlink a provider on your own **Account security** page.
@@ -206,7 +206,7 @@ The **Members** card lists who holds the role. To give a role to someone, or tak
 
 The **Administrator** role holds every permission (stored as a single star), so every box is checked and cannot be changed.
 
-An area that nothing checks yet carries a small **not yet used** label. Its boxes can be checked, but checking them has no effect today. **Self-service portal** is marked this way because the portal is not built; **Reports** is marked only on an installation where the reports part of the application is not installed. **View** on **Dashboards and overview** decides who sees the dashboards on the overview page.
+The server tells the page which permissions something in this installation actually checks. A box for an action nothing checks (for example **Approve** on **Knowledge base**, or **Create** on **Audit log**) is greyed out and cannot be checked, because granting it would have no effect; if a role already holds such a permission, the box can still be unchecked. An area where nothing is checked at all (for example one whose part of the application is not installed) carries a small **not yet used** label. **All** still grants every action in the area, including any a later version starts to check. **View** on **Dashboards and overview** decides who sees the dashboards on the overview page.
 
 ### Restricted records
 
@@ -279,11 +279,11 @@ A person whose only second factor is a passkey can make recovery codes too (see 
 
 ## Sign-in providers (single sign-on)
 
-Single sign-on lets people sign in with their organization account, at your organization's identity provider, instead of a password kept here. Any provider that supports **OpenID Connect** or **SAML 2.0** works. Open **Administration > Sign-in providers**.
+Single sign-on lets people sign in with their organization account, at your organization's identity provider, instead of a password kept here. Any provider that supports **OpenID Connect** or **SAML 2.0** works. People can also sign in here with their **directory** user name and password (Active Directory, OpenLDAP or another LDAP v3 directory): see [Directory (LDAP) sign-in](#directory-ldap-sign-in). Open **Administration > Sign-in providers**.
 
 **Nothing is contacted until you switch a provider on.** A provider you have added but not switched on is never called, except when you select **Test connection** (OpenID Connect). A SAML provider is never called by the application at all: the browser carries every message, and its metadata is fetched only if you ask (see [SAML 2.0 providers](#saml-20-providers)). Nobody can register themself: people sign in through a provider only to an account an administrator has added or linked, unless you switch on **Create an account at first sign-in**.
 
-The list shows each provider's name (with **Default** beside the default one) and issuer address (for SAML, its entity ID), its **Kind** (**OpenID Connect** or **SAML 2.0**), how many **Linked people** it has, its **Options** (**Role mapping**, **Creates accounts**, **No client secret** in red when one is missing; for SAML also **Certificate expired** or **Certificate expires soon**, **Key unreadable** and **Encrypted**) and an **On** switch. The **…** menu offers **Edit**, **Test connection** (for SAML, **Check settings** and **Download metadata**), **Make default** and **Remove** (only for a provider that is switched off).
+The list shows each provider's name (with **Default** beside the default one) and issuer address (for SAML, its entity ID; for a directory, its address), its **Kind** (**OpenID Connect**, **SAML 2.0** or **Directory (LDAP)**), how many **Linked people** it has, its **Options** (**Role mapping**, **Creates accounts**, **No client secret** in red when one is missing; for SAML also **Certificate expired** or **Certificate expires soon**, **Key unreadable**, **Encrypted** and **Metadata refreshed daily** (or **Metadata refresh failing** in red); for a directory **No service account password** in red and **Pinned CA**) and an **On** switch. The **…** menu offers **Edit**, **Test connection** (for SAML, **Check settings** and **Download metadata**), **Make default** and **Remove** (only for a provider that is switched off).
 
 ### Registering the application with your provider
 
@@ -335,7 +335,27 @@ Use SAML when your identity provider offers SAML only, or your organization runs
 
 **Certificate changes.** When the identity provider announces a new signing certificate, add it under **Signing certificates** beside the old one and save; both are trusted. Remove the old one once the identity provider has switched. Each stored certificate is shown with its expiry date, and the list warns 30 days ahead; **Check settings** reports expired certificates. If this application's own key is lost (for example after the secret key was changed) or due for a change, check **Make a new key and certificate for this application when saving** and give the new metadata to the identity provider at once.
 
-Role mapping, the provider's second factor, signing out and accounts created at first sign-in work as for OpenID Connect (below), with these differences: role mapping reads the **Groups attribute** (the attribute's `Name`, for example `groups`, `memberOf` or a role claim URI); the provider's multi-factor sign-in is shown by the assertion's **AuthnContextClassRef** (list the values your identity provider uses, for example `https://refeds.org/profile/mfa`; they are also asked for at sign-in); and signing out at the provider sends a signed logout request to the **Identity provider sign-out address**, after which the identity provider sends the browser back here. A sign-out started at the identity provider does not end sessions here.
+Role mapping, the provider's second factor, signing out and accounts created at first sign-in work as for OpenID Connect (below), with these differences: role mapping reads the **Groups attribute** (the attribute's `Name`, for example `groups`, `memberOf` or a role claim URI); the provider's multi-factor sign-in is shown by the assertion's **AuthnContextClassRef** (list the values your identity provider uses, for example `https://refeds.org/profile/mfa`; they are also asked for at sign-in); and signing out at the provider sends a signed logout request to the **Identity provider sign-out address**, after which the identity provider sends the browser back here.
+
+**Sign-outs started at the identity provider (off unless you switch it on).** Under **Signing out**, switch on **Act on sign-outs started at the identity provider**, enter the **Identity provider sign-out address** (its answer goes there) and give the identity provider the new metadata: it lists this application's single logout address for both bindings. When the person then signs out at the identity provider, or in another application that shares its session, the identity provider sends a logout request here. It must be signed by one of the **Signing certificates** (RSA-SHA256 or stronger; unsigned requests are refused), come from the identity provider's entity ID, be addressed to this application's sign-out address, be no more than five minutes old, and is accepted once. The sessions here made through that provider for that person (only the one session the request names, when it names one) end, and a signed answer goes back to the identity provider. Each sign-out is recorded (`identity.saml_logout`, with how many sessions ended); a refused request is recorded as a failure. While the option is off, such requests are ignored as before.
+
+**Signed metadata and a daily refresh.** Under **Read the identity provider's metadata**, open **Signed metadata and a daily refresh**. Paste the **Metadata signing certificate**, the certificate a federation or identity provider signs its metadata with (get it by a trusted route, not from the metadata itself): from then on, metadata you paste, upload or fetch must carry a valid signature by it, on the whole document, with RSA-SHA256 or stronger, and only what the signature covers is read; metadata past its `validUntil` date is refused. Enter the **Metadata address** and check **Refresh the metadata every day** to have it fetched again daily, through the background jobs. This needs outbound connections switched on and the host on the allowed hosts list under **Settings**, and accepts signed metadata only. A refresh adds new signing certificates (so a certificate change at the identity provider needs nothing from you), updates the sign-in and sign-out addresses, and keeps a certificate the metadata no longer lists for 7 more days before removing it. Metadata that names another entity ID, is not signed by the pinned certificate or is out of date changes nothing. Every refresh, and every failure, is recorded (`identity_provider.metadata_refresh`); the last one is shown under the option, and **Refresh now** runs one at once (you may be asked for your password).
+
+### Directory (LDAP) sign-in
+
+With a directory provider, people type their directory user name and password into this application's sign-in form, and the directory checks them. It works with Active Directory, OpenLDAP and other LDAP v3 directories. The directory is contacted only over an encrypted connection: an `ldaps://` address, or an `ldap://` address with **StartTLS**. Plain LDAP is refused (it would send passwords unencrypted), except to `127.0.0.1` for trials.
+
+1. Select **Add provider** and choose **Directory (LDAP)** under **Kind of provider**. Enter the **Name** (shown on the sign-in form) and a **Short name**. Leave **Switched on** off for now.
+2. Under **Connection**, choose the **Kind of directory** (**Active Directory**, **OpenLDAP** or **Another LDAP v3 directory**): the usual search filter and attributes below are filled in for it. Enter the **Directory address**, for example `ldaps://dc1.example.org` (add `:port` for another port), or an `ldap://` address with **Use StartTLS** checked.
+3. **Trust only this CA certificate** is optional: paste your organization's CA certificate (or the directory's own certificate) in PEM form, and no other certificate is trusted for this directory. Empty, the system's trusted certificate authorities are used. Either way the certificate must be valid and name the host in the address.
+4. Enter the **Service account DN**, an account made for this application that may read people's entries and groups (it never changes anything), and its **Service account password**. The password is stored encrypted with the secret key and never shown again; to replace it, type a new one. A directory where every person's DN follows one pattern and people may read their own entry can do without a service account: leave the DN empty and enter a **User DN template** such as `uid={username},ou=people,dc=example,dc=org`.
+5. Under **Who the person is**, enter the **Base DN** where people are searched for, and check the **User search filter**: `{username}` is what the person types. It is escaped, so that whatever they type (`*`, brackets and so on) can only ever be one value, and exactly one entry must match. The **Identifier attribute** must never change for the person (`objectGUID` for Active Directory, `entryUUID` for OpenLDAP): it is what links the entry to an account here. **Email attribute** is usually `mail`. Check **Trust the email addresses in this directory** (it starts checked) only for your organization's own directory: matching existing accounts by email and creating accounts need it.
+6. Select **Add provider**, open it again, enter a user name under **Look up a person (optional)** and select **Test connection**. The result shows the TLS version, the directory's certificate and its expiry, whether the service account and base DN work, and for the person looked up their DN, identifier, email, whether the account is disabled or locked, and their groups. No password is checked and nobody is signed in.
+7. Switch the provider on. It appears on the sign-in form under **Sign in with**.
+
+**Groups for role mapping.** Under **Role mapping**, choose where **Groups come from**: **The person's memberOf attribute**, or **A search for groups that list the person** (the **Group search filter**, where `{dn}` is the person's DN, and an optional **Group base DN**). **Include nested groups (Active Directory)** adds the groups the person is in through other groups, which Active Directory works out itself. A rule's group value is the group's full DN, exactly as the directory gives it: **Test connection** with a user name lists them to copy.
+
+**At sign-in.** The service account finds the person's entry; then the directory checks the password with the person's own DN, on a connection of its own. An empty password is never sent. Disabled, expired and locked directory accounts are refused. A directory password is one factor: a person who has a second factor here (an authenticator app, or recovery codes) is asked for it next, and the second-factor requirement applies as for everyone. A person whose only second factor is a passkey uses a recovery code after a directory password for now. Failures are limited as for a password: by address, by user name at the directory (five wrong passwords in 15 minutes stop further tries for that name for a while), and a wrong directory password counts toward the lockout of the account it is linked to. People always see the same "Sign-in failed" message; the audit log records the reason (`signin.failure`), never the password or the service account's details. Matching, linking and creating accounts work as for the other providers (below). A directory is linked at sign-in, not from **Account security**.
 
 ### Role mapping (off unless you switch it on)
 
@@ -570,7 +590,7 @@ Some features suit some transit organizations but not others. A public agency, a
 |---|---|---|---|
 | **Outside funder interest in equipment** | Inventory (and vehicles in Fleet and services) | The **Funder interest** and **Funder interest (%)** fields on assets and vehicles, and the rule that an asset with a funder interest cannot be disposed of until the funder's approval reference is entered | Funder interest |
 | **Approval number on contracts** | Vendors and contracts | The field for the number of the decision that approved a contract | Approval or resolution number |
-| **Recorded approval of a ransom payment** | Security incidents | The reference field on the **Ransom** tab, and the rule that a ransom payment cannot be marked approved without it | Governing body approval reference |
+| **Recorded approval of a ransom payment** | Security incidents | The reference field on the **Ransom** tab, and the rule that a ransom payment cannot be marked approved without it | Payment approval reference |
 
 Every option starts **On** with the name shown, so an upgrade changes nothing.
 
@@ -610,11 +630,13 @@ Select **Edit** to change the label, section, position, help or whether it is re
 
 Select **Switch off** to hide a field everywhere. **The values already entered are kept**: select **Switch on** to bring the field and its values back. Fields are never deleted.
 
+On an installation whose server uses a database account that may not change the database's structure (a least-privilege account, see [Installation](../installation.md#a-least-privilege-database-role)), custom fields still work at once. A new text field is found by the search box only after the database owner's next migrate step (run at every server start when the owner account is set up): until then the record type is searched as before, and the server log says that a change is waiting.
+
 ## Retention
 
 Open **Administration > Retention** to set how long each kind of record is kept and to decide what happens to records past that age.
 
-**The daily check flags records. It never deletes anything.** Once a day the application looks for records older than their retention period and lists them under **Waiting for a decision**. Each one stays there until an administrator keeps it for longer or removes it for good.
+**The daily check flags records. It never deletes anything.** Once a day the application looks for records older than their retention period and lists them under **Waiting for a decision**. Each one stays there until an administrator keeps it for longer, anonymizes it or removes it for good, as far as the record type's period allows.
 
 ### Retention periods
 
@@ -623,19 +645,23 @@ On the **Retention periods** tab, each record type shows how long it is **Kept f
 - **Keep for (months)**: from 1 to 1200. 84 months is 7 years.
 - **Counted from**: **Last change** (records still being updated are not flagged) or **Creation**.
 - **Schedule category**: the heading in your records schedule. The choices are the list **Retention category** under **Lists**.
+- **At the end of the period, the review may**: what may be done with a flagged record of this type. **Only keep longer** (nothing is ever anonymized or removed), **Keep longer or anonymize**, or **Keep longer, anonymize or remove for good** (the choice for types set before this option existed). The hint lists the fields of this type that anonymizing replaces. The **At the end** column shows the choice.
 - **Notes**: where the period comes from, for example the schedule item.
 - **Check these records every day**: switch off to pause the check for this type. Records already flagged stay on the list.
 
-Select **Save**. The audit log's own period is under **Settings > Retention**.
+Select **Save**. The change is recorded in the audit log.
+
+The audit log's own period is under **Settings > Retention**. It is recorded, not enforced: audit events are never deleted or changed, not even when a record is anonymized or removed. The audit log keeps who changed what, by design, so that every change stays accountable.
 
 ### Reviewing flagged records
 
-The **Review** tab lists the records past their period. **Show** switches between **Waiting for a decision**, **Kept longer** and **Removed for good**; **Record type** narrows the list. Select **Run the check now** at the top of the page to check at once instead of waiting for the daily check, for example after changing a period. Records you may not see (restricted ones, without **View** on **Security incidents and restricted records**) are not listed.
+The **Review** tab lists the records past their period. **Show** switches between **Waiting for a decision**, **Kept longer**, **Anonymized** and **Removed for good**; **Record type** narrows the list. Select **Run the check now** at the top of the page to check at once instead of waiting for the daily check, for example after changing a period. Records you may not see (restricted ones, without **View** on **Security incidents and restricted records**) are not listed.
 
 For each record waiting for a decision:
 
 - **Keep longer**: choose **For a number of months** or **Until a date**, give a **Reason** and select **Keep longer**. The record leaves the list and is flagged again once that date has passed.
-- **Remove…**: give a **Reason**, check **I understand that this record will be deleted permanently** and select **Remove for good**. You are asked for your password if you have not given it recently. The record, its comments, tags and links are deleted and cannot be brought back. A record with files attached cannot be removed until its files are. The audit log keeps the record's history and a note of the removal with your reason.
+- **Anonymize…** (when the period allows it): give a **Reason**, check **I understand that the personal details will be removed permanently** and select **Anonymize**. You are asked to confirm your identity if you have not done so recently. Anonymizing **cannot be undone**. It replaces the record's personal fields (the people on it, names, email addresses, phone numbers and long text that may hold personal details) with "Removed at the end of the retention period" or empties them, empties the people who created and last changed it, replaces the text and author of each of its comments, deletes the contents of its files and renames them "Removed file", replaces the titles of notifications about it, and removes its watchers. Search no longer finds the removed details. The record itself, its reference, status, dates, numbers, tags, links and the number of its comments and files stay, so counts and charts stay the same for everyone; only a chart grouped by a person or a long-text field shows the record under no value. A person field that the record type requires cannot be emptied and is kept; the audit entry names it. The audit log is not changed: its earlier entries for the record, shown on the record's **History** tab, still hold the earlier values. The review moves to **Anonymized**, with your reason.
+- **Remove…** (when the period allows it): give a **Reason**, check **I understand that this record will be deleted permanently** and select **Remove for good**. You are asked for your password if you have not given it recently. The record, its comments, tags and links are deleted and cannot be brought back. A record with files attached cannot be removed until its files are. The audit log keeps the record's history and a note of the removal with your reason.
 
 ## API tokens
 
@@ -684,6 +710,8 @@ Besides record changes, a webhook can send these events. Each carries its own de
 | **Security incident declared** | An incident is declared and its notification clocks start | Yes |
 | **Change approval decided** | An approver approves or rejects a change | When the change is |
 | **Scheduled report delivered** | A report schedule ran and reached at least one person; only the counts are sent, never the figures | No |
+| **Approval decided** | Someone approves or rejects a step of an [approval workflow](22-approval-workflows.md) | When the record is |
+| **Approval workflow finished** | An approval workflow ends: approved, rejected or canceled | When the record is |
 | **Backup failed** | A scheduled or manual backup failed | No |
 
 A restricted event is sent only by a webhook with **Include restricted records** switched on, as for restricted records. When a part of the application is switched off under **Features**, its events are not sent and are not offered in the form: the clock and incident events belong to **Security incidents**, the change approval to **Change enablement** and the report delivery to **Dashboards and reports**.
@@ -787,6 +815,8 @@ If you are signed in with the break-glass account, a red notice at the top of th
 
 On the sign-in page, a provider's button (**Sign in with …**) sends you to your organization's sign-in and back. Under the password form are **Sign in with a passkey** and **Forgot your password?**. When passwords are switched off, the password form is folded away under **Emergency access with a password**, for the break-glass account only, and neither of those is shown.
 
+When your organization's directory is set up for sign-in, the password form has a **Sign in with** choice: the directory's name (use your directory user name and password, as for your computer) or **Password for this application**. If you have a second factor here, you are asked for its code after your directory password, as with a password kept here.
+
 ### API tokens on your account
 
 The **API tokens** card lists your tokens, with their first characters, expiry, last use and permissions. Expired and revoked tokens are folded away under **Expired and revoked tokens**.
@@ -807,11 +837,10 @@ The token is shown once. Select **Copy token** and keep it somewhere safe, such 
 - A directory whose group list can be fetched only with its own kind of request gives no groups when a person is in too many to list; their roles are then left unchanged. Use application roles or a filtered groups claim instead.
 - Signing in through a provider never asks for this application's own second factor; it counts as one only when you trust the provider for it (see "The provider's own second factor").
 - Setup and reset links are emailed only when email is set up (see [Attachments and notifications](14-attachments-and-notifications.md#email-settings)); otherwise you pass them on by hand.
-- The **Self-service portal** permissions can be checked on a role but do not control anything yet. They are marked **not yet used** on the role page.
 - The audit log's filters are not kept in the page address, so a filtered view cannot be bookmarked.
 - Roles cannot be deleted and user accounts cannot be removed; switch off or disable them instead.
 - New lists cannot be created on screen, and the special behavior of supplied values cannot be given to values you add.
 - The self-service portal is not built, although its switch appears under **Settings**.
-- Retention only flags whole records for a decision; records cannot yet be anonymized instead of removed.
+- Anonymizing a record does not change the audit log, which keeps the earlier values of its personal fields; the audit log's own period is recorded, not enforced.
 - Webhooks are sent for record changes only, not for other events such as a notification clock turning red.
 - Risk scales and the framework target status have no settings screen.
