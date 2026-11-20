@@ -1,6 +1,6 @@
 # E18 Quality and known defects
 
-**Status:** in progress (45 of 51 issues done)
+**Status:** in progress (46 of 53 issues done)
 
 ## Goal
 
@@ -72,6 +72,8 @@ has never been checked, so nobody relies on something untested.
 | E18-49 | A list filter in the page address on a field the type lacks is still applied | open | P3 |
 | E18-50 | Agency wording left in a core option name and an assistant prompt | done | P3 |
 | E18-51 | A public reply on an email ticket could be emailed before it was saved | done | P2 |
+| E18-52 | Continuous integration failed on macOS and on Linux before 06:00 | done | P2 |
+| E18-53 | Identity tests failed once each in the UTC pass of `ci` | open | P3 |
 
 ---
 
@@ -1053,3 +1055,40 @@ already read the outbox, and on the PostgreSQL wire-protocol run the reply was s
 - [x] Passes on the embedded database and through the PostgreSQL wire protocol
 
 **Implemented in:** `server/src/modules/tickets/email.ts` (the hook moved from `onResponse` to `onSend` and returns the payload on every path).
+
+### E18-52 Continuous integration failed on macOS and on Linux before 06:00
+
+**Status:** done · **Priority:** P2 · **Type:** bug
+
+Two jobs failed on GitHub since wave 5. On macOS a PDF font test assumed that no single installed
+font prints Hebrew and Chinese together, but a system font there does. In the browser tests on
+Linux, completing the sample change in progress was refused ("The actual end cannot be before the
+actual start") whenever the sample data was made before 06:00, because that change started at
+06:00 today, still in the future.
+
+**Acceptance criteria**
+
+- [x] The font test picks a Chinese font that lacks Hebrew, and is skipped where there is none
+- [x] The sample change in progress never starts in the future
+- [x] The browser suite passes on Linux Chromium with the clock on UTC before 06:00
+
+**Implemented in:** `server/src/core/export/fonts.test.ts`; `server/src/modules/changes/seed.ts` (`started`).
+
+### E18-53 Identity tests failed once each in the UTC pass of `ci`
+
+**Status:** open · **Priority:** P3 · **Type:** bug
+
+During one local `ci` run, the two "acts on a signed LogoutRequest" tests in
+`server/src/modules/admin/saml-slo.test.ts` failed in the UTC pass only. They passed in the next
+full UTC run, alone, with the identity tests, and six times at once, so the cause is not known.
+The route redirects home on any refusal, so the tests now print the audited reason when the answer
+does not go back to the identity provider.
+
+In another `ci` run, the stand-in directory suite in `server/src/core/identity/ldap.test.ts`
+failed to start in the UTC pass (its set-up makes four RSA keys at once). Both passed in four full
+UTC runs and the next `ci` run. Neither has failed on GitHub.
+
+**Acceptance criteria**
+
+- [ ] The reason is known from a failing run, and fixed
+- [ ] No failure in ten `ci` runs

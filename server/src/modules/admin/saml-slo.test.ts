@@ -88,6 +88,8 @@ describe('sign-outs started at the identity provider (E02-27)', () => {
     const req = idp.logoutRequest({ binding: 'redirect', destination: SLO, nameId: idp.user.nameId, sessionIndex: a.sessionIndex, relayState: 'back-to-portal' });
     const res = await sloGet(req.query);
     expect(res.statusCode).toBe(302);
+    // A refusal also redirects (home); name its reason so an intermittent failure says why.
+    expect(res.headers.location, await lastFailure()).toMatch(/^https?:/);
     const answer = await readResponse(res.headers.location as string);
     expect(answer.signatureOk).toBe(true);
     expect(answer.relayState).toBe('back-to-portal');
@@ -113,6 +115,7 @@ describe('sign-outs started at the identity provider (E02-27)', () => {
     const req = idp.logoutRequest({ binding: 'post', destination: SLO, nameId: idp.user.nameId, sessionIndex: a.sessionIndex });
     const res = await sloPost(req.form);
     expect(res.statusCode).toBe(303);
+    expect(res.headers.location, await lastFailure()).toMatch(/^https?:/);
     expect((await readResponse(res.headers.location as string)).signatureOk).toBe(true);
     expect(await signedIn(a.session)).toBe(false);
     expect((await audited('identity.saml_logout')).pop()).toMatch(/HTTP-POST/);

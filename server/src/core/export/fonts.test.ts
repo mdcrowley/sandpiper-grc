@@ -117,7 +117,7 @@ describe('text direction and mixed scripts in PDFs', () => {
     expect(rtl.text).toBe([...rtl.visual].reverse().join(''));
   });
 
-  const cjk = fontsHere.find((f) => f.regular.has(0x72b6));
+  const cjk = fontsHere.find((f) => f.regular.has(0x72b6) && !f.regular.has(0x5e9));
   const noCjk = fontsHere.find((f) => f.regular.has(0x5e9) && !f.regular.has(0x72b6));
   it.skipIf(!cjk || !noCjk)('prints text mixing scripts no single font covers, run by run, without "?"', () => {
     const fonts = [noCjk!, cjk!];

@@ -10,6 +10,12 @@ const at = (offset: number, hour: number): string => {
   d.setDate(d.getDate() + offset);
   return d.toISOString();
 };
+/** A start that has already happened: the time given, or an hour ago when that is still to come (a seed run before 06:00). */
+const started = (offset: number, hour: number): string => {
+  const t = at(offset, hour);
+  const hourAgo = new Date(Date.now() - 3_600_000).toISOString();
+  return t < hourAgo ? t : hourAgo;
+};
 
 const LOW = { people_affected: 'few', downtime: 'none', back_out: 'quick', experience: 'routine', testing: 'full' };
 const MEDIUM = { people_affected: 'team', downtime: 'out_of_hours', back_out: 'slow', experience: 'some', testing: 'partial' };
@@ -69,7 +75,7 @@ const SAMPLES: Sample[] = [
   },
   {
     when: [0, 6, 16],
-    steps: [{ to: 'submitted' }, { approve: 'Sample approver: change manager', role: 'Change manager' }, { to: 'scheduled' }, { to: 'in_progress', body: { actual_start: at(0, 6) } }],
+    steps: [{ to: 'submitted' }, { approve: 'Sample approver: change manager', role: 'Change manager' }, { to: 'scheduled' }, { to: 'in_progress', body: { actual_start: started(0, 6) } }],
     change: { title: '[Sample] Patch the email gateway', change_type: 'normal', risk_answers: MEDIUM,
       description: 'Apply this month\'s security updates to the email gateway.', reason: 'Routine security patching.' },
   },
