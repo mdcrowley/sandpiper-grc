@@ -19,7 +19,13 @@ function derLength(n: number): Buffer {
 const tlv = (tag: number, body: Buffer) => Buffer.concat([Buffer.from([tag]), derLength(body.length), body]);
 const seq = (...items: Buffer[]) => tlv(0x30, Buffer.concat(items));
 const set = (...items: Buffer[]) => tlv(0x31, Buffer.concat(items));
-const integer = (raw: Buffer) => tlv(0x02, raw[0] & 0x80 ? Buffer.concat([Buffer.from([0]), raw]) : raw);
+/** A non-negative INTEGER in DER: no leading zero bytes, except one before a byte whose top bit is set. */
+function integer(raw: Buffer): Buffer {
+  let i = 0;
+  while (i < raw.length - 1 && raw[i] === 0) i++;
+  const v = raw.subarray(i);
+  return tlv(0x02, v[0] & 0x80 ? Buffer.concat([Buffer.from([0]), v]) : v);
+}
 const NULL = Buffer.from([0x05, 0x00]);
 function oid(dotted: string): Buffer {
   const parts = dotted.split('.').map(Number);
@@ -43,13 +49,13 @@ const pem = (label: string, der: Buffer) =>
   `-----BEGIN ${label}-----\n${der.toString('base64').replace(/(.{64})/g, '$1\n').replace(/\n$/, '')}\n-----END ${label}-----\n`;
 
 /** A self-signed certificate (PEM) for an RSA key pair. */
-export function selfSignedCertificate(publicKey: KeyObject, privateKey: KeyObject, commonName: string, years = 10): string {
+export function selfSignedCertificate(publicKey: KeyObject, privateKey: KeyObject, commonName: string, years = 10, serialBytes?: Buffer): string {
   const now = new Date();
   const notBefore = new Date(now.getTime() - 5 * 60_000);
   const notAfter = new Date(now);
   notAfter.setUTCFullYear(notAfter.getUTCFullYear() + years);
-  const serial = randomBytes(16);
-  serial[0] &= 0x7f; // positive
+  const serial = Buffer.from(serialBytes ?? randomBytes(16));
+  serial[0] &= 0x7f; // positive (a leading zero byte is dropped by integer(), as DER requires)
   const spki = publicKey.export({ type: 'spki', format: 'der' });
   const tbs = seq(
     tlv(0xa0, integer(Buffer.from([2]))), // version 3

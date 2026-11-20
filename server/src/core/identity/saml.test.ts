@@ -22,6 +22,18 @@ describe('certificates', () => {
     expect(facts.expired).toBe(false);
   });
 
+  it('writes the serial number in shortest form, whatever its first bytes (about 1 in 128 random serials start with zero)', () => {
+    const { publicKey, privateKey } = rsa(2048);
+    const serials = [
+      [0x00, 0x12], [0x00, 0x00, 0x80, 0x01], [0x00, 0x80], [0x80, 0x01], [0x7f, 0xff], [0x00, 0x00],
+    ].map((b) => Buffer.from([...b, ...Array(16 - b.length).fill(0x5a)]));
+    for (const serial of serials) {
+      const cert = new X509Certificate(selfSignedCertificate(publicKey, privateKey, "Serial test", 1, serial)); // OpenSSL refuses padded INTEGERs
+      expect(cert.verify(publicKey)).toBe(true);
+      expect(cert.serialNumber).not.toMatch(/^00/);
+    }
+  });
+
   it('reads PEM blocks and bare base64, and refuses weak or foreign keys and private keys', () => {
     const a = rsa(2048);
     const b = rsa(2048);

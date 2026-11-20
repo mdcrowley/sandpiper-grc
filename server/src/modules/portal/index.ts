@@ -204,13 +204,14 @@ const mod: ModuleDef = {
 
 /** Tells the requester when an agent writes them a public comment. */
 function tellRequester(ctx: ModuleContext) {
-  ctx.app.addHook('onResponse', async (req, reply) => {
-    if (req.method !== 'POST' || reply.statusCode !== 201 || req.url.split('?')[0] !== '/api/comments' || !req.user) return;
+  // Before the answer is sent (onSend), so whoever reads the requester's notifications next sees it.
+  ctx.app.addHook('onSend', async (req, reply, payload) => {
+    if (req.method !== 'POST' || reply.statusCode !== 201 || req.url.split('?')[0] !== '/api/comments' || !req.user) return payload;
     const b = (req.body ?? {}) as Row;
-    if (b.record_type !== 'ticket' || b.internal !== false || !ctx.app.hasDecorator('notify') || !(await isEnabled(ctx))) return;
+    if (b.record_type !== 'ticket' || b.internal !== false || !ctx.app.hasDecorator('notify') || !(await isEnabled(ctx))) return payload;
     try {
       const t = await ctx.db.one<Row>('select id, ref, title, requester_id from tickets where id::text = $1 and deleted_at is null', [String(b.record_id)]);
-      if (!t?.requester_id || t.requester_id === req.user.id) return;
+      if (!t?.requester_id || t.requester_id === req.user.id) return payload;
       await (ctx.app as unknown as { notify: (i: Row) => Promise<unknown> }).notify({
         userIds: [t.requester_id], kind: 'general', title: `New reply on your request ${t.ref}`,
         body: String(b.body ?? '').trim().slice(0, 300), route: `/portal/requests/${t.id}`,
@@ -218,6 +219,7 @@ function tellRequester(ctx: ModuleContext) {
     } catch (err) {
       console.error('[portal] could not tell the requester:', err);
     }
+    return payload;
   });
 }
 

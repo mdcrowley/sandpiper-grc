@@ -297,12 +297,14 @@ export function registerTokens(app: FastifyInstance, deps: Deps) {
   }
 
   // Every change made with a token leaves an event naming the token, whatever the route itself records.
-  app.addHook('onResponse', async (req, reply) => {
-    if (!req.apiToken || ['GET', 'HEAD', 'OPTIONS'].includes(req.method) || reply.statusCode >= 400) return;
+  // Written before the answer is sent (onSend), so a caller that sees the answer can read the event.
+  app.addHook('onSend', async (req, reply, payload) => {
+    if (!req.apiToken || ['GET', 'HEAD', 'OPTIONS'].includes(req.method) || reply.statusCode >= 400) return payload;
     await audit(req, {
       action: 'token.use', recordType: 'api_token', recordId: req.apiToken.id,
       summary: `${req.method} ${req.url.split('?')[0]} (${reply.statusCode}) with API token "${req.apiToken.name}"`,
     }).catch((err) => console.error('[tokens] could not audit a token request:', err));
+    return payload;
   });
 
   const maxDays = async () => Math.max(1, Number(await settings.get('tokens.max_days', 365)) || 365);

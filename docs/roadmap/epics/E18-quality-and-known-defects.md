@@ -1,6 +1,6 @@
 # E18 Quality and known defects
 
-**Status:** in progress (46 of 53 issues done)
+**Status:** in progress (48 of 54 issues done)
 
 ## Goal
 
@@ -73,7 +73,8 @@ has never been checked, so nobody relies on something untested.
 | E18-50 | Agency wording left in a core option name and an assistant prompt | done | P3 |
 | E18-51 | A public reply on an email ticket could be emailed before it was saved | done | P2 |
 | E18-52 | Continuous integration failed on macOS and on Linux before 06:00 | done | P2 |
-| E18-53 | Identity tests failed once each in the UTC pass of `ci` | open | P3 |
+| E18-53 | One SAML certificate in 128 could not be read | done | P1 |
+| E18-54 | An API token's change was sometimes audited after the answer was sent | done | P2 |
 
 ---
 
@@ -1074,21 +1075,41 @@ actual start") whenever the sample data was made before 06:00, because that chan
 
 **Implemented in:** `server/src/core/export/fonts.test.ts`; `server/src/modules/changes/seed.ts` (`started`).
 
-### E18-53 Identity tests failed once each in the UTC pass of `ci`
+### E18-53 One SAML certificate in 128 could not be read
 
-**Status:** open · **Priority:** P3 · **Type:** bug
+**Status:** done · **Priority:** P1 · **Type:** bug
 
-During one local `ci` run, the two "acts on a signed LogoutRequest" tests in
-`server/src/modules/admin/saml-slo.test.ts` failed in the UTC pass only. They passed in the next
-full UTC run, alone, with the identity tests, and six times at once, so the cause is not known.
-The route redirects home on any refusal, so the tests now print the audited reason when the answer
-does not go back to the identity provider.
+The self-signed certificate this application makes for SAML sign-in (and the stand-in identity
+provider and directory in the tests) took 16 random bytes as its serial number. When the first byte
+was zero, about one time in 128, the number was written with a leading zero byte, which DER forbids
+and OpenSSL refuses ("illegal padding"). Such a certificate could not be read by an identity
+provider or by xml-crypto. In the tests it showed up as rare failures of the SAML sign-out, SAML
+metadata and directory suites, only some runs and on any clock.
 
-In another `ci` run, the stand-in directory suite in `server/src/core/identity/ldap.test.ts`
-failed to start in the UTC pass (its set-up makes four RSA keys at once). Both passed in four full
-UTC runs and the next `ci` run. Neither has failed on GitHub.
+An installation whose SAML provider got such a certificate can make a new one: check **Make a new
+key and certificate for this application when saving** on the provider, and give the new metadata
+to the identity provider.
 
 **Acceptance criteria**
 
-- [ ] The reason is known from a failing run, and fixed
-- [ ] No failure in ten `ci` runs
+- [x] INTEGERs are written in shortest form: leading zero bytes dropped, one added only before a byte with its top bit set
+- [x] A test makes certificates with serials starting 00 12, 00 00 80, 00 80, 80, 7F and all zero, and reads each with OpenSSL (it failed with "illegal padding" before the fix)
+- [x] The SAML sign-out tests name the refusal reason if they fail
+
+**Implemented in:** `server/src/core/identity/x509.ts` (`integer`, and an optional serial for tests); test in `server/src/core/identity/saml.test.ts`; `server/src/modules/admin/saml-slo.test.ts`.
+
+### E18-54 An API token's change was sometimes audited after the answer was sent
+
+**Status:** done · **Priority:** P2 · **Type:** bug
+
+The `token.use` audit event for a change made with an API token, and the portal notification that
+tells a requester about a public reply, were written in a hook that runs after the answer has gone
+out. A client that read the audit log or the requester's notifications straight after the answer
+could miss them (seen once in the PostgreSQL CI job). This is the same race as E18-51.
+
+**Acceptance criteria**
+
+- [x] Both are written before the answer is sent (`onSend`, returning the payload on every path)
+- [x] The token and portal tests pass on the embedded database
+
+**Implemented in:** `server/src/core/tokens.ts`, `server/src/modules/portal/index.ts` (`tellRequester`).

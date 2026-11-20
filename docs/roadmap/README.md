@@ -152,13 +152,13 @@ status `done`; issues in progress, open or blocked are counted in the total only
 | [E15](epics/E15-self-service-portal.md) | Self-service portal | done | 14 / 14 |
 | [E16](epics/E16-hosting-operations-and-hardening.md) | Hosting, operations and hardening | in progress | 30 / 37 |
 | [E17](epics/E17-documentation.md) | Documentation | in progress | 7 / 14 |
-| [E18](epics/E18-quality-and-known-defects.md) | Quality and known defects | in progress | 46 / 53 |
+| [E18](epics/E18-quality-and-known-defects.md) | Quality and known defects | in progress | 48 / 54 |
 | [E19](epics/E19-fleet-and-services.md) | Fleet and services | in progress | 13 / 14 |
 | [E20](epics/E20-safety-management.md) | Safety management | done | 14 / 14 |
 | [E21](epics/E21-mcp-server.md) | MCP server (AI assistant access) | done | 23 / 23 |
-| | **Total** | | **469 / 504** |
+| | **Total** | | **471 / 505** |
 
-Of the 35 issues not done, 18 are in progress and 17 are open or blocked.
+Of the 34 issues not done, 18 are in progress and 16 are open or blocked.
 
 ## Next up
 
