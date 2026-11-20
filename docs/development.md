@@ -111,6 +111,14 @@ build on Windows and Linux with a non-blocking dependency audit (`npm audit`); t
 through the PostgreSQL wire protocol (and, not yet blocking, on PostgreSQL 17); the
 container build and smoke test; and the browser suite with the accessibility audit, which
 fails only on a finding not already raised as an issue (see [Tests](#tests)).
+A push or pull request that changes only documentation (anything under `docs/` except the
+user guide in `docs/user`, and the top-level Markdown files) runs none of this; the user guide is
+bundled into the in-app Help and tested, so a change there runs everything.
+
+For one change, run `.\grc.ps1 ci` and only the browser tests that cover it
+(`npm run test:e2e -- --only smoke,<suite>` or `--grep <name>`). The whole browser suite (about 45
+minutes) and the accessibility audit run on GitHub for every push; run them locally at the end of a
+larger piece of work, before a release, or when a change touches the shell, routing or theme.
 
 The API description: `npx tsx server/src/core/openapi-cli.ts [file] [--unversioned]`
 writes the whole OpenAPI document (every record type and route, paths under `/api/v1`;

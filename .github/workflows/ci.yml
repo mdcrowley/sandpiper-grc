@@ -9,9 +9,22 @@ name: CI
 # vulnerability someone can fix; a released migration may never change.
 # Nothing here needs the private seed/ folder or any secret other than the built-in token.
 
+# A change to documentation only (the roadmap, the developer and operator guides, the top-level
+# Markdown files) runs nothing. The user guide in docs/user is bundled into the in-app Help and
+# tested, so a change there still runs everything. Later patterns win: docs/user is put back last.
 on:
   push:
+    paths:
+      - '**'
+      - '!docs/**'
+      - '!*.md'
+      - 'docs/user/**'
   pull_request:
+    paths:
+      - '**'
+      - '!docs/**'
+      - '!*.md'
+      - 'docs/user/**'
   workflow_dispatch:
 
 permissions:
