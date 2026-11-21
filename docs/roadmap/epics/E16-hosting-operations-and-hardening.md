@@ -725,6 +725,8 @@ macOS runner has a signed-in launchd session.
 
 **Implemented in:** `.github/workflows/ci.yml` (job `unix-install`, step "User service on a real systemd or launchd"); `docs/operations.md` (Running as a service on Linux and macOS)
 
+**Found by the first run (2026-11-21).** On macOS, `./grc.sh service install` worked but exited with an error: its last line was `[ "$kind" = systemd ] && echo …`, false under launchd. It is an `if` now (also in `service remove`), and `service status` uses `[[:space:]]` rather than `s` for the BSD grep on macOS. The Linux run passed every step.
+
 ### E16-36 Load test on a PostgreSQL server, and tune the slowest queries
 
 **Status:** done · **Priority:** P2 · **Type:** improvement

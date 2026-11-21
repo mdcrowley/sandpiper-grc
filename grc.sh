@@ -483,20 +483,21 @@ service_cmd() {
       fi
       for _ in $(seq 1 60); do health && break; sleep 1; done
       if health; then green "Installed $file; Sandpiper GRC is running at $url and starts when you sign in."; else red "Installed $file, but the server did not answer. See ./grc.sh logs"; exit 1; fi
-      [ "$kind" = systemd ] && echo "To start it at boot without signing in:  loginctl enable-linger $(id -un)"
+      # An if, not `[ ] &&`: as the last command it would make install exit with an error under launchd.
+      if [ "$kind" = systemd ]; then echo "To start it at boot without signing in:  loginctl enable-linger $(id -un)"; fi
       ;;
     remove | uninstall)
       if [ ! -f "$file" ]; then echo "No service installed ($file)."; exit 0; fi
       if [ "$kind" = launchd ]; then launchctl bootout "gui/$(id -u)/$launchd_label" 2>/dev/null
       else systemctl --user disable --now "$service_name.service" 2>/dev/null; fi
       rm -f "$file"
-      [ "$kind" = systemd ] && systemctl --user daemon-reload 2>/dev/null
-      server_pid >/dev/null && stop_server
+      if [ "$kind" = systemd ]; then systemctl --user daemon-reload 2>/dev/null || true; fi
+      if server_pid >/dev/null; then stop_server; fi
       green "Removed $file. The data is untouched; ./grc.sh start runs the server by hand again."
       ;;
     status)
       if [ ! -f "$file" ]; then echo "No service installed (./grc.sh service install writes $file)."
-      elif [ "$kind" = launchd ]; then launchctl print "gui/$(id -u)/$launchd_label" 2>/dev/null | grep -E '^\s*(state|pid|last exit code)' || echo "$launchd_label is installed but not loaded."
+      elif [ "$kind" = launchd ]; then launchctl print "gui/$(id -u)/$launchd_label" 2>/dev/null | grep -E '^[[:space:]]*(state|pid|last exit code)' || echo "$launchd_label is installed but not loaded."
       else systemctl --user status "$service_name.service" --no-pager 2>/dev/null | head -n 5 || echo "$service_name is installed."; fi
       ;;
     *) red 'Usage: ./grc.sh service install | remove | status | print'; exit 1 ;;
