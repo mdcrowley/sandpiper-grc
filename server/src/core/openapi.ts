@@ -25,8 +25,8 @@ import { can, type makeSettings } from './services.ts';
  * The document is cut down to what the caller may use: record types they cannot view and routes
  * whose stated permission they lack are left out.
  *
- * makeOpenApi also installs, before any route exists, the versioned alias of every route and the
- * request id (core/api/versioning.ts) and the integrator conventions (core/api/conventions.ts).
+ * makeOpenApi also installs, before any route exists, the /api/v1 handling (with the canonical
+ * request path), the deprecated aliases of renamed routes and the request id (core/api/versioning.ts) and the integrator conventions (core/api/conventions.ts).
  */
 
 interface Registered { method: string; url: string; public: boolean; origin: 'core' | 'module' }
@@ -84,7 +84,7 @@ export function makeOpenApi(app: FastifyInstance) {
   let origin: Registered['origin'] = 'core';
   let deps: Deps | null = null;
 
-  // /api/v1 aliases and the request id, then the integrator conventions. Before any route.
+  // /api/v1 and the canonical path, renamed-route aliases and the request id, then the integrator conventions. Before any route.
   installVersioning(app);
   const conventions = installConventions(app);
 

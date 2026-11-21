@@ -25,3 +25,4 @@ export { NotFound, Forbidden, SwitchedOff } from './pages';
 export { ChangePasswordDialog } from './AuthPages';
 export { ExportMenu, RecordPdfButton } from './ListExport';
 export { withReauth, adminApi } from './reauth';
+export { useUnsavedChanges, confirmDiscard, hasUnsavedChanges, type UnsavedChanges, type DiscardPrompt } from './unsaved';

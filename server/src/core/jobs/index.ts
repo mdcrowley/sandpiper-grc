@@ -21,7 +21,7 @@ import { migrate } from '../migrate.ts';
 import type { ModuleContext, Row } from '../module.ts';
 import { makeJobQueue, type JobQueue } from './queue.ts';
 
-export { PermanentJobError, RetryLaterError, requestedWait, type EnqueueOptions, type HandlerOptions, type JobHandler, type JobInfo, type JobQueue, type ScheduleOptions } from './queue.ts';
+export { DeferJobError, PermanentJobError, RetryLaterError, requestedWait, type EnqueueOptions, type HandlerOptions, type JobHandler, type JobInfo, type JobQueue, type ScheduleOptions } from './queue.ts';
 
 declare module 'fastify' {
   interface FastifyInstance {

@@ -4,7 +4,7 @@ import type { FastifyRequest } from 'fastify';
 import { UUID_RE } from '../../core/errors.ts';
 import type { FieldDef, ModuleContext, Row } from '../../core/module.ts';
 import { nextRun } from './schedule.ts';
-import type { Sharing } from './sharing.ts';
+import { SHARED_TABLES, type Sharing } from './sharing.ts';
 import { compileWithCustom, GLOBAL_KINDS, SpecError } from './spec.ts';
 import { WIDGET_KINDS } from './widgets.ts';
 
@@ -30,6 +30,13 @@ export function defineReportResources(ctx: ModuleContext, sharing: Sharing) {
     return data;
   }
 
+  /** Only the owner (or, for a standard item, anyone who may edit and see it) changes it, on every route (sharing.ts). */
+  function mayChange(req: FastifyRequest | null, type: string, existing: Row): void {
+    if (req && !sharing.canChange(req.user, type, existing)) {
+      ctx.fail(403, 'forbidden', `Only the owner of this ${SHARED_TABLES[type].label.toLowerCase()} can change it. Save a copy to make your own.`);
+    }
+  }
+
   /** A saved specification must be one the engine can run. Seeded (system) records may name a record type that is not loaded. */
   async function checkSpec(req: FastifyRequest | null, spec: unknown): Promise<string> {
     const type = (spec as Row | null)?.type;
@@ -52,6 +59,7 @@ export function defineReportResources(ctx: ModuleContext, sharing: Sharing) {
   ctx.defineResource({
     type: 'report_definition', table: 'report_definitions', module: 'reports',
     label: 'Report', plural: 'Reports', path: '/api/reports', route: '/reports', titleField: 'name',
+    rowRule: sharing.rowRule('report_definition'), // who it is shared with (sharing.ts), on every route
     searchable: ['name', 'description'], defaultSort: { field: 'name', dir: 'asc' },
     fields: {
       name: { label: 'Name', type: 'text', required: true },
@@ -67,7 +75,8 @@ export function defineReportResources(ctx: ModuleContext, sharing: Sharing) {
         if (req) data.chart = cleanChart(data.chart);
         return owned(req, data, true);
       },
-      beforeUpdate: async (req, _existing, patch) => {
+      beforeUpdate: async (req, existing, patch) => {
+        mayChange(req, 'report_definition', existing);
         if (patch.spec !== undefined) patch.record_type = await checkSpec(req, patch.spec);
         if (patch.chart !== undefined && req) patch.chart = cleanChart(patch.chart);
         return owned(req, patch, false);
@@ -126,6 +135,7 @@ export function defineReportResources(ctx: ModuleContext, sharing: Sharing) {
   ctx.defineResource({
     type: 'dashboard', table: 'dashboards', module: 'dashboards',
     label: 'Dashboard', plural: 'Dashboards', path: '/api/dashboards', route: '/dashboards', titleField: 'name',
+    rowRule: sharing.rowRule('dashboard'), // who it is shared with (sharing.ts), on every route
     searchable: ['name', 'description'], defaultSort: { field: 'name', dir: 'asc' },
     fields: {
       name: { label: 'Name', type: 'text', required: true },
@@ -145,6 +155,7 @@ export function defineReportResources(ctx: ModuleContext, sharing: Sharing) {
         return owned(req, data, true);
       },
       beforeUpdate: async (req, existing, patch) => {
+        mayChange(req, 'dashboard', existing);
         if (patch.widgets !== undefined) {
           patch.widgets = await cleanWidgets(req, patch.widgets ?? []);
           await checkReportRefs(req, widgetReports(patch.widgets), widgetReports(existing.widgets), 'widgets');
@@ -189,6 +200,7 @@ export function defineReportResources(ctx: ModuleContext, sharing: Sharing) {
   ctx.defineResource({
     type: 'report_schedule', table: 'report_schedules', module: 'reports',
     label: 'Report schedule', plural: 'Report schedules', path: '/api/report-schedules', route: '/reports/schedules', titleField: 'name',
+    rowRule: sharing.rowRule('report_schedule'), // who it is shared with (sharing.ts), on every route
     searchable: ['name'], defaultSort: { field: 'name', dir: 'asc' },
     fields: {
       name: { label: 'Name', type: 'text', required: true },
@@ -215,6 +227,7 @@ export function defineReportResources(ctx: ModuleContext, sharing: Sharing) {
         return data;
       },
       beforeUpdate: async (req, existing, patch) => {
+        mayChange(req, 'report_schedule', existing);
         await cleanSchedule(req, patch, { ...existing, ...patch });
         return patch;
       },
@@ -234,6 +247,7 @@ export function defineReportResources(ctx: ModuleContext, sharing: Sharing) {
   ctx.defineResource({
     type: 'report_pack', table: 'report_packs', module: 'reports',
     label: 'Report pack', plural: 'Report packs', path: '/api/report-packs', route: '/reports/packs', titleField: 'name',
+    rowRule: sharing.rowRule('report_pack'), // who it is shared with (sharing.ts), on every route
     searchable: ['name', 'description'], defaultSort: { field: 'name', dir: 'asc' },
     fields: {
       name: { label: 'Name', type: 'text', required: true },
@@ -252,6 +266,7 @@ export function defineReportResources(ctx: ModuleContext, sharing: Sharing) {
         return owned(req, data, true);
       },
       beforeUpdate: async (req, existing, patch) => {
+        mayChange(req, 'report_pack', existing);
         if (patch.sections !== undefined) {
           patch.sections = cleanSections(patch.sections ?? []);
           await checkReportRefs(req, sectionReports(patch.sections), sectionReports(existing.sections), 'sections');

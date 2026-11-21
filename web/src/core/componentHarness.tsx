@@ -5,11 +5,12 @@
 // from handlers given by the test, and every call is recorded.
 import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { createMemoryRouter, Route, RouterProvider, Routes, useLocation } from 'react-router-dom';
 import { AuthProvider } from './auth';
 import { UiProvider } from './mantine';
 import { MetaProvider, type Meta } from './meta';
 import { ToastProvider } from './overlay';
+import { UnsavedChangesHost } from './unsaved';
 
 /** One recorded request. */
 export interface Call { method: string; path: string; query: URLSearchParams; body: unknown }
@@ -92,16 +93,20 @@ export async function render(ui: ReactNode, opts: {
     root = createRoot(container);
     root.render(
       <UiProvider>
-        <MemoryRouter initialEntries={[opts.route ?? '/']}>
-          <ToastProvider>
-            <AuthProvider>
-              <MetaProvider>
-                <LocationProbe />
-                <Routes><Route path={opts.routePattern ?? '*'} element={ui} /></Routes>
-              </MetaProvider>
-            </AuthProvider>
-          </ToastProvider>
-        </MemoryRouter>
+        <RouterProvider router={createMemoryRouter([{
+          path: '*',
+          element: (
+            <ToastProvider>
+              <AuthProvider>
+                <UnsavedChangesHost />
+                <MetaProvider>
+                  <LocationProbe />
+                  <Routes><Route path={opts.routePattern ?? '*'} element={ui} /></Routes>
+                </MetaProvider>
+              </AuthProvider>
+            </ToastProvider>
+          ),
+        }], { initialEntries: [opts.route ?? '/'] })} />
       </UiProvider>,
     );
   });

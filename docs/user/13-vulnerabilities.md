@@ -50,7 +50,7 @@ Most findings arrive by import. To record one from a penetration test, a supplie
 2. Enter the **Title** and choose the **Severity**.
 3. Enter the **Host name**, the **IP address**, or both. Optionally enter the **Port**, the **Protocol** (such as `tcp` or `udp`) and the **Service**.
 4. Enter what identifies the finding: the **Finding ID** from the tool that reported it, or the **CVE** identifiers separated by commas.
-5. Optionally enter the **CVSS score** (0 to 10), check **Known exploited**, set **First seen** (today when left empty), and choose the **Owner**, **System** and **Asset**.
+5. Optionally enter the **CVSS score** (0 to 10), check **Known exploited**, set **First seen** (today when left empty), and choose the **Owner**, **System** and **Asset**. You can also enter a **Description**, the **Solution** and the **Source** (where the finding came from).
 6. Select **Create vulnerability**.
 
 The finding gets a reference such as `VUL-00042`, the status **Open** and a fix-by date. When you enter only a host name or only an address that is already recorded for a host, the finding joins that host.

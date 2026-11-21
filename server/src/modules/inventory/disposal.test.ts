@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { testApp } from '../../test/helpers.ts';
-import { stepFor } from './reminders.ts';
+import { displayDate } from '../../core/timezone.ts';
+import { stepFor, when } from './reminders.ts';
 
 // Invented data only.
 let t: Awaited<ReturnType<typeof testApp>>;
@@ -285,6 +286,14 @@ describe('date reminders', () => {
     expect(stepFor(-2, [30, 7, 0])).toBe(0);
   });
 
+  it('writes dates in reminders as people read them, not the ISO form (BW-08)', () => {
+    expect(when(20, '2026-12-11')).toBe('in 20 days (Dec 11, 2026)');
+    expect(when(1, '2026-01-02')).toBe('tomorrow (Jan 2, 2026)');
+    expect(when(0, '2026-03-09')).toBe('today (Mar 9, 2026)');
+    expect(when(-3, '2026-03-06')).toBe('3 days ago (Mar 6, 2026)');
+    expect(displayDate('not a date')).toBe('not a date');
+  });
+
   it('tells the owner once per step about warranty, support and loan dates', async () => {
     const owner = await t.as('agent');
     const asset = (await t.api.post('/api/assets', { name: 'Reminder laptop', owner_id: owner.userId, warranty_end: await day(5), support_end: await day(200) })).body;
@@ -302,8 +311,8 @@ describe('date reminders', () => {
     expect(first.warranty).toBeGreaterThanOrEqual(1);
     expect(first.loans).toBe(1);
     const titles = (await owner.get('/api/notifications?pageSize=100')).body.rows.map((n: any) => n.title);
-    expect(titles).toContain(`Warranty for ${asset.tag} Reminder laptop ends in 5 days (${await day(5)})`);
-    expect(titles).toContain(`${asset.tag} Reminder laptop is due back from Sam Invented in 2 days (${await day(2)})`);
+    expect(titles).toContain(`Warranty for ${asset.tag} Reminder laptop ends in 5 days (${displayDate(await day(5))})`);
+    expect(titles).toContain(`${asset.tag} Reminder laptop is due back from Sam Invented in 2 days (${displayDate(await day(2))})`);
     expect(titles.some((x: string) => x.includes(retired.tag))).toBe(false);
     expect(titles.some((x: string) => x.startsWith(`Support for ${asset.tag}`))).toBe(false);
 

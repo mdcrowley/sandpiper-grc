@@ -15,6 +15,8 @@ export interface MigrateOptions {
    * it was applied (E16-20). Default: one warning on the console (the server log).
    */
   onChanged?: (changed: string[]) => void;
+  /** Applies only the migrations this accepts (by recorded name); the rest are left for a later run (restore of an older export, OP-04). */
+  only?: (name: string) => boolean;
 }
 
 /**
@@ -90,6 +92,7 @@ export async function migrate(db: Db, sources: MigrationSource[], opts: MigrateO
         else if (!was && checksums) backfill.push([name, sum]); // applied before checksums were kept
         continue;
       }
+      if (opts.only && !opts.only(name)) continue;
       try {
         await db.tx(async (tx) => {
           await tx.exec(sql);

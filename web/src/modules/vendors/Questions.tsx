@@ -142,7 +142,7 @@ export function AssessmentQuestions() {
     <div className="stack">
       <PageHeader
         title="Assessment questions"
-        subtitle="The security questions asked of every vendor. Each is answered yes, partly, no or not applicable; the weight says how much it counts towards the score."
+        subtitle="The security questions asked of every vendor. Each is answered yes, partly, no or not applicable; the weight says how much it counts toward the score."
         breadcrumbs={[{ label: 'Vendors', to: '/vendors' }, { label: 'Assessment questions' }]}
         actions={<Link className="btn btn-secondary" to="/vendors">Vendors</Link>}
       />

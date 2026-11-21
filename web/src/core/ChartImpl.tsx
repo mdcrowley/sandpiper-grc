@@ -17,24 +17,52 @@ const DEFAULT_GRID = { top: 24, right: 16, bottom: 32, left: 48 };
 const LABEL_SIZE = 12;
 
 /**
- * Words ECharts writes for screen readers in place of the picture (its aria component). Its own
- * defaults number the series from 0 ("The 0 series is a Line chart"); these read as plain English.
+ * What a screen reader is told in place of the picture (BW-07). Written here from the series data
+ * rather than by ECharts' aria templates: their `{value}` gives every internal dimension of a
+ * stacked series ("6; 0; 6; NaN"), so the real figure was lost. One phrase per data point: its
+ * category and its own value, up to 12 points of up to 8 series.
  */
-const ARIA_LABEL = {
-  general: { withTitle: 'Chart: {title}.', withoutTitle: 'Chart.' },
-  series: {
-    maxCount: 8,
-    single: { prefix: '', withName: ' A {seriesType} of {seriesName}.', withoutName: ' A {seriesType}.' },
-    multiple: {
-      prefix: ' {seriesCount} series.', withName: ' {seriesName}: a {seriesType}.', withoutName: ' A {seriesType}.',
-      separator: { middle: '', end: '' },
-    },
-  },
-  data: {
-    maxCount: 12, allData: ' Values: ', partialData: ' The first {displayCnt} values: ',
-    withName: '{name} {value}', withoutName: '{value}', separator: { middle: '; ', end: '.' },
-  },
-};
+export function ariaDescription(option: Loose): string {
+  const axisData = (axis: unknown): unknown[] | null => {
+    const ax = (Array.isArray(axis) ? axis[0] : axis) as Loose | undefined;
+    return ax && ax.type === 'category' && Array.isArray(ax.data) ? (ax.data as unknown[]) : null;
+  };
+  const nameOf = (c: unknown) => (c && typeof c === 'object' ? (c as Loose).value : c);
+  const xCats = axisData(option.xAxis);
+  const yCats = axisData(option.yAxis);
+  const cats = xCats ?? yCats;
+  const series = (Array.isArray(option.series) ? option.series : option.series ? [option.series] : []) as Loose[];
+  const shownSeries = series.filter((sr) => sr.type !== 'graph' && Array.isArray(sr.data));
+  const parts = ['Chart.'];
+  if (shownSeries.length > 1) parts.push(`${shownSeries.length} series.`);
+  for (const sr of shownSeries.slice(0, 8)) {
+    const points: string[] = [];
+    (sr.data as unknown[]).forEach((item, i) => {
+      const obj = item && typeof item === 'object' && !Array.isArray(item) ? (item as Loose) : null;
+      let value: unknown = obj && 'value' in obj ? obj.value : item;
+      let name: unknown = obj?.name;
+      if (Array.isArray(value)) {
+        if (sr.type === 'heatmap' && value.length >= 3) {
+          name = [nameOf(yCats?.[Number(value[1])]), nameOf(xCats?.[Number(value[0])])].filter((x) => x !== undefined && x !== null).join(', ');
+          value = value[2];
+        } else {
+          name ??= value.length > 1 ? value[0] : undefined;
+          value = value[value.length - 1];
+        }
+      }
+      if (value === null || value === undefined || value === '-' || (typeof value === 'number' && Number.isNaN(value))) return;
+      name ??= nameOf(cats?.[i]);
+      const text = typeof value === 'number' ? value.toLocaleString('en-US') : String(value);
+      points.push(name !== undefined && name !== null && name !== '' ? `${String(name)} ${text}` : text);
+    });
+    if (!points.length) continue;
+    const head = sr.name !== undefined && sr.name !== null && sr.name !== '' ? `${String(sr.name)}: ` : '';
+    const some = points.length > 12 ? `the first 12 of ${points.length} values: ` : '';
+    parts.push(`${head}${some}${points.slice(0, 12).join('; ')}.`);
+  }
+  if (series.length > 8) parts.push(`And ${series.length - 8} more series.`);
+  return parts.join(' ');
+}
 const TOKEN = /^var\((--[\w-]+)\)$/;
 
 /**
@@ -203,7 +231,6 @@ function fullOption(option: ChartProps['option'], width: number, opts: { read?: 
     : legend.bottom !== undefined ? { ...DEFAULT_GRID, bottom: 64 }
       : { ...DEFAULT_GRID, top: 44 };
   const base = {
-    aria: { enabled: true, label: ARIA_LABEL, ...(opts.print ? { decal: { show: true } } : {}) },
     grid,
     tooltip: { trigger: 'item', confine: true },
     animation: !calm,
@@ -213,6 +240,7 @@ function fullOption(option: ChartProps['option'], width: number, opts: { read?: 
     ...resolveTokens(option, read),
     ...legendFix,
   } as Loose;
+  base.aria = { enabled: true, label: { description: ariaDescription(base) }, ...(opts.print ? { decal: { show: true } } : {}) };
   return { ...base, ...fitCategoryLabels(base, width) };
 }
 

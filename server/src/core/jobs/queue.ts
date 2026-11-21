@@ -36,6 +36,12 @@ export interface HandlerOptions {
   backoffSeconds?: number;
   /** How long a run may hold the job before another poller may take it over (default 300). */
   leaseSeconds?: number;
+  /**
+   * The lane the job type runs in (default "main"). Each lane works through its own due jobs, one
+   * after another, alongside the other lanes, so slow work in one lane (sending email to a mail
+   * server that does not answer, OP-09) never holds up the others (alerts, timers, schedules).
+   */
+  lane?: string;
 }
 
 export interface EnqueueOptions {
@@ -79,6 +85,15 @@ export class RetryLaterError extends Error {
   }
 }
 
+/**
+ * Throw this from a handler to put the job back until `retryAt` without using up an attempt
+ * (OP-09): the work was not tried, for example because the mail server is known to be down and
+ * sending is paused for a few minutes. The job goes back to "queued" and never goes dead this way.
+ */
+export class DeferJobError extends RetryLaterError {
+  readonly deferred = true;
+}
+
 /** The wait, in seconds, an error asks for before the next attempt; null when it asks for none. */
 export function requestedWait(err: unknown, now = Date.now()): number | null {
   const e = err as { retryAt?: unknown; retryAfterSeconds?: unknown } | null;
@@ -118,7 +133,8 @@ const clip = (s: unknown, n = 2000) => String(s ?? '').slice(0, n);
 export function makeJobQueue(db: Db): JobQueue {
   const handlers = new Map<string, { fn: JobHandler; opts: Required<HandlerOptions> }>();
   const worker = `${hostname()}:${process.pid}:${randomBytes(3).toString('hex')}`;
-  let running = false;
+  /** Lanes being worked through in this process (OP-09). */
+  const busy = new Set<string>();
   let timer: NodeJS.Timeout | null = null;
   let kick: NodeJS.Immediate | null = null;
 
@@ -133,8 +149,18 @@ export function makeJobQueue(db: Db): JobQueue {
       );
       return;
     }
-    const err = outcome.error as Error & { permanent?: boolean };
+    const err = outcome.error as Error & { permanent?: boolean; deferred?: boolean };
     const message = clip(err?.message ?? err, 1000) || 'The job failed without saying why.';
+    if (err?.deferred === true) {
+      // Not tried: back in the queue without using up an attempt.
+      await db.query(
+        `update jobs set status = 'queued', attempts = greatest(0, attempts - 1), last_error = $2, locked_by = null, locked_until = null,
+           run_at = now() + make_interval(secs => $3::int)
+         where id = $1 and locked_by = $4`,
+        [job.id, message, requestedWait(err) ?? 60, worker],
+      );
+      return;
+    }
     const dead = err?.permanent === true || job.attempts >= job.max_attempts;
     // The handler may ask for a given time (RetryLaterError); otherwise the wait doubles each time.
     const wait = requestedWait(err) ?? Math.min(MAX_WAIT_SECONDS, job.backoff_seconds * 2 ** Math.max(0, job.attempts - 1));
@@ -219,6 +245,7 @@ export function makeJobQueue(db: Db): JobQueue {
           maxAttempts: Math.max(1, Math.min(50, opts.maxAttempts ?? 5)),
           backoffSeconds: Math.max(1, Math.min(MAX_WAIT_SECONDS, opts.backoffSeconds ?? 60)),
           leaseSeconds: Math.max(10, Math.min(3600, opts.leaseSeconds ?? 300)),
+          lane: opts.lane && /^[a-z][a-z0-9_.-]{0,39}$/.test(opts.lane) ? opts.lane : 'main',
         },
       });
     },
@@ -255,27 +282,44 @@ export function makeJobQueue(db: Db): JobQueue {
     },
 
     async runDue(opts = {}) {
-      if (running || inTrial()) return 0;
-      running = true;
-      try {
-        const types = (opts.types ?? [...handlers.keys()]).filter((t) => handlers.has(t));
-        if (!types.length) return 0;
-        await promoteSchedules(types);
-        const ids = await db.query<{ id: string }>(
-          `select id from jobs where type = any($1::text[]) and ${due} order by run_at, created_at limit $2`,
-          [types, Math.max(1, Math.min(200, opts.limit ?? 25))],
-        );
-        let ran = 0;
-        for (const { id } of ids) {
-          const job = await claim(id);
-          if (!job) continue; // another poller took it
-          await execute(job);
-          ran += 1;
-        }
-        return ran;
-      } finally {
-        running = false;
+      if (inTrial()) return 0;
+      const types = (opts.types ?? [...handlers.keys()]).filter((t) => handlers.has(t));
+      // Job types by lane; a lane still at work from an earlier call is left to finish (OP-09).
+      const lanes = new Map<string, string[]>();
+      for (const t of types) {
+        const lane = handlers.get(t)!.opts.lane;
+        if (!busy.has(lane)) (lanes.get(lane) ?? lanes.set(lane, []).get(lane)!).push(t);
       }
+      if (!lanes.size) return 0;
+      for (const lane of lanes.keys()) busy.add(lane);
+      const limit = Math.max(1, Math.min(200, opts.limit ?? 25));
+      // Each lane is free again as soon as its own work is done.
+      const runLane = async ([lane, laneTypes]: [string, string[]]) => {
+        try {
+          const ids = await db.query<{ id: string }>(
+            `select id from jobs where type = any($1::text[]) and ${due} order by run_at, created_at limit $2`,
+            [laneTypes, limit],
+          );
+          let ran = 0;
+          for (const { id } of ids) {
+            const job = await claim(id);
+            if (!job) continue; // another poller took it
+            await execute(job);
+            ran += 1;
+          }
+          return ran;
+        } finally {
+          busy.delete(lane);
+        }
+      };
+      try {
+        await promoteSchedules([...lanes.values()].flat());
+      } catch (err) {
+        for (const lane of lanes.keys()) busy.delete(lane);
+        throw err;
+      }
+      const counts = await Promise.all([...lanes.entries()].map(runLane));
+      return counts.reduce((a, b) => a + b, 0);
     },
 
     async runNow(id) {

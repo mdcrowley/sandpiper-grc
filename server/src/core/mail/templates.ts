@@ -23,7 +23,7 @@ const COMMON = ['appName', 'recipientName', 'organizationName', 'organizationAdd
 
 export const DEFAULT_TEMPLATES: TemplateDef[] = [
   {
-    key: 'test', name: 'Test message', description: 'Sent by the "Send test email" button.',
+    key: 'test', name: 'Test message', description: 'Sent by the "Send a test message" button.',
     placeholders: [...COMMON, 'senderName', 'link'],
     subject: 'Test message from {{appName}}',
     text: 'This is a test message from {{appName}}, sent by {{senderName}}.\n\nIf you can read it, email delivery works.\n\n{{link}}',

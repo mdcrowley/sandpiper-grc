@@ -13,7 +13,10 @@ ghcr.io/mdcrowley/sandpiper-grc
 | `edge` | The `main` branch, rebuilt on every change. For trying out what is coming, not for real data |
 
 The image runs as an unprivileged user (uid 1000), with a read-only root filesystem, no
-compiler and no development packages, and a health check on `/api/health`. It works with
+compiler and no development packages, and a health check on `/api/ready` (the server
+answers and so does its database; [Operations](operations.md#health-check)). It is built
+from a Node.js base image pinned by digest, by a workflow whose actions are pinned to commit
+SHAs. It works with
 Docker Engine, Docker Desktop (Windows, macOS, Linux) and Podman. Each published image
 carries a software bill of materials and signed build provenance; check an image with
 `gh attestation verify oci://ghcr.io/mdcrowley/sandpiper-grc:<tag> --owner mdcrowley`.
@@ -68,9 +71,9 @@ in front of it ([HTTPS](#https-behind-a-reverse-proxy)).
 
 The container restarts by itself (`restart: unless-stopped`). `docker compose stop` sends a
 terminate signal: the server finishes the requests in progress and closes the database
-cleanly (it gives up after 20 seconds). Compose itself ends the container after 10 seconds
-unless told otherwise, so on a busy or large installation use `docker compose stop -t 30`,
-or set `stop_grace_period: 30s` for `app` in a `compose.override.yaml`.
+cleanly (it gives up after 20 seconds). The shipped `compose.yaml` gives the container 30
+seconds (`stop_grace_period: 30s`) before Compose ends it, so the server always has time to
+finish.
 
 ## Configuration
 
@@ -84,7 +87,7 @@ The ones most installations set:
 |---|---|---|
 | `GRC_TIMEZONE` | `UTC` | The organization's time zone, as an IANA name such as `America/Chicago`. Decide it before recording real data |
 | `GRC_CURRENCY` | `USD` | ISO 4217 code for money fields (display only) |
-| `GRC_TRUST_PROXY` | `private` | Which reverse proxies may set forwarded headers. `private` covers Docker's own networks |
+| `GRC_TRUST_PROXY` | `gateway` | Which reverse proxies may set forwarded headers. `gateway` is the Docker host itself, where a proxy in front of the published port connects from, and nothing else. See [HTTPS behind a reverse proxy](#https-behind-a-reverse-proxy) |
 | `GRC_WEBAUTHN_RP_ID`, `GRC_WEBAUTHN_ORIGINS` | the request's address | The host name and origin people type, for passkeys behind a proxy |
 
 Settings that steer Compose rather than the application:
@@ -252,6 +255,22 @@ On Linux the file must be readable by both containers (uid 1000 and the database
 user): `chmod 644 deploy/secrets/db_password.txt` on a single-user host. Put `COMPOSE_FILE=compose.yaml:compose.postgres.yaml` in `.env` to make this
 the default.
 
+The application does not run as the database's administrator. Two accounts
+([A least-privilege database role](installation.md#a-least-privilege-database-role)):
+
+| Account | Password | Used for |
+|---|---|---|
+| `grc` | `deploy/secrets/db_password.txt` | Owns the database and its tables; the database image makes it the server's administrator. The application uses it only at start, to run the migrations and grant `grc_app` its rights (`GRC_DATABASE_MIGRATE_URL`) |
+| `grc_app` | Generated, in the `sandpiper-grc_grc-db-app` volume (read-only to the application) | Everything else. It may read and write rows and nothing more: it cannot change tables or triggers, cannot change or delete audit events, and has none of the administrator's features |
+
+A one-off service, `db-roles`, creates `grc_app` (or confirms it) before each start, from
+`deploy/postgres/app-role.sh`; it then exits, so `docker compose ps -a` shows it as
+`exited (0)`. An installation made before this keeps its data: at the next
+`docker compose up -d`, `db-roles` adds the role and the application grants it its rights.
+To give `grc_app` a new password, delete the file and start again:
+`docker compose -f compose.yaml -f compose.postgres.yaml run --rm --no-deps --entrypoint sh db-roles -c 'rm /run/grc-db/app_password'`, then
+`docker compose -f compose.yaml -f compose.postgres.yaml up -d --force-recreate`.
+
 Back up the database with PostgreSQL's own tools while it runs:
 
 ```sh
@@ -271,9 +290,25 @@ To use a PostgreSQL server elsewhere instead, do not use `compose.postgres.yaml`
 ## HTTPS behind a reverse proxy
 
 The container speaks plain HTTP and is told so (`GRC_ALLOW_INSECURE=1`). A reverse proxy in
-front terminates HTTPS. With `GRC_TRUST_PROXY=private` the application believes the
-forwarded headers from proxies on private networks (Docker's own networks, or the same host),
-so audit-log addresses, rate limits and the `Secure` cookie flag are right.
+front terminates HTTPS. The application believes the forwarded headers (`X-Forwarded-For`,
+`-Proto`) only from the proxies named in `GRC_TRUST_PROXY`, so audit-log addresses, rate
+limits, API token address limits and the `Secure` cookie flag are right and nobody else can
+choose them. The default, `gateway`, trusts the Docker host: a proxy on the host that
+connects to the published port (`127.0.0.1:8080`, as below) arrives from the container
+network's gateway, whose address the application looks up at start and logs
+(`GRC_TRUST_PROXY: "gateway" is 172.18.0.1 ...`). Other choices:
+
+| Where the proxy is | `GRC_TRUST_PROXY` |
+|---|---|
+| On the Docker host, connecting to the published port (the examples below) | `gateway` (default) |
+| In a container on the same Compose network | The proxy container's own address: give it a fixed one (`ipv4_address`) and name that |
+| No proxy (people connect to the published port directly) | `off` |
+
+Do not use `private`: it trusts every private address, and the people on your own network
+have private addresses too, so any of them could set the address the application records for
+them and get round the per-address limits. Keep `GRC_BIND=127.0.0.1` with `gateway`: with
+the port published on every interface, some Docker set-ups (Docker Desktop in particular)
+forward outside connections from the gateway address too.
 
 Caddy, on the same host, obtains and renews the certificate itself:
 
@@ -291,7 +326,7 @@ server {
   server_name grc.example.test;
   ssl_certificate     /etc/ssl/grc/fullchain.pem;
   ssl_certificate_key /etc/ssl/grc/privkey.pem;
-  client_max_body_size 25m;                    # attachments
+  client_max_body_size 30m;                    # above the largest attachment
   location / {
     proxy_pass http://127.0.0.1:8080;
     proxy_set_header Host              $host;
@@ -301,15 +336,21 @@ server {
 }
 ```
 
+Keep `client_max_body_size` a few MB above **Largest file (MB)** under Administration > File
+settings (25 MB to begin with): the upload carries some overhead, and nginx refuses a larger
+request before the application sees it.
+
 Then set, in `.env`, the address people type, for passkeys and the sign-in provider
 redirect: `GRC_WEBAUTHN_RP_ID=grc.example.test` and
-`GRC_WEBAUTHN_ORIGINS=https://grc.example.test`, and under Administration > Settings
-`auth.public_url`. Keep `GRC_BIND=127.0.0.1` so only the proxy reaches the port. If the proxy
-runs in Compose too, put it on the same network and point it at `app:8080` instead.
+`GRC_WEBAUTHN_ORIGINS=https://grc.example.test`, and under Administration > Sign-in
+providers, on the **Redirect address** card, the **Application address** (`auth.public_url`). Keep `GRC_BIND=127.0.0.1` so only the proxy reaches the port. If the proxy
+runs in Compose too, put it on the same network, point it at `app:8080` instead, and set
+`GRC_TRUST_PROXY` to its own address (see the table above).
 
 To have the container serve HTTPS itself instead, mount the certificate and key, set
 `GRC_TLS_CERT` and `GRC_TLS_KEY`, remove `GRC_ALLOW_INSECURE` (in a `compose.override.yaml`,
-set it to `"0"`), and publish the port where you need it. A renewed certificate written to
+set it to `"0"`), set `GRC_TRUST_PROXY=off` (nothing sits in front to forward addresses), and
+publish the port where you need it. A renewed certificate written to
 the same files is used within `GRC_TLS_RELOAD_SECONDS` (default 60) without a restart, or at
 once with `docker compose kill -s HUP app`; a broken one is refused and the old one kept
 ([Installation](installation.md#https)).
@@ -321,6 +362,8 @@ once with `docker compose kill -s HUP app`; a broken one is refused and the old 
 | `app` stays `starting` or turns `unhealthy` | `docker compose logs app`. The first start creates the database and takes up to a minute |
 | `Refusing to serve plain HTTP on 0.0.0.0` | `GRC_ALLOW_INSECURE` was removed without setting `GRC_TLS_CERT` and `GRC_TLS_KEY` |
 | `The server is running on this data folder` from a `grc` command | Stop the application first (`docker compose stop app`) and use `docker compose run --rm app grc ...`. After a crash, a stale `grc.pid` can remain: `docker compose run --rm app sh -c 'rm -f /var/lib/sandpiper/data/grc.pid'` |
+| `A server (process 1 on <id>, ...) is using this data folder` from a `grc` command or the application | Another container has the data volume: the running `app` beside a `docker compose run`, or a second application container. Stop it first. After a crash the lock (`data/grc.lock`) clears by itself once it has not been touched for a minute, so a container restarted at once may refuse to start for up to a minute and then starts ([Operations](operations.md#stale-pid-file-or-lock)) |
+| `app` turns `unhealthy` with PostgreSQL | The health check asks the database (`/api/ready`): see `docker compose logs app` for `[ready] the database is not ready: ...` and check the `db` container |
 | `bind: address already in use` | Another program has port 8080: set `GRC_PUBLISH_PORT` in `.env` |
 | `EACCES` or `permission denied` under `/var/lib/sandpiper` | A bind-mounted host folder is not writable by uid 1000: `sudo chown -R 1000:1000 <folder>`, or use the named volumes |
 | Pull fails with `denied` or `unauthorized` | Compose builds from source instead. To use a release, check the tag exists and the network can reach ghcr.io |

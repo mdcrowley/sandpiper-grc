@@ -1,8 +1,10 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { api, setUnauthorizedHandler } from './api';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { api, setSessionEndedHandler, setUnauthorizedHandler } from './api';
 import { applyBranding, type Branding } from './branding';
 import { setLocaleSettings } from './format';
 import { resetPreferences } from './preferences';
+import { clearSessionEnded, markSessionEnded, resumeSession } from './session';
+import { clearDrafts } from './unsaved';
 import { ErrorState, Loading } from './ui';
 
 export interface AuthUser {
@@ -78,12 +80,15 @@ export function useAuth(): Auth {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthStateResponse | null>(null);
   const [error, setError] = useState<unknown>(null);
+  const userId = useRef<string | undefined>(undefined);
 
   const refresh = useCallback(async () => {
     try {
       const next = await api.get<AuthStateResponse>('/api/auth/state');
       setLocaleSettings({ timeZone: next.timeZone, currency: next.currency });
       applyBranding(next.branding, next.appName);
+      userId.current = next.user?.id;
+      if (next.user) clearSessionEnded();
       setState(next);
       setError(null);
     } catch (err) {
@@ -93,8 +98,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     void refresh();
-    setUnauthorizedHandler(() => void refresh());
-    return () => setUnauthorizedHandler(null);
+    setUnauthorizedHandler(() => {
+      // The sign-in page that follows says why it is showing.
+      if (userId.current) markSessionEnded();
+      void refresh();
+    });
+    // With unsaved changes on the page, sign in again in place rather than lose them (BW-02).
+    setSessionEndedHandler(() => resumeSession(userId.current));
+    return () => {
+      setUnauthorizedHandler(null);
+      setSessionEndedHandler(null);
+    };
   }, [refresh]);
 
   const auth = useMemo<Auth | null>(() => {
@@ -123,6 +137,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           next = typeof res?.redirectUrl === 'string' && /^https?:\/\//i.test(res.redirectUrl) ? res.redirectUrl : null;
         } finally {
           resetPreferences();
+          clearDrafts();
           if (next) window.location.assign(next);
           else await refresh();
         }

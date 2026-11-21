@@ -97,7 +97,7 @@ export function MapPictureDialog({ open, onClose, layout, title, details, select
           <figure className="inv-picture-preview">
             <img src={preview} alt={`Preview of the picture: ${title}`} />
             <figcaption className="muted">
-              {picture.width.toLocaleString()} × {picture.height.toLocaleString()} pixels{format === 'png' ? ', saved at up to twice that size' : ''}
+              {picture.width.toLocaleString('en-US')} × {picture.height.toLocaleString('en-US')} pixels{format === 'png' ? ', saved at up to twice that size' : ''}
             </figcaption>
           </figure>
         )}

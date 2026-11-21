@@ -240,6 +240,26 @@ describe('scheduled delivery', () => {
     expect((await lead.patch(`/api/report-schedules/${made.id}`, { active: false })).body.next_run_at).toBeNull();
   });
 
+  it('claims a due schedule before sending, so overlapping runs deliver it once (BS-3)', async () => {
+    const made = (await lead.post('/api/report-schedules', {
+      name: 'Claimed once', target_type: 'report', target_id: report.id, cadence: 'daily', hour: 7, recipient_users: [lead.userId],
+    })).body;
+    const deps = { snapshots: makeSnapshots(t.ctx), documents: makeDocuments(t.ctx, async (_u, id) => t.db.one('select * from report_definitions where id = $1', [id])) };
+    const now = new Date(new Date(made.next_run_at).getTime() + 60_000);
+    // The job and the "Run due" button (or two servers) at the same moment.
+    const [a, b] = await Promise.all([runDueSchedules(t.ctx, deps, now), runDueSchedules(t.ctx, deps, now)]);
+    const runs = [...a, ...b].filter((r) => r.scheduleId === made.id);
+    expect(runs).toHaveLength(1);
+    expect(runs[0].delivered).toBe(1);
+    const sent = await t.db.query<any>(`select status from report_deliveries where schedule_id = $1`, [made.id]);
+    expect(sent.map((d: any) => d.status)).toEqual(['delivered']);
+    expect(await t.db.query('select id from report_snapshots where schedule_id = $1', [made.id])).toHaveLength(1);
+    // Claimed means moved on: the next run is tomorrow's.
+    const after = await t.db.one<any>('select next_run_at from report_schedules where id = $1', [made.id]);
+    expect(new Date(after.next_run_at).getTime()).toBe(new Date(made.next_run_at).getTime() + 86400000);
+    await lead.del(`/api/report-schedules/${made.id}`);
+  });
+
   it('delivers a dashboard as a document and can be run on demand by its owner', async () => {
     const dash = (await lead.post('/api/dashboards', { name: 'Morning board', sharing: 'everyone', widgets: [{ id: 'n', kind: 'number', title: 'Things on record', x: 0, y: 0, w: 3, h: 2, config: { spec: { type: 'rt_thing' } } }] })).body;
     const bad = await lead.post('/api/report-schedules', { name: 'x', target_type: 'dashboard', target_id: dash.id, format: 'csv', recipient_roles: ['agent'] });

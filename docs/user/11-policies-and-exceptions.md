@@ -12,6 +12,7 @@ An administrator can switch policies and exceptions off under **Administration >
 | Add a policy, edit its details, write a version, map outcomes | **Create** or **Edit** on **Policies** |
 | Approve a version, publish it, retire a policy | **Approve** on **Policies** |
 | Export the acknowledgment list | **Export** on **Policies** |
+| Change the acknowledgment reminder interval (**Reminder settings**) | **Administer** on **Policies** |
 | See the exceptions register | **View** on **Exceptions** |
 | Record or edit an exception, withdraw it | **Create** or **Edit** on **Exceptions** |
 | Approve or reject an exception, or change the expiry date of an approved one | **Approve** on **Exceptions** |
@@ -71,7 +72,7 @@ The page has these tabs:
 | **Acknowledgments** | Who has and has not acknowledged a version |
 | **Mapped outcomes** | The framework outcomes this policy supports |
 | **Exceptions** | Exceptions recorded against this policy |
-| **Activity**, **Attachments**, **Related**, **History** | Comments, files such as a signed approval, linked records, and every change made to the policy |
+| **Activity**, **Evidence files**, **Related**, **History** | Comments, files such as a signed approval (recorded as evidence, see [Evidence files](14-attachments-and-notifications.md#evidence-files)), linked records, and every change made to the policy |
 
 The **Policy** tab shows the published version. If nothing is published yet, people who write or approve policies see the newest version, marked as not published; everyone else is told there is nothing to read yet.
 

@@ -29,7 +29,7 @@ function RulesTab({ admin }: { admin: boolean }) {
               A rule stays inactive until you set a deadline{waiting ? ` (${waiting} ${waiting === 1 ? 'has' : 'have'} none)` : ''}. This is deliberate: who must be told, and how quickly, depends on
               the law where you operate, your contracts and your insurance, and a wrong deadline is worse than none.{' '}
               {admin
-                ? 'With legal advice, edit each rule that applies to you, enter its deadline in hours from discovery and tick Active.'
+                ? 'With legal advice, edit each rule that applies to you, enter its deadline in hours from discovery and check Active.'
                 : 'An administrator sets the deadlines, with legal advice.'}
             </p>
           </div>

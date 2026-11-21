@@ -282,7 +282,7 @@ To add one:
 4. Choose the **Sensitivity**: **Public**, **Internal**, **Confidential** or **Restricted**.
 5. Select **Create data category**.
 
-A category with no sensitivity chosen is shown as **Not classified** and is treated as sensitive in reports until you classify it.
+A category with no sensitivity chosen is shown as **Not classified** and is treated as sensitive in reports until you classify it. To classify several at once, check them in the list and select **Edit selected…** to set **Sensitivity**.
 
 The **Systems** tab on a data category lists the systems holding it, with their hosting and multi-factor status. To add one, open that system and use its **Data held** tab.
 

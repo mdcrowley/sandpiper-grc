@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { EmptyState, Icon, MultiSelect, NumberField, Select, TextField, cx, useFetch } from '../../core';
 import type { FieldType } from '../../core';
 import { chartFit } from './charts';
+import { typeSearchPlaceholder } from './describe';
 import type { CatalogField, CatalogType, ChartKind, ChartSpec, ReportResult, Sharing } from './types';
 
 // ---------- undo ----------
@@ -38,7 +39,7 @@ export function TypePicker({ types, onPick, current }: { types: CatalogType[]; o
   const shown = types.filter((t) => `${t.plural} ${t.description}`.toLowerCase().includes(q.trim().toLowerCase()));
   return (
     <div className="rp-types">
-      <TextField label="Search" hideLabel type="search" value={q} onChange={setQ} placeholder="Search: tickets, contracts, risks…" autoFocus leftSection={<Icon name="search" size={16} />} />
+      <TextField label="Search" hideLabel type="search" value={q} onChange={setQ} placeholder={typeSearchPlaceholder(types)} autoFocus leftSection={<Icon name="search" size={16} />} />
       {shown.length === 0
         ? <EmptyState icon="search" title="Nothing matches" message="Try a different word. You can only report on the kinds of record your role lets you see." />
         : (

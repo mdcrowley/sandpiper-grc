@@ -13,7 +13,8 @@ import { useToast } from './overlay';
 import { ActivityPanel, type RecordComment } from './RecordActivity';
 import { HistoryPanel, recordQuery } from './RecordHistory';
 import { LinksPanel, type RecordLink } from './RecordLinks';
-import { ResourceForm, type FormSection } from './ResourceForm';
+import { formDraftKey, ResourceForm, type FormSection } from './ResourceForm';
+import { hasDraft } from './unsaved';
 import { RecordTags, WatchButton } from './tags';
 import { RecordPdfButton } from './ListExport';
 import { Card, EmptyState, ErrorState, Loading, PageHeader, Tabs, type Crumb, type TabItem } from './ui';
@@ -47,9 +48,10 @@ export interface EditableSummaryProps {
 /** A definition list of the given fields that flips into a form. */
 export function EditableSummary({ type, row, fields, onSaved, title = 'Details', editable, sections, customFields = false }: EditableSummaryProps) {
   const resource = useResource(type);
-  const { can } = useAuth();
+  const { can, user } = useAuth();
   const toast = useToast();
-  const [editing, setEditing] = useState(false);
+  // A draft kept when the session ended mid-edit opens the form again, with the draft in it (BW-02).
+  const [editing, setEditing] = useState(() => hasDraft(formDraftKey(type, row.id, fields), user?.id));
   if (!resource) return <ErrorState title={`Unknown record type "${type}"`} />;
   const canEdit = editable ?? can(`${resource.module}.edit`);
   // The record type's custom fields follow the given ones (the form adds them the same way).

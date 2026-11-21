@@ -82,9 +82,11 @@ function Test-Health {
 function Stop-Server {
   $p = Get-ServerProcess
   if (-not $p) { Write-Host 'Not running.'; return }
-  # Ask for a clean shutdown (flushes the embedded database); force only if that fails.
+  # Ask for a clean shutdown (flushes the embedded database); force only if that fails. The server
+  # allows itself 20 seconds (it finishes requests in progress and waits for a running backup), so
+  # this waits 30 before forcing: a slow but clean stop is never cut short (OP-12).
   New-Item -ItemType File -Force (Join-Path $dataDir 'grc.stop') | Out-Null
-  if (-not $p.WaitForExit(15000)) { Stop-Process -Id $p.Id -Force; $p.WaitForExit(5000) | Out-Null }
+  if (-not $p.WaitForExit(30000)) { Stop-Process -Id $p.Id -Force; $p.WaitForExit(5000) | Out-Null }
   Remove-Item (Join-Path $dataDir 'grc.stop') -Force -ErrorAction SilentlyContinue
   Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
   Write-Host 'Stopped.'

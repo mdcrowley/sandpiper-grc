@@ -77,3 +77,12 @@ export function describeReport(spec: ReportSpec, type: CatalogType, labelFor: La
   if (s && !summary) out += `, sorted by ${label(s.by)}${s.dir === 'desc' ? ', highest or newest first' : ''}`;
   return `${out.charAt(0).toUpperCase()}${out.slice(1)}.`;
 }
+
+/**
+ * The search box's example words, from the record types actually offered (BW-05): a fixed list would
+ * name types of switched-off areas, or types this person may not report on.
+ */
+export function typeSearchPlaceholder(types: { plural: string }[]): string {
+  const names = types.slice(0, 3).map((t) => t.plural.toLowerCase());
+  return names.length ? `Search: ${names.join(', ')}…` : 'Search record types';
+}

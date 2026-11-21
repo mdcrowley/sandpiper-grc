@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { SegmentedControl } from '@mantine/core';
 import {
   api, ApiError, Button, Card, Checkbox, DateField, EmptyState, ErrorState, errorMessage, formatDate, formatDateTime, Loading, Modal,
-  NumberField, PageHeader, qs, relativeTime, Select, StatusChip, Tabs, TextArea, useFetch, useToast,
+  NumberField, PageHeader, qs, relativeTime, Select, StatusChip, Tabs, TextArea, todayInZone, useFetch, useToast,
 } from '../../core';
 import { Notice, Pager } from './common';
 import { adminApi, withReauth } from './reauth';
@@ -382,7 +382,8 @@ function KeepDialog({ review, onClose, onDone }: { review: Review; onClose: () =
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
-  const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+  // Tomorrow on the organization's calendar, not the UTC one (BW-12).
+  const tomorrow = new Date(Date.parse(`${todayInZone()}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -442,7 +443,7 @@ function RemoveDialog({ review, onClose, onDone }: { review: Review; onClose: ()
     e.preventDefault();
     const found: Record<string, string> = {};
     if (reason.trim().length < 5) found.reason = 'Give a reason (at least 5 characters).';
-    if (!sure) found.confirm = 'Tick the box to confirm that the record is to be removed for good.';
+    if (!sure) found.confirm = 'Check the box to confirm that the record is to be removed for good.';
     setErrors(found);
     setFormError('');
     if (Object.keys(found).length) return;
@@ -499,7 +500,7 @@ function AnonymizeDialog({ review, policy, onClose, onDone }: { review: Review; 
     e.preventDefault();
     const found: Record<string, string> = {};
     if (reason.trim().length < 5) found.reason = 'Give a reason (at least 5 characters).';
-    if (!sure) found.confirm = 'Tick the box to confirm that the personal details are to be removed for good.';
+    if (!sure) found.confirm = 'Check the box to confirm that the personal details are to be removed for good.';
     setErrors(found);
     setFormError('');
     if (Object.keys(found).length) return;

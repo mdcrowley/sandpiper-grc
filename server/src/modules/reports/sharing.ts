@@ -10,7 +10,9 @@
 // viewer's own permissions, so sharing a report never shares records.
 import type { FastifyRequest } from 'fastify';
 import { UUID_RE } from '../../core/errors.ts';
-import type { ModuleContext, Row, SessionUser } from '../../core/module.ts';
+import type { ModuleContext, Row, RowRule, SessionUser } from '../../core/module.ts';
+
+const literal = (value: string) => `'${String(value).replace(/'/g, "''")}'`;
 
 export const SHARED_TABLES: Record<string, { table: string; module: string; path: string; label: string; ownerOnly?: boolean }> = {
   report_definition: { table: 'report_definitions', module: 'reports', path: '/api/reports', label: 'Report' },
@@ -49,6 +51,27 @@ export function makeSharing(ctx: ModuleContext) {
         [user.id, user.roles],
       );
     return rows.map((r) => r.id);
+  }
+
+  /**
+   * The same rule as `canSee`, as the type's row rule (ResourceDef.rowRule): core applies it to
+   * every reader whatever the route (the generated routes and their /api/v1 aliases, search, record
+   * pickers and labels, history, comments, links, tags, watchers, fact sheets). Figures follow the
+   * caller's rule too: these are personal items, not records.
+   */
+  function rowRule(type: string): RowRule {
+    const t = SHARED_TABLES[type];
+    return {
+      figures: 'filter',
+      where: (user, col) => {
+        if (isAdmin(user)) return 'true';
+        const owner = UUID_RE.test(user.id) ? `${col('owner_id')} = ${literal(user.id)}::uuid` : 'false';
+        if (t.ownerOnly) return owner;
+        const roles = `array[${user.roles.map(literal).join(', ')}]::text[]`;
+        return `(${owner} or ${col('sharing')} = 'everyone' or (${col('sharing')} = 'roles'
+          and exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(${col('shared_roles')}) = 'array' then ${col('shared_roles')} else '[]'::jsonb end) sr_(r) where sr_.r = any(${roles}))))`;
+      },
+    };
   }
 
   /** The row when it exists and `user` may see it. */
@@ -95,7 +118,7 @@ export function makeSharing(ctx: ModuleContext) {
     }
   }
 
-  return { canSee, canChange, visibleIds, load, guard, cleanSharing, isAdmin };
+  return { canSee, canChange, visibleIds, load, guard, cleanSharing, isAdmin, rowRule };
 }
 
 export type Sharing = ReturnType<typeof makeSharing>;

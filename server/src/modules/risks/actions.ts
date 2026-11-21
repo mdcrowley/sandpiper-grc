@@ -1,5 +1,6 @@
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { displayDate } from '../../core/timezone.ts';
 
 // Action extras: the source implied by a record type, "assigned to you" notifications, and
 // deliberate sharing of one restricted action with a person who lacks security.view (E08-16).
@@ -42,7 +43,7 @@ export function makeActionExtras(ctx: ModuleContext) {
     await notify({
       userIds: [action.owner_id], kind: 'assignment',
       title: `Action assigned to you: ${action.title}`,
-      body: action.due_on ? `Due ${action.due_on}.` : null,
+      body: action.due_on ? `Due ${displayDate(action.due_on)}.` : null,
       recordType: 'action', recordId: action.id,
     });
   }
@@ -142,17 +143,32 @@ export function makeActionExtras(ctx: ModuleContext) {
         ctx.fail(400, 'validation', 'On an action shared with you, only the status and the notes can be changed.',
           Object.fromEntries(refused.map((k) => [k, 'This cannot be changed on a shared action.'])));
       }
+      let pendingMove: Row | null = null;
       if (Object.keys(patch).length) {
+        // The type's lifecycle applies to the caller as on the generic route (AZ-6): who may set a
+        // status, the fields it needs, and a move that waits for approval.
+        const def = ctx.resources.get('action')!;
+        const stored = (await ctx.resources.find('action', before.id))!;
+        const problems = await ctx.app.lifecycles.check(def, stored, patch, req);
+        if (Object.keys(problems).length) ctx.fail(400, 'validation', 'Check the highlighted fields.', problems);
+        const held = await ctx.app.lifecycles.held(def, stored, patch, req);
+        if (held) delete patch[held.field];
         // The caller cannot see the record under the restricted-record rules, so the change is
         // made as system work (validated and audited by the engine) and attributed here.
-        await ctx.resources.update('action', before.id, patch);
+        const row = Object.keys(patch).length ? await ctx.resources.update('action', before.id, patch) : stored;
+        if (held) {
+          await ctx.app.lifecycles.hold(def, row, held, req);
+          const now = (await ctx.resources.find('action', before.id))!;
+          if (now[held.field] !== held.to) pendingMove = { field: held.field, from: held.from, to: held.to };
+        }
         await ctx.audit(req, {
           action: 'action.shared_update', recordType: 'action', recordId: before.id,
           summary: `Shared action ${before.ref} updated by a person it is shared with`,
           before: Object.fromEntries(Object.keys(patch).map((k) => [k, before[k]])), after: patch,
         });
       }
-      return (await sharedShape([await sharedWithCaller(req)]))[0];
+      const out = (await sharedShape([await sharedWithCaller(req)]))[0];
+      return pendingMove ? { ...out, _pending_move: pendingMove } : out;
     });
   }
 

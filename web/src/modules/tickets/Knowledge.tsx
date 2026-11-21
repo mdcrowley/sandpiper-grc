@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   api, Badge, Button, Card, DefinitionList, EmptyState, ErrorState, errorMessage, formatDate, formatDateTime,
-  Loading, LookupChip, NotFound, PageHeader, RecordPage, ResourceForm, ResourceList, useAuth, useFetch, useRecord, useToast,
+  Loading, LookupChip, NotFound, PageHeader, RecordPage, ResourceForm, ResourceList, todayInZone, useAuth, useFetch, useRecord, useToast,
 } from '../../core';
 import type { RecordContext, Row } from '../../core';
 
@@ -35,9 +35,12 @@ export function KnowledgeList() {
   );
 }
 
+/** The review date has passed on the organization's calendar, not the UTC one (BW-12). */
+export const reviewOverdue = (value: string, today: string = todayInZone()) => String(value).slice(0, 10) < today;
+
 function ReviewDate({ value }: { value: string | null }) {
   if (!value) return <>—</>;
-  const overdue = String(value).slice(0, 10) < new Date().toISOString().slice(0, 10);
+  const overdue = reviewOverdue(value);
   return overdue ? <span className="sd-late">{formatDate(value)} (review due)</span> : <>{formatDate(value)}</>;
 }
 

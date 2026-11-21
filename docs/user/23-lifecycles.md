@@ -25,7 +25,7 @@ Open **Administration > Lifecycles**. The left-hand list shows every kind of rec
 Select a kind of record. The page shows:
 
 - **Moves between statuses**: a picture of the lifecycle. The first box is a new record and the statuses it may start with; then each status, in the order of its list, with where it may go next, the fields it needs and who may set it. A status with nowhere to go is shown as **Final**.
-- **Allowed changes**: a table with the current status in each row and the new status in each column. Tick a box to allow that change; clear it to stop it. The first row, **New record**, says which statuses a record may be created with. If a status can no longer be reached by any route from a new record, the page warns you (records that already have it keep it).
+- **Allowed changes**: a table with the current status in each row and the new status in each column. Check a box to allow that change; clear it to stop it. The first row, **New record**, says which statuses a record may be created with. If a status can no longer be reached by any route from a new record, the page warns you (records that already have it keep it).
 - **Required fields and who may set each status**: for each status,
   - **Fields required**: fields that must be filled in before a record may have this status, including your custom fields. They are checked when a record moves to the status (or is created with it), and a record that has the status cannot have one of them emptied. Fields the application fills in by itself are not offered.
   - **Permission needed** and **Or one of these roles**: who may change a record to this status. A person needs the permission *or* one of the roles. Leave both empty to let anyone who may edit the record do it.

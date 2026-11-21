@@ -1,5 +1,5 @@
-import { lazy, Suspense, type ComponentType } from 'react';
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { lazy, Suspense, useState, type ComponentType } from 'react';
+import { createBrowserRouter, Navigate, Route, RouterProvider, Routes, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './core/auth';
 import { LoginPage, SetupPage } from './core/AuthPages';
 import { EnrollmentGate } from './core/EnrollmentGate';
@@ -11,6 +11,7 @@ import { ToastProvider } from './core/overlay';
 import { renamedPath } from './core/renamedRoutes';
 import { Forbidden, NotFound, SwitchedOff } from './core/pages';
 import { Shell } from './core/Shell';
+import { UnsavedChangesHost } from './core/unsaved';
 
 // Paths and permissions are known at start; each element loads its module's code when first shown
 // (see core/module.ts), so nothing here pulls a module's pages into the first download.
@@ -66,20 +67,31 @@ function SignedInApp() {
   );
 }
 
-/** UiProvider (Mantine theme, toasts) wraps everything, so public pages and the shell share one look. */
+/** Everything under the router: toasts, sign-in state, the unsaved-changes guard, then the pages. */
+function Root() {
+  return (
+    <ToastProvider>
+      <AuthProvider>
+        <UnsavedChangesHost />
+        <Routes>
+          {publicRoutes.map((r) => <Route key={r.path} path={r.path} element={r.element} />)}
+          <Route path="*" element={<SignedInApp />} />
+        </Routes>
+      </AuthProvider>
+    </ToastProvider>
+  );
+}
+
+/**
+ * UiProvider (Mantine theme, toasts) wraps everything, so public pages and the shell share one look.
+ * A data router, so the unsaved-changes guard can stop a move to another page (core/unsaved.tsx);
+ * the pages themselves are still declared with <Routes> under its one catch-all route.
+ */
 export function App() {
+  const [router] = useState(() => createBrowserRouter([{ path: '*', element: <Root /> }]));
   return (
     <UiProvider>
-      <BrowserRouter>
-        <ToastProvider>
-          <AuthProvider>
-            <Routes>
-              {publicRoutes.map((r) => <Route key={r.path} path={r.path} element={r.element} />)}
-              <Route path="*" element={<SignedInApp />} />
-            </Routes>
-          </AuthProvider>
-        </ToastProvider>
-      </BrowserRouter>
+      <RouterProvider router={router} />
     </UiProvider>
   );
 }

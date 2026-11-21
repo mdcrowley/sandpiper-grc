@@ -25,6 +25,9 @@ Select **Approve** or **Reject**, on the Approvals page or in the record's appro
 - A step that needs several approvals (for example **All of them**, or **2 of them**) moves on once enough people approve. Each person decides once.
 - **You never approve your own request.** The person who asked (by hand, or by making the change that started the workflow) is left out of the approvers, even when named in the workflow, and the application refuses their decision.
 - You only see, and can only decide, approvals for records you may open. A restricted record goes only to approvers who may see restricted records.
+- When the approval belongs to another part of the application (for example a risk acceptance), you must still hold that part's approve permission **when you decide**. If an administrator takes it away while a step waits for you, the step leaves your list and your decision is refused.
+- A step can ask for **a different person from the other steps**: if you decided another step of the same request, you cannot decide that one, and it is not offered to you. The executive step of the ready-made Risk acceptance workflow works this way.
+- When the record is deleted, its running workflows are canceled ("The record was deleted.") and leave everyone's lists.
 
 Every start, decision, escalation, reassignment and outcome is recorded on the record's **History** tab.
 
@@ -36,7 +39,7 @@ While the period runs:
 
 - every approval step that goes to you also goes to your stand-in, including steps already waiting when the period starts; **either of you may decide**, once between you;
 - a decision by your stand-in is recorded as made **on your behalf** ("Jordan Lee on behalf of Sam Patel") on the record, in its history and in the part's own record of decisions;
-- a stand-in never decides a request they made themselves, only receives restricted records they may already see, must hold the permission the part asks of its approvers (for example **Approve** on **Changes**), and does not pass the step on to their own stand-in (no chains).
+- a stand-in never decides a request they made themselves, only receives restricted records they may already see, must hold the permission the part asks of its approvers (for example **Approve** on **Change enablement**), and does not pass the step on to their own stand-in (no chains).
 
 Select **End** to stop a stand-in early; from then on they can no longer decide for you.
 
@@ -48,8 +51,8 @@ When a workflow is running on a record, a panel under its title shows:
 
 - the workflow and **Waiting for approval**;
 - who asked, when, and their note;
-- the steps in order: done steps are ticked, the current one shows how many have approved, a step that only applies when its conditions hold says so, and a step that did not apply says **Skipped**;
-- **Waiting for**: the approvers of the current step (a tick beside those who have approved) and the time left;
+- the steps in order: done steps show a check mark, the current one shows how many have approved, a step that only applies when its conditions hold says so, and a step that did not apply says **Skipped**;
+- **Waiting for**: the approvers of the current step (a check mark beside those who have approved) and the time left;
 - **Your decision is needed** with **Approve** and **Reject**, when it is your turn;
 - **Stand-ins**: people standing in for an approver of the current step, and for whom;
 - each decision so far, with comments ("on behalf of" for a stand-in's decision).
@@ -99,6 +102,7 @@ Steps run in order (use the arrows to reorder them; up to ten). For each step:
   - **Named people and roles together**: chosen people and the members of chosen roles;
   - **Everyone who holds a permission**: for example everyone with `changes.approve`.
 - **How many must approve** (named people, roles and permissions): **Any one of them**, **All of them**, or a number.
+- **A different person from the other steps** (optional): someone who decided another step (or group) of the same request is left out of this step's approvers and cannot decide it, so two steps always mean two people. If that leaves nobody, the step goes to the people it escalates to, or waits for an administrator to reassign it.
 - **When this step applies**: conditions, as above. A step whose conditions do not hold when it is reached is skipped, for example a finance step only when the cost is more than a set amount.
 - **Due within** (hours or days, optional). When a step is past its due time, its approvers who have not decided are reminded, and the people it **escalates to** (named people, a role or both) are told and may decide too. If nobody named by a step can approve it (inactive, the requester, or unable to see the record), it goes straight to the people it escalates to; if there are none, the panel says so and an administrator can cancel the workflow.
 - **After this step** (optional routes): where the workflow goes once the step is approved. Add a route, choose a later step (or **Finish: approved**) under **go to**, and the conditions that send a record there, for example "If **Cost is more than 10,000**, go to **Director**". The first route whose conditions all hold is taken; with none, the workflow goes on to the next step. A route without conditions is always taken, which is how a cheaper branch skips the director step: "after **Small purchase**, finish". Routes only go forward, so a workflow never loops; the steps passed over are shown as skipped ("Not on this record's route"). The picture shows each route under its step.
@@ -113,7 +117,7 @@ Workflows saved before groups and routes existed keep working exactly as they di
 
 Saving a workflow gives it a new version. Workflows already running keep the version they started with, so a change never moves a request mid-way. **Remove** stops the workflow from starting; those running finish as they are. When a status change waits for the workflow (Administration > Lifecycles), the editor says so: while the workflow is inactive or removed, that status change is refused until another workflow is chosen on the Lifecycles page.
 
-The **Running now** tab lists every workflow waiting for approval, with the step it is waiting at and any problem (such as a step nobody can approve), and **Cancel** for each. A record you may not see is not named.
+The **Running now** tab lists every workflow waiting for approval, with the step it is waiting at and any problem (such as a step nobody can approve), and **Cancel** for each. A record you may not see is not named. When approvers a step still needs are deactivated or removed, so it can no longer get the approvals it needs (for example **All of them** and one of them has left), the check that runs every 15 minutes shows that as the step's problem and tells the administrators once (**Approval stuck**); reassign the step or cancel the workflow. A workflow whose record was deleted some other way is canceled by the same check, and an administrator can cancel it at any time.
 
 ## Approvals of other parts
 
@@ -124,8 +128,8 @@ Five parts of the application hand their approvals to workflows. Each has a read
 | [Change enablement](10-change-enablement.md#approvals) | **Change approval** | A change is submitted | One per approval rule: its approvals and approvers are the first step, kept in line with the rule | Approved; rejected (after the work started: asked again) |
 | [Service desk](02-service-desk.md) | **Catalog request approval** | A request is raised from a catalog item that needs approval (for the chosen answers) | From each catalog item's earlier approval settings, plus a default | The request's approval status |
 | [Inventory](03-inventory.md) | **Asset disposal** | Someone asks for an asset to be disposed of | Inventory manager, then the funder when the asset has a funder interest | The approver and date are written on the asset; refused with the reason |
-| [Risks](06-risks-actions-obligations.md) | **Risk acceptance** | The owner asks for a risk to be accepted | Risk approver, then an executive approver at or above the scale's threshold | The acceptance is recorded (approver, date, expiry); rejected: the risk stays open |
-| [Projects](08-projects.md) | **Project gate decision** | Someone asks for a gate decision once its checklist and documents are complete | "Gate decision", named on a gate template by an administrator | The gate passes as a recorded decision does; rejected: it stays open |
+| [Risks](06-risks-actions-obligations.md) | **Risk acceptance** | The owner asks for a risk to be accepted | Risk approver, then an executive approver (a different person) at or above the scale's threshold | The acceptance is recorded (approver, date, expiry) and the risk becomes Accepted, whatever the approver may set by hand; rejected: the risk stays open |
+| [Projects](08-projects.md) | **Project gate decision** | Someone asks for a gate decision once its checklist and documents are complete | "Gate decision", named on a gate template by an administrator | The gate passes as a recorded decision does; rejected: it stays open. While a gate's template names a workflow, only an administrator can record its decision by hand, with a reason, and never the person who asked |
 
 Approvals that were waiting when a part moved to workflows carried on there, with the decisions already given (marked as recorded before the move); earlier decisions stay on the records. Each part's page says what changed for it, and decisions given outside the application can still be recorded by hand where they could before.
 

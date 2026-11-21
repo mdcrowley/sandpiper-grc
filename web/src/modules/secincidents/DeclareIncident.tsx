@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ApiError, api, Badge, Button, Card, DateTimeField, EmptyState, ErrorState, errorMessage, formatDateTime, Icon, Loading,
-  lookupLabel, LookupSelect, PageHeader, Stepper, Switch, TextArea, TextField, useCustomFieldInputs, useDebounced, useFetch, useLookup, useResource, useToast,
+  lookupLabel, LookupSelect, PageHeader, Stepper, Switch, TextArea, TextField, useCustomFieldInputs, useDebounced, useFetch, useLookup, useResource, useToast, useUnsavedChanges,
 } from '../../core';
 import { editableLifecycle, moveBlockedReason } from '../../core/lifecycleMenus';
 import type { Row } from '../../core';
@@ -96,6 +96,8 @@ export function DeclareIncident() {
   const [previewing, setPreviewing] = useState(false);
   const [retry, setRetry] = useState(0);
   const [busy, setBusy] = useState<'' | 'declared' | 'reported'>('');
+  // Leaving with what has been typed asks first (BW-01).
+  const unsaved = useUnsavedChanges(Boolean(title.trim() || summary.trim() || scenario.trim()));
   // A new incident may start only in a status the lifecycle rules allow for a new record (E14-31).
   const rules = editableLifecycle(useResource('security_incident')?.lifecycle, 'status');
   const startBlocked = (as: 'declared' | 'reported') => {
@@ -147,6 +149,7 @@ export function DeclareIncident() {
         title, summary: summary || undefined, scenario: scenario || undefined, severity, discovered_at: discovered, status, ...flags, ...extra,
       });
       toast.success(as === 'declared' ? 'Incident declared. The notification clocks are running.' : 'Incident saved as reported. No clocks yet.');
+      unsaved.release();
       navigate(`/security-incidents/${row.id}`);
     } catch (err) {
       if (err instanceof ApiError && err.fields) { setErrors(err.fields); custom.showErrors(err.fields); setStep(0); }

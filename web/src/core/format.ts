@@ -20,7 +20,7 @@ function build() {
   partsFmt = new Intl.DateTimeFormat('en-CA', {
     year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: zone,
   });
-  currencyFmt = new Intl.NumberFormat(undefined, { style: 'currency', currency: currencyCode });
+  currencyFmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode });
 }
 build();
 
@@ -34,7 +34,7 @@ export function setLocaleSettings(next: { timeZone?: string; currency?: string }
   const before = [zone, currencyCode];
   try {
     if (next.timeZone) { new Intl.DateTimeFormat('en-US', { timeZone: next.timeZone }); zone = next.timeZone; }
-    if (next.currency) { new Intl.NumberFormat(undefined, { style: 'currency', currency: next.currency }); currencyCode = next.currency; }
+    if (next.currency) { new Intl.NumberFormat('en-US', { style: 'currency', currency: next.currency }); currencyCode = next.currency; }
     build();
   } catch {
     [zone, currencyCode] = before;
@@ -47,7 +47,9 @@ export const todayInZone = (): string => new Intl.DateTimeFormat('en-CA', { time
 
 const calendarFmt = new Intl.DateTimeFormat('en-US', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 const relativeFmt = new Intl.RelativeTimeFormat('en-US', { numeric: 'auto' });
-const numberFmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
+// Numbers and money are written as dates are, in US English, whatever the browser's language (BW-11):
+// the same figure reads the same on screen, in exports and for every viewer.
+const numberFmt = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
 
 function toDate(value: DateInput): Date | null {
   if (value === null || value === undefined || value === '') return null;
@@ -145,4 +147,12 @@ export function fromZonedInput(local: string): string {
   let t = asUtc - offsetAt(asUtc);
   t = asUtc - offsetAt(t); // second pass settles times next to a daylight-saving change
   return new Date(t).toISOString();
+}
+
+/**
+ * Text made safe to put into HTML, for the few places that build HTML strings: chart tooltips
+ * (ECharts places a formatter's string as HTML) and hand-built dialogs (SP-04).
+ */
+export function escapeHtml(text: unknown): string {
+  return String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 }

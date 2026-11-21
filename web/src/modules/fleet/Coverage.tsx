@@ -133,7 +133,7 @@ function RequirementsDialog({ open, onClose, onSaved }: { open: boolean; onClose
       footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" loading={busy} onClick={save}>Save</Button></>}>
       {!data ? <Loading lines={6} /> : (
         <div className="stack">
-          <p className="muted">Tick the kinds of equipment each mode of vehicle should carry. Coverage counts equipment as working when its asset status is In use.</p>
+          <p className="muted">Check the kinds of equipment each mode of vehicle should carry. Coverage counts equipment as working when its asset status is In use.</p>
           {modes.map((m) => (
             <fieldset key={m.value} className="fl-req">
               <legend>{m.label}</legend>

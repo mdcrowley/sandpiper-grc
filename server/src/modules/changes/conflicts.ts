@@ -1,4 +1,5 @@
 import { UUID_RE } from '../../core/errors.ts';
+import { TIME_ZONE } from '../../core/timezone.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import type { Base, Req } from './base.ts';
 import { AFFECTS } from './base.ts';
@@ -24,7 +25,7 @@ const jsonList = (v: unknown): string[] => {
   return Array.isArray(x) ? x.map(String) : [];
 };
 
-/** Adds whole months in UTC, keeping the day of the month where it exists (31 Jan + 1 month = 28/29 Feb). */
+/** Adds whole months to a wall-clock reading (kept as UTC fields), keeping the day of the month where it exists (31 Jan + 1 month = 28/29 Feb). */
 function addMonths(d: Date, n: number): Date {
   const out = new Date(d);
   const day = out.getUTCDate();
@@ -35,22 +36,58 @@ function addMonths(d: Date, n: number): Date {
   return out;
 }
 
+const zoneFormats = new Map<string, Intl.DateTimeFormat>();
+/** How the clocks of `zone` read an instant, as a Date whose UTC fields are that reading ("wall time"). */
+function toWall(at: Date, zone: string): Date {
+  let f = zoneFormats.get(zone);
+  if (!f) {
+    f = new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
+    zoneFormats.set(zone, f);
+  }
+  const p = Object.fromEntries(f.formatToParts(at).map((x) => [x.type, x.value]));
+  return new Date(Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour) % 24, Number(p.minute), Number(p.second), at.getUTCMilliseconds()));
+}
+/** The instant at which the clocks of `zone` read this wall time (a time skipped by a clock change moves forward). */
+function fromWall(wall: Date, zone: string): Date {
+  let guess = wall.getTime();
+  for (let i = 0; i < 3; i++) {
+    const diff = wall.getTime() - toWall(new Date(guess), zone).getTime();
+    if (diff === 0) break;
+    guess += diff;
+  }
+  return new Date(guess);
+}
+
 /**
  * The windows of a blackout period that overlap [from, to): the period itself, or each
  * weekly or monthly repeat of it up to its "repeat until" date (inclusive).
+ *
+ * Repeats keep the organization's wall-clock times (OP-07): a Saturday 22:00 to 02:00 period stays
+ * 22:00 to 02:00 after daylight saving time starts or ends, and "repeat until" is the last local
+ * day on which a repeat may start.
  */
-export function blackoutWindows(b: Row, from: Date, to: Date): { start: Date; end: Date }[] {
+export function blackoutWindows(b: Row, from: Date, to: Date, zone: string = TIME_ZONE): { start: Date; end: Date }[] {
   const start = new Date(b.starts_at);
-  const length = new Date(b.ends_at).getTime() - start.getTime();
+  const end = new Date(b.ends_at);
   const repeat = String(b.repeat ?? 'none');
   const untilDay = b.repeat_until instanceof Date ? b.repeat_until.toISOString().slice(0, 10) : b.repeat_until ? String(b.repeat_until).slice(0, 10) : null;
-  const until = untilDay ? new Date(`${untilDay}T23:59:59.999Z`) : null;
+  const wallStart = toWall(start, zone);
+  const wallLength = toWall(end, zone).getTime() - wallStart.getTime();
   const out: { start: Date; end: Date }[] = [];
   for (let i = 0; i < 1000; i++) {
-    const s = repeat === 'weekly' ? new Date(start.getTime() + i * 7 * 86_400_000)
-      : repeat === 'monthly' ? addMonths(start, i) : i === 0 ? start : null;
-    if (!s || s >= to || (i > 0 && until && s > until)) break;
-    const e = new Date(s.getTime() + length);
+    let s: Date;
+    let e: Date;
+    if (i === 0) {
+      [s, e] = [start, end];
+    } else if (repeat === 'weekly' || repeat === 'monthly') {
+      const ws = repeat === 'weekly' ? new Date(wallStart.getTime() + i * 7 * 86_400_000) : addMonths(wallStart, i);
+      if (untilDay && ws.toISOString().slice(0, 10) > untilDay) break;
+      s = fromWall(ws, zone);
+      e = fromWall(new Date(ws.getTime() + wallLength), zone);
+    } else {
+      break;
+    }
+    if (s >= to) break;
     if (e > from) out.push({ start: s, end: e });
   }
   return out;

@@ -47,8 +47,11 @@ services:
       # Inside the container the server listens on every interface of its own network, so it
       # must be told that HTTPS is handled in front of it. Remove this when you set GRC_TLS_CERT/KEY.
       GRC_ALLOW_INSECURE: "1"
-      # Docker's own networks: a reverse proxy reaches the application from one of these.
-      GRC_TRUST_PROXY: ${GRC_TRUST_PROXY:-private}
+      # Whose X-Forwarded-For/-Proto the application believes. "gateway" is the Docker host itself,
+      # where a reverse proxy in front of the published port connects from; nobody else (people on
+      # your network have private addresses too, and must not choose the address recorded for them).
+      # A proxy in another container: its own address. No proxy at all: set it to off.
+      GRC_TRUST_PROXY: ${GRC_TRUST_PROXY:-gateway}
     volumes:
       - grc-data:/var/lib/sandpiper
       - grc-key:/var/lib/sandpiper-key

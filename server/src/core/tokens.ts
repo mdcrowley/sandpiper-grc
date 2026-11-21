@@ -4,6 +4,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { Db, Queryable } from './db.ts';
 import { fail, UUID_RE } from './errors.ts';
 import type { Row, SessionUser } from './module.ts';
+import { routePattern } from './api/versioning.ts';
 import { makeDbLimiter } from './ratelimit.ts';
 import { clientIp } from './request.ts';
 import { can, requirePerm, type makeAudit, type makeSettings } from './services.ts';
@@ -34,6 +35,31 @@ export function tokenBlocked(url: string): boolean {
     || path === '/api/me/tokens' || path.startsWith('/api/me/tokens/')
     || path === '/api/admin/tokens' || path.startsWith('/api/admin/tokens/');
 }
+
+/**
+ * Revokes every credential a person has handed to programs (wave 9, SA-8): their personal access
+ * tokens and, when the AI assistant module is installed, their assistant (MCP OAuth) connections.
+ * Called when their password is changed or reset, and when an administrator resets their second
+ * factor, so a credential made by someone who had the old password stops working with it.
+ * Returns how many of each were revoked; the caller writes the audit event.
+ */
+export async function revokeProgramAccess(db: Queryable, userId: string, by: string | null, reason: string): Promise<{ tokens: number; connections: number }> {
+  const tokens = await db.query(
+    'update api_tokens set revoked_at = now(), revoked_by = $2 where user_id = $1 and revoked_at is null and expires_at > now() returning id',
+    [userId, by]);
+  let connections = 0;
+  if ((await db.one<{ t: string | null }>(`select to_regclass('public.mcp_oauth_grants')::text as t`))?.t) {
+    connections = (await db.query(
+      `update mcp_oauth_grants set revoked_at = now(), revoked_by = $2, revoked_reason = $3
+       where user_id = $1 and revoked_at is null and expires_at > now() returning id`,
+      [userId, by, reason.slice(0, 200)])).length;
+  }
+  return { tokens: tokens.length, connections };
+}
+
+/** "; 2 API token(s) and 1 assistant connection(s) revoked" for an audit summary, or ''. */
+export const revokedSummary = (r: { tokens: number; connections: number }) =>
+  (r.tokens || r.connections ? `; ${r.tokens} API token(s) and ${r.connections} assistant connection(s) revoked` : '');
 
 export const tokenHash = (token: string) => createHash('sha256').update(token).digest('hex');
 
@@ -288,7 +314,8 @@ export function registerTokens(app: FastifyInstance, deps: Deps) {
     else if (++w.count > perMinute) fail(429, 'rate_limited', `This API token is limited to ${perMinute} requests a minute.`);
     if (windows.size > 5000) for (const [k, v] of windows) if (v.minute !== minute) windows.delete(k);
 
-    if (tokenBlocked(req.url)) fail(403, 'token_not_allowed', 'This route cannot be called with an API token. Sign in to use it.');
+    // The path and the route it matched must both be allowed (they agree once the path is canonical).
+    if (tokenBlocked(req.url) || tokenBlocked(routePattern(req))) fail(403, 'token_not_allowed', 'This route cannot be called with an API token. Sign in to use it.');
     if (found!.stale) await db.query('update api_tokens set last_used_at = now(), last_used_ip = $2 where id = $1', [found!.id, ip]);
     req.user = { ...owner!, permissions: intersectGrants(found!.scopes, owner!.permissions) };
     req.sessionHash = null;

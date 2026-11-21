@@ -245,7 +245,7 @@ export function logRequests(server: Server, logger: Logger, clientIp: (req: Inco
       const path = redactPath((req.url ?? '').split('?')[0]);
       // Static files of the web application are not worth a line each, unless they fail.
       // Nor is every health check of a monitor or container runtime.
-      const quiet = (!path.startsWith('/api/') && path !== '/mcp') || path === '/api/health' || path === '/api/v1/health';
+      const quiet = (!path.startsWith('/api/') && path !== '/mcp') || ['/api/health', '/api/v1/health', '/api/ready', '/api/v1/ready'].includes(path);
       if (res.statusCode < 400 && quiet && logger.settings.level !== 'debug') return;
       reqId ??= res.getHeader('x-request-id');
       logger.log(res.statusCode >= 500 ? 'error' : 'info', 'request', {

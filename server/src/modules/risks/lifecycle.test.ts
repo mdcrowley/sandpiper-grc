@@ -123,6 +123,11 @@ describe('revoking and expiry of acceptances', () => {
     const quiet = (await t.api.post('/api/risks/checks/run')).body;
     expect(quiet.expired).toBe(0);
     expect(quiet.expiring).toBe(hasNotify() ? 1 : 0);
+    if (hasNotify()) {
+      // The date as people read it ("Mar 9, 2027"), not the ISO form (BW-08).
+      const told = (await lead.get('/api/notifications?pageSize=100')).body.rows.find((x: any) => x.title.includes('Nearly lapsing'));
+      expect(told.body).toMatch(/^It expires on [A-Z][a-z]{2} \d{1,2}, \d{4}\./);
+    }
     expect((await t.api.post('/api/risks/checks/run')).body.expiring).toBe(0); // told once
 
     await t.db.query(`update risk_acceptances set approved_on = current_date - 400, expires_on = current_date - 2 where risk_id = $1`, [risk.id]);
@@ -326,5 +331,37 @@ describe('sharing one restricted action', () => {
     expect((await agent.get('/api/actions/shared-with-me')).body).toEqual([]);
     expect((await agent.get(`/api/actions/shared/${action.id}`)).status).toBe(404);
     await lead.del(`/api/risks/${risk.id}`);
+  });
+});
+
+describe('a shared restricted action follows the lifecycle rules (AZ-6)', () => {
+  it('applies who may set a status, and holds a move that waits for approval', async () => {
+    const sharee = await t.as('agent');
+    const risk = (await lead.post('/api/risks', { title: 'Quokka risk' })).body;
+    const action = (await lead.post('/api/actions', { title: 'Quokka restricted follow-up', source_type: 'risk', source_id: risk.id, owner_id: lead.userId })).body;
+    expect((await lead.post(`/api/actions/${action.id}/shares`, { user_id: sharee.userId })).status).toBe(201);
+    try {
+      // Only administrators may mark an action done.
+      expect((await t.api.put('/api/admin/lifecycles/action', { who: { done: { permission: null, roles: ['administrator'] } } })).status).toBe(200);
+      const refused = await sharee.patch(`/api/actions/shared/${action.id}`, { status: 'done', notes: 'Tried' });
+      expect(refused.status).toBe(400);
+      expect(refused.body.error.fields.status).toMatch(/may not set/);
+      expect((await lead.get(`/api/actions/${action.id}`)).body).toMatchObject({ status: 'open' });
+      expect((await lead.get(`/api/actions/${action.id}`)).body.notes ?? null).not.toBe('Tried');
+
+      // Moving to done waits for an approval workflow: the notes are saved, the status waits.
+      if (!t.app.hasDecorator('workflows')) return;
+      const wf = (await t.api.post('/api/workflows/definitions', {
+        record_type: 'action', name: 'Action sign-off', trigger: 'manual', steps: [{ name: 'Lead', approvers: { kind: 'users', users: [lead.userId] } }],
+      })).body;
+      expect((await t.api.put('/api/admin/lifecycles/action', { approvals: [['open', 'done', wf.id]] })).status).toBe(200);
+      const held = await sharee.patch(`/api/actions/shared/${action.id}`, { status: 'done', notes: 'Ready for sign-off' });
+      expect(held.status, JSON.stringify(held.body)).toBe(200);
+      expect(held.body).toMatchObject({ status: 'open', notes: 'Ready for sign-off', _pending_move: { field: 'status', from: 'open', to: 'done' } });
+      const running = await t.db.one<{ requested_by: string }>(`select requested_by from workflow_instances where record_id = $1 and status = 'running'`, [action.id]);
+      expect(running!.requested_by).toBe(sharee.userId);
+    } finally {
+      await t.api.del('/api/admin/lifecycles/action');
+    }
   });
 });

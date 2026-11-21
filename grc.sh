@@ -145,9 +145,11 @@ health() {
 stop_server() {
   local id
   if ! id="$(server_pid)"; then echo 'Not running.'; return 0; fi
-  # Ask for a clean shutdown (flushes the embedded database); force only if that fails.
+  # Ask for a clean shutdown (flushes the embedded database); force only if that fails. The server
+  # allows itself 20 seconds (it finishes requests in progress and waits for a running backup), so
+  # this waits 30 before forcing: a slow but clean stop is never cut short (OP-12).
   : >"$data_dir/grc.stop"
-  for _ in $(seq 1 30); do pid_alive "$id" || break; sleep 0.5; done
+  for _ in $(seq 1 60); do pid_alive "$id" || break; sleep 0.5; done
   if pid_alive "$id"; then
     kill_pid "$id" SIGTERM
     for _ in $(seq 1 10); do pid_alive "$id" || break; sleep 0.5; done
@@ -417,6 +419,7 @@ EOF2
     cat <<EOF2
   </dict>
   <key>RunAtLoad</key><true/>
+  <key>Umask</key><integer>63</integer>
   <!-- Restarted after a crash, not after a clean stop (./grc.sh stop). -->
   <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
   <key>ExitTimeOut</key><integer>30</integer>
@@ -434,6 +437,8 @@ After=network-online.target
 
 [Service]
 Type=simple
+# Files the server creates are readable by this account only (backups, exports, the secret key).
+UMask=0077
 WorkingDirectory=$root
 Environment="PATH=$(dirname "$node_bin"):/usr/bin:/bin"
 EOF2

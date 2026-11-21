@@ -1,4 +1,5 @@
-# Weekly update proposals, grouped so that routine updates arrive as a few pull requests
+# Weekly update proposals (GitHub Actions are pinned to commit SHAs with the version in a comment,
+# which Dependabot keeps up to date), grouped so that routine updates arrive as a few pull requests
 # rather than one per package. Major versions are proposed separately, one at a time.
 version: 2
 updates:
@@ -28,3 +29,28 @@ updates:
     groups:
       actions:
         patterns: ['*']
+
+  # Base images are pinned by digest (Dockerfile, compose.postgres.yaml); these propose the new
+  # digest, keeping the tag beside it. The Node.js and PostgreSQL major versions change by hand
+  # (Node.js together with tools/node-version.txt), so major updates are not proposed.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    labels:
+      - dependencies
+    ignore:
+      - dependency-name: '*'
+        update-types: [version-update:semver-major]
+
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    labels:
+      - dependencies
+    ignore:
+      - dependency-name: '*'
+        update-types: [version-update:semver-major]

@@ -54,7 +54,7 @@ Each ticket is changed on its own, so the usual rules apply: for example a ticke
 
 The ticket gets a reference such as `TKT-00042` and opens. To log several tickets in a row, select **Log and add another**: the form empties and stays open.
 
-As installed a new ticket starts as an **Incident** with impact **One person** and urgency **Medium**, logged by an agent.
+As installed a new ticket starts as an **Incident** with impact **One person** and urgency **Medium**, and **How it arrived** set to **Logged by IT**.
 
 ### The ticket page
 
@@ -322,7 +322,7 @@ To change an article, open it and select **Edit article**. Set **Status** to **P
 
 ### Who can read an article
 
-An article for **IT agents only** is hidden from everyone who does not work tickets (people without permission to edit tickets): it is left out of their knowledge base list, search, record pickers and related records, and opening it directly says it was not found. Only an agent can mark an article **IT agents only**. Articles for **All staff** can be read by anyone who can open the knowledge base.
+An article for **IT agents only** is hidden from everyone who does not work tickets (people without permission to edit tickets): it is left out of their knowledge base list, search, record pickers and related records, reports, dashboards, exports, fact sheets and AI assistants, its files cannot be downloaded, and opening it directly says it was not found. Only an agent can mark an article **IT agents only**. Articles for **All staff** can be read by anyone who can open the knowledge base.
 
 ### Versions
 
@@ -360,7 +360,7 @@ Open an item to design its form on the **Form and tasks** tab:
 - **Questions**: select **Add question**, write the question, choose the **Answer** (**Short text**, **Long text**, **One of a list**, **Date** or **Yes or no**), list the **Choices** for a list (one on each line), add **Help text** if useful, and check **An answer is required** where needed. The arrows change the order.
 - **Fulfillment tasks**: select **Add task** for each step.
 
-- **Approval**: check **Needs approval before work starts**, then choose the **Approval workflow** (who approves, how many approvals, due times and escalation; **The standard catalog request approval** unless you choose another), and, if approval depends on an answer, choose the question under **Only when a question is answered** and tick the **Answers that need approval**. Administrators make more catalog request approval workflows under **Administration > Approval workflows**, for example two approvals from named people for a restricted system. Items that had their own number of approvals and approvers before approvals moved to workflows were each given a workflow with exactly those settings.
+- **Approval**: check **Needs approval before work starts**, then choose the **Approval workflow** (who approves, how many approvals, due times and escalation; **The standard catalog request approval** unless you choose another), and, if approval depends on an answer, choose the question under **Only when a question is answered** and check the **Answers that need approval**. Administrators make more catalog request approval workflows under **Administration > Approval workflows**, for example two approvals from named people for a restricted system. Items that had their own number of approvals and approvers before approvals moved to workflows were each given a workflow with exactly those settings.
 
 Select **Save form, tasks and approval**. Changes apply to tickets logged afterward. The **Tickets created** tab lists every ticket started from the item.
 
@@ -439,7 +439,9 @@ What happens to a message:
 - A **reply** that keeps the ticket reference in its subject (for example "Re: [TKT-00042] Printer offline") is added to that ticket as a **public comment**, without the quoted earlier message, when it comes from the requester, the affected person or an agent. A reply to a ticket **Waiting on requester** hands it back to the desk.
 - **Ignored**: automatic replies (out of office), delivery reports, mailing lists, messages from the service desk's own address or sent by this application, a message received before, and a sender who writes more often than the limit (a mail loop).
 
-**Messages received** lists every message with what became of it and why, and links to the ticket. With outgoing email off (Administration, Email), nothing is emailed back, but tickets are still created.
+A message is recorded before it is read, so a message that could not be dealt with (for example because the server stopped while reading it) is never read again: it is listed as failed, "Reading this message did not finish". Only the first 1,000,000 characters of a message's HTML are turned into text.
+
+**Messages received** lists every message with what became of it and why, and links to the ticket. Entries are kept for 180 days to begin with (**Incoming email log** under **Administration > Settings > Retention**). With outgoing email off (Administration, Email), nothing is emailed back, but tickets are still created.
 
 ## Not available yet
 

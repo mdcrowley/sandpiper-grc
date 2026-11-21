@@ -8,11 +8,12 @@ import type { Db } from '../core/db.ts';
 import { ARCHIVE_EXT, type ArchiveInfo, type ArchiveKey, ENCRYPTED_EXT, folderEntries, hashArchive, openArchiveStream, writeArchive } from './archive.ts';
 import { OpsError } from './errors.ts';
 import { exportAll, type ExportManifest } from './export.ts';
-import { listFiles, timestamp } from './files.ts';
+import { listFiles, PRIVATE_DIR, timestamp } from './files.ts';
+import { currentKeyFingerprint } from './secret-key.ts';
 
 // Backups taken by the running server (E16-08, E16-17). The embedded database cannot be
 // copied file by file while it is open, so the server takes a logical backup instead: an
-// export of every table (ops/export.ts) made inside one transaction, so it is consistent,
+// export of every table (ops/export.ts) read from one snapshot of the database, so it is consistent,
 // plus the attached files kept on the local disk, and the secret key file when an
 // administrator asks for it (encrypted archives only). That is packed into one archive
 // (encrypted when a key is configured), written to a second location, read back from there
@@ -42,7 +43,7 @@ export function folderDestination(path: string): Destination {
   return {
     describe: () => dir,
     async put(name, file) {
-      await mkdir(dir, { recursive: true });
+      await mkdir(dir, { recursive: true, mode: PRIVATE_DIR });
       const partial = join(dir, `${name}.partial`);
       await rm(partial, { force: true });
       try {
@@ -150,19 +151,19 @@ export async function runOnlineBackup(opts: OnlineBackupOptions): Promise<Online
   const existing = (await opts.destination.list().catch(() => [])).map((o) => o.name);
   const name = nextArchiveName(existing, `${ONLINE_PREFIX}${timestamp(now)}`, ext);
 
-  await mkdir(opts.workDir, { recursive: true });
+  await mkdir(opts.workDir, { recursive: true, mode: PRIVATE_DIR });
   const work = join(opts.workDir, `${name}.work`);
   const local = join(opts.workDir, name);
   await rm(work, { recursive: true, force: true });
   await rm(local, { force: true });
   const filesDir = opts.dataDir === 'memory' ? null : join(opts.dataDir, 'files');
   try {
-    // 1. A consistent export: every table is read inside one transaction.
-    const manifest = await opts.db.tx((tx) => exportAll(tx, { outDir: work, filesDir, includeSecrets: true, now }));
+    // 1. A consistent export: every table is read from one snapshot (see export.ts).
+    const manifest = await exportAll(opts.db, { outDir: work, filesDir, includeSecrets: true, keyFingerprint: currentKeyFingerprint(opts.dataDir), now });
     // The secret key is kept outside the data folder; it travels only when asked, and only encrypted.
     if (opts.secretKeyFile) {
       if (!opts.key) throw new OpsError('The secret key can only be put in an encrypted backup.');
-      await mkdir(join(work, 'extra'), { recursive: true });
+      await mkdir(join(work, 'extra'), { recursive: true, mode: PRIVATE_DIR });
       await copyFile(opts.secretKeyFile, join(work, 'extra', 'secret.key'));
     }
 

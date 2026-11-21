@@ -73,6 +73,24 @@ export function ifMatchAccepts(header: string, current: string): boolean {
   return header.split(',').map(bare).some((t) => t === '*' || t === bare(current));
 }
 
+/** The highest page number a list accepts; a larger one reads as this (an empty page). */
+export const MAX_PAGE = 1_000_000;
+
+/**
+ * `page` and `pageSize` of a list request as whole numbers in range (wave 9, SP-09): anything not
+ * a positive number is the default, fractions are cut, and a huge page (`1e400` is Infinity) is
+ * capped, so the offset always fits the database's integer instead of failing with a 500.
+ */
+export function pageOf(query: Record<string, unknown>, opts: { size?: number; maxSize?: number } = {}) {
+  const whole = (v: unknown, fallback: number, max: number) => {
+    const n = Math.trunc(Number(v));
+    return n >= 1 ? Math.min(n, max) : fallback; // NaN and anything below 1 take the default; Infinity the cap
+  };
+  const pageSize = whole(query.pageSize, opts.size ?? 50, opts.maxSize ?? 500);
+  const page = whole(query.page, 1, MAX_PAGE);
+  return { page, pageSize, offset: (page - 1) * pageSize };
+}
+
 /** A Link header value for a page of a list, from the url the caller used. */
 export function pageLinks(url: string, page: number, pageSize: number, total: number): string {
   const last = Math.max(1, Math.ceil(total / Math.max(1, pageSize)));

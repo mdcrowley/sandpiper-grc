@@ -176,7 +176,7 @@ export function registerRoutes(ctx: ModuleContext, svc: Service) {
     description: 'A workflow definition. `kind` (set when it is made, never changed): the approval kind it serves, from GET /api/workflows/options; its module starts it and `trigger` is then `module`. `trigger`: create | status | manual (with `trigger_field` and `trigger_value` for status). '
       + '`conditions`: [{ field, op: eq|ne|gt|gte|lt|lte|in|empty|set, value }]. `steps`: [{ name, approvers: { kind: users, users: [id] } | '
       + '{ kind: role, role } | { kind: people, users, roles } | { kind: permission, permission } | { kind: field, field } | { kind: department_head, from: requester|field, field }, quorum: any|all|n, conditions, '
-      + 'due_hours, escalate_to: { users, role }, routes?: [{ conditions, to: <a later step key> | end }] } or, for branches that run side by side, { name, conditions, branches: [{ name, approvers, quorum, conditions, due_hours, escalate_to }] (2 to 5), routes? }]. `on_approve`, `on_reject`: [{ field, value }] (value `today` for a date, `approver` or `requester` for a person).',
+      + 'due_hours, escalate_to: { users, role }, distinct_approvers?: true (someone who decided another step of the request may not decide this one), routes?: [{ conditions, to: <a later step key> | end }] } or, for branches that run side by side, { name, conditions, branches: [{ name, approvers, quorum, conditions, due_hours, escalate_to }] (2 to 5), routes? }]. `on_approve`, `on_reject`: [{ field, value }] (value `today` for a date, `approver` or `requester` for a person).',
   };
 
   app.post('/api/workflows/definitions', admin, async (req, reply) => reply.code(201).send(await save(req, null)));
@@ -275,7 +275,7 @@ export function registerRoutes(ctx: ModuleContext, svc: Service) {
     };
   }
 
-  const STEP_SELECT = `select s.id as step_id, s.instance_id, s.name as step_name, s.group_name, s.position, s.status as step_status, s.required, s.due_at,
+  const STEP_SELECT = `select s.id as step_id, s.instance_id, s.name as step_name, s.group_name, s.position, s.branch, s.status as step_status, s.required, s.due_at,
       s.escalated_at, s.started_at as step_started_at, s.approvers, s.principals, s.standins, i.kind, i.name as workflow_name, i.definition, i.record_type, i.record_id, i.requested_by,
       i.status as instance_status, u.display_name as requested_by_name,
       (select count(*)::int from workflow_decisions d where d.step_id = s.id and d.decision = 'approved') as approvals
@@ -293,7 +293,7 @@ export function registerRoutes(ctx: ModuleContext, svc: Service) {
     for (const r of rows) {
       // A stand-in sees a step only while their period runs and someone they stand in for has not decided.
       const ds = await db.query<{ user_id: string; on_behalf_of: string | null }>('select user_id, on_behalf_of from workflow_decisions where step_id = $1', [r.step_id]);
-      const may = await svc.mayDecide({ status: 'pending', approvers: r.approvers, principals: r.principals, standins: r.standins }, r.requested_by, me, ds);
+      const may = await svc.mayDecide({ id: r.step_id, instance_id: r.instance_id, position: r.position, branch: r.branch, status: 'pending', approvers: r.approvers, principals: r.principals, standins: r.standins }, r.requested_by, me, ds, { id: r.instance_id, kind: r.kind, definition: r.definition }, req.user);
       if (!may.ok) continue;
       const item = await approvalItem(req, { ...r, on_behalf_of: may.onBehalfOf });
       if (item) out.push(item);
@@ -364,7 +364,7 @@ export function registerRoutes(ctx: ModuleContext, svc: Service) {
     for (const s of steps) {
       const inst = instances.find((i) => i.id === s.instance_id)!;
       if (inst.status !== 'running' || s.status !== 'pending') continue;
-      deciding.set(s.id, await svc.mayDecide(s, inst.requested_by ?? null, me, decisions.filter((d) => d.step_id === s.id) as { user_id: string; on_behalf_of: string | null }[]));
+      deciding.set(s.id, await svc.mayDecide(s, inst.requested_by ?? null, me, decisions.filter((d) => d.step_id === s.id) as { user_id: string; on_behalf_of: string | null }[], inst, req.user));
     }
     const isAdmin = ctx.can(req.user, ADMIN);
     const out = instances.map((i) => {

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { ModuleDef } from '../module.ts';
 import { testApp } from '../../test/helpers.ts';
-import { ensureJobs, PermanentJobError, RetryLaterError, requestedWait, scheduleWork } from './index.ts';
+import { DeferJobError, ensureJobs, PermanentJobError, RetryLaterError, requestedWait, scheduleWork } from './index.ts';
 import { makeJobQueue } from './queue.ts';
 
 // Starts the queue without relying on any module being loaded (GRC_MODULES may be anything).
@@ -228,5 +228,51 @@ describe('recurring work and progress', () => {
     await t.app.jobs.runNow(cleanup.id!);
     expect(await job(a.id!)).toBeUndefined();
     expect((await job(b.id!)).status).toBe('done');
+  });
+});
+
+// OP-09: one slow kind of work (mail to a server that does not answer) held up every other job.
+describe('lanes and deferral (OP-09)', () => {
+  it('runs other lanes while a slow lane is still at work', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    t.app.jobs.register('test.slow_lane', async () => { await gate; return 'slow done'; }, { lane: 'slowtest' });
+    t.app.jobs.register('test.main_lane', async () => 'quick done');
+    const slow = await t.app.jobs.enqueue('test.slow_lane', {});
+    const first = await t.app.jobs.enqueue('test.main_lane', {});
+    const types = ['test.slow_lane', 'test.main_lane'];
+    const pending = t.app.jobs.runDue({ types });
+    // The main lane finishes although the slow lane's job is still running.
+    const started = Date.now();
+    while ((await job(first.id!)).status !== 'done' && Date.now() - started < 10_000) await new Promise((r) => setTimeout(r, 20));
+    expect((await job(first.id!)).status).toBe('done');
+    expect((await job(slow.id!)).status).toBe('running');
+    // A later poll runs new main-lane work too, and leaves the busy lane alone.
+    const second = await t.app.jobs.enqueue('test.main_lane', {});
+    expect(await t.app.jobs.runDue({ types })).toBe(1);
+    expect((await job(second.id!)).status).toBe('done');
+    release();
+    expect(await pending).toBe(2);
+    expect(await job(slow.id!)).toMatchObject({ status: 'done', result: 'slow done' });
+  });
+
+  it('puts a deferred job back without using up an attempt', async () => {
+    let calls = 0;
+    t.app.jobs.register('test.deferred', async () => {
+      calls += 1;
+      if (calls <= 3) throw new DeferJobError('Paused for now', 90);
+      return 'went';
+    }, { maxAttempts: 1 });
+    const { id } = await t.app.jobs.enqueue('test.deferred', {});
+    for (let i = 0; i < 3; i++) {
+      await makeDue(id!);
+      await t.app.jobs.runDue({ types: ['test.deferred'] });
+      const row = await job(id!);
+      expect(row).toMatchObject({ status: 'queued', attempts: 0, last_error: 'Paused for now' });
+      expect((new Date(row.run_at).getTime() - Date.now()) / 1000).toBeGreaterThan(80);
+    }
+    await makeDue(id!);
+    await t.app.jobs.runDue({ types: ['test.deferred'] });
+    expect(await job(id!)).toMatchObject({ status: 'done', attempts: 1, result: 'went' });
   });
 });

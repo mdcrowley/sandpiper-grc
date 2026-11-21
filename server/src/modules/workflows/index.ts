@@ -50,6 +50,10 @@ const mod: ModuleDef = {
     const svc = makeService(ctx);
     registerRoutes(ctx, svc);
     follow(ctx, svc);
+    // A deleted record's running workflows end (BS-1): none waits forever on a record nobody can open.
+    ctx.resources.onChange?.(async ({ action, def, row, req }) => {
+      if (action === 'delete' || action === 'purge') await svc.recordDeleted(def.type, String(row.id), req);
+    });
     setApprovalEngine(ctx.app, svc.engine);
     // Lifecycle moves that wait for an approval workflow (E14-37) are held and made here.
     ctx.app.lifecycles.setHolder(svc.holder);

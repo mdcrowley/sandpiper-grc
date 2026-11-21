@@ -59,7 +59,9 @@ If the details are wrong you see "Sign-in failed. Check your details and try aga
 
 After five failed attempts in a row the account is locked for a short time: one minute at first, doubling with each further failure up to 15 minutes. Wait, or ask an administrator.
 
-You are signed out automatically after 8 hours, or sooner if you leave the application idle (30 minutes unless your administrator has changed it).
+You are signed out automatically after 8 hours, or sooner if you leave the application idle (30 minutes unless your administrator has changed it). The sign-in page then says "Your session ended".
+
+If this happens while you are changing something, nothing you typed is lost. When you save, a box **Your session has ended** opens over the page instead of the sign-in page: select **Sign in in a new tab**, sign in there as usual, come back and select **Continue**, and your change is saved. Or select **Sign in on this page instead**: what you typed is kept in this browser tab, and once you have signed in it is back in the form the next time you open it (a record page reopens its form by itself), with a note asking you to check it and save.
 
 ### Other ways to sign in
 
@@ -86,7 +88,7 @@ When passwords are switched off for everyone, the password form is folded away u
 2. Enter your **Current password**, then the **New password** twice.
 3. Select **Change password**.
 
-Changing your password signs you out everywhere else.
+Changing your password signs you out everywhere else and revokes your API tokens and AI assistant connections, as the dialog says. To keep them working, check **Keep my API tokens and assistant connections** before you select **Change password**. Resetting the password with a reset link always revokes them.
 
 ### Setting up a second factor
 
@@ -136,10 +138,10 @@ The menu on the left is divided into groups. You see only the items your role al
 | Safety | **Safety dashboard**, **Safety events**, **Hazard log**, **Safety indicators** |
 | Projects | **Project portfolio**, **New project request**, **Project settings** |
 | Reports | **Dashboards**, **Reports**, **Report packs**, **Schedules**, **Risk report**, **Delivered to me**, **Expiring evidence files** |
-| Administration | **Users**, **Roles**, **Sign-in providers**, **Lists**, **Organization**, **Settings**, **Features**, **Custom fields**, **Lifecycles**, **Retention**, **API tokens**, **Approval workflows**, **AI assistant access**, **Email**, **Webhooks**, **Reminders**, **Background jobs**, **Audit log**, **Risk scales**, **Service desk settings**, **File settings**, **Backups** |
+| Administration | **Users**, **Roles**, **Sign-in providers**, **Lists**, **Organization**, **Settings**, **Features**, **Custom fields**, **Lifecycles**, **Retention**, **API tokens**, **Approval workflows**, **AI assistant access**, **Email**, **Webhooks**, **Reminders**, **Background jobs**, **Audit log**, **Risk scales**, **Service desk settings**, **Hazard matrix**, **File settings**, **Backups** |
 | Help | **User guide**, **API reference** |
 
-A few entries are for everyone and have no permission of their own: **Overview**, **Approvals**, **Notifications**, **My training**, **My acknowledgments**, **New project request**, **Delivered to me**, **Expiring evidence files**, **User guide** and **API reference**. The settings entries (**Change settings**, **Project settings**, **File settings**) appear only for people who administer that area. A part of the application an administrator has switched off under **Administration > Features** (for example the self-service portal, which starts off) has no entries at all.
+A few entries are for everyone and have no permission of their own: **Overview**, **Approvals**, **Notifications**, **My training**, **My acknowledgments**, **New project request**, **Delivered to me**, **Expiring evidence files**, **User guide** and **API reference**. The settings entries (**Change settings**, **Project settings**, **Risk scales**, **Hazard matrix**, **File settings**) appear only for people who administer that area. A part of the application an administrator has switched off under **Administration > Features** (for example the self-service portal, which starts off) has no entries at all.
 
 Each group heading is a button: select it to fold that group away or open it again. A folded group shows how many pages it holds, and the application remembers which groups you folded. The page you are on is highlighted, and its group opens by itself when you go there.
 
@@ -240,7 +242,7 @@ In any list, the column chooser and density are remembered for you, and **Save c
 
 ### Keyboard shortcuts
 
-Press `?` (when you are not typing in a box) to see every keyboard shortcut, or choose **Keyboard shortcuts** in the menu under your name. The ones that work everywhere:
+Press `?` (when you are not typing in a box) to see the keyboard shortcuts, or choose **Keyboard shortcuts** in the menu under your name. A few pages have a key of their own, described on that page: `N` on the ticket list and the action tracker, `S` on a framework board tile, and `M` on the change calendar. The ones that work everywhere:
 
 | Keys | What they do |
 |---|---|
@@ -266,6 +268,10 @@ The button with your initials and name at the top right opens a menu with **Noti
 ### Messages
 
 Short confirmations and errors, such as "Password changed.", appear at the bottom right of the window and fade after a few seconds. Select the cross to dismiss one sooner.
+
+### Dates, numbers and amounts
+
+Dates are written as "Nov 18, 2026", numbers as "1,234.5" and amounts in the organization's currency as "$1,234.50", whatever language your browser is set to, so a figure reads the same for everyone, on screen and in exports. Notifications and emails write dates the same way. "Today" is the day on the organization's calendar, in its time zone, not your computer's.
 
 ## How every list works
 
@@ -343,7 +349,7 @@ Long text in a cell is cut short with "…". Rest the pointer on it to read the 
 
 ### Export and import
 
-Select **Export** and choose **Excel (XLSX)**, **CSV** or **PDF**. The file holds every record that matches your current search and filters (not only the page on screen, up to 50,000 rows; a PDF prints at most 2,000), in the order on screen, with the columns on screen. The button appears only if your role allows exporting that kind of record.
+Select **Export** and choose **Excel (XLSX)**, **CSV** or **PDF**. The file holds every record that matches your current search and filters (not only the page on screen, up to 50,000 rows, and the file says when it was cut; a PDF holds at most 12 columns and prints at most 2,000 rows), in the order on screen, with the columns on screen. The button appears only if your role allows exporting that kind of record.
 
 **Import** (for people who may create that kind of record) fills the list from a CSV or Excel file. See [Importing and exporting](17-importing-and-exporting.md).
 
@@ -358,7 +364,7 @@ If your role allows editing that kind of record, each row starts with a checkbox
 1. Check the rows you want. The checkbox in the heading selects or clears every row on the page. Your selection is kept while you move between pages, and is cleared when you change the search or a filter.
 2. A bar appears above the table showing how many records are selected.
 3. Select **Edit selected…**. Choose the **Field to change** and the new value, or check the box to leave the field empty instead.
-4. Select **Apply**. A bar shows the progress. When it finishes you are told how many records were updated, how many already had that value, and which ones could not be changed and why (for example, a rule of that kind of record does not allow the change).
+4. Select **Apply to** … (for example **Apply to 3 tickets**). A bar shows the progress; **Stop** halts the run, and the records not reached yet are counted as not attempted. When it finishes you are told how many records were updated, how many already had that value, and which ones could not be changed and why (for example, a rule of that kind of record does not allow the change).
 5. Select **Done**.
 
 Each record is changed separately, exactly as if you had edited it by hand, so every change appears in that record's history under your name. Only some fields can be changed this way: mostly choice fields such as status or priority, and people such as the assignee.
@@ -370,6 +376,10 @@ Each record is changed separately, exactly as if you had edited it by hand, so e
 - Select a row, or the reference or title in it, to open the record.
 - Select the **New** button above the list (for example **New problem**) to create a record. Fill in the form and select the **Create** button at the bottom. Fields marked with a red asterisk must be filled in. If something is missing or not allowed, the message appears under that field and the cursor moves to it. The new record then opens.
 - If you select **Cancel** or close the form after typing something, you are asked whether to discard what you entered.
+
+### Leaving a page with unsaved changes
+
+While a form holds changes that are not saved (a record you are editing, a new record, a dialog such as **New ticket**, or a page such as **New change**, **Declare incident** or **New project request**), the application asks **Discard your unsaved changes?** before it takes you anywhere else: a link in the sidebar, the **Create** menu, search, or the browser's **Back** button. Choose **Keep editing** to stay, or **Discard changes** to go. Closing or reloading the browser tab asks too, in the browser's own words. Switching tabs within a record page does not ask, as it keeps you on the page.
 
 ### Using a list with the keyboard
 

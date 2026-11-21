@@ -296,6 +296,8 @@ function UnitFields({ at, unit, fields, options, errors, names, onName, onChange
           )}
         </div>
       </div>
+      <div className="wf-distinct"><Switch label="A different person from the other steps" checked={unit.distinct_approvers === true} onChange={(on) => onChange({ ...unit, distinct_approvers: on || undefined })}
+        hint="A person who decided another step of the same request cannot decide this one, so two steps always mean two people." /></div>
       <h4 className="wf-sub">Due time and escalation</h4>
       <div className="form-grid">
         <div className="wf-pair">

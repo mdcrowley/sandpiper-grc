@@ -368,7 +368,30 @@ filters: the last result stays visible (with `loading` true) while a different U
   `error.fields` messages are shown under their fields and any other message above the form.
   Either way focus moves to the first field with a problem and it is scrolled into view.
 - **Unsaved changes.** Cancel on a changed form first asks "Discard your unsaved changes?"
-  (Keep editing / Discard changes) in the action bar.
+  (Keep editing / Discard changes) in the action bar. The form also registers with the shared
+  guard (`useUnsavedChanges`, below): moving to another page or closing the tab asks first, a
+  `Modal` or `Drawer` around it asks before closing, and when the session ends mid-edit the
+  draft is kept. It releases the guard itself after a successful save, so `onSaved` may navigate.
+
+### Unsaved changes: `useUnsavedChanges` (core/unsaved.tsx)
+
+One guard for every form, page and dialog. A hand-written form calls
+`const unsaved = useUnsavedChanges(dirty)` and gets:
+
+- **Leaving the page**: a link, the sidebar, the Create menu, search or Back asks "Discard your
+  unsaved changes?" (React Router's `useBlocker`; the app runs on a data router for this). A change
+  of query or hash only (a tab) does not ask. Closing or reloading the tab asks through `beforeunload`.
+- **`unsaved.release()`**: call it after a successful save, before navigating to the saved record.
+- **`unsaved.guard(onClose)`**: wrap a dialog's own Cancel button with it.
+- **Dialogs**: pass `dirty` to `Modal`/`Drawer` (Escape, ×, backdrop ask "Discard this draft?";
+  `discardPrompt` changes the words). A `ResourceForm` inside a dialog tells it by itself.
+- **Session ended** (core/session.ts): a 401 while something is unsaved opens "Your session has
+  ended" in place instead of the sign-in page: sign in in a new tab and **Continue** sends the failed
+  request again; or **Sign in on this page instead** keeps each form's draft in sessionStorage
+  (`keep` option, `keepDraft`/`takeDraft`), and the sign-in page says why it is showing.
+- `confirmDiscard()` asks the same question anywhere; `hasUnsavedChanges()` says whether anything is unsaved.
+
+`UnsavedChangesHost` is mounted once under the router (App.tsx and the component test harness).
 - **Action bar.** Sticks to the bottom of the scrolling dialog or page, so Save is always in reach.
 - On create, empty fields are left out so server defaults apply. The form has no title: wrap
   it in a `Modal`, `Drawer` or `Card`.
@@ -578,7 +601,7 @@ is needed around it).
 | `Card` | `title?`, `actions?`, `flush?`, `className?`, `children` | `flush` removes body padding; a `table-wrap` directly inside a flush card loses its own border |
 | `Stat` | `label`, `value`, `trend?: { direction: 'up' \| 'down' \| 'flat', label, tone?: 'good' \| 'bad' \| 'neutral' }`, `color?`, `to?`, `icon?`, `hint?` | Number tile; `to` makes it a drill-down link, `icon` sits beside the label, `hint` is a short line under the value. Lay several out with `<div className="grid-stats">` |
 | `Tabs` | `tabs: { key, label, count?, content? }[]`, `active?`, `onChange?`, `label?` | Mantine `Tabs`: arrow keys, Home and End move between tabs. Uncontrolled unless `active` is passed; only the active panel is mounted |
-| `Modal` (alias `Dialog`) | `open`, `title`, `onClose`, `footer?`, `size?: 'sm' \| 'md' \| 'lg'`, `children` | Mantine `Modal`: focus trap, Esc and backdrop close, focus returns to the opener. Focus starts in the first form control. With several open, Esc closes only the top one, and never while a dropdown inside it is open. `footer` stays visible while the body scrolls |
+| `Modal` (alias `Dialog`) | `open`, `title`, `onClose`, `footer?`, `size?: 'sm' \| 'md' \| 'lg'`, `dirty?`, `discardPrompt?`, `children` | Mantine `Modal`: focus trap, Esc and backdrop close, focus returns to the opener. With `dirty` (or a `ResourceForm` inside that has changes) closing asks "Discard this draft?" first. Focus starts in the first form control. With several open, Esc closes only the top one, and never while a dropdown inside it is open. `footer` stays visible while the body scrolls |
 | `Drawer` | as `Modal`, plus `side?: 'left' \| 'right'` | Side panel (Mantine `Drawer`), same behavior |
 | `ConfirmDialog` | `open`, `title`, `message`, `confirmLabel?`, `danger?`, `busy?`, `onConfirm`, `onCancel` | Focus starts on Cancel when `danger`, otherwise on the confirm button |
 | `Menu` | `label`, `items: { label, icon?, onSelect?, to?, danger?, disabled?, separated? }[]`, `icon?`, `iconOnly?`, `variant?`, `size?`, `align?: 'start' \| 'end'` | Button with a dropdown menu (Mantine `Menu`): arrow keys, Esc, type-ahead. Items with `to` are real links |
@@ -657,7 +680,7 @@ columns, one on narrow screens; `form-cell-wide` spans both) and `<div className
 
 ## 10. Formatting
 
-All in the organization's time zone (`timeZone()`, set by the server's `GRC_TIMEZONE`); empty values give "—".
+All in the organization's time zone (`timeZone()`, set by the server's `GRC_TIMEZONE`), and in US English whatever the browser's language (numbers and money too); empty values give "—".
 
 | Function | Example |
 |---|---|
@@ -667,6 +690,7 @@ All in the organization's time zone (`timeZone()`, set by the server's `GRC_TIME
 | `formatDuration(ms)` | `2d 4h`, `3h 12m`, `45m` |
 | `formatCurrency(v)` | `$1,234.50` |
 | `formatNumber(v)` | `1,234.5` |
+| `escapeHtml(v)` | `&lt;b&gt;`: for the few HTML strings built by hand (chart tooltip formatters) |
 | `humanize('review_date')` | `Review date` |
 
 ## 11. Color names, icon names, CSS helpers

@@ -122,6 +122,20 @@ describe('generic import', () => {
     expect((await agent.get('/api/import/history?type=vault')).status).toBe(404);
   });
 
+  // BS-9: Excel's "CSV (Comma delimited)" on Windows is Windows-1252; it used to be read as UTF-8,
+  // every accented letter becoming "�" without a word.
+  it('reads a Windows-1252 CSV and says so in the check; UTF-8 gives no warning', async () => {
+    const cp1252 = Buffer.from([...Buffer.from('Name,Status\n', 'latin1'), ...Buffer.from('Café Depot ', 'latin1'), 0x96, ...Buffer.from(' north,open\n', 'latin1')]);
+    const read = await t.api.post('/api/import/gizmo/read', { fileName: 'excel.csv', content: b64(cp1252) });
+    expect(read.status).toBe(200);
+    expect(read.body).toMatchObject({ encoding: 'windows-1252', sample: [['Café Depot – north', 'open']] });
+    expect(read.body.warnings[0]).toContain('Windows-1252');
+    const check = await t.api.post('/api/import/gizmo', { fileName: 'excel.csv', content: b64(cp1252), mapping: { Name: 'name', Status: 'status' } });
+    expect(check.body).toMatchObject({ dryRun: true, encoding: 'windows-1252', warnings: [expect.stringContaining('CSV UTF-8')] });
+    const utf8 = await t.api.post('/api/import/gizmo/read', csvFile('﻿Name,Status\nCafé Depot,open\n'));
+    expect(utf8.body).toMatchObject({ encoding: 'utf-8', warnings: [], sample: [['Café Depot', 'open']] });
+  });
+
   it('refuses files it cannot read', async () => {
     expect((await t.api.post('/api/import/gizmo/read', { fileName: 'old.xls', content: b64('x') })).body.error.message).toContain('.xls');
     expect((await t.api.post('/api/import/gizmo/read', { fileName: 'x.xlsx', content: b64('PK not really') })).status).toBe(400);

@@ -1,20 +1,19 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { databaseUrl, openDb } from '../core/db.ts';
-import type { Queryable } from '../core/db.ts';
-import { changedMigrations } from '../core/migrate.ts';
+import type { Db, Queryable } from '../core/db.ts';
+import { changedMigrations, migrate, type MigrationSource } from '../core/migrate.ts';
 import { repoRoot } from './files.ts';
 
 // What the code on disk expects of the database, and what a database has had applied.
 // The discovery rule mirrors buildApp() in app.ts: core first, then each module folder
 // in alphabetical order, honoring GRC_MODULES.
 
-/** The migrations shipped with this copy of the code: the name recorded in schema_migrations and the file. */
-export function migrationFiles(srcDir: string = join(repoRoot, 'server/src')): { name: string; path: string }[] {
-  const out: { name: string; path: string }[] = [];
+/** The folders of migrations shipped with this copy of the code: core, core services, then modules alphabetically. */
+export function migrationSources(srcDir: string = join(repoRoot, 'server/src')): MigrationSource[] {
+  const out: MigrationSource[] = [];
   const add = (scope: string, dir: string) => {
-    if (!existsSync(dir)) return;
-    for (const file of readdirSync(dir).filter((f) => f.endsWith('.sql')).sort()) out.push({ name: `${scope}/${file}`, path: join(dir, file) });
+    if (existsSync(dir)) out.push({ scope, dir });
   };
   add('core', join(srcDir, 'core/migrations'));
   // Core services that keep their own tables (for example core/jobs, core/mail) apply
@@ -35,6 +34,21 @@ export function migrationFiles(srcDir: string = join(repoRoot, 'server/src')): {
     for (const key of keys) add(key, join(modulesDir, key, 'migrations'));
   }
   return out;
+}
+
+/** The migrations shipped with this copy of the code: the name recorded in schema_migrations and the file. */
+export function migrationFiles(srcDir?: string): { name: string; path: string }[] {
+  return migrationSources(srcDir).flatMap(({ scope, dir }) =>
+    readdirSync(dir).filter((f) => f.endsWith('.sql')).sort().map((file) => ({ name: `${scope}/${file}`, path: join(dir, file) })));
+}
+
+/**
+ * Applies this code's migrations (core, core services, then modules) that `db` has not had, or
+ * only those `only` accepts. Returns the names applied. Used by restore and import-all, which
+ * build an older export's own schema first and apply the newer migrations after loading (OP-04).
+ */
+export function applyMigrations(db: Db, only?: (name: string) => boolean, srcDir?: string): Promise<string[]> {
+  return migrate(db, migrationSources(srcDir), { only });
 }
 
 /** Names of the migrations shipped with this copy of the code, as recorded in schema_migrations. */

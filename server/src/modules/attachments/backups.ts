@@ -44,8 +44,10 @@ export interface BackupSettings {
   includeSecretKey: boolean;
 }
 
+// 03:30, not 02:00: the stop-and-copy backup's scheduled task (`schedule-backup -At`) defaults to 02:00, and that
+// stops the server; the two must not meet (OP-12).
 export const DEFAULT_BACKUPS: BackupSettings = {
-  enabled: false, time: '02:00', keep: 14, destination: 'folder', folder: '', s3Prefix: 'sandpiper-backups/', encrypt: false, includeSecretKey: false,
+  enabled: false, time: '03:30', keep: 14, destination: 'folder', folder: '', s3Prefix: 'sandpiper-backups/', encrypt: false, includeSecretKey: false,
 };
 
 const OVERDUE_HOURS = 48;
@@ -67,7 +69,7 @@ function validate(ctx: ModuleContext, body: Row, current: BackupSettings, s3Avai
   if (body.encrypt !== undefined) next.encrypt = body.encrypt === true;
   if (body.includeSecretKey !== undefined) next.includeSecretKey = body.includeSecretKey === true;
   if (body.time !== undefined) {
-    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(body.time))) fields.time = 'Enter a time of day as HH:mm, for example 02:00.';
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(body.time))) fields.time = 'Enter a time of day as HH:mm, for example 03:30.';
     else next.time = String(body.time);
   }
   if (body.keep !== undefined) {

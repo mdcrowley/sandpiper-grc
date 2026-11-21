@@ -149,7 +149,7 @@ function TypeLifecycle({ type, onChanged }: { type: string; onChanged: () => voi
           </Card>
 
           <Card title="Allowed changes">
-            <p className="muted lc-small">Tick a box to allow a record in the row's status to change to the column's status. The first row is a new record: the statuses it may start with.</p>
+            <p className="muted lc-small">Check a box to allow a record in the row's status to change to the column's status. The first row is a new record: the statuses it may start with.</p>
             {stuck.length > 0 && (
               <div className="lc-warn" role="status">
                 <Icon name="alert" size={16} />

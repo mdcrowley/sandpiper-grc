@@ -7,6 +7,7 @@ import { activeCredentials } from '../../core/webauthn/store.ts';
 import { DEFAULT_APP_NAME } from '../../core/config.ts';
 import type { ModuleContext } from '../../core/module.ts';
 import { makeDbLimiter } from '../../core/ratelimit.ts';
+import { revokedSummary, revokeProgramAccess } from '../../core/tokens.ts';
 import { clientIp } from '../../core/request.ts';
 import { generateTotpSecret, totpUri } from '../../core/totp.ts';
 import { body, generateRecoveryCodes } from './shared.ts';
@@ -68,9 +69,12 @@ export function registerAccount(ctx: ModuleContext) {
     if (!claimed) return reject(t.user_id);
     await setPassword(deps, t.user_id, b.password); // also activates a pending account and clears any lockout
     const ended = await db.query('delete from sessions where user_id = $1 returning 1', [t.user_id]);
+    // A reset also ends the person's API tokens and AI assistant connections (wave 9, SA-8): one made
+    // by someone who had the old password must not outlive it.
+    const revoked = await revokeProgramAccess(db, t.user_id, null, `password ${t.purpose === 'setup' ? 'set up' : 'reset'} with a one-time link`);
     await ctx.audit(req, {
       action: t.purpose === 'setup' ? 'password.setup' : 'password.reset', recordType: 'user', recordId: t.user_id,
-      summary: `${t.username} set a password with a one-time ${t.purpose} link from ${req.ip}; ${ended.length} session(s) ended`,
+      summary: `${t.username} set a password with a one-time ${t.purpose} link from ${req.ip}; ${ended.length} session(s) ended${revokedSummary(revoked)}`,
     });
     return { ok: true };
   });
@@ -130,6 +134,8 @@ export function registerAccount(ctx: ModuleContext) {
   app.post('/api/auth/totp/begin', async (req) => {
     const u = await me(req);
     if (u.totp_enabled) ctx.fail(409, 'already_enabled', 'A second factor is already set up. Turn it off first to replace it.');
+    // As for adding a passkey (wave 9, SA-7): a borrowed session must not bind someone else's app to the account.
+    await requireRecentAuth(deps, req, 'Setting up an authenticator app');
     const secret = generateTotpSecret();
     // Held as pending (totp_enabled stays false) until a code proves the app has the key.
     // Stored encrypted (core/secretbox.ts); this response is the only time the key is shown.

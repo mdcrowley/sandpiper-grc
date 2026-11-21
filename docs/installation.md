@@ -410,7 +410,7 @@ rest). `.\grc.ps1 schedule-backup` writes the values in force into its scheduled
 | `GRC_SECRET_KEY_FILE` | `<data folder>.secret.key`, **beside** the data folder (`/var/lib/sandpiper-key/secret.key` in the container) | Path of a file holding the key, generated on first start if missing. Keep it out of the data and backup folders |
 | `GRC_SECRET_KEY_PREVIOUS` | not set | Retired keys, comma-separated, needed for one start after changing the key; see [Security](security.md) |
 | `GRC_COOKIE_SECURE` | `off`; `auto` with HTTPS or a trusted proxy | `off`, `auto` or `always`: whether the session cookie is marked `Secure` |
-| `GRC_TRUST_PROXY` | off | Which reverse proxies may set `X-Forwarded-For`, `-Proto` and `-Host`: addresses, CIDR ranges and the words `loopback`, `private` and `linklocal`, or a number of proxy hops (only when nothing can reach the server except through them). Never set it without such a proxy |
+| `GRC_TRUST_PROXY` | off | Which reverse proxies may set `X-Forwarded-For`, `-Proto` and `-Host`: addresses, CIDR ranges and the words `loopback`, `private`, `linklocal` and `gateway` (in a container: the Docker host, where a proxy in front of the published port connects from; the default in `compose.yaml`), or a number of proxy hops (only when nothing can reach the server except through them). Never set it without such a proxy, and prefer the proxy's own address to `private`, which also trusts every person on a private network |
 | `GRC_TLS_CERT`, `GRC_TLS_KEY` | not set | PEM certificate (with any intermediate certificates after it) and private key files. When both are set the server speaks HTTPS itself |
 | `GRC_ALLOW_INSECURE` | off | `1` allows plain HTTP on an address other machines can reach. Only behind a proxy that terminates HTTPS |
 | `GRC_HSTS_MAX_AGE` | `31536000` (one year) | `Strict-Transport-Security` max-age on HTTPS responses. `0` switches the header off |
@@ -467,7 +467,7 @@ Limits to know about:
 | `.tools/node/` | Portable Node.js (`install-node.ps1` or `install-node.sh`) | No |
 | `node_modules/` | npm packages | No |
 | `dist/web/` | The built web application | No |
-| `data/` | Database (`data/pg`), attached files (`data/files`), the server's log (`data/logs`), `grc.pid`, `server.log`, `server.log.err` | No |
+| `data/` | Database (`data/pg`), attached files (`data/files`), the server's log (`data/logs`), `grc.pid`, `grc.lock` (the one process using the folder), `server.log`, `server.log.err` | No |
 | `data.secret.key` (beside `data/`) | The secret key, unless supplied another way. Not in backups: back it up separately | No |
 | `seed/` | Your organization profile and import files | No, never |
 | `backups/` | Backups, safety copies made by `restore`, exports, copies of the code for `upgrade`, and the scheduled backup log | No |
@@ -515,7 +515,9 @@ Once the application holds anything you would not want to lose:
 Two ways, both described in [Operations](operations.md):
 
 - **Same version, same kind of machine**: take a backup, copy its folder to the new
-  machine's `backups/` folder, install as above, then `restore <name>`.
+  machine's `backups/` folder, install as above, copy the secret key (`data.secret.key`,
+  beside the data folder) beside the new data folder, then `restore <name>`. A backup taken
+  with `-Encrypt -IncludeSecretKey` carries the key itself.
 - **A different version, or a different database engine**: `export-all` on the old machine
   and `import-all <folder>` on a fresh installation that has not been through the setup
   wizard. Take the secret key across as well; see
@@ -662,7 +664,7 @@ its forwarded headers, and only from it:
 |---|---|
 | Same machine | `GRC_HOST` unset (127.0.0.1), `GRC_TRUST_PROXY=loopback` (as the systemd unit does) |
 | Another machine | `GRC_HOST=0.0.0.0`, `GRC_ALLOW_INSECURE=1`, `GRC_TRUST_PROXY=<the proxy's address or range>`, and a firewall so that only the proxy reaches the port |
-| Containers | `GRC_TRUST_PROXY=private` (as `compose.yaml` does) |
+| Containers | `GRC_TRUST_PROXY=gateway` for a proxy on the Docker host (as `compose.yaml` does), or the proxy container's own address ([Docker](docker.md#https-behind-a-reverse-proxy)) |
 
 The proxy must **replace or append to** `X-Forwarded-For` (never pass on a value the browser
 sent unchecked) and set `X-Forwarded-Proto`. With Caddy,
@@ -675,7 +677,7 @@ server {
   server_name grc.example.test;
   ssl_certificate     /etc/ssl/grc/fullchain.pem;
   ssl_certificate_key /etc/ssl/grc/privkey.pem;
-  client_max_body_size 25m;                    # attachments
+  client_max_body_size 30m;                    # above the largest attachment
   location / {
     proxy_pass http://127.0.0.1:8080;
     proxy_set_header Host              $host;
@@ -685,9 +687,14 @@ server {
 }
 ```
 
+Keep `client_max_body_size` a few MB above **Largest file (MB)** under Administration > File
+settings (25 MB to begin with): the upload carries some overhead, and nginx refuses a larger
+request before the application sees it.
+
 If people sign in with passkeys, set `GRC_WEBAUTHN_RP_ID` and `GRC_WEBAUTHN_ORIGINS` to the
-address they type, and set `auth.public_url` under Administration > Settings for sign-in
-providers ([Security](security.md)).
+address they type, and set the **Application address** (`auth.public_url`) under
+Administration > Sign-in providers, on the **Redirect address** card, for sign-in providers
+([Security](security.md)).
 
 ### Containers
 

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   Button, Card, EmptyState, ErrorState, Icon, Loading, Menu, Modal, PageHeader, TextArea, TextField,
-  api, errorMessage, lookupLabel, useAuth, useCustomFieldInputs, useDebounced, useFetch, useToast,
+  api, errorMessage, lookupLabel, useAuth, useCustomFieldInputs, useDebounced, useFetch, useToast, useUnsavedChanges,
 } from '../../core';
 import { ChartPicker, FieldList, ShareFields, TypePicker, useUndo } from './BuilderParts';
 import { downloadFile, fileName, openDocument, useCatalog, usePost } from './data';
@@ -103,13 +103,8 @@ export function Builder() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
-  // Closing or reloading the tab with unsaved changes asks first.
-  useEffect(() => {
-    if (!draft.dirty) return;
-    const onLeave = (e: BeforeUnloadEvent) => { if (!saved.current) { e.preventDefault(); e.returnValue = ''; } };
-    window.addEventListener('beforeunload', onLeave);
-    return () => window.removeEventListener('beforeunload', onLeave);
-  }, [draft.dirty]);
+  // Leaving the page, or closing or reloading the tab, with unsaved changes asks first (core/unsaved.tsx).
+  const unsaved = useUnsavedChanges(draft.dirty);
 
   // Start from a saved report (edit, or "save a copy" with ?copy=), or from ?type= for a new one.
   useEffect(() => {
@@ -177,6 +172,7 @@ export function Builder() {
       const body = { name: d.name.trim(), description: d.description, spec: sendable(spec, type!), chart: d.chart, sharing: d.sharing, shared_roles: d.shared_roles, ...extra };
       const result = id ? await api.patch<ReportDefinition>(`/api/reports/${id}`, body) : await api.post<ReportDefinition>('/api/reports', body);
       saved.current = true;
+      unsaved.release();
       toast.success('Report saved.');
       setSaveOpen(false);
       navigate(`/reports/${result.id}`);

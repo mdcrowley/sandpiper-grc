@@ -145,4 +145,39 @@ describe.runIf(loaded)('risk acceptance on the approval workflows', () => {
       await t.ctx.settings.set('features', { risks: true });
     }
   });
+
+  it('AZ-7: the risk approver cannot decide the executive step too', async () => {
+    const def = (await t.api.get('/api/workflows/definitions?record_type=risk')).body.rows.find((d: any) => d.kind === 'risk_acceptance');
+    expect(def.steps.find((s: any) => s.key === 'executive').distinct_approvers).toBe(true);
+    const r = await risk('Signal cabinet remote access', 5, 5);
+    expect((await ask(owner, r.id)).status).toBe(201);
+    const first = (await waiting(approver)).find((a) => a.record_id === r.id);
+    expect((await approver.post(`/api/workflows/steps/${first.step_id}/decision`, { decision: 'approved' })).status).toBe(200);
+    // The executive step waits for someone else: not offered to the first approver, and refused if tried.
+    expect((await waiting(approver)).some((a) => a.record_id === r.id)).toBe(false);
+    const second = (await waiting(t.api as any)).find((a) => a.record_id === r.id);
+    expect(second).toMatchObject({ step: 'Executive approver' });
+    expect((await approver.post(`/api/workflows/steps/${second.step_id}/decision`, { decision: 'approved' })).status).toBe(403);
+    expect((await t.api.get(`/api/risks/${r.id}`)).body.status).not.toBe('accepted');
+    expect((await t.api.post(`/api/workflows/steps/${second.step_id}/decision`, { decision: 'approved' })).status).toBe(200);
+    expect((await t.api.get(`/api/risks/${r.id}`)).body.status).toBe('accepted');
+  });
+
+  it('BS-6: the approved outcome is system work, so the approver\'s own lifecycle rights do not stop it', async () => {
+    // Only administrators may set "Accepted" by hand; the approver is a security lead.
+    const set = await t.api.put('/api/admin/lifecycles/risk', { who: { accepted: { permission: null, roles: ['administrator'] } } });
+    expect(set.status, JSON.stringify(set.body)).toBe(200);
+    try {
+      const r = await risk('Bus wash controller default password', 2, 2);
+      expect((await ask(owner, r.id)).status).toBe(201);
+      const item = (await waiting(approver)).find((a) => a.record_id === r.id);
+      const decided = await approver.post(`/api/workflows/steps/${item.step_id}/decision`, { decision: 'approved' });
+      expect(decided.status, JSON.stringify(decided.body)).toBe(200);
+      expect(decided.body.instance.outcome_error ?? null).toBeNull();
+      expect((await t.api.get(`/api/risks/${r.id}`)).body.status).toBe('accepted');
+      expect((await t.api.get(`/api/risks/${r.id}/acceptances`)).body.acceptances).toHaveLength(1);
+    } finally {
+      await t.api.del('/api/admin/lifecycles/risk');
+    }
+  });
 });

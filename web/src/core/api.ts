@@ -27,9 +27,20 @@ export function setUnauthorizedHandler(handler: (() => void) | null): void {
   onUnauthorized = handler;
 }
 
+let onSessionEnded: (() => Promise<boolean>) | null = null;
+
+/**
+ * Called on a 401 before the sign-in page replaces the application (core/session.ts): with unsaved
+ * changes on the page it lets the person sign in again in place and resolves true, and the request
+ * that failed is sent again. Resolving false falls back to the sign-in page.
+ */
+export function setSessionEndedHandler(handler: (() => Promise<boolean>) | null): void {
+  onSessionEnded = handler;
+}
+
 const isAuthCall = (url: string) => url.startsWith('/api/auth/') || url.startsWith('/api/setup');
 
-async function send(method: string, url: string, body?: unknown): Promise<Response> {
+async function send(method: string, url: string, body?: unknown, retried = false): Promise<Response> {
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (method !== 'GET') headers['X-GRC-CSRF'] = '1';
   if (body !== undefined) headers['Content-Type'] = 'application/json';
@@ -53,7 +64,10 @@ async function send(method: string, url: string, body?: unknown): Promise<Respon
   } catch {
     // Not a JSON error body; fall through to the generic message.
   }
-  if (res.status === 401 && !isAuthCall(url)) onUnauthorized?.();
+  if (res.status === 401 && !isAuthCall(url)) {
+    if (!retried && onSessionEnded && (await onSessionEnded())) return send(method, url, body, true);
+    onUnauthorized?.();
+  }
   throw new ApiError(
     res.status,
     error.code ?? `http_${res.status}`,

@@ -288,6 +288,30 @@ async function serverLeaks(t, offTypes, offAreas, check) {
   return [...new Set(problems)];
 }
 
+/**
+ * Dashboards (BW-04). Their names and descriptions are records, so the page tour treats them as data;
+ * checked here instead: a standard dashboard about switched-off areas only is not listed, and no
+ * dashboard that stays shows a tile about a part that is off.
+ */
+async function dashboardLeaks(t, offTypes) {
+  const api = t.api();
+  const problems = [];
+  const typeOf = (w) => w?.config?.spec?.type;
+  if (offTypes.has('dashboard')) return problems; // dashboards are switched off themselves: the page tour covers them
+  const dashes = listOf(await api.must('GET', '/api/dashboards?pageSize=200'));
+  const offOnly = dashes.filter((d) => d.key && d.widgets.some(typeOf) && d.widgets.filter(typeOf).every((w) => offTypes.has(typeOf(w))));
+  await t.page.goto('/dashboards');
+  const gallery = await t.page.eval(`document.querySelector('main')?.innerText ?? ''`);
+  for (const d of offOnly) if (gallery.includes(d.name)) problems.push(`/dashboards lists the standard dashboard "${d.name}", which is only about switched-off areas`);
+  for (const d of dashes.filter((x) => x.key && !offOnly.includes(x))) {
+    await t.page.goto(`/dashboards/${d.id}`);
+    await sleep(500);
+    const text = await t.page.eval(`document.querySelector('main')?.innerText ?? ''`);
+    if (/not switched on here/i.test(text)) problems.push(`/dashboards/${d.id} ("${d.name}") shows a tile about a switched-off part`);
+  }
+  return problems;
+}
+
 /** One tour: switch `offAreas` off, check the server and every page that stays, switch back on. */
 function tour(name, pickOff) {
   return {
@@ -311,6 +335,7 @@ function tour(name, pickOff) {
       const check = checker({ offAreas, offTypes, offRoutes, offApiPaths, dataStrings });
 
       for (const p of await t.step('the server answers', () => serverLeaks(t, offTypes, offAreas, check))) t.soft(false, p);
+      for (const p of await t.step('dashboards', () => dashboardLeaks(t, offTypes))) t.soft(false, p);
 
       // Pages that stay: those of modules and types still on.
       const stays = before.visit.filter((v) => !check.linkOff(v.path) && !offRoutes.includes(v.pattern));
@@ -371,4 +396,18 @@ function tour(name, pickOff) {
 export const tests = [
   tour('every area off: nothing of them is shown', (areas) => areas),
   tour('portal, fleet and safety off: nothing of them is shown', () => ['portal', 'fleet', 'safety']),
+  {
+    // Areas with standard dashboards of their own, while dashboards stay on (BW-04): those dashboards
+    // are not listed, and no dashboard that stays shows a tile about them.
+    name: 'service desk, portal and vendors off: their standard dashboards are not shown',
+    async run(t) {
+      const before = await t.step('everything on: record the routes, types and records', () => baseline(t));
+      const offAreas = ['portal', 'tickets', 'vendors'];
+      await t.step(`switch off: ${offAreas.join(', ')}`, () => setAreas(t, Object.fromEntries(before.areas.map((a) => [a, !offAreas.includes(a)]))));
+      const metaAfter = (await t.api().must('GET', '/api/meta')).resources ?? {};
+      const offTypes = new Map(Object.entries(before.resources).filter(([type]) => !metaAfter[type]));
+      for (const p of await t.step('dashboards', () => dashboardLeaks(t, offTypes))) t.soft(false, p);
+      await setAreas(t, before.initial);
+    },
+  },
 ];

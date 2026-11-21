@@ -266,3 +266,6 @@ button.wf-flow-button:hover { background: var(--surface-hover); }
 .wf-branch-live-head { display: flex; justify-content: space-between; gap: var(--s-2); align-items: center; font-weight: 600; }
 .wf-pending-move { display: flex; gap: var(--s-2); align-items: flex-start; }
 .wf-pending-move svg { flex: none; margin-top: 2px; }
+
+/* "A different person from the other steps" (AZ-7): apart from the approver fields above it. */
+.wf-distinct { margin-top: var(--mantine-spacing-md); }

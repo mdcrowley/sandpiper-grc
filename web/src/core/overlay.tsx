@@ -5,6 +5,7 @@ import { notifications } from '@mantine/notifications';
 import { Link } from 'react-router-dom';
 import { Icon, type IconName } from './Icon';
 import { Button, BUTTON_LOOK, cx, type ButtonVariant } from './ui';
+import { SheetGuard, useSheetGuard, type DiscardPrompt } from './unsaved';
 
 /* ---------- Modal and Drawer ---------- */
 
@@ -16,7 +17,18 @@ export interface ModalProps {
   /** Buttons at the bottom. Forms usually render their own buttons instead. */
   footer?: ReactNode;
   size?: 'sm' | 'md' | 'lg';
+  /**
+   * The dialog holds unsaved changes: Escape, × and a click outside ask "Discard your unsaved
+   * changes?" before closing. Wrap the dialog's own Cancel with `useUnsavedChanges(...).guard`.
+   */
+  dirty?: boolean;
+  /** The question asked before unsaved changes are thrown away (default "Discard this draft?"). */
+  discardPrompt?: DiscardPrompt;
+  /** Above every other dialog (the shared discard prompt). */
+  layer?: 'top';
 }
+
+const TOP_LAYER = 400;
 
 // Open sheets, oldest first. Escape closes only the top one, and never while a dropdown inside it is open.
 const openSheets: { id: string; close: () => void }[] = [];
@@ -75,19 +87,21 @@ function SheetContent({ bodyRef, children, footer }: { bodyRef: React.RefObject<
 }
 
 /** A centered dialog: focus is trapped, Escape and a press on the backdrop close it. */
-export function Modal({ open, title, onClose, children, footer, size = 'md' }: ModalProps) {
+export function Modal({ open, title, onClose: close, children, footer, size = 'md', dirty, discardPrompt, layer }: ModalProps) {
+  const { close: onClose, forms } = useSheetGuard(close, dirty, discardPrompt);
   const bodyRef = useSheet(open, onClose);
   return (
     <MModal
       opened={open}
       onClose={onClose}
+      zIndex={layer === 'top' ? TOP_LAYER : undefined}
       title={title}
       size={MODAL_WIDTH[size]}
       closeOnEscape={false}
       closeButtonProps={{ 'aria-label': 'Close' }}
       classNames={{ content: `ui-sheet ui-modal ui-modal-${size}`, header: 'ui-sheet-head', title: 'ui-sheet-title', body: 'ui-sheet-wrap' }}
     >
-      <SheetContent bodyRef={bodyRef} footer={footer}>{children}</SheetContent>
+      <SheetGuard forms={forms}><SheetContent bodyRef={bodyRef} footer={footer}>{children}</SheetContent></SheetGuard>
     </MModal>
   );
 }
@@ -96,7 +110,8 @@ export function Modal({ open, title, onClose, children, footer, size = 'md' }: M
 export const Dialog = Modal;
 
 /** A panel that slides in from the edge of the window. */
-export function Drawer({ open, title, onClose, children, footer, size = 'md', side = 'right' }: ModalProps & { side?: 'left' | 'right' }) {
+export function Drawer({ open, title, onClose: close, children, footer, size = 'md', side = 'right', dirty, discardPrompt }: ModalProps & { side?: 'left' | 'right' }) {
+  const { close: onClose, forms } = useSheetGuard(close, dirty, discardPrompt);
   const bodyRef = useSheet(open, onClose);
   return (
     <MDrawer
@@ -109,7 +124,7 @@ export function Drawer({ open, title, onClose, children, footer, size = 'md', si
       closeButtonProps={{ 'aria-label': 'Close' }}
       classNames={{ content: `ui-sheet ui-drawer ui-drawer-${side}`, header: 'ui-sheet-head', title: 'ui-sheet-title', body: 'ui-sheet-wrap' }}
     >
-      <SheetContent bodyRef={bodyRef} footer={footer}>{children}</SheetContent>
+      <SheetGuard forms={forms}><SheetContent bodyRef={bodyRef} footer={footer}>{children}</SheetContent></SheetGuard>
     </MDrawer>
   );
 }
@@ -119,23 +134,28 @@ export interface ConfirmDialogProps {
   title: string;
   message: ReactNode;
   confirmLabel?: string;
+  /** The label of the button that closes without doing anything. Default "Cancel". */
+  cancelLabel?: string;
   /** Style the confirm button as destructive. */
   danger?: boolean;
   busy?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
+  /** Above every other dialog. */
+  layer?: 'top';
 }
 
-export function ConfirmDialog({ open, title, message, confirmLabel = 'Confirm', danger, busy, onConfirm, onCancel }: ConfirmDialogProps) {
+export function ConfirmDialog({ open, title, message, confirmLabel = 'Confirm', cancelLabel = 'Cancel', danger, busy, onConfirm, onCancel, layer }: ConfirmDialogProps) {
   return (
     <Modal
       open={open}
       title={title}
       size="sm"
       onClose={onCancel}
+      layer={layer}
       footer={
         <>
-          <Button onClick={onCancel} data-autofocus={danger || undefined}>Cancel</Button>
+          <Button onClick={onCancel} data-autofocus={danger || undefined}>{cancelLabel}</Button>
           <Button variant={danger ? 'danger' : 'primary'} loading={busy} onClick={onConfirm} data-autofocus={!danger || undefined}>{confirmLabel}</Button>
         </>
       }

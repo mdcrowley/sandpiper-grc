@@ -388,7 +388,7 @@ async function openEmbedded(dataDir: string): Promise<Db> {
   if (dataDir === 'memory') {
     lite = new PGlite({ parsers, extensions: EXTENSIONS });
   } else {
-    mkdirSync(dataDir, { recursive: true });
+    mkdirSync(dataDir, { recursive: true, mode: 0o700 }); // the owner only (SP-07)
     lite = new PGlite(`${dataDir}/pg`, { parsers, extensions: EXTENSIONS });
   }
   await lite.waitReady;
@@ -608,7 +608,7 @@ export async function openDb(dataDir: string): Promise<Db> {
   }
   const url = databaseUrl();
   if (url) {
-    mkdirSync(dataDir, { recursive: true }); // still holds attached files and the key file
+    mkdirSync(dataDir, { recursive: true, mode: 0o700 }); // still holds attached files and the key file
     return openServerDb({ connectionString: withPassword(url), dataDir });
   }
   return openEmbedded(dataDir);

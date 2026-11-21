@@ -48,7 +48,7 @@ function WaiveDialog({ doc, onClose, onSubmit }: { doc: GateDocument | null; onC
   );
 }
 
-/** The documents a gate expects: tick each as received, say where it is filed or attach the file, or waive it. */
+/** The documents a gate expects: check each as received, say where it is filed or attach the file, or waive it. */
 export function GateDocuments({ projectId, gate, editable, onChanged }: Props) {
   const toast = useToast();
   const { can } = useAuth();

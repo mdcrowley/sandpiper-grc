@@ -198,7 +198,7 @@ const mod: ModuleDef = {
     ctx.describeRoute({
       method: 'PUT', path: '/api/portal/settings', permission: 'tickets.administer', summary: 'Change the portal settings',
       description: 'Changing `enabled` (the portal\'s feature switch) needs `admin.administer` and a recent identity confirmation (403 `reauth_required` otherwise), so an API token cannot do it.',
-      body: '{ enabled? (administrators only), title?, intro?, reopen_days?, banner?: { message, tone } | null }',
+      body: '{ enabled? (administrators only), title?, intro?, reopen_days?, banner?: { message, tone } | null, on_behalf?: "nobody" | "department" | "anyone", safety_reports?: boolean }',
     });
 
     // Agents' public replies reach the requester, who follows them in the portal.

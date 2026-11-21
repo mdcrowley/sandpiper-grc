@@ -263,6 +263,17 @@ export async function runDueSchedules(ctx: ModuleContext, deps: ScheduleDeps, no
     `select * from report_schedules where deleted_at is null and active and next_run_at is not null and next_run_at <= $1 order by next_run_at`, [now.toISOString()],
   );
   const out: RunSummary[] = [];
-  for (const s of due) out.push(await runSchedule(ctx, deps, s, now));
+  for (const s of due) {
+    // Claimed before anything is sent (BS-3): the next run time moves on in one statement, only while
+    // the schedule is still due, so of two overlapping runs (the job and the "Run due" button, two servers, or a job
+    // that outlived its lease) exactly one delivers it. A run stopped half-way is not repeated on
+    // restart: recipients not reached then get the next delivery, rather than others getting two.
+    const claimed = await ctx.db.one<Row>(
+      `update report_schedules set next_run_at = $3, last_run_at = $4
+       where id = $1 and next_run_at <= $2 and deleted_at is null and active returning id`,
+      [s.id, now.toISOString(), nextRun(s as { cadence: string }, now).toISOString(), now.toISOString()],
+    );
+    if (claimed) out.push(await runSchedule(ctx, deps, s, now));
+  }
   return out;
 }

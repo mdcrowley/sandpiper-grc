@@ -130,6 +130,7 @@ describe('encrypted backups', () => {
     mkdirSync(join(dataDir, 'files', 'ab'), { recursive: true });
     writeFileSync(join(dataDir, 'pg', 'PG_VERSION'), '17\n');
     writeFileSync(join(dataDir, 'files', 'ab', 'evidence.txt'), 'original attachment');
+    writeFileSync(`${dataDir}.secret.key`, randomBytes(32).toString('hex')); // as the first start writes it
     writeFileSync(join(dataDir, 'server.log'), 'log line');
     return { dataDir, backupsDir };
   }
@@ -193,6 +194,8 @@ describe('the secret key and backups', () => {
       const again = await restoreBackup({ backupDir: b.dir, dataDir, backupsDir, codeMigrations: [], currentMigrations: null, key: keyA });
       expect(again.keyNote).toMatch(/was put in/);
       expect(readFileSync(keyFile, 'utf8').trim()).toBe(keyText);
+      // SP-07: the restored key is readable by its owner only, like every other key file (modes do not apply on Windows).
+      if (process.platform !== 'win32') expect(statSync(keyFile).mode & 0o077).toBe(0);
     } finally {
       if (saved === undefined) delete process.env.GRC_SECRET_KEY_FILE; else process.env.GRC_SECRET_KEY_FILE = saved;
     }

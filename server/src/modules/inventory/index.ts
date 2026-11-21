@@ -286,6 +286,10 @@ async function checkAsset(ctx: ModuleContext, merged: Row, patch: Row, existing:
     );
     if (clash) ctx.fail(400, 'validation', 'Check the highlighted fields.', { tag: `Tag ${patch.tag} is already in use.` });
   }
+  // A cost below zero would distort the cost reports and dashboards (BW-10); imports and MCP tools come through here too.
+  if (patch.cost !== undefined && patch.cost !== null && Number(patch.cost) < 0) {
+    ctx.fail(400, 'validation', 'Check the highlighted fields.', { cost: 'Enter zero or more.' });
+  }
   const pct = patch.funder_interest_pct;
   if (pct !== undefined && pct !== null && (pct < 0 || pct > 100)) {
     ctx.fail(400, 'validation', 'Check the highlighted fields.', { funder_interest_pct: 'Enter a percentage between 0 and 100.' });

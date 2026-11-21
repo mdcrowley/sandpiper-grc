@@ -7,10 +7,11 @@ import {
 } from './archive.ts';
 import { OpsError } from './errors.ts';
 import { EXPORT_FORMAT, verifyExport } from './export.ts';
-import { appVersion, copyFiles, describeFiles, eachLimited, listFiles, listFolders, makeFolders, serverPid, sha256File, timestamp } from './files.ts';
+import { appVersion, copyFiles, describeFiles, eachLimited, listFiles, listFolders, makeFolders, serverPid, sha256File, timestamp, PRIVATE_DIR } from './files.ts';
 import type { FileEntry } from './files.ts';
-import { installRestoredKey, secretKeyFileToInclude } from './secret-key.ts';
+import { allowNewSecretKey, checkRestoreKey, currentKeyFingerprint, installRestoredKey, secretKeyFileToInclude } from './secret-key.ts';
 import { databaseUrl } from '../core/db.ts';
+import { LEGACY_KEY_FILE } from '../core/secretkey.ts';
 
 export { OpsError };
 
@@ -34,7 +35,7 @@ export const ARCHIVE_INFO = 'archive.json';
 
 /** Top-level names in the data folder that are never copied or replaced. */
 export const isRuntimeFile = (name: string) =>
-  name === 'grc.pid' || name === 'grc.stop' || name === 'logs' || name.startsWith('server.log') || name.startsWith('backup-status.json');
+  name === 'grc.pid' || name === 'grc.lock' || name === 'grc.stop' || name === 'logs' || name.startsWith('server.log') || name.startsWith('backup-status.json');
 
 export interface BackupManifest {
   format: typeof BACKUP_FORMAT;
@@ -46,6 +47,8 @@ export interface BackupManifest {
   createdAt: string;
   /** Migrations applied to the database when it was copied; null when they could not be read. */
   migrations: string[] | null;
+  /** Fingerprint of the secret key the data's stored secrets were encrypted with (DOC-01); missing in older backups, null when unknown. */
+  secretKeyFingerprint?: string | null;
   totalBytes: number;
   /** Every folder, including empty ones: the database needs some folders to exist even when empty. */
   folders: string[];
@@ -138,6 +141,7 @@ export async function createBackup(opts: CreateBackupOptions): Promise<BackupInf
     appVersion: appVersion(),
     createdAt: now.toISOString(),
     migrations: opts.migrations,
+    secretKeyFingerprint: currentKeyFingerprint(opts.dataDir),
     totalBytes: files.reduce((sum, f) => sum + f.size, 0),
     folders,
     files,
@@ -170,7 +174,7 @@ export async function createBackup(opts: CreateBackupOptions): Promise<BackupInf
   // name is always a complete backup.
   const partial = join(opts.backupsDir, `${name}.partial`);
   await rm(partial, { recursive: true, force: true });
-  await mkdir(join(partial, 'data'), { recursive: true });
+  await mkdir(join(partial, 'data'), { recursive: true, mode: PRIVATE_DIR });
   await makeFolders(join(partial, 'data'), folders);
   await copyFiles(opts.dataDir, join(partial, 'data'), paths);
   await writeFile(join(partial, MANIFEST), `${JSON.stringify(manifest, null, 2)}\n`);
@@ -423,7 +427,12 @@ export interface RestoreOptions {
    * database and imports the export folder it is given. Supplied by the command line, which
    * can build the application; without it, archived online backups cannot be restored.
    */
-  loadExport?: (exportDir: string) => Promise<void>;
+  loadExport?: (exportDir: string) => Promise<string[] | void>;
+  /**
+   * Restore although the secret key the backup's stored secrets were written with is not available
+   * (DOC-01); they then cannot be read. Default: GRC_RESTORE_NEW_SECRET_KEY.
+   */
+  allowNewSecretKey?: boolean;
 }
 
 export interface RestoreResult {
@@ -434,7 +443,9 @@ export interface RestoreResult {
   pendingMigrations: string[];
   /** The backup was an export taken by the running server, loaded into a new database. */
   fromExport?: boolean;
-  /** What was done with a secret key carried in the backup; undefined when it held none. */
+  /** An older online backup: the migrations newer than it, applied after its rows were loaded (OP-04). */
+  laterMigrations?: string[];
+  /** What was done with a secret key carried in the backup, or a warning about the key; undefined when there is nothing to say. */
   keyNote?: string;
 }
 
@@ -444,13 +455,13 @@ export async function restoreBackup(opts: RestoreOptions): Promise<RestoreResult
   if (pid) throw new OpsError(`The server is running (process ${pid}). Stop it before restoring.`);
 
   if (isArchivePath(opts.backupDir) && existsSync(opts.backupDir) && statSync(opts.backupDir).isFile()) {
-    await mkdir(opts.backupsDir, { recursive: true });
+    await mkdir(opts.backupsDir, { recursive: true, mode: PRIVATE_DIR });
     const work = await extractToWork(opts.backupDir, opts.key ?? null, opts.backupsDir);
     try {
       const inner = JSON.parse(readFileSync(join(work, MANIFEST), 'utf8'));
       if (inner?.format === EXPORT_FORMAT) return await restoreExport(work, opts);
       const result = await restoreFolder({ ...opts, backupDir: work });
-      if (existsSync(join(work, 'extra', 'secret.key'))) result.keyNote = installRestoredKey(opts.dataDir, join(work, 'extra', 'secret.key'));
+      if (existsSync(join(work, 'extra', 'secret.key'))) result.keyNote = joinNotes(result.keyNote, installRestoredKey(opts.dataDir, join(work, 'extra', 'secret.key')));
       return result;
     } finally {
       await rm(work, { recursive: true, force: true });
@@ -468,7 +479,7 @@ async function keepSafetyCopy(opts: RestoreOptions): Promise<BackupInfo | null> 
 }
 
 async function emptyDataFolder(dataDir: string): Promise<void> {
-  await mkdir(dataDir, { recursive: true });
+  await mkdir(dataDir, { recursive: true, mode: PRIVATE_DIR });
   for (const entry of readdirSync(dataDir)) {
     if (!isRuntimeFile(entry)) await rm(join(dataDir, entry), { recursive: true, force: true });
   }
@@ -493,11 +504,14 @@ async function restoreFolder(opts: RestoreOptions): Promise<RestoreResult> {
     );
   }
 
-  // 3. Keep what is there now.
+  // 3. The key the stored secrets need must be at hand (DOC-01).
+  const keyNote = keyCheck(opts, manifest.secretKeyFingerprint, [join(opts.backupDir, 'extra', 'secret.key'), join(opts.backupDir, 'data', LEGACY_KEY_FILE)]);
+
+  // 4. Keep what is there now.
   const safetyCopy = await keepSafetyCopy(opts);
   const undo = safetyCopy ? ` The data as it was is in ${safetyCopy.dir}; restore that to go back.` : '';
 
-  // 4. Replace, then check what landed.
+  // 5. Replace, then check what landed.
   try {
     await emptyDataFolder(opts.dataDir);
     await makeFolders(opts.dataDir, manifest.folders);
@@ -511,8 +525,18 @@ async function restoreFolder(opts: RestoreOptions): Promise<RestoreResult> {
   if (after.length) throw new OpsError(`The restored files do not match the backup (${after[0]}).${undo}`, 2);
 
   const applied = new Set(manifest.migrations ?? []);
-  return { manifest, safetyCopy, pendingMigrations: manifest.migrations ? opts.codeMigrations.filter((m) => !applied.has(m)) : [] };
+  return { manifest, safetyCopy, pendingMigrations: manifest.migrations ? opts.codeMigrations.filter((m) => !applied.has(m)) : [], ...(keyNote ? { keyNote } : {}) };
 }
+
+/** Checks the secret key before anything is touched; returns a note when restoring without it was allowed. */
+function keyCheck(opts: RestoreOptions, expected: string | null | undefined, carried: string[]): string | undefined {
+  return checkRestoreKey({
+    dataDir: opts.dataDir, expected, carried: carried.filter((f) => existsSync(f)),
+    allowNew: opts.allowNewSecretKey ?? allowNewSecretKey(),
+  }) ?? undefined;
+}
+
+const joinNotes = (...notes: (string | undefined)[]): string | undefined => notes.filter(Boolean).join(' ') || undefined;
 
 /** Restores an export taken by the running server: a fresh database, then the export loaded into it. */
 async function restoreExport(work: string, opts: RestoreOptions): Promise<RestoreResult> {
@@ -526,15 +550,18 @@ async function restoreExport(work: string, opts: RestoreOptions): Promise<Restor
   if (unknown.length) {
     throw new OpsError(`The backup was made by a newer version of the application (${exp.appVersion}): it has migrations this code does not know (${unknown.join(', ')}). Current data is untouched. Upgrade the code first.`);
   }
+  const carried = join(work, 'extra', 'secret.key');
+  let keyNote = keyCheck(opts, exp.secretKeyFingerprint, [carried]);
   const safetyCopy = await keepSafetyCopy(opts);
   const undo = safetyCopy ? ` The data as it was is in ${safetyCopy.dir}; restore that to go back.` : '';
-  let keyNote: string | undefined;
+  let laterMigrations: string[] = [];
   try {
     await emptyDataFolder(opts.dataDir);
     // The key that protects authenticator keys travels with the backup when it was kept in the data folder.
     // A key carried in the backup goes in place before the new database is opened.
-    if (existsSync(join(work, 'extra', 'secret.key'))) keyNote = installRestoredKey(opts.dataDir, join(work, 'extra', 'secret.key'));
-    await opts.loadExport(work);
+    if (existsSync(carried)) keyNote = joinNotes(keyNote, installRestoredKey(opts.dataDir, carried));
+    // The schema the backup was made with, its rows, then the newer migrations (OP-04).
+    laterMigrations = (await opts.loadExport(work)) ?? [];
   } catch (err) {
     throw new OpsError(`The restore failed part-way: ${(err as Error).message}. The data folder is incomplete.${undo}`, 2);
   }
@@ -542,5 +569,5 @@ async function restoreExport(work: string, opts: RestoreOptions): Promise<Restor
     format: BACKUP_FORMAT, formatVersion: 1, name: 'online', label: 'online', appVersion: exp.appVersion,
     createdAt: exp.createdAt, migrations: exp.migrations, totalBytes: 0, folders: [], files: [],
   };
-  return { manifest, safetyCopy, pendingMigrations: [], fromExport: true, keyNote };
+  return { manifest, safetyCopy, pendingMigrations: [], fromExport: true, laterMigrations, ...(keyNote ? { keyNote } : {}) };
 }

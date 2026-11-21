@@ -2,6 +2,8 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import type { IncomingMessage, Server } from 'node:http';
 import { join, resolve } from 'node:path';
 import { buildApp, repoRoot } from './app.ts';
+import { acquireDataLock, DataLockError } from './core/datalock.ts';
+import { resolveGatewayKeyword, trustsAllPrivate } from './core/gateway.ts';
 import { databaseUrl, redactUrl } from './core/db.ts';
 import { defaultCookieSecure, ListenError, type ListenPlan, parseTrustProxy, planListen, tlsReloadSeconds, watchTlsFiles } from './core/http.ts';
 import { migrateAsOwner } from './ops/db-roles.ts';
@@ -31,6 +33,21 @@ process.on('unhandledRejection', (reason) => {
   log.error('Unhandled promise rejection', { error: reason instanceof Error ? reason : new Error(String(reason)) });
 });
 
+// One process per data folder (OP-06): taken before the database is opened or migrated, so a
+// second server (or a command) on the same folder stops here and changes nothing. Released when
+// the process exits.
+if (dataDir !== 'memory') {
+  try {
+    acquireDataLock(dataDir, 'server');
+  } catch (err) {
+    if (err instanceof DataLockError) {
+      log.error(`Sandpiper GRC did not start: ${err.message}`);
+      process.exit(1);
+    }
+    throw err;
+  }
+}
+
 // Where and how to listen. Plain HTTP is allowed only on the loopback address unless a TLS
 // proxy is declared in front (GRC_ALLOW_INSECURE=1); see docs/installation.md.
 let plan: ListenPlan;
@@ -44,6 +61,19 @@ try {
     process.exit(1);
   }
   throw err;
+}
+// GRC_TRUST_PROXY=gateway (the container default, SP-03): the address of the container's gateway,
+// which is where a reverse proxy on the Docker host connects from. Resolved once, before anything reads it.
+{
+  const resolved = resolveGatewayKeyword(process.env.GRC_TRUST_PROXY);
+  if (resolved.note) {
+    process.env.GRC_TRUST_PROXY = resolved.value;
+    log.info(resolved.note, { console: true });
+  }
+  if (plan.tls && trustsAllPrivate(process.env.GRC_TRUST_PROXY)) {
+    log.warn('GRC_TRUST_PROXY=private while this server speaks HTTPS itself: anyone with a private address can set the ' +
+      'client address it records and rate-limits by. Name the proxy\'s own address instead, or leave GRC_TRUST_PROXY unset.', { console: true });
+  }
 }
 // On HTTPS, or behind a trusted proxy, the session cookie is marked Secure whenever the request is HTTPS (E02-14).
 const cookieDefault = defaultCookieSecure(plan);
@@ -91,7 +121,7 @@ if (plan.tls) {
 
 const pidFile = dataDir === 'memory' ? null : join(dataDir, 'grc.pid');
 if (pidFile) {
-  mkdirSync(dataDir, { recursive: true });
+  mkdirSync(dataDir, { recursive: true, mode: 0o700 });
   writeFileSync(pidFile, String(process.pid));
 }
 const url = databaseUrl();

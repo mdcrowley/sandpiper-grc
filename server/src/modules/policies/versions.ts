@@ -81,17 +81,34 @@ export function registerVersionRoutes(ctx: ModuleContext) {
   ctx.app.post('/api/policies/:id/versions', { preHandler: ctx.requirePerm('policies.edit') }, async (req, reply) => {
     const policy = await needPolicy(req);
     if (policy.status === 'retired') ctx.fail(409, 'retired', 'This policy is retired. It cannot have a new version.');
-    const open = await db.one<Row>(
-      `select version from policy_versions where policy_id = $1 and status in ('draft', 'in_review', 'approved') order by version desc limit 1`,
-      [policy.id],
-    );
-    if (open) ctx.fail(409, 'version_open', `Version ${open.version} is not published yet. Finish that version before starting another.`);
     const data = bodyInput((req.body ?? {}) as Row, 'create');
-    const next = (await db.one<{ n: number }>('select coalesce(max(version), 0)::int + 1 as n from policy_versions where policy_id = $1', [policy.id]))!.n;
-    const row = (await db.one<Row>(
-      `insert into policy_versions (policy_id, version, body, change_summary, created_by, updated_by) values ($1,$2,$3,$4,$5,$5) returning *`,
-      [policy.id, next, data.body, data.change_summary ?? null, req.user!.id],
-    ))!;
+    // One request at a time per policy (BS-8): the policy row is locked while the open-version check
+    // and the next number are worked out, so two requests at once (a double click) cannot both pass.
+    const openVersion = (v: unknown) => ctx.fail(409, 'version_open', `Version ${v} is not published yet. Finish that version before starting another.`);
+    let row: Row;
+    try {
+      row = await db.tx(async (tx) => {
+        await tx.query('select id from policies where id = $1 for update', [policy.id]);
+        const open = await tx.one<Row>(
+          `select version from policy_versions where policy_id = $1 and status in ('draft', 'in_review', 'approved') order by version desc limit 1`,
+          [policy.id],
+        );
+        if (open) openVersion(open.version);
+        const n = (await tx.one<{ n: number }>('select coalesce(max(version), 0)::int + 1 as n from policy_versions where policy_id = $1', [policy.id]))!.n;
+        return (await tx.one<Row>(
+          `insert into policy_versions (policy_id, version, body, change_summary, created_by, updated_by) values ($1,$2,$3,$4,$5,$5) returning *`,
+          [policy.id, n, data.body, data.change_summary ?? null, req.user!.id],
+        ))!;
+      });
+    } catch (err) {
+      // A database without row locks for this case still keeps one version per number: answer as above.
+      if ((err as { code?: string }).code === '23505' || /unique|duplicate/i.test((err as Error).message)) {
+        const open = await db.one<Row>(`select version from policy_versions where policy_id = $1 and status in ('draft', 'in_review', 'approved') order by version desc limit 1`, [policy.id]);
+        openVersion(open?.version ?? 'being drafted');
+      }
+      throw err;
+    }
+    const next = row.version as number;
     await syncPolicyStatus(ctx, policy.id, req.user!.id);
     await ctx.audit(req, {
       action: 'policy.version_create', recordType: 'policy', recordId: policy.id,

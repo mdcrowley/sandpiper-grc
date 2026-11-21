@@ -176,7 +176,7 @@ export function CatalogDesigner({ rec }: { rec: RecordContext }) {
 
       <Card title="Fulfillment tasks" actions={<span className="muted">{d.tasks.length} added to each ticket as a checklist</span>}>
         {errors.tasks && <p className="notice notice-warn" role="alert">{errors.tasks}</p>}
-        {d.tasks.length === 0 && <p className="muted">No tasks. Tasks appear on the ticket as a checklist the agent ticks off.</p>}
+        {d.tasks.length === 0 && <p className="muted">No tasks. Tasks appear on the ticket as a checklist the agent checks off.</p>}
         <ol className="sd-builder sd-builder-tasks">
           {d.tasks.map((t, i) => (
             <li key={i}>

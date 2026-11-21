@@ -155,6 +155,24 @@ describe('reading the mailbox', () => {
     expect(reasons).toEqual(expect.arrayContaining([expect.stringContaining('unknown senders'), expect.stringContaining('domain'), expect.stringContaining('loop guard')]));
     await t.api.put('/api/tickets/email/settings', { max_per_hour: 20, allowed_domains: [] });
   });
+
+  // SP-01: a message is recorded before it is read, so one that hung or stopped the server is
+  // never read again (it used to be fetched and parsed again after every restart).
+  it('never reads again a message whose reading did not finish', async () => {
+    const done = await t.db.query<{ finished: boolean }>('select finished from mail_inbound_seen');
+    expect(done.length).toBeGreaterThan(0);
+    expect(done.every((r) => r.finished)).toBe(true);
+    // As left behind by a server that stopped while reading it.
+    await t.db.query(`insert into mail_inbound_seen (uid, finished) values ('poison-1', false)`);
+    box.add(msg({ From: 'colleague@depot.example.org', Subject: 'Hostile message' }, '<style>'.repeat(10)), 'poison-1');
+    expect((await check()).body).toMatchObject({ fetched: 1, failed: 1, created: 0 });
+    const row = (await t.api.get('/api/tickets/email/log?outcome=failed')).body.rows[0];
+    expect(row.reason).toContain('did not finish');
+    expect((await t.db.one<{ finished: boolean }>(`select finished from mail_inbound_seen where uid = 'poison-1'`))!.finished).toBe(true);
+    expect((await t.db.one<{ c: number }>(`select count(*)::int c from tickets where title = 'Hostile message'`))!.c).toBe(0);
+    // Done with: the next poll treats it as any message already seen.
+    expect((await check()).body).toMatchObject({ fetched: 0 });
+  });
 });
 
 describe('a mail relay', () => {

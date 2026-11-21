@@ -1,5 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { createSession, loadUser, requireRecentAuth, setSessionCookie, verifyPassword } from '../auth.ts';
+import {
+  claimSignInAttempt, createSession, loadUser, releaseSignInAttempt, requireRecentAuth, setSessionCookie, spendPasswordCheck, verifyPassword,
+} from '../auth.ts';
 import { DEFAULT_APP_NAME } from '../config.ts';
 import type { Db } from '../db.ts';
 import { fail, UUID_RE } from '../errors.ts';
@@ -333,24 +335,46 @@ export function registerWebAuthn(app: FastifyInstance, deps: WebAuthnDeps) {
   app.post('/api/auth/webauthn/login/options', { config: { public: true } }, async (req) => {
     const rp = rpOrFail(req);
     const ip = clientIp(req);
-    if (await signinFailures.blocked(ip)) fail(429, 'rate_limited', GENERIC_SIGNIN_ERROR);
     const b = (req.body ?? {}) as Record<string, unknown>;
     if (b.username === undefined) {
+      if (await signinFailures.blocked(ip)) fail(429, 'rate_limited', GENERIC_SIGNIN_ERROR);
       if (!(await passwordlessAllowed(deps))) fail(403, 'passkey_sign_in_off', 'Signing in with a passkey alone is switched off here. Sign in with your password.');
       const challenge = await issueChallenge(db, 'login', null);
       return { publicKey: { challenge, rpId: rp.rpId, timeout: CHALLENGE_SECONDS * 1000, userVerification: 'required', allowCredentials: [] } };
     }
+    // The password step checks the password exactly as POST /api/auth/login does (wave 9, SA-4 and
+    // SA-6): the address's attempt and the account's attempt are claimed first (so wrong passwords
+    // here count towards the lockout too), an unknown, inactive or locked account costs the same
+    // work, and a right password for an account with no key here answers like a wrong one, so the
+    // answer tells nothing about the password unless the person really has a key to use.
+    const slot = await signinFailures.take(ip);
+    if (!slot.ok) fail(429, 'rate_limited', GENERIC_SIGNIN_ERROR);
     const identifier = String(b.username ?? '').trim().toLowerCase();
-    const u = await db.one<{ id: string; password_hash: string | null; status: string; locked: boolean }>(
-      `select id, password_hash, status, (locked_until is not null and locked_until > now()) as locked
-       from users where deleted_at is null and (lower(username) = $1 or lower(email) = $1)`, [identifier],
+    const password = String(b.password ?? '');
+    const u = await db.one<{ id: string; password_hash: string | null; status: string }>(
+      `select id, password_hash, status from users where deleted_at is null and (lower(username) = $1 or lower(email) = $1)`, [identifier],
     );
-    const ok = u && u.status === 'active' && !u.locked && u.password_hash && (await verifyPassword(u.password_hash, String(b.password ?? '')));
-    if (!ok) {
-      await signinFailures.hit(ip);
-      await audit(req, { action: 'signin.failure', recordType: 'user', recordId: u?.id, summary: `Sign-in failed (passkey step: wrong details) for "${identifier.slice(0, 80)}" from ${ip}` });
-      fail(401, 'invalid_credentials', GENERIC_SIGNIN_ERROR);
+    const known = Boolean(u && u.status === 'active' && u.password_hash);
+    const attempt = await claimSignInAttempt(db, known ? u!.id : null);
+    const refuse = async (reason: string): Promise<never> => {
+      await audit(req, { action: 'signin.failure', recordType: 'user', recordId: u?.id, summary: `Sign-in failed (passkey step: ${reason}) for "${identifier.slice(0, 80)}" from ${ip}` });
+      return fail(401, 'invalid_credentials', GENERIC_SIGNIN_ERROR);
+    };
+    if (!known || !attempt) {
+      await spendPasswordCheck(password);
+      return refuse(known ? 'account locked' : 'unknown or inactive account');
     }
+    if (!(await verifyPassword(u!.password_hash!, password))) {
+      if (attempt.lockMinutes) {
+        await audit(null, { action: 'signin.lockout', recordType: 'user', recordId: u!.id, summary: `Account locked for ${attempt.lockMinutes} minute(s) after ${attempt.attempts} failed attempts` });
+      }
+      return refuse('wrong password');
+    }
+    // The password was right: not a failure, whatever follows.
+    await releaseSignInAttempt(db, u!.id, attempt);
+    await slot.release();
+    const keys = (await activeCredentials(db, u!.id)).filter((c) => c.rp_id === rp.rpId);
+    if (!keys.length) return refuse('no passkey or security key at this address');
     return passkeyLoginOptions(deps, req, u!.id);
   });
 

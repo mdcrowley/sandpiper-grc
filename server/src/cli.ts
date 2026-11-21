@@ -2,6 +2,7 @@ import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import { buildApp, repoRoot } from './app.ts';
+import { acquireDataLock, DataLockError } from './core/datalock.ts';
 import { openDb } from './core/db.ts';
 import { AREAS, featureState } from './core/features.ts';
 import { applyOrganizationProfile } from './core/organization.ts';
@@ -11,13 +12,13 @@ import { decryptToTar, ENCRYPTED_EXT, isArchivePath, loadArchiveKey, newKeyText,
 import {
   createBackup, listBackupsAsync, OpsError, pruneBackups, resolveBackup, restoreBackup, verifyBackup,
 } from './ops/backup.ts';
-import { exportAll, exportToArchive, importAll, unpackExport } from './ops/export.ts';
+import { exportAll, exportToArchive, importStaged, readExportManifest, unpackExport } from './ops/export.ts';
 import { appVersion, formatBytes, serverPid, timestamp } from './ops/files.ts';
 import { migrationsOnDisk, readAppliedMigrations } from './ops/migrations.ts';
 import { asOwner, grantRuntimeRole, migrateAsOwner, migrateUrl, runtimeRole } from './ops/db-roles.ts';
 import { runAudit, SEVERITIES, type Severity } from './ops/dependency-audit.ts';
 import { followLog, formatLogLine, LEVELS, lastLines, logSettings } from './ops/logging.ts';
-import { secretKeyNote } from './ops/secret-key.ts';
+import { allowNewSecretKey, checkRestoreKey, currentKeyFingerprint, secretKeyNote } from './ops/secret-key.ts';
 import { formatStatus, getStatus } from './ops/status.ts';
 import { buildCommit } from './ops/version.ts';
 
@@ -35,9 +36,9 @@ const USAGE = `Usage: cli.ts <command>
   backup [--prune <n>] [--label <text>] [--encrypt [--include-secret-key]]   copy the data folder to a new backup
   backups                               list backups, newest first
   verify-backup <name|path|latest>      check a backup against its manifest
-  restore <name|path|latest> [--force]  replace the data with a backup (keeps a safety copy)
+  restore <name|path|latest> [--force] [--new-secret-key]   replace the data with a backup (keeps a safety copy)
   export-all [--out <dir|file>] [--no-secrets] [--encrypt]   every table as JSON Lines, plus files
-  import-all <dir|archive>              load an export into an empty installation
+  import-all <dir|archive> [--new-secret-key]   load an export into an empty installation
   decrypt <archive> [--out <file.tar>]  turn an encrypted backup or export into a plain tar file
   new-key <file>                        write a new random key file for encrypted backups
   move-files --to disk|s3               move attached files to the other store, checking each one
@@ -77,6 +78,16 @@ function requireStopped() {
   const pid = serverPid(dataDir);
   if (pid) {
     console.error(`The server is running on this data folder (process ${pid}). Stop it first: .\\grc.ps1 stop (Windows), ./grc.sh stop (macOS, Linux) or docker compose stop app (container).`);
+    process.exit(1);
+  }
+  // And hold the data folder for as long as the command runs (OP-06): a server started meanwhile
+  // stops before it opens the database. Released when the command exits.
+  if (dataDir === 'memory') return;
+  try {
+    acquireDataLock(dataDir, command ?? 'command');
+  } catch (err) {
+    if (!(err instanceof DataLockError)) throw err;
+    console.error(err.message);
     process.exit(1);
   }
 }
@@ -271,14 +282,17 @@ async function run(): Promise<number> {
     const currentMigrations = await readAppliedMigrations(dataDir, warn('the current database could not be read; the safety copy is still taken'));
     const result = await restoreBackup({
       backupDir, dataDir, backupsDir, codeMigrations: migrationsOnDisk(), currentMigrations, force: has('force'), key,
+      allowNewSecretKey: has('new-secret-key') || allowNewSecretKey(),
       async loadExport(dir) {
-        const { db, close } = await buildApp({ dataDir, serveWeb: false }); // a new, migrated, empty database
+        // A new database with the schema the backup was made with, its rows, then the newer migrations (OP-04).
+        const db = await openDb(dataDir);
         try {
-          const loaded = await importAll(db, { inDir: dir, filesDir: join(dataDir, 'files') });
+          const loaded = await importStaged(db, { inDir: dir, filesDir: join(dataDir, 'files') });
           console.log(`  Loaded ${loaded.tables.reduce((s, t) => s + t.rows, 0)} rows and ${loaded.files} files into a new database.`);
           for (const note of loaded.notes) console.log(`  Note: ${note}`);
+          return loaded.laterMigrations;
         } finally {
-          await close();
+          await db.close();
         }
       },
     });
@@ -286,6 +300,7 @@ async function run(): Promise<number> {
     console.log(result.safetyCopy ? `  The data that was replaced is kept in ${result.safetyCopy.dir}` : '  There was no existing data to keep.');
     console.log(`Restored the backup made ${result.manifest.createdAt} by version ${result.manifest.appVersion}.`);
     if (result.pendingMigrations.length) console.log(`  ${result.pendingMigrations.length} newer migration(s) will be applied at the next start: ${result.pendingMigrations.join(', ')}`);
+    if (result.laterMigrations?.length) console.log(`  The backup is from an older version: ${result.laterMigrations.length} newer migration(s) were applied after loading it: ${result.laterMigrations.join(', ')}`);
     console.log('Everything recorded after that backup is no longer in the application.');
     console.log(`  ${result.keyNote ?? secretKeyNote(dataDir).replace('is not in backups (unless an encrypted backup is told to include it)', 'was not in this backup')}`);
     return 0;
@@ -300,14 +315,14 @@ async function run(): Promise<number> {
     try {
       if (encrypt) {
         const outFile = resolve(flag('out', join(backupsDir, `export-${timestamp()}${ENCRYPTED_EXT}`)));
-        const { manifest, bytes } = await exportToArchive(db, { outFile, key, filesDir, includeSecrets: !has('no-secrets') });
+        const { manifest, bytes } = await exportToArchive(db, { outFile, key, filesDir, includeSecrets: !has('no-secrets'), keyFingerprint: currentKeyFingerprint(dataDir) });
         const rows = manifest.tables.reduce((sum, t) => sum + t.rows, 0);
         console.log(`Exported ${rows} rows from ${manifest.tables.length} tables and ${manifest.files.length} files to ${outFile} (${formatBytes(bytes)}, encrypted)`);
         console.log('  Read it back with: import-all <file>, or turn it into a plain tar file with: decrypt <file>');
         return 0;
       }
       const outDir = resolve(flag('out', join(backupsDir, `export-${timestamp()}`)));
-      const manifest = await exportAll(db, { outDir, filesDir, includeSecrets: !has('no-secrets') });
+      const manifest = await exportAll(db, { outDir, filesDir, includeSecrets: !has('no-secrets'), keyFingerprint: currentKeyFingerprint(dataDir) });
       const rows = manifest.tables.reduce((sum, t) => sum + t.rows, 0);
       console.log(`Exported ${rows} rows from ${manifest.tables.length} tables and ${manifest.files.length} files to ${outDir}`);
       console.log(
@@ -334,12 +349,28 @@ async function run(): Promise<number> {
     try {
       // Loading needs the owner's rights (it switches triggers off while it loads), so with a
       // least-privilege set-up it runs as the owner and grants the run-time role afterwards.
-      const { db, close } = await asOwner(() => buildApp({ dataDir, serveWeb: false })); // creates and migrates the database
+      // A new database gets the schema the export was made with, then its rows, then the newer
+      // migrations (OP-04); the application is then started once to add its own defaults.
+      // An export that records its secret key needs that key here first (DOC-01).
+      const expected = readExportManifest(inDir).secretKeyFingerprint;
+      if (expected && dataDir !== 'memory') {
+        const note = checkRestoreKey({ dataDir, expected, allowNew: has('new-secret-key') || allowNewSecretKey() });
+        if (note) console.log(`  Note: ${note}`);
+      }
+      const result = await asOwner(async () => {
+        const target = await openDb(dataDir);
+        try {
+          return await importStaged(target, { inDir, filesDir: dataDir === 'memory' ? null : join(dataDir, 'files') });
+        } finally {
+          await target.close();
+        }
+      });
+      const rows = result.tables.reduce((sum, t) => sum + t.rows, 0);
+      console.log(`Imported ${rows} rows into ${result.tables.length} tables and ${result.files} files from ${resolve(given)}`);
+      if (result.laterMigrations.length) console.log(`  The export is from an older version: ${result.laterMigrations.length} newer migration(s) were applied after loading it.`);
+      for (const note of result.notes) console.log(`  Note: ${note}`);
+      const { db, close } = await asOwner(() => buildApp({ dataDir, serveWeb: false }));
       try {
-        const result = await importAll(db, { inDir, filesDir: dataDir === 'memory' ? null : join(dataDir, 'files') });
-        const rows = result.tables.reduce((sum, t) => sum + t.rows, 0);
-        console.log(`Imported ${rows} rows into ${result.tables.length} tables and ${result.files} files from ${resolve(given)}`);
-        for (const note of result.notes) console.log(`  Note: ${note}`);
         const role = runtimeRole();
         if (migrateUrl() && role) console.log(`  Granted "${role}" on ${(await grantRuntimeRole(db, role)).tables} tables.`);
       } finally {

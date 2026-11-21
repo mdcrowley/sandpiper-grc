@@ -279,6 +279,10 @@ describe('renewal reminders', () => {
     expect(events).toHaveLength(1);
     expect(events[0].actor_name).toBe('System');
     expect(events[0].summary).toMatch(/120 days/);
+    // The date as people read it, not the ISO form (BW-08).
+    expect(events[0].summary).toContain('the notice date for');
+    expect(events[0].summary).toContain('is Jun 29, 2040');
+    expect(events[0].summary).not.toContain('2040-06-29');
   });
 
   it('fires each later threshold once as time passes', async () => {

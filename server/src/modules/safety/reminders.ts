@@ -1,6 +1,6 @@
 import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
-import { dayInZone } from '../../core/timezone.ts';
+import { dayInZone, displayDate } from '../../core/timezone.ts';
 import { runHazardReviewReminders } from './hazard-reminders.ts';
 
 /**
@@ -25,7 +25,7 @@ export async function runSafetyReminders(ctx: ModuleContext): Promise<{ overdue:
     const r = await ctx.app.notify({
       permission: 'safety.edit', userIds: [a.investigator_id], kind: 'safety', oncePerDay: true,
       title: `Corrective action overdue: ${a.ref} ${a.title}`,
-      body: `Due ${a.due_on}, from safety event ${a.event_ref}.`,
+      body: `Due ${displayDate(a.due_on)}, from safety event ${a.event_ref}.`,
       recordType: 'action', recordId: a.id,
     });
     sent += r.sent;

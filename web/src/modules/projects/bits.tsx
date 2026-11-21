@@ -5,13 +5,13 @@ import { RAG_COLOR, RAG_LABEL, type RagTrend } from './types';
 
 /** The symbol of the configured currency (GRC_CURRENCY), for money inputs. */
 export function currencySymbol(): string {
-  const parts = new Intl.NumberFormat(undefined, { style: 'currency', currency: currency() }).formatToParts(0);
+  const parts = new Intl.NumberFormat('en-US', { style: 'currency', currency: currency() }).formatToParts(0);
   return parts.find((p) => p.type === 'currency')?.value ?? currency();
 }
 
 /** A short amount in the configured currency for chart axes and tiles, for example "€12K". */
 export function compactCurrency(value: number): string {
-  return new Intl.NumberFormat(undefined, { style: 'currency', currency: currency(), notation: 'compact', maximumSignificantDigits: 3 }).format(value);
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: currency(), notation: 'compact', maximumSignificantDigits: 3 }).format(value);
 }
 
 /** Red / amber / green chip. The word is always shown, so color is never the only signal. */

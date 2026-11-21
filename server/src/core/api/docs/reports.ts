@@ -88,6 +88,11 @@ export const DOCS: RouteDoc[] = [
     body: `{ widget: { id: string, kind: string, title?: string, x: integer, y: integer, w: integer, h: integer, config?: object }, globals?: ${GLOBALS}, month?: string "Calendar widgets: YYYY-MM" }`,
     response: `{ status: 'ok' | 'unavailable' | 'forbidden' | 'error', message?: string, result?: ${RESULT}, chart?: object, report?: { id: uuid, name: string }, value?: number | null, denominator?: number | null, trend?: { current: number, previous: number, days: integer } }`,
   }),
+  route('GET', '/api/dashboards/switched-off-types', 'Record types of switched-off areas', {
+    tag: 'Dashboards', permission: 'dashboards.view',
+    description: 'The record types of the areas switched off under Administration > Features, the same for everyone. Dashboards leave out widgets about them, and a standard dashboard about them only is not listed.',
+    response: '{ types: [string] }',
+  }),
   route('GET', '/api/dashboards/home', 'Your chosen home dashboard', {
     tag: 'Dashboards',
     description: 'Needs only a signed-in person. Never fails for lack of permission: `dashboard` is null when none is chosen, it was removed, it is no longer shared, or the caller lacks `dashboards.view`.',

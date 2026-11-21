@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
-  api, ApiError, Button, DateTimeField, errorMessage, LookupSelect, Menu, Modal, TextArea, useAuth, useToast,
+  api, ApiError, Button, DateTimeField, errorMessage, LookupSelect, Menu, Modal, TextArea, useAuth, useLookup, useToast,
   type RecordContext,
 } from '../../core';
 import { ApprovalDialog } from './ApprovalDialog';
 import { Banner } from './bits';
+import { completionOutcomes } from './outcomes';
 import { useWorkflow } from './workflowContext';
 
 const LABELS: Record<string, string> = {
@@ -32,6 +33,8 @@ export function ChangeActions({ row, reload, canEdit, onOpenTab }: Props) {
   const [busy, setBusy] = useState('');
   const [dialog, setDialog] = useState<'' | 'complete' | 'cancel' | 'approve' | 'reject'>('');
   const [outcome, setOutcome] = useState('');
+  const outcomeValues = useLookup('change_outcome');
+  const outcomes = useMemo(() => completionOutcomes(outcomeValues), [outcomeValues]);
   const [notes, setNotes] = useState('');
   const [actualEnd, setActualEnd] = useState('');
   const [reason, setReason] = useState('');
@@ -102,7 +105,7 @@ export function ChangeActions({ row, reload, canEdit, onOpenTab }: Props) {
 
       <Modal open={dialog === 'complete'} title="Complete this change" onClose={() => setDialog('')} size="md">
         <form className="form" noValidate onSubmit={(e) => { e.preventDefault(); void move('completed', { outcome, outcome_notes: notes, actual_end: actualEnd || undefined }, true); }}>
-          <LookupSelect label="Outcome" required list="change_outcome" value={outcome} onChange={setOutcome} error={fields.outcome} />
+          <LookupSelect label="Outcome" required list="change_outcome" only={outcomes} value={outcome} onChange={setOutcome} error={fields.outcome} />
           {['failed', 'backed_out'].includes(outcome) && (
             <Banner tone="warn">A post-implementation review will be required before this change can be closed.</Banner>
           )}

@@ -58,3 +58,25 @@ describe('the hazard matrix while risks are switched off', () => {
     expect((await t.api.get(`/api/risks/${risk.id}`)).body.inherent_rating).toBe('serious');
   });
 });
+
+describe('the hazard matrix saved from Risk scales (BS-4)', () => {
+  it('re-rates the hazards as well as the risks', async () => {
+    const hazard = (await t.api.post('/api/hazards', { title: 'Uneven yard surface by the wash bay', likelihood: 5, severity: 4, residual_likelihood: 5, residual_severity: 4 })).body;
+    const before = hazard.rating;
+    expect(before).toBeTruthy();
+    const original = (await t.api.get('/api/risks/scales/hazard_4x5')).body;
+    const lowest = original.ratings[0].key;
+    expect(lowest).not.toBe(before);
+    const matrix = { ...original.matrix, 5: { ...original.matrix['5'], 4: lowest } };
+    const res = await t.api.patch('/api/risks/scales/hazard_4x5', { matrix });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    try {
+      const now = (await t.api.get(`/api/hazards/${hazard.id}`)).body;
+      expect([now.rating, now.residual_rating]).toEqual([lowest, lowest]);
+      expect(now.score).toBeLessThan(hazard.score);
+    } finally {
+      expect((await t.api.patch('/api/risks/scales/hazard_4x5', { matrix: original.matrix })).status).toBe(200);
+    }
+    expect((await t.api.get(`/api/hazards/${hazard.id}`)).body.rating).toBe(before);
+  });
+});

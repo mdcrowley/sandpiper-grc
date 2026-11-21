@@ -22,12 +22,25 @@ Each item below names the file that implements it.
   (`GRC_HSTS_MAX_AGE`, default one year; `0` switches it off).
 - **Behind a reverse proxy.** `GRC_TRUST_PROXY` says whose `X-Forwarded-For`, `-Proto` and
   `-Host` headers to believe: a comma-separated list of addresses, CIDR ranges and the
-  words `loopback`, `private` and `linklocal` (recommended), or a number of proxy hops.
+  words `loopback`, `private`, `linklocal` and `gateway` (recommended), or a number of proxy hops.
   Unset, forwarded headers are ignored. Set it only for a proxy you control: otherwise
   anyone could forge the client address used for rate limits, sessions and the audit log.
+  Name the proxy's own address rather than `private`, which also trusts every person on a
+  private network. The container default is `gateway` (SP-03): the Docker host's address on
+  the container network, looked up at start, which is where a proxy on the host connects
+  from; it used to be `private`. A server that speaks HTTPS itself logs a warning when
+  `private` is set.
 - **Secure cookie.** `GRC_COOKIE_SECURE` = `off`, `auto` or `always`. When it is not set it
   is `auto` (the cookie is marked `Secure` whenever the request arrived over HTTPS) on an
   HTTPS server or behind a trusted proxy, and `off` otherwise.
+- **One spelling of every path** (`core/api/versioning.ts`). Before routing, `/api/v1/...` is
+  turned into `/api/...` (one route serves both, so sign-in, token, feature-switch, sharing and
+  module checks see the same request), and a path the router would read differently from how
+  it is written is refused with `400 bad_path`: a percent-encoded letter, digit or `-._~`
+  (`/%61pi/...`), an encoded `/` or backslash, a malformed escape, a `.` or `..` segment, or a
+  target that does not start with `/`. The sign-in check also decides by the route matched, not
+  only by the path, and `core/api/canonical-paths.test.ts` walks every route under both
+  spellings to keep it so.
 - **Outbound connections are off until an administrator switches one on.** There is no
   telemetry and there are no externally hosted fonts or scripts. The application connects
   out only to: webhook receivers (see "Outbound webhooks"), the text-message webhook for alerts
@@ -42,7 +55,8 @@ See [Installation](installation.md#server-installation) for setting these up.
 `server/src/core/auth.ts`, `server/src/modules/admin/settings.ts`
 
 - **No default account.** The first administrator is created in the setup wizard, which
-  works only while no user exists.
+  works only while no user exists. The check and the creation run in one transaction under a
+  lock, so requests racing the real administrator cannot each create one.
 - **Storage.** Passwords are hashed with Argon2id, with a salt per hash, using the
   library's default parameters. Plain passwords are never stored or logged.
 - **Policy.**
@@ -53,7 +67,13 @@ See [Installation](installation.md#server-installation) for setting these up.
   - Rejected if it matches one of the user's last 5 passwords (configurable, 0 to 24).
   - No composition rules and no forced expiry.
 - **Changing a password** needs the current password and ends all of that user's sessions;
-  the browser in use gets a new one.
+  the browser in use gets a new one. Wrong current passwords count with the password
+  confirmation's limit and are audited (`password.change_refused`).
+- **Programs lose access with the password.** Changing a password, redeeming a reset link and an
+  administrator's second-factor reset also revoke the person's personal access tokens and AI
+  assistant (MCP OAuth) connections, and the audit event says how many, so a credential made by
+  someone who had the old password or factor stops working. (`POST /api/auth/change-password`
+  accepts `keepProgramAccess: true` to keep them.)
 - **New users and resets** use a one-time link: random token, only its SHA-256 hash stored,
   valid 24 hours, single use, and replaced when a newer link is issued. Redeeming a reset
   link ends the user's sessions. The administrator is shown the link to pass on; when email
@@ -68,17 +88,25 @@ See [Installation](installation.md#server-installation) for setting these up.
 
 - **Account lockout.** From the fifth consecutive failure an account is locked for 1
   minute, doubling with each further failure to a ceiling of 15 minutes. A wrong
-  authenticator or recovery code counts as a failure. A successful sign-in clears the
-  count; an administrator can unlock an account.
+  authenticator or recovery code counts as a failure, and so does a wrong password at the
+  passkey step. A successful sign-in clears the count; an administrator can unlock an account.
+  Each attempt is counted in one statement **before** the password is checked, and the attempt
+  that reaches the lockout sets the lock at once, so attempts sent at the same moment cannot all
+  be checked; an attempt with the right password that only waits for its second factor is given
+  back.
 - **Sign-in rate limit.** 20 failed sign-ins from one source address in 5 minutes blocks
-  further attempts from that address (HTTP 429).
+  further attempts from that address (HTTP 429). The attempt is recorded first and counted
+  after (and given back on success), so parallel attempts all count.
 - **One-time links.** 20 failed link attempts from one address in 5 minutes are blocked.
 - **Second-factor changes.** 8 failed password or code checks per user in 5 minutes are
   blocked.
-- **Password confirmation.** 8 failed confirmations per user in 5 minutes are blocked.
+- **Password confirmation.** 8 failed confirmations (and wrong current passwords when changing
+  the password) per user in 5 minutes are blocked; counted the same way.
 - **No account enumeration.** Every sign-in failure returns the same message, and a
-  password hash is computed even when the account does not exist so that timing is
-  similar.
+  password check is made against a stand-in hash when the account does not exist, is inactive
+  or is locked, so that timing is similar. The passkey step after the password
+  (`POST /api/auth/webauthn/login/options` with a user name and password) answers a right
+  password for an account with no key there exactly like a wrong one.
 - Sign-in successes, failures and lockouts are written to the audit log.
 
 The limiters count failures in the database (table `rate_limit_hits`), so a restart does
@@ -254,8 +282,21 @@ timestamp (seconds) in `X-GRC-Timestamp`; a receiver should check both and refus
 timestamps. The secret is shown once, stored encrypted with the application key
 (`core/secretbox.ts`) and can be replaced. Deliveries are rows in `webhook_deliveries`
 (a table-backed queue that survives a restart), retried after 1, 5, 30, 120 and 720
-minutes, and listed with their outcome for administrators. Every change to a webhook is
-audited; the delivery log is its own record of what was sent.
+minutes, and listed with their outcome for administrators. A delivery holds the record's
+fields only until it is sent (OP-08): once delivered its content is emptied, and finished
+deliveries are removed after `retention.webhook_delivery_days` (default 30). When a record
+is anonymized or removed at the end of its retention period, every delivery about it loses its
+content and those still waiting are blocked and cannot be sent again, so the removed text
+does not live on in the queue, in backups or in exports. The outgoing and incoming mail logs
+are pruned the same way (`retention.mail_log_days`, `retention.mail_inbound_log_days`,
+default 180). Every change to a webhook is audited; the delivery log is its own record of
+what was sent (its date, event and status). A webhook address often holds
+the receiver's own secret in its path or query (chat incoming webhooks, automation
+platforms), so the audit log records only its scheme and host and a short fingerprint of the
+whole address (`https://chat.example.test/… (sha256:…)`), which still shows that it changed.
+Entries written before this was done are shown the same way when the log is read or
+exported; the log itself is append-only. The address itself is kept in clear in the
+`webhooks` table, readable only by administrators: the application must send to it.
 
 ### Retention and the one hard delete
 
@@ -401,8 +442,16 @@ What still protects details in a figure:
   of record rows that includes restricted records does, as before, and a stored copy of
   it opens only for people with `security.view`.
 - Knowledge articles for IT agents only follow the same rule in `GET /api/knowledge/stats`:
-  they count for everyone, unless the question searches or groups by their words, when
-  they are left out for everyone.
+  they count for everyone, but a search or a filter on their words never matches them, and
+  grouping by their words puts them under "Restricted records", for agents and others alike.
+- **Row rules.** A record type can carry a rule of its own about which rows a person sees
+  (`ResourceDef.rowRule`): knowledge articles for IT agents only, and the sharing of saved
+  reports, dashboards, packs and schedules. The rule is part of the visibility rule core
+  applies to every reader (`visibleWhere`, `find`, labels), not a hook on a URL, so lists,
+  record reads, search, pickers and labels, history, comments, links, tags, watchers, files,
+  fact sheets, exports, the report builder, dashboard widgets and the MCP tools all follow it,
+  however the path is spelled (`/api/v1` included). Saved reports and dashboards are personal
+  items rather than records, so their figures follow the viewer's sharing rule too.
 - **Labels of referenced records** are shown only to people who hold view on the
   referenced record's module; others see "Restricted".
 - **Audit search.** Events about restricted record types, and about individual records
@@ -469,7 +518,9 @@ separate, tamper-evident copy.
 - **Each code works once.** The time step of the last accepted code is stored per user
   (`users.totp_last_step`); a code from that step or an earlier one is refused, at
   sign-in, at enrollment and when turning the factor off.
-- Enrollment is confirmed with a code before it takes effect.
+- Starting enrollment needs a recent password confirmation, as adding a passkey does, so a
+  borrowed session cannot bind someone else's app. Enrollment is confirmed with a code before
+  it takes effect.
 - Ten single-use recovery codes are issued at enrollment and shown once. Only their
   SHA-256 hashes are stored. A used code is removed. A person whose only second factor is a
   passkey or security key is offered recovery codes as soon as the first key is added (E02-21);
@@ -890,7 +941,10 @@ them over. Link tokens in paths are masked in the server log, and pages send
 [Operations](operations.md#backup)
 
 - Every backup is checked against its checksums before it is reported as done, and
-  `restore` verifies a backup before replacing anything.
+  `restore` verifies a backup before replacing anything. It also refuses, before replacing anything, when the
+  secret key the backup's stored secrets were encrypted with is not available (backups
+  record its fingerprint, never the key). Backups, exports, restored data and a restored key
+  file are created readable by their owner only (`0700` folders, `0600` files; macOS and Linux).
 - **Encrypted backups and exports** (`-Encrypt`) are one file, AES-256-GCM in chunks, keyed
   by a 32-byte key file or a passphrase (scrypt). An encrypted backup writes nothing
   unencrypted on the way. A key file inside the data folder is refused. Without the key, nobody can read the
@@ -956,6 +1010,12 @@ put the prototype on a network or to hold sensitive real records in it.
   ([Operations](operations.md#performance-and-load-testing)).
 - Continuous integration runs a dependency audit (`audit-deps`, from `npm audit`), which fails the build only
   on a vulnerability that has a fix available.
+- The build's supply chain is pinned (SP-08): every GitHub Action in `.github/workflows/ci.yml`
+  is named by its full commit SHA with the version in a comment, and the Node.js and
+  PostgreSQL base images (`Dockerfile`, `compose.postgres.yaml`, the CI database service) by
+  digest, so a moved tag cannot change what builds and signs the published image. Dependabot
+  proposes updates to both each week (`.github/dependabot.yml`), and CI checks that the base
+  image's Node.js major version matches `tools/node-version.txt`.
 - An automated accessibility audit (axe-core, `npm run test:a11y`) runs in continuous
   integration and fails the build on a new violation; there has been no screen-reader
   walkthrough (E16-15).

@@ -73,7 +73,7 @@ export function registerImportRoutes(deps: ImportRouteDeps) {
     const text = (v: unknown) => (v === null || v === undefined ? '' : typeof v === 'boolean' ? (v ? 'Yes' : 'No') : String(v));
     return {
       ...info,
-      kind: table.kind, sheets: table.sheets, sheet: table.sheet,
+      kind: table.kind, sheets: table.sheets, sheet: table.sheet, encoding: table.encoding, warnings: table.warnings,
       headers: table.headers,
       sample: table.rows.slice(0, 5).map((r) => table.headers.map((_, i) => text(r[i]).slice(0, 200))),
       rowCount: table.rows.length,
@@ -112,13 +112,13 @@ export function registerImportRoutes(deps: ImportRouteDeps) {
         action: `${def.type}.import`, recordType: def.type,
         summary: `${def.label} import from ${fileName}: ${summary.created} created, ${summary.updated} updated, ${summary.skipped} skipped, ${summary.errors} with errors (of ${summary.total} rows)`,
         after: {
-          file: fileName, kind: table.kind, sheet: table.sheet, mode, match_key: summary.matchKey,
+          file: fileName, kind: table.kind, sheet: table.sheet, encoding: table.encoding, mode, match_key: summary.matchKey,
           total: summary.total, created: summary.created, updated: summary.updated, skipped: summary.skipped,
           errors: summary.errors, duplicates: summary.duplicates, mapping: body.mapping,
         },
       });
     }
-    return { ...summary, fileName: body.fileName ?? null, kind: table.kind, sheet: table.sheet };
+    return { ...summary, fileName: body.fileName ?? null, kind: table.kind, sheet: table.sheet, encoding: table.encoding, warnings: table.warnings };
   });
 
   /** Past imports of a record type, newest first. */

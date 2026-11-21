@@ -1,4 +1,4 @@
-import { createHmac, randomBytes } from 'node:crypto';
+import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { lookup as dnsLookup, type LookupAddress } from 'node:dns';
 import { request as httpRequest, type IncomingMessage, type RequestOptions } from 'node:http';
 import { request as httpsRequest } from 'node:https';
@@ -42,6 +42,32 @@ const TIMEOUT_MS = 10_000;
 
 export const signWebhook = (secret: string, timestamp: string | number, body: string) =>
   `sha256=${createHmac('sha256', secret).update(`${timestamp}.${body}`).digest('hex')}`;
+
+const REDACTED_MARK = ' (sha256:';
+
+/**
+ * A webhook address as the audit log keeps it (SP-06): the scheme and host, and a short fingerprint
+ * of the whole address, never its path or query. Many receivers (chat incoming webhooks, automation
+ * platforms) put their secret there, and the audit log is read by auditors and through MCP. The
+ * fingerprint still shows whether the address changed. Already redacted values are kept as they are.
+ */
+export function redactWebhookUrl(raw: unknown): unknown {
+  if (typeof raw !== 'string' || !raw || raw.includes(REDACTED_MARK)) return raw;
+  const print = createHash('sha256').update(raw).digest('hex').slice(0, 12);
+  let origin = 'invalid address';
+  try { const u = new URL(raw); origin = `${u.protocol}//${u.host}`; } catch { /* fingerprint only */ }
+  return `${origin}/…${REDACTED_MARK}${print})`;
+}
+
+/**
+ * An audit entry's before or after value with any webhook address redacted. Used when webhook
+ * events are written, and again when the audit log is read, so entries written before addresses
+ * were redacted do not show them either (the log itself is append-only).
+ */
+export function redactWebhookAudit(value: unknown): unknown {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || !('url' in value)) return value;
+  return { ...(value as Row), url: redactWebhookUrl((value as Row).url) };
+}
 
 /** Whether a host (with optional port) is on the allow-list. Entries: `host`, `host:port` or `*.domain`. */
 export function hostAllowed(url: URL, allowList: unknown): boolean {
@@ -233,12 +259,12 @@ export const WEBHOOK_EVENTS: WebhookEventDef[] = [
   {
     event: 'workflow.decided', label: 'Approval decided', area: null, restricted: 'record',
     description: 'Someone approved or rejected a step of an approval workflow (Administration > Approval workflows) on any record type. Not sent for a record type whose area is switched off.',
-    data: { workflow: 'Workflow name', step: 'Step name', decision: '`approved` or `rejected`', approver: 'Name of the approver', comment: 'Their comment, if any', approvalsReceived: 'Approvals of the step so far', approvalsRequired: 'Approvals the step needs', stepOutcome: '`approved`, `rejected` or `pending` (the step still waits for more)' },
+    data: { workflow: 'Workflow name', kind: 'The part of the application the approval belongs to (for example `change_approval`), or null for a workflow\'s own approval', step: 'Step name', decision: '`approved` or `rejected`', approver: 'Name of the approver', onBehalfOf: 'Name of the approver a stand-in decided for, or null', comment: 'Their comment, if any', approvalsReceived: 'Approvals of the step so far', approvalsRequired: 'Approvals the step needs', stepOutcome: '`approved`, `rejected` or `pending` (the step still waits for more)' },
   },
   {
     event: 'workflow.finished', label: 'Approval workflow finished', area: null, restricted: 'record',
     description: 'An approval workflow on a record ended: approved after its last step, rejected, or canceled.',
-    data: { workflow: 'Workflow name', outcome: '`approved`, `rejected` or `canceled`', reason: 'The rejection comment or why it was canceled, if any', outcomeError: 'Why the fields the workflow sets at the end could not be set, or null' },
+    data: { workflow: 'Workflow name', kind: 'As for workflow.decided', outcome: '`approved`, `rejected` or `canceled`', reason: 'The rejection comment or why it was canceled, if any', outcomeError: 'Why the fields the workflow sets at the end could not be set, or null' },
   },
   {
     event: 'retention.anonymized', label: 'Record anonymized at the end of its retention period', area: null, restricted: 'record',
@@ -473,6 +499,8 @@ export function registerWebhooks({ app, db, audit, settings, res, box, loadUser,
     const finish = (status: string, fields: { code?: number | null; error?: string | null; next?: number | null }) => db.query(
       `update webhook_deliveries set status = $2, attempts = attempts + 1, last_attempt_at = now(), response_status = $3, last_error = $4,
          delivered_at = case when $2 = 'delivered' then now() else null end,
+         -- Once delivered, the content is no longer needed and is not kept (OP-08).
+         payload = case when $2 = 'delivered' then '{}'::jsonb else payload end,
          next_attempt_at = case when $5::int is null then next_attempt_at else now() + make_interval(mins => $5::int) end
        where id = $1`,
       [d.id, status, fields.code ?? null, fields.error ? fields.error.slice(0, 500) : null, fields.next ?? null]);
@@ -618,7 +646,7 @@ export function registerWebhooks({ app, db, audit, settings, res, box, loadUser,
     await audit(req, {
       action: 'webhook.create', recordType: 'webhook', recordId: row.id,
       summary: `Webhook "${out.name}" added for ${new URL(out.url).host}${out.include_restricted ? ' (includes restricted records)' : ''}`,
-      after: { name: out.name, url: out.url, events: out.events, active: out.active ?? true, include_restricted: out.include_restricted ?? false },
+      after: { name: out.name, url: redactWebhookUrl(out.url), events: out.events, active: out.active ?? true, include_restricted: out.include_restricted ?? false },
     });
     reply.code(201);
     // The secret is shown now and never again.
@@ -646,7 +674,7 @@ export function registerWebhooks({ app, db, audit, settings, res, box, loadUser,
       // The person who opts in to restricted records becomes the one whose security.view is checked.
       [before.id, next.name, next.url, JSON.stringify(next.events), next.active, next.include_restricted, req.user!.id,
         Boolean(out.include_restricted && !before.include_restricted)]);
-    const pick = (h: Row) => ({ name: h.name, url: h.url, events: h.events, active: h.active, include_restricted: h.include_restricted });
+    const pick = (h: Row) => ({ name: h.name, url: redactWebhookUrl(h.url), events: h.events, active: h.active, include_restricted: h.include_restricted });
     await audit(req, { action: 'webhook.update', recordType: 'webhook', recordId: before.id, summary: `Webhook "${next.name}" changed`, before: pick(before), after: pick(next) });
     return publicHook((await db.one<Row>(`${LIST} and w.id = $1`, [before.id]))!);
   });
@@ -655,7 +683,7 @@ export function registerWebhooks({ app, db, audit, settings, res, box, loadUser,
     const before = await one(req);
     await db.query('update webhooks set deleted_at = now(), active = false, updated_by = $2 where id = $1', [before.id, req.user!.id]);
     await db.query(`update webhook_deliveries set status = 'blocked', last_error = 'The webhook was removed.' where webhook_id = $1 and status = 'pending'`, [before.id]);
-    await audit(req, { action: 'webhook.delete', recordType: 'webhook', recordId: before.id, summary: `Webhook "${before.name}" removed`, before: { name: before.name, url: before.url } });
+    await audit(req, { action: 'webhook.delete', recordType: 'webhook', recordId: before.id, summary: `Webhook "${before.name}" removed`, before: { name: before.name, url: redactWebhookUrl(before.url) } });
     return { ok: true };
   });
 
@@ -698,8 +726,9 @@ export function registerWebhooks({ app, db, audit, settings, res, box, loadUser,
     const id = String((req.params as Row).id ?? '');
     const row = UUID_RE.test(id) ? await db.one<Row>(
       `update webhook_deliveries set status = 'pending', attempts = 0, next_attempt_at = now(), last_error = null
-       where id = $1 and status in ('failed', 'blocked') returning id, webhook_id, event`, [id]) : undefined;
-    if (!row) fail(404, 'not_found', 'No failed or blocked delivery with that id.');
+       where id = $1 and status in ('failed', 'blocked') and coalesce(payload->>'redacted', '') <> 'true'
+       returning id, webhook_id, event`, [id]) : undefined;
+    if (!row) fail(404, 'not_found', 'No failed or blocked delivery with that id that can be sent again.');
     await audit(req, { action: 'webhook.retry', recordType: 'webhook', recordId: row!.webhook_id, summary: `Delivery of ${row!.event} queued again` });
     await processDue();
     return db.one('select id, event, status, attempts, response_status, last_error, delivered_at, next_attempt_at from webhook_deliveries where id = $1', [id]);

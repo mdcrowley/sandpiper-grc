@@ -248,7 +248,7 @@ export interface MultiSelectProps {
   error?: string;
 }
 
-/** A compact dropdown of tick boxes, used for "any of" choices in toolbars. */
+/** A compact dropdown of check boxes, used for "any of" choices in toolbars. */
 export function MultiSelect({ label, options, value, onChange, disabled, size = 'sm', error }: MultiSelectProps) {
   const host = usePopupHost();
   const id = useId();

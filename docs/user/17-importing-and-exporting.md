@@ -8,9 +8,9 @@ Every list of records (tickets, systems, vendors, contracts, risks and the rest)
 2. Select **Export** in the toolbar and choose a format:
    - **Excel (XLSX)**: a spreadsheet with a bold, frozen header row and a filter on every column. Dates and times are real dates (in the organization's time zone), amounts carry the organization's currency, and numbers are numbers, so the spreadsheet can sort and add them up.
    - **CSV**: plain text that any program can open.
-   - **PDF**: a printable table with the list's name, the time it was made, who it was made for and the filters applied, with the header row repeated on every page and page numbers. Where an administrator has set them under **Administration > Organization** (see [Administration](09-administration.md#organization)), the organization's logo is on the first page and its name and address are in the footer of every page. A PDF prints at most 2,000 rows; use Excel for more.
+   - **PDF**: a printable table with the list's name, the time it was made, who it was made for and the filters applied, with the header row repeated on every page and page numbers. Where an administrator has set them under **Administration > Organization** (see [Administration](09-administration.md#organization)), the organization's logo is on the first page and its name and address are in the footer of every page. A PDF holds at most 12 columns: with more chosen, the export is refused and asks you to choose fewer or to use Excel or CSV. It prints at most 2,000 rows, fewer when it has many columns (for example 1,333 with 12 columns); a note under the table says when rows were left out. Use Excel or CSV for more.
 
-The export holds every record that matches the search and filters (not just the page on screen), in the order on screen, with the columns on screen. It needs the export permission for that kind of record (for example **Export** on **Tickets**). Every export is recorded in the audit log.
+The export holds every record that matches the search and filters (not just the page on screen), in the order on screen, with the columns on screen, up to 50,000 rows. A longer list stops at 50,000: the file then says so in a line under the table ("Only the first 50,000 rows were exported"), and the audit log records it. Narrow the list with filters and export the rest separately. It needs the export permission for that kind of record (for example **Export** on **Tickets**). Every export is recorded in the audit log.
 
 **Restricted records.** People without security access never receive restricted records in any export. When an export does contain restricted records, it says so: a "Restricted export by … at …" line under the table in Excel and CSV, and the same line at the top of every PDF page with a large faint "RESTRICTED" across it. Do not pass such a file to anyone who may not see those records.
 
@@ -30,7 +30,7 @@ People who may create (or change) a kind of record see **Import** in the list's 
 
 ### 1. Choose a file
 
-Drop a file on the box or select it to browse. CSV and Excel (`.xlsx`) files are accepted, up to 5 MB and 5,000 rows. The first row with anything in it holds the column names; empty rows are ignored. A CSV may use commas, semicolons, tabs or vertical bars between values. Older Excel files (`.xls`) cannot be read: save them as `.xlsx` or CSV first.
+Drop a file on the box or select it to browse. CSV and Excel (`.xlsx`) files are accepted, up to 5 MB and 5,000 rows. The first row with anything in it holds the column names; empty rows are ignored. A CSV may use commas, semicolons, tabs or vertical bars between values. It should be UTF-8 (in Excel: **Save As > CSV UTF-8**). A file that is not UTF-8, such as Excel's older "CSV (Comma delimited)" on Windows, is read as Windows-1252 and a warning says so: check that accented letters look right in the sample and in the check before importing. Older Excel files (`.xls`) cannot be read: save them as `.xlsx` or CSV first.
 
 For a workbook with more than one sheet, choose the **Sheet**. Typed cells are read as they are: dates as dates, numbers as numbers, yes/no as yes/no. A formula gives the value the spreadsheet last worked out.
 
@@ -63,7 +63,7 @@ Values are read like this:
 - **Records** (a system, a vendor, a site...): the reference or the title, among the records you can see.
 - **Dates**: `2026-03-14`, `2026/3/14`, `14 Mar 2026` or `3/14/2026` (month first, unless the first number cannot be a month, as in `14/3/2026`). Dates and times are read in the organization's time zone.
 - **Numbers and amounts**: thousands separators, a percent sign, brackets for a negative amount, and the organization's currency symbol or code are accepted.
-- **Yes/no**: yes, no, true, false, y, n, 1, 0.
+- **Yes/no**: yes, no, true, false, y, n, 1, 0; an `x` (a common check mark in spreadsheets) also counts as yes.
 
 **Values that matched nothing** lists every list value, person or record name in the file that could not be matched. Choose what each one stands for, then select **Check again**.
 

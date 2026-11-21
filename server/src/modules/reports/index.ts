@@ -219,6 +219,14 @@ const mod: ModuleDef = {
       return shown ? { ...none, suggested: { id: shown.id, name: shown.name, description: shown.description, route: `/dashboards/${shown.id}` } } : none;
     });
 
+    /**
+     * Record types of switched-off areas (Administration > Features), the same for everyone (BW-04).
+     * The web leaves their widgets out of a dashboard and does not list a standard dashboard made
+     * only of them, so an area that is off shows nowhere but its switch.
+     */
+    app.get('/api/dashboards/switched-off-types', { preHandler: ctx.requirePerm('dashboards.view') }, async () =>
+      ({ types: app.hasDecorator('switchedOffTypes') ? app.switchedOffTypes() : [] }));
+
     // A personal view setting, like notification read state: not written to the audit log.
     app.post('/api/dashboards/home', { preHandler: ctx.requirePerm('dashboards.view') }, async (req) => {
       const id = ((req.body ?? {}) as Row).dashboard_id;

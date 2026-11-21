@@ -135,7 +135,7 @@ export function parseParams(value: string): { value: string; params: Record<stri
   for (const [key, pieces] of Object.entries(continued)) {
     pieces.sort((a, b) => a.n - b.n);
     let charset = 'utf-8';
-    let bytes: number[] = [];
+    const bytes: number[] = [];
     pieces.forEach((piece, idx) => {
       let v = piece.v;
       if (piece.enc) {
@@ -143,9 +143,9 @@ export function parseParams(value: string): { value: string; params: Record<stri
           const q = /^([^']*)'[^']*'(.*)$/.exec(v);
           if (q) { charset = q[1] || 'utf-8'; v = q[2]; }
         }
-        bytes = bytes.concat([...Buffer.from(v.replace(/%([0-9A-Fa-f]{2})/g, (_x, h: string) => String.fromCharCode(parseInt(h, 16))), 'latin1')]);
+        for (const b of Buffer.from(v.replace(/%([0-9A-Fa-f]{2})/g, (_x, h: string) => String.fromCharCode(parseInt(h, 16))), 'latin1')) bytes.push(b);
       } else {
-        bytes = bytes.concat([...Buffer.from(v, 'utf8')]);
+        for (const b of Buffer.from(v, 'utf8')) bytes.push(b);
       }
     });
     params[key] = decoderFor(charset).decode(Buffer.from(bytes));
@@ -153,10 +153,24 @@ export function parseParams(value: string): { value: string; params: Record<stri
   return { value: parts[0].trim().toLowerCase(), params };
 }
 
+/** Drops "(comments)" from an address header in one pass (an unclosed "(" is kept as text). */
+function withoutComments(value: string): string {
+  let out = '';
+  let i = 0;
+  for (;;) {
+    const open = value.indexOf('(', i);
+    if (open < 0) return out + value.slice(i);
+    out += `${value.slice(i, open)} `;
+    const close = value.indexOf(')', open + 1);
+    if (close < 0) return out + value.slice(open);
+    i = close + 1;
+  }
+}
+
 /** "Name <a@b>, c@d" into addresses. Groups and comments are tolerated. */
 export function parseAddresses(value: string): ParsedAddress[] {
   const out: ParsedAddress[] = [];
-  const text = decodeWords(value).replace(/\([^)]*\)/g, ' ');
+  const text = withoutComments(decodeWords(value));
   const pieces: string[] = [];
   let cur = '';
   let quoted = false;
@@ -182,23 +196,98 @@ export function parseAddresses(value: string): ParsedAddress[] {
 
 const ids = (value: string) => (value.match(/<[^<>\s]+>/g) ?? []).map((x) => x.toLowerCase());
 
-/** Turns simple HTML into readable text: line breaks for blocks, links kept, tags and scripts removed. */
-export function htmlToText(html: string): string {
-  return html
-    .replace(/<(script|style|head|title)[^>]*>[\s\S]*?<\/\1\s*>/gi, '')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/(p|div|tr|li|h[1-6]|blockquote|table)\s*>/gi, '\n')
-    .replace(/<li[^>]*>/gi, '- ')
-    .replace(/<a\s[^>]*href\s*=\s*"([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi, (_m, href: string, label: string) => {
-      const t = label.replace(/<[^>]+>/g, '').trim();
-      return t && !href.startsWith('mailto:') && t !== href ? `${t} (${href})` : t || href;
-    })
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'")
-    .replace(/&#(\d+);/g, (_m, n: string) => String.fromCodePoint(Number(n)))
-    .replace(/&amp;/gi, '&')
-    .replace(/[ \t]+\n/g, '\n')
+/**
+ * The most HTML turned into text (characters). A ticket keeps at most 20,000 characters of
+ * description anyway; the rest of a larger HTML part is left out (the part itself is kept).
+ */
+export const MAX_HTML_TO_TEXT = 1_000_000;
+
+/** Elements whose content is never text. */
+const RAW_ELEMENTS = new Set(['script', 'style', 'head', 'title']);
+const BLOCK_END = new Set(['p', 'div', 'tr', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'table']);
+const NAMED_ENTITIES: Record<string, string> = { nbsp: ' ', lt: '<', gt: '>', quot: '"', apos: "'", amp: '&' };
+
+function decodeEntities(s: string): string {
+  // Bounded quantifiers only: linear in the length of the text.
+  return s.replace(/&(#[0-9]{1,8}|#[xX][0-9a-fA-F]{1,7}|[a-zA-Z]{2,6});/g, (m, body: string) => {
+    if (body[0] === '#') {
+      const n = body[1] === 'x' || body[1] === 'X' ? parseInt(body.slice(2), 16) : Number(body.slice(1));
+      return n > 0 && n <= 0x10ffff ? String.fromCodePoint(n) : '';
+    }
+    return NAMED_ENTITIES[body.toLowerCase()] ?? m;
+  });
+}
+
+/** Removes spaces and tabs at the end of every line, without a regular expression (a long run of spaces stays linear). */
+function trimLineEnds(s: string): string {
+  return s.split('\n').map((line) => {
+    let e = line.length;
+    while (e > 0 && (line.charCodeAt(e - 1) === 32 || line.charCodeAt(e - 1) === 9)) e -= 1;
+    return e === line.length ? line : line.slice(0, e);
+  }).join('\n');
+}
+
+/**
+ * Turns simple HTML into readable text: line breaks for blocks, links kept, tags and scripts removed.
+ *
+ * A single forward scan (SP-01): every character is looked at a bounded number of times, so a
+ * hostile message (thousands of unclosed `<style>` or `<a href>` tags) costs no more than an
+ * ordinary one of the same size. At most MAX_HTML_TO_TEXT characters are converted.
+ */
+export function htmlToText(input: string): string {
+  const html = input.length > MAX_HTML_TO_TEXT ? input.slice(0, MAX_HTML_TO_TEXT) : input;
+  const n = html.length;
+  const out: string[] = [];
+  /** An open link: its address and where its label starts in `out`. */
+  let link: { href: string; at: number } | null = null;
+  /** Raw elements with no closing tag after some point: never searched for again. */
+  const unclosed = new Set<string>();
+  let i = 0;
+  while (i < n) {
+    const lt = html.indexOf('<', i);
+    if (lt < 0) { out.push(html.slice(i)); break; }
+    if (lt > i) out.push(html.slice(i, lt));
+    if (html.startsWith('<!--', lt)) {
+      const end = html.indexOf('-->', lt + 4);
+      if (end < 0) break;
+      i = end + 3;
+      continue;
+    }
+    const gt = html.indexOf('>', lt + 1);
+    // No ">" anywhere after this point: the rest is not markup, keep it as text.
+    if (gt < 0) { out.push(html.slice(lt)); break; }
+    const tag = html.slice(lt + 1, gt);
+    i = gt + 1;
+    const closing = tag.startsWith('/');
+    const name = /^\/?\s*([a-zA-Z][a-zA-Z0-9]*)/.exec(tag)?.[1]?.toLowerCase() ?? '';
+    if (!name) continue;
+    if (!closing && RAW_ELEMENTS.has(name)) {
+      if (unclosed.has(name)) continue;
+      const close = new RegExp(`</${name}\\s*>`, 'gi');
+      close.lastIndex = i;
+      const found = close.exec(html);
+      if (found) i = found.index + found[0].length;
+      else unclosed.add(name);
+      continue;
+    }
+    if (name === 'br' && !closing) { out.push('\n'); continue; }
+    if (name === 'li' && !closing) { out.push('- '); continue; }
+    if (name === 'a') {
+      if (!closing) {
+        const href = /\shref\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(` ${tag.slice(1)}`);
+        link = href && (href[1] ?? href[2]) ? { href: (href[1] ?? href[2])!, at: out.length } : null;
+      } else if (link) {
+        const label = out.splice(link.at).join('').trim();
+        const href = decodeEntities(link.href);
+        const text = decodeEntities(label);
+        out.push(text && !href.startsWith('mailto:') && text !== href ? `${label} (${link.href})` : label || link.href);
+        link = null;
+      }
+      continue;
+    }
+    if (closing && BLOCK_END.has(name)) out.push('\n');
+  }
+  return trimLineEnds(decodeEntities(out.join('')))
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }

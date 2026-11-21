@@ -133,7 +133,7 @@ export async function runContractReminders(ctx: ModuleContext, now: Date = new D
       const name = [c.ref, c.title].filter(Boolean).join(' ');
       await ctx.audit(null, {
         action: 'contract.reminder', recordType: 'contract', recordId: c.id,
-        summary: `Renewal reminder (${t} days): the notice date for ${name} is ${c.notice_date} (${when(left)})`,
+        summary: `Renewal reminder (${t} days): the notice date for ${name} is ${displayDate(c.notice_date)} (${when(left)})`,
         after: { threshold_days: t, due_on: addDays(c.notice_date, -t), notice_date: c.notice_date },
       });
       const notified = await notify(ctx, {

@@ -1,6 +1,7 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { displayDate } from '../../core/timezone.ts';
 import type { Scales } from './scales.ts';
 
 // What happens to a risk over time: an acceptance is revoked or expires, a review falls due and
@@ -85,16 +86,16 @@ export function makeLifecycle(ctx: ModuleContext, deps: LifecycleDeps) {
        where r.deleted_at is null and r.status = 'accepted' and a.expiry_reminded_at is null
          and a.expires_on >= current_date and a.expires_on <= current_date + $1::int`, [days]);
     for (const a of soon) {
+      // Claimed first (BS-7): of two runs at once, only the one whose write lands sends it.
+      if (!(await db.one('update risk_acceptances set expiry_reminded_at = now() where id = $1 and expiry_reminded_at is null returning id', [a.id]))) continue;
       const sent = await notify({
         userIds: [a.owner_id], permission: a.owner_id ? undefined : 'risks.approve', kind: 'reminder',
         title: `Acceptance expires in ${a.days_left} ${a.days_left === 1 ? 'day' : 'days'}: ${a.ref} ${a.title}`,
-        body: `It expires on ${a.expires_on}. Review the risk and renew the acceptance if it still stands.`,
+        body: `It expires on ${displayDate(a.expires_on)}. Review the risk and renew the acceptance if it still stands.`,
         recordType: 'risk', recordId: a.risk_id,
       });
-      if (sent.sent > 0) {
-        await db.query('update risk_acceptances set expiry_reminded_at = now() where id = $1', [a.id]);
-        result.expiring += 1;
-      }
+      if (sent.sent > 0) result.expiring += 1;
+      else await db.query('update risk_acceptances set expiry_reminded_at = null where id = $1', [a.id]); // nobody received it: the next run tries again
     }
 
     const due = await db.query<Row>(
@@ -102,15 +103,18 @@ export function makeLifecycle(ctx: ModuleContext, deps: LifecycleDeps) {
        where deleted_at is null and owner_id is not null and review_on <= current_date
          and review_reminded_for is distinct from review_on and not (coalesce(status, '') = any($1::text[]))`, [closed]);
     for (const r of due) {
+      // Claimed first (BS-7), as above; released when nobody received it.
+      const claimed = await db.one<{ was: string | null }>(
+        `update risks x set review_reminded_for = x.review_on from (select id, review_reminded_for as was from risks where id = $1) old
+         where x.id = old.id and x.review_reminded_for is distinct from x.review_on returning old.was::text as was`, [r.id]);
+      if (!claimed) continue;
       const sent = await notify({
         userIds: [r.owner_id], kind: 'reminder', title: `Risk review due: ${r.ref} ${r.title}`,
-        body: `The review date was ${r.review_on}. Open the risk and select "Complete review".`,
+        body: `The review date was ${displayDate(r.review_on)}. Open the risk and select "Complete review".`,
         recordType: 'risk', recordId: r.id,
       });
-      if (sent.sent > 0) {
-        await db.query('update risks set review_reminded_for = review_on where id = $1', [r.id]);
-        result.reviews += 1;
-      }
+      if (sent.sent > 0) result.reviews += 1;
+      else await db.query('update risks set review_reminded_for = $2::date where id = $1', [r.id, claimed.was]);
     }
     return result;
   }

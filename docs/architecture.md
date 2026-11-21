@@ -24,7 +24,11 @@ There is no ORM: SQL is written by hand with parameters. Background work goes th
 table-backed job queue (`server/src/core/jobs`, `app.jobs`): jobs are rows that a poller
 claims with a lease, so two processes on one database never run the same job and a job
 whose process died is taken up again; failures are retried with back-off, or after the time a
-handler asks for (`RetryLaterError`, for example a mail service's `Retry-After`). Email, the
+handler asks for (`RetryLaterError`, for example a mail service's `Retry-After`). Job types run
+in lanes: each lane works through its own due jobs alongside the others, and `mail.send` has a
+lane of its own, so a mail server that does not answer never holds up alerts, timers or
+schedules. A handler that cannot try yet (sending paused while the mail server is down) throws
+`DeferJobError`, which puts the job back without using up an attempt. Email, the
 notification digests and every module's scheduled work (the service-level sweep, the
 notification clocks, reminders, report schedules, the file purge, the backup schedule)
 run there as schedules, registered with one call (`scheduleWork`), so each runs once
@@ -65,10 +69,15 @@ delivery is queued). Webhook deliveries are rows in their own table, so a restar
 - **One process.** `server/src/main.ts` calls `buildApp()` in `server/src/app.ts`, listens
   (on `127.0.0.1` unless configured otherwise; see Hosting below), and serves both the API
   (`/api/...`) and the built web application (`dist/web`, with a fallback to `index.html`
-  for client-side routes).
+  for client-side routes). The hashed bundles under `/assets` are compressed (Brotli or gzip,
+  once, kept in memory) and cached by browsers for a year; `index.html` is revalidated on
+  every load (`core/webassets.ts`).
 - **Embedded database** (the default). PGlite runs inside that process and allows one process per data
-  folder. That is why `server/src/cli.ts` (the `seed` and `migrate` commands) refuses to
-  run while `data/grc.pid` exists, and why `grc.ps1` stops the server around `seed` and
+  folder. The server and every command that opens the database take `data/grc.lock` first
+  (`core/datalock.ts`: created exclusively, with process id, host and a heartbeat, so a second
+  process on the same folder, even from another container on a shared volume, stops before it
+  opens or migrates anything). That is why `server/src/cli.ts` (the `seed` and `migrate` commands) refuses to
+  run while the server runs, and why `grc.ps1` stops the server around `seed` and
   `backup`. `grc.ps1` exposes `seed`; `migrate` is available only through
   `npm run cli`.
 - **Start-up order.** Open the database; discover modules; apply migrations; ensure the
@@ -148,7 +157,8 @@ permission module, title field, optional auto-number) and provides:
   field. `readOnly` fields can be set only by system code.
 - **Filters, search, sort and paging** on the list route, built from declared fields only;
   field names are checked against an identifier pattern before they reach SQL.
-- **CSV export** (`format=csv`), limited to 50,000 rows, audited, with cells that start
+- **CSV export** (`format=csv`), limited to 50,000 rows (the file and the
+  `X-GRC-Export-Truncated` header say when it was cut), audited, with cells that start
   with a formula character neutralized.
 - **`_display` labels.** Each row carries `_display: { field: label }` for user, reference
   and lookup fields, so the web never has to resolve identifiers itself.
@@ -452,7 +462,7 @@ How the one process is reached and where its data lives. Operator's view:
   after 20 seconds it exits regardless.
 - **Containers.** `Dockerfile` (web build stage, production-packages stage, runtime as the
   `node` user running `node --experimental-transform-types server/src/main.ts`, state
-  under the `/var/lib/sandpiper` volume, `HEALTHCHECK` via `deploy/healthcheck.mjs`),
+  under the `/var/lib/sandpiper` volume, `HEALTHCHECK` via `deploy/healthcheck.mjs` on `/api/ready`, which asks the database),
   `.dockerignore` (never sends `seed/`, `data/`, `.tools/`, secrets or internal documents)
   and `compose.yaml` (profiles `embedded` and `server`, secrets from files, read-only root
   filesystem). CI builds the image and checks it starts healthy.

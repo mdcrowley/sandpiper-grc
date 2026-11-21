@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { ModuleDef, Row } from '../../core/module.ts';
+import { WEBHOOK_EVENTS } from '../../core/webhooks.ts';
 import { testApp } from '../../test/helpers.ts';
 
 // E14-06: approval workflows through the API. A stand-in record type (permission module `tickets`,
@@ -323,6 +324,12 @@ describe('escalation, department heads and webhooks', () => {
     const payload = typeof sent[0].payload === 'string' ? JSON.parse(sent[0].payload) : sent[0].payload;
     expect(payload.data).toMatchObject({ workflow: 'Hooked', decision: 'approved', stepOutcome: 'approved' });
     expect(payload.record).toMatchObject({ type: 'wf_request', id: r.id });
+    // The event catalog offered to integrators names every field the payloads carry.
+    for (const s of sent) {
+      const body = typeof s.payload === 'string' ? JSON.parse(s.payload) : s.payload;
+      const documented = Object.keys(WEBHOOK_EVENTS.find((e) => e.event === s.event)!.data);
+      expect(documented, s.event as string).toEqual(expect.arrayContaining(Object.keys(body.data)));
+    }
     await t.ctx.settings.set('integrations.outbound_enabled', false);
   });
 

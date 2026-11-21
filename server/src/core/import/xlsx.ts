@@ -10,28 +10,117 @@ export interface ReadSheet { name: string; rows: CellValue[][] }
 
 export class XlsxError extends Error {}
 
-/** Limits that keep a hostile file (a "zip bomb", a giant sheet) from exhausting the server. */
-export const XLSX_LIMITS = { partBytes: 64 * 1024 * 1024, totalBytes: 128 * 1024 * 1024, rows: 100_000, columns: 500 };
+/**
+ * Limits that keep a hostile file (a "zip bomb", a giant sheet) from exhausting the server.
+ * `cells` bounds the cells (filled or not) held for all sheets together.
+ */
+export const XLSX_LIMITS = { partBytes: 64 * 1024 * 1024, totalBytes: 128 * 1024 * 1024, rows: 100_000, columns: 500, cells: 5_000_000 };
 
 const ENTITY: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
-export const unescapeXml = (s: string) => s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, e: string) => {
+// Bounded quantifiers: linear in the length of the text.
+export const unescapeXml = (s: string) => (s.includes('&') ? s.replace(/&(#x[0-9a-f]{1,8}|#\d{1,9}|[a-z]{1,8});/gi, (m, e: string) => {
   if (e[0] === '#') {
     const code = e[1] === 'x' || e[1] === 'X' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10);
     return Number.isFinite(code) && code <= 0x10ffff ? String.fromCodePoint(code) : '';
   }
   return ENTITY[e.toLowerCase()] ?? m;
-});
+}) : s);
 
-const attr = (tag: string, name: string): string | undefined => {
-  const m = new RegExp(`(?:^|\\s)${name}\\s*=\\s*("([^"]*)"|'([^']*)')`).exec(tag);
-  return m ? unescapeXml(m[2] ?? m[3] ?? '') : undefined;
+// ---------- a linear XML scanner (SP-02) ----------
+// Every search below is an indexOf that moves forward, and a missing closing tag stops the scan,
+// so the work is linear in the size of the part however the file is crafted. (Lazy regular
+// expressions such as `<row>([\s\S]*?)</row>` rescanned to the end for every unclosed tag.)
+
+/** Whether `<name` at `at` is that element (and not `<nameMore`). */
+function isElementAt(xml: string, at: number, name: string): boolean {
+  const ch = xml.charCodeAt(at + 1 + name.length);
+  // whitespace, ">", "/"
+  return ch === 32 || ch === 9 || ch === 10 || ch === 13 || ch === 62 || ch === 47;
+}
+
+interface Element { /** The attributes of the opening tag. */ attrs: Map<string, string>; /** The content, or null for `<name/>`. */ body: string | null }
+
+/** The attributes of an opening tag ("<c r="A1" t='s'>" without the brackets), read once, linearly. */
+function attrsOf(tag: string): Map<string, string> {
+  const map = new Map<string, string>();
+  const n = tag.length;
+  let i = 0;
+  while (i < n) {
+    const eq = tag.indexOf('=', i);
+    if (eq < 0) break;
+    const key = tag.slice(i, eq).trim().split(/\s+/).pop() ?? '';
+    let q = eq + 1;
+    while (q < n && (tag[q] === ' ' || tag[q] === '\t' || tag[q] === '\n' || tag[q] === '\r')) q += 1;
+    const quote = tag[q];
+    if (quote !== '"' && quote !== "'") { i = q; continue; }
+    const end = tag.indexOf(quote, q + 1);
+    if (end < 0) break;
+    if (key && !map.has(key)) map.set(key, unescapeXml(tag.slice(q + 1, end)));
+    i = end + 1;
+  }
+  return map;
+}
+
+/** Every `<name ...>` opening tag (attributes only), in order. */
+function* openTags(xml: string, name: string, from = 0, to = xml.length): Generator<Map<string, string>> {
+  let i = from;
+  for (;;) {
+    const at = xml.indexOf(`<${name}`, i);
+    if (at < 0 || at >= to) return;
+    if (!isElementAt(xml, at, name)) { i = at + 1; continue; }
+    const gt = xml.indexOf('>', at);
+    if (gt < 0 || gt >= to) return;
+    yield attrsOf(xml.slice(at + 1 + name.length, xml[gt - 1] === '/' ? gt - 1 : gt));
+    i = gt + 1;
+  }
+}
+
+/** Every `<name ...>...</name>` or `<name/>` element (not nested in itself), in order. */
+function* elements(xml: string, name: string, from = 0, to = xml.length): Generator<Element> {
+  const close = `</${name}>`;
+  let i = from;
+  for (;;) {
+    const at = xml.indexOf(`<${name}`, i);
+    if (at < 0 || at >= to) return;
+    if (!isElementAt(xml, at, name)) { i = at + 1; continue; }
+    const gt = xml.indexOf('>', at);
+    if (gt < 0 || gt >= to) return;
+    const selfClosing = xml[gt - 1] === '/';
+    const attrs = attrsOf(xml.slice(at + 1 + name.length, selfClosing ? gt - 1 : gt));
+    if (selfClosing) { yield { attrs, body: null }; i = gt + 1; continue; }
+    const end = xml.indexOf(close, gt + 1);
+    // Not closed: the rest of the part is not well formed and is left out.
+    if (end < 0 || end + close.length > to) return;
+    yield { attrs, body: xml.slice(gt + 1, end) };
+    i = end + close.length;
+  }
+}
+
+/** The content of the first `<name>...</name>`, or ''. */
+const firstBody = (xml: string, name: string): string => {
+  for (const e of elements(xml, name)) return e.body ?? '';
+  return '';
 };
 
 /** The text of every <t> in a fragment (rich text runs are joined; phonetic runs are left out). */
 function textOf(fragment: string): string {
-  const clean = fragment.replace(/<rPh\b[\s\S]*?<\/rPh>/g, '');
+  let clean = fragment;
+  if (fragment.includes('<rPh')) {
+    // Phonetic runs removed in one forward pass.
+    const parts: string[] = [];
+    let i = 0;
+    for (;;) {
+      const at = fragment.indexOf('<rPh', i);
+      if (at < 0) { parts.push(fragment.slice(i)); break; }
+      parts.push(fragment.slice(i, at));
+      const end = fragment.indexOf('</rPh>', at);
+      if (end < 0) break;
+      i = end + 6;
+    }
+    clean = parts.join('');
+  }
   let out = '';
-  for (const m of clean.matchAll(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>|<t(?:\s[^>]*)?\/>/g)) out += unescapeXml(m[1] ?? '');
+  for (const e of elements(clean, 't')) out += unescapeXml(e.body ?? '');
   return out;
 }
 
@@ -84,43 +173,45 @@ export function readXlsx(bytes: Uint8Array, onlySheet?: string): ReadSheet[] {
 
   // Shared strings.
   const shared: string[] = [];
-  for (const m of text('xl/sharedStrings.xml').matchAll(/<si>([\s\S]*?)<\/si>|<si\/>/g)) shared.push(textOf(m[1] ?? ''));
+  for (const e of elements(text('xl/sharedStrings.xml'), 'si')) shared.push(textOf(e.body ?? ''));
 
   // Which cell styles are dates (and date-times).
   const custom = new Map<number, string>();
   const styles = text('xl/styles.xml');
-  for (const m of styles.matchAll(/<numFmt\s[^>]*>/g)) {
-    const id = Number(attr(m[0], 'numFmtId'));
-    const code = attr(m[0], 'formatCode');
+  for (const a of openTags(styles, 'numFmt')) {
+    const id = Number(a.get('numFmtId'));
+    const code = a.get('formatCode');
     if (Number.isFinite(id) && code !== undefined) custom.set(id, code);
   }
-  const xfs = /<cellXfs[^>]*>([\s\S]*?)<\/cellXfs>/.exec(styles)?.[1] ?? '';
+  const xfs = firstBody(styles, 'cellXfs');
   const styleKind: ('date' | 'datetime' | 'time' | null)[] = [];
-  for (const m of xfs.matchAll(/<xf\s[^>]*?\/?>/g)) {
-    const id = Number(attr(m[0], 'numFmtId') ?? 0);
+  for (const a of openTags(xfs, 'xf')) {
+    const id = Number(a.get('numFmtId') ?? 0);
     if (custom.has(id)) {
       const c = classifyFormat(custom.get(id)!);
       styleKind.push(c.date ? (c.time ? 'datetime' : 'date') : null);
     } else if (BUILTIN_DATE.has(id)) styleKind.push(BUILTIN_TIME_ONLY.has(id) ? 'time' : id === 22 ? 'datetime' : 'date');
     else styleKind.push(null);
   }
-  const date1904 = /<workbookPr\s[^>]*date1904\s*=\s*"(1|true)"/i.test(workbook);
+  let date1904 = false;
+  for (const a of openTags(workbook, 'workbookPr')) { date1904 = /^(1|true)$/i.test(a.get('date1904') ?? ''); break; }
 
   // Sheet names and where their parts are.
   const rels = new Map<string, string>();
-  for (const m of text('xl/_rels/workbook.xml.rels').matchAll(/<Relationship\s[^>]*>/g)) {
-    const id = attr(m[0], 'Id');
-    const target = attr(m[0], 'Target');
+  for (const a of openTags(text('xl/_rels/workbook.xml.rels'), 'Relationship')) {
+    const id = a.get('Id');
+    const target = a.get('Target');
     if (id && target) rels.set(id, resolve('xl/workbook.xml', target));
   }
   const out: ReadSheet[] = [];
-  for (const m of workbook.matchAll(/<sheet\s[^>]*>/g)) {
-    const name = attr(m[0], 'name') ?? `Sheet${out.length + 1}`;
-    const rid = attr(m[0], 'r:id') ?? attr(m[0], 'id');
-    if (attr(m[0], 'state') === 'hidden' || attr(m[0], 'state') === 'veryHidden') continue;
+  const budget = { cells: XLSX_LIMITS.cells };
+  for (const a of openTags(workbook, 'sheet')) {
+    const name = a.get('name') ?? `Sheet${out.length + 1}`;
+    const rid = a.get('r:id') ?? a.get('id');
+    if (a.get('state') === 'hidden' || a.get('state') === 'veryHidden') continue;
     if (onlySheet !== undefined && name !== onlySheet) continue;
     const part = rid ? rels.get(rid) : undefined;
-    out.push({ name, rows: part ? readSheet(text(part), shared, styleKind, date1904) : [] });
+    out.push({ name, rows: part ? readSheet(text(part), shared, styleKind, date1904, budget) : [] });
   }
   return out;
 }
@@ -134,45 +225,55 @@ export function xlsxSheetNames(bytes: Uint8Array): string[] {
     throw new XlsxError('This is not a spreadsheet file that can be read (.xlsx).');
   }
   const workbook = files['xl/workbook.xml'] ? strFromU8(files['xl/workbook.xml']) : '';
-  return [...workbook.matchAll(/<sheet\s[^>]*>/g)]
-    .filter((m) => !['hidden', 'veryHidden'].includes(attr(m[0], 'state') ?? ''))
-    .map((m) => attr(m[0], 'name') ?? '');
+  return [...openTags(workbook, 'sheet')]
+    .filter((a) => !['hidden', 'veryHidden'].includes(a.get('state') ?? ''))
+    .map((a) => a.get('name') ?? '');
 }
 
-function readSheet(xml: string, shared: string[], styleKind: ('date' | 'datetime' | 'time' | null)[], date1904: boolean): CellValue[][] {
+/** The content of the first `<name>...</name>` in a cell, or undefined. */
+function child(body: string, name: string): string | undefined {
+  if (!body.includes(`<${name}`)) return undefined;
+  for (const e of elements(body, name)) return e.body ?? '';
+  return undefined;
+}
+
+function readSheet(xml: string, shared: string[], styleKind: ('date' | 'datetime' | 'time' | null)[], date1904: boolean, budget: { cells: number }): CellValue[][] {
   const rows: CellValue[][] = [];
-  const data = /<sheetData[^>]*>([\s\S]*?)<\/sheetData>/.exec(xml)?.[1] ?? '';
+  const data = firstBody(xml, 'sheetData');
   let nextRow = 0;
-  for (const rm of data.matchAll(/<row(\s[^>]*)?(?:\/>|>([\s\S]*?)<\/row>)/g)) {
-    const rAttr = rm[1] ? attr(rm[1], 'r') : undefined;
+  const tooLarge = () => new XlsxError('The spreadsheet has too many cells to read. Remove empty rows and columns, or split it.');
+  for (const rm of elements(data, 'row')) {
+    const rAttr = rm.attrs.get('r');
     const r = rAttr ? Number(rAttr) - 1 : nextRow;
+    if (!Number.isInteger(r) || r < 0) continue;
     nextRow = r + 1;
     if (r >= XLSX_LIMITS.rows) throw new XlsxError(`The sheet has more than ${XLSX_LIMITS.rows} rows.`);
     const row: CellValue[] = [];
     let nextCol = 0;
-    for (const cm of (rm[2] ?? '').matchAll(/<c(\s[^>]*?)?(?:\/>|>([\s\S]*?)<\/c>)/g)) {
-      const tag = cm[1] ?? '';
-      const ref = attr(tag, 'r');
+    for (const cm of elements(rm.body ?? '', 'c')) {
+      const ref = cm.attrs.get('r');
       const c = ref ? columnIndex(ref) : nextCol;
       nextCol = c + 1;
-      if (c >= XLSX_LIMITS.columns) continue;
-      const body = cm[2] ?? '';
-      const t = attr(tag, 't') ?? 'n';
-      const raw = /<v>([\s\S]*?)<\/v>/.exec(body)?.[1];
+      if (c < 0 || c >= XLSX_LIMITS.columns) continue;
+      const body = cm.body ?? '';
+      const t = cm.attrs.get('t') ?? 'n';
+      const raw = child(body, 'v');
       let v: CellValue = null;
       if (t === 's') v = raw !== undefined ? shared[Number(raw)] ?? '' : null;
-      else if (t === 'inlineStr') v = textOf(/<is>([\s\S]*?)<\/is>/.exec(body)?.[1] ?? '');
+      else if (t === 'inlineStr') v = textOf(child(body, 'is') ?? '');
       else if (t === 'str') v = raw !== undefined ? unescapeXml(raw) : null;
       else if (t === 'b') v = raw === '1' || raw === 'true';
       else if (t === 'e') v = null;
       else if (t === 'd') v = raw !== undefined ? unescapeXml(raw) : null;
       else if (raw !== undefined && raw.trim() !== '') {
         const n = Number(raw);
-        const kind = styleKind[Number(attr(tag, 's') ?? 0)] ?? null;
+        const kind = styleKind[Number(cm.attrs.get('s') ?? 0)] ?? null;
         v = Number.isFinite(n) ? (kind ? dateValue(n + (date1904 ? 1462 : 0), kind) : n) : unescapeXml(raw);
       }
       row[c] = v;
     }
+    budget.cells -= Math.max(1, row.length);
+    if (budget.cells < 0) throw tooLarge();
     for (let i = 0; i < row.length; i++) if (row[i] === undefined) row[i] = null;
     rows[r] = row;
   }

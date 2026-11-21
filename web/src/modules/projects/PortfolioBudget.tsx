@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { SimpleGrid } from '@mantine/core';
-import { Card, Chart, chartColor, EmptyState, formatCurrency, LookupChip, Stat } from '../../core';
+import { Card, Chart, chartColor, EmptyState, escapeHtml, formatCurrency, LookupChip, Stat } from '../../core';
 import type { ChartOption } from '../../core';
 import { BudgetBar, compactCurrency } from './bits';
 import type { PortfolioRow } from './types';
@@ -35,7 +35,7 @@ export function PortfolioBudget({ rows }: { rows: PortfolioRow[] }) {
           const spend = p.spend_to_date ?? 0;
           const left = budget - spend;
           return [
-            `<strong>${p.name.replace(/[<>&]/g, '')}</strong>`,
+            `<strong>${escapeHtml(p.name)}</strong>`,
             `Budget: ${formatCurrency(budget)}`,
             `Spend to date: ${formatCurrency(spend)}${budget ? ` (${Math.round((spend / budget) * 100)}%)` : ''}`,
             left < 0 ? `Over budget by ${formatCurrency(-left)}` : `Remaining: ${formatCurrency(left)}`,

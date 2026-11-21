@@ -110,12 +110,24 @@ describe.runIf(loaded)('gate decisions on approval workflows', () => {
     expect(g.approval.can_request).toBe(true);
   });
 
-  it('a decision recorded by hand still works and stops the running workflow', async () => {
+  it('a decision recorded by hand is an administrator\'s override with a reason, never by the person who asked (AZ-5)', async () => {
     const p = await project('Ticket office refit');
     const gate = await complete(p.id);
     expect((await ask(p.id, gate.id)).status).toBe(201);
-    const res = await t.api.post(`/api/projects/${p.id}/gates/${gate.id}/decide`, { decision: 'approved', approver_name: 'B. Board', approver_role: 'Board' });
-    expect(res.status).toBe(200);
+    const byHand = { decision: 'approved', approver_name: 'B. Board', approver_role: 'Board' };
+    const url = `/api/projects/${p.id}/gates/${gate.id}/decide`;
+    // A project manager holds projects.approve but cannot settle a gate that goes through a workflow.
+    const pm = await t.as('project_manager');
+    const refused = await pm.post(url, byHand);
+    expect(refused.status).toBe(403);
+    expect(refused.body.error.code).toBe('workflow_required');
+    // The administrator who asked for the approval cannot record it either.
+    expect((await t.api.post(url, { ...byHand, notes: 'Board met' })).body.error.code).toBe('not_allowed');
+    // Another administrator can, with a reason.
+    const admin2 = await t.as('administrator');
+    expect((await admin2.post(url, byHand)).body.error.fields.notes).toBeDefined();
+    const res = await admin2.post(url, { ...byHand, notes: 'Decided at the board meeting; the workflow approver is away' });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
     const g = (await gates(p.id)).gates.find((x: Row) => x.id === gate.id);
     expect(g.status).toBe('approved');
     expect(g.decisions).toHaveLength(1);

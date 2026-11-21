@@ -1,3 +1,4 @@
+import { addStateGrant } from '../../core/auth.ts';
 import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleDef } from '../../core/module.ts';
 import { seedProjectDefaults } from './defaults.ts';
@@ -19,6 +20,8 @@ const mod: ModuleDef = {
     const svc = makeService(ctx);
     defineProject(ctx, svc);
     registerProjectRoutes(ctx, svc);
+    // The web app shows "New project request" only to people who may send one (BW-06).
+    addStateGrant(ctx.app, async (user) => ((await svc.mayRequest(user)) ? ['projects.request'] : []));
     // Gate decisions may run on the shared approval workflows (E11-25).
     registerGateApproval(ctx, svc);
 

@@ -237,7 +237,7 @@ const devObligations = (): ObligationSeed[] => [
   },
   {
     title: 'Safety management system review of technology changes', source: 'Safety management plan (invented example)',
-    requirement: 'Assess every change to dispatch, signalling-priority and passenger information systems for safety hazards before it goes live',
+    requirement: 'Assess every change to dispatch, signal-priority and passenger information systems for safety hazards before it goes live',
     status: 'not_met', next_due_on: day(-5),
   },
   {

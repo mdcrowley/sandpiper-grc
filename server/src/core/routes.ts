@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { registerApiStore } from './api/conventions.ts';
+import { pageOf, registerApiStore } from './api/conventions.ts';
+import { capExportRows, EXPORT_ROW_LIMIT, TRUNCATED_HEADER } from './export/list.ts';
 import type { Db } from './db.ts';
 import { fail, UUID_RE } from './errors.ts';
 import type { ResourceDef, Row, SessionUser } from './module.ts';
@@ -9,6 +10,7 @@ import type { makeResources } from './resource.ts';
 import { BODY_SEPARATOR, HEADLINE_OPTIONS, parseSearch, SEARCH_CONFIG, snippetParts, substringColumns } from './search.ts';
 import { can, requirePerm, type makeAudit, type makeLookups } from './services.ts';
 import { registerSharedViews } from './views.ts';
+import { redactWebhookAudit } from './webhooks.ts';
 
 interface Deps {
   app: FastifyInstance;
@@ -459,26 +461,33 @@ export function registerCoreRoutes({ app, db, audit, lookups, res, custom, gate,
       }
     }
     const w = where.join(' and ');
+    // Webhook addresses often carry the receiver's secret: shown as host and fingerprint only, also
+    // in entries written before they were redacted (core/webhooks.ts, SP-06).
+    const redact = <T extends Row>(rows: T[]): T[] => rows.map((r) => (String(r.action ?? '').startsWith('webhook.')
+      ? { ...r, before: redactWebhookAudit(r.before), after: redactWebhookAudit(r.after) } : r));
 
     if (query.format === 'csv') {
-      const rows = await db.query<Row>(`select * from audit_events where ${w} order by id desc limit 50000`, params);
+      // Newest first, one more than the limit to know (and say, OP-10) when older events were left out.
+      const { rows: found, truncated } = capExportRows(await db.query<Row>(`select * from audit_events where ${w} order by id desc limit ${EXPORT_ROW_LIMIT + 1}`, params));
+      const rows = redact(found);
       const esc = (v: unknown) => {
         let s = v === null || v === undefined ? '' : v instanceof Date ? v.toISOString() : typeof v === 'object' ? JSON.stringify(v) : String(v);
         if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`; // stop spreadsheet formula injection
         return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
       };
-      await audit(req, { action: 'audit.export', summary: `Exported ${rows.length} audit events to CSV` });
+      await audit(req, { action: 'audit.export', summary: `Exported ${rows.length} audit events to CSV${truncated ? ` (the newest ${EXPORT_ROW_LIMIT.toLocaleString('en-US')}: the export limit)` : ''}` });
+      if (truncated) reply.header(TRUNCATED_HEADER, String(EXPORT_ROW_LIMIT));
       reply.header('content-type', 'text/csv; charset=utf-8');
       reply.header('content-disposition', 'attachment; filename="audit-export.csv"');
       const cols = ['id', 'at', 'actor_name', 'token_name', 'request_id', 'ip', 'action', 'record_type', 'record_id', 'summary', 'before', 'after'];
-      return '﻿' + [cols.join(','), ...rows.map((r) => cols.map((c) => esc(r[c])).join(','))].join('\r\n');
+      const cut = truncated ? [esc(`Only the newest ${EXPORT_ROW_LIMIT.toLocaleString('en-US')} events were exported (the export limit). Choose a shorter period to export older events.`)] : [];
+      return '﻿' + [cols.join(','), ...rows.map((r) => cols.map((c) => esc(r[c])).join(',')), ...cut].join('\r\n');
     }
-    const pageSize = Math.min(500, Math.max(1, Number(query.pageSize) || 50));
-    const page = Math.max(1, Number(query.page) || 1);
+    const { page, pageSize } = pageOf(query); // whole numbers in range (SP-09)
     const total = (await db.one<{ c: number }>(`select count(*)::int c from audit_events where ${w}`, params))!.c;
-    const rows = await db.query(
+    const rows = redact(await db.query<Row>(
       `select * from audit_events where ${w} order by id desc limit ${pageSize} offset ${(page - 1) * pageSize}`, params,
-    );
+    ));
     return { rows, total, page, pageSize };
   });
 

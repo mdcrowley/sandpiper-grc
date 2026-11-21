@@ -60,6 +60,25 @@ export interface FieldDef {
 
 export type Row = Record<string, any>;
 
+/** See ResourceDef.rowRule. */
+export interface RowRule {
+  /**
+   * The SQL condition a row must meet for `user` to see it; `col(name)` gives a column of the row
+   * (with the caller's table alias). Called synchronously for every query, so it must not need the
+   * database to be built: read settings inside the SQL. Return 'true' when the user sees every row.
+   * The system (no user) always sees every row.
+   */
+  where: (user: SessionUser, col: (name: string) => string) => string;
+  /**
+   * Figures (GET <path>/stats). 'filter': the caller's own rule applies (personal items, such as
+   * saved reports). 'mask': every row counts for everyone, but rows matching `hidden` are never
+   * matched, grouped or labeled by their details, as restricted records are.
+   */
+  figures: 'filter' | 'mask';
+  /** With figures 'mask': the rows some people may not see (boolean SQL, never null). */
+  hidden?: (col: (name: string) => string) => string;
+}
+
 export interface ResourceDef {
   type: string;
   table: string;
@@ -79,6 +98,13 @@ export interface ResourceDef {
    * record's own restriction changes; people who cannot see the source cannot point a row at it.
    */
   restrictedFrom?: { typeField: string; idField: string };
+  /**
+   * A per-row rule beyond the restricted flag: who may see which rows (knowledge articles for IT
+   * agents only, privately shared reports). It is part of the visibility rule itself
+   * (`visibleWhere`, `find`, labels), so every reader follows it whatever the route: lists, search,
+   * pickers, history, comments, links, tags, files, fact sheets, exports and reports.
+   */
+  rowRule?: RowRule;
   searchable?: string[];
   /**
    * Files attached to these records are evidence (E14-18): the record page's Attachments tab records
@@ -160,6 +186,23 @@ export interface ResourceRegistry {
    * `alias` is the table alias used in the query, if any. Unknown type: 'false'.
    */
   visibleWhere(type: string, user: SessionUser | null | undefined, alias?: string): string;
+  /**
+   * Figures (counts and totals that are the same for everyone, docs/security.md): the rows of `type`
+   * a figure for `user` counts. 'true' except for a type whose row rule applies to figures too
+   * (ResourceDef.rowRule, figures 'filter'). Use it in place of `visibleWhere` in a figure.
+   */
+  figureWhere(type: string, user: SessionUser | null | undefined, alias?: string): string;
+  /**
+   * Figures: SQL true for the rows whose details (words and people) a figure must never match,
+   * group or label: restricted rows, and rows a masking row rule hides from someone. null: none.
+   */
+  figureMask(type: string, alias?: string): string | null;
+  /**
+   * Subscribes to records created, updated, soft-deleted or purged through the resource engine
+   * (the workflows module cancels the workflows of a deleted record). A failing listener never
+   * fails the change.
+   */
+  onChange?(fn: (change: { action: 'create' | 'update' | 'delete' | 'purge'; def: ResourceDef; row: Row; req: FastifyRequest | null }) => Promise<void> | void): void;
 }
 
 /** A hand-written route described for the OpenAPI document (`GET /api/openapi.json`). */

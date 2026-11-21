@@ -18,6 +18,8 @@ export interface ReadResult {
   fields: ImportField[]; matchKeys: { name: string; label: string }[]; modes: ImportMode[];
   limits: { bytes: number; rows: number; columns: number };
   kind: 'csv' | 'xlsx'; sheets: string[]; sheet: string | null;
+  /** Things to check before importing, such as a CSV file read as Windows-1252. */
+  warnings?: string[];
   headers: string[]; sample: string[][]; rowCount: number; suggested: Record<string, string>;
 }
 export interface RowResult { line: number; action: 'create' | 'update' | 'skip' | 'error'; errors: Record<string, string>; reason?: string; id?: string; label?: string; key?: string }
@@ -25,6 +27,7 @@ export interface ImportSummary {
   dryRun: boolean; mode: ImportMode; matchKey: string | null;
   total: number; created: number; updated: number; skipped: number; errors: number; duplicates: number;
   rows: RowResult[]; unmatched: Record<string, string[]>;
+  warnings?: string[];
 }
 export interface PastImport { id: string; at: string; by: string | null; file: string | null; mode: string | null; total: number | null; created: number; updated: number; skipped: number; errors: number }
 

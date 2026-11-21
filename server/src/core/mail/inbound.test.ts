@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { htmlToText, parseAddresses, parseMessage, stripQuoted } from './mime.ts';
+import { htmlToText, MAX_HTML_TO_TEXT, parseAddresses, parseMessage, stripQuoted } from './mime.ts';
 import { startFakePop3, type FakePop3 } from './pop3-fake.ts';
 import { Pop3 } from './pop3.ts';
 
@@ -66,6 +66,47 @@ describe('reading a message', () => {
     expect(plain.text.trim()).toBe('Just text.');
     expect(plain.attachments).toEqual([]);
     expect(htmlToText('<a href="https://example.org/x">the page</a>')).toBe('the page (https://example.org/x)');
+  });
+
+  it('converts HTML the same way as before: blocks, lists, links, entities, hidden elements', () => {
+    expect(htmlToText('<html><head><title>T</title><style>p{}</style></head><body><p>One</p><ul><li>a</li><li>b</li></ul>'
+      + '<!-- note --><a href=\'https://example.org/y\'>site</a> <a href="mailto:x@example.org">x@example.org</a>'
+      + ' <a href="https://example.org/z">https://example.org/z</a> &lt;b&gt; &#233;&#xE9; &bogus; &#99999999;</body></html>'))
+      .toBe('One\n- a\n- b\nsite (https://example.org/y) x@example.org https://example.org/z <b> éé &bogus;');
+    expect(htmlToText('a < b and <link rel="x"> c')).toBe('a  c');
+    expect(htmlToText('<style>unclosed')).toBe('unclosed');
+    expect(htmlToText('text <unclosed tag')).toBe('text <unclosed tag');
+  });
+
+  // SP-01: hostile HTML used to take time quadratic in its size (minutes for a few MB),
+  // on the server's only thread, before any sender check. The bounds are generous for slow machines.
+  it('reads hostile HTML in linear time', () => {
+    const cases = [
+      '<style>'.repeat(200_000),
+      '<a href="https://example.org/">'.repeat(60_000),
+      '<li'.repeat(400_000),
+      '<'.repeat(1_000_000),
+      `x${' '.repeat(1_000_000)}x`,
+      '<head>'.repeat(100_000) + '<title>'.repeat(100_000),
+      '&#1'.repeat(300_000),
+    ];
+    for (const html of cases) {
+      const started = Date.now();
+      const m = parseMessage(`From: a@example.org\r\nContent-Type: text/html\r\n\r\n${html}`);
+      expect(typeof m.text).toBe('string');
+      expect(Date.now() - started).toBeLessThan(3000);
+    }
+    const started = Date.now();
+    const m = parseMessage(`From: ${'('.repeat(300_000)} <a@example.org>\r\nTo: ${'Name; '.repeat(1)}<b@example.org>\r\n`
+      + `Content-Type: text/plain; ${Array.from({ length: 20_000 }, (_, k) => `x-junk*${k}*=a`).join('; ')}\r\n\r\nhi`);
+    expect(m.text).toBe('hi');
+    expect(Date.now() - started).toBeLessThan(3000);
+  });
+
+  it('converts at most the first MAX_HTML_TO_TEXT characters of HTML', () => {
+    const text = htmlToText(`<p>start</p>${'y'.repeat(MAX_HTML_TO_TEXT + 1000)}`);
+    expect(text.length).toBeLessThanOrEqual(MAX_HTML_TO_TEXT);
+    expect(text.startsWith('start\n')).toBe(true);
   });
 
   it('reads awkward address lists and keeps only the new part of a reply', () => {

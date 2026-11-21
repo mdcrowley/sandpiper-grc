@@ -533,6 +533,26 @@ export class PdfBuilder {
    * characters); `boldLast` sets the last row in bold (a totals row).
    */
   table(columns: PdfColumn[], rows: string[][], opts: { boldLast?: boolean; boldFirstColumn?: boolean } = {}) {
+    const steps = this.tableSteps(columns, rows, opts);
+    while (!steps.next().done) { /* all at once */ }
+  }
+
+  /**
+   * The same table, giving the event loop a turn every `every` rows (OP-01), so a long list export
+   * does not keep every other request waiting while it is laid out.
+   */
+  async tableAsync(columns: PdfColumn[], rows: string[][], opts: { boldLast?: boolean; boldFirstColumn?: boolean; every?: number } = {}): Promise<void> {
+    const every = Math.max(1, opts.every ?? 50);
+    let n = 0;
+    const steps = this.tableSteps(columns, rows, opts);
+    while (!steps.next().done) {
+      n += 1;
+      if (n % every === 0) await new Promise<void>((resolve) => setImmediate(resolve));
+    }
+  }
+
+  /** Lays the table out, yielding after each row. */
+  private *tableSteps(columns: PdfColumn[], rows: string[][], opts: { boldLast?: boolean; boldFirstColumn?: boolean }): Generator<void> {
     const { doc } = this;
     if (!columns.length) return;
     const pad = 4;
@@ -585,7 +605,8 @@ export class PdfBuilder {
     const drawHead = () => { const y = doc.y; drawRow(head, y, headH, 'head', false); doc.y = y + headH; };
     this.ensure(headH + 20);
     drawHead();
-    rows.forEach((raw, n) => {
+    for (let n = 0; n < rows.length; n++) {
+      const raw = rows[n];
       const cells = columns.map((_, i) => cellText(raw[i]));
       const style = opts.boldLast && n === rows.length - 1 ? 'bold' : 'body';
       const h = Math.min(rowHeight(cells, style), this.bottom - this.doc.page.margins.top - headH - 4);
@@ -593,7 +614,8 @@ export class PdfBuilder {
       const y = doc.y;
       drawRow(cells, y, h, style, n % 2 === 1);
       doc.y = y + h;
-    });
+      yield;
+    }
     doc.x = this.left;
     doc.moveDown(0.6);
   }

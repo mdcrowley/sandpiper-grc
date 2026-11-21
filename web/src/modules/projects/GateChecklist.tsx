@@ -45,7 +45,7 @@ function Row({ projectId, gate, item, editable, onChanged }: Props & { item: Che
           <div className="prj-check-more">
             {item.checked && (
               <Text size="xs" c="dimmed">
-                Ticked by {item.checked_by_name ?? 'unknown'}{item.checked_at ? ` on ${formatDateTime(item.checked_at)}` : ''}
+                Checked by {item.checked_by_name ?? 'unknown'}{item.checked_at ? ` on ${formatDateTime(item.checked_at)}` : ''}
               </Text>
             )}
             {!editing && item.note && <Text size="sm" className="prose">{item.note}</Text>}
@@ -77,7 +77,7 @@ function Row({ projectId, gate, item, editable, onChanged }: Props & { item: Che
   );
 }
 
-/** The gate's checklist: a progress bar, then each item to tick, with a note and an evidence reference. */
+/** The gate's checklist: a progress bar, then each item to check, with a note and an evidence reference. */
 export function GateChecklist(props: Props) {
   const { gate } = props;
   if (!gate.items.length) return <Text size="sm" c="dimmed">This gate has no checklist items.</Text>;

@@ -1,5 +1,6 @@
 import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { displayDate } from '../../core/timezone.ts';
 import { notify, usersWith } from './disposal.ts';
 
 /**
@@ -16,7 +17,9 @@ const GRACE_DAYS = 7;
 
 export interface ReminderResult { available: boolean; warranty: number; support: number; loans: number }
 
-function when(days: number, date: string): string {
+/** "in 20 days (Dec 11, 2026)": the date as people read it (BW-08). */
+export function when(days: number, iso: string): string {
+  const date = displayDate(iso);
   if (days > 1) return `in ${days} days (${date})`;
   if (days === 1) return `tomorrow (${date})`;
   if (days === 0) return `today (${date})`;
@@ -45,11 +48,17 @@ export async function runReminders(ctx: ModuleContext): Promise<ReminderResult> 
       'select 1 from asset_reminders where asset_id = $1 and kind = $2 and due_on = $3 and threshold <= $4', [key, kind, dueOn, step],
     );
     if (done) return false;
-    const sent = await notify(ctx, { ...input, recordType: 'asset', recordId: assetId });
-    if (!sent) return false;
-    await db.query(
-      'insert into asset_reminders (asset_id, kind, due_on, threshold) values ($1,$2,$3,$4) on conflict do nothing', [key, kind, dueOn, step],
+    // Claimed before it is sent (BS-7): of two runs at once (the daily job and "run now"), only the
+    // one whose insert lands sends it. A reminder nobody received is released for the next run.
+    const claimed = await db.one(
+      'insert into asset_reminders (asset_id, kind, due_on, threshold) values ($1,$2,$3,$4) on conflict do nothing returning 1 as ok', [key, kind, dueOn, step],
     );
+    if (!claimed) return false;
+    const sent = await notify(ctx, { ...input, recordType: 'asset', recordId: assetId });
+    if (!sent) {
+      await db.query('delete from asset_reminders where asset_id = $1 and kind = $2 and due_on = $3 and threshold = $4', [key, kind, dueOn, step]);
+      return false;
+    }
     return true;
   }
 

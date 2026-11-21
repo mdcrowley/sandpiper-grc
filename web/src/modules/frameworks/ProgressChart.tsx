@@ -1,9 +1,8 @@
 import { useMemo } from 'react';
-import { Chart, formatDate } from '../../core';
+import { Chart, escapeHtml, formatDate } from '../../core';
 import type { ChartOption } from '../../core';
 import type { Progress } from './types';
 
-const escape = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 /**
  * Weighted score (0 to 100) at each snapshot and now, for priority outcomes and for all
@@ -34,8 +33,8 @@ export function ProgressChart({ progress, height = 320 }: { progress: Progress; 
         trigger: 'axis',
         formatter: (params: { marker: string; seriesName: string; value: [string, number, string?] }[]) => {
           const first = params.find((p) => p.value[2]);
-          const head = first ? `<strong>${escape(String(first.value[2]))}</strong> · ${formatDate(first.value[0])}` : formatDate(params[0].value[0]);
-          return [head, ...params.map((p) => `${p.marker} ${escape(p.seriesName)}: <strong>${p.value[1]}</strong>`)].join('<br/>');
+          const head = first ? `<strong>${escapeHtml(String(first.value[2]))}</strong> · ${formatDate(first.value[0])}` : formatDate(params[0].value[0]);
+          return [head, ...params.map((p) => `${p.marker} ${escapeHtml(p.seriesName)}: <strong>${p.value[1]}</strong>`)].join('<br/>');
         },
       },
       xAxis: { type: 'time', axisLabel: { formatter: (v: number) => formatDate(new Date(v).toISOString().slice(0, 10)), hideOverlap: true }, splitLine: { show: false } },

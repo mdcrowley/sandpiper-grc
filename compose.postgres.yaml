@@ -5,9 +5,16 @@
 # then:
 #   docker compose -f compose.yaml -f compose.postgres.yaml up -d
 #
-# The password reaches both containers as a secret file under /run/secrets, never as an
-# environment variable. Attached files, backups and the secret key stay in the application's
-# volumes; the database lives in the grc-pg volume.
+# Two database accounts (docs/installation.md, "A least-privilege database role"):
+# - "grc" owns the database and its tables, with the password in deploy/secrets/db_password.txt.
+#   The application uses it only to run the migrations at start (GRC_DATABASE_MIGRATE_URL).
+# - "grc_app" is what the application runs as: it may read and write rows and nothing else, so it
+#   cannot drop the audit log's append-only trigger or use the server's administrative features.
+#   The one-off "db-roles" service creates it before each start (deploy/postgres/app-role.sh), with
+#   a generated password kept in the grc-db-app volume.
+#
+# The passwords reach the containers as files, never as environment variables. Attached files,
+# backups and the secret key stay in the application's volumes; the database lives in grc-pg.
 #
 # To avoid typing both files every time, put COMPOSE_FILE=compose.yaml:compose.postgres.yaml in
 # .env (with ; instead of : on Windows).
@@ -17,16 +24,25 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      db-roles:
+        condition: service_completed_successfully
     secrets:
       - db_password
+    volumes:
+      - grc-db-app:/run/grc-db:ro
     environment:
-      GRC_DATABASE_URL: postgres://grc@db:5432/grc
-      GRC_DATABASE_PASSWORD_FILE: /run/secrets/db_password
+      # The server runs as the least-privileged account...
+      GRC_DATABASE_URL: postgres://grc_app@db:5432/grc
+      GRC_DATABASE_PASSWORD_FILE: /run/grc-db/app_password
+      # ...and builds the schema as the owner first, then grants grc_app what it needs.
+      GRC_DATABASE_MIGRATE_URL: postgres://grc@db:5432/grc
+      GRC_DATABASE_MIGRATE_PASSWORD_FILE: /run/secrets/db_password
       # The database is on the compose network only. Use require or verify for a server elsewhere.
       GRC_DATABASE_SSL: "off"
 
   db:
-    image: postgres:17-bookworm
+    # Pinned by digest (Dependabot proposes updates); the major version changes by hand.
+    image: postgres:17-bookworm@sha256:837bed18782820fe967067cb5328b02b0d9992c1be9a37ee0c9c492cfc03af3b
     restart: unless-stopped
     shm_size: 128mb
     environment:
@@ -45,9 +61,25 @@ services:
       timeout: 5s
       retries: 10
 
+  # Creates (or confirms) the application's own role and its password, then exits. Safe to repeat.
+  db-roles:
+    image: postgres:17-bookworm@sha256:837bed18782820fe967067cb5328b02b0d9992c1be9a37ee0c9c492cfc03af3b
+    depends_on:
+      db:
+        condition: service_healthy
+    entrypoint: ["sh", "/deploy/app-role.sh"]
+    restart: "no"
+    secrets:
+      - db_password
+    volumes:
+      - ./deploy/postgres/app-role.sh:/deploy/app-role.sh:ro
+      - grc-db-app:/run/grc-db
+
 secrets:
   db_password:
     file: ./deploy/secrets/db_password.txt
 
 volumes:
   grc-pg:
+  # The generated password of the grc_app role (read-only to the application).
+  grc-db-app:

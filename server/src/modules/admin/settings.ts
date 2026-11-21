@@ -3,6 +3,7 @@ import { ORGANIZATION_SETTINGS } from '../../core/organization.ts';
 import { AREA_KEYS, effectiveFeatures, FEATURE_DEFAULTS } from '../../core/features.ts';
 import { checkFeatures, featureChangeProblem } from './features.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { LOG_RETENTION, type LogRetentionKey } from '../../core/retention.ts';
 import { hasActivePasskey } from '../../core/webauthn/index.ts';
 import { localOffProblem } from './providers.ts';
 import { adminRoute, body, idParam, invalid, sensitive } from './shared.ts';
@@ -13,6 +14,12 @@ const bool: Check = (v) => (typeof v === 'boolean' ? { value: v } : 'Choose on o
 const int = (min: number, max: number, what: string): Check => (v) =>
   (typeof v === 'number' && Number.isInteger(v) && v >= min && v <= max
     ? { value: v } : `${what} must be a whole number from ${min} to ${max}.`);
+
+const LOG_RETENTION_LABELS: Record<LogRetentionKey, string> = {
+  'retention.webhook_delivery_days': 'Webhook delivery log retention in days',
+  'retention.mail_log_days': 'Outgoing message log retention in days',
+  'retention.mail_inbound_log_days': 'Incoming email log retention in days',
+};
 
 /** Feature switches an administrator may set: one per optional area (core/features.ts). */
 export const FEATURE_KEYS = AREA_KEYS;
@@ -81,6 +88,8 @@ export const SETTINGS: Record<string, { fallback: unknown; check: Check }> = {
   },
   // How long the audit log is kept: recorded for the retention schedule. Nothing deletes audit events.
   'retention.audit_months': { fallback: 84, check: int(12, 1200, 'Audit log retention in months') },
+  // How long the delivery logs are kept, in days; the daily retention sweep removes older rows (OP-08).
+  ...Object.fromEntries(Object.entries(LOG_RETENTION).map(([key, r]) => [key, { fallback: r.fallback, check: int(r.min, r.max, LOG_RETENTION_LABELS[key as LogRetentionKey]) }])),
 };
 
 /** Security settings (sign-in, API tokens, outbound connections): changing one needs a recent password confirmation. */

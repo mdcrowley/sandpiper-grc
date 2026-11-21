@@ -15,7 +15,7 @@ and the image's `grc` command ([Docker](#docker)). The examples in this runbook 
 | Command | What it does |
 |---|---|
 | `.\grc.ps1 start` | Starts the server in the background. Does nothing if it is already running. Runs `npm install` if `node_modules\` is missing, rebuilds the web application if any file under `web\` or `docs\user\` is newer than the last build, then waits for the health check (about 30 seconds) |
-| `.\grc.ps1 stop` | Asks the server to shut down cleanly and waits up to 15 seconds. Only if that fails does it end the process by force |
+| `.\grc.ps1 stop` | Asks the server to shut down cleanly and waits up to 30 seconds (the server itself gives up after 20, including the wait for a backup it is taking). Only if that fails does it end the process by force |
 | `.\grc.ps1 restart` | `stop`, then `start` |
 | `.\grc.ps1 health` | Calls `/api/health` (over HTTPS when `GRC_TLS_CERT` is set, accepting a self-signed certificate for this local check). Prints `Healthy` or `Not responding.` (exit code 1) |
 | `.\grc.ps1 status` | Version, port, process, size of the data folder, last backup, pending migrations and the backup schedule. See [Status](#status) |
@@ -85,7 +85,7 @@ otherwise the `node` on `PATH`, and refuses a major version other than the one i
 Differences: `start` runs the server in the background with `nohup` (or, once `service
 install` has been run, starts the service), with its start-up output in
 `data/server.log` and `data/server.log.err`; `stop` asks for a clean shutdown the same way
-and sends a terminate signal if that does not work within 15 seconds; `status` reports a
+and sends a terminate signal if that does not work within 30 seconds; `status` reports a
 cron entry for this folder (it does not look at systemd or launchd); and `upgrade --from`
 also takes a `.tar.gz`. On a server run by systemd (`deploy/systemd/`), use `systemctl
 start|stop|status sandpiper-grc` and `journalctl -u sandpiper-grc` instead of `start`, `stop`
@@ -121,6 +121,7 @@ to itself run in a one-off container with the application stopped. Full details 
 | `data\pg\` | The database (embedded PostgreSQL files) |
 | `data\files\` | Files attached to records |
 | `data\grc.pid` | Process id of the running server. Written at start, removed at clean shutdown |
+| `data\grc.lock` | Held by the one process using the data folder (the server, or a command such as `seed` or `restore`): its process id, machine name and start time. Taken before the database is opened, removed when the process ends, never copied into a backup |
 | `data\grc.stop` | Created briefly by `stop` to request a clean shutdown |
 | `data\logs\grc.log` | The server's own log: one JSON line per entry (requests, warnings, errors), rotated by size into `grc.log.1` ... `grc.log.5`. See [Logs](#logs) |
 | `data\server.log` | Console output of a server started by `grc.ps1`/`grc.sh`: the start-up line |
@@ -164,7 +165,7 @@ Database:       embedded, in C:\grc\data\pg
 Secret key:     C:\grc\data.secret.key (outside the data folder, not in backups: back it up separately)
 Last backup:    20300131-020000, 7 hour(s) ago, 61.0 MB (scheduled), encrypted
 Backups:        14 in C:\grc\backups
-Server backups: daily at 02:00 (Europe/London), keeping 14 to \\fileserver\backups\grc, encrypted; last good sandpiper-backup-20300131-020000.tar.sgrc, 7 hour(s) ago
+Server backups: daily at 03:30 (Europe/London), keeping 14 to \\fileserver\backups\grc, encrypted; last good sandpiper-backup-20300131-033000.tar.sgrc, 7 hour(s) ago
 Migrations:     18 in the code; applied when the server started; none changed since
 Windows task:   none (the server takes its own daily backups: Administration > Backups)
 ```
@@ -201,14 +202,23 @@ Windows task:   none (the server takes its own daily backups: Administration > B
 ```
 
 Or request `http://127.0.0.1:8080/api/health` directly; a healthy server answers
-`{"ok":true}` without sign-in. The check proves the process is up and answering. It does
-not test the database.
+`{"ok":true}` without sign-in. That is **liveness**: the process is up and answering. It
+does not touch the database, so it stays cheap for frequent checks.
+
+`/api/ready` is **readiness**: it also asks the database for one row and answers
+`{"ok":true,"database":"ok"}`, or **503** with `"database":"timeout"` (no answer within 2
+seconds: a PostgreSQL server that is down or unreachable, or the embedded database held by
+one long piece of work) or `"database":"error"`. The cause goes to the server log
+(`[ready] the database is not ready: ...`, once per change), never into the answer. Neither
+needs sign-in, and neither is written to the log when it succeeds.
 
 On a server installation use the address the server listens on (`https://...` when it has
-a certificate). The container image checks it every 30 seconds with
+a certificate). The container image checks `/api/ready` every 30 seconds with
 `node deploy/healthcheck.mjs`, which follows `GRC_PORT` and `GRC_TLS_CERT`; `docker ps`
-shows the result. Behind a reverse proxy, point the proxy's or load balancer's own health
-check at `/api/health` as well.
+shows the result, so a container whose database is gone turns **unhealthy**. Behind a load
+balancer, use `/api/ready` to decide where to send people and `/api/health` to decide
+whether to restart the process. During a long online backup on the embedded database,
+`/api/ready` can answer 503 for a while; that is expected and passes.
 
 ## Logs
 
@@ -321,8 +331,12 @@ The database is embedded: it runs inside the server process and keeps its files 
   that step and risks losing recent changes or damaging the database files.
 - **Never run two processes on one data folder.** The embedded database allows one process
   at a time. The command-line tasks are a second process, so the server must be stopped
-  while they run. `grc.ps1` handles this for you. If you run them directly with npm, they
-  refuse to start while the process named in `data\grc.pid` exists.
+  while they run. `grc.ps1` handles this for you. Whatever starts them, the server and the
+  commands that open the database take `data\grc.lock` first, before the database is
+  opened or migrated, and a second one stops at once with `A server (process ...) is using
+  this data folder`. That covers a second server started by hand beside a service, and a
+  `docker compose run` beside the running container (the lock works across containers that
+  share the volume).
 
 Windows has no terminate signal for background processes, so `stop` works by creating
 `data\grc.stop`. The server checks for that file twice a second and shuts down when it
@@ -373,9 +387,11 @@ Things to know:
   `GRC_SECRET_KEY_FILE` (see [Security](security.md)). `backup`, `restore` and `status`
   say where it is. Keep your own copy of that file somewhere safe and separate: a restored
   database cannot use second-factor sign-in or webhook secrets without the key it was
-  written with. To restore on another machine, put the key file beside the restored data
-  folder under the same name, or set `GRC_SECRET_KEY` (or `GRC_SECRET_KEY_FILE`) before
-  starting.
+  written with. To restore on another machine or into a differently named folder, put the key file
+  beside the restored data folder under that folder's name (`<data folder>.secret.key`), or
+  set `GRC_SECRET_KEY` (or `GRC_SECRET_KEY_FILE`); `restore` refuses until the key the
+  backup was made with is there ([Restore](#restore)). The data folder, backups and exports
+  are created readable by their owner only (`0700` folders, `0600` files on macOS and Linux).
 - If you would rather the key traveled with the data, `-Encrypt -IncludeSecretKey`
   puts it **inside the encrypted file** (never in a plain backup). A restore then puts it in
   place: where there is no key file yet it is written there; where a different key is in
@@ -452,10 +468,22 @@ signed in to Windows.
 
 How it works:
 
-1. At the chosen time (checked every five minutes; a time missed while the server was down
-   is caught up when it starts) the server exports every table **inside one transaction**,
-   so the copy is consistent. Requests wait meanwhile: about two seconds for the invented
-   sample data. Attached files on the local disk are added.
+1. At the chosen time (default 03:30, an hour and a half after the stop-and-copy task's
+   default, so the two do not meet; checked every five minutes; a time missed while the
+   server was down is caught up when it starts) the server exports every table from **one
+   snapshot** of the database, so the copy is consistent even while people keep saving: no
+   row twice or missing, and every table as of the same moment. On a PostgreSQL server the
+   export is one `repeatable read, read only` transaction, which nobody waits for. The
+   embedded database runs one transaction at a time, so there the snapshot is taken in a
+   short transaction and the rows are then read a page at a time, with requests answered in
+   between. Requests wait only while the snapshot is taken: measured at scale 1 (about
+   66,000 rows, a 287 MB data folder) on a laptop, the longest wait was 0.7 to 1.0
+   seconds in a backup of 5.7 to 6.6 seconds (before this change the whole export was one
+   transaction, and requests waited up to 5.7 to 6.0 seconds of a 7.0 to 7.3 second backup;
+   on a busy machine 13.7 of 16 seconds). The wait grows with the number of rows: expect
+   roughly a second per 65,000 rows, more on a busy machine. Each table file is written as its rows
+   arrive, so the size of a table is not limited by memory. Attached files on the local disk
+   are copied afterward, outside the snapshot.
 2. The export is packed into one file, `sandpiper-backup-<yyyyMMdd-HHmmss>.tar`, or
    `.tar.sgrc` when **Encrypt each backup** is on (the server must be started with
    `GRC_BACKUP_KEY_FILE`, `GRC_BACKUP_PASSPHRASE_FILE` or `GRC_BACKUP_PASSPHRASE`). It is
@@ -474,9 +502,12 @@ last result from `data\backup-status.json`.
 Restore one with `.\grc.ps1 restore <file>` (download it from the object store first, for
 example with the provider's command-line tool). It is a logical backup, so the restore
 keeps a safety copy of the current data, empties the data folder, creates a new database
-with the current code's migrations and loads the export into it; the backup must not come
-from newer code. Everything else is as described under [Restore](#restore). On a
-PostgreSQL server, load it with `import-all <file>` into an empty database instead.
+with **the migrations the backup was made with** (its manifest lists them), loads the export
+into it, and only then applies the migrations that are newer than the backup, so a migration
+that changes existing data also runs on the restored rows (the command names them). The
+backup must not come from newer code. Everything else is as described under
+[Restore](#restore). On a PostgreSQL server, load it with `import-all <file>` into an empty
+database instead.
 
 **On macOS, Linux and in containers** the server's own daily backup works the same. For a
 stop-and-copy backup on a schedule, see [Scheduled backups](#scheduled-backups).
@@ -495,6 +526,8 @@ administrator rights.
 
 - It runs `grc.ps1 backup -Label scheduled` (with `-Prune n` if you gave one) every day at
   the time given (24-hour clock, default `02:00`). Without `-Prune` every backup is kept.
+  It stops the server for the copy, so keep it apart from the server's own daily backup
+  (default 03:30): a stop during a server backup cuts that backup short.
 - It runs **only while you are signed in to Windows** (a task that runs when nobody is
   signed in needs a stored password or administrator rights). If the machine was off or
   you were signed out at the time, it runs at the next opportunity.
@@ -573,7 +606,9 @@ tar -czf grc-files-$(date +%Y%m%d-%H%M%S).tar.gz -C /var/lib/sandpiper data
   and the files with `docker run --rm -v sandpiper-grc_grc-data:/v:ro -v "$PWD":/out busybox tar -czf /out/grc-files.tar.gz -C /v .`
   ([Docker](docker.md#postgresql-variant)).
 - `export-all` and `import-all` also work against a server, and remain the way to move
-  between the embedded database and a server, or between versions.
+  between the embedded database and a server, or between versions. `export-all` reads every
+  table from one snapshot (a `repeatable read, read only` transaction), so an export taken
+  while the application runs is consistent.
 - A managed database service's own scheduled snapshots and point-in-time recovery are a
   good addition, not a replacement for a copy you hold.
 
@@ -596,11 +631,14 @@ In order, `restore`:
 3. Checks the backup was not made by **newer code**: if it has had migrations this copy of
    the code does not contain, it stops (there are no downward migrations). `-Force`
    overrides this.
-4. **Keeps the current data** as a complete backup of its own, named
+4. Checks that the **secret key** the backup's stored secrets were encrypted with will be
+   available (see below). If not, it stops and says where to put the key; the current
+   data is untouched.
+5. **Keeps the current data** as a complete backup of its own, named
    `<timestamp>-pre-restore`, verified like any other.
-5. Replaces the contents of the data folder with the backup and checks the result against
+6. Replaces the contents of the data folder with the backup and checks the result against
    the manifest again.
-6. Starts the server again if it was running. Any migrations the backup has not had are
+7. Starts the server again if it was running. Any migrations the backup has not had are
    applied at that start, and the command names them.
 
 It reports what it verified, where the safety copy is, and which backup is now live.
@@ -610,7 +648,7 @@ It reports what it verified, where the safety copy is, and which backup is now l
   exactly that.
 - Everything recorded after the backup was taken is no longer in the application,
   including audit events. It is still in the safety copy.
-- If the restore fails after step 4 (for example the disk fills), the command says so,
+- If the restore fails after step 5 (for example the disk fills), the command says so,
   exits with code 2 and does **not** start the server on the half-written folder. Restore
   the safety copy it names.
 - Backups made by the earlier version of this script (a plain copy with no
@@ -622,11 +660,26 @@ It reports what it verified, where the safety copy is, and which backup is now l
   took itself (`sandpiper-backup-*.tar` or `.tar.sgrc`, see
   [Backups taken by the server](#backups-taken-by-the-server)). It unpacks it into a hidden
   working folder in `backups\`, checks it, and deletes the folder afterward.
-- **The secret key.** The secret key is not in backups. Restore puts a key carried in an
-  encrypted backup (`-IncludeSecretKey`) in place, or as a retired key; then `secret-key
-  show` says when retired keys can be deleted. Otherwise `restore` does not touch the key
-  and says where it is expected: restoring onto the same machine needs nothing more; on
-  another machine, put the key file in place first (see [Backup](#backup)).
+- **The secret key.** The secret key is not in backups, but every backup and export
+  records its **fingerprint** (never the key). Authenticator keys, webhook, sign-in provider
+  and mail secrets in the restored database can only be read with that key, and the key is
+  looked up beside the data folder **under the data folder's name** (`<data folder>.secret.key`),
+  so restoring into a folder with another name or on another machine finds no key, or a
+  different one. `restore` therefore checks before it changes anything: the backup's key
+  must be in `GRC_SECRET_KEY`, in the key file for the data folder (or `GRC_SECRET_KEY_FILE`),
+  among its retired keys, or carried in an encrypted backup (`-IncludeSecretKey`, which
+  restore puts in place, or adds as a retired key where a different key is in use; then
+  `secret-key show` says when retired keys can be deleted). If it is not, restore stops,
+  names the fingerprint and where to put the key file. A backup made before fingerprints
+  were recorded is refused only when there is no key at all. Restoring into the same data
+  folder needs nothing more. To restore without the key anyway, set
+  `$env:GRC_RESTORE_NEW_SECRET_KEY = '1'` (or pass `--new-secret-key` to `cli.ts restore`):
+  a new key is made at the next start, everyone who uses an authenticator app must set it
+  up again (an administrator resets their second factor), and webhook, sign-in provider
+  and mail secrets must be entered again.
+- What restore unpacks and creates (the working folder, the data folder, the key file it
+  puts in place) is readable by the account running it only (folders `0700`, files `0600`,
+  on macOS and Linux; on Windows the folder's permissions apply).
 - With a PostgreSQL server (`GRC_DATABASE_URL`), `restore` refuses: use `pg_restore`
   ([PostgreSQL server backups](#postgresql-server-backups)).
 
@@ -639,16 +692,23 @@ data:
 
 ```powershell
 $env:GRC_DATA_DIR = "$env:TEMP\grc-restore-test"; $env:GRC_PORT = '8099'
+# The restored data needs the live secret key, looked up under the spare folder's name.
+Copy-Item .\data.secret.key "$env:TEMP\grc-restore-test.secret.key"
 .\grc.ps1 restore latest        # "There was no existing data to keep."
 .\grc.ps1 start                 # http://127.0.0.1:8099
 .\grc.ps1 status
 ```
 
-Sign in at http://127.0.0.1:8099 and check that recent records are there. Then:
+(If the key comes from `GRC_SECRET_KEY` or `GRC_SECRET_KEY_FILE`, the test uses it as well
+and nothing needs copying. Without the key, `restore` stops and says so.)
+
+Sign in at http://127.0.0.1:8099, with your second factor if you have one, and check that
+recent records are there. Then:
 
 ```powershell
 .\grc.ps1 stop
 Remove-Item $env:GRC_DATA_DIR -Recurse -Force
+Remove-Item "$env:TEMP\grc-restore-test.secret.key*"
 Remove-Item Env:GRC_DATA_DIR, Env:GRC_PORT
 ```
 
@@ -658,7 +718,11 @@ copy (`.\grc.ps1 restore <path>`), since that is the one you will need.
 What is tested for you: the test suite backs up a real embedded database with attached
 files, changes it, restores the backup and checks that the data and files are as they were,
 then restores the safety copy (`server/src/ops/backup.test.ts`); it also restores an
-encrypted backup, with and without the secret key inside it (`server/src/ops/archive.test.ts`).
+encrypted backup, with and without the secret key inside it (`server/src/ops/archive.test.ts`),
+refuses a restore into a folder without the backup's key (`backup.test.ts`), restores a
+server backup from an older version through a migration that changes data
+(`staged-import.test.ts`), and takes an export while rows are being saved and checks that
+nothing is doubled or missing (`export-snapshot.test.ts`, also run against PostgreSQL).
 The load tool's `--ops` run times a restore at volume
 ([Performance and load testing](#performance-and-load-testing)). None of these replaces your
 own test on your own machine and backups.
@@ -692,7 +756,10 @@ An export is a folder:
 
 Values are written by the database itself, so nothing is rounded or reformatted: times
 keep their microseconds and their offset, numbers their full precision, JSON columns
-their structure.
+their structure. Every table is read from one snapshot of the database, and each table file is
+written as its rows arrive, so no table is ever held in memory whole (the audit log, which
+is never pruned, grows without limit). The manifest also records the fingerprint of the
+secret key in use (never the key itself).
 
 **Secrets.** A full export contains password hashes, second-factor secrets, recovery-code
 hashes, sessions and one-time links, because an installation cannot be moved without
@@ -700,18 +767,27 @@ them. Protect it like a backup, or use `-Encrypt`. `-NoSecrets` leaves the rows 
 `one_time_tokens`, `password_history`, `webauthn_credentials` and `webauthn_challenges`
 (passkeys) out and blanks `password_hash`, `totp_secret`,
 `totp_enabled` and `recovery_codes` on every user; the manifest marks those tables as
-redacted. An export does not contain the secret key (`secret.key` or `GRC_SECRET_KEY`):
-the second-factor secrets in a full export are encrypted, and the installation that
-imports them needs the same key, or those people must have their second factor reset. Use that for handing data to someone for analysis. It is not a way to move a
-working installation: after importing it nobody has a password, and there is no reset
-command.
+redacted. Use `-NoSecrets` for handing data to someone for analysis. It is not a way to
+move a working installation: after importing it nobody has a password, and there is no
+reset command. It still holds other tables as stored: the hashes of API tokens
+(`api_tokens`) and of AI-assistant sign-ins (`mcp_oauth_tokens`, `mcp_oauth_codes`,
+`mcp_oauth_grants`), single sign-on session records (`identity_sessions`,
+`identity_logout_tokens`), and the sign-in provider, webhook and mail secrets, encrypted
+with the secret key. Treat it as confidential too.
+
+An export does not contain the secret key (`secret.key` or `GRC_SECRET_KEY`): the
+second-factor secrets in a full export are encrypted, and the installation that imports
+them needs the same key, or those people must have their second factor reset.
 
 **The secret key is not in an export.** Authenticator keys are stored encrypted, and the
 export carries them as stored. **Before** running `import-all` somewhere else, give the
 target the same key: copy the key file (`data.secret.key`, beside the data folder) beside
 the target's data folder under the target's name (`<target data folder>.secret.key`), or
-set `GRC_SECRET_KEY` there. Without it the import itself succeeds, but anyone who has a
-second factor cannot complete sign-in, because their authenticator key cannot be read.
+set `GRC_SECRET_KEY` there. Without it anyone who has a second factor cannot complete
+sign-in, because their authenticator key cannot be read, so `import-all` refuses an export
+that records its key's fingerprint until that key is in place, and says where to put it
+(`$env:GRC_RESTORE_NEW_SECRET_KEY = '1'` imports it anyway). Exports made by earlier
+versions record no fingerprint and are not checked.
 
 ### Import
 
@@ -725,8 +801,13 @@ second factor cannot complete sign-in, because their authenticator key cannot be
 
 1. Verifies every file in the export against the manifest; a changed or missing file
    stops it.
-2. Creates the database if there is none and applies all migrations (the import loads
-   data into the current schema; it does not recreate the schema from the export).
+2. Creates the database if there is none, with **the migrations the export was made with**
+   (listed in its manifest): the rows are loaded into the schema they came from. After
+   step 5 it applies the migrations that are newer than the export, so one that changes
+   existing data runs on the imported rows too, and names them. Into a database that
+   already has newer migrations (one that was started once) it refuses an export from an
+   older version: start again from an empty data folder, or a new empty database on a
+   PostgreSQL server. An export from the same version loads as before.
 3. Refuses unless the target is **empty**, meaning it has no users. It also refuses if the
    export has had migrations the target's code does not have (import into the same
    version or a newer one, with the same modules), or contains a table the target lacks.
@@ -736,8 +817,8 @@ second factor cannot complete sign-in, because their authenticator key cannot be
    nothing is loaded.
 5. Copies the attached files into `data\files`.
 
-Columns added by newer migrations take their default values. `schema_migrations` is not
-imported: the target keeps its own record of what it applied.
+`schema_migrations` is not imported: the target keeps its own record of what it applied.
+Table files are read line by line and loaded in batches, so a table of any size loads.
 
 **The audit log.** The audit table is append-only: a database trigger refuses any update
 or delete of a row. The import respects that. Every exported audit event is inserted
@@ -1163,6 +1244,7 @@ starting half-configured. The messages, and what to do:
 | `GRC_DATABASE_SSL must be off, require or verify`, `... must be a whole number ...` | Correct the setting it names |
 | `Migration <module>/<file> failed: ...` | A migration failed; nothing of that migration was applied. Restore the previous version ([Upgrading](#upgrading)) or fix the cause the message gives |
 | `... may not change the schema: run the migrations as the owner role` | Run `migrate` as the owner account ([Installation](installation.md#a-least-privilege-database-role)) |
+| `A server (process ...) is using this data folder`, `The command "..." (process ...) is using this data folder` | Another process has the data folder: stop it first ("Stale pid file or lock" below) |
 | Nothing that explains it | See the causes under "Server did not become healthy" below, a second process on the data folder in particular |
 
 Change one thing at a time and start again. If you cannot find the cause, start the last
@@ -1183,9 +1265,18 @@ Run `.\grc.ps1 logs`. The usual causes:
 - **A slow first start.** Creating the database can take longer than the wait on a slow
   machine. Run `.\grc.ps1 health` a little later before assuming a failure.
 
-### Stale pid file
+### Stale pid file or lock
 
-After a crash or a forced end, `data\grc.pid` can be left behind. Every command checks
+After a crash or a forced end, `data\grc.lock` can be left behind. A lock whose process has
+ended is taken over at the next start by itself. One written on another machine or in
+another container (a shared volume) is taken over once it has not been touched for a minute:
+the process holding it touches it every 10 seconds, so a container restarted after a crash
+may refuse to start for up to a minute and then starts. A message such as `The command
+"seed" (process 4242, started ...) is using this data folder` means that process is really
+running: stop it, or let it finish. Delete `data\grc.lock` by hand only when you are sure
+nothing uses the folder.
+
+`data\grc.pid` can be left behind too. Every command checks
 whether that process still exists and ignores or removes a stale file by itself, so
 `.\grc.ps1 start` normally just works.
 
@@ -1195,8 +1286,9 @@ been reused by another Node.js process. Confirm with `.\grc.ps1 status`, then de
 
 ### A backup, restore or export says the server is running
 
-The command-line tasks refuse to work while the process named in `data\grc.pid` exists.
-Use `grc.ps1`, which stops the server for you, or stop it first.
+The command-line tasks refuse to work while the process named in `data\grc.pid` exists, or
+while another process holds `data\grc.lock`. Use `grc.ps1`, which stops the server for you,
+or stop it first.
 
 ### "The backup failed verification and was not restored"
 

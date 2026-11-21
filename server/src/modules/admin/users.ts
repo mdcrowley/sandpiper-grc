@@ -1,5 +1,7 @@
 import { randomToken, sha256 } from '../../core/auth.ts';
 import { revokeAllPasskeys } from '../../core/webauthn/index.ts';
+import { revokedSummary, revokeProgramAccess } from '../../core/tokens.ts';
+import { pageOf } from '../../core/api/conventions.ts';
 import type { Queryable } from '../../core/db.ts';
 import { UUID_RE } from '../../core/errors.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
@@ -109,8 +111,7 @@ export function registerUsers(ctx: ModuleContext) {
       where.push(`exists (select 1 from user_roles ur join roles r on r.id = ur.role_id where ur.user_id = u.id and r.key = ${add(query.role)})`);
     }
     const w = where.map((c) => ` and ${c}`).join('');
-    const pageSize = Math.min(500, Math.max(1, Number(query.pageSize) || 50));
-    const page = Math.max(1, Number(query.page) || 1);
+    const { page, pageSize } = pageOf(query); // whole numbers in range (SP-09)
     const total = (await db.one<{ c: number }>(`select count(*)::int c from users u where u.deleted_at is null${w}`, params))!.c;
     const rows = await db.query(
       `${USER_SELECT}${w} order by lower(u.display_name), u.id limit ${pageSize} offset ${(page - 1) * pageSize}`, params,
@@ -282,9 +283,11 @@ export function registerUsers(ctx: ModuleContext) {
          recovery_codes = '[]', updated_at = now() where id = $1`, [u.id]);
     // Passkeys and security keys are second factors too: a reset removes them as well.
     const keys = await revokeAllPasskeys(db, u.id, req.user!.id);
+    // API tokens and AI assistant connections go too (wave 9, SA-8): a reset follows a lost or misused factor.
+    const revoked = await revokeProgramAccess(db, u.id, req.user!.id, 'second factor reset by an administrator');
     await ctx.audit(req, {
       action: 'mfa.reset', recordType: 'user', recordId: u.id,
-      summary: `Second factor of ${u.username} reset by an administrator${keys ? ` (${keys} passkey(s) removed)` : ''}`,
+      summary: `Second factor of ${u.username} reset by an administrator${keys ? ` (${keys} passkey(s) removed)` : ''}${revokedSummary(revoked)}`,
       before: { totp_enabled: u.totp_enabled }, after: { totp_enabled: false },
     });
     return getUser(u.id);

@@ -8,6 +8,7 @@
 // changes here.
 import type { FastifyRequest } from 'fastify';
 import { UUID_RE } from '../../core/errors.ts';
+import { pageOf } from '../../core/api/conventions.ts';
 import { featureState, visibleValues } from '../../core/features.ts';
 import { ensureJobs } from '../../core/jobs/index.ts';
 import { ensureMail } from '../../core/mail/index.ts';
@@ -61,8 +62,7 @@ const mod: ModuleDef = {
 
     app.get('/api/notifications', async (req) => {
       const q = req.query as Record<string, string>;
-      const pageSize = Math.min(100, Math.max(1, Number(q.pageSize) || 20));
-      const page = Math.max(1, Number(q.page) || 1);
+      const { page, pageSize } = pageOf(q, { size: 20, maxSize: 100 }); // whole numbers in range (SP-09)
       const where = `user_id = $1 and in_app and dismissed_at is null and ${shown}${q.unread === 'true' ? ' and read_at is null' : ''}`;
       const total = (await db.one<{ c: number }>(`select count(*)::int c from notifications where ${where}`, [me(req), offTypes(), offPaths()]))!.c;
       const found = await db.query<Row>(

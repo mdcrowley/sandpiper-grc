@@ -136,7 +136,7 @@ export function ClauseChip({ status }: { status: ClauseStatus | null | undefined
   return <StatusChip color={s.color} label={s.label} />;
 }
 
-/** The mark drawn in a matrix cell: tick, half-filled circle, cross, or a dot for not assessed. */
+/** The mark drawn in a matrix cell: check mark, half-filled circle, cross, or a dot for not assessed. */
 export function ClauseGlyph({ status, size = 16 }: { status: ClauseKey; size?: number }) {
   if (status === 'present') return <Icon name="check" size={size} />;
   if (status === 'absent') return <Icon name="x" size={size} />;

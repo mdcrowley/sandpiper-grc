@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   api, ApiError, Button, Card, errorMessage, ErrorState, Loading, lookupLabel, PageHeader, Stepper, useCustomFieldInputs, useDebounced, useFetch, useResource,
-  useToast, type Row,
+  useToast, useUnsavedChanges, type Row,
 } from '../../core';
 import { RiskQuestions, RiskResult } from './bits';
 import {
@@ -26,12 +26,15 @@ export function NewChange() {
   const templates = useFetch<Template[]>('/api/changes/templates');
   // A window can be passed in the address (the calendar's New change does this): ?start=<ISO>&end=<ISO>.
   const [search] = useSearchParams();
-  const [draft, setDraft] = useState<Draft>(() => {
+  const [startDraft] = useState<Draft>(() => {
     const valid = (v: string | null) => (v && !Number.isNaN(Date.parse(v)) ? new Date(v).toISOString() : '');
     const start = valid(search.get('start'));
     const end = valid(search.get('end'));
     return { ...EMPTY_DRAFT, planned_start: start, planned_end: end && start && end > start ? end : '' };
   });
+  const [draft, setDraft] = useState<Draft>(startDraft);
+  // Leaving with a half-filled change asks first (BW-01).
+  const unsaved = useUnsavedChanges(JSON.stringify(draft) !== JSON.stringify(startDraft));
   const [step, setStep] = useState('type');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState('');
@@ -139,11 +142,13 @@ export function NewChange() {
       }
       if (submit && draft.type !== 'standard') await api.post(`/api/changes/${created.id}/transition`, { to: 'submitted' });
       toast.success(draft.type === 'standard' ? `${created.ref} created. It is pre-approved.` : submit ? `${created.ref} submitted for approval.` : `${created.ref} saved as a draft.`);
+      unsaved.release();
       navigate(`/changes/${created.id}`);
     } catch (err) {
       if (created) {
         // The change exists; only a later step failed. Show it rather than risk a duplicate.
         toast.error(`${created.ref} was created, but: ${errorMessage(err)}`);
+        unsaved.release();
         navigate(`/changes/${created.id}`);
         return;
       }

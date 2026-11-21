@@ -154,7 +154,8 @@ export function PortfolioPage() {
   const pick = (field: ViewFilter, label: string, options: { value: string; label: string }[]) => (
     <MultiSelect label={label} size="sm" options={options} value={filters.values[field] ?? []} onChange={(v) => setFilter(field, v)} />
   );
-  const mayRequest = can('projects.create');
+  // Who may send a request is a setting; the server grants "projects.request" accordingly (BW-06).
+  const mayRequest = can('projects.request');
 
   return (
     <div className="stack">
@@ -164,7 +165,7 @@ export function PortfolioPage() {
         actions={(
           <>
             {can('projects.administer') && <Button icon="settings" onClick={() => navigate('/projects/settings')}>Settings</Button>}
-            <Button variant="primary" icon="plus" onClick={() => navigate('/projects/new')}>New project request</Button>
+            {mayRequest && <Button variant="primary" icon="plus" onClick={() => navigate('/projects/new')}>New project request</Button>}
           </>
         )}
       />

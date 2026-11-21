@@ -3,11 +3,13 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Alert, Button, Text } from '@mantine/core';
 import { IconAlertTriangle } from '@tabler/icons-react';
 import { api, ApiError, errorMessage, type Row } from './api';
+import { useAuth } from './auth';
 import { FieldControl, isMissing, toApiValue, toFormValue } from './FieldControl';
 import { fieldMeta, knownFields } from './FieldValue';
 import { allowedStatuses, requiredFor, waitsForApproval } from './lifecycle';
 import { customFieldNames, useLookup, useResource } from './meta';
 import { ErrorState } from './ui';
+import { keepDraft, takeDraft, useUnsavedChanges } from './unsaved';
 import './records.css';
 
 export interface FormSection {
@@ -51,6 +53,11 @@ type Values = Record<string, unknown>;
 
 const WIDE_TYPES = ['longtext', 'json'];
 
+const pick = (from: Values, keys: string[]): Values => Object.fromEntries(keys.filter((k) => k in from).map((k) => [k, from[k]]));
+
+/** Where a form's draft is kept when the session ends mid-edit (core/unsaved.tsx). */
+export const formDraftKey = (type: string, id: string | undefined, fields: string[]) => `form:${type}:${id ?? 'new'}:${fields.join(',')}`;
+
 export function ResourceForm({
   type, fields: given, initial = {}, id, onSaved, onCancel, submitLabel, sections: givenSections, hints, onDirtyChange, customFields = true,
 }: ResourceFormProps) {
@@ -79,7 +86,14 @@ export function ResourceForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [resource],
   );
-  const [values, setValues] = useState<Values>(start);
+  const { user } = useAuth();
+  const draftKey = formDraftKey(type, id, given);
+  // A draft kept when the session ended mid-edit (BW-02) comes back once, over the record's values.
+  const [restored] = useState<Values | undefined>(() => {
+    const kept = takeDraft<Values>(draftKey, user?.id);
+    return kept && typeof kept === 'object' ? kept : undefined;
+  });
+  const [values, setValues] = useState<Values>(() => (restored ? { ...start, ...pick(restored, Object.keys(start)) } : start));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -110,6 +124,10 @@ export function ResourceForm({
     dirtyCallback.current?.(dirty);
   }, [dirty]);
   useEffect(() => () => dirtyCallback.current?.(false), []);
+  // Leaving the page, closing the tab or the session ending asks first or keeps the draft (BW-01, BW-02).
+  const valuesRef = useRef(values);
+  valuesRef.current = values;
+  const unsaved = useUnsavedChanges(dirty, { keep: () => keepDraft(draftKey, user?.id, valuesRef.current) });
 
   if (!resource) return <ErrorState title={`Unknown record type "${type}"`} />;
 
@@ -172,6 +190,7 @@ export function ResourceForm({
       const row = id
         ? await api.patch<Row>(`${resource.path}/${id}`, body)
         : await api.post<Row>(resource.path, body);
+      unsaved.release();
       onSaved(row);
     } catch (err) {
       const fieldErrors = err instanceof ApiError ? err.fields : {};
@@ -230,6 +249,11 @@ export function ResourceForm({
 
   return (
     <form ref={formRef} className="rc-form" onSubmit={submit} noValidate aria-busy={saving}>
+      {restored && dirty && (
+        <Alert className="rc-form-restored" color="blue" variant="light" role="status">
+          Your session ended before these changes were saved. They are back: check them, then save.
+        </Alert>
+      )}
       {formError && (
         <Alert className="rc-form-error" color="red" variant="light" role="alert" tabIndex={-1} icon={<IconAlertTriangle size={18} />}>
           {formError}

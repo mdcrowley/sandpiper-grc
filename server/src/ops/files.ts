@@ -10,6 +10,13 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 export const repoRoot = resolve(here, '../../..');
 
+/**
+ * Modes for what backups, exports and restores create (SP-07): folders only their owner can open,
+ * files only their owner can read. Ignored on Windows, where the folder's access list applies.
+ */
+export const PRIVATE_DIR = 0o700;
+export const PRIVATE_FILE = 0o600;
+
 export interface FileEntry {
   /** Path relative to the folder that was listed, with forward slashes. */
   path: string;
@@ -59,7 +66,7 @@ export function listFolders(dir: string, skip: (topLevelName: string) => boolean
 }
 
 export async function makeFolders(dir: string, folders: string[]): Promise<void> {
-  for (const folder of folders) await mkdir(join(dir, folder), { recursive: true });
+  for (const folder of folders) await mkdir(join(dir, folder), { recursive: true, mode: PRIVATE_DIR });
 }
 
 /** Runs `fn` over the items a few at a time; a folder of many small files is mostly waiting on the disk. */
@@ -97,7 +104,7 @@ export async function describeFiles(dir: string, paths: string[]): Promise<FileE
 
 /** Copies the listed relative paths from one folder to another, creating folders as needed. */
 export async function copyFiles(from: string, to: string, paths: string[]): Promise<void> {
-  for (const folder of new Set(paths.map((path) => dirname(join(to, path))))) await mkdir(folder, { recursive: true });
+  for (const folder of new Set(paths.map((path) => dirname(join(to, path))))) await mkdir(folder, { recursive: true, mode: PRIVATE_DIR });
   await eachLimited(paths, (path) => copyFile(join(from, path), join(to, path)));
 }
 

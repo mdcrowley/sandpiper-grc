@@ -139,6 +139,10 @@ const mod: ModuleDef = {
       if (merged.start_date && merged.end_date && String(merged.end_date) < String(merged.start_date)) {
         fields.end_date = 'End date cannot be before the start date.';
       }
+      // A value below zero would distort the contract value reports and dashboards (BW-10).
+      if (merged.total_value !== null && merged.total_value !== undefined && Number(merged.total_value) < 0) {
+        fields.total_value = 'Enter zero or more.';
+      }
       if (merged.value_by_year !== null && merged.value_by_year !== undefined) {
         const v = merged.value_by_year;
         const ok = typeof v === 'object' && !Array.isArray(v)

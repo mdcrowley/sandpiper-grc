@@ -107,7 +107,7 @@ The application comes with these reports, shared with everyone (each shows only 
 
 Open **Dashboards** to see the dashboards you can use, with a small drawing of each layout. **Your home** marks the one you chose as home.
 
-Seven standard dashboards come with the application: **IT leadership overview**, **Service desk**, **Cybersecurity program**, **Assets and systems**, **Vendors and contracts**, **Project portfolio** and **Board summary** (one page in plain language, where each line is a sentence such as "21 requests and faults are open with the IT team" with an arrow comparing the last 30 days with the 30 days before). A widget whose part of the application is not switched on says so in its place.
+Seven standard dashboards come with the application: **IT leadership overview**, **Service desk**, **Cybersecurity program**, **Assets and systems**, **Vendors and contracts**, **Project portfolio** and **Board summary** (one page in plain language, where each line is a sentence such as "21 requests and faults are open with the IT team" with an arrow comparing the last 30 days with the 30 days before). A part of the application that is switched off under **Features** shows nowhere: its widgets are left out of every dashboard, a standard dashboard about switched-off parts only (for example **Service desk** while the service desk is off) is not listed, and a standard dashboard that is partly about one shows the number of widgets instead of its description. While you edit a dashboard its widgets are all there, so saving keeps them for when the part is switched on again.
 
 ### Looking at a dashboard
 
@@ -164,7 +164,7 @@ An administrator can add the organization's own fields to saved reports, dashboa
 
 ## Sharing
 
-Reports, dashboards and report packs each have **Who can see it**: **Only me**, **People in chosen roles** or **Everyone who can view** reports (or dashboards). Sharing lets people open and use the item; only its owner and administrators can change or delete it. Standard items belong to nobody and can be changed by anyone allowed to edit reports or dashboards.
+Reports, dashboards and report packs each have **Who can see it**: **Only me**, **People in chosen roles** or **Everyone who can view** reports (or dashboards). Sharing lets people open and use the item; only its owner and administrators can change or delete it. An item that is not shared with you is hidden everywhere, not only in the lists: search, history, comments, links, tags, fact sheets and AI assistants leave it out too. Standard items belong to nobody and can be changed by anyone allowed to edit reports or dashboards.
 
 ## Report packs
 
@@ -194,7 +194,7 @@ Select **Schedule** on a report (or **Schedule…** on a dashboard) to send it r
 5. Under **Send to**, add people with **Add a person…** and whole roles with **Everyone in a role…**.
 6. Select **Schedule**.
 
-At each delivery, every recipient gets a notification in the application with a link to a copy frozen at that moment, worked out from **their own** permissions, and listed under **Delivered to me**. A recipient is skipped (and the reason logged) when their role cannot view reports or dashboards or the records in them, or the report or dashboard is not shared with them. Due schedules are run by the background job queue every five minutes (an administrator sees it as **reports.deliver** under Administration > Background jobs).
+At each delivery, every recipient gets a notification in the application with a link to a copy frozen at that moment, worked out from **their own** permissions, and listed under **Delivered to me**. A recipient is skipped (and the reason logged) when their role cannot view reports or dashboards or the records in them, or the report or dashboard is not shared with them. Due schedules are run by the background job queue every five minutes (an administrator sees it as **reports.deliver** under Administration > Background jobs). A schedule is marked as sent before its copies go out, so it is never delivered twice, even when an administrator runs due schedules by hand while the job runs. If the application stops in the middle of a delivery, the people not yet reached get the next one.
 
 **Schedules** lists every schedule you own, with how each uses email. Select one to see its **Deliveries** (who received it, when, and any reason it was skipped), and to **Edit**, **Send now** or **Delete** it.
 

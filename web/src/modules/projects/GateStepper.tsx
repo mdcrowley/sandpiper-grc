@@ -27,7 +27,7 @@ export function describeGate(gate: Gate | undefined, state: GateState = gateStat
 const GATE_ICON: Record<GateState, IconName> = { todo: 'minus', approved: 'check', blocked: 'lock', ready: 'check-square', rejected: 'x' };
 
 /**
- * The stages of a project with the gates between them. Finished stages are ticked, the current
+ * The stages of a project with the gates between them. Finished stages are checked, the current
  * stage and its gate are highlighted, and each gate says whether it is approved, blocked or ready.
  * Selecting a gate that has been opened shows its record.
  */

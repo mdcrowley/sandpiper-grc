@@ -156,9 +156,10 @@ status `done`; issues in progress, open or blocked are counted in the total only
 | [E19](epics/E19-fleet-and-services.md) | Fleet and services | done | 14 / 14 |
 | [E20](epics/E20-safety-management.md) | Safety management | done | 15 / 15 |
 | [E21](epics/E21-mcp-server.md) | MCP server (AI assistant access) | done | 23 / 23 |
-| | **Total** | | **509 / 518** |
+| [E22](epics/E22-review-fixes.md) | Review fixes (wave 9) | in progress | 40 / 45 |
+| | **Total** | | **549 / 563** |
 
-Of the 9 issues not done, 6 are in progress and 3 are open or blocked.
+Of the 14 issues not done, 6 are in progress and 8 are open or blocked.
 
 ## Next up
 
@@ -178,8 +179,8 @@ with real data, then those that close the main known gaps.
 
 ## Known gaps coverage
 
-Every line of `docs/known-gaps.md` maps to at least one issue that is not done. Keep this
-table in step with that file.
+Every line of `docs/known-gaps.md` maps to an issue: open, or done with the limit recorded there.
+Keep this table in step with that file.
 
 ### Not built
 
@@ -197,6 +198,17 @@ table in step with that file.
 | Organization branding: imported WebP logos need a printable copy; one email logo for both themes | E14-36 (done; the limits are recorded there) |
 | Retention: decisions do not run after-save hooks; broad personal fields | E14-33 (done; the limits are recorded there) |
 | Backups cover the embedded database only; scheduled backups not proven on a real installation | E16-08 |
+| The embedded database pauses briefly while a server backup takes its snapshot | E22-28 (done; the limit is recorded there) |
+| Directory sign-in tried against a stand-in directory, not a real Active Directory | E02-26 (done; recorded there) |
+| Single sign-on per-address limit checked before and recorded after an attempt | E22-43 |
+| An existing installation keeps its second-factor setting | E02-05, E02-17 (done) |
+| Default role changes reach an existing database only when applied | E18-21 (done) |
+| PDF fonts and bidirectional embedding characters; exports stop at 50,000 rows; PDF column limit; CSV code pages | E12-16, E22-22, E22-24 (done; the limits are recorded there) |
+| The portal does not ask ticket custom fields | E15-14 (done) |
+| JSON API responses are not compressed by the application | E22-32 (done; the limit is recorded there) |
+| Webhook addresses stored in clear | E22-45 |
+| Hand-written dialogs without the unsaved-changes guard | E22-14 |
+| Contract import dates | E06-15 (done) |
 | The If-Match lock and the Overview cache are per process | E13-12, E16-38 (done; the limits are recorded there) |
 | Least-privilege account queues custom fields for the owner; user services not proven across a restart or for the system examples | E16-37 (done; recorded there), E16-42 |
 | Load test with the database on its own machine and people in different roles | E16-41 |

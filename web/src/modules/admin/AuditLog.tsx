@@ -2,7 +2,7 @@ import { Fragment, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   api, Button, Card, DateField, EmptyState, ErrorState, errorMessage, formatDate, formatDateTime, humanize, Icon, IconButton, Loading,
-  PageHeader, qs, relativeTime, Select, TextField, useDebounced, useFetch, useMeta, UserPicker, useToast,
+  PageHeader, qs, relativeTime, Select, TextField, todayInZone, useDebounced, useFetch, useMeta, UserPicker, useToast,
 } from '../../core';
 import type { ListResult } from '../../core';
 import { AuditDiff, FilterPills, Pager } from './common';
@@ -68,7 +68,7 @@ export function AuditLogPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `audit-log-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.download = `audit-log-${todayInZone()}.csv`;
       a.click();
       URL.revokeObjectURL(url);
       toast.success('Export downloaded. The export itself has been recorded.');

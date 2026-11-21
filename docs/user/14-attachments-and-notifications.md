@@ -193,11 +193,11 @@ Removed files of restricted records are listed only for administrators who may s
 
 *Administrators.* Open **Backups** in the **Administration** group. The application takes a copy of everything while it keeps running, writes it to a second location, reads it back from there and checks every file in it.
 
-The tiles show the **Last good backup** (red when there is none or it is more than two days old), the **Schedule**, where backups **Go to**, and whether **Encryption** is on and with which key.
+The tiles show the **Last good backup** (red when there is none or it is more than two days old), the **Schedule**, where backups go (**Goes to**), and whether **Encryption** is on and with which key.
 
 ### Schedule and destination
 
-1. Switch on **Take a backup every day**, and choose the **Time of day** (in the organization's time zone; choose a quiet time, as the application pauses for a few seconds while the database is read).
+1. Switch on **Take a backup every day**, and choose the **Time of day** (in the organization's time zone; 03:30 to begin with). Choose a quiet time: with the built-in database the application pauses briefly while the backup takes its snapshot (about a second for 65,000 records), then keeps answering while the rest is copied. Keep it away from the time of any stop-and-copy backup the person running the server has scheduled (02:00 by default), which stops the application.
 2. Set **Backups to keep**: the newest ones at the destination are kept and older ones are deleted after each good backup (14 to begin with).
 3. Under **Write backups to**, choose **A folder (another disk, or a network share)** and enter the full **Folder** path, for example `D:\Backups\Sandpiper` or `\\fileserver\backups\sandpiper`, or choose the object store set up on the **File settings** page and a **Prefix in the object store**. A folder inside the data folder is refused.
 4. Switch on **Encrypt each backup** if the server has a backup key (the page says which; the person running the server sets it, see the operations guide). Keep a copy of that key somewhere safe and separate: without it the backups cannot be read.
@@ -252,6 +252,7 @@ To delete a notification, select the bin button at the end of its row. **Delete 
 | **Acknowledgments** | You have been asked to read and acknowledge something |
 | **Notification clocks** | A deadline to notify someone outside the organization is close or has passed |
 | **Records I watch** | A record you watch has changed status or has a new comment |
+| **Safety events** (when safety management is on) | A serious safety event has been reported, or a corrective action is overdue |
 | **Other** | Anything that does not fit the kinds above |
 
 Other parts of the application may add kinds of their own, and an administrator can add more under **Lists** (the list `notification_kind`). They appear in everyone's preferences.
@@ -373,6 +374,8 @@ Switching email off stops everything at once: messages still waiting are not sen
 
 If the mail service is busy or limits how fast messages are sent, the message is tried again later (see **Delivery log**). When the service says how long to wait (Microsoft Graph and the Gmail API send `Retry-After`; some mail servers write "try again in 5 minutes"), the next try waits exactly that long, up to an hour, instead of the usual wait.
 
+If the mail server cannot be reached at all (it is down, or the address or port is wrong), each try gives up after 5 seconds. After three such failures in a row, sending pauses for five minutes: waiting messages show "Waiting: the mail server could not be reached" in the **Delivery log** and keep all their tries. After the pause one message tries again; when it gets through, sending carries on. **Send a test message** always tries at once. Email is sent apart from the application's other background work, so alerts, service-level timers and scheduled tasks are never held up by a mail server that does not answer.
+
 Messages up to the 10 MB limit for files go through every way of sending. Through Microsoft Graph, a message larger than one request (about 3 MB with its files) is sent another way: as a draft, with each large file uploaded in parts, then sent. It keeps its message ID and its threading, and the marks that stop auto-replies and stop the application taking its own messages back in.
 
 When email is on:
@@ -395,7 +398,7 @@ A template you have changed shows **Changed here**; **Put back the default** res
 
 ### Delivery log
 
-The **Delivery log** tab lists every message the application tried to send, newest first: when, to whom, the subject, what kind of message it was, and its status.
+The **Delivery log** tab lists every message the application tried to send, newest first: when, to whom, the subject, what kind of message it was, and its status. Messages are kept for 180 days to begin with (**Outgoing message log** under **Administration > Settings > Retention**); those still waiting or to be tried again are kept until they are done.
 
 | Status | Meaning |
 |---|---|

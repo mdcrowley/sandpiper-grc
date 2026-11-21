@@ -516,7 +516,7 @@ self-service portal now do (below).
 **Acceptance criteria**
 
 - [x] Each is either enforced by the screens and routes it names, or removed: `dashboards.view` decides whether the Overview shows its Dashboard part (`DASHBOARD_PERMISSION` in `web/src/modules/home/registry.ts`) and guards the reporting module's dashboards (a record type of module `dashboards`); `reports` is checked by the reporting module (`server/src/modules/reports`); `portal.view` and `portal.create` are checked by the self-service portal (`server/src/modules/portal/access.ts`, `requests.ts`, `files.ts`)
-- [x] The role editor says which permission areas nothing checks yet (`web/src/modules/admin/RoleDetail.tsx`, from the list in `server/src/core/permission-use.ts` since E18-44: a combination nothing checks is greyed out, and an area with nothing checked at all carries a "not yet used" hint)
+- [x] The role editor says which permission areas nothing checks yet (`web/src/modules/admin/RoleDetail.tsx`, from the list in `server/src/core/permission-use.ts` since E18-44: a combination nothing checks is grayed out, and an area with nothing checked at all carries a "not yet used" hint)
 
 **Audit (19 Nov 2026):** every permission a default role grants by name is checked by a route.
 The record-type routes check `<module>.view`, `create`, `edit`, `delete` and `export` for every
@@ -933,11 +933,11 @@ administrator can grant a permission that does nothing. Found by the permissions
 **Acceptance criteria**
 
 - [x] The "not yet used" hint no longer names `portal`, which is now checked
-- [x] The server lists the permissions its routes check, and the role editor greys out the rest
+- [x] The server lists the permissions its routes check, and the role editor grays out the rest
   (`GET /api/admin/permissions/checked`: every `requirePerm`, every route description's
   `permission`, the record-type actions and `HOOK_CHECKS`; a test scans the source for
   permissions named in `can(`, `requirePerm(` and `permission:` and fails on one not listed. A
-  greyed box cannot be newly checked; one already granted can be removed)
+  grayed box cannot be newly checked; one already granted can be removed)
 
 **Implemented in:** `server/src/core/permission-use.ts` (noted from `requirePerm` in
 `core/services.ts` and `describe` in `core/openapi.ts`, registered in `app.ts`),

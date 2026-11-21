@@ -54,6 +54,11 @@ export interface MailResult {
    * "try again in N seconds" SMTP reply), when it said (E14-30). The queue waits that long.
    */
   retryAfterSeconds?: number;
+  /**
+   * True when the server could not be reached at all (no connection, no answer). Several in a row
+   * pause sending for a few minutes (breaker.ts, OP-09).
+   */
+  unreachable?: boolean;
 }
 
 export interface MailProvider {
@@ -101,7 +106,12 @@ export function nodemailerAttachment(a: MailAttachment) {
   };
 }
 
-const TIMEOUT_MS = 15_000;
+/**
+ * SMTP time-outs, in milliseconds (OP-09): a server that does not accept the connection is given
+ * up on after 5 seconds (it was 15), one that connects but does not greet after 10, and a
+ * connection that goes quiet mid-message after 30.
+ */
+export const SMTP_TIMEOUTS = { connection: 5_000, greeting: 10_000, socket: 30_000 };
 
 /**
  * The wait a busy SMTP server names in its 4xx reply, in seconds, or null. SMTP has no standard
@@ -128,7 +138,7 @@ export function describeSmtpError(err: unknown): MailResult {
     return { ok: false, retryable: code < 500, error: `The mail server answered ${code}: ${text}`, ...(wait !== null ? { retryAfterSeconds: wait } : {}) };
   }
   if (e?.code === 'ETLS') return { ok: false, retryable: false, error: `The secure connection failed (check the TLS setting): ${text}` };
-  return { ok: false, retryable: true, error: `Could not reach the mail server: ${text}` };
+  return { ok: false, retryable: true, unreachable: true, error: `Could not reach the mail server: ${text}` };
 }
 
 registerMailProvider('smtp', (config, secret) => {
@@ -139,9 +149,9 @@ registerMailProvider('smtp', (config, secret) => {
     requireTLS: config.tls_mode === 'starttls',
     ignoreTLS: config.tls_mode === 'none',
     auth: config.username ? { user: config.username, pass: secret ?? '' } : undefined,
-    connectionTimeout: TIMEOUT_MS,
-    greetingTimeout: TIMEOUT_MS,
-    socketTimeout: TIMEOUT_MS * 2,
+    connectionTimeout: SMTP_TIMEOUTS.connection,
+    greetingTimeout: SMTP_TIMEOUTS.greeting,
+    socketTimeout: SMTP_TIMEOUTS.socket,
     name: 'localhost',
   });
   return {

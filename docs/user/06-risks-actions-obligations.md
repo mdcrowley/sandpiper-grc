@@ -181,11 +181,11 @@ The approvers are told, and the approval panel at the top of the risk shows each
 The ready-made **Risk acceptance** workflow has two steps:
 
 1. **Risk approver**: anyone who holds **Approve** on **Risks**.
-2. **Executive approver**: only when the executive-approval rule applies to the risk (the risk's read-only field **Acceptance needs an executive** is set); out of the box also anyone who holds **Approve** on **Risks**. An administrator should name your executives in this step under **Administration > Approval workflows**.
+2. **Executive approver**: only when the executive-approval rule applies to the risk (the risk's read-only field **Acceptance needs an executive** is set); out of the box also anyone who holds **Approve** on **Risks**, except the person who decided the first step: the two steps always need two different people. An administrator should name your executives in this step under **Administration > Approval workflows**.
 
 Because risks are restricted records, only approvers (and stand-ins) who may see restricted records are ever asked; an approver must also hold **Approve** on **Risks**. An administrator can change the steps, the approvers, due times and escalation without any change to the application.
 
-- **Approved**: the acceptance is recorded with the last approver as **Approved by** (with "on behalf of" when a stand-in decided), today as **Approved on**, the expiry and rationale you gave, and the workflow's name as the **Reference**. When the executive step applied the acceptance is labeled **Executive approval**. The risk's status becomes **Accepted** and its treatment becomes **Accept**.
+- **Approved**: the acceptance is recorded with the last approver as **Approved by** (with "on behalf of" when a stand-in decided), today as **Approved on**, the expiry and rationale you gave, and the workflow's name as the **Reference**. When the executive step applied the acceptance is labeled **Executive approval**. The risk's status becomes **Accepted** and its treatment becomes **Accept**, made by the application: a lifecycle rule about who may set **Accepted** by hand does not stop it.
 - **Rejected**: nothing changes on the risk. The reason is shown in the approval panel and written to the risk's history, and the card says the last request was rejected. You can ask again.
 - If the expiry date asked for has passed by the time the request is approved, no acceptance is recorded; the approval panel says so. Ask again with a later date.
 
@@ -231,7 +231,7 @@ Older acceptances are listed under **N earlier acceptances**; select it to show 
 
 The application checks every few hours:
 
-- When an acceptance comes within 30 days of expiry, the risk's owner is sent a notification, once.
+- When an acceptance comes within 30 days of expiry, the risk's owner is sent a notification, once. An administrator changes the 30 days under **Administration** > **Reminders**.
 - When an accepted risk's acceptance has expired, the risk's status changes to **Needs review**, the change is recorded in its history as a system event, and the owner is notified (people with **Approve** on **Risks** are told when the risk has no owner).
 
 Review the risk, then either renew the acceptance (the status returns to **Accepted**) or change its treatment and status.
@@ -256,7 +256,7 @@ To complete a review:
 1. Check the scores, controls and treatment and change what needs changing.
 2. On the risk's **Review** card, select **Complete review**.
 3. Under **What the review found**, add a note if you wish, for example "controls still working, no change".
-4. Check the **Next review** date. It is suggested from the gap between the last two reviews, or 90 days.
+4. Check the **Next review** date. It is suggested from the gap between the last review and the review date it set (the same interval again), or 90 days.
 5. Select **Complete review**.
 
 Today is recorded as the review date, the ratings are kept as they stand now (the **Risk report** compares later ratings with them), and the next review date is set. The **Review** card lists the reviews so far with the rating at each.
@@ -265,7 +265,7 @@ Today is recorded as the review date, the ratings are kept as they stand now (th
 
 Open **Cybersecurity > Risk reviews**. It has two worklists, looking ahead **30 days**, **60 days** or **90 days**:
 
-- **Acceptances to renew**: acceptances that have expired, or will expire within the window, with the approver, the days left and a **Renew** button that opens the risk.
+- **Acceptances to renew**: acceptances that have expired, or will expire within the window, with the approver, the days left and a **Renew** button that opens the risk (**Open** for people without **Approve** on **Risks**).
 - **Reviews due**: open risks whose review date has passed or falls within the window, with **Complete review** on each row.
 
 The tiles at the top count **Acceptances expired**, **Acceptances expiring**, **Reviews overdue** and **Reviews coming up**.
@@ -294,7 +294,7 @@ Open **Administration > Risk scales** (needs **Administer** on **Risks**). Choos
 
 As you edit, the bar at the bottom says what saving would do, for example how many risks would be re-rated, and warns when a level you removed is still used by a risk (save is then refused: re-score those risks first). Select **Save scale** to save, or **Discard changes**. Saving re-rates every risk on the scale and is written to the audit log.
 
-The safety hazard matrix can also be changed by a safety administrator under **Administration > Hazard matrix** (its level names and the rating of each cell; see [Safety management](20-safety-management.md#change-the-hazard-matrix)), which works even while **Risks and obligations** is switched off. Saving there re-rates the risks on that scale too.
+The safety hazard matrix can also be changed by a safety administrator under **Administration > Hazard matrix** (its level names and the rating of each cell; see [Safety management](20-safety-management.md#change-the-hazard-matrix)), which works even while **Risks and obligations** is switched off. Saving there re-rates the risks on that scale too, and saving the hazard matrix here re-rates the hazards too.
 
 **Add scale** creates a new scale as a copy of the one shown: give its **Name** and **Key** (lower-case letters, numbers and underscores; it cannot be changed later). To use a new scale, an administrator points a risk category at it in **Administration > Lists** (the `risk_category` list).
 
@@ -389,7 +389,7 @@ An action raised from a restricted record is hidden from people without access t
 2. Under **Share with**, find the person, or select **Choose the owner**.
 3. Select **Share**.
 
-That person is notified that a restricted action has been shared with them, and sees the action under **Shared with you** on **My actions**: its title, description, due date, priority and notes. They can change its status (including checking it done) and nothing else, and they never see the record it arose from. Select the cross beside a name to stop sharing. Sharing and unsharing are written to the action's history.
+That person is notified that a restricted action has been shared with them, and sees the action under **Shared with you** on **My actions**: its title, description, due date, priority and notes. They can change its status (including checking it done) and its notes and nothing else, and they never see the record it arose from. The lifecycle rules for actions (**Administration > Lifecycles**) apply to them as to anyone: who may set a status, the fields a status needs, and a status change that waits for an approval workflow. Select the cross beside a name to stop sharing. Sharing and unsharing are written to the action's history.
 
 ## Information requests
 

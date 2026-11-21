@@ -48,10 +48,10 @@ jobs:
       GRC_SEED_DIR: ${{ github.workspace }}/no-seed-folder
     steps:
       - name: Check out
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
       - name: Set up Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           # The major version is pinned in one place, shared with tools/install-node.ps1.
           node-version-file: tools/node-version.txt
@@ -96,7 +96,7 @@ jobs:
     services:
       postgres:
         # Started for both legs (a service cannot be made conditional); only postgres-17 uses it.
-        image: postgres:17-bookworm
+        image: postgres:17-bookworm@sha256:837bed18782820fe967067cb5328b02b0d9992c1be9a37ee0c9c492cfc03af3b
         env:
           POSTGRES_USER: grc
           POSTGRES_PASSWORD: grc-ci-only
@@ -113,10 +113,10 @@ jobs:
       GRC_DATABASE_POOL_MAX: '5'
     steps:
       - name: Check out
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
       - name: Set up Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version-file: tools/node-version.txt
           cache: npm
@@ -175,7 +175,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Check out (with tags)
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           fetch-depth: 0
 
@@ -208,7 +208,7 @@ jobs:
       GRC_PORT: '8170'
     steps:
       - name: Check out
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
       - name: Fetch the pinned Node.js into .tools/node (checksum verified)
         run: ./tools/install-node.sh
@@ -317,24 +317,28 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Check out
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
-      - name: Node.js major version
-        id: node
-        run: echo "major=$(head -n 1 tools/node-version.txt | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
+      - name: The pinned base image matches tools/node-version.txt
+        run: |
+          set -eu
+          major=$(head -n 1 tools/node-version.txt | tr -d '[:space:]')
+          # Every FROM line names node:<major>-bookworm-slim pinned by digest.
+          if grep -E '^FROM ' Dockerfile | grep -vqE "node:${major}-bookworm-slim@sha256:[0-9a-f]{64} "; then
+            echo "Dockerfile: every FROM must be node:${major}-bookworm-slim@sha256:<digest>"; grep -E '^FROM ' Dockerfile; exit 1
+          fi
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
       - name: Build the image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
           load: true
           push: false
           tags: sandpiper-grc:ci
           build-args: |
-            NODE_MAJOR=${{ steps.node.outputs.major }}
             GRC_COMMIT=${{ github.sha }}
           cache-from: type=gha,scope=ci-amd64
           cache-to: type=gha,scope=ci-amd64,mode=max
@@ -406,10 +410,16 @@ jobs:
           docker compose run --rm --no-deps app grc seed --profile dev
           docker compose up -d --wait --wait-timeout 180
           docker compose exec app grc status
+          # One process per data folder (OP-06): a command in a second container beside the running
+          # server is refused before it opens the database.
+          if docker compose run --rm --no-deps app grc seed --profile dev > lock.log 2>&1; then
+            cat lock.log; echo 'a second process opened the data folder beside the server'; exit 1
+          fi
+          grep -q 'is using this data folder' lock.log
           docker compose stop app
           docker compose run --rm --no-deps app grc backup
           docker compose up -d --wait --wait-timeout 180
-          curl -fsS http://127.0.0.1:8080/api/health | grep -q '"ok":true'
+          curl -fsS http://127.0.0.1:8080/api/ready | grep -q '"database":"ok"'
           docker compose down -v
 
       - name: Compose with PostgreSQL
@@ -420,7 +430,10 @@ jobs:
           openssl rand -hex 24 > deploy/secrets/db_password.txt
           docker compose -f compose.yaml -f compose.postgres.yaml up -d --wait --wait-timeout 240
           docker compose -f compose.yaml -f compose.postgres.yaml logs app | grep -q 'PostgreSQL server'
-          curl -fsS http://127.0.0.1:8080/api/health | grep -q '"ok":true'
+          # The application runs as the least-privilege role, not the database owner (SP-05).
+          docker compose -f compose.yaml -f compose.postgres.yaml logs app | grep -Eq 'run-time role .{0,2}grc_app.{0,2} granted'
+          docker compose -f compose.yaml -f compose.postgres.yaml logs app | grep -q 'postgres://grc_app@db:5432/grc'
+          curl -fsS http://127.0.0.1:8080/api/ready | grep -q '"database":"ok"'
           docker compose -f compose.yaml -f compose.postgres.yaml down -v
 
       - name: Compose logs
@@ -443,20 +456,25 @@ jobs:
       attestations: write
     steps:
       - name: Check out
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
-      - name: Node.js major version
-        id: node
-        run: echo "major=$(head -n 1 tools/node-version.txt | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
+      - name: The pinned base image matches tools/node-version.txt
+        run: |
+          set -eu
+          major=$(head -n 1 tools/node-version.txt | tr -d '[:space:]')
+          # Every FROM line names node:<major>-bookworm-slim pinned by digest.
+          if grep -E '^FROM ' Dockerfile | grep -vqE "node:${major}-bookworm-slim@sha256:[0-9a-f]{64} "; then
+            echo "Dockerfile: every FROM must be node:${major}-bookworm-slim@sha256:<digest>"; grep -E '^FROM ' Dockerfile; exit 1
+          fi
 
       - name: Set up QEMU (to build for arm64)
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
       - name: Sign in to the GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -464,7 +482,7 @@ jobs:
 
       - name: Tags and labels
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
         env:
           DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
         with:
@@ -485,7 +503,7 @@ jobs:
 
       - name: Build and push (linux/amd64, linux/arm64)
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
           platforms: linux/amd64,linux/arm64
@@ -494,7 +512,6 @@ jobs:
           sbom: true
           provenance: mode=max
           build-args: |
-            NODE_MAJOR=${{ steps.node.outputs.major }}
             GRC_COMMIT=${{ github.sha }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -503,7 +520,7 @@ jobs:
           cache-to: type=gha,scope=publish,mode=max
 
       - name: Sign the build provenance
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
         with:
           subject-name: ghcr.io/${{ github.repository }}
           subject-digest: ${{ steps.build.outputs.digest }}
@@ -515,10 +532,10 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Check out
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
       - name: Set up Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version-file: tools/node-version.txt
           cache: npm
@@ -543,7 +560,7 @@ jobs:
 
       - name: Keep the logs and screenshots of a failed run
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: browser-test-output
           path: |

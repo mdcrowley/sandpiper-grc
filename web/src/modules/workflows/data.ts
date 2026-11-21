@@ -20,6 +20,8 @@ export interface ApprovalUnit {
   conditions: Condition[];
   due_hours: number | null;
   escalate_to: { users: string[]; role: string | null } | null;
+  /** A different person per step (AZ-7): someone who decided another step of the same request may not decide this one. */
+  distinct_approvers?: boolean;
 }
 /** After a step is approved (E14-32): the first route whose conditions hold sends the workflow to a later step (its key) or to the end. */
 export interface Route { conditions: Condition[]; to: string }

@@ -27,6 +27,9 @@ interface Values {
   'integrations.outbound_enabled': boolean;
   'integrations.allowed_hosts': string[];
   'retention.audit_months': number | null;
+  'retention.webhook_delivery_days': number | null;
+  'retention.mail_log_days': number | null;
+  'retention.mail_inbound_log_days': number | null;
 }
 interface SettingsResponse { values: Values; featureKeys: string[] }
 
@@ -40,6 +43,9 @@ const RANGES: Partial<Record<keyof Values, { min: number; max: number; what: str
   'tokens.max_days': { min: 1, max: 3650, what: 'Longest token life' },
   'tokens.rate_per_minute': { min: 10, max: 6000, what: 'Requests a minute' },
   'retention.audit_months': { min: 12, max: 1200, what: 'Audit log retention' },
+  'retention.webhook_delivery_days': { min: 1, max: 3650, what: 'Webhook delivery log' },
+  'retention.mail_log_days': { min: 7, max: 3650, what: 'Outgoing message log' },
+  'retention.mail_inbound_log_days': { min: 7, max: 3650, what: 'Incoming email log' },
 };
 
 /** The allowed hosts as typed (one to a line), cleaned the way the server stores them. */
@@ -305,6 +311,21 @@ export function SettingsPage() {
                 <Setting title="Audit log" changed={isChanged('retention.audit_months')} text={<>How long the audit log is to be kept, for your records schedule. It is recorded only: audit events are never deleted. Default 84 months (7 years). Periods for records are set under <Link to="/admin/retention">Retention</Link>.</>}>
                   {number('retention.audit_months', 'Audit log retention in months', 'Months, from 12 to 1200.')}
                 </Setting>
+                {has('retention.webhook_delivery_days') && (
+                  <Setting title="Webhook delivery log" changed={isChanged('retention.webhook_delivery_days')} text="How long finished webhook deliveries are listed, in days. Older ones are removed each day; those still waiting are kept. The content of a delivery is removed as soon as it is delivered. Default 30.">
+                    {number('retention.webhook_delivery_days', 'Webhook delivery log retention in days', 'Days, from 1 to 3650.')}
+                  </Setting>
+                )}
+                {has('retention.mail_log_days') && (
+                  <Setting title="Outgoing message log" changed={isChanged('retention.mail_log_days')} text="How long the log of emails and text messages sent (recipients and subjects) is kept, in days. Messages still waiting to be sent are kept. Default 180.">
+                    {number('retention.mail_log_days', 'Outgoing message log retention in days', 'Days, from 7 to 3650.')}
+                  </Setting>
+                )}
+                {has('retention.mail_inbound_log_days') && auth.areaOn('tickets') && (
+                  <Setting title="Incoming email log" changed={isChanged('retention.mail_inbound_log_days')} text="How long the log of emails received by the service desk mailbox (senders and subjects) is kept, in days. Default 180.">
+                    {number('retention.mail_inbound_log_days', 'Incoming email log retention in days', 'Days, from 7 to 3650.')}
+                  </Setting>
+                )}
               </Card>
             </Group>
           )}

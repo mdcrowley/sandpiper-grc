@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { ModuleDef } from './module.ts';
 import { parseSearch, snippetParts } from './search.ts';
 import { intersectGrants, scopeCovered, tokenBlocked } from './tokens.ts';
-import { hostAllowed, RETRY_MINUTES, signWebhook } from './webhooks.ts';
+import { hostAllowed, redactWebhookUrl, RETRY_MINUTES, signWebhook } from './webhooks.ts';
 import { testApp } from '../test/helpers.ts';
 
 // Platform services: API tokens, OpenAPI, webhooks, full-text search, custom fields, tags, watchers,
@@ -865,6 +865,32 @@ describe('outbound webhooks', () => {
     expect(JSON.stringify(list)).not.toContain(hook.secret);
     expect((await t.db.one<any>('select secret from webhooks where id = $1', [hook.id])).secret).toMatch(/^enc:v1:/);
     expect((await audited('webhook.create')).at(-1).after.secret).toBeUndefined();
+  });
+
+  it('keeps webhook addresses, which often carry the receiver\'s secret, out of the audit log (SP-06)', async () => {
+    const secretPath = '/services/T0K3N/hook-s3cr3t?key=k3y-s3cr3t';
+    const made = (await t.api.post('/api/admin/webhooks', { name: 'Chat channel', url: `https://chat.example.test${secretPath}`, events: ['*'] })).body;
+    await t.api.patch(`/api/admin/webhooks/${made.id}`, { url: 'https://chat.example.test/services/T0K3N/rotated-s3cr3t' });
+    await t.api.del(`/api/admin/webhooks/${made.id}`);
+    // An entry written before addresses were redacted (the log is append-only) is redacted when read.
+    await t.db.query(`insert into audit_events (actor_name, action, record_type, record_id, summary, after)
+      values ('Test', 'webhook.create', 'webhook', $1, 'Webhook added', $2::jsonb)`, [made.id, JSON.stringify({ name: 'Old', url: 'https://chat.example.test/old-s3cr3t' })]);
+
+    const stored = await t.db.query<any>(`select before, after from audit_events where record_id = $1 and summary <> 'Webhook added' order by id`, [made.id]);
+    const written = JSON.stringify(stored);
+    expect(written).toContain('https://chat.example.test/…');
+    expect(written).not.toMatch(/s3cr3t|T0K3N/);
+    // The fingerprint still shows that the address changed.
+    const update = stored.find((r: any) => r.before?.url && r.after?.url)!;
+    expect(update.before.url).not.toBe(update.after.url);
+
+    const read = await t.api.get(`/api/audit?record_type=webhook&record_id=${made.id}`);
+    expect(read.body.rows).toHaveLength(4);
+    expect(JSON.stringify(read.body)).not.toMatch(/s3cr3t|T0K3N/);
+    expect((await t.api.get(`/api/audit?record_type=webhook&record_id=${made.id}&format=csv`)).text).not.toMatch(/s3cr3t|T0K3N/);
+    // Host and fingerprint only, and redacting twice changes nothing.
+    expect(redactWebhookUrl('https://chat.example.test/a?b=c')).toMatch(/^https:\/\/chat\.example\.test\/… \(sha256:[0-9a-f]{12}\)$/);
+    expect(redactWebhookUrl(redactWebhookUrl('https://chat.example.test/a'))).toBe(redactWebhookUrl('https://chat.example.test/a'));
   });
 
   it('sends nothing while outbound connections are off, or to a host that is not on the allow-list', async () => {

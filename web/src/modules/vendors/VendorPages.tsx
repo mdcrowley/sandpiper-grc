@@ -55,7 +55,8 @@ export function VendorList() {
       ]}
       actions={(
         <>
-          {can('vendors.administer') && <Link className="btn btn-secondary" to="/vendors/questions">Assessment questions</Link>}
+          {/* Everyone who views vendors may read the questions; changing them needs administer (Questions.tsx). */}
+          {can('vendors.view') && <Link className="btn btn-secondary" to="/vendors/questions">Assessment questions</Link>}
           {seesContracts && <Link className="btn btn-secondary" to="/vendors/terms">Security terms matrix</Link>}
         </>
       )}
@@ -83,7 +84,7 @@ function Profile({ row, version }: { row: Row; version: number }) {
   if (!data) return <Loading lines={3} label="Loading the profile" />;
   const tab = (key: string) => `/vendors/${row.id}?tab=${key}`;
 
-  // The main incident contact is on the vendor itself; contacts ticked "Incident contact" follow.
+  // The main incident contact is on the vendor itself; contacts marked "Incident contact" follow.
   const people = [
     ...(row.incident_contact_name || row.incident_contact_phone || row.incident_contact_email
       ? [{ name: row.incident_contact_name as string | null, role: null as string | null, email: row.incident_contact_email as string | null, phone: row.incident_contact_phone as string | null }]

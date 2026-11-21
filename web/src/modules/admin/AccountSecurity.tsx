@@ -160,7 +160,8 @@ function SecondFactorSetup({ required, onEnabled }: { required: boolean; onEnabl
     setBusy(true);
     setStartError('');
     try {
-      setPending(await api.post<{ secret: string; uri: string }>('/api/auth/totp/begin'));
+      // Needs a recent password confirmation, like adding a passkey (wave 9, SA-7).
+      setPending(await withReauth(() => api.post<{ secret: string; uri: string }>('/api/auth/totp/begin')));
     } catch (err) {
       setStartError(errorMessage(err));
     } finally {

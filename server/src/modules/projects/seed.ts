@@ -50,7 +50,7 @@ const SAMPLES: Sample[] = [
   {
     stage: 'plan', ticks: 2,
     project: {
-      name: '[Sample] Driver records digitisation', description: 'Scan and index paper driver and operator files (licenses, medicals, training) and retire the filing room.',
+      name: '[Sample] Driver records digitization', description: 'Scan and index paper driver and operator files (licenses, medicals, training) and retire the filing room.',
       expected_benefits: 'Faster retrieval, controlled access and a record of who viewed what.', sponsor: 'Sample sponsor: Human Resources', department: 'Human Resources',
       budget: 85000, spend_to_date: 9500, funding_source: 'capital', start_on: day(-90), target_on: day(270),
       touches_personal_data: true, data_impact: 'Holds personnel records, including some health information.',
@@ -129,7 +129,7 @@ export async function seedSampleProjects(ctx: ModuleContext, svc: ProjectService
   for (const s of SAMPLES) {
     let project = await ctx.resources.create('project', s.project);
 
-    // Walk the project through its gates so each one has a ticked checklist and a recorded decision.
+    // Walk the project through its gates so each one has a checked checklist and a recorded decision.
     const steps = STAGES.indexOf(s.stage);
     for (let i = 0; i < steps; i++) {
       const gate = (await svc.gatesFor(project)).gates.find((g) => g.is_current);

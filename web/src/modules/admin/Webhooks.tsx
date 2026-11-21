@@ -344,7 +344,7 @@ function WebhookDialog({ hook, data, onClose, onSaved }: {
     const found: Record<string, string> = {};
     if (!name.trim()) found.name = 'Enter a name.';
     if (!/^https?:\/\/[^\s/]+/.test(url.trim())) found.url = 'Enter an http or https address.';
-    if (!all && events.length === 0) found.events = 'Choose at least one event, or tick every change.';
+    if (!all && events.length === 0) found.events = 'Choose at least one event, or check every change.';
     setErrors(found);
     setFormError('');
     if (Object.keys(found).length) return;

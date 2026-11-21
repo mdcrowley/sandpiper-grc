@@ -141,7 +141,7 @@ Each card shows the party, **Required** or **Recommended**, the time left, a bar
 | "Notified … late" | The notification was recorded after the deadline. |
 | "Not required for this incident" | The clock has been stood down. |
 
-The share of the time at which a clock turns amber is a setting an administrator can change.
+A clock turns amber when a quarter of the time allowed, or less, remains.
 
 ### Alerts
 
@@ -295,7 +295,7 @@ The **Lessons** tab holds the post-incident review, its findings and the follow-
 
 ### The review
 
-The **Post-incident review** card shows the review's progress: **Not started**, **Scheduled**, **Findings drafted**, **Completed** (or **Not required**). Closing the incident sets the **Due** date (by default 14 days after closure) and tells the review lead, or the incident lead if there is none, in their notifications.
+The **Post-incident review** card shows the review's progress: **Not started**, **Scheduled**, **Findings drafted**, **Completed** (or **Not required**). Closing the incident sets the **Due** date (14 days after closure) and tells the review lead, or the incident lead if there is none, in their notifications.
 
 - **Plan the review**: set **Review due**, **Review lead**, **Review meeting** and **Who took part**, then **Save**.
 - Select **Scheduled** or **Findings drafted** in the progress bar as the review moves on.

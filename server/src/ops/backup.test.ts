@@ -1,4 +1,5 @@
-import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -6,6 +7,7 @@ import { openDb } from '../core/db.ts';
 import { migrate } from '../core/migrate.ts';
 import { createBackup, listBackups, pruneBackups, readManifest, resolveBackup, restoreBackup, verifyBackup } from './backup.ts';
 import { repoRoot, serverPid } from './files.ts';
+import { defaultKeyFile, fingerprint, parseKey } from '../core/secretkey.ts';
 import { migrationsOnDisk, readAppliedMigrations } from './migrations.ts';
 
 const scratch = mkdtempSync(join(tmpdir(), 'grc-ops-backup-'));
@@ -14,10 +16,19 @@ afterAll(() => rmSync(scratch, { recursive: true, force: true }));
 const coreMigrations = [{ scope: 'core', dir: join(repoRoot, 'server/src/core/migrations') }];
 const core = migrationsOnDisk().filter((m) => m.startsWith('core/'));
 
+/** A secret key file beside a data folder, as the first start writes it. */
+function giveKey(dataDir: string, file = defaultKeyFile(dataDir)): string {
+  mkdirSync(join(dataDir, '..'), { recursive: true });
+  writeFileSync(file, `${randomBytes(32).toString('hex')}
+`);
+  return file;
+}
+
 /** A data folder made of plain files: enough for everything that does not open the database. */
 function fakeData(name: string) {
   const dataDir = join(scratch, name, 'data');
   const backupsDir = join(scratch, name, 'backups');
+  giveKey(dataDir);
   mkdirSync(join(dataDir, 'pg', 'base'), { recursive: true });
   mkdirSync(join(dataDir, 'files', 'ab'), { recursive: true });
   writeFileSync(join(dataDir, 'pg', 'PG_VERSION'), '17\n');
@@ -34,6 +45,7 @@ describe('backup and restore', () => {
   it('brings a real database and its files back to the moment of the backup', async () => {
     const dataDir = join(scratch, 'real', 'data');
     const backupsDir = join(scratch, 'real', 'backups');
+    giveKey(dataDir);
 
     let db = await openDb(dataDir);
     await migrate(db, coreMigrations);
@@ -166,6 +178,64 @@ describe('backup and restore', () => {
     expect(listBackups(backupsDir).map((b) => b.name)).toEqual(['20300131-090400_2', '20300131-090400']);
     expect(existsSync(join(backupsDir, 'made-by-hand'))).toBe(true); // not ours: never deleted
     expect(await pruneBackups(backupsDir, 2)).toEqual([]);
+  });
+
+  // DOC-01: restoring into another data folder used to start with a NEW key, silently, so stored
+  // authenticator keys and webhook secrets could no longer be read.
+  it('refuses to restore without the secret key the backup was made with, and says where to put it', async () => {
+    const { dataDir, backupsDir } = fakeData('key-source');
+    const keyFile = defaultKeyFile(dataDir);
+    const backup = await createBackup({ dataDir, backupsDir, migrations: null, now: at(0) });
+    const fp = fingerprint(parseKey(readFileSync(keyFile, 'utf8')));
+    expect(backup.manifest.secretKeyFingerprint).toBe(fp);
+
+    // A spare folder, as in the restore test: no key there.
+    const spare = join(scratch, 'key-target', 'data');
+    const opts = { backupDir: backup.dir, dataDir: spare, backupsDir, codeMigrations: [], currentMigrations: null, now: at(1), allowNewSecretKey: false };
+    await expect(restoreBackup(opts)).rejects.toThrow(new RegExp(`fingerprint is ${fp}[\\s\\S]*not available[\\s\\S]*Current data is untouched[\\s\\S]*${defaultKeyFile(spare).replace(/[\\.]/g, '\\$&')}`));
+    expect(existsSync(spare)).toBe(false);
+
+    // A different key there is refused too.
+    giveKey(spare);
+    await expect(restoreBackup(opts)).rejects.toThrow(/not available[\s\S]*the key there has fingerprint/);
+    // The right key (here as a retired one, after a rotation) lets it through.
+    appendFileSync(`${defaultKeyFile(spare)}.previous`, readFileSync(keyFile, 'utf8'));
+    expect((await restoreBackup(opts)).keyNote).toBeUndefined();
+    expect(readFileSync(join(spare, 'files', 'ab', 'evidence.txt'), 'utf8')).toBe('original attachment');
+
+    // Asked for explicitly, it restores without the key and says what that means.
+    const other = join(scratch, 'key-target-2', 'data');
+    const forced = await restoreBackup({ ...opts, dataDir: other, allowNewSecretKey: true });
+    expect(forced.keyNote).toMatch(/Restored anyway, as asked/);
+  });
+
+  it('refuses an older backup that records no key when there is no key at all', async () => {
+    const { dataDir, backupsDir } = fakeData('key-old');
+    const backup = await createBackup({ dataDir, backupsDir, migrations: null, now: at(0) });
+    const manifestFile = join(backup.dir, 'manifest.json');
+    const old = JSON.parse(readFileSync(manifestFile, 'utf8'));
+    delete old.secretKeyFingerprint; // as written before the fingerprint was recorded
+    writeFileSync(manifestFile, JSON.stringify(old));
+    const spare = join(scratch, 'key-old-target', 'data');
+    const opts = { backupDir: backup.dir, dataDir: spare, backupsDir, codeMigrations: [], currentMigrations: null, now: at(1), allowNewSecretKey: false };
+    await expect(restoreBackup(opts)).rejects.toThrow(/no secret key for[\s\S]*does not say which key/);
+    mkdirSync(join(spare, '..'), { recursive: true });
+    copyFileSync(defaultKeyFile(dataDir), defaultKeyFile(spare));
+    await expect(restoreBackup(opts)).resolves.toBeDefined();
+  });
+
+  // SP-07: what a backup or restore creates is for the server's account only (modes do not apply on Windows).
+  it.skipIf(process.platform === 'win32')('creates backup and data folders that only the owner can open', async () => {
+    const { dataDir, backupsDir } = fakeData('modes');
+    const backup = await createBackup({ dataDir, backupsDir, migrations: null, now: at(0) });
+    expect(statSync(backupsDir).mode & 0o077).toBe(0);
+    expect(statSync(backup.dir).mode & 0o077).toBe(0);
+    const spare = join(scratch, 'modes-target', 'data');
+    mkdirSync(join(spare, '..'), { recursive: true });
+    copyFileSync(defaultKeyFile(dataDir), defaultKeyFile(spare));
+    await restoreBackup({ backupDir: backup.dir, dataDir: spare, backupsDir, codeMigrations: [], currentMigrations: null, now: at(1) });
+    expect(statSync(spare).mode & 0o077).toBe(0);
+    for (const folder of readdirSync(spare)) if (statSync(join(spare, folder)).isDirectory()) expect(statSync(join(spare, folder)).mode & 0o077).toBe(0);
   });
 
   it('will not make an empty backup', async () => {

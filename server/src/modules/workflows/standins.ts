@@ -5,7 +5,7 @@
 import type { FastifyRequest } from 'fastify';
 import { UUID_RE } from '../../core/errors.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
-import { dayInZone } from '../../core/timezone.ts';
+import { dayInZone, displayDate } from '../../core/timezone.ts';
 import type { Service } from './service.ts';
 
 const ADMIN = 'admin.administer';
@@ -88,7 +88,7 @@ export function registerStandinRoutes(ctx: ModuleContext, svc: Service) {
     if (app.hasDecorator('notify')) {
       await app.notify({
         kind: 'approval', userIds: [input.standin_id], route: '/approvals',
-        title: `You stand in for ${approver!.display_name} on approvals`, body: `From ${saved.starts_on} to ${saved.ends_on}${note ? `: ${note}` : ''}`,
+        title: `You stand in for ${approver!.display_name} on approvals`, body: `From ${displayDate(saved.starts_on)} to ${displayDate(saved.ends_on)}${note ? `: ${note}` : ''}`,
       });
     }
     // A period running today joins the steps already waiting for the approver.

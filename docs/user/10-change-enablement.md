@@ -6,7 +6,7 @@ An administrator can switch change enablement off under **Administration > Featu
 
 ## What you need
 
-| To do this | You need this permission on Changes |
+| To do this | You need this permission on Change enablement |
 |---|---|
 | See the register, the calendar and any change | **View** |
 | Raise a change, including a standard change from a template | **Create** |
@@ -111,7 +111,7 @@ A notice on the change then shows the level that was set by hand, the level the 
 
 ## Approvals
 
-Change approval runs on the shared [approval workflows](22-approval-workflows.md). Each approval rule (a change type and risk level) names an approval workflow: the rule's number of approvals and its approvers (named people, the members of chosen roles, or, when it names nobody, anyone with **Approve** on **Changes**) are the workflow's first step. An administrator can give that workflow more steps, due times and escalation under **Administration > Approval workflows**. Approvers always need **Approve** on **Changes**, and nobody decides a change they raised.
+Change approval runs on the shared [approval workflows](22-approval-workflows.md). Each approval rule (a change type and risk level) names an approval workflow: the rule's number of approvals and its approvers (named people, the members of chosen roles, or, when it names nobody, anyone with **Approve** on **Change enablement**) are the workflow's first step. An administrator can give that workflow more steps, due times and escalation under **Administration > Approval workflows**. Approvers always need **Approve** on **Change enablement**, and nobody decides a change they raised.
 
 ### Submitting for approval
 
@@ -192,7 +192,7 @@ Conflicts are shown in the **New change** flow, in a notice and on the **Conflic
 A change with an unresolved conflict cannot be scheduled or started. There are two ways forward:
 
 - **Move the change.** Edit the planned start and end so the window is clear.
-- **Acknowledge the conflict.** Someone with **Approve** on **Changes** records that the conflict is known and that the change may go ahead:
+- **Acknowledge the conflict.** Someone with **Approve** on **Change enablement** records that the conflict is known and that the change may go ahead:
   1. Open the **Conflicts** tab and select **Acknowledge and override**.
   2. Enter the **Reason**. This is required.
   3. Select **Acknowledge and override**.
@@ -247,7 +247,7 @@ Every change has the **Activity**, **Attachments**, **Related** and **History** 
 
 ## Change settings
 
-Open **Change > Change settings**. You need **Administer** on **Changes**. Every change made here is recorded in the audit log.
+Open **Change > Change settings**. You need **Administer** on **Change enablement**. Every change made here is recorded in the audit log.
 
 ### Templates
 
@@ -268,7 +268,7 @@ The table shows how often each template was **Used, last 90 days** and **Used in
 
 1. On the **Blackout periods** tab, select **Add blackout period**.
 2. Enter a **Name**, the **Start** and the **End**.
-3. In **Repeats**, keep **Does not repeat**, or choose **Every week** or **Every month** (for example each weekly timetable switch-over night, or every month-end). A repeating period must be shorter than the repeat. Optionally set **Repeat until**; leave it empty to repeat with no end. A monthly repeat on the 31st falls on the last day of shorter months.
+3. In **Repeats**, keep **Does not repeat**, or choose **Every week** or **Every month** (for example each weekly timetable switch-over night, or every month-end). A repeating period must be shorter than the repeat. Optionally set **Repeat until**; leave it empty to repeat with no end. A monthly repeat on the 31st falls on the last day of shorter months. Repeats keep the same clock times in the organization's time zone, also after the clocks change for daylight saving time (a night that skips the hour ends when the clocks jump), and **Repeat until** is the last day, in that time zone, on which a repeat starts.
 4. Optionally, in **Applies to systems**, search for and add the systems the period protects. With none, the period applies to every change. Remove a system with the cross on its chip.
 5. Enter a **Reason**. It is shown wherever a change is flagged against the period.
 6. Select **Save blackout period**.
@@ -286,7 +286,7 @@ Each rule says what one kind of change needs. A rule that asks for approval has 
 | **Approvals** | How many different people must approve (the first step of the rule's workflow). **0** means no approval. An emergency change cannot need more than one. |
 | **Approver titles** | How the expected approvers are described, separated by commas (for example Change manager). Shown to people and used as the step's name; they do not limit who approves. |
 | **Named approvers** | People who may approve: search for each and select them; remove one with the cross on its chip. Name at least as many as the rule's **Approvals**, or also choose a role. |
-| **Approving roles** | Roles whose members may approve. With named approvers or roles, only those people may decide and only they are asked; with neither, anyone with **Approve** on **Changes** may. The line under them says who that is. |
+| **Approving roles** | Roles whose members may approve. With named approvers or roles, only those people may decide and only they are asked; with neither, anyone with **Approve** on **Change enablement** may. The line under them says who that is. |
 | **Review required** | A post-implementation review is needed before closure. Always on for emergency changes. |
 | **Approval may follow the work** | Work may start before approval is given. The approval is then marked **After the fact**. |
 

@@ -166,6 +166,12 @@ export class Page {
 
   onEvent(e) {
     const p = e.params;
+    // A page with unsaved changes asks before it is left (core/unsaved.tsx). A test that moves on
+    // with goto() means to leave: answer "Leave" so the navigation is not held up.
+    if (e.method === 'Page.javascriptDialogOpening' && p.type === 'beforeunload') {
+      this.send('Page.handleJavaScriptDialog', { accept: true }).catch(() => {});
+      return;
+    }
     if (e.method === 'Runtime.exceptionThrown') {
       this.problems.push(`script error: ${(p.exceptionDetails.exception?.description ?? p.exceptionDetails.text).split('\n')[0].slice(0, 300)}`);
     } else if (e.method === 'Runtime.consoleAPICalled' && p.type === 'error') {

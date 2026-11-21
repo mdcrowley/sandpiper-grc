@@ -3,6 +3,7 @@
 // within the lead time, and once on the day it is reached (or the first run after it).
 // The owner is told; an outcome with no owner goes to everyone who may edit framework outcomes.
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { displayDate } from '../../core/timezone.ts';
 
 /** Setting: how many days before the review date the first reminder goes out. */
 export const LEAD_SETTING = 'frameworks.review_reminder_days';
@@ -30,7 +31,7 @@ export async function sendReviewReminders(ctx: ModuleContext): Promise<ReminderR
       ...(o.owner_id ? { userIds: [o.owner_id] } : { permission: 'frameworks.edit' }),
       kind: 'reminder',
       title: `${o.code} ${when}`,
-      body: o.title ? `${o.title} (review date ${o.review_on}). Check the status and evidence, then set the next review date.` : null,
+      body: o.title ? `${o.title} (review date ${displayDate(o.review_on)}). Check the status and evidence, then set the next review date.` : null,
       recordType: 'framework_outcome', recordId: o.id,
     });
     // Marked even when nobody could be told, so an unowned or muted outcome is not retried every hour.

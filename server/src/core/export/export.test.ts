@@ -5,6 +5,7 @@ import { readXlsx } from '../import/xlsx.ts';
 import { gizmos, pdfPageCount, pdfText, xlsxParts } from './testing.ts';
 import { columnName, sheetName, writeXlsx } from './xlsx.ts';
 import { PdfBuilder, printable } from './pdf.ts';
+import { capExportRows, EXPORT_ROW_LIMIT, PDF_CELL_BUDGET, PDF_MAX_COLUMNS, PDF_ROW_LIMIT, pdfColumns, pdfRowLimit, TRUNCATED_HEADER, truncatedLine } from './list.ts';
 
 let t: Awaited<ReturnType<typeof testApp>>;
 let adminCookie = '';
@@ -187,4 +188,78 @@ describe('record fact sheet', () => {
     expect((await raw(`/api/records/gizmo/${open.id}/pdf`, pm.cookie)).status).toBe(404);
     expect((await raw(`/api/records/nothing/${open.id}/pdf`)).status).toBe(404);
   });
+});
+
+// OP-01: a PDF of every column of a long list ran the server out of memory and stopped every
+// other request while it was laid out.
+describe('PDF limits (OP-01)', () => {
+  it('refuses more than PDF_MAX_COLUMNS columns with a clear message, and picks short columns when none are chosen', async () => {
+    const many = ['ref', 'name', 'notes', 'status', 'owner_id', 'parent_id', 'due_on', 'seen_at', 'cost', 'units', 'active', 'created_at', 'updated_at'];
+    expect(many.length).toBe(PDF_MAX_COLUMNS + 1);
+    const res = await t.api.get(`/api/gizmos?format=pdf&columns=${many.join(',')}`);
+    expect(res.status).toBe(422);
+    expect(res.body.error).toMatchObject({ code: 'too_many_columns', message: expect.stringContaining('CSV or Excel') });
+    // The same columns are fine for a spreadsheet.
+    expect((await raw(`/api/gizmos?format=xlsx&columns=${many.join(',')}`)).status).toBe(200);
+    expect((await raw(`/api/gizmos?format=pdf&columns=${many.slice(0, PDF_MAX_COLUMNS).join(',')}&q=Farebox`)).status).toBe(200);
+
+    const plain = await raw('/api/gizmos?format=pdf&q=Farebox');
+    expect(plain.status).toBe(200);
+    const audit = await t.db.one<{ after: any }>("select after from audit_events where action = 'gizmo.export' order by id desc limit 1");
+    expect(audit!.after.columns).toEqual(['ref', 'name', 'status', 'owner_id', 'due_on', 'seen_at', 'cost', 'units']);
+    expect(pdfColumns({ titleField: 'name' }, { notes: { label: 'Notes', type: 'longtext' }, data: { label: 'Data', type: 'json' } })).toHaveLength(2);
+  });
+
+  it('prints fewer rows the more columns there are', () => {
+    expect(pdfRowLimit(4)).toBe(PDF_ROW_LIMIT);
+    expect(capExportRows([1, 2, 3], 2)).toEqual({ rows: [1, 2], truncated: true });
+    expect(capExportRows([1, 2], 2)).toEqual({ rows: [1, 2], truncated: false });
+    expect(pdfRowLimit(PDF_MAX_COLUMNS)).toBeLessThan(PDF_ROW_LIMIT);
+    expect(pdfRowLimit(PDF_MAX_COLUMNS) * PDF_MAX_COLUMNS).toBeLessThanOrEqual(PDF_CELL_BUDGET);
+  });
+
+  it('lays a long table out without holding the event loop', async () => {
+    const pdf = new PdfBuilder({ title: 'Long' });
+    const rows = Array.from({ length: 600 }, (_, i) => Array.from({ length: 8 }, (__, j) => `Row ${i} cell ${j} with some words`));
+    let ticks = 0;
+    const timer = setInterval(() => { ticks += 1; }, 1);
+    const started = Date.now();
+    await pdf.tableAsync(Array.from({ length: 8 }, (_, j) => ({ header: `Column ${j}` })), rows, { every: 25 });
+    clearInterval(timer);
+    const file = await pdf.finish();
+    expect(pdfText(file)).toContain('Row 599');
+    // Timers ran while the table was laid out (the synchronous version gives them no turn at all).
+    expect(ticks).toBeGreaterThan(2);
+    expect(Date.now() - started).toBeLessThan(30_000);
+  });
+});
+
+// OP-10: exports stopped at 50,000 rows without saying so.
+describe('export row limit (OP-10)', () => {
+  beforeAll(async () => {
+    await t.db.query(`insert into test_gizmos (ref, name, status) select 'GZ-B' || g, 'Bulk ' || g, 'bulk' from generate_series(1, ${EXPORT_ROW_LIMIT + 1}) g`);
+  }, 120_000);
+  afterAll(async () => { await t.db.query(`delete from test_gizmos where status = 'bulk'`); });
+
+  it('says in the CSV and Excel files, the response header and the audit log that the export was cut', async () => {
+    const get = (url: string) => t.app.inject({ method: 'GET', url, headers: { cookie: `${SESSION_COOKIE}=${adminCookie}` } });
+    const csv = await get('/api/gizmos?format=csv&columns=name&f.status=bulk');
+    expect(csv.statusCode).toBe(200);
+    expect(csv.headers[TRUNCATED_HEADER]).toBe(String(EXPORT_ROW_LIMIT));
+    const lines = csv.body.split('\r\n');
+    expect(lines).toHaveLength(EXPORT_ROW_LIMIT + 2);
+    expect(lines.at(-1)).toBe(`"${truncatedLine()}"`);
+    const audit = await t.db.one<{ summary: string }>("select summary from audit_events where action = 'gizmo.export' order by id desc limit 1");
+    expect(audit!.summary).toContain('export limit');
+
+    const xlsx = await raw('/api/gizmos?format=xlsx&columns=name&f.status=bulk');
+    expect(xlsx.status).toBe(200);
+    const [sheet] = readXlsx(xlsx.body);
+    expect(sheet.rows.at(-1)?.[0]).toBe(truncatedLine());
+
+    // Below the limit: no header, no line.
+    const small = await get('/api/gizmos?format=csv&columns=name&f.status=open');
+    expect(small.headers[TRUNCATED_HEADER]).toBeUndefined();
+    expect(small.body).not.toContain('export limit');
+  }, 120_000);
 });

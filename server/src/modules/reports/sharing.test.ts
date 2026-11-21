@@ -58,6 +58,36 @@ describe('saved reports: permissions and sharing', () => {
     expect((await t.api.get(`/api/reports/${made.id}`)).status).toBe(200);
   });
 
+  it('keeps private reports and dashboards out of every shared record route, whatever the path (AZ-2)', async () => {
+    const report = (await lead.post('/api/reports', { name: 'Quokka private report', description: 'private plan', spec })).body;
+    const board = (await lead.post('/api/dashboards', { name: 'Zebra private dashboard', description: 'private plan' })).body;
+    await lead.post('/api/comments', { record_type: 'report_definition', record_id: report.id, body: 'Quokka note' });
+    for (const [type, item, word] of [['report_definition', report, 'Quokka'], ['dashboard', board, 'Zebra']] as const) {
+      const at = `record_type=${type}&record_id=${item.id}`;
+      for (const other of [agent, lead2]) {
+        expect((await other.get(`/api/search?q=${word}`)).body.map((r: any) => r.id)).not.toContain(item.id);
+        expect((await other.get(`/api/records/lookup?type=${type}&q=${word}`)).body).toEqual([]);
+        expect((await other.post('/api/records/labels', { records: { [type]: [item.id] } })).body[type]).toEqual({});
+        for (const route of ['history', 'comments', 'links', 'tags', 'watchers']) expect((await other.get(`/api/${route}?${at}`)).status).toBe(404);
+        expect((await other.post('/api/comments', { record_type: type, record_id: item.id, body: 'Hi' })).status).toBe(404);
+        expect((await other.post('/api/watchers', { record_type: type, record_id: item.id })).status).toBe(404);
+        expect((await other.post('/api/tags', { record_type: type, record_id: item.id, tag: 'x' })).status).toBe(404);
+        expect((await other.get(`/api/records/${type}/${item.id}/pdf`)).status).toBe(404);
+        // The alias of the generated routes follows the same rule: it is not tied to a path.
+        expect((await other.get(`/api/v1/${type === 'dashboard' ? 'dashboards' : 'reports'}/${item.id}`)).status).toBe(404);
+      }
+      // The owner still sees all of it.
+      expect((await lead.get(`/api/search?q=${word}`)).body.map((r: any) => r.id)).toContain(item.id);
+      expect((await lead.get(`/api/history?${at}`)).status).toBe(200);
+      expect((await lead.get(`/api/records/${type}/${item.id}/pdf`)).status).toBe(200);
+    }
+    // Shared with everyone: readable, but only the owner changes it, also through the alias.
+    await lead.patch(`/api/reports/${report.id}`, { sharing: 'everyone' });
+    expect((await lead2.get(`/api/history?record_type=report_definition&record_id=${report.id}`)).status).toBe(200);
+    expect((await lead2.patch(`/api/v1/reports/${report.id}`, { name: 'hijacked' })).status).toBe(403);
+    expect((await lead.get(`/api/reports/${report.id}`)).body.name).toBe('Quokka private report');
+  });
+
   it('shares with chosen roles or with everyone, for viewing only', async () => {
     const made = (await lead.post('/api/reports', { name: 'For agents', spec })).body;
     expect((await lead.patch(`/api/reports/${made.id}`, { sharing: 'roles', shared_roles: ['no_such_role'] })).status).toBe(400);

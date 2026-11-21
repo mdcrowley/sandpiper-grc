@@ -1,5 +1,6 @@
 import { UUID_RE } from '../../core/errors.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { todayInZone } from '../../core/timezone.ts';
 import { SETTING_QUESTIONNAIRE, SETTING_RULES, type Base, type Req } from './base.ts';
 import { approvalEngine } from '../../core/approval-kinds.ts';
 import { KIND, type ChangeApproval } from './approval.ts';
@@ -160,7 +161,7 @@ export function makeAdmin(ctx: ModuleContext, base: Base, approval: ChangeApprov
       }
     }
     const untilDay = until instanceof Date ? until.toISOString().slice(0, 10) : until ? String(until).slice(0, 10) : null;
-    if (untilDay && start && untilDay < new Date(start).toISOString().slice(0, 10)) {
+    if (untilDay && start && untilDay < todayInZone(new Date(start)) /* the start's local day (OP-07) */) {
       ctx.fail(400, 'validation', 'Check the highlighted fields.', { repeat_until: 'Repeat until must be after the start.' });
     }
     return data;

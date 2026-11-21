@@ -8,7 +8,7 @@ The portal is switched off when the application is installed. An administrator s
 
 ## Opening the portal
 
-Sign in as usual. If the portal is all your account includes, you go straight to it, and the other pages of the application send you back to it (your account security page and the user guide still open). If you also use other parts of the application, open **Self-service portal** at the top of the menu on the left, under **Overview**.
+Sign in as usual. If the portal is all your account includes, you go straight to it, and the other pages of the application send you back to it (your account security page and the user guide still open). If you also use other parts of the application, open **Self-service portal** in the entries at the top of the menu on the left, after **Overview**, **My actions**, **Approvals** and **Notifications**.
 
 At the top of every portal page:
 

@@ -19,3 +19,5 @@
 .adm-reauth-key { justify-self: start; }
 .adm-reauth-key[hidden] { display: none; }
 .adm-reauth-input:read-only { background: var(--surface-2); color: var(--text-muted); }
+/* The session-ended prompt (core/session.ts) opens the sign-in page with a link styled as a button. */
+a.adm-reauth-button { display: inline-flex; align-items: center; text-decoration: none; color: var(--text); }

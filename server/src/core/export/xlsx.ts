@@ -21,6 +21,8 @@ export interface Sheet {
   rows: unknown[][];
   /** Lines written above the table (title, filters, generated time). The table starts below them. */
   preface?: string[];
+  /** Lines in red under the table, such as "only the first 50,000 rows were exported". */
+  notes?: string[];
   /** Restricted export: a red line under the table, and the same text in the printed page header. */
   watermark?: string;
 }
@@ -175,6 +177,10 @@ function sheetXml(sheet: Sheet, ss: SharedStrings): { xml: string; filterRef: st
     out.push(`<row r="${r}">${cols.map((c, i) => cellXml(`${columnName(i)}${r}`, row[i], c.type, ss)).join('')}</row>`);
   }
   const lastData = r;
+  for (const [i, line] of (sheet.notes ?? []).entries()) {
+    r += i === 0 ? 2 : 1;
+    out.push(`<row r="${r}"><c r="A${r}" t="s" s="${S.warn}"><v>${ss.add(line)}</v></c></row>`);
+  }
   if (sheet.watermark) {
     r += 2;
     out.push(`<row r="${r}"><c r="A${r}" t="s" s="${S.warn}"><v>${ss.add(sheet.watermark)}</v></c></row>`);

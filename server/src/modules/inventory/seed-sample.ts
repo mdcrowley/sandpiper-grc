@@ -9,12 +9,12 @@ const dayOffset = (days: number): string => dayInZone(days);
 
 // An invented bus and light-rail operator. Every name, place and vendor is made up.
 const DEV_SITES: Row[] = [
-  { name: 'Example Head Office', address: '1 Example Street', function: 'Administration, finance and customer service', power_protection: 'Generator and battery backup', physical_security: 'Badge access, cameras', network_links: 'Two fibre links' },
-  { name: 'Example Operations Control Center', address: '5 Example Street', function: 'Service control, radio dispatch and incident handling around the clock', power_protection: 'Generator, battery backup and a second supply', physical_security: 'Badge access, staffed at all times', network_links: 'Two fibre links on separate routes, radio backhaul' },
-  { name: 'Example Depot North', address: '20 Sample Road', function: 'Bus garage: vehicle parking, fuelling, cleaning and maintenance', power_protection: 'Battery backup for the network room', physical_security: 'Fenced yard, gate barrier, cameras', network_links: 'One fibre link, cellular backup; yard wireless for vehicle uploads', third_parties: 'Fuel delivery contractor' },
-  { name: 'Example Depot South', address: '80 Sample Road', function: 'Bus garage and stores warehouse', power_protection: 'Battery backup only', physical_security: 'Fenced yard, gate code', network_links: 'One fibre link; yard wireless for vehicle uploads' },
-  { name: 'Example Rail Yard', address: '2 Demo Lane', function: 'Light-rail vehicle stabling and maintenance', power_protection: 'Generator', physical_security: 'Fenced, patrolled at night', network_links: 'Fibre link, trackside radio' },
-  { name: 'Example Central Interchange', address: '300 Demo Avenue', function: 'Passenger interchange with a travel center and ticket office', third_parties: 'Retail tenants, cleaning contractor', network_links: 'One fibre link, cellular backup' },
+  { name: 'Example Head Office', address: '1 Example Street', function: 'Administration, finance and customer service', power_protection: 'Generator and battery backup', physical_security: 'Badge access, cameras', network_links: 'Two fiber links' },
+  { name: 'Example Operations Control Center', address: '5 Example Street', function: 'Service control, radio dispatch and incident handling around the clock', power_protection: 'Generator, battery backup and a second supply', physical_security: 'Badge access, staffed at all times', network_links: 'Two fiber links on separate routes, radio backhaul' },
+  { name: 'Example Depot North', address: '20 Sample Road', function: 'Bus garage: vehicle parking, fueling, cleaning and maintenance', power_protection: 'Battery backup for the network room', physical_security: 'Fenced yard, gate barrier, cameras', network_links: 'One fiber link, cellular backup; yard wireless for vehicle uploads', third_parties: 'Fuel delivery contractor' },
+  { name: 'Example Depot South', address: '80 Sample Road', function: 'Bus garage and stores warehouse', power_protection: 'Battery backup only', physical_security: 'Fenced yard, gate code', network_links: 'One fiber link; yard wireless for vehicle uploads' },
+  { name: 'Example Rail Yard', address: '2 Demo Lane', function: 'Light-rail vehicle stabling and maintenance', power_protection: 'Generator', physical_security: 'Fenced, patrolled at night', network_links: 'Fiber link, trackside radio' },
+  { name: 'Example Central Interchange', address: '300 Demo Avenue', function: 'Passenger interchange with a travel center and ticket office', third_parties: 'Retail tenants, cleaning contractor', network_links: 'One fiber link, cellular backup' },
 ];
 
 const DEV_CATEGORIES: Row[] = [
@@ -35,7 +35,7 @@ const DEV_SYSTEMS: Row[] = [
   { name: 'Example Crew Rostering System', system_group: 'Service operations', vendor_name: 'Northfold Transit Software', function: 'Duty rosters, sign-on and spare cover for drivers', users: 'Depot supervisors, drivers', hosting_type: 'vendor_hosted', criticality_tier: 'tier_2', rto_hours: 12, rpo_hours: 4, mfa_status: 'optional' },
   { name: 'Example Operations System', system_group: 'Service operations', vendor_name: 'Northfold Transit Software', function: 'Service control log, disruption handling and daily service reports', users: 'Controllers', hosting_type: 'vendor_hosted', criticality_tier: 'tier_1', rto_hours: 4, rpo_hours: 1, mfa_status: 'enforced', manual_fallback: 'Paper control log' },
   { name: 'Example Radio Dispatch System', system_group: 'Service operations', vendor_name: 'Talkwave Communications', function: 'Voice and data radio between control, vehicles and depots', users: 'Controllers, drivers', hosting_type: 'on_premises', criticality_tier: 'tier_1', rto_hours: 1, mfa_status: 'not_applicable', manual_fallback: 'Mobile phones to depot supervisors' },
-  { name: 'Example Rail Signalling Interface', system_group: 'Service operations', vendor_name: 'Trackmark Systems', function: 'Light-rail train positions shown to control', users: 'Controllers', hosting_type: 'on_premises', criticality_tier: 'tier_1', rto_hours: 2, mfa_status: 'not_applicable' },
+  { name: 'Example Rail Signaling Interface', system_group: 'Service operations', vendor_name: 'Trackmark Systems', function: 'Light-rail train positions shown to control', users: 'Controllers', hosting_type: 'on_premises', criticality_tier: 'tier_1', rto_hours: 2, mfa_status: 'not_applicable' },
   // Passengers and fares
   { name: 'Example Fare Collection System', system_group: 'Passengers and fares', vendor_name: 'Copperline Fare Systems', function: 'Fare rules, card accounts and back office for fareboxes and validators', users: 'Revenue team', hosting_type: 'vendor_hosted', criticality_tier: 'tier_1', rto_hours: 8, rpo_hours: 1, mfa_status: 'enforced' },
   { name: 'Example Onboard Fare Equipment', system_group: 'Passengers and fares', vendor_name: 'Copperline Fare Systems', function: 'Fareboxes and card validators on each vehicle', users: 'Drivers, passengers', hosting_type: 'on_vehicle', criticality_tier: 'tier_2', rto_hours: 24, mfa_status: 'not_applicable', manual_fallback: 'Paper tickets and cash fares' },
@@ -70,7 +70,7 @@ const DEV_INTEGRATIONS: [string, string, string, string][] = [
   ['Example CAD/AVL System', 'Example Operations System', 'one_way', 'api'],
   ['Example CAD/AVL System', 'Example Onboard Information Displays', 'one_way', 'data_feed'],
   ['Example Radio Dispatch System', 'Example CAD/AVL System', 'two_way', 'api'],
-  ['Example Rail Signalling Interface', 'Example Operations System', 'one_way', 'data_feed'],
+  ['Example Rail Signaling Interface', 'Example Operations System', 'one_way', 'data_feed'],
   ['Example Real-Time Information System', 'Example Public Website', 'one_way', 'api'],
   ['Example Onboard Fare Equipment', 'Example Fare Collection System', 'one_way', 'file_transfer'],
   ['Example Fare Collection System', 'Example Payments System', 'two_way', 'api'],
@@ -112,7 +112,7 @@ const DEV_SERVES: [string, string][] = [
   ['Example CAD/AVL System', 'Example Operations Control Center'],
   ['Example Radio Dispatch System', 'Example Operations Control Center'],
   ['Example Operations System', 'Example Operations Control Center'],
-  ['Example Rail Signalling Interface', 'Example Operations Control Center'],
+  ['Example Rail Signaling Interface', 'Example Operations Control Center'],
   ['Example Crew Rostering System', 'Example Depot North'],
   ['Example Crew Rostering System', 'Example Depot South'],
   ['Example Fleet Maintenance System', 'Example Depot North'],

@@ -296,6 +296,70 @@ describe('"IT agents only" articles (E03-16)', () => {
     expect((await reader.patch(`/api/knowledge/${open.body.id}`, { audience: 'agents' })).status).toBe(400);
     expect((await reader.post('/api/knowledge', { title: 'For everyone', audience: 'staff' })).status).toBe(201);
   });
+
+  it('are hidden wherever articles are read: reports, widgets, exports, fact sheets, files, labels and aliases (AZ-4)', async () => {
+    const role = await t.db.one<{ id: string }>(`insert into roles (key, name) values ('staff_reader', 'Staff reader') returning id`);
+    for (const p of ['knowledge.view', 'knowledge.export', 'reports.view', 'dashboards.view', 'tickets.create']) {
+      await t.db.query('insert into role_permissions (role_id, permission) values ($1,$2)', [role!.id, p]);
+    }
+    const staff = await t.as('staff_reader');
+    const open = (await t.api.post('/api/knowledge', { title: 'Wombat badge reader: how to use', body: 'Tap your card.', audience: 'staff', status: 'published' })).body;
+    const closed = (await t.api.post('/api/knowledge', { title: 'Wombat badge reader: admin code', body: 'Wombat secret 4321', audience: 'agents', status: 'published' })).body;
+    const ids = (rows: any[]) => JSON.stringify(rows);
+
+    // The report builder, a saved report's run and a dashboard widget read with the viewer's rules.
+    const spec = { type: 'knowledge_article', columns: ['title', 'audience', 'body'] };
+    const ran = await staff.post('/api/reports/run', { spec });
+    expect(ran.status).toBe(200);
+    expect(ids(ran.body.rows ?? ran.body)).toContain('how to use');
+    expect(JSON.stringify(ran.body)).not.toContain('Wombat secret');
+    expect(JSON.stringify((await agent.post('/api/reports/run', { spec })).body)).toContain('Wombat secret');
+    // A figure grouped by title counts the agent-only article for everyone, but never by its words.
+    const byTitleSpec = { type: 'knowledge_article', groupBy: [{ field: 'title' }], filters: { op: 'and', items: [{ field: 'title', op: 'contains', value: 'Wombat' }] } };
+    const figure = await staff.post('/api/reports/run', { spec: byTitleSpec });
+    expect(figure.status).toBe(200);
+    expect(JSON.stringify(figure.body)).not.toContain('admin code');
+    expect(JSON.stringify((await agent.post('/api/reports/run', { spec: byTitleSpec })).body)).not.toContain('admin code');
+    const widget = await staff.post('/api/dashboards/run-widget', { widget: { id: 'w', kind: 'table', title: 'Articles', config: { spec } } });
+    expect(JSON.stringify(widget.body)).not.toContain('Wombat secret');
+
+    // The list export, the fact sheet, labels, tags and watchers.
+    expect((await staff.get('/api/knowledge?format=csv')).text).not.toContain('admin code');
+    expect((await staff.get(`/api/records/knowledge_article/${closed.id}/pdf`)).status).toBe(404);
+    expect((await staff.get(`/api/records/knowledge_article/${open.id}/pdf`)).status).toBe(200);
+    expect((await staff.post('/api/records/labels', { records: { knowledge_article: [open.id, closed.id] } })).body.knowledge_article).toEqual({
+      [open.id]: expect.objectContaining({ label: 'Wombat badge reader: how to use' }),
+    });
+    for (const route of ['tags', 'watchers']) expect((await staff.get(`/api/${route}?record_type=knowledge_article&record_id=${closed.id}`)).status).toBe(404);
+
+    // A file on the article: its download carries no record type, so only the record rule protects it.
+    if (t.modules.some((m) => m.key === 'attachments')) {
+      const up = await t.app.inject({
+        method: 'PUT', url: `/api/attachments/upload?${new URLSearchParams({ record_type: 'knowledge_article', record_id: closed.id, name: 'codes.txt' })}`,
+        headers: { cookie, 'x-grc-csrf': '1', 'content-type': 'application/octet-stream' }, payload: Buffer.from('Wombat secret 4321'),
+      });
+      expect(up.statusCode).toBe(201);
+      expect((await staff.get(`/api/attachments/${up.json().id}/download`)).status).toBe(404);
+      expect((await agent.get(`/api/attachments/${up.json().id}/download`)).status).toBe(200);
+    }
+
+    // The rule does not depend on how the path is spelled.
+    expect((await staff.get(`/api/v1/knowledge/${closed.id}`)).status).toBe(404);
+    expect((await staff.get('/api/v1/knowledge?q=Wombat')).body.total).toBe(1);
+    const byTitle = (await staff.get('/api/v1/knowledge/stats?group=title')).body;
+    expect(JSON.stringify(byTitle)).not.toContain('admin code');
+    expect(byTitle).toEqual((await agent.get('/api/knowledge/stats?group=title')).body);
+
+    // The agent permission is read when the question is asked: changing the setting applies at once.
+    await t.db.query(`insert into settings (key, value) values ('knowledge.agent_permission', '"knowledge.view"')
+      on conflict (key) do update set value = excluded.value`);
+    try {
+      expect((await staff.get(`/api/knowledge/${closed.id}`)).status).toBe(200);
+    } finally {
+      await t.db.query(`delete from settings where key = 'knowledge.agent_permission'`);
+    }
+    expect((await staff.get(`/api/knowledge/${closed.id}`)).status).toBe(404);
+  });
 });
 
 describe('help while logging a ticket', () => {

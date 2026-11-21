@@ -64,7 +64,7 @@ export function ApprovalsPanel({ row, onChanged }: { row: Row; onChanged: () => 
                     label: 'Who may approve',
                     value: a.pool
                       ? [...a.pool.users.map((u) => u.name), ...a.pool.roles.map((r) => `anyone in the role ${r.name}`)].join(', ')
-                      : 'Anyone with the Approve permission on Changes, other than the requester',
+                      : 'Anyone with the Approve permission on Change enablement, other than the requester',
                   },
                   ...(a.awaiting ? [{
                     label: 'Still to decide',
@@ -87,7 +87,7 @@ export function ApprovalsPanel({ row, onChanged }: { row: Row; onChanged: () => 
             <Banner tone="warn">Work started before approval was given. Record the approval before the change is closed; it will be flagged as given after the fact.</Banner>
           )}
           {a.approved_retrospectively && <Banner tone="warn">This change was approved after the work had started.</Banner>}
-          {a.awaiting && !can('changes.approve') && <p className="muted">Approval decisions are recorded by people with the Approve permission on Changes.</p>}
+          {a.awaiting && !can('changes.approve') && <p className="muted">Approval decisions are recorded by people with the Approve permission on Change enablement.</p>}
         </div>
       </Card>
 

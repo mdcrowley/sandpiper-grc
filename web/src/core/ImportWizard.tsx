@@ -208,6 +208,7 @@ export function ImportWizard({ resource, open, onClose, onImported }: ImportWiza
                   : 'Drop it here or click to browse. .csv or .xlsx, up to 5 MB and 5,000 rows; the first row holds the column names.'}
               </span>
             </label>
+            {read?.warnings?.map((w) => <p key={w} className="notice notice-warn iw-small">{w}</p>)}
             {read && read.sheets.length > 1 && (
               <div className="iw-sheet">
                 <Select label="Sheet" value={read.sheet ?? ''} options={read.sheets.map((s) => ({ value: s, label: s }))}
@@ -251,6 +252,7 @@ export function ImportWizard({ resource, open, onClose, onImported }: ImportWiza
         {step === 'check' && read && check && (
           <div className="iw-step">
             <p className="iw-small">Nothing has been saved yet. This is what importing would do:</p>
+            {check.warnings?.map((w) => <p key={w} className="notice notice-warn iw-small">{w}</p>)}
             <SummaryTiles s={check} />
             <ValueMapping read={read} unmatched={check.unmatched} valueMap={valueMap}
               onChange={(field, raw, value) => setValueMap((vm) => {

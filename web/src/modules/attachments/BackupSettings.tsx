@@ -101,7 +101,7 @@ export function BackupSettings() {
                 hint="The server takes it while it keeps running: no one needs to be signed in and nothing stops. If a backup fails or none succeeds for two days, administrators are notified."
               />
               <div className="form-grid">
-                <TextField label="Time of day" required value={form.time} onChange={(v) => set('time', v)} error={errors.time} placeholder="02:00" hint={`HH:mm, in ${data.timeZone}. Choose a quiet time: the application pauses for a moment while the database is read.`} />
+                <TextField label="Time of day" required value={form.time} onChange={(v) => set('time', v)} error={errors.time} placeholder="03:30" hint={`HH:mm, in ${data.timeZone}. Choose a quiet time: with the built-in database the application pauses briefly while the backup takes its snapshot.`} />
                 <NumberField label="Backups to keep" required min={1} max={365} value={form.keep} onChange={(v) => set('keep', v ?? 14)} error={errors.keep} hint="The newest ones at the destination; older ones are deleted after each good backup." />
                 <Select
                   className="form-cell-wide" label="Write backups to" required value={form.destination} onChange={(v) => set('destination', v as Settings['destination'])} error={errors.destination}

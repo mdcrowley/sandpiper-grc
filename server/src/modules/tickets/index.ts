@@ -2,7 +2,7 @@ import type { FastifyRequest } from 'fastify';
 import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
 import { registerAssist } from './assist.ts';
-import { AGENT_AUDIENCE, makeAudience } from './audience.ts';
+import { AGENT_AUDIENCE, audienceRule, makeAudience } from './audience.ts';
 import { makeAutomation, registerAutomation } from './automation.ts';
 import { makeCatalog } from './catalog.ts';
 import { recordArticleFeedback } from './feedback.ts';
@@ -417,6 +417,8 @@ const mod: ModuleDef = {
       type: 'knowledge_article', table: 'knowledge_articles', module: 'knowledge', label: 'Knowledge article', plural: 'Knowledge articles',
       path: '/api/knowledge', route: '/knowledge', titleField: 'title', ref: { field: 'ref', prefix: 'KB-' },
       searchable: ['title', 'body'],
+      // "IT agents only" articles (audience.ts): part of the visibility rule, whatever the route.
+      rowRule: audienceRule,
       defaultSort: { field: 'updated_at', dir: 'desc' },
       fields: {
         ref: { label: 'Reference', type: 'text', readOnly: true },
@@ -487,7 +489,6 @@ const mod: ModuleDef = {
         ctx.fail(400, 'validation', 'Check the highlighted fields.', { audience: 'Only IT agents can write articles for IT agents only.' });
       }
     }
-    audience.register();
     catalog.register();
     registerAutomation(ctx, notify);
     registerAssist(ctx, audience.isAgent);

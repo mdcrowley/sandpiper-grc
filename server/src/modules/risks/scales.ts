@@ -21,6 +21,8 @@ export interface Scale {
 export const COLORS = ['gray', 'blue', 'teal', 'green', 'amber', 'orange', 'red', 'purple'];
 export const THRESHOLD_SETTING = 'risks.acceptance_thresholds';
 export const DEFAULT_SCALE = 'cyber_5x5';
+/** The safety hazard matrix: saving it re-rates the hazards too (BS-4). */
+export const HAZARD_SCALE_KEY = 'hazard_4x5';
 
 export const HAZARD_SCALE_NAME = 'Safety hazard matrix (4 by 5)';
 export const HAZARD_SCALE_DESCRIPTION =
@@ -224,9 +226,33 @@ export function makeScales(ctx: ModuleContext) {
    * Re-rates every risk on a scale after the scale (or its approval threshold) changes, and keeps
    * whether accepting each one needs an executive (E08-23). Returns how many ratings changed.
    */
+  /**
+   * Re-rates the safety hazards when the hazard matrix changes (BS-4), whichever route saved it
+   * (Safety's or Risk scales). Hazards are kept while the safety area is off, so they are re-rated
+   * then too; without the safety tables there is nothing to do. Answers how many changed rating.
+   */
+  async function rescoreHazards(): Promise<number> {
+    const scale = await get(HAZARD_SCALE_KEY);
+    if (!scale) return 0;
+    if (!(await ctx.db.one<{ t: string | null }>(`select to_regclass('hazards')::text as t`))?.t) return 0;
+    const levels = await summaryLevels();
+    let changed = 0;
+    for (const h of await ctx.db.query<Row>('select id, likelihood, severity, rating, score, residual_likelihood, residual_severity, residual_rating, residual_score from hazards where deleted_at is null')) {
+      const now = score(scale, levels, h.likelihood, h.severity);
+      const after = score(scale, levels, h.residual_likelihood, h.residual_severity);
+      if (now.rating === (h.rating ?? null) && now.score === (h.score ?? null) && after.rating === (h.residual_rating ?? null) && after.score === (h.residual_score ?? null)) continue;
+      await ctx.db.query('update hazards set rating = $2, score = $3, residual_rating = $4, residual_score = $5 where id = $1',
+        [h.id, now.rating, now.score, after.rating, after.score]);
+      if (now.rating !== (h.rating ?? null) || after.rating !== (h.residual_rating ?? null)) changed += 1;
+    }
+    return changed;
+  }
+
+  /** Re-rates the risks scored on a scale (and, for the hazard matrix, the hazards); answers how many risks changed rating. */
   async function rescore(scaleKey: string): Promise<number> {
     const scale = await get(scaleKey);
     if (!scale) return 0;
+    if (scaleKey === HAZARD_SCALE_KEY) await rescoreHazards();
     const levels = await summaryLevels();
     let changed = 0;
     for (const r of await ctx.db.query<Row>('select * from risks where scale_key = $1', [scaleKey])) {
@@ -304,7 +330,7 @@ export function makeScales(ctx: ModuleContext) {
     });
   }
 
-  return { seedDefaults, all, get, summaryLevels, score, scoreRisk, rescore, validate, save, thresholds };
+  return { seedDefaults, all, get, summaryLevels, score, scoreRisk, rescore, rescoreHazards, validate, save, thresholds };
 }
 
 export type Scales = ReturnType<typeof makeScales>;

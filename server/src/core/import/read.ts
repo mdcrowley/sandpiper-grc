@@ -15,6 +15,27 @@ export interface ImportTable {
   rows: CellValue[][];
   /** The file's line (or sheet row) number of each data row. */
   lines: number[];
+  /** How an uploaded CSV file was decoded (null for XLSX and pasted text). */
+  encoding: 'utf-8' | 'windows-1252' | null;
+  /** Things the person should know before importing (shown with the check). */
+  warnings: string[];
+}
+
+/** The warning given when a CSV file was not UTF-8 and was read as Windows-1252 (BS-9). */
+export const WINDOWS_1252_WARNING = 'The file is not UTF-8, so it was read as Windows-1252 (Excel "CSV (Comma delimited)" on Windows). '
+  + 'Check that accented letters and symbols look right in the sample; if not, save it from Excel as "CSV UTF-8" and choose it again.';
+
+/**
+ * CSV bytes as text: UTF-8 when they are valid UTF-8 (with or without a byte order mark),
+ * otherwise Windows-1252, the code page Excel on Windows writes "CSV (Comma delimited)" in.
+ * Decoding non-UTF-8 bytes as UTF-8 used to turn every accented letter into "�" without a word.
+ */
+export function decodeCsvBytes(bytes: Uint8Array): { text: string; encoding: 'utf-8' | 'windows-1252' } {
+  try {
+    return { text: new TextDecoder('utf-8', { fatal: true }).decode(bytes), encoding: 'utf-8' };
+  } catch {
+    return { text: new TextDecoder('windows-1252').decode(bytes), encoding: 'windows-1252' };
+  }
 }
 
 /** RFC 4180 style: quoted cells, doubled quotes, delimiters and line breaks inside quotes. */
@@ -69,6 +90,8 @@ export function readUpload(input: { fileName?: unknown; content?: unknown; text?
   let sheets: string[] = [];
   let sheet: string | null = null;
   let kind: 'csv' | 'xlsx' = 'csv';
+  let encoding: ImportTable['encoding'] = null;
+  const warnings: string[] = [];
   if (bytes && isXlsx(name, bytes)) {
     kind = 'xlsx';
     let read;
@@ -86,7 +109,8 @@ export function readUpload(input: { fileName?: unknown; content?: unknown; text?
   } else {
     if (bytes) {
       if (bytes.length > IMPORT_LIMITS.bytes) throw new ImportFileError(`The file is larger than ${IMPORT_LIMITS.bytes / 1024 / 1024} MB.`);
-      text = new TextDecoder('utf-8').decode(bytes);
+      ({ text, encoding } = decodeCsvBytes(bytes));
+      if (encoding === 'windows-1252') warnings.push(WINDOWS_1252_WARNING);
     }
     if (text!.length > IMPORT_LIMITS.bytes) throw new ImportFileError(`The file is larger than ${IMPORT_LIMITS.bytes / 1024 / 1024} MB.`);
     if (text!.includes('\u0000')) throw new ImportFileError('This does not look like a CSV file. Choose a CSV or Excel (.xlsx) file.');
@@ -111,5 +135,5 @@ export function readUpload(input: { fileName?: unknown; content?: unknown; text?
   }
   if (!rows.length) throw new ImportFileError('The file has a header row but no data rows.');
   if (rows.length > IMPORT_LIMITS.rows) throw new ImportFileError(`Import at most ${IMPORT_LIMITS.rows} rows at a time; this file has ${rows.length}.`);
-  return { kind, sheets, sheet, headers, rows, lines };
+  return { kind, sheets, sheet, headers, rows, lines, encoding, warnings };
 }

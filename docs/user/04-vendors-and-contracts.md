@@ -11,7 +11,7 @@ Open **Vendors** in the **Vendors** group. Besides the usual columns, the list s
 - **Security terms**: a small bar for the vendor's contracts, green for clauses present, amber for partial, red for absent and gray for not assessed, with the number present out of the number of clauses. Point at it to read the counts. "No contract" means nothing is recorded yet.
 - **Next notice date**: the nearest notice date still to come (or the latest one that has passed), colored as on the contract list.
 
-These two columns appear only if you may view contracts. **Security terms matrix** opens the matrix; **Assessment questions** (for people who administer vendors) opens the questions used in vendor assessments.
+These two columns appear only if you may view contracts. **Security terms matrix** opens the matrix; **Assessment questions** opens the questions used in vendor assessments (only people who administer vendors can change them).
 
 ### Add a vendor
 
@@ -291,7 +291,7 @@ Completed assessments cannot be changed or removed. They are listed under **Hist
 
 ### The questions
 
-Open **Assessment questions** on the vendor list, or on the **Assessment** tab. Everyone who can view vendors can read them; people who administer vendors can change them.
+Open **Assessment questions** on the vendor list, or on the **Assessment** tab. Everyone who can view vendors can read the questions; people who administer vendors can also change them.
 
 1. Edit the **Name of the question set**, and for each question its text, its section, guidance for the person asking, and its weight, from **Weight 1** (counts least) to **Weight 5** (counts most).
 2. Use the arrow buttons to reorder questions, the trash button to remove one, and **Add question** to add one.

@@ -891,7 +891,7 @@ most an hour, instead of the mail queue's usual back-off (1, 2, 4 and 8 minutes)
 
 - [x] A job handler can ask for its next attempt no sooner than a given time (`core/jobs`):
   `RetryLaterError(message, seconds | date)`, or any error with `retryAt` / `retryAfterSeconds`;
-  at least one second, at most six hours; the attempt still counts towards `maxAttempts`
+  at least one second, at most six hours; the attempt still counts toward `maxAttempts`
 - [x] The mail providers pass the service's `Retry-After` (seconds or an HTTP date) through it,
   and SMTP's "try again in N seconds/minutes/hours" (`smtpRetryAfter`); the mail job bounds the
   wait to an hour

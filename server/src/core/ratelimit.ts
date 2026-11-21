@@ -21,6 +21,31 @@ export function makeDbLimiter(db: Queryable, bucket: string, max: number, window
       // Old entries are of no use once outside the window; remove them as we go.
       await db.query(`delete from rate_limit_hits where bucket = $1 and at < now() - make_interval(secs => $2::int)`, [bucket, seconds]);
     },
+    /**
+     * Claims an attempt atomically (wave 9, SA-3): records it first and counts after, so attempts
+     * made at the same moment all count; `blocked()` then `hit()` lets them all through. `ok` is
+     * false when the attempt is over the limit (it is then not kept). Call `release()` when the
+     * attempt turns out not to be a failure (a successful sign-in), so only failures count.
+     */
+    async take(key: string): Promise<{ ok: boolean; release: () => Promise<void> }> {
+      const k = clean(key);
+      const row = await db.one<{ id: string }>('insert into rate_limit_hits (bucket, key) values ($1, $2) returning id', [bucket, k]);
+      const count = await db.one<{ c: number }>(
+        `select count(*)::int as c from rate_limit_hits
+         where bucket = $1 and key = $2 and at > now() - make_interval(secs => $3::int)`,
+        [bucket, k, seconds],
+      );
+      let released = false;
+      const release = async () => {
+        if (released) return;
+        released = true;
+        await db.query('delete from rate_limit_hits where id = $1', [row!.id]);
+      };
+      const ok = (count?.c ?? 0) <= max;
+      if (!ok) await release();
+      else await db.query(`delete from rate_limit_hits where bucket = $1 and at < now() - make_interval(secs => $2::int)`, [bucket, seconds]);
+      return { ok, release };
+    },
     async clear(key: string): Promise<void> {
       await db.query('delete from rate_limit_hits where bucket = $1 and key = $2', [bucket, clean(key)]);
     },

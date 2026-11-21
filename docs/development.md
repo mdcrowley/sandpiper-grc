@@ -98,7 +98,7 @@ Everything goes through `grc.ps1` (it puts the portable Node on PATH):
 .\grc.ps1 test       # vitest (server and web tests)
 .\grc.ps1 typecheck  # server and web
 .\grc.ps1 build      # production web build into dist/web
-.\grc.ps1 ci         # local continuous integration: typecheck, tests, tests on UTC, web build
+.\grc.ps1 ci         # local continuous integration: typecheck, tests, tests on UTC, web build, dependency audit
 .\grc.ps1 backup     # verified copy of data/ in backups/<timestamp> (-Prune <n> keeps the newest n; -Encrypt)
 .\grc.ps1 restore <backup|latest|file>   # verifies, keeps a safety copy, replaces data/
 .\grc.ps1 status | logs | upgrade   # see docs/operations.md for these and the other operations commands
@@ -113,7 +113,9 @@ Everything goes through `grc.ps1` (it puts the portable Node on PATH):
 
 **Continuous integration is local first.** Run `.\grc.ps1 ci` before every commit and
 push: it runs the typecheck, the tests (server and web) twice, the second time with the
-clock on UTC, and the web build, and fails if any step fails. GitHub Actions
+clock on UTC, the web build and the dependency audit (`audit-deps`: it fails on a fixable
+high or critical advisory, and is skipped with a warning when the npm registry cannot be
+reached), and fails if any step fails. GitHub Actions
 (`.github/workflows/ci.yml`) runs on every push and pull request: the typecheck, tests and
 build on Windows and Linux with a non-blocking dependency audit (`npm audit`); the tests
 through the PostgreSQL wire protocol (and, not yet blocking, on PostgreSQL 17); the
@@ -185,7 +187,9 @@ of the embedded database, and `GRC_DATABASE_MIGRATE_URL` runs migrations as the 
 owner so the server's own account can have row access only; `GRC_HOST` (default
 `127.0.0.1`); `GRC_TLS_CERT` and `GRC_TLS_KEY` serve HTTPS, re-read every
 `GRC_TLS_RELOAD_SECONDS` and on `SIGHUP`; `GRC_TRUST_PROXY` names the reverse proxies whose forwarded
-headers are believed; `GRC_ALLOW_INSECURE=1` allows plain HTTP on a reachable address
+headers are believed (the keyword `gateway`, the compose default, is resolved at start to the
+container's default gateway; `core/gateway.ts`); one process per data folder is enforced by
+`data/grc.lock` (`core/datalock.ts`); `GRC_ALLOW_INSECURE=1` allows plain HTTP on a reachable address
 behind a proxy that terminates HTTPS; `GRC_COOKIE_SECURE` (`off` | `auto` | `always`)
 becomes `auto` by itself on HTTPS or behind a trusted proxy. In code, use `clientIp(req)`
 and `isHttps(req)` from `core/request.ts` rather than `req.ip` and `req.protocol`.
@@ -223,13 +227,17 @@ Read them in code with `ctx.settings.get(key, fallback)`, using the same fallbac
 | `integrations.outbound_enabled` | `false` | Allows webhook deliveries at all |
 | `integrations.allowed_hosts` | `[]` | Hosts webhooks may reach (`host`, `host:port`, `*.domain`) |
 | `retention.audit_months` | `84` | Audit log retention, recorded for the retention schedule (nothing deletes audit events) |
+| `retention.webhook_delivery_days` | `30` | Finished webhook deliveries are removed after this many days (pending ones never); delivered ones lose their content at once |
+| `retention.mail_log_days` | `180` | Outgoing message log (`mail_log`) rows that are no longer queued or retrying are removed after this many days |
+| `retention.mail_inbound_log_days` | `180` | Incoming email log (`mail_inbound_log`) rows are removed after this many days |
 
 Changing an `auth.*`, `tokens.*` or `integrations.*` setting needs a recent password
 confirmation.
 
 AI assistant access has its own settings, changed under Administration > AI assistant
 access (`server/src/modules/mcp/settings.ts`), never on the general Settings screen and
-never with a token:
+never with a token. `PUT /api/mcp/admin/settings` takes the camelCase names of `KEYS` in that
+file (`enabled`, `writeEnabled`, ...), not the stored keys below; see [MCP](mcp.md#settings):
 
 | Key | Default | Meaning |
 |---|---|---|
@@ -397,6 +405,8 @@ export default mod;
   groups by words or people (text, long-text, JSON and person fields), group restricted rows
   under `MASKED_SQL` from `core/resource.ts` instead of their value, and never match a
   restricted row by such a field. Lists, their totals and drill-downs keep `visibleWhere`.
+  In a figure use `ctx.resources.figureWhere(type, user, alias)` for the rows and
+  `ctx.resources.figureMask(type, alias)` for the rows whose details must be masked.
 - `ctx.readSeed(opts, 'systems.psv', '|')` - parses a delimited seed file into objects keyed by header.
   `opts.organization` is the organization profile (`{}` when there is none).
 - `ctx.fail(status, code, message, fields?)` - throws an API error.
@@ -426,7 +436,11 @@ Services other modules may offer are Fastify decorators; check before use:
   (shown as the job's result while it runs). A handler throws to
   fail and is retried with back-off; `PermanentJobError` stops the retries, and
   `RetryLaterError(message, seconds | date)` asks for the next attempt no sooner than then (at
-  least one second, at most six hours; it still counts as an attempt). Administrators
+  least one second, at most six hours; it still counts as an attempt).
+  `DeferJobError(message, seconds | date)` puts the job back until then without using up an attempt
+  (for work that was not tried). `register(type, handler, { lane })` puts a job type in its own lane:
+  each lane works through its due jobs alongside the others, so slow work (such as `mail.send`, lane
+  `mail`) never holds up the rest. Administrators
   see the queue under Background jobs. The poller starts when the server listens (never
   under tests, which call `app.jobs.runDue()`); `GRC_JOBS=off` keeps it stopped.
 - PDFs (`PdfBuilder`, `core/export/pdf.ts`) take `branding: await printBranding(db)` (`core/organization.ts`):
@@ -455,6 +469,9 @@ in a way that matters after pilot; during prototyping it is fine to edit and del
 A checksum of each applied migration is recorded: start-up and `status` warn when an applied
 migration has changed, and continuous integration compares migrations with the last release
 tag (`v*`). Never edit a released migration; add a new one.
+A restore or `import-all` of an export builds the schema with the export's own migrations, loads
+the rows, then applies the newer ones (`ops/export.ts` `importStaged`), so a migration may change
+existing data and it will also run on restored backups.
 **No foreign keys across modules** - store the other record's `uuid` in a plain column and
 declare the field as `{ type: 'ref', to: '<type>' }`.
 
@@ -488,6 +505,9 @@ ctx.defineResource({
   //   with restricted: 'flag' and a boolean `restricted` column: rows take their restriction from
   //   the record those two fields point at. Core sets the flag (declare the field readOnly),
   //   keeps it in step when either record changes, and refuses a source the caller cannot see.
+  // rowRule: { where: (user, col) => `(${col('audience')} <> 'agents' or ...)`, figures: 'mask' | 'filter', hidden?: (col) => '...' },
+  //   a per-row rule beyond the restricted flag (core/module.ts RowRule). Core makes it part of
+  //   visibleWhere/find/labels, so every reader follows it; never enforce row access with a URL hook.
   searchable: ['title', 'description'],
   defaultSort: { field: 'created_at', dir: 'desc' },
   fields: {
@@ -559,6 +579,7 @@ Generated routes:
 | Route | Purpose |
 |---|---|
 | `GET /api/health` | `{ ok: true }` (public) |
+| `GET /api/ready` | `{ ok: true, database: "ok" }`, or 503 `{ ok: false, database: "timeout" \| "error" }` when the database does not answer within 2 s (public; container health check) |
 | `GET /api/branding`, `/api/branding/logo/:variant` | The organization's public look: names, colors as tokens per theme, logo addresses (public; `publicBranding` in `core/organization.ts` never includes the address or contacts) |
 | `GET /api/auth/state` | `{ appName, branding, timeZone, currency, setupRequired, user, permissions, features, areasOff, pilot, mfa... }` (public) |
 | `POST /api/setup` | First-run administrator (public, only while no users exist) |
@@ -586,9 +607,16 @@ Generated routes:
 | `/mcp` | The MCP endpoint for AI assistants (tokens with the `mcp.use` scope only; see [AI assistant access](mcp.md)) |
 | `/.well-known/oauth-*`, `/oauth/*` | OAuth 2.1 for remote MCP connectors (off by default; [AI assistant access](mcp.md)) |
 
-**Versioning.** Every `/api/...` route is also served at `/api/v1/...`
-(`core/api/versioning.ts`), the stable base path for integrators; the web application
-keeps using `/api`. See the [integration guide](api.md).
+**Versioning.** Every `/api/...` route is also served at `/api/v1/...`, the stable base path for
+integrators; the web application keeps using `/api` (see the [integration guide](api.md)).
+`canonicalRequestUrl` (`core/api/versioning.ts`, the server's `rewriteUrl`) routes `/api/v1/x` as
+`/api/x` before routing, so there is one route per handler and every hook sees the same `req.url`
+and `req.routeOptions.url`. The same step refuses with `400 bad_path` a path the router would read
+differently from how it is written (encoded unreserved characters, encoded `/` or `\`, malformed
+escapes, `.`/`..` segments). A guard keyed on the matched route uses `routePattern(req)`, which also
+maps a renamed route's deprecated alias to its replacement. `core/api/canonical-paths.test.ts`
+walks every route under both spellings. List paging uses `pageOf(query)` from
+`core/api/conventions.ts` (whole numbers, page capped at 1,000,000).
 
 **Conventions** (`core/api/conventions.ts`, applied centrally to generated routes):
 `ETag` on one record, and `If-Match` on a `PATCH` or `DELETE` refused with 409
@@ -618,7 +646,9 @@ restrict, so a module's own rules still apply. The status field is `status` (or 
 a lookup that is not read-only; a read-only status is managed by the application. A module with
 lifecycle rules in code adds a line to `APPLICATION_RULES` so the page shows them.
 `app.lifecycles.check(def, existing, data, req)` is there for hand-written routes. With no rule
-saved, a type allows every move and requires nothing.
+saved, a type allows every move and requires nothing. A hand-written route that saves as system
+work on someone's behalf (for example `PATCH /api/actions/shared/:id`) calls `app.lifecycles.check`,
+`held` and `hold` with the person's request first.
 
 A move may wait for an approval workflow (E14-37): `approvals` [from, to, workflow id] in
 `lifecycle_rules` (core migration 018). `lifecycles.held()` and `hold()` are called by
@@ -653,6 +683,10 @@ and inherit the flag from their source record. Sensitive administrative routes c
 confirmation (`POST /api/auth/confirm`).
 
 ### Feature switches (optional areas)
+
+Dashboards read `GET /api/dashboards/switched-off-types` and leave widgets of switched-off areas
+out; a standard dashboard made only of them is not listed. Suite 09 also switches the service
+desk, portal and vendors off to check dashboards.
 
 Administrators switch optional parts of the application on and off under Administration >
 Features (`modules/admin/features.ts`, setting `features`). What each part covers is declared
@@ -734,8 +768,8 @@ The test commands:
 - `npm run test:e2e`: the browser suite (`tools/e2e/suites`). It builds the web app (or
   serves the build in `E2E_WEB_DIST`), starts a throw-away instance and drives a real
   browser through every route, every role, every record type, the hand-written dialogs and
-  the keyboard, module by module, and every page with the optional parts switched off (suites
-  `01-smoke` to `09-features-off`). Options
+  the keyboard, module by module, every page with the optional parts switched off, and the
+  Lifecycles page (101 tests in 10 suites, `01-smoke` to `10-lifecycles`). Options
   after `--`: `--only smoke,roles` (some suites), `--grep ticket` (tests whose name
   contains it), `--headed` (show the browser), `--keep` (keep the scratch data folder).
   Logs and screenshots go to `tools/e2e/out`. `node tools/e2e/serve.mjs` keeps an
@@ -779,6 +813,14 @@ minutes). It is always on (not a feature area) and needs no permission key of it
 workflows needs `admin.administer`; deciding needs only to be a named approver who may see the
 record. It follows each record type's area: a switched-off type is skipped everywhere.
 
+A step (or branch) may carry `distinct_approvers: true`: whoever decided another step of the request
+is left out of it and refused (`otherDeciders`). `decide` and `mayDecide` check the approval kind's
+`approverPermission` again at decision time. Records deleted or purged through the resource engine
+end their running workflows (a `ctx.resources.onChange` listener); the sweep also cancels workflows
+whose record is gone and flags steps that can no longer reach their approvals (`flagStuck`, note
+plus one administrator notification). A step's people are written with a compare-and-set
+(`writePeople`), never a blind update.
+
 How it sees record changes: once every module has defined its types (`onReady`), it wraps each
 type's `afterCreate` and `afterUpdate` hooks; the module's own hook runs first, and a workflow
 failure never fails the change. Changes the engine makes itself (outcomes) start nothing.
@@ -816,6 +858,11 @@ wrapped by the core design system: import from `'../../core'` first, and use
 `web/src/core/README.md` for the component catalog. Libraries are split into chunks of their own by
 `VENDOR_GROUPS` in `vite.config.ts` (E18-55); charts and date pickers load with the first page that
 needs them.
+
+Forms register unsaved changes with `useUnsavedChanges(dirty)` (`core/unsaved.tsx`): leaving the page
+asks first, dialogs ask before closing, and a session that ends mid-edit keeps the draft. Call
+`release()` after saving and before navigating. The app runs on a data router
+(`createBrowserRouter`) so `useBlocker` works.
 
 ```tsx
 // web/src/modules/tickets/index.tsx

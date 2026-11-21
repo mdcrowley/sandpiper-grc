@@ -1,10 +1,12 @@
-import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { ModuleDef } from '../../core/module.ts';
 import { openArchiveFile, openArchiveStream, readArchiveInfo } from '../../ops/archive.ts';
 import { describeArchive } from '../../ops/backup.ts';
+import { repoRoot } from '../../ops/files.ts';
+import { DEFAULT_BACKUPS } from './backups.ts';
 import { ADMIN, testApp } from '../../test/helpers.ts';
 import { startFakeS3, type FakeS3 } from './fakes.ts';
 import { Readable } from 'node:stream';
@@ -55,7 +57,7 @@ afterAll(async () => {
 describe.skipIf(Boolean(process.env.GRC_TEST_DATABASE_URL))('backups taken by the running server', () => {
   it('starts switched off, and checks the settings', async () => {
     const o = (await t.api.get('/api/backups')).body;
-    expect(o.settings).toMatchObject({ enabled: false, time: '02:00', keep: 14, destination: 'folder', encrypt: false });
+    expect(o.settings).toMatchObject({ enabled: false, time: '03:30', keep: 14, destination: 'folder', encrypt: false });
     expect(o.keySource).toBeNull();
     expect(o.runs).toEqual([]);
     const bad = await t.api.patch('/api/backups/settings', { enabled: true, folder: 'relative/path', time: '25:00', keep: 0, encrypt: true });
@@ -153,5 +155,18 @@ describe.skipIf(Boolean(process.env.GRC_TEST_DATABASE_URL))('backups taken by th
     const names: string[] = [];
     for await (const e of openArchiveStream(Readable.from([s3.objects.get(key)!]), null)) { names.push(e.path); for await (const _ of e.body) { /* read */ } }
     expect(names).toContain('manifest.json');
+  });
+});
+
+// OP-12: the stop-and-copy backup's scheduled task stops the server; the server's own backup
+// must not be due at the same time by default.
+describe('default backup times', () => {
+  it('stagger the server\'s own backup from the scheduled stop-and-copy backup', () => {
+    const ps = /\[string\]\$At = '(\d\d:\d\d)'/.exec(readFileSync(join(repoRoot, 'grc.ps1'), 'utf8'))?.[1];
+    const sh = /\bat=(\d\d:\d\d)\b/.exec(readFileSync(join(repoRoot, 'grc.sh'), 'utf8'))?.[1];
+    expect(ps).toMatch(/^\d\d:\d\d$/);
+    expect(sh).toBe(ps);
+    const minutes = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3));
+    expect(Math.abs(minutes(DEFAULT_BACKUPS.time) - minutes(ps!))).toBeGreaterThanOrEqual(60);
   });
 });

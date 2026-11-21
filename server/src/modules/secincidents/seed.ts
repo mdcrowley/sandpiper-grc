@@ -41,7 +41,7 @@ export async function seedSample(ctx: ModuleContext, svc: IncidentService): Prom
   ];
   for (const [h, kind, text] of entries) await svc.addLog(incident.id, null, text, kind, at(h));
 
-  // Tick the first three containment steps, as the exercise team would have by now.
+  // Check off the first three containment steps, as the exercise team would have by now.
   const steps = await ctx.db.query<{ id: string }>(
     `select id from incident_checklist_items where incident_id = $1 and phase = 'containment' and deleted_at is null order by sort limit 3`,
     [incident.id],
@@ -54,7 +54,7 @@ export async function seedSample(ctx: ModuleContext, svc: IncidentService): Prom
   }
   await ctx.audit(null, {
     action: 'security_incident.sample_seeded', recordType: 'security_incident', recordId: incident.id,
-    summary: `Sample incident seeded with ${entries.length} log entries and ${steps.length} ticked checklist steps`,
+    summary: `Sample incident seeded with ${entries.length} log entries and ${steps.length} checklist steps checked off`,
   });
   return `sample incident ${incident.ref} created`;
 }

@@ -21,7 +21,10 @@ Nothing planned is unbuilt; what remains is listed below as incomplete or unprov
   theme.
 - **Sign-in**: single sign-on supports OpenID Connect, SAML 2.0 and a directory (LDAP).
   Directory sign-in has been tried against a stand-in directory, not a real Active
-  Directory.
+  Directory. The per-address limit on single sign-on routes is checked before an attempt and
+  recorded after it, so attempts sent at the same moment can exceed it; the per-account and
+  per-user-name limits count every attempt. The Change password dialog revokes API tokens and
+  assistant connections unless the person checks the box to keep them.
 - **Second factor**: a new installation requires it for the roles that expect one
   (Administrator and Security lead) unless setup explicitly asks for a reminder only. An
   existing installation keeps its setting.
@@ -41,10 +44,15 @@ Nothing planned is unbuilt; what remains is listed below as incomplete or unprov
   server, use `pg_dump` and `pg_restore` (see [Operations](operations.md)). Files kept in
   the object store are not in backups. Restoring a backup is done from the command line only; stored files can be moved between
   the disk and the object store under Administration > File settings. Scheduled backups to a
-  second location still need proving on a real installation (E16-08).
+  second location still need proving on a real installation (E16-08). On the embedded database,
+  the server's own backup still pauses requests while it takes its snapshot: about a second per
+  65,000 rows.
 - **Exports and imports**: PDFs made by the server print text outside Western European
   languages with a font found on the machine (or named in `GRC_PDF_FONTS`); explicit
-  bidirectional embedding characters are ignored.
+  bidirectional embedding characters are ignored. List exports stop at 50,000 rows (the file and
+  the `X-GRC-Export-Truncated` header say so) and are built in memory; a PDF holds at most 12
+  columns. A CSV that is not UTF-8 is read as Windows-1252; other code pages are not detected.
+  The pause in sending email while the mail server is unreachable is kept per server process.
 - **Custom fields**: the portal deliberately does not ask ticket custom fields of
   requesters (they are the service desk's own classification); catalog questions do that
   job.
@@ -54,7 +62,10 @@ Nothing planned is unbuilt; what remains is listed below as incomplete or unprov
   to 10 seconds.
 - **Hosting**: with a least-privilege database account, adding a custom field is queued
   for the database owner, and a new text custom field is searched only after the owner's
-  next `migrate` step. The user services run on GitHub's Linux and macOS machines; a restart of the machine and the
+  next `migrate` step. JSON API responses are not compressed by the application (a risk with
+  session-bound answers); a reverse proxy may compress them. Web assets are compressed and cached.
+  Webhook addresses are stored in clear in the `webhooks` table (administrators only); audit
+  entries show only their host and a fingerprint. The user services run on GitHub's Linux and macOS machines; a restart of the machine and the
   system examples in `deploy/` are not yet proven on real machines (E16-42).
 - **Performance**: the embedded database is for evaluation. A PostgreSQL server meets the
   targets in the load test, but only with the server on the same machine and everyone
@@ -62,12 +73,16 @@ Nothing planned is unbuilt; what remains is listed below as incomplete or unprov
   different roles is still to do (E16-41).
 - **Vendors**: the contract import fills structured dates only where the text is
   unambiguous; the "Complete the dates" queue lists the rest.
+- **Unsaved changes**: forms built on the shared record form, the New ticket dialog and the
+  full-page forms ask before discarding a draft; about 60 hand-written dialogs that hold their own
+  state do not yet (E22-14).
 
 ## Verification status
 
 - The full unit test suite (server and web) passes on Windows, and again with the clock
-  on UTC; `.\grc.ps1 ci` runs it both ways, with the typecheck and a production build.
-- The browser suite (`npm run test:e2e`, 94 tests in 9 suites) covers every route as an
+  on UTC; `.\grc.ps1 ci` runs it both ways, with the typecheck, a production build and the
+  dependency audit (skipped without a network).
+- The browser suite (`npm run test:e2e`, 102 tests in 10 suites) covers every route as an
   administrator in the light theme at 1440px and the dark theme at 820px, every default
   role, the create and edit form of every record type, the hand-written dialogs (submitted
   empty, then filled in), keyboard-only use module by module, list features, and every page

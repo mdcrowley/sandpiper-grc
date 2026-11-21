@@ -5,7 +5,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   Badge, Button, Checkbox, ConfirmDialog, EmptyState, ErrorState, Forbidden, Icon, Loading, LookupChip, Menu, Modal, NotFound, NumberField,
   PageHeader, Select, TextArea, TextField, api, errorMessage, formatDateTime, relativeTime, useAuth, useCustomFieldInputs, useFetch, useToast,
-  CustomFieldsCard, type CustomFieldInputs,
+  CustomFieldsCard, SwitchedOff, type CustomFieldInputs,
 } from '../../core';
 import { CustomFieldsLink, customValues, fieldMessages } from './custom';
 import type { ApiError, ListResult } from '../../core';
@@ -17,6 +17,7 @@ import { FilterBar, readGlobals, writeGlobals } from './FilterBar';
 import { readingOrder, settle } from './layout';
 import type { Dashboard, GlobalFilterDef, GlobalKind, Globals, Widget } from './types';
 import { WidgetBody } from './Widget';
+import { dashboardOff, useOffTypes, widgetOff } from './offTypes';
 import { WidgetEditor, WidgetLibrary, newWidget } from './WidgetEditor';
 
 interface Home { dashboard: { id: string; name: string } | null }
@@ -29,6 +30,7 @@ export function DashboardsPage() {
   const toast = useToast();
   const [params, setParams] = useSearchParams();
   const list = useFetch<ListResult<Dashboard>>('/api/dashboards?pageSize=200&sort=name');
+  const off = useOffTypes();
   const home = useFetch<Home>('/api/dashboards/home');
   const [q, setQ] = useState('');
   const [name, setName] = useState('');
@@ -58,7 +60,10 @@ export function DashboardsPage() {
   }
 
   const rows = (list.data?.rows ?? []).filter((d) => `${d.name} ${d.description ?? ''}`.toLowerCase().includes(q.trim().toLowerCase()));
-  const standard = rows.filter((d) => d.key);
+  // A standard dashboard about switched-off areas only is not listed; on one that is partly about
+  // them, the description (which may name them) gives way to the number of widgets shown.
+  const shown = (d: Dashboard) => (off ? d.widgets.filter((w) => !widgetOff(w, off)) : d.widgets);
+  const standard = rows.filter((d) => d.key && !(off && dashboardOff(d.widgets, off)));
   const others = rows.filter((d) => !d.key);
   const card = (d: Dashboard) => (
     <li key={d.id}>
@@ -67,12 +72,12 @@ export function DashboardsPage() {
           <strong>{d.name}</strong>
           {home.data?.dashboard?.id === d.id && <Badge color="teal">Your home</Badge>}
         </span>
-        <span className="rp-dash-card-desc">{d.description || `${d.widgets.length} widgets`}</span>
+        <span className="rp-dash-card-desc">{(d.key && shown(d).length < d.widgets.length ? '' : d.description) || `${shown(d).length} widgets`}</span>
         <span className="rp-dash-card-meta">
           <LookupChip list="report_sharing" value={d.sharing} />
           <span className="muted">{d._display?.owner_id ?? 'Standard'} · updated {relativeTime(d.updated_at)}</span>
         </span>
-        <DashThumb widgets={d.widgets} />
+        <DashThumb widgets={shown(d)} />
       </Link>
     </li>
   );
@@ -87,7 +92,7 @@ export function DashboardsPage() {
           </>
         )} />
       {list.error ? <ErrorState title="Dashboards could not be loaded" error={list.error} onRetry={list.reload} />
-        : !list.data ? <Loading lines={6} label="Loading dashboards" />
+        : !list.data || !off ? <Loading lines={6} label="Loading dashboards" />
         : (
           <>
             <div className="rp-dash-search"><TextField label="Search dashboards" hideLabel type="search" value={q} onChange={setQ} placeholder="Search dashboards" leftSection={<Icon name="search" size={16} />} /></div>
@@ -144,6 +149,7 @@ export function DashboardPage() {
   const toast = useToast();
   const { can } = useAuth();
   const dash = useFetch<Dashboard>(`/api/dashboards/${id}`);
+  const off = useOffTypes();
   const home = useFetch<Home>('/api/dashboards/home');
   const canChange = useCanChange(dash.data, 'dashboards');
   const editing = params.get('edit') === '1' && canChange;
@@ -196,7 +202,10 @@ export function DashboardPage() {
   if (dash.error) return <ErrorState title="This dashboard could not be opened" error={dash.error} onRetry={dash.reload} />;
   if (!dash.data) return <><PageHeader title="Dashboard" /><Loading lines={8} label="Loading the dashboard" /></>;
   const d = dash.data;
-  const view: Draft = editing ? draft.value : { name: d.name, description: d.description ?? '', widgets: d.widgets, filters: d.filters ?? [], refresh_seconds: d.refresh_seconds };
+  // Widgets about switched-off areas are left out while looking (kept, and shown, while editing).
+  const offHere = !editing && off ? d.widgets.filter((w) => widgetOff(w, off)).length : 0;
+  const view: Draft = editing ? draft.value : { name: d.name, description: d.description ?? '', widgets: offHere ? d.widgets.filter((w) => !widgetOff(w, off!)) : d.widgets, filters: d.filters ?? [], refresh_seconds: d.refresh_seconds };
+  if (!editing && d.key && off && dashboardOff(d.widgets, off)) return <SwitchedOff />;
   const isHome = home.data?.dashboard?.id === d.id;
 
   const setGlobals = (g: Globals) => setParams(writeGlobals(params, g), { replace: false });
@@ -296,7 +305,7 @@ export function DashboardPage() {
         <PageHeader
           title={editing ? `Editing: ${view.name || 'Dashboard'}` : d.name}
           breadcrumbs={[{ label: 'Dashboards', to: '/dashboards' }, { label: d.name }]}
-          subtitle={editing ? 'Drag a widget by its handle to move it and by its corner to resize it, or use the arrow keys on the handle.' : d.description || undefined}
+          subtitle={editing ? 'Drag a widget by its handle to move it and by its corner to resize it, or use the arrow keys on the handle.' : (d.key && offHere ? undefined : d.description) || undefined}
           status={!editing ? <>{isHome && <Badge color="teal">Your home</Badge>} <LookupChip list="report_sharing" value={d.sharing} /></> : undefined}
           actions={editing ? editActions : viewActions}
         />

@@ -13,7 +13,8 @@ import type { RetentionChangeInput } from './webhooks.ts';
  *
  * A retention policy is data: per record type, a period in months, what the period is counted from
  * (`updated_at` or `created_at`) and a schedule category (the configurable list `retention_category`).
- * A daily sweep flags records that are past their period for review. **It never deletes anything.**
+ * A daily sweep flags records that are past their period for review. **It never deletes a record.**
+ * (The same daily job removes delivery-log rows past their own periods: see LOG_RETENTION.)
  * An administrator then decides each flagged record: keep it for longer (with a reason), anonymize it
  * (E14-19), or remove it for good. What the review of a type may do is the policy's `disposal`:
  * `keep` (only keep longer), `anonymize` (also anonymize) or `delete` (also remove for good).
@@ -51,6 +52,24 @@ export function personalFields(def: ResourceDef): string[] {
 }
 
 const disposalOf = (p: Row | undefined): Disposal => (DISPOSALS.includes(p?.disposal) ? p!.disposal : 'delete');
+
+/**
+ * How long the delivery logs are kept (OP-08), in days: settings an administrator may change
+ * (Administration > Settings > Retention), with these defaults and limits. Unlike records, these
+ * rows are removed by the daily sweep without review: they are logs, not records.
+ * - webhook deliveries: once delivered, failed or blocked (pending ones are never removed);
+ * - outgoing mail and text messages (`mail_log`): once sent, given up or skipped;
+ * - incoming mail (`mail_inbound_log`, the service desk's mailbox).
+ */
+export const LOG_RETENTION = {
+  'retention.webhook_delivery_days': { fallback: 30, min: 1, max: 3650 },
+  'retention.mail_log_days': { fallback: 180, min: 7, max: 3650 },
+  'retention.mail_inbound_log_days': { fallback: 180, min: 7, max: 3650 },
+} as const;
+export type LogRetentionKey = keyof typeof LOG_RETENTION;
+
+/** What a removed or anonymized record's queued and past webhook deliveries are left with. */
+export const REDACTED_PAYLOAD = { redacted: true, reason: 'The record was anonymized or removed at the end of its retention period.' };
 
 interface Deps {
   app: FastifyInstance;
@@ -92,6 +111,64 @@ export function registerRetention({ app, db, audit, lookups, res, requireRecentA
       });
     }
     return { flagged: Object.values(byType).reduce((a, b) => a + b, 0), byType };
+  }
+
+  const tableExists = async (name: string, q: Pick<Db, 'one'> = db) => Boolean((await q.one<{ t: string | null }>('select to_regclass($1)::text as t', [name]))?.t);
+  const days = async (key: LogRetentionKey) => {
+    const spec = LOG_RETENTION[key];
+    const v = Number((await db.one<{ value: unknown }>('select value from settings where key = $1', [key]))?.value);
+    return Number.isInteger(v) && v >= spec.min && v <= spec.max ? v : spec.fallback;
+  };
+
+  /**
+   * Removes delivery-log rows past their period (OP-08), and empties the content of webhook
+   * deliveries already delivered (it is only needed to send them, or to try again). Runs with the
+   * daily sweep. Returns how many rows each step removed or emptied.
+   */
+  async function housekeeping(): Promise<{ webhookDeliveries: number; webhookPayloads: number; mailLog: number; mailInboundLog: number }> {
+    const out = { webhookDeliveries: 0, webhookPayloads: 0, mailLog: 0, mailInboundLog: 0 };
+    if (await tableExists('webhook_deliveries')) {
+      out.webhookPayloads = (await db.query(
+        `update webhook_deliveries set payload = '{}'::jsonb where status = 'delivered' and payload <> '{}'::jsonb returning 1`)).length;
+      out.webhookDeliveries = (await db.query(
+        `delete from webhook_deliveries where status <> 'pending'
+           and coalesce(delivered_at, last_attempt_at, created_at) < now() - make_interval(days => $1::int) returning 1`,
+        [await days('retention.webhook_delivery_days')])).length;
+    }
+    if (await tableExists('mail_log')) {
+      out.mailLog = (await db.query(
+        `delete from mail_log where status not in ('queued', 'failed') and created_at < now() - make_interval(days => $1::int) returning 1`,
+        [await days('retention.mail_log_days')])).length;
+    }
+    if (await tableExists('mail_inbound_log')) {
+      out.mailInboundLog = (await db.query(
+        'delete from mail_inbound_log where received_at < now() - make_interval(days => $1::int) returning 1',
+        [await days('retention.mail_inbound_log_days')])).length;
+    }
+    const removed = out.webhookDeliveries + out.mailLog + out.mailInboundLog;
+    if (removed) {
+      await audit(null, {
+        action: 'retention.housekeeping',
+        summary: `Delivery logs past their retention period removed: ${out.webhookDeliveries} webhook deliveries, `
+          + `${out.mailLog} outgoing messages, ${out.mailInboundLog} incoming emails`,
+      });
+    }
+    return out;
+  }
+
+  /**
+   * Webhook deliveries keep the record's fields as they were sent (OP-08): once a record is
+   * anonymized or removed at the end of its retention period, their content is replaced, and those
+   * still waiting are not sent (blocked, with the reason). Their date, event and status stay.
+   */
+  async function scrubDeliveries(q: Pick<Db, 'query' | 'one'>, type: string, id: string): Promise<number> {
+    if (!(await tableExists('webhook_deliveries', q))) return 0; // on q: inside a transaction, the outer handle would wait for ever
+    return (await q.query(
+      `update webhook_deliveries set payload = $3::jsonb,
+         status = case when status = 'pending' then 'blocked' else status end,
+         last_error = case when status = 'pending' then $4 else last_error end
+       where record_type = $1 and record_id = $2 returning 1`,
+      [type, id, JSON.stringify(REDACTED_PAYLOAD), 'Not sent: the record was anonymized or removed at the end of its retention period.'])).length;
   }
 
   // The daily sweep runs on the job queue, scheduled by core in app.ts (E14-23).
@@ -275,6 +352,7 @@ export function registerRetention({ app, db, audit, lookups, res, requireRecentA
     if (hasFiles) fail(409, 'has_attachments', 'This record still has files attached. Remove them first.');
     const label = res.labelOf(def, existing!);
     await res.purge(def.type, review.record_id, req);
+    await scrubDeliveries(db, def.type, review.record_id); // before the deletion itself is sent, below
     const row = await db.one<Row>(
       `update retention_reviews set status = 'deleted', record_label = $2, reason = $3, decided_at = now(), decided_by = $4 where id = $1 returning *`,
       [review.id, def.ref ? existing![def.ref.field] ?? label : label, reason, req.user!.id]);
@@ -357,6 +435,7 @@ export function registerRetention({ app, db, audit, lookups, res, requireRecentA
         `update comments set body = $3, author_id = null, author_name = null where record_type = $1 and record_id = $2 returning 1`,
         [def.type, id, ANONYMIZED_TEXT])).length;
       await tx.query('delete from record_watchers where record_type = $1 and record_id = $2', [def.type, id]);
+      await scrubDeliveries(tx, def.type, id);
       if (files.length) {
         await tx.query(
           `update attachments set file_name = 'Removed file' || case when extension <> '' then '.' || extension else '' end,
@@ -403,5 +482,5 @@ export function registerRetention({ app, db, audit, lookups, res, requireRecentA
     return { ...row, anonymized: done };
   });
 
-  return { sweep, anonymize };
+  return { sweep, anonymize, housekeeping };
 }

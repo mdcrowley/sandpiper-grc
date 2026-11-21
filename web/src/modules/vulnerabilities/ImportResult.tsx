@@ -106,7 +106,7 @@ export function ImportResultView({ result, done, busy, closeMissing, onCloseMiss
       )}
       {!done && (
         <Checkbox label="Close missing findings" checked={closeMissing} disabled={busy} onChange={onCloseMissing}
-          hint="Only tick this when the file is a complete scan of the same scope as before. The dry run then runs again." />
+          hint="Only check this when the file is a complete scan of the same scope as before. The dry run then runs again." />
       )}
     </div>
   );

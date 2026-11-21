@@ -77,8 +77,9 @@ The pull request template repeats this as a checklist.
 .\grc.ps1 build          # npm run build: the production web build
 ```
 
-Run `.\grc.ps1 ci` (or `./grc.sh ci`: typecheck, tests, the tests again on UTC, and the
-web build) before every commit and push. GitHub Actions runs the same checks on Windows
+Run `.\grc.ps1 ci` (or `./grc.sh ci`: typecheck, tests, the tests again on UTC, the web
+build, and the dependency audit, which is skipped without a network) before every commit
+and push. GitHub Actions runs the same checks on Windows
 and Linux for every push and pull request, and also the tests on a PostgreSQL server,
 installation on Linux and macOS, the container image, the browser suite and the
 accessibility audit ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)); a pull

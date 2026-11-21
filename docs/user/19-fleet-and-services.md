@@ -4,7 +4,7 @@ The fleet pages record the vehicles you run, the equipment fitted to each one, t
 
 If your organization does not manage vehicles here, an administrator can switch **Fleet and services** off under **Administration > Features** (see [Administration](09-administration.md#features)). Vehicles and services then disappear everywhere, including the impact panels on system pages, the relationship map and the **Affected** tab of security incidents. Records are kept and return when it is switched back on.
 
-You need the **fleet** permissions to see these pages (`fleet.view`, and `fleet.create`, `fleet.edit`, `fleet.delete`, `fleet.export` to change and export). Equipment is made of assets, so working with it also needs permission to see assets; **What is affected** needs permission to see systems.
+You need the **fleet** permissions to see these pages (`fleet.view`, and `fleet.create`, `fleet.edit`, `fleet.delete`, `fleet.export` to change and export; `fleet.administer` for the required equipment). Equipment is made of assets, so working with it also needs permission to see assets; **What is affected** needs permission to see systems.
 
 Of the default roles, **Agent** holds every fleet permission; **Security lead**, **Safety manager** and **Auditor** can read the fleet pages (`fleet.view`). An administrator can grant the fleet permissions to any other role under **Administration > Roles**.
 
@@ -66,7 +66,7 @@ Each column heading says how many gaps it has, and the **Gaps** column counts th
 
 ### Required equipment
 
-Administrators (`fleet.administer`) select **Required equipment** to check the kinds of equipment each mode should carry, and **Save**. The kinds are the asset types of the inventory, so a new type added under **Administration > Lists** appears here too.
+People with `fleet.administer` (the **Administrator** and **Agent** roles by default) select **Required equipment** to check the kinds of equipment each mode should carry, and **Save**. The kinds are the asset types of the inventory, so a new type added under **Administration > Lists** appears here too.
 
 ## Services
 

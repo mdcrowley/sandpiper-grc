@@ -8,9 +8,10 @@ import { loadUser, secretBox } from '../auth.ts';
 import { DEFAULT_APP_NAME } from '../config.ts';
 import { mailBranding } from '../organization.ts';
 import { UUID_RE } from '../errors.ts';
-import { PermanentJobError, RetryLaterError, type JobQueue } from '../jobs/index.ts';
+import { DeferJobError, PermanentJobError, RetryLaterError, type JobQueue } from '../jobs/index.ts';
 import type { ModuleContext, Row, SessionUser } from '../module.ts';
 import { providerSecret } from './accounts.ts';
+import { breakerKey, makeMailBreaker, type MailBreaker } from './breaker.ts';
 import { makeProvider, type MailAttachment, type MailConfig } from './provider.ts';
 import { DEFAULT_TEMPLATES, escapeHtml, render, textToHtml } from './templates.ts';
 
@@ -142,6 +143,8 @@ export async function templateRow(ctx: ModuleContext, key: string): Promise<{ ke
 
 export function makeMail(ctx: ModuleContext, jobs: JobQueue) {
   const { db } = ctx;
+  /** Pauses sending while the mail server cannot be reached (OP-09). */
+  const breaker: MailBreaker = makeMailBreaker();
 
   async function enabled() {
     return (await db.one<{ enabled: boolean }>('select enabled from mail_config where id = 1'))?.enabled === true;
@@ -171,6 +174,14 @@ export function makeMail(ctx: ModuleContext, jobs: JobQueue) {
 
     const config = await loadConfig(ctx);
     if (!config.enabled && !p.test) return giveUp('dead', 'Email was switched off before this message was sent.');
+    // The mail server could not be reached several times in a row: wait for the pause to end
+    // without trying, and without using up an attempt (OP-09). A test message always tries.
+    const paused = p.test ? null : breaker.pausedUntil(breakerKey(config));
+    if (paused) {
+      const why = `Waiting: the mail server could not be reached, so sending is paused until ${paused.toISOString()}.`;
+      await logStatus(logId, 'failed', { error: why });
+      throw new DeferJobError(why, paused);
+    }
 
     // The recipient, as they are now.
     let user: SessionUser | null = null;
@@ -262,6 +273,10 @@ export function makeMail(ctx: ModuleContext, jobs: JobQueue) {
       };
       const replyTo = typeof p.replyTo === 'string' && EMAIL_RE.test(p.replyTo) ? p.replyTo : config.reply_to || undefined;
       const result = await provider.send({ to, from, replyTo, subject: message.subject, text: message.text, html: message.html, attachments, headers });
+      if (result.unreachable) {
+        const until = breaker.failure(breakerKey(config));
+        if (until) console.warn(`[mail] the mail server could not be reached several times in a row; sending is paused until ${until.toISOString()}`);
+      } else breaker.success(breakerKey(config));
       if (result.ok) {
         await logStatus(logId, 'sent', { attempts: job.attempt, messageId: result.messageId, provider: provider.name, subject: message.subject, to });
         return { status: 'sent', messageId: result.messageId ?? null };
@@ -277,7 +292,7 @@ export function makeMail(ctx: ModuleContext, jobs: JobQueue) {
     } finally {
       provider.close?.();
     }
-  }, { maxAttempts: 5, backoffSeconds: 60 });
+  }, { maxAttempts: 5, backoffSeconds: 60, lane: 'mail' });
 
   // ---------- queuing ----------
 

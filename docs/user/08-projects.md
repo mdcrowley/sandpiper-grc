@@ -22,7 +22,7 @@ Roles are managed by an administrator; see [Administration](09-administration.md
 
 Every project starts as a one-page request.
 
-1. Open **Projects > New project request**, select **New project request** on the portfolio, or choose **Project request** from the **Create** menu.
+1. Open **Projects > New project request**, select **New project request** on the portfolio, or choose **Project request** from the **Create** menu. These are shown only to people who may send a request: people who may create projects, and, depending on **Who may submit a project request** in **Project settings**, people who may view projects or everyone.
 2. Enter a **Name**.
 3. In **What is needed and why**, describe the problem. In **Expected benefits**, say what will be better afterward.
 4. Enter the **Sponsor** and **Department**.
@@ -86,6 +86,7 @@ The bar at the top of a project page shows the six stages with the gates between
 | Gate shows | Meaning |
 |---|---|
 | **Not reached** | The project has not got to this gate yet. |
+| **Waiting for an earlier gate** | The gate was opened before, but the project has since moved back to an earlier stage. |
 | **Blocked: N to do** | Checklist items or required documents are still outstanding. |
 | **Waiting for approval** | Approval was asked for through the approval workflow the gate's template names; the approval panel at the top of the page shows who it waits for. |
 | **Ready for a decision** | Every checklist item is checked and every required document is received or waived. |
@@ -133,20 +134,20 @@ The **Approvers** card lists the roles expected to approve this gate for the pro
 
 ### Asking for approval through a workflow
 
-A gate template may name an **approval workflow** (see **Project settings** below, and [Approval workflows](22-approval-workflows.md)). On such a gate, once every checklist item is ticked and every required document is received or waived, the box at the top says "Ready for a decision" and the **Gate** tab shows **Ask for approval** to anyone with **Edit** on Projects.
+A gate template may name an **approval workflow** (see **Project settings** below, and [Approval workflows](22-approval-workflows.md)). On such a gate, once every checklist item is checked and every required document is received or waived, the box at the top says "Ready for a decision" and the **Gate** tab shows **Ask for approval** to anyone with **Edit** on Projects.
 
 1. Select **Ask for approval**. The workflow starts, and its approvers are told (in the application and by email, as their notification settings say). They find it on their **Approvals** page.
 2. While it runs, the box says "Waiting for approval", and the **approval panel** at the top of the project page shows the workflow's steps, who it is waiting for, its due time and every decision. Approvers decide there, or from the **Approvals** page.
 3. When the workflow approves, the approval is recorded as a gate decision, exactly as **Record decision** would: the approver's name (for a stand-in, "Stand-in name on behalf of approver name"), today's date and the reference "Approval workflow" followed by the workflow's name. The gate closes and the project moves to the next stage. If something blocks the gate again by then (for example a checklist item was cleared, or the project was put on hold), nothing changes and the workflow shows that its outcome could not be recorded; deal with the blocker and ask again.
 4. When the workflow is rejected, a **Rejected** decision is recorded with the approver's reason and the gate stays open. You can ask again once the reason has been dealt with.
 
-You cannot approve a request you asked for yourself. The person who asked, or an administrator, can cancel the request from the approval panel. Recording a decision by hand (below) while a request is waiting settles the gate and stops the request.
+You cannot approve a request you asked for yourself. The person who asked, or an administrator, can cancel the request from the approval panel. While a gate's template names a workflow, or a request is waiting, its decision goes through the workflow: only an administrator can record it by hand instead (below), with a reason in **Notes**, and never the person who asked for the approval. That settles the gate and stops the request.
 
 On a gate whose template names no workflow (the default, and every gate template of an installation set up before this version), decisions are recorded by hand as below.
 
 ### Recording a decision
 
-Approvals given outside the application, for example by email or at a board meeting, are recorded here; this is always possible, also on a gate whose template names an approval workflow. You need **Approve** on **Projects**, and the button appears only on the project's current gate.
+Approvals given outside the application, for example by email or at a board meeting, are recorded here. You need **Approve** on **Projects**, and the button appears only on the project's current gate. On a gate whose template names an approval workflow (or with a request waiting), the button is shown only to administrators, who must say in **Notes** why the decision is recorded by hand.
 
 1. On the **Gate** tab, select **Record decision**.
 2. Choose the **Decision**: **Approved: move to** the next stage, **Deferred: decide later** or **Rejected**.

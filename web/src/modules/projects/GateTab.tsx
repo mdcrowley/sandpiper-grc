@@ -127,7 +127,8 @@ export function GateTab({ projectId, version, onChanged }: { projectId: string; 
         <Group gap="xs">
           <LookupChip list="project_gate_status" value={gate.status} />
           {gate.approval.can_request && <AskForApproval projectId={projectId} gate={gate} onAsked={refresh} />}
-          {gate.is_current && can('projects.approve') && (
+          {/* A gate that goes through an approval workflow is recorded by hand only by an administrator (AZ-5). */}
+          {gate.is_current && can('projects.approve') && ((!gate.approval.workflow_id && !gate.approval.running) || can('admin.administer')) && (
             <Button variant={gate.approval.can_request ? 'secondary' : 'primary'} icon="check-square" onClick={() => setDeciding(true)}>Record decision</Button>
           )}
         </Group>
@@ -141,13 +142,13 @@ export function GateTab({ projectId, version, onChanged }: { projectId: string; 
       ) : gate.approval.running ? (
         <Alert color="blue" variant="light" icon={<Icon name="clock" />} title="Waiting for approval">
           Approval was asked for through "{gate.approval.workflow_name ?? 'the approval workflow'}". The approval panel at the top of the page shows who
-          it is waiting for. Once approved, the project moves to {stageLabel(gate.to_stage)}. A decision recorded by hand stops the request.
+          it is waiting for. Once approved, the project moves to {stageLabel(gate.to_stage)}. An administrator can instead record a decision by hand, with a reason; that stops the request.
         </Alert>
       ) : (
         <Alert color="green" variant="light" icon={<Icon name="check-circle" />} title="Ready for a decision">
-          Every checklist item is ticked and the required documents are in place.{' '}
+          Every checklist item is checked and the required documents are in place.{' '}
           {gate.approval.workflow_id
-            ? <>Ask for approval through "{gate.approval.workflow_name}", or record a decision given elsewhere, to move the project to {stageLabel(gate.to_stage)}.</>
+            ? <>Ask for approval through "{gate.approval.workflow_name}" to move the project to {stageLabel(gate.to_stage)}. Only an administrator can record a decision by hand, with a reason.</>
             : <>Record the approval to move the project to {stageLabel(gate.to_stage)}.</>}
         </Alert>
       ))}

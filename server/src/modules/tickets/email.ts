@@ -329,12 +329,28 @@ export function makeEmailIntake(ctx: ModuleContext, notify: TicketNotify) {
           const list = await box.list();
           const source = s.source;
           for (const item of list.slice(0, MAX_PER_POLL)) {
-            const seen = await db.one('select 1 from mail_inbound_seen where uid = $1', [item.uid]);
+            const seen = await db.one<{ finished: boolean }>('select finished from mail_inbound_seen where uid = $1', [item.uid]);
+            if (seen && !seen.finished) {
+              // Reading it started on an earlier poll and never finished (SP-01): never again.
+              // It stays in the mailbox for a person to look at, like any failed message.
+              await log({ source: s.source, size_bytes: item.size }, {
+                outcome: 'failed', ticket_id: null,
+                reason: 'Reading this message did not finish on an earlier poll (the server stopped or could not process it), so it is not read again',
+              });
+              await db.query('update mail_inbound_seen set finished = true where uid = $1', [item.uid]);
+              result.fetched += 1;
+              result.failed += 1;
+              await box.keep?.(item);
+              continue;
+            }
             if (seen) {
               if (!s.leave_on_server) await box.delete(item);
               else await box.keep?.(item);
               continue;
             }
+            // Recorded before the message is read, so a message that hangs or stops the server
+            // is not read again on every poll (SP-01).
+            await db.query('insert into mail_inbound_seen (uid, finished) values ($1, false) on conflict do nothing', [item.uid]);
             let outcome: Outcome;
             if (item.size > MAX_MESSAGE_BYTES) {
               outcome = await log({ source, size_bytes: item.size }, { outcome: 'refused', reason: 'The message is larger than 30 MB', ticket_id: null });
@@ -346,7 +362,7 @@ export function makeEmailIntake(ctx: ModuleContext, notify: TicketNotify) {
             }
             result.fetched += 1;
             result[outcome.outcome] += 1;
-            await db.query('insert into mail_inbound_seen (uid) values ($1) on conflict do nothing', [item.uid]);
+            await db.query('update mail_inbound_seen set finished = true where uid = $1', [item.uid]);
             // A message that failed is kept on the server for another look; everything else is done with.
             // Left on the server, a message read through a web interface is marked read so it is not listed again.
             if (!s.leave_on_server && outcome.outcome !== 'failed') await box.delete(item);

@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Alert, Group, Pill, Progress, Stack, Stepper as Steps, Text } from '@mantine/core';
 import {
   api, ApiError, Button, Card, Checkbox, DateField, EmptyState, errorMessage, ErrorState, formatCurrency, formatDate, Icon, Loading,
-  NumberField, PageHeader, RecordPicker, Select, StatusChip, TextArea, TextField, toColorName, useCustomFieldInputs, useFetch, useToast,
+  NumberField, PageHeader, RecordPicker, Select, StatusChip, TextArea, TextField, toColorName, useCustomFieldInputs, useFetch, useToast, useUnsavedChanges,
 } from '../../core';
 import { currencySymbol } from './bits';
 import type { Intake, MyRequest } from './types';
@@ -61,6 +61,8 @@ export function IntakeForm() {
   // The administrator's custom fields on projects (E18-34). Only people who may view projects have
   // them in their metadata; for anyone else this is empty and the server does not require them.
   const custom = useCustomFieldInputs('project');
+  // Leaving with a half-written request asks first (BW-01).
+  const unsaved = useUnsavedChanges(JSON.stringify(form) !== JSON.stringify(BLANK) || budget !== null || systems.length > 0);
   const set = <K extends keyof typeof BLANK>(key: K) => (value: (typeof BLANK)[K]) => setForm((f) => ({ ...f, [key]: value }));
 
   const header = (
@@ -90,6 +92,7 @@ export function IntakeForm() {
       if (!systems.length) delete body.systems_affected;
       const row = await api.post<{ id: string; ref: string; name: string; can_open: boolean }>('/api/projects/requests', body);
       toast.success(`Request ${row.ref} submitted.`);
+      unsaved.release();
       if (row.can_open) { navigate(`/projects/${row.id}`); return; }
       setSent({ ref: row.ref, name: row.name });
       setForm(BLANK); setBudget(null); setSystems([]); custom.reset();

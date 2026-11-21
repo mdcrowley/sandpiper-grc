@@ -2,13 +2,14 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import cookie from '@fastify/cookie';
-import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import { registerApiDocs } from './core/apidocs.ts';
 import { loadUser, registerAuth, requireRecentAuth, secretBox } from './core/auth.ts';
 import { registerCustomFieldRoutes } from './core/customfield-routes.ts';
 import { makeCustomFields } from './core/customfields.ts';
 import { openDb } from './core/db.ts';
+import { registerReadiness } from './core/health.ts';
+import { registerWebAssets, sendIndex } from './core/webassets.ts';
 import { registerPermissionUse } from './core/permission-use.ts';
 import { ApiError, fail } from './core/errors.ts';
 import { addHsts, trustProxyFn } from './core/http.ts';
@@ -16,6 +17,7 @@ import { migrate } from './core/migrate.ts';
 import { registerBranding } from './core/organization.ts';
 import type { ModuleContext, ModuleDef, Row } from './core/module.ts';
 import { makeOpenApi } from './core/openapi.ts';
+import { canonicalRequestUrl } from './core/api/versioning.ts';
 import { registerPreferences } from './core/preferences.ts';
 import { makeResources } from './core/resource.ts';
 import { registerRetention } from './core/retention.ts';
@@ -129,7 +131,9 @@ export async function buildApp(opts: BuildOptions) {
   // pluginTimeout: how long one start-up step may take (E16-39). Fastify's default of 10 seconds is too
   // short for work that grows with the data: after an upgrade that changes how a type is searched,
   // its search index is rebuilt at start (about 19 s for 40,000 tickets on the embedded database).
-  const serverOptions = { logger: false, bodyLimit: 10 * 1024 * 1024, trustProxy: trustProxyFn(), pluginTimeout: startupTimeoutMs() };
+  // rewriteUrl: one canonical path before routing - /api/v1 routed as /api, and paths the router would
+  // read differently from how they are written refused (core/api/versioning.ts, wave 9 SA-1).
+  const serverOptions = { rewriteUrl: canonicalRequestUrl, logger: false, bodyLimit: 10 * 1024 * 1024, trustProxy: trustProxyFn(), pluginTimeout: startupTimeoutMs() };
   // With a certificate the same server speaks HTTPS (E16-07); its type is the plain one for everything that uses it.
   const app = Fastify({ ...serverOptions, ...(opts.https ? { https: opts.https } : {}) } as typeof serverOptions);
   const startup = timeStartupSteps(app, phases);
@@ -175,6 +179,7 @@ export async function buildApp(opts: BuildOptions) {
   const lookups = makeLookups(db);
   const settings = makeSettings(db, audit);
   registerAuth(app, { db, audit, settings });
+  registerReadiness(app, db); // GET /api/ready: asks the database (OP-13); /api/health stays liveness only
   registerBranding(app, db); // the public look before sign-in (Administration > Organization)
   const custom = makeCustomFields(db);
   const res = makeResources({ app, db, audit, lookups, custom });
@@ -230,17 +235,18 @@ export async function buildApp(opts: BuildOptions) {
   await ensureMail(ctx);
   jobs.register('core.webhook_deliveries', async () => ({ attempted: await webhooks.processDue() }), { maxAttempts: 2 });
   await jobs.schedule('core.webhook_deliveries', { type: 'core.webhook_deliveries', every: 60_000, firstRunInMs: 30_000 });
-  jobs.register('core.retention_sweep', async () => retention.sweep(), { maxAttempts: 3 });
+  jobs.register('core.retention_sweep', async () => ({ ...(await retention.sweep()), logs: await retention.housekeeping() }), { maxAttempts: 3 });
   await jobs.schedule('core.retention_sweep', { type: 'core.retention_sweep', every: 24 * 3_600_000, firstRunInMs: 60_000 });
   for (const m of modules) await m.seedDefaults?.(ctx);
   for (const m of modules) await gate.during(m.key, () => m.register?.(ctx));
 
   const webDir = process.env.GRC_WEB_DIST ? resolve(process.env.GRC_WEB_DIST) : join(repoRoot, 'dist/web');
   const serveWeb = (opts.serveWeb ?? true) && existsSync(join(webDir, 'index.html'));
-  if (serveWeb) await app.register(fastifyStatic, { root: webDir });
+  // Hashed bundles compressed and cached for a year; index.html asked about on every load (OP-11).
+  if (serveWeb) await registerWebAssets(app, webDir);
   app.setNotFoundHandler((req, reply) => {
-    if (serveWeb && req.method === 'GET' && !req.url.startsWith('/api/')) {
-      return reply.type('text/html').send(readFileSync(join(webDir, 'index.html')));
+    if (serveWeb && req.method === 'GET' && !req.url.startsWith('/api/') && !req.url.startsWith('/assets/')) {
+      return sendIndex(reply, webDir);
     }
     return reply.code(404).send({ error: { code: 'not_found', message: 'Not found.' } });
   });

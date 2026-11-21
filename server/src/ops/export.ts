@@ -1,13 +1,15 @@
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, statSync } from 'node:fs';
-import { copyFile, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
+import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
+import { copyFile, mkdir, open, readdir, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
+import { createInterface } from 'node:readline';
+import { setImmediate as nextTurn } from 'node:timers/promises';
 import type { Db, Queryable } from '../core/db.ts';
 import { type ArchiveInfo, type ArchiveKey, extractEntries, folderEntries, openArchiveFile, writeArchive } from './archive.ts';
 import { OpsError } from './errors.ts';
-import { appVersion, copyFiles, describeFiles, listFiles, sha256File, sha256Text } from './files.ts';
+import { appVersion, copyFiles, describeFiles, listFiles, PRIVATE_DIR, PRIVATE_FILE, sha256File, sha256Text } from './files.ts';
 import type { FileEntry } from './files.ts';
-import { appliedMigrations } from './migrations.ts';
+import { applyMigrations, appliedMigrations, migrationsOnDisk } from './migrations.ts';
 
 // A logical export of everything, independent of how the database stores it:
 //
@@ -19,9 +21,27 @@ import { appliedMigrations } from './migrations.ts';
 // Rows are produced by the database itself (`row_to_json`) and loaded with
 // `json_populate_recordset`, so every column type round-trips exactly (timestamps keep
 // their microseconds, numbers their precision) on any PostgreSQL-compatible engine.
+//
+// Consistency (OP-02): every table is read from ONE snapshot of the database. On a PostgreSQL
+// server the export runs in a `repeatable read, read only` transaction, so rows saved while it
+// runs are neither seen twice nor missed, and tables agree with each other; each table is read
+// through a cursor (no OFFSET paging, which shifts when rows are added). The embedded database
+// runs one transaction at a time, so holding one open for the whole export would make every
+// request wait (OP-05): there the cursors are declared WITH HOLD in a short transaction, which
+// fixes their contents at its commit, and are then read a page at a time outside it, letting
+// requests run in between. The held cursors keep whole rows as stored (cheap to copy at the
+// commit); each page is turned into JSON by the database as it is read.
+//
+// Size (OP-03): rows are written to the table file a page at a time as they arrive and hashed on
+// the way, and read back line by line on import, so no table is ever held in memory whole (a
+// JavaScript string cannot exceed about 512 MB, which a long audit log reaches).
 
 export const EXPORT_FORMAT = 'sandpiper-grc-export';
-const PAGE = 2000;
+
+/** Rows fetched per statement and import batch sizes; tests lower them (OP-03). */
+export const exportTuning = { pageRows: 1000, importBatchRows: 500, importBatchChars: 8 * 1024 * 1024 };
+/** The most characters of one table held in memory at once by the last export and import (OP-03 test). */
+export const exportStats = { peakHeldChars: 0, peakImportBatchChars: 0 };
 
 /** Tables whose rows are left out of an export made without secrets. */
 export const SECRET_TABLES = ['sessions', 'one_time_tokens', 'password_history', 'webauthn_credentials', 'webauthn_challenges'];
@@ -47,7 +67,14 @@ export interface ExportManifest {
   createdAt: string;
   database: string;
   secretsIncluded: boolean;
+  /** The migrations the database had: a restore builds exactly this schema, loads the rows, then runs the newer ones (OP-04). */
   migrations: string[];
+  /**
+   * Fingerprint of the secret key the stored secrets (authenticator keys, webhook and provider
+   * secrets) were encrypted with; restore refuses without that key (DOC-01). Missing in exports
+   * made by earlier versions; null when unknown.
+   */
+  secretKeyFingerprint?: string | null;
   tables: ExportedTable[];
   files: FileEntry[];
 }
@@ -84,27 +111,34 @@ export interface ExportOptions {
   filesDir?: string | null;
   /** False leaves out password hashes, second-factor secrets, sessions and one-time links. */
   includeSecrets?: boolean;
+  /** Fingerprint of the secret key in use (ops/secret-key.ts `currentKeyFingerprint`), recorded in the manifest. */
+  keyFingerprint?: string | null;
   now?: Date;
 }
 
-export async function exportAll(db: Queryable, opts: ExportOptions): Promise<ExportManifest> {
-  if (existsSync(opts.outDir) && (await readdir(opts.outDir)).length > 0) {
-    throw new OpsError(`${opts.outDir} already exists and is not empty. Choose a new folder.`);
-  }
-  const includeSecrets = opts.includeSecrets ?? true;
-  await mkdir(join(opts.outDir, 'tables'), { recursive: true });
+/** What one snapshot holds: the catalog as it was, and a cursor per table to read the rows from. */
+interface Snapshot {
+  database: string;
+  migrations: string[];
+  /** True when the cursors return whole rows (column `r`) to be turned into JSON as they are read; false: JSON (column `j`). */
+  rows: boolean;
+  tables: { name: string; columns: string[]; cursor: string | null; redacted: boolean }[];
+}
 
-  // The catalog is read once for every table: one query per table is slow on the embedded
-  // database and an online backup holds its transaction open while this runs.
+let exportSerial = 0;
+
+/** Reads the catalog and declares one cursor per table, all in the transaction `tx`. */
+async function openSnapshot(tx: Queryable, includeSecrets: boolean, hold: boolean): Promise<Snapshot> {
+  // The catalog is read once for every table: one query per table is slow on the embedded database.
   const columnsByTable = new Map<string, string[]>();
-  for (const r of await db.query<{ table_name: string; column_name: string }>(
+  for (const r of await tx.query<{ table_name: string; column_name: string }>(
     `select table_name, column_name from information_schema.columns where table_schema = 'public' order by table_name, ordinal_position`,
   )) {
     if (!columnsByTable.has(r.table_name)) columnsByTable.set(r.table_name, []);
     columnsByTable.get(r.table_name)!.push(r.column_name);
   }
   const keysByTable = new Map<string, string[]>();
-  for (const r of await db.query<{ table_name: string; attname: string }>(
+  for (const r of await tx.query<{ table_name: string; attname: string }>(
     `select c.relname as table_name, a.attname
        from pg_index i
        join pg_class c on c.oid = i.indrelid
@@ -117,60 +151,146 @@ export async function exportAll(db: Queryable, opts: ExportOptions): Promise<Exp
     keysByTable.get(r.table_name)!.push(r.attname);
   }
 
-  const tables: ExportedTable[] = [];
-  for (const name of await tableNames(db)) {
-    const columns = columnsByTable.get(name) ?? [];
+  const serial = ++exportSerial;
+  const tables: Snapshot['tables'] = [];
+  for (const [i, name] of (await tableNames(tx)).entries()) {
     const pk = keysByTable.get(name) ?? [];
     const order = pk.length ? pk.map((c) => `t.${ident(c)}`).join(', ') : 'row_to_json(t)::text';
     const skipRows = !includeSecrets && SECRET_TABLES.includes(name);
-    const blank = includeSecrets ? undefined : SECRET_COLUMNS[name];
-
-    const hash = createHash('sha256');
-    const chunks: string[] = [];
-    let rows = 0;
-    for (let offset = 0; !skipRows; offset += PAGE) {
-      const page = await db.query<{ j: string }>(
-        `select row_to_json(t)::text as j from ${ident(name)} t order by ${order} limit ${PAGE} offset ${offset}`,
-      );
-      for (const { j } of page) {
-        const line = `${blank ? JSON.stringify({ ...JSON.parse(j), ...blank }) : j}\n`;
-        hash.update(line, 'utf8');
-        chunks.push(line);
-      }
-      rows += page.length;
-      if (page.length < PAGE) break;
+    const redacted = skipRows || Boolean(!includeSecrets && SECRET_COLUMNS[name]);
+    let cursor: string | null = null;
+    if (!skipRows) {
+      cursor = `grc_export_${serial}_${i}`;
+      // Held cursors keep the whole row as it is stored, which their commit copies quickly; the
+      // conversion to JSON is done a page at a time afterward (drainSnapshot), outside the transaction.
+      const what = hold ? 't as r' : 'row_to_json(t)::text as j';
+      await tx.exec(`declare ${cursor} no scroll cursor${hold ? ' with hold' : ''} for select ${what} from ${ident(name)} t order by ${order}`);
     }
-    const file = `tables/${name}.jsonl`;
-    await writeFile(join(opts.outDir, file), chunks.join(''), 'utf8');
-    tables.push({ name, file, rows, columns, sha256: hash.digest('hex'), ...(skipRows || blank ? { redacted: true } : {}) });
+    tables.push({ name, columns: columnsByTable.get(name) ?? [], cursor, redacted });
+  }
+  return {
+    database: (await tx.one<{ v: string }>('select version() as v'))?.v ?? 'unknown',
+    migrations: await appliedMigrations(tx),
+    rows: hold,
+    tables,
+  };
+}
+
+/**
+ * Writes every table of a snapshot to its file, a page at a time, closing each cursor when done.
+ * `yieldBetween` lets other work run between pages (the embedded database, outside the transaction).
+ */
+async function drainSnapshot(q: Queryable, snap: Snapshot, outDir: string, includeSecrets: boolean, yieldBetween: boolean): Promise<ExportedTable[]> {
+  const out: ExportedTable[] = [];
+  const page = Math.max(1, exportTuning.pageRows);
+  for (const t of snap.tables) {
+    const blank = includeSecrets ? undefined : SECRET_COLUMNS[t.name];
+    const file = `tables/${t.name}.jsonl`;
+    const hash = createHash('sha256');
+    let rows = 0;
+    const fh = await open(join(outDir, file), 'wx', PRIVATE_FILE);
+    try {
+      while (t.cursor) {
+        let got = await q.query<{ j: string }>(`fetch forward ${page} from ${t.cursor}`);
+        const fetched = got.length;
+        if (snap.rows && got.length) {
+          // Each row comes as its text form, which casts back to the row exactly; the database writes the JSON.
+          got = await q.query<{ j: string }>(
+            `select row_to_json(u.r::${ident(t.name)})::text as j from unnest($1::text[]) with ordinality as u(r, n) order by u.n`,
+            [got.map((g) => (g as unknown as { r: string }).r)],
+          );
+        }
+        if (got.length) {
+          const text = got.map(({ j }) => `${blank ? JSON.stringify({ ...JSON.parse(j), ...blank }) : j}\n`).join('');
+          exportStats.peakHeldChars = Math.max(exportStats.peakHeldChars, text.length);
+          hash.update(text, 'utf8');
+          await fh.write(text, null, 'utf8');
+          rows += got.length;
+        }
+        if (fetched < page) break;
+        if (yieldBetween) await nextTurn();
+      }
+    } finally {
+      await fh.close();
+    }
+    if (t.cursor) {
+      await q.exec(`close ${t.cursor}`);
+      t.cursor = null;
+    }
+    out.push({ name: t.name, file, rows, columns: t.columns, sha256: hash.digest('hex'), ...(t.redacted ? { redacted: true } : {}) });
+  }
+  return out;
+}
+
+/** Copies the attached files present now; a file purged since the snapshot is skipped (its record was removed long before). */
+async function copyPresentFiles(filesDir: string, outDir: string): Promise<FileEntry[]> {
+  const target = join(outDir, 'files');
+  const copied: string[] = [];
+  for (const path of listFiles(filesDir)) {
+    try {
+      await copyFiles(filesDir, target, [path]);
+      copied.push(path);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+    }
+  }
+  return describeFiles(target, copied);
+}
+
+/**
+ * Exports every table from one consistent snapshot (see the top of this file), then the
+ * attached files. `db` is the whole handle, not a transaction: the export makes its own.
+ */
+export async function exportAll(db: Db, opts: ExportOptions): Promise<ExportManifest> {
+  if (existsSync(opts.outDir) && (await readdir(opts.outDir)).length > 0) {
+    throw new OpsError(`${opts.outDir} already exists and is not empty. Choose a new folder.`);
+  }
+  const includeSecrets = opts.includeSecrets ?? true;
+  await mkdir(join(opts.outDir, 'tables'), { recursive: true, mode: PRIVATE_DIR });
+  exportStats.peakHeldChars = 0;
+
+  let snap: Snapshot;
+  let tables: ExportedTable[];
+  if (db.driver === 'server') {
+    ({ snap, tables } = await db.tx(async (tx) => {
+      await tx.exec('set transaction isolation level repeatable read, read only');
+      const s = await openSnapshot(tx, includeSecrets, false);
+      return { snap: s, tables: await drainSnapshot(tx, s, opts.outDir, includeSecrets, false) };
+    }));
+  } else {
+    // Requests wait only while this short transaction runs and its commit fills the cursors.
+    snap = await db.tx((tx) => openSnapshot(tx, includeSecrets, true));
+    try {
+      tables = await drainSnapshot(db, snap, opts.outDir, includeSecrets, true);
+    } finally {
+      for (const t of snap.tables) if (t.cursor) await db.exec(`close ${t.cursor}`).catch(() => undefined);
+    }
   }
 
-  let files: FileEntry[] = [];
-  if (opts.filesDir && existsSync(opts.filesDir)) {
-    const paths = listFiles(opts.filesDir);
-    await copyFiles(opts.filesDir, join(opts.outDir, 'files'), paths);
-    files = await describeFiles(join(opts.outDir, 'files'), paths);
-  }
+  // Files are only added or, long after their record was removed, purged: they are copied after
+  // the snapshot so the database is not held while they are read.
+  const files = opts.filesDir && existsSync(opts.filesDir) ? await copyPresentFiles(opts.filesDir, opts.outDir) : [];
 
   const manifest: ExportManifest = {
     format: EXPORT_FORMAT,
     formatVersion: 1,
     appVersion: appVersion(),
     createdAt: (opts.now ?? new Date()).toISOString(),
-    database: (await db.one<{ v: string }>('select version() as v'))?.v ?? 'unknown',
+    database: snap.database,
     secretsIncluded: includeSecrets,
-    migrations: await appliedMigrations(db),
+    migrations: snap.migrations,
+    secretKeyFingerprint: opts.keyFingerprint ?? null,
     tables,
     files,
   };
   const manifestText = `${JSON.stringify(manifest, null, 2)}\n`;
-  await writeFile(join(opts.outDir, 'manifest.json'), manifestText, 'utf8');
+  await writeFile(join(opts.outDir, 'manifest.json'), manifestText, { encoding: 'utf8', mode: PRIVATE_FILE });
   const report = [
     `${sha256Text(manifestText)}  manifest.json`,
     ...tables.map((t) => `${t.sha256}  ${t.file}`),
     ...files.map((f) => `${f.sha256}  files/${f.path}`),
   ];
-  await writeFile(join(opts.outDir, 'checksums.sha256'), `${report.join('\n')}\n`, 'utf8');
+  await writeFile(join(opts.outDir, 'checksums.sha256'), `${report.join('\n')}\n`, { encoding: 'utf8', mode: PRIVATE_FILE });
   return manifest;
 }
 
@@ -188,15 +308,15 @@ export interface ExportArchiveOptions extends Omit<ExportOptions, 'outDir'> {
  * An export written as one archive file. The tables and files are exported to a working folder
  * beside the archive, packed (and encrypted when a key is given), checked and the folder removed.
  */
-export async function exportToArchive(db: Queryable, opts: ExportArchiveOptions): Promise<{ manifest: ExportManifest; bytes: number; info: ArchiveInfo }> {
+export async function exportToArchive(db: Db, opts: ExportArchiveOptions): Promise<{ manifest: ExportManifest; bytes: number; info: ArchiveInfo }> {
   if (existsSync(opts.outFile)) throw new OpsError(`${opts.outFile} already exists. Choose a new name.`);
   const work = `${opts.outFile}.work`;
   await rm(work, { recursive: true, force: true });
   try {
-    const manifest = await exportAll(db, { outDir: work, filesDir: opts.filesDir, includeSecrets: opts.includeSecrets, now: opts.now });
+    const manifest = await exportAll(db, { outDir: work, filesDir: opts.filesDir, includeSecrets: opts.includeSecrets, keyFingerprint: opts.keyFingerprint, now: opts.now });
     for (const [path, file] of Object.entries(opts.extra ?? {})) {
       if (!existsSync(file)) continue;
-      await mkdir(join(work, dirname(path)), { recursive: true });
+      await mkdir(join(work, dirname(path)), { recursive: true, mode: PRIVATE_DIR });
       await copyFile(file, join(work, path));
     }
     const info: ArchiveInfo = {
@@ -275,9 +395,32 @@ export interface ImportResult {
   notes: string[];
 }
 
+/** The lines of a table file, a batch at a time, without reading the file whole (OP-03). */
+async function* lineBatches(file: string): AsyncGenerator<string[]> {
+  const lines = createInterface({ input: createReadStream(file, { encoding: 'utf8' }), crlfDelay: Infinity });
+  let batch: string[] = [];
+  let chars = 0;
+  for await (const line of lines) {
+    if (line === '') continue;
+    batch.push(line);
+    chars += line.length;
+    if (batch.length >= exportTuning.importBatchRows || chars >= exportTuning.importBatchChars) {
+      exportStats.peakImportBatchChars = Math.max(exportStats.peakImportBatchChars, chars);
+      yield batch;
+      batch = [];
+      chars = 0;
+    }
+  }
+  if (batch.length) {
+    exportStats.peakImportBatchChars = Math.max(exportStats.peakImportBatchChars, chars);
+    yield batch;
+  }
+}
+
 /**
- * Loads an export into an installation that has been migrated and started once but has no
- * users. Everything happens in one transaction: either all tables are loaded or none.
+ * Loads an export into an installation that has been migrated but has no users. Everything
+ * happens in one transaction: either all tables are loaded or none. Prefer `importStaged`,
+ * which also builds the schema the export was made with and runs the newer migrations after.
  *
  * Audit events are carried over as they are (same number, time, actor and content) by
  * plain inserts, which the append-only trigger allows; nothing is updated or deleted row
@@ -335,6 +478,7 @@ export async function importAll(db: Db, opts: ImportOptions): Promise<ImportResu
   }
 
   const counts: { name: string; rows: number }[] = [];
+  exportStats.peakImportBatchChars = 0;
   await db.tx(async (tx) => {
     // Lets rows that refer to each other load in any order. Needs a privileged database
     // role; where it is refused, the parent-first order above is what protects us.
@@ -356,16 +500,18 @@ export async function importAll(db: Db, opts: ImportOptions): Promise<ImportResu
       const overriding = info.some((c) => c.identity_generation === 'ALWAYS' && cols.includes(c.column_name)) ? ' overriding system value' : '';
       const list = cols.map(ident).join(', ');
 
-      const lines = readFileSync(join(opts.inDir, table.file), 'utf8').split('\n').filter((l) => l !== '');
-      if (lines.length !== table.rows) throw new OpsError(`${table.file} has ${lines.length} rows; the manifest says ${table.rows}.`);
-      for (let i = 0; i < lines.length && cols.length; i += 500) {
+      let count = 0;
+      for await (const batch of lineBatches(join(opts.inDir, table.file))) {
+        count += batch.length;
+        if (!cols.length) continue;
         await tx.query(
           `insert into ${ident(table.name)} (${list})${overriding}
            select ${list} from json_populate_recordset(null::${ident(table.name)}, $1::json)`,
-          [`[${lines.slice(i, i + 500).join(',')}]`],
+          [`[${batch.join(',')}]`],
         );
       }
-      counts.push({ name: table.name, rows: lines.length });
+      if (count !== table.rows) throw new OpsError(`${table.file} has ${count} rows; the manifest says ${table.rows}.`);
+      counts.push({ name: table.name, rows: count });
 
       // Number sequences carry on after the highest imported value.
       for (const c of info) {
@@ -404,4 +550,56 @@ export async function importAll(db: Db, opts: ImportOptions): Promise<ImportResu
     notes.push('The export was made without secrets: the imported accounts have no passwords, so nobody can sign in. Use a full export to move a working installation.');
   }
   return { manifest, tables: counts, files, notes };
+}
+
+export interface StagedImportOptions extends ImportOptions {
+  /** The source folder whose migrations are applied (default: this copy of the code; tests give their own). */
+  srcDir?: string;
+}
+
+export interface StagedImportResult extends ImportResult {
+  /** Migrations newer than the export, applied after its rows were loaded. */
+  laterMigrations: string[];
+}
+
+const scopeOf = (migration: string) => migration.slice(0, migration.indexOf('/'));
+
+/**
+ * Loads an export the way an upgrade would have treated the data (OP-04): the schema is built
+ * with exactly the migrations the export had, the rows are loaded into it, and only then are the
+ * newer migrations applied, so a migration that changes data (fills a new column from an old
+ * one, renames a key) runs on the restored rows as well.
+ *
+ * Into a database that already has migrations newer than the export, for parts of the
+ * application the export holds, it refuses: loading old rows into a newer schema would skip
+ * those migrations. Start again from an empty database.
+ */
+export async function importStaged(db: Db, opts: StagedImportOptions): Promise<StagedImportResult> {
+  const manifest = readExportManifest(opts.inDir);
+  const code = new Set(migrationsOnDisk(opts.srcDir));
+  const unknown = manifest.migrations.filter((m) => !code.has(m));
+  if (unknown.length) {
+    throw new OpsError(
+      `The export was made by a newer version of the application (${manifest.appVersion}): it has migrations this code does not know (${unknown.join(', ')}). Upgrade the code first.`,
+    );
+  }
+  const had = new Set(manifest.migrations);
+  const applied = await appliedMigrations(db);
+  if (applied.length === 0) {
+    // A new database: the schema as the export knew it. (An export with no migration list gets them all.)
+    await applyMigrations(db, had.size ? (name) => had.has(name) : undefined, opts.srcDir);
+  } else {
+    const scopes = new Set(manifest.migrations.map(scopeOf));
+    const newer = applied.filter((m) => !had.has(m) && scopes.has(scopeOf(m)));
+    if (newer.length) {
+      throw new OpsError(
+        `The export was made by an older version (${manifest.appVersion}), and this database already has ${newer.length} newer migration(s) `
+          + `(${newer.slice(0, 5).join(', ')}${newer.length > 5 ? ', ...' : ''}). Loading old rows into the newer schema would skip any change those migrations make to existing data. `
+          + 'Import into a new, empty database instead (an empty data folder, or a new database on the PostgreSQL server): import-all then builds the schema the export was made with, loads it and applies the newer migrations.',
+      );
+    }
+  }
+  const result = await importAll(db, opts);
+  const laterMigrations = await applyMigrations(db, undefined, opts.srcDir);
+  return { ...result, laterMigrations };
 }

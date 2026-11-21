@@ -6,7 +6,7 @@ If your organization does not run its safety program here, an administrator can 
 
 You need the **safety** permissions (`safety.view`, and `safety.create`, `safety.edit`, `safety.delete`, `safety.export`, `safety.administer`). Corrective actions and mitigations are kept in the action tracker, so working with them also needs the **actions** permissions.
 
-The default **Safety manager** role holds all of these, the action tracker, and read access to vehicles and services, systems, sites, dashboards, reports, policies and training, so a safety team can be set up by giving people that role. The **Security lead** role can read the safety pages (`safety.view`). An administrator can grant the safety permissions to any other role under **Administration > Roles**.
+The default **Safety manager** role holds all of these, the action tracker, and read access to vehicles and services, systems, sites, dashboards, reports, policies and training, so a safety team can be set up by giving people that role. It does not include restricted records (`security.view`, see [Restricted events](#restricted-events)): whoever investigates passenger injuries, assaults and other events holding personal details also needs a role with `security.view`, such as **Security lead**, or they cannot open those events, their corrective actions or the portal reports marked as holding personal details, and are not notified of them. The **Security lead** role can read the safety pages (`safety.view`). An administrator can grant the safety permissions to any other role under **Administration > Roles**.
 
 ## Safety dashboard
 
@@ -93,7 +93,7 @@ With the `safety.administer` permission (the **Safety manager** role has it), op
 2. Under **Likelihood** and **Severity**, change the **Name** and **What it means** of any level. The number of levels and their values stay as they are, so no score loses its meaning.
 3. Select **Save hazard matrix**. Every hazard is then rated again on the new matrix, and a message says how many ratings changed. **Discard changes** puts back the saved matrix.
 
-The change is recorded in the audit log. The page works whichever other parts of the application are switched on. Where the risk register is in use, the same matrix is also one of its risk scales, and the scale's other settings (its name, its ratings and the acceptance threshold) are changed there.
+The change is recorded in the audit log. The page works whichever other parts of the application are switched on. Where the risk register is in use, the same matrix is also one of its risk scales, and the scale's other settings (its name, its ratings and the acceptance threshold) are changed there. Saving the matrix from either page rates every hazard again.
 
 ### Mitigations
 

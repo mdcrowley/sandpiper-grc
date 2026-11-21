@@ -154,13 +154,14 @@ describe('blackout periods for chosen systems, that repeat', () => {
     await move(agent, onFares.id, 'submitted');
     await move(agent, onSignage.id, 'submitted');
     expect((await conflictsOf(onFares.id)).map((c: any) => c.key)).toEqual([`blackout:${blackout.body.id}`]);
-    expect((await conflictsOf(onFares.id))[0]).toMatchObject({ starts_at: '2032-03-31T22:00:00.000Z', shared_systems: [{ id: fares }] });
+    // Repeats keep the local start time (17:00 in New York): 21:00 UTC once daylight saving time began (OP-07).
+    expect((await conflictsOf(onFares.id))[0]).toMatchObject({ starts_at: '2032-03-31T21:00:00.000Z', shared_systems: [{ id: fares }] });
     expect(await conflictsOf(onSignage.id)).toEqual([]);
 
     const cal = (await agent.get(`/api/changes/calendar?from=2032-03-01T00:00:00Z&to=2032-04-15T00:00:00Z&system_id=${fares}`)).body;
     expect(cal.system).toMatchObject({ id: fares });
     expect(cal.changes.map((c: any) => c.id)).toEqual([onFares.id]);
-    expect(cal.blackouts.map((b: any) => b.starts_at)).toEqual(['2032-02-29T22:00:00.000Z', '2032-03-31T22:00:00.000Z']);
+    expect(cal.blackouts.map((b: any) => b.starts_at)).toEqual(['2032-02-29T22:00:00.000Z', '2032-03-31T21:00:00.000Z']);
     const signageCal = (await agent.get(`/api/changes/calendar?from=2032-03-01T00:00:00Z&to=2032-04-15T00:00:00Z&system_id=${signage}`)).body;
     expect(signageCal.blackouts).toEqual([]);
     expect((await agent.get('/api/changes/calendar?from=2032-03-01T00:00:00Z&to=2032-04-15T00:00:00Z&system_id=nope')).status).toBe(400);

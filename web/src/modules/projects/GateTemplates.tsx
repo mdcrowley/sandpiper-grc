@@ -57,7 +57,7 @@ function GateEditor({ gate, workflows, onClose, onSaved }: { gate: GateDefinitio
           Changes apply to gates opened from now on. Gates already open on a project keep the checklist they started with.
         </p>
         <TextField label="Gate name" required value={name} onChange={setName} />
-        <TextArea label="Checklist" hint="One item per line. Every item must be ticked before the gate can be approved." rows={8} value={checklist} onChange={setChecklist} />
+        <TextArea label="Checklist" hint="One item per line. Every item must be checked before the gate can be approved." rows={8} value={checklist} onChange={setChecklist} />
         <fieldset className="prj-fieldset">
           <legend>Documents</legend>
           <p className="muted">A required document blocks approval until it is received or an approver waives it. An optional one is only a reminder.</p>

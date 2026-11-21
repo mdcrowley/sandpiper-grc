@@ -14,7 +14,7 @@ An administrator can switch training and exercises off under **Administration > 
 | `training.delete` | Remove courses and training records |
 | `training.export` | Export courses and training records |
 | `training.administer` | Change the reminder settings on the **Training overview** |
-| `exercises.view`, `exercises.create`, `exercises.edit`, `exercises.delete` | The same for exercises |
+| `exercises.view`, `exercises.create`, `exercises.edit`, `exercises.delete`, `exercises.export` | The same for exercises |
 
 Everyone who can sign in can open **My training**, which shows only their own records.
 
@@ -206,8 +206,10 @@ Open **Exercise calendar** in the **Cybersecurity** group.
 
 | Part | Shows |
 |---|---|
+| Tiles | **Overdue** and **Coming up** count the entries below; **Next** gives the date of the next one and opens it |
 | **When each kind was last run** | For each type: how many have been completed, the date and result of the last one, how its steps went (a bar with the number that went well, with issues, not done, not tested and not recorded), and the next one due |
 | **Overdue** | Planned exercises whose date has passed, and completed exercises whose **Next due** date has passed |
 | Month by month | What is coming up: planned exercises, and the next run of each completed exercise that has a **Next due** date |
+| **Planned, no date yet** | Planned exercises that have no date |
 
 A **Next run due** entry disappears once a later exercise of the same type is on record, because the newer exercise takes its place. Canceled exercises are not shown.

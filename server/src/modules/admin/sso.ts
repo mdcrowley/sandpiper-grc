@@ -103,12 +103,16 @@ export function registerSso(ctx: ModuleContext) {
     // Never logged: the password. The user name is shortened and shown as typed, like a local sign-in.
     const who = `"${username.slice(0, 80).replace(/[\u0000-\u001f]/g, '?')}"`;
     const accountKey = `${p.id}:${username.toLowerCase()}`;
-    if (await directoryFailures.blocked(accountKey)) {
+    // Claimed before the directory is asked (wave 9): attempts made at the same moment all count.
+    const claim = await directoryFailures.take(accountKey);
+    if (!claim.ok) {
       await auditFailure(deps, req, p, `too many failed directory sign-ins for ${who}; refused for a while`, userId, what);
       ctx.fail(401, 'invalid_credentials', GENERIC);
     }
     try {
-      return await DRIVERS[p.type].authenticate!(p, readSecret(db, p), username, password);
+      const identity = await DRIVERS[p.type].authenticate!(p, readSecret(db, p), username, password);
+      await claim.release();
+      return identity;
     } catch (err) {
       const refusal = err instanceof DirectoryRefusal ? err : null;
       const reason = err instanceof IdentityError ? err.reason : 'unexpected error';
@@ -116,8 +120,9 @@ export function registerSso(ctx: ModuleContext) {
       const linked = refusal?.subject
         ? await db.one<{ user_id: string }>('select user_id from user_identities where provider_id = $1 and subject = $2', [p.id, refusal.subject]) : undefined;
       if (refusal?.kind === 'password') {
-        await directoryFailures.hit(accountKey);
         if (linked) await countAccountFailure(req, linked.user_id);
+      } else {
+        await claim.release(); // not a wrong password (directory unreachable, misconfigured): not counted
       }
       await auditFailure(deps, req, p, `${reason} for ${who}`, linked?.user_id ?? userId, what);
       if (refusal?.kind === 'unavailable' || refusal?.kind === 'config') {

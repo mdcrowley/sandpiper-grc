@@ -238,7 +238,7 @@ Each note shows an expiry label:
 | **Expires** (amber) | The item expires within 30 days. |
 | **Expired** (red) | The expiry date has passed. |
 
-The outcome's owner (or, when it has none, everyone who may edit framework outcomes) is reminded once when a note's expiry date is 30 days away, and once when it has passed. An administrator changes the 30 days under **Administration** > **Reminders**. Files attached as evidence are listed on the **Expiring evidence files** page instead.
+The outcome's owner (or, when it has none, everyone who may edit framework outcomes) is reminded once when a note's expiry date is 30 days away, and once when it has passed. An administrator changes the 30 days of the reminder under **Administration** > **Reminders**; the amber **Expires** label always uses 30 days. Files attached as evidence are listed on the **Expiring evidence files** page instead.
 
 Adding evidence does not change the status. Update the status yourself when the evidence justifies it.
 
@@ -268,7 +268,7 @@ The **Risks, policies and actions** tab gathers the work connected to this outco
 ### Related records, activity and history
 
 - **Related** links the outcome to any other record, such as a system or a contract. Choose the **Record type**, find the **Record**, choose the **Relation** and select **Add link**. The link also appears on the other record.
-- **Activity** shows comments and changes together, newest first. Use **Add a comment** to leave a note for colleagues.
+- **Activity** shows comments and changes together, newest first. To leave a note for colleagues, type in the box at the top and select **Add note** (see [Activity and comments](01-getting-started.md#activity-and-comments)).
 - **History** lists every change with who made it, when, and the values before and after.
 
 ## Coverage of other frameworks

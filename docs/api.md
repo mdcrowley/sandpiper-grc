@@ -99,7 +99,8 @@ second-factor or token routes (`403 token_not_allowed`), and it cannot pass a pa
 confirmation, so actions that need one (see [Security](security.md#actions-that-ask-you-to-confirm-your-identity)) answer `403 reauth_required`. A token
 request needs no `X-GRC-CSRF` header and never falls back to a browser session. Every change
 made with a token is audited with the token's name. You or an administrator can revoke a token
-at any time; see [Security](security.md#personal-access-tokens).
+at any time; see [Security](security.md#personal-access-tokens). A token is also revoked when its
+owner's password is changed or reset, or an administrator resets their second factor: make a new one then.
 
 `GET /api/v1/auth/state` tells a client who it is acting as and which permissions it has.
 
@@ -113,7 +114,10 @@ https://grc.example.test/api/v1/...
 
 Every route of the API is served there. The same routes are also served under `/api/...`
 without a version; the web application uses those, and they may change with it. Answers to a
-versioned request carry `API-Version: 1`.
+versioned request carry `API-Version: 1`. Both spellings reach the very same route, with the same
+permission and sharing checks. Send paths as they are: a path that percent-encodes a letter, digit
+or `-._~`, encodes `/` or a backslash, has a malformed escape, or holds `.` or `..` segments is refused
+with `400 bad_path` (values in the query string may be encoded freely).
 
 **Compatibility promise for v1.** Within version 1, changes are additive only:
 
@@ -143,6 +147,12 @@ under `/api/v1`) and carry the `Deprecation` header; use the new ones.
 | `/api/policies/:id/acknowledgements` | `/api/policies/:id/acknowledgments` |
 | `/api/portal/catalogue` | `/api/portal/catalog` |
 | `/api/reports/catalogue` | `/api/reports/catalog` |
+
+One route was replaced on the same date and is deprecated in the same way:
+
+| Deprecated | Use instead |
+|---|---|
+| `POST /api/assets/import` | `POST /api/import/asset`, the generic import (a dry run by default; CSV or Excel, sent as base64 in `content`). `POST /api/assets/ingest` is not affected |
 
 Some stored values and field names keep their original spelling because data and integrations
 depend on them, for example the status value `cancelled`, the asset type `software_licence`
@@ -233,13 +243,16 @@ view, with comments and attached file names, and answers with snippets.
 
 ## Exports
 
-Any list exports its filtered, sorted rows (up to 50,000) instead of a page:
+Any list exports its filtered, sorted rows (up to 50,000) instead of a page. A list with more
+rows stops at 50,000: the file ends with a line saying so, and the response carries
+`X-GRC-Export-Truncated: 50000` (the audit log CSV, `GET /api/v1/audit?format=csv`, does the same with
+the newest 50,000 events).
 
 | `format=` | Gives |
 |---|---|
 | `csv` | CSV, UTF-8 with a byte-order mark, a header row of field labels, display labels for list, user and record fields |
 | `xlsx` | A spreadsheet with typed cells and the filters above the table |
-| `pdf` | A printable table with the filters and the time it was produced |
+| `pdf` | A printable table with the filters and the time it was produced. At most 12 columns (more answer `422 too_many_columns`); without `columns=`, the reference, the title and up to six short fields. At most 2,000 rows, fewer with many columns (16,000 cells), with a note when rows were left out |
 
 `columns=ref,title,status` chooses the columns and their order. Exporting needs the type's
 `.export` permission (for example `tickets.export`) and is audited; restricted content is
@@ -274,8 +287,10 @@ must be switched on and the receiving host allowed. See
 [Webhooks in the user guide](user/09-administration.md#webhooks), the security notes in
 [Security: outbound webhooks](security.md#outbound-webhooks), and
 `examples/webhook-receiver.mjs` for checking a signature. Webhooks are managed through
-`/api/v1/admin/webhooks` (administrators, with a recent password confirmation, so not with a
-token).
+`/api/v1/admin/webhooks` (administrators). Adding a webhook, changing its address or turning
+on restricted records, and replacing its secret need a recent password confirmation, so they
+cannot be done with a token; listing, other changes, testing, reading and retrying deliveries,
+and removing can (a token with `admin.administer`).
 
 A record change is sent as `<type>.create`, `<type>.update` or `<type>.delete`:
 
@@ -303,8 +318,8 @@ record change and every other event. A family name that is also a record type
 | `security_incident.declared` | A security incident was declared, starting its notification clocks. `record` is the incident | always | `severity`, `declaredAt`, `clocks`, `firstDeadline` |
 | `change.approval_decided` | An approver approved or rejected a change. `record` is the change. Kept for this release only: change approval now runs on approval workflows, so move to `workflow.decided` and `workflow.finished` (which carry `kind`, and `onBehalfOf` for a stand-in's decision) | as the change | `decision` (`approved` or `rejected`), `approver`, `approvalsReceived`, `approvalsRequired`, `status` |
 | `report_schedule.delivered` | A report schedule ran and reached at least one person. Counts only: the figures stay in the application | never | `name`, `delivered`, `skipped`, `failed` |
-| `workflow.decided` | Someone approved or rejected a step of an approval workflow, on any record type. `record` is the record | as the record | `workflow`, `step`, `decision` (`approved` or `rejected`), `approver`, `comment`, `approvalsReceived`, `approvalsRequired`, `stepOutcome` (`approved`, `rejected` or `pending`) |
-| `workflow.finished` | An approval workflow ended: approved after its last step, rejected, or canceled. `record` is the record | as the record | `workflow`, `outcome` (`approved`, `rejected` or `canceled`), `reason`, `outcomeError` |
+| `workflow.decided` | Someone approved or rejected a step of an approval workflow, on any record type. `record` is the record | as the record | `workflow`, `kind` (the part of the application the approval belongs to, such as `change_approval`, or `null` for a workflow's own approval), `step`, `decision` (`approved` or `rejected`), `approver`, `onBehalfOf` (name of the approver a stand-in decided for, or `null`), `comment`, `approvalsReceived`, `approvalsRequired`, `stepOutcome` (`approved`, `rejected` or `pending`) |
+| `workflow.finished` | An approval workflow ended: approved after its last step, rejected, or canceled. `record` is the record | as the record | `workflow`, `kind` (as for `workflow.decided`), `outcome` (`approved`, `rejected` or `canceled`), `reason`, `outcomeError` |
 | `retention.anonymized` | An administrator anonymized a record from the retention review. `record` is the record as it is now | as the record | `recordType`, `fields` (keys of the fields replaced, custom fields as `cf_<key>`), `comments`, `files` |
 | `retention.deleted` | An administrator removed a record for good from the retention review. `record` names it by `type`, `id` and `ref` only (`label` is the reference, `route` is `null`) | as the record | `recordType`, `purged` (always `true`) |
 | `backup.failed` | A scheduled or manual backup failed | never | `runId`, `trigger` (`scheduled` or `manual`), `destination`, `message` |
@@ -350,7 +365,7 @@ Every error answer has the same shape, with a matching HTTP status:
 
 | Status | Common codes | Meaning |
 |---|---|---|
-| 400 | `validation`, `bad_json`, `bad_group`, `bad_idempotency_key` | The request is not valid; fix it before sending it again |
+| 400 | `validation`, `bad_json`, `bad_group`, `bad_idempotency_key`, `bad_path` | The request is not valid; fix it before sending it again |
 | 401 | `unauthenticated`, `invalid_token` | No token, or the token is wrong, expired or revoked |
 | 403 | `forbidden`, `token_not_allowed`, `reauth_required`, `csrf` | Not permitted |
 | 404 | `not_found`, `switched_off` | Not there, or not visible to you (restricted records answer 404); `switched_off`: that part of the application is switched off by an administrator (Administration > Features), and its record types are also missing from `/api/meta`, search and the OpenAPI document |
@@ -492,7 +507,7 @@ by serial number, then by asset tag; it answers with what it did:
 
 ```powershell
 $devices = @(
-  @{ serial = 'EX-SN-10021'; tag = 'A-10021'; name = 'Dispatch workstation 3'; asset_type = 'laptop'; make = 'Example'; model = 'Model 14' }
+  @{ serial = 'EX-SN-10021'; tag = 'A-10021'; name = 'Dispatch workstation 3'; asset_type = 'workstation'; make = 'Example'; model = 'Model 14' }
   @{ serial = 'EX-SN-10022'; name = 'Ticket machine controller'; asset_type = 'network_device' }
 )
 $result = Invoke-RestMethod -Method Post -Uri "$base/assets/ingest" -Headers $headers `
@@ -500,7 +515,9 @@ $result = Invoke-RestMethod -Method Post -Uri "$base/assets/ingest" -Headers $he
 "$($result.created) created, $($result.updated) updated, $($result.unchanged) unchanged, $($result.errors.Count) refused"
 ```
 
-The token needs `assets.create` and `assets.edit`. Send devices in batches of a few hundred.
+`asset_type` takes a value (or label) of the asset type list (`GET $base/lookups/asset_type`);
+a device with a value not in the list is refused and reported under `errors`. The token needs `assets.create` and `assets.edit`. Send
+devices in batches of a few hundred.
 
 ### Push vulnerability findings
 

@@ -37,11 +37,13 @@ describe('renamed routes', () => {
     ]));
   });
 
-  it('serves each old path, unversioned and under /api/v1, wherever the new one is registered', () => {
+  it('serves each old path wherever the new one is registered (under /api/v1 too, through the same route)', async () => {
     for (const d of renamed) {
       if (!loaded(d.replacement!)) continue; // module not loaded (GRC_MODULES)
       expect([d.path, t.app.hasRoute({ method: d.method, url: d.path })]).toEqual([d.path, true]);
-      expect([d.path, t.app.hasRoute({ method: d.method, url: versioned(d.path) })]).toEqual([d.path, true]);
+    }
+    for (const d of renamed.filter((r) => r.method === 'GET' && !r.path.includes(':') && loaded(r.replacement!))) {
+      expect([d.path, (await get(versioned(d.path))).status]).toEqual([d.path, (await get(d.path)).status]);
     }
   });
 

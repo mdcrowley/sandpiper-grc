@@ -24,12 +24,15 @@ interface Deps {
 export const DEFAULT_ACCEPTANCE_WORKFLOW = {
   name: 'Risk acceptance',
   description: 'Accepting a risk instead of treating it further. A risk approver decides; when the risk is rated at or above its scale\'s approval '
-    + 'threshold an executive approver decides too. Name your executives in the second step (they need permission to see restricted records).',
+    + 'threshold an executive approver decides too, who must be someone other than the risk approver. Name your executives in the second step '
+    + '(they need permission to see restricted records).',
   steps: [
     { key: 'risk-approver', name: 'Risk approver', approvers: { kind: 'permission', permission: 'risks.approve' }, quorum: 'any' },
     {
       key: 'executive', name: 'Executive approver', approvers: { kind: 'permission', permission: 'risks.approve' }, quorum: 'any',
       conditions: [{ field: 'acceptance_executive', op: 'set' }],
+      // AZ-7: the executive step needs a second person; the risk approver cannot decide it too.
+      distinct_approvers: true,
     },
   ],
 };
@@ -77,8 +80,10 @@ export function registerAcceptanceWorkflow(ctx: ModuleContext, deps: Deps) {
         summary: `Risk acceptance recorded for ${risk.ref}: approved by ${approver} through the approval workflow, expires ${row.expires_on}`,
         after: row,
       });
-      // The acceptance exists now, so the "accepted" status passes the risk's own check.
-      await ctx.resources.update('risk', risk.id, { status: 'accepted', treatment: 'accept' }, e.req);
+      // The acceptance exists now, so the "accepted" status passes the risk's own check. System work,
+      // as the engine applies every outcome (BS-6): the approver's own lifecycle rights and a held
+      // move do not apply to the result of an approval already given.
+      await ctx.resources.update('risk', risk.id, { status: 'accepted', treatment: 'accept' }, null);
     },
   });
 

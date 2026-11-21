@@ -4,9 +4,10 @@ import { fileURLToPath } from 'node:url';
 import { hash, verify } from '@node-rs/argon2';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { CURRENCY, DEFAULT_APP_NAME, TIME_ZONE } from './config.ts';
-import type { Db } from './db.ts';
+import type { Db, Queryable } from './db.ts';
 import { fail, UUID_RE } from './errors.ts';
 import { featureState } from './features.ts';
+import { isApiRequest } from './api/versioning.ts';
 import { afterSignIn, checkSignIn, sessionSecondFactor, signOutRedirect } from './identity/hooks.ts';
 import type { SessionUser } from './module.ts';
 import { publicBranding } from './organization.ts';
@@ -15,7 +16,7 @@ import { clientIp, cookieSecure } from './request.ts';
 import { loadSecretBox, type SecretBox } from './secretbox.ts';
 import { resealStoredSecrets, retiredKeyAdvice } from './secretkey-reseal.ts';
 import type { makeAudit, makeSettings } from './services.ts';
-import { registerTokens } from './tokens.ts';
+import { registerTokens, revokeProgramAccess, revokedSummary } from './tokens.ts';
 import { matchTotpStep } from './totp.ts';
 // Passkeys and security keys, and the new-installation second-factor default (E02-08, E02-17).
 import { applySetupSecondFactor, hasActivePasskey, passkeySecondFactor, registerWebAuthn } from './webauthn/index.ts';
@@ -41,6 +42,56 @@ interface Deps {
 
 export const hashPassword = (password: string) => hash(password); // Argon2id with a per-hash salt
 export const verifyPassword = (hashed: string, password: string) => verify(hashed, password).catch(() => false);
+
+let dummyHash: Promise<string> | null = null;
+/**
+ * Spends the time of one password check without an account to check against (unknown name, locked
+ * or inactive account), so that the answer's timing does not tell them apart (wave 9, SA-6).
+ */
+export async function spendPasswordCheck(password: unknown): Promise<void> {
+  dummyHash ??= hashPassword(randomBytes(24).toString('base64url'));
+  await verifyPassword(await dummyHash, String(password ?? ''));
+}
+
+// ---------- account lockout ----------
+
+/** One claimed sign-in attempt: the account's failure count with it, and the lock it set (if any). */
+export interface SignInAttempt { attempts: number; lockMinutes: number; lockText: string | null }
+
+/** Progressive lockout: from the 5th failure, 1 minute doubling to a 15 minute ceiling. */
+export const lockMinutesFor = (attempts: number) => (attempts >= 5 ? Math.min(15, 2 ** Math.min(attempts - 5, 10)) : 0);
+
+/**
+ * Claims one sign-in attempt on an account in a single statement (wave 9, SA-3): the attempt is
+ * counted as a failure **before** the password is checked, and when it is the one that reaches the
+ * lockout the lock is set at once, so attempts sent at the same moment cannot all slip through
+ * before any of them is counted. Null when the account is locked (or `userId` is null: the
+ * statement still runs, on no row, so an unknown name costs the same). A success clears the count;
+ * an attempt that turns out not to be a failure is given back with `releaseSignInAttempt`.
+ */
+export async function claimSignInAttempt(db: Queryable, userId: string | null): Promise<SignInAttempt | null> {
+  const row = await db.one<{ failed_attempts: number; lock_text: string | null }>(
+    `update users set failed_attempts = failed_attempts + 1,
+       locked_until = case when failed_attempts + 1 >= 5
+         then now() + make_interval(mins => least(15, power(2, least(failed_attempts + 1 - 5, 10)))::int)
+         else locked_until end
+     where id = $1::uuid and (locked_until is null or locked_until <= now())
+     returning failed_attempts, case when failed_attempts >= 5 then locked_until::text end as lock_text`,
+    [userId ?? '00000000-0000-0000-0000-000000000000'],
+  );
+  if (!row) return null;
+  return { attempts: row.failed_attempts, lockMinutes: lockMinutesFor(row.failed_attempts), lockText: row.lock_text };
+}
+
+/** Gives back a claimed attempt that was not a failure: one count less, and its lock lifted if still in place. */
+export async function releaseSignInAttempt(db: Queryable, userId: string, attempt: SignInAttempt): Promise<void> {
+  await db.query(
+    `update users set failed_attempts = greatest(failed_attempts - 1, 0),
+       locked_until = case when $2::text is not null and locked_until::text = $2::text then null else locked_until end
+     where id = $1`,
+    [userId, attempt.lockText],
+  );
+}
 
 /** Offline list of common passwords, one per line. Nothing is ever sent to an outside service. */
 const commonPasswords: Set<string> = (() => {
@@ -380,6 +431,24 @@ async function sessionUser(db: Db, token: string | undefined) {
 
 // ---------- routes ----------
 
+type StateGrant = (user: SessionUser) => Promise<string[]> | string[];
+const stateGrants = new WeakMap<FastifyInstance, StateGrant[]>();
+
+/**
+ * A grant a module works out per person, listed with the permissions in /api/auth/state so the web
+ * app's menus follow it (BW-06: "projects.request" for whoever may send a project request under
+ * the module's own setting). No route checks it; the module's routes keep their own rule.
+ */
+export function addStateGrant(app: FastifyInstance, grant: StateGrant): void {
+  stateGrants.set(app, [...(stateGrants.get(app) ?? []), grant]);
+}
+
+async function grantsFor(app: FastifyInstance, user: SessionUser): Promise<string[]> {
+  const out: string[] = [];
+  for (const grant of stateGrants.get(app) ?? []) out.push(...(await grant(user)));
+  return out;
+}
+
 export function registerAuth(app: FastifyInstance, deps: Deps) {
   const { db, audit, settings } = deps;
   // Failures only, kept in the database so a restart does not reset them.
@@ -397,7 +466,8 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
   registerWebAuthn(app, deps); // passkeys and security keys: /api/auth/webauthn/...
 
   app.addHook('onRequest', async (req) => {
-    if (!req.url.startsWith('/api/')) return;
+    // By path or by matched route (the path is canonical before routing: core/api/versioning.ts).
+    if (!isApiRequest(req)) return;
     const authorization = req.headers.authorization;
     if (authorization !== undefined) {
       // A personal access token (core/tokens.ts). The session cookie is ignored, and no CSRF header
@@ -449,7 +519,7 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
       id: req.user.id, username: req.user.username, displayName: req.user.displayName,
       email: req.user.email, roles: req.user.roles,
     },
-    permissions: req.user?.permissions ?? [],
+    permissions: req.user ? [...req.user.permissions, ...(await grantsFor(app, req.user))] : [],
     // Every area's switch (core/features.ts); `areasOff`: permission modules nobody holds while off.
     features: (await featureState(db)).on,
     areasOff: [...(await featureState(db)).offPermissions],
@@ -478,14 +548,24 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
     if (problem) fields.password = problem;
     if (Object.keys(fields).length) fail(400, 'validation', 'Check the highlighted fields.', fields);
 
-    const user = await db.one<{ id: string }>(
-      `insert into users (username, email, display_name, status) values ($1,$2,$3,'active') returning id`,
-      [username, email, displayName],
-    );
-    await setPassword(deps, user!.id, b.password);
-    await db.query(
-      `insert into user_roles (user_id, role_id) select $1, id from roles where key = 'administrator'`, [user!.id],
-    );
+    // One at a time (wave 9, SA-9): the check that nobody can sign in yet and the creation of the
+    // administrator happen in one transaction under a lock, so requests racing the real
+    // administrator cannot each create one.
+    const hashed = await hashPassword(b.password);
+    const user = await db.tx(async (tx) => {
+      await tx.query(`select pg_advisory_xact_lock(hashtext('grc.setup'))`);
+      const done = await tx.one<{ c: number }>('select count(*)::int c from users where password_hash is not null');
+      if (done!.c > 0) return null;
+      const made = await tx.one<{ id: string }>(
+        `insert into users (username, email, display_name, status, password_hash, password_changed_at)
+         values ($1,$2,$3,'active',$4, now()) returning id`,
+        [username, email, displayName, hashed],
+      );
+      await tx.query('insert into password_history (user_id, password_hash) values ($1,$2)', [made!.id, hashed]);
+      await tx.query(`insert into user_roles (user_id, role_id) select $1, id from roles where key = 'administrator'`, [made!.id]);
+      return made;
+    });
+    if (!user) fail(409, 'already_set_up', 'Setup has already been completed.');
     const token = await createSession(db, user!.id, clientIp(req), req.headers['user-agent']);
     setSessionCookie(req, reply, token);
     req.user = await loadUser(db, user!.id);
@@ -503,12 +583,13 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
     const identifier = String(b.username ?? '').trim().toLowerCase();
     const password = String(b.password ?? '');
 
-    // Rate limit by source address (failures only).
+    // Rate limit by source address (failures only). The attempt is claimed before any work, so
+    // attempts sent at the same moment all count (wave 9, SA-3); a success gives it back.
     const ip = clientIp(req);
-    if (await signinFailures.blocked(ip)) fail(429, 'rate_limited', GENERIC_SIGNIN_ERROR);
+    const slot = await signinFailures.take(ip);
+    if (!slot.ok) fail(429, 'rate_limited', GENERIC_SIGNIN_ERROR);
 
     const reject = async (reason: string, userId?: string): Promise<never> => {
-      await signinFailures.hit(ip);
       // Passing the request records the source address; nobody is signed in, so there is no actor.
       await audit(req, {
         action: 'signin.failure', recordType: 'user', recordId: userId,
@@ -518,33 +599,34 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
     };
 
     const u = await db.one<any>(
-      `select id, password_hash, status, totp_enabled, failed_attempts,
-              (locked_until is not null and locked_until > now()) as locked
+      `select id, password_hash, status, totp_enabled
        from users where deleted_at is null and (lower(username) = $1 or lower(email) = $1)`,
       [identifier],
     );
-    if (!u || u.status !== 'active' || !u.password_hash) {
-      await hashPassword(password); // spend comparable time whether or not the account exists
-      return reject('unknown or inactive account');
+    const known = Boolean(u && u.status === 'active' && u.password_hash);
+    // The account's attempt is claimed atomically too (refused while locked); an unknown name runs
+    // the same statement on no row, so every refusal costs the same (SA-6).
+    const attempt = await claimSignInAttempt(db, known ? u.id : null);
+    if (!known || !attempt) {
+      await spendPasswordCheck(password); // the same work as a wrong password, whether or not the account exists or is locked
+      return reject(known ? 'account locked' : 'unknown or inactive account', known ? u.id : undefined);
     }
-    if (u.locked) return reject('account locked', u.id);
+    const a = attempt;
 
     const registerFailure = async (reason: string) => {
-      const attempts = u.failed_attempts + 1;
-      // Progressive lockout: from the 5th failure, 1 minute doubling to a 15 minute ceiling.
-      const lockMinutes = attempts >= 5 ? Math.min(15, 2 ** (attempts - 5)) : 0;
-      await db.query(
-        `update users set failed_attempts = $2,
-           locked_until = case when $3::int > 0 then now() + make_interval(mins => $3::int) else null end where id = $1`,
-        [u.id, attempts, lockMinutes],
-      );
-      if (lockMinutes) {
+      if (a.lockMinutes) {
         await audit(null, {
           action: 'signin.lockout', recordType: 'user', recordId: u.id,
-          summary: `Account locked for ${lockMinutes} minute(s) after ${attempts} failed attempts`,
+          summary: `Account locked for ${a.lockMinutes} minute(s) after ${a.attempts} failed attempts`,
         });
       }
       return reject(reason, u.id);
+    };
+    // Not a failure (the password was right; a second factor is still to come, or a policy refused):
+    // the attempt and the address's slot are given back.
+    const notAFailure = async () => {
+      await releaseSignInAttempt(db, u.id, a);
+      await slot.release();
     };
 
     if (!(await verifyPassword(u.password_hash, password))) return registerFailure('wrong password');
@@ -555,14 +637,20 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
     if (passkey === 'needed' && !u.totp_enabled) {
       // E02-21: a person whose only second factor is a passkey can use a recovery code instead.
       const code = String(b.recoveryCode ?? b.totp ?? '').trim();
-      if (!code) fail(401, 'mfa_required', 'Use your passkey or security key to finish signing in.', { passkey: 'required' });
+      if (!code) {
+        await notAFailure();
+        fail(401, 'mfa_required', 'Use your passkey or security key to finish signing in.', { passkey: 'required' });
+      }
       usedRecoveryCode = await consumeRecoveryCode(db, u.id, code);
       if (!usedRecoveryCode) return registerFailure('wrong recovery code');
     }
     if (u.totp_enabled && passkey !== 'passed') {
       // A single-use recovery code is accepted in place of the authenticator code.
       const code = String(b.totp ?? b.recoveryCode ?? '').trim();
-      if (!code) fail(401, 'mfa_required', 'Enter the 6-digit code from your authenticator app.');
+      if (!code) {
+        await notAFailure();
+        fail(401, 'mfa_required', 'Enter the 6-digit code from your authenticator app.');
+      }
       if (!(await acceptTotpCode(db, u.id, code))) {
         usedRecoveryCode = await consumeRecoveryCode(db, u.id, code);
         if (!usedRecoveryCode) return registerFailure('wrong authenticator or recovery code');
@@ -572,8 +660,12 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
     // Sign-in policies (core/identity/hooks.ts): local passwords switched off, a person limited to
     // single sign-on. Refused like any other failure, so the answer reveals nothing.
     const refused = await checkSignIn(app, { userId: u.id, method: 'local' });
-    if (refused) return reject(refused, u.id);
+    if (refused) {
+      await releaseSignInAttempt(db, u.id, a); // the details were right: not counted against the account
+      return reject(refused, u.id);
+    }
 
+    await slot.release();
     await db.query(
       'update users set failed_attempts = 0, locked_until = null, last_login_at = now() where id = $1', [u.id],
     );
@@ -617,28 +709,41 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
   app.post('/api/auth/change-password', async (req, reply) => {
     const b = (req.body ?? {}) as Record<string, string>;
     const me = req.user!;
+    // Wrong current passwords count with the password confirmation's limit (8 in 5 minutes per
+    // person) and are audited (wave 9, SA-10), so a borrowed session cannot be used to guess it.
+    const slot = await confirmFailures.take(me.id);
+    if (!slot.ok) fail(429, 'rate_limited', 'Too many attempts. Wait a few minutes and try again.');
     const row = await db.one<{ password_hash: string }>('select password_hash from users where id = $1', [me.id]);
     if (!row?.password_hash || !(await verifyPassword(row.password_hash, String(b.currentPassword ?? '')))) {
+      await audit(req, { action: 'password.change_refused', recordType: 'user', recordId: me.id, summary: 'Password change refused: wrong current password' });
       fail(400, 'validation', 'Check the highlighted fields.', { currentPassword: 'That is not your current password.' });
     }
+    await slot.release();
     const problem = await checkPasswordPolicy(deps, b.newPassword, me);
     if (problem) fail(400, 'validation', 'Check the highlighted fields.', { newPassword: problem });
     await setPassword(deps, me.id, b.newPassword);
     // All active sessions end on password change; this browser gets a fresh one.
     await db.query('delete from sessions where user_id = $1', [me.id]);
+    // API tokens and AI assistant connections end too (SA-8), unless the person asks to keep them.
+    const keep = (b as Record<string, unknown>).keepProgramAccess === true;
+    const revoked = keep ? { tokens: 0, connections: 0 } : await revokeProgramAccess(db, me.id, me.id, 'password changed');
     setSessionCookie(req, reply, await createSession(db, me.id, clientIp(req), req.headers['user-agent']));
-    await audit(req, { action: 'password.change', recordType: 'user', recordId: me.id, summary: 'Password changed' });
-    return { ok: true };
+    await audit(req, {
+      action: 'password.change', recordType: 'user', recordId: me.id,
+      summary: `Password changed${revokedSummary(revoked)}${keep ? '; API tokens and assistant connections kept at the person\'s request' : ''}`,
+    });
+    return { ok: true, revoked };
   });
 
   // Proves the password (and the second factor, when the person has one: E01-29) again for this
   // session, before a sensitive action.
   app.post('/api/auth/confirm', async (req) => {
     const me = req.user!;
-    if (await confirmFailures.blocked(me.id)) fail(429, 'rate_limited', 'Too many attempts. Wait a few minutes and try again.');
+    // Claimed before the check, so parallel guesses all count (wave 9); given back unless it fails.
+    const slot = await confirmFailures.take(me.id);
+    if (!slot.ok) fail(429, 'rate_limited', 'Too many attempts. Wait a few minutes and try again.');
     const row = await db.one<{ password_hash: string | null }>('select password_hash from users where id = $1', [me.id]);
     if (!row?.password_hash || !(await verifyPassword(row.password_hash, String((req.body as any)?.password ?? '')))) {
-      await confirmFailures.hit(me.id);
       await audit(req, { action: 'reauth.failure', recordType: 'user', recordId: me.id, summary: 'Password confirmation refused: wrong password' });
       fail(400, 'validation', 'Check the highlighted fields.', { password: 'That is not your current password.' });
     }
@@ -649,7 +754,6 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
     let how = 'password';
     if (factor?.totp_enabled || hasPasskey) {
       const refuse = async (reason: string, field: string): Promise<never> => {
-        await confirmFailures.hit(me.id);
         await audit(req, { action: 'reauth.failure', recordType: 'user', recordId: me.id, summary: `Password confirmation refused: ${reason}` });
         return fail(400, 'validation', 'Check the highlighted fields.', { code: field });
       };
@@ -667,6 +771,7 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
         } else await refuse('wrong authenticator or recovery code', 'That code was not accepted. Check it and try again.');
       } else {
         // The password was right; now the second factor. Not counted as a failure.
+        await slot.release();
         const ask = factor?.totp_enabled
           ? 'Enter the 6-digit code from your authenticator app, or a recovery code.'
           : 'Use your passkey or security key, or enter a recovery code.';
@@ -675,6 +780,7 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
         });
       }
     }
+    await slot.release();
     const minutes = Math.max(1, Number(await settings.get('auth.reauth_minutes', 10)) || 10);
     await db.query('update sessions set confirmed_at = now() where token_hash = $1', [req.sessionHash]);
     await audit(req, { action: 'reauth.success', recordType: 'user', recordId: me.id, summary: `Identity confirmed (${how}) for administrative actions` });

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { cx, Icon, lookupColor, lookupLabel, todayInZone } from '../../core';
+import { cx, formatDate, Icon, lookupColor, lookupLabel, todayInZone } from '../../core';
 import { dropOnDay, movableProps, type DragState, type MoveProps } from './calendarDrag';
 import type { Blackout, CalendarChange } from './types';
 import { addDays, dayOf, startOfDay, timeLabel, WEEKDAYS } from './util';
@@ -84,7 +84,7 @@ export function CalendarMonth({ days, month, changes, blackouts, onOpenDay, onMo
           >
             {/* The visible day number starts the button's name, so speech users can say it. */}
             <button type="button" className="chg-day-num" onClick={() => onOpenDay(day)}>
-              {Number(day.slice(8))}<span className="sr-only">, open the week of {day}</span>
+              {Number(day.slice(8))}<span className="sr-only">, open the week of {formatDate(day)}</span>
             </button>
             {shade.map((b) => (
               <span key={b.id} className="chg-day-shade" title={b.reason ?? undefined}><Icon name="lock" size={12} /> <span>{b.name}</span></span>

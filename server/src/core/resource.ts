@@ -2,13 +2,14 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { CURRENCY } from './config.ts';
 import { inTrial, type Db } from './db.ts';
 import { fail, UUID_RE } from './errors.ts';
+import { pageOf } from './api/conventions.ts';
 import type { CreateOptions, FieldDef, ResourceDef, ResourceRegistry, Row, SessionUser } from './module.ts';
 import { CUSTOM_PREFIX, customFieldDef, customName, type CustomField, type CustomFields } from './customfields.ts';
 import { makeLifecycles, type HeldMove, type Lifecycles } from './lifecycle.ts';
 import { BODY_SEPARATOR, ensureCommentSearch, ensureSearchIndex, maySchemaChange, parseSearch, requestSchemaChange, schemaChangeDone, substringColumns } from './search.ts';
 import { can, type makeAudit, type makeLookups } from './services.ts';
 // Spreadsheet and PDF exports, record fact sheets and the generic import (core/export, core/import).
-import { exportColumns, sendListExport } from './export/list.ts';
+import { capExportRows, EXPORT_ROW_LIMIT, exportColumns, sendListExport, truncatedLine, TRUNCATED_HEADER } from './export/list.ts';
 import { registerExportRoutes } from './export/routes.ts';
 import { registerImportRoutes } from './import/routes.ts';
 
@@ -140,12 +141,40 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
     if (!mayAccess(req.user, def, action)) fail(403, 'forbidden', 'You do not have permission to do that.');
   }
 
+  /** A column of the row, with the query's table alias (checked like any identifier). */
+  const columnOf = (alias?: string) => (name: string) => {
+    if (!IDENT.test(name)) throw new Error(`Bad column name: ${name}`);
+    return alias ? `${alias}.${name}` : name;
+  };
+
+  /** The type's own row rule (ResourceDef.rowRule) for this user: 'true' when it hides nothing. */
+  function rowRuleSql(def: ResourceDef, user: SessionUser | null | undefined, alias?: string): string {
+    if (!def.rowRule || !user) return 'true';
+    return def.rowRule.where(user, columnOf(alias)) || 'true';
+  }
+
   function visibilitySql(def: ResourceDef, user: SessionUser | null | undefined, alias?: string): string {
     if (alias !== undefined && !IDENT.test(alias)) throw new Error(`Bad table alias: ${alias}`);
-    if (seesRestricted(user)) return 'true';
-    if (def.restricted === true) return 'false';
-    if (def.restricted === 'flag') return `coalesce(${alias ? `${alias}.` : ''}restricted, false) = false`;
-    return 'true';
+    const rule = rowRuleSql(def, user, alias);
+    const flag = seesRestricted(user) ? 'true'
+      : def.restricted === true ? 'false'
+      : def.restricted === 'flag' ? `coalesce(${alias ? `${alias}.` : ''}restricted, false) = false`
+      : 'true';
+    if (rule === 'true') return flag;
+    if (flag === 'false') return 'false';
+    return flag === 'true' ? `(${rule})` : `(${flag} and (${rule}))`;
+  }
+
+  /**
+   * In a figure, the rows whose details some people may not see: restricted rows, and rows a
+   * masking row rule hides from someone. null when there are none.
+   */
+  function maskedSql(def: ResourceDef, alias?: string): string | null {
+    if (alias !== undefined && !IDENT.test(alias)) throw new Error(`Bad table alias: ${alias}`);
+    const parts: string[] = [];
+    if (def.restricted === 'flag') parts.push(`coalesce(${alias ? `${alias}.` : ''}restricted, false)`);
+    if (def.rowRule?.figures === 'mask' && def.rowRule.hidden) parts.push(`coalesce((${def.rowRule.hidden(columnOf(alias))}), false)`);
+    return parts.length ? parts.join(' or ') : null;
   }
 
   // ---------- inherited restriction ----------
@@ -487,12 +516,13 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
     const mayView = !user || can(user, `${def.module}.view`);
     const rows = await db.query<Row>(
       `select id, ${def.titleField}::text as label, ${def.ref ? def.ref.field : 'null'} as ref,
-              ${def.restricted === 'flag' ? 'coalesce(restricted, false)' : 'false'} as flagged
+              ${def.restricted === 'flag' ? 'coalesce(restricted, false)' : 'false'} as flagged,
+              coalesce((${rowRuleSql(def, user)}), false) as ruled_in
        from ${def.table} where id = any($1::uuid[])`,
       [clean],
     );
     for (const r of rows) {
-      const hidden = !mayView || (!sees && (def.restricted === true || r.flagged));
+      const hidden = !mayView || (!sees && (def.restricted === true || r.flagged)) || !r.ruled_in;
       out.set(r.id, hidden ? { label: 'Restricted', ref: null, hidden } : { label: r.label ?? '', ref: r.ref, hidden });
     }
     return out;
@@ -580,9 +610,10 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
       return f === 'f' && op === undefined && fieldOf(name)?.type === 'user' && String(v).split(',').includes('me');
     });
     const everyone = figures && !personal;
-    const where = ['deleted_at is null', everyone ? 'true' : visibilitySql(def, user)];
-    const masks = everyone && def.restricted === 'flag';
-    const guard = (cond: string) => (masks ? `(not coalesce(restricted, false) and ${cond})` : cond);
+    // A personal item's rule (rowRule figures 'filter') applies to figures too.
+    const where = ['deleted_at is null', everyone ? (def.rowRule?.figures === 'filter' ? rowRuleSql(def, user) : 'true') : visibilitySql(def, user)];
+    const masked = everyone ? maskedSql(def) : null;
+    const guard = (cond: string) => (masked ? `(not (${masked}) and ${cond})` : cond);
     const params: unknown[] = [];
     const add = (v: unknown) => { params.push(v); return `$${params.length}`; };
     /** Set when the query is a full-text search: an expression to order the best matches first. */
@@ -687,16 +718,20 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
 
       if (query.format === 'csv') {
         authorize(req, def, 'export');
-        const rows = await decorate(def, await db.query(`select * from ${def.table} where ${where} ${order} limit 50000`, params), req.user);
+        // One row more than the limit, to know (and say, OP-10) when the export was cut.
+        const { rows: found, truncated } = capExportRows(await db.query(`select * from ${def.table} where ${where} ${order} limit ${EXPORT_ROW_LIMIT + 1}`, params));
+        const rows = await decorate(def, found, req.user);
         const exported: Record<string, FieldDef> = Object.fromEntries(exportColumns({ ...def.fields, ...customDefs }, query.columns));
         const names = Object.keys(exported);
         const lines = [names.map((n) => csvCell(exported[n].label)).join(',')];
         for (const r of rows) lines.push(names.map((n) => csvCell(r._display?.[n] ?? r[n])).join(','));
+        if (truncated) lines.push(csvCell(truncatedLine()));
         if (def.restricted === true || rows.some((r) => r.restricted === true)) lines.push(csvCell(`Restricted export by ${req.user!.displayName} at ${new Date().toISOString()}`));
         await audit(req, {
           action: `${def.type}.export`, recordType: def.type,
-          summary: `Exported ${rows.length} ${def.plural.toLowerCase()} to CSV`,
+          summary: `Exported ${rows.length} ${def.plural.toLowerCase()} to CSV${truncated ? ` (stopped at the ${EXPORT_ROW_LIMIT.toLocaleString('en-US')}-row export limit)` : ''}`,
         });
+        if (truncated) reply.header(TRUNCATED_HEADER, String(EXPORT_ROW_LIMIT));
         reply.header('content-type', 'text/csv; charset=utf-8');
         reply.header('content-disposition', `attachment; filename="${def.type}-export.csv"`);
         return '﻿' + lines.join('\r\n');
@@ -704,15 +739,15 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
       // Spreadsheet (XLSX) and PDF: the same rows, permissions, watermark rule and audit as CSV (core/export/list.ts).
       if (query.format === 'xlsx' || query.format === 'pdf') {
         authorize(req, def, 'export');
-        const rows = await decorate(def, await db.query(`select * from ${def.table} where ${where} ${order} limit 50000`, params), req.user);
+        const { rows: found, truncated } = capExportRows(await db.query(`select * from ${def.table} where ${where} ${order} limit ${EXPORT_ROW_LIMIT + 1}`, params));
+        const rows = await decorate(def, found, req.user);
         return sendListExport({
-          req, reply, db, audit, def, rows, fields: { ...def.fields, ...customDefs }, query, format: query.format,
+          req, reply, db, audit, def, rows, truncated, fields: { ...def.fields, ...customDefs }, query, format: query.format,
           lookupLabels: async (list, value) => (await lookups.values(list)).find((x) => x.value === value)?.label,
         });
       }
 
-      const pageSize = Math.min(500, Math.max(1, Number(query.pageSize) || 50));
-      const page = Math.max(1, Number(query.page) || 1);
+      const { page, pageSize } = pageOf(query); // whole numbers in range (SP-09)
       // The page is found on ids alone and then read in full, so sorting never carries whole
       // records, and the exact total comes from the same pass (E16-36). A page past the end has no
       // row to carry it, so only then is it counted on its own.
@@ -742,8 +777,9 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
       if (!f || !IDENT.test(group) || f.multiple) fail(400, 'bad_group', `Cannot group by "${group}".`);
       const { where, params, everyone } = buildWhere(def, query, req.user, customDefs, true);
       const col = columnSql(group, f);
-      const value = everyone && def.restricted === 'flag' && DETAIL_TYPES.has(f.type)
-        ? `case when coalesce(restricted, false) and ${col} is not null then ${MASKED_SQL} else ${col}::text end`
+      const masked = everyone ? maskedSql(def) : null;
+      const value = masked && DETAIL_TYPES.has(f.type)
+        ? `case when (${masked}) and ${col} is not null then ${MASKED_SQL} else ${col}::text end`
         : `${col}::text`;
       const rows = await db.query<{ value: string | null; count: number }>(
         `select ${value} as value, count(*)::int as count from ${def.table} where ${where} group by 1 order by 2 desc`,
@@ -815,6 +851,16 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
       const def = defs.get(type);
       return def ? visibilitySql(def, user, alias) : 'false';
     },
+    figureWhere: (type, user, alias) => {
+      const def = defs.get(type);
+      if (alias !== undefined && !IDENT.test(alias)) throw new Error(`Bad table alias: ${alias}`);
+      return !def ? 'false' : def.rowRule?.figures === 'filter' ? rowRuleSql(def, user, alias) : 'true';
+    },
+    figureMask: (type, alias) => {
+      const def = defs.get(type);
+      return def ? maskedSql(def, alias) : null;
+    },
+    onChange: (fn) => { listeners.push(fn); },
   };
 
   /**

@@ -27,3 +27,14 @@ export function dayInZone(offsetDays = 0, at: Date = new Date()): string {
   const base = Date.parse(`${todayInZone(at)}T00:00:00Z`);
   return new Date(base + offsetDays * 86_400_000).toISOString().slice(0, 10);
 }
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/**
+ * "Oct 2, 2030" for a 'YYYY-MM-DD' date, as the web app writes dates: for text people read
+ * (notification titles and bodies, emails, audit summaries), never the ISO form (BW-08).
+ */
+export function displayDate(date: string): string {
+  const [y, m, d] = String(date).slice(0, 10).split('-').map(Number);
+  return MONTHS[m - 1] && d ? `${MONTHS[m - 1]} ${d}, ${y}` : String(date);
+}

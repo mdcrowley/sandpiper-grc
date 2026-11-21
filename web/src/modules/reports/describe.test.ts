@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { describeReport } from './describe';
+import { describeReport, typeSearchPlaceholder } from './describe';
 import { startersFor } from './starters';
 import type { CatalogField, CatalogType } from './types';
 
@@ -41,5 +41,12 @@ describe('a report in one plain sentence (E12-13)', () => {
     expect(starts[1].spec.groupBy).toEqual([{ field: 'opened_at', bucket: 'month' }]);
     // Multi-choice and related fields are never offered as groups.
     expect(starts.flatMap((s) => s.spec.groupBy ?? []).some((g) => g.field === 'cf_lines' || g.field.includes('.'))).toBe(false);
+  });
+});
+
+describe('the record type search box (BW-05)', () => {
+  it('names only the record types offered here', () => {
+    expect(typeSearchPlaceholder([{ plural: 'Risks' }, { plural: 'Assets' }, { plural: 'Systems' }, { plural: 'Policies' }])).toBe('Search: risks, assets, systems…');
+    expect(typeSearchPlaceholder([])).toBe('Search record types');
   });
 });

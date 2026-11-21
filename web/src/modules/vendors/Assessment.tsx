@@ -350,7 +350,7 @@ export function AssessmentTab({ vendorId, onChanged }: { vendorId: string; onCha
         title="Security assessment"
         actions={(
           <>
-            {can('vendors.administer') && <Link className="btn btn-ghost btn-sm" to="/vendors/questions">Assessment questions</Link>}
+            {can('vendors.view') && <Link className="btn btn-ghost btn-sm" to="/vendors/questions">Assessment questions</Link>}
             {startButton}
           </>
         )}

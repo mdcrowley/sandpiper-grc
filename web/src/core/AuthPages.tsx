@@ -6,6 +6,8 @@ import { useAuth } from './auth';
 import { Icon } from './Icon';
 import { Wordmark } from './Logo';
 import { Modal, useToast } from './overlay';
+import { Checkbox } from './fields';
+import { sessionEndedNotice } from './session';
 import { Button, ProgressBar } from './ui';
 // Passkeys (E02-08) live in the account-keys module; these pieces are embedded in the sign-in and setup pages.
 import { PasskeySecondFactorButton, PasskeySignIn, signInWithKeyAfterPassword } from '../modules/account-keys/PasskeySignIn';
@@ -235,6 +237,8 @@ export function LoginPage() {
   const [busy, setBusy] = useState(false);
   // E02-26: '' signs in with this application's own password; a directory's key, with that directory's.
   const [method, setMethod] = useState<string | null>(null);
+  // The session ended while the person was working (BW-02): say so, rather than a bare sign-in page.
+  const [ended] = useState(sessionEndedNotice);
 
   useEffect(() => {
     // Without single sign-on installed (or reachable) the page is the plain password form.
@@ -358,6 +362,12 @@ export function LoginPage() {
 
   return (
     <AuthLayout title={linking ? 'Link your sign-in' : 'Sign in'} intro={intro}>
+      {ended && !linking && (
+        <div className="notice" role="status" style={{ marginBottom: 'var(--s-4)' }}>
+          <Icon name="clock" size={16} />
+          <span>{ended}</span>
+        </div>
+      )}
       {linking && (
         <div className="notice" role="status" style={{ marginBottom: 'var(--s-4)' }}>
           <Icon name="link" size={16} />
@@ -447,6 +457,8 @@ function ChangePasswordForm({ onDone }: { onDone: () => void }) {
   const [current, setCurrent] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  // A new password signs programs out too (API tokens, AI assistant connections) unless kept.
+  const [keepPrograms, setKeepPrograms] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -461,7 +473,7 @@ function ChangePasswordForm({ onDone }: { onDone: () => void }) {
 
     setBusy(true);
     try {
-      await api.post('/api/auth/change-password', { currentPassword: current, newPassword: password });
+      await api.post('/api/auth/change-password', { currentPassword: current, newPassword: password, ...(keepPrograms ? { keepProgramAccess: true } : {}) });
       toast.success('Password changed.');
       onDone();
     } catch (err) {
@@ -489,6 +501,8 @@ function ChangePasswordForm({ onDone }: { onDone: () => void }) {
         label="Repeat new password" required autoComplete="new-password" visibilityToggleButtonProps={VISIBILITY}
         value={confirm} error={errors.confirm} onChange={(e) => setConfirm(e.currentTarget.value)}
       />
+      <p className="muted">Changing your password also signs out programs that act for you: your API tokens and AI assistant connections stop working.</p>
+      <Checkbox label="Keep my API tokens and assistant connections" checked={keepPrograms} onChange={setKeepPrograms} />
       <div className="form-actions">
         <Button onClick={onDone}>Cancel</Button>
         <Button type="submit" variant="primary" loading={busy}>Change password</Button>

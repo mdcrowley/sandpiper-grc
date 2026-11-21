@@ -5,8 +5,8 @@ This page is for administrators. It explains how to add people and give them acc
 ## What you need
 
 - Most screens in the **Administration** group need **Administer** on **Administration**. The built-in **Administrator** role has it.
-- **Audit log** needs **View** on **Audit log**. The built-in **Administrator** and **Security lead** roles have it.
-- **Risk scales** needs **Administer** on **Risks** to change the scales. **Service desk settings** is listed for anyone with **View** on **Tickets**; changing them needs **Administer** on **Tickets**.
+- **Audit log** needs **View** on **Audit log**. The built-in **Administrator** and **Security lead** roles have it, and so does the **Auditor** role (switched off to begin with).
+- **Risk scales** needs **Administer** on **Risks** to change the scales. **Hazard matrix** needs **Administer** on **Safety**. **Service desk settings** is listed for anyone with **View** on **Tickets**; changing them needs **Administer** on **Tickets**.
 - **Account security** is open to every signed-in user, for their own account.
 
 ### The Administration menu
@@ -67,7 +67,7 @@ Enter your password and select **Confirm and continue**. If you have a second fa
 
 Open **Administration > Users**. People are added by an administrator; nobody can register themself.
 
-The list shows each person's **Name** and email, **Username**, **Status**, **Roles**, **Second factor** (On or Not set up), **Department** and **Last sign-in**. **Second factor** reflects the authenticator app only: a person whose only second factor is a passkey shows **Not set up** there. Their keys are listed on their page. Search by name, username or email, and filter by **Status** or **Role**. Each filter in use appears under the search box as a pill; select the cross on a pill to remove that filter, or **Clear all** to remove them together. Select a person's name, or anywhere on their row, to open them.
+The list shows each person's **Name** and email, **Username**, **Status**, **Roles**, **Second factor** (On or Not set up), **Department** and **Last sign-in**. **Second factor** shows **On** when the person has an authenticator app or at least one passkey or security key; their page names which. Their keys are listed on their page. Search by name, username or email, and filter by **Status** or **Role**. Each filter in use appears under the search box as a pill; select the cross on a pill to remove that filter, or **Clear all** to remove them together. Select a person's name, or anywhere on their row, to open them.
 
 | Status | Meaning |
 |---|---|
@@ -177,8 +177,8 @@ A role is a named set of permissions. People get access only through the roles t
 | Role | Intended for | Starts |
 |---|---|---|
 | **Administrator** | Configuration, users and roles. Holds every permission. | On |
-| **Agent** | Service desk and inventory work: tickets, knowledge, inventory, fleet and actions, with read access to most other areas. | On |
-| **Security lead** | Risks, frameworks, security incidents, vendors and contracts, and the audit log, with read access to fleet and safety. | On |
+| **Agent** | Service desk and inventory work: tickets, knowledge, inventory, changes (including approving them and change settings), fleet and actions, with read access to most other areas. | On |
+| **Security lead** | Risks, frameworks, security incidents (and every restricted record), vulnerabilities, policies, training, vendors and contracts, the audit log, dashboards and reports, and the same service desk, inventory and change rights as an agent, with read access to projects, fleet and safety. | On |
 | **Project manager** | Projects, gates, status reports and actions. | On |
 | **Safety manager** | Safety team: hazard log, safety events, investigations and indicators, with the action tracker and read access to fleet, systems and sites. | On |
 | **Approver** | People who approve changes, service requests, asset decisions and project gates. It does not include risks: a risk acceptance is recorded by someone who can see the risk, naming the approver. | Off |
@@ -279,7 +279,7 @@ On a new installation set up through the wizard, **Enforcement** starts at **Req
 ### Setting it up for yourself
 
 1. Select your name at the top right and choose **Account security**.
-2. On the **Second factor** card, select **Set up an authenticator app**.
+2. On the **Second factor** card, select **Set up an authenticator app**. If you signed in more than a few minutes ago, you are asked to confirm your password first (see "Confirming your password").
 3. In your authenticator app, choose to add an account and **scan the square code** shown on the page with your phone's camera. The code is always drawn in black on white, so it scans in the dark theme too.
 4. If you cannot scan it, type the key shown under **Cannot scan? Type this key into the app instead**. It is written in groups of four to make it easier to read; the spaces do not matter. **Copy key** copies it without the spaces. If the app asks, the key is time based, with 6 digits and a new code every 30 seconds. For an app that accepts a set-up address, open **Show the set-up address** and copy that.
 5. Under **Enter the code the app now shows**, type the **6-digit code** and select **Confirm and turn on**. Nothing changes until you do this; **Cancel** abandons the set-up.
@@ -295,7 +295,7 @@ The **Second factor** card shows how many codes are left, and turns amber when t
 
 ### Turning it off for yourself
 
-Select **Turn off** on the **Second factor** card, then enter your current password and either a 6-digit code or a recovery code. Your recovery codes stop working too.
+Select **Turn off** on the **Second factor** card, then enter your current password and either a 6-digit code or a recovery code. Your recovery codes stop working too, unless you still have a passkey or security key: then they stay, for signing in when the key is not at hand.
 
 ### Resetting it for someone else
 
@@ -305,9 +305,9 @@ When a person has lost both their phone and their recovery codes:
 2. Open the person from **Users**.
 3. On the **Sign-in and security** card, select **Reset second factor** and confirm.
 
-Their authenticator app and recovery codes stop working. Their passkeys and security keys are removed too. They sign in with a password only until they set the second factor up again, so ask them to do that straight away. The button appears only when the person has an authenticator app set up.
+Their authenticator app and recovery codes stop working. Their passkeys and security keys are removed too, and their API tokens and AI assistant connections are revoked. They sign in with a password only until they set the second factor up again, so ask them to do that straight away. The button appears when the person has an authenticator app or a passkey or security key.
 
-A person whose only second factor is a passkey can make recovery codes too (see [Passkeys and security keys](16-passkeys-and-security-keys.md#recovery-codes-for-passkeys)); if they have lost both their keys and their codes, remove their keys from the **Passkeys and security keys** card on their page.
+A person whose only second factor is a passkey can make recovery codes too (see [Passkeys and security keys](16-passkeys-and-security-keys.md#recovery-codes-for-passkeys)); if they have lost both their keys and their codes, use **Reset second factor** as above, or remove their keys from the **Passkeys and security keys** card on their page.
 
 ## Sign-in providers (single sign-on)
 
@@ -605,6 +605,11 @@ Changing these asks you to confirm your password.
 | Setting | Starts at | Allowed | Notes |
 |---|---|---|---|
 | **Audit log** | 84 | 12 to 1200 months | How long the audit log is to be kept, for your records schedule. It is recorded only: audit events are never deleted. |
+| **Webhook delivery log** | 30 | 1 to 3650 days | How long finished webhook deliveries (delivered, failed or blocked) stay in a webhook's **Deliveries** list. Older ones are removed by the daily check; deliveries still waiting are always kept. What a delivery sent is removed as soon as it is delivered: the list keeps its date, event and status only. |
+| **Outgoing message log** | 180 | 7 to 3650 days | How long the email and text-message **Delivery log** (recipients and subjects) is kept. Messages still waiting or due to be tried again are kept. |
+| **Incoming email log** | 180 | 7 to 3650 days | How long the log of emails received by the service desk mailbox (senders and subjects) is kept. Shown only while **Service desk** is switched on. A reply to an email older than this still finds its ticket when it quotes the ticket reference. |
+
+The three logs are removed once a day by the same daily check as retention reviews, and the audit log notes how many rows went. They are logs, not records, so nothing waits for a decision.
 
 ### Features (settings)
 
@@ -642,7 +647,7 @@ Each part has a switch, a line saying what it covers, whether it is **On** or **
 |---|---|---|
 | **Service desk** | Tickets, problems, the knowledge base and the service catalog | On |
 | **Self-service portal** | The simpler pages where anyone submits and tracks their own requests. Needs the service desk | Off |
-| **Change enablement** | Change requests, approvals and the change calendar | On |
+| **Change enablement** | Change requests, approvals, the change calendar and post-implementation reviews | On |
 | **Vendors and contracts** | Vendors, contracts, renewals and vendor evidence | On |
 | **Framework outcomes** | Cybersecurity framework outcomes, assessments and target profiles | On |
 | **Risks and obligations** | The risk register, risk reviews and acceptances, and obligations. The action tracker stays | On |
@@ -650,7 +655,7 @@ Each part has a switch, a line saying what it covers, whether it is **On** or **
 | **Policies and exceptions** | Policies, acknowledgments and policy exceptions | On |
 | **Training and exercises** | Courses, assignments and exercises | On |
 | **Vulnerabilities** | Vulnerability records, scanner imports and remediation deadlines | On |
-| **Projects** | Projects, the portfolio and project requests | On |
+| **Projects** | Projects, the portfolio and project reminders | On |
 | **Dashboards and reports** | Saved dashboards, the report catalog, scheduled reports and report packs. The **Overview** page and its figures stay | On |
 | **Fleet and services** | Vehicles, services (routes and lines) and the systems they depend on | On |
 | **Safety management** | Hazards, safety events, safety performance indicators, and safety reports from the portal | On |
@@ -678,7 +683,7 @@ The part disappears for everyone, administrators and API tokens included. The on
 - its AI assistant tools, background jobs and schedules, reminders, its retention category (**Contracts and suppliers** with vendors), its API routes in the **API reference**, and its permissions on a role's page and in the permissions a new API token may carry, are left out. With **Security incidents** off, the text-message alerts (the **Alerts by text message** card and the **Text messages** tab of **Email**) go too, since only incidents send them; with **Dashboards and reports** off, the **Overview**'s figures are headed **At a glance**;
 - its records are left out of search, record links, the relationship map and impact panels (for example the vehicles and services on a system's impact panel and on a security incident's **Affected** tab), the **Overview** widgets, the report catalog and dashboards, imports, exports, custom fields, retention, webhooks, the API reference and the tools offered to AI assistants;
 - its reminders and other background work stop (the **Background jobs** page shows those runs as skipped), and the sample data command does not load its sample records;
-- its permissions are held by nobody and are not listed on a role's page. The ticks are kept and work again when the part is switched back on;
+- its permissions are held by nobody and are not listed on a role's page. The checked boxes are kept and work again when the part is switched back on;
 - its guide pages are left out of **Help** and its search; a guide page opened by a link says the part is switched off;
 - the API answers 404 with the code `switched_off` for its routes.
 
@@ -764,8 +769,8 @@ The **Review** tab lists the records past their period. **Show** switches betwee
 For each record waiting for a decision:
 
 - **Keep longer**: choose **For a number of months** or **Until a date**, give a **Reason** and select **Keep longer**. The record leaves the list and is flagged again once that date has passed.
-- **Anonymize…** (when the period allows it): give a **Reason**, check **I understand that the personal details will be removed permanently** and select **Anonymize**. You are asked to confirm your identity if you have not done so recently. Anonymizing **cannot be undone**. It replaces the record's personal fields (the people on it, names, email addresses, phone numbers and long text that may hold personal details) with "Removed at the end of the retention period" or empties them, empties the people who created and last changed it, replaces the text and author of each of its comments, deletes the contents of its files and renames them "Removed file", replaces the titles of notifications about it, and removes its watchers. Search no longer finds the removed details. The record itself, its reference, status, dates, numbers, tags, links and the number of its comments and files stay, so counts and charts stay the same for everyone; only a chart grouped by a person or a long-text field shows the record under no value. A person field that the record type requires cannot be emptied and is kept; the audit entry names it. The audit log is not changed: its earlier entries for the record, shown on the record's **History** tab, still hold the earlier values. The review moves to **Anonymized**, with your reason.
-- **Remove…** (when the period allows it): give a **Reason**, check **I understand that this record will be deleted permanently** and select **Remove for good**. You are asked for your password if you have not given it recently. The record, its comments, tags and links are deleted and cannot be brought back. A record with files attached cannot be removed until its files are. The audit log keeps the record's history and a note of the removal with your reason. Anonymizing and removing are sent to webhooks (see "Other events" under [Webhooks](#webhooks)), with no personal values from before the change.
+- **Anonymize…** (when the period allows it): give a **Reason**, check **I understand that the personal details will be removed permanently** and select **Anonymize**. You are asked to confirm your identity if you have not done so recently. Anonymizing **cannot be undone**. It replaces the record's personal fields (the people on it, names, email addresses, phone numbers and long text that may hold personal details) with "Removed at the end of the retention period" or empties them, empties the people who created and last changed it, replaces the text and author of each of its comments, deletes the contents of its files and renames them "Removed file", replaces the titles of notifications about it, and removes its watchers. Search no longer finds the removed details. The record itself, its reference, status, dates, numbers, tags, links and the number of its comments and files stay, so counts and charts stay the same for everyone; only a chart grouped by a person or a long-text field shows the record under no value. A person field that the record type requires cannot be emptied and is kept; the audit entry names it. The audit log is not changed: its earlier entries for the record, shown on the record's **History** tab, still hold the earlier values. Webhook deliveries already made or waiting for the record lose what they carried: those still waiting are not sent (they show as **Blocked**, and cannot be sent again). The review moves to **Anonymized**, with your reason.
+- **Remove…** (when the period allows it): give a **Reason**, check **I understand that this record will be deleted permanently** and select **Remove for good**. You are asked for your password if you have not given it recently. The record, its comments, tags and links are deleted and cannot be brought back. A record with files attached cannot be removed until its files are. The audit log keeps the record's history and a note of the removal with your reason. Webhook deliveries made or waiting for the record lose what they carried, as for anonymizing. Anonymizing and removing are sent to webhooks (see "Other events" under [Webhooks](#webhooks)), with no personal values from before the change.
 
 ## API tokens
 
@@ -827,10 +832,12 @@ A restricted event is sent only by a webhook with **Include restricted records**
 The list shows each webhook's events, when it last delivered, how many deliveries are waiting and how many failed or were blocked in the last 7 days. The **On** switch pauses or restarts a webhook. The **…** menu offers:
 
 - **Edit**: change the name, address, events or the restricted-records choice. Changing the address or including restricted records asks for your password.
-- **Deliveries**: the delivery log, newest first, with each delivery's event, status (**Delivered**, **Waiting to retry**, **Failed** or **Blocked**), attempts and the reason for a failure. Select **Send again** on a failed or blocked delivery.
+- **Deliveries**: the delivery log, newest first, with each delivery's event, status (**Delivered**, **Waiting to retry**, **Failed** or **Blocked**), attempts and the reason for a failure. Select **Send again** on a failed or blocked delivery (not on one whose content was removed at the end of its record's retention period). A delivered delivery keeps its date, event and status but not what it sent, and finished deliveries are removed after the **Webhook delivery log** period under **Settings > Retention** (30 days to begin with).
 - **Send a test**: sends a `webhook.test` event at once and says what happened.
 - **Replace secret**: makes a new secret, shown once. The receiver must be given it, or it will reject deliveries.
 - **Remove**: stops the webhook for good and cancels deliveries still waiting. The delivery log is kept.
+
+Every change to a webhook is in the audit log. Because a webhook address often contains the receiving system's own secret, the audit log shows only its start (for example `https://chat.example.test/…`) and a short fingerprint that changes when the address does, never the whole address.
 
 ## The audit log
 
@@ -875,7 +882,13 @@ A file named with today's date is downloaded, containing every event that matche
 
 ## My account: the Account security page
 
-Every user has this page. Select your name at the top right and choose **Account security**. The same menu has **Change password**, **Help** and **Sign out**.
+Every user has this page. Select your name at the top right and choose **Account security**. The same menu has **Notifications**, **Change password**, **Help**, **Keyboard shortcuts** and **Sign out**.
+
+Besides the cards described below, the page has three cards described elsewhere:
+
+- **Alerts by text message** (when security incidents are on): your mobile number for urgent alerts; see [Your mobile number and email-to-text address](14-attachments-and-notifications.md#your-mobile-number-and-email-to-text-address). An administrator sees the same card on a person's page under **Users**.
+- **Stand-in for approvals**: someone to decide your approvals while you are away; see [Stand-ins](22-approval-workflows.md#stand-ins).
+- **Connect an AI assistant**: a token and ready-made configuration for an AI assistant; see [Connecting your assistant](21-ai-assistants-and-mcp.md#connecting-your-assistant).
 
 If a second factor is required for your account and you have not set one up, this page is shown by itself after you sign in, without the menu, with a red notice at the top and a **Sign out** button. Set up the second factor as described under "Setting it up for yourself"; as soon as you select **Confirm and turn on** the rest of the application opens, and your recovery codes stay on screen until you have saved them.
 
@@ -887,7 +900,7 @@ The **Password** card shows when your password was last changed. To change it:
 2. Enter your **Current password**, then the **New password** and **Repeat new password**.
 3. Select **Change password**.
 
-Use at least the minimum number of characters shown on the card; a phrase of several words works well. Changing your password signs you out everywhere else.
+Use at least the minimum number of characters shown on the card; a phrase of several words works well. Changing your password signs you out everywhere else, and revokes your API tokens and your AI assistant connections (make new ones afterward), so nothing made by someone who knew the old password keeps working. Too many wrong current passwords make you wait a few minutes.
 
 ### Second factor
 
@@ -948,4 +961,3 @@ The token is shown once. Select **Copy token** and keep it somewhere safe, such 
 - Roles cannot be deleted and user accounts cannot be removed; switch off or disable them instead.
 - New lists cannot be created on screen, and the special behavior of supplied values cannot be given to values you add.
 - Anonymizing a record does not change the audit log, which keeps the earlier values of its personal fields; the audit log's own period is recorded, not enforced.
-- The **Second factor** column on **Users**, and the **Reset second factor** button, take account of the authenticator app only, not of passkeys.

@@ -19,8 +19,8 @@ const baseModuleLabel = (key: string) => MODULE_LABELS[key] ?? humanize(key);
 
 /**
  * What this installation checks (E18-44): the server lists every `<area>.<action>` that some route
- * or record type checks (core/permission-use.ts). A combination nothing checks is greyed out and
- * cannot be newly ticked, since granting it would do nothing; one already granted can still be
+ * or record type checks (core/permission-use.ts). A combination nothing checks is grayed out and
+ * cannot be newly checked, since granting it would do nothing; one already granted can still be
  * unticked. An area with nothing checked at all carries the "not yet used" hint.
  */
 const NOT_CHECKED = 'Nothing in this installation checks this permission, so granting it would have no effect.';
@@ -41,7 +41,7 @@ export function RoleDetailPage() {
   const [find, setFind] = useState('');
   const [onlyGranted, setOnlyGranted] = useState(false);
   const checkedList = useFetch<{ checked: string[] }>('/api/admin/permissions/checked');
-  // While the list loads (or if it cannot be read) nothing is greyed out.
+  // While the list loads (or if it cannot be read) nothing is grayed out.
   const checked = useMemo(() => (checkedList.data ? new Set(checkedList.data.checked) : null), [checkedList.data]);
   const isChecked = (m: string, a: string) => !checked || checked.has(`${m}.${a}`);
 
@@ -109,7 +109,7 @@ export function RoleDetailPage() {
 
   const needle = find.trim().toLowerCase();
   // Permission areas of a switched-off part (Administration > Features) are not shown; the role keeps
-  // its ticks for them, which apply again once the part is switched on (E14-34).
+  // its checked boxes for them, which apply again once the part is switched on (E14-34).
   const shown = modules.filter((m) => !switchedOff(`${m}.view`)
     && (!needle || m.includes(needle) || moduleLabel(m).toLowerCase().includes(needle)) && (!onlyGranted || countFor(m) > 0));
   const areasGranted = modules.filter((m) => !switchedOff(`${m}.view`) && countFor(m) > 0).length;
@@ -178,7 +178,7 @@ export function RoleDetailPage() {
               </Notice>
             ) : (
               <p className="muted">
-                Tick what members may do in each area. <strong>All</strong> grants every action in that area, now and in future
+                Check what members may do in each area. <strong>All</strong> grants every action in that area, now and in future
                 (stored as <code>area.*</code>). Restricted records also need View on Security incidents and restricted records.
               </p>
             )}
@@ -220,8 +220,8 @@ export function RoleDetailPage() {
                           <span className="adm-matrix-name">{moduleLabel(m)}</span>
                           <span className="adm-matrix-key">
                             <code>{m}</code>
-                            {unused && <span className="adm-matrix-hint" title="Nothing in this installation checks these permissions. Ticking them has no effect.">not yet used</span>}
-                            {off && <Link className="adm-matrix-hint" to="/admin/features" title="This part of the application is switched off under Features: nobody holds these permissions until it is switched on again. Ticks are kept.">switched off</Link>}
+                            {unused && <span className="adm-matrix-hint" title="Nothing in this installation checks these permissions. Checking them has no effect.">not yet used</span>}
+                            {off && <Link className="adm-matrix-hint" to="/admin/features" title="This part of the application is switched off under Features: nobody holds these permissions until it is switched on again. The checked boxes are kept.">switched off</Link>}
                           </span>
                         </th>
                         <td className="adm-matrix-all">
@@ -253,8 +253,8 @@ export function RoleDetailPage() {
           {uncheckedCells > 0 && (
             <p className="card-body adm-card-foot muted">
               <span>
-                Greyed-out boxes are permissions nothing in this installation checks: granting one would have no effect, so it
-                cannot be ticked (one already granted can be removed).
+                Grayed-out boxes are permissions nothing in this installation checks: granting one would have no effect, so it
+                cannot be checked (one already granted can be removed).
                 {unusedAreas.size > 0 && <> Areas marked <span className="adm-matrix-hint">not yet used</span> have nothing checked at all.</>}
                 {' '}<strong>All</strong> still covers every action, including any a later version checks.
               </span>

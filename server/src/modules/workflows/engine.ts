@@ -41,6 +41,11 @@ export interface ApprovalUnit {
   due_hours: number | null;
   /** Who is told, and may then also decide, once the step is overdue. */
   escalate_to: { users: string[]; role: string | null } | null;
+  /**
+   * A different person per step (wave 9): someone who decided another step (or branch) of the same
+   * request may not decide this one, so two steps always mean two people. Off when absent.
+   */
+  distinct_approvers?: boolean;
 }
 
 /**
@@ -470,7 +475,10 @@ export function checkDefinition(input: Row, c: DefinitionContext): { def?: Workf
     }
 
     const conds = conditions(`${at}.conditions`, s.conditions);
-    return approvers ? { key, name: unitName ?? '', approvers, quorum, conditions: conds, due_hours: dueHours, escalate_to: escalate } : null;
+    const distinct = s.distinct_approvers === true || s.distinct_approvers === 'true';
+    return approvers
+      ? { key, name: unitName ?? '', approvers, quorum, conditions: conds, due_hours: dueHours, escalate_to: escalate, ...(distinct ? { distinct_approvers: true } : {}) }
+      : null;
   };
 
   rawSteps.slice(0, MAX_STEPS).forEach((raw, i) => {

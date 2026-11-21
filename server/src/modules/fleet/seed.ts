@@ -37,7 +37,7 @@ const BUS_DEPS: [string, string][] = [
   ['Example Real-Time Information System', 'passenger_information'], ['Example Scheduling System', 'scheduling'], ['Example Radio Dispatch System', 'radio'],
 ];
 const RAIL_DEPS: [string, string][] = [
-  ['Example Rail Signalling Interface', 'other'], ['Example Onboard Information Displays', 'passenger_information'],
+  ['Example Rail Signaling Interface', 'other'], ['Example Onboard Information Displays', 'passenger_information'],
   ['Example Real-Time Information System', 'passenger_information'], ['Example Fare Collection System', 'fare_collection'],
   ['Example Scheduling System', 'scheduling'], ['Example Radio Dispatch System', 'radio'],
 ];

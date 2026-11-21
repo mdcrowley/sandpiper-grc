@@ -33,7 +33,7 @@ Some assistants connect from the provider's cloud instead of from someone's comp
 1. Under **Sign-in for remote connectors (OAuth)**, turn on **Let connectors sign in (OAuth 2.1)**.
 2. Decide how connectors are added:
    - Turn on **Let connectors register themselves** to let any connector introduce itself the first time someone connects it. Each person still has to approve it.
-   - Or leave it off and select **Add a connector** for each connector you trust: enter its **Name** and its **Redirect addresses** (from the connector's documentation), and tick **The connector keeps a client secret** only for connectors that run on a server. Give the **Client id** (and the **Client secret**, shown once) to the people who will use it.
+   - Or leave it off and select **Add a connector** for each connector you trust: enter its **Name** and its **Redirect addresses** (from the connector's documentation), and check **The connector keeps a client secret** only for connectors that run on a server. Give the **Client id** (and the **Client secret**, shown once) to the people who will use it.
 3. Newer connectors identify themselves by a **web address** instead of registering: the address of a small document published by the connector's maker that describes it (a client ID metadata document). Sandpiper GRC must fetch that document, so this needs **Allow outbound connections** under **Settings** > **Outbound connections** as well. Under **Connectors known by their web address**:
    - Turn on **Accept connectors known by their web address**.
    - In **Hosts they may come from**, list the hosts you trust, one per line (for example `assistant.example.org` or `*.example.net`), then select **Save hosts**. Leave it empty to accept any public host.

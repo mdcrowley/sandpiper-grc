@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 
 import { SegmentedControl } from '@mantine/core';
 import {
   api, Button, Checkbox, DateField, errorMessage, formatDateTime, Icon, LookupChip, LookupSelect, Modal, RecordPicker, Select, TextArea, TextField,
-  useAuth, useCustomFieldInputs, useDebounced, useFetch, useLookup, useResource, UserPicker, useToast,
+  useAuth, useCustomFieldInputs, useDebounced, useFetch, useLookup, useResource, useUnsavedChanges, UserPicker, useToast,
 } from '../../core';
 import type { ListResult, Row } from '../../core';
 import { fieldErrors, priorityFor, type PriorityMatrix, type Question, type Suggestions } from './util';
@@ -40,6 +40,17 @@ export function NewTicketDialog({ open, onClose, onCreated, initial, title = 'Ne
   const another = useRef(false);
   // The administrator's custom fields on tickets (E18-34), after the built-in sections.
   const custom = useCustomFieldInputs('ticket');
+  // What the dialog starts with (after a catalog item given by the caller); anything else is unsaved
+  // and is not thrown away without asking (BW-03).
+  const [baseline, setBaseline] = useState('');
+  const capture = useRef(true);
+  useEffect(() => {
+    if (!capture.current) return;
+    capture.current = false;
+    setBaseline(JSON.stringify(v));
+  }, [v]);
+  const dirty = open && baseline !== '' && (JSON.stringify(v) !== baseline || Object.values(answers).some((a) => String(a ?? '').trim() !== ''));
+  const unsaved = useUnsavedChanges(dirty);
 
   const matrix = useFetch<PriorityMatrix>(open ? '/api/tickets/priority-matrix' : null);
   const catalog = useFetch<ListResult>(open ? '/api/catalog-items?f.active=true&sort=name&pageSize=100' : null);
@@ -50,6 +61,7 @@ export function NewTicketDialog({ open, onClose, onCreated, initial, title = 'Ne
   const suggest = useFetch<Suggestions>(open && typedTitle.length >= 6 ? `/api/tickets/suggest?title=${encodeURIComponent(typedTitle)}` : null);
 
   function reset(start?: Record<string, unknown>) {
+    capture.current = true;
     setV({ ...START, ...(start ?? {}) });
     setAnswers({});
     setItem(null);
@@ -77,7 +89,7 @@ export function NewTicketDialog({ open, onClose, onCreated, initial, title = 'Ne
     const { catalog_item_id: itemId, ...rest } = initial ?? {};
     reset(rest);
     if (!itemId) return;
-    api.get<Row>(`/api/catalog-items/${itemId}`).then(applyItem).catch((err) => setFormError(errorMessage(err)));
+    api.get<Row>(`/api/catalog-items/${itemId}`).then((row) => { capture.current = true; applyItem(row); }).catch((err) => setFormError(errorMessage(err)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initial]);
 
@@ -111,6 +123,7 @@ export function NewTicketDialog({ open, onClose, onCreated, initial, title = 'Ne
       toast.success(`Ticket ${row.ref} logged.`);
       const again = another.current;
       if (again) reset();
+      else unsaved.release();
       onCreated(row, again);
     } catch (err) {
       setErrors(fieldErrors(err));
@@ -129,14 +142,14 @@ export function NewTicketDialog({ open, onClose, onCreated, initial, title = 'Ne
   const footer = (
     <>
       <span className="sd-footer-hint muted"><kbd className="kbd">Ctrl</kbd> <kbd className="kbd">Enter</kbd> logs the ticket</span>
-      <Button onClick={onClose}>Cancel</Button>
+      <Button onClick={unsaved.guard(onClose)}>Cancel</Button>
       <Button loading={busy && another.current} disabled={busy} onClick={() => { another.current = true; void submit(); }}>Log and add another</Button>
       <Button variant="primary" loading={busy && !another.current} disabled={busy} onClick={() => void submit()}>Log ticket</Button>
     </>
   );
 
   return (
-    <Modal open={open} title={title} onClose={onClose} size="lg" footer={footer}>
+    <Modal open={open} title={title} onClose={onClose} dirty={dirty} size="lg" footer={footer}>
       <form className="form sd-new" onSubmit={submit} onKeyDown={onKeyDown} noValidate>
         {formError && <p className="notice notice-warn" role="alert">{formError}</p>}
 

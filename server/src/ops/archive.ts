@@ -5,6 +5,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { Readable, Transform, type TransformCallback } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { OpsError } from './errors.ts';
+import { PRIVATE_DIR, PRIVATE_FILE } from './files.ts';
 
 // Single-file archives of a backup or an export, optionally encrypted.
 //
@@ -450,12 +451,12 @@ export async function* openArchiveStream(source: AsyncIterable<Buffer | Uint8Arr
 
 /** Writes entries to `dest` (encrypted when a key is given), via a temporary name. Returns the size. */
 export async function writeArchive(dest: string, entries: TarSource[], key: ArchiveKey | null, info: ArchiveInfo): Promise<number> {
-  await mkdir(dirname(dest), { recursive: true });
+  await mkdir(dirname(dest), { recursive: true, mode: PRIVATE_DIR });
   const partial = `${dest}.partial`;
   await rm(partial, { force: true });
   try {
     const stages: NodeJS.ReadWriteStream[] = key ? [encryptStream(key, info)] : [];
-    await pipeline(tarStream(entries), ...(stages as [Transform]), createWriteStream(partial, { flags: 'wx' }));
+    await pipeline(tarStream(entries), ...(stages as [Transform]), createWriteStream(partial, { flags: 'wx', mode: PRIVATE_FILE }));
     await rename(partial, dest);
   } catch (err) {
     await rm(partial, { force: true });
@@ -496,14 +497,15 @@ export async function hashArchive(entries: AsyncIterable<TarEntry>): Promise<{ f
 /** Writes an archive's entries into a folder (which must be empty or missing). */
 export async function extractEntries(entries: AsyncIterable<TarEntry>, outDir: string): Promise<number> {
   const base = resolve(outDir);
-  await mkdir(base, { recursive: true });
+  await mkdir(base, { recursive: true, mode: PRIVATE_DIR });
   let count = 0;
   for await (const e of entries) {
     const target = resolve(base, ...e.path.split('/'));
     if (!target.startsWith(base + sep)) throw new OpsError(`The archive holds an unsafe path: ${e.path}`);
-    if (e.type === 'dir') { await mkdir(target, { recursive: true }); continue; }
-    await mkdir(dirname(target), { recursive: true });
-    await pipeline(Readable.from(e.body), createWriteStream(target, { flags: 'wx' }));
+    if (e.type === 'dir') { await mkdir(target, { recursive: true, mode: PRIVATE_DIR }); continue; }
+    await mkdir(dirname(target), { recursive: true, mode: PRIVATE_DIR });
+    // SP-07: what is unpacked (data, the secret key) is readable by its owner only.
+    await pipeline(Readable.from(e.body), createWriteStream(target, { flags: 'wx', mode: PRIVATE_FILE }));
     count += 1;
   }
   return count;
@@ -514,10 +516,10 @@ export async function decryptToTar(file: string, out: string, key: ArchiveKey): 
   const reader = new ByteReader(createReadStream(file));
   const head = await readEncHeader(reader);
   if (!head) throw new OpsError(`${file} is not an encrypted archive.`);
-  await mkdir(dirname(resolve(out)), { recursive: true });
+  await mkdir(dirname(resolve(out)), { recursive: true, mode: PRIVATE_DIR });
   const partial = `${out}.partial`;
   try {
-    await pipeline(Readable.from(decryptChunks(reader, head.header, head.aad, key)), createWriteStream(partial, { flags: 'wx' }));
+    await pipeline(Readable.from(decryptChunks(reader, head.header, head.aad, key)), createWriteStream(partial, { flags: 'wx', mode: PRIVATE_FILE }));
     await rename(partial, out);
   } catch (err) {
     await rm(partial, { force: true });

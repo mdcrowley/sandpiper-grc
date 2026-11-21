@@ -135,16 +135,8 @@ export function registerHazards(ctx: ModuleContext) {
     await scale.scales.save(next, false, req.user!.id);
     const saved = (await scale.get())!;
     // Stored ratings follow the matrix: the hazards, and the risks scored on it (kept while their area is off).
-    const levels = await scale.scales.summaryLevels();
-    let hazards = 0;
-    for (const h of await ctx.db.query<Row>('select id, likelihood, severity, rating, score, residual_likelihood, residual_severity, residual_rating, residual_score from hazards where deleted_at is null')) {
-      const now = scale.scales.score(saved, levels, h.likelihood, h.severity);
-      const after = scale.scales.score(saved, levels, h.residual_likelihood, h.residual_severity);
-      if (now.rating === h.rating && now.score === h.score && after.rating === h.residual_rating && after.score === h.residual_score) continue;
-      await ctx.db.query('update hazards set rating = $2, score = $3, residual_rating = $4, residual_score = $5 where id = $1',
-        [h.id, now.rating, now.score, after.rating, after.score]);
-      if (now.rating !== h.rating || after.rating !== h.residual_rating) hazards += 1;
-    }
+    // The same re-rating runs when the matrix is saved from Risk scales (BS-4).
+    const hazards = await scale.scales.rescoreHazards();
     await scale.scales.rescore(HAZARD_SCALE);
     await ctx.audit(req, {
       action: 'risk_scale.update', recordType: 'risk_scale', recordId: HAZARD_SCALE,

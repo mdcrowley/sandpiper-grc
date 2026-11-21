@@ -2,8 +2,8 @@
 // one series = one color; several series take the fixed palette in order and never more than
 // eight (the rest fold into "Other"); a lookup's own configured colors are used when they tell
 // the groups apart, because those colors already mean something to the reader (red = critical).
-import { chartColor, formatCurrency, formatNumber } from '../../core';
-import type { ChartOption } from '../../core';
+import { chartColor, type ChartOption } from '../../core/Chart';
+import { escapeHtml, formatCurrency, formatNumber } from '../../core/format';
 import type { ChartKind, ReportResult, ResultColumn, ResultRow } from './types';
 
 export interface BuiltChart {
@@ -142,7 +142,8 @@ export function buildChart(kind: ChartKind, result: ReportResult, measureIndex =
       description,
       drillFor: (seg) => { const d = seg.data as [number, number, number]; return at(rowKeys[d[1]], colKeys[d[0]].name)?.drill ?? null; },
       option: {
-        tooltip: { trigger: 'item', formatter: (p: { data: [number, number, number] }) => `${rowKeys[p.data[1]]} · ${colKeys[p.data[0]].name}<br><strong>${fmt(p.data[2])}</strong>` },
+        tooltip: { trigger: 'item', // Row and column names are record text: escaped, as ECharts places the string as HTML (SP-04).
+        formatter: (p: { data: [number, number, number] }) => `${escapeHtml(rowKeys[p.data[1]])} · ${escapeHtml(colKeys[p.data[0]].name)}<br><strong>${escapeHtml(fmt(p.data[2]))}</strong>` },
         grid: { top: 8, right: 12, bottom: 44, left: Math.round(longest * 6.4) + 16 },
         xAxis: { type: 'category', data: colKeys.map((c) => c.name), position: 'bottom', splitArea: { show: false }, axisLine: { show: false } },
         yAxis: { type: 'category', inverse: true, data: rowKeys, axisLine: { show: false }, axisLabel: { width: longest * 6.4, overflow: 'truncate' } },

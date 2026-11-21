@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { Queryable } from './db.ts';
 import { fail } from './errors.ts';
+import { isApiRequest, routePattern } from './api/versioning.ts';
 import type { FieldDef, ResourceDef, ResourceRegistry, Row } from './module.ts';
 
 /**
@@ -95,7 +96,7 @@ export const AREAS: Area[] = [
   },
   {
     key: 'policies', label: 'Policies and exceptions', defaultOn: true,
-    description: 'Policies, attestations and policy exceptions.',
+    description: 'Policies, acknowledgments and policy exceptions.',
     permissions: ['policies', 'exceptions'], modules: ['policies'], jobs: ['policies.'],
     lookupValues: { notification_kind: ['acknowledgement'], action_source: ['policy'] },
   },
@@ -469,13 +470,15 @@ export function makeFeatureGate(app: FastifyInstance, db: Queryable) {
   }
 
   app.addHook('preHandler', async (req: FastifyRequest) => {
-    if (!req.url.startsWith('/api/') && !req.url.startsWith('/mcp')) return;
+    // By path or by matched route, so no spelling of the path can step around the switch (wave 9).
+    const api = isApiRequest(req);
+    if (!api && !req.url.startsWith('/mcp')) return;
     const s = await featureState(db);
     applyOptions(s);
-    if (!req.url.startsWith('/api/')) return;
+    if (!api) return;
     if (!s.off.length) return;
     const module = req.routeOptions?.config?.grcModule;
-    const url = req.routeOptions?.url ?? '';
+    const url = routePattern(req);
     if (routeOff(url, module)) fail(404, 'switched_off', SWITCHED_OFF);
     if (module) return; // a module's own route reads its parameters its own way
     const p = (req.params ?? {}) as Row;

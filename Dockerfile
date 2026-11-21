@@ -11,13 +11,14 @@
 #   /var/lib/sandpiper       data (embedded database, attached files) and backups
 #   /var/lib/sandpiper-key   the secret key file, kept apart so a copy of the data holds no key
 
-# Keep in step with tools/node-version.txt (continuous integration passes it in).
-ARG NODE_MAJOR=24
+# Base image: pinned by digest, so a re-tagged or tampered image cannot slip into a build. The
+# major version (24) must match tools/node-version.txt; continuous integration checks it.
+# Dependabot proposes new digests (and minor versions) weekly; all three stages use the same one.
 
 # --- 1. web build -----------------------------------------------------------------------------
 # Static files, the same for every platform: built once on the builder's own platform, which
 # keeps multi-platform builds fast (no emulation for this stage).
-FROM --platform=$BUILDPLATFORM node:${NODE_MAJOR}-bookworm-slim AS web
+FROM --platform=$BUILDPLATFORM node:24-bookworm-slim@sha256:dc26ae92c9fb15cf6b1d63e20f0944b2efe0f115b20e00be48fb23fceb061c54 AS web
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
@@ -28,13 +29,13 @@ COPY docs/user ./docs/user
 RUN npm run build
 
 # --- 2. production packages -------------------------------------------------------------------
-FROM node:${NODE_MAJOR}-bookworm-slim AS deps
+FROM node:24-bookworm-slim@sha256:dc26ae92c9fb15cf6b1d63e20f0944b2efe0f115b20e00be48fb23fceb061c54 AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
 
 # --- 3. runtime -------------------------------------------------------------------------------
-FROM node:${NODE_MAJOR}-bookworm-slim AS runtime
+FROM node:24-bookworm-slim@sha256:dc26ae92c9fb15cf6b1d63e20f0944b2efe0f115b20e00be48fb23fceb061c54 AS runtime
 LABEL org.opencontainers.image.title="Sandpiper GRC" \
       org.opencontainers.image.description="Governance, risk and compliance for transit organizations" \
       org.opencontainers.image.source="https://github.com/mdcrowley/sandpiper-grc" \

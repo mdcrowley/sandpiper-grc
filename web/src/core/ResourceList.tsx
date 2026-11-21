@@ -146,8 +146,6 @@ export function ResourceList({
   const [savingView, setSavingView] = useState(false);
   const [unsharing, setUnsharing] = useState<SharedView | null>(null);
   const [creating, setCreating] = useState(false);
-  const [confirmClose, setConfirmClose] = useState(false);
-  const formDirty = useRef(false);
   const [importing, setImporting] = useState(false);
   const [selected, setSelected] = useState<Map<string, Row>>(() => new Map());
   const [bulkEditing, setBulkEditing] = useState(false);
@@ -386,10 +384,6 @@ export function ResourceList({
 
   const first = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const last = Math.min(total, page * pageSize);
-  const closeCreate = () => {
-    if (formDirty.current) setConfirmClose(true);
-    else setCreating(false);
-  };
 
   return (
     <div className={`rc-list${title ? ' rc-list-page' : ''}`}>
@@ -589,12 +583,15 @@ export function ResourceList({
         </>
       )}
 
-      <Modal open={creating} title={`New ${resource.label.toLowerCase()}`} size="lg" onClose={closeCreate}>
+      {/* The form inside tells the dialog about unsaved changes, so closing it asks first (core/unsaved.tsx). */}
+      <Modal
+        open={creating} title={`New ${resource.label.toLowerCase()}`} size="lg" onClose={() => setCreating(false)}
+        discardPrompt={{ message: `The new ${resource.label.toLowerCase()} has not been saved. Closing now loses what you have entered.` }}
+      >
         <ResourceForm
           type={type}
           fields={knownFields(resource, createFields ?? [])}
           initial={createInitial}
-          onDirtyChange={(d) => { formDirty.current = d; }}
           onCancel={() => setCreating(false)}
           onSaved={(row) => {
             setCreating(false);
@@ -608,15 +605,6 @@ export function ResourceList({
           }}
         />
       </Modal>
-      <ConfirmDialog
-        open={confirmClose}
-        title="Discard this draft?"
-        message={`The new ${resource.label.toLowerCase()} has not been saved. Closing now loses what you have entered.`}
-        confirmLabel="Discard"
-        danger
-        onConfirm={() => { setConfirmClose(false); setCreating(false); }}
-        onCancel={() => setConfirmClose(false)}
-      />
 
       <ConfirmDialog
         open={unsharing !== null}

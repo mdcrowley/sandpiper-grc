@@ -141,6 +141,17 @@ describe('directory sign-in (E02-26)', () => {
     expect(await allAudit()).not.toMatch(/wrong-[0-4]/);
   });
 
+  it('counts simultaneous wrong passwords: at most five reach the directory (wave 9)', async () => {
+    const dana = await t.db.one<{ id: string }>(`select id from users where email = 'dana.driver@example.org'`);
+    const before = (await audited('signin.failure')).length;
+    const answers = await Promise.all(Array.from({ length: 12 }, (_, i) => login({ username: DANA.user, password: `race-${i}` })));
+    expect(answers.every((r) => r.statusCode === 401)).toBe(true);
+    const failures = (await audited('signin.failure')).slice(before);
+    expect(failures.filter((s) => /wrong directory password/.test(s)).length).toBeLessThanOrEqual(5);
+    await t.db.query('delete from rate_limit_hits');
+    await t.db.query('update users set failed_attempts = 0, locked_until = null where id = $1', [dana!.id]);
+  });
+
   it('refuses disabled accounts, unknown names, injection and empty passwords', async () => {
     expect((await login({ username: 'offduty', password: 'off-duty-pass' })).statusCode).toBe(401);
     expect((await audited('signin.failure')).pop()).toMatch(/directory account disabled/);

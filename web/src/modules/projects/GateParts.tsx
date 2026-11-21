@@ -73,7 +73,7 @@ export function blockerAdvice(gate: Gate): string {
   const kinds = new Set(gate.blockers.map((b) => b.kind));
   const steps: string[] = [];
   if (kinds.has('status')) steps.push('make the project active again');
-  if (kinds.has('checklist')) steps.push('tick the outstanding checklist items');
+  if (kinds.has('checklist')) steps.push('check the outstanding checklist items');
   if (kinds.has('document')) steps.push('mark each required document as received (or have an approver waive it)');
   return `To approve this gate, ${steps.join(', then ')}.`;
 }

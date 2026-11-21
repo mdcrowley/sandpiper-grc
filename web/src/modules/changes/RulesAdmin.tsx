@@ -38,7 +38,7 @@ function WhoApproves({ line, roles, onChange, errors }: {
         <p className="muted chg-rule-hint">
           {line.users.length || line.approver_role_keys?.length
             ? `Only ${[...line.users.map((u) => u.label), ...(line.approver_role_keys ?? []).map((k) => `members of ${roles.find((r) => r.key === k)?.name ?? k}`)].join(', ')} can approve; each is asked and records their own decision.`
-            : 'Nobody named: anyone with the Approve permission on Changes can approve.'}
+            : 'Nobody named: anyone with the Approve permission on Change enablement can approve.'}
         </p>
       </div>
     </div>

@@ -5,7 +5,7 @@ import {
 } from '../../core';
 import type { ChecklistItem } from './types';
 
-/** Checklists copied from the scenario's template, one card per phase; steps are ticked with who and when. */
+/** Checklists copied from the scenario's template, one card per phase; steps are checked off with who and when. */
 export function ChecklistTab({ incidentId, scenario, canEdit, onChanged }: { incidentId: string; scenario: string | null; canEdit: boolean; onChanged?: () => void }) {
   const toast = useToast();
   const phases = useLookup('incident_checklist_phase');

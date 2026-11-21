@@ -755,11 +755,28 @@ export function makeService(ctx: ModuleContext) {
     const d = c.finish();
     d.decided_on ??= today();
     if (d.decided_on > today()) ctx.fail(400, 'validation', 'Check the highlighted fields.', { decided_on: 'The decision date cannot be in the future.' });
-    const result = await recordGateDecision(req, project, gate, d);
-    // E11-25: a decision recorded by hand settles the gate, so an approval workflow asked for it stops.
+    // AZ-5: a gate whose template names an approval workflow (or that has one running) is decided
+    // through it. Recording by hand is then an administrator's override, with a reason, and never by
+    // the person who asked for the approval: it would skip the workflow and its "not your own request" rule.
     const engine = approvalEngine(ctx.app);
     const running = engine ? await engine.running(GATE_KIND, project.id) : null;
-    if (engine && running && running.data.gate_id === gate.id) {
+    const runningHere = running && running.data.gate_id === gate.id ? running : null;
+    const named = gate.gate_def_id ? (await gateTemplateWorkflows([gate.gate_def_id]))[0] ?? null : null;
+    if (runningHere || named) {
+      const name = runningHere?.name ?? named?.name;
+      if (!req?.user || !ctx.can(req.user, 'admin.administer')) {
+        ctx.fail(403, 'workflow_required', `This gate is decided through the approval workflow "${name}". Ask for approval on the gate; only an administrator can record a decision by hand.`);
+      }
+      if (runningHere?.requestedBy && runningHere.requestedBy === req!.user!.id) {
+        ctx.fail(403, 'not_allowed', 'You asked for this gate\'s approval, so someone else must decide it.');
+      }
+      if (!d.notes) {
+        ctx.fail(400, 'validation', 'Check the highlighted fields.', { notes: `Say why the decision is recorded by hand instead of through "${name}".` });
+      }
+    }
+    const result = await recordGateDecision(req, project, gate, d);
+    // E11-25: a decision recorded by hand settles the gate, so an approval workflow asked for it stops.
+    if (engine && runningHere) {
       await engine.cancel(GATE_KIND, project.id, `A gate decision (${d.decision}) was recorded by hand by ${actorName(req)}.`, req);
     }
     return result;

@@ -171,9 +171,11 @@ export function compile(
   // left out for some. A list of records, or a figure about "me", is worked out as the caller.
   const aggregate = (Array.isArray(spec.groupBy) && spec.groupBy.length > 0) || (Array.isArray(spec.aggregates) && spec.aggregates.length > 0);
   const figures = aggregate && !usesMe(spec.filters) && opts.globals?.owner !== 'me';
-  const viewer = figures ? null : user;
-  /** Figures only: true for a restricted row of `d` under `alias` (rows of a wholly restricted type are seen only by people who may see them all). */
-  const flagged = (d: ResourceDef, alias: string) => (figures && d.restricted === 'flag' ? `coalesce(${alias}.restricted, false)` : undefined);
+  // The rows a figure or a list may read: in a figure every record (a personal item, such as a saved
+  // report, only when shared with the caller: ResourceDef.rowRule), otherwise what the caller may see.
+  const rowsOf = (d: ResourceDef, alias: string) => (figures ? ctx.resources.figureWhere(d.type, user, alias) : ctx.resources.visibleWhere(d.type, user, alias));
+  /** Figures only: true for a row of `d` under `alias` whose details are masked: a restricted row, or one hidden from some people by its row rule (rows of a wholly restricted type are seen only by people who may see them all). */
+  const flagged = (d: ResourceDef, alias: string) => (figures ? ctx.resources.figureMask(d.type, alias) ?? undefined : undefined);
 
   function resolve(path: unknown): ResolvedField {
     if (typeof path !== 'string' || path.length > 130) throw new SpecError('A field name is not valid.');
@@ -205,7 +207,7 @@ export function compile(
         // In a list, a related record the caller may not see joins as "nothing": no value, no group, no count.
         // In a figure every related record joins, and its words are masked when it is restricted.
         joins.push(`left join ${target.table} ${alias} on ${alias}.id::text = ${columnSql(name, f)}::text and ${alias}.deleted_at is null`
-          + ` and ${ctx.resources.visibleWhere(target.type, viewer, alias)}`);
+          + ` and ${rowsOf(target, alias)}`);
       }
       types.set(target.type, target);
       return { path, label: `${f.label}: ${tf.label}`, def: tf, sql: `${alias}.${sub}`, related: { via: name, target }, mask: DETAIL_TYPES.has(tf.type) ? flagged(target, alias) : undefined };
@@ -352,7 +354,7 @@ export function compile(
     return { sql: `(${parts.map((p) => p.sql).join(` ${op} `)})`, drill: exact ? parts.flatMap((p) => p.drill!) : null };
   }
 
-  const where = [`t.deleted_at is null`, ctx.resources.visibleWhere(def.type, viewer, 't')];
+  const where = [`t.deleted_at is null`, rowsOf(def, 't')];
   const drill: Compiled['drill'] = { params: [], exact: true };
   if (spec.filters !== undefined && spec.filters !== null) {
     const g = group(spec.filters, 1);

@@ -88,9 +88,9 @@ describe('API coverage', () => {
     expect(Object.keys(whole.paths).some((p) => p === '/mcp' || p.startsWith('/mcp/'))).toBe(false);
   });
 
-  it('serves every route under /api/v1 too', () => {
-    const notAliased = t.core.openapi.routes().filter((r) => !t.app.hasRoute({ method: r.method as 'GET', url: versioned(r.url) }));
-    expect(notAliased).toEqual([]);
+  it('serves /api/v1 through the same routes, with no second copy of any (wave 9: canonical-paths.test.ts walks them)', () => {
+    const copies = t.core.openapi.routes().filter((r) => t.app.hasRoute({ method: r.method as 'GET', url: versioned(r.url) }));
+    expect(copies).toEqual([]);
   });
 
   it('describes record rows, list envelopes, stats, errors and exports as schemas', async () => {

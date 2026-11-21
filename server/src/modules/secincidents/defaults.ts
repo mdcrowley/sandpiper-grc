@@ -65,7 +65,7 @@ export const LOOKUPS: Record<string, LookupValue[]> = {
     { value: 'financial_data', label: 'Financial or payment information', sort: 10, meta: { hint: 'Bank, payment or account details of the organization or of other people.' } },
     { value: 'confidential_business', label: 'Confidential business information', sort: 20, meta: { hint: 'Contracts, plans, credentials or anything else the organization keeps confidential.' } },
     { value: 'rider_account_data', label: 'Rider account information', sort: 30, meta: { hint: 'Fare accounts, concession eligibility, journey history or contact details of riders.' } },
-    { value: 'operational_data', label: 'Operational and safety information', sort: 40, meta: { hint: 'Vehicle locations, schedules, signalling or dispatch records, and safety reports.' } },
+    { value: 'operational_data', label: 'Operational and safety information', sort: 40, meta: { hint: 'Vehicle locations, schedules, signaling or dispatch records, and safety reports.' } },
   ],
   incident_log_kind: [
     { value: 'note', label: 'Note', color: 'gray', sort: 10 },

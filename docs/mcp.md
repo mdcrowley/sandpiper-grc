@@ -20,7 +20,7 @@ addresses, system impact), `web/src/modules/mcp/configs.test.ts`.
 |---|---|
 | Address | `POST <application address>/mcp` (Streamable HTTP transport) |
 | Answers | JSON; a `tools/call` that carries `_meta.progressToken` is answered as `text/event-stream` with progress notifications and then the result |
-| `GET`, `DELETE` | `405` with `Allow: POST`: the server is stateless (no `Mcp-Session-Id`) and sends nothing unasked |
+| `GET`, `DELETE` | `405` with `Allow: POST` once the token is accepted (before that, the same `401` or `403` as a `POST`): the server is stateless (no `Mcp-Session-Id`) and sends nothing unasked |
 | Authentication | `Authorization: Bearer grc_pat_...` (a personal access token) or, when switched on, an OAuth access token `grc_oat_...`. The session cookie is never read |
 | Request id | Every answer carries `X-Request-Id` (yours when you send a sensible one) |
 | Server name | `sandpiper-grc` |
@@ -80,23 +80,25 @@ within their scopes. A person can also add `mcp.use` to any token on the API tok
 ## Settings
 
 Administration > **AI assistant access** (`PUT /api/mcp/admin/settings`, `admin.administer`, a
-signed-in session with a recent password confirmation; refused for any token). These keys are
-not on the general Settings screen, so a token can never change them.
+signed-in session with a recent password confirmation; refused for any token). These settings
+are not on the general Settings screen, so a token can never change them. The request body
+uses the names in the first column (for example `{ "enabled": true, "ratePerMinute": 60 }`);
+the second column is the setting as it is stored, which the body does not accept.
 
-| Key | Default | Meaning |
-|---|---|---|
-| `mcp.enabled` | `false` | The endpoint answers at all |
-| `mcp.write_enabled` | `false` | Tools that change records are offered (to tokens whose permissions include a `.create` or `.edit`) |
-| `mcp.allowed_tools` | `null` (all) | Tool names offered; others are not listed and cannot be called |
-| `mcp.rate_per_minute` | `120` | Requests a minute to `/mcp` per token |
-| `mcp.allowed_origins` | `[]` | Browser origins allowed to call `/mcp` |
-| `mcp.allowed_roles` | `null` (everyone) | Role keys whose holders may connect an assistant |
-| `mcp.role_tools` | `{}` | Tools per role key; a role without a list is not narrowed |
-| `mcp.oauth_enabled` | `false` | Remote connectors may sign in with OAuth 2.1 |
-| `mcp.oauth_registration` | `false` | Connectors may register themselves (dynamic client registration) |
-| `mcp.oauth_client_metadata` | `false` | Connectors may use the `https` address of a client ID metadata document as `client_id` (also needs `integrations.outbound_enabled`) |
-| `mcp.oauth_client_metadata_hosts` | `[]` (any public host) | Hosts those addresses may be on: `host`, `host:port` or `*.domain` |
-| `mcp.oauth_client_metadata_approval` | `false` | A connector seen for the first time waits for an administrator's approval |
+| API field | Stored setting | Default | Meaning |
+|---|---|---|---|
+| `enabled` | `mcp.enabled` | `false` | The endpoint answers at all |
+| `writeEnabled` | `mcp.write_enabled` | `false` | Tools that change records are offered (to tokens whose permissions include a `.create` or `.edit`) |
+| `allowedTools` | `mcp.allowed_tools` | `null` (all) | Tool names offered; others are not listed and cannot be called |
+| `ratePerMinute` | `mcp.rate_per_minute` | `120` | Requests a minute to `/mcp` per token (1 to 6000) |
+| `allowedOrigins` | `mcp.allowed_origins` | `[]` | Browser origins allowed to call `/mcp` (up to 20) |
+| `allowedRoles` | `mcp.allowed_roles` | `null` (everyone) | Role keys whose holders may connect an assistant |
+| `roleTools` | `mcp.role_tools` | `{}` | Tools per role key; a role without a list is not narrowed |
+| `oauthEnabled` | `mcp.oauth_enabled` | `false` | Remote connectors may sign in with OAuth 2.1 |
+| `oauthRegistration` | `mcp.oauth_registration` | `false` | Connectors may register themselves (dynamic client registration) |
+| `clientMetadata` | `mcp.oauth_client_metadata` | `false` | Connectors may use the `https` address of a client ID metadata document as `client_id` (also needs `integrations.outbound_enabled`) |
+| `clientMetadataHosts` | `mcp.oauth_client_metadata_hosts` | `[]` (any public host) | Hosts those addresses may be on: `host`, `host:port` or `*.domain` (up to 50) |
+| `clientMetadataApproval` | `mcp.oauth_client_metadata_approval` | `false` | A connector seen for the first time waits for an administrator's approval |
 
 ## Who may connect
 
@@ -203,7 +205,8 @@ Sandpiper GRC is both the protected resource and the authorization server. **Off
 
 **HTTPS is required.** Every OAuth address answers only when the application is reached over
 HTTPS (or on this computer, `localhost`/`127.0.0.1`, for testing). Set the public address
-(`auth.public_url`, under Administration > Settings) to the `https://` address people use: it is the issuer and
+(**Application address**, `auth.public_url`, under Administration > Sign-in providers, on the
+**Redirect address** card) to the `https://` address people use: it is the issuer and
 the base of the resource (`<public address>/mcp`). Connectors in a provider's cloud must be able
 to reach that address, which usually means a reverse proxy on a reachable host
 ([Installation](installation.md#server-installation)).

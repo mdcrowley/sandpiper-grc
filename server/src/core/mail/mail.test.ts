@@ -2,7 +2,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { ModuleDef } from '../module.ts';
 import { ADMIN, testApp } from '../../test/helpers.ts';
 import { ensureMail } from './index.ts';
-import { smtpRetryAfter } from './provider.ts';
+import { createServer, type AddressInfo } from 'node:net';
+import { MAIL_BREAKER_DEFAULTS, makeMailBreaker } from './breaker.ts';
+import { SMTP_TIMEOUTS, smtpRetryAfter } from './provider.ts';
 import { startSmtpSink, type SmtpSink } from './smtp-sink.ts';
 
 // Starts mail without relying on any module, and adds two invented record types:
@@ -329,5 +331,54 @@ describe('forgotten password', () => {
     expect(again.body.link).toMatch(/^\/redeem\?token=/);
     expect(again.body).not.toHaveProperty('emailedTo');
     await settings({ enabled: true });
+  });
+});
+
+// OP-09: an unreachable mail server cost every message a full time-out, one after another, on
+// the only job queue. Now: a shorter connect time-out, a pause after a few failures in a row
+// (the waiting messages keep their attempts), and mail in its own lane of the queue.
+describe('an unreachable mail server', () => {
+  it('pauses sending after a few connection failures, without using up the waiting messages\' attempts', async () => {
+    expect(SMTP_TIMEOUTS.connection).toBeLessThanOrEqual(5000);
+    // A port nobody listens on: every connection is refused at once.
+    const closed = await new Promise<number>((resolve) => {
+      const srv = createServer();
+      srv.listen(0, '127.0.0.1', () => { const port = (srv.address() as AddressInfo).port; srv.close(() => resolve(port)); });
+    });
+    await settings({ ...goodSettings(), port: closed, enabled: true });
+    const sent = await Promise.all([1, 2, 3, 4, 5].map((n) => t.app.sendMail({ to: `down${n}@example.test`, data: { subject: `Down ${n}`, message: 'x' } })));
+    const ids = sent.map((s) => s.logIds[0]);
+    const started = Date.now();
+    await run();
+    expect(Date.now() - started).toBeLessThan(30_000);
+    const rows = await Promise.all(ids.map(log));
+    const tried = rows.filter((r) => /Could not reach/.test(r.error ?? ''));
+    const waiting = rows.filter((r) => /^Waiting: the mail server could not be reached/.test(r.error ?? ''));
+    expect(tried).toHaveLength(MAIL_BREAKER_DEFAULTS.threshold);
+    expect(waiting).toHaveLength(5 - MAIL_BREAKER_DEFAULTS.threshold);
+    for (const r of waiting) {
+      const job = await t.db.one<any>('select status, attempts, run_at from jobs where id = $1', [r.job_id]);
+      expect(job).toMatchObject({ status: 'queued', attempts: 0 });
+      expect(new Date(job.run_at).getTime() - Date.now()).toBeGreaterThan(60_000);
+    }
+    // Another server (the settings fixed) is not paused.
+    await settings({ ...goodSettings(), enabled: true });
+    const ok = await t.app.sendMail({ to: 'up@example.test', data: { subject: 'Up again', message: 'x' } });
+    await run();
+    expect(await log(ok.logIds[0])).toMatchObject({ status: 'sent' });
+    await t.db.query(`delete from jobs where id = any($1::uuid[])`, [rows.map((r) => r.job_id)]);
+  });
+
+  it('pauses after the threshold and starts over after a success', () => {
+    const b = makeMailBreaker({ threshold: 2, pauseMs: 60_000 });
+    expect(b.failure('k', 0)).toBeNull();
+    expect(b.pausedUntil('k', 0)).toBeNull();
+    expect(b.failure('k', 0)?.getTime()).toBe(60_000);
+    expect(b.pausedUntil('k', 59_999)?.getTime()).toBe(60_000);
+    expect(b.pausedUntil('k', 60_000)).toBeNull(); // one message may try again
+    expect(b.failure('k', 60_000)?.getTime()).toBe(120_000); // still down: paused again
+    b.success('k');
+    expect(b.pausedUntil('k', 60_001)).toBeNull();
+    expect(b.failure('k', 70_000)).toBeNull();
   });
 });

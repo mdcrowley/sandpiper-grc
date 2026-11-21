@@ -121,7 +121,7 @@ export function UserSignInCard({ user, onChanged }: { user: AdminUser; onChanged
         {!data.breakGlass && (
           <div>
             <h3 className="adm-step-title">Ways to sign in</h3>
-            <Checkbox label="Allow only the ways ticked below" checked={restricted} onChange={(on) => { setRestricted(on); if (on && !methods.length) setMethods(['local', ...enabledProviders.map((p) => p.key)]); }} />
+            <Checkbox label="Allow only the ways checked below" checked={restricted} onChange={(on) => { setRestricted(on); if (on && !methods.length) setMethods(['local', ...enabledProviders.map((p) => p.key)]); }} />
             {restricted && (
               <div className="adm-check-list">
                 <Checkbox label="Password" checked={methods.includes('local')} onChange={(on) => setMethods((m) => (on ? [...m, 'local'] : m.filter((x) => x !== 'local')))}
