@@ -8,7 +8,10 @@ let t: Awaited<ReturnType<typeof testApp>>;
 beforeAll(async () => { t = await testApp(); });
 afterAll(async () => { await t?.close(); });
 
-describe('starting a policy version twice at once (BS-8)', () => {
+// Skipped over the test wire-protocol bridge (GRC_TEST_DATABASE=pg): it serves one embedded database
+// to several connections and mixes up their messages when transactions overlap. Real PostgreSQL
+// (GRC_TEST_DATABASE_URL) and the embedded database run it.
+describe.skipIf(String(process.env.GRC_TEST_DATABASE ?? '').toLowerCase() === 'pg')('starting a policy version twice at once (BS-8)', () => {
   it('creates one version and refuses the other with version_open', async () => {
     const p = (await t.api.post('/api/policies', { title: 'Invented depot key control policy' })).body;
     // A slow moment between the check and the insert makes the requests overlap for certain.

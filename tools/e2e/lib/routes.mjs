@@ -22,11 +22,12 @@ export async function resourceMeta(api) {
 
 /**
  * Concrete routes to visit: static ones as they are, and "<route>/:id" for each record type,
- * filled with the first visible record. Public routes (sign-in links), the assistant sign-in consent
+ * filled with the first visible record. Public routes (sign-in links and pages, which send a signed-in
+ * person home), the assistant sign-in consent
  * page (it needs the request it answers, under /oauth/) and "*" are left out.
  * Returns { visit: [{ path, pattern, type? }], skipped: [pattern] }.
  */
-export async function concreteRoutes(page, api, { publicPrefixes = ['/redeem', '/portal/', '/oauth/'] } = {}) {
+export async function concreteRoutes(page, api, { publicPrefixes = ['/redeem', '/portal/', '/oauth/', '/sign-in/'] } = {}) {
   const patterns = await registeredRoutes(page);
   const resources = await resourceMeta(api);
   const byRoute = new Map(Object.entries(resources).filter(([, r]) => r.route).map(([type, r]) => [r.route, { type, ...r }]));
