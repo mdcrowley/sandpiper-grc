@@ -28,6 +28,16 @@ export const LOGO_MIN_PIXELS = 16;
 export const LOGO_VARIANTS = ['light', 'dark'] as const;
 export type LogoVariant = (typeof LOGO_VARIANTS)[number];
 export const logoKey = (variant: LogoVariant) => `branding.logo_${variant}`;
+/**
+ * A PDF holds PNG or JPEG only, and many mail programs show no WebP. For a WebP logo the browser
+ * that uploads it also makes a PNG copy (drawn on a canvas, so the server needs no image decoder,
+ * E14-36); that copy is checked here and stored beside the logo. At most this large.
+ */
+export const PRINT_COPY_MAX_BYTES = 1024 * 1024;
+/** An email carries the logo inline only up to this size, so every message stays light. */
+export const MAIL_LOGO_MAX_BYTES = 200 * 1024;
+/** The Content-ID of the logo in an email's HTML part (`<img src="cid:...">`). */
+export const MAIL_LOGO_CID = 'organization-logo@branding.local';
 
 const text = (max: number, what: string): Check => (v) => {
   if (v === null || v === undefined) return { value: '' };
@@ -100,6 +110,8 @@ export const ORGANIZATION_SETTINGS: Record<string, { fallback: unknown; check: C
   'organization.security_email': { fallback: '', check: email('Security contact email') },
   'branding.primary_color': { fallback: '', check: color('Brand color') },
   'branding.accent_color': { fallback: '', check: color('Accent color') },
+  // E14-36: emails carry the logo above the message unless this is switched off.
+  'branding.email_logo': { fallback: true, check: (v) => (typeof v === 'boolean' ? { value: v } : 'Choose on or off.') },
 };
 export const ORGANIZATION_KEYS = Object.keys(ORGANIZATION_SETTINGS);
 
@@ -110,6 +122,8 @@ export interface Organization {
   phone: string; email: string; website: string;
   securityPhone: string; securityEmail: string;
   primaryColor: string; accentColor: string;
+  /** Whether emails show the logo (true unless switched off). */
+  emailLogo: boolean;
 }
 
 const str = (v: unknown) => (typeof v === 'string' ? v : '');
@@ -128,6 +142,7 @@ export async function readOrganization(db: Queryable): Promise<Organization> {
     phone: str(v['organization.phone']), email: str(v['organization.email']), website: str(v['organization.website']),
     securityPhone: str(v['organization.security_phone']), securityEmail: str(v['organization.security_email']),
     primaryColor: str(v['branding.primary_color']), accentColor: str(v['branding.accent_color']),
+    emailLogo: v['branding.email_logo'] !== false,
   };
 }
 
@@ -147,22 +162,64 @@ export function contactLine(o: Organization): string {
 
 // ---------- logos ----------
 
-export interface LogoMeta { type: ImageType; width: number; height: number; bytes: number; hash: string; filename: string; updatedAt: string }
-interface StoredLogo extends LogoMeta { data: string }
+/** The PNG copy of a WebP logo, for PDFs and emails (E14-36). */
+export interface PrintCopyMeta { width: number; height: number; bytes: number; hash: string }
+export interface LogoMeta {
+  type: ImageType; width: number; height: number; bytes: number; hash: string; filename: string; updatedAt: string;
+  /** Only for a WebP logo: its PNG copy, or null while none has been made. */
+  print?: PrintCopyMeta | null;
+}
+type StoredCopy = PrintCopyMeta & { data: string };
+interface StoredLogo extends Omit<LogoMeta, 'print'> { data: string; print?: StoredCopy }
 
-/** A logo's description without its content (cheap: the picture itself is not read). */
+/** A logo's description without its content (cheap: neither picture is read). */
 export async function logoMeta(db: Queryable, variant: LogoVariant): Promise<LogoMeta | null> {
-  const row = await db.one<{ value: LogoMeta | null }>(`select value - 'data' as value from settings where key = $1`, [logoKey(variant)]);
-  return row?.value && typeof row.value === 'object' && row.value.hash ? row.value : null;
+  const row = await db.one<{ value: LogoMeta | null; print: PrintCopyMeta | null }>(
+    `select value - 'data' - 'print' as value, (value -> 'print') - 'data' as print from settings where key = $1`, [logoKey(variant)]);
+  if (!row?.value || typeof row.value !== 'object' || !row.value.hash) return null;
+  if (row.value.type !== 'image/webp') return row.value;
+  return { ...row.value, print: row.print && typeof row.print === 'object' && row.print.hash ? row.print : null };
 }
 
-/** A logo's picture and description, or null when none is stored. */
-export async function logoFile(db: Queryable, variant: LogoVariant): Promise<{ meta: LogoMeta; data: Buffer } | null> {
+/** A logo's picture and description (with the PNG copy of a WebP logo, if any), or null when none is stored. */
+export async function logoFile(db: Queryable, variant: LogoVariant): Promise<{ meta: LogoMeta; data: Buffer; print: Buffer | null } | null> {
   const row = await db.one<{ value: StoredLogo | null }>('select value from settings where key = $1', [logoKey(variant)]);
   const v = row?.value;
   if (!v || typeof v !== 'object' || typeof v.data !== 'string') return null;
-  const { data, ...meta } = v;
-  return { meta, data: Buffer.from(data, 'base64') };
+  const { data, print, ...rest } = v;
+  const copy = rest.type === 'image/webp' && print && typeof print.data === 'string' ? print : null;
+  const meta: LogoMeta = rest.type === 'image/webp'
+    ? { ...rest, print: copy ? { width: copy.width, height: copy.height, bytes: copy.bytes, hash: copy.hash } : null }
+    : rest;
+  return { meta, data: Buffer.from(data, 'base64'), print: copy ? Buffer.from(copy.data, 'base64') : null };
+}
+
+/**
+ * The logo as a PDF or an email can hold it: the picture itself when it is PNG or JPEG, the PNG
+ * copy of a WebP logo, or null (no logo, or a WebP logo without a copy).
+ */
+export async function printableLogo(db: Queryable, variant: LogoVariant = 'light'): Promise<{ data: Buffer; type: 'image/png' | 'image/jpeg'; width: number; height: number } | null> {
+  const file = await logoFile(db, variant);
+  if (!file) return null;
+  if (file.meta.type === 'image/png' || file.meta.type === 'image/jpeg') return { data: file.data, type: file.meta.type, width: file.meta.width, height: file.meta.height };
+  if (file.print && file.meta.print) return { data: file.print, type: 'image/png', width: file.meta.print.width, height: file.meta.print.height };
+  return null;
+}
+
+/**
+ * Checks the PNG copy of a WebP logo, made by the browser: a PNG, at most 1 MB, and the shape of
+ * the logo (within 3 percent; the browser may make it smaller). Its description, or what is wrong.
+ */
+export function checkPrintCopy(data: Buffer, logo: Pick<LogoMeta, 'width' | 'height'>): PrintCopyMeta | string {
+  if (data.length === 0) return 'The printable copy is empty.';
+  if (data.length > PRINT_COPY_MAX_BYTES) return `The printable copy is ${Math.ceil(data.length / 1024)} KB; it can be up to ${PRINT_COPY_MAX_BYTES / 1024} KB.`;
+  const info = imageInfo(data);
+  if (!info || info.type !== 'image/png') return 'The printable copy must be a PNG picture.';
+  const { width, height } = info;
+  if (width < LOGO_MIN_PIXELS || height < LOGO_MIN_PIXELS || width > LOGO_MAX_PIXELS || height > LOGO_MAX_PIXELS) return `The printable copy is ${width} × ${height} pixels, which cannot be used.`;
+  const ratio = logo.width / logo.height;
+  if (Math.abs(width / height - ratio) > 0.03 * ratio) return 'The printable copy does not have the shape of the logo.';
+  return { width, height, bytes: data.length, hash: createHash('sha256').update(data).digest('hex').slice(0, 16) };
 }
 
 /**
@@ -198,15 +255,23 @@ export function decodeUpload(raw: unknown): Buffer | null {
 type Audit = (req: FastifyRequest | null, ev: AuditInput) => Promise<void>;
 const THEME_WORD = { light: 'light theme', dark: 'dark theme' } as const;
 
-/** Stores (or, with null, removes) a logo, and audits it without the picture itself. */
-export async function saveLogo(db: Queryable, audit: Audit, req: FastifyRequest | null, variant: LogoVariant, file: { meta: LogoMeta; data: Buffer } | null) {
+/**
+ * Stores (or, with null, removes) a logo, with the PNG copy of a WebP logo when one is given, and
+ * audits it without the pictures themselves.
+ */
+export async function saveLogo(
+  db: Queryable, audit: Audit, req: FastifyRequest | null, variant: LogoVariant,
+  file: { meta: LogoMeta; data: Buffer; print?: { meta: PrintCopyMeta; data: Buffer } | null } | null,
+) {
   const before = await logoMeta(db, variant);
   const key = logoKey(variant);
   if (file) {
+    const { print: _none, ...meta } = file.meta;
+    const print = file.print && meta.type === 'image/webp' ? { ...file.print.meta, data: file.print.data.toString('base64') } : null;
     await db.query(
       `insert into settings (key, value, updated_by) values ($1, $2::jsonb, $3)
        on conflict (key) do update set value = excluded.value, updated_at = now(), updated_by = excluded.updated_by`,
-      [key, JSON.stringify({ ...file.meta, data: file.data.toString('base64') }), req?.user?.id ?? null],
+      [key, JSON.stringify({ ...meta, data: file.data.toString('base64'), ...(print ? { print } : {}) }), req?.user?.id ?? null],
     );
   } else {
     await db.query('delete from settings where key = $1', [key]);
@@ -214,7 +279,21 @@ export async function saveLogo(db: Queryable, audit: Audit, req: FastifyRequest 
   await audit(req, {
     action: 'setting.change', recordType: 'setting', recordId: key,
     summary: file ? `Logo for the ${THEME_WORD[variant]} ${before ? 'replaced' : 'added'}` : `Logo for the ${THEME_WORD[variant]} removed`,
-    before: before ?? undefined, after: file?.meta,
+    before: before ?? undefined,
+    after: file ? { ...file.meta, ...(file.print && file.meta.type === 'image/webp' ? { print: file.print.meta } : {}) } : undefined,
+  });
+}
+
+/** Adds (or replaces) the PNG copy of a stored WebP logo, audited without the picture. */
+export async function savePrintCopy(db: Queryable, audit: Audit, req: FastifyRequest | null, variant: LogoVariant, copy: { meta: PrintCopyMeta; data: Buffer }) {
+  const key = logoKey(variant);
+  await db.query(
+    `update settings set value = jsonb_set(value, '{print}', $2::jsonb), updated_at = now(), updated_by = $3 where key = $1`,
+    [key, JSON.stringify({ ...copy.meta, data: copy.data.toString('base64') }), req?.user?.id ?? null],
+  );
+  await audit(req, {
+    action: 'setting.change', recordType: 'setting', recordId: key,
+    summary: `Printable copy of the logo for the ${THEME_WORD[variant]} made`, after: copy.meta,
   });
 }
 
@@ -252,10 +331,15 @@ export interface PrintBranding {
   name: string;
   /** Address and contact lines for a footer or cover; empty when none are set. */
   lines: string[];
-  /** The light-theme logo when it is PNG or JPEG (what a PDF can hold). */
+  /** The light-theme logo when it is PNG or JPEG, or the PNG copy of a WebP one (what a PDF can hold). */
   logo: Buffer | null;
   /** The light theme's brand color, for rules and accents. */
   color: string | null;
+  /**
+   * The light-theme logo as a data: address, for HTML documents, which load nothing from outside
+   * (a browser shows WebP too, so this is the logo as uploaded).
+   */
+  logoDataUri?: string | null;
 }
 
 /** The organization as PDF exports, report documents and the incident kit print it. */
@@ -263,24 +347,44 @@ export async function printBranding(db: Queryable): Promise<PrintBranding> {
   try {
     const o = await readOrganization(db);
     const file = await logoFile(db, 'light');
-    const logo = file && (file.meta.type === 'image/png' || file.meta.type === 'image/jpeg') ? file.data : null;
+    const logo = !file ? null
+      : file.meta.type === 'image/png' || file.meta.type === 'image/jpeg' ? file.data
+      : file.print; // a WebP logo prints from its PNG copy (none until one is made)
     return {
       name: organizationName(o),
       lines: [o.legalName && o.legalName !== o.name ? o.legalName : '', addressLine(o), contactLine(o)].filter(Boolean),
       logo,
       color: o.primaryColor || o.accentColor ? deriveBrandColors(o.primaryColor, o.accentColor).light['--brand'] : null,
+      logoDataUri: file ? `data:${file.meta.type};base64,${file.data.toString('base64')}` : null,
     };
   } catch {
-    return { name: DEFAULT_APP_NAME, lines: [], logo: null, color: null };
+    return { name: DEFAULT_APP_NAME, lines: [], logo: null, color: null, logoDataUri: null };
   }
 }
 
+/** The logo as an email carries it: inside the message (Content-ID), PNG or JPEG, with the size to show it at. */
+export interface MailLogo { data: Buffer; type: 'image/png' | 'image/jpeg'; cid: string; width: number; height: number }
+
+/** The size to show the logo at in an email: 40 pixels tall (never enlarged), at most 200 wide. */
+export function mailLogoSize(w: number, h: number): { width: number; height: number } {
+  let height = Math.min(40, h);
+  let width = Math.max(1, Math.round((w * height) / h));
+  if (width > 200) { width = 200; height = Math.max(1, Math.round((h * width) / w)); }
+  return { width, height };
+}
+
 /** The organization as emails print it: a name above the message and lines under it. */
-export async function mailBranding(db: Queryable): Promise<{ name: string; footer: string[]; color: string | null; values: Record<string, string> }> {
+export async function mailBranding(db: Queryable): Promise<{ name: string; footer: string[]; color: string | null; logo: MailLogo | null; values: Record<string, string> }> {
   const o = await readOrganization(db);
   const name = organizationName(o);
+  // The logo travels inside the message (not as a remote address, which mail programs block),
+  // when it is switched on, printable (PNG or JPEG, or a WebP logo's PNG copy) and small enough.
+  const pic = o.emailLogo ? await printableLogo(db, 'light') : null;
+  const logo = pic && pic.data.length <= MAIL_LOGO_MAX_BYTES
+    ? { data: pic.data, type: pic.type, cid: MAIL_LOGO_CID, ...mailLogoSize(pic.width, pic.height) } : null;
   return {
     name,
+    logo,
     footer: [o.legalName || o.name, addressLine(o), contactLine(o)].filter(Boolean),
     color: o.primaryColor || o.accentColor ? deriveBrandColors(o.primaryColor, o.accentColor).light['--brand'] : null,
     // Placeholders every email template may use.

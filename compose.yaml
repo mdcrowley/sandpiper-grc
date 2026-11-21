@@ -4,12 +4,13 @@
 #   docker compose up -d
 # then open http://127.0.0.1:8080 and complete the setup wizard.
 #
-# With a PostgreSQL server instead of the embedded database (set GRC_DB_PASSWORD in .env first):
+# With a PostgreSQL server instead of the embedded database (write the password to
+# deploy/secrets/db_password.txt first; see compose.postgres.yaml):
 #   docker compose -f compose.yaml -f compose.postgres.yaml up -d
 #
 # Settings: copy .env.example to .env and edit it. Every GRC_* variable in .env reaches the
-# application; the few that only steer this file (GRC_IMAGE, GRC_BIND, GRC_PUBLISH_PORT,
-# GRC_DB_PASSWORD) are described there too.
+# application; the few that only steer this file (GRC_IMAGE, GRC_BIND, GRC_PUBLISH_PORT) are
+# described there too.
 #
 # The application is published on 127.0.0.1:8080 over plain HTTP. To serve other people, put a
 # reverse proxy that terminates HTTPS in front of it (docs/docker.md, "HTTPS").
@@ -24,6 +25,8 @@ services:
     build:
       context: .
     restart: unless-stopped
+    # The server takes up to 20 seconds to finish requests and close the database cleanly.
+    stop_grace_period: 30s
     init: true
     read_only: true
     tmpfs:

@@ -21,11 +21,11 @@ Open **Vehicles**. The list shows each vehicle's **Fleet number**, **Mode**, **S
 5. If an outside funder paid for part of the vehicle, choose the **Funding source**, check **Funder interest** and enter the **Funder interest (%)**, as for assets.
 6. Select **Create vehicle**.
 
-A vehicle that still has equipment installed cannot be set to **Retired**: remove the equipment first.
+A vehicle that still has equipment installed cannot be set to **Retired**: remove the equipment first. An administrator can limit which status changes are allowed, and what each needs, under **Administration > Lifecycles**; see [Lifecycles](23-lifecycles.md). The rule about equipment always applies as well.
 
 ### Import vehicles
 
-Select **Import** on the vehicle list and follow the import wizard ([Getting started](01-getting-started.md) describes it). To update vehicles you already have, choose **Fleet number** as the column that identifies an existing record. A depot is matched by the site's name, and a mode or status by its value or its label (for example "Bus"). Every row is checked by the same rules as a vehicle added by hand.
+Select **Import** on the vehicle list and follow the import screen (see [Importing and exporting](17-importing-and-exporting.md#importing-records)). To update vehicles you already have, choose **Update existing records only** (or **Update existing records and create the rest**) and pick **Fleet number** under **Find existing records by**. A depot is matched by the site's name, and a mode or status by its value or its label (for example "Bus"). Every row is checked by the same rules as a vehicle added by hand.
 
 ### The vehicle record
 
@@ -35,7 +35,7 @@ The **Details** card holds the facts above; select **Edit** to change them. The 
 - **Installed now**: the equipment on the vehicle, with its type, the asset's status and when it was installed.
 - **Earlier installations**: equipment that has been removed, with when and why.
 
-With the **safety** module installed, a **Safety events** tab lists the safety events recorded against the vehicle.
+Where safety management is in use, a **Safety events** tab lists the safety events recorded against the vehicle.
 
 ### Install equipment
 
@@ -66,7 +66,7 @@ Each column heading says how many gaps it has, and the **Gaps** column counts th
 
 ### Required equipment
 
-Administrators (`fleet.administer`) select **Required equipment** to check the kinds of equipment each mode should carry, and **Save**. The kinds are the asset types of the inventory, so a new type added under **Administration > Lookups** appears here too.
+Administrators (`fleet.administer`) select **Required equipment** to check the kinds of equipment each mode should carry, and **Save**. The kinds are the asset types of the inventory, so a new type added under **Administration > Lists** appears here too.
 
 ## Services
 
@@ -80,7 +80,7 @@ Open the service; its **Systems** tab lists **Systems this service depends on**.
 2. Choose the **System** and what it is **Needed for**: **CAD/AVL**, **Fare collection**, **Passenger information**, **Scheduling**, **Radio** or **Other**. Add **Notes** if useful.
 3. Select **Add system**.
 
-Select **Remove** beside a system, then confirm, to take it off. Each change is recorded in the history of both the service and the system. A **Safety events** tab appears when the safety module is installed.
+Select **Remove** beside a system, then confirm, to take it off. Each change is recorded in the history of both the service and the system. A **Safety events** tab appears where safety management is in use.
 
 ## What is affected
 
@@ -103,6 +103,8 @@ The answer is only as good as the equipment installed on vehicles and the depend
 ## Sample data
 
 The `dev` sample profile loads an invented operator: 40 buses at two depots and 8 light-rail vehicles at the rail yard, each with its equipment, a few deliberate gaps, one replaced router in the history of bus 1203, and twelve services with the systems they depend on.
+
+When the application is set up, the person installing it can load your own vehicles and services from two files in the private seed folder, `vehicles.psv` and `services.psv` (the `pilot` profile; their columns are described in the installation guide). Running it again updates the vehicles and services by fleet number and route rather than adding them twice. After set-up, use **Import** on the lists instead.
 
 ## Not available yet
 

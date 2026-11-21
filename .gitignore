@@ -1,4 +1,4 @@
-# Private to each installation: the organisation profile and any import files. Never commit.
+# Private to each installation: the organization profile and any import files. Never commit.
 seed/
 # Internal requirements documents
 *Build Specification*

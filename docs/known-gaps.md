@@ -5,26 +5,23 @@ What the prototype does not do yet. Update with every change. The roadmap
 
 ## Not built
 
-- **Workflow engine**: change approval, catalog request approval, asset disposal, risk
-  acceptance and project gate decisions run on the shared approval workflows, approvers can
-  name stand-ins and administrators can reassign a waiting step, and allowed status changes
-  and required fields are data (Administration > Lifecycles). Not built: steps that run side
-  by side, and choosing a route by condition beyond skipping a step (E14-32). Project gates
-  use a workflow only once an administrator names one on the gate template; while no
-  disposal workflow is active, a disposal request is decided once by anyone who may approve
-  disposals. The `change.approval_decided` webhook event is kept for this release beside
-  `workflow.decided`. Stand-ins are named on the Approvals page, not on Account security.
+Nothing planned is unbuilt; what remains is listed below as incomplete or unproven.
 
 ## Built but incomplete
 
-- **Organization branding** (Administration > Organization): emails carry the organization's
-  name and footer but not its logo; the HTML form of report documents and pack previews shows the
-  application name only; a WebP logo is left off PDFs (they hold PNG and JPEG only); the browser
-  tab icon is the logo as uploaded, not a square icon made from it (E14-36).
+- **Approval workflows and lifecycles**: project gates use a workflow only once an administrator
+  names one on the gate template; while no disposal workflow is active, a disposal request is
+  decided once by anyone who may approve disposals. The `change.approval_decided` webhook event
+  is kept for this release beside `workflow.decided`. A status change that waits for approval
+  is made as system work when approved, so a part's own rules for the new status are checked
+  then rather than when it was asked for; a new record's first status never waits.
+- **Organization branding** (Administration > Organization): a WebP logo imported by the
+  organization profile prints on PDFs and in emails only after an administrator selects **Make
+  printable copy**; emails always show the light-theme logo, also in mail programs with a dark
+  theme.
 - **Sign-in**: single sign-on supports OpenID Connect, SAML 2.0 and a directory (LDAP).
   Directory sign-in has been tried against a stand-in directory, not a real Active
-  Directory. Confirming your identity with a directory asks for the directory user name each
-  time.
+  Directory.
 - **Second factor**: a new installation requires it for the roles that expect one
   (Administrator and Security lead) unless setup explicitly asks for a reminder only. An
   existing installation keeps its setting.
@@ -32,15 +29,7 @@ What the prototype does not do yet. Update with every change. The roadmap
   yet with hardware keys over real HTTPS.
 - **Default role changes** reach an existing database only when an administrator applies
   them on the Roles page.
-- **Lifecycles** (Administration > Lifecycles): a status change that needs approval does not
-  yet wait for an approval workflow (E14-37); a workflow can start on a status change. Status
-  menus written by hand in some parts, and bulk edit, offer every status; the server refuses a
-  move the lifecycle does not allow.
-- **Feature switches** (Administration > Features): while Risks and obligations is
-  switched off, the hazard risk matrix (kept with the risk scales) cannot be edited, and
-  Safety keeps using the saved one. The email digest may still list notifications about a
-  part switched off since. A list filter in a page address on a field a type does not have
-  is still applied (E18-49). A switched-off part is hidden everywhere but its switch (E14-34);
+- **Feature switches** (Administration > Features): a switched-off part is hidden everywhere but its switch (E14-34);
   what stays is the organization's own text: role names and descriptions, record names, incident
   playbooks and the guide's wording on pages that stay. Search still matches, and its snippet
   may show, the text of a field hidden by a switch (a system's vendor name).
@@ -50,8 +39,8 @@ What the prototype does not do yet. Update with every change. The roadmap
   allowing it.
 - **Backups**: `backup` and `restore` cover the embedded database only; with a PostgreSQL
   server, use `pg_dump` and `pg_restore` (see [Operations](operations.md)). Files kept in
-  the object store are not in backups. Restoring a backup and moving files between the
-  disk and the object store are done from the command line only. Scheduled backups to a
+  the object store are not in backups. Restoring a backup is done from the command line only; stored files can be moved between
+  the disk and the object store under Administration > File settings. Scheduled backups to a
   second location still need proving on a real installation (E16-08).
 - **Exports and imports**: PDFs made by the server print text outside Western European
   languages with a font found on the machine (or named in `GRC_PDF_FONTS`); explicit
@@ -65,8 +54,8 @@ What the prototype does not do yet. Update with every change. The roadmap
   to 10 seconds.
 - **Hosting**: with a least-privilege database account, adding a custom field is queued
   for the database owner, and a new text custom field is searched only after the owner's
-  next `migrate` step. The systemd and launchd user services have not been run on a real
-  Linux or Mac (E16-35).
+  next `migrate` step. The user services run on GitHub's Linux and macOS machines; a restart of the machine and the
+  system examples in `deploy/` are not yet proven on real machines (E16-42).
 - **Performance**: the embedded database is for evaluation. A PostgreSQL server meets the
   targets in the load test, but only with the server on the same machine and everyone
   signed in as one administrator; a run with the database on its own machine and people in

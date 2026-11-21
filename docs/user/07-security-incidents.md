@@ -206,9 +206,9 @@ The **Alerts by email and text** tab names the **Responders** who are told, by e
 
 Each is sent once: once when the incident is declared, and once for each clock state (if several clocks of one incident turn red together, one alert goes). The messages name only the incident's reference and what needs attention, such as "Security incident SEC-0042 needs attention: a notification deadline has passed", and link to the incident; never its title, the party to notify or any other detail.
 
-People with `security.administer` choose:
+People with **Administer** on **Security incidents and restricted records** choose:
 
-- **Responders**: active people with `security.view`. Someone who loses that access is skipped when a message is sent, and shown as **Cannot receive alerts**. Beside each name, **Email** and **Text** say whether they can be reached that way; each person adds a mobile number or email-to-text address under **Account security** ([Text messages](14-attachments-and-notifications.md#your-mobile-number-and-email-to-text-address)).
+- **Responders**: active people with **View** on security incidents. Someone who loses that access is skipped when a message is sent, and shown as **Cannot receive alerts**. Beside each name, **Email** and **Text** say whether they can be reached that way; each person adds a mobile number or email-to-text address under **Account security** ([Text messages](14-attachments-and-notifications.md#your-mobile-number-and-email-to-text-address)).
 - **Send**: **By email**, **By text message**, and **Also to the incident's lead**.
 - **When**: any of the three events above.
 
@@ -439,5 +439,4 @@ The email names no incident and tells the reader not to forward it. While **Secu
 
 - The application is in pilot. Do not record live incident details until your administrator confirms it is approved for that.
 - PDF copies of the offline kit are kept in the application and sent by email; they are not written to a shared folder or printer automatically. The application cannot know when someone prints a copy, so it says from when paper copies are current rather than tracking each one.
-- Alerts appear in the application's notifications only; no email or text message is sent.
-- The names of the lists used on these screens, such as the scenario and severity names, can be seen by every signed-in user, although the incidents themselves cannot.
+- Clock alerts reach everyone who can see security incidents in the application's notifications, but only the named responders by email and text message (see [Alerts by email and text message](#alerts-by-email-and-text-message)).

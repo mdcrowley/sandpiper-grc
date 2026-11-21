@@ -13,6 +13,7 @@ import { encodeQr, qrPath } from './qr';
 import { withReauth } from './reauth';
 import { SessionsCard } from './Sessions';
 import { AlertContactCard } from './AlertContact';
+import { StandinCard } from '../workflows/StandinCard';
 
 interface Security {
   totpEnabled: boolean; recoveryCodesLeft: number; mfaEnrollmentRequired: boolean; mfaEnrollmentBlocked?: boolean;
@@ -133,6 +134,8 @@ export function AccountSecurityPage() {
               </Card>
               <SessionsCard />
               {!blocked && !codes && <AlertContactCard />}
+              {/* Wave 8: name a stand-in for approvals (also under Approvals > Stand-ins). */}
+              {!blocked && !codes && <StandinCard />}
             </div>
           </div>
           {/* Not while access is blocked for want of a second factor: tokens are for people who can already work. */}

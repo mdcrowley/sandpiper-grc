@@ -268,6 +268,10 @@ export function registerSso(ctx: ModuleContext) {
       await refuse('a different directory entry', { password: `Those are not the ${p.name} details linked to your account.` });
     }
     await clearDirectoryFailures(req, p);
+    // E02-30: remember the user name that worked (never the password), for the next confirmation.
+    if (identity.loginName) {
+      await db.query('update user_identities set login_name = $3 where user_id = $1 and provider_id = $2', [me.id, p.id, identity.loginName]);
+    }
     // E01-29: a person with a second factor proves it too: a code from the app, a recovery code, or a passkey.
     const b = body(req);
     const factor = await db.one<{ totp_enabled: boolean }>('select totp_enabled from users where id = $1', [me.id]);
@@ -303,16 +307,19 @@ export function registerSso(ctx: ModuleContext) {
     return { ok: true, minutes };
   });
 
-  /** How the signed-in person can confirm their identity: their password here, and the directories linked to them. */
+  /**
+   * How the signed-in person can confirm their identity: their password here, and the directories linked
+   * to them, each with the user name last used with it (E02-30), which the confirmation dialog fills in.
+   */
   app.get('/api/auth/sso/confirm-methods', async (req) => {
     const me = req.user!;
-    const rows = await db.query<{ key: string; name: string; type: string }>(
-      `select p.key, p.name, p.type from user_identities i join identity_providers p on p.id = i.provider_id and p.deleted_at is null and p.enabled
+    const rows = await db.query<{ key: string; name: string; type: string; login_name: string | null }>(
+      `select p.key, p.name, p.type, i.login_name from user_identities i join identity_providers p on p.id = i.provider_id and p.deleted_at is null and p.enabled
        where i.user_id = $1 order by p.name`, [me.id]);
     const pw = await db.one<{ has: boolean }>('select password_hash is not null as has from users where id = $1', [me.id]);
     return {
       password: Boolean(pw?.has),
-      directories: rows.filter((r) => DRIVERS[r.type]?.style === 'credentials').map((r) => ({ key: r.key, name: r.name })),
+      directories: rows.filter((r) => DRIVERS[r.type]?.style === 'credentials').map((r) => ({ key: r.key, name: r.name, username: r.login_name ?? null })),
     };
   });
 

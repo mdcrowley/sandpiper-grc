@@ -5,16 +5,21 @@
 import '@mantine/core/styles.layer.css';
 import '@mantine/dates/styles.layer.css';
 import '@mantine/notifications/styles.layer.css';
-import type { ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import {
   ActionIcon, Badge, Button, createTheme, Drawer, Input, InputWrapper, MantineProvider, Menu, Modal, Notification,
   Popover, Tooltip, defaultVariantColorsResolver,
   type CSSVariablesResolver, type MantineColorsTuple, type VariantColorsResolver,
 } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
+import { brandScale, useBranding } from './branding';
 import { useTheme } from './theme';
 
-/** Brand scale. Index 7 is `--brand` in the light theme, index 4 in the dark theme. Change here (and in tokens.css) to re-brand. */
+/**
+ * Brand scale. Index 7 is `--brand` in the light theme. An organization's brand color
+ * (Administration > Organization) replaces it with a scale made from that color (`brandScale`
+ * in core/branding.ts, E14-36); this one is the standard look (keep it in step with tokens.css).
+ */
 const brand: MantineColorsTuple = [
   '#edf7f7', '#d8ecec', '#b3dadb', '#86c9cc', '#5fb3b8', '#3f9aa1', '#267f88', '#17656f', '#0f525b', '#0a3d45',
 ];
@@ -134,8 +139,15 @@ const resolver: CSSVariablesResolver = () => {
 
 export function UiProvider({ children }: { children: ReactNode }) {
   const { theme: scheme } = useTheme();
+  const { colors } = useBranding();
+  const brandColor = colors?.light['--brand'] ?? null;
+  // Mantine's numbered brand scale follows the organization's brand color (E14-36).
+  const themed = useMemo(() => {
+    const scale = brandScale(brandColor);
+    return scale ? { ...theme, colors: { ...theme.colors, brand: scale as unknown as MantineColorsTuple } } : theme;
+  }, [brandColor]);
   return (
-    <MantineProvider theme={theme} forceColorScheme={scheme} cssVariablesResolver={resolver}>
+    <MantineProvider theme={themed} forceColorScheme={scheme} cssVariablesResolver={resolver}>
       <Notifications position="bottom-right" limit={4} zIndex={1000} />
       {children}
     </MantineProvider>

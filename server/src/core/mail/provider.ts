@@ -18,6 +18,11 @@ export interface MailAttachment {
   /** File content, base64. */
   contentBase64: string;
   contentType?: string;
+  /**
+   * Set for a picture shown inside the HTML body (`<img src="cid:...">`, such as the organization's
+   * logo, E14-36): the part is sent inline with this Content-ID rather than as a file to save.
+   */
+  cid?: string;
 }
 
 export interface OutgoingMessage {
@@ -88,6 +93,14 @@ export function makeProvider(config: MailConfig, secret: string | null): MailPro
   return factory ? factory(config, secret) : null;
 }
 
+/** An attachment as nodemailer takes it; one with a Content-ID goes inline in a multipart/related part. */
+export function nodemailerAttachment(a: MailAttachment) {
+  return {
+    filename: a.filename, content: Buffer.from(a.contentBase64, 'base64'), contentType: a.contentType,
+    ...(a.cid ? { cid: a.cid, contentDisposition: 'inline' as const } : {}),
+  };
+}
+
 const TIMEOUT_MS = 15_000;
 
 /**
@@ -137,7 +150,7 @@ registerMailProvider('smtp', (config, secret) => {
       try {
         const info = await transport.sendMail({
           from: m.from, to: m.to, replyTo: m.replyTo || undefined, subject: m.subject, text: m.text, html: m.html, headers: m.headers,
-          attachments: m.attachments?.map((a) => ({ filename: a.filename, content: Buffer.from(a.contentBase64, 'base64'), contentType: a.contentType })),
+          attachments: m.attachments?.map(nodemailerAttachment),
           disableUrlAccess: true, disableFileAccess: true,
         });
         return { ok: true, messageId: info.messageId };

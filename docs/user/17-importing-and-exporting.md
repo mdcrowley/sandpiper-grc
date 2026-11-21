@@ -8,13 +8,13 @@ Every list of records (tickets, systems, vendors, contracts, risks and the rest)
 2. Select **Export** in the toolbar and choose a format:
    - **Excel (XLSX)**: a spreadsheet with a bold, frozen header row and a filter on every column. Dates and times are real dates (in the organization's time zone), amounts carry the organization's currency, and numbers are numbers, so the spreadsheet can sort and add them up.
    - **CSV**: plain text that any program can open.
-   - **PDF**: a printable table with the list's name, the time it was made, who it was made for and the filters applied, with the header row repeated on every page and page numbers. A PDF prints at most 2,000 rows; use Excel for more.
+   - **PDF**: a printable table with the list's name, the time it was made, who it was made for and the filters applied, with the header row repeated on every page and page numbers. Where an administrator has set them under **Administration > Organization** (see [Administration](09-administration.md#organization)), the organization's logo is on the first page and its name and address are in the footer of every page. A PDF prints at most 2,000 rows; use Excel for more.
 
-The export holds every record that matches the search and filters (not just the page on screen), in the order on screen, with the columns on screen. It needs the export permission for that kind of record (for example **Tickets: export**). Every export is recorded in the audit log.
+The export holds every record that matches the search and filters (not just the page on screen), in the order on screen, with the columns on screen. It needs the export permission for that kind of record (for example **Export** on **Tickets**). Every export is recorded in the audit log.
 
 **Restricted records.** People without security access never receive restricted records in any export. When an export does contain restricted records, it says so: a "Restricted export by … at …" line under the table in Excel and CSV, and the same line at the top of every PDF page with a large faint "RESTRICTED" across it. Do not pass such a file to anyone who may not see those records.
 
-**Characters in PDFs.** PDFs use standard fonts that cover Western European letters. Any other character (for example Greek, Cyrillic, Arabic or Chinese text) prints as `?`. Use Excel or CSV for such text.
+**Characters in PDFs.** Western European letters print with the standard PDF fonts. Other scripts (for example Greek, Cyrillic, Hebrew, Arabic or Chinese) print with a font the server finds on its machine, and right-to-left text is put in reading order. A character that no available font has prints as `?`; your administrator can name extra fonts (see [Operations](../operations.md#fonts-for-pdf-exports)). Excel and CSV always keep every character.
 
 ## A record as a PDF
 
@@ -73,4 +73,4 @@ Values are read like this:
 
 Restricted kinds of record need security access to import, as they do to create by hand.
 
-The asset import under **Inventory** keeps its own screen with the asset-specific checks (see [Inventory](03-inventory.md)); the generic **Import** works for assets too.
+The asset import under **Inventory** keeps its own screen with the asset-specific checks (see [Inventory](03-inventory.md)); the generic **Import** works for assets too. Training completions ([Import completions](12-training-and-exercises.md#import-completions)) and vulnerability scan results ([Import findings](13-vulnerabilities.md#import-findings)) also have imports of their own.

@@ -42,6 +42,8 @@ The tabs hold the rest:
 | **Map** | The system's connections, and what is affected if it fails |
 | **Attachments** | Files kept with the record, such as a contract summary or a recovery plan |
 
+**Activity**, **Related** and **History** follow, as on every record page.
+
 Each card on **Fact sheet** has its own **Edit** button. A card is marked **Complete**, or shows how many facts it still needs ("2 to record") with "Not recorded" against each gap.
 
 - **Vendor** and **Contract** link the system to records in [Vendors and contracts](04-vendors-and-contracts.md). **Vendor (as recorded)** is free text for when no vendor record exists yet.
@@ -255,7 +257,7 @@ The application sends a notification (see the bell at the top of the page):
 - 30 days and 7 days before an asset's **Warranty end** or **Support end**, and on the day. It goes to the asset's **Owner**; if the asset has no owner, to everyone who may edit assets.
 - 3 days before a loan is **Due back**, and on the day. It goes to the person who checked the asset out and, if the asset is with a user of the application, to that user.
 
-Retired and disposed assets are left out. Each reminder is sent once. You can switch off **Reminders** or **Due dates** in your notification preferences. An administrator chooses the steps for warranty and support end dates (30, 7 and 0 days unless changed) under **Administration** > **Reminders**; the change is kept in the audit log.
+Retired and disposed assets are left out. Each reminder is sent once. In your notification preferences you can have **Reminders** and **Due dates** sent by email as well as, or instead of, the bell, or switch them off (see [Preferences](14-attachments-and-notifications.md#preferences)). An administrator chooses the steps for warranty and support end dates (30, 7 and 0 days unless changed) under **Administration** > **Reminders**; the change is kept in the audit log.
 
 ## Sites
 
@@ -315,7 +317,7 @@ Assets are imported with the same import as every other kind of record: open **A
 
 What is particular to assets:
 
-- **Find existing assets by** the **Tag** or the **Serial number** (choose **Update existing** or **Update or create** to change assets that are already there). Matching ignores capital letters.
+- **Find existing records by** the **Tag** or the **Serial number** (choose **Update existing records only** or **Update existing records and create the rest** to change assets that are already there). Matching ignores capital letters.
 - The asset rules apply to every row, in the check as on import: a tag already in use is refused, **Funder interest (%)** must be between 0 and 100, and a row with the status **Disposed** needs the disposal approval (who approved it and when, and, while the funder-interest option is on, the approval reference). Disposing of an asset from its record is usually simpler.
 - For **Site**, use the site's name; for **System**, its name or reference; for **Owner** and **User**, the person's username, email or display name; for **Department**, a name from the department list.
 
@@ -325,5 +327,4 @@ Tools that push assets automatically (endpoint management or discovery) use `POS
 
 - Automatic discovery of assets on the network.
 - Changing an asset's department for several assets at once, or filtering the asset list by department. Use the **Assets by department** report.
-- Reminders by email. Reminders appear in the application only.
 - Individual vehicles on the relationship map: they are drawn in groups by depot and mode (see [Fleet and services](19-fleet-and-services.md)).

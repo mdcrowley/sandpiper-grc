@@ -1,6 +1,10 @@
 # Operations
 
-The runbook for the prototype. On Windows everything goes through `grc.ps1`, run from the
+The runbook for the prototype: start and stop ([Commands](#commands)), [health](#health-check),
+[logs](#logs) and [where things live](#where-things-live), [backup](#backup) (also
+[scheduled](#scheduled-backups) and [taken by the server](#backups-taken-by-the-server)),
+[restore](#restore), [upgrade](#upgrading), and [what to do when the server will not
+start](#the-server-will-not-start). On Windows everything goes through `grc.ps1`, run from the
 repository root in Windows PowerShell; on macOS and Linux through `grc.sh`, which has the
 same commands ([below](#macos-and-linux-grcsh)); in a container through `docker compose`
 and the image's `grc` command ([Docker](#docker)). The examples in this runbook use
@@ -18,7 +22,7 @@ and the image's `grc` command ([Docker](#docker)). The examples in this runbook 
 | `.\grc.ps1 logs [-Lines n] [-Follow] [-Level warn]` | Shows the end of the server log, readably (default 40 lines; `-Level` hides lines below that level). `-Follow` keeps showing new lines until Ctrl+C. See [Logs](#logs) |
 | `.\grc.ps1 version` | The installed version and the commit it was built from |
 | `.\grc.ps1 seed [-Profile pilot\|dev]` | Loads data (default profile `pilot`). See [Installation](installation.md#5-load-data) |
-| `.\grc.ps1 backup [-Prune n] [-Encrypt [-IncludeSecretKey]]` | Makes a verified copy of the data in `backups\<yyyyMMdd-HHmmss>\`, or with `-Encrypt` one encrypted file `backups\<yyyyMMdd-HHmmss>.tar.sgrc`. `-Prune n` then deletes all but the newest `n` backups. See [Backup](#backup) |
+| `.\grc.ps1 backup [-Prune n] [-Label text] [-Encrypt [-IncludeSecretKey]]` | Makes a verified copy of the data in `backups\<yyyyMMdd-HHmmss>\`, or with `-Encrypt` one encrypted file `backups\<yyyyMMdd-HHmmss>.tar.sgrc`. `-Prune n` then deletes all but the newest `n` backups. `-Label` is recorded in the manifest as the reason (default `manual`). See [Backup](#backup) |
 | `.\grc.ps1 backups` | Lists backups, newest first, with time, size, version, why each was taken and whether it is encrypted |
 | `.\grc.ps1 verify-backup [<backup>]` | Checks every file of a backup against its checksums (default: the newest); an encrypted one is decrypted on the way, writing nothing |
 | `.\grc.ps1 restore <backup> [-Force]` | Replaces the data with a backup (a folder, an encrypted file, or an archive the server took itself) after verifying it, keeping a safety copy of the current data. See [Restore](#restore) |
@@ -297,8 +301,15 @@ waits for the health check.
   [Installation](installation.md#server-installation).
 
 Continuous integration checks the unit with `systemd-analyze verify` and the property
-lists with `plutil -lint`. Installing and running them under a real systemd user session
-and launchd has not been confirmed yet (E16-35).
+lists with `plutil -lint`, and then runs the user service for real on GitHub's Linux runner
+(systemd, after `loginctl enable-linger`, since the runner has no sign-in session) and macOS
+runner (launchd): `service install` and the health check, `./grc.sh restart` (a new process
+through the service manager), `backup` and `status` under the service, a crash (the server
+process is killed and the service manager starts it again), `./grc.sh stop` (not restarted)
+and `service remove` (E16-35). A restart of the machine, and the system examples in `deploy/`,
+are not part of that run (E16-42). On a Linux machine with no sign-in session of your own (a
+server reached only over SSH, for example), run `loginctl enable-linger <you>` before
+`service install`, or use the system examples above.
 
 ## Clean shutdown, and why it matters
 
@@ -448,7 +459,7 @@ How it works:
 2. The export is packed into one file, `sandpiper-backup-<yyyyMMdd-HHmmss>.tar`, or
    `.tar.sgrc` when **Encrypt each backup** is on (the server must be started with
    `GRC_BACKUP_KEY_FILE`, `GRC_BACKUP_PASSPHRASE_FILE` or `GRC_BACKUP_PASSPHRASE`). It is
-   made in `backups\.work-<process>\` and deleted from there afterwards.
+   made in `backups\.work-<process>\` and deleted from there afterward.
 3. It is written to the destination, **read back from there**, decrypted if need be, and
    every table and file is checked against the manifest inside it. A copy that does not
    match is deleted and the run fails.
@@ -610,7 +621,7 @@ It reports what it verified, where the safety copy is, and which backup is now l
   [Encrypted backups and exports](#encrypted-backups-and-exports)) and a file the server
   took itself (`sandpiper-backup-*.tar` or `.tar.sgrc`, see
   [Backups taken by the server](#backups-taken-by-the-server)). It unpacks it into a hidden
-  working folder in `backups\`, checks it, and deletes the folder afterwards.
+  working folder in `backups\`, checks it, and deletes the folder afterward.
 - **The secret key.** The secret key is not in backups. Restore puts a key carried in an
   encrypted backup (`-IncludeSecretKey`) in place, or as a retired key; then `secret-key
   show` says when retired keys can be deleted. Otherwise `restore` does not touch the key
@@ -643,6 +654,14 @@ Remove-Item Env:GRC_DATA_DIR, Env:GRC_PORT
 
 Record the date of the test. If your backups are copied to another disk, test from that
 copy (`.\grc.ps1 restore <path>`), since that is the one you will need.
+
+What is tested for you: the test suite backs up a real embedded database with attached
+files, changes it, restores the backup and checks that the data and files are as they were,
+then restores the safety copy (`server/src/ops/backup.test.ts`); it also restores an
+encrypted backup, with and without the secret key inside it (`server/src/ops/archive.test.ts`).
+The load tool's `--ops` run times a restore at volume
+([Performance and load testing](#performance-and-load-testing)). None of these replaces your
+own test on your own machine and backups.
 
 ## Export and import
 
@@ -723,7 +742,7 @@ imported: the target keeps its own record of what it applied.
 **The audit log.** The audit table is append-only: a database trigger refuses any update
 or delete of a row. The import respects that. Every exported audit event is inserted
 unchanged, with its original number, time, actor, source address and content; nothing is
-edited afterwards. Any events the empty target wrote while creating its own defaults are
+edited afterward. Any events the empty target wrote while creating its own defaults are
 cleared first, with the rest of the default rows. That uses a whole-table clear
 (`TRUNCATE`), which the row-level trigger does not cover; the import does it only at this
 point and only after confirming the installation has no users. Numbering then continues from the highest imported event, and
@@ -738,10 +757,10 @@ modules refresh their own derived rows each time the application starts (this we
 vulnerability trend snapshot, for example), so an export taken after a start can differ
 in those rows.
 
-**Moving to a PostgreSQL server later.** The export uses only standard PostgreSQL
-(`row_to_json` to write, `json_populate_recordset` to load), so the same files will load
-into a server once the application can run on one. That driver does not exist yet (see
-[Known gaps](known-gaps.md)).
+**Moving to a PostgreSQL server.** The export uses only standard PostgreSQL
+(`row_to_json` to write, `json_populate_recordset` to load), so the same files load into a
+PostgreSQL server: run `import-all` with `GRC_DATABASE_URL` pointing at an empty database,
+before the setup wizard ([Installation](installation.md#postgresql-server)).
 
 ## Upgrading
 
@@ -1120,6 +1139,35 @@ open a new terminal ([Installation](installation.md#macos)). "Permission denied"
 `powershell -ExecutionPolicy Bypass -File .\grc.ps1 start`, or see
 [Installation](installation.md#if-the-script-is-blocked) for the other options.
 
+### The server will not start
+
+Where to read why, by how it is run:
+
+| Run by | Where the reason is |
+|---|---|
+| `grc.ps1` or `grc.sh` | `.\grc.ps1 logs` (`./grc.sh logs`): it shows the end of `data\server.log.err` first when that is not empty, then the server's log |
+| A `grc.sh service install` user service | `./grc.sh logs` (the service appends to `data/server.log` and `data/server.log.err`); `./grc.sh service status` for its state |
+| The systemd service in `deploy/systemd/` | `journalctl -u sandpiper-grc -n 100` |
+| A container | `docker compose logs app` (see also [Docker](docker.md#troubleshooting)) |
+
+The server checks its settings before it listens and stops with a message rather than
+starting half-configured. The messages, and what to do:
+
+| Message | What to do |
+|---|---|
+| `EADDRINUSE` | Another program has the port: see "Server did not become healthy" below |
+| `GRC_TIMEZONE "..." is not a known time zone` | Use an IANA name such as `America/Chicago` |
+| `Refusing to serve plain HTTP on ...` | Set `GRC_TLS_CERT` and `GRC_TLS_KEY`, or, behind a proxy that terminates HTTPS, `GRC_ALLOW_INSECURE=1` ([Server installation](installation.md#server-installation)) |
+| `The secret key must be 32 bytes ...` | `GRC_SECRET_KEY` or the key file holds something else: put the right key back ([Security](security.md)) |
+| `Could not connect to the database at ...` | The PostgreSQL server named in `GRC_DATABASE_URL` cannot be reached, or refused the account or password; the message says which |
+| `GRC_DATABASE_SSL must be off, require or verify`, `... must be a whole number ...` | Correct the setting it names |
+| `Migration <module>/<file> failed: ...` | A migration failed; nothing of that migration was applied. Restore the previous version ([Upgrading](#upgrading)) or fix the cause the message gives |
+| `... may not change the schema: run the migrations as the owner role` | Run `migrate` as the owner account ([Installation](installation.md#a-least-privilege-database-role)) |
+| Nothing that explains it | See the causes under "Server did not become healthy" below, a second process on the data folder in particular |
+
+Change one thing at a time and start again. If you cannot find the cause, start the last
+good backup in a spare folder ([Restore test](#restore-test)) to rule out damaged data.
+
 ### "Server did not become healthy"
 
 Run `.\grc.ps1 logs`. The usual causes:
@@ -1176,8 +1224,9 @@ If packages are missing or damaged, delete `node_modules\` and run `.\grc.ps1 np
 
 ### A page shows "Something went wrong"
 
-The server logged the cause in `data\server.log.err` with the request method and address.
-`.\grc.ps1 logs -Follow` shows new errors as they happen.
+The server logged the cause in its log (`data\logs\grc.log`, and `data\server.log.err`)
+with the request method, address and request identifier. `.\grc.ps1 logs -Level error`
+shows them; `.\grc.ps1 logs -Follow` shows new errors as they happen.
 
 ### Locked out
 
@@ -1211,13 +1260,16 @@ This is acceptable for a prototype only.
 - On HTTPS (direct, or through a proxy named in `GRC_TRUST_PROXY`) the session cookie is
   marked `Secure` and `Strict-Transport-Security` is sent. On plain `http://127.0.0.1`
   neither applies.
-- The application makes no outbound calls: no telemetry, no externally hosted fonts or
-  scripts, no email. Internet access is needed only to install or upgrade
+- The application makes no outbound calls until an administrator switches one on: no
+  telemetry and no externally hosted fonts or scripts. Email, webhooks, text messages,
+  sign-in providers, an object store and backups to another location each connect out only
+  once they are set up. Internet access is otherwise needed only to install or upgrade
   (`tools\install-node.ps1` and `npm install`).
-- Data at rest is not encrypted by the application, apart from authenticator keys (whose
-  key is `data\secret.key` unless you supply it another way). Anyone who can read the
-  `data\` or `backups\` folders, or an export, can read everything else. Protect them with Windows file
-  permissions and disk encryption.
+- Data at rest is not encrypted by the application, apart from stored secrets such as
+  authenticator keys, webhook secrets and mail credentials (whose key is `data.secret.key`,
+  beside the data folder, unless you supply it another way), and encrypted backups and
+  exports. Anyone who can read the `data\` or `backups\` folders, or a plain export, can read
+  everything else. Protect them with file permissions and disk encryption.
 
 ### What must change before real use
 
@@ -1229,10 +1281,14 @@ at least these must change:
 2. HTTPS (supported: a certificate or a trusted reverse proxy), and a deliberate decision
    about which network may reach it.
 3. Backups that run when nobody is signed in, are copied off the machine, are encrypted,
-   and raise an alert when one fails. (Verified backups, a daily schedule, pruning and a
-   tested restore command exist today.)
-4. Second factor switched to **Required** (it ships as a reminder); single sign-on if your organization uses it.
-5. Monitoring and retained logs.
+   and raise an alert when one fails. All of this is built: switch on the server's own
+   daily backups ([Backups taken by the server](#backups-taken-by-the-server)), or use the
+   systemd timer, and carry out the [restore test](#restore-test).
+4. Second factor **Required** (the setup wizard sets it unless you chose a reminder);
+   single sign-on if your organization uses it.
+5. Your own incident notification rules, service-level targets and risk scales
+   ([Installation](installation.md#settings-that-must-be-yours-before-a-pilot)).
+6. Monitoring and retained logs.
 
 The full list is in [Known gaps](known-gaps.md). The route there is sketched in
 [Architecture](architecture.md#path-to-production), and the current protections are

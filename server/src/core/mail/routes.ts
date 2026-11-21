@@ -333,9 +333,13 @@ export function registerMailRoutes(ctx: ModuleContext, mail: MailService) {
     const org = await mailBranding(db);
     const values = { ...SAMPLE, ...org.values, appName: await ctx.settings.get('app.name', DEFAULT_APP_NAME), link: abs(SAMPLE.link), preferencesLink: abs(SAMPLE.preferencesLink) };
     const sample = ['Action overdue: Replace depot gate controller', 'Approval waiting: Timetable server patch', 'Contract notice date: Fare system support'];
-    return render({ subject: t.subject, text_body: t.text, html_body: t.html }, values, {
+    const logo = org.logo && { cid: org.logo.cid, width: org.logo.width, height: org.logo.height };
+    const out = render({ subject: t.subject, text_body: t.text, html_body: t.html }, values, {
       items: { text: sample.map((s) => `- ${s}`).join('\n'), html: `<ul>${sample.map((s) => `<li><a href="${abs('/notifications')}">${s}</a></li>`).join('')}</ul>` },
-    }, def.key === 'text_message' ? null : { name: org.name, footer: org.footer, color: org.color });
+    }, def.key === 'text_message' ? null : { name: org.name, footer: org.footer, color: org.color, logo });
+    // The preview is shown on its own, without the message's parts: the logo is drawn from a data: address instead.
+    if (org.logo) out.html = out.html.replace(`src="cid:${org.logo.cid}"`, `src="data:${org.logo.type};base64,${org.logo.data.toString('base64')}"`);
+    return out;
   });
   ctx.describeRoute({ method: 'POST', path: '/api/admin/mail/templates/:key/preview', tag: TAG, permission: A, summary: 'Render a template with sample values', body: '{ subject, text, html }', response: '{ subject, text, html }' });
 }

@@ -21,10 +21,11 @@ regulator, and nothing in it is specific to one organization.
 - **Risk, safety and compliance**: risk register and heat map, a safety hazard log and safety
   events, NIST CSF 2.0 outcomes, obligations, policies, training and vulnerabilities
 - **Security incidents**: a restricted workspace with notification clocks you configure
-- **Approval workflows**: ordered approval steps on any kind of record (change approval,
-  catalog requests, asset disposal, risk acceptance and project gates included), with due
-  times, escalation, stand-ins and an Approvals page for each person; allowed status changes
-  and required fields set per record type
+- **Approval workflows**: approval steps on any kind of record (change approval, catalog
+  requests, asset disposal, risk acceptance and project gates included), run in order or side by
+  side and routed by condition, with due times, escalation, stand-ins and an Approvals page for
+  each person; allowed status changes, required fields and status changes that wait for
+  approval, set per record type
 - **Projects and reporting**: portfolio and stage gates, dashboards, a report builder,
   exports to Excel, CSV and PDF
 - **Sign-in and security**: single sign-on (OpenID Connect, SAML 2.0 or a directory over LDAP), passkeys, second factor,

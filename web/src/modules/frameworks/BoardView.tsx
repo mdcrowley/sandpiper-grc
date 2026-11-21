@@ -2,7 +2,9 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { Menu } from '@mantine/core';
-import { Badge, Button, EmptyState, Icon, cx, formatDate, todayInZone } from '../../core';
+import { Badge, Button, EmptyState, Icon, cx, formatDate, todayInZone, useResource } from '../../core';
+import { allowedStatuses, type LifecycleMeta } from '../../core/lifecycle';
+import { editableLifecycle } from '../../core/lifecycleMenus';
 import type { BoardFilters, Density } from './boardState';
 import { matches } from './boardState';
 import { OwnerAvatar, StatusBar, TargetRing } from './StatusBar';
@@ -21,10 +23,12 @@ interface TileProps {
   today: string;
   onEdit: (id: string | null) => void;
   onPick: (outcome: BoardOutcome, status: string) => void;
+  /** The outcome lifecycle (E14-31): the menu offers only the statuses it allows from the current one. */
+  lifecycle?: LifecycleMeta;
 }
 
 /** One outcome. The link opens it; the status pill (for people who may edit) changes the status in place. */
-const Tile = memo(function Tile({ outcome: o, statuses, phase, density, canEdit, editing, saving, today, onEdit, onPick }: TileProps) {
+const Tile = memo(function Tile({ outcome: o, statuses, phase, density, canEdit, editing, saving, today, onEdit, onPick, lifecycle }: TileProps) {
   const status = statuses.find((s) => s.value === o.status);
   const label = status?.label ?? o.status;
   const text = o.description || o.official_text || 'No description yet';
@@ -76,7 +80,7 @@ const Tile = memo(function Tile({ outcome: o, statuses, phase, density, canEdit,
               <Menu.Target>{pill}</Menu.Target>
               <Menu.Dropdown>
                 <Menu.Label>Status of {o.code}</Menu.Label>
-                {statuses.map((s) => (
+                {(lifecycle ? statuses.filter((s) => allowedStatuses(lifecycle, o.status, statuses.map((v) => v.value)).includes(s.value)) : statuses).map((s) => (
                   <Menu.Item
                     key={s.value}
                     leftSection={<span className="fw-swatch" style={{ background: `var(--c-${s.color}-solid)` }} />}
@@ -109,6 +113,7 @@ export function BoardView({ board, filters, density, canEdit, savingId, onClear,
   const root = useRef<HTMLDivElement>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const today = todayInZone();
+  const lifecycle = editableLifecycle(useResource('framework_outcome')?.lifecycle, 'status');
 
   const tiles = () => [...(root.current?.querySelectorAll<HTMLElement>('[data-tile]') ?? [])];
   const focusTile = (id: string) => root.current?.querySelector<HTMLElement>(`[data-tile="${id}"]`)?.focus();
@@ -229,7 +234,7 @@ export function BoardView({ board, filters, density, canEdit, savingId, onClear,
                         key={o.id} outcome={o} statuses={board.statuses}
                         phase={o.phase ? board.phases.find((p) => p.value === o.phase) : undefined}
                         density={density} canEdit={canEdit} editing={editing === o.id} saving={savingId === o.id}
-                        today={today} onEdit={onEdit} onPick={onPick}
+                        today={today} onEdit={onEdit} onPick={onPick} lifecycle={lifecycle}
                       />
                     ))}
                   </div>

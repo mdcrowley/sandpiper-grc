@@ -14,6 +14,8 @@ export interface AdminUser {
   department_id: string | null;
   department: string | null;
   totp_enabled: boolean;
+  /** Passkeys and security keys in use (second factors too). */
+  passkeys?: number;
   locked: boolean;
   locked_until: string | null;
   failed_attempts: number;
@@ -43,7 +45,7 @@ export interface Role {
 
 export interface RolesResponse { roles: Role[]; modules: string[]; actions: string[] }
 export interface Department { id: string; name: string; members: number }
-export interface IssuedLink { link: string; expiresAt: string; purpose?: string }
+export interface IssuedLink { link: string; expiresAt: string; purpose?: string; /** Set when the link was also emailed to the person. */ emailedTo?: string | null }
 
 export interface AuditEvent {
   id: number;

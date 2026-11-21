@@ -3,8 +3,9 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { SegmentedControl, TextInput } from '@mantine/core';
 import {
   api, Button, Card, DateField, EmptyState, ErrorState, errorMessage, formatDate, Icon, Loading, LookupSelect, Modal, PageHeader,
-  ResourceForm, ResourceList, Select, useAuth, useDebounced, useFetch, useLookup, useMeta, UserPicker, useToast,
+  ResourceForm, ResourceList, Select, useAuth, useDebounced, useFetch, useLookup, useMeta, UserPicker, useResource, useToast,
 } from '../../core';
+import { allowedForAll, editableLifecycle } from '../../core/lifecycleMenus';
 import type { ListResult, Row } from '../../core';
 import { ActionRows, QuickAdd } from './ActionRows';
 import { ActionStatus } from './ActionStatus';
@@ -98,18 +99,28 @@ function BulkBar({ rows, onClear, onDone }: { rows: Row[]; onClear: () => void; 
     toast.success(`${changed} ${changed === 1 ? 'action' : 'actions'} updated.`);
     onDone();
   };
+  // Statuses every selected action may move to under the lifecycle (E14-31).
+  const lifecycle = editableLifecycle(useResource('action')?.lifecycle, 'status');
+  const statusValues = useLookup('action_status');
+  const allowed = useMemo(
+    () => (lifecycle ? allowedForAll(lifecycle, rows.map((r) => r.status as string | null), statusValues.map((v) => v.value)) : undefined),
+    [lifecycle, rows, statusValues],
+  );
+  const noStatus = field === 'status' && allowed?.length === 0;
   const needsValue = field === 'status' || field === 'priority';
   return (
     <div className="rk-bulk" role="region" aria-label="Change the selected actions">
       <strong>{rows.length} selected</strong>
       <Select hideLabel required size="xs" label="Field to change" value={field} options={Object.entries(BULK_LABEL).map(([v, label]) => ({ value: v, label }))} onChange={pickField} />
       <span className="rk-bulk-value">
-        {field === 'status' && <LookupSelect hideLabel size="xs" label="New status" list="action_status" value={value ?? ''} onChange={setValue} />}
+        {field === 'status' && (noStatus
+          ? <span className="muted" role="status">No status can be given to all the selected actions: the lifecycle allows no move common to their current statuses.</span>
+          : <LookupSelect hideLabel size="xs" label="New status" list="action_status" only={allowed} value={value ?? ''} onChange={setValue} />)}
         {field === 'priority' && <LookupSelect hideLabel size="xs" label="New priority" list="action_priority" value={value ?? ''} onChange={setValue} />}
         {field === 'owner_id' && <UserPicker hideLabel size="xs" label="New owner" placeholder="Unassigned" value={value || null} onChange={(id) => setValue(id)} />}
         {field === 'due_on' && <DateField hideLabel size="xs" label="New due date" placeholder="No date" value={value ?? ''} onChange={setValue} />}
       </span>
-      <Button size="sm" variant="primary" loading={busy} disabled={needsValue && !value} onClick={apply}>
+      <Button size="sm" variant="primary" loading={busy} disabled={(needsValue && !value) || (field === 'status' && Boolean(allowed) && !allowed!.includes(value ?? ''))} onClick={apply}>
         {needsValue || value ? 'Apply' : field === 'owner_id' ? 'Clear owner' : 'Clear date'}
       </Button>
       <Button size="sm" variant="ghost" onClick={onClear}>Clear selection</Button>

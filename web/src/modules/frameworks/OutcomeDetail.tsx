@@ -3,8 +3,9 @@ import type { CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Badge, Button, Card, Icon, LookupChip, Modal, RecordPage, ResourceForm, errorMessage, formatDate, toColorName, todayInZone, useFetch,
-  useLookup, useToast,
+  useLookup, useResource, useToast,
 } from '../../core';
+import { editableLifecycle, moveBlockedReason } from '../../core/lifecycleMenus';
 import type { ColorName, RecordContext } from '../../core';
 import { EvidenceTab } from './EvidenceTab';
 import { LinkedPanel } from './LinkedPanel';
@@ -27,6 +28,10 @@ function QuickStatus({ rec }: { rec: RecordContext }) {
   const toast = useToast();
   const statuses = useLookup('outcome_status');
   const [saving, setSaving] = useState<string | null>(null);
+  // A step the lifecycle does not allow from the current status is shown disabled, with the reason (E14-31).
+  const lifecycle = editableLifecycle(useResource('framework_outcome')?.lifecycle, 'status');
+  const values = statuses.map((s) => s.value);
+  const blockedReason = (value: string, label: string) => moveBlockedReason(lifecycle, rec.row.status, value, label, values);
 
   async function choose(value: string) {
     if (value === rec.row.status || saving) return;
@@ -45,17 +50,21 @@ function QuickStatus({ rec }: { rec: RecordContext }) {
     <div className="fw-quick" role="group" aria-label="Status">
       <span className="fw-eyebrow">Status</span>
       <div className="fw-quick-steps">
-        {statuses.map((s) => (
-          <button
-            key={s.value} type="button"
-            aria-pressed={rec.row.status === s.value}
-            disabled={!rec.canEdit || saving !== null}
-            onClick={() => choose(s.value)}
-            style={statusVars(s.color) as CSSProperties}
-          >
-            <span className="fw-pill-dot" />{s.label}
-          </button>
-        ))}
+        {statuses.map((s) => {
+          const blocked = rec.canEdit ? blockedReason(s.value, s.label) : '';
+          return (
+            <button
+              key={s.value} type="button"
+              aria-pressed={rec.row.status === s.value}
+              disabled={!rec.canEdit || saving !== null || Boolean(blocked)}
+              title={blocked || undefined}
+              onClick={() => choose(s.value)}
+              style={statusVars(s.color) as CSSProperties}
+            >
+              <span className="fw-pill-dot" />{s.label}
+            </button>
+          );
+        })}
       </div>
     </div>
   );

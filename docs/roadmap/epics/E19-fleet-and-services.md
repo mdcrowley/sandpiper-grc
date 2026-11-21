@@ -1,6 +1,6 @@
 # E19 Fleet and services
 
-**Status:** in progress (13 of 14 issues done)
+**Status:** done (14 of 14 issues done)
 
 ## Goal
 
@@ -33,7 +33,7 @@ vehicles lack working equipment and which vehicles and services a system failure
 | E19-10 | Vehicles and services in the inventory impact panel and the relationship map | done | P2 |
 | E19-11 | Affected services in the security incident workspace | done | P2 |
 | E19-12 | A bus or vehicle icon | done | P3 |
-| E19-13 | Vehicles and services in the pilot seed profile | open | P3 |
+| E19-13 | Vehicles and services in the pilot seed profile | done | P3 |
 | E19-14 | Vehicles drawn on the relationship map | done | P3 |
 
 ---
@@ -204,11 +204,20 @@ As an administrator, I can grant fleet permissions in the role editor. `fleet` w
 
 ### E19-13 Vehicles and services in the pilot seed profile
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
+
+An organization loads its own vehicles and services when it sets up a pilot, as it does its
+systems and sites, rather than only the invented fleet of the `dev` profile.
 
 **Acceptance criteria**
 
-- [ ] Optional `vehicles.psv` and `services.psv` in the private seed folder
+- [x] Optional `vehicles.psv` and `services.psv` in the private seed folder, read by `seed --profile pilot`; a missing file is skipped and named
+- [x] Rows matched by fleet number and by route, so a second run updates; an empty cell never clears a value; list values matched by value or label
+- [x] Depots found by site name, and the systems a service depends on by system name (with an optional dependency in brackets); the inventory's own pilot files are loaded first so they can be named
+- [x] A row that cannot be loaded is skipped and named with its line number; a depot or system not found is named
+- [x] The columns documented in [Installation](../../installation.md#optional-import-files); tests with an invented temporary seed folder
+
+**Implemented in:** `server/src/modules/fleet/seed-pilot.ts`, `seed.ts`; `seedPilotEstate` in `server/src/modules/inventory/seed.ts`; test `server/src/modules/fleet/seed-pilot.test.ts`; `docs/installation.md`; [user guide](../../user/19-fleet-and-services.md#sample-data)
 
 ### E19-14 Vehicles drawn on the relationship map
 

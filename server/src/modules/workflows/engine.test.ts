@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { FieldDef } from '../../core/module.ts';
 import {
-  allHold, checkDefinition, conditionHolds, eligible, nextStep, outcomePatch, refusal, required, tally,
-  type DefinitionContext, type StepDef,
+  allHold, applicableBranches, checkDefinition, conditionHolds, eligible, groupStatus, isGroup, nextStep, outcomePatch, refusal, required, routeAfter, tally, unitAt,
+  type ApprovalUnit, type DefinitionContext, type StepDef,
 } from './engine.ts';
 
 // E14-06: the workflow engine's rules on their own. Invented data only.
@@ -160,5 +160,79 @@ describe('checking a definition', () => {
     ]);
     expect(checkDefinition({ ...good, steps: [] }, c).errors!.steps).toMatch(/at least one/);
     expect(checkDefinition({ ...good, record_type: 'other' }, c).errors!.record_type).toBeTruthy();
+  });
+});
+
+describe('steps side by side and routes (E14-32)', () => {
+  const c: DefinitionContext = {
+    types: { request: { fields: FIELDS } }, lookup: (list) => (list === 'prio' ? ['low', 'high'] : []), roles: ['agent'], users: [U1, U2, U3],
+  };
+  const base = { record_type: 'request', name: 'Purchase', trigger: 'manual' };
+
+  it('leaves a definition written before unchanged (no branches or routes appear)', () => {
+    const old = { ...base, steps: [{ key: 'one', name: 'One', approvers: { kind: 'users', users: [U1] }, quorum: 'any', conditions: [], due_hours: null, escalate_to: null }] };
+    const { def } = checkDefinition(old, c);
+    expect(def!.steps).toEqual(old.steps);
+  });
+
+  it('cleans branches and routes, and checks that routes only go forward', () => {
+    const { def, errors } = checkDefinition({
+      ...base,
+      steps: [
+        { key: 'both', name: 'Finance and safety', branches: [
+          { name: 'Finance', approvers: { kind: 'users', users: [U1] } },
+          { name: 'Safety', approvers: { kind: 'users', users: [U2] }, quorum: 'all', conditions: [{ field: 'urgent', op: 'set' }] },
+        ], routes: [{ conditions: [{ field: 'cost', op: 'gt', value: 5000 }], to: 'board' }] },
+        { key: 'manager', name: 'Manager', approvers: { kind: 'users', users: [U3] }, routes: [{ conditions: [], to: 'end' }] },
+        { key: 'board', name: 'Board', approvers: { kind: 'users', users: [U1] } },
+      ],
+    }, c);
+    expect(errors).toBeUndefined();
+    expect(def!.steps[0].approvers).toBeUndefined();
+    expect(def!.steps[0].branches!.map((b) => [b.key, b.name, b.quorum])).toEqual([['both-a', 'Finance', 'any'], ['both-b', 'Safety', 'all']]);
+    expect(def!.steps[0].routes).toEqual([{ conditions: [{ field: 'cost', op: 'gt', value: 5000 }], to: 'board' }]);
+    expect(def!.steps[2]).not.toHaveProperty('routes');
+
+    const bad = checkDefinition({
+      ...base,
+      steps: [
+        { key: 'a', name: 'A', branches: [{ name: 'Only one', approvers: { kind: 'users', users: [U1] } }] },
+        { key: 'b', name: 'B', approvers: { kind: 'users', users: [U1] }, routes: [{ to: 'a' }, { to: 'nowhere' }, { to: 'b' }] },
+      ],
+    }, c).errors!;
+    expect(bad['steps.0.branches']).toMatch(/at least two/);
+    expect(bad['steps.1.routes.0']).toMatch(/later step/);
+    expect(bad['steps.1.routes.1']).toMatch(/later step, or the end/);
+    expect(bad['steps.1.routes.2']).toMatch(/later step/);
+  });
+
+  const steps: StepDef[] = [
+    { ...step({ key: 'a', name: 'A' }), routes: [{ conditions: [{ field: 'cost', op: 'gt', value: 1000 }], to: 'c' }, { conditions: [{ field: 'urgent', op: 'set' }], to: 'end' }] },
+    step({ key: 'b', name: 'B' }),
+    { key: 'c', name: 'C', quorum: 'any', conditions: [], due_hours: null, escalate_to: null, branches: [step({ key: 'c1', name: 'C1' }) as ApprovalUnit, step({ key: 'c2', name: 'C2', conditions: [{ field: 'priority', op: 'eq', value: 'high' }] }) as ApprovalUnit] },
+  ];
+
+  it('chooses the route by the first condition that holds, else the next step', () => {
+    expect(routeAfter(steps, 0, { cost: 5000 }, FIELDS)).toBe(2);
+    expect(routeAfter(steps, 0, { cost: 10, urgent: true }, FIELDS)).toBe(3); // the end
+    expect(routeAfter(steps, 0, { cost: 10 }, FIELDS)).toBe(1);
+    expect(routeAfter(steps, 1, { cost: 5000 }, FIELDS)).toBe(2);
+    // A route that points backwards (edited by hand) is ignored.
+    expect(routeAfter([{ ...step({ key: 'x' }) }, { ...step({ key: 'y' }), routes: [{ conditions: [], to: 'x' }] }], 1, {}, FIELDS)).toBe(2);
+  });
+
+  it('starts the branches whose conditions hold, and reads a group from its branches', () => {
+    expect(isGroup(steps[2])).toBe(true);
+    expect(isGroup(steps[0])).toBe(false);
+    expect(applicableBranches(steps[2], { priority: 'low' }, FIELDS)).toEqual([0]);
+    expect(applicableBranches(steps[2], { priority: 'high' }, FIELDS)).toEqual([0, 1]);
+    expect(applicableBranches(steps[0], {}, FIELDS)).toEqual([null]);
+    expect(unitAt(steps, 2, 1)!.name).toBe('C2');
+    expect(unitAt(steps, 0, null)!.name).toBe('A');
+    expect(unitAt(steps, 2, null)).toBeNull();
+    expect(groupStatus(['approved', 'pending'])).toBe('pending');
+    expect(groupStatus(['approved', 'skipped'])).toBe('approved');
+    expect(groupStatus(['canceled', 'rejected'])).toBe('rejected');
+    expect(groupStatus(['skipped', 'skipped'])).toBe('skipped');
   });
 });

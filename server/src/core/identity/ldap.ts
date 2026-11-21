@@ -212,7 +212,7 @@ export async function ldapAuthenticate(provider: ProviderRecord, secret: string 
     const disabled = entryDisabled(entry);
     if (disabled) throw new DirectoryRefusal('disabled', disabled, subject);
     const groups = c.mappingEnabled ? await groupsOf(conn, entry, c, name) : [];
-    return identityOf(entry, c, subject, groups);
+    return { ...identityOf(entry, c, subject, groups), loginName: name };
   } catch (err) {
     if (err instanceof DirectoryRefusal) throw err;
     if (err instanceof FilterError) throw new DirectoryRefusal('config', `the filter cannot be used: ${err.message}`);

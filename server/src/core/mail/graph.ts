@@ -192,7 +192,11 @@ async function sendLarge(client: ReturnType<typeof graphClient>, s: GraphSetting
       const contentType = file.contentType || 'application/octet-stream';
       if (bytes.length <= GRAPH_INLINE_ATTACHMENT) {
         ok(await client.call('POST', `${draft}/attachments`, {
-          body: JSON.stringify({ '@odata.type': '#microsoft.graph.fileAttachment', name: file.filename, contentType, contentBytes: file.contentBase64 }),
+          // A picture shown in the HTML body (the logo, E14-36) is inline, named by its Content-ID.
+          body: JSON.stringify({
+            '@odata.type': '#microsoft.graph.fileAttachment', name: file.filename, contentType, contentBytes: file.contentBase64,
+            ...(file.cid ? { isInline: true, contentId: file.cid } : {}),
+          }),
           contentType: 'application/json',
         }));
         continue;

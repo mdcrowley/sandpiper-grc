@@ -9,7 +9,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from 'node:net';
 
 export interface FakeMessage { id: string; raw: string; read: boolean; folder: 'inbox' | 'deleted' }
-export interface FakeDraft { id: string; mailbox: string; message: any; attachments: { name: string; contentType: string; content: Buffer }[] }
+export interface FakeDraft { id: string; mailbox: string; message: any; attachments: { name: string; contentType: string; content: Buffer; isInline?: boolean; contentId?: string }[] }
 export interface CannedAnswer { status: number; body?: unknown; headers?: Record<string, string> }
 
 export interface FakeCloud {
@@ -142,7 +142,7 @@ export async function startFakeCloud(): Promise<FakeCloud> {
       if (req.method === 'DELETE' && !draftPath[2]) { ms.drafts.delete(draft.id); res.writeHead(204); return res.end(); }
       if (req.method === 'POST' && draftPath[2] === '/attachments') {
         if (b['@odata.type'] !== '#microsoft.graph.fileAttachment') return json(res, 400, { error: { code: 'ErrorInvalidRequest', message: 'Expected a file attachment.' } });
-        draft.attachments.push({ name: b.name, contentType: b.contentType, content: Buffer.from(b.contentBytes, 'base64') });
+        draft.attachments.push({ name: b.name, contentType: b.contentType, content: Buffer.from(b.contentBytes, 'base64'), ...(b.isInline ? { isInline: true, contentId: String(b.contentId ?? '') } : {}) });
         return json(res, 201, { id: `att-${draft.attachments.length}` });
       }
       if (req.method === 'POST' && draftPath[2] === '/attachments/createUploadSession') {

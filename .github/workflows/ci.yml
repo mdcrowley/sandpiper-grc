@@ -245,6 +245,66 @@ jobs:
             plutil -lint "$RUNNER_TEMP/org.sandpiper-grc.server.plist" deploy/launchd/*.plist
           fi
 
+      - name: User service on a real systemd or launchd (install, restart, crash, stop, remove)
+        # E16-35: ./grc.sh service install as a person would run it, under the runner's own service
+        # manager. GitHub's Linux runner has no login session, so lingering starts the user's systemd
+        # manager first (on a desktop or a server with a session it is already there).
+        timeout-minutes: 8
+        run: |
+          set -eu
+          if [ "$(uname -s)" = Linux ]; then
+            sudo loginctl enable-linger "$(id -un)"
+            export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+            for _ in $(seq 1 30); do [ -S "$XDG_RUNTIME_DIR/bus" ] && break; sleep 1; done
+            export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+            echo "DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS" >> "$GITHUB_ENV"
+            echo "XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR" >> "$GITHUB_ENV"
+            systemctl --user is-system-running || true
+          fi
+          pid() { tr -d '[:space:]' < "$GRC_DATA_DIR/grc.pid"; }
+          wait_healthy() { for _ in $(seq 1 90); do ./grc.sh health > /dev/null && return 0; sleep 1; done; ./grc.sh service status || true; return 1; }
+
+          ./grc.sh service install
+          ./grc.sh service status
+          wait_healthy
+          if [ "$(uname -s)" = Linux ]; then systemctl --user is-active sandpiper-grc.service; systemctl --user is-enabled sandpiper-grc.service
+          else launchctl print "gui/$(id -u)/org.sandpiper-grc.server" | grep -q 'state = running'; fi
+
+          # ./grc.sh restart stops cleanly and starts it again through the service manager.
+          first=$(pid)
+          ./grc.sh restart
+          wait_healthy
+          [ "$(pid)" != "$first" ] || { echo "restart kept the same process"; exit 1; }
+
+          # A command that stops the server for its work starts the service again afterwards.
+          ./grc.sh backup --prune 2
+          wait_healthy
+          ./grc.sh status
+
+          # A crash is restarted by the service manager by itself.
+          crashed=$(pid)
+          kill -9 "$crashed"
+          for _ in $(seq 1 90); do
+            if [ -f "$GRC_DATA_DIR/grc.pid" ] && [ "$(pid)" != "$crashed" ] && ./grc.sh health > /dev/null; then break; fi
+            sleep 1
+          done
+          ./grc.sh health
+          [ "$(pid)" != "$crashed" ] || { echo "the service manager did not restart the server after a crash"; exit 1; }
+
+          # A clean stop is not restarted.
+          ./grc.sh stop
+          sleep 12
+          if ./grc.sh health; then echo "the service manager restarted a clean stop"; exit 1; fi
+
+          ./grc.sh service remove
+          if [ "$(uname -s)" = Linux ]; then test ! -e "$HOME/.config/systemd/user/sandpiper-grc.service"
+          else test ! -e "$HOME/Library/LaunchAgents/org.sandpiper-grc.server.plist"; fi
+          if ./grc.sh health; then echo "still answering after the service was removed"; exit 1; fi
+
+      - name: Remove the user service after a failure
+        if: failure()
+        run: ./grc.sh service remove || true
+
       - name: Server logs
         if: failure()
         run: ./grc.sh logs --lines 200 || true

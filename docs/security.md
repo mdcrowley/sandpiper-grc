@@ -118,7 +118,7 @@ carry on with the action. **A person who has a second factor is asked for it too
 after the right password the server answers `400 second_factor_required` (not counted as a
 failure), and the prompt asks for a 6-digit code, a recovery code, or the person's passkey or
 security key (`POST /api/auth/webauthn/confirm/options`, then the answer as `webauthn`). A wrong
-code or a refused key counts towards the same limit as a wrong password (8 in 5 minutes). Each
+code or a refused key counts toward the same limit as a wrong password (8 in 5 minutes). Each
 refusal, each wrong password or code and each successful confirmation is audited
 (`reauth.required`, `reauth.failure`, `reauth.success`, which says what was proved). A person
 with no password confirms through a linked sign-in provider instead; when that provider is
@@ -702,7 +702,7 @@ separate, tamper-evident copy.
     signature, directly on the root element and covering it (a reference to its ID, or the whole
     document), with the same algorithm allow-list as sign-in, valid for that certificate and no
     other (`verifyMetadataSignature` in `samlxml.ts`, on **xml-crypto**). Only the signed bytes
-    are read afterwards; metadata past its `validUntil` is refused. An optional daily refresh
+    are read afterward; metadata past its `validUntil` is refused. An optional daily refresh
     runs through the job queue (`admin.saml_metadata_refresh`, `scheduleWork`), only with
     outbound connections on and the host allowed, and accepts signed metadata only. It adds new
     signing certificates, updates the sign-in and sign-out addresses, never changes the entity ID
@@ -934,10 +934,9 @@ put the prototype on a network or to hold sensitive real records in it.
   (`retention.audit_months` is recorded, not enforced): the audit log keeps earlier values
   of a record's personal fields.
 - Personal access tokens cannot be limited to particular records.
-- Retention decisions raise webhook events (E14-33) that carry no values from before the
-  change; they do not run the record type's after-save hooks.
-- Anonymizing or removing a record from the retention review raises no webhook event
-  (E14-33).
+- Anonymizing or removing a record from the retention review is audited and raises
+  webhook events (E14-33) that carry no values from before the change; it does not run the
+  record type's after-save hooks.
 
 **Access control details**
 
@@ -953,12 +952,13 @@ put the prototype on a network or to hold sensitive real records in it.
 
 **Assurance**
 
-- No independent security review, penetration test or load test.
-- Continuous integration runs a dependency audit (`npm audit`), which reports but does not
-  yet fail the build.
-- An automated accessibility audit (axe-core, `npm run test:a11y`) exists; continuous
-  integration runs it without failing the build, and there has been no screen-reader
-  walkthrough.
+- No independent security review or penetration test (E16-40). Load tests have been run
+  ([Operations](operations.md#performance-and-load-testing)).
+- Continuous integration runs a dependency audit (`audit-deps`, from `npm audit`), which fails the build only
+  on a vulnerability that has a fix available.
+- An automated accessibility audit (axe-core, `npm run test:a11y`) runs in continuous
+  integration and fails the build on a new violation; there has been no screen-reader
+  walkthrough (E16-15).
 - Non-administrator roles are exercised in the browser by the end-to-end suite
   (`npm run test:e2e`, every default role on every page), as well as by API tests.
 

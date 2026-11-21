@@ -40,6 +40,8 @@ While the period runs:
 
 Select **End** to stop a stand-in early; from then on they can no longer decide for you.
 
+You can also name your stand-in from your own **Account security** page (your name at the top right > **Account security**): the **Stand-in for approvals** card lists the stand-ins you named and those naming you, and **Name a stand-in** opens the same form. Both places show the same periods.
+
 ## The approval panel on a record
 
 When a workflow is running on a record, a panel under its title shows:
@@ -51,6 +53,10 @@ When a workflow is running on a record, a panel under its title shows:
 - **Your decision is needed** with **Approve** and **Reject**, when it is your turn;
 - **Stand-ins**: people standing in for an approver of the current step, and for whom;
 - each decision so far, with comments ("on behalf of" for a stand-in's decision).
+
+A step whose groups run **side by side** shows one box per group (for example **Finance** and **Operations**), each with its own **Waiting for**, due time and status (**Waiting**, **Approved**, **Not needed** when its conditions did not hold). The step is done once every group has approved; a rejection in any group rejects the request and stops the others. On the **Approvals** page such a step is named "Step: Group", for example "Finance and operations: Operations".
+
+When the record is **waiting for approval to move to a new status** (see [Lifecycles](23-lifecycles.md#changes-that-wait-for-approval)), the panel starts with a line such as *Waiting for approval to move to Scheduled (now In review)*: the status changes when the workflow is approved, and stays as it is when it is rejected or canceled.
 
 **Cancel request** stops a running workflow. Only the person who asked, or an administrator, can cancel it. Administrators also see **Reassign**: choose the approver to replace (**Instead of**) and the person to **Hand it to**; the new approver must be able to decide (active, not the requester, able to see the record), is told, and the reassignment is recorded in the history. Earlier workflows on the record are listed under **earlier approvals**.
 
@@ -84,6 +90,7 @@ Any active workflow for the record type can also be started by hand from the rec
 
 Steps run in order (use the arrows to reorder them; up to ten). For each step:
 
+- **How it is approved**: **One set of approvers** (most steps), or **Several groups side by side** when, for example, finance and operations must both approve at the same time. Each group (two to five) has a **Group name**, its own **Who approves**, **How many must approve** and due time, and optionally **When this group takes part** (conditions: for example the operations group only when the work is urgent). Every group that takes part must approve before the workflow moves on; one rejection in any group rejects the request.
 - **Who approves**:
   - **Named people**: choose them one by one;
   - **Everyone with a role**: every active person holding that role when the step starts;
@@ -94,6 +101,9 @@ Steps run in order (use the arrows to reorder them; up to ten). For each step:
 - **How many must approve** (named people, roles and permissions): **Any one of them**, **All of them**, or a number.
 - **When this step applies**: conditions, as above. A step whose conditions do not hold when it is reached is skipped, for example a finance step only when the cost is more than a set amount.
 - **Due within** (hours or days, optional). When a step is past its due time, its approvers who have not decided are reminded, and the people it **escalates to** (named people, a role or both) are told and may decide too. If nobody named by a step can approve it (inactive, the requester, or unable to see the record), it goes straight to the people it escalates to; if there are none, the panel says so and an administrator can cancel the workflow.
+- **After this step** (optional routes): where the workflow goes once the step is approved. Add a route, choose a later step (or **Finish: approved**) under **go to**, and the conditions that send a record there, for example "If **Cost is more than 10,000**, go to **Director**". The first route whose conditions all hold is taken; with none, the workflow goes on to the next step. A route without conditions is always taken, which is how a cheaper branch skips the director step: "after **Small purchase**, finish". Routes only go forward, so a workflow never loops; the steps passed over are shown as skipped ("Not on this record's route"). The picture shows each route under its step.
+
+Workflows saved before groups and routes existed keep working exactly as they did; they simply have none.
 
 ### At the end
 
@@ -101,7 +111,7 @@ Steps run in order (use the arrows to reorder them; up to ten). For each step:
 
 ### Changing and removing workflows
 
-Saving a workflow gives it a new version. Workflows already running keep the version they started with, so a change never moves a request mid-way. **Remove** stops the workflow from starting; those running finish as they are.
+Saving a workflow gives it a new version. Workflows already running keep the version they started with, so a change never moves a request mid-way. **Remove** stops the workflow from starting; those running finish as they are. When a status change waits for the workflow (Administration > Lifecycles), the editor says so: while the workflow is inactive or removed, that status change is refused until another workflow is chosen on the Lifecycles page.
 
 The **Running now** tab lists every workflow waiting for approval, with the step it is waiting at and any problem (such as a step nobody can approve), and **Cancel** for each. A record you may not see is not named.
 
@@ -125,4 +135,4 @@ A workflow for a kind of record whose part of the application is switched off un
 
 Webhooks can send **Approval decided** (each decision) and **Approval workflow finished** (approved, rejected or canceled); both are as restricted as the record (see [Administration](09-administration.md#other-events)).
 
-AI assistants can list the approvals waiting for you and, with write access, approve or reject one (see [AI assistants and MCP](21-ai-assistants-and-mcp.md)).
+AI assistants can list the approvals waiting for you (a group of a step side by side is named "Step: Group") and, with write access, approve or reject one (see [AI assistants and MCP](21-ai-assistants-and-mcp.md)). When an assistant changes a status that waits for approval, it is told that the status stays as it is until the workflow approves it.

@@ -1,6 +1,6 @@
 # Cybersecurity frameworks and assessments
 
-A framework is a published list of security outcomes that an organization works towards; NIST CSF 2.0 is included, and others can be added from a file. This page explains how to read the outcomes board, how to record where you stand on each outcome and the evidence for it, and how to take assessment snapshots so that progress can be shown between two dates. The screens are in the **Cybersecurity** group of the menu: **Framework outcomes** and **Assessments**.
+A framework is a published list of security outcomes that an organization works toward; NIST CSF 2.0 is included, and others can be added from a file. This page explains how to read the outcomes board, how to record where you stand on each outcome and the evidence for it, and how to take assessment snapshots so that progress can be shown between two dates. The screens are in the **Cybersecurity** group of the menu: **Framework outcomes** and **Assessments**.
 
 An administrator can switch framework outcomes off under **Administration > Features** (see [Administration](09-administration.md#features)). Records are kept and return when it is switched back on.
 
@@ -30,7 +30,7 @@ If a button described here is missing, your role does not include that permissio
 
 Every outcome has one status. The colors are the same on every screen, and a key is always shown beside any colored bar.
 
-| Status | Color | Counts towards the score as |
+| Status | Color | Counts toward the score as |
 |---|---|---|
 | Not evidenced | Red | 0 |
 | Partial | Amber | 33 |
@@ -154,7 +154,9 @@ Outcomes are normally loaded with the framework. To add one yourself:
 
 If more than one framework has been loaded, a framework selector appears beside the **Board** and **Table** buttons, and on the **Assessments** and **Coverage** pages. Each of these shows one framework at a time; the one you looked at last is shown first.
 
-The **More** menu also leads to **Coverage of other frameworks**, **Assessments** and **Frameworks and structure**.
+The **More** menu also leads to **Coverage of other frameworks**, **Assessments**, **Frameworks and structure** and **Framework settings**, and on the board holds **Print this board**.
+
+The **Create** menu at the top of every page offers **Framework outcome**, **Assessment snapshot** and **Framework from a file** to people with **Create**.
 
 ## Working on one outcome
 
@@ -372,7 +374,7 @@ Before you start, make sure outcome statuses are up to date, because the snapsho
 4. Add any **Notes**, and fill in any custom fields your administrator has added to snapshots (those marked with an asterisk are required).
 5. Select **Take snapshot**.
 
-The statuses a snapshot holds cannot be changed afterwards; its custom fields, if any, are shown and can be edited in the **More details** card on the snapshot's page. The **Date** only labels the snapshot and sets its position on the chart: whatever date you enter, the statuses saved are the ones on the board when you select the button.
+The statuses a snapshot holds cannot be changed afterward; its custom fields, if any, are shown and can be edited in the **More details** card on the snapshot's page. The **Date** only labels the snapshot and sets its position on the chart: whatever date you enter, the statuses saved are the ones on the board when you select the button.
 
 Take the first snapshot as soon as the statuses are a fair reflection of the present. It becomes the baseline.
 
@@ -437,7 +439,7 @@ Select **Printable report** on a snapshot page, or **Report** in the **Snapshots
 - the share of priority outcomes at target, the scores with their change, the target score and how many outcomes moved up and down;
 - a bar of all outcomes by status and the snapshot's notes;
 - **By function**: outcomes, at target, score, change and a status bar for each function;
-- **What moved since** the previous snapshot: each changed outcome with what it **Was** and what it **Is**;
+- **What moved since** the previous snapshot (named in the heading): each changed outcome with what it **Was** and what it **Is**;
 - **Every outcome**, grouped by function, with its status at the time.
 
 Select **Print**, then choose a printer or "Save as PDF". The menu and buttons are left out of the printout.

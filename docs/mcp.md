@@ -349,7 +349,7 @@ claude mcp add sandpiper --env GRC_URL=http://127.0.0.1:8080 --env GRC_TOKEN=grc
 ```
 
 **Claude Desktop** (`claude_desktop_config.json`, opened from Settings > Developer > Edit
-Config; restart Claude Desktop afterwards) through the bridge:
+Config; restart Claude Desktop afterward) through the bridge:
 
 ```json
 {

@@ -4,9 +4,10 @@ import { Link, useSearchParams } from 'react-router-dom';
 import {
   ApiError, Button, Card, ConfirmDialog, Countdown, cx, DateField, EditableSummary, EmptyState, ErrorState, errorMessage, formatDate,
   Loading, Modal, PageHeader, RecordPage, ResourceList, Select, Stat, StatusChip, Tabs, TextField, toColorName, useAuth, useFetch, useResource,
-  useToast,
+  useLookup, useToast,
 } from '../../core';
 import type { RecordContext, Row, StatsResult } from '../../core';
+import { canMoveTo, editableLifecycle } from '../../core/lifecycleMenus';
 import { ensureStarterViews } from './views';
 import { ExpiryChip, daysPhrase, daysUntil, isoDay } from './shared';
 
@@ -124,6 +125,10 @@ function ExceptionActions({ rec }: { rec: RecordContext }) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const canApprove = can('exceptions.approve');
   const canEdit = can('exceptions.edit');
+  // A decision the lifecycle rules do not allow from the current status is not offered (E14-31).
+  const rules = editableLifecycle(rec.resource.lifecycle, 'status');
+  const values = useLookup('exception_status').map((v) => v.value);
+  const may = (to: string) => canMoveTo(rules, row.status, to, values);
 
   const open = (next: Step) => {
     setErrors({});
@@ -153,10 +158,10 @@ function ExceptionActions({ rec }: { rec: RecordContext }) {
 
   return (
     <>
-      {row.status === 'requested' && canApprove && <Button variant="primary" onClick={() => open('approve')}>Approve</Button>}
-      {row.status === 'requested' && canApprove && <Button variant="danger" onClick={() => open('reject')}>Reject</Button>}
-      {['requested', 'approved'].includes(row.status) && canEdit && <Button onClick={() => open('withdraw')}>Withdraw</Button>}
-      {['rejected', 'withdrawn', 'expired'].includes(row.status) && canEdit && <Button onClick={() => open('again')}>Request again</Button>}
+      {row.status === 'requested' && canApprove && may('approved') && <Button variant="primary" onClick={() => open('approve')}>Approve</Button>}
+      {row.status === 'requested' && canApprove && may('rejected') && <Button variant="danger" onClick={() => open('reject')}>Reject</Button>}
+      {['requested', 'approved'].includes(row.status) && canEdit && may('withdrawn') && <Button onClick={() => open('withdraw')}>Withdraw</Button>}
+      {['rejected', 'withdrawn', 'expired'].includes(row.status) && canEdit && may('requested') && <Button onClick={() => open('again')}>Request again</Button>}
 
       <Modal
         open={step === 'approve'} title="Approve this exception" onClose={() => setStep(null)} size="sm"

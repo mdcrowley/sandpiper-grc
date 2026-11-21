@@ -12,6 +12,7 @@ const USER_SELECT = `
     u.totp_enabled, (u.locked_until is not null and u.locked_until > now()) as locked, u.locked_until,
     u.failed_attempts, u.last_login_at, u.password_changed_at, u.created_at, u.updated_at,
     (u.password_hash is not null) as has_password,
+    (select count(*)::int from webauthn_credentials w where w.user_id = u.id and w.revoked_at is null) as passkeys,
     coalesce((select json_agg(json_build_object('key', r.key, 'name', r.name, 'enabled', r.enabled, 'requires_mfa', r.requires_mfa) order by r.name)
               from user_roles ur join roles r on r.id = ur.role_id where ur.user_id = u.id), '[]'::json) as roles,
     exists (select 1 from one_time_tokens t where t.user_id = u.id and t.used_at is null and t.expires_at > now()) as link_pending,

@@ -5,7 +5,7 @@ import { IconAlertTriangle } from '@tabler/icons-react';
 import { api, ApiError, errorMessage, type Row } from './api';
 import { FieldControl, isMissing, toApiValue, toFormValue } from './FieldControl';
 import { fieldMeta, knownFields } from './FieldValue';
-import { allowedStatuses, requiredFor } from './lifecycle';
+import { allowedStatuses, requiredFor, waitsForApproval } from './lifecycle';
 import { customFieldNames, useLookup, useResource } from './meta';
 import { ErrorState } from './ui';
 import './records.css';
@@ -190,7 +190,10 @@ export function ResourceForm({
     const display = (initial._display as Record<string, string> | undefined)?.[field];
     return (
       <FieldControl
-        meta={meta} value={values[field]} onChange={(v) => set(field, v)} error={errors[field]} hint={hints?.[field]}
+        meta={meta} value={values[field]} onChange={(v) => set(field, v)} error={errors[field]}
+        hint={field === statusField && id && waitsForApproval(lifecycle, startStatus, values[field])
+          ? `This change waits for approval: the ${meta.label.toLowerCase()} stays as it is until an approval workflow approves it. Other changes are saved now.`
+          : hints?.[field]}
         display={display} readOnlyText={meta.readOnly ? String(display ?? initial[field] ?? '') : undefined}
         allowed={field === statusField ? allowed : undefined}
       />

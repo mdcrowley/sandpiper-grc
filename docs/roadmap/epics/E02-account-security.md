@@ -1,6 +1,6 @@
 # E02 Account security
 
-**Status:** in progress (27 of 29 issues done)
+**Status:** in progress (29 of 30 issues done)
 
 ## Goal
 
@@ -37,7 +37,7 @@ everything else fails.
 | E02-09 | Single sign-on with OpenID Connect | done | P2 |
 | E02-10 | Single sign-on with SAML | done | P3 |
 | E02-11 | Link local accounts to single sign-on identities | done | P3 |
-| E02-12 | Personal API tokens | in progress | P2 |
+| E02-12 | Personal API tokens | done | P2 |
 | E02-13 | Break-glass account | done | P2 |
 | E02-14 | Secure session cookie when served over HTTPS | done | P1 |
 | E02-15 | Send a blocked person straight to second-factor set-up | done | P1 |
@@ -55,6 +55,7 @@ everything else fails.
 | E02-27 | SAML: act on sign-outs started at the identity provider | done | P3 |
 | E02-28 | SAML: check metadata signatures and refresh metadata | done | P3 |
 | E02-29 | Directory sign-in: passkey as second factor, linking and confirming from Account security | done | P3 |
+| E02-30 | Remember the directory user name for identity confirmation | done | P3 |
 
 ---
 
@@ -618,3 +619,20 @@ confirmation dialog, and hide **Confirm with …** for a directory in `LinkedIde
 - [x] Tests with the stand-in directory and the software authenticator; the sign-in page's layout is unchanged (only the passkey step after a directory password is added)
 
 **Implemented in:** `server/src/modules/admin/sso.ts` (`checkDirectory`, the login route, `passkey-options`, `link-directory`, `confirm`, `confirm-methods`), `passkeyLoginOptions` in `server/src/core/webauthn/routes.ts`, route descriptions in `server/src/modules/admin/docs.ts`; web `web/src/core/reauth.ts` (directory choice in the confirmation dialog, `confirmIdentity`), `web/src/modules/admin/LinkedIdentities.tsx` (`LinkDirectoryDialog`, **Confirm with …**), `web/src/modules/account-keys/PasskeySignIn.tsx` and the directory branch of `LoginPage` in `web/src/core/AuthPages.tsx`; test `server/src/modules/admin/ldap-account.test.ts`; [user guide](../../user/16-passkeys-and-security-keys.md)
+
+### E02-30 Remember the directory user name for identity confirmation
+
+**Status:** done · **Priority:** P3 · **Type:** improvement
+
+Follow-up to E02-29. A person who confirms their identity with a linked directory had to type
+their directory user name every time. Remember the user name that last worked, with the linked
+identity, and fill it in; never the password.
+
+**Acceptance criteria**
+
+- [x] The directory user name that last worked to link, sign in or confirm is kept with the linked identity (`user_identities.login_name`, admin migration `004`; empty for OpenID Connect and SAML); the password is never stored
+- [x] `GET /api/auth/sso/confirm-methods` gives it per directory (`username`); a wrong user name or a different directory entry does not replace it
+- [x] The confirmation dialog fills it in and puts the cursor in the password field; a name the person typed is kept when they change the way of confirming
+- [x] Tests with the stand-in directory, and a component test of the dialog
+
+**Implemented in:** `server/src/core/identity/types.ts` (`loginName`), `ldap.ts`, `accounts.ts` (`linkIdentity`), `service.ts` (sign-in), `server/src/modules/admin/sso.ts` (`confirm`, `confirm-methods`), `docs.ts`, `migrations/004_identity_login_name.sql`; web `web/src/core/reauth.ts`; tests `server/src/modules/admin/ldap-account.test.ts`, `web/src/core/reauth.component.test.ts`; [user guide](../../user/09-administration.md)

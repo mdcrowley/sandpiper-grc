@@ -55,11 +55,12 @@ function summaryText(x: TypeSummary): string {
     x.blocked ? `${x.blocked} not allowed` : '',
     x.required ? `${x.required} required` : '',
     x.limited ? `${x.limited} limited` : '',
+    x.approvals ? `${x.approvals} need approval` : '',
   ].filter(Boolean);
   return parts.length ? parts.join(' · ') : 'Changed';
 }
 
-const emptyRules = (): Rules => ({ blocked: [], required: {}, who: {} });
+const emptyRules = (): Rules => ({ blocked: [], required: {}, who: {}, approvals: [] });
 
 function TypeLifecycle({ type, onChanged }: { type: string; onChanged: () => void }) {
   const { data, error, reload } = useFetch<Detail>(`/api/admin/lifecycles/${encodeURIComponent(type)}`);
@@ -69,7 +70,7 @@ function TypeLifecycle({ type, onChanged }: { type: string; onChanged: () => voi
   const [saving, setSaving] = useState(false);
   const [confirmRestore, setConfirmRestore] = useState(false);
   const [problem, setProblem] = useState('');
-  useEffect(() => { if (data) setRules(data.rules); }, [data]);
+  useEffect(() => { if (data) setRules({ ...data.rules, approvals: data.rules.approvals ?? [] }); }, [data]);
 
   const dirty = useMemo(() => Boolean(data) && JSON.stringify(normalize(rules)) !== JSON.stringify(normalize(data!.rules)), [rules, data]);
   if (error) return <ErrorState title="This lifecycle could not be loaded" error={error} onRetry={reload} />;
@@ -81,6 +82,8 @@ function TypeLifecycle({ type, onChanged }: { type: string; onChanged: () => voi
   const toggle = (from: string, to: string) => setRules((r) => ({
     ...r,
     blocked: isBlocked(from, to) ? r.blocked.filter(([a, b]) => !(a === from && b === to)) : [...r.blocked, [from, to]],
+    // A move no longer allowed waits for nothing (E14-37).
+    approvals: isBlocked(from, to) ? r.approvals : r.approvals.filter(([a, b]) => !(a === from && b === to)),
   }));
   const editable = !data.managed;
   const fieldLabel = (name: string) => data.fields.find((f) => f.name === name)?.label ?? name;
@@ -141,7 +144,8 @@ function TypeLifecycle({ type, onChanged }: { type: string; onChanged: () => voi
       {editable && (
         <>
           <Card title="Moves between statuses">
-            <MoveDiagram statuses={statuses} blocked={rules.blocked} label={label} required={rules.required} who={rules.who} fieldLabel={fieldLabel} roleLabel={roleLabel} />
+            <MoveDiagram statuses={statuses} blocked={rules.blocked} label={label} required={rules.required} who={rules.who} fieldLabel={fieldLabel} roleLabel={roleLabel}
+              approvals={rules.approvals} workflowLabel={(id) => data.workflows?.find((w) => w.id === id)?.name ?? 'a workflow no longer available'} />
           </Card>
 
           <Card title="Allowed changes">
@@ -184,6 +188,13 @@ function TypeLifecycle({ type, onChanged }: { type: string; onChanged: () => voi
             </div>
           </Card>
 
+          {data.workflows && (
+            <ApprovalMoves
+              statuses={statuses} label={label} rules={rules} workflows={data.workflows} plural={data.plural} fieldLabel={data.fieldLabel}
+              onChange={(approvals) => setRules((r) => ({ ...r, approvals }))}
+            />
+          )}
+
           <Card title="Required fields and who may set each status">
             <p className="muted lc-small">Fields that must be filled in before a record may have the status (also when it is created with it), and who may change a record to it. Leave "who" empty for anyone who may edit the record.</p>
             <div className="lc-status-rules">
@@ -223,7 +234,7 @@ function TypeLifecycle({ type, onChanged }: { type: string; onChanged: () => voi
           <div className="lc-actions">
             {data.customized && <Button variant="secondary" icon="refresh" onClick={() => setConfirmRestore(true)} disabled={saving}>Restore defaults</Button>}
             <span className="lc-spacer" />
-            <Button variant="secondary" onClick={() => setRules(data.rules)} disabled={!dirty || saving}>Discard changes</Button>
+            <Button variant="secondary" onClick={() => setRules({ ...data.rules, approvals: data.rules.approvals ?? [] })} disabled={!dirty || saving}>Discard changes</Button>
             <Button variant="primary" onClick={save} loading={saving} disabled={!dirty}>Save lifecycle</Button>
           </div>
         </>
@@ -241,19 +252,77 @@ function TypeLifecycle({ type, onChanged }: { type: string; onChanged: () => voi
   );
 }
 
+
+/**
+ * Moves that wait for an approval workflow (E14-37): when someone makes one, the record keeps its
+ * status, shows the pending move, and the workflow starts; approval makes the move.
+ */
+function ApprovalMoves({ statuses, label, rules, workflows, plural, fieldLabel, onChange }: {
+  statuses: Detail['statuses']; label: (v: string) => string; rules: Rules; workflows: NonNullable<Detail['workflows']>;
+  plural: string; fieldLabel: string; onChange: (approvals: Rules['approvals']) => void;
+}) {
+  const allowed = statuses.flatMap((a) => statuses.filter((b) => b.value !== a.value && !rules.blocked.some(([x, y]) => x === a.value && y === b.value)).map((b) => [a.value, b.value] as [string, string]));
+  const free = allowed.filter(([a, b]) => !rules.approvals.some(([x, y]) => x === a && y === b));
+  const active = workflows.filter((w) => w.active);
+  const set = (i: number, next: [string, string, string]) => onChange(rules.approvals.map((p, j) => (j === i ? next : p)));
+  return (
+    <Card title="Changes that wait for approval">
+      <p className="muted lc-small">
+        When someone makes one of these changes, the record keeps its {fieldLabel.toLowerCase()} and shows &ldquo;Waiting for approval&rdquo;, and the
+        approval workflow starts. Approval makes the change; rejection or canceling leaves the record as it was. Other fields can still be
+        edited meanwhile. A workflow whose own conditions do not hold for the record lets the change through at once.
+      </p>
+      {workflows.length === 0 ? (
+        <p className="muted">No approval workflow exists for {plural.toLowerCase()} yet. <Link to="/admin/workflows/new">Create one</Link> (it can start &ldquo;when someone asks for approval&rdquo;), then choose it here.</p>
+      ) : (
+        <>
+          {rules.approvals.length === 0 && <p className="muted">No change waits for approval.</p>}
+          {rules.approvals.length > 0 && (
+            <ul className="lc-approvals" aria-label="Changes that wait for approval">
+              {rules.approvals.map(([from, to, wf], i) => {
+                const w = workflows.find((x) => x.id === wf);
+                return (
+                  <li key={`${from}>${to}`} className="lc-approval">
+                    <Select label="From" value={from} options={statuses.map((s) => ({ value: s.value, label: s.label }))}
+                      onChange={(v) => set(i, [v, to === v ? '' : to, wf])} />
+                    <Select label="To" value={to} options={[{ value: '', label: 'Choose a status' }, ...allowed.filter(([a]) => a === from).map(([, b]) => ({ value: b, label: label(b) }))]}
+                      onChange={(v) => set(i, [from, v, wf])} />
+                    <Select label="Waits for" value={wf} options={[{ value: '', label: 'Choose a workflow' }, ...workflows.filter((x) => x.active || x.id === wf).map((x) => ({ value: x.id, label: x.active ? x.name : `${x.name} (inactive)` }))]}
+                      onChange={(v) => set(i, [from, to, v])} />
+                    <Button variant="ghost" icon="trash" onClick={() => onChange(rules.approvals.filter((_, j) => j !== i))}>
+                      Remove<span className="sr-only"> the approval for {label(from)} to {label(to)}</span>
+                    </Button>
+                    {w && !w.active && <p className="lc-small lc-approval-warn" role="note">&ldquo;{w.name}&rdquo; is not active, so this change is refused until it is switched on or another workflow is chosen.</p>}
+                    {!w && wf && <p className="lc-small lc-approval-warn" role="note">The workflow chosen here no longer exists; choose another.</p>}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          <Button size="sm" variant="ghost" icon="plus" disabled={!free.length || !active.length}
+            onClick={() => onChange([...rules.approvals, [free[0][0], free[0][1], active[0]?.id ?? '']])}>
+            Add a change that waits for approval
+          </Button>
+        </>
+      )}
+    </Card>
+  );
+}
 /** The rules as sent: no empty entries, so "nothing set" compares equal however it was reached. */
 function normalize(r: Rules): Rules {
   return {
     blocked: [...r.blocked].sort((a, b) => a.join('>').localeCompare(b.join('>'))),
     required: Object.fromEntries(Object.entries(r.required).filter(([, l]) => l.length).sort(([a], [b]) => a.localeCompare(b))),
     who: Object.fromEntries(Object.entries(r.who).filter(([, w]) => w.permission || w.roles?.length).sort(([a], [b]) => a.localeCompare(b))),
+    approvals: [...(r.approvals ?? [])].filter(([a, b, w]) => a && b && w).sort((a, b) => a.join('>').localeCompare(b.join('>'))),
   };
 }
 
 /** The picture: each status in list order with where it may go, what it needs and who may set it (as the workflow diagram draws steps). */
-function MoveDiagram({ statuses, blocked, label, required, who, fieldLabel, roleLabel }: {
+function MoveDiagram({ statuses, blocked, label, required, who, fieldLabel, roleLabel, approvals, workflowLabel }: {
   statuses: Detail['statuses']; blocked: [string, string][]; label: (v: string) => string;
   required: Rules['required']; who: Rules['who']; fieldLabel: (n: string) => string; roleLabel: (k: string) => string;
+  approvals: Rules['approvals']; workflowLabel: (id: string) => string;
 }) {
   const moves = describeMoves(statuses.map((s) => s.value), blocked);
   return (
@@ -276,6 +345,9 @@ function MoveDiagram({ statuses, blocked, label, required, who, fieldLabel, role
               <div className="lc-flow-body">
                 <div className="lc-flow-title"><StatusChip color={toColorName(s.color)} label={s.label} size="sm" /></div>
                 <div className="lc-flow-line"><Icon name="arrow-right" size={14} /> {to.length ? `May change to ${to.map(label).join(', ')}` : 'Final: no change allowed'}</div>
+                {approvals.filter(([a]) => a === s.value).map(([, b, w]) => (
+                  <div key={b} className="lc-flow-line lc-flow-approval"><Icon name="check-square" size={14} /> To {label(b)} waits for approval: {workflowLabel(w)}</div>
+                ))}
                 {needs.length > 0 && <div className="lc-flow-line"><Icon name="edit" size={14} /> Needs {needs.map(fieldLabel).join(', ')}</div>}
                 {w && (w.permission || w.roles?.length) ? (
                   <div className="lc-flow-line lc-flow-who"><Icon name="users" size={14} /> Only {[w.permission ? `people with ${w.permission}` : '', ...(w.roles ?? []).map(roleLabel)].filter(Boolean).join(' or ')}</div>

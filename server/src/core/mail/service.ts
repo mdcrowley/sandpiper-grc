@@ -235,8 +235,16 @@ export function makeMail(ctx: ModuleContext, jobs: JobQueue) {
       }).join('')}</ul>`,
     };
     // A text message (email-to-text) stays short: no name above it and no footer under it.
-    const frame = template === 'text_message' ? null : { name: org.name, footer: org.footer, color: org.color };
+    const frame = template === 'text_message' ? null : {
+      name: org.name, footer: org.footer, color: org.color,
+      logo: org.logo && { cid: org.logo.cid, width: org.logo.width, height: org.logo.height },
+    };
     const message = render(await templateRow(ctx, template), values, { items: block }, frame);
+    // The logo travels inside the message, shown by the HTML body through its Content-ID (E14-36).
+    if (frame?.logo && org.logo) {
+      const ext = org.logo.type === 'image/jpeg' ? 'jpg' : 'png';
+      attachments = [...(attachments ?? []), { filename: `logo.${ext}`, contentBase64: org.logo.data.toString('base64'), contentType: org.logo.type, cid: org.logo.cid }];
+    }
 
     let secret: string | null = null;
     try {

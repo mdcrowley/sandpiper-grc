@@ -1,6 +1,6 @@
 # E16 Hosting, operations and hardening
 
-**Status:** in progress (30 of 37 issues done)
+**Status:** in progress (33 of 38 issues done)
 
 ## Goal
 
@@ -42,7 +42,7 @@ and usable by everyone.
 | E16-09 | Restore command | done | P1 |
 | E16-10 | Upgrade command | done | P2 |
 | E16-11 | Export-all and import-all commands | done | P3 |
-| E16-12 | Continuous integration | in progress | P1 |
+| E16-12 | Continuous integration | done | P1 |
 | E16-13 | Dependency scanning | done | P2 |
 | E16-14 | Load testing | done | P2 |
 | E16-15 | Accessibility audit | in progress | P2 |
@@ -58,16 +58,17 @@ and usable by everyone.
 | E16-25 | Start, stop and schedule on Linux and macOS | done | P3 |
 | E16-30 | Backup, restore and status commands that know about a database server | done | P1 |
 | E16-31 | A least-privilege database role for the application | done | P2 |
-| E16-32 | Publish the container image | in progress | P3 |
+| E16-32 | Publish the container image | done | P3 |
 | E16-33 | Reload the TLS certificate without a restart | done | P3 |
 | E16-34 | macOS and Linux scripts | done | P1 |
-| E16-35 | Confirm the user services on a real systemd and launchd | open | P3 |
+| E16-35 | Confirm the user services on a real systemd and launchd | done | P3 |
 | E16-36 | Load test on a PostgreSQL server, and tune the slowest queries | done | P2 |
 | E16-37 | Schema changes at run time without the owner account | done | P3 |
 | E16-38 | Embedded database under load: Overview and global search, and scale 4 | done | P3 |
 | E16-39 | Start-up work within the time limit at volume | done | P3 |
 | E16-40 | Independent security review or penetration test | open | P2 |
 | E16-41 | Load test with the database server on its own machine | open | P3 |
+| E16-42 | User services across a restart of the machine, and the system examples, on real machines | open | P3 |
 
 ---
 
@@ -315,7 +316,7 @@ another installation, so data is never locked in.
 
 ### E16-12 Continuous integration
 
-**Status:** in progress · **Priority:** P1 · **Type:** feature
+**Status:** done · **Priority:** P1 · **Type:** feature
 
 As a maintainer, every push and pull request runs the type check, the tests and a build
 automatically, and cannot be merged when they fail.
@@ -332,7 +333,7 @@ image publish. What is left is a repository setting: on 2026-11-19 the GitHub AP
 - [x] The Node.js major version is pinned in one file (`tools/node-version.txt`) shared with the local bootstrap script
 - [x] The private seed folder is never needed or read
 - [x] The first run passes on both operating systems (and every other job), confirmed 2026-11-19
-- [ ] The main branch is protected by the checks (a repository setting: Settings > Branches, require the "Check" jobs; not set on 2026-11-19)
+- [x] The main branch is protected by the checks (set on 2026-11-21: `Check (ubuntu-latest)`, `Check (windows-latest)`, `Released migrations unchanged` and `Tests on a database server (pglite-socket)` are required; force pushes and deletion are refused; the owner may still push past them)
 - [x] A status badge in the README
 
 **Implemented in:** `.github/workflows/ci.yml` (and locally `.\grc.ps1 ci`); `tools/node-version.txt`
@@ -617,7 +618,7 @@ As an operator on Linux or macOS, I have the same one-command operation as on Wi
 - [x] A documented scheduled backup (`grc.sh schedule-backup` prints a cron entry, a systemd timer and a launchd agent; `deploy/systemd/` and `deploy/launchd/` have system examples; the server's own daily backup needs no scheduler)
 - [x] Starting at boot or sign-in and after a crash: `./grc.sh service install|remove|status|print` writes a systemd user unit (Linux) or a launchd agent (macOS) with the settings in force (never a secret given directly); `start`, `stop` and the commands that stop the server keep working with it. System examples: `deploy/systemd/sandpiper-grc.service` (with `ExecReload` for a renewed certificate) and `deploy/launchd/org.sandpiper-grc.server.plist`
 - [x] Covered by the Linux and macOS legs of continuous integration (start, health, seed, backup, status, version, logs, stop; the service files checked with `systemd-analyze verify` and `plutil -lint`)
-- [ ] Installing the user services on a real systemd session and launchd (E16-35)
+- [x] Installing the user services on a real systemd session and launchd (E16-35)
 
 **Implemented in:** `grc.sh` (`service`, `start_service`); `deploy/systemd/`; `deploy/launchd/`; `.github/workflows/ci.yml` (job `unix-install`); `docs/operations.md` (Running as a service on Linux and macOS); `docs/installation.md` (macOS service, Linux)
 
@@ -660,7 +661,7 @@ append-only trigger.
 
 ### E16-32 Publish the container image
 
-**Status:** in progress · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 As an operator, I pull a versioned image rather than building one. A CI job publishes multi-arch images (amd64, arm64) to `ghcr.io/mdcrowley/sandpiper-grc`: `edge` from main; `x.y.z`, `x.y` and `latest` from `v*` tags.
 
@@ -672,8 +673,10 @@ default (`latest`) falls back to building from source.
 **Acceptance criteria**
 
 - [x] A release workflow builds for amd64 and arm64 and pushes to a registry (`edge` confirmed; the version tags follow the first `v*` tag)
-- [ ] The image is signed and has a software bill of materials: `sbom: true`, `provenance: mode=max` and `actions/attest-build-provenance` are in the publish job, not yet run
-- [ ] `compose.yaml` can use the published image: works with `GRC_IMAGE=ghcr.io/mdcrowley/sandpiper-grc:edge`; the default `latest` needs the first release
+- [x] The image is signed and has a software bill of materials: `sbom: true`, `provenance: mode=max` and `actions/attest-build-provenance` are in the publish job, and the job with its "Sign the build provenance" step passed on `main` on 2026-11-20 (run 44804003454) for `edge`; to be confirmed on the first version tag
+- [x] `compose.yaml` can use the published image: works with `GRC_IMAGE=ghcr.io/mdcrowley/sandpiper-grc:edge`; the default `latest` needs the first release
+
+**Implemented in:** `.github/workflows/ci.yml` (`publish`); release v0.1.0 on 2026-11-21 published `ghcr.io/mdcrowley/sandpiper-grc` as `0.1.0`, `0.1` and `latest` for amd64 and arm64 with provenance and a software bill of materials
 
 ### E16-33 Reload the TLS certificate without a restart
 
@@ -704,18 +707,23 @@ restarting the server.
 
 ### E16-35 Confirm the user services on a real systemd and launchd
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 As an operator on Linux or macOS, I know `./grc.sh service install` works where I run it.
-The unit and agent it writes, and the system examples in `deploy/`, are checked in
-continuous integration with `systemd-analyze verify` and `plutil -lint`, but were never
-installed and run: the development machine is Windows, and CI runners have no user session.
+The unit and agent it writes, and the system examples in `deploy/`, were checked in continuous
+integration with `systemd-analyze verify` and `plutil -lint` only, never installed and run: the
+development machine is Windows. GitHub's runners can run them: the Linux runner's user systemd
+manager is started with `loginctl enable-linger` (the runner has no sign-in session), and the
+macOS runner has a signed-in launchd session.
 
 **Acceptance criteria**
 
-- [ ] On a Linux machine with a user session: `service install`, a reboot with lingering, `stop`, `start`, `backup` and `service remove` behave as documented
-- [ ] On macOS: the same with the launchd agent, and the system daemon in `deploy/launchd/`
-- [ ] `status` reports the service
+- [x] On Linux (GitHub's runner, systemd user manager started by lingering): `service install`, the health check, `restart`, `backup` (stops and starts the service), `status` and `service status`, a crash restarted by systemd, `stop` not restarted, and `service remove`
+- [x] On macOS (GitHub's runner, launchd agent): the same
+- [x] `status` reports the service; the step runs on every push that is not documentation only, in a few minutes
+- A restart of the machine with lingering, and the system examples in `deploy/`, cannot run on a hosted runner: moved to E16-42
+
+**Implemented in:** `.github/workflows/ci.yml` (job `unix-install`, step "User service on a real systemd or launchd"); `docs/operations.md` (Running as a service on Linux and macOS)
 
 ### E16-36 Load test on a PostgreSQL server, and tune the slowest queries
 
@@ -881,3 +889,16 @@ pilot runs the database on its own machine (or a managed service).
 - [ ] `tools/load/run.mjs` at scale 1 and 4 with the database on a separate machine (or a managed PostgreSQL service), the application and the load generator on others
 - [ ] People with different roles in the Overview scenario (each set of permissions computes its own figures), and a run with `GRC_FIGURES_CACHE_SECONDS=0`
 - [ ] Results recorded in `docs/operations.md` beside the others
+
+### E16-42 User services across a restart of the machine, and the system examples, on real machines
+
+**Status:** open · **Priority:** P3 · **Type:** feature
+
+Split from E16-35, which proves the user services on GitHub's runners. A hosted runner cannot be
+restarted, and the system examples need their own account and folders.
+
+**Acceptance criteria**
+
+- [ ] On a Linux machine: the user service with `loginctl enable-linger` starts after a restart of the machine with nobody signed in
+- [ ] On macOS: the launchd agent starts at sign-in after a restart
+- [ ] The system examples `deploy/systemd/` and `deploy/launchd/` (with their daily backups) installed and run as documented

@@ -48,7 +48,7 @@ Turning **AI assistant access (MCP)** off refuses every assistant immediately. A
 
 ## Connecting your assistant
 
-1. Open the **Connect an AI assistant** page at `/account/ai-assistant` (administrators can also select **Connect my assistant** on **AI assistant access**).
+1. Open your account menu (your name at the top right), choose **Account security** and find the **Connect an AI assistant** card. The same card has a page of its own at `/account/ai-assistant`, and administrators can also select **Connect my assistant** on **AI assistant access**.
 2. Select **Connect an assistant**.
 3. Enter a **Name** that says which assistant and computer, for example "Claude Desktop on my laptop".
 4. Choose **What it may do**:

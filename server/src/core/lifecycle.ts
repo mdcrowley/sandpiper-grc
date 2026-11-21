@@ -34,6 +34,8 @@ export interface LifecycleRules {
   who: Record<string, LifecycleWho>;
   /** The statuses of the list when the rules were last saved (empty for the defaults). */
   known: string[];
+  /** Moves that wait for an approval workflow (E14-37), as [from, to, workflow id]. */
+  approvals: [string, string, string][];
   /** False: the shipped defaults (no row stored). */
   customized: boolean;
   updatedAt: string | null;
@@ -122,8 +124,33 @@ export const APPLICATION_RULES: Record<string, string[]> = {
 };
 
 export function defaultRules(field: string): LifecycleRules {
-  return { field, blocked: [], required: {}, who: {}, known: [], customized: false, updatedAt: null, updatedBy: null };
+  return { field, blocked: [], required: {}, who: {}, known: [], approvals: [], customized: false, updatedAt: null, updatedBy: null };
 }
+
+/** A status move held until an approval workflow approves it (E14-37). */
+export interface HeldMove { field: string; from: string; to: string; workflowId: string }
+
+/** The move a record is waiting to make, as the workflows module reports it. */
+export interface PendingMove { field: string; from: string; to: string; workflow: string; instanceId: string }
+
+/**
+ * Holds status moves for approval (E14-37). Set by the workflows module; without it (a server
+ * loading only some modules) moves that name a workflow are made at once, as before.
+ */
+export interface MoveHolder {
+  /** The move a record is waiting to make, or null. */
+  pending(type: string, id: string): Promise<PendingMove | null>;
+  /** The workflow, when it can hold moves of the type now (active, of that type, not a module's own approval). */
+  usable(type: string, workflowId: string, row?: Row): Promise<{ id: string; name: string } | null>;
+  /** Starts the workflow on the record; approval makes the move, rejection or cancel leaves it. */
+  hold(def: ResourceDef, record: Row, move: HeldMove, req: FastifyRequest): Promise<void>;
+  /** Workflows an administrator may name for moves of a type (its own, not a module's approval kind). */
+  choices(type: string): Promise<{ id: string; name: string; active: boolean }[]>;
+}
+
+/** The workflow a move waits for, or null. */
+export const approvalFor = (rules: Pick<LifecycleRules, 'approvals'>, from: string, to: string): string | null =>
+  rules.approvals.find(([a, b]) => a === from && b === to)?.[2] ?? null;
 
 const isEmpty = (v: unknown) => v === null || v === undefined || (typeof v === 'string' && v.trim() === '') || (Array.isArray(v) && !v.length);
 
@@ -141,10 +168,12 @@ export type Lifecycles = ReturnType<typeof makeLifecycles>;
 export function makeLifecycles({ db, lookups, customDefs }: Deps) {
   /** Rules by type, read at most every five seconds (several server processes may share a database). */
   let cache: { at: number; rows: Map<string, LifecycleRules> } | null = null;
+  /** Holds moves for approval (E14-37); set by the workflows module. */
+  let holder: MoveHolder | null = null;
 
   async function stored(): Promise<Map<string, LifecycleRules>> {
     if (cache && Date.now() - cache.at < RULES_TTL_MS) return cache.rows;
-    const rows = await db.query<Row>('select record_type, field, blocked, required, who, known, updated_at, updated_by from lifecycle_rules');
+    const rows = await db.query<Row>('select record_type, field, blocked, required, who, known, approvals, updated_at, updated_by from lifecycle_rules');
     const map = new Map<string, LifecycleRules>();
     for (const r of rows) {
       map.set(r.record_type, {
@@ -153,6 +182,9 @@ export function makeLifecycles({ db, lookups, customDefs }: Deps) {
         required: r.required && typeof r.required === 'object' ? r.required : {},
         who: r.who && typeof r.who === 'object' ? r.who : {},
         known: Array.isArray(r.known) ? r.known.map(String) : [],
+        approvals: Array.isArray(r.approvals)
+          ? r.approvals.filter((p: unknown) => Array.isArray(p) && p.length === 3).map((p: unknown[]) => [String(p[0]), String(p[1]), String(p[2])] as [string, string, string])
+          : [],
         customized: true,
         updatedAt: r.updated_at instanceof Date ? r.updated_at.toISOString() : r.updated_at ?? null,
         updatedBy: r.updated_by ?? null,
@@ -186,9 +218,20 @@ export function makeLifecycles({ db, lookups, customDefs }: Deps) {
   async function check(def: ResourceDef, existing: Row | null, data: Row, req: FastifyRequest | null): Promise<Record<string, string>> {
     if (!req) return {}; // system work (seeding, automation) follows the module's own rules only
     const rules = await rulesFor(def);
-    if (!rules || !rules.customized) return {};
+    if (!rules) return {};
     const field = rules.field;
     const f = def.fields[field];
+    // A move waiting for approval (E14-37): the other fields stay editable; the status does not
+    // change again until the approval ends. Checked even when the rules were since restored.
+    if (existing && holder && field in data && (data[field] ?? null) !== (existing[field] ?? null)) {
+      const pending = await holder.pending(def.type, existing.id);
+      if (pending) {
+        const statuses = await lookups.values(f.list!);
+        const label = statuses.find((s) => s.value === pending.to)?.label ?? pending.to;
+        return { [field]: `This ${def.label.toLowerCase()} is waiting for approval to move to "${label}" ("${pending.workflow}"). Its ${f.label.toLowerCase()} can change again once that approval ends, or when the request is canceled.` };
+      }
+    }
+    if (!rules.customized) return {};
     const statuses = await lookups.values(f.list!);
     const labelOf = (v: string) => statuses.find((s) => s.value === v)?.label ?? v;
     const current = existing ? (existing[field] ?? null) as string | null : NEW;
@@ -199,6 +242,7 @@ export function makeLifecycles({ db, lookups, customDefs }: Deps) {
     const known = (v: string | null) => v === NEW || statuses.some((s) => s.value === v);
 
     if (moving) {
+      const waitsFor = existing && current !== null && known(current) ? approvalFor(rules, current, target) : null;
       // A record holding a status since taken off the list may move anywhere.
       if (current !== null && known(current) && rules.blocked.some(([a, b]) => a === current && b === target)) {
         const allowed = statuses.filter((s) => s.value !== current && !rules.blocked.some(([a, b]) => a === current && b === s.value)).map((s) => `"${s.label}"`);
@@ -208,6 +252,8 @@ export function makeLifecycles({ db, lookups, customDefs }: Deps) {
       } else if (!mayMoveTo(rules, target, req.user)) {
         const roles = new Map((await db.query<{ key: string; name: string }>('select key, name from roles where key = any($1::text[])', [rules.who[target]?.roles ?? []])).map((r) => [r.key, r.name]));
         errors[field] = `You may not set ${f.label.toLowerCase()} to "${labelOf(target)}". ${whoText(rules.who[target], (k) => roles.get(k) ?? k)}`;
+      } else if (waitsFor && holder && !(await holder.usable(def.type, waitsFor))) {
+        errors[field] = `Moving from "${labelOf(current!)}" to "${labelOf(target)}" needs an approval workflow that is no longer active. An administrator should choose another one under Administration > Lifecycles.`;
       }
     }
 
@@ -237,19 +283,48 @@ export function makeLifecycles({ db, lookups, customDefs }: Deps) {
       .map(([name, f]) => ({ name, label: f.label, custom: Boolean(f.custom) }));
   }
 
+  /**
+   * The move a person's save makes that must wait for an approval workflow (E14-37), or null. Called
+   * by the resource engine after `check` passed: the engine then saves the other fields, leaves the
+   * status as it was and calls `hold`. A new record never waits (it has no status to stay in).
+   */
+  async function held(def: ResourceDef, existing: Row | null, data: Row, req: FastifyRequest | null): Promise<HeldMove | null> {
+    if (!req || !existing || !holder) return null;
+    const rules = await rulesFor(def);
+    if (!rules?.customized || !rules.approvals.length) return null;
+    const field = rules.field;
+    const from = (existing[field] ?? null) as string | null;
+    const to = (data[field] ?? null) as string | null;
+    if (!(field in data) || from === null || to === null || from === to) return null;
+    const workflowId = approvalFor(rules, from, to);
+    // The workflow must be active, and its own conditions must hold for the record as it would be.
+    if (!workflowId || !(await holder.usable(def.type, workflowId, { ...existing, ...data }))) return null;
+    return { field, from, to, workflowId };
+  }
+
+
   return {
     rulesFor,
     check,
+    held,
     mayMoveTo,
     requirableFields,
+    /** The workflows module holds moves for approval (E14-37). */
+    setHolder(h: MoveHolder | null) { holder = h; },
+    get holder(): MoveHolder | null { return holder; },
+    /** Starts the approval a held move waits for (the resource engine calls it after saving the rest). */
+    async hold(def: ResourceDef, record: Row, move: HeldMove, req: FastifyRequest): Promise<void> {
+      if (holder) await holder.hold(def, record, move, req);
+    },
     /** Stores a type's rules (replacing any before). */
-    async store(type: string, rules: Pick<LifecycleRules, 'field' | 'blocked' | 'required' | 'who' | 'known'>, userId: string | null): Promise<void> {
+    async store(type: string, rules: Pick<LifecycleRules, 'field' | 'blocked' | 'required' | 'who' | 'known'> & { approvals?: LifecycleRules['approvals'] }, userId: string | null): Promise<void> {
       await db.query(
-        `insert into lifecycle_rules (record_type, field, blocked, required, who, known, updated_at, updated_by)
-         values ($1, $2, $3::jsonb, $4::jsonb, $5::jsonb, $6::jsonb, now(), $7)
+        `insert into lifecycle_rules (record_type, field, blocked, required, who, known, approvals, updated_at, updated_by)
+         values ($1, $2, $3::jsonb, $4::jsonb, $5::jsonb, $6::jsonb, $8::jsonb, now(), $7)
          on conflict (record_type) do update set field = excluded.field, blocked = excluded.blocked, required = excluded.required,
-           who = excluded.who, known = excluded.known, updated_at = now(), updated_by = excluded.updated_by`,
-        [type, rules.field, JSON.stringify(rules.blocked), JSON.stringify(rules.required), JSON.stringify(rules.who), JSON.stringify(rules.known), userId],
+           who = excluded.who, known = excluded.known, approvals = excluded.approvals, updated_at = now(), updated_by = excluded.updated_by`,
+        [type, rules.field, JSON.stringify(rules.blocked), JSON.stringify(rules.required), JSON.stringify(rules.who), JSON.stringify(rules.known), userId,
+          JSON.stringify(rules.approvals ?? [])],
       );
       cache = null;
     },
@@ -270,7 +345,9 @@ export function makeLifecycles({ db, lookups, customDefs }: Deps) {
       const rules = await rulesFor(def);
       if (!rules) return undefined;
       const denied = Object.keys(rules.who).filter((to) => !mayMoveTo(rules, to, user));
-      return { field: rules.field, managed: lifecycleManaged(def, rules.field), blocked: rules.blocked, required: rules.required, denied };
+      // Moves that wait for approval (E14-37), so a form can say so: [from, to] only (no workflow ids).
+      const approvals = holder ? rules.approvals.map(([a, b]) => [a, b] as [string, string]) : [];
+      return { field: rules.field, managed: lifecycleManaged(def, rules.field), blocked: rules.blocked, required: rules.required, denied, approvals };
     },
   };
 }

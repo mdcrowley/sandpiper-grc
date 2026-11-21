@@ -1,6 +1,6 @@
 # E18 Quality and known defects
 
-**Status:** in progress (49 of 54 issues done)
+**Status:** done (59 of 59 issues done)
 
 ## Goal
 
@@ -26,15 +26,15 @@ has never been checked, so nobody relies on something untested.
 | E18-03 | Proofread NIST CSF 2.0 outcome text against the publication | done | P1 |
 | E18-04 | Check every screen in the dark theme | done | P2 |
 | E18-05 | Check every screen at tablet width | done | P2 |
-| E18-06 | Check keyboard-only use | in progress | P2 |
+| E18-06 | Check keyboard-only use | done | P2 |
 | E18-07 | Check non-administrator roles in the browser | done | P1 |
-| E18-08 | Check that every form can be submitted in the browser | in progress | P1 |
+| E18-08 | Check that every form can be submitted in the browser | done | P1 |
 | E18-09 | "Also satisfies" parser splits names that contain numbers | done | P3 |
 | E18-10 | Automated API test suite | done | P1 |
 | E18-11 | One-off browser pass of every screen | done | P2 |
-| E18-12 | Automated browser tests | in progress | P2 |
+| E18-12 | Automated browser tests | done | P2 |
 | E18-13 | Transit positioning: nothing in built-in text identifies one organization | done | P1 |
-| E18-14 | Tests for the web code | open | P3 |
+| E18-14 | Tests for the web code | done | P3 |
 | E18-15 | A ticket can be closed without a resolution code | done | P2 |
 | E18-16 | Missed-target dashboard tile and its list disagree | done | P3 |
 | E18-17 | Knowledge feedback can be given repeatedly | done | P3 |
@@ -45,7 +45,7 @@ has never been checked, so nobody relies on something untested.
 | E18-22 | Audit log labels system events "Not signed in" | done | P3 |
 | E18-23 | Assessment snapshot date is not validated | done | P3 |
 | E18-24 | Navigation labels differ from page titles | done | P3 |
-| E18-25 | Permissions granted but never checked | in progress | P2 |
+| E18-25 | Permissions granted but never checked | done | P2 |
 | E18-26 | Only risks have an Actions tab | done | P2 |
 | E18-27 | Dev mode ignored a custom port | done | P3 |
 | E18-28 | Features that suit some transit organizations but not all | done | P2 |
@@ -75,6 +75,11 @@ has never been checked, so nobody relies on something untested.
 | E18-52 | Continuous integration failed on macOS and on Linux before 06:00 | done | P2 |
 | E18-53 | One SAML certificate in 128 could not be read | done | P1 |
 | E18-54 | An API token's change was sometimes audited after the answer was sent | done | P2 |
+| E18-55 | Faster first load: no web chunk over 500 kB | done | P3 |
+| E18-56 | Date fields read typed dates day first | done | P2 |
+| E18-57 | A person whose second factor is a passkey showed as "Not set up" | done | P2 |
+| E18-58 | The one-time link dialog said nothing was emailed when it was | done | P3 |
+| E18-59 | Small errors in help text, compose.yaml and a command-line message | done | P3 |
 
 ---
 
@@ -503,16 +508,13 @@ For example Catalog / Service catalog and Security terms / Security terms matrix
 
 The dashboards, reports and portal permissions appear in role grants but no route checks them.
 
-Not changed yet, on purpose. The overview shows each panel by its own module's
-permission, the inventory reports check the permissions of the records they read, and
-there is no report builder or portal. Removing the three keys from the default roles
-would break whichever module arrives next to use them; enforcing them belongs to the
-overview screen and the reporting epic.
+When this was raised, no route checked them. The Overview, the reporting module and the
+self-service portal now do (below).
 
 **Acceptance criteria**
 
 - [x] Each is either enforced by the screens and routes it names, or removed: `dashboards.view` decides whether the Overview shows its Dashboard part (`DASHBOARD_PERMISSION` in `web/src/modules/home/registry.ts`) and guards the reporting module's dashboards (a record type of module `dashboards`); `reports` is checked by the reporting module (`server/src/modules/reports`); `portal.view` and `portal.create` are checked by the self-service portal (`server/src/modules/portal/access.ts`, `requests.ts`, `files.ts`)
-- [x] The role editor says which permission areas nothing checks yet (`MAYBE_UNUSED` in `web/src/modules/admin/RoleDetail.tsx`: an area carries a "not yet used" hint unless a record type that belongs to it is loaded)
+- [x] The role editor says which permission areas nothing checks yet (`web/src/modules/admin/RoleDetail.tsx`, from the list in `server/src/core/permission-use.ts` since E18-44: a combination nothing checks is greyed out, and an area with nothing checked at all carries a "not yet used" hint)
 
 **Audit (19 Nov 2026):** every permission a default role grants by name is checked by a route.
 The record-type routes check `<module>.view`, `create`, `edit`, `delete` and `export` for every
@@ -521,9 +523,10 @@ module that has a record type; the approver's `changes.approve`, `projects.appro
 requester's `portal.view` and `portal.create` are each checked by name. What remains is the other
 way round: the role editor offers every action for every area, about 40 of those combinations
 are checked by nothing (for example `knowledge.approve`, `audit.create`, `portal.export`), and its
-"not yet used" hint still names `portal` (E18-44).
+"not yet used" hint still names `portal` (E18-44, done since).
 
-**Where:** `web/src/modules/home`, [E12](E12-dashboards-and-reporting.md); `DEFAULT_ROLES` (`server/src/core/services.ts`); `MODULE_KEYS` (`server/src/modules/admin/shared.ts`)
+**Implemented in:** `web/src/modules/home/registry.ts` (`DASHBOARD_PERMISSION`); `server/src/modules/reports/index.ts` (`reports.view` or `dashboards.view`; tested in `delivery.test.ts`); `server/src/modules/portal/access.ts`, `requests.ts`, `files.ts`; `web/src/modules/admin/RoleDetail.tsx` with `server/src/core/permission-use.ts`. Default grants in `DEFAULT_ROLES` (`server/src/core/services.ts`).
+
 ### E18-26 Only risks have an Actions tab
 
 **Status:** done · **Priority:** P2 · **Type:** improvement
@@ -1116,3 +1119,104 @@ could miss them (seen once in the PostgreSQL CI job). This is the same race as E
 - [x] The token and portal tests pass on the embedded database
 
 **Implemented in:** `server/src/core/tokens.ts`, `server/src/modules/portal/index.ts` (`tellRequester`).
+
+### E18-55 Faster first load: no web chunk over 500 kB
+
+**Status:** done · **Priority:** P3 · **Type:** improvement
+
+After E18-33 the production build still warned that two chunks were over 500 kB: the entry script
+(`index-*.js`, 706 kB, 211 kB compressed), which held the whole component library (Mantine, 277
+kB of it), the date pickers and the shell, and the chart chunk (`ChartImpl-*.js`, 654 kB),
+which held the chart library and its drawing engine. Every release changed the entry script, so
+browsers fetched the component library again each time.
+
+**Acceptance criteria**
+
+- [x] Libraries in chunks of their own (`VENDOR_GROUPS` in `vite.config.ts`), each naming its
+  packages exactly so nothing only some pages need is pulled into every page: `vendor-react` (258
+  kB), `vendor-mantine` (421 kB: the component library, positioning, scroll locking, transitions),
+  `vendor-dates` (94 kB), `vendor-echarts` (472 kB) and `vendor-zrender` (175 kB). Charts stay lazy
+  (`core/Chart.tsx`); `ChartImpl` is now 9 kB
+- [x] The date pickers load with the first date field (`core/dateFields.tsx`, lazy from
+  `DateField` / `DateTimeField`, with a read-only stand-in of the same label and size for that
+  moment), not with every page
+- [x] The build prints no chunk-size warning; the entry script is 220 kB (66 kB compressed)
+- [x] Measured in the browser (requests for the page's scripts and styles after sign-in, sizes
+  from the build, compressed with gzip):
+
+  | Page | Before | After |
+  |---|---|---|
+  | `/` (Overview, with charts) | 10 requests, 1,992 kB (570 kB gzip) | 13 requests, 1,929 kB (554 kB gzip) |
+  | `/tickets` (a list) | 10 requests, 1,437 kB (379 kB gzip) | 11 requests, 1,372 kB (361 kB gzip) |
+  | `/admin/organization` | 13 requests, 1,614 kB (428 kB gzip) | 14 requests, 1,549 kB (410 kB gzip) |
+
+  Each page downloads about 65 kB less (the date pickers), in one or three more files fetched in
+  parallel; and after an upgrade only the application's own chunks change, so a returning browser
+  fetches about 220 kB instead of 706 kB for the start of every page
+- [x] Nothing changed in behavior: Help, PDF and print-ready exports, charts, the portal and date
+  fields checked in the browser and with the targeted browser tests
+
+The Help home still fetches every chapter of the user guide (one small chunk each, in parallel)
+to build its contents and search; that is unchanged.
+
+**Implemented in:** `vite.config.ts` (`VENDOR_GROUPS`), `web/src/core/fields.tsx`,
+`web/src/core/dateFields.tsx`; `web/src/core/README.md` ("Code splitting").
+
+### E18-56 Date fields read typed dates day first
+
+**Status:** done · **Priority:** P2 · **Type:** bug
+
+Date fields showed "18 Nov 2026" and read a typed "3/4/2026" as April 3, while the rest of the
+application uses US order. Found by the documentation pass.
+
+**Acceptance criteria**
+
+- [x] Date and date-time fields show "Nov 18, 2026" (24-hour times, as elsewhere)
+- [x] Typed numbers are read month first (11/18/2026); a month written as a word works either side of the day; 2026-11-18 still works
+
+**Implemented in:** `web/src/core/fields.tsx` (`TYPED_DATE_FORMATS`, `valueFormat`), `tools/e2e/lib/forms.mjs`, `docs/user/01-getting-started.md`.
+
+### E18-57 A person whose second factor is a passkey showed as "Not set up"
+
+**Status:** done · **Priority:** P2 · **Type:** bug
+
+The user list and a person's page looked only at the authenticator app, so someone whose second
+factor is a passkey or security key showed "Not set up", and **Reset second factor** was hidden,
+although the reset also removes passkeys.
+
+**Acceptance criteria**
+
+- [x] The user list shows the second factor as on when the person has a passkey
+- [x] The person's page names the authenticator app and the number of passkeys, and offers the reset
+
+**Implemented in:** `server/src/modules/admin/users.ts` (`passkeys` in `USER_SELECT`), `web/src/modules/admin/Users.tsx`, `UserDetail.tsx`, `common.tsx`.
+
+### E18-58 The one-time link dialog said nothing was emailed when it was
+
+**Status:** done · **Priority:** P3 · **Type:** bug
+
+With email set up, setup and reset links are also emailed (`emailedTo` in the answer), but the
+dialog always said "Nothing is sent by email".
+
+**Acceptance criteria**
+
+- [x] The dialog names the address the link was emailed to, and keeps the "pass it on yourself" wording when it was not
+
+**Implemented in:** `web/src/modules/admin/Users.tsx` (`LinkIssued`), `common.tsx` (`IssuedLink.emailedTo`).
+
+### E18-59 Small errors in help text, compose.yaml and a command-line message
+
+**Status:** done · **Priority:** P3 · **Type:** bug
+
+Found by the documentation pass: the `logs` help in `grc.ps1` printed `(datalogsgrc.log)`;
+`compose.yaml` named a `GRC_DB_PASSWORD` setting that does not exist and let Compose stop the
+container after 10 seconds, before the server's 20-second shutdown; the server suggested
+`grc stop (container)`, which does not exist; links from the in-app Help to the other documents
+in `docs/` opened "Page not found".
+
+**Acceptance criteria**
+
+- [x] Each message names what exists; Compose waits 30 seconds (`stop_grace_period`)
+- [x] Help links to the other documents open them on GitHub
+
+**Implemented in:** `grc.ps1`, `compose.yaml`, `server/src/cli.ts`, `web/src/modules/help/HelpPage.tsx`.

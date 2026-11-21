@@ -6,7 +6,8 @@
 // a second factor is then asked for it too (E01-29): a code from the authenticator app, a recovery
 // code, or their passkey or security key. A person who signs in with a directory (LDAP) can confirm
 // with their directory user name and password instead (E02-29): the dialog asks
-// GET /api/auth/sso/confirm-methods and offers the linked directories.
+// GET /api/auth/sso/confirm-methods and offers the linked directories, with the user name last used
+// at each filled in (E02-30; the server keeps the name, never the password).
 //
 // The prompt is a native <dialog> built here rather than a component, so it can be opened from any
 // event handler without a host element in every page. It is styled in reauth.css from the design tokens.
@@ -16,7 +17,7 @@ import './reauth.css';
 
 let open: Promise<boolean> | null = null;
 
-interface ConfirmMethods { password: boolean; directories: { key: string; name: string }[] }
+interface ConfirmMethods { password: boolean; directories: { key: string; name: string; username?: string | null }[] }
 
 /** How this person can confirm: their password here, and linked directories. Without single sign-on, the password. */
 const confirmMethods = (): Promise<ConfirmMethods> =>
@@ -83,6 +84,7 @@ function askPassword(prefer?: string): Promise<boolean> {
     const error = dialog.querySelector<HTMLElement>('#adm-reauth-error')!;
     const submit = dialog.querySelector<HTMLButtonElement>('button[type="submit"]')!;
     let asking = false; // the second-factor step is showing
+    let filled = ''; // the remembered user name put in the field, replaced on a change of way unless edited
     /** Shows the fields of the chosen way: a directory needs its user name too. */
     const showWay = () => {
       const directory = methods.directories.find((d) => d.key === way);
@@ -90,6 +92,7 @@ function askPassword(prefer?: string): Promise<boolean> {
       wayPicker.value = way;
       userBox.hidden = !directory;
       username.required = Boolean(directory);
+      if (username.value === filled) username.value = filled = directory?.username ?? '';
       dialog.querySelector('label[for="adm-reauth-username"]')!.textContent = directory ? `User name at ${directory.name}` : 'User name';
       passwordLabel.textContent = directory ? `Password at ${directory.name}` : 'Your password';
       input.autocomplete = directory ? 'off' : 'current-password';
@@ -172,7 +175,7 @@ function askPassword(prefer?: string): Promise<boolean> {
     showWay();
     document.body.appendChild(dialog);
     dialog.showModal(); // traps focus and returns it to the button that started the action when closed
-    (way ? username : input).focus();
+    (way && !username.value ? username : input).focus();
   }));
   return open;
 }

@@ -1,6 +1,6 @@
 # E20 Safety management
 
-**Status:** done (14 of 14 issues done)
+**Status:** done (15 of 15 issues done)
 
 ## Goal
 
@@ -37,6 +37,7 @@ governance, risk and compliance work.
 | E20-12 | Hazard review reminders | done | P3 |
 | E20-13 | Report a safety event from the self-service portal | done | P3 |
 | E20-14 | Indicator figures for readers without `security.view` | done | P3 |
+| E20-15 | Change the hazard matrix from the Safety side, also while Risks is off | done | P3 |
 
 ---
 
@@ -211,3 +212,22 @@ application (E18-40).
 
 - [x] Decide whether aggregate counts may include restricted events, and document it in `docs/security.md` ("Figures are the same for everyone")
 - [x] `GET /api/safety/summary` and `GET /api/safety-indicators/:id/trend` count every event (`server/src/modules/safety/indicators.ts`)
+
+### E20-15 Change the hazard matrix from the Safety side, also while Risks is off
+
+**Status:** done · **Priority:** P3 · **Type:** feature
+
+The hazard matrix is kept with the risk scales, so it could be changed only under **Risk
+scales**, which disappears while **Risks and obligations** is switched off. Worse, while that
+part was off, hazards were not rated at all (the matrix was looked up only when the risk record
+type was in the registry). A safety team that does not use the risk register must still own its
+matrix.
+
+**Acceptance criteria**
+
+- [x] Hazards are rated on the saved matrix, and `GET /api/safety/scale` answers, while Risks and obligations is switched off
+- [x] `PATCH /api/safety/scale` (`safety.administer`): the names and meanings of the levels and the rating of each cell; the number and values of the levels, and the rest of the scale, stay; validated as the risk scales are; audited; re-rates every hazard and every risk on the matrix
+- [x] **Administration > Hazard matrix** (`/safety/matrix`), also reached from the **Hazard log**; it names the risk scales only while that part is on and the person may edit them
+- [x] Unit test with the area switched off; the page checked in both themes at 1440 and 820 pixels, with Risks on and off
+
+**Implemented in:** `server/src/modules/safety/hazards.ts` (`hazardScale`, `PATCH /api/safety/scale`); web `web/src/modules/safety/MatrixEditor.tsx`, `index.tsx`, `Hazards.tsx`, `Dashboard.tsx`, `safety.css`; test `server/src/modules/safety/hazard-matrix.test.ts`; [user guide](../../user/20-safety-management.md#change-the-hazard-matrix)

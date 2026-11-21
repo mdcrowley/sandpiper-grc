@@ -259,9 +259,15 @@ const updateRecord: ToolSpec = {
     const saved = await t.api.patch<any>(`${type.path}/${row.id}`, patch);
     const changed = Object.keys(patch).map((k) => type.fields[k]?.label ?? k);
     const name = `${type.label.toLowerCase()} ${row[type.refField ?? ''] ?? `"${row[type.titleField]}"`}`;
+    // A status move that waits for an approval workflow (E14-37): the record keeps its status for now.
+    const held = saved?._pending_move as { field: string; to: string } | undefined;
+    const heldText = held ? ` The ${(type.fields[held.field]?.label ?? held.field).toLowerCase()} stays as it is until an approval workflow approves the move to "${held.to}".` : '';
     return {
-      text: `Updated ${name}: ${changed.join(', ')}.`,
-      data: { type: type.type, id: row.id, changed: Object.keys(patch), now: Object.fromEntries(Object.keys(patch).map((k) => [k, display(saved, k, type.fields[k])])), url: t.link(type.route, row.id) },
+      text: `Updated ${name}: ${changed.join(', ')}.${heldText}`,
+      data: {
+        type: type.type, id: row.id, changed: Object.keys(patch), now: Object.fromEntries(Object.keys(patch).map((k) => [k, display(saved, k, type.fields[k])])), url: t.link(type.route, row.id),
+        ...(held ? { waiting_for_approval: { field: held.field, to: held.to } } : {}),
+      },
       audit: { recordType: type.type, recordId: row.id, summary: `Updated ${name} (${changed.join(', ')})` },
     };
   },

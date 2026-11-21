@@ -13,6 +13,14 @@ export interface LifecycleMeta {
   required: Record<string, string[]>;
   /** Statuses the signed-in person may not move a record to. */
   denied: string[];
+  /** Moves that wait for an approval workflow before the record takes the new status (E14-37). */
+  approvals?: [string, string][];
+}
+
+/** Whether moving from `from` to `to` waits for approval (E14-37). */
+export function waitsForApproval(lifecycle: LifecycleMeta | undefined, from: string | null | undefined, to: unknown): boolean {
+  if (!lifecycle?.approvals?.length || !from || typeof to !== 'string' || from === to) return false;
+  return lifecycle.approvals.some(([a, b]) => a === from && b === to);
 }
 
 /**

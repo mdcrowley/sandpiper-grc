@@ -46,8 +46,13 @@ export function registerLifecycleRoutes(ctx: ModuleContext) {
     const blocked = rules.blocked.filter(([a, b]) => (a === NEW || values.has(a)) && values.has(b) && a !== b);
     const required = Object.fromEntries(Object.entries(rules.required).filter(([s, f]) => values.has(s) && Array.isArray(f) && f.length));
     const who = Object.fromEntries(Object.entries(rules.who).filter(([s, w]) => values.has(s) && w && (w.permission || w.roles?.length)));
-    return { blocked, required, who };
+    // Moves that wait for an approval workflow (E14-37); a move since blocked waits for nothing.
+    const approvals = (rules.approvals ?? []).filter(([a, b]) => values.has(a) && values.has(b) && a !== b && !blocked.some(([x, y]) => x === a && y === b));
+    return { blocked, required, who, approvals };
   }
+
+  /** Workflows that can hold this type's moves (none when the workflows module is not loaded). */
+  const workflowChoices = async (def: ResourceDef) => (lc().holder ? await lc().holder!.choices(def.type) : []);
 
   async function detail(req: FastifyRequest, def: ResourceDef) {
     const field = lifecycleField(def)!;
@@ -68,6 +73,9 @@ export function registerLifecycleRoutes(ctx: ModuleContext) {
       fields: await lc().requirableFields(def, field),
       roles,
       permissions: permissionChoices(def),
+      // Approval workflows a move may wait for (E14-37): the type's own, active or not; null when
+      // approval workflows are not available on this server.
+      workflows: lc().holder ? await workflowChoices(def) : null,
     };
   }
 
@@ -113,14 +121,32 @@ export function registerLifecycleRoutes(ctx: ModuleContext) {
       if (unknown) { errors.who = `There is no role "${unknown}".`; continue; }
       if (permission || roles.length) who[status] = { permission, roles };
     }
+    // Moves that wait for an approval workflow (E14-37): [from, to, workflow id], an allowed move
+    // between two statuses (a new record never waits) and an active workflow of this type.
+    const approvals: [string, string, string][] = [];
+    if (body.approvals !== undefined && !Array.isArray(body.approvals)) errors.approvals = 'Send the moves that wait for approval as a list of [from, to, workflow] entries.';
+    const choices = Array.isArray(body.approvals) && body.approvals.length ? await workflowChoices(def) : [];
+    for (const p of Array.isArray(body.approvals) ? body.approvals : []) {
+      const [from, to, wf] = Array.isArray(p) ? p.map((x: unknown) => String(x ?? '')) : [];
+      if (!Array.isArray(p) || p.length !== 3 || !values.has(from) || !values.has(to) || from === to) {
+        errors.approvals = `"${Array.isArray(p) ? p.slice(0, 2).join(' → ') : String(p)}" is not a move between two statuses of this list (a new record cannot wait for approval).`;
+        continue;
+      }
+      if (blocked.some(([a, b]) => a === from && b === to)) { errors.approvals = `The move from "${from}" to "${to}" is not allowed, so it cannot wait for approval.`; continue; }
+      const w = choices.find((c) => c.id === wf);
+      if (!w) { errors.approvals = `Choose an approval workflow of ${def.plural.toLowerCase()} for the move from "${from}" to "${to}".`; continue; }
+      if (!w.active) { errors.approvals = `"${w.name}" is not active; switch it on or choose another workflow.`; continue; }
+      if (!approvals.some(([a, b]) => a === from && b === to)) approvals.push([from, to, wf]);
+    }
     if (Object.keys(errors).length) ctx.fail(400, 'validation', 'Check the highlighted fields.', errors);
-    return { blocked, required, who, known: [...values] };
+    return { blocked, required, who, approvals, known: [...values] };
   }
 
   const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-  const summaryOf = (r: { blocked: unknown[]; required: Record<string, string[]>; who: Record<string, unknown> }) =>
+  const summaryOf = (r: { blocked: unknown[]; required: Record<string, string[]>; who: Record<string, unknown>; approvals?: unknown[] }) =>
     `${count(r.blocked.length, 'move')} not allowed, ${count(Object.values(r.required).flat().length, 'required field')}, `
-    + `${count(Object.keys(r.who).length, 'status', 'statuses')} limited to some people`;
+    + `${count(Object.keys(r.who).length, 'status', 'statuses')} limited to some people`
+    + `${r.approvals?.length ? `, ${count(r.approvals.length, 'move')} waiting for approval` : ''}`;
 
   app.get('/api/admin/lifecycles', admin, async (req) => {
     const out = [];
@@ -133,7 +159,7 @@ export function registerLifecycleRoutes(ctx: ModuleContext) {
         type: def.type, label: def.label, plural: def.plural, field, fieldLabel: def.fields[field].label, list: def.fields[field].list,
         managed: lifecycleManaged(def, field), hasNotes: Boolean(APPLICATION_RULES[def.type]?.length),
         customized: rules.customized, statuses: statuses.length,
-        blocked: r.blocked.length, required: Object.values(r.required).flat().length, limited: Object.keys(r.who).length,
+        blocked: r.blocked.length, required: Object.values(r.required).flat().length, limited: Object.keys(r.who).length, approvals: r.approvals.length,
         newStatuses: rules.customized ? statuses.filter((s) => !rules.known.includes(s.value)).length : 0,
       });
     }
@@ -143,7 +169,7 @@ export function registerLifecycleRoutes(ctx: ModuleContext) {
     method: 'GET', path: '/api/admin/lifecycles', tag: TAG, permission: ADMIN,
     summary: 'Record types with a status field and a summary of their lifecycle rules (E14-31)',
     description: 'Types of switched-off areas, and restricted types without `security.view`, are left out.',
-    response: '{ types: [{ type, label, plural, field, fieldLabel, list, managed, hasNotes, customized, statuses, blocked, required, limited, newStatuses }] }',
+    response: '{ types: [{ type, label, plural, field, fieldLabel, list, managed, hasNotes, customized, statuses, blocked, required, limited, approvals, newStatuses }] }',
   });
 
   app.get('/api/admin/lifecycles/:type', admin, async (req) => detail(req, typeOf(req)));
@@ -151,9 +177,9 @@ export function registerLifecycleRoutes(ctx: ModuleContext) {
     method: 'GET', path: '/api/admin/lifecycles/:type', tag: TAG, permission: ADMIN,
     summary: 'The lifecycle rules of one record type, with its statuses, the fields that can be required, roles and permissions',
     response: '{ type, label, plural, route, field, fieldLabel, list, managed, notes: [string], customized, updatedAt, updatedBy, statuses: [{ value, label, color }], '
-      + 'rules: { blocked: [[from, to]], required: { [status]: [field] }, who: { [status]: { permission, roles } } }, newStatuses: [status], '
-      + 'fields: [{ name, label, custom }], roles: [{ key, name, enabled }], permissions: [{ value, label }] }',
-    description: '`blocked` lists the moves that are not allowed (from `""` is a new record); everything else is allowed. `managed`: the application alone sets the status, so the rules cannot be changed. `notes`: what the module\'s own rules do. `newStatuses`: statuses added to the list since the rules were saved (every move to and from them is allowed).',
+      + 'rules: { blocked: [[from, to]], required: { [status]: [field] }, who: { [status]: { permission, roles } }, approvals: [[from, to, workflow id]] }, newStatuses: [status], '
+      + 'fields: [{ name, label, custom }], roles: [{ key, name, enabled }], permissions: [{ value, label }], workflows: [{ id, name, active }] | null }',
+    description: '`blocked` lists the moves that are not allowed (from `""` is a new record); everything else is allowed. `managed`: the application alone sets the status, so the rules cannot be changed. `notes`: what the module\'s own rules do. `newStatuses`: statuses added to the list since the rules were saved (every move to and from them is allowed). `approvals`: moves that wait for an approval workflow before the record takes the new status (E14-37); `workflows`: the approval workflows of the type a move may name (null when approval workflows are not available).',
   });
 
   app.put('/api/admin/lifecycles/:type', admin, async (req) => {
@@ -162,7 +188,7 @@ export function registerLifecycleRoutes(ctx: ModuleContext) {
     if (lifecycleManaged(def, field)) ctx.fail(409, 'set_by_application', `The application sets the ${def.fields[field].label.toLowerCase()} of ${def.plural.toLowerCase()}; its moves cannot be changed here.`);
     const before = (await lc().rulesFor(def))!;
     const next = await parse(req, def, field);
-    const empty = !next.blocked.length && !Object.keys(next.required).length && !Object.keys(next.who).length;
+    const empty = !next.blocked.length && !Object.keys(next.required).length && !Object.keys(next.who).length && !next.approvals.length;
     if (empty) await lc().remove(def.type);
     else await lc().store(def.type, { field, ...next }, req.user!.id);
     const was = current(before, new Set(next.known));
@@ -170,14 +196,14 @@ export function registerLifecycleRoutes(ctx: ModuleContext) {
       action: 'lifecycle.update',
       summary: `Lifecycle of ${def.plural.toLowerCase()} changed: ${empty ? 'back to every move allowed' : summaryOf(next)}`,
       before: { record_type: def.type, field, ...(before.customized ? was : { defaults: true }) },
-      after: { record_type: def.type, field, ...(empty ? { defaults: true } : { blocked: next.blocked, required: next.required, who: next.who }) },
+      after: { record_type: def.type, field, ...(empty ? { defaults: true } : { blocked: next.blocked, required: next.required, who: next.who, approvals: next.approvals }) },
     });
     return detail(req, def);
   });
   ctx.describeRoute({
     method: 'PUT', path: '/api/admin/lifecycles/:type', tag: TAG, permission: ADMIN,
     summary: 'Replace the lifecycle rules of one record type (audited)',
-    body: '{ blocked: [[from, to]], required: { [status]: [field] }, who: { [status]: { permission: string | null, roles: [role key] } } }',
+    body: '{ blocked: [[from, to]], required: { [status]: [field] }, who: { [status]: { permission: string | null, roles: [role key] } }, approvals?: [[from, to, workflow id]] }',
     response: 'The same as GET /api/admin/lifecycles/:type',
     description: 'Every status must be a value of the type\'s status list (from may also be `""`, a new record); fields must be ones a person fills in; roles must exist. Rules with nothing in them are the defaults. 409 `set_by_application` for a type whose status only the application sets. 400 `validation` otherwise.',
   });

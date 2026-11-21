@@ -10,8 +10,9 @@ Sandpiper GRC runs in a container, or from source on Windows, macOS or Linux. Pi
 | [Linux](#linux) | A workstation or a server | x64 or arm64, glibc (not Alpine) |
 
 Then: [first sign-in](#first-sign-in), [sample data](#sample-data), [the organization
-profile](#the-organization-profile) and the [environment variables](#environment-variables).
-To serve a team, read [Server installation](#server-installation) too.
+profile](#the-organization-profile), the [environment variables](#environment-variables) and
+[what to set before a pilot](#settings-that-must-be-yours-before-a-pilot). To serve a team,
+read [Server installation](#server-installation) too.
 
 This is a **prototype**: read [Security](security.md) and [Known gaps](known-gaps.md) before
 holding real data in it. The running application makes no outbound connections until an
@@ -197,9 +198,28 @@ and no default password.
 - Password: at least 14 characters, not on the built-in list of common passwords, and not
   containing the username.
 
-The wizard works once. After that, administrators add users under Administration. A new
-user gets a one-time setup link (valid for 24 hours), which the administrator passes on.
-A new installation asks everyone to set up a second factor.
+The wizard works once. Its last choice is the second factor: by default it is **required**
+for the roles that carry "Members must use a second factor" (Administrator and Security lead
+to begin with), and you are taken straight to setting up your own. **Only remind people for
+now** leaves it as a reminder; switch it to Required before real records go in.
+
+After the wizard, everything else is done in the application. The
+[Administration](user/09-administration.md) page of the user guide has the detail:
+
+- **Users**: Administration > Users. A new user gets a one-time setup link (valid for 24
+  hours), emailed when outgoing email is set up, otherwise passed on by the administrator
+  ([Users](user/09-administration.md#users)).
+- **Roles**: the roles supplied, what each may do, and roles of your own
+  ([Roles and permissions](user/09-administration.md#roles-and-permissions)).
+- **Second factor**: who must use one, Off, Reminder or Required, and a grace period
+  ([Second factor](user/09-administration.md#second-factor)). Single sign-on and the
+  break-glass account are under [Sign-in providers](user/09-administration.md#sign-in-providers-single-sign-on).
+- **Lists**: the values of every status, category and other drop-down
+  ([Lists](user/09-administration.md#lists)).
+- **Organization and settings**: names, contacts, logo and colors
+  ([Organization](user/09-administration.md#organization)); sessions, passwords, outbound
+  connections, retention and files ([Settings](user/09-administration.md#settings)); which
+  parts of the application are switched on ([Features](user/09-administration.md#features)).
 
 <a id="5-load-data"></a>
 
@@ -262,7 +282,7 @@ has changed, and you may leave them out and enter everything in the application 
 | Field | Purpose | Behavior |
 |---|---|---|
 | `appName` | The name shown in the application | Applied only if no name has been set yet. Change it later under Administration > Organization |
-| `name`, `legalName`, `shortName` | The organization's names | Each applied only if not set yet; afterwards they live in the application (Administration > Organization) |
+| `name`, `legalName`, `shortName` | The organization's names | Each applied only if not set yet; afterward they live in the application (Administration > Organization) |
 | `address` | `{ "street": [up to three lines], "city", "region", "postalCode", "country" }`, all optional | As above |
 | `phone`, `email`, `website` | General contacts | As above. Checked as in the application; a value that is not allowed is skipped and named in the output |
 | `securityContact` | `{ "phone", "email" }`, printed in the offline incident kit | As above |
@@ -284,15 +304,18 @@ Each notification rule has:
 | `guidance` | Free text shown with the task |
 
 A rule is added only when no rule with the same `key` exists; an existing rule is left
-exactly as it is. The application ships five starter rules, all inactive and without
+exactly as it is. The application ships seven starter rules, all inactive and without
 deadlines, with the keys `national_cyber_agency`, `data_protection_regulator`,
-`data_sharing_partners`, `insurer` and `affected_individuals`. **A profile rule that reuses
-one of those keys is skipped.** Either give your rules different keys, or edit the starter
+`data_sharing_partners`, `insurer`, `affected_individuals`, `transport_oversight` and
+`funding_partners`. **A profile rule that reuses one of those keys is skipped.** Either give your rules different keys, or edit the starter
 rules in the application. An invalid rule makes the security incidents part of the seed
 fail with a message naming the rule.
 
 Deadlines and recipients depend on your law, regulators, contracts and insurer. Set them
-yourself, with legal advice.
+yourself, with legal advice. The example file shows the three shapes a rule can take: an
+active rule with a deadline (`example_cyber_agency`, 72 hours), one that applies at once to
+one kind of data (`example_card_acquirer`, `hours: 0`), and an inactive placeholder still
+waiting for its deadline (`example_cyber_insurer`).
 
 ### Optional import files
 
@@ -310,6 +333,8 @@ lines are ignored.
 | `csf_subcategory_designations.csv` | `,` | Which framework outcomes exist, and which are priorities | An identifier column named `id` (or `identifier` or `subcategory`) and a rating column named `focus_area_ratings` (or `designation` or `rating`) |
 | `csf_target_profile.psv` | `\|` | Target profile for the outcomes, and a "Baseline" snapshot | `ID\|Outcome\|Evidence\|Target\|FirstAction\|AlsoSatisfies\|Phase\|Status` |
 | `information_requests.psv` | `\|` | Actions with the source "information request" | `ID\|Dept\|Item\|Why\|Feeds\|Form\|Priority\|IfNone` |
+| `vehicles.psv` | `\|` | Vehicles | `Fleet number\|Mode\|Status\|Make\|Model\|Model year\|Registration\|Depot\|In service since\|Capacity\|Funding source\|Funder interest (%)\|Notes` |
+| `services.psv` | `\|` | Services (routes and lines) and the systems each depends on | `Route\|Name\|Mode\|Service type\|Status\|Depot\|Description\|Systems\|Notes` |
 
 Notes on each file:
 
@@ -337,6 +362,26 @@ Notes on each file:
 - **`information_requests.psv`**: `ID` and `Item` are required. `Priority` is used when it
   matches a value in the action priority list, otherwise `medium`. A row whose `ID` was
   loaded before is skipped.
+- **`vehicles.psv`**: `Fleet number` and `Mode` are required. Rows are matched by fleet
+  number (ignoring case), so a second run updates rather than duplicates, and an empty cell
+  never clears a value already there. `Mode`, `Status` and `Funding source` must match a
+  value or label of their list (for example `Bus` or `light_rail`, `In service`, `Grant`);
+  a row with an unknown one is skipped. `Model year` is four digits, `In service since` a
+  date such as `2019-03-01`, `Capacity` a number, and `Funder interest (%)` a number from 0
+  to 100 (above 0 also sets the funder-interest flag). `Depot` is the name of a site, from
+  `sites.psv` or already in the application; a depot that is not found is left empty and
+  named in the output.
+- **`services.psv`**: `Route` and `Name` are required, and rows are matched by `Route`.
+  `Mode`, `Service type` and `Status` must match a value or label of their list (for
+  example `Fixed route`, `Express`, `Running`). `Systems` names the systems the service
+  depends on, separated by semicolons, each optionally followed by what for in brackets:
+  `Example Dispatch (CAD/AVL); Example Fares (Fare collection)`. Without brackets the
+  dependency is recorded as **Other**. A system or depot that is not found is named in the
+  output and left out.
+- `vehicles.psv` and `services.psv` find depots and systems by name, so the inventory files
+  (`sites.psv`, `systems.psv`) in the same folder are loaded first. A row that cannot be
+  loaded is skipped and named in the output with its line number; the other rows are
+  still loaded.
 
 The seed prints one line per module. A line starting `seed <module>: FAILED` means that
 module's data was not fully loaded; fix the file and run the command again. In a container,
@@ -404,6 +449,10 @@ rest). `.\grc.ps1 schedule-backup` writes the values in force into its scheduled
 | `GRC_ANALYZE_AFTER_WRITES` | `2000` | Embedded database only: refresh the query planner's statistics after this many writes (at most every ten minutes); `0` switches it off |
 | `GRC_SERVICE_NAME` | `sandpiper-grc` | Name of the user service `./grc.sh service install` writes |
 
+Two more are read by the MCP bridge (`tools/mcp-stdio.mjs`), not the server: `GRC_URL` and
+`GRC_TOKEN` ([MCP](mcp.md)). `GRC_TEST_DATABASE` and `GRC_TEST_DATABASE_URL` are for the test
+suite only ([Developer guide](development.md)).
+
 Limits to know about:
 
 - `dev` proxies the web development server to port 8080, so leave `GRC_PORT` at its default
@@ -424,6 +473,31 @@ Limits to know about:
 | `backups/` | Backups, safety copies made by `restore`, exports, copies of the code for `upgrade`, and the scheduled backup log | No |
 
 ## Before you rely on it
+
+### Settings that must be yours before a pilot
+
+The application ships with neutral starting values, not your organization's. Before a pilot
+holds real records, an administrator must set at least these, because no built-in value can
+be right for you:
+
+- **Incident notification rules.** Every starter rule is inactive and has no deadline, so
+  a security incident creates **no** notification tasks until you set them. Decide, with
+  legal advice, who must be told and within how many hours under your law, contracts and
+  insurance, then edit and switch on the rules under **Cybersecurity > Rules and
+  checklists** ([Notification rules](user/07-security-incidents.md#notification-rules-checklists-and-contacts)),
+  or load them from the [organization profile](#seedorganizationjson).
+- **Service-level targets.** The service desk's respond and resolve targets, business hours
+  and holidays are generic examples. Set yours under the service desk settings
+  ([Service-level targets](user/02-service-desk.md#service-level-targets)).
+- **Risk scales.** The two supplied scales (a 5 by 5 grid and a safety hazard matrix), their
+  level meanings and the rating that needs executive approval must match your risk
+  management policy. Edit them under **Administration > Risk scales** before risks are
+  scored ([Editing the risk scales](user/06-risks-actions-obligations.md#editing-the-risk-scales)).
+
+Also decide the time zone (`GRC_TIMEZONE`, [above](#environment-variables)) and set the
+second factor to **Required** ([First sign-in](#first-sign-in)).
+
+### Backups and the key
 
 Once the application holds anything you would not want to lose:
 

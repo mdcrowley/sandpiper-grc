@@ -4,7 +4,7 @@ import { inTrial, type Db } from './db.ts';
 import { fail, UUID_RE } from './errors.ts';
 import type { CreateOptions, FieldDef, ResourceDef, ResourceRegistry, Row, SessionUser } from './module.ts';
 import { CUSTOM_PREFIX, customFieldDef, customName, type CustomField, type CustomFields } from './customfields.ts';
-import { makeLifecycles, type Lifecycles } from './lifecycle.ts';
+import { makeLifecycles, type HeldMove, type Lifecycles } from './lifecycle.ts';
 import { BODY_SEPARATOR, ensureCommentSearch, ensureSearchIndex, maySchemaChange, parseSearch, requestSchemaChange, schemaChangeDone, substringColumns } from './search.ts';
 import { can, type makeAudit, type makeLookups } from './services.ts';
 // Spreadsheet and PDF exports, record fact sheets and the generic import (core/export, core/import).
@@ -399,6 +399,10 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
     const existing = (await find(type, id, req?.user)) ?? fail(404, 'not_found', `${def.label} not found.`);
     let patch = await validate(def, input, 'update', !req);
     await checkLifecycle(def, existing, patch, req);
+    // A move that waits for an approval workflow (E14-37): the rest is saved, the status stays, and
+    // the workflow starts; its approval makes the move later.
+    const held = await lifecycles.held(def, existing, patch, req);
+    if (held) delete patch[held.field];
     const customValues = takeCustom(patch);
     if (def.hooks?.beforeUpdate) patch = await def.hooks.beforeUpdate(req, existing, patch);
     if (def.restrictedFrom && (def.restrictedFrom.typeField in patch || def.restrictedFrom.idField in patch)) {
@@ -431,7 +435,10 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
       }
       if (changed) set.custom = stored;
     }
-    if (!Object.keys(after).length) return existing;
+    if (!Object.keys(after).length) {
+      if (held) return holdMove(def, existing, held, req!);
+      return existing;
+    }
     const { cols, marks, params } = sqlValues(set, 3);
     const row = (await db.one<Row>(
       `update ${def.table} set ${cols.map((c, i) => `${c} = ${marks[i]}`).join(', ')},
@@ -446,9 +453,22 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
     if (def.restricted === 'flag' && 'restricted' in after) await propagateRestriction(type, id, row.restricted === true);
     await def.hooks?.afterUpdate?.(req, existing, row);
     await emit({ action: 'update', def, row, before, after, req });
+    if (held) return holdMove(def, row, held, req!);
     return row;
   }
 
+
+  /**
+   * Starts the approval a held move waits for (E14-37) and answers the record as it now is: with
+   * `_pending_move` while the move waits, or with the new status when the workflow approved at once
+   * (every step skipped for this record).
+   */
+  async function holdMove(def: ResourceDef, row: Row, move: HeldMove, req: FastifyRequest): Promise<Row> {
+    await lifecycles.hold(def, row, move, req);
+    const now = (await find(def.type, row.id)) ?? row;
+    if (now[move.field] === move.to) return now;
+    return { ...now, _pending_move: { field: move.field, from: move.from, to: move.to } };
+  }
   const normalize = (v: unknown) => (v instanceof Date ? v.toISOString() : v ?? null);
   const labelOf = (def: ResourceDef, row: Row) =>
     [def.ref && row[def.ref.field], row[def.titleField]].filter(Boolean).join(' ') || row.id;

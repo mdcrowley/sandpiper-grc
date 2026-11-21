@@ -24,7 +24,7 @@ Every project starts as a one-page request.
 
 1. Open **Projects > New project request**, select **New project request** on the portfolio, or choose **Project request** from the **Create** menu.
 2. Enter a **Name**.
-3. In **What is needed and why**, describe the problem. In **Expected benefits**, say what will be better afterwards.
+3. In **What is needed and why**, describe the problem. In **Expected benefits**, say what will be better afterward.
 4. Enter the **Sponsor** and **Department**.
 5. Enter a rough **Budget**, choose the **Funding source** (**Operating budget**, **Capital budget**, **Grant or outside funder** or **Other**; leave it as **Not known yet** if you do not know) and enter a **Target date**.
 6. Under **Does it touch any of these?**, check any that apply: **Touches payment**, **Touches personal data**, **Touches operational systems**.
@@ -137,7 +137,7 @@ A gate template may name an **approval workflow** (see **Project settings** belo
 
 1. Select **Ask for approval**. The workflow starts, and its approvers are told (in the application and by email, as their notification settings say). They find it on their **Approvals** page.
 2. While it runs, the box says "Waiting for approval", and the **approval panel** at the top of the project page shows the workflow's steps, who it is waiting for, its due time and every decision. Approvers decide there, or from the **Approvals** page.
-3. When the workflow approves, the approval is recorded as a gate decision, exactly as **Record decision** would: the approver's name (for a stand-in, "Stand-in name on behalf of approver name"), today's date and the reference "Approval workflow" followed by the workflow's name. The gate closes and the project moves to the next stage. If something blocks the gate again by then (for example a checklist item was unticked, or the project was put on hold), nothing changes and the workflow shows that its outcome could not be recorded; deal with the blocker and ask again.
+3. When the workflow approves, the approval is recorded as a gate decision, exactly as **Record decision** would: the approver's name (for a stand-in, "Stand-in name on behalf of approver name"), today's date and the reference "Approval workflow" followed by the workflow's name. The gate closes and the project moves to the next stage. If something blocks the gate again by then (for example a checklist item was cleared, or the project was put on hold), nothing changes and the workflow shows that its outcome could not be recorded; deal with the blocker and ask again.
 4. When the workflow is rejected, a **Rejected** decision is recorded with the approver's reason and the gate stays open. You can ask again once the reason has been dealt with.
 
 You cannot approve a request you asked for yourself. The person who asked, or an administrator, can cancel the request from the approval panel. Recording a decision by hand (below) while a request is waiting settles the gate and stops the request.
@@ -361,6 +361,6 @@ Loading sample data adds seven invented projects whose names start with **[Sampl
 
 ## Not available yet
 
-- Approvals are recorded by hand. The application does not collect sign-off from the approvers.
+- A gate collects sign-off in the application only when its template names an approval workflow (see [Asking for approval through a workflow](#asking-for-approval-through-a-workflow)). The **Approvers** list of each tier is guidance: the application does not check a decision recorded by hand against it.
 - Gates cannot be added or removed, and the stages they sit between cannot be changed, on screen.
 - Moving a project back goes one stage at a time.

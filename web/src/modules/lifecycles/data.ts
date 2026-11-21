@@ -7,6 +7,8 @@ export interface TypeSummary {
   type: string; label: string; plural: string; field: string; fieldLabel: string; list: string;
   managed: boolean; hasNotes: boolean; customized: boolean;
   statuses: number; blocked: number; required: number; limited: number; newStatuses: number;
+  /** Moves that wait for an approval workflow (E14-37). */
+  approvals?: number;
 }
 
 export interface Who { permission: string | null; roles: string[] }
@@ -16,6 +18,8 @@ export interface Rules {
   blocked: [string, string][];
   required: Record<string, string[]>;
   who: Record<string, Who>;
+  /** Moves that wait for an approval workflow before the record takes the new status (E14-37): [from, to, workflow id]. */
+  approvals: [string, string, string][];
 }
 
 export interface Detail {
@@ -28,6 +32,8 @@ export interface Detail {
   fields: { name: string; label: string; custom: boolean }[];
   roles: { key: string; name: string; enabled: boolean }[];
   permissions: { value: string; label: string }[];
+  /** Approval workflows of the type a move may wait for; null when approval workflows are not available. */
+  workflows?: { id: string; name: string; active: boolean }[] | null;
 }
 
 /** For each status (and a new record, ''), the statuses it may change to, in list order. */

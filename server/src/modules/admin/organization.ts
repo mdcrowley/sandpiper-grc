@@ -4,8 +4,8 @@
 // their own because they are files. Every change is audited.
 import { deriveBrandColors } from '../../core/branding-colors.ts';
 import {
-  checkLogo, decodeUpload, LOGO_MAX_BYTES, LOGO_MAX_PIXELS, LOGO_MIN_PIXELS, LOGO_VARIANTS, logoMeta, ORGANIZATION_KEYS,
-  publicBranding, saveLogo, type LogoVariant,
+  checkLogo, checkPrintCopy, decodeUpload, LOGO_MAX_BYTES, LOGO_MAX_PIXELS, LOGO_MIN_PIXELS, LOGO_VARIANTS, logoMeta,
+  MAIL_LOGO_MAX_BYTES, ORGANIZATION_KEYS, PRINT_COPY_MAX_BYTES, publicBranding, saveLogo, savePrintCopy, type LogoVariant, type PrintCopyMeta,
 } from '../../core/organization.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { adminRoute, body, invalid } from './shared.ts';
@@ -25,7 +25,10 @@ export function registerOrganization(ctx: ModuleContext) {
     return {
       values,
       logos: { light, dark },
-      limits: { maxBytes: LOGO_MAX_BYTES, maxPixels: LOGO_MAX_PIXELS, minPixels: LOGO_MIN_PIXELS, types: ['image/png', 'image/jpeg', 'image/webp'] },
+      limits: {
+        maxBytes: LOGO_MAX_BYTES, maxPixels: LOGO_MAX_PIXELS, minPixels: LOGO_MIN_PIXELS, types: ['image/png', 'image/jpeg', 'image/webp'],
+        printMaxBytes: PRINT_COPY_MAX_BYTES, mailMaxBytes: MAIL_LOGO_MAX_BYTES,
+      },
       colors: deriveBrandColors(values['branding.primary_color'] as string, values['branding.accent_color'] as string),
       branding: await publicBranding(ctx.db),
     };
@@ -52,7 +55,29 @@ export function registerOrganization(ctx: ModuleContext) {
     if (!data) invalid({ data: 'Choose a PNG, JPEG or WebP picture.' });
     const meta = checkLogo(data!, typeof b.filename === 'string' ? b.filename : '');
     if (typeof meta === 'string') invalid({ data: meta });
-    await saveLogo(ctx.db, ctx.audit, req, variant, { meta: meta as Exclude<typeof meta, string>, data: data! });
+    const logo = meta as Exclude<typeof meta, string>;
+    // A WebP logo may come with the PNG copy the browser made of it, for PDFs and emails (E14-36).
+    let print: { meta: PrintCopyMeta; data: Buffer } | null = null;
+    if (logo.type === 'image/webp' && b.print) {
+      const copy = decodeUpload(b.print);
+      const copyMeta = copy ? checkPrintCopy(copy, logo) : 'The printable copy could not be read.';
+      if (typeof copyMeta === 'string') invalid({ data: copyMeta });
+      print = { meta: copyMeta as PrintCopyMeta, data: copy! };
+    }
+    await saveLogo(ctx.db, ctx.audit, req, variant, { meta: logo, data: data!, print });
+    return read();
+  });
+
+  // The PNG copy of a WebP logo uploaded earlier (or imported from the organization profile), made by the browser.
+  adminRoute(ctx, 'POST', '/api/admin/organization/logo/:variant/print', async (req) => {
+    const variant = variantOf(req);
+    const logo = await logoMeta(ctx.db, variant);
+    if (!logo) ctx.fail(404, 'not_found', 'No logo has been uploaded.');
+    if (logo!.type !== 'image/webp') invalid({ data: 'Only a WebP logo needs a printable copy.' });
+    const copy = decodeUpload(body(req).data);
+    const copyMeta = copy ? checkPrintCopy(copy, logo!) : 'The printable copy could not be read.';
+    if (typeof copyMeta === 'string') invalid({ data: copyMeta });
+    await savePrintCopy(ctx.db, ctx.audit, req, variant, { meta: copyMeta as PrintCopyMeta, data: copy! });
     return read();
   });
 

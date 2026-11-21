@@ -6,6 +6,7 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { UUID_RE } from '../../core/errors.ts';
 import { ensureJobs } from '../../core/jobs/index.ts';
+import { printBranding, publicBranding } from '../../core/organization.ts';
 import type { ModuleDef, Row, SessionUser } from '../../core/module.ts';
 import { catalog } from './catalog.ts';
 import { makeDocuments, type Allow, type BuiltDocument } from './documents.ts';
@@ -245,7 +246,10 @@ const mod: ModuleDef = {
         const sec = await documents.reportSection(req.user!, report, s.title);
         sections.push({ kind: 'report', reportId: s.reportId, title: sec.title, description: sec.description ?? null, note: sec.note ?? null, result: sec.result ?? null, chart: report?.chart ?? null });
       }
-      return { pack: { id: pack.id, name: pack.name, cover_title: pack.cover_title, cover_subtitle: pack.cover_subtitle, description: pack.description }, sections, generatedAt: new Date().toISOString(), preparedFor: req.user!.displayName };
+      // The organization as the printed pack shows it (E14-36): name, logo, brand color, address and contacts.
+      const print = await printBranding(db);
+      const organization = { name: print.name, lines: print.lines, color: print.color, logo: (await publicBranding(db)).logo.light };
+      return { pack: { id: pack.id, name: pack.name, cover_title: pack.cover_title, cover_subtitle: pack.cover_subtitle, description: pack.description }, sections, generatedAt: new Date().toISOString(), preparedFor: req.user!.displayName, organization };
     });
 
     /** Freezes the pack as a dated document that can be opened again later. */

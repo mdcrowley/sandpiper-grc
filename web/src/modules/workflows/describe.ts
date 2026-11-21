@@ -1,6 +1,6 @@
 // Plain-English descriptions of a workflow's parts, for the flow picture and the list of workflows.
 import { formatCurrency, formatDate, formatNumber } from '../../core';
-import { hoursText, OP_LABELS, quorumText, type ApproverSpec, type Condition, type Definition, type FieldSet, type OptionField, type Options, type StepDef } from './data';
+import { hoursText, OP_LABELS, quorumText, type ApproverSpec, type Condition, type Definition, type FieldSet, type OptionField, type Options, type ApprovalUnit, type Route, type StepDef, END } from './data';
 
 export interface Labels {
   field(name: string): OptionField | undefined;
@@ -43,7 +43,8 @@ export function conditionText(c: Condition, l: Labels): string {
 
 export const conditionsText = (cs: Condition[], l: Labels) => cs.map((c) => conditionText(c, l)).join(' and ');
 
-export function approverText(a: ApproverSpec, l: Labels): string {
+export function approverText(a: ApproverSpec | undefined, l: Labels): string {
+  if (!a) return '';
   switch (a.kind) {
     case 'users': return a.users.length ? a.users.map(l.person).join(', ') : 'Nobody chosen yet';
     case 'role': return a.role ? `Everyone with the role ${l.role(a.role)}` : 'A role (not chosen yet)';
@@ -57,13 +58,14 @@ export function approverText(a: ApproverSpec, l: Labels): string {
   }
 }
 
-export function stepQuorumText(s: StepDef): string {
+export function stepQuorumText(s: ApprovalUnit): string {
+  if (!s.approvers) return '';
   if (s.approvers.kind === 'users') return quorumText(s.quorum, s.approvers.users.length);
   if (s.approvers.kind === 'role' || s.approvers.kind === 'people' || s.approvers.kind === 'permission') return quorumText(s.quorum);
   return 'They approve';
 }
 
-export function dueText(s: StepDef, l: Labels): string | null {
+export function dueText(s: ApprovalUnit, l: Labels): string | null {
   if (!s.due_hours) return null;
   const who = s.escalate_to ? [...s.escalate_to.users.map(l.person), ...(s.escalate_to.role ? [`the ${l.role(s.escalate_to.role)} role`] : [])] : [];
   return `Due within ${hoursText(s.due_hours)}${who.length ? `, then escalates to ${who.join(', ')}` : ', then approvers are reminded'}`;
@@ -79,4 +81,10 @@ export function triggerText(d: Definition, l: Labels): string {
     : 'When a field changes to a value';
   if (d.trigger === 'module') return d.kind_starts_when ?? `When its module asks for it${d.kind_label ? ` (${d.kind_label.toLowerCase()})` : ''}`;
   return 'When someone asks for approval';
+}
+
+/** "If cost is more than $10,000, go to Director" for a route after a step (E14-32). */
+export function routeText(r: Route, steps: StepDef[], l: Labels): string {
+  const target = r.to === END ? 'finish (approved)' : `go to "${steps.find((s) => s.key === r.to)?.name || 'a later step'}"`;
+  return r.conditions.length ? `If ${conditionsText(r.conditions, l)}, ${target}` : `Then ${target}`;
 }

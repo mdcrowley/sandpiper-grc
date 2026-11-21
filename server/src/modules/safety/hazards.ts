@@ -4,16 +4,24 @@ import { makeScales, type Scale } from '../risks/scales.ts';
 /**
  * The hazard log. Hazards are scored on the safety hazard matrix (`hazard_4x5`) that the risks
  * module keeps: this module reads that scale through the risks module's own scale code and
- * never keeps a copy, so an administrator's edit to the matrix applies here too.
+ * never keeps a copy, so an administrator's edit to the matrix applies here too. The matrix stays in
+ * use while the risks area is switched off (Administration > Features), and can then be changed from
+ * the Safety side (`PATCH /api/safety/scale`, Administration > Hazard matrix): E20-15.
  */
 
 export const HAZARD_SCALE = 'hazard_4x5';
 
 export function hazardScale(ctx: ModuleContext) {
   const scales = makeScales(ctx);
+  /**
+   * Whether the risks module, which keeps the matrix, is installed. Its record types leave the
+   * registry while its area is switched off, but its tables and the matrix are still there.
+   */
+  const installed = () => Boolean(ctx.resources.get('risk'))
+    || (ctx.app.hasDecorator('switchedOffTypes') && ctx.app.switchedOffTypes().includes('risk'));
   /** The hazard matrix, or undefined when the risks module (which owns it) is not loaded. */
   async function get(): Promise<Scale | undefined> {
-    if (!ctx.resources.get('risk')) return undefined;
+    if (!installed()) return undefined;
     return scales.get(HAZARD_SCALE);
   }
   /** Rating and sortable score for a likelihood/severity pair. */
@@ -23,7 +31,7 @@ export function hazardScale(ctx: ModuleContext) {
     const s = scales.score(scale, await scales.summaryLevels(), likelihood, severity);
     return { rating: s.rating, score: s.score };
   }
-  return { get, rate };
+  return { get, rate, scales };
 }
 
 export function registerHazards(ctx: ModuleContext) {
@@ -92,4 +100,64 @@ export function registerHazards(ctx: ModuleContext) {
   ctx.app.get('/api/safety/scale', { preHandler: ctx.requirePerm('safety.view') }, async () =>
     (await scale.get()) ?? ctx.fail(404, 'scale_missing', 'The safety hazard matrix is kept by the risks module, which is not loaded.'));
   ctx.describeRoute({ method: 'GET', path: '/api/safety/scale', summary: 'The safety hazard matrix hazards are scored on (read from the risks module)', permission: 'safety.view' });
+
+  /**
+   * Changes the hazard matrix from the Safety side (E20-15), so that it can be kept up to date while
+   * the risks area is switched off. Only what concerns hazards: the labels and meanings of the levels
+   * (their values stay, so no score loses its meaning) and the rating of each cell. The rest of the
+   * scale (its name, ratings and approval threshold) is edited with the risk scales. Saving re-rates
+   * every hazard and every risk on the matrix, so stored ratings always follow it.
+   */
+  ctx.app.patch('/api/safety/scale', { preHandler: ctx.requirePerm('safety.administer') }, async (req) => {
+    const existing = (await scale.get()) ?? ctx.fail(404, 'scale_missing', 'The safety hazard matrix is not available on this installation.');
+    const body = (req.body ?? {}) as Row;
+    const next: Row = { ...existing };
+    const fields: Record<string, string> = {};
+    for (const [name, label] of [['likelihood_levels', 'likelihood'], ['impact_levels', 'severity']] as const) {
+      if (body[name] === undefined) continue;
+      const given = body[name];
+      const same = Array.isArray(given) && given.length === existing[name].length
+        && existing[name].every((l) => given.some((g: Row) => Number(g?.value) === l.value));
+      if (!same) { fields[name] = `Keep the same ${label} levels: only their names and meanings can be changed here.`; continue; }
+      next[name] = existing[name].map((l) => {
+        const g = given.find((x: Row) => Number(x.value) === l.value) as Row;
+        const { description: kept, ...level } = l;
+        const description = typeof g.description === 'string' ? g.description.trim().slice(0, 500) : kept;
+        return { ...level, label: String(g.label ?? '').trim().slice(0, 80), ...(description ? { description } : {}) };
+      });
+    }
+    if (body.matrix !== undefined) next.matrix = body.matrix;
+    for (const k of Object.keys(body)) {
+      if (!['likelihood_levels', 'impact_levels', 'matrix'].includes(k)) fields[k] = 'This cannot be changed here.';
+    }
+    if (Object.keys(fields).length) invalid(fields);
+    await scale.scales.validate(next, false);
+    await scale.scales.save(next, false, req.user!.id);
+    const saved = (await scale.get())!;
+    // Stored ratings follow the matrix: the hazards, and the risks scored on it (kept while their area is off).
+    const levels = await scale.scales.summaryLevels();
+    let hazards = 0;
+    for (const h of await ctx.db.query<Row>('select id, likelihood, severity, rating, score, residual_likelihood, residual_severity, residual_rating, residual_score from hazards where deleted_at is null')) {
+      const now = scale.scales.score(saved, levels, h.likelihood, h.severity);
+      const after = scale.scales.score(saved, levels, h.residual_likelihood, h.residual_severity);
+      if (now.rating === h.rating && now.score === h.score && after.rating === h.residual_rating && after.score === h.residual_score) continue;
+      await ctx.db.query('update hazards set rating = $2, score = $3, residual_rating = $4, residual_score = $5 where id = $1',
+        [h.id, now.rating, now.score, after.rating, after.score]);
+      if (now.rating !== h.rating || after.rating !== h.residual_rating) hazards += 1;
+    }
+    await scale.scales.rescore(HAZARD_SCALE);
+    await ctx.audit(req, {
+      action: 'risk_scale.update', recordType: 'risk_scale', recordId: HAZARD_SCALE,
+      summary: `Hazard matrix changed from Safety: ${saved.name} (${hazards} hazards re-rated)`,
+      before: { likelihood_levels: existing.likelihood_levels, impact_levels: existing.impact_levels, matrix: existing.matrix },
+      after: { likelihood_levels: saved.likelihood_levels, impact_levels: saved.impact_levels, matrix: saved.matrix },
+    });
+    return { scale: saved, rerated: hazards };
+  });
+  ctx.describeRoute({
+    method: 'PATCH', path: '/api/safety/scale', permission: 'safety.administer',
+    summary: 'Change the hazard matrix: level names and meanings, and the rating of each cell (re-rates hazards)',
+    body: '{ likelihood_levels?: [{ value, label, description? }], impact_levels?: [{ value, label, description? }], matrix?: { [likelihood]: { [severity]: rating } } }',
+    response: '{ scale, rerated }',
+  });
 }

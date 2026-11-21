@@ -18,9 +18,15 @@ The application keeps the records an IT team needs for governance, risk and comp
 | Cybersecurity | Policies, acknowledgments and exceptions | [Policies and exceptions](11-policies-and-exceptions.md) |
 | Cybersecurity | Training courses and exercises | [Training and exercises](12-training-and-exercises.md) |
 | Cybersecurity | Vulnerabilities and their fix-by dates | [Vulnerabilities](13-vulnerabilities.md) |
+| Inventory | Vehicles, the services they run and the systems each depends on | [Fleet and services](19-fleet-and-services.md) |
+| Safety | Safety events, the hazard log and safety indicators | [Safety management](20-safety-management.md) |
 | Projects | Project requests, stage gates and status reports | [Projects](08-projects.md) |
+| Reports | Dashboards, reports, report packs and scheduled delivery | [Dashboards and reports](15-dashboards-and-reports.md) |
+| Everywhere | Approvals waiting for you, and the steps they follow | [Approval workflows](22-approval-workflows.md) |
 | Everywhere | Files attached to records, and notifications | [Attachments and notifications](14-attachments-and-notifications.md) |
-| Administration | Users, roles, lists, settings and the audit log | [Administration](09-administration.md) |
+| Everywhere | Exporting lists and importing records | [Importing and exporting](17-importing-and-exporting.md) |
+| All staff | Reporting problems and asking for things without the IT screens | [Self-service portal](18-self-service-portal.md) |
+| Administration | Users, roles, sign-in, lists, settings and the audit log | [Administration](09-administration.md) |
 
 Every change to a record is kept in an audit trail, so you can always see who changed what and when.
 
@@ -55,6 +61,17 @@ After five failed attempts in a row the account is locked for a short time: one 
 
 You are signed out automatically after 8 hours, or sooner if you leave the application idle (30 minutes unless your administrator has changed it).
 
+### Other ways to sign in
+
+Depending on how your administrator has set things up, the sign-in page may also offer:
+
+- **Sign in with …** buttons for your organization's single sign-on. Select one, sign in at your organization, and you come back signed in. See [My account: the Account security page](09-administration.md#my-account-the-account-security-page).
+- A **Sign in with** choice above **Username**: your organization's directory (use the user name and password you use for your computer) or **Password for this application**.
+- **Sign in with a passkey**, if you have added one. See [Passkeys and security keys](16-passkeys-and-security-keys.md).
+- **Forgot your password?**, when the application sends email.
+
+When passwords are switched off for everyone, the password form is folded away under **Emergency access with a password**. It is for the break-glass account only.
+
 ### Password rules
 
 - At least 14 characters, unless your administrator has set a different length. A phrase of several words works well.
@@ -82,9 +99,11 @@ If you are expected to use a second factor and have not set one up, what happens
 
 1. Select **Set it up now** in the notice, or select your name at the top right and then **Account security**. The **Account security** page opens.
 2. Select **Set up an authenticator app**.
-3. In your authenticator app, choose to add an account and enter the setup key shown on the page by hand. Use **Copy key** if that is easier. If your app accepts a setup address instead, copy that.
-4. Type the code your app now shows into **Enter the 6-digit code your app now shows** and select **Turn on**.
-5. The page shows **Your recovery codes**. Select **Copy codes** or **Print**, store them safely, then select **I have saved them**.
+3. In your authenticator app, choose to add an account and scan the QR code on the page with your phone's camera. If you cannot scan it, type the key shown under **Cannot scan? Type this key into the app instead** (or use **Copy key**). **Show the set-up address** gives the address for apps that accept one.
+4. Under **Enter the code the app now shows**, type the code into **6-digit code** and select **Confirm and turn on**.
+5. The page shows **Your recovery codes**. Select **Copy codes**, **Download as text** or **Print**, store them safely, then select **I have saved them** (it works only after you have copied, downloaded or printed them).
+
+You can also use a passkey or security key as your second factor; see [Passkeys and security keys](16-passkeys-and-security-keys.md).
 
 The **Account security** page also shows when your password was last changed and a list titled **Where you are signed in**, where you can end a session you do not recognize.
 
@@ -108,18 +127,19 @@ The menu on the left is divided into groups. You see only the items your role al
 
 | Group | Items |
 |---|---|
-| (top) | **Overview**, **My actions**, **Notifications** |
+| (top) | **Overview**, **My actions**, **Approvals**, **Notifications**, **Self-service portal** |
 | Service desk | **Tickets**, **Service desk dashboard**, **Service catalog**, **Problems**, **Knowledge base** |
-| Inventory | **Systems**, **Relationship map**, **Assets**, **Disposal approvals**, **Sites**, **Data categories**, **Inventory reports** |
+| Inventory | **Systems**, **Relationship map**, **Assets**, **Disposal approvals**, **Sites**, **Data categories**, **Vehicles**, **Services**, **Equipment coverage**, **What is affected**, **Inventory reports** |
 | Change | **Changes**, **Change calendar**, **New change**, **Change settings** |
 | Vendors | **Vendors**, **Security terms matrix**, **Contracts**, **Renewal calendar**, **Evidence**, **Expiring evidence** |
 | Cybersecurity | **Framework outcomes**, **Assessments**, **Risk register**, **Risk reviews**, **Security incidents**, **Notification deadlines**, **Rules and checklists**, **Offline incident kit**, **Vulnerabilities**, **Vulnerability dashboard**, **Action tracker**, **Obligations**, **Policies**, **Training overview**, **Courses**, **My training**, **My acknowledgments**, **Exercises**, **Exercise calendar**, **Exceptions** |
+| Safety | **Safety dashboard**, **Safety events**, **Hazard log**, **Safety indicators** |
 | Projects | **Project portfolio**, **New project request**, **Project settings** |
 | Reports | **Dashboards**, **Reports**, **Report packs**, **Schedules**, **Risk report**, **Delivered to me**, **Expiring evidence files** |
-| Administration | **Users**, **Roles**, **Lists**, **Organization**, **Settings**, **Custom fields**, **Retention**, **API tokens**, **Webhooks**, **Audit log**, **Risk scales**, **Service desk settings**, **File settings** |
+| Administration | **Users**, **Roles**, **Sign-in providers**, **Lists**, **Organization**, **Settings**, **Features**, **Custom fields**, **Lifecycles**, **Retention**, **API tokens**, **Approval workflows**, **AI assistant access**, **Email**, **Webhooks**, **Reminders**, **Background jobs**, **Audit log**, **Risk scales**, **Service desk settings**, **File settings**, **Backups** |
 | Help | **User guide**, **API reference** |
 
-A few entries are for everyone and have no permission of their own: **Overview**, **Notifications**, **My training**, **My acknowledgments**, **Expiring evidence files** and **User guide**. The settings entries (**Change settings**, **Project settings**, **File settings**) appear only for people who administer that area.
+A few entries are for everyone and have no permission of their own: **Overview**, **Approvals**, **Notifications**, **My training**, **My acknowledgments**, **New project request**, **Delivered to me**, **Expiring evidence files**, **User guide** and **API reference**. The settings entries (**Change settings**, **Project settings**, **File settings**) appear only for people who administer that area. A part of the application an administrator has switched off under **Administration > Features** (for example the self-service portal, which starts off) has no entries at all.
 
 Each group heading is a button: select it to fold that group away or open it again. A folded group shows how many pages it holds, and the application remembers which groups you folded. The page you are on is highlighted, and its group opens by itself when you go there.
 
@@ -133,7 +153,7 @@ With the keyboard, `Tab` reaches the menu; the up and down arrow keys then move 
 
 ### Overview
 
-**Overview** is the home page. Under a greeting with today's date (and the line "Governance, risk and compliance for transit organizations") it has two parts: **My work**, which is about you, and **Dashboard**, which is about the organization. Each part is made of boxes called widgets. You only ever see widgets for areas your role can open.
+**Overview** is the home page. Under a greeting with today's date, a line saying how many items are waiting for you, and the line "Governance, risk and compliance for transit organizations", it has two parts: **My work**, which is about you, and **Dashboard**, which is about the organization. Each part is made of boxes called widgets. You only ever see widgets for areas your role can open.
 
 #### My work
 
@@ -172,6 +192,8 @@ The figures are the same for everyone who can see them. To keep the page quick w
 A chosen home dashboard (see [Dashboards and reports](15-dashboards-and-reports.md)) is shown in the Overview's **Dashboard** part, with a switch back to the Overview's own figures and an **Open in full** link. The Overview stays the page you land on. People whose role only looks (for example Executive viewer or Auditor) see the figures first, then **Where to look** (links to each area they can open), then **For you**.
 
 #### Choosing what the overview shows
+
+**Print** at the top right prints the Overview as it is now, with the date and time it was printed.
 
 1. Select **Customize** at the top right of the page. A panel opens listing every widget you can have, under **My work** and **Dashboard**.
 2. Turn the switch beside a widget off to hide it, or on to show it.
@@ -247,7 +269,7 @@ Short confirmations and errors, such as "Password changed.", appear at the botto
 
 ## How every list works
 
-Tickets, assets, vendors, risks and most other records are shown in lists that all behave the same way. Above the table is a toolbar: the **Search** box and the **Filters** button on the left; the views button, the column chooser, the row-height button and **Export** on the right.
+Tickets, assets, vendors, risks and most other records are shown in lists that all behave the same way. Above the table is a toolbar: the **Search** box and the **Filters** button on the left; the views button, the column chooser, the row-height button, **Import** and **Export** on the right (each only when your role allows it).
 
 The table scrolls inside its own frame. The column headings stay in place while you scroll down, and a wide table scrolls sideways inside the frame rather than moving the whole page.
 
@@ -262,7 +284,7 @@ Select **Filters** to open the filter panel for that list. There are four kinds 
 - **Choice filters** such as **Status**: select one or more values. The list shows records that match any selected value.
 - **Yes or no filters** such as **Major incident**: choose **Any**, **Yes** or **No**.
 - **Person and record filters** such as **Assignee** or **Vendor**: start typing a name and choose from the matches. Under a person filter, **Me** picks yourself in one step.
-- **Date filters**: each has an **after** box and a **before** box. Pick a day from the calendar or type it, for example `18 Nov 2026`.
+- **Date filters**: each has an **after** box and a **before** box. Pick a day from the calendar or type it, for example `Nov 18, 2026` or `11/18/2026`.
 
 The list updates as soon as you change a filter. Select **Done**, or anywhere outside the panel, to close it. The **Filters** button shows how many filters are in use.
 
@@ -315,13 +337,15 @@ Views saved before they were kept with your account were stored in the browser a
 - Select the **Choose columns** button (three upright bars) and clear the columns you do not need. **Reset** brings back the usual columns.
 - Select the **Compact rows** button beside it to fit more rows on the screen. Select it again for the roomier rows.
 
-Both choices, and the number of rows per page, are remembered for you in this browser.
+Both choices, and the number of rows per page, are remembered with your account, so they follow you to another browser.
 
 Long text in a cell is cut short with "…". Rest the pointer on it to read the whole text.
 
-### CSV export
+### Export and import
 
-Select **Export** to download the list as a file that opens in a spreadsheet. The file holds every record that matches your current search and filters (not only the page on screen, up to 50,000 rows) and every field of each record (not only the columns shown). The button appears only if your role allows exporting that kind of record.
+Select **Export** and choose **Excel (XLSX)**, **CSV** or **PDF**. The file holds every record that matches your current search and filters (not only the page on screen, up to 50,000 rows; a PDF prints at most 2,000), in the order on screen, with the columns on screen. The button appears only if your role allows exporting that kind of record.
+
+**Import** (for people who may create that kind of record) fills the list from a CSV or Excel file. See [Importing and exporting](17-importing-and-exporting.md).
 
 ### Paging
 
@@ -339,7 +363,7 @@ If your role allows editing that kind of record, each row starts with a checkbox
 
 Each record is changed separately, exactly as if you had edited it by hand, so every change appears in that record's history under your name. Only some fields can be changed this way: mostly choice fields such as status or priority, and people such as the assignee.
 
-**Export selected** downloads only the checked rows, with the columns currently shown, as a CSV file (if your role allows exporting). **Clear selection** unticks everything.
+**Export selected** downloads only the checked rows, with the columns currently shown, as a CSV file (if your role allows exporting). **Clear selection** clears every check box.
 
 ### Opening and creating records
 
@@ -362,7 +386,7 @@ The search box, filters, column headings and page buttons are all reached with `
 
 ## How every record page works
 
-Opening a record shows its page. The top of the page has the title, the reference (for example `TKT-00042`), colored chips for status and similar values, and buttons for the things you can do to that record. A trail of links above the title takes you back to the list. Under the title a line says when the record was last changed.
+Opening a record shows its page. The top of the page has the title, the reference (for example `TKT-00042`), colored chips for status and similar values, and buttons for the things you can do to that record. **PDF** among those buttons (when your role allows exporting that kind of record) downloads a fact sheet of the record. A trail of links above the title takes you back to the list. Under the title a line says when the record was last changed.
 
 ### Summary and editing
 
@@ -378,7 +402,7 @@ In forms:
 
 - **Choice fields** open a list; a colored dot shows the color used for that value elsewhere. Long lists can be narrowed by typing.
 - **Person and record fields** search as you type. Use the arrow keys and `Enter` to choose, and the cross to clear.
-- **Date fields** take a day from the calendar or typed in, for example `18 Nov 2026` or `18/11/2026`.
+- **Date fields** take a day from the calendar or typed in, for example `Nov 18, 2026`, `11/18/2026` (month first) or `2026-11-18`.
 - **Date and time fields** are in your organization's time zone, which is named under the field.
 
 ### Tabs
@@ -395,7 +419,7 @@ The **Activity** tab shows comments and changes together, newest first. Each ent
 2. Leave **Internal note** selected for a note meant for staff only. Select **Public comment** to mark the comment as visible to the requester as well. Internal notes are shown with an amber edge and a padlock.
 3. Select **Add note** or **Add comment** (or press `Ctrl` and `Enter`).
 
-Comments cannot be edited or removed afterwards.
+Comments cannot be edited or removed afterward.
 
 ### Attachments
 
@@ -448,11 +472,6 @@ The label is there so nobody mistakes a trial installation for the system of rec
 
 ## Not available yet
 
-- Signing in with your organization's single sign-on, or with a passkey. Accounts are local to the application.
-- A separate page for signing in with a recovery code. Type the code into the **6-digit code** box instead.
-- Notifications by email. Notifications are shown in the application only (the bell at the top right).
-- Tags, watchers and custom fields.
-- Deleting a record from its page.
-- Saved views that are shared with other people or kept on the server.
-- Export to spreadsheet formats other than CSV.
-- A self-service portal for people outside the IT team.
+- A separate page for signing in with a recovery code. Type the code into the **6-digit code** box (or the **Recovery code** box) instead.
+- Deleting most kinds of record from their page.
+- Editing or removing a comment once it is added.

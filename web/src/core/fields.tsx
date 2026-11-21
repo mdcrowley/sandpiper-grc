@@ -1,19 +1,14 @@
 // Form controls. All are controlled: `value` + `onChange(value)`. Built on Mantine inputs.
-import { useId, useMemo, type ReactNode } from 'react';
+import { lazy, Suspense, useId, useMemo, type ReactNode } from 'react';
 import {
   Button, Checkbox as MCheckbox, MultiSelect as MMultiSelect, NumberInput, Popover, Select as MSelect, Stack, Switch as MSwitch,
   Text, Textarea, TextInput,
 } from '@mantine/core';
-import { DateInput, DateTimePicker } from '@mantine/dates';
-import { IconCalendar, IconCheck, IconChevronDown, IconClock } from '@tabler/icons-react';
-import dayjs from 'dayjs';
-import customParseFormat from 'dayjs/plugin/customParseFormat';
-import { fromZonedInput, timeZone, toZonedInput } from './format';
+import { IconCheck, IconChevronDown } from '@tabler/icons-react';
 import { fieldShell, type FieldProps } from './fieldShell';
+import { toZonedInput } from './format';
 import { toColorName, useLookup } from './meta';
 import { usePopupHost } from './popups';
-
-dayjs.extend(customParseFormat);
 
 export type { FieldProps } from './fieldShell';
 export { UserPicker, RecordPicker, type PickOption, type PickerProps } from './pickers';
@@ -315,35 +310,22 @@ export interface DateFieldProps extends FieldProps {
   placeholder?: string;
 }
 
-const TYPED_DATE_FORMATS = ['D MMM YYYY', 'D MMMM YYYY', 'YYYY-MM-DD', 'D/M/YYYY', 'D-M-YYYY', 'D.M.YYYY', 'D MMM YY'];
+// The pickers themselves (core/dateFields.tsx) load with the first date field shown, so that the
+// date library is not part of every page. Until they arrive (a moment, once), the field is drawn
+// read-only with the same label and value, so the form does not jump.
+const LazyDate = lazy(() => import('./dateFields').then((m) => ({ default: m.DateFieldImpl })));
+const LazyDateTime = lazy(() => import('./dateFields').then((m) => ({ default: m.DateTimeFieldImpl })));
 
-/** Accepts what people type: "18 Nov 2026", "2026-11-18", "18/11/2026". */
-function parseTypedDate(text: string): string | null {
-  for (const format of TYPED_DATE_FORMATS) {
-    const d = dayjs(text.trim(), format, true);
-    if (d.isValid()) return d.format('YYYY-MM-DD');
-  }
-  return null;
+function DatePlaceholder({ value, placeholder, ...field }: FieldProps & { value: string; placeholder?: string }) {
+  return <TextInput {...fieldShell(field)} value={value} placeholder={placeholder} readOnly aria-busy="true" onChange={() => undefined} />;
 }
 
-export function DateField({ value, onChange, min, max, placeholder = 'Day Month Year', ...field }: DateFieldProps) {
-  const host = usePopupHost();
+export function DateField(props: DateFieldProps) {
+  const { value, onChange: _change, min: _min, max: _max, placeholder = 'Month Day, Year', ...field } = props;
   return (
-    <DateInput
-      {...fieldShell(field)}
-      ref={host.ref}
-      popoverProps={host.popup}
-      value={value ? String(value).slice(0, 10) : null}
-      valueFormat="D MMM YYYY"
-      dateParser={parseTypedDate}
-      placeholder={placeholder}
-      minDate={min || undefined}
-      maxDate={max || undefined}
-      clearable={!field.required}
-      leftSection={<IconCalendar size={16} aria-hidden="true" />}
-      leftSectionPointerEvents="none"
-      onChange={(v) => onChange(v ? String(v).slice(0, 10) : '')}
-    />
+    <Suspense fallback={<DatePlaceholder {...field} value={value ? String(value).slice(0, 10) : ''} placeholder={placeholder} />}>
+      <LazyDate {...props} />
+    </Suspense>
   );
 }
 
@@ -354,26 +336,13 @@ export interface DateTimeFieldProps extends FieldProps {
   placeholder?: string;
 }
 
-/**
- * The picker works on wall-clock strings ("2026-11-18 14:05:00"), never on Date objects, so the
- * browser's own time zone plays no part: `toZonedInput` / `fromZonedInput` do the conversion.
- */
-export function DateTimeField({ value, onChange, hint, placeholder = 'Pick a date and time', ...field }: DateTimeFieldProps) {
-  const host = usePopupHost();
-  const local = toZonedInput(value); // "YYYY-MM-DDTHH:mm" in the organization's zone
+/** Edited as wall-clock time in the organization's time zone (see core/dateFields.tsx). */
+export function DateTimeField(props: DateTimeFieldProps) {
+  const { value, onChange: _change, placeholder = 'Pick a date and time', ...field } = props;
   return (
-    <DateTimePicker
-      {...fieldShell({ ...field, hint: hint ?? `Time zone: ${timeZone().replace(/_/g, ' ')}` })}
-      ref={host.ref}
-      popoverProps={host.popup}
-      value={local ? `${local.replace('T', ' ')}:00` : null}
-      valueFormat="D MMM YYYY, HH:mm"
-      placeholder={placeholder}
-      clearable={!field.required}
-      leftSection={<IconClock size={16} aria-hidden="true" />}
-      leftSectionPointerEvents="none"
-      onChange={(v) => onChange(v ? fromZonedInput(String(v).slice(0, 16).replace(' ', 'T')) : '')}
-    />
+    <Suspense fallback={<DatePlaceholder {...field} value={toZonedInput(value).replace('T', ' ')} placeholder={placeholder} />}>
+      <LazyDateTime {...props} />
+    </Suspense>
   );
 }
 

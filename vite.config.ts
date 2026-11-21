@@ -270,6 +270,38 @@ const analyseGroup = (id: string): string | null => {
   return core ? `core-${core[1]}` : null;
 };
 
+// Libraries in chunks of their own (E18, faster first load). They change far less often than the
+// application, so a browser keeps them across releases, and they download in parallel with the
+// entry script instead of inside it. Each group lists exactly the packages it holds: a catch-all
+// "everything in node_modules" group would pull libraries that only some pages need (Markdown,
+// spreadsheets, charts) into the start of every page.
+//   - vendor-react: React and the router; every page needs them.
+//   - vendor-mantine: the component library under the design system, its positioning, scroll
+//     locking and transition helpers; the shell needs it on every page.
+//   - vendor-dates: the date pickers and their date library, loaded with the first date field.
+//   - vendor-echarts / vendor-zrender: the charting library and its drawing engine, loaded with
+//     the first chart (core/Chart.tsx keeps charts lazy). Two halves, so neither is a 600 kB file.
+// Scripts only: a package's style sheet stays with what imports it (core/mantine.tsx loads them at start).
+// A group takes the packages it names and, before any lower-priority group, what they import.
+const pkgs = (...names: string[]) => new RegExp(`node_modules[\\\\/](${names.map((n) => n.replace(/[/]/g, '[\\\\/]')).join('|')})[\\\\/](?!.*\\.css$)`);
+const VENDOR_GROUPS = [
+  { name: 'vendor-react', test: pkgs('react', 'react-dom', 'react-router', 'react-router-dom', 'scheduler'), priority: 30 },
+  {
+    name: 'vendor-mantine',
+    test: pkgs(
+      '@mantine/core', '@mantine/hooks', '@mantine/notifications', '@mantine/store', '@floating-ui', 'react-remove-scroll',
+      'react-remove-scroll-bar', 'react-style-singleton', 'use-callback-ref', 'use-sidecar', 'get-nonce', 'detect-node-es',
+      'react-transition-group', 'react-number-format', 'react-textarea-autosize', 'use-composed-ref', 'use-isomorphic-layout-effect',
+      'use-latest', 'clsx', 'tslib', 'dom-helpers', '@babel/runtime',
+    ),
+    priority: 25,
+  },
+  // After the component library, so the parts of it that the date pickers use stay there.
+  { name: 'vendor-dates', test: pkgs('@mantine/dates', 'dayjs'), priority: 20 },
+  { name: 'vendor-zrender', test: pkgs('zrender'), priority: 15 },
+  { name: 'vendor-echarts', test: pkgs('echarts'), priority: 10 },
+];
+
 export default defineConfig({
   root: 'web',
   plugins: [react(), grcModules()],
@@ -280,11 +312,7 @@ export default defineConfig({
     rolldownOptions: {
       output: {
         codeSplitting: {
-          groups: analyse
-            ? [{ name: analyseGroup }]
-            // React and the router change far less often than the application, and every page
-            // needs them: one chunk of their own, fetched alongside the entry script and cached.
-            : [{ name: 'vendor-react', test: /node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler)[\\/]/, priority: 10 }],
+          groups: analyse ? [{ name: analyseGroup }] : VENDOR_GROUPS,
         },
       },
     },

@@ -35,7 +35,7 @@ export function stepperStep(s: InstanceStep): Step {
 }
 
 function Decisions({ instance }: { instance: Instance }) {
-  const all = instance.steps.flatMap((s) => s.decisions.map((d) => ({ ...d, step: s.name })));
+  const all = instance.steps.flatMap((s) => s.decisions.map((d) => ({ ...d, step: d.branch ? `${s.name}: ${d.branch}` : s.name })));
   if (!all.length) return null;
   return (
     <ul className="wf-decisions" aria-label="Decisions">
@@ -54,12 +54,55 @@ function Decisions({ instance }: { instance: Instance }) {
   );
 }
 
+/** Who a waiting step (or one group of a step side by side) waits for, its stand-ins, due time and problem. */
+function Waiting({ unit, start }: { unit: InstanceStep; start: string }) {
+  // An approver counts as decided when they, or a stand-in for them, decided.
+  const decided = new Set(unit.decisions.flatMap((d) => [d.user_id, ...(d.on_behalf_of_name ? unit.approvers.filter((a) => a.name === d.on_behalf_of_name).map((a) => a.id) : [])]));
+  return (
+    <>
+      <div className="wf-current">
+        <div className="wf-current-who">
+          <span className="wf-label">Waiting for</span>
+          {unit.approvers.length
+            ? unit.approvers.map((a) => (
+              <span key={a.id} className={`wf-person${decided.has(a.id) ? ' is-done' : ''}`}>
+                {decided.has(a.id) && <Icon name="check" size={14} label="Approved" />}{a.name}
+              </span>
+            ))
+            : <span className="muted">nobody yet</span>}
+          {unit.required && unit.approvers.length > 1 && <span className="muted">({unit.required === unit.approvers.length ? 'everyone' : unit.required === 1 ? 'any one' : `${unit.required} of them`})</span>}
+        </div>
+        {unit.standins?.length > 0 && (
+          <div className="wf-current-who">
+            <span className="wf-label">Stand-ins</span>
+            {unit.standins.map((s) => (
+              <span key={s.id} className="wf-person is-standin">{s.name} <span className="muted">for {s.for.map((f) => f.name).join(', ')}</span></span>
+            ))}
+          </div>
+        )}
+        {unit.due_at && <Countdown label="Due" deadline={unit.due_at} start={start} />}
+        {unit.escalated_at && <StatusChip color="amber" label="Escalated" size="sm" />}
+      </div>
+      {unit.note && <p className="notice notice-warn wf-note">{unit.note}</p>}
+    </>
+  );
+}
+
+const BRANCH_LOOK: Record<string, { label: string; color: 'blue' | 'green' | 'red' | 'gray' }> = {
+  pending: { label: 'Waiting', color: 'blue' }, approved: { label: 'Approved', color: 'green' }, rejected: { label: 'Rejected', color: 'red' },
+  skipped: { label: 'Not needed', color: 'gray' }, canceled: { label: 'Stopped', color: 'gray' },
+};
+
 function Running({ instance, onDecide, onCancel, onReassign }: {
   instance: Instance; onDecide: (step: InstanceStep, decision: 'approved' | 'rejected') => void; onCancel: () => void; onReassign: (step: InstanceStep) => void;
 }) {
   const current = instance.steps.find((s) => s.status === 'pending');
-  // An approver counts as decided when they, or a stand-in for them, decided.
-  const decided = new Set(current?.decisions.flatMap((d) => [d.user_id, ...(d.on_behalf_of_name ? current.approvers.filter((a) => a.name === d.on_behalf_of_name).map((a) => a.id) : [])]) ?? []);
+  // A step side by side (E14-32) waits on each of its groups at once; a plain step is its own only unit.
+  const group = Boolean(current?.branches?.length);
+  const units = current ? (group ? current.branches!.filter((b) => b.id) : [current]) : [];
+  const waiting = units.filter((u) => u.status === 'pending');
+  const reassignable = waiting.find((u) => u.approvers.length > 0);
+  const mine = waiting.find((u) => u.can_decide);
   return (
     <div className="wf-instance">
       <div className="wf-instance-head">
@@ -69,7 +112,11 @@ function Running({ instance, onDecide, onCancel, onReassign }: {
           <StatusChip color="blue" label={STATUS_LOOK.running.label} size="sm" />
         </div>
         <span className="wf-your-turn-buttons">
-          {instance.can_reassign && current && current.approvers.length > 0 && <Button size="sm" variant="ghost" onClick={() => onReassign(current)}>Reassign</Button>}
+          {instance.can_reassign && reassignable && (
+            waiting.length > 1
+              ? <Menu label="Reassign" size="sm" items={waiting.filter((u) => u.approvers.length).map((u) => ({ label: u.name, onSelect: () => onReassign(u) }))} />
+              : <Button size="sm" variant="ghost" onClick={() => onReassign(reassignable)}>Reassign</Button>
+          )}
           {instance.can_cancel && <Button size="sm" variant="ghost" onClick={onCancel}>Cancel request</Button>}
         </span>
       </div>
@@ -78,38 +125,26 @@ function Running({ instance, onDecide, onCancel, onReassign }: {
         {instance.note && <> · “{instance.note}”</>}
       </p>
       <Stepper size="sm" label={`Steps of ${instance.workflow}`} steps={instance.steps.map(stepperStep)} />
-      {current && (
-        <div className="wf-current">
-          <div className="wf-current-who">
-            <span className="wf-label">Waiting for</span>
-            {current.approvers.length
-              ? current.approvers.map((a) => (
-                <span key={a.id} className={`wf-person${decided.has(a.id) ? ' is-done' : ''}`}>
-                  {decided.has(a.id) && <Icon name="check" size={14} label="Approved" />}{a.name}
-                </span>
-              ))
-              : <span className="muted">nobody yet</span>}
-            {current.required && current.approvers.length > 1 && <span className="muted">({current.required === current.approvers.length ? 'everyone' : current.required === 1 ? 'any one' : `${current.required} of them`})</span>}
-          </div>
-          {current.standins?.length > 0 && (
-            <div className="wf-current-who">
-              <span className="wf-label">Stand-ins</span>
-              {current.standins.map((s) => (
-                <span key={s.id} className="wf-person is-standin">{s.name} <span className="muted">for {s.for.map((f) => f.name).join(', ')}</span></span>
-              ))}
+      {current && !group && <Waiting unit={current} start={instance.started_at} />}
+      {current && group && (
+        <div className="wf-branches-live" role="list" aria-label={`Groups of ${current.name}, side by side`}>
+          {current.branches!.map((b) => (
+            <div key={b.key} role="listitem" className="wf-branch-live">
+              <div className="wf-branch-live-head">
+                <span>{b.name}</span>
+                <StatusChip color={(BRANCH_LOOK[b.status] ?? BRANCH_LOOK.pending).color} label={(BRANCH_LOOK[b.status] ?? { label: 'Not started' }).label} size="sm" />
+              </div>
+              {b.status === 'pending' && <Waiting unit={b} start={instance.started_at} />}
             </div>
-          )}
-          {current.due_at && <Countdown label="Due" deadline={current.due_at} start={instance.started_at} />}
-          {current.escalated_at && <StatusChip color="amber" label="Escalated" size="sm" />}
+          ))}
         </div>
       )}
-      {current?.note && <p className="notice notice-warn wf-note">{current.note}</p>}
-      {current?.can_decide && (
+      {mine && (
         <div className="wf-your-turn" role="group" aria-label="Your decision">
-          <span><Icon name="bell" size={16} /> Your decision is needed on <strong>{current.name}</strong>{current.on_behalf_of_name && <> (standing in for {current.on_behalf_of_name})</>}</span>
+          <span><Icon name="bell" size={16} /> Your decision is needed on <strong>{group ? `${current!.name}: ${mine.name}` : mine.name}</strong>{mine.on_behalf_of_name && <> (standing in for {mine.on_behalf_of_name})</>}</span>
           <span className="wf-your-turn-buttons">
-            <Button size="sm" variant="primary" icon="check" onClick={() => onDecide(current, 'approved')}>Approve</Button>
-            <Button size="sm" variant="danger" icon="x" onClick={() => onDecide(current, 'rejected')}>Reject</Button>
+            <Button size="sm" variant="primary" icon="check" onClick={() => onDecide(mine, 'approved')}>Approve</Button>
+            <Button size="sm" variant="danger" icon="x" onClick={() => onDecide(mine, 'rejected')}>Reject</Button>
           </span>
         </div>
       )}
@@ -158,6 +193,15 @@ export function WorkflowPanel({ recordType, recordId, version, onChange }: Workf
     seen.current = version;
     reload();
   }, [version, reload]);
+  // A save on this record that now waits for approval (E14-37) changes nothing on the record, so
+  // its updated time stays: the API client says so instead, and the panel shows the pending move.
+  useEffect(() => {
+    const onHeld = (e: Event) => {
+      if ((e as CustomEvent<{ recordId?: string }>).detail?.recordId === recordId) reload();
+    };
+    window.addEventListener('grc:move-held', onHeld);
+    return () => window.removeEventListener('grc:move-held', onHeld);
+  }, [recordId, reload]);
 
   // No workflows module on the server, a record the person cannot see, or nothing to show: no panel.
   if (error || !data) return null;
@@ -221,6 +265,15 @@ export function WorkflowPanel({ recordType, recordId, version, onChange }: Workf
 
   return (
     <section className="wf-panel" aria-label="Approvals">
+      {data.pending_move && (
+        <p className="notice wf-pending-move" role="status">
+          <Icon name="clock" size={16} />
+          <span>
+            Waiting for approval to move to <strong>{data.pending_move.to_label}</strong> (now {data.pending_move.from_label}).
+            {' '}The {data.pending_move.field_label.toLowerCase()} changes when &ldquo;{data.pending_move.workflow}&rdquo; is approved; if it is rejected or canceled, it stays as it is. Other changes can still be made.
+          </span>
+        </p>
+      )}
       {running.map((i) => (
         <Running
           key={i.id}

@@ -11,7 +11,8 @@ export type ApproverSpec =
   | { kind: 'department_head'; from: 'requester' | 'field'; field?: string | null }
   | { kind: 'people'; users: string[]; roles: string[] }
   | { kind: 'permission'; permission: string };
-export interface StepDef {
+/** One set of approvers with their quorum: a step, or one branch of a step that runs side by side. */
+export interface ApprovalUnit {
   key?: string;
   name: string;
   approvers: ApproverSpec;
@@ -20,6 +21,18 @@ export interface StepDef {
   due_hours: number | null;
   escalate_to: { users: string[]; role: string | null } | null;
 }
+/** After a step is approved (E14-32): the first route whose conditions hold sends the workflow to a later step (its key) or to the end. */
+export interface Route { conditions: Condition[]; to: string }
+export const END = 'end';
+/**
+ * A step. With `branches` it runs them side by side (each with its own approvers and quorum; all
+ * must approve, one rejection rejects) and has no approvers of its own (`approvers` is then unused).
+ */
+export interface StepDef extends ApprovalUnit {
+  branches?: ApprovalUnit[];
+  routes?: Route[];
+}
+export const isGroup = (s: Pick<StepDef, 'branches'>) => Array.isArray(s.branches) && s.branches.length > 0;
 export interface FieldSet { field: string; value: unknown }
 export interface Definition {
   id?: string;
@@ -45,6 +58,8 @@ export interface Definition {
   running?: number;
   started?: number;
   people?: Record<string, string>;
+  /** Lifecycle status moves that wait for this workflow (E14-37). */
+  moves?: number;
   updated_at?: string;
 }
 
@@ -72,6 +87,9 @@ export interface Approval {
   instance_id: string;
   workflow: string;
   step: string;
+  /** For a branch of a step that runs side by side (E14-32): the step's and the branch's names. */
+  group?: string | null;
+  branch?: string | null;
   position: number;
   steps_total: number;
   record_type: string;
@@ -133,8 +151,14 @@ export interface InstanceStep {
   escalated_at: string | null;
   note: string | null;
   has_conditions: boolean;
+  /** Index of the branch (a step whose branches run side by side), else null. */
+  branch?: number | null;
+  /** The branches of a step that runs them side by side (E14-32), each shaped like a step. */
+  branches?: InstanceStep[];
+  /** The step has routes chosen by condition. */
+  routes?: boolean;
   standins: { id: string; name: string; for: { id: string; name: string }[] }[];
-  decisions: { user_id: string; name: string; decision: 'approved' | 'rejected'; comment: string | null; at: string; on_behalf_of_name: string | null; adopted?: boolean }[];
+  decisions: { user_id: string; name: string; decision: 'approved' | 'rejected'; comment: string | null; at: string; on_behalf_of_name: string | null; adopted?: boolean; branch?: string }[];
   can_decide: boolean;
   /** Set when the reader would decide as a stand-in. */
   on_behalf_of_name: string | null;
@@ -159,6 +183,8 @@ export interface Instance {
 export interface RecordWorkflows {
   instances: Instance[];
   startable: { id: string; name: string; description: string | null; trigger: string }[];
+  /** A status move waiting for one of these workflows (E14-37). */
+  pending_move?: PendingMove | null;
 }
 
 export const STATUS_LOOK: Record<InstanceStatus, { label: string; color: ColorName }> = {
@@ -197,4 +223,9 @@ export function hoursText(h: number): string {
   if (h >= 24 && h % 24 === 0) return plural(h / 24, 'day');
   if (h < 1) return plural(Math.round(h * 60), 'minute');
   return plural(h, 'hour');
+}
+
+/** A status move that waits for an approval workflow (E14-37). */
+export interface PendingMove {
+  instance_id: string; workflow: string; field: string; field_label: string; from: string; from_label: string; to: string; to_label: string;
 }

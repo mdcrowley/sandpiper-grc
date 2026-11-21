@@ -3,12 +3,25 @@ import { useState } from 'react';
 import { SegmentedControl } from '@mantine/core';
 import {
   api, ApiError, Button, DateField, errorMessage, formatDate, Modal, RecordPicker, Select, TextArea, TextField, useAuth,
-  useFetch, UserPicker, useToast,
+  useFetch, useLookup, UserPicker, useResource, useToast,
 } from '../../core';
 import type { Row } from '../../core';
+import { editableLifecycle, moveBlockedReason } from '../../core/lifecycleMenus';
 import { Callout, todayIso, useFunder } from './shared';
 
 interface DialogProps { asset: Row; onClose: (changed: boolean) => void }
+
+/**
+ * The asset lifecycle rules (E14-31) for the asset actions: why the asset may not move to a status
+ * ('' when it may), so an action can be disabled with the reason.
+ */
+export function useAssetMoveBlocked(asset: Row): (to: string) => string {
+  const rules = editableLifecycle(useResource('asset')?.lifecycle, 'status');
+  const statuses = useLookup('asset_status');
+  return (to) => moveBlockedReason(rules, asset.status, to, statuses.find((s) => s.value === to)?.label ?? to, statuses.map((s) => s.value));
+}
+
+const CHECK_IN = [{ value: 'in_stock', label: 'In stock' }, { value: 'in_repair', label: 'In repair' }, { value: 'retired', label: 'Retired' }];
 const fieldErrors = (err: unknown): Record<string, string> =>
   err instanceof ApiError && err.fields && Object.keys(err.fields).length ? { ...err.fields, _form: err.message } : { _form: errorMessage(err) };
 
@@ -81,7 +94,10 @@ export function CheckOutDialog({ asset, onClose }: DialogProps) {
 
 export function CheckInDialog({ asset, onClose }: DialogProps) {
   const toast = useToast();
-  const [status, setStatus] = useState('in_stock');
+  // Only the statuses the lifecycle rules allow from the asset's current one (E14-31).
+  const blockedTo = useAssetMoveBlocked(asset);
+  const options = CHECK_IN.filter((o) => !blockedTo(o.value));
+  const [status, setStatus] = useState(options[0]?.value ?? '');
   const [notes, setNotes] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -100,12 +116,15 @@ export function CheckInDialog({ asset, onClose }: DialogProps) {
   }
   return (
     <Modal open title={`Check in ${asset.tag ?? asset.name}`} onClose={() => onClose(false)} size="sm"
-      footer={<><Button onClick={() => onClose(false)}>Cancel</Button><Button variant="primary" loading={busy} onClick={submit}>Check in</Button></>}>
+      footer={<><Button onClick={() => onClose(false)}>Cancel</Button><Button variant="primary" loading={busy} disabled={!status} onClick={submit}>Check in</Button></>}>
       <form className="form" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
         {errors._form && <p className="form-error" role="alert">{errors._form}</p>}
         <p>Currently with <strong>{asset._display?.user_id ?? asset.assigned_to_name ?? 'someone'}</strong>.</p>
-        <Select label="Status after check-in" value={status} onChange={(v) => setStatus(v || 'in_stock')} error={errors.status} required
-          options={[{ value: 'in_stock', label: 'In stock' }, { value: 'in_repair', label: 'In repair' }, { value: 'retired', label: 'Retired' }]} />
+        {options.length > 0 ? (
+          <Select label="Status after check-in" value={status} onChange={(v) => setStatus(v || options[0].value)} error={errors.status} required options={options} />
+        ) : (
+          <p className="form-error" role="alert">No status after check-in is allowed: the lifecycle rules for assets (Administration &gt; Lifecycles) allow none of In stock, In repair or Retired from the current status.</p>
+        )}
         <TextArea label="Condition and notes" value={notes} onChange={setNotes} rows={3} />
       </form>
     </Modal>
@@ -184,6 +203,8 @@ export function DisposeDialog({ asset, onClose }: DialogProps) {
   const asking = !approved && !pending && (routedOnly || path === 'ask');
   const disposing = approved || (!pending && !asking);
   const blocked = disposing && funder && !ref.trim();
+  // Marking as disposed follows the lifecycle rules (E14-31); asking for approval changes no status.
+  const disposeBlocked = useAssetMoveBlocked(asset)('disposed');
 
   async function submit() {
     const missing: Record<string, string> = {};
@@ -222,10 +243,11 @@ export function DisposeDialog({ asset, onClose }: DialogProps) {
         <>
           <Button onClick={() => onClose(false)}>{pending ? 'Close' : 'Cancel'}</Button>
           {asking && <Button variant="primary" loading={busy} onClick={submit}>Request approval</Button>}
-          {disposing && <Button variant="danger" loading={busy} disabled={blocked} onClick={submit}>Mark as disposed</Button>}
+          {disposing && <Button variant="danger" loading={busy} disabled={blocked || Boolean(disposeBlocked)} title={disposeBlocked || undefined} onClick={submit}>Mark as disposed</Button>}
         </>
       )}>
-      <form className="form" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
+      <form className="form" onSubmit={(e) => { e.preventDefault(); if (!(disposing && disposeBlocked)) void submit(); }}>
+        {disposing && disposeBlocked && <p className="form-error" role="alert">{disposeBlocked}</p>}
         {pending && (
           <Callout color="amber" title="Awaiting approval">
             A disposal request for this asset is waiting for an approver. It can be marked as disposed once the request is approved.

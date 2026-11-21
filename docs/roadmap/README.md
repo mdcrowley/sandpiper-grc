@@ -136,7 +136,7 @@ status `done`; issues in progress, open or blocked are counted in the total only
 | ID | Epic | Status | Done / total |
 |---|---|---|---|
 | [E01](epics/E01-platform-foundations.md) | Platform foundations | done | 34 / 34 |
-| [E02](epics/E02-account-security.md) | Account security | in progress | 27 / 29 |
+| [E02](epics/E02-account-security.md) | Account security | in progress | 29 / 30 |
 | [E03](epics/E03-service-desk.md) | Service desk | done | 22 / 22 |
 | [E04](epics/E04-inventory-and-relationship-map.md) | Inventory and relationship map | done | 24 / 24 |
 | [E05](epics/E05-change-enablement.md) | Change enablement | done | 13 / 13 |
@@ -148,17 +148,17 @@ status `done`; issues in progress, open or blocked are counted in the total only
 | [E11](epics/E11-projects-and-portfolio.md) | Projects and portfolio | done | 25 / 25 |
 | [E12](epics/E12-dashboards-and-reporting.md) | Dashboards and reporting | done | 16 / 16 |
 | [E13](epics/E13-imports-api-integrations.md) | Imports, API and integrations | done | 23 / 23 |
-| [E14](epics/E14-platform-services.md) | Platform services | in progress | 33 / 37 |
+| [E14](epics/E14-platform-services.md) | Platform services | done | 38 / 38 |
 | [E15](epics/E15-self-service-portal.md) | Self-service portal | done | 14 / 14 |
-| [E16](epics/E16-hosting-operations-and-hardening.md) | Hosting, operations and hardening | in progress | 30 / 37 |
-| [E17](epics/E17-documentation.md) | Documentation | in progress | 7 / 14 |
-| [E18](epics/E18-quality-and-known-defects.md) | Quality and known defects | in progress | 49 / 54 |
-| [E19](epics/E19-fleet-and-services.md) | Fleet and services | in progress | 13 / 14 |
-| [E20](epics/E20-safety-management.md) | Safety management | done | 14 / 14 |
+| [E16](epics/E16-hosting-operations-and-hardening.md) | Hosting, operations and hardening | in progress | 33 / 38 |
+| [E17](epics/E17-documentation.md) | Documentation | in progress | 11 / 14 |
+| [E18](epics/E18-quality-and-known-defects.md) | Quality and known defects | done | 59 / 59 |
+| [E19](epics/E19-fleet-and-services.md) | Fleet and services | done | 14 / 14 |
+| [E20](epics/E20-safety-management.md) | Safety management | done | 15 / 15 |
 | [E21](epics/E21-mcp-server.md) | MCP server (AI assistant access) | done | 23 / 23 |
-| | **Total** | | **483 / 509** |
+| | **Total** | | **509 / 518** |
 
-Of the 26 issues not done, 18 are in progress and 8 are open or blocked.
+Of the 9 issues not done, 6 are in progress and 3 are open or blocked.
 
 ## Next up
 
@@ -172,9 +172,9 @@ with real data, then those that close the main known gaps.
 | 3 | [E16-40](epics/E16-hosting-operations-and-hardening.md) Independent security review or penetration test | Before the application holds sensitive records |
 | 4 | [E16-15](epics/E16-hosting-operations-and-hardening.md) A screen-reader walkthrough | The automated audit is clean; no one has used the application with a screen reader |
 | 5 | [E16-41](epics/E16-hosting-operations-and-hardening.md) Load test with the database on its own machine | The PostgreSQL figures so far come from a server on the same laptop |
-| 6 | [E14-37](epics/E14-platform-services.md) A status change that waits for an approval workflow | Joins lifecycles and approval workflows, the last step of the workflow engine |
-| 7 | [E14-32](epics/E14-platform-services.md) Approval steps side by side and routes by condition | Stand-ins and reassignment are built; parallel steps and branching remain |
-| 8 | [E16-35](epics/E16-hosting-operations-and-hardening.md) Confirm the user services on a real systemd and launchd | Written and linted, not yet run on a real Linux or Mac |
+| 6 | [E17-08](epics/E17-documentation.md) User guide | The approval workflow, lifecycle and Organization pages changed in wave 8 and need a review against the application |
+| 7 | [E17-11](epics/E17-documentation.md) Operations runbook | Restore has been tried by the tests only; try it by hand once |
+| 8 | [E16-42](epics/E16-hosting-operations-and-hardening.md) User services across a restart, and the system examples | Proven on GitHub's runners; a restart and the deploy/ examples need a real machine |
 
 ## Known gaps coverage
 
@@ -185,20 +185,20 @@ table in step with that file.
 
 | Gap | Issues |
 |---|---|
-| Approval workflows do not run steps side by side or branch | E14-32 |
+| Nothing planned is unbuilt | none |
 
 ### Built but incomplete
 
 | Gap | Issues |
 |---|---|
 | Passkeys not yet checked with hardware keys over HTTPS | E02-08 |
-| Feature switches: hazard matrix while Risks is off; digest | E14-28 (done; limits recorded there) |
-| Lifecycles: a status change cannot wait for an approval workflow; hand-written status menus offer every status | E14-37 |
-| Organization branding: email logo, HTML report documents, WebP logos in PDFs, square tab icon | E14-36 |
+| Approval workflows and lifecycles: gates and disposal without a workflow; held status changes checked at approval | E14-32, E14-37 (done; the limits are recorded there) |
+| Feature switches: the organization's own text stays; search matches hidden fields | E14-34 (done; the limits are recorded there) |
+| Organization branding: imported WebP logos need a printable copy; one email logo for both themes | E14-36 (done; the limits are recorded there) |
 | Retention: decisions do not run after-save hooks; broad personal fields | E14-33 (done; the limits are recorded there) |
 | Backups cover the embedded database only; scheduled backups not proven on a real installation | E16-08 |
 | The If-Match lock and the Overview cache are per process | E13-12, E16-38 (done; the limits are recorded there) |
-| Least-privilege account queues custom fields for the owner; user services not run on a real system | E16-37 (done; recorded there), E16-35 |
+| Least-privilege account queues custom fields for the owner; user services not proven across a restart or for the system examples | E16-37 (done; recorded there), E16-42 |
 | Load test with the database on its own machine and people in different roles | E16-41 |
 
 ### Verification status

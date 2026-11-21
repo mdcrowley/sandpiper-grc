@@ -22,7 +22,7 @@ Raising follow-up actions also needs **Create** on **Actions**. Roles are manage
 |---|---|---|
 | **Standard** | Routine, low-risk work done the same way every time. | None. It is raised from a pre-approved template. |
 | **Normal** | Planned work. | The number of approvals set by the approval rules for its risk level. |
-| **Emergency** | Urgent work to restore a service or prevent harm. | One approver, whatever the risk. A post-implementation review is always required afterwards. |
+| **Emergency** | Urgent work to restore a service or prevent harm. | One approver, whatever the risk. A post-implementation review is always required afterward. |
 
 The type can be changed only while a change is a draft, and a change cannot be switched to or from **Standard**.
 
@@ -43,7 +43,7 @@ A change moves through these statuses. The bar at the top of a change shows wher
 | **Closed** | Finished. Nothing more can be edited. |
 | **Canceled** | Abandoned. It stays in the register but cannot be edited or reopened. |
 
-The application enforces the order. A change cannot be scheduled or started until it has its approvals and its conflicts are resolved or acknowledged, and it cannot be closed while a required review is missing.
+The application enforces the order. A change cannot be scheduled or started until it has its approvals and its conflicts are resolved or acknowledged, and it cannot be closed while a required review is missing. These moves are set by the application, so **Administration > Lifecycles** shows changes as **Set by the application** and they cannot be changed there; see [Lifecycles](23-lifecycles.md#rules-set-by-the-application).
 
 ## The register
 

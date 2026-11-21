@@ -58,7 +58,7 @@ function RulesTab({ admin }: { admin: boolean }) {
             render: (r: Rule) => (r.deadline_hours === null ? <span className="si-unset">Not set</span> : deadlineText(r.deadline_hours)),
           },
           {
-            field: 'required', label: 'Required by law or contract', type: 'boolean', initial: true, hint: 'Untick for a recommended notification', formOnly: true,
+            field: 'required', label: 'Required by law or contract', type: 'boolean', initial: true, hint: 'Clear this for a recommended notification', formOnly: true,
           },
           {
             field: 'active', label: 'Active', header: 'State', type: 'boolean', initial: true, hint: 'A rule cannot be active without a deadline',

@@ -153,14 +153,17 @@ function section(s: DocSection): string {
 }
 
 const CSS = `
-*{box-sizing:border-box}body{margin:0;font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:#14252b;background:#f3f6f6}
+*{box-sizing:border-box}:root{--brand:#17656f}body{margin:0;font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:#14252b;background:#f3f6f6}
 main{max-width:960px;margin:0 auto;padding:32px 40px;background:#fff;min-height:100vh}
 h1{font-size:28px;margin:0 0 4px;line-height:1.2}h2{font-size:18px;margin:0 0 6px}h3,h4,h5{font-size:15px;margin:16px 0 4px}
 .meta,.lede,.foot,.note{color:#50626a}.meta{margin:0 0 4px}.foot{font-size:12px;margin:8px 0 0}
 .note{padding:12px 16px;background:#edf2f3;border-radius:8px}
-.cover{min-height:70vh;display:flex;flex-direction:column;justify-content:center;border-bottom:2px solid #17656f;margin-bottom:32px;page-break-after:always}
-.cover h1{font-size:40px}.cover .rule{width:72px;height:6px;border-radius:3px;background:#17656f;margin:0 0 24px}
-.head{border-bottom:2px solid #17656f;padding-bottom:12px;margin-bottom:24px}
+.cover{min-height:70vh;display:flex;flex-direction:column;justify-content:center;border-bottom:2px solid var(--brand);margin-bottom:32px;page-break-after:always}
+.cover h1{font-size:40px}.cover .rule{width:72px;height:6px;border-radius:3px;background:var(--brand);margin:0 0 24px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.head{border-bottom:2px solid var(--brand);padding-bottom:12px;margin-bottom:24px}
+.org{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 20px;color:var(--brand);font-weight:600}
+.org img{display:block;max-height:48px;max-width:220px;width:auto;height:auto}.cover .org{margin-bottom:48px}.cover .org img{max-height:72px}
+.org-foot{border-top:1px solid #dbe3e5;margin-top:40px;padding-top:12px;color:#50626a;font-size:12px}.org-foot p{margin:0}
 section{margin:0 0 32px;page-break-inside:avoid}section.text{page-break-inside:auto}
 table{border-collapse:collapse;width:100%;font-size:13px;margin-top:12px}th,td{text-align:left;padding:6px 10px;border-bottom:1px solid #dbe3e5;vertical-align:top}
 thead th{background:#edf2f3;font-weight:600}tfoot td,tfoot th,td.t{font-weight:600}.n{text-align:right;font-variant-numeric:tabular-nums}
@@ -174,14 +177,39 @@ thead th{background:#edf2f3;font-weight:600}tfoot td,tfoot th,td.t{font-weight:6
 @page{margin:16mm}@media print{body{background:#fff}main{padding:0;max-width:none}.hint{display:none}thead{display:table-header-group}}
 `;
 
+const DATA_URI_RE = /^data:image[/](png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
+const HEX_RE = /^#[0-9a-f]{6}$/i;
+
+/**
+ * The organization on the document (Administration > Organization, E14-36), as on the PDF: its
+ * logo and name at the top, its brand color for the rules, and its name, address and contacts
+ * in a footer. The logo is carried in the file (a data: address), so the document still loads
+ * nothing from outside.
+ */
+function organization(doc: DocInput) {
+  const b = doc.branding;
+  const logo = b?.logoDataUri && DATA_URI_RE.test(b.logoDataUri) ? b.logoDataUri : null;
+  const name = b?.name || doc.appName || '';
+  const color = b?.color && HEX_RE.test(b.color) ? b.color : null;
+  const top = logo || b?.name
+    ? `<div class="org">${logo ? `<img src="${logo}" alt="${esc(name)}">` : `<span>${esc(name)}</span>`}</div>`
+    : '';
+  const names = [...new Set([b?.name, doc.appName].filter((n): n is string => Boolean(n)))];
+  const foot = names.length || b?.lines.length
+    ? `<footer class="org-foot">${names.length ? `<p><strong>${esc(names.join(' · '))}</strong></p>` : ''}${(b?.lines ?? []).map((l) => `<p>${esc(l)}</p>`).join('')}</footer>`
+    : '';
+  return { top, foot, style: color ? `:root{--brand:${color}}` : '' };
+}
+
 export function htmlDocument(doc: DocInput): string {
   const restricted = doc.sections.some((s) => s.result?.restricted);
+  const org = organization(doc);
   const when = formatStamp(doc.generatedAt);
   const meta = `<p class="meta">As at ${esc(when)} · prepared for ${esc(doc.preparedFor)}${doc.appName ? ` · ${esc(doc.appName)}` : ''}</p>${doc.filtersNote ? `<p class="meta">${esc(doc.filtersNote)}</p>` : ''}`;
   const mark = restricted ? `<p class="watermark">${esc(watermark(doc.preparedFor, doc.generatedAt))}. Contains restricted records: do not pass on.</p>` : '';
   const head = doc.cover
-    ? `<div class="cover"><div class="rule"></div><h1>${esc(doc.title)}</h1>${doc.subtitle ? `<p class="lede">${esc(doc.subtitle)}</p>` : ''}${meta}</div>`
-    : `<div class="head"><h1>${esc(doc.title)}</h1>${doc.subtitle ? `<p class="lede">${esc(doc.subtitle)}</p>` : ''}${meta}</div>`;
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(doc.title)}</title><style>${CSS}</style></head>`
-    + `<body><main>${head}${mark}<p class="hint">To save this as a PDF, use your browser's Print command and choose "Save as PDF".</p>${doc.sections.map(section).join('')}</main></body></html>`;
+    ? `<div class="cover">${org.top}<div class="rule"></div><h1>${esc(doc.title)}</h1>${doc.subtitle ? `<p class="lede">${esc(doc.subtitle)}</p>` : ''}${meta}</div>`
+    : `${org.top}<div class="head"><h1>${esc(doc.title)}</h1>${doc.subtitle ? `<p class="lede">${esc(doc.subtitle)}</p>` : ''}${meta}</div>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(doc.title)}</title><style>${CSS}${org.style}</style></head>`
+    + `<body><main>${head}${mark}<p class="hint">To save this as a PDF, use your browser's Print command and choose "Save as PDF".</p>${doc.sections.map(section).join('')}${org.foot}</main></body></html>`;
 }

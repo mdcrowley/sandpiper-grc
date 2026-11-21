@@ -229,7 +229,8 @@ The exception gets a reference such as `EXC-00012` and the status **Requested**.
 1. Open the exception and select **Approve**.
 2. Enter the **Approver** (leave it empty to record your own name) and **Approver role**.
 3. Enter **Expires on**. An exception cannot be approved without an expiry date, and the date cannot be in the past.
-4. Select **Approve exception**.
+4. Check **Approved on**. Leave it empty to record today. The expiry date cannot be before it.
+5. Select **Approve exception**.
 
 Select **Reject** to refuse the request.
 
@@ -247,6 +248,8 @@ While an exception is approved, its page shows the expiry date with a countdown:
 
 - **Withdraw** closes a request, or ends an approved exception early.
 - **Request again** puts a rejected, withdrawn or expired exception back to **Requested**. It then needs a new approval and a new expiry date.
+
+An administrator can limit which status changes are allowed, and who may make them, under **Administration > Lifecycles**; see [Lifecycles](23-lifecycles.md). The rules above always apply as well.
 
 ### Link a risk
 

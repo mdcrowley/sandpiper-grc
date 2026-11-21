@@ -58,7 +58,7 @@ function toDate(value: DateInput): Date | null {
 // A calendar date with no time of day: "2026-11-18", or the same at midnight UTC.
 const CALENDAR = /^(\d{4}-\d{2}-\d{2})(T00:00:00(\.0+)?(Z|\+00:00))?$/;
 
-/** "18 Nov 2026". Date-only values are never shifted by time zone. */
+/** "Nov 18, 2026". Date-only values are never shifted by time zone. */
 export function formatDate(value: DateInput): string {
   if (typeof value === 'string') {
     const m = CALENDAR.exec(value);
@@ -68,7 +68,7 @@ export function formatDate(value: DateInput): string {
   return d ? dateFmt.format(d) : EMPTY;
 }
 
-/** "18 Nov 2026, 14:05" (24-hour, organization time zone). */
+/** "Nov 18, 2026, 14:05" (24-hour, organization time zone). */
 export function formatDateTime(value: DateInput): string {
   const d = toDate(value);
   return d ? dateTimeFmt.format(d) : EMPTY;

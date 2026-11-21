@@ -9,7 +9,7 @@
 // them at a stand-in server on this machine with `setCloudEndpointsForTests`.
 import { createHash, createPrivateKey, createSign, X509Certificate, type KeyObject } from 'node:crypto';
 import nodemailer from 'nodemailer';
-import type { OutgoingMessage } from './provider.ts';
+import { nodemailerAttachment, type OutgoingMessage } from './provider.ts';
 
 export const TIMEOUT_MS = 20_000;
 /** A received message read through the API, with room for its encoding. */
@@ -192,7 +192,7 @@ const composer = nodemailer.createTransport({ streamTransport: true, buffer: tru
 export async function composeMime(m: OutgoingMessage): Promise<{ raw: Buffer; messageId: string }> {
   const info = await composer.sendMail({
     from: m.from, to: m.to, replyTo: m.replyTo || undefined, subject: m.subject, text: m.text, html: m.html, headers: m.headers,
-    attachments: m.attachments?.map((a) => ({ filename: a.filename, content: Buffer.from(a.contentBase64, 'base64'), contentType: a.contentType })),
+    attachments: m.attachments?.map(nodemailerAttachment),
     disableUrlAccess: true, disableFileAccess: true,
   });
   return { raw: (info as unknown as { message: Buffer }).message, messageId: info.messageId };

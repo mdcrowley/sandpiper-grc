@@ -65,7 +65,7 @@ export function ColumnChooser({ columns, hidden, onChange, onReset }: ColumnChoo
         </fieldset>
         <Group justify="space-between" mt="sm" gap="xs">
           <Button variant="subtle" size="compact-xs" onClick={onReset}>Reset</Button>
-          <Text size="xs" c="dimmed">Remembered on this device</Text>
+          <Text size="xs" c="dimmed">Saved with your account</Text>
         </Group>
       </Popover.Dropdown>
     </Popover>

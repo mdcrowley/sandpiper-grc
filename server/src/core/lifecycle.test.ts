@@ -291,7 +291,7 @@ describe('the status list changes', () => {
     expect((await t.api.patch(`/api/test-parcels/${q.id}`, { notes: 'Still on the shelf', shelf: null })).status).toBe(200);
     expect((await t.api.patch(`/api/test-parcels/${q.id}`, { status: 'held' })).status).toBe(200);
     const after = (await t.api.get('/api/admin/lifecycles/test_parcel')).body;
-    expect(after.rules).toEqual({ blocked: [], required: {}, who: {} }); // rules naming it are no longer shown or used
+    expect(after.rules).toEqual({ blocked: [], required: {}, who: {}, approvals: [] }); // rules naming it are no longer shown or used
     await t.api.patch(`/api/lookups/${sorting!.id}`, { active: true });
   });
 });
@@ -304,7 +304,7 @@ describe('upgrading an existing database', () => {
       await first.ctx.resources.create('test_parcel', { name: 'Gloves', status: 'held' });
       await first.ctx.resources.create('test_parcel', { name: 'Keys', status: 'delivered' });
       // As before E14-31: no table, migration 015 not applied.
-      await first.db.exec(`drop table lifecycle_rules; delete from schema_migrations where name = 'core/015_lifecycle_rules.sql'`);
+      await first.db.exec(`drop table lifecycle_rules; delete from schema_migrations where name in ('core/015_lifecycle_rules.sql', 'core/018_lifecycle_approvals.sql')`);
       await first.close();
 
       const second = await buildApp({ dataDir: dir, serveWeb: false, extraModules: [parcels] });

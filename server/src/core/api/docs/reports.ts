@@ -106,7 +106,8 @@ export const DOCS: RouteDoc[] = [
     description: 'The pack must be shared with the caller (404 `not_found` otherwise). A report section not shared with the caller carries a note instead of figures.',
     response: `{ pack: { id: uuid, name: string, cover_title: string | null, cover_subtitle: string | null, description: string | null },
       sections: [{ kind: 'text' | 'report', title: string, body?: string, reportId?: uuid, description?: string | null, note?: string | null, result?: ${RESULT} | null, chart?: object | null }],
-      generatedAt: datetime, preparedFor: string }`,
+      generatedAt: datetime, preparedFor: string,
+      organization: { name: string, lines: [string], color: string | null, logo: string | null } }`,
   }),
   route('POST', '/api/report-packs/:id/produce', 'Produce a dated, stored copy of a report pack', {
     tag: 'Report packs', permission: 'reports.export',

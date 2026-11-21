@@ -1,6 +1,6 @@
 # E17 Documentation
 
-**Status:** in progress (7 of 14 issues done)
+**Status:** in progress (11 of 14 issues done)
 
 ## Goal
 
@@ -29,13 +29,13 @@ user guide should be readable on GitHub and inside the application.
 | E17-04 | Known gaps list | done | P1 |
 | E17-05 | Example organization profile | done | P1 |
 | E17-06 | Feature tracker | done | P1 |
-| E17-07 | Documentation index | in progress | P2 |
+| E17-07 | Documentation index | done | P2 |
 | E17-08 | User guide | in progress | P1 |
-| E17-09 | In-app Help | in progress | P1 |
+| E17-09 | In-app Help | done | P1 |
 | E17-10 | Installation and administrator guide | in progress | P1 |
 | E17-11 | Operations runbook | in progress | P1 |
-| E17-12 | Architecture and security notes | in progress | P2 |
-| E17-13 | License, contributing guide and security policy | in progress | P1 |
+| E17-12 | Architecture and security notes | done | P2 |
+| E17-13 | License, contributing guide and security policy | done | P1 |
 | E17-14 | American English throughout | done | P2 |
 
 ---
@@ -54,7 +54,7 @@ is a prototype, how to run it and how to make it my own.
 - [x] Steps to run it on a new machine
 - [x] How the organization profile works
 - [x] A warning that incident notification rules must be set by each organization
-- [ ] Links to the user guide, the documentation index and this tracker
+- [x] Links to the user guide, the documentation index and this tracker
 
 **Implemented in:** `README.md`
 
@@ -137,7 +137,7 @@ epic, in files that can be copied into GitHub Issues later.
 
 ### E17-07 Documentation index
 
-**Status:** in progress · **Priority:** P2 · **Type:** docs
+**Status:** done · **Priority:** P2 · **Type:** docs
 
 As a reader, I open one page in the `docs` folder and find every other document, with a
 line on who each is for.
@@ -145,10 +145,10 @@ line on who each is for.
 **Acceptance criteria**
 
 - [x] `docs/README.md` exists
-- [ ] It links to the user guide, installation, operations, architecture, security, known gaps and this tracker
-- [ ] Every link resolves
+- [x] It links to the user guide, installation, operations, architecture, security, known gaps and this tracker
+- [x] Every link resolves (checked 21 Nov 2026 across `docs/`, `README.md`, `CONTRIBUTING.md` and `SECURITY.md`; the user guide's links are checked by a test, see E17-09)
 
-**Files:** `docs/README.md`
+**Implemented in:** `docs/README.md`
 
 ### E17-08 User guide
 
@@ -160,16 +160,16 @@ for, the main tasks step by step, and what each term means.
 **Acceptance criteria**
 
 - [x] Pages exist for getting started, service desk, inventory, vendors and contracts, frameworks, risks and actions, security incidents, projects, and administration
-- [ ] Each page has been checked against the running application
-- [ ] No page describes a feature that is not built without saying so
-- [ ] British spelling and plain English throughout
-- [ ] Nothing organization-specific
+- [ ] Each page has been checked against the running application: pages 01 to 21 checked on 21 Nov 2026 against a seeded instance and the code (labels, menus, steps, permissions, settings); still to check after their current changes: `22-approval-workflows.md`, `23-lifecycles.md` and the Organization section of `09-administration.md`
+- [x] No page describes a feature that is not built without saying so (each page ends with "Not available yet"; items built since were removed from those lists and described)
+- [x] American spelling and plain English throughout (checked with a word list on 21 Nov 2026; stored identifiers such as `cancelled` keep their spelling, see E17-14)
+- [x] Nothing organization-specific
 
-**Files:** `docs/user/01-getting-started.md` to `docs/user/09-administration.md`
+**Files:** `docs/user/01-getting-started.md` to `docs/user/23-lifecycles.md`
 
 ### E17-09 In-app Help
 
-**Status:** in progress · **Priority:** P1 · **Type:** feature
+**Status:** done · **Priority:** P1 · **Type:** feature
 
 As a user, I open Help from my account menu and read the same guide inside the
 application, with search and links between pages.
@@ -178,14 +178,17 @@ application, with search and links between pages.
 
 - [x] A Help module bundles the files in `docs/user/` at build time
 - [x] A Help entry in the account menu
-- [ ] Every guide page renders correctly in both themes
+- [x] Every guide page renders correctly in both themes (checked in light and dark at 1440 and 820 px; links to the other documents in `docs/` open on GitHub): checked on 21 Nov 2026 in light and dark at 1440 and 820 px (no raw Markdown, no missing anchors, no sideways scrolling). Open: a link from the guide to another document in `docs/` (`../installation.md#...`, ten links) resolves to `/installation.md` in Help and shows "Page not found"; `render` in `web/src/modules/help/HelpPage.tsx` should send them to the document on the project's site
+- [x] Every relative link and anchor in the guide resolves (`web/src/modules/help/links.test.ts`: guide pages and their headings, other documents in `docs/` and their headings)
 - [x] Links between pages and to sections work (each heading has a link to itself; Help search results open the section)
 - [x] Search finds text in any page, with the matching words highlighted in a passage under each result
 - [x] Works with no network access (nothing loaded from outside; the pages are bundled, one chunk per page, fetched when Help is opened)
 - [x] "Help for this page" (the ? button in the top bar, and `g` then `h`) opens the section about the current screen; the map is `web/src/modules/help/routeMap.ts`, and a test checks every entry points at a heading that exists
 - [x] A keyboard-shortcut sheet (`?`) and an API reference page (`/help/api`) built from `GET /api/openapi.json`
 
-**Files:** `web/src/modules/help/` (`index.tsx`, `HelpHome.tsx`, `HelpPage.tsx`, `guide.ts`, `text.ts`, `routeMap.ts`, `ApiReference.tsx`, `help.test.ts`); `web/src/core/Shell.tsx`, `web/src/core/Shortcuts.tsx`
+**Files:** `web/src/modules/help/` (`index.tsx`, `HelpHome.tsx`, `HelpPage.tsx`, `guide.ts`, `text.ts`, `routeMap.ts`, `ApiReference.tsx`, `help.test.ts`, `links.test.ts`); `web/src/core/Shell.tsx`, `web/src/core/Shortcuts.tsx`
+
+**Implemented in:** `web/src/modules/help/` (`HelpPage.tsx` links to other documents open on GitHub), `web/src/modules/help/links.test.ts`
 
 ### E17-10 Installation and administrator guide
 
@@ -198,10 +201,10 @@ my organization's profile loaded.
 **Acceptance criteria**
 
 - [x] An installation document and an administration page in the user guide exist
-- [ ] Installation steps tested on a clean machine
-- [ ] First-run setup, users, roles, second factor, lists and settings are covered
-- [ ] The organization profile and seed files are explained with the example
-- [ ] Says clearly what must be set before a pilot (notification rules, service-level targets, risk scales)
+- [ ] Installation steps tested on a clean machine: continuous integration installs from scratch on fresh Linux and macOS runners ("Install and run with grc.sh": `install-node.sh`, `grc.sh install`, start, health, seed, backup, verify, stop) and with the container image and compose; Windows (`install-node.ps1`, `grc.ps1`) is not yet run on a clean machine
+- [x] First-run setup, users, roles, second factor, lists and settings are covered (installation.md "First sign-in", with links into the Administration page)
+- [x] The organization profile and seed files are explained with the example (`examples/organization.example.json`)
+- [x] Says clearly what must be set before a pilot (installation.md "Settings that must be yours before a pilot": notification rules, service-level targets, risk scales, time zone, second factor)
 
 **Files:** `docs/installation.md`, `docs/user/09-administration.md`
 
@@ -215,16 +218,16 @@ checking health, reading logs and recovering from the common failures.
 **Acceptance criteria**
 
 - [x] An operations document exists
-- [ ] Start, stop, health, backup and log locations are covered
-- [ ] Says plainly that restore, upgrade and scheduled backup are not built ([E16](E16-hosting-operations-and-hardening.md))
-- [ ] A manual restore procedure is written and has been tried
-- [ ] What to do when the server will not start
+- [x] Start, stop, health, backup and log locations are covered
+- [x] Restore, upgrade (with automatic rollback) and scheduled backup are built ([E16](E16-hosting-operations-and-hardening.md)) and described; what is still limited (PostgreSQL servers and the object store are backed up with their own tools) is said plainly
+- [ ] A manual restore procedure is written and has been tried: written (operations.md "Restore"); tried by unit tests only (`server/src/ops/backup.test.ts` "brings a real database and its files back to the moment of the backup", `server/src/ops/archive.test.ts`), not yet by hand from the command line on a real installation
+- [x] What to do when the server will not start (operations.md "The server will not start": where each way of running it writes the reason, and the start-up messages with what to do)
 
 **Files:** `docs/operations.md`
 
 ### E17-12 Architecture and security notes
 
-**Status:** in progress · **Priority:** P2 · **Type:** docs
+**Status:** done · **Priority:** P2 · **Type:** docs
 
 As a developer or a reviewer, I can read how the application is put together and what
 its security model is, including what is deliberately left for later.
@@ -232,19 +235,18 @@ its security model is, including what is deliberately left for later.
 **Acceptance criteria**
 
 - [x] Architecture and security documents exist
-- [ ] Module discovery, the resource registry, permissions and restricted records are explained
-- [ ] The sign-in, session and audit design are described
-- [ ] Known weaknesses match `docs/known-gaps.md` and [E02](E02-account-security.md)
+- [x] Module discovery, the resource registry, permissions and restricted records are explained
+- [x] The sign-in, session and audit design are described (architecture.md "Authentication" and "Audit", updated 21 Nov 2026 for single sign-on, passkeys and the second-factor setting)
+- [x] Known weaknesses match `docs/known-gaps.md` and [E02](E02-account-security.md) (security.md "Not yet", checked 21 Nov 2026: hardware passkeys E02-08, directory sign-in limits E02-29; stale items on load testing, the dependency audit, the accessibility audit and retention webhooks corrected)
 
-**Files:** `docs/architecture.md`, `docs/security.md`
+**Implemented in:** `docs/architecture.md`, `docs/security.md`
 
 ### E17-13 License, contributing guide and security policy
 
-**Status:** in progress · **Priority:** P1 · **Type:** docs
+**Status:** done · **Priority:** P1 · **Type:** docs
 
 As a visitor to the public repository, I can see under what terms I may use the code,
-how to propose a change, and how to report a security problem privately. None of these
-files exist yet, and the repository is about to be published.
+how to propose a change, and how to report a security problem privately.
 
 **Acceptance criteria**
 
@@ -252,7 +254,9 @@ files exist yet, and the repository is about to be published.
 - [x] A contributing guide: how to run tests, the hard rules, the "update the tracker" rule (`CONTRIBUTING.md`)
 - [x] A security policy saying how to report a vulnerability (`SECURITY.md`)
 - [x] Issue templates that match this tracker's issue format (`.github/ISSUE_TEMPLATE/`)
-- [ ] A check that no private or internal file is tracked before the first push
+- [x] A check that no private or internal file is tracked (21 Nov 2026: `git ls-files` lists nothing under `seed/`, `data/`, `backups/`, no `.env`, key or "Build Specification" file; `.gitignore` and `.dockerignore` exclude them)
+
+**Implemented in:** `LICENSE`, `CONTRIBUTING.md` (updated 21 Nov 2026 for `grc.sh` and the GitHub checks), `SECURITY.md` (scope notes updated for HTTPS and encrypted backups), `.github/ISSUE_TEMPLATE/`
 
 ### E17-14 American English throughout
 

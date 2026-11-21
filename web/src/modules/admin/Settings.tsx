@@ -386,7 +386,7 @@ function FilesCard() {
         <Setting title="Allowed file types" changed={types !== start.types} text="Extensions separated by commas. A file is refused when its content does not match its extension. Programs and scripts can never be allowed.">
           <TextArea label="Allowed file types" hideLabel rows={3} value={types} onChange={setTypes} error={errors.allowedExtensions} placeholder="pdf, docx, png" />
         </Setting>
-        <Setting title="Malware scanning" text="Set where the application is installed, not here.">
+        <Setting title="Malware scanning" text="Set under Administration > File settings > Malware scanning.">
           <span className="adm-fixed">
             {!data.scanner || data.scanner === 'none' ? 'No scanner is installed: files are accepted without a scan and marked “Not scanned”.' : `Every file is checked by “${data.scanner}” before it is accepted.`}
           </span>

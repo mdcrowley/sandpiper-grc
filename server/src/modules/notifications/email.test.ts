@@ -159,6 +159,36 @@ describe('notifications by email', () => {
     expect((await t.api.post('/api/notifications/email-digest/run')).body).toMatchObject({ messages: 1, items: 1 });
   });
 
+  it('leaves notifications about a switched-off part out of the summary, and sends them once it is on again', async () => {
+    const agent = await t.as('agent');
+    await prefs(agent, { channels: { assignment: 'email', general: 'email' }, dailyDigest: true });
+    await t.db.query(`update notification_preferences set last_digest_on = null where user_id = $1`, [agent.userId]);
+    const vehicle = await t.ctx.resources.create('vehicle', { fleet_number: 'QUAIL-31', mode: (await t.ctx.lookups.values('vehicle_mode'))[0].value });
+    await t.app.notify({ userIds: [agent.userId], kind: 'assignment', title: 'Assigned: vehicle QUAIL-31', recordType: 'vehicle', recordId: vehicle.id });
+    await t.app.notify({ userIds: [agent.userId], kind: 'general', title: 'Inspection due: QUAIL-31', route: `/vehicles/${vehicle.id}` } as any);
+    await t.app.notify({ userIds: [agent.userId], kind: 'general', title: 'Timetable review this week', route: '/actions' } as any);
+    expect((await t.api.patch('/api/admin/features', { features: { fleet: false } })).status).toBe(200);
+    try {
+      expect((await t.api.post('/api/notifications/email-digest/run')).body).toMatchObject({ messages: 1, items: 1 });
+      await runMail();
+      const m = sink.messages.at(-1)!;
+      expect(m.body).toContain('Timetable review this week');
+      expect(m.raw).not.toMatch(/QUAIL|vehicle/i);
+      // Kept, not dropped: they still wait for a summary.
+      const waiting = await t.db.query<{ title: string }>(`select title from notifications where user_id = $1 and email_state = 'digest' order by title`, [agent.userId]);
+      expect(waiting.map((r) => r.title)).toEqual(['Assigned: vehicle QUAIL-31', 'Inspection due: QUAIL-31']);
+      // Nothing else waits for that person while the part is off: no message the next day.
+      await t.db.query(`update notification_preferences set last_digest_on = current_date - 1 where user_id = $1`, [agent.userId]);
+      expect((await t.api.post('/api/notifications/email-digest/run')).body).toMatchObject({ messages: 0 });
+    } finally {
+      expect((await t.api.patch('/api/admin/features', { features: { fleet: true } })).status).toBe(200);
+    }
+    await t.db.query(`update notification_preferences set last_digest_on = current_date - 1 where user_id = $1`, [agent.userId]);
+    expect((await t.api.post('/api/notifications/email-digest/run')).body).toMatchObject({ messages: 1, items: 2 });
+    await runMail();
+    expect(sink.messages.at(-1)!.body).toContain('Inspection due: QUAIL-31');
+  });
+
   it('lists a restricted record in the summary without naming it', async () => {
     const lead = await t.as('security_lead');
     await prefs(lead, { channels: { clock: 'email' }, dailyDigest: true });

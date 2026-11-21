@@ -1,6 +1,6 @@
 # E14 Platform services not yet built
 
-**Status:** in progress (33 of 37 issues done)
+**Status:** done (38 of 38 issues done)
 full-text search built; custom fields, tags and watchers built with their screens; retention
 built on the server and screens, with anonymizing; evidence files on record pages built, with expiry reminders;
 feature switches for optional areas built; approval workflows built)
@@ -50,7 +50,7 @@ bulk edit) that make daily use quicker.
 | E14-08 | Tags | done | P3 |
 | E14-09 | Watchers | done | P3 |
 | E14-10 | Bulk edit | done | P2 |
-| E14-11 | Retention settings and review flags | in progress | P2 |
+| E14-11 | Retention settings and review flags | done | P2 |
 | E14-12 | Job queue for background work | done | P2 |
 | E14-13 | Object-storage driver for attachments | done | P2 |
 | E14-14 | Malware scanner for attachments | done | P1 |
@@ -71,12 +71,13 @@ bulk edit) that make daily use quicker.
 | E14-29 | Larger messages through Microsoft Graph | done | P3 |
 | E14-30 | Wait as long as a throttled mail service asks | done | P3 |
 | E14-31 | Allowed status changes and required fields as data per record type | done | P3 |
-| E14-32 | Approval workflows that branch, run steps side by side or delegate | open | P3 |
+| E14-32 | Approval workflows that branch, run steps side by side or delegate | done | P3 |
 | E14-33 | Retention decisions raise webhook events | done | P3 |
 | E14-34 | A switched-off part is shown nowhere but its switch | done | P2 |
 | E14-35 | Organization settings: details, logo and accessible brand colors | done | P2 |
-| E14-36 | Branding in the remaining places: email logo, HTML report documents, WebP logos in PDFs | open | P3 |
-| E14-37 | A status change that needs approval waits for an approval workflow | open | P3 |
+| E14-36 | Branding in the remaining places: email logo, HTML report documents, WebP logos in PDFs | done | P3 |
+| E14-37 | A status change that needs approval waits for an approval workflow | done | P3 |
+| E14-38 | The daily email summary leaves out switched-off parts | done | P3 |
 
 ---
 
@@ -1028,7 +1029,7 @@ Split from E14-06, which built the approval workflows.
   (the page marks it as new); a retired status breaks no record (records holding it may move
   anywhere; rules naming it are ignored)
 - [ ] A move that needs approval starts an approval workflow (E14-06) and waits for it: not built
-  here (a workflow can already start when a status changes); left for a follow-up issue
+  here (a workflow can already start when a status changes); built in E14-37
 
 **Implemented in:** `server/src/core/lifecycle.ts` (rules, defaults, check, `/api/meta` part,
 `APPLICATION_RULES`), `core/resource.ts` (`checkLifecycle` in `create` and `update`),
@@ -1041,7 +1042,7 @@ Split from E14-06, which built the approval workflows.
 
 ### E14-32 Approval workflows that branch, run steps side by side or delegate
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 As an administrator, some approvals need two groups at once (finance and safety together), a
 different route for different records, or someone to stand in while an approver is away. E14-06
@@ -1049,8 +1050,19 @@ built ordered steps only.
 
 **Acceptance criteria**
 
-- [ ] Steps that run side by side and all must finish
-- [ ] A choice of route by condition, beyond skipping a step
+- [x] Steps that run side by side and all must finish (a step with 2 to 5 **groups**, each with its
+  own approvers, quorum, due time, escalation and optional conditions; every group that applies must
+  approve, one rejection rejects and stops the others; the Approvals page, notifications, escalation,
+  stand-ins, reassignment, the record panel, MCP tools and module approval kinds handle each group)
+- [x] A choice of route by condition, beyond skipping a step (**routes** after a step: the first whose
+  conditions hold sends the workflow to a later step or to the end, otherwise the next step; only
+  forward, so no loops; steps passed over are recorded as skipped). Shown in the editor and the flow
+  picture in plain words ("If Cost is more than 10,000, go to Director")
+- [x] Definitions saved before keep working unchanged: the stored shape is additive (`branches` and
+  `routes` are optional on a step); step rows gain `branch` and `group_name` (migration
+  `workflows/003_branches_and_moves.sql`), tested with a definition written in the old shape
+- [x] Stand-ins can also be named from the person's own **Account security** page (card
+  **Stand-in for approvals**, the same periods as Approvals > Stand-ins)
 - [x] An approver names a stand-in for a period; their approvals go to the stand-in and are recorded as such
   (from the Approvals page; administrators for anyone. While it runs, steps also go to the stand-in
   and either may decide, once between them; recorded "X on behalf of Y" in history, audit and webhook.
@@ -1062,7 +1074,17 @@ built ordered steps only.
 Stand-ins and reassignment are in `server/src/modules/workflows/standins.ts`, `service.ts` and
 `engine.ts` (`slotFor`), migration `workflows/002_kinds_and_standins.sql`, the **Stand-ins** tab of
 `web/src/modules/workflows/ApprovalsPage.tsx` (`Standins.tsx`) and `WorkflowPanel.tsx`; tests
-`server/src/modules/workflows/kinds.test.ts`. Steps side by side and routes by condition stay open.
+`server/src/modules/workflows/kinds.test.ts`.
+
+**Implemented in:** `server/src/modules/workflows/engine.ts` (`ApprovalUnit`, `Route`, `isGroup`,
+`applicableBranches`, `routeAfter`, `groupStatus`, `unitAt`, `checkDefinition`), `service.ts` (groups in
+`advance`, `proceed` for routes, branch completion under a lock in `decide`, escalation, the kinds'
+`decide` and `progress`), `routes.ts` (`CURRENT_STEP`, branches on the record view, "Step: Group" in
+the approvals list), migration `workflows/003_branches_and_moves.sql`; web
+`web/src/modules/workflows/WorkflowEditor.tsx` (`UnitFields`, `RouteRows`), `FlowDiagram.tsx`,
+`describe.ts`, `WorkflowPanel.tsx`, `StandinCard.tsx` (shown by `web/src/modules/admin/AccountSecurity.tsx`);
+guide `docs/user/22-approval-workflows.md`; tests `server/src/modules/workflows/branches.test.ts`,
+`engine.test.ts`, `web/src/modules/workflows/describe.test.ts`.
 
 ### E14-33 Retention decisions raise webhook events
 
@@ -1191,7 +1213,7 @@ Acceptance criteria:
 
 ### E14-36 Branding in the remaining places: email logo, HTML report documents, WebP logos in PDFs
 
-**Status:** open · **Priority:** P3 · **Type:** improvement
+**Status:** done · **Priority:** P3 · **Type:** improvement
 
 Left out of E14-35: emails carry the organization's name but not its logo (it would need an
 absolute address or an inline attachment, and many mail programs block remote pictures); the HTML
@@ -1202,15 +1224,49 @@ scale (used by a few components outside the design tokens) keeps the standard hu
 
 Acceptance criteria:
 
-- [ ] The logo in emails, as an inline attachment, with a setting to leave it out
-- [ ] The organization's name, address and logo in HTML report documents and pack previews
-- [ ] WebP logos converted for PDFs, or the page asks for a PNG for printing
-- [ ] A square favicon made from the logo
-- [ ] Mantine's brand scale generated from the brand color
+- [x] The logo in emails, as an inline attachment, with a setting to leave it out: the light-theme
+  logo (PNG or JPEG, or a WebP logo's PNG copy, up to 200 KB) above the HTML body as
+  `<img src="cid:…">`, shown at most 40 × 200 pixels with the organization's name as its text, sent
+  as an inline part of a `multipart/related` body (Content-ID, `Content-Disposition: inline`); the
+  text part is unchanged and text messages carry none. SMTP and the Gmail API send the MIME message;
+  Microsoft Graph sends it as MIME too, and a larger message's draft gets the logo as an inline file
+  attachment (`isInline`, `contentId`; the stand-in checks both). **Show the logo in emails**
+  (`branding.email_logo`, on by default) leaves it out. The template preview shows it from a data:
+  address
+- [x] The organization's name, address and logo in HTML report documents and pack previews: the
+  print-ready document (reports, dashboards, packs, produced copies) shows the logo (as a data:
+  address, so it still loads nothing from outside) or the name at the top, uses the brand color for
+  its rules and ends with the name, legal name, address and contacts, as the PDF does; the on-screen
+  pack preview shows the theme's logo on the cover and the same footer
+- [x] WebP logos converted for PDFs: no WebP decoder on the server and no new dependency. The
+  browser that uploads a WebP logo draws it on a canvas and sends a PNG copy (at most 1024 × 512)
+  with it; the server checks it is a PNG of the logo's shape (within 3 percent) and up to 1 MB and
+  stores it beside the logo. PDFs and emails use it. A WebP logo without a copy (imported by the
+  organization profile, or from a browser that could not draw it) shows a note on the Organization
+  page with **Make printable copy** (`POST /api/admin/organization/logo/:variant/print`, audited)
+- [x] A square favicon made from the logo: the browser draws a 32-pixel icon (see-through around
+  the logo) and a 180-pixel home-screen icon on white, keeps them in local storage until the logo
+  changes, and falls back to the logo as uploaded where it cannot draw
+- [x] Mantine's brand scale generated from the brand color: ten shades shaped like the standard
+  scale, with index 7 the light theme's accessible brand shade (`brandScale` in
+  `web/src/core/branding.ts`, applied by `UiProvider`)
+- [x] Tests: `server/src/core/branding-places.test.ts` (email markup, Content-ID and inline part
+  through SMTP, Microsoft Graph (MIME and draft) and the Gmail API, the switch, HTML document
+  branding and refusals, the PNG copy's checks, routes and audit), `web/src/core/branding.test.ts`
+  (square fit, brand scale); browser check of the Organization page, the pack preview and the
+  print-ready document
+
+**Implemented in:** `server/src/core/organization.ts` (`printableLogo`, `checkPrintCopy`,
+`savePrintCopy`, `mailBranding` logo, `printBranding.logoDataUri`, `branding.email_logo`),
+`core/mail/templates.ts`, `core/mail/provider.ts` (`cid`), `core/mail/cloud.ts`, `core/mail/graph.ts`,
+`core/mail/cloud-fake.ts`, `core/mail/service.ts`, `core/mail/routes.ts` (preview),
+`modules/admin/organization.ts`, `modules/admin/docs.ts`, `modules/reports/render.ts`,
+`modules/reports/index.ts` (pack preview); web `core/branding.ts`, `core/mantine.tsx`,
+`modules/admin/Organization.tsx`, `modules/reports/PackPages.tsx`, `reports-dash.css`.
 
 ### E14-37 A status change that needs approval waits for an approval workflow
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 Split from E14-31. A lifecycle (Administration > Lifecycles) says which status changes are allowed
 and who may make them, and an approval workflow can start when a status changes, but a move cannot
@@ -1219,6 +1275,50 @@ and takes it when the workflow is approved (or stays when it is rejected).
 
 **Acceptance criteria**
 
-- [ ] A lifecycle move can name an approval workflow it waits for
-- [ ] The record shows the pending move; approval makes it, rejection leaves the record as it was
-- [ ] Works on every save path (forms, API, imports, MCP), audited, and respects feature switches
+- [x] A lifecycle move can name an approval workflow it waits for (**Changes that wait for approval**
+  on the Lifecycles page: from, to and an active workflow of the type that is not a module's approval
+  kind; stored as `approvals` [from, to, workflow id] in `lifecycle_rules`, core migration 018; a move
+  since blocked waits for nothing; a new record never waits)
+- [x] The record shows the pending move; approval makes it, rejection leaves the record as it was (the
+  other fields of the save are kept and the status stays; the approval panel says "Waiting for approval
+  to move to …"; approval makes the move as system work through the resource engine, so hooks, audit
+  and webhooks run and module rules are checked then; a status changed meanwhile is not overwritten;
+  rejection and cancel leave it). While a move waits, other fields stay editable and another status
+  change is refused (400 on the status field) until the approval ends. A workflow whose own conditions
+  do not hold lets the move through at once; an inactive or removed workflow refuses the move
+- [x] Works on every save path (forms, API, imports and their check, bulk edit, MCP), audited
+  (`lifecycle.move_held`, `.move_approved`, `.move_rejected`, `.move_canceled`, `.move_failed`), and
+  respects feature switches (types of switched-off areas are neither listed nor saved)
+
+Status menus in modules and bulk edit offer only the statuses the lifecycle allows (follow-up of
+E14-31): `web/src/core/lifecycleMenus.ts` (`allowedForAll`, `canMoveTo`, `moveBlockedReason`), used by
+`web/src/core/ListBulk.tsx` and the hand-written status controls of actions, framework outcomes,
+safety events, security incidents and notification tasks, vulnerabilities, assets, tickets and
+policy exceptions; tests `web/src/core/lifecycleMenus.test.ts`, `ListBulk.component.test.ts`.
+
+**Implemented in:** `server/src/core/lifecycle.ts` (`approvals`, `MoveHolder`, `held`, `hold`, the
+pending check in `check`, `approvals` in `/api/meta`), `core/resource.ts` (`update` holds the move,
+`holdMove` answers `_pending_move`), `core/migrations/018_lifecycle_approvals.sql`,
+`server/src/modules/workflows/service.ts` (`holder`, `settleMove`), `routes.ts` (`pending_move`,
+`moves` on a definition), `server/src/modules/lifecycles/index.ts` (`approvals`, `workflows`),
+`server/src/modules/mcp/tools-records.ts` (says the move waits); web `web/src/core/lifecycle.ts`
+(`waitsForApproval`), `ResourceForm.tsx` (hint), `api.ts` (`grc:move-held`),
+`web/src/modules/lifecycles/LifecyclesPage.tsx` (`ApprovalMoves`), `WorkflowPanel.tsx`; guides
+`docs/user/23-lifecycles.md`, `22-approval-workflows.md`; tests
+`server/src/modules/workflows/branches.test.ts`, `core/lifecycle.test.ts`, browser suite `10-lifecycles`.
+
+### E14-38 The daily email summary leaves out switched-off parts
+
+**Status:** done · **Priority:** P3 · **Type:** bug
+
+Found after E14-34. The bell and the notification list leave out notifications about a
+switched-off part of the application (its record types, or links to its pages), but the daily
+email summary still listed those that lead there by a link only, and dropped the others for good.
+
+**Acceptance criteria**
+
+- [x] The summary applies the same filter as the notification list (`shownSql` and `switchedOffParams` in `modules/notifications/service.ts`, shared by both)
+- [x] Those notifications are kept waiting, not dropped: they are in the first summary after the part is switched on again; a person with nothing else waiting gets no message
+- [x] Unit test
+
+**Implemented in:** `server/src/modules/notifications/email.ts`, `service.ts`, `index.ts`; test `email.test.ts`; [user guide](../../user/14-attachments-and-notifications.md#notifications-by-email)

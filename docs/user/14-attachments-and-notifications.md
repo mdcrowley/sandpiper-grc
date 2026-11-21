@@ -299,10 +299,10 @@ If email is not switched on in your installation, the page says so, and anything
 
 ### Notifications by email
 
-Messages go to the email address on your account, shown under **Email** on the **Preferences** tab. Only an administrator can change it.
+Messages go to the email address on your account, named in the **Email** card on the **Preferences** tab. Only an administrator can change it.
 
 - **One message for each notification.** Each email has the notification's title and text, a link that opens the record in the application, and a link to your preferences.
-- **One summary a day.** Check **Send me one summary a day instead of a message for each notification**. Notifications you get by email then wait, and once a day (from the hour your administrator has set, 07:00 unless changed) you receive one message listing them, each with its link. Nothing is sent on a day with nothing new. The bell is not affected: it always shows notifications as they happen.
+- **One summary a day.** Check **Send me one summary a day instead of a message for each notification**. Notifications you get by email then wait, and once a day (from the hour your administrator has set, 07:00 unless changed) you receive one message listing them, each with its link. Nothing is sent on a day with nothing new. The bell is not affected: it always shows notifications as they happen. A notification about a part of the application that is switched off is left out of the summary and kept: it is in the first summary after that part is switched on again.
 
 **Restricted records are never described in an email.** If a notification is about a restricted record, such as a security incident, the email says only "You have a new security notification — open the application to view it" and links to your notifications page; in the daily summary it is listed the same way, without its title. Whether you may still see a record is checked again when the email is sent: if you have lost access in the meantime, nothing is sent about it.
 
@@ -354,7 +354,7 @@ Whoever runs your mail service sets up the sign-in for Microsoft Graph or the Gm
 
    | Field | What to enter |
    |---|---|
-   | **Service account key (JSON)** | The whole key file of the service account. Kept encrypted and never shown again; the page shows the service account and its client ID, which your Google Workspace administrator needs for domain-wide delegation |
+   | **Service account key (JSON)** | The whole key file of the service account. Kept encrypted and never shown again; the page shows the service account and its client ID, which your Google Workspace administrator needs for domain-wide delegation. Check **Remove the saved service account key** to delete it |
    | **Send as mailbox** | A user in your domain whose mailbox sends the messages. Empty: the from address |
 
    Then, under **Sender**, for every choice:
@@ -457,7 +457,6 @@ Each job runs once even if more than one copy of the server is using the same da
 ## Not available yet
 
 - Changing the email address on your own account: ask an administrator.
-- Sending a message larger than about 3 MB with its files through Microsoft Graph (use SMTP or the Gmail API, or send large files as links).
 - Signing in to Gmail with a person's own account (a refresh token): the Gmail API is used with a service account only, so a personal Gmail account must use SMTP with an app password.
 - Malware scanners other than ClamAV, or scanning through an outside service.
 - Viewing a file inside the application. Files are downloaded and opened on your computer.

@@ -16,7 +16,7 @@ import { runDigest } from './digest.ts';
 import { runEmailDigest } from './email.ts';
 import { runHousekeeping } from './housekeeping.ts';
 import { registerReminderSettings } from './reminder-settings.ts';
-import { channelFor, CHANNELS, makeNotify, maySee, safeRoute, type Channel } from './service.ts';
+import { channelFor, CHANNELS, makeNotify, maySee, safeRoute, shownSql, switchedOffParams, type Channel } from './service.ts';
 
 const KIND_LIST = 'notification_kind';
 const HOUR = 3_600_000;
@@ -49,12 +49,11 @@ const mod: ModuleDef = {
     if (!app.hasDecorator('notify')) app.decorate('notify', notify);
 
     const me = (req: FastifyRequest) => req.user!.id;
-    // Notifications about records of a switched-off area (Administration > Features), or leading to one
-    // of its pages, are kept but not shown or counted until the area is on again (E14-34).
+    // Notifications about a switched-off area are kept but not shown or counted (E14-34, `shownSql`).
     // Parameter $2 is the list of those types, $3 the first segments of their pages' addresses.
-    const offTypes = () => (app.hasDecorator('switchedOffTypes') ? app.switchedOffTypes() : []);
-    const offPaths = () => (app.hasDecorator('switchedOffPaths') ? app.switchedOffPaths() : []);
-    const shown = `not (coalesce(record_type, '') = any($2::text[])) and not (coalesce(substring(route from '^/([^/?#]+)'), '') = any($3::text[]))`;
+    const offTypes = () => switchedOffParams(app)[0];
+    const offPaths = () => switchedOffParams(app)[1];
+    const shown = shownSql(2, 3);
     const unreadCount = async (userId: string) =>
       (await db.one<{ c: number }>(`select count(*)::int c from notifications where user_id = $1 and in_app and dismissed_at is null and read_at is null and ${shown}`, [userId, offTypes(), offPaths()]))!.c;
 

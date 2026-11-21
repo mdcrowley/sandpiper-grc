@@ -3,8 +3,9 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Badge, Button, Countdown, EditableSummary, errorMessage, formatDate, Icon, KeyValue, Menu, RecordPage, useFetch, useToast,
+  Badge, Button, Countdown, EditableSummary, errorMessage, formatDate, Icon, KeyValue, Menu, RecordPage, useFetch, useLookup, useToast,
 } from '../../core';
+import { canMoveTo, editableLifecycle } from '../../core/lifecycleMenus';
 import type { RecordContext, Row } from '../../core';
 import { AcceptRiskDialog, AssignDialog, FalsePositiveDialog, FixedDialog } from './Dialogs';
 import { ActionsTab, hostOf, portOf, SeverityChip, useActionsAvailable, useAvailableFields } from './shared';
@@ -12,11 +13,20 @@ import type { Policy } from './shared';
 
 type DialogKey = 'assign' | 'fixed' | 'accept' | 'false_positive';
 
-function Actions({ row, save, canEdit }: RecordContext) {
+function Actions({ row, resource, save, canEdit }: RecordContext) {
   const toast = useToast();
   const [dialog, setDialog] = useState<DialogKey | null>(null);
   const [busy, setBusy] = useState(false);
+  // A status action the lifecycle rules do not allow from the current status is left out (E14-31);
+  // Edit offers the statuses that are allowed.
+  const rules = editableLifecycle(resource.lifecycle, 'status');
+  const values = useLookup('vulnerability_status').map((v) => v.value);
+  const may = (to: string) => canMoveTo(rules, row.status, to, values);
   if (!canEdit) return null;
+  const closeWithout = [
+    ...(may('risk_accepted') ? [{ label: 'Accept the risk…', icon: 'scale' as const, onSelect: () => setDialog('accept') }] : []),
+    ...(may('false_positive') ? [{ label: 'False positive…', icon: 'x' as const, onSelect: () => setDialog('false_positive') }] : []),
+  ];
   const setStatus = async (status: string, done: string) => {
     setBusy(true);
     try {
@@ -33,15 +43,12 @@ function Actions({ row, save, canEdit }: RecordContext) {
     <>
       <Button icon="user" onClick={() => setDialog('assign')}>{row.owner_id ? 'Reassign' : 'Assign'}</Button>
       {row.closed ? (
-        <Button variant="primary" loading={busy} onClick={() => void setStatus('open', 'Finding reopened.')}>Reopen</Button>
+        may('open') && <Button variant="primary" loading={busy} onClick={() => void setStatus('open', 'Finding reopened.')}>Reopen</Button>
       ) : (
         <>
-          {row.status === 'open' && <Button loading={busy} onClick={() => void setStatus('in_remediation', 'Remediation started.')}>Start remediation</Button>}
-          <Button variant="primary" icon="check" onClick={() => setDialog('fixed')}>Mark fixed</Button>
-          <Menu label="Close without a fix" align="end" items={[
-            { label: 'Accept the risk…', icon: 'scale', onSelect: () => setDialog('accept') },
-            { label: 'False positive…', icon: 'x', onSelect: () => setDialog('false_positive') },
-          ]} />
+          {row.status === 'open' && may('in_remediation') && <Button loading={busy} onClick={() => void setStatus('in_remediation', 'Remediation started.')}>Start remediation</Button>}
+          {may('fixed') && <Button variant="primary" icon="check" onClick={() => setDialog('fixed')}>Mark fixed</Button>}
+          {closeWithout.length > 0 && <Menu label="Close without a fix" align="end" items={closeWithout} />}
         </>
       )}
       {dialog === 'assign' && <AssignDialog row={row} save={save} onClose={close} />}

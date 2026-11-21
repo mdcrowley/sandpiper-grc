@@ -117,7 +117,7 @@ export function TemplatesAdmin() {
               <LookupSelect label="Risk" list="change_risk" value={form.risk_level} onChange={(risk_level) => set({ risk_level: risk_level || 'low' })} error={fields.risk_level} />
               <NumberField label="Usual duration in minutes" min={5} step={5} value={form.duration_minutes} onChange={(n) => set({ duration_minutes: n ?? 60 })} error={fields.duration_minutes} />
               {hasSystems && <RecordPicker label="Main system" type="system" value={form.system_id} display={form.system_label ?? undefined} onChange={(id, o) => set({ system_id: id, system_label: o?.label })} hint="Optional: leave empty to choose when the change is raised." />}
-              <Checkbox label="In use" hint="Untick to stop new changes being raised from this template." checked={form.active} onChange={(active) => set({ active })} />
+              <Checkbox label="In use" hint="Clear this to stop new changes being raised from this template." checked={form.active} onChange={(active) => set({ active })} />
             </div>
             {formError && <p className="form-error" role="alert">{formError}</p>}
             <div className="form-actions">

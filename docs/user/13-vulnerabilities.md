@@ -6,7 +6,16 @@ An administrator can switch vulnerabilities off under **Administration > Feature
 
 ## Who can see findings
 
-Findings are security records. To see them you need the vulnerabilities permission and the permission to view security records. Without both, the pages, searches, exports and counts show nothing. The default **Security lead** and **Administrator** roles have both. Roles are described in [Administration](09-administration.md).
+Findings are security records. To see them you need **View** on **Vulnerabilities** and **View** on **Security incidents and restricted records**. Without both, the pages, searches, exports and counts show nothing. The default **Security lead** and **Administrator** roles have both. Roles are described in [Administration](09-administration.md).
+
+Beyond viewing, on **Vulnerabilities**:
+
+| To do this | You need |
+|---|---|
+| Add a finding by hand | **Create** |
+| Assign, work, close or reopen a finding, or change several at once | **Edit** |
+| Import findings | **Create** and **Edit** |
+| Change the severity policy, or merge duplicate findings | **Administer** |
 
 ## Find your way around
 
@@ -178,7 +187,7 @@ The dry run shows exactly what the import would do.
 | **Missing from file** or **Will be closed** | Open findings from earlier imports of this source that this file does not report |
 | **Rows with errors** | Rows that cannot be imported, with the number of repeated rows |
 
-Under the tiles, the tabs **Problems**, **New**, **Updated**, **No change**, **Missing from file** and **Unmatched hosts** list the rows of each kind, each with its line number, host and port, finding, severity and the reason or the fields that change. Rows with errors are never imported: correct the file and start again, or import the rest.
+Under the tiles, the tabs **Problems**, **New**, **Updated**, **No change**, **Missing from file** (called **To close** when **Close missing findings** is checked) and **Unmatched hosts** list the rows of each kind, each with its line number, host and port, finding, severity and the reason or the fields that change. Rows with errors are never imported: correct the file and start again, or import the rest.
 
 How duplicates are avoided:
 
@@ -247,3 +256,7 @@ The other findings are removed. Their comments, files, links, tags and watchers 
 ## Sample data
 
 Loading sample data adds about sixty invented findings on twelve invented hosts, with the source **[Sample] Monthly network scan**, and several weeks of history for the weekly chart. To remove them, filter the list by searching for the source, then delete the findings.
+
+## Not available yet
+
+- A direct connection to a scanner that pulls findings on a schedule. Export a CSV file from the scanner and import it, or send it to the import through the API with an API token (see [API tokens](09-administration.md#api-tokens)).

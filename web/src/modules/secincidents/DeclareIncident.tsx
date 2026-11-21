@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ApiError, api, Badge, Button, Card, DateTimeField, EmptyState, ErrorState, errorMessage, formatDateTime, Icon, Loading,
-  lookupLabel, LookupSelect, PageHeader, Stepper, Switch, TextArea, TextField, useCustomFieldInputs, useDebounced, useFetch, useLookup, useToast,
+  lookupLabel, LookupSelect, PageHeader, Stepper, Switch, TextArea, TextField, useCustomFieldInputs, useDebounced, useFetch, useLookup, useResource, useToast,
 } from '../../core';
+import { editableLifecycle, moveBlockedReason } from '../../core/lifecycleMenus';
 import type { Row } from '../../core';
 import { PilotNotice, remainingText, useLifecycle, useNow, zoneName } from './shared';
 import type { PreviewItem, PreviewResult, Questions } from './types';
@@ -95,6 +96,12 @@ export function DeclareIncident() {
   const [previewing, setPreviewing] = useState(false);
   const [retry, setRetry] = useState(0);
   const [busy, setBusy] = useState<'' | 'declared' | 'reported'>('');
+  // A new incident may start only in a status the lifecycle rules allow for a new record (E14-31).
+  const rules = editableLifecycle(useResource('security_incident')?.lifecycle, 'status');
+  const startBlocked = (as: 'declared' | 'reported') => {
+    const to = lifecycle?.statuses.find((s) => s.stage === as);
+    return moveBlockedReason(rules, '', to?.value ?? as, to?.label ?? as, lifecycle?.statuses.map((s) => s.value));
+  };
   // The administrator's custom fields on security incidents (E18-34), asked on the first step.
   const custom = useCustomFieldInputs('security_incident');
 
@@ -234,8 +241,8 @@ export function DeclareIncident() {
               {step < 2 && <Button variant="primary" type="submit">Continue</Button>}
               {step === 2 && (
                 <>
-                  <Button onClick={() => save('reported')} loading={busy === 'reported'} disabled={busy !== ''}>Save as reported only</Button>
-                  <Button variant="primary" icon="alert" onClick={() => save('declared')} loading={busy === 'declared'} disabled={busy !== ''}>
+                  <Button onClick={() => save('reported')} loading={busy === 'reported'} disabled={busy !== '' || Boolean(startBlocked('reported'))} title={startBlocked('reported') || undefined}>Save as reported only</Button>
+                  <Button variant="primary" icon="alert" onClick={() => save('declared')} loading={busy === 'declared'} disabled={busy !== '' || Boolean(startBlocked('declared'))} title={startBlocked('declared') || undefined}>
                     Confirm and declare incident
                   </Button>
                 </>

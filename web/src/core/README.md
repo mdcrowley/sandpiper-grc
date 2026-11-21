@@ -89,7 +89,17 @@ The first download holds the shell only: React, the Mantine pieces the shell use
 navigation, the Create menu and the route table. **Each module is a chunk of its own** (its
 pages, its CSS and whatever only it imports) that is fetched the first time one of its routes is
 opened; the record layer (`ResourceList`, `RecordPage`, forms, pickers) is one shared chunk
-fetched with the first module, and the chart library loads with the first chart.
+fetched with the first module, the chart library loads with the first chart, and the date pickers
+(`dateFields.tsx` and the `vendor-dates` chunk) with the first date field (`DateField` and
+`DateTimeField` draw a read-only stand-in with the same label for the moment that takes).
+
+Libraries are in chunks of their own, named in `VENDOR_GROUPS` in `vite.config.ts`:
+`vendor-react` (React and the router) and `vendor-mantine` (the component library and its
+helpers) load with every page; `vendor-dates`, `vendor-echarts` and `vendor-zrender` only when
+needed. They change rarely, so browsers keep them across releases. Each group names its packages
+exactly: a catch-all group would pull libraries only some pages need into every page. A new
+library that every page needs belongs in `vendor-mantine` or a group of its own; one that only a
+module uses needs nothing (it lands in that module's chunk).
 
 A module author does nothing for this. The build (the `grc-modules` plugin in
 `vite.config.ts`) reads `key`, `nav`, `create`, each route's `path` and `permission` and each
@@ -119,8 +129,9 @@ as in the example above.
 Build switches (environment variables): `GRC_WEB_MODULES=home,admin` builds only those module
 folders (for parallel work when another module is mid-edit), and `GRC_ANALYSE=1` writes one
 chunk per npm package and core file so the build output shows what each weighs (never serve
-that build). Sizes at the time of writing: entry script 370 kB and React 258 kB (192 kB
-compressed together), against 1,769 kB in one file before.
+that build). Sizes at the time of writing (E18-55): entry script 220 kB, `vendor-mantine` 421 kB
+and `vendor-react` 258 kB (275 kB compressed together); charts 656 kB in three files; no chunk is
+over 500 kB.
 ### What the shell does with a module
 
 `Shell.tsx` is a Mantine `AppShell`. Nothing in a module needs to know about it, but it helps
@@ -263,7 +274,7 @@ table, arrow keys (and Home/End) to move, Enter to open, Space to select.
 | Prop | Type | Notes |
 |---|---|---|
 | `type` | `string` | Record type key (required) |
-| `columns` | `(string \| { field, label?, render?, sortable?, align?, hidden? })[]` | A string is a field name, rendered by type: lookup as chip, user/ref from `_display` (ref links to the target record), date `18 Nov 2026`, datetime `18 Nov 2026, 14:05` (organization time zone), boolean Yes/No, currency in the organization's currency. `created_at` and `updated_at` work too. The title and reference columns link to the detail page. Long text is cut to one line with the full text as a tooltip; numbers are right-aligned (`align` overrides). `render(row)` replaces the cell; render-only columns are not sortable unless `sortable: true` and `field` is a real column. `hidden: true` starts the column switched off in the column chooser |
+| `columns` | `(string \| { field, label?, render?, sortable?, align?, hidden? })[]` | A string is a field name, rendered by type: lookup as chip, user/ref from `_display` (ref links to the target record), date `Nov 18, 2026`, datetime `Nov 18, 2026, 14:05` (organization time zone), boolean Yes/No, currency in the organization's currency. `created_at` and `updated_at` work too. The title and reference columns link to the detail page. Long text is cut to one line with the full text as a tooltip; numbers are right-aligned (`align` overrides). `render(row)` replaces the cell; render-only columns are not sortable unless `sortable: true` and `field` is a real column. `hidden: true` starts the column switched off in the column chooser |
 | `filters` | `string[]` | Fields offered in the Filters popover. lookup: chips (any of); boolean: any/yes/no; user and ref: pickers (user fields also offer "Me"); date and datetime: after/before. Other types are ignored (the search box covers text). Active filters show as removable pills under the toolbar |
 | `baseFilter` | `Record<string, string>` | Always applied, not shown. Keys as in `listQuery` filters: `{ project_id: id }`, `{ 'due_at.lt': '2026-12-01' }`, `{ status: 'open,pending' }` |
 | `title` | `string` | Renders a `PageHeader`. Leave out when embedding the list in a tab or card (New and `actions` then sit in the toolbar) |
@@ -621,7 +632,7 @@ control), `hideLabel?` (the label becomes the accessible name only), `className?
 | `LookupSelect` | `string` | `list` (lookup list name). Shows each value's color dot |
 | `MultiSelect` | `string[]` | `label`, `options`, `disabled?`, `size?` (compact button with a dropdown of checkboxes, for toolbars; no `error`/`hint`) |
 | `Checkbox`, `Switch` | `checked: boolean`, `onChange(checked)` | `label`, `hint?`, `error?`, `disabled?`. `Switch` is the same contract drawn as an on/off switch, for settings that apply at once |
-| `DateField` | `'YYYY-MM-DD'` or `''` | `min?`, `max?`, `placeholder?`. Calendar, or type `18 Nov 2026`, `18/11/2026` or `2026-11-18` |
+| `DateField` | `'YYYY-MM-DD'` or `''` | `min?`, `max?`, `placeholder?`. Calendar, or type `Nov 18, 2026`, `11/18/2026` (month first), `2026-11-18` or `18 Nov 2026` |
 | `DateTimeField` | ISO instant or `''` | `placeholder?`. Edited as wall-clock time in the organization's time zone (named in the hint); the browser's own zone plays no part |
 | `NumberField` | `number \| null` | `min?`, `max?`, `step?`, `prefix?` (shown inside the control, e.g. `currency()`), `thousands?` (group digits), `decimals?`, `placeholder?` |
 | `UserPicker` | `string \| null` (user id) | `display?` (label of the current value, e.g. `row._display?.owner_id`), `placeholder?`; `onChange(id, option?)` |
@@ -650,8 +661,8 @@ All in the organization's time zone (`timeZone()`, set by the server's `GRC_TIME
 
 | Function | Example |
 |---|---|
-| `formatDate(v)` | `18 Nov 2026` (date-only values are never shifted by time zone) |
-| `formatDateTime(v)` | `18 Nov 2026, 14:05` |
+| `formatDate(v)` | `Nov 18, 2026` (date-only values are never shifted by time zone) |
+| `formatDateTime(v)` | `Nov 18, 2026, 14:05` |
 | `relativeTime(v)` | `3 hours ago`, `in 2 days` |
 | `formatDuration(ms)` | `2d 4h`, `3h 12m`, `45m` |
 | `formatCurrency(v)` | `$1,234.50` |
@@ -714,7 +725,9 @@ for a machine). Run it after changing a color; at the time of writing every pair
    values if the sidebar should change). Check contrast: `--brand-contrast` on `--brand` and
    `--link` on `--surface` need 4.5:1.
 2. In `mantine.tsx` change the ten-step `brand` scale to match (index 7 is the light theme's
-   `--brand`, index 4 the dark theme's).
+   `--brand`), and `STANDARD_SCALE` in `branding.ts`. An organization's brand color
+   (Administration > Organization) replaces the scale at run time with one made from it
+   (`brandScale`).
 3. Replace the mark in `Logo.tsx` and the same drawing in `web/public/favicon.svg`. The
    application's name comes from the organization profile (`appName`), not from code.
 

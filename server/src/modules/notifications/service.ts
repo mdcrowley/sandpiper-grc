@@ -79,6 +79,19 @@ export function safeRoute(route: unknown): string | null {
   return /^\/(?!\/)[^\s\\]*$/.test(r) && r.length <= 500 ? r : null;
 }
 
+/**
+ * Notifications about records of a switched-off area (Administration > Features), or leading to one of
+ * its pages, are kept but neither shown, counted nor emailed until the area is on again (E14-34). The
+ * SQL condition takes the off record types as parameter `$<types>` and the first segments of their
+ * pages' addresses as `$<paths>`; `switchedOffParams` gives both. `alias` prefixes the columns.
+ */
+export const shownSql = (types: number, paths: number, alias = '') =>
+  `not (coalesce(${alias}record_type, '') = any($${types}::text[])) and not (coalesce(substring(${alias}route from '^/([^/?#]+)'), '') = any($${paths}::text[]))`;
+export const switchedOffParams = (app: ModuleContext['app']): [string[], string[]] => [
+  app.hasDecorator('switchedOffTypes') ? app.switchedOffTypes() : [],
+  app.hasDecorator('switchedOffPaths') ? app.switchedOffPaths() : [],
+];
+
 /** Every active user with the permissions their enabled roles grant (as core loads a session user). */
 export async function activeUsers(ctx: ModuleContext): Promise<SessionUser[]> {
   const rows = await ctx.db.query<Row>(

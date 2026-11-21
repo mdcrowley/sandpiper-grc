@@ -262,8 +262,8 @@ export async function finishSignIn(
   }
   const mfa = providerMfaSatisfied(provider.config, identity);
   await deps.db.query('update users set last_login_at = now(), failed_attempts = 0, locked_until = null where id = $1', [user.id]);
-  await deps.db.query('update user_identities set last_used_at = now(), email = coalesce($3, email) where provider_id = $1 and subject = $2',
-    [provider.id, identity.subject, identity.email]);
+  await deps.db.query('update user_identities set last_used_at = now(), email = coalesce($3, email), login_name = coalesce($4, login_name) where provider_id = $1 and subject = $2',
+    [provider.id, identity.subject, identity.email, identity.loginName ?? null]);
   const token = await createSession(deps.db, user.id, clientIp(req), req.headers['user-agent']);
   setSessionCookie(req, reply, token);
   req.user = await loadUser(deps.db, user.id);

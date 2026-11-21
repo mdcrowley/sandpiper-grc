@@ -5,10 +5,11 @@
 // job sends each such person one message listing them. Each item is checked again: a record
 // the person can no longer open is left out, and a restricted one is listed only as "a new
 // security notification" with no title. The job runs hourly on the queue; running it more
-// often sends nothing twice.
+// often sends nothing twice. Notifications about a switched-off part of the application (E14-34, E14-38) are
+// left out and keep waiting: they are in the first summary after the part is switched on again.
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { TIME_ZONE, todayInZone } from '../../core/timezone.ts';
-import { activeUsers, maySee } from './service.ts';
+import { activeUsers, maySee, shownSql, switchedOffParams } from './service.ts';
 
 export const SETTING_DIGEST_HOUR = 'notifications.digest_hour';
 const MAX_ITEMS = 50;
@@ -24,11 +25,12 @@ export async function runEmailDigest(ctx: ModuleContext, now = new Date()): Prom
   const hour = Math.min(23, Math.max(0, Math.round(Number(await ctx.settings.get<unknown>(SETTING_DIGEST_HOUR, 7))) || 0));
   if (Number(hourFormat.format(now)) < hour) return out;
   const today = todayInZone(now);
+  const [offTypes, offPaths] = switchedOffParams(ctx.app);
 
   const waiting = await ctx.db.query<{ user_id: string }>(
     `select distinct n.user_id from notifications n join notification_preferences p on p.user_id = n.user_id
-     where n.email_state = 'digest' and (p.last_digest_on is null or p.last_digest_on < $1::date)`,
-    [today],
+     where n.email_state = 'digest' and (p.last_digest_on is null or p.last_digest_on < $1::date) and ${shownSql(2, 3, 'n.')}`,
+    [today, offTypes, offPaths],
   );
   if (!waiting.length) return out;
   const users = new Map((await activeUsers(ctx)).map((u) => [u.id, u]));
@@ -36,8 +38,8 @@ export async function runEmailDigest(ctx: ModuleContext, now = new Date()): Prom
   for (const { user_id } of waiting) {
     out.people += 1;
     const rows = await ctx.db.query<Row>(
-      `select id, title, route, record_type, record_id from notifications where user_id = $1 and email_state = 'digest' order by created_at`,
-      [user_id],
+      `select id, title, route, record_type, record_id from notifications where user_id = $1 and email_state = 'digest' and ${shownSql(2, 3)} order by created_at`,
+      [user_id, offTypes, offPaths],
     );
     const user = users.get(user_id);
     const items: { title: string; link: string | null }[] = [];

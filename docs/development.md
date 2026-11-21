@@ -77,8 +77,11 @@ version for a first pull request.
     `lookups`; modules read their own sections from `opts.organization`.
   - Optional pipe-delimited import files (first line is the header): `systems.psv`,
     `sites.psv`, `data_categories.psv`, `vendor_contracts.psv`, `csf_target_profile.psv`,
-    `information_requests.psv`, and `csf_subcategory_designations.csv`. The expected
-    headers are in each module's `seed.ts`.
+    `information_requests.psv`, `vehicles.psv`, `services.psv` and
+    `csf_subcategory_designations.csv`. The expected headers are in each module's `seed.ts`
+    (`fleet/seed-pilot.ts` for vehicles and services). The fleet seed loads the inventory's pilot
+    files first (`seedPilotEstate` in `modules/inventory/seed.ts`) so that depots and systems named
+    in its files exist.
 
 Environment: `GRC_TIMEZONE` (IANA name; default is the machine's zone) and `GRC_CURRENCY`
 (ISO code, default `USD`) set the organization's time zone and currency.
@@ -200,7 +203,8 @@ Read them in code with `ctx.settings.get(key, fallback)`, using the same fallbac
 | `organization.phone`, `.email`, `.website` | `''` | General contacts, printed in email and PDF footers |
 | `organization.security_phone`, `.security_email` | `''` | Security contact, printed only in the offline incident kit |
 | `branding.primary_color`, `branding.accent_color` | `''` (the standard look) | `#rrggbb`. Never used as typed: `deriveBrandColors` (`core/branding-colors.ts`) works out WCAG 2.2 AA shades per theme, which the web app lays over `tokens.css` (`web/src/core/branding.ts`) |
-| `branding.logo_light`, `branding.logo_dark` | none | Logos (PNG, JPEG or WebP by content, at most 512 KB and 2048 pixels; never SVG) with their description, stored as settings so they are in every backup; set only through `POST/DELETE /api/admin/organization/logo/:variant`, never PATCHed. Served publicly at `/api/branding/logo/:variant` |
+| `branding.logo_light`, `branding.logo_dark` | none | Logos (PNG, JPEG or WebP by content, at most 512 KB and 2048 pixels; never SVG) with their description, stored as settings so they are in every backup; set only through `POST/DELETE /api/admin/organization/logo/:variant`, never PATCHed. Served publicly at `/api/branding/logo/:variant`. A WebP logo may hold a browser-made PNG copy (`print`, at most 1 MB, same shape) used by PDFs and emails; `POST /api/admin/organization/logo/:variant/print` adds one |
+| `branding.email_logo` | `true` | Emails carry the light-theme logo inline (Content-ID) when it is PNG or JPEG (or a WebP logo's PNG copy) up to 200 KB |
 | `pilot_mode` | `true` | Shows the "sample and test data only" notice |
 | `features` | every area on except `portal` | Feature switches, one boolean per optional area (`core/features.ts`); changed under Administration > Features (needs a recent password confirmation). An area missing from the stored value takes its default |
 | `auth.password_min_length` | `14` | Minimum password length (never below 12) |
@@ -275,7 +279,7 @@ tree, keep your own copy of the running application so that you do not disturb t
   (create the first administrator with `POST /api/setup`), visits each route, reports
   script errors, failed API calls and horizontal scrolling, and saves screenshots. Check
   light and dark, and 1440 and 820 wide. Keep screenshots outside the repository and
-  delete them afterwards.
+  delete them afterward.
 - Shared files (`README.md`, `docs/README.md`, `docs/known-gaps.md`,
   `docs/roadmap/README.md`, `package.json`, `web/src/core/**`, `server/src/core/**`) are
   changed rarely and deliberately; say in your pull request why they changed.
@@ -359,7 +363,7 @@ export default mod;
 - `ctx.db.query<T>(sql, params) => T[]`, `ctx.db.one<T>(sql, params) => T | undefined`,
   `ctx.db.tx(async (tx) => ...)`. Parameterized queries only (`$1`, `$2`).
 - `ctx.dataDir` - the folder holding the database and stored files, or `memory` in tests.
-- `ctx.requirePerm('tickets.edit')` - preHandler. `ctx.can(user, perm)` - boolean. The role editor greys
+- `ctx.requirePerm('tickets.edit')` - preHandler. `ctx.can(user, perm)` - boolean. The role editor grays
   out permissions nothing checks (`GET /api/admin/permissions/checked`, `core/permission-use.ts`):
   it collects `requirePerm` calls, the `permission` of every route description and the record-type
   actions, so a hand-written route that checks with `ctx.can` must name that permission in its
@@ -428,7 +432,8 @@ Services other modules may offer are Fastify decorators; check before use:
 - PDFs (`PdfBuilder`, `core/export/pdf.ts`) take `branding: await printBranding(db)` (`core/organization.ts`):
   the organization's name and address in every page's footer, its logo on the first page or
   cover, its brand color for rules. Pass it in every new PDF. Emails get the organization's
-  name and footer by themselves.
+  logo (inline, `MAIL_LOGO_CID`), name and footer by themselves; HTML documents use
+  `printBranding().logoDataUri`.
 - `app.sendMail({ userIds, template, purpose, data, record?, attachments? })` and
   `app.mailEnabled()` (`core/mail`): email through the job queue. Off until an
   administrator sets up a mail server (Administration > Email), so always guard with
@@ -615,6 +620,15 @@ lifecycle rules in code adds a line to `APPLICATION_RULES` so the page shows the
 `app.lifecycles.check(def, existing, data, req)` is there for hand-written routes. With no rule
 saved, a type allows every move and requires nothing.
 
+A move may wait for an approval workflow (E14-37): `approvals` [from, to, workflow id] in
+`lifecycle_rules` (core migration 018). `lifecycles.held()` and `hold()` are called by
+`resources.update`: the status is removed from the patch, the rest is saved, and the workflows
+module (`MoveHolder`, set with `app.lifecycles.setHolder`) starts the workflow with `data.move`.
+Approval updates the status with no request; the response carries `_pending_move`, and the web API
+client then fires `grc:move-held`. While a move waits, `check()` refuses another status change.
+Hand-written status controls on the web use `web/src/core/lifecycleMenus.ts`; bulk edit offers only
+the statuses every selected record may move to.
+
 ### Permissions
 
 Strings of the form `<module>.<action>`; actions: `view`, `create`, `edit`, `delete`,
@@ -677,7 +691,8 @@ like an option's fields); `/api/meta` and `/api/lookups` leave out its lists (ow
 permission module, used only by off types, or named in `lists`) and its `lookupValues`
 (`visibleValues(state, list, values)` for a hand-written list); notifications about its types or
 leading to its pages are not listed or counted (`app.switchedOffTypes()`,
-`app.switchedOffPaths()`); notification kinds, MCP tools (`installedTools`), job schedules and
+`app.switchedOffPaths()`), and stay out of the daily email summary until it is on again (`shownSql`
+/ `switchedOffParams` in `modules/notifications/service.ts`); notification kinds, MCP tools (`installedTools`), job schedules and
 retention categories follow. On the web, text that names parts of the application is written
 from `areaOn` or from the fields `/api/meta` gives, never as a fixed list. The browser suite
 `09-features-off` switches every area off (and then the portal, fleet and safety) and fails on
@@ -780,11 +795,17 @@ example "no work before approval") in its callbacks. Stand-ins: table `workflow_
 carry `principals` and `standins`; decisions carry `on_behalf_of`. Change approval, catalog
 requests, asset disposal, risk acceptance and project gates are approval kinds.
 
+A step may have `branches` (2 to 5 units run side by side; step rows carry `branch` and
+`group_name`) and `routes` (`[{ conditions, to: later step key | 'end' }]`, forward only;
+`routeAfter`), migration `workflows/003`. In `decide`, the workflow row is locked so a step whose
+groups run side by side moves on exactly once.
+
 The follow-up issues per module are listed under E14-06 in the roadmap.
 
 Risk scales: the two built-in scale keys are `cyber_5x5` and `hazard_4x5` (the safety
 hazard matrix: four severity levels by five likelihood levels; it was `asp` before
-migration `risks/002`).
+migration `risks/002`). Safety reads `hazard_4x5` even while the risks area is off, and changes it
+with `PATCH /api/safety/scale` (`safety.administer`; level names and cell ratings only).
 
 ## Web conventions
 
@@ -792,7 +813,9 @@ React 19 + React Router + Vite, TypeScript, plain CSS with design tokens
 (`web/src/core/tokens.css`), ECharts for charts. The component library is Mantine 9,
 wrapped by the core design system: import from `'../../core'` first, and use
 `@mantine/core` directly only for layouts the core does not cover. See
-`web/src/core/README.md` for the component catalog.
+`web/src/core/README.md` for the component catalog. Libraries are split into chunks of their own by
+`VENDOR_GROUPS` in `vite.config.ts` (E18-55); charts and date pickers load with the first page that
+needs them.
 
 ```tsx
 // web/src/modules/tickets/index.tsx

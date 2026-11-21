@@ -166,7 +166,15 @@ export interface Rendered { subject: string; text: string; html: string }
  * The organization around a message (Administration > Organization): its name above the HTML body
  * and its name, address and contacts under both bodies. Left out of text messages.
  */
-export interface MailFrame { name: string; footer: string[]; color?: string | null }
+export interface MailFrame {
+  name: string; footer: string[]; color?: string | null;
+  /**
+   * The organization's logo above the HTML body (E14-36): a picture carried inside the message
+   * and named by its Content-ID, so mail programs show it without loading anything from outside.
+   * The caller attaches the picture with that Content-ID. The text body is unchanged.
+   */
+  logo?: { cid: string; width: number; height: number } | null;
+}
 
 /**
  * Fills a template. `values` are plain strings; `blocks.items` is the digest list as
@@ -195,7 +203,12 @@ export function render(
   const text = footer.length ? `${body}\n\n-- \n${footer.join('\n')}` : body;
   const htmlBody = t.html_body.trim() ? t.html_body : textToHtml(t.text_body);
   const color = frame?.color && /^#[0-9a-f]{6}$/i.test(frame.color) ? frame.color : '#17656f';
-  const head = frame?.name ? `<p style="margin: 0 0 16px; font-weight: 600; font-size: 16px; color: ${color};">${escapeHtml(frame.name)}</p>\n` : '';
+  const logo = frame?.logo && /^[A-Za-z0-9.@_-]{1,100}$/.test(frame.logo.cid) ? frame.logo : null;
+  const size = (n: number) => Math.max(1, Math.min(400, Math.round(Number(n) || 1)));
+  // With a logo, the name is its alternative text (shown where pictures are switched off).
+  const head = logo
+    ? `<p style="margin: 0 0 16px;"><img src="cid:${logo.cid}" width="${size(logo.width)}" height="${size(logo.height)}" alt="${escapeHtml(frame?.name ?? '')}" style="display: block; border: 0; width: ${size(logo.width)}px; height: ${size(logo.height)}px;"></p>\n`
+    : frame?.name ? `<p style="margin: 0 0 16px; font-weight: 600; font-size: 16px; color: ${color};">${escapeHtml(frame.name)}</p>\n` : '';
   const foot = footer.length
     ? `\n<hr style="border: 0; border-top: 1px solid #d5dde0; margin: 24px 0 12px;">\n<p style="margin: 0; font-size: 12px; color: #50626a;">${footer.map(escapeHtml).join('<br>')}</p>`
     : '';

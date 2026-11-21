@@ -6,6 +6,7 @@ import {
   useAuth, useResource, useToast,
 } from '../../core';
 import type { RecordContext } from '../../core';
+import { canMoveTo, editableLifecycle } from '../../core/lifecycleMenus';
 import { fieldErrors, useStatuses } from './util';
 
 type Dialog = null | 'resolve' | 'vendor' | 'close';
@@ -48,7 +49,13 @@ export function TicketActions({ rec }: { rec: RecordContext }) {
   const held = row.approval_status === 'pending' || row.approval_status === 'rejected';
   const first = (c: string, prefer: string) => statuses.find((s) => s.value === prefer)?.value ?? statuses.find((s) => category(s.value) === c)?.value;
   const working = first('open', 'in_progress');
-  const paused = statuses.filter((s) => category(s.value) === 'paused');
+  // Every status action follows the lifecycle rules (E14-31): a move they do not allow is not offered.
+  const rules = editableLifecycle(rec.resource.lifecycle, 'status');
+  const may = (to: string | undefined) => !to || canMoveTo(rules, row.status, to, statuses.map((s) => s.value));
+  const paused = statuses.filter((s) => category(s.value) === 'paused' && may(s.value));
+  const resolveTo = first('resolved', 'resolved');
+  const closeTo = first('closed', 'closed');
+  const vendorPause = first('paused', 'waiting_vendor');
 
   async function apply(patch: Record<string, unknown>, message: string) {
     setBusy(true);
@@ -92,25 +99,25 @@ export function TicketActions({ rec }: { rec: RecordContext }) {
     <>
       {!done && !assignedToMe && user && (
         <Button icon="user" disabled={busy}
-          onClick={() => apply({ assignee_id: user.id, ...(row.status === 'new' && first('open', 'assigned') ? { status: first('open', 'assigned') } : {}) }, 'Assigned to you.')}
+          onClick={() => apply({ assignee_id: user.id, ...(row.status === 'new' && first('open', 'assigned') && may(first('open', 'assigned')) ? { status: first('open', 'assigned') } : {}) }, 'Assigned to you.')}
         >Assign to me</Button>
       )}
-      {cat === 'open' && !held && working && row.status !== working && (
+      {cat === 'open' && !held && working && row.status !== working && may(working) && (
         <Button icon="arrow-right" disabled={busy} onClick={() => chooseStatus(working)}>Start work</Button>
       )}
-      {cat === 'paused' && working && (
+      {cat === 'paused' && working && may(working) && (
         <Button variant="primary" icon="arrow-right" loading={busy && idle} onClick={() => apply({ status: working }, 'Work resumed: the clock is running again.')}>Resume</Button>
       )}
       {cat === 'open' && paused.length > 0 && (
         <Menu label="Pause" icon="clock" items={paused.map((s) => ({ label: s.label, onSelect: () => chooseStatus(s.value) }))} />
       )}
-      {!done && !held && (
-        <Button variant={cat === 'paused' ? 'secondary' : 'primary'} icon="check" disabled={busy} onClick={() => chooseStatus(first('resolved', 'resolved'))}>Resolve</Button>
+      {!done && !held && may(resolveTo) && (
+        <Button variant={cat === 'paused' ? 'secondary' : 'primary'} icon="check" disabled={busy} onClick={() => chooseStatus(resolveTo)}>Resolve</Button>
       )}
-      {cat === 'resolved' && (
-        <Button variant="primary" icon="check" disabled={busy} onClick={() => chooseStatus(first('closed', 'closed'))}>Close ticket</Button>
+      {cat === 'resolved' && may(closeTo) && (
+        <Button variant="primary" icon="check" disabled={busy} onClick={() => chooseStatus(closeTo)}>Close ticket</Button>
       )}
-      {done && working && (
+      {done && working && may(working) && (
         <Button icon="refresh" disabled={busy} onClick={() => apply({ status: working }, 'Ticket reopened.')}>Reopen</Button>
       )}
       <Menu
@@ -119,14 +126,14 @@ export function TicketActions({ rec }: { rec: RecordContext }) {
         iconOnly
         align="end"
         items={[
-          ...statuses.filter((s) => s.value !== row.status).map((s) => ({ label: `Set status: ${s.label}`, onSelect: () => chooseStatus(s.value) })),
+          ...statuses.filter((s) => s.value !== row.status && may(s.value)).map((s) => ({ label: `Set status: ${s.label}`, onSelect: () => chooseStatus(s.value) })),
           row.with_vendor
             ? { label: 'Update vendor details', separated: true, onSelect: () => openVendor() }
             : { label: 'Mark as with vendor', separated: true, onSelect: () => openVendor() },
           ...(row.with_vendor && !row.vendor_responded_at
             ? [{ label: 'Record vendor response now', onSelect: () => apply({ vendor_responded_at: new Date().toISOString() }, 'Vendor response recorded.') }] : []),
           ...(row.with_vendor
-            ? [{ label: 'Back from vendor', onSelect: () => apply({ with_vendor: false, ...(row.status === 'waiting_vendor' ? { status: working } : {}) }, 'No longer with the vendor.') }] : []),
+            ? [{ label: 'Back from vendor', onSelect: () => apply({ with_vendor: false, ...(row.status === 'waiting_vendor' && may(working) ? { status: working } : {}) }, 'No longer with the vendor.') }] : []),
           row.major_incident
             ? { label: 'Remove major incident flag', separated: true, onSelect: () => apply({ major_incident: false }, 'Major incident flag removed.') }
             : { label: 'Declare a major incident', separated: true, onSelect: () => apply({ major_incident: true }, 'Major incident declared. See the Major incident tab.') },
@@ -159,7 +166,7 @@ export function TicketActions({ rec }: { rec: RecordContext }) {
         footer={footer(() => apply({
           with_vendor: true, vendor_id: f.vendor_id || null, vendor_ref: f.vendor_ref || null,
           vendor_raised_at: f.vendor_raised_at || null, vendor_responded_at: f.vendor_responded_at || null,
-          ...(f.pause && first('paused', 'waiting_vendor') ? { status: first('paused', 'waiting_vendor') } : {}),
+          ...(f.pause && vendorPause && may(vendorPause) ? { status: vendorPause } : {}),
         }, 'Vendor details saved.'), 'Save')}>
         <div className="stack">
           {hasVendors
@@ -168,7 +175,7 @@ export function TicketActions({ rec }: { rec: RecordContext }) {
           <TextField label="Vendor reference" value={f.vendor_ref ?? ''} onChange={set('vendor_ref')} error={errors.vendor_ref} hint="The vendor’s own case or ticket number." />
           <DateTimeField label="Raised with vendor" value={f.vendor_raised_at ?? ''} onChange={set('vendor_raised_at')} error={errors.vendor_raised_at} hint="Leave empty to use the time now." />
           <DateTimeField label="Vendor responded" value={f.vendor_responded_at ?? ''} onChange={set('vendor_responded_at')} error={errors.vendor_responded_at} />
-          {!done && cat !== 'paused' && (
+          {!done && cat !== 'paused' && vendorPause && may(vendorPause) && (
             <Checkbox label="Set status to waiting on vendor (pauses the clock)" checked={!!f.pause} onChange={set('pause')} />
           )}
         </div>

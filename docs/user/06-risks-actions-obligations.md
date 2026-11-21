@@ -294,11 +294,13 @@ Open **Administration > Risk scales** (needs **Administer** on **Risks**). Choos
 
 As you edit, the bar at the bottom says what saving would do, for example how many risks would be re-rated, and warns when a level you removed is still used by a risk (save is then refused: re-score those risks first). Select **Save scale** to save, or **Discard changes**. Saving re-rates every risk on the scale and is written to the audit log.
 
+The safety hazard matrix can also be changed by a safety administrator under **Administration > Hazard matrix** (its level names and the rating of each cell; see [Safety management](20-safety-management.md#change-the-hazard-matrix)), which works even while **Risks and obligations** is switched off. Saving there re-rates the risks on that scale too.
+
 **Add scale** creates a new scale as a copy of the one shown: give its **Name** and **Key** (lower-case letters, numbers and underscores; it cannot be changed later). To use a new scale, an administrator points a risk category at it in **Administration > Lists** (the `risk_category` list).
 
 ## The action tracker
 
-Open **Cybersecurity > Action tracker**. It is built for the weekly review: every open action, from risks, assessments, incidents, audits, exercises, information requests, projects, changes, vulnerabilities, policies, training, vendors, problems and anything else, in one place.
+Open **Cybersecurity > Action tracker**. It is built for the weekly review: every open action, from risks, assessments, incidents, audits, exercises, information requests, projects, changes, vulnerabilities, policies, training, vendors, problems, safety events and hazards, and anything else, in one place.
 
 ### Tiles and groups
 
@@ -345,7 +347,7 @@ Select **Clear selection** to clear them all. The **List** grouping has its own 
 | **Owner** | The person responsible. An action with no owner shows as Unassigned. |
 | **Due** | The date it should be finished. |
 | **Completed** | Filled in with today's date when the status becomes Done, and cleared if the action is reopened. |
-| **Source** | Where the action came from: Risk, Assessment, Incident, Audit, Exercise, Information request, Project, Change, Vulnerability, Policy, Training, Vendor, Problem or Other. An action raised on a record is filed under that record's kind unless you choose otherwise. |
+| **Source** | Where the action came from: Risk, Assessment, Incident, Audit, Exercise, Information request, Project, Change, Vulnerability, Policy, Training, Vendor, Problem, Safety or Other. A source whose part is switched off under **Administration > Features** is not offered. An action raised on a record is filed under that record's kind unless you choose otherwise. |
 | **Department**, **External reference**, **Notes** | Optional. |
 
 Each action has a reference beginning `ACT-`. Its page shows the due date with the days left, the owner, the priority, where it arose from, and the **Activity**, **Attachments**, **Related** and **History** tabs.
@@ -360,7 +362,7 @@ Each action has a reference beginning `ACT-`. Its page shows the due date with t
 
 ### Actions on a record
 
-A risk's **Treatment plan** card, and the pages of other records that offer it (for example security incidents, vulnerabilities, vendors, projects, tickets, problems and framework outcomes), have an **Actions** list for the work arising from that record. It shows how many are finished, flags overdue ones, and lets you:
+A risk's **Treatment plan** card, and the pages of other records that offer it (for example security incidents, vulnerabilities, vendors, projects, tickets, problems, framework outcomes, safety events and hazards), have an **Actions** list for the work arising from that record. It shows how many are finished, flags overdue ones, and lets you:
 
 - type a title in **Add an action and press Enter**, with an optional **Due date**, to add one at once;
 - select **Add action** to add one with a priority, owner, due date and department;
@@ -427,6 +429,5 @@ The list can be searched, filtered by **Status**, **Owner** and **Next due**, so
 
 ## Not available yet
 
-- Obligations are not notified when their next due date approaches; use the **Due in 30 days** and **Overdue** tiles.
 - The heat map shows one scale at a time; there is no combined heat map across scales (the **Risk report** counts all scales by common level).
 - An acceptance recorded by hand names its approver; they do not sign in to confirm it (ask for acceptance through the workflow when they can).

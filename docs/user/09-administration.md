@@ -1,12 +1,43 @@
 # Administration
 
-This page is for administrators. It explains how to add people and give them access, how roles and permissions work, how to manage the second sign-in factor, how to change the choices offered in drop-down lists, the application settings, and how to read the audit log. The last section, on the **Account security** page, applies to every user. It also covers single sign-on with your organization's identity provider and the break-glass account (**Sign-in providers**), your own fields on records (**Custom fields**), how long records are kept (**Retention**), **API tokens**, **Webhooks** and the **API reference**. It also covers switching parts of the application on and off (**Features**). The administration screens are in the **Administration** group of the menu: **Users**, **Roles**, **Sign-in providers**, **Lists**, **Settings**, **Features**, **Custom fields**, **Retention**, **API tokens**, **Webhooks** and **Audit log**.
+This page is for administrators. It explains how to add people and give them access, how roles and permissions work, how to manage the second sign-in factor, how to change the choices offered in drop-down lists, the application settings, and how to read the audit log. The last section, on the **Account security** page, applies to every user. It also covers single sign-on with your organization's identity provider and the break-glass account (**Sign-in providers**), your own fields on records (**Custom fields**), how long records are kept (**Retention**), **API tokens**, **Webhooks** and the **API reference**. It also covers the organization's name, logo and colors (**Organization**) and switching parts of the application on and off (**Features**). The administration screens are in the **Administration** group of the menu; the table under [The Administration menu](#the-administration-menu) says where each one is described.
 
 ## What you need
 
-- **Users**, **Roles**, **Sign-in providers**, **Lists**, **Settings**, **Features**, **Custom fields**, **Retention**, **API tokens** and **Webhooks** need **Administer** on **Administration**. The built-in **Administrator** role has it.
+- Most screens in the **Administration** group need **Administer** on **Administration**. The built-in **Administrator** role has it.
 - **Audit log** needs **View** on **Audit log**. The built-in **Administrator** and **Security lead** roles have it.
+- **Risk scales** needs **Administer** on **Risks** to change the scales. **Service desk settings** is listed for anyone with **View** on **Tickets**; changing them needs **Administer** on **Tickets**.
 - **Account security** is open to every signed-in user, for their own account.
+
+### The Administration menu
+
+| Screen | What it is for | Described in |
+|---|---|---|
+| **Users** | Add people, give them roles, issue sign-in links | [Users](#users) |
+| **Roles** | Roles and their permissions | [Roles and permissions](#roles-and-permissions) |
+| **Sign-in providers** | Single sign-on and the break-glass account | [Sign-in providers](#sign-in-providers-single-sign-on) |
+| **Lists** | The choices in drop-down lists, and tags | [Lists](#lists) |
+| **Organization** | The organization's names, address, contacts, logo and colors | [Organization](#organization) |
+| **Settings** | Passwords, second factor, sessions, tokens, outbound connections | [Settings](#settings) |
+| **Features** | Switch parts of the application on and off | [Features](#features) |
+| **Custom fields** | Your own fields on records | [Custom fields](#custom-fields) |
+| **Lifecycles** | Allowed status changes and the fields each status needs | [Lifecycles](23-lifecycles.md) |
+| **Retention** | How long records are kept | [Retention](#retention) |
+| **API tokens** | Everyone's API tokens | [API tokens](#api-tokens) |
+| **Approval workflows** | Who approves what, step by step | [Approval workflows](22-approval-workflows.md) |
+| **AI assistant access** | Whether AI assistants may connect | [AI assistants and MCP](21-ai-assistants-and-mcp.md) |
+| **Email** | Outgoing email, templates, delivery log, text messages | [Email settings](14-attachments-and-notifications.md#email-settings) |
+| **Reminders** | How far ahead reminders go out | [Reminders](14-attachments-and-notifications.md#reminders) |
+| **Webhooks** | Tell other systems about changes | [Webhooks](#webhooks) |
+| **Background jobs** | Work the application does by itself | [Background jobs](14-attachments-and-notifications.md#background-jobs) |
+| **Audit log** | Who did what, and when | [The audit log](#the-audit-log) |
+| **Risk scales** | The likelihood and impact scales for risks | [Editing the risk scales](06-risks-actions-obligations.md#editing-the-risk-scales) |
+| **Hazard matrix** | The levels and cell ratings of the safety hazard matrix | [Change the hazard matrix](20-safety-management.md#change-the-hazard-matrix) |
+| **Service desk settings** | Priorities, targets, calendars, escalation, the portal and email to ticket | [Service desk settings](02-service-desk.md#service-desk-settings) |
+| **File settings** | Upload limits, malware scanning, storage, removed files | [File settings](14-attachments-and-notifications.md#file-settings) |
+| **Backups** | Daily backups to a second location | [Backups](14-attachments-and-notifications.md#backups) |
+
+A screen that belongs to a part switched off under **Features** is not shown.
 
 The first administrator is created by the setup wizard the first time the application is opened. There is no default account.
 
@@ -30,13 +61,13 @@ Some changes decide who can do what, so the application checks it is really you 
 
 Outside this section, the same box appears when you allow another file type for uploads, change file storage, scanning or backups, change the email settings, switch the self-service portal on or off from the service desk settings, switch on vendor response links, merge duplicate vulnerability findings, or connect an AI assistant. The full list, with the reason for each and the actions that deliberately do not ask, is in [Security](../security.md#actions-that-ask-you-to-confirm-your-identity).
 
-Enter your password and select **Confirm and continue**. If you have a second factor, the box then asks for it too: type the **6-digit code** from your authenticator app (or a recovery code), or select **Use your passkey or security key**, and select **Confirm and continue** again. A wrong code is refused with "That code was not accepted", and too many wrong attempts make you wait a few minutes. The change you asked for is then made; you do not need to repeat it. Select **Cancel** and nothing is changed. You are not asked again for the next 10 minutes (an administrator can change this under **Settings**). Signing in counts, so you will not see the box straight after signing in; that includes signing in through a provider. If you have no password here (you only sign in through a provider), the **Single sign-on** card on **Account security** offers **Confirm with …** instead: you sign in at the provider again and come back. If your account is linked to a directory, the box itself offers **Confirm with**: choose the directory and enter your directory user name and password, then your second factor if you have one.
+Enter your password and select **Confirm and continue**. If you have a second factor, the box then asks for it too: type the **6-digit code** from your authenticator app (or a recovery code), or select **Use your passkey or security key**, and select **Confirm and continue** again. A wrong code is refused with "That code was not accepted", and too many wrong attempts make you wait a few minutes. The change you asked for is then made; you do not need to repeat it. Select **Cancel** and nothing is changed. You are not asked again for the next 10 minutes (an administrator can change this under **Settings**). Signing in counts, so you will not see the box straight after signing in; that includes signing in through a provider. If you have no password here (you only sign in through a provider), the **Single sign-on** card on **Account security** offers **Confirm with …** instead: you sign in at the provider again and come back. If your account is linked to a directory, the box itself offers **Confirm with**: choose the directory and enter your directory password (the directory user name you last used is filled in; change it if you need to), then your second factor if you have one.
 
 ## Users
 
 Open **Administration > Users**. People are added by an administrator; nobody can register themself.
 
-The list shows each person's **Name** and email, **Username**, **Status**, **Roles**, **Second factor** (On or Not set up), **Department** and **Last sign-in**. Search by name, username or email, and filter by **Status** or **Role**. Each filter in use appears under the search box as a pill; select the cross on a pill to remove that filter, or **Clear all** to remove them together. Select a person's name, or anywhere on their row, to open them.
+The list shows each person's **Name** and email, **Username**, **Status**, **Roles**, **Second factor** (On or Not set up), **Department** and **Last sign-in**. **Second factor** reflects the authenticator app only: a person whose only second factor is a passkey shows **Not set up** there. Their keys are listed on their page. Search by name, username or email, and filter by **Status** or **Role**. Each filter in use appears under the search box as a pill; select the cross on a pill to remove that filter, or **Clear all** to remove them together. Select a person's name, or anywhere on their row, to open them.
 
 | Status | Meaning |
 |---|---|
@@ -57,7 +88,7 @@ You do not set a password. Instead, the window changes to show a **one-time setu
 
 ### One-time setup and reset links
 
-The application does not send email, so you pass the link on yourself. The link is shown in a large framed box, with a warning above it that it is shown once and, below it, the date and time it expires.
+When email is switched on (**Administration > Email**), the link is also emailed to the person's address. You are still shown it, so you can pass it on yourself if the email does not arrive. When email is off, you always pass the link on yourself. The link is shown in a large framed box, with a warning above it that it is shown once and, below it, the date and time it expires.
 
 1. Select **Copy link** beside the link. The button changes to **Copied**. If your browser blocks copying, select the text in the box and copy it by hand.
 2. Give it to the person directly: in person, by phone or in a private message.
@@ -164,7 +195,7 @@ A new version of the application may add permissions to the supplied roles. Your
 1. Read the list.
 2. Select **Apply default permissions** and confirm your password if asked.
 
-Applying only adds permissions. It never removes one, and it replaces a role's description only if you have never edited it. If you later remove one of the added permissions, it is not offered again. The first time you do this on an installation that was set up before this feature existed, the list may include permissions you removed on purpose in the past: remove them again afterwards. Each role changed is recorded in the audit log.
+Applying only adds permissions. It never removes one, and it replaces a role's description only if you have never edited it. If you later remove one of the added permissions, it is not offered again. The first time you do this on an installation that was set up before this feature existed, the list may include permissions you removed on purpose in the past: remove them again afterward. Each role changed is recorded in the audit log.
 
 ### Switching roles on and off
 
@@ -207,7 +238,7 @@ The **Members** card lists who holds the role. To give a role to someone, or tak
 
 The **Administrator** role holds every permission (stored as a single star), so every box is checked and cannot be changed.
 
-The server tells the page which permissions something in this installation actually checks. A box for an action nothing checks (for example **Approve** on **Knowledge base**, or **Create** on **Audit log**) is greyed out and cannot be checked, because granting it would have no effect; if a role already holds such a permission, the box can still be unchecked. An area where nothing is checked at all (for example one whose part of the application is not installed) carries a small **not yet used** label. **All** still grants every action in the area, including any a later version starts to check. **View** on **Dashboards and overview** decides who sees the dashboards on the overview page.
+The server tells the page which permissions something in this installation actually checks. A box for an action nothing checks (for example **Approve** on **Knowledge base**, or **Create** on **Audit log**) is grayed out and cannot be checked, because granting it would have no effect; if a role already holds such a permission, the box can still be unchecked. An area where nothing is checked at all (for example one whose part of the application is not installed) carries a small **not yet used** label. **All** still grants every action in the area, including any a later version starts to check. **View** on **Dashboards and overview** decides who sees the dashboards on the overview page.
 
 ### Restricted records
 
@@ -274,7 +305,7 @@ When a person has lost both their phone and their recovery codes:
 2. Open the person from **Users**.
 3. On the **Sign-in and security** card, select **Reset second factor** and confirm.
 
-Their authenticator app and recovery codes stop working. They sign in with a password only until they set the second factor up again, so ask them to do that straight away. The button appears only when the person has a second factor set up.
+Their authenticator app and recovery codes stop working. Their passkeys and security keys are removed too. They sign in with a password only until they set the second factor up again, so ask them to do that straight away. The button appears only when the person has an authenticator app set up.
 
 A person whose only second factor is a passkey can make recovery codes too (see [Passkeys and security keys](16-passkeys-and-security-keys.md#recovery-codes-for-passkeys)); if they have lost both their keys and their codes, remove their keys from the **Passkeys and security keys** card on their page.
 
@@ -440,7 +471,7 @@ Values are retired, never deleted, so that existing records keep their meaning.
 
 ### What to be careful about
 
-Some values carry behavior as well as a name, and that behavior belongs to the values supplied with the application. For example, an action counts as finished when its status is **Done** or **Canceled**, and a framework outcome's status decides how much it counts towards the score. A value you add yourself is an ordinary value with none of this behavior: a new action status is treated as open, and a new outcome status counts as zero. A few lists are fixed steps in a process, such as the project stages, the incident statuses and the notification triggers; add to or retire from those only after testing the effect.
+Some values carry behavior as well as a name, and that behavior belongs to the values supplied with the application. For example, an action counts as finished when its status is **Done** or **Canceled**, and a framework outcome's status decides how much it counts toward the score. A value you add yourself is an ordinary value with none of this behavior: a new action status is treated as open (unless you add it to **Action statuses that need no reminder** under **Reminders**), and a new outcome status counts as zero until you give it a weight under [Framework settings](05-cybersecurity-frameworks.md#framework-settings). A few lists are fixed steps in a process, such as the project stages, the incident statuses and the notification triggers; add to or retire from those only after testing the effect.
 
 Rename supplied values freely, but be cautious about retiring them. You cannot create a new list on this screen. A list made for a custom field's options is named after that field.
 
@@ -459,7 +490,7 @@ Change the names, address, contacts and colors, then select **Save organization*
 | Field | What it does |
 |---|---|
 | **Application name** | The application's name, 1 to 60 characters. Shown on the sign-in page, in the header, at the end of the browser tab's title, in emails and as the account name in authenticator apps. It used to be under Settings; it is now only here. |
-| **Organization name** | How the organization is usually named, such as "Example Transit Authority". Up to 120 characters. Shown on the vendor response page, above every email, in the footer of PDF documents and on the offline incident kit. Where it is empty, the application name is used instead. |
+| **Organization name** | How the organization is usually named, such as "Example Transit Authority". Up to 120 characters. Shown on the vendor response page, above every email (in place of the logo, or as its alternative text), in the footer of PDF and HTML documents and on the offline incident kit. Where it is empty, the application name is used instead. |
 | **Legal name** | The registered name, when it differs. Up to 200 characters. Printed in the footer of emails and PDF documents. |
 | **Short name** | An abbreviation, such as "ETA". Up to 20 characters. |
 
@@ -478,7 +509,7 @@ Up to three **Street** lines (each up to 120 characters), then **City**, **State
 
 The address and contacts are never shown before sign-in. The sign-in page, the portal and the vendor response page show only the names, the logo and the colors.
 
-Email templates (Administration > Email > Templates) may use `{{organizationName}}`, `{{organizationAddress}}`, `{{organizationPhone}}`, `{{organizationEmail}}` and `{{organizationWebsite}}`. Every email, except a text message sent to a phone, also has the organization's name above it and its legal name, address and contacts underneath.
+Email templates (Administration > Email > Templates) may use `{{organizationName}}`, `{{organizationAddress}}`, `{{organizationPhone}}`, `{{organizationEmail}}` and `{{organizationWebsite}}`. Every email, except a text message sent to a phone, also has the organization's logo (or, without one, its name) above it and its legal name, address and contacts underneath (see [Logo](#logo) for the logo in emails).
 
 ### Logo
 
@@ -492,11 +523,15 @@ Select **Upload logo** (or **Replace**) and choose a file. The rules:
 - **PNG, JPEG or WebP only.** The application checks what the file really is from its content, not its name. **SVG is refused**, because an SVG picture can carry scripts.
 - **Up to 512 KB**, and from **16 to 2048 pixels** each way.
 - A logo about four times as wide as it is tall, with a see-through background, fits best. It is shown at a fixed height and keeps its proportions; a very wide logo is narrowed to fit.
-- PDF documents can hold PNG and JPEG pictures only, so a WebP logo is left off PDFs.
+- **WebP logos.** PDF documents can hold PNG and JPEG pictures only, and many email programs do not show WebP. When you upload a WebP logo, your browser also makes a PNG copy of it (at most 1024 by 512 pixels), which is saved with the logo and used for PDFs and emails. The line under the picture then says "PNG copy for PDFs and emails". A WebP logo that has no copy yet (for example one imported by the organization profile, or uploaded from a browser that could not make the copy) shows a note saying that PDFs and emails carry no logo; select **Make printable copy** and the browser makes it from the logo already saved. Making the copy is recorded in the audit log.
 
-**Remove** takes a logo away; the standard mark comes back.
+**Remove** takes a logo away (with its PNG copy); the standard mark comes back.
 
-The logo replaces the standard mark in the header and sidebar, on the sign-in and second-factor pages, in the self-service portal, on the vendor response page, on the offline incident kit, on the first page (or cover) of PDF exports, report documents and packs, and as the browser tab's icon.
+The logo replaces the standard mark in the header and sidebar, on the sign-in and second-factor pages, in the self-service portal, on the vendor response page and on the offline incident kit. It is printed on the first page (or cover) of PDF exports, report documents and packs, and at the top of the HTML form of report documents and packs (the print-ready document you download or open from **Produced documents**) and of the on-screen pack preview, which also end with the organization's name, legal name, address and contacts, as the PDF does.
+
+**Browser tab icon.** The browser draws a square icon from the light-theme logo, as large as fits and centered on a see-through background (32 pixels), and a 180-pixel one on white for phones and tablets that put the application on their home screen. It keeps both until the logo changes. A browser that cannot draw them shows the logo as uploaded.
+
+**Logo in emails.** With **Show the logo in emails** on (the default), every email except a text message sent to a phone shows the light-theme logo above the message, at most 40 pixels tall and 200 wide, with the organization's name as its alternative text. The picture travels inside the message (an inline part named by its content ID), so mail programs show it without loading anything from the internet, and the plain-text part of the message is unchanged. It is sent with SMTP, Microsoft Graph and the Gmail API alike. Only a PNG or JPEG logo (or a WebP logo's PNG copy) of up to 200 KB is sent; a larger one is left out and the name is shown instead. Switch it off to show the name only; the switch is saved with the rest of the page.
 
 ### Colors
 
@@ -508,7 +543,7 @@ You can pick any color. The application does not use it exactly as typed: it wor
 - the accent and the focus outline, which are marks rather than text, reach at least 3 to 1;
 - the sidebar's text stays readable on its brand-tinted background.
 
-So a pale brand color is made darker for the light theme, and a dark one lighter for the dark theme. The **Preview** shows the header, a button, a light button and a link in both themes with the shades that will be used, a note saying which colors were adjusted, and, under **contrast checks**, every pair checked with its ratio. The colors take effect for everyone when you save, in both themes, and also color the rules of PDF documents and the name above emails.
+So a pale brand color is made darker for the light theme, and a dark one lighter for the dark theme. The **Preview** shows the header, a button, a light button and a link in both themes with the shades that will be used, a note saying which colors were adjusted, and, under **contrast checks**, every pair checked with its ratio. The colors take effect for everyone when you save, in both themes, including the few controls that use a lighter or darker step of the brand color (a scale of ten shades worked out from it), and also color the rules of PDF and HTML documents and the name above emails.
 
 ## Settings
 
@@ -562,7 +597,7 @@ Changing these asks you to confirm your password.
 
 | Setting | Starts at | Notes |
 |---|---|---|
-| **Outbound connections** | Off | While off, nothing leaves the application: webhook deliveries are recorded as blocked and never sent. |
+| **Outbound connections** | Off | While off, nothing leaves the application: webhook deliveries are recorded as blocked and never sent. The same switch and host list also govern fetching SAML metadata and the text-message webhook. |
 | **Allowed hosts** | Empty | The only hosts a delivery may go to, one to a line: a host name (`receiver.example.org`), a host and port (`receiver.example.org:8443`) or every host under a domain (`*.example.org`). Up to 50. Anything else is blocked. A host name that turns out to point at a private or internal network address (such as `10.x.x.x`, `192.168.x.x` or this machine) is blocked too, unless that exact address is also listed (`10.0.0.5` or `10.0.0.5:8443`). |
 
 ### Retention (settings)
@@ -583,7 +618,7 @@ The limits for files attached to records. They apply to new uploads; files alrea
 |---|---|---|
 | **Largest file** | 1 to 2048 megabytes | Each attached file may be up to this size. |
 | **Allowed file types** | Extensions separated by commas, for example `pdf, docx, png` | A file is refused when its content does not match its extension. Programs and scripts can never be allowed. Adding a type asks you to confirm your password. |
-| **Malware scanning** | Shown only | Says whether a scanner is installed. It is set where the application is installed, not on this page. |
+| **Malware scanning** | Shown only | Says whether new files are scanned, and by which scanner. Scanning is set on the **Malware scanning** tab of **File settings** (see [Attachments and notifications](14-attachments-and-notifications.md#malware-scanning)). |
 
 The same settings are on **Administration > File settings**. If file attachments are not part of your installation, the group says so.
 
@@ -647,7 +682,7 @@ The part disappears for everyone, administrators and API tokens included. The on
 - its guide pages are left out of **Help** and its search; a guide page opened by a link says the part is switched off;
 - the API answers 404 with the code `switched_off` for its routes.
 
-What stays, because it is your organization's own data rather than the part itself: the names and descriptions of roles (for example **Safety manager**), the names of records that stay (a system called "Fleet Maintenance System"), the incident playbooks and notification parties, the risk scales (the hazard matrix is a scale risks may use too) and the user guide's wording on the pages that stay. Search may still find a record that stays by the text of a field that is hidden (for example a system's vendor name).
+What stays, because it is your organization's own data rather than the part itself: the names and descriptions of roles (for example **Safety manager**), the names of records that stay (a system called "Fleet Maintenance System"), the incident playbooks and notification parties, the risk scales (the hazard matrix is a scale risks may use too: while **Risks and obligations** is off, hazards are still scored on it and it is changed under **Administration > Hazard matrix**) and the user guide's wording on the pages that stay. Search may still find a record that stays by the text of a field that is hidden (for example a system's vendor name).
 
 Nothing is deleted. Switching the part back on restores everything: records, links, history, permissions and reminders.
 
@@ -879,7 +914,7 @@ When your administrator has set up a sign-in provider, the **Single sign-on** ca
 - To link one, select **Link** and the provider's name. Confirm your password if asked, then sign in at the provider. It must give the same email address as your account here, or nothing is linked and you are told why. You come back to this page with "Linked".
 - To unlink one, select **Unlink** and confirm. You may be asked to confirm your password. The last way you can sign in cannot be unlinked.
 - If you have no password here and are asked to confirm it is you, the card shows **Confirm with …**: you sign in at the provider again, and then have a few minutes to make the change.
-- A directory is linked with **Link …** too: enter your user name and password at the directory (it must give your account's email address). **Confirm with …** for a directory opens the confirmation box, where you enter your directory user name and password.
+- A directory is linked with **Link …** too: enter your user name and password at the directory (it must give your account's email address). **Confirm with …** for a directory opens the confirmation box, where you enter your directory password: the user name you last signed in, linked or confirmed with is filled in. Only the user name is remembered, never the password.
 
 You can also link a provider from the sign-in page: if you sign in through a provider and your email matches your account here, the page asks you to sign in once with your password to link them.
 
@@ -906,14 +941,11 @@ The token is shown once. Select **Copy token** and keep it somewhere safe, such 
 ## Not available yet
 
 - SAML 2.0 sign-in must start at this application (identity-provider-initiated sign-in is refused). A sign-out started at the identity provider is acted on only when switched on for that provider (see "SAML 2.0 providers").
-- When you confirm it is you with a directory, the directory user name is asked for each time.
 - A directory whose group list can be fetched only with its own kind of request gives no groups when a person is in too many to list; their roles are then left unchanged. Use application roles or a filtered groups claim instead.
 - Signing in through a provider never asks for this application's own second factor; it counts as one only when you trust the provider for it (see "The provider's own second factor").
 - Setup and reset links are emailed only when email is set up (see [Attachments and notifications](14-attachments-and-notifications.md#email-settings)); otherwise you pass them on by hand.
 - The audit log's filters are not kept in the page address, so a filtered view cannot be bookmarked.
 - Roles cannot be deleted and user accounts cannot be removed; switch off or disable them instead.
 - New lists cannot be created on screen, and the special behavior of supplied values cannot be given to values you add.
-- The self-service portal is not built, although its switch appears under **Settings**.
 - Anonymizing a record does not change the audit log, which keeps the earlier values of its personal fields; the audit log's own period is recorded, not enforced.
-- Webhooks are sent for record changes only, not for other events such as a notification clock turning red.
-- Risk scales and the framework target status have no settings screen.
+- The **Second factor** column on **Users**, and the **Reset second factor** button, take account of the authenticator app only, not of passkeys.

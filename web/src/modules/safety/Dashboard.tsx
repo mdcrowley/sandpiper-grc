@@ -114,7 +114,7 @@ export function SafetyDashboard() {
 
       <div className="sf-grid">
         <Card title="Open hazards on the hazard matrix" actions={<Link className="btn btn-ghost btn-sm" to="/safety/hazards">Hazard log</Link>}>
-          {!s.matrix ? <p className="muted">The hazard matrix is kept by the risks module, which is not available.</p> : (
+          {!s.matrix ? <p className="muted">The hazard matrix is not available on this installation.</p> : (
             <>
               <HazardMatrix scale={s.matrix.scale} counts={counts} label={`Open hazards by likelihood and severity, rated after mitigation where scored`} />
               <p className="muted sf-hint">Each hazard sits where it is rated after mitigation, or where it is rated now when no mitigation is scored.{s.matrix.unscored ? ` ${s.matrix.unscored} not yet scored.` : ''}</p>

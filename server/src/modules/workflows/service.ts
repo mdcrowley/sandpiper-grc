@@ -8,13 +8,14 @@ import {
   approvalKind, approvalKinds, type ApprovalEngine, type ApprovalInstance, type ApprovalKind, type InstallHelpers,
 } from '../../core/approval-kinds.ts';
 import { loadUser } from '../../core/auth.ts';
-import { fail } from '../../core/errors.ts';
+import { fail, UUID_RE as UUID } from '../../core/errors.ts';
+import type { MoveHolder } from '../../core/lifecycle.ts';
 import type { ModuleContext, ResourceDef, Row, SessionUser } from '../../core/module.ts';
 import { dayInZone } from '../../core/timezone.ts';
 import { emitWebhookEvent, WEBHOOK_EVENTS } from '../../core/webhooks.ts';
 import {
-  allHold, eligible, nextStep, outcomePatch, required, slotFor, tally,
-  type ApproverSpec, type Standins, type StepDef, type WorkflowDef,
+  allHold, applicableBranches, eligible, isGroup, nextStep, outcomePatch, required, routeAfter, slotFor, tally, unitAt,
+  type ApprovalUnit, type ApproverSpec, type Standins, type StepDef, type WorkflowDef,
 } from './engine.ts';
 
 const HOUR = 3_600_000;
@@ -276,6 +277,8 @@ export function makeService(ctx: ModuleContext) {
     if (applying.has(recordKey(def.type, after.id)) || !typeDef(def.type)) return;
     for (const w of await automatic(def.type)) {
       if (w.trigger !== 'status' || !w.trigger_field) continue;
+      // A held move this workflow just approved (E14-37) does not start it again.
+      if (moving.get(recordKey(def.type, after.id)) === w.id) continue;
       const f = w.trigger_field as string;
       if (String(before[f] ?? '') === String(after[f] ?? '') || String(after[f] ?? '') !== w.trigger_value) continue;
       if (!allHold(w.conditions, after, def.fields)) continue;
@@ -331,20 +334,59 @@ export function makeService(ctx: ModuleContext) {
       return;
     }
     const { next, skipped } = nextStep(wf.steps, from, record, def.fields);
-    for (const i of skipped) {
-      await db.query(
-        `insert into workflow_steps (instance_id, position, step_key, name, status, required, note, finished_at)
-         values ($1, $2, $3, $4, 'skipped', 0, $5, now()) on conflict (instance_id, position) do nothing`,
-        [instance.id, i, wf.steps[i].key, wf.steps[i].name, 'Its conditions did not hold for this record.']);
-    }
+    for (const i of skipped) await skip(instance, wf.steps[i], i, 'Its conditions did not hold for this record.');
     if (next === null) {
       await finish(instance, 'approved', last, req, null);
       return;
     }
-    await activate(instance, wf.steps[next], next, def, record);
+    const step = wf.steps[next];
+    if (isGroup(step)) {
+      // Branches side by side (E14-32): each that applies starts now; with none, the step is skipped.
+      const branches = applicableBranches(step, record, def.fields) as number[];
+      if (!branches.length) {
+        await skip(instance, step, next, 'None of its branches applied to this record.');
+        await advance(instance, next + 1, last, req);
+        return;
+      }
+      for (let b = 0; b < step.branches!.length; b += 1) {
+        const branch = step.branches![b];
+        if (branches.includes(b)) await activate(instance, branch, next, def, record, b, step.name);
+        else {
+          await db.query(
+            `insert into workflow_steps (instance_id, position, branch, group_name, step_key, name, status, required, note, finished_at)
+             values ($1, $2, $3, $4, $5, $6, 'skipped', 0, $7, now()) on conflict do nothing`,
+            [instance.id, next, b, step.name, branch.key, branch.name, 'Its conditions did not hold for this record.']);
+        }
+      }
+      return;
+    }
+    await activate(instance, step as ApprovalUnit, next, def, record);
   }
 
-  async function activate(instance: Row, step: StepDef, position: number, def: ResourceDef, record: Row): Promise<void> {
+  /** Records a step as skipped (`note` says why). */
+  async function skip(instance: Row, step: StepDef, position: number, note: string): Promise<void> {
+    await db.query(
+      `insert into workflow_steps (instance_id, position, step_key, name, status, required, note, finished_at)
+       values ($1, $2, $3, $4, 'skipped', 0, $5, now()) on conflict do nothing`,
+      [instance.id, position, step.key, step.name, note]);
+  }
+
+  /**
+   * The step at `position` was approved (every branch, for a step that runs side by side): follows
+   * the first of its routes that holds (E14-32), recording the steps it passes over, then moves on.
+   */
+  async function proceed(instance: Row, position: number, last: { id: string; onBehalfOf: string | null; comment: string | null } | null, req: FastifyRequest | null): Promise<void> {
+    const wf = asDef(instance.definition);
+    const def = typeDef(instance.record_type);
+    const record = def ? await ctx.resources.find(def.type, instance.record_id) : undefined;
+    const target = def && record ? routeAfter(wf.steps, position, record, def.fields) : position + 1;
+    for (let i = position + 1; i < Math.min(target, wf.steps.length); i += 1) {
+      await skip(instance, wf.steps[i], i, `Not on this record's route: after "${wf.steps[position].name}" it went ${target >= wf.steps.length ? 'to the end' : `to "${wf.steps[target].name}"`}.`);
+    }
+    await advance(instance, target, last, req);
+  }
+
+  async function activate(instance: Row, step: ApprovalUnit, position: number, def: ResourceDef, record: Row, branch: number | null = null, groupName: string | null = null): Promise<void> {
     const requester = instance.requested_by ?? null;
     const kind = kindOf(instance);
     let principals = await approversFor(await candidates(step.approvers, record, def, requester), def, record.id, requester, kind);
@@ -361,12 +403,12 @@ export function makeService(ctx: ModuleContext) {
     const approvers = [...new Set([...principals, ...Object.keys(standins)])];
     const due = step.due_hours ? new Date(Date.now() + step.due_hours * HOUR) : null;
     const row = (await db.one<Row>(
-      `insert into workflow_steps (instance_id, position, step_key, name, status, approvers, principals, standins, required, due_at, escalated_at, note)
-       values ($1, $2, $3, $4, 'pending', $5::jsonb, $6::jsonb, $7::jsonb, $8, $9, $10, $11) returning *`,
-      [instance.id, position, step.key, step.name, JSON.stringify(approvers), JSON.stringify(principals), JSON.stringify(standins), need, due, escalatedAt, note]))!;
+      `insert into workflow_steps (instance_id, position, branch, group_name, step_key, name, status, approvers, principals, standins, required, due_at, escalated_at, note)
+       values ($1, $2, $3, $4, $5, $6, 'pending', $7::jsonb, $8::jsonb, $9::jsonb, $10, $11, $12, $13) returning *`,
+      [instance.id, position, branch, groupName, step.key, step.name, JSON.stringify(approvers), JSON.stringify(principals), JSON.stringify(standins), need, due, escalatedAt, note]))!;
     await db.query('update workflow_instances set current_step = $2 where id = $1', [instance.id, position]);
     const name = await recordName(def.type, record.id);
-    const body = `${instance.name}: ${step.name}${need > 1 ? ` (${need} approvals needed)` : ''}`;
+    const body = `${instance.name}: ${groupName ? `${groupName}: ` : ''}${step.name}${need > 1 ? ` (${need} approvals needed)` : ''}`;
     await tell({ userIds: principals, recordType: def.type, recordId: record.id, title: `Approval needed: ${def.label.toLowerCase()} ${name}`, body });
     await tellStandins(standins, def, record.id, body);
     if (due && app.hasDecorator('jobs') && !escalatedAt) {
@@ -374,7 +416,7 @@ export function makeService(ctx: ModuleContext) {
     }
   }
 
-  async function escalationPeople(step: StepDef): Promise<string[]> {
+  async function escalationPeople(step: Pick<StepDef, 'escalate_to'>): Promise<string[]> {
     const e = step.escalate_to;
     if (!e) return [];
     return [...e.users, ...(e.role ? await roleMembers(e.role) : [])];
@@ -422,6 +464,10 @@ export function makeService(ctx: ModuleContext) {
     } finally {
       applying.delete(key);
     }
+    // A status move that waited for this workflow (E14-37): approval makes it, through the resource
+    // engine (hooks, audit and webhooks run); rejection or cancel leaves the record as it was.
+    const move = asJson<Row>(done.data ?? {})?.move as { field: string; from: string; to: string } | undefined;
+    if (move && def) await settleMove(done, def, move, status, req, errors);
     const error = errors.length ? errors.join(' ').slice(0, 500) : null;
     if (error) await db.query('update workflow_instances set outcome_error = $2 where id = $1', [instance.id, error]);
     const word = status === 'approved' ? 'approved' : status === 'rejected' ? 'rejected' : 'canceled';
@@ -440,6 +486,96 @@ export function makeService(ctx: ModuleContext) {
     }
     await webhook('workflow.finished', { workflow: instance.name, kind: instance.kind ?? null, outcome: status, reason, outcomeError: error }, { type: instance.record_type, id: instance.record_id }, req);
   }
+
+  // ---------- status moves waiting for approval (E14-37) ----------
+
+  /** Records whose held move is being made now, and the workflow that approved it (it does not start again). */
+  const moving = new Map<string, string>();
+
+  async function statusLabel(def: ResourceDef, field: string, value: string): Promise<string> {
+    const list = def.fields[field]?.list;
+    return (list ? (await ctx.lookups.values(list)).find((v) => v.value === value)?.label : null) ?? value;
+  }
+
+  async function settleMove(instance: Row, def: ResourceDef, move: { field: string; from: string; to: string }, outcome: 'approved' | 'rejected' | 'canceled', req: FastifyRequest | null, errors: string[]): Promise<void> {
+    const key = recordKey(def.type, instance.record_id);
+    const fieldLabel = (def.fields[move.field]?.label ?? move.field).toLowerCase();
+    const [fromLabel, toLabel] = [await statusLabel(def, move.field, move.from), await statusLabel(def, move.field, move.to)];
+    const name = await recordName(def.type, instance.record_id);
+    let made = false;
+    if (outcome === 'approved') {
+      const now = await ctx.resources.find(def.type, instance.record_id);
+      if (!now) errors.push('The record is no longer available, so the status move was not made.');
+      else if ((now[move.field] ?? null) !== move.from) {
+        errors.push(`The ${fieldLabel} changed meanwhile (it is no longer "${fromLabel}"), so the move to "${toLabel}" was not made.`);
+      } else {
+        moving.set(key, instance.definition_id);
+        try {
+          // System work: the person's rules were checked when they asked; the module's own rules apply now.
+          await ctx.resources.update(def.type, instance.record_id, { [move.field]: move.to }, null);
+          made = true;
+        } catch (err) {
+          errors.push(`The move to "${toLabel}" could not be made: ${(err as Error).message || 'the record refused it.'}`);
+        } finally {
+          moving.delete(key);
+        }
+      }
+    }
+    const word = made ? `moved from "${fromLabel}" to "${toLabel}" after approval` : outcome === 'approved' ? `stays "${fromLabel}": the approved move to "${toLabel}" could not be made`
+      : `stays "${fromLabel}": the move to "${toLabel}" was ${outcome === 'rejected' ? 'rejected' : 'canceled'}`;
+    await ctx.audit(req, {
+      action: made ? 'lifecycle.move_approved' : outcome === 'approved' ? 'lifecycle.move_failed' : `lifecycle.move_${outcome}`,
+      recordType: def.type, recordId: instance.record_id,
+      summary: `${def.label} ${name}: ${fieldLabel} ${word} ("${instance.name}")`,
+      after: { field: move.field, from: move.from, to: move.to, workflow: instance.name, instance: instance.id, outcome, made },
+    });
+  }
+
+  /** What the resource engine uses to hold a move until a workflow approves it (core/lifecycle.ts). */
+  const holder: MoveHolder = {
+    async choices(type) {
+      if (!typeDef(type)) return [];
+      return db.query<{ id: string; name: string; active: boolean }>(
+        'select id, name, active from workflow_definitions where record_type = $1 and kind is null and deleted_at is null order by name', [type]);
+    },
+    async pending(type, id) {
+      if (!UUID.test(String(id))) return null;
+      const r = await db.one<Row>(
+        `select id, name, data from workflow_instances where record_type = $1 and record_id = $2 and status = 'running' and (data -> 'move') is not null
+         order by started_at desc limit 1`, [type, id]);
+      const m = r ? asJson<Row>(r.data)?.move : null;
+      return m ? { field: String(m.field), from: String(m.from), to: String(m.to), workflow: r!.name, instanceId: r!.id } : null;
+    },
+    async usable(type, workflowId, row) {
+      const def = typeDef(type);
+      if (!def || !UUID.test(workflowId)) return null;
+      const w = await db.one<Row>(
+        'select id, name, conditions from workflow_definitions where id = $1 and record_type = $2 and kind is null and active and deleted_at is null', [workflowId, type]);
+      if (!w) return null;
+      // The workflow's own "which records" conditions: a record they do not hold for needs no approval.
+      if (row && !allHold(asJson(w.conditions), row, def.fields)) return null;
+      return { id: w.id, name: w.name };
+    },
+    async hold(def, record, move, req) {
+      const w = await db.one<Row>('select * from workflow_definitions where id = $1', [move.workflowId]);
+      if (!w) return;
+      const [fromLabel, toLabel] = [await statusLabel(def, move.field, move.from), await statusLabel(def, move.field, move.to)];
+      const fieldLabel = (def.fields[move.field]?.label ?? move.field).toLowerCase();
+      await ctx.audit(req, {
+        action: 'lifecycle.move_held', recordType: def.type, recordId: record.id,
+        summary: `${def.label} ${await recordName(def.type, record.id)}: the move of its ${fieldLabel} from "${fromLabel}" to "${toLabel}" waits for approval ("${w.name}")`,
+        after: { field: move.field, from: move.from, to: move.to, workflow: w.name },
+      });
+      try {
+        await start(w, def, record, req.user?.id ?? null, req, `Move ${fieldLabel} from ${fromLabel} to ${toLabel}`, false, { move: { field: move.field, from: move.from, to: move.to } });
+      } catch (err) {
+        if ((err as { code?: string }).code === 'already_running') {
+          fail(409, 'already_running', `"${w.name}" is already running on this ${def.label.toLowerCase()}, so the move to "${toLabel}" cannot wait for it now. The other changes were saved; try the move again once that approval ends.`);
+        }
+        throw err;
+      }
+    },
+  };
 
   // ---------- decisions ----------
 
@@ -465,7 +601,8 @@ export function makeService(ctx: ModuleContext) {
     const outcome = await db.tx(async (tx) => {
       // The step row is locked so two last approvals at once cannot both move the workflow on.
       const locked = (await tx.one<Row>('select * from workflow_steps where id = $1 for update', [stepId]))!;
-      const inst = (await tx.one<{ status: string; requested_by: string | null }>('select status, requested_by from workflow_instances where id = $1', [locked.instance_id]))!;
+      // The workflow is locked too, so the last branches of a step side by side, approved at once, move it on exactly once.
+      const inst = (await tx.one<{ status: string; requested_by: string | null }>('select status, requested_by from workflow_instances where id = $1 for update', [locked.instance_id]))!;
       if (inst.status !== 'running') fail(409, 'not_allowed', 'This workflow has already finished.');
       if (locked.status !== 'pending') fail(409, 'not_allowed', 'This step is not waiting for decisions.');
       if (inst.requested_by === user.id) fail(403, 'not_allowed', 'You asked for this approval, so someone else must decide it.');
@@ -481,8 +618,13 @@ export function makeService(ctx: ModuleContext) {
       const all = await tx.query<{ decision: string }>('select decision from workflow_decisions where step_id = $1', [stepId]);
       const result = tally(all, locked.required);
       if (result !== 'pending') await tx.query('update workflow_steps set status = $2, finished_at = now() where id = $1', [stepId, result]);
+      // A branch of a step side by side: the step is done once no other branch is still waiting.
+      const othersWaiting = result === 'approved' && locked.branch !== null && locked.branch !== undefined
+        ? (await tx.one<{ n: number }>(`select count(*)::int as n from workflow_steps where instance_id = $1 and position = $2 and status = 'pending' and id <> $3`,
+          [locked.instance_id, locked.position, stepId]))!.n
+        : 0;
       const total = (await tx.one<{ n: number }>(`select count(*)::int as n from workflow_decisions where instance_id = $1 and decision = 'approved'`, [locked.instance_id]))!.n;
-      return { result, approvals: all.filter((d) => d.decision === 'approved').length, total, required: locked.required as number, position: locked.position as number, onBehalfOf };
+      return { result, stepDone: othersWaiting === 0, approvals: all.filter((d) => d.decision === 'approved').length, total, required: locked.required as number, position: locked.position as number, onBehalfOf };
     });
 
     const name = await recordName(def!.type, instance!.record_id);
@@ -512,7 +654,7 @@ export function makeService(ctx: ModuleContext) {
 
     const last = { id: user.id, onBehalfOf: outcome.onBehalfOf, comment };
     if (outcome.result === 'rejected') await finish(instance!, 'rejected', last, req, comment);
-    else if (outcome.result === 'approved') await advance(instance!, outcome.position + 1, last, req);
+    else if (outcome.result === 'approved' && outcome.stepDone) await proceed(instance!, outcome.position, last, req);
     return {
       stepOutcome: outcome.result, approvalsReceived: outcome.approvals, approvalsRequired: outcome.required,
       onBehalfOf: outcome.onBehalfOf, onBehalfOfName: behalfName, instance: await loadInstance(instance!.id),
@@ -584,7 +726,7 @@ export function makeService(ctx: ModuleContext) {
     for (const s of due) {
       const def = typeDef(s.record_type);
       if (!def) continue; // its area is switched off: nothing happens until it is back on
-      const step = asDef(s.definition).steps[s.position];
+      const step = unitAt(asDef(s.definition).steps, s.position, s.branch);
       const { approvers: before, principals } = stepPeople(s);
       const extra = step ? await approversFor(await escalationPeople(step), def, s.record_id, s.requested_by, kindOf(s)) : [];
       const approvers = [...new Set([...before, ...extra])];
@@ -660,13 +802,20 @@ export function makeService(ctx: ModuleContext) {
       return rows.length > 0;
     },
     async decide(key, recordId, req, decision, comment, opts) {
-      const step = await db.one<Row>(
-        `select s.id from workflow_steps s join workflow_instances i on i.id = s.instance_id
-         where i.kind = $1 and i.record_id = $2 and i.status = 'running' and s.status = 'pending' order by s.position limit 1`, [key, recordId]);
-      if (!step) fail(409, 'not_awaiting_approval', 'Nothing on this record is waiting for approval.');
+      // Several branches may wait side by side (E14-32): the one this person may decide, else the first.
+      const pending = await db.query<Row>(
+        `select s.*, i.requested_by as instance_requester from workflow_steps s join workflow_instances i on i.id = s.instance_id
+         where i.kind = $1 and i.record_id = $2 and i.status = 'running' and s.status = 'pending' order by s.position, s.branch nulls first`, [key, recordId]);
+      if (!pending.length) fail(409, 'not_awaiting_approval', 'Nothing on this record is waiting for approval.');
       let actor: SessionUser | undefined;
       if (!req && opts?.userId) actor = (await loadUser(db, opts.userId)) ?? undefined;
-      return decide(step!.id, req, decision, comment, opts?.via, actor);
+      const who = actor?.id ?? req?.user?.id ?? '';
+      let step = pending[0];
+      for (const s of pending) {
+        const ds = await db.query<{ user_id: string; on_behalf_of: string | null }>('select user_id, on_behalf_of from workflow_decisions where step_id = $1', [s.id]);
+        if ((await mayDecide(s, s.instance_requester ?? null, who, ds)).ok) { step = s; break; }
+      }
+      return decide(step.id, req, decision, comment, opts?.via, actor);
     },
     async waiting(key, userId) {
       const rows = await db.query<Row>(
@@ -690,21 +839,23 @@ export function makeService(ctx: ModuleContext) {
       const approvals = (await db.one<{ n: number }>(`select count(*)::int as n from workflow_decisions where instance_id = $1 and decision = 'approved'`, [inst.id]))!.n;
       const steps = await db.query<Row>('select * from workflow_steps where instance_id = $1 order by position', [inst.id]);
       const required = steps.reduce((n, s) => n + Number(s.required ?? 0), 0);
-      const current = inst.status === 'running' ? steps.find((s) => s.status === 'pending') : undefined;
-      let waitingFor: string[] = [];
+      // Every branch waiting side by side counts (E14-32); a plain step is one of them.
+      const current = inst.status === 'running' ? steps.filter((s) => s.status === 'pending') : [];
+      const waitingFor: string[] = [];
       let canDecide = false;
-      if (current) {
-        const sp = stepPeople(current);
-        const ds = await db.query<{ user_id: string; on_behalf_of: string | null }>('select user_id, on_behalf_of from workflow_decisions where step_id = $1', [current.id]);
+      let stepId: string | null = current[0]?.id ?? null;
+      for (const s of current) {
+        const sp = stepPeople(s);
+        const ds = await db.query<{ user_id: string; on_behalf_of: string | null }>('select user_id, on_behalf_of from workflow_decisions where step_id = $1', [s.id]);
         const taken = new Set(ds.map((d) => d.on_behalf_of ?? d.user_id));
-        waitingFor = (await Promise.all(sp.principals.filter((p) => !taken.has(p)).map(nameOf))).filter(Boolean) as string[];
-        if (userId && userId !== inst.requested_by && sp.approvers.includes(userId)) {
+        for (const n of (await Promise.all(sp.principals.filter((p) => !taken.has(p)).map(nameOf))).filter(Boolean) as string[]) if (!waitingFor.includes(n)) waitingFor.push(n);
+        if (!canDecide && userId && userId !== inst.requested_by && sp.approvers.includes(userId)) {
           const covering = new Set<string>();
           for (const p of sp.standins[userId] ?? []) if (await standsInToday(userId, p)) covering.add(p);
-          canDecide = !('error' in slotFor(sp, userId, ds, (p) => covering.has(p)));
+          if (!('error' in slotFor(sp, userId, ds, (p) => covering.has(p)))) { canDecide = true; stepId = s.id; }
         }
       }
-      return { instance: instanceView(inst), approvals, required, waitingFor, canDecide, stepId: current?.id ?? null };
+      return { instance: instanceView(inst), approvals, required, waitingFor, canDecide, stepId };
     },
   };
 
@@ -739,6 +890,7 @@ export function makeService(ctx: ModuleContext) {
           const steps = (input.steps as Row[] ?? []).map((s, i) => ({
             key: s.key ?? `step-${i + 1}`, name: s.name, approvers: s.approvers, quorum: s.quorum ?? 'any',
             conditions: s.conditions ?? [], due_hours: s.due_hours ?? null, escalate_to: s.escalate_to ?? null,
+            ...(s.branches ? { branches: s.branches } : {}), ...(s.routes ? { routes: s.routes } : {}),
           }));
           const row = (await db.one<{ id: string }>(
             `insert into workflow_definitions (record_type, kind, name, description, active, trigger, conditions, steps, on_approve, on_reject)
@@ -795,6 +947,6 @@ export function makeService(ctx: ModuleContext) {
 
   return {
     start, decide, cancel, reassign, escalateDue, applyStandins, recordCreated, recordUpdated, forget, maySee, people, roleMembers,
-    typeDef, recordName, loadInstance, engine, installKinds, installed, mayDecide, usersWith, approversFor, nameOf,
+    typeDef, recordName, loadInstance, engine, installKinds, installed, mayDecide, usersWith, approversFor, nameOf, holder,
   };
 }

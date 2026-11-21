@@ -113,6 +113,8 @@ A priority set by hand stays as it is when impact or urgency change later. To go
 
 Use the quick actions above, or **More actions** then **Set status** for any other move. To cancel a ticket, select **More actions**, then **Set status: Canceled**. It is canceled at once, with no further questions.
 
+As installed every status change is allowed. Your administrator may limit which changes are allowed, or which fields must be filled in first, under **Administration > Lifecycles**; a change that is not allowed is refused with a message saying why. See [Lifecycles](23-lifecycles.md).
+
 ### Assign a ticket
 
 - To take a ticket yourself, select **Assign to me**. If the ticket is **New**, it also moves to **Assigned**.
@@ -140,7 +142,7 @@ To close:
 
 ### Satisfaction
 
-A requester who uses the [self-service portal](18-self-service-portal.md) answers for themselves once the ticket is resolved. Their answer shows on the **Requester satisfaction** card with "Given by the requester in the self-service portal", and nobody can change it afterwards. For everyone else, ask the requester how satisfied they were and record the answer yourself.
+A requester who uses the [self-service portal](18-self-service-portal.md) answers for themselves once the ticket is resolved. Their answer shows on the **Requester satisfaction** card with "Given by the requester in the self-service portal", and nobody can change it afterward. For everyone else, ask the requester how satisfied they were and record the answer yourself.
 
 - When closing, the **Close ticket** box asks **How satisfied was the requester? (optional)**. Choose from **1** (Very poor) to **5** (Very good) and add a **Comment** if you wish.
 - If you closed without a score, the closed ticket shows a **Requester satisfaction** card. Choose a score there and select **Save**.
@@ -267,7 +269,7 @@ Entries also appear on the ticket's **Activity** tab.
 
 ### Post-incident review
 
-Fill in **What happened**, **Root cause**, **What went well**, **What to improve** and **Follow-up actions**, set **Review completed on**, and select **Save review**. You can start the notes while the incident is open and finish them afterwards.
+Fill in **What happened**, **Root cause**, **What went well**, **What to improve** and **Follow-up actions**, set **Review completed on**, and select **Save review**. You can start the notes while the incident is open and finish them afterward.
 
 To remove the flag, select **More actions**, then **Remove major incident flag**.
 
@@ -360,7 +362,7 @@ Open an item to design its form on the **Form and tasks** tab:
 
 - **Approval**: check **Needs approval before work starts**, then choose the **Approval workflow** (who approves, how many approvals, due times and escalation; **The standard catalog request approval** unless you choose another), and, if approval depends on an answer, choose the question under **Only when a question is answered** and tick the **Answers that need approval**. Administrators make more catalog request approval workflows under **Administration > Approval workflows**, for example two approvals from named people for a restricted system. Items that had their own number of approvals and approvers before approvals moved to workflows were each given a workflow with exactly those settings.
 
-Select **Save form, tasks and approval**. Changes apply to tickets logged afterwards. The **Tickets created** tab lists every ticket started from the item.
+Select **Save form, tasks and approval**. Changes apply to tickets logged afterward. The **Tickets created** tab lists every ticket started from the item.
 
 ## Service desk dashboard
 
@@ -400,7 +402,7 @@ For each priority, set **Respond within** and **Resolve within** in hours and mi
 
 Choose a **Calendar** to edit it:
 
-- **Name** and **Time zone** (an IANA name such as Europe/London; opening hours are read in this zone).
+- **Name** and **Time zone** (an IANA time zone name, in the form Region/City; opening hours are read in this zone).
 - **Open 24 hours, 7 days**: every minute counts and holidays are ignored.
 - Otherwise switch each weekday on or off and set its opening and closing times.
 

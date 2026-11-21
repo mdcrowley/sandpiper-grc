@@ -62,3 +62,10 @@
   .lc-nav { max-height: 240px; }
   .lc-status-rule { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* E14-37: changes that wait for approval. */
+.lc-approvals { list-style: none; margin: 0 0 var(--s-3); padding: 0; display: flex; flex-direction: column; gap: var(--s-3); }
+.lc-approval { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: var(--s-2); align-items: end; padding-bottom: var(--s-3); border-bottom: 1px solid var(--border); }
+.lc-approval-warn { grid-column: 1 / -1; color: var(--c-amber-fg); margin: 0; }
+.lc-flow-approval { color: var(--c-blue-fg); }
+@media (max-width: 720px) { .lc-approval { grid-template-columns: 1fr; } }

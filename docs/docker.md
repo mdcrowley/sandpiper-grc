@@ -68,7 +68,9 @@ in front of it ([HTTPS](#https-behind-a-reverse-proxy)).
 
 The container restarts by itself (`restart: unless-stopped`). `docker compose stop` sends a
 terminate signal: the server finishes the requests in progress and closes the database
-cleanly, waiting up to 20 seconds.
+cleanly (it gives up after 20 seconds). Compose itself ends the container after 10 seconds
+unless told otherwise, so on a busy or large installation use `docker compose stop -t 30`,
+or set `stop_grace_period: 30s` for `app` in a `compose.override.yaml`.
 
 ## Configuration
 
@@ -136,7 +138,7 @@ tokens and query strings are never logged. Settings: [Operations](operations.md#
 
 Commands that need the database to itself (`seed`, `backup`, `restore`, `export-all`,
 `import-all`, `move-files`, `migrate`, `secret-key rotate`) refuse to run while the server
-is running. Run them in a one-off container with the application stopped:
+is running. (There is no `grc start` or `grc stop`: Compose starts and stops the server.) Run them in a one-off container with the application stopped:
 
 ```sh
 docker compose stop app

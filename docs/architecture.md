@@ -43,7 +43,7 @@ delivery is queued). Webhook deliveries are rows in their own table, so a restar
  │ web/src/core/            shell, generic list/detail/form,  │
  │                          API client, design system         │
  └──────────────────────────────┬─────────────────────────────┘
-                                │ HTTP on 127.0.0.1 (JSON, session cookie)
+                                │ HTTP or HTTPS (JSON, session cookie)
  One Node.js process            ▼
  ┌────────────────────────────────────────────────────────────┐
  │ Fastify hooks: session, CSRF header, security headers      │
@@ -54,10 +54,10 @@ delivery is queued). Webhook deliveries are rows in their own table, so a restar
  │                   audit, lookups, settings, links,         │
  │                   comments, search, migrations             │
  ├────────────────────────────────────────────────────────────┤
- │ core/db.ts  the only file that knows about PGlite          │
+ │ core/db.ts  the only file that knows which database runs   │
  └──────────────────────────────┬─────────────────────────────┘
                                 ▼
-                       data/pg  (database files)
+        data/pg (embedded PGlite) or a PostgreSQL server
 ```
 
 ## Process model
@@ -157,9 +157,9 @@ permission module, title field, optional auto-number) and provides:
 - **Hooks**: `beforeCreate`, `beforeUpdate`, `afterCreate`, `afterUpdate` for module rules.
 - **Restricted records.** `restricted: true` makes the whole type need `security.view` as
   well as the module permission. `restricted: 'flag'` hides only rows whose `restricted`
-  column is true. The engine applies this to lists, counts, stats, single reads, exports,
+  column is true. The engine applies this to lists (and their totals), single reads, exports,
   search, record pickers, links and `_display` labels (a hidden reference shows as
-  "Restricted").
+  "Restricted"). The stats route counts every record ("Figures are the same for everyone" in [Security](security.md#figures-are-the-same-for-everyone)).
 
 - **Custom fields** (`server/src/core/customfields.ts`, `customfield-routes.ts`). An
   administrator adds fields to any record type (text, long text, number, currency, date,
@@ -220,6 +220,13 @@ tables are created by `server/src/core/migrations/003_platform_services.sql`.
 | Labels by id | `routes.ts`, `auth.ts` | `POST /api/records/labels`, `GET /api/users/labels` |
 | Personal preferences | `preferences.ts` | `/api/me/preferences[/:key]` |
 | Retention | `retention.ts` | `/api/admin/retention...` |
+| Saved list views | `views.ts` | `/api/views[/:id]` |
+| Organization details and branding | `organization.ts`, `branding-colors.ts` | `/api/branding`, `/api/branding/logo/:variant` |
+| Feature switches | `features.ts` | read by `can()`, the registry and the routes; switched in Administration > Features |
+| Lifecycles (allowed status changes, required fields) | `lifecycle.ts` | administered by the `lifecycles` module |
+| Email in and out, text messages | `mail/` | `mail/routes.ts` |
+| Background jobs | `jobs/` | none (a queue in the database) |
+| Sign-in providers | `identity/` | `/api/auth/...` and the `admin` module |
 
 The OpenAPI document is built on each request from what is registered, so it cannot drift:
 every record type's generated routes with field schemas (custom fields included), and every
@@ -258,20 +265,41 @@ whole document without a running server.
 
 ## Authentication
 
-Local accounts only, plus personal access tokens for scripts. Details and limits are in
+Local accounts, single sign-on (OpenID Connect, SAML 2.0 and directory sign-in over LDAP,
+in `server/src/core/identity/`), passkeys (`server/src/core/webauthn/`), personal access
+tokens for scripts (`server/src/core/tokens.ts`) and OAuth for AI assistants over MCP. The
+sign-in and session code is in `server/src/core/auth.ts`. Details and limits are in
 [Security](security.md).
 
 - **First run.** While no user exists, `POST /api/setup` creates the first administrator.
 - **Passwords.** Argon2id hashes; a policy check (length, common-password list, no
   username, no reuse of recent passwords).
 - **Sessions.** A random token in an `HttpOnly`, `SameSite=Strict` cookie; only its
-  SHA-256 hash is stored. Eight-hour lifetime and a configurable idle time-out.
+  SHA-256 hash is stored. Eight-hour lifetime and a configurable idle time-out
+  (`auth.idle_minutes`). People can see and end their own sessions; administrators can end
+  anyone's.
 - **Lockout and rate limiting.** Progressive per-account lockout and an in-memory limit
   per source address on failed sign-ins.
 - **Second factor.** Time-based one-time passwords (TOTP) from an authenticator app, with
-  ten single-use recovery codes. Offered and working, but not enforced.
+  ten single-use recovery codes, or a passkey. Roles can require one; the setting
+  `auth.mfa_enforcement` decides whether a missing second factor is a reminder or blocks
+  work until the person sets one up (a new installation requires it for Administrator and
+  Security lead unless setup chose reminders only).
+- **Confirming identity.** Sensitive actions ask for the password (or the provider's
+  sign-in) again if it was not given recently ([Security](security.md#password-confirmation-before-sensitive-actions)).
 - **One-time links.** New users and password resets use single-use links valid for 24
-  hours, which the administrator passes on by hand (`server/src/modules/admin`).
+  hours (`server/src/modules/admin/users.ts`). The administrator is shown the link, and it
+  is emailed when outgoing email is set up.
+
+## Audit
+
+Every change made through the resource engine or a hand-written route writes an audit
+event (table `audit_events`, written by `server/src/core/services.ts`): who, when, the record, the action, the fields
+before and after, the request id, the source address and, for a token, its name.
+Sign-ins, refused sign-ins, permission and setting changes are audited too. A database
+trigger refuses updates and deletes on the audit table, and the retention sweep never
+removes audit events. Restricted records are left out of the audit search for people
+without `security.view`. See [Security](security.md#audit-log).
 
 ## Authorization
 
@@ -284,10 +312,15 @@ Local accounts only, plus personal access tokens for scripts. Details and limits
   then be edited. Some ship switched off; a switched-off role grants nothing. Only the
   Administrator role may hold `*`, and the application refuses changes that would leave
   no active administrator or remove the acting administrator's own access.
-- **`security.view` and restricted records.** Risks, security incidents and notification
-  tasks are restricted types: holding `risks.view` alone is not enough. Without
-  `security.view` they do not appear in lists, counts, search, links, exports, stats or
-  the audit search.
+- **`security.view` and restricted records.** Risks, security incidents, notification
+  tasks and vulnerability findings are restricted types: holding `risks.view` alone is not
+  enough. Without `security.view` they do not appear in lists, single reads, search,
+  pickers, links, exports or the audit search. Some types restrict row by row instead
+  (`restricted: 'flag'`): actions take the restriction of the record they arose from, and
+  safety events flagged as holding personal information are restricted.
+- **Figures are the same for everyone.** Counts, charts, report and dashboard figures
+  include restricted records whoever looks; restriction hides the records, not the numbers
+  ([Security](security.md#figures-are-the-same-for-everyone)).
 - **Feature switches.** An administrator can switch optional parts of the application off
   (`server/src/core/features.ts`). `can()` then answers false for that part's permissions
   whoever holds them, its record types leave the resource registry, its routes answer 404
@@ -430,9 +463,10 @@ The prototype choices were made so that each can be replaced without redesign. T
 database server, HTTPS and containers are in place (Hosting, above); the rest is not yet
 built; see [Known gaps](known-gaps.md).
 
-- **Database.** Still to design: a transaction-per-request story, and a database role for
-  the application that cannot alter the audit trigger (today the role owns its tables).
-  Backups in server mode use `pg_dump`; `grc.ps1 backup` covers the embedded database only.
+- **Database.** Still to design: a transaction-per-request story. A least-privilege set-up,
+  where the application's own account cannot change the schema or drop the audit trigger,
+  is built but optional ([Installation](installation.md#a-least-privilege-database-role));
+  by default the application's account owns its tables. Backups in server mode use `pg_dump`; `grc.ps1 backup` covers the embedded database only.
 - **Single sign-on.** OpenID Connect, SAML 2.0 (XML signatures checked by the
   @node-saml/node-saml library, with hardening of our own in core/identity/samlxml.ts),
   directory (LDAP) sign-in over TLS (a small client of our own in core/identity/ldapclient.ts),

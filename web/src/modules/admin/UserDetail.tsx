@@ -75,7 +75,7 @@ export function UserDetailPage() {
             <DefinitionList items={[
               { label: 'Password', value: user.has_password ? `Set ${formatDateTime(user.password_changed_at)}` : user.identities ? 'None: signs in through a provider' : 'Not set yet' },
               { label: 'Sign-in providers', value: user.identities ? `${user.identities} linked` : 'None linked' },
-              { label: 'Second factor', value: user.totp_enabled ? <StatusChip color="green" label="Authenticator app" /> : <StatusChip color={needsFactor ? 'amber' : 'gray'} label={needsFactor ? 'Not set up, expected by a role' : 'Not set up'} /> },
+              { label: 'Second factor', value: user.totp_enabled || (user.passkeys ?? 0) > 0 ? <StatusChip color="green" label={[user.totp_enabled && 'Authenticator app', (user.passkeys ?? 0) > 0 && ((user.passkeys ?? 0) === 1 ? '1 passkey' : `${user.passkeys} passkeys`)].filter(Boolean).join(', ')} /> : <StatusChip color={needsFactor ? 'amber' : 'gray'} label={needsFactor ? 'Not set up, expected by a role' : 'Not set up'} /> },
               { label: 'Last sign-in', value: user.last_login_at ? formatDateTime(user.last_login_at) : 'Never' },
               { label: 'Active sessions', value: user.sessions },
               { label: 'Failed attempts', value: user.locked ? `${user.failed_attempts} (locked until ${formatDateTime(user.locked_until)})` : user.failed_attempts },
@@ -95,7 +95,7 @@ export function UserDetailPage() {
                   label: 'Unlock', run: act('unlock', 'Account unlocked.'),
                 })}>Unlock</Button>
               )}
-              {user.totp_enabled && (
+              {(user.totp_enabled || (user.passkeys ?? 0) > 0) && (
                 <Button icon="shield" onClick={() => setConfirm({
                   title: 'Reset the second factor?', danger: true,
                   message: `${name}'s authenticator app and recovery codes will stop working, and they will sign in with a password only until they set it up again. Confirm who is asking before you do this.`,

@@ -6,6 +6,7 @@ import {
   useLookup, useMeta, UserPicker, useResource, useToast,
 } from '../../core';
 import type { Row } from '../../core';
+import { editableLifecycle, moveBlockedReason } from '../../core/lifecycleMenus';
 import { actionPath, ActionStatus, isOverdue } from './ActionStatus';
 import { daysUntil } from './scales';
 
@@ -17,12 +18,18 @@ function CompleteToggle({ row, onChanged }: { row: Row; onChanged: () => void })
   const statuses = useLookup('action_status');
   const [busy, setBusy] = useState(false);
   const done = row.status === DONE;
+  // The tick follows the lifecycle (E14-31): a move it does not allow is shown with the reason.
+  const target = done ? 'open' : DONE;
+  const lifecycle = editableLifecycle(useResource('action')?.lifecycle, 'status');
+  const values = statuses.map((s) => s.value);
+  const blocked = moveBlockedReason(lifecycle, row.status, target, statuses.find((s) => s.value === target)?.label ?? target, values);
   if (!statuses.some((s) => s.value === DONE)) return null;
   const label = done ? `Reopen ${row.ref ?? 'action'}` : `Mark ${row.ref ?? 'action'} done`;
   const toggle = async () => {
+    if (blocked) return;
     setBusy(true);
     try {
-      await api.patch(actionPath(row), { status: done ? 'open' : DONE });
+      await api.patch(actionPath(row), { status: target });
       toast.success(done ? `${row.ref ?? 'Action'} reopened.` : `${row.ref ?? 'Action'} done.`);
       onChanged();
     } catch (err) {
@@ -32,8 +39,11 @@ function CompleteToggle({ row, onChanged }: { row: Row; onChanged: () => void })
     }
   };
   return (
-    <Tooltip label={done ? 'Reopen' : 'Mark done'}>
-      <UnstyledButton className={`rk-tick${done ? ' is-done' : ''}`} aria-label={label} aria-pressed={done} disabled={busy} onClick={toggle}>
+    <Tooltip label={blocked || (done ? 'Reopen' : 'Mark done')} multiline={Boolean(blocked)} w={blocked ? 260 : undefined}>
+      <UnstyledButton
+        className={`rk-tick${done ? ' is-done' : ''}`} aria-label={blocked ? `${label}: ${blocked}` : label} aria-pressed={done}
+        aria-disabled={blocked ? true : undefined} disabled={busy} onClick={toggle}
+      >
         <Icon name="check" size={14} />
       </UnstyledButton>
     </Tooltip>

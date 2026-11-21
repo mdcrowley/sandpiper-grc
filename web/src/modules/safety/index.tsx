@@ -4,18 +4,19 @@ import { SafetyDashboard } from './Dashboard';
 import { EventDetail, EventList } from './Events';
 import { HazardDetail, HazardList } from './Hazards';
 import { ExposurePage, IndicatorDetail, IndicatorList } from './Indicators';
+import { MatrixEditor } from './MatrixEditor';
 import './safety.css';
 
 const view = 'safety.view';
 
 const mod: ModuleDef = {
   key: 'safety',
-  // The navigation groups are fixed by the core; safety sits with risk until a Safety group exists.
   nav: [
     { group: 'Safety', label: 'Safety dashboard', path: '/safety', icon: 'chart', permission: view, order: 95 },
     { group: 'Safety', label: 'Safety events', path: '/safety/events', icon: 'alert', permission: view, order: 96 },
     { group: 'Safety', label: 'Hazard log', path: '/safety/hazards', icon: 'shield', permission: view, order: 97 },
     { group: 'Safety', label: 'Safety indicators', path: '/safety/indicators', icon: 'target', permission: view, order: 98 },
+    { group: 'Administration', label: 'Hazard matrix', path: '/safety/matrix', icon: 'target', permission: 'safety.administer', order: 61 },
   ],
   routes: [
     { path: '/safety', element: <SafetyDashboard />, permission: view },
@@ -26,6 +27,7 @@ const mod: ModuleDef = {
     { path: '/safety/indicators', element: <IndicatorList />, permission: view },
     { path: '/safety/indicators/:id', element: <IndicatorDetail />, permission: view },
     { path: '/safety/exposure', element: <ExposurePage />, permission: view },
+    { path: '/safety/matrix', element: <MatrixEditor />, permission: 'safety.administer' },
   ],
   create: [
     { label: 'Safety event', path: '/safety/events?new=1', permission: 'safety.create', icon: 'alert' },

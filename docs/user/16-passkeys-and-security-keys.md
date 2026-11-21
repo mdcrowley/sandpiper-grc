@@ -88,7 +88,8 @@ Before a sensitive change (a role, a sign-in setting, adding a key) the applicat
 
 - On a person's page (**Administration**, **Users**, then the person) the **Passkeys and security keys** card lists their keys. Select **Remove** and then **Remove key** to remove one, for example when a security key is reported lost. You will be asked to confirm your own password. The person cannot be given a key by an administrator; they add their own.
 - Every addition, rename, removal, use and refusal is recorded in the audit log (`passkey.register`, `passkey.rename`, `passkey.revoke`, `passkey.used`, `passkey.refused`, and `passkey.sign_count_regression` for a possible copied key). Signing in with a passkey alone is recorded as "Signed in via passkey".
-- Two settings control passkeys: `auth.passkey_sign_in` (default on) allows signing in with a passkey alone, and `auth.passkey_user_verification` (`preferred` by default, or `required`) decides whether every use must check a PIN or biometric, which rules out touch-only security keys.
+- Two settings control passkeys: `auth.passkey_sign_in` (default on) allows signing in with a passkey alone, and `auth.passkey_user_verification` (`preferred` by default, or `required`) decides whether every use must check a PIN or biometric, which rules out touch-only security keys. Neither is on the **Settings** page; change them through the API (`PATCH /api/admin/settings`) from a signed-in session, not an API token, because the change needs a recent password confirmation.
+- The **Second factor** column on the **Users** list, and the **Second factor** line on a person's page, show the authenticator app only. A person whose only second factor is a key shows **Not set up** there; check their **Passkeys and security keys** card.
 - The break-glass account can use a hardware security key as its second factor in the same way as anyone else.
 
 ## The second factor on a new installation
@@ -99,3 +100,8 @@ When the application is first set up, the setup wizard asks how to treat the sec
 - **Only remind people for now** — people see a reminder but can work without a second factor.
 
 Either can be changed later under **Administration**, **Settings** (second-factor enforcement). Installations set up before this choice existed keep their current setting.
+
+## Not available yet
+
+- A screen for the two passkey settings (`auth.passkey_sign_in` and `auth.passkey_user_verification`); they are changed through the API.
+- An administrator cannot add a key for someone else; each person adds their own.

@@ -5,6 +5,7 @@ import {
   Menu, Modal, NotFound, PageHeader, ResourceForm, Stepper, Tabs, useAuth, useFetch, useRecord, useResource, useToast,
 } from '../../core';
 import type { RecordContext } from '../../core';
+import { editableLifecycle, moveBlockedReason } from '../../core/lifecycleMenus';
 import { AffectedTab } from './AffectedTab';
 import { ChecklistTab } from './ChecklistTab';
 import { ClocksRail } from './Clocks';
@@ -38,6 +39,9 @@ function CommandBar({ rec, lifecycle, onChanged }: { rec: RecordContext; lifecyc
   const stageOf = (key: string | null) => statuses.find((s) => s.value === key)?.stage ?? 'reported';
   const declaring = target !== null && stageOf(target) !== 'reported' && !row.declared_at;
   const closing = target !== null && stageOf(target) === 'closed';
+  // Steps the lifecycle rules do not allow from the current status say why instead (E14-31).
+  const rules = editableLifecycle(rec.resource.lifecycle, 'status');
+  const blocked = (key: string) => moveBlockedReason(rules, row.status, key, label(key), statuses.map((s) => s.value));
 
   async function confirm() {
     if (!target) return;
@@ -70,8 +74,13 @@ function CommandBar({ rec, lifecycle, onChanged }: { rec: RecordContext; lifecyc
       <Stepper
         label="Incident status"
         current={row.status}
-        steps={statuses.map((s) => ({ key: s.value, label: s.label }))}
-        onStepClick={canEdit ? (key) => { if (key !== row.status) setTarget(key); } : undefined}
+        steps={statuses.map((s) => ({ key: s.value, label: s.label, hint: canEdit && blocked(s.value) ? 'Not allowed from here' : undefined }))}
+        onStepClick={canEdit ? (key) => {
+          if (key === row.status) return;
+          const why = blocked(key);
+          if (why) toast.info(why);
+          else setTarget(key);
+        } : undefined}
       />
       <dl className="si-facts">
         {facts.map(([name, value, note, empty]) => (
@@ -135,6 +144,10 @@ export function Workspace() {
   const version = `${row.updated_at}:${tick}`;
   const stage = lifecycle?.statuses.find((s) => s.value === row.status)?.stage;
   const declareAs = lifecycle?.statuses.find((s) => s.stage === 'declared')?.value;
+  // Declaring follows the lifecycle rules too (E14-31).
+  const declareBlocked = declareAs
+    ? moveBlockedReason(editableLifecycle(resource.lifecycle, 'status'), row.status, declareAs, lifecycle?.statuses.find((s) => s.value === declareAs)?.label ?? declareAs, lifecycle?.statuses.map((s) => s.value))
+    : '';
   const goTo = (key: string) => setSearch((old) => { const next = new URLSearchParams(old); next.set('tab', key); return next; }, { replace: true });
 
   async function declare() {
@@ -206,7 +219,7 @@ export function Workspace() {
         )}
         actions={(
           <>
-            {canEdit && stage === 'reported' && <Button variant="primary" icon="alert" onClick={declare}>Declare incident</Button>}
+            {canEdit && stage === 'reported' && <Button variant="primary" icon="alert" onClick={declare} disabled={Boolean(declareBlocked)} title={declareBlocked || undefined}>Declare incident</Button>}
             {canEdit && <Button icon="edit" onClick={() => setEditing(true)}>Edit details</Button>}
             <Link className="btn btn-secondary" to={`/security-incidents/${row.id}/report`}>Incident report</Link>
             <Menu label="More" icon="more" iconOnly align="end" items={[

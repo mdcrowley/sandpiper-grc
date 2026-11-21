@@ -168,7 +168,7 @@ Usage: .\grc.ps1 <command>
 
   start | stop | restart | health     run the server on http://127.0.0.1:8080
   status                              version, port, process, data size, last backup, pending migrations
-  logs [-Lines n] [-Follow] [-Level warn]   show the end of the server log (datalogsgrc.log)
+  logs [-Lines n] [-Follow] [-Level warn]   show the end of the server log (data\logs\grc.log)
   version                             the installed version and commit
   seed [-Profile pilot|dev]           load data (idempotent)
 

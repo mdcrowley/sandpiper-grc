@@ -29,17 +29,78 @@ export type ApproverSpec =
 /** `any`: one approval is enough; `all`: everyone named; a number: that many of them. */
 export type Quorum = 'any' | 'all' | number;
 
-export interface StepDef {
+/** One set of approvers with their quorum: a step, or one branch of a step that runs side by side. */
+export interface ApprovalUnit {
   key: string;
   name: string;
   approvers: ApproverSpec;
   quorum: Quorum;
-  /** The step applies only when every condition holds (checked when the step is reached). */
+  /** The step (or branch) applies only when every condition holds (checked when it is reached). */
   conditions: Condition[];
   /** Hours from the start of the step to its due time; null = no due time. */
   due_hours: number | null;
   /** Who is told, and may then also decide, once the step is overdue. */
   escalate_to: { users: string[]; role: string | null } | null;
+}
+
+/**
+ * Where a workflow goes after a step is approved (E14-32): the first route whose conditions all
+ * hold sends it to a later step (`to` is that step's key) or to the end (`end`: approved); with no
+ * route that holds, it goes on to the next step. A route with no conditions always holds.
+ */
+export interface Route { conditions: Condition[]; to: string }
+export const END = 'end';
+
+/**
+ * A step. A step with `branches` runs them side by side (E14-32): each branch has its own approvers
+ * and quorum, every branch that applies must approve, and one rejection rejects; such a step has no
+ * approvers of its own. `routes` (optional) choose where the workflow goes after the step.
+ */
+export interface StepDef extends Omit<ApprovalUnit, 'approvers'> {
+  approvers?: ApproverSpec;
+  branches?: ApprovalUnit[];
+  routes?: Route[];
+}
+
+/** Whether a step runs branches side by side. */
+export const isGroup = (s: Pick<StepDef, 'branches'> | null | undefined): boolean => Array.isArray(s?.branches) && s!.branches!.length > 0;
+
+/** The approval unit a stored step row stands for: the step itself, or one of its branches. */
+export function unitAt(steps: StepDef[], position: number, branch: number | null | undefined): ApprovalUnit | null {
+  const s = steps[position];
+  if (!s) return null;
+  if (branch !== null && branch !== undefined) return s.branches?.[branch] ?? null;
+  return s.approvers ? (s as ApprovalUnit) : null;
+}
+
+/** The branches of a step that apply to a record (by index); a plain step answers `[null]`. */
+export function applicableBranches(step: StepDef, row: Row, fields: Record<string, FieldDef>): (number | null)[] {
+  if (!isGroup(step)) return [null];
+  return step.branches!.map((b, i) => (allHold(b.conditions, row, fields) ? i : -1)).filter((i) => i >= 0);
+}
+
+/**
+ * Where the workflow continues after the step at `position` is approved: the position of the step
+ * the first route that holds names (`steps.length` for the end), or the next step. A route naming a
+ * step that is not later (or no longer exists) is ignored, so a workflow can never loop.
+ */
+export function routeAfter(steps: StepDef[], position: number, row: Row, fields: Record<string, FieldDef>): number {
+  for (const r of steps[position]?.routes ?? []) {
+    if (!allHold(r.conditions, row, fields)) continue;
+    if (r.to === END) return steps.length;
+    const at = steps.findIndex((s) => s.key === r.to);
+    if (at > position) return at;
+  }
+  return position + 1;
+}
+
+/** Where a group of side-by-side branches stands, from the status of each branch that started. */
+export function groupStatus(statuses: string[]): 'pending' | 'approved' | 'rejected' | 'skipped' | 'canceled' {
+  if (statuses.includes('rejected')) return 'rejected';
+  if (statuses.includes('pending')) return 'pending';
+  if (statuses.includes('canceled')) return 'canceled';
+  if (statuses.length && statuses.every((s) => s === 'skipped')) return 'skipped';
+  return 'approved';
 }
 
 export interface FieldSet { field: string; value: unknown }
@@ -67,6 +128,9 @@ export const REQUESTER = 'requester';
 
 export const MAX_STEPS = 10;
 export const MAX_CONDITIONS = 10;
+/** Branches in one step that runs side by side, and routes after one step. */
+export const MAX_BRANCHES = 5;
+export const MAX_ROUTES = 5;
 
 // ---------- reading fields ----------
 
@@ -329,15 +393,17 @@ export function checkDefinition(input: Row, c: DefinitionContext): { def?: Workf
   if (!rawSteps.length) errors.steps = 'Add at least one approval step.';
   if (rawSteps.length > MAX_STEPS) errors.steps = `Use at most ${MAX_STEPS} steps.`;
   const keys = new Set<string>();
-  rawSteps.slice(0, MAX_STEPS).forEach((raw, i) => {
+  // Keys first: routes name later steps by key.
+  const stepKeys = rawSteps.slice(0, MAX_STEPS).map((raw, i) => {
     const s = (raw ?? {}) as Row;
-    const at = `steps.${i}`;
-    const stepName = str(s.name, 80);
-    if (!stepName) errors[`${at}.name`] = 'Give the step a name.';
-    let key = KEY_RE.test(String(s.key ?? '')) ? String(s.key) : `step-${i + 1}`;
+    let key = KEY_RE.test(String(s.key ?? '')) && String(s.key) !== END ? String(s.key) : `step-${i + 1}`;
     while (keys.has(key)) key = `${key}-${i + 1}`;
     keys.add(key);
+    return key;
+  });
 
+  /** One set of approvers (a step, or one branch of a step that runs side by side). */
+  const unit = (s: Row, at: string, key: string, unitName: string | null): ApprovalUnit | null => {
     const a = (s.approvers ?? {}) as Row;
     let approvers: ApproverSpec | null = null;
     if (a.kind === 'users') {
@@ -403,7 +469,55 @@ export function checkDefinition(input: Row, c: DefinitionContext): { def?: Workf
       escalate = { users, role };
     }
 
-    if (approvers) steps.push({ key, name: stepName ?? '', approvers, quorum, conditions: conditions(`${at}.conditions`, s.conditions), due_hours: dueHours, escalate_to: escalate });
+    const conds = conditions(`${at}.conditions`, s.conditions);
+    return approvers ? { key, name: unitName ?? '', approvers, quorum, conditions: conds, due_hours: dueHours, escalate_to: escalate } : null;
+  };
+
+  rawSteps.slice(0, MAX_STEPS).forEach((raw, i) => {
+    const s = (raw ?? {}) as Row;
+    const at = `steps.${i}`;
+    const key = stepKeys[i];
+    const stepName = str(s.name, 80);
+    if (!stepName) errors[`${at}.name`] = 'Give the step a name.';
+    let step: StepDef | null;
+    if (Array.isArray(s.branches) && s.branches.length) {
+      // Branches that run side by side (E14-32): each with its own approvers, quorum and conditions.
+      const raws = s.branches as unknown[];
+      if (raws.length < 2) errors[`${at}.branches`] = 'Add at least two branches to run side by side, or make it an ordinary step.';
+      if (raws.length > MAX_BRANCHES) errors[`${at}.branches`] = `Use at most ${MAX_BRANCHES} branches in one step.`;
+      const branchKeys = new Set<string>();
+      const branches: ApprovalUnit[] = [];
+      raws.slice(0, MAX_BRANCHES).forEach((rb, j) => {
+        const b = (rb ?? {}) as Row;
+        const bat = `${at}.branches.${j}`;
+        const branchName = str(b.name, 80);
+        if (!branchName) errors[`${bat}.name`] = 'Give the branch a name.';
+        let bkey = KEY_RE.test(String(b.key ?? '')) ? String(b.key) : `${key}-${String.fromCharCode(97 + j)}`;
+        while (branchKeys.has(bkey)) bkey = `${bkey}-${j + 1}`;
+        branchKeys.add(bkey);
+        const u = unit(b, bat, bkey, branchName);
+        if (u) branches.push(u);
+      });
+      step = { key, name: stepName ?? '', quorum: 'any', conditions: conditions(`${at}.conditions`, s.conditions), due_hours: null, escalate_to: null, branches };
+    } else {
+      step = unit(s, at, key, stepName);
+    }
+
+    // Routes after the step: only forward (a later step, or the end), so a workflow never loops.
+    const rawRoutes = list(s.routes);
+    if (rawRoutes.length > MAX_ROUTES) errors[`${at}.routes`] = `Use at most ${MAX_ROUTES} routes after one step.`;
+    const routes: Route[] = [];
+    rawRoutes.slice(0, MAX_ROUTES).forEach((rr, k) => {
+      const r = (rr ?? {}) as Row;
+      const to = String(r.to ?? '');
+      const target = stepKeys.indexOf(to);
+      if (to !== END && target <= i) {
+        errors[`${at}.routes.${k}`] = target === -1 ? 'Choose a later step, or the end.' : 'A route can only go to a later step, or to the end.';
+        return;
+      }
+      routes.push({ conditions: conditions(`${at}.routes.${k}.conditions`, r.conditions), to });
+    });
+    if (step) steps.push(routes.length ? { ...step, routes } : step);
   });
 
   const outcome = (where: string, raw: unknown): FieldSet[] => {

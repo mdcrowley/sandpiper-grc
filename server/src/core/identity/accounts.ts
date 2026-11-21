@@ -73,8 +73,8 @@ export async function linkIdentity(
   link: { userId: string; provider: ProviderRecord; identity: ExternalIdentity; method: 'self' | 'sign_in_confirmed' | 'permit' | 'jit'; by?: string | null },
 ): Promise<void> {
   await deps.db.query(
-    `insert into user_identities (user_id, provider_id, subject, email, link_method, linked_by) values ($1,$2,$3,$4,$5,$6)`,
-    [link.userId, link.provider.id, link.identity.subject, link.identity.email, link.method, link.by ?? req?.user?.id ?? null],
+    `insert into user_identities (user_id, provider_id, subject, email, link_method, linked_by, login_name) values ($1,$2,$3,$4,$5,$6,$7)`,
+    [link.userId, link.provider.id, link.identity.subject, link.identity.email, link.method, link.by ?? req?.user?.id ?? null, link.identity.loginName ?? null],
   );
   const how = {
     self: 'by the person, signed in and confirmed at the provider',

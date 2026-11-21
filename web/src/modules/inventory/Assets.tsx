@@ -7,7 +7,7 @@ import {
   ResourceList, Switch, useAuth, useFetch, useToast,
 } from '../../core';
 import type { Row } from '../../core';
-import { CheckInDialog, CheckOutDialog, DisposeDialog } from './AssetDialogs';
+import { CheckInDialog, CheckOutDialog, DisposeDialog, useAssetMoveBlocked } from './AssetDialogs';
 import type { DisposalRequest } from './AssetDialogs';
 import { AssignmentTab, DisposalTab, LifecycleBand, RequestCard, WhereCard } from './AssetLifecycle';
 import { funderFields, RelatedWork, useFunder } from './shared';
@@ -46,13 +46,15 @@ const TECHNICAL = ['os', 'os_version', 'ip_address', 'mac_address', 'notes'];
 
 function AssetActions({ row, canEdit, onChanged }: { row: Row; canEdit: boolean; onChanged: () => void }) {
   const [dialog, setDialog] = useState<'out' | 'in' | 'dispose' | null>(null);
+  // Checking out sets In use: offered only when the lifecycle rules allow it (E14-31).
+  const outBlocked = useAssetMoveBlocked(row)('in_use');
   if (!canEdit) return null;
   const assigned = !!(row.user_id || row.assigned_to_name);
   const gone = row.status === 'disposed';
   const close = (changed: boolean) => { setDialog(null); if (changed) onChanged(); };
   return (
     <>
-      {!gone && !assigned && row.status !== 'retired' && <Button variant="primary" onClick={() => setDialog('out')}>Check out</Button>}
+      {!gone && !assigned && row.status !== 'retired' && <Button variant="primary" disabled={Boolean(outBlocked)} title={outBlocked || undefined} onClick={() => setDialog('out')}>Check out</Button>}
       {!gone && assigned && <Button variant="primary" onClick={() => setDialog('in')}>Check in</Button>}
       {!gone && <Button icon="trash" onClick={() => setDialog('dispose')}>Dispose</Button>}
       {dialog === 'out' && <CheckOutDialog asset={row} onClose={close} />}

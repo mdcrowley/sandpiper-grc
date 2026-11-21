@@ -13,6 +13,7 @@ An administrator can switch training and exercises off under **Administration > 
 | `training.edit` | Change courses and add or remove assignment rules |
 | `training.delete` | Remove courses and training records |
 | `training.export` | Export courses and training records |
+| `training.administer` | Change the reminder settings on the **Training overview** |
 | `exercises.view`, `exercises.create`, `exercises.edit`, `exercises.delete` | The same for exercises |
 
 Everyone who can sign in can open **My training**, which shows only their own records.
@@ -170,6 +171,8 @@ The exercise gets a reference such as `EXR-00003` and its status starts as **Pla
 3. Describe the outcome in **What happened**.
 4. Enter **Next due**, the date by which this kind of exercise should be run again. It must be after the exercise date.
 5. Select **Save changes**.
+
+An exercise that will not take place can be set to **Canceled**. An administrator can limit which status changes are allowed, and what each needs, under **Administration > Lifecycles**; see [Lifecycles](23-lifecycles.md).
 
 ### Rehearse an incident checklist
 

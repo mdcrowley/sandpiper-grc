@@ -115,7 +115,7 @@ export function RecordDialog({ courseId, courseTitle, open, preset, onClose, onD
           </>
         )}
 
-        {!fixed && <Checkbox label="They have completed the course" hint="Untick to assign the course without recording a completion." checked={completed} onChange={setCompleted} />}
+        {!fixed && <Checkbox label="They have completed the course" hint="Clear this to assign the course without recording a completion." checked={completed} onChange={setCompleted} />}
         {completed ? (
           <div className="form-grid">
             <DateField label="Completed on" required value={completedOn} max={todayInZone()} error={errors.completed_on} onChange={setCompletedOn} />

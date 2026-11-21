@@ -69,7 +69,10 @@ beforeEach(async () => { await t.db.query('delete from rate_limit_hits'); });
 describe('confirming with the directory password (E02-29)', () => {
   it('lists the directory as the way to confirm for a person with no password here', async () => {
     const res = await call('GET', '/api/auth/sso/confirm-methods', undefined, dana);
-    expect(res.body).toEqual({ password: false, directories: [{ key: KEY, name: 'Example directory' }] });
+    // E02-30: with the directory user name she signed in with, to fill in; never the password.
+    expect(res.body).toEqual({ password: false, directories: [{ key: KEY, name: 'Example directory', username: DANA.user }] });
+    const stored = JSON.stringify(await t.db.query('select * from user_identities where user_id = $1', [danaId]));
+    expect(stored).not.toContain(DANA.password);
     expect((await call('POST', '/api/auth/confirm', { password: 'anything' }, dana)).status).toBe(400); // no password here
   });
 
@@ -86,6 +89,13 @@ describe('confirming with the directory password (E02-29)', () => {
     expect(ok.status).toBe(200);
     expect(ok.body.minutes).toBeGreaterThan(0);
     expect((await audited('reauth.success')).pop()).toMatch(/Example directory password/);
+    // E02-30: the user name that worked is kept (with surrounding spaces trimmed), a wrong one is not.
+    await t.db.query(`update user_identities set login_name = null where user_id = $1`, [danaId]);
+    await call('POST', `/api/auth/sso/${KEY}/confirm`, { username: ' rail ', password: 'timetable-rail-9' }, dana);
+    expect((await t.db.one<{ n: string | null }>('select login_name as n from user_identities where user_id = $1', [danaId]))!.n).toBeNull();
+    await t.db.query(`update sessions set confirmed_at = null where user_id = $1`, [danaId]);
+    expect((await call('POST', `/api/auth/sso/${KEY}/confirm`, { username: ` ${DANA.user} `, password: DANA.password }, dana)).status).toBe(200);
+    expect((await call('GET', '/api/auth/sso/confirm-methods', undefined, dana)).body.directories[0].username).toBe(DANA.user);
     // Now she can add a passkey, which needs a recent confirmation.
     const opts = await call('POST', '/api/auth/webauthn/register/options', undefined, dana);
     expect(opts.status).toBe(200);
@@ -179,6 +189,6 @@ describe('linking a directory from Account security (E02-29)', () => {
     expect((await t.api.post(`/api/auth/sso/${KEY}/link-directory`, { username: 'tadmin', password: 'admin-directory-pass' })).body.error.code).toBe('already_linked');
     // The administrator can now sign in with the directory too, and confirm with it.
     expect((await login({ username: 'tadmin', password: 'admin-directory-pass' })).status).toBe(200);
-    expect((await t.api.get('/api/auth/sso/confirm-methods')).body).toEqual({ password: true, directories: [{ key: KEY, name: 'Example directory' }] });
+    expect((await t.api.get('/api/auth/sso/confirm-methods')).body).toEqual({ password: true, directories: [{ key: KEY, name: 'Example directory', username: 'tadmin' }] });
   });
 });

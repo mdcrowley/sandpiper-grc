@@ -36,6 +36,10 @@ Open **Safety events**. Filter by type, severity, status, date, vehicle, service
 
 The event gets a reference such as `SE-00101`.
 
+### Reports from the self-service portal
+
+When the portal is on and its setting **Staff can report a safety event** is on, staff can use **Report a safety concern** in the portal to describe what happened in plain words (see [Report a safety concern](18-self-service-portal.md#report-a-safety-concern)). Each report becomes a safety event with the status **Reported**, the reporter in **Reported by**, and a severity taken from how bad the reporter said it was. A note on the event says it came from the portal; check the severity when you triage it. Everyone who may edit safety records is notified of each new report (a **Serious** or worse report is announced as described under "Notifications" below). The reporter sees only the reference, the title and a plain status (**Received**, **Being looked into** or **Closed**); for a restricted event, only the reference.
+
 ### Restricted events
 
 Events that hold personal information are **restricted**: only people who may see restricted records (`security.view`) can see them in lists, search, links and exports. They still count in the dashboard and the indicators, which are the same for everyone and show no event's details. **Passenger injury** and **Assault on an operator** events start restricted unless you clear **Restricted (holds personal information)**; any other event can be restricted by checking it. Corrective actions of a restricted event are restricted too. Someone without `security.view` who restricts an event can no longer open it.
@@ -73,13 +77,23 @@ Open **Hazard log**. The list shows each hazard's **Rating** now and **After mit
 
 ### Score a hazard on the hazard matrix
 
-Hazards are scored on the **Safety hazard matrix (4 by 5)**: five likelihood levels (**Improbable**, **Remote**, **Occasional**, **Probable**, **Frequent**) by four severity levels (**Negligible**, **Marginal**, **Critical**, **Catastrophic**), giving **Low**, **Medium**, **Serious** or **High**. It is the same matrix the risk register uses, kept under the risk scales, so an administrator's change to it applies here too.
+Hazards are scored on the **Safety hazard matrix (4 by 5)**: five likelihood levels (**Improbable**, **Remote**, **Occasional**, **Probable**, **Frequent**) by four severity levels (**Negligible**, **Marginal**, **Critical**, **Catastrophic**), giving **Low**, **Medium**, **Serious** or **High**. A safety administrator can rename its levels and change the rating of each cell (see [Change the hazard matrix](#change-the-hazard-matrix)).
 
 On the hazard page, the **Current risk** card scores the hazard with its existing controls and the **After mitigation** card scores it once the mitigations are in place. Choose a cell to score it; the chosen cell is outlined and checked, and the rating appears in the card's heading. A cell names its rating in words, so the color is never the only clue.
 
 Set the **Status** as the work goes on: **Identified**, **Being mitigated**, **Controlled** or **Closed**. Closed hazards are left off the dashboard's matrix.
 
 A hazard's **Owner** (or, when it has none, everyone who may edit safety records) is reminded once when its **Review date** is 14 days away and once when it is reached. Closed hazards are left out. Set the next review date after each review and the reminders start again. An administrator changes the 14 days under **Administration** > **Reminders**.
+
+### Change the hazard matrix
+
+With the `safety.administer` permission (the **Safety manager** role has it), open **Administration > Hazard matrix**, or select **Hazard matrix** at the top of the **Hazard log**.
+
+1. Under **Matrix**, choose the rating each pair of levels gives: likelihood runs down the side, severity along the bottom. Each cell names its rating in words.
+2. Under **Likelihood** and **Severity**, change the **Name** and **What it means** of any level. The number of levels and their values stay as they are, so no score loses its meaning.
+3. Select **Save hazard matrix**. Every hazard is then rated again on the new matrix, and a message says how many ratings changed. **Discard changes** puts back the saved matrix.
+
+The change is recorded in the audit log. The page works whichever other parts of the application are switched on. Where the risk register is in use, the same matrix is also one of its risk scales, and the scale's other settings (its name, its ratings and the acceptance threshold) are changed there.
 
 ### Mitigations
 
@@ -115,6 +129,4 @@ The `dev` sample profile loads an invented year of safety records: twelve hazard
 
 ## Not available yet
 
-- A separate **Safety** navigation group: the pages sit in the **Cybersecurity** group for now.
-- Reporting safety events from the self-service portal.
 - Notifying an outside safety regulator; use a security incident's notification clocks if one is needed.

@@ -1,13 +1,14 @@
 // Bulk actions of a ResourceList: the bar shown while rows are selected, the bulk edit dialog
 // (one PATCH per row, with a progress summary) and CSV export of the selected rows.
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Alert, Button, Checkbox, Group, List, Progress, Stack, Text } from '@mantine/core';
 import { IconDownload, IconPencil, IconX } from '@tabler/icons-react';
 import { api, errorMessage, type Row } from './api';
 import { DateField, LookupSelect, RecordPicker, Select, UserPicker } from './fields';
 import { fieldMeta } from './FieldValue';
 import { formatDate, formatDateTime } from './format';
-import { lookupLabel, type ResourceMeta } from './meta';
+import { allowedForAll, editableLifecycle } from './lifecycleMenus';
+import { lookupLabel, useLookup, type ResourceMeta } from './meta';
 import { Modal } from './overlay';
 
 export const BULK_TYPES = ['lookup', 'user', 'ref', 'boolean', 'date'];
@@ -108,7 +109,15 @@ export function BulkEditDialog({ open, resource, rows, fields, onClose, onDone }
 
   const meta = field ? fieldMeta(resource, field) : undefined;
   const noun = (n: number) => (n === 1 ? resource.label : resource.plural).toLowerCase();
-  const ready = Boolean(meta) && (clear || (value !== null && value !== ''));
+  // The lifecycle's status field (E14-31): offer only the statuses every selected record may move to.
+  const lifecycle = meta?.type === 'lookup' ? editableLifecycle(resource.lifecycle, field) : undefined;
+  const statusList = useLookup(lifecycle ? meta?.list ?? '' : '');
+  const allowed = useMemo(
+    () => (lifecycle ? allowedForAll(lifecycle, rows.map((r) => r[field] as string | null | undefined), statusList.map((v) => v.value)) : undefined),
+    [lifecycle, rows, field, statusList],
+  );
+  const noStatus = allowed !== undefined && allowed.length === 0;
+  const ready = Boolean(meta) && (clear || (value !== null && value !== '' && (!allowed || allowed.includes(value))));
   const running = run !== null && !run.finished;
 
   const close = () => {
@@ -155,7 +164,20 @@ export function BulkEditDialog({ open, resource, rows, fields, onClose, onDone }
     if (!meta) return null;
     const common = { label: `New ${meta.label.toLowerCase()}`, disabled: clear };
     switch (meta.type) {
-      case 'lookup': return <LookupSelect {...common} list={meta.list ?? ''} value={value ?? ''} onChange={(v) => setValue(v || null)} />;
+      case 'lookup': {
+        if (noStatus) {
+          const list = meta.list ?? '';
+          const current = [...new Set(rows.map((r) => lookupLabel(list, r[field]) || 'none'))].join(', ');
+          return (
+            <Alert color="yellow" variant="light" role="status">
+              No {meta.label.toLowerCase()} can be given to all the selected {noun(rows.length)}: the lifecycle rules
+              (Administration &gt; Lifecycles) leave no move open from every current {meta.label.toLowerCase()} ({current}).
+              Select fewer {noun(2)}, for example those with the same {meta.label.toLowerCase()}.
+            </Alert>
+          );
+        }
+        return <LookupSelect {...common} list={meta.list ?? ''} only={allowed} value={value ?? ''} onChange={(v) => setValue(v || null)} />;
+      };
       case 'user': return <UserPicker {...common} value={value} onChange={(id) => setValue(id)} />;
       case 'ref': return <RecordPicker {...common} type={meta.to ?? ''} value={value} onChange={(id) => setValue(id)} />;
       case 'date': return <DateField {...common} value={value ?? ''} onChange={(v) => setValue(v || null)} />;

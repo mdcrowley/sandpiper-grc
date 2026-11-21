@@ -1,6 +1,7 @@
 import type { ModuleContext, Row, SeedOptions } from '../../core/module.ts';
 import { dayInZone } from '../../core/timezone.ts';
 import { upsertByName } from '../inventory/seed.ts';
+import { seedFleetPilot } from './seed-pilot.ts';
 import { seedDevEstate, seedSampleAssets } from '../inventory/seed-sample.ts';
 
 /**
@@ -86,7 +87,7 @@ function vehicles(): (Row & { depot: string; label: string; kit: string[] })[] {
 }
 
 export async function seedFleet(ctx: ModuleContext, opts: SeedOptions): Promise<string> {
-  if (opts.profile !== 'dev') return 'nothing to load (sample fleet is dev profile only)';
+  if (opts.profile !== 'dev') return seedFleetPilot(ctx, opts); // the organization's own files (E19-13)
   if (!ctx.resources.get('asset') || !ctx.resources.get('site')) return 'skipped: the inventory module is not loaded';
   // Modules seed in name order, so inventory has not run yet: load its sample estate first (idempotent).
   if (!(await ctx.db.one(`select 1 from sites where name = 'Example Depot North' and deleted_at is null`))) {

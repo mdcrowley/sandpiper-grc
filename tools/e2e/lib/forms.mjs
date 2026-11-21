@@ -24,7 +24,7 @@ export function controls(page, scope) {
       else if (el.getAttribute('aria-haspopup') === 'listbox' || el.closest('.mantine-Select-root, .mantine-MultiSelect-root') || el.getAttribute('role') === 'combobox') kind = 'choice';
       else if (el.tagName === 'BUTTON' && /Pick a date|date/i.test(el.innerText + (el.getAttribute('placeholder') ?? ''))) kind = 'datetime';
       else if (el.tagName === 'BUTTON') kind = 'button';
-      else if (/Day Month Year/i.test(el.placeholder ?? '') || el.closest('.mantine-DateInput-root')) kind = 'date';
+      else if (/Day Month Year|Month Day, Year/i.test(el.placeholder ?? '') || el.closest('.mantine-DateInput-root')) kind = 'date';
       else if (el.inputMode === 'decimal' || el.inputMode === 'numeric' || el.type === 'number' || el.closest('.mantine-NumberInput-root')) kind = 'number';
       const errId = el.getAttribute('aria-describedby')?.split(/\s+/).map((id) => document.getElementById(id)).find((n) => n && /error/i.test(n.id + ' ' + n.className));
       const message = (errId ?? wrapper?.querySelector('.mantine-InputWrapper-error, [class*=error]'))?.innerText?.trim() ?? '';

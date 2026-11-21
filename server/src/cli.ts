@@ -76,7 +76,7 @@ function requiredKey(what: string) {
 function requireStopped() {
   const pid = serverPid(dataDir);
   if (pid) {
-    console.error(`The server is running on this data folder (process ${pid}). Stop it first: .\\grc.ps1 stop (Windows), ./grc.sh stop (macOS, Linux) or grc stop (container).`);
+    console.error(`The server is running on this data folder (process ${pid}). Stop it first: .\\grc.ps1 stop (Windows), ./grc.sh stop (macOS, Linux) or docker compose stop app (container).`);
     process.exit(1);
   }
 }

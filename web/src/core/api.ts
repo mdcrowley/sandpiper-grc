@@ -66,7 +66,14 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
   const res = await send(method, url, body);
   if (res.status === 204) return undefined as T;
   const text = await res.text();
-  return (text ? JSON.parse(text) : undefined) as T;
+  const out = (text ? JSON.parse(text) : undefined) as T;
+  // A status move that now waits for an approval workflow (E14-37): the approval panel of that
+  // record listens, so it shows the pending move even though the record itself did not change.
+  const held = method === 'PATCH' && out && typeof out === 'object' ? (out as { id?: string; _pending_move?: unknown }) : null;
+  if (held?._pending_move && typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('grc:move-held', { detail: { recordId: held.id, move: held._pending_move } }));
+  }
+  return out;
 }
 
 export const api = {

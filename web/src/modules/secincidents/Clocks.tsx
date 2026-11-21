@@ -1,13 +1,26 @@
 import { useEffect, useState } from 'react';
 import {
   ApiError, api, Badge, Button, DateTimeField, EmptyState, ErrorState, errorMessage, formatDateTime, Icon,
-  Loading, Modal, TextArea, TextField, useFetch, useToast,
+  Loading, Modal, TextArea, TextField, useFetch, useLookup, useResource, useToast,
 } from '../../core';
+import { editableLifecycle, moveBlockedReason } from '../../core/lifecycleMenus';
 import { metText, remainingAmount, remainingText, sortClocks, STATE_ICON, STATE_WORD, stateAt, useNow } from './shared';
 import type { Clock, ClocksResult } from './types';
 import { deadlineText } from './types';
 
 const HOW = ['Phone', 'Email', 'Web form', 'Letter', 'In person'];
+
+/**
+ * The notification task lifecycle (E14-31) for the task buttons: for a task, why a move to a status
+ * is not allowed ('' when it is), so a button can be disabled with the reason.
+ */
+export function useTaskBlocked(): (clock: Clock) => (to: Clock['status']) => string {
+  const lifecycle = editableLifecycle(useResource('notification_task')?.lifecycle, 'status');
+  const statuses = useLookup('notification_task_status');
+  return (clock) => (to) => moveBlockedReason(
+    lifecycle, clock.status, to, statuses.find((s) => s.value === to)?.label ?? to, statuses.map((s) => s.value),
+  );
+}
 
 /** Captures the completion record for one notification: who, how, when and the reference received. */
 export function RecordNotificationDialog({ clock, onClose, onSaved }: { clock: Clock | null; onClose: () => void; onSaved: () => void }) {
@@ -138,8 +151,11 @@ function elapsedPercent(discoveredAt: string, dueAt: string | null, now: number)
   return Math.min(100, Math.max(0, ((now - start) / (end - start)) * 100));
 }
 
-function ClockCard({ clock, discoveredAt, now, canEdit, onRecord, onSkip, onReopen }: {
-  clock: Clock; discoveredAt: string; now: number; canEdit: boolean; onRecord: () => void; onSkip: () => void; onReopen: () => void;
+function ClockCard({ clock, discoveredAt, now, canEdit, blocked, onRecord, onSkip, onReopen }: {
+  clock: Clock; discoveredAt: string; now: number; canEdit: boolean;
+  /** Why the lifecycle does not allow moving this task to a status ('' when it does, E14-31). */
+  blocked: (to: Clock['status']) => string;
+  onRecord: () => void; onSkip: () => void; onReopen: () => void;
 }) {
   const state = stateAt(clock, now);
   return (
@@ -169,8 +185,8 @@ function ClockCard({ clock, discoveredAt, now, canEdit, onRecord, onSkip, onReop
           )}
           {canEdit && (
             <div className="si-clock-actions">
-              <Button size="sm" variant="primary" icon="check" onClick={onRecord}>Record notification</Button>
-              <Button size="sm" variant="ghost" onClick={onSkip}>Not required</Button>
+              <Button size="sm" variant="primary" icon="check" onClick={onRecord} disabled={Boolean(blocked('done'))} title={blocked('done') || undefined}>Record notification</Button>
+              <Button size="sm" variant="ghost" onClick={onSkip} disabled={Boolean(blocked('not_required'))} title={blocked('not_required') || undefined}>Not required</Button>
             </div>
           )}
         </>
@@ -198,7 +214,7 @@ function ClockCard({ clock, discoveredAt, now, canEdit, onRecord, onSkip, onReop
       {clock.status === 'not_required' && (
         <>
           <div className="si-clock-meta">Not required for this incident. The reason is in the log.</div>
-          {canEdit && <div className="si-clock-actions"><Button size="sm" variant="ghost" icon="refresh" onClick={onReopen}>Reopen</Button></div>}
+          {canEdit && <div className="si-clock-actions"><Button size="sm" variant="ghost" icon="refresh" onClick={onReopen} disabled={Boolean(blocked('pending'))} title={blocked('pending') || undefined}>Reopen</Button></div>}
         </>
       )}
     </li>
@@ -246,6 +262,7 @@ export function ClocksRail({ incidentId, declared, version, canEdit, onChanged }
   const [skipping, setSkipping] = useState<Clock | null>(null);
   const soon = data?.clocks.some((c) => c.status === 'pending' && c.due_at && Math.abs(new Date(c.due_at).getTime() - Date.now()) < 3_600_000);
   const now = useNow(soon ? 1000 : 20_000);
+  const blockedFor = useTaskBlocked();
 
   // The incident changed (answers, discovery time, status): the tasks may have too.
   useEffect(() => { reload(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [version]);
@@ -275,7 +292,7 @@ export function ClocksRail({ incidentId, declared, version, canEdit, onChanged }
         <Headline clocks={clocks} now={now} />
         <ul className="si-clocks">
           {clocks.map((c) => (
-            <ClockCard key={c.task_id} clock={c} discoveredAt={data.incident.discovered_at} now={now} canEdit={canEdit}
+            <ClockCard key={c.task_id} clock={c} discoveredAt={data.incident.discovered_at} now={now} canEdit={canEdit} blocked={blockedFor(c)}
               onRecord={() => setRecording(c)} onSkip={() => setSkipping(c)} onReopen={() => reopen(c)} />
           ))}
         </ul>

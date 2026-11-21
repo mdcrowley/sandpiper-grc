@@ -51,6 +51,8 @@ const mod: ModuleDef = {
     registerRoutes(ctx, svc);
     follow(ctx, svc);
     setApprovalEngine(ctx.app, svc.engine);
+    // Lifecycle moves that wait for an approval workflow (E14-37) are held and made here.
+    ctx.app.lifecycles.setHolder(svc.holder);
     // Every module has declared its approval kinds by now: each installs once (its workflows, and
     // the approvals that were waiting when it moved to workflows).
     ctx.app.addHook('onReady', async () => { await svc.installed(); });

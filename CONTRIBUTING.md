@@ -19,11 +19,10 @@ powershell -ExecutionPolicy Bypass -File .\tools\install-node.ps1   # portable N
 .\grc.ps1 start                  # http://127.0.0.1:8080
 ```
 
-On Linux or macOS, install the Node.js major version named in
-[`tools/node-version.txt`](tools/node-version.txt), then `npm install`,
-`npm run seed -- --profile dev`, `npm run build` and `npm start`. The `grc.ps1`
-operations script is Windows only; the same work is available through
-`npm run cli -- <command>` (see [`docs/operations.md`](docs/operations.md)).
+On Linux or macOS, `./tools/install-node.sh` puts the Node.js version named in
+[`tools/node-version.txt`](tools/node-version.txt) into `.tools/node`; then
+`./grc.sh install`, `./grc.sh seed --profile dev` and `./grc.sh start`. `grc.sh` takes
+the same commands as `grc.ps1` (see [`docs/operations.md`](docs/operations.md)).
 
 For day-to-day development use `.\grc.ps1 dev`: the API with file watching on port 8080
 and the web application with hot reload on http://127.0.0.1:5173.
@@ -78,10 +77,13 @@ The pull request template repeats this as a checklist.
 .\grc.ps1 build          # npm run build: the production web build
 ```
 
-Continuous integration is local for now: run `.\grc.ps1 ci` (typecheck, tests and web
-build) before every commit and push. The same checks run on GitHub Actions for every push
-and pull request, on Windows and Linux ([`.github/workflows/ci.yml`](.github/workflows/ci.yml));
-a pull request must pass them before it is merged. Dependabot proposes dependency
+Run `.\grc.ps1 ci` (or `./grc.sh ci`: typecheck, tests, the tests again on UTC, and the
+web build) before every commit and push. GitHub Actions runs the same checks on Windows
+and Linux for every push and pull request, and also the tests on a PostgreSQL server,
+installation on Linux and macOS, the container image, the browser suite and the
+accessibility audit ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)); a pull
+request must pass them before it is merged. Locally, run only the browser suites your
+change touches (`npm run test:e2e -- --only <suites>`). Dependabot proposes dependency
 updates weekly ([`.github/dependabot.yml`](.github/dependabot.yml)).
 
 - Tests live beside the code as `*.test.ts` and use `testApp()` from

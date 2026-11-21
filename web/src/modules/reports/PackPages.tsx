@@ -7,6 +7,8 @@ import {
   ResourceList, Select, TextArea, TextField, api, errorMessage, formatDate, formatDateTime, useAuth, useCustomFieldInputs, useFetch, useToast,
   CustomFieldsCard,
 } from '../../core';
+import { useBranding } from '../../core/branding';
+import { Logo } from '../../core/Logo';
 import { CustomFieldsLink } from './custom';
 import type { ApiError, ListResult } from '../../core';
 import { downloadFile, fileName, openDocument } from './data';
@@ -33,6 +35,8 @@ interface PreviewSection { kind: 'text' | 'report'; title: string; body?: string
 interface Preview {
   pack: Pick<ReportPack, 'id' | 'name' | 'cover_title' | 'cover_subtitle' | 'description'>;
   sections: PreviewSection[]; generatedAt: string; preparedFor: string;
+  /** The organization as the printed pack shows it (Administration > Organization). */
+  organization?: { name: string; lines: string[] };
 }
 
 export function PackPage() {
@@ -136,10 +140,15 @@ export function PackPage() {
 /** The pack as it prints: a cover page, a contents list, then one section per page. */
 function PackDocument({ preview, appName }: { preview: Preview; appName?: string }) {
   const { pack, sections } = preview;
+  // The organization's logo (the theme's own), name, address and contacts, as on the PDF (E14-36).
+  const { logo } = useBranding();
+  const org = preview.organization;
+  const names = [...new Set([org?.name, appName].filter(Boolean))];
   return (
     <article className="rp-pack-paper" aria-label="Pack preview">
       <section className="rp-pack-cover">
-        <p className="rp-pack-org">{appName}</p>
+        {logo.light && <div className="rp-pack-logo"><Logo size={56} /></div>}
+        <p className="rp-pack-org">{org?.name || appName}</p>
         <h2 className="rp-pack-title">{pack.cover_title || pack.name}</h2>
         {pack.cover_subtitle && <p className="rp-pack-subtitle">{pack.cover_subtitle}</p>}
         <dl className="rp-pack-facts">
@@ -169,6 +178,12 @@ function PackDocument({ preview, appName }: { preview: Preview; appName?: string
         </section>
       ))}
       <p className="rp-pack-end">End of pack · {formatDate(preview.generatedAt)}</p>
+      {names.length > 0 && (
+        <footer className="rp-pack-orgfoot">
+          <p><strong>{names.join(' · ')}</strong></p>
+          {(org?.lines ?? []).map((l) => <p key={l}>{l}</p>)}
+        </footer>
+      )}
     </article>
   );
 }

@@ -3,8 +3,9 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   api, Button, Card, ConfirmDialog, EditableSummary, EmptyState, errorMessage, ErrorState, Loading, Modal, PageHeader, RecordPage, RecordPicker,
-  ResourceList, Stepper, useAuth, useFetch, useToast,
+  ResourceList, Stepper, useAuth, useFetch, useLookup, useResource, useToast,
 } from '../../core';
+import { canMoveTo, editableLifecycle } from '../../core/lifecycleMenus';
 import type { RecordContext } from '../../core';
 import { RatingChip, SafetyActions, SafetyTabs, useHazardScale } from './shared';
 
@@ -38,6 +39,10 @@ const STEPS = [
 function Actions({ row, save, canEdit }: RecordContext) {
   const toast = useToast();
   const [busy, setBusy] = useState(false);
+  // A button whose move the lifecycle does not allow is left out (E14-31); Edit offers the allowed statuses.
+  const lifecycle = editableLifecycle(useResource('safety_event')?.lifecycle, 'status');
+  const values = useLookup('safety_event_status').map((v) => v.value);
+  const may = (to: string) => canMoveTo(lifecycle, row.status, to, values);
   if (!canEdit) return null;
   const move = async (status: string, done: string) => {
     setBusy(true);
@@ -47,10 +52,10 @@ function Actions({ row, save, canEdit }: RecordContext) {
   };
   return (
     <>
-      {row.status === 'reported' && <Button loading={busy} onClick={() => move('investigating', 'Investigation started.')}>Start investigation</Button>}
-      {row.status === 'investigating' && <Button loading={busy} onClick={() => move('actions_open', 'Waiting on corrective actions.')}>Corrective actions raised</Button>}
-      {row.status !== 'closed' && <Button variant="primary" loading={busy} onClick={() => move('closed', 'Event closed.')}>Close event</Button>}
-      {row.status === 'closed' && <Button loading={busy} onClick={() => move('investigating', 'Event reopened.')}>Reopen</Button>}
+      {row.status === 'reported' && may('investigating') && <Button loading={busy} onClick={() => move('investigating', 'Investigation started.')}>Start investigation</Button>}
+      {row.status === 'investigating' && may('actions_open') && <Button loading={busy} onClick={() => move('actions_open', 'Waiting on corrective actions.')}>Corrective actions raised</Button>}
+      {row.status !== 'closed' && may('closed') && <Button variant="primary" loading={busy} onClick={() => move('closed', 'Event closed.')}>Close event</Button>}
+      {row.status === 'closed' && may('investigating') && <Button loading={busy} onClick={() => move('investigating', 'Event reopened.')}>Reopen</Button>}
     </>
   );
 }

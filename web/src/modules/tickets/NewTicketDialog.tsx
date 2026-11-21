@@ -90,7 +90,7 @@ export function NewTicketDialog({ open, onClose, onCreated, initial, title = 'Ne
     if (!String(v.title ?? '').trim()) found.title = 'Title is required.';
     if (!v.type) found.type = 'Type is required.';
     if (v.requester_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v.requester_email))) found.requester_email = 'Enter a full email address.';
-    if (override && !v.priority) found.priority = 'Choose a priority, or untick the box.';
+    if (override && !v.priority) found.priority = 'Choose a priority, or clear the box.';
     for (const q of questions) if (q.required && !String(answers[q.key] ?? '').trim()) found[`catalog_answers.${q.key}`] = `${q.label} is required.`;
     setErrors(found);
     const extra = custom.collect();

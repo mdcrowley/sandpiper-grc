@@ -1,6 +1,7 @@
 # Security policy
 
-Sandpiper GRC is a **prototype** for evaluation on one machine. It has not had an
+Sandpiper GRC is a **prototype**. By default it runs on one machine and listens on
+`127.0.0.1` only. It has not had an
 independent security review or penetration test. What protects it today, and what does
 not yet, is described in [`docs/security.md`](docs/security.md) and
 [`docs/known-gaps.md`](docs/known-gaps.md). Please read those before deciding what to
@@ -71,9 +72,10 @@ read, change or delete data that is not yours.
 These are known and documented limits of the prototype rather than new findings, though
 improvements are welcome as ordinary issues or pull requests:
 
-- It serves plain HTTP on `127.0.0.1` only; there is no HTTPS.
-- Data at rest (the `data/` and `backups/` folders, and exports) is not encrypted by the
-  application.
+- By default it serves plain HTTP on `127.0.0.1` only. HTTPS and listening on other
+  addresses must be switched on (see [`docs/installation.md`](docs/installation.md#https)).
+- The data folder (the database and attached files) is not encrypted by the application;
+  only its stored secrets are, and backups and exports when you ask for that.
 - Anything else listed under "Not yet" in [`docs/security.md`](docs/security.md).
 
 A way to reach the application from another machine, to act without signing in, to see

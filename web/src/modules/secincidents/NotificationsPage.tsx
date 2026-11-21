@@ -4,7 +4,7 @@ import {
   Badge, Button, EmptyState, ErrorState, formatDateTime, Icon, Loading, LookupChip, PageHeader, ResourceList, Stat, Tabs, useAuth, useFetch,
 } from '../../core';
 import { AlertResponders } from './AlertResponders';
-import { NotRequiredDialog, RecordNotificationDialog } from './Clocks';
+import { NotRequiredDialog, RecordNotificationDialog, useTaskBlocked } from './Clocks';
 import { metText, PilotNotice, remainingText, sortClocks, STATE_COLOR, STATE_ICON, stateAt, useNow } from './shared';
 import type { AllClocks, Clock } from './types';
 import { deadlineText } from './types';
@@ -24,6 +24,7 @@ function Deadlines() {
   const [recording, setRecording] = useState<Clock | null>(null);
   const [skipping, setSkipping] = useState<Clock | null>(null);
   const now = useNow(20_000);
+  const blockedFor = useTaskBlocked();
   const s = data?.summary;
   const clocks = data ? sortClocks(data.clocks, now) : [];
   const anyDone = clocks.some((c) => c.status === 'done');
@@ -61,6 +62,7 @@ function Deadlines() {
               <tbody>
                 {clocks.map((c) => {
                   const state = stateAt(c, now);
+                  const blocked = blockedFor(c);
                   return (
                     <tr key={c.task_id}>
                       <td>
@@ -100,8 +102,8 @@ function Deadlines() {
                       {canEdit && (
                         <td className="si-table-actions">
                           <div className="si-row-actions si-row-actions-stack">
-                            {c.status === 'pending' && <Button size="sm" variant="primary" onClick={() => setRecording(c)}>Record notification</Button>}
-                            {c.status === 'pending' && <Button size="sm" variant="ghost" onClick={() => setSkipping(c)}>Not required</Button>}
+                            {c.status === 'pending' && <Button size="sm" variant="primary" onClick={() => setRecording(c)} disabled={Boolean(blocked('done'))} title={blocked('done') || undefined}>Record notification</Button>}
+                            {c.status === 'pending' && <Button size="sm" variant="ghost" onClick={() => setSkipping(c)} disabled={Boolean(blocked('not_required'))} title={blocked('not_required') || undefined}>Not required</Button>}
                             {c.status === 'done' && <Button size="sm" variant="ghost" onClick={() => setRecording(c)}>Correct record</Button>}
                           </div>
                         </td>

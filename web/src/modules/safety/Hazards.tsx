@@ -2,16 +2,18 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Card, EditableSummary, EmptyState, errorMessage, ErrorState, formatDateTime, Loading, LookupChip, PageHeader, RecordPage, ResourceList, useFetch, useToast,
+  Card, EditableSummary, EmptyState, errorMessage, ErrorState, formatDateTime, Loading, LookupChip, PageHeader, RecordPage, ResourceList, useAuth, useFetch, useToast,
 } from '../../core';
 import type { RecordContext } from '../../core';
 import { HazardMatrix, RatingChip, SafetyActions, SafetyTabs, useHazardScale } from './shared';
 
 export function HazardList() {
   const { scale } = useHazardScale();
+  const { can } = useAuth();
   return (
     <div className="stack">
-      <PageHeader title="Hazard log" subtitle="Hazards to passengers, staff and the public, scored on the safety hazard matrix." />
+      <PageHeader title="Hazard log" subtitle="Hazards to passengers, staff and the public, scored on the safety hazard matrix."
+        actions={can('safety.administer') ? <Link className="btn btn-secondary" to="/safety/matrix">Hazard matrix</Link> : undefined} />
       <SafetyTabs active="hazards" />
       <ResourceList
         type="hazard"
@@ -33,7 +35,7 @@ function Scoring({ row, save, canEdit }: RecordContext) {
   const toast = useToast();
   const { scale, error } = useHazardScale();
   const [busy, setBusy] = useState(false);
-  if (error) return <Card title="Risk on the hazard matrix"><p className="muted">The hazard matrix is not available: it is kept by the risks module.</p></Card>;
+  if (error) return <Card title="Risk on the hazard matrix"><p className="muted">The hazard matrix is not available on this installation.</p></Card>;
   if (!scale) return <Card title="Risk on the hazard matrix"><Loading lines={4} /></Card>;
   const pick = (prefix: '' | 'residual_') => async (likelihood: number, severity: number) => {
     if (!canEdit || busy) return;

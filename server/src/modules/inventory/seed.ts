@@ -80,7 +80,8 @@ export function namesPhrase(text: string | null, name: string): boolean {
   return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, 'i').test(text);
 }
 
-async function seedPilot(ctx: ModuleContext, opts: SeedOptions): Promise<string> {
+/** The pilot files of the inventory (sites, data categories, systems); also run first by the fleet seed (E19-13). */
+export async function seedPilotEstate(ctx: ModuleContext, opts: SeedOptions): Promise<string> {
   const missing: string[] = [];
   const read = (file: string): Row[] => {
     if (existsSync(join(opts.seedDir, file))) return ctx.readSeed(opts, file, '|');
@@ -171,7 +172,7 @@ async function seedPilot(ctx: ModuleContext, opts: SeedOptions): Promise<string>
 }
 
 export async function seedInventory(ctx: ModuleContext, opts: SeedOptions): Promise<string> {
-  const estate = opts.profile === 'pilot' ? await seedPilot(ctx, opts) : await seedDevEstate(ctx);
+  const estate = opts.profile === 'pilot' ? await seedPilotEstate(ctx, opts) : await seedDevEstate(ctx);
   // Invented assets are tied to invented records only: in the pilot they stay unlinked.
   const assets = await seedSampleAssets(ctx, { link: opts.profile === 'dev' });
   return `${estate}; ${assets}`;

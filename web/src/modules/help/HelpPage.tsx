@@ -27,6 +27,9 @@ function render(page: LoadedPage): string {
   });
   // Links between guide pages become in-app addresses; links to other sites open in a new tab.
   html = html.replace(/href="(?:\.\/)?(\d+-[a-z0-9-]+)\.md(#[^"]*)?"/g, (_m, stem: string, hash = '') => `href="/help/${stemSlug(stem)}${hash}"`);
+  // Links to the other documents in docs/ (installation, operations, security, API) are not part of the
+  // in-app guide: they open on GitHub, in a new tab.
+  html = html.replace(/href="\.\.\/([\w-]+\.md(?:#[^"]*)?)"/g, 'href="https://github.com/mdcrowley/sandpiper-grc/blob/main/docs/$1"');
   html = html.replace(/<a href="(https?:[^"]+)"/g, '<a href="$1" target="_blank" rel="noreferrer noopener"');
   // A table scrolls inside its own frame (focusable, so the keyboard can scroll it too).
   html = html.replace(/<table>/g, '<div class="help-table-wrap" tabindex="0" role="group" aria-label="Table"><table>').replace(/<\/table>/g, '</table></div>');

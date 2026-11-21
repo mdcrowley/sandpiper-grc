@@ -122,7 +122,7 @@ export function IntakeForm() {
               )}
               <TextField label="Name" required value={form.name} onChange={set('name')} error={fields.name} placeholder="A short name people will recognize" autoFocus />
               <TextArea label="What is needed and why" rows={3} value={form.description} onChange={set('description')} error={fields.description} hint="The problem, who has it and what happens if nothing is done" />
-              <TextArea label="Expected benefits" rows={2} value={form.expected_benefits} onChange={set('expected_benefits')} error={fields.expected_benefits} hint="What will be better afterwards" />
+              <TextArea label="Expected benefits" rows={2} value={form.expected_benefits} onChange={set('expected_benefits')} error={fields.expected_benefits} hint="What will be better afterward" />
               <div className="form-grid">
                 <TextField label="Sponsor" value={form.sponsor} onChange={set('sponsor')} error={fields.sponsor} hint="Who is asking for it" />
                 <TextField label="Department" value={form.department} onChange={set('department')} error={fields.department} />

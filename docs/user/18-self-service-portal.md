@@ -8,14 +8,15 @@ The portal is switched off when the application is installed. An administrator s
 
 ## Opening the portal
 
-Sign in as usual. If the portal is all your account includes, you go straight to it. If you also use other parts of the application, open **Self-service portal** in the **Home** group of the sidebar. In the portal, the menu under your initials has **Open the full application**.
+Sign in as usual. If the portal is all your account includes, you go straight to it, and the other pages of the application send you back to it (your account security page and the user guide still open). If you also use other parts of the application, open **Self-service portal** at the top of the menu on the left, under **Overview**.
 
 At the top of every portal page:
 
+- The portal's title (**Help and requests** unless the service desk has changed it), which takes you home.
 - **Home** and **My requests**.
 - The bell, for your notifications (for example "New reply on your request TKT-00041").
 - The moon or sun button switches between the dark and light themes.
-- The menu under your initials: **Change password**, **Sign-in security**, and **Sign out**.
+- The menu under your initials: **Change password**, **Sign-in security**, **Open the full application** (only if you also use other parts of the application), and **Sign out**.
 
 ## Home
 

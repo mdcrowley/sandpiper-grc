@@ -11,15 +11,20 @@ import {
 import { Notice } from './common';
 import { adminApi } from './reauth';
 import { Group, Setting } from './Settings';
+import { Switch } from './Switch';
 
 type Variant = 'light' | 'dark';
-interface LogoMeta { type: string; width: number; height: number; bytes: number; hash: string; filename: string; updatedAt: string }
+interface LogoMeta {
+  type: string; width: number; height: number; bytes: number; hash: string; filename: string; updatedAt: string;
+  /** A WebP logo's PNG copy, for PDFs and emails (null until one is made). */
+  print?: { width: number; height: number; bytes: number; hash: string } | null;
+}
 interface Check { theme: Variant; what: string; foreground: string; background: string; ratio: number; min: number; pass: boolean }
 interface Colors { primary: string; accent: string; light: Record<string, string>; dark: Record<string, string>; checks: Check[]; notes: string[] }
 interface OrgResponse {
   values: Record<string, string>;
   logos: Record<Variant, LogoMeta | null>;
-  limits: { maxBytes: number; maxPixels: number; minPixels: number; types: string[] };
+  limits: { maxBytes: number; maxPixels: number; minPixels: number; types: string[]; printMaxBytes: number; mailMaxBytes: number };
   colors: Colors;
   branding: { logo: { light: string | null; dark: string | null } };
 }
@@ -39,7 +44,9 @@ const FIELDS: Record<string, { label: string; max: number; hint?: string; type?:
   'organization.security_phone': { label: 'Security contact phone', max: 40, type: 'tel', hint: 'Never shown before sign-in.' },
   'organization.security_email': { label: 'Security contact email', max: 254, type: 'email', hint: 'Never shown before sign-in.' },
 };
-const KEYS = ['app.name', 'organization.street', ...Object.keys(FIELDS), 'branding.primary_color', 'branding.accent_color'];
+const KEYS = ['app.name', 'organization.street', ...Object.keys(FIELDS), 'branding.primary_color', 'branding.accent_color', 'branding.email_logo'];
+/** On/off settings, kept in the form as "true" and "false". */
+const SWITCHES = new Set(['branding.email_logo']);
 const HEX = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i;
 const DEFAULT_PRIMARY = '#17656f';
 const DEFAULT_ACCENT = '#b9782a';
@@ -115,7 +122,7 @@ export function OrganizationPage() {
     if (Object.keys(found).length) { toast.error('Check the highlighted fields.'); return; }
     setBusy(true);
     try {
-      await adminApi.patch('/api/admin/settings', Object.fromEntries(changed.map((k) => [k, k.startsWith('branding.') ? fullHex(form[k]) : form[k]])));
+      await adminApi.patch('/api/admin/settings', Object.fromEntries(changed.map((k) => [k, SWITCHES.has(k) ? form[k] === 'true' : k.startsWith('branding.') ? fullHex(form[k]) : form[k]])));
       toast.success('Organization saved.');
       reload();
       await auth.refresh(); // the new name, colors and logo apply at once
@@ -132,7 +139,7 @@ export function OrganizationPage() {
   // Text that names optional parts is written from the switches (Administration > Features).
   const kitOn = auth.areaOn('secincidents');
   const logoPlaces = ['in the header and sidebar', 'on the sign-in page', auth.areaOn('portal') && 'in the self-service portal',
-    auth.areaOn('vendors') && 'on the vendor response page', 'as the browser tab icon', 'on PDF documents'].filter(Boolean) as string[];
+    auth.areaOn('vendors') && 'on the vendor response page', 'as the browser tab icon (made square)', 'on PDF and HTML documents', 'in emails'].filter(Boolean) as string[];
 
   return (
     <>
@@ -199,6 +206,12 @@ export function OrganizationPage() {
             <Card>
               <LogoSetting variant="light" data={data} onDone={() => { reload(); void auth.refresh(); }} />
               <LogoSetting variant="dark" data={data} onDone={() => { reload(); void auth.refresh(); }} />
+              <Setting
+                title="Logo in emails" changed={isChanged('branding.email_logo')}
+                text={`Emails show the light-theme logo above the message, carried inside the message so that mail programs show it without loading pictures from the internet. Only a logo of up to ${data.limits.mailMaxBytes / 1024} KB is sent, and text messages never carry it. Saved with the rest of the page.`}
+              >
+                <Switch label="Show the logo in emails" checked={form['branding.email_logo'] !== 'false'} onChange={(on) => set('branding.email_logo', on ? 'true' : 'false')} />
+              </Setting>
             </Card>
           </Group>
 
@@ -216,6 +229,33 @@ const THEME_TEXT: Record<Variant, { title: string; text: string; bg: string }> =
   dark: { title: 'Logo for the dark theme', text: 'Optional. Used in the dark theme and in the sidebar, which is dark in both themes. Without one, the light-theme logo is used there too.', bg: '#151e21' },
 };
 
+/**
+ * A PNG copy of a picture (a WebP logo), drawn by the browser: PDFs hold PNG or JPEG only and
+ * many mail programs show no WebP, and this way the server needs no WebP decoder (E14-36). At most
+ * 1024 by 512 pixels, which is plenty for print. Base64 without the data: prefix.
+ */
+async function pngCopy(source: Blob | string): Promise<string> {
+  const img = new Image();
+  const url = typeof source === 'string' ? source : URL.createObjectURL(source);
+  try {
+    img.src = url;
+    await img.decode();
+    const scale = Math.min(1, 1024 / img.naturalWidth, 512 / img.naturalHeight);
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(16, Math.round(img.naturalWidth * scale));
+    canvas.height = Math.max(16, Math.round(img.naturalHeight * scale));
+    const g = canvas.getContext('2d');
+    if (!g) throw new Error('This browser cannot draw pictures.');
+    g.imageSmoothingQuality = 'high';
+    g.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const data = canvas.toDataURL('image/png');
+    if (!data.startsWith('data:image/png;base64,')) throw new Error('This browser cannot make a PNG copy.');
+    return data.slice('data:image/png;base64,'.length);
+  } finally {
+    if (typeof source !== 'string') URL.revokeObjectURL(url);
+  }
+}
+
 /** Reads a picked file as base64 (without the data: prefix). */
 function readBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -229,7 +269,7 @@ function readBase64(file: File): Promise<string> {
 function LogoSetting({ variant, data, onDone }: { variant: Variant; data: OrgResponse; onDone: () => void }) {
   const toast = useToast();
   const input = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState<'upload' | 'remove' | null>(null);
+  const [busy, setBusy] = useState<'upload' | 'remove' | 'copy' | null>(null);
   const [problem, setProblem] = useState('');
   const meta = data.logos[variant];
   const src = variant === 'light' ? data.branding.logo.light : meta ? data.branding.logo.dark : null;
@@ -244,7 +284,11 @@ function LogoSetting({ variant, data, onDone }: { variant: Variant; data: OrgRes
     if (file.size > limits.maxBytes) { setProblem(`The file is ${Math.ceil(file.size / 1024)} KB; a logo can be up to ${limits.maxBytes / 1024} KB.`); return; }
     setBusy('upload');
     try {
-      await api.post(`/api/admin/organization/logo/${variant}`, { data: await readBase64(file), filename: file.name });
+      const data = await readBase64(file);
+      // A WebP logo goes with a PNG copy for PDFs and emails; without one it is still saved, and the page offers to make it later.
+      const isWebp = file.type === 'image/webp' || /^UklGR/.test(data);
+      const print = isWebp ? await pngCopy(file).catch(() => undefined) : undefined;
+      await api.post(`/api/admin/organization/logo/${variant}`, { data, filename: file.name, ...(print ? { print } : {}) });
       toast.success(`${words.title} saved.`);
       onDone();
     } catch (err) {
@@ -253,6 +297,21 @@ function LogoSetting({ variant, data, onDone }: { variant: Variant; data: OrgRes
       setBusy(null);
     }
   };
+  const makeCopy = async () => {
+    if (!src) return;
+    setBusy('copy');
+    setProblem('');
+    try {
+      await api.post(`/api/admin/organization/logo/${variant}/print`, { data: await pngCopy(src) });
+      toast.success('Printable copy made.');
+      onDone();
+    } catch (err) {
+      setProblem(err instanceof ApiError && err.fields.data ? err.fields.data : errorMessage(err));
+    } finally {
+      setBusy(null);
+    }
+  };
+  const needsCopy = variant === 'light' && meta?.type === 'image/webp' && !meta.print;
   const remove = async () => {
     setBusy('remove');
     setProblem('');
@@ -270,17 +329,23 @@ function LogoSetting({ variant, data, onDone }: { variant: Variant; data: OrgRes
   return (
     <Setting
       title={words.title} error={problem}
-      text={<>{words.text} PNG, JPEG or WebP (not SVG), up to {limits.maxBytes / 1024} KB and {limits.maxPixels} pixels each way. A logo about four times as wide as it is tall, with a see-through background, fits best. PDF documents take PNG or JPEG only.</>}
+      text={<>{words.text} PNG, JPEG or WebP (not SVG), up to {limits.maxBytes / 1024} KB and {limits.maxPixels} pixels each way. A logo about four times as wide as it is tall, with a see-through background, fits best. For a WebP logo, this browser also makes a PNG copy for PDF documents and emails.</>}
     >
       <div className="adm-logo-preview" style={{ background: words.bg }}>
         {src
           ? <img src={src} alt={`Current ${words.title.toLowerCase()}`} />
           : <span style={{ color: variant === 'dark' ? '#d5e2e4' : '#50626a' }}>{variant === 'dark' && data.logos.light ? 'Using the light-theme logo' : 'Standard mark'}</span>}
       </div>
-      {meta && <p className="field-hint">{meta.filename || 'Logo'} · {meta.width} × {meta.height} pixels · {Math.ceil(meta.bytes / 1024)} KB</p>}
+      {meta && <p className="field-hint">{meta.filename || 'Logo'} · {meta.width} × {meta.height} pixels · {Math.ceil(meta.bytes / 1024)} KB{meta.print ? ' · PNG copy for PDFs and emails' : ''}</p>}
+      {needsCopy && (
+        <Notice tone="caution">
+          PDF documents and emails cannot show a WebP picture, so they carry no logo until a PNG copy is made. This browser can make it now.
+        </Notice>
+      )}
       <input ref={input} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(e) => void pick(e)} aria-label={`Choose a ${words.title.toLowerCase()}`} />
       <div className="row">
         <Button icon="upload" loading={busy === 'upload'} onClick={() => input.current?.click()}>{meta ? 'Replace' : 'Upload logo'}</Button>
+        {needsCopy && <Button icon="file-text" loading={busy === 'copy'} onClick={() => void makeCopy()}>Make printable copy</Button>}
         {meta && <Button variant="danger" loading={busy === 'remove'} onClick={() => void remove()}>Remove</Button>}
       </div>
     </Setting>

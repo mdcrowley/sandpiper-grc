@@ -90,6 +90,10 @@
 .rp-pack-cover, .rp-pack-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-1); padding: var(--s-6); min-width: 0; }
 @media (max-width: 899px) { .rp-pack-cover, .rp-pack-section { padding: var(--s-4); } }
 .rp-pack-cover { min-height: 520px; display: flex; flex-direction: column; gap: var(--s-3); border-top: 8px solid var(--brand); }
+.rp-pack-logo { margin: 0 0 var(--s-4); }
+.rp-pack-logo .logo-img { max-width: min(220px, 100%); object-fit: contain; object-position: left center; }
+.rp-pack-orgfoot { border-top: 1px solid var(--border); padding-top: var(--s-3); font-size: var(--fs-xs); color: var(--text-muted); }
+.rp-pack-orgfoot p { margin: 0; overflow-wrap: anywhere; }
 .rp-pack-org { margin: 0; color: var(--text-muted); text-transform: uppercase; letter-spacing: .08em; font-size: var(--fs-sm); font-weight: 600; }
 .rp-pack-title { margin: var(--s-6) 0 0; font-size: 36px; line-height: 1.15; }
 .rp-pack-subtitle { margin: 0; font-size: var(--fs-xl); color: var(--text-muted); }

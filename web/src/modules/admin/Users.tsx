@@ -94,7 +94,7 @@ export function UsersPage() {
                         <td>{u.username}</td>
                         <td><UserStatus user={u} /></td>
                         <td className="adm-wrap"><RoleChips roles={u.roles} /></td>
-                        <td>{u.totp_enabled ? <StatusChip color="green" label="On" /> : <span className="muted">Not set up</span>}</td>
+                        <td>{u.totp_enabled || (u.passkeys ?? 0) > 0 ? <StatusChip color="green" label="On" /> : <span className="muted">Not set up</span>}</td>
                         <td>{u.department ?? <span className="muted">—</span>}</td>
                         <td title={u.last_login_at ? formatDateTime(u.last_login_at) : undefined}>
                           {u.last_login_at ? relativeTime(u.last_login_at) : <span className="muted">Never</span>}
@@ -119,7 +119,9 @@ export function LinkIssued({ link, name }: { link: IssuedLink; name: string }) {
     <div className="stack">
       <Notice tone="caution" role="status">
         <strong>This link is shown once.</strong> Copy it now: when you close this window it cannot be shown again.
-        Nothing is sent by email, so pass it to {name} yourself, in person, by phone or in a private message.
+        {link.emailedTo
+          ? <>It was also emailed to {link.emailedTo}; if it does not arrive, pass it to {name} yourself.</>
+          : <>Nothing is sent by email, so pass it to {name} yourself, in person, by phone or in a private message.</>}
       </Notice>
       <CopyBox prominent label={`One-time link for ${name}`} copyLabel="Copy link" value={absoluteLink(link.link)} testId="one-time-link">
         <ul className="adm-facts">

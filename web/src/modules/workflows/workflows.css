@@ -241,3 +241,28 @@ button.wf-flow-button:hover { background: var(--surface-hover); }
 }
 .wf-standin-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .wf-standin-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--s-3); align-items: end; }
+
+/* E14-32: branches that run side by side, and routes chosen by condition. */
+.wf-flow-step.is-group .wf-flow-body { width: 100%; }
+.wf-flow-branches {
+  list-style: none; margin: var(--s-2) 0 0; padding: 0;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--s-2);
+}
+.wf-flow-branch {
+  padding: var(--s-2); border: 1px solid var(--border-strong); border-radius: var(--radius);
+  background: var(--surface-2); display: flex; flex-direction: column; gap: 2px; min-width: 0;
+}
+.wf-flow-branch.is-conditional { border-style: dashed; }
+.wf-flow-routes { list-style: none; margin: var(--s-1) 0 0; padding: var(--s-1) 0 0; border-top: 1px dashed var(--border); }
+.wf-flow-route { color: var(--c-blue-fg); }
+.wf-branch-card { border: 1px solid var(--border); border-radius: var(--radius); padding: var(--s-3); background: var(--surface-2); }
+.wf-branch-card + .wf-branch-card { margin-top: var(--s-2); }
+.wf-branch-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-2); margin-bottom: var(--s-2); }
+.wf-branch-head h5 { margin: 0; font-size: var(--fs-sm); }
+.wf-route { display: grid; grid-template-columns: 1fr auto; gap: var(--s-2); align-items: end; padding: var(--s-2) 0; border-top: 1px dashed var(--border); }
+.wf-route .wf-conditions { grid-column: 1 / -1; }
+.wf-branches-live { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--s-2); margin-top: var(--s-2); }
+.wf-branch-live { border: 1px solid var(--border); border-radius: var(--radius); padding: var(--s-2); display: flex; flex-direction: column; gap: var(--s-1); }
+.wf-branch-live-head { display: flex; justify-content: space-between; gap: var(--s-2); align-items: center; font-weight: 600; }
+.wf-pending-move { display: flex; gap: var(--s-2); align-items: flex-start; }
+.wf-pending-move svg { flex: none; margin-top: 2px; }

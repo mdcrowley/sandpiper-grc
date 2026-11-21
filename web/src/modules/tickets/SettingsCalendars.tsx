@@ -91,7 +91,7 @@ function Editor({ calendar, usedBy, canEdit, onChanged, onRetired }: {
         <div className="form-grid">
           <TextField label="Name" required value={d.name} disabled={!canEdit} error={errors.name} onChange={(v) => setD({ ...d, name: v })} />
           <TextField label="Time zone" value={d.timezone} disabled={!canEdit} error={errors.timezone} onChange={(v) => setD({ ...d, timezone: v })}
-            hint="An IANA name such as Europe/London. Opening hours are read in this zone." />
+            hint="An IANA time zone name, in the form Region/City. Opening hours are read in this zone." />
         </div>
         <Switch label="Open 24 hours, 7 days" checked={d.always_open} disabled={!canEdit} onChange={(v) => setD({ ...d, always_open: v })}
           hint="Every minute counts and holidays are ignored." />

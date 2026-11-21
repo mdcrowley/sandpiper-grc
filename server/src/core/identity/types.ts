@@ -24,6 +24,11 @@ export interface ExternalIdentity {
   /** How the provider says the person signed in (OIDC `amr`, RFC 8176), and the level reached (`acr`). */
   amr?: string[];
   acr?: string | null;
+  /**
+   * Directory sign-in (E02-30): the user name the person typed, kept with the linked identity so that
+   * the confirmation dialog can fill it in. Never the password. Absent for OpenID Connect and SAML.
+   */
+  loginName?: string | null;
   /** The provider's session id (OIDC `sid`), for back-channel sign-out. */
   sid?: string | null;
   /** The raw ID token, kept (encrypted) only to name the session when signing out at the provider. Never logged. */

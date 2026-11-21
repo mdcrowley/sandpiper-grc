@@ -35,7 +35,7 @@ The top of a vendor's page is a profile of the facts that matter most, one panel
 | **Contracts and next notice date** | The nearest notice date still to come, how long is left, which contract it belongs to and what happens if nobody acts. It also says how many notice dates have passed and how many open contracts have no notice date. Shown only if you may view contracts |
 | **Security terms** | How many clauses are present across the vendor's contracts, with a bar and counts for present, partial, absent and not assessed. **Open the checklist** opens the **Security terms** tab |
 | **Evidence** | How many evidence items are current, how many have expired or expire within 90 days, and when the newest was received |
-| **Assessment** | The score of the latest completed assessment, how many gaps it found and when it was done, or "Not assessed" |
+| **Assessment** | The score of the latest completed assessment, how many gaps it found and when it was done, or "Not assessed". **Open the assessment** (or **Start an assessment**) opens the **Assessment** tab |
 
 The panel's border turns amber or red when something needs attention: a notice date within 120 or 30 days, expired evidence, or a low assessment score.
 
@@ -90,9 +90,9 @@ The contract gets a reference such as `CON-00015`.
 The top of the record puts the notice date first:
 
 - **Last day to give notice** in large type, with how many days are left (or how long ago it passed).
-- **If we do nothing**: one sentence saying what happens if nobody acts, worked out from the renewal type. For example, "It renews automatically on 31 Dec 2027 for a further term, at whatever price the contract allows", or "It ends on 31 Dec 2027. The service stops unless a new contract is agreed before then."
+- **If we do nothing**: one sentence saying what happens if nobody acts, worked out from the renewal type. For example, "It renews automatically on Dec 31, 2027 for a further term, at whatever price the contract allows", or "It ends on Dec 31, 2027. The service stops unless a new contract is agreed before then."
 - A bar from the start of the term to its end, marking today, the notice date and the closed period after it.
-- A **Time to give notice** countdown, the sum it is worked out from (for example "End date 31 Dec 2027 less 90 days' notice"), and the contract's **Reminders** (see [Reminders](#reminders)).
+- A **Time to give notice** countdown, the sum it is worked out from (for example "End date Dec 31, 2027 less 90 days' notice"), and the contract's **Reminders** (see [Reminders](#reminders)).
 
 The panel is green, amber within 120 days and red within 30 days or once passed. For a contract with the status **Expired** or **Ended**, it says the contract has ended and no reminders are sent. With no end date it shows **Not set** and points you to [Complete the dates](#complete-the-dates).
 
@@ -119,7 +119,7 @@ The notice date is the last day on which you can give notice. You do not type it
 
 **Notice date** = **End date** minus **Notice period (days)**
 
-- A contract ending on 31 December with a 90-day notice period has a notice date of 2 October.
+- A contract ending on December 31 with a 90-day notice period has a notice date of October 2.
 - If no notice period is entered, it counts as zero and the notice date is the end date. The record says so.
 - If there is no end date, there is no notice date, and the contract cannot appear on the renewal calendar or get reminders.
 - The date is worked out again whenever you change the end date or the notice period.
@@ -254,8 +254,8 @@ When **Let vendors answer through a link** is on (see below), a draft assessment
 
 1. Select **Create link**. Optionally say **Who it is for**, and how many **Days it works** (the default is set by the administrator, at most 90).
 2. Send the link to your contact at the vendor, in one of two ways:
-   - **Email it from the application** (only when email is set up, under Administration > Email): fill in **Email it to** and select **Create and email link**. The application sends the link to that address; nobody, you included, sees it.
-   - **Send it yourself**: leave **Email it to** empty, select **Create link**, then **Copy link** and send it. It is shown **only once**.
+   - Email it from the application (only when email is set up, under **Administration > Email**): fill in **Email it to** and select **Create and email link**. The application sends the link to that address; nobody, you included, sees it.
+   - Send it yourself: leave **Email it to** empty, select **Create link**, then **Copy link** and send it. It is shown **only once**.
 
    Either way, if the link is lost, make a new one (**New link**, or **Send a new link** when the last one was emailed): the earlier link then stops working.
 3. The vendor opens the link without an account, answers each question (with a note where it helps), can **Save and finish later** while the link lasts, and finally **Send answers** with their name. Every question must be answered first. Until they send their answers, they can also send **Supporting files** (see [Files from the vendor](#files-from-the-vendor)).
@@ -335,7 +335,7 @@ Contracts with "No owner" are highlighted; give every contract an owner so its r
 
 A reminder is sent for each contract a set number of days before its notice date: 120, 90, 60 and 30 days as installed. The page subtitle states the days in use. Each reminder:
 
-- appears in the notifications (the bell) of the contract's owner and of everyone who may edit contracts, so a contract with no owner still reaches someone;
+- appears in the notifications (the bell) of the contract's owner and of everyone who may edit contracts, so a contract with no owner still reaches someone. Each person can also have **Reminders** sent by email in their notification preferences (see [Preferences](14-attachments-and-notifications.md#preferences));
 - is written to the contract's **History** tab, such as "Renewal reminder (60 days)", and to the audit log.
 
 Evidence expiry works the same way: 60, 30 and 7 days before an evidence item expires as installed, a reminder goes to everyone who may edit vendors and to the owner of the contract the evidence belongs to. Evidence that ran out more than 30 days before it was first seen is not announced.
@@ -365,6 +365,5 @@ Each value must be a whole number of days from 1 to 3650, with no repeats and at
 
 ## Not available yet
 
-- Email delivery of reminders. They arrive as in-application notifications.
-- Approval steps for signing or renewing a contract.
+- A built-in approval for signing or renewing a contract. An administrator can set up an approval workflow for contracts instead, for example one that starts when a contract's status changes (see [Approval workflows](22-approval-workflows.md)).
 - A vendor's own sign-in. Vendors can answer an assessment and send files through a link, but cannot see anything else.

@@ -9,15 +9,25 @@ import {
 } from '../../core';
 import { FlowDiagram } from './FlowDiagram';
 import {
-  OP_LABELS, opsFor, type ApproverSpec, type Condition, type Definition, type FieldSet, type Op, type OptionField, type Options, type StepDef,
+  END, isGroup, OP_LABELS, opsFor, type ApprovalUnit, type ApproverSpec, type Condition, type Definition, type FieldSet, type Op, type OptionField, type Options, type Route, type StepDef,
 } from './data';
 import { makeLabels } from './describe';
 import './workflows.css';
 
 type Errors = Record<string, string>;
 
+/** A key for a new step, so routes (E14-32) can name it before it is saved. */
+const newKey = () => `step-${Math.random().toString(36).slice(2, 8)}`;
 const blankStep = (n: number): StepDef => ({
-  name: n === 1 ? 'Manager approval' : `Step ${n}`, approvers: { kind: 'users', users: [] }, quorum: 'any', conditions: [], due_hours: null, escalate_to: null,
+  key: newKey(), name: n === 1 ? 'Manager approval' : `Step ${n}`, approvers: { kind: 'users', users: [] }, quorum: 'any', conditions: [], due_hours: null, escalate_to: null,
+});
+/** A step or group without the parts that belonged to another record type (conditions, person fields). */
+const clearFields = <U extends ApprovalUnit>(s: U): U => ({
+  ...s, conditions: [], approvers: s.approvers.kind === 'field' || s.approvers.kind === 'department_head' ? { kind: 'users', users: [] } : s.approvers,
+});
+/** A stored step that runs groups side by side has no approvers of its own; the editor keeps a blank set (unused) for it. */
+const editable = (d: Definition): Definition => ({
+  ...d, steps: d.steps.map((s) => (s.approvers ? s : { ...s, approvers: { kind: 'users', users: [] } })),
 });
 const blank = (): Definition => ({
   record_type: '', name: '', description: null, active: true, trigger: 'manual', trigger_field: null, trigger_value: null,
@@ -203,31 +213,162 @@ const KINDS: Option[] = [
 ];
 const COUNTED = new Set(['users', 'role', 'people', 'permission']);
 
-function StepEditor({ index, count, step, fields, options, errors, names, onName, onChange, onMove, onRemove, open, onToggle }: {
-  index: number; count: number; step: StepDef; fields: OptionField[]; options: Options; errors: Errors; names: Record<string, string>;
-  onName: (id: string, name: string) => void; onChange: (s: StepDef) => void; onMove: (by: -1 | 1) => void; onRemove: () => void;
-  open: boolean; onToggle: () => void;
+/** Who approves, how many must, and the due time: for a step, or for one group of a step side by side. */
+function UnitFields({ at, unit, fields, options, errors, names, onName, onChange }: {
+  at: string; unit: ApprovalUnit; fields: OptionField[]; options: Options; errors: Errors; names: Record<string, string>;
+  onName: (id: string, name: string) => void; onChange: (u: ApprovalUnit) => void;
 }) {
-  const at = `steps.${index}`;
-  const a = step.approvers;
+  const a = unit.approvers;
   const userFields = fields.filter((f) => f.type === 'user');
   const deptFields = fields.filter((f) => ['user', 'text', 'lookup'].includes(f.type));
-  const hasErrors = Object.keys(errors).some((k) => k.startsWith(`${at}.`));
-  const setApprovers = (next: ApproverSpec) => onChange({ ...step, approvers: next, quorum: COUNTED.has(next.kind) ? step.quorum : 'any' });
-  const dueDays = step.due_hours && step.due_hours % 24 === 0;
-  const [unit, setUnit] = useState<'hours' | 'days'>(dueDays ? 'days' : 'hours');
-  const shown = step.due_hours ? (unit === 'days' ? step.due_hours / 24 : step.due_hours) : null;
+  const setApprovers = (next: ApproverSpec) => onChange({ ...unit, approvers: next, quorum: COUNTED.has(next.kind) ? unit.quorum : 'any' });
+  const dueDays = unit.due_hours && unit.due_hours % 24 === 0;
+  const [unitOfTime, setUnitOfTime] = useState<'hours' | 'days'>(dueDays ? 'days' : 'hours');
+  const shown = unit.due_hours ? (unitOfTime === 'days' ? unit.due_hours / 24 : unit.due_hours) : null;
   const quorumOptions: Option[] = [
     { value: 'any', label: 'Any one of them' },
     { value: 'all', label: 'All of them' },
     ...[2, 3, 4, 5].map((n) => ({ value: String(n), label: `${n} of them` })),
   ];
   return (
+    <>
+      <div className="form-grid">
+        <Select label="Who approves" required value={a.kind} options={KINDS} onChange={(v) => {
+          if (v === 'users') setApprovers({ kind: 'users', users: [] });
+          if (v === 'role') setApprovers({ kind: 'role', role: options.roles.find((r) => r.enabled)?.key ?? '' });
+          if (v === 'field') setApprovers({ kind: 'field', field: userFields[0]?.name ?? '' });
+          if (v === 'department_head') setApprovers({ kind: 'department_head', from: 'requester', field: null });
+          if (v === 'people') setApprovers({ kind: 'people', users: [], roles: [] });
+          if (v === 'permission') setApprovers({ kind: 'permission', permission: options.permissions?.[0] ?? '' });
+        }} />
+        {COUNTED.has(a.kind) && (
+          <Select label="How many must approve" value={String(unit.quorum)} options={quorumOptions} error={errors[`${at}.quorum`]}
+            onChange={(v) => onChange({ ...unit, quorum: v === 'any' || v === 'all' ? v : Number(v) })}
+            hint="Any rejection rejects the whole request." />
+        )}
+        <div className="form-cell-wide">
+          {a.kind === 'users' && (
+            <PeopleList label="Approvers" ids={a.users} names={names} onName={onName} onChange={(users) => setApprovers({ kind: 'users', users })}
+              error={errors[`${at}.approvers`]} hint="The person who asks is never one of the approvers, even when named here." />
+          )}
+          {a.kind === 'role' && (
+            <Select label="Role" value={a.role} error={errors[`${at}.approvers`]} onChange={(role) => setApprovers({ kind: 'role', role })}
+              options={options.roles.map((r) => ({ value: r.key, label: r.enabled ? r.name : `${r.name} (switched off)` }))} />
+          )}
+          {a.kind === 'field' && (
+            <Select label="Person field" value={a.field} error={errors[`${at}.approvers`]} onChange={(field) => setApprovers({ kind: 'field', field })}
+              options={userFields.map((f) => ({ value: f.name, label: f.label }))} hint="Whoever that field names when the step starts." />
+          )}
+          {a.kind === 'people' && (
+            <div className="form-grid">
+              <PeopleList label="Approvers" ids={a.users} names={names} onName={onName} onChange={(users) => setApprovers({ ...a, users })}
+                error={errors[`${at}.approvers`]} hint="The person who asks is never one of the approvers, even when named here." />
+              <div>
+                {a.roles.length > 0 && (
+                  <ul className="wf-chips" aria-label="Roles">
+                    {a.roles.map((r) => (
+                      <li key={r} className="wf-chip">
+                        {options.roles.find((x) => x.key === r)?.name ?? r}
+                        <IconButton icon="x" size="sm" variant="ghost" label={`Remove the role ${options.roles.find((x) => x.key === r)?.name ?? r}`} onClick={() => setApprovers({ ...a, roles: a.roles.filter((x) => x !== r) })} />
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <Select label={a.roles.length ? 'Add another role' : 'Add a role'} value="" onChange={(role) => role && !a.roles.includes(role) && setApprovers({ ...a, roles: [...a.roles, role] })}
+                  options={[{ value: '', label: 'Choose a role' }, ...options.roles.filter((r) => !a.roles.includes(r.key)).map((r) => ({ value: r.key, label: r.enabled ? r.name : `${r.name} (switched off)` }))]} />
+              </div>
+            </div>
+          )}
+          {a.kind === 'permission' && (
+            <Select label="Permission" value={a.permission} error={errors[`${at}.approvers`]} onChange={(permission) => setApprovers({ kind: 'permission', permission })}
+              options={(options.permissions ?? []).map((p) => ({ value: p, label: p }))} hint="Everyone whose roles grant it (for example changes.approve)." />
+          )}
+          {a.kind === 'department_head' && (
+            <div className="form-grid">
+              <Select label="Which department" value={a.from} onChange={(from) => setApprovers({ kind: 'department_head', from: from as 'requester' | 'field', field: from === 'field' ? deptFields[0]?.name ?? '' : null })}
+                options={[{ value: 'requester', label: "The requester's department" }, { value: 'field', label: 'The department a field names' }]}
+                hint="Department heads are set on the Department heads tab." />
+              {a.from === 'field' && (
+                <Select label="Field" value={a.field ?? ''} error={errors[`${at}.approvers`]} onChange={(field) => setApprovers({ kind: 'department_head', from: 'field', field })}
+                  options={deptFields.map((f) => ({ value: f.name, label: f.label }))} hint="A department name, or a person whose department is used." />
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+      <h4 className="wf-sub">Due time and escalation</h4>
+      <div className="form-grid">
+        <div className="wf-pair">
+          <NumberField label="Due within" value={shown} min={1} onChange={(v) => onChange({ ...unit, due_hours: v ? (unitOfTime === 'days' ? v * 24 : v) : null, escalate_to: v ? unit.escalate_to : null })} error={errors[`${at}.due_hours`]} />
+          <Select label="Unit" value={unitOfTime} options={[{ value: 'hours', label: 'Hours' }, { value: 'days', label: 'Days' }]}
+            onChange={(u) => { setUnitOfTime(u as 'hours' | 'days'); if (shown) onChange({ ...unit, due_hours: u === 'days' ? shown * 24 : shown }); }} />
+        </div>
+        {unit.due_hours ? (
+          <Select label="Escalate to a role (optional)" value={unit.escalate_to?.role ?? ''}
+            options={[{ value: '', label: 'No role' }, ...options.roles.map((r) => ({ value: r.key, label: r.name }))]}
+            onChange={(role) => onChange({ ...unit, escalate_to: { users: unit.escalate_to?.users ?? [], role: role || null } })} />
+        ) : <p className="muted wf-small wf-due-hint">Leave empty for no due time. When it is overdue its approvers are reminded, and the people it escalates to are told and may decide too.</p>}
+        {unit.due_hours ? (
+          <div className="form-cell-wide">
+            <PeopleList label="Escalate to these people (optional)" ids={unit.escalate_to?.users ?? []} names={names} onName={onName} error={errors[`${at}.escalate_to`]}
+              onChange={(users) => onChange({ ...unit, escalate_to: users.length || unit.escalate_to?.role ? { users, role: unit.escalate_to?.role ?? null } : null })} />
+          </div>
+        ) : null}
+      </div>
+    </>
+  );
+}
+
+const blankUnit = (name: string): ApprovalUnit => ({ name, approvers: { kind: 'users', users: [] }, quorum: 'any', conditions: [], due_hours: null, escalate_to: null });
+
+/** Where the workflow goes after a step (E14-32): "If ..., go to ...", otherwise the next step. */
+function RouteRows({ at, step, steps, index, fields, options, errors, names, onName, onChange }: {
+  at: string; step: StepDef; steps: StepDef[]; index: number; fields: OptionField[]; options: Options; errors: Errors;
+  names: Record<string, string>; onName: (id: string, name: string) => void; onChange: (routes: Route[]) => void;
+}) {
+  const routes = step.routes ?? [];
+  const targets: Option[] = [
+    ...steps.slice(index + 1).map((s, j) => ({ value: s.key ?? '', label: `Step ${index + j + 2}: ${s.name || 'unnamed'}` })).filter((o) => o.value),
+    { value: END, label: 'Finish: approved' },
+  ];
+  const set = (k: number, patch: Partial<Route>) => onChange(routes.map((r, j) => (j === k ? { ...r, ...patch } : r)));
+  return (
+    <div className="wf-conditions">
+      {routes.length === 0 && <p className="muted wf-small">Goes on to the next step. Add a route to send some records elsewhere, for example straight to a director when the cost is high.</p>}
+      {routes.map((r, k) => (
+        <div key={k} className="wf-route">
+          <Select label={`Route ${k + 1}: go to`} value={r.to} options={targets} error={errors[`${at}.routes.${k}`]} onChange={(to) => set(k, { to })} />
+          <IconButton icon="trash" variant="ghost" label={`Remove route ${k + 1}`} onClick={() => onChange(routes.filter((_, j) => j !== k))} />
+          <ConditionRows prefix={`${at}.routes.${k}.conditions`} conditions={r.conditions} fields={fields} errors={errors} options={options} names={names} onName={onName}
+            onChange={(conditions) => set(k, { conditions })} intro="Always (no condition). Add a condition so only some records take this route." />
+        </div>
+      ))}
+      {routes.length > 0 && <p className="muted wf-small">The first route whose conditions hold is taken; otherwise the next step. Steps passed over are recorded as skipped.</p>}
+      {errors[`${at}.routes`] && <p className="field-error" role="alert">{errors[`${at}.routes`]}</p>}
+      <Button size="sm" variant="ghost" icon="plus" disabled={routes.length >= 5} onClick={() => onChange([...routes, { conditions: [], to: targets[0]?.value ?? END }])}>
+        Add a route
+      </Button>
+    </div>
+  );
+}
+
+function StepEditor({ index, count, step, steps, fields, options, errors, names, onName, onChange, onMove, onRemove, open, onToggle }: {
+  index: number; count: number; step: StepDef; steps: StepDef[]; fields: OptionField[]; options: Options; errors: Errors; names: Record<string, string>;
+  onName: (id: string, name: string) => void; onChange: (s: StepDef) => void; onMove: (by: -1 | 1) => void; onRemove: () => void;
+  open: boolean; onToggle: () => void;
+}) {
+  const at = `steps.${index}`;
+  const hasErrors = Object.keys(errors).some((k) => k.startsWith(`${at}.`));
+  const group = isGroup(step);
+  const branches = step.branches ?? [];
+  const setBranch = (j: number, b: ApprovalUnit) => onChange({ ...step, branches: branches.map((x, k) => (k === j ? b : x)) });
+  return (
     <section id={`wf-step-${index}`} className={`wf-step-card${hasErrors ? ' has-errors' : ''}`} aria-labelledby={`wf-step-${index}-title`}>
       <header className="wf-step-head">
         <span className="wf-flow-num" aria-hidden="true">{index + 1}</span>
         <button type="button" className="wf-step-toggle" aria-expanded={open} onClick={onToggle} id={`wf-step-${index}-title`}>
           {step.name || `Step ${index + 1}`}
+          {group && <span className="muted"> (side by side)</span>}
           {hasErrors && <span className="wf-step-flag"> (check this step)</span>}
         </button>
         <span className="wf-step-tools">
@@ -240,91 +381,44 @@ function StepEditor({ index, count, step, fields, options, errors, names, onName
         <div className="wf-step-body">
           <div className="form-grid">
             <TextField label="Step name" required value={step.name} onChange={(v) => onChange({ ...step, name: v })} error={errors[`${at}.name`]} />
-            <Select label="Who approves" required value={a.kind} options={KINDS} onChange={(v) => {
-              if (v === 'users') setApprovers({ kind: 'users', users: [] });
-              if (v === 'role') setApprovers({ kind: 'role', role: options.roles.find((r) => r.enabled)?.key ?? '' });
-              if (v === 'field') setApprovers({ kind: 'field', field: userFields[0]?.name ?? '' });
-              if (v === 'department_head') setApprovers({ kind: 'department_head', from: 'requester', field: null });
-              if (v === 'people') setApprovers({ kind: 'people', users: [], roles: [] });
-              if (v === 'permission') setApprovers({ kind: 'permission', permission: options.permissions?.[0] ?? '' });
-            }} />
-            <div className="form-cell-wide">
-              {a.kind === 'users' && (
-                <PeopleList label="Approvers" ids={a.users} names={names} onName={onName} onChange={(users) => setApprovers({ kind: 'users', users })}
-                  error={errors[`${at}.approvers`]} hint="The person who asks is never one of the approvers, even when named here." />
-              )}
-              {a.kind === 'role' && (
-                <Select label="Role" value={a.role} error={errors[`${at}.approvers`]} onChange={(role) => setApprovers({ kind: 'role', role })}
-                  options={options.roles.map((r) => ({ value: r.key, label: r.enabled ? r.name : `${r.name} (switched off)` }))} />
-              )}
-              {a.kind === 'field' && (
-                <Select label="Person field" value={a.field} error={errors[`${at}.approvers`]} onChange={(field) => setApprovers({ kind: 'field', field })}
-                  options={userFields.map((f) => ({ value: f.name, label: f.label }))} hint="Whoever that field names when the step starts." />
-              )}
-              {a.kind === 'people' && (
-                <div className="form-grid">
-                  <PeopleList label="Approvers" ids={a.users} names={names} onName={onName} onChange={(users) => setApprovers({ ...a, users })}
-                    error={errors[`${at}.approvers`]} hint="The person who asks is never one of the approvers, even when named here." />
-                  <div>
-                    {a.roles.length > 0 && (
-                      <ul className="wf-chips" aria-label="Roles">
-                        {a.roles.map((r) => (
-                          <li key={r} className="wf-chip">
-                            {options.roles.find((x) => x.key === r)?.name ?? r}
-                            <IconButton icon="x" size="sm" variant="ghost" label={`Remove the role ${options.roles.find((x) => x.key === r)?.name ?? r}`} onClick={() => setApprovers({ ...a, roles: a.roles.filter((x) => x !== r) })} />
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                    <Select label={a.roles.length ? 'Add another role' : 'Add a role'} value="" onChange={(role) => role && !a.roles.includes(role) && setApprovers({ ...a, roles: [...a.roles, role] })}
-                      options={[{ value: '', label: 'Choose a role' }, ...options.roles.filter((r) => !a.roles.includes(r.key)).map((r) => ({ value: r.key, label: r.enabled ? r.name : `${r.name} (switched off)` }))]} />
-                  </div>
-                </div>
-              )}
-              {a.kind === 'permission' && (
-                <Select label="Permission" value={a.permission} error={errors[`${at}.approvers`]} onChange={(permission) => setApprovers({ kind: 'permission', permission })}
-                  options={(options.permissions ?? []).map((p) => ({ value: p, label: p }))} hint="Everyone whose roles grant it (for example changes.approve)." />
-              )}
-              {a.kind === 'department_head' && (
-                <div className="form-grid">
-                  <Select label="Which department" value={a.from} onChange={(from) => setApprovers({ kind: 'department_head', from: from as 'requester' | 'field', field: from === 'field' ? deptFields[0]?.name ?? '' : null })}
-                    options={[{ value: 'requester', label: "The requester's department" }, { value: 'field', label: 'The department a field names' }]}
-                    hint="Department heads are set on the Department heads tab." />
-                  {a.from === 'field' && (
-                    <Select label="Field" value={a.field ?? ''} error={errors[`${at}.approvers`]} onChange={(field) => setApprovers({ kind: 'department_head', from: 'field', field })}
-                      options={deptFields.map((f) => ({ value: f.name, label: f.label }))} hint="A department name, or a person whose department is used." />
-                  )}
-                </div>
-              )}
-            </div>
-            {COUNTED.has(a.kind) && (
-              <Select label="How many must approve" value={String(step.quorum)} options={quorumOptions} error={errors[`${at}.quorum`]}
-                onChange={(v) => onChange({ ...step, quorum: v === 'any' || v === 'all' ? v : Number(v) })}
-                hint="Any rejection rejects the whole request." />
-            )}
+            <Select label="How it is approved" value={group ? 'branches' : 'one'}
+              options={[{ value: 'one', label: 'One set of approvers' }, { value: 'branches', label: 'Several groups side by side' }]}
+              hint={group ? 'The groups decide at the same time; all must approve, and one rejection rejects.' : 'Choose side by side when, for example, finance and operations must both approve at once.'}
+              onChange={(v) => onChange(v === 'branches'
+                ? { ...step, branches: branches.length >= 2 ? branches : [{ ...blankUnit('Group 1'), approvers: step.approvers, quorum: step.quorum }, blankUnit('Group 2')] }
+                : { ...step, branches: undefined, approvers: branches[0]?.approvers ?? step.approvers })} />
           </div>
+          {!group && <UnitFields at={at} unit={step} fields={fields} options={options} errors={errors} names={names} onName={onName} onChange={(u) => onChange({ ...step, ...u })} />}
+          {group && (
+            <>
+              <h4 className="wf-sub">Groups side by side</h4>
+              {errors[`${at}.branches`] && <p className="field-error" role="alert">{errors[`${at}.branches`]}</p>}
+              {branches.map((b, j) => (
+                <div key={j} className="wf-branch-card">
+                  <div className="wf-branch-head">
+                    <h5>Group {j + 1}{b.name ? `: ${b.name}` : ''}</h5>
+                    <IconButton icon="trash" size="sm" variant="ghost" label={`Remove group ${j + 1}`} disabled={branches.length <= 2} onClick={() => onChange({ ...step, branches: branches.filter((_, k) => k !== j) })} />
+                  </div>
+                  <div className="form-grid">
+                    <TextField label="Group name" required value={b.name} onChange={(v) => setBranch(j, { ...b, name: v })} error={errors[`${at}.branches.${j}.name`]} />
+                  </div>
+                  <UnitFields at={`${at}.branches.${j}`} unit={b} fields={fields} options={options} errors={errors} names={names} onName={onName} onChange={(u) => setBranch(j, u)} />
+                  <h4 className="wf-sub">When this group takes part</h4>
+                  <ConditionRows prefix={`${at}.branches.${j}.conditions`} conditions={b.conditions} fields={fields} errors={errors} options={options} names={names} onName={onName}
+                    onChange={(conditions) => setBranch(j, { ...b, conditions })} intro="Always. Add a condition to leave this group out for some records (for example, operations only when the work is urgent)." />
+                </div>
+              ))}
+              <Button size="sm" variant="ghost" icon="plus" disabled={branches.length >= 5} onClick={() => onChange({ ...step, branches: [...branches, blankUnit(`Group ${branches.length + 1}`)] })}>
+                Add a group
+              </Button>
+            </>
+          )}
           <h4 className="wf-sub">When this step applies</h4>
           <ConditionRows prefix={`${at}.conditions`} conditions={step.conditions} fields={fields} errors={errors} options={options} names={names} onName={onName}
             onChange={(conditions) => onChange({ ...step, conditions })} intro="Always. Add a condition to skip this step for some records (for example, only when the cost is more than a set amount)." />
-          <h4 className="wf-sub">Due time and escalation</h4>
-          <div className="form-grid">
-            <div className="wf-pair">
-              <NumberField label="Due within" value={shown} min={1} onChange={(v) => onChange({ ...step, due_hours: v ? (unit === 'days' ? v * 24 : v) : null, escalate_to: v ? step.escalate_to : null })} error={errors[`${at}.due_hours`]} />
-              <Select label="Unit" value={unit} options={[{ value: 'hours', label: 'Hours' }, { value: 'days', label: 'Days' }]}
-                onChange={(u) => { setUnit(u as 'hours' | 'days'); if (shown) onChange({ ...step, due_hours: u === 'days' ? shown * 24 : shown }); }} />
-            </div>
-            {step.due_hours ? (
-              <Select label="Escalate to a role (optional)" value={step.escalate_to?.role ?? ''}
-                options={[{ value: '', label: 'No role' }, ...options.roles.map((r) => ({ value: r.key, label: r.name }))]}
-                onChange={(role) => onChange({ ...step, escalate_to: { users: step.escalate_to?.users ?? [], role: role || null } })} />
-            ) : <p className="muted wf-small wf-due-hint">Leave empty for no due time. When a step is overdue its approvers are reminded, and the people it escalates to are told and may decide too.</p>}
-            {step.due_hours ? (
-              <div className="form-cell-wide">
-                <PeopleList label="Escalate to these people (optional)" ids={step.escalate_to?.users ?? []} names={names} onName={onName} error={errors[`${at}.escalate_to`]}
-                  onChange={(users) => onChange({ ...step, escalate_to: users.length || step.escalate_to?.role ? { users, role: step.escalate_to?.role ?? null } : null })} />
-              </div>
-            ) : null}
-          </div>
+          <h4 className="wf-sub">After this step</h4>
+          <RouteRows at={at} step={step} steps={steps} index={index} fields={fields} options={options} errors={errors} names={names} onName={onName}
+            onChange={(routes) => onChange({ ...step, routes: routes.length ? routes : undefined })} />
         </div>
       )}
     </section>
@@ -350,7 +444,7 @@ export function WorkflowEditor() {
 
   useEffect(() => {
     if (existing.data && !def) {
-      setDef(existing.data);
+      setDef(editable(existing.data));
       setNames(existing.data.people ?? {});
     }
   }, [existing.data, def]);
@@ -385,7 +479,7 @@ export function WorkflowEditor() {
         ? await api.post<Definition>('/api/workflows/definitions', body)
         : await api.patch<Definition>(`/api/workflows/definitions/${id}`, body);
       toast.success(isNew ? 'Workflow created.' : 'Workflow saved. Workflows already running keep the version they started with.');
-      setDef(saved);
+      setDef(editable(saved));
       if (isNew) navigate(`/admin/workflows/${saved.id}`, { replace: true });
     } catch (err) {
       if (err instanceof ApiError && err.fields) {
@@ -436,6 +530,7 @@ export function WorkflowEditor() {
         </div>
       )}
       {def.available === false && <div className="notice notice-warn">This record type is switched off (Administration &gt; Features), so this workflow does nothing until it is back on.</div>}
+      {Boolean(def.moves) && <div className="notice">{def.moves === 1 ? "A status move waits" : `${def.moves} status moves wait`} for this workflow (Administration &gt; Lifecycles). Switching it off or removing it refuses {def.moves === 1 ? "that move" : "those moves"} until another workflow is chosen there.</div>}
       <div className="wf-editor">
         <div className="wf-editor-form">
           <Card title="What it is for">
@@ -444,7 +539,7 @@ export function WorkflowEditor() {
               <Select label="Record type" required value={def.record_type} error={errors.record_type} disabled={Boolean(def.kind && !isNew)}
                 options={opts.types.map((t) => ({ value: t.type, label: t.plural }))}
                 onChange={(v) => update({ record_type: v, conditions: [], on_approve: [], on_reject: [], trigger_field: null, trigger_value: null,
-                  steps: def.steps.map((s) => ({ ...s, conditions: [], approvers: s.approvers.kind === 'field' || s.approvers.kind === 'department_head' ? { kind: 'users', users: [] } : s.approvers })) })}
+                  steps: def.steps.map((s) => ({ ...clearFields(s), routes: undefined, branches: s.branches?.map(clearFields) })) })}
                 hint={isNew ? undefined : 'Changing it clears the conditions and fields that belonged to the old type.'} />
               <div className="form-cell-wide">
                 <TextArea label="Description (optional)" value={def.description ?? ''} onChange={(v) => update({ description: v || null })} rows={2}
@@ -504,11 +599,11 @@ export function WorkflowEditor() {
           <Card title="Approval steps" actions={(
             <Button size="sm" icon="plus" disabled={def.steps.length >= 10} onClick={() => { update({ steps: [...def.steps, blankStep(def.steps.length + 1)] }); setOpen(def.steps.length); }}>Add a step</Button>
           )}>
-            <p className="muted wf-small">Steps run in order. Each waits for its approvals before the next starts; one rejection ends the request.</p>
+            <p className="muted wf-small">Steps run in order. Each waits for its approvals before the next starts; one rejection ends the request. A step can also run several groups side by side, and send some records to a later step (a route).</p>
             {errors.steps && <p className="field-error" role="alert">{errors.steps}</p>}
             <div className="wf-steps">
               {def.steps.map((s, i) => (
-                <StepEditor key={i} index={i} count={def.steps.length} step={s} fields={fields} options={opts} errors={errors} names={names} onName={onName}
+                <StepEditor key={i} index={i} count={def.steps.length} step={s} steps={def.steps} fields={fields} options={opts} errors={errors} names={names} onName={onName}
                   open={open === i} onToggle={() => setOpen(open === i ? -1 : i)}
                   onChange={(next) => setStep(i, next)}
                   onMove={(by) => {
@@ -549,7 +644,7 @@ export function WorkflowEditor() {
       <ConfirmDialog
         open={removing}
         title="Remove this workflow?"
-        message="It will no longer start. Workflows already running on records finish as they are, and their history is kept."
+        message={`It will no longer start. Workflows already running on records finish as they are, and their history is kept.${def.moves ? ` ${def.moves === 1 ? "One status move waits" : `${def.moves} status moves wait`} for it (Administration > Lifecycles): until another workflow is chosen there, ${def.moves === 1 ? "that move is" : "those moves are"} refused.` : ""}`}
         confirmLabel="Remove workflow"
         danger
         busy={busy}
