@@ -1,6 +1,6 @@
 # E36 Integrations
 
-**Status:** open (0 of 6 issues done)
+**Status:** open (0 of 8 issues done)
 
 ## Goal
 
@@ -21,6 +21,8 @@ Connect the application to the tools around it: user provisioning, audit log for
 | E36-04 | Chat notification presets | open | P3 |
 | E36-05 | Evidence by link to a document store | open | P3 |
 | E36-06 | Two-way ticketing bridge | open | P3 |
+| E36-07 | Provisioning and forwarding guide | open | P2 |
+| E36-08 | Feeds and links guide | open | P2 |
 
 ---
 
@@ -84,3 +86,23 @@ An IT lead wants actions and vulnerabilities sent to an outside ticketing tool a
 **Acceptance criteria**
 
 - [ ] Outbound create and inbound status update for actions and vulnerabilities
+
+### E36-07 Provisioning and forwarding guide
+
+**Status:** open · **Priority:** P2 · **Type:** documentation
+
+An administrator wants a guide to user provisioning and audit-log forwarding.
+
+**Acceptance criteria**
+
+- [ ] Guide page `35-user-provisioning-and-log-forwarding.md`, saying that forwarded events cannot be recalled at the end of retention
+
+### E36-08 Feeds and links guide
+
+**Status:** open · **Priority:** P2 · **Type:** documentation
+
+A user wants a guide to calendar feeds, evidence by link and the ticketing bridge.
+
+**Acceptance criteria**
+
+- [ ] Guide page `36-calendar-feeds-ticketing-and-evidence-links.md`

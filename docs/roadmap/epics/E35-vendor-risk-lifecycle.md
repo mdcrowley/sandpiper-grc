@@ -1,6 +1,6 @@
 # E35 Vendor risk lifecycle
 
-**Status:** open (0 of 5 issues done)
+**Status:** open (0 of 7 issues done)
 
 ## Goal
 
@@ -19,6 +19,8 @@ Reassess vendors on a cadence set by their criticality, record exclusion-list ch
 | E35-03 | Vendor issues register | open | P3 |
 | E35-04 | Offboarding checklist when a contract ends | open | P2 |
 | E35-05 | One generic clause-checklist engine | open | P3 |
+| E35-06 | Sample data and guide | open | P2 |
+| E35-07 | Sub-recipient monitoring | open | P3 |
 
 ---
 
@@ -71,3 +73,25 @@ Security terms and funder-required clauses should share one checklist engine (fr
 **Acceptance criteria**
 
 - [ ] Security terms and funder clauses use the same engine
+
+### E35-06 Sample data and guide
+
+**Status:** open · **Priority:** P2 · **Type:** documentation
+
+An evaluator wants invented reassessments, exclusion checks, vendor issues, an offboarding and sub-recipients, and a guide page.
+
+**Acceptance criteria**
+
+- [ ] Invented samples, labeled "(sample)"
+- [ ] Guide page `34-vendor-risk-lifecycle.md`; edits to the vendors and funding guides
+
+### E35-07 Sub-recipient monitoring
+
+**Status:** open · **Priority:** P3 · **Type:** feature
+
+A grants manager wants each sub-recipient monitored on a cadence, with findings that may raise a corrective action plan. Delivers E27-11 together with E35-05.
+
+**Acceptance criteria**
+
+- [ ] Sub-recipient records on awards, monitoring history, reminders by frequency
+- [ ] Findings may raise a corrective action plan (source `funding`)

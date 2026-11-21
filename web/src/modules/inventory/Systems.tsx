@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { LookupChip, RecordPage, ResourceList, useAuth, useFetch, useResource } from '../../core';
+import { useExtensionTabs } from './Extensions';
 import { RelatedWork } from './shared';
 import { factChecks, FactSheet, FactStrip } from './SystemFacts';
 import { SystemMapTab } from './SystemMap';
@@ -42,6 +43,8 @@ export function SystemDetail() {
   const data = useFetch<unknown[]>(id && can('data.view') ? `/api/systems/${id}/data-categories` : null);
   const dataCount = can('data.view') ? data.data?.length ?? 0 : undefined;
   const openTab = (tab: string) => setSearch((p) => { p.set('tab', tab); return p; }, { replace: true });
+  // Tabs from optional modules (Extensions.tsx; wave 11 contract C2).
+  const extensionTabs = useExtensionTabs('system');
 
   return (
     <RecordPage
@@ -85,6 +88,7 @@ export function SystemDetail() {
         { key: 'assets', label: 'Assets', content: ({ row }) => <SystemAssetsTab systemId={row.id} /> },
         { key: 'work', label: 'Changes and issues', content: ({ row }) => <RelatedWork field="system_id" id={row.id} noun="system" /> },
         { key: 'map', label: 'Map', content: ({ row }) => <SystemMapTab systemId={row.id} name={row.name} /> },
+        ...extensionTabs,
       ]}
     />
   );

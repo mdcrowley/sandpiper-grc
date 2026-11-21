@@ -2,6 +2,7 @@
 // files whose record has gone, the integrity check, scanning files that were attached before
 // a scanner was switched on, and moving files between the local disk and the object store.
 import { createHash } from 'node:crypto';
+import { holdsOn } from '../../core/holds.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { readPurgeDays } from './config.ts';
 import { noScanner, type ScanResult } from './scanner.ts';
@@ -88,6 +89,8 @@ export async function purgeRemoved(ctx: ModuleContext, now = new Date()): Promis
     [now.toISOString(), days],
   );
   for (const att of due) {
+    // A removed file of a record under a legal hold is kept until the hold is released (wave 11 C1).
+    if ((await holdsOn(ctx.db, att.record_type, att.record_id)).length) continue;
     try {
       await stores(ctx).forDriver(att.storage_driver).delete(att.storage_key);
     } catch (err) {

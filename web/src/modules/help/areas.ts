@@ -24,6 +24,12 @@ export const PAGE_AREA: Record<string, string> = {
   'controls-and-testing': 'controls',
   'funding-and-grants': 'funding',
   'committees-and-meetings': 'governance',
+  // Wave 11 guide pages (30 to 33). Page 33 covers legal holds too, which stay on: the records work
+  // keeps the hold part of that page readable (or moves it) when the records area is off.
+  'business-continuity': 'continuity',
+  'asset-condition': 'condition',
+  'ot-security': 'ot',
+  'legal-holds-records-requests-and-privacy': 'records',
 };
 
 /** Whether a guide page's part of the application is on (pages of no particular part always are). */

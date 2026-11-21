@@ -1,5 +1,6 @@
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
 import { registerEquipment } from './equipment.ts';
+import { CONDITION_VEHICLE_FIELDS, ensureFleetConditionLists } from './fields-condition.ts';
 import { seedFleet } from './seed.ts';
 import { registerServices } from './services.ts';
 import { isRetired } from './shared.ts';
@@ -50,6 +51,7 @@ async function seedDefaults(ctx: ModuleContext) {
     { value: 'radio', label: 'Radio', sort: 50 },
     { value: 'other', label: 'Other', sort: 90 },
   ], own);
+  await ensureFleetConditionLists(ctx);
 }
 
 const fail = (ctx: ModuleContext, fields: Record<string, string>): never =>
@@ -77,6 +79,7 @@ async function register(ctx: ModuleContext) {
       funder_interest: { label: 'Funder interest', type: 'boolean', default: false },
       funder_interest_pct: { label: 'Funder interest (%)', type: 'number' },
       notes: { label: 'Notes', type: 'longtext' },
+      ...CONDITION_VEHICLE_FIELDS,
     },
     hooks: {
       beforeCreate: async (_req, data) => { await checkVehicle(ctx, data, data, null); return data; },

@@ -1,6 +1,6 @@
 # E21 MCP server (AI assistant access)
 
-**Status:** done (23 of 23 issues done)
+**Status:** in progress (23 of 24 issues done)
 
 ## Goal
 
@@ -47,6 +47,7 @@ rights than they have.
 | E21-21 | Client ID metadata documents for connectors | done | P3 |
 | E21-22 | "What is affected if this system fails" tool | done | P2 |
 | E21-23 | Audit log search tool (by request id) | done | P3 |
+| E21-24 | Summary tools for the wave 10 and 11 parts | open | P2 |
 
 ---
 
@@ -356,3 +357,14 @@ Follow-up of E13-20: an assistant can find everything one request did.
 - [x] Restricted records' events stay hidden as on the audit log screen
 
 **Implemented in:** `server/src/modules/mcp/tools-work.ts`, `index.ts` (`scopesFor`); test `access.test.ts`
+
+### E21-24 Summary tools for the wave 10 and 11 parts
+
+**Status:** open · **Priority:** P2 · **Type:** feature
+
+An assistant user wants figures from audits, controls, corrective action plans, funding, committees, qualifications, continuity, asset condition, OT, records requests and the vendor lifecycle.
+
+**Acceptance criteria**
+
+- [ ] One summary tool per part, reading its summary route with the caller's token (figures only, never requester details)
+- [ ] A switched-off part's tool is not offered

@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { Db } from './db.ts';
 import { fail, UUID_RE } from './errors.ts';
 import { featureState, visibleValues } from './features.ts';
+import { assertNotHeld, heldIdsOf } from './holds.ts';
 import type { FieldDef, ResourceDef, Row } from './module.ts';
 import type { makeResources } from './resource.ts';
 import { requirePerm, type makeAudit, type makeLookups } from './services.ts';
@@ -97,20 +98,29 @@ export function registerRetention({ app, db, audit, lookups, res, requireRecentA
    * Flags records past their retention period. Soft-deleted records count too: they are still held.
    * A record whose review was extended is flagged again only once the extension has run out.
    */
-  async function sweep(): Promise<{ flagged: number; byType: Record<string, number> }> {
+  async function sweep(): Promise<{ flagged: number; byType: Record<string, number>; held: number }> {
     const byType: Record<string, number> = {};
+    // Records under a legal hold are not flagged (wave 11 C1): `held` counts those past their period.
+    let held = 0;
     const policies = await db.query<Row>('select * from retention_policies where active and period_months > 0');
     for (const p of policies) {
       const def = res.registry.get(p.record_type);
       if (!def || !BASES.includes(p.basis)) continue;
+      const heldIds = [...await heldIdsOf(db, def.type)];
+      if (heldIds.length) {
+        held += (await db.one<{ c: number }>(
+          `select count(*)::int c from ${def.table} t where t.id = any($1::uuid[]) and t.${p.basis} < now() - make_interval(months => $2::int)`,
+          [heldIds, p.period_months]))!.c;
+      }
       const reopened = await db.query(
         `update retention_reviews set status = 'pending', flagged_at = now(), decided_at = null, decided_by = null
-         where record_type = $1 and status = 'extended' and extended_until < current_date returning 1`, [def.type]);
+         where record_type = $1 and status = 'extended' and extended_until < current_date and not (record_id = any($2::uuid[])) returning 1`,
+        [def.type, heldIds]);
       const added = await db.query(
         `insert into retention_reviews (record_type, record_id, basis_at)
          select $1, t.id, t.${p.basis} from ${def.table} t
-         where t.${p.basis} < now() - make_interval(months => $2::int)
-         on conflict (record_type, record_id) do nothing returning 1`, [def.type, p.period_months]);
+         where t.${p.basis} < now() - make_interval(months => $2::int) and not (t.id = any($3::uuid[]))
+         on conflict (record_type, record_id) do nothing returning 1`, [def.type, p.period_months, heldIds]);
       const n = reopened.length + added.length;
       if (!n) continue;
       byType[def.type] = n;
@@ -119,7 +129,7 @@ export function registerRetention({ app, db, audit, lookups, res, requireRecentA
         summary: `${n} ${def.plural.toLowerCase()} past the ${p.period_months}-month retention period flagged for review`,
       });
     }
-    return { flagged: Object.values(byType).reduce((a, b) => a + b, 0), byType };
+    return { flagged: Object.values(byType).reduce((a, b) => a + b, 0), byType, held };
   }
 
   const tableExists = async (name: string, q: Pick<Db, 'one'> = db) => Boolean((await q.one<{ t: string | null }>('select to_regclass($1)::text as t', [name]))?.t);
@@ -352,6 +362,7 @@ export function registerRetention({ app, db, audit, lookups, res, requireRecentA
     const reason = reasonOf(b);
     if (b.confirm !== true) invalid({ confirm: 'Confirm that the record is to be removed for good.' });
     await mustAllow(def, 'delete');
+    await assertNotHeld(db, def.type, review.record_id, 'remove');
     await requireRecentAuth(req, `removing a ${def.label.toLowerCase()} for good`);
     const existing = await db.one<Row>(`select * from ${def.table} where id = $1 and ${res.visibilitySql(def, req.user)}`, [review.record_id]);
     if (!existing) fail(404, 'not_found', 'Record not found.');
@@ -383,6 +394,8 @@ export function registerRetention({ app, db, audit, lookups, res, requireRecentA
    */
   async function anonymize(def: ResourceDef, id: string): Promise<{ fields: string[]; keys: string[]; comments: number; files: number; kept: string[] }> {
     const row = (await db.one<Row>(`select * from ${def.table} where id = $1`, [id])) ?? fail(404, 'not_found', 'Record not found.');
+    // A record under a legal hold keeps its details (wave 11 C1), whoever asks.
+    await assertNotHeld(db, def.type, id, 'anonymize');
     const nullable = new Map((await db.query<{ column_name: string; is_nullable: string }>(
       `select column_name, is_nullable from information_schema.columns where table_schema = current_schema() and table_name = $1`, [def.table],
     )).map((c) => [c.column_name, c.is_nullable === 'YES']));
@@ -468,6 +481,7 @@ export function registerRetention({ app, db, audit, lookups, res, requireRecentA
     const reason = reasonOf(b);
     if (b.confirm !== true) invalid({ confirm: 'Confirm that the personal details are to be removed for good.' });
     await mustAllow(def, 'anonymize');
+    await assertNotHeld(db, def.type, review.record_id, 'anonymize');
     await requireRecentAuth(req, `anonymizing a ${def.label.toLowerCase()}`);
     const existing = await db.one<Row>(`select * from ${def.table} where id = $1 and ${res.visibilitySql(def, req.user)}`, [review.record_id]);
     if (!existing) fail(404, 'not_found', 'Record not found.');

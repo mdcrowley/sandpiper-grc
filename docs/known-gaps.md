@@ -8,10 +8,15 @@ What the prototype does not do yet. Update with every change. The roadmap
 Planned for wave 11 (E31 to E36): business continuity and emergency management, asset condition
 and state of good repair, OT and rail-systems cybersecurity, legal hold with records and
 personal-data requests and privacy assessments, the vendor risk lifecycle, and integrations
-(user provisioning, audit log forwarding, calendar feeds).
+(user provisioning, audit log forwarding, calendar feeds). Their permission keys (`continuity`,
+`legal`, `records`, `privacy`), feature switches and default roles (Continuity manager, Records and
+privacy officer, Asset manager) exist already with nothing behind them, and so do the legal-hold
+checks in every delete, removal and anonymizing path (`core/holds.ts`, holding nothing until legal
+holds are built) and the calendar source registry (`core/calendar.ts`).
 
-Not planned: drug and alcohol test results, hours-of-service and fatigue records, and maintenance
-work orders, which belong in specialist systems (E25-13, E29-11, E32-06).
+Not planned: drug and alcohol test results, hours-of-service and fatigue records, maintenance
+work orders, which belong in specialist systems, and redaction of document content, which belongs
+in a document tool (E25-13, E29-11, E32-06, E34-09).
 
 ## Built but incomplete
 

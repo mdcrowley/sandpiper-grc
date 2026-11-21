@@ -54,6 +54,7 @@ export const DEFAULT_ROLES: {
       'tickets.*', 'knowledge.*', 'assets.*', 'systems.*', 'sites.*', 'data.*', 'changes.*',
       'projects.view', 'dashboards.*', 'reports.*', 'audit.view', 'fleet.view', 'safety.view',
       'controls.*', 'audits.view', 'governance.view', 'people.view',
+      'continuity.view', 'privacy.view',
     ],
   },
   {
@@ -69,7 +70,7 @@ export const DEFAULT_ROLES: {
     description: 'Safety team: hazard log, safety events, investigations and safety performance indicators.',
     grants: [
       'safety.*', 'fleet.view', 'systems.view', 'sites.view', 'actions.*', 'dashboards.view', 'reports.view', 'policies.view', 'training.view',
-      'audits.*', 'governance.view', 'people.view',
+      'audits.*', 'governance.view', 'people.view', 'continuity.view',
     ],
   },
   // Wave 10: compliance, audit and training roles (switched on, like the other working roles).
@@ -79,6 +80,7 @@ export const DEFAULT_ROLES: {
     grants: [
       'obligations.*', 'funding.*', 'controls.*', 'governance.*', 'audits.view', 'policies.view', 'vendors.view',
       'contracts.view', 'projects.view', 'assets.view', 'fleet.view', 'people.view', 'actions.*', 'reports.view', 'dashboards.view',
+      'continuity.view', 'records.view', 'privacy.view', 'legal.view',
     ],
   },
   {
@@ -90,6 +92,25 @@ export const DEFAULT_ROLES: {
     key: 'training_coordinator', name: 'Training coordinator', enabled: true, requiresMfa: false,
     description: 'Training, the roster of people and their qualifications.',
     grants: ['training.*', 'people.*', 'policies.view'],
+  },
+  // Wave 11: continuity, records and privacy, and asset roles (switched on, like the other working roles).
+  {
+    key: 'continuity_manager', name: 'Continuity manager', enabled: true, requiresMfa: false,
+    description: 'Business continuity and emergency management: processes, impact analyses, plans and activations.',
+    grants: [
+      'continuity.*', 'systems.view', 'sites.view', 'assets.view', 'fleet.view', 'vendors.view', 'people.view',
+      'exercises.view', 'actions.*', 'reports.view', 'dashboards.view',
+    ],
+  },
+  {
+    key: 'records_privacy_officer', name: 'Records and privacy officer', enabled: true, requiresMfa: false,
+    description: 'Legal holds, requests for records and personal data, and privacy impact assessments.',
+    grants: ['legal.*', 'records.*', 'privacy.*', 'data.view', 'systems.view', 'actions.*', 'reports.view'],
+  },
+  {
+    key: 'asset_manager', name: 'Asset manager', enabled: true, requiresMfa: false,
+    description: 'Assets, sites and vehicles, their condition and replacement.',
+    grants: ['assets.*', 'sites.*', 'fleet.*', 'projects.view', 'funding.view', 'actions.*', 'reports.view', 'dashboards.view'],
   },
   {
     key: 'approver', name: 'Approver', enabled: false, requiresMfa: false,
@@ -105,7 +126,7 @@ export const DEFAULT_ROLES: {
   {
     key: 'executive_viewer', name: 'Executive viewer', enabled: false, requiresMfa: false,
     description: 'Read-only dashboards and report packs.',
-    grants: ['dashboards.view', 'reports.view', 'projects.view', 'frameworks.view', 'governance.view'],
+    grants: ['dashboards.view', 'reports.view', 'projects.view', 'frameworks.view', 'governance.view', 'continuity.view'],
   },
   {
     key: 'auditor', name: 'Auditor', enabled: false, requiresMfa: false,
@@ -114,6 +135,7 @@ export const DEFAULT_ROLES: {
       'frameworks.view', 'frameworks.export', 'policies.view', 'obligations.view', 'vendors.view',
       'contracts.view', 'systems.view', 'assets.view', 'audit.view', 'fleet.view',
       'audits.view', 'audits.export', 'controls.view', 'controls.export', 'governance.view', 'funding.view',
+      'continuity.view', 'privacy.view', 'legal.view',
     ],
   },
   {

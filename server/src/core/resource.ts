@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { CURRENCY } from './config.ts';
 import { inTrial, type Db } from './db.ts';
 import { fail, UUID_RE } from './errors.ts';
+import { assertNotHeld } from './holds.ts';
 import { pageOf } from './api/conventions.ts';
 import type { CreateOptions, FieldDef, ResourceDef, ResourceRegistry, Row, SessionUser } from './module.ts';
 import { CUSTOM_PREFIX, customFieldDef, customName, type CustomField, type CustomFields } from './customfields.ts';
@@ -830,6 +831,8 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
       authorize(req, def, 'delete');
       const id = (req.params as any).id;
       const row = (await find(def.type, id, req.user)) ?? fail(404, 'not_found', `${def.label} not found.`);
+      // A record under a legal hold is never deleted (wave 11 C1; bulk delete comes through here too).
+      await assertNotHeld(db, def.type, id, 'delete');
       await db.query(`update ${def.table} set deleted_at = now(), updated_by = $2 where id = $1`, [id, req.user!.id]);
       await audit(req, {
         action: `${def.type}.delete`, recordType: def.type, recordId: id,
@@ -870,6 +873,7 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
   async function purge(type: string, id: string, req: FastifyRequest | null): Promise<Row> {
     const def = need(type);
     const row = (await db.one<Row>(`select * from ${def.table} where id = $1`, [id])) ?? fail(404, 'not_found', `${def.label} not found.`);
+    await assertNotHeld(db, type, id, 'remove');
     await db.tx(async (tx) => {
       await tx.query(`delete from ${def.table} where id = $1`, [id]);
       await tx.query('delete from search_index where record_type = $1 and record_id = $2', [type, id]);

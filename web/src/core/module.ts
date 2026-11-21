@@ -24,6 +24,8 @@ export const MODULE_AREA: Record<string, string> = {
   policies: 'policies', training: 'training', vulnerabilities: 'vulnerabilities', projects: 'projects',
   reports: 'reports', fleet: 'fleet', safety: 'safety', portal: 'portal',
   audits: 'audits', controls: 'controls', funding: 'funding', governance: 'governance',
+  // Wave 11. Legal holds (holds), integrations and feeds are not areas: they are always on.
+  continuity: 'continuity', condition: 'condition', ot: 'ot', records: 'records',
 };
 
 /** Whether a web module's area is on (always true for a module that is not part of an area). */

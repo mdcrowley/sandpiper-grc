@@ -1,6 +1,6 @@
 # E23 Corrective action plans and verification (wave 10)
 
-**Status:** done (11 of 11 issues done)
+**Status:** in progress (11 of 12 issues done)
 
 ## Goal
 
@@ -28,6 +28,7 @@ Group the actions that answer one finding, event, failed test or deficiency into
 | E23-09 | CAP metrics | done | P2 |
 | E23-10 | Sample data | done | P3 |
 | E23-11 | Guide page and route descriptions | done | P2 |
+| E23-12 | Settings screen for closure-evidence sources | open | P3 |
 
 ---
 
@@ -183,3 +184,13 @@ Users need a guide page for corrective action plans, and integrators need every 
 - [x] Every new route is described for the API document
 
 **Implemented in:** `docs/user/24-corrective-action-plans.md`, the action tracker section of `docs/user/06-risks-actions-obligations.md`, `ctx.describeRoute` on every new route in `risks/caps.ts`
+
+### E23-12 Settings screen for closure-evidence sources
+
+**Status:** open · **Priority:** P3 · **Type:** feature
+
+An administrator wants to choose, on a screen, the action sources whose actions need evidence before they close (`actions.closure_evidence_sources`). Stretch for wave 11.
+
+**Acceptance criteria**
+
+- [ ] A row under Administration > Settings: a multi-select of action sources

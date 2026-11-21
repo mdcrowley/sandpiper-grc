@@ -1,6 +1,7 @@
 // Sites: list and record, with the systems that serve the site and the assets held there.
 import { Link } from 'react-router-dom';
 import { Card, EditableSummary, EmptyState, ErrorState, Loading, LookupChip, RecordPage, ResourceList, useAuth, useFetch, useResource } from '../../core';
+import { ExtensionSections } from './Extensions';
 
 export function SiteList() {
   return (
@@ -55,16 +56,19 @@ export function SiteDetail() {
       type="site"
       subtitle={(row) => row.address || undefined}
       summary={({ row, reload }) => (
-        <EditableSummary
-          type="site" row={row} onSaved={reload}
-          fields={['name', 'address', 'function', 'technology', 'power_protection', 'physical_security', 'protection_notes', 'third_parties', 'network_links', 'to_confirm', 'notes']}
-          sections={[
-            { title: 'The site', fields: ['name', 'address', 'function', 'technology'] },
-            { title: 'Protection', description: 'What keeps the site running and secure.', fields: ['power_protection', 'physical_security', 'protection_notes'] },
-            { title: 'Connections and other parties', fields: ['network_links', 'third_parties'] },
-            { title: 'Notes', fields: ['to_confirm', 'notes'] },
-          ]}
-        />
+        <>
+          <EditableSummary
+            type="site" row={row} onSaved={reload}
+            fields={['name', 'address', 'function', 'technology', 'power_protection', 'physical_security', 'protection_notes', 'third_parties', 'network_links', 'to_confirm', 'notes']}
+            sections={[
+              { title: 'The site', fields: ['name', 'address', 'function', 'technology'] },
+              { title: 'Protection', description: 'What keeps the site running and secure.', fields: ['power_protection', 'physical_security', 'protection_notes'] },
+              { title: 'Connections and other parties', fields: ['network_links', 'third_parties'] },
+              { title: 'Notes', fields: ['to_confirm', 'notes'] },
+            ]}
+          />
+          <ExtensionSections recordType="site" row={row} />
+        </>
       )}
       tabs={[
         {

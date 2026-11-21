@@ -671,12 +671,14 @@ Module keys (fixed, `MODULE_KEYS` in `server/src/modules/admin/shared.ts`): `tic
 `frameworks`, `risks`, `security`, `vulnerabilities`, `policies`, `training`,
 `exceptions`, `obligations`, `exercises`, `actions`, `projects`, `dashboards`, `reports`,
 `audit`, `admin`, `portal`, `fleet`, `safety`, `audits`, `controls`, `funding`, `governance`,
-`people`. A new key is added there and here. The last five belong to the wave 10 modules (roadmap
-E24, E26 to E29); until those modules land nothing checks them, so the role editor shows them grayed out.
+`people`, `continuity`, `legal`, `records`, `privacy`. A new key is added there and here. The last four
+belong to the wave 11 parts (roadmap E31 and E34: business continuity, legal holds, records requests,
+privacy assessments); until those modules land nothing checks them, so the role editor shows them
+grayed out. Asset condition shares `assets`, `sites` and `fleet`, and OT security shares `systems`.
 
 Default roles (`server/src/core/services.ts`): Administrator, Agent, Security lead,
-Project manager, Safety manager, Compliance officer, Audit lead and Training coordinator are
-enabled; Approver, Executive viewer, Auditor and Requester are present but switched off until an
+Project manager, Safety manager, Compliance officer, Audit lead, Training coordinator, Continuity
+manager, Records and privacy officer and Asset manager are enabled; Approver, Executive viewer, Auditor and Requester are present but switched off until an
 administrator enables them. A new default role is created on an existing database at the next
 start; new grants on an existing role reach it only when an administrator applies them with
 "Sync default grants" on the Roles page (`defaultGrantDifferences`, `syncDefaultGrants`).
@@ -744,7 +746,10 @@ A new module that is optional adds itself to `AREAS` (and to `MODULE_AREA` on th
 `PAGE_AREA` in `web/src/modules/help/areas.ts` for its guide page). Guard cross-module code
 with `ctx.resources.get(type)` and permission checks as usual, and it follows the switch.
 Inventory, actions, notifications, attachments, administration, home and help are not
-areas: they are always on.
+areas: they are always on. Neither are legal holds (permission `legal`, module folder `holds`): a
+hold must never lapse because a part was switched off. The wave 11 areas `continuity`, `condition`,
+`ot` and `records` are declared ahead of their modules; `condition` and `ot` share the inventory and
+fleet permissions, so they hide their record types and fields by name (`types`, `fields`).
 
 ### Tests
 
@@ -844,6 +849,48 @@ The wave 10 plan's keys: `actions.overdue`, `actions.caps_overdue`,
 `actions.awaiting_verification`, `audits.inspections_on_time_pct`, `audits.findings_overdue`,
 `training.compliance_pct`, `training.certifications_expired`, `controls.tests_overdue`,
 `controls.ineffective` and `safety.hazard_reviews_on_time_pct`.
+
+### Legal holds (hook points)
+
+A record under an active legal hold must not be deleted, removed for good, anonymized or lose its
+files, whatever is switched off. `core/holds.ts` offers `holdsOn(db, type, id)` (the active holds:
+`{ holdId, ref, matter }[]`), `assertNotHeld(db, type, id, 'delete' | 'anonymize' | 'remove' |
+'remove_file')` (refuses with 409 `on_hold`, naming the hold's reference, never its matter) and
+`heldIdsOf(db, type)` (a `Set` of held ids, for sweeps). Core calls them in the generic `DELETE`
+(bulk delete from a list comes through it too), `purge`, the retention review's anonymize and
+remove, and the retention sweep (held records are not flagged; the sweep answers `held`); the
+attachments module calls them on file removal and skips held records' files in its purge, and
+merging duplicate vulnerabilities refuses a held one. Any new path that deletes, purges or
+anonymizes a record calls `assertNotHeld` first. Until legal holds are built (E34) nothing is held.
+
+### Calendar sources (shared registry)
+
+`core/calendar.ts` holds the dated work modules offer to a person's calendar feed (E36-03). A module
+defines its sources in `register`:
+
+```ts
+import { defineCalendarSource } from '../../core/calendar.ts';
+defineCalendarSource(ctx.app, {
+  key: 'actions.due', label: 'My actions due', recordType: 'action', permission: 'actions.view',
+  events: async (ctx, user, from, to) => [],   // { uid, title, start, end?, allDay, url, recordType, recordId }[]
+});
+```
+
+`calendarSources(app, resources, user)` lists the sources a person may use (record type loaded and
+switched on, permission held), sorted by key. A source is a list, not a figure: `events` returns only
+what that person may see (`visibleWhere(type, user)` in every query) and is involved in, between
+`from` and `to` (`YYYY-MM-DD`). Keys are `<module>.<name>` and unique.
+
+### Inventory extensions
+
+Optional modules add fields and panels to inventory records without editing inventory. Server: the
+field maps in `inventory/fields-ot.ts`, `fields-condition.ts` and `fields-privacy.ts` (and
+`fleet/fields-condition.ts`) are spread into the `system`, `asset`, `site`, `data_category` and
+`vehicle` definitions, and each file's `ensure<Name>Lists(ctx)` runs in `seedDefaults`; each file has
+one owner. Web: a module ships `web/src/modules/<module>/InventoryPanel.tsx` exporting
+`panels: InventoryPanelDef[]` (`{ key, label, area?, appliesTo, Panel }`, `inventory/Extensions.tsx`);
+a panel is an extra tab on a system and an extra section under the summary of an asset, site or data
+category, and is left out while its area is off.
 
 ### Approval workflows (shared engine)
 

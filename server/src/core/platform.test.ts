@@ -1082,7 +1082,7 @@ describe('retention', () => {
     const count = async () => (await t.db.one<any>('select count(*)::int c from test_gadgets'))!.c;
     const total = await count();
     const swept = await t.core.retention.sweep();
-    expect(swept).toEqual({ flagged: 2, byType: { gadget: 2 } });
+    expect(swept).toEqual({ flagged: 2, byType: { gadget: 2 }, held: 0 });
     expect(await count()).toBe(total);
     expect((await t.core.retention.sweep()).flagged).toBe(0); // once only
     expect((await audited('retention.flag')).at(-1)).toMatchObject({ actor_name: 'System', record_type: 'gadget' });

@@ -22,6 +22,7 @@ export const MODULE_KEYS = [
   'risks', 'security', 'vulnerabilities', 'policies', 'training', 'exceptions', 'obligations', 'exercises',
   'actions', 'projects', 'dashboards', 'reports', 'audit', 'admin', 'portal', 'fleet', 'safety',
   'audits', 'controls', 'funding', 'governance', 'people',
+  'continuity', 'legal', 'records', 'privacy',
 ];
 export const ACTIONS = ['view', 'create', 'edit', 'delete', 'approve', 'administer', 'export'];
 

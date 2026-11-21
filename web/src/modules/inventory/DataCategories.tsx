@@ -1,6 +1,7 @@
 // Data categories: list and record, with the systems that hold each category.
 import { Link } from 'react-router-dom';
 import { Card, EditableSummary, EmptyState, ErrorState, Loading, LookupChip, RecordPage, ResourceList, useAuth, useFetch } from '../../core';
+import { ExtensionSections } from './Extensions';
 
 export function DataCategoryList() {
   return (
@@ -54,15 +55,18 @@ export function DataCategoryDetail() {
       type="data_category"
       status={(row) => (row.sensitivity_level ? <LookupChip list="sensitivity_level" value={row.sensitivity_level} /> : <span className="chip chip-gray">Not classified</span>)}
       summary={({ row, reload }) => (
-        <EditableSummary
-          type="data_category" row={row} onSaved={reload}
-          fields={['name', 'sensitivity_level', 'contains', 'where_held', 'custodian', 'shared_with', 'governing_rule', 'retention_period', 'gaps', 'notes']}
-          sections={[
-            { title: 'The data', fields: ['name', 'sensitivity_level', 'contains', 'where_held'] },
-            { title: 'Care and rules', description: 'Who looks after it, who it is shared with and how long it is kept.', fields: ['custodian', 'shared_with', 'governing_rule', 'retention_period'] },
-            { title: 'Notes', fields: ['gaps', 'notes'] },
-          ]}
-        />
+        <>
+          <EditableSummary
+            type="data_category" row={row} onSaved={reload}
+            fields={['name', 'sensitivity_level', 'contains', 'where_held', 'custodian', 'shared_with', 'governing_rule', 'retention_period', 'gaps', 'notes']}
+            sections={[
+              { title: 'The data', fields: ['name', 'sensitivity_level', 'contains', 'where_held'] },
+              { title: 'Care and rules', description: 'Who looks after it, who it is shared with and how long it is kept.', fields: ['custodian', 'shared_with', 'governing_rule', 'retention_period'] },
+              { title: 'Notes', fields: ['gaps', 'notes'] },
+            ]}
+          />
+          <ExtensionSections recordType="data_category" row={row} />
+        </>
       )}
       tabs={[
         {

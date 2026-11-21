@@ -4,6 +4,7 @@ import { registerCertifications } from './certifications.ts';
 import { DEFAULT_FUNDING_CLAUSES, FUNDING_CLAUSE_STATUSES, registerClauses } from './clauses.ts';
 import { registerReviews } from './reviews.ts';
 import { seedFunding } from './seed.ts';
+import { registerSubrecipients } from './subrecipients.ts';
 import { registerSummary } from './summary.ts';
 
 /**
@@ -91,6 +92,7 @@ async function register(ctx: ModuleContext) {
   registerReviews(ctx);
   registerClauses(ctx);
   registerSummary(ctx);
+  await registerSubrecipients(ctx);
 }
 
 const mod: ModuleDef = {

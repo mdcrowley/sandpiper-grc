@@ -178,20 +178,25 @@ A role is a named set of permissions. People get access only through the roles t
 |---|---|---|
 | **Administrator** | Configuration, users and roles. Holds every permission. | On |
 | **Agent** | Service desk and inventory work: tickets, knowledge, inventory, changes (including approving them and change settings), fleet and actions, with read access to most other areas. | On |
-| **Security lead** | Risks, frameworks, security incidents (and every restricted record), vulnerabilities, policies, training, vendors and contracts, the audit log, dashboards and reports, and the same service desk, inventory and change rights as an agent, with read access to projects, fleet and safety. Also controls and their testing, with read access to audits, committees and the staff roster. | On |
+| **Security lead** | Risks, frameworks, security incidents (and every restricted record), vulnerabilities, policies, training, vendors and contracts, the audit log, dashboards and reports, and the same service desk, inventory and change rights as an agent, with read access to projects, fleet and safety. Also controls and their testing, with read access to audits, committees, the staff roster, business continuity and privacy assessments. | On |
 | **Project manager** | Projects, gates, status reports and actions. | On |
-| **Safety manager** | Safety team: hazard log, safety events, investigations and indicators, audits and inspections, with the action tracker and read access to fleet, systems, sites, committees and the staff roster. | On |
-| **Compliance officer** | Obligations, funding and grant compliance, controls and committees, with the action tracker and read access to audits, policies, vendors, contracts, projects, assets, fleet, the staff roster, dashboards and reports. | On |
+| **Safety manager** | Safety team: hazard log, safety events, investigations and indicators, audits and inspections, with the action tracker and read access to fleet, systems, sites, committees, the staff roster and business continuity. | On |
+| **Compliance officer** | Obligations, funding and grant compliance, controls and committees, with the action tracker and read access to audits, policies, vendors, contracts, projects, assets, fleet, the staff roster, dashboards and reports, business continuity, records requests, privacy assessments and legal holds. | On |
 | **Audit lead** | Audits and inspections, controls and their testing, and the action tracker, with read access to committees, obligations, policies and framework outcomes. | On |
 | **Training coordinator** | Training, the staff roster and qualifications, with read access to policies. | On |
+| **Continuity manager** | Business continuity and emergency management: business processes, impact analyses, plans and activations, with the action tracker and read access to systems, sites, assets, fleet, vendors, the staff roster, exercises, dashboards and reports. | On |
+| **Records and privacy officer** | Legal holds, requests for records and personal data, and privacy impact assessments, with the action tracker and read access to data categories, systems and reports. | On |
+| **Asset manager** | Assets, sites and vehicles, their condition and replacement, with the action tracker and read access to projects, funding, dashboards and reports. | On |
 | **Approver** | People who approve changes, service requests, asset decisions and project gates. It does not include risks: a risk acceptance is recorded by someone who can see the risk, naming the approver. | Off |
-| **Executive viewer** | Read-only dashboards, projects, framework outcomes and committees. | Off |
-| **Auditor** | Read-only access to chosen areas, with export of framework evidence, audits and controls. | Off |
+| **Executive viewer** | Read-only dashboards, projects, framework outcomes, committees and business continuity. | Off |
+| **Auditor** | Read-only access to chosen areas, with export of framework evidence, audits and controls, and read access to business continuity, privacy assessments and legal holds. | Off |
 | **Requester** | Anyone in the organization submitting their own requests. | Off |
 
 The list shows each role's **Access** (for example "12 permissions in 5 areas", or "Everything"), the number of **Members**, whether a **Second factor** is Required or Optional, and a **Switched on** switch. Treat the supplied roles as a starting point and check each one's permissions against how your organization works.
 
 The Compliance officer, Audit lead and Training coordinator roles come with the audits, controls, funding, committees and staff roster parts. On an installation set up before these roles existed, the three new roles appear by themselves; the new permissions of the roles you already have are offered under [Applying default permissions after an upgrade](#applying-default-permissions-after-an-upgrade).
+
+The Continuity manager, Records and privacy officer and Asset manager roles, and the permissions for business continuity, legal holds, records requests and privacy assessments, are ready ahead of the parts they are for, which are still being built. Until then those permissions are grayed out on a role's page, because nothing uses them yet. The three roles appear by themselves on an existing installation, and the new permissions of your existing roles are offered in the same way.
 
 ### Applying default permissions after an upgrade
 
@@ -668,7 +673,12 @@ Each part has a switch, a line saying what it covers, whether it is **On** or **
 | **Control library and testing** | The control library, what each control covers, control tests and their schedule | On |
 | **Funding and grant compliance** | Funding awards and what they fund, yearly certifications, funder compliance reviews and their deficiencies | On |
 | **Committees and meetings** | Committees and their members, meetings with agendas, packs and minutes, and the decisions register | On |
+| **Business continuity and emergency management** | Business processes and their impact analyses, continuity and emergency plans with call trees, the gap report and emergency activations | On |
+| **Asset condition and state of good repair** | Asset classes and useful life, condition assessments of assets, vehicles and sites, and the state-of-good-repair dashboard and targets | On |
+| **OT and rail-systems security** | Operational technology on systems and assets, security zones and conduits with their target and achieved levels | On |
+| **Records requests and privacy** | Requests for records and personal data with their deadlines, responsive records and exemptions, and privacy impact assessments. Legal holds stay on | On |
 
+The last four parts are listed ahead of their pages, which are still being built: switching them off or on changes nothing you can see yet. Legal holds are not a part that can be switched off: a hold must never lapse because a part of the application was switched off.
 
 **AI assistant access** is listed too, with its state, but it keeps its own page: select the link to open **Administration > AI assistant access**. **Inventory** (systems, assets, sites, data categories and the relationship map), the **action tracker**, **notifications**, **files**, **administration**, the **Overview** and **Help** are always on.
 

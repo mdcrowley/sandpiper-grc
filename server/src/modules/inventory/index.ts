@@ -1,5 +1,8 @@
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
 import { registerDisposalRequests, ROUTED_ONLY } from './disposal.ts';
+import { CONDITION_ASSET_FIELDS, CONDITION_SITE_FIELDS, ensureConditionLists } from './fields-condition.ts';
+import { ensureOtLists, OT_ASSET_FIELDS, OT_SYSTEM_FIELDS } from './fields-ot.ts';
+import { ensurePrivacyLists, PRIVACY_DATA_CATEGORY_FIELDS } from './fields-privacy.ts';
 import { registerImport } from './importer.ts';
 import { registerReminders } from './reminders.ts';
 import { disposalProblem, funderRuleOn, registerLifecycle, today } from './lifecycle.ts';
@@ -106,6 +109,10 @@ async function seedDefaults(ctx: ModuleContext) {
     { value: 'manual', label: 'Manual re-entry' },
     { value: 'other', label: 'Other' },
   ], { module: 'systems' });
+  // Lists of the inventory extensions (wave 11): each file is owned by one piece of work.
+  await ensureOtLists(ctx);
+  await ensureConditionLists(ctx);
+  await ensurePrivacyLists(ctx);
 }
 
 async function register(ctx: ModuleContext) {
@@ -126,6 +133,7 @@ async function register(ctx: ModuleContext) {
       network_links: { label: 'Network links', type: 'longtext' },
       to_confirm: { label: 'To confirm', type: 'longtext' },
       notes: { label: 'Notes', type: 'longtext' },
+      ...CONDITION_SITE_FIELDS,
     },
   });
 
@@ -145,6 +153,7 @@ async function register(ctx: ModuleContext) {
       sensitivity_level: { label: 'Sensitivity', type: 'lookup', list: 'sensitivity_level' },
       gaps: { label: 'Gaps', type: 'longtext' },
       notes: { label: 'Notes', type: 'longtext' },
+      ...PRIVACY_DATA_CATEGORY_FIELDS,
     },
   });
 
@@ -183,6 +192,7 @@ async function register(ctx: ModuleContext) {
       source: { label: 'Source', type: 'longtext' },
       to_confirm: { label: 'To confirm', type: 'longtext' },
       notes: { label: 'Notes', type: 'longtext' },
+      ...OT_SYSTEM_FIELDS,
     },
     hooks: {
       beforeCreate: (_req, data) => checkSystem(ctx, data, data),
@@ -231,6 +241,8 @@ async function register(ctx: ModuleContext) {
       disposed_on: { label: 'Disposed on', type: 'date' },
       disposal_request_status: { label: 'Disposal approval', type: 'lookup', list: 'disposal_request_status', readOnly: true },
       notes: { label: 'Notes', type: 'longtext' },
+      ...OT_ASSET_FIELDS,
+      ...CONDITION_ASSET_FIELDS,
     },
     hooks: {
       beforeCreate: async (req, data) => {

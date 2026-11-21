@@ -10,6 +10,7 @@ import type { Row } from '../../core';
 import { CheckInDialog, CheckOutDialog, DisposeDialog, useAssetMoveBlocked } from './AssetDialogs';
 import type { DisposalRequest } from './AssetDialogs';
 import { AssignmentTab, DisposalTab, LifecycleBand, RequestCard, WhereCard } from './AssetLifecycle';
+import { ExtensionSections } from './Extensions';
 import { funderFields, RelatedWork, useFunder } from './shared';
 
 export function AssetList() {
@@ -83,10 +84,13 @@ export function AssetDetail() {
       )}
       banner={({ row }) => <LifecycleBand row={row} />}
       summary={({ row, reload, canEdit }) => (
-        <div className="inv-asset-summary">
-          <EditableSummary type="asset" row={row} fields={DETAILS} onSaved={reload} sections={[{ title: 'What it is', fields: DETAILS }]} />
-          <WhereCard row={row} canEdit={canEdit} onChanged={reload} />
-        </div>
+        <>
+          <div className="inv-asset-summary">
+            <EditableSummary type="asset" row={row} fields={DETAILS} onSaved={reload} sections={[{ title: 'What it is', fields: DETAILS }]} />
+            <WhereCard row={row} canEdit={canEdit} onChanged={reload} />
+          </div>
+          <ExtensionSections recordType="asset" row={row} />
+        </>
       )}
       tabs={[
         { key: 'assignment', label: 'Assignment', content: ({ row }) => <AssignmentTab row={row} version={version} /> },

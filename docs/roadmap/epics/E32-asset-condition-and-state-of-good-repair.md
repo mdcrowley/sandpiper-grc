@@ -1,6 +1,6 @@
 # E32 Asset condition and state of good repair
 
-**Status:** in progress (1 of 6 issues done)
+**Status:** in progress (1 of 9 issues done)
 
 ## Goal
 
@@ -21,6 +21,9 @@ Rate the condition of vehicles, equipment and facilities against useful-life ben
 | E32-04 | State-of-good-repair dashboard with targets by class | open | P2 |
 | E32-05 | Links to replacement projects and funding awards | open | P3 |
 | E32-06 | Not planned: maintenance work orders | done | P3 |
+| E32-07 | Area and Asset manager role | open | P2 |
+| E32-08 | Yearly target approval | open | P3 |
+| E32-09 | Sample data and guide | open | P2 |
 
 ---
 
@@ -81,3 +84,35 @@ A capital planner wants each aging asset linked to the project that replaces it 
 Not planned: maintenance work orders belong in a maintenance management system. They are already out of scope in E19 and are repeated here so that nobody builds them as part of asset condition.
 
 **Implemented in:** nothing to build; recorded so that nobody builds it here (gap review GP-20)
+
+### E32-07 Area and Asset manager role
+
+**Status:** open · **Priority:** P2 · **Type:** feature
+
+An administrator wants asset condition to be an optional part, and a ready-made role for the people who look after assets. Wave 11 (coordinator step 0 declared the `condition` area and the Asset manager role.)
+
+**Acceptance criteria**
+
+- [ ] The `condition` area hides its record types and the condition fields on assets, vehicles and sites while off
+- [ ] The Asset manager role
+
+### E32-08 Yearly target approval
+
+**Status:** open · **Priority:** P3 · **Type:** feature
+
+A capital planning lead wants each class's yearly target approved, or recorded against a meeting decision. Stretch for wave 11.
+
+**Acceptance criteria**
+
+- [ ] Approval kind `condition_targets`, one step, `assets.approve`; a meeting decision reference may stand in
+
+### E32-09 Sample data and guide
+
+**Status:** open · **Priority:** P2 · **Type:** documentation
+
+An evaluator wants invented asset classes, assessments and targets, and a guide page.
+
+**Acceptance criteria**
+
+- [ ] Invented samples, labeled "(sample)"
+- [ ] Guide page `31-asset-condition.md`; vehicle condition in the fleet guide

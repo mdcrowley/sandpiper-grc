@@ -155,27 +155,27 @@ status `done`; issues in progress, open or blocked are counted in the total only
 | [E18](epics/E18-quality-and-known-defects.md) | Quality and known defects | done | 59 / 59 |
 | [E19](epics/E19-fleet-and-services.md) | Fleet and services | done | 14 / 14 |
 | [E20](epics/E20-safety-management.md) | Safety management | done | 15 / 15 |
-| [E21](epics/E21-mcp-server.md) | MCP server (AI assistant access) | done | 23 / 23 |
+| [E21](epics/E21-mcp-server.md) | MCP server (AI assistant access) | in progress | 23 / 24 |
 | [E22](epics/E22-review-fixes.md) | Review fixes (wave 9) | in progress | 40 / 45 |
-| [E23](epics/E23-corrective-action-plans.md) | Corrective action plans and verification | done | 11 / 11 |
+| [E23](epics/E23-corrective-action-plans.md) | Corrective action plans and verification | in progress | 11 / 12 |
 | [E24](epics/E24-audits-and-inspections.md) | Audits and inspections | done | 13 / 13 |
 | [E25](epics/E25-safety-reporting-investigation-and-targets.md) | Safety reporting, investigation and performance targets | done | 15 / 15 |
 | [E26](epics/E26-control-library-and-testing.md) | Control library and control testing | in progress | 10 / 11 |
 | [E27](epics/E27-funding-and-grant-compliance.md) | Funding and grant compliance | in progress | 10 / 11 |
-| [E28](epics/E28-committees-meetings-and-safety-plan.md) | Committees, meetings and the safety plan | done | 11 / 11 |
+| [E28](epics/E28-committees-meetings-and-safety-plan.md) | Committees, meetings and the safety plan | in progress | 11 / 12 |
 | [E29](epics/E29-staff-roster-qualifications-and-acknowledgments.md) | Staff roster, qualifications and frontline acknowledgments | done | 12 / 12 |
 | [E30](epics/E30-obligations-regulatory-change-and-enterprise-risk.md) | Obligations, regulatory change and enterprise risk | done | 9 / 9 |
-| [E31](epics/E31-business-continuity.md) | Business continuity and emergency management | open | 0 / 6 |
-| [E32](epics/E32-asset-condition-and-state-of-good-repair.md) | Asset condition and state of good repair | in progress | 1 / 6 |
-| [E33](epics/E33-ot-and-rail-systems-cybersecurity.md) | OT and rail-systems cybersecurity | open | 0 / 4 |
-| [E34](epics/E34-legal-hold-records-requests-and-privacy.md) | Legal hold, records requests and privacy | open | 0 / 5 |
-| [E35](epics/E35-vendor-risk-lifecycle.md) | Vendor risk lifecycle | open | 0 / 5 |
-| [E36](epics/E36-integrations.md) | Integrations | open | 0 / 6 |
-| | **Total** | | **642 / 689** |
+| [E31](epics/E31-business-continuity.md) | Business continuity and emergency management | open | 0 / 9 |
+| [E32](epics/E32-asset-condition-and-state-of-good-repair.md) | Asset condition and state of good repair | in progress | 1 / 9 |
+| [E33](epics/E33-ot-and-rail-systems-cybersecurity.md) | OT and rail-systems cybersecurity | open | 0 / 6 |
+| [E34](epics/E34-legal-hold-records-requests-and-privacy.md) | Legal hold, records requests and privacy | in progress | 1 / 9 |
+| [E35](epics/E35-vendor-risk-lifecycle.md) | Vendor risk lifecycle | open | 0 / 7 |
+| [E36](epics/E36-integrations.md) | Integrations | open | 0 / 8 |
+| | **Total** | | **643 / 708** |
 
-Of the 47 issues not done, 6 are in progress and 41 are open or blocked. E23 to E30 were built in wave 10 and
+Of the 65 issues not done, 6 are in progress and 59 are open or blocked. E23 to E30 were built in wave 10 and
 E31 to E36 are planned for wave 11 (the product gaps of the November 2026 review). Their done issues
-are "Not planned" entries (E25-13, E29-11, E32-06): features recorded so that nobody builds them.
+are "Not planned" entries (E25-13, E29-11, E32-06, E34-09): features recorded so that nobody builds them.
 
 ## Next up
 

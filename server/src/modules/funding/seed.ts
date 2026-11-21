@@ -2,6 +2,7 @@ import type { ModuleContext, Row, SeedOptions } from '../../core/module.ts';
 import { dayInZone, todayInZone } from '../../core/timezone.ts';
 import { FUNDED_BY } from './awards.ts';
 import { applyAreaSet, loadAreas, readSampleAreas, validateAreaSet } from './reviews.ts';
+import { seedSubrecipients } from './subrecipients.ts';
 
 /**
  * Dev profile only, all invented: four funding awards with invented funders, this year's
@@ -150,5 +151,7 @@ export async function seedFunding(ctx: ModuleContext, opts: SeedOptions): Promis
   parts.push(total
     ? `funded items linked ${linked} (${total} in all)`
     : 'funded items: none yet (assets, vehicles, projects and contracts seed after funding; run the seed again to link them)');
+  const subrecipients = await seedSubrecipients(ctx, opts);
+  if (subrecipients) parts.push(subrecipients);
   return parts.join(', ');
 }

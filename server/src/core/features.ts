@@ -162,6 +162,45 @@ export const AREAS: Area[] = [
     permissions: ['governance'], modules: ['governance'], jobs: ['governance.'],
     lookupValues: { action_source: ['meeting'], notification_kind: ['governance'] },
   },
+  // Wave 11 (E31 to E34). Declared ahead of their modules, as wave 10's were. Legal holds (permission
+  // `legal`, module folder `holds`) are not an area: a hold must never lapse because a part was
+  // switched off. Field names are the wave 11 inventory extension contract (C2).
+  {
+    key: 'continuity', label: 'Business continuity and emergency management', defaultOn: true,
+    description: 'Business processes and their impact analyses, continuity and emergency plans with call trees, the gap report and emergency activations.',
+    permissions: ['continuity'], modules: ['continuity'], jobs: ['continuity.'],
+    lookupValues: { action_source: ['continuity'], notification_kind: ['continuity'] },
+  },
+  {
+    key: 'condition', label: 'Asset condition and state of good repair', defaultOn: true,
+    description: 'Asset classes and useful life, condition assessments of assets, vehicles and sites, and the state-of-good-repair dashboard and targets.',
+    // Shares the assets, sites and fleet permissions: its record types and fields are hidden by name.
+    permissions: [], types: ['asset_class', 'condition_assessment'], modules: ['condition'], jobs: ['condition.'],
+    lookupValues: { action_source: ['condition'] },
+    fields: {
+      asset: ['asset_class_id', 'condition_rating', 'condition_assessed_on', 'useful_life_end', 'replacement_project_id'],
+      vehicle: ['asset_class_id', 'condition_rating', 'condition_assessed_on', 'useful_life_end', 'replacement_project_id', 'odometer_miles'],
+      site: ['asset_class_id', 'condition_rating', 'condition_assessed_on', 'useful_life_end', 'replacement_project_id', 'site_kind', 'built_year'],
+    },
+  },
+  {
+    key: 'ot', label: 'OT and rail-systems security', defaultOn: true,
+    description: 'Operational technology on systems and assets, security zones and conduits with their target and achieved levels.',
+    // Shares the systems permissions: its record types and fields are hidden by name.
+    permissions: [], types: ['ot_zone', 'ot_conduit'], modules: ['ot'], jobs: ['ot.'],
+    lookupValues: { action_source: ['ot'] },
+    fields: {
+      system: ['ot_system', 'control_level', 'safety_related', 'vendor_remote_access', 'remote_access_path', 'patchability', 'field_location', 'zone_id'],
+      asset: ['ot_asset', 'control_level', 'safety_related', 'firmware_version', 'zone_id'],
+    },
+  },
+  {
+    key: 'records', label: 'Records requests and privacy', defaultOn: true,
+    description: 'Requests for records and personal data with their deadlines, responsive records and exemptions, and privacy impact assessments. Legal holds stay on.',
+    permissions: ['records', 'privacy'], modules: ['records'], jobs: ['records.'],
+    lookupValues: { action_source: ['records', 'privacy'], notification_kind: ['records'] },
+    fields: { data_category: ['personal_data', 'personal_data_kinds'] },
+  },
 ];
 
 export const AREA_KEYS = AREAS.map((a) => a.key);

@@ -4,6 +4,7 @@ import { registerDecisions } from './decisions.ts';
 import { registerMeetings } from './meetings.ts';
 import { registerGovernanceReminders } from './reminders.ts';
 import { seedGovernance } from './seed.ts';
+import { registerGovernanceSummary } from './summary.ts';
 
 /**
  * Committees and meetings (E28): committees with their members by side and a quorum rule; meetings
@@ -86,6 +87,7 @@ async function register(ctx: ModuleContext) {
   registerMeetings(ctx);
   registerDecisions(ctx);
   await registerGovernanceReminders(ctx);
+  registerGovernanceSummary(ctx);
 }
 
 const mod: ModuleDef = {

@@ -7,6 +7,7 @@
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { requireRecentAuth } from '../../core/auth.ts';
+import { assertNotHeld } from '../../core/holds.ts';
 import { secured } from './policy.ts';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -83,6 +84,8 @@ export function registerDuplicates(ctx: ModuleContext) {
     }
     // A merge cannot be undone, so it asks to confirm your identity (E01-33).
     await requireRecentAuth({ db: ctx.db, audit: ctx.audit, settings: ctx.settings }, req, `merging ${others.length + 1} duplicate findings`);
+    // A finding under a legal hold is not merged away (wave 11 C1).
+    for (const o of others) await assertNotHeld(db, TYPE, o.id, 'delete');
     const files = await tableExists('attachments');
     const moved = { comments: 0, files: 0, links: 0, tags: 0, watchers: 0 };
     await db.tx(async (tx) => {

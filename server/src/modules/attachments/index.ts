@@ -8,6 +8,7 @@ import type { Readable } from 'node:stream';
 import type { FastifyRequest } from 'fastify';
 import { requireRecentAuth } from '../../core/auth.ts';
 import { UUID_RE } from '../../core/errors.ts';
+import { assertNotHeld } from '../../core/holds.ts';
 import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleDef, ResourceDef, Row } from '../../core/module.ts';
 import { todayInZone } from '../../core/timezone.ts';
@@ -280,6 +281,8 @@ const mod: ModuleDef = {
     // (File settings), during which an administrator can put the file back.
     app.delete('/api/attachments/:id', async (req) => {
       const { att, parent } = await needAttachment(req, 'edit');
+      // The files of a record under a legal hold stay (wave 11 C1).
+      await assertNotHeld(db, parent.def.type, parent.row.id, 'remove_file');
       await db.query(`update attachments set deleted_at = now(), removed_reason = 'removed', updated_at = now(), updated_by = $2 where id = $1`, [att.id, req.user!.id]);
       await ctx.audit(req, {
         action: 'attachment.delete', recordType: parent.def.type, recordId: parent.row.id,

@@ -1,6 +1,6 @@
 # E28 Committees, meetings and the safety plan (wave 10)
 
-**Status:** done (11 of 11 issues done)
+**Status:** in progress (11 of 12 issues done)
 
 ## Goal
 
@@ -28,6 +28,7 @@ Run committees and their meetings in the application (members by side, quorum, a
 | E28-09 | Annual multi-party plan review | done | P2 |
 | E28-10 | Reminders | done | P2 |
 | E28-11 | Sample data and guide | done | P2 |
+| E28-12 | Committee member names anonymized | open | P2 |
 
 ---
 
@@ -183,3 +184,13 @@ Users need invented committees, meetings and a sample safety plan, and a guide p
 - [x] `docs/user/28-committees-and-meetings.md` and a Plans section in `11-policies-and-exceptions.md`
 
 **Implemented in:** `governance/seed.ts`; `docs/user/28-committees-and-meetings.md`, `docs/user/11-policies-and-exceptions.md`
+
+### E28-12 Committee member names anonymized
+
+**Status:** open · **Priority:** P2 · **Type:** feature
+
+A records officer wants typed committee member names removed when a committee is anonymized at the end of retention.
+
+**Acceptance criteria**
+
+- [ ] `onAnonymize('committee')` clears typed member names (members with no user or person); the field is marked personal
