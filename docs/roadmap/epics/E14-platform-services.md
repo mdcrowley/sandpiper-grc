@@ -1136,6 +1136,8 @@ preferences, reminder groups), `modules/mcp` (`installedTools`, neutral descript
 tests `tools/e2e/suites/09-features-off.mjs`, `modules/admin/features-hidden.test.ts`, and the
 portal, features, safety intake and OpenAPI tests updated.
 
+**Follow-up (wave 7).** The permission chips of an API token (Account security and Administration > API tokens) left out nothing: with Service desk off, a token holding `tickets.view` still read "Tickets: view only". `ScopeChips` in `web/src/modules/admin/ApiTokens.tsx` now hides permissions of switched-off parts (the token keeps them). Found by the browser suite on GitHub, where the token test runs before the features-off suite.
+
 ### E14-35 Organization settings: details, logo and accessible brand colors
 
 **Status:** done · **Priority:** P2 · **Type:** feature

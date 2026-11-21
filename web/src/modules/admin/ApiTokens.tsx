@@ -77,7 +77,12 @@ function scopeOptions(grants: string[], extraAreas: string[], off: (perm: string
 }
 
 /** The scopes of a token as small code chips, the first few only. */
-export function ScopeChips({ scopes, max = 4 }: { scopes: string[]; max?: number }) {
+export function ScopeChips({ scopes: all, max = 4 }: { scopes: string[]; max?: number }) {
+  // Permissions of a switched-off part (Administration > Features) are not shown (E14-34); the token
+  // keeps them, and they apply again when the part is switched back on.
+  const { switchedOff } = useAuth();
+  const scopes = all.filter((s) => s === '*' || !switchedOff(s));
+  if (!scopes.length) return <span className="muted">No permissions in use</span>;
   const shown = scopes.slice(0, max);
   return (
     <span className="row adm-chips" title={scopes.map(scopeLabel).join('\n')}>
