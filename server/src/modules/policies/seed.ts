@@ -76,6 +76,55 @@ async function sampleAcknowledgments(ctx: ModuleContext, topUp: boolean): Promis
   return done;
 }
 
+/** Invented rulebook bulletins for the sample roster (dev profile; E29-12), part acknowledged on sign-in sheets and the kiosk. */
+const ROSTER_BULLETINS = [
+  {
+    title: '[Sample] Rulebook bulletin: protecting work on the track', document_type: 'bulletin',
+    positions: ['[Sample] Rail operator', '[Sample] Signal maintainer', '[Sample] Supervisor'], daysAgo: 20, share: 0.7,
+    summary: 'Invented sample: how operators and maintainers confirm protection before anyone goes on the track.',
+    body: '## Purpose\n\nInvented sample text.\n\n## The rule\n\n1. Get protection confirmed by the dispatcher before going on the track.\n2. Repeat the confirmation back word for word.\n3. Do not move a train into a protected area.',
+  },
+  {
+    title: '[Sample] Rulebook section 4: passenger boarding at stops', document_type: 'rulebook_section',
+    positions: ['[Sample] Bus operator', '[Sample] Supervisor'], daysAgo: 6, share: 0.4,
+    summary: 'Invented sample: boarding, ramps and securing mobility devices.',
+    body: '## Purpose\n\nInvented sample text.\n\n## Boarding\n\n- Stop fully and kneel the bus before deploying the ramp.\n- Offer help securing mobility devices.',
+  },
+];
+
+async function seedRosterBulletins(ctx: ModuleContext, now: Date): Promise<string | null> {
+  if (!ctx.resources.get('person')) return null;
+  if (await ctx.db.one('select 1 from policies where title = $1', [ROSTER_BULLETINS[0].title])) return null;
+  let asked = 0;
+  let recorded = 0;
+  for (const b of ROSTER_BULLETINS) {
+    const positions = (await ctx.db.query<Row>('select id from positions where name = any($1::text[]) and deleted_at is null', [b.positions])).map((p) => p.id);
+    if (!positions.length) return null;
+    const at = new Date(now.getTime() - b.daysAgo * DAY);
+    const policy = await ctx.resources.create('policy', {
+      title: b.title, summary: b.summary, category: 'operations', document_type: b.document_type, approver_name: 'Sample Approver',
+      approver_role: 'Chief operating officer', ack_days: 14, ack_roster: true, audience_positions: positions,
+    });
+    const version = (await ctx.db.one<Row>(
+      `insert into policy_versions (policy_id, version, body, change_summary, status, approved_by_name, approved_on, created_at)
+       values ($1, 1, $2, 'First issue', 'approved', 'Sample Approver', $3, $4) returning *`,
+      [policy.id, b.body, localDate(at), at.toISOString()],
+    ))!;
+    const result = await publishVersion(ctx, null, policy, version, { now: at });
+    asked += result.roster_requested ?? 0;
+    const open = await ctx.db.query<Row>('select id from policy_person_acknowledgements where version_id = $1 order by person_id', [version.id]);
+    const answer = open.slice(0, Math.round(open.length * b.share));
+    for (const [n, a] of answer.entries()) {
+      await ctx.db.query(
+        'update policy_person_acknowledgements set acknowledged_at = $2, method = $3 where id = $1',
+        [a.id, new Date(at.getTime() + (1 + (n % 5)) * DAY).toISOString(), n % 4 === 3 ? 'kiosk' : 'sign_in_sheet'],
+      );
+    }
+    recorded += answer.length;
+  }
+  return `${ROSTER_BULLETINS.length} sample roster bulletins (${asked} roster people asked, ${recorded} acknowledged)`;
+}
+
 export async function seedPolicies(ctx: ModuleContext, opts: SeedOptions): Promise<string> {
   const now = new Date();
   const today = localDate(now);
@@ -120,6 +169,7 @@ export async function seedPolicies(ctx: ModuleContext, opts: SeedOptions): Promi
   }
 
   const acknowledged = opts.profile === 'dev' ? await sampleAcknowledgments(ctx, people > 0) : 0;
+  const bulletins = opts.profile === 'dev' ? await seedRosterBulletins(ctx, now) : null;
 
   // Map the first two policies to a few framework outcomes, when that module is loaded and has any.
   const outcomes = ctx.resources.get(OUTCOME_TYPE);
@@ -155,6 +205,7 @@ export async function seedPolicies(ctx: ModuleContext, opts: SeedOptions): Promi
     `${policies} sample policies`, `${exceptions} sample exceptions (${expired.length} marked expired)`,
     ...(people ? [`${people} sample people`] : []),
     ...(acknowledged ? [`${acknowledged} sample acknowledgments`] : []),
+    ...(bulletins ? [bulletins] : []),
     ...(opts.profile === 'dev' && !anyone ? ['sample people skipped until the first administrator exists (run the seed again after setup)'] : []),
   ];
   return notes.join(', ');

@@ -86,6 +86,41 @@ export const REMINDER_SETTINGS: ReminderSettingDef[] = [
     label: 'Remind hazard owners before the review date',
     description: 'The owner is told once when a hazard’s review date comes within this many days, and once when it is reached.',
   },
+  {
+    key: 'actions.verification_reminder_days', group: 'Actions', requires: 'action', kind: 'number', unit: 'days', min: 0, max: 365, default: 7,
+    label: 'Remind verifiers before the verification date',
+    description: 'The verifier is told once when an action\'s verification date comes within this many days, and once more when it is reached.',
+  },
+  {
+    key: 'audits.inspection_reminder_days', group: 'Audits and inspections', requires: 'inspection', kind: 'number', unit: 'days', min: 0, max: 60, default: 2,
+    label: 'Remind inspectors before an inspection is due',
+    description: 'The inspector is told once when an inspection comes within this many days (it is created from its schedule then), and once when it is overdue.',
+  },
+  {
+    key: 'audits.request_reminder_days', group: 'Audits and inspections', requires: 'audit_request', kind: 'number', unit: 'days', min: 0, max: 60, default: 3,
+    label: 'Remind people asked for audit evidence',
+    description: 'The person asked is told once when an evidence request comes within this many days of its due date, and once when it is overdue.',
+  },
+  {
+    key: 'controls.test_reminder_days', group: 'Controls', requires: 'control', kind: 'number', unit: 'days', min: 0, max: 365, default: 14,
+    label: 'Remind control owners before a test is due',
+    description: 'A control’s owner is told once when its next test comes within this many days, and once when it is due or overdue.',
+  },
+  {
+    key: 'governance.pack_days', group: 'Committees and meetings', requires: 'meeting', kind: 'number', unit: 'days', min: 0, max: 60, default: 5,
+    label: 'Remind secretaries before a meeting\'s pack is due',
+    description: 'A committee\'s secretary is told once when a meeting is this many days away and no report pack has been frozen for it.',
+  },
+  {
+    key: 'policies.plan_review_reminder_days', group: 'Policies', requires: 'policy', kind: 'number', unit: 'days', min: 0, max: 365, default: 30,
+    label: 'Remind plan owners before the annual review',
+    description: 'The owner of a plan is told once when its review date is this close, and once when it is reached, unless a review is already running.',
+  },
+  {
+    key: 'training.certification_reminder_days', group: 'Training', requires: 'certification', kind: 'steps', unit: 'days', min: 1, max: 365, default: [90, 60, 30],
+    label: 'Certification expiry reminders',
+    description: 'Days before a certification expires that the person and their supervisor are reminded; each step goes out once, and once more when it has expired.',
+  },
 ];
 
 const isInt = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v);

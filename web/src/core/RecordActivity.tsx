@@ -123,7 +123,7 @@ export function ActivityPanel({ type, id, defaultInternal = true, internalOnly, 
           data={[
             { value: 'all', label: 'Everything' },
             { value: 'comments', label: `Comments${comments.data ? ` (${comments.data.length})` : ''}` },
-            { value: 'changes', label: 'Changes' },
+            { value: 'changes', label: 'Edits' },
           ]}
         />
       </div>

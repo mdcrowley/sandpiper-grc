@@ -30,6 +30,15 @@ export type Disposal = typeof DISPOSALS[number];
 const DISPOSAL_RANK: Record<Disposal, number> = { keep: 0, anonymize: 1, delete: 2 };
 /** What anonymizing writes in place of personal text. */
 export const ANONYMIZED_TEXT = 'Removed at the end of the retention period';
+
+type AnonymizeHook = (tx: { query: (sql: string, params?: unknown[]) => Promise<unknown[]> }, id: string) => Promise<unknown>;
+const anonymizeHooks = new Map<string, AnonymizeHook>();
+/**
+ * A module whose own tables hold personal details about a record (a safety event's people
+ * involved and statements) registers here; anonymizing that record runs the hook in the same
+ * transaction (E25-15).
+ */
+export function onAnonymize(type: string, hook: AnonymizeHook): void { anonymizeHooks.set(type, hook); }
 const UNDECIDED = ['pending', 'extended'];
 
 /** Text fields named like these hold a person's contact details or name. */
@@ -436,6 +445,7 @@ export function registerRetention({ app, db, audit, lookups, res, requireRecentA
         [def.type, id, ANONYMIZED_TEXT])).length;
       await tx.query('delete from record_watchers where record_type = $1 and record_id = $2', [def.type, id]);
       await scrubDeliveries(tx, def.type, id);
+      await anonymizeHooks.get(def.type)?.(tx as never, id);
       if (files.length) {
         await tx.query(
           `update attachments set file_name = 'Removed file' || case when extension <> '' then '.' || extension else '' end,

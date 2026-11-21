@@ -93,6 +93,13 @@ export const APPLICATION_RULES: Record<string, string[]> = {
   action: [
     'A done status records the completion date, cleared when the action is reopened.',
     'People an action is shared with may change only its status and notes.',
+    'An action that needs verification goes to Awaiting verification when it is set to done; only a recorded verification makes it done, and a not-effective result reopens it.',
+    'Once its corrective action plan is approved, its due date changes only through an extension request, or by someone who may approve actions.',
+    'Actions from the sources listed in actions.closure_evidence_sources need an attachment or closure evidence text before they are finished.',
+  ],
+  cap: [
+    'A new plan is a draft; Awaiting approval, Approved and Rejected are set only by submitting and by the approval workflow.',
+    'After approval the plan follows its actions (In progress, Verifying, Closed); it closes only when every action is done, and the closing date is recorded.',
   ],
   security_incident: [
     'Each status has a stage (reported, declared, contained, closed) set in Lists; reaching a stage records its time, and declaring starts the notification clocks.',
@@ -120,6 +127,34 @@ export const APPLICATION_RULES: Record<string, string[]> = {
   ],
   safety_event: [
     'A final status needs a root cause and no open corrective actions, and records the closing date.',
+  ],
+  audit_engagement: [
+    'Closing needs a report summary and a management response or corrective action plan on every finding; where an Audit report approval workflow is active, the approval closes the audit and it cannot be closed by hand.',
+    'Fieldwork and Reporting record the fieldwork start and end dates; closing records the date and the area\'s last audit.',
+  ],
+  inspection: [
+    'Complete is set only by completing the checklist (which works out the result and score); a completed inspection cannot be reopened.',
+    'An inspection not done 7 days after its due date is marked Missed.',
+  ],
+  control: [
+    'The ratings and last test date come from the newest reviewed tests; the next test is due "Test every (months)" after the last one.',
+  ],
+  control_test: [
+    'Awaiting review needs a result and the date performed; a result other than effective needs a conclusion before review.',
+    'Reviewed is set only by the review, by someone other than the tester who holds controls.approve; a reviewed test cannot be changed.',
+  ],
+  funding_certification: [
+    'The status follows the sign-off: Send for signing makes it Waiting for signature and the authorized official\'s approval makes it Signed; by hand only Signed and Submitted to the funder can be set.',
+  ],
+  compliance_review: [
+    'A review cannot close while any of its deficiencies is open; closing records the date.',
+  ],
+  review_deficiency: [
+    'A deficiency cannot close while a corrective action plan for it is open; it closes by itself when its last plan closes.',
+  ],
+  meeting: [
+    'Minutes approved is set only by the chair\'s approval of the minutes (Minutes approval workflow); a meeting with approved minutes can no longer be changed.',
+    'A meeting stays with its committee.',
   ],
 };
 

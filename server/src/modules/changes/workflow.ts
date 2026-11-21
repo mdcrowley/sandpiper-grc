@@ -5,6 +5,7 @@ import type { Conflicts } from './conflicts.ts';
 import { approvalEngine } from '../../core/approval-kinds.ts';
 import { KIND, type ChangeApproval } from './approval.ts';
 import { DECISIONS, FINAL_STATUSES, matchRule, poolOf, type ApproverPool } from './rules.ts';
+import { safetyAssessments } from './safety-impact.ts';
 
 /** The status lifecycle, approvals and the post-implementation review. */
 export function makeWorkflow(ctx: ModuleContext, base: Base, conflicts: Conflicts, approval: ChangeApproval) {
@@ -186,6 +187,17 @@ export function makeWorkflow(ctx: ModuleContext, base: Base, conflicts: Conflict
     }
   }
 
+  /**
+   * E25-11: while the safety area is on, a change that affects safety needs at least one hazard linked
+   * as its safety assessment before it is submitted for approval, scheduled or started.
+   */
+  async function requireSafetyAssessment(change: Row) {
+    if (!change.safety_impact || !ctx.resources.get('hazard')) return;
+    if (await safetyAssessments(ctx, change.id) > 0) return;
+    ctx.fail(409, 'safety_assessment_missing',
+      'This change affects safety: link a hazard as its safety assessment first (Safety assessment, on the change page).');
+  }
+
   function requireReview(change: Row) {
     if (change.pir_required && !change.pir_completed_at) {
       ctx.fail(409, 'review_missing', 'A post-implementation review is required before this change can be closed.');
@@ -206,6 +218,7 @@ export function makeWorkflow(ctx: ModuleContext, base: Base, conflicts: Conflict
     switch (to) {
       case 'submitted': {
         requireForSubmit(change);
+        await requireSafetyAssessment(change);
         patch.submitted_at = now;
         patch.approvals_received = 0;
         // The rules in force now decide the approvals and who gives them; nothing to wait for when they ask for none.
@@ -231,12 +244,14 @@ export function makeWorkflow(ctx: ModuleContext, base: Base, conflicts: Conflict
         if (!change.planned_start || !change.planned_end) ctx.fail(409, 'no_window', 'Enter the planned start and end before scheduling.');
         await requireApprovals(change);
         await requireNoOpenConflicts(change);
+        await requireSafetyAssessment(change);
         break;
       case 'in_progress': {
         const rule = await ruleFor(change);
         // Only a rule that allows approval after the fact lets work start unapproved.
         if (!(from === 'submitted' && rule.retrospective)) await requireApprovals(change);
         await requireNoOpenConflicts(change);
+        await requireSafetyAssessment(change);
         c.datetime('actual_start', 'Actual start');
         patch.actual_start = c.finish().actual_start ?? change.actual_start ?? now;
         break;

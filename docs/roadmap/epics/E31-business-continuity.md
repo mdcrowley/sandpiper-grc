@@ -1,6 +1,6 @@
 # E31 Business continuity and emergency management
 
-**Status:** open
+**Status:** open (0 of 6 issues done)
 
 ## Goal
 

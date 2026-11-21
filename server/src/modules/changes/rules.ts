@@ -2,7 +2,11 @@
 // lifecycle and overlap arithmetic. No database access here, so these are easy to test.
 
 export interface RiskOption { value: string; label: string; score: number }
-export interface RiskQuestion { key: string; label: string; help?: string; weight: number; options: RiskOption[] }
+/**
+ * `meta.safety_impact`: the question asks whether the change affects safety (E25-11). An answer with a
+ * score above zero marks the change as affecting safety; one scoring zero marks it as not.
+ */
+export interface RiskQuestion { key: string; label: string; help?: string; weight: number; options: RiskOption[]; meta?: { safety_impact?: boolean } }
 /** A score up to and including `upTo` (0 to 100) gives `level`. */
 export interface RiskBand { level: string; upTo: number }
 export interface Questionnaire { questions: RiskQuestion[]; bands: RiskBand[] }
@@ -132,6 +136,18 @@ export function computeRisk(answers: Record<string, unknown> | null | undefined,
   const score = max > 0 ? Math.round((total / max) * 100) : 0;
   const complete = unanswered.length === 0;
   return { score, level: complete ? bandFor(score, q.bands) : null, complete, unanswered };
+}
+
+/** What the questionnaire's safety questions say: true, false, or null when none is answered (or there is none). */
+export function safetyImpactOf(answers: Record<string, unknown> | null | undefined, q: Questionnaire): boolean | null {
+  let said: boolean | null = null;
+  for (const question of q.questions.filter((x) => x.meta?.safety_impact === true)) {
+    const picked = question.options.find((o) => o.value === answers?.[question.key]);
+    if (!picked) continue;
+    if ((Number(picked.score) || 0) > 0) return true;
+    said = false;
+  }
+  return said;
 }
 
 export function bandFor(score: number, bands: RiskBand[]): string | null {

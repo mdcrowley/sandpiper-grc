@@ -4,6 +4,8 @@ import { defineExercise, registerExercises } from './exercises.ts';
 import { registerExerciseSteps } from './exerciseSteps.ts';
 import { registerImport } from './importer.ts';
 import { notifyTraining, TRAINING_REMINDER_SETTING, trainingReminderInterval } from './notify.ts';
+import { setRoster } from './people.ts';
+import { adoptRosterRecords, registerQualifications, runCertificationReminders, seedQualificationDefaults } from './qualifications.ts';
 import { registerRecords } from './records.ts';
 import { seedTraining } from './seed.ts';
 import { registerSummary } from './summary.ts';
@@ -11,6 +13,7 @@ import { syncTrainingAssignments } from './sync.ts';
 
 export { syncTrainingAssignments } from './sync.ts';
 export { notifyTraining } from './notify.ts';
+export { runCertificationReminders } from './qualifications.ts';
 
 /**
  * Training and exercises: courses, who must take them, completion records and their
@@ -72,9 +75,12 @@ const mod: ModuleDef = {
       { value: 'not_done', label: 'Not done', color: 'red', sort: 30 },
       { value: 'not_tested', label: 'Not tested', color: 'gray', sort: 40 },
     ], { module: 'exercises' });
+    await seedQualificationDefaults(ctx);
   },
 
   async register(ctx) {
+    // The roster (people module, E29) is there: records, rules and qualifications use it.
+    setRoster(ctx.db, !!ctx.resources.get('person'));
     function checkCourse(merged: Row) {
       const fields: Record<string, string> = {};
       const whole = (k: string, label: string, max: number) => {
@@ -123,6 +129,11 @@ const mod: ModuleDef = {
     defineExercise(ctx);
 
     registerRecords(ctx);
+    registerQualifications(ctx);
+    // A roster person's earlier records (kept by email, or by their account) become theirs.
+    ctx.resources.onChange?.(async ({ action, def, row }) => {
+      if (def.type === 'person' && (action === 'create' || action === 'update')) await adoptRosterRecords(ctx, row);
+    });
     registerSummary(ctx);
     registerImport(ctx);
     registerExercises(ctx);
@@ -150,6 +161,9 @@ const mod: ModuleDef = {
       const told = await notifyTraining(ctx);
       return { synced: synced ?? null, ...told };
     }, { every: DAY, firstRunInMs: 60_000 });
+
+    // Certification expiry reminders (E29-04), daily.
+    await scheduleWork(ctx, 'training.certifications', () => runCertificationReminders(ctx), { every: DAY, firstRunInMs: 90_000 });
   },
 
   seed: seedTraining,

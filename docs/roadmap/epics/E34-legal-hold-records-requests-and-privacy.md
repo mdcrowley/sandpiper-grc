@@ -1,6 +1,6 @@
 # E34 Legal hold, records requests and privacy
 
-**Status:** open
+**Status:** open (0 of 5 issues done)
 
 ## Goal
 

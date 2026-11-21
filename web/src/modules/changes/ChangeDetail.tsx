@@ -1,6 +1,6 @@
 import { useParams, useSearchParams } from 'react-router-dom';
 import {
-  Badge, EditableSummary, formatDateTime, LookupChip, RecordPage, Stepper, useLookup, useResource,
+  Badge, EditableSummary, formatDateTime, LookupChip, RecordPage, Stepper, useAuth, useLookup, useResource,
   type RecordContext, type Row, type Step,
 } from '../../core';
 import { ActionsTab, useActionsAvailable } from './ActionsTab';
@@ -10,6 +10,7 @@ import { ChangeActions } from './ChangeActions';
 import { ConflictsPanel } from './ConflictsPanel';
 import { RelatedTab } from './RelatedTab';
 import { ReviewTab } from './ReviewTab';
+import { SafetyAssessment } from './SafetyAssessment';
 import { RiskCard } from './RiskCard';
 import { LIFECYCLE, plural } from './util';
 import { useWorkflow, WorkflowProvider } from './workflowContext';
@@ -108,6 +109,7 @@ function Detail() {
   const { reload: reloadWorkflow } = useWorkflow();
   const openTab = useOpenTab();
   const actions = useActionsAvailable();
+  const { areaOn } = useAuth();
   const open = data?.conflicts.filter((c) => !c.acknowledged).length;
   return (
     <RecordPage
@@ -139,6 +141,11 @@ function Detail() {
         { key: 'approvals', label: 'Approvals', count: data?.approvals.outstanding || undefined, content: (rec) => <ApprovalsPanel row={rec.row} onChanged={rec.reload} /> },
         { key: 'conflicts', label: 'Conflicts', count: open || undefined, content: (rec) => <ConflictsPanel row={rec.row} /> },
         { key: 'systems', label: 'Systems and links', content: (rec) => <RelatedTab row={rec.row} canEdit={rec.canEdit} onChanged={reloadWorkflow} /> },
+        // The hazard log belongs to safety management: no tab while that area is switched off (E25-11).
+        ...(areaOn('safety') ? [{
+          key: 'safety', label: 'Safety assessment',
+          content: (rec: RecordContext) => <SafetyAssessment row={rec.row} canEdit={rec.canEdit} onChanged={() => { rec.reload(); reloadWorkflow(); }} />,
+        }] : []),
         { key: 'review', label: 'Review', content: (rec) => <ReviewTab row={rec.row} canEdit={rec.canEdit} onChanged={rec.reload} /> },
         ...(actions ? [{ key: 'actions', label: 'Actions', content: (rec: RecordContext) => <ActionsTab sourceId={rec.row.id} /> }] : []),
       ]}

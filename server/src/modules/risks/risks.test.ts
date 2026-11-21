@@ -490,7 +490,9 @@ describe('seed', () => {
       expect(dev).toMatch(/4 obligations added \(4 in the register\)/);
       const devAgain = await mod.seed!(t.ctx, { profile: 'dev', seedDir: dir });
       expect(devAgain).toMatch(/0 invented actions added/);
-      expect(devAgain).toMatch(/0 obligations added \(4 in the register\)/);
+      // The compliance samples (seed-compliance.ts) then add eight recurring obligations, once.
+      expect(dev).toMatch(/8 recurring obligations added/);
+      expect(devAgain).toMatch(/0 obligations added \(12 in the register\)/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

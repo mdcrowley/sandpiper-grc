@@ -1,6 +1,6 @@
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { addMonths, localDate, monthEnd } from './dates.ts';
-import { RECORDS_CTE } from './people.ts';
+import { recordsCte } from './people.ts';
 
 export interface Tally { total: number; complete: number; due: number; overdue: number; rate: number | null }
 
@@ -24,7 +24,7 @@ const TREND_MONTHS = 12;
 export async function trainingSummary(ctx: ModuleContext, now: Date = new Date()) {
   const today = localDate(now);
   const latest = await ctx.db.query<Row>(
-    `${RECORDS_CTE} select * from latest where course_status = 'active' order by due_on nulls last, lower(person)`, [today],
+    `${recordsCte(ctx.db)} select * from latest where course_status = 'active' order by due_on nulls last, lower(person)`, [today],
   );
   const courses = await ctx.db.query<Row>(
     `select id, ref, title, mandatory, recurrence_months from courses

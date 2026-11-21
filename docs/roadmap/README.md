@@ -157,23 +157,23 @@ status `done`; issues in progress, open or blocked are counted in the total only
 | [E20](epics/E20-safety-management.md) | Safety management | done | 15 / 15 |
 | [E21](epics/E21-mcp-server.md) | MCP server (AI assistant access) | done | 23 / 23 |
 | [E22](epics/E22-review-fixes.md) | Review fixes (wave 9) | in progress | 40 / 45 |
-| [E23](epics/E23-corrective-action-plans.md) | Corrective action plans and verification | open | 0 / 11 |
-| [E24](epics/E24-audits-and-inspections.md) | Audits and inspections | open | 0 / 13 |
-| [E25](epics/E25-safety-reporting-investigation-and-targets.md) | Safety reporting, investigation and performance targets | open | 1 / 14 |
-| [E26](epics/E26-control-library-and-testing.md) | Control library and control testing | open | 0 / 10 |
-| [E27](epics/E27-funding-and-grant-compliance.md) | Funding and grant compliance | open | 0 / 11 |
-| [E28](epics/E28-committees-meetings-and-safety-plan.md) | Committees, meetings and the safety plan | open | 0 / 11 |
-| [E29](epics/E29-staff-roster-qualifications-and-acknowledgments.md) | Staff roster, qualifications and frontline acknowledgments | open | 1 / 12 |
-| [E30](epics/E30-obligations-regulatory-change-and-enterprise-risk.md) | Obligations, regulatory change and enterprise risk | open | 0 / 9 |
+| [E23](epics/E23-corrective-action-plans.md) | Corrective action plans and verification | done | 11 / 11 |
+| [E24](epics/E24-audits-and-inspections.md) | Audits and inspections | done | 13 / 13 |
+| [E25](epics/E25-safety-reporting-investigation-and-targets.md) | Safety reporting, investigation and performance targets | done | 15 / 15 |
+| [E26](epics/E26-control-library-and-testing.md) | Control library and control testing | in progress | 10 / 11 |
+| [E27](epics/E27-funding-and-grant-compliance.md) | Funding and grant compliance | in progress | 10 / 11 |
+| [E28](epics/E28-committees-meetings-and-safety-plan.md) | Committees, meetings and the safety plan | done | 11 / 11 |
+| [E29](epics/E29-staff-roster-qualifications-and-acknowledgments.md) | Staff roster, qualifications and frontline acknowledgments | done | 12 / 12 |
+| [E30](epics/E30-obligations-regulatory-change-and-enterprise-risk.md) | Obligations, regulatory change and enterprise risk | done | 9 / 9 |
 | [E31](epics/E31-business-continuity.md) | Business continuity and emergency management | open | 0 / 6 |
-| [E32](epics/E32-asset-condition-and-state-of-good-repair.md) | Asset condition and state of good repair | open | 1 / 6 |
+| [E32](epics/E32-asset-condition-and-state-of-good-repair.md) | Asset condition and state of good repair | in progress | 1 / 6 |
 | [E33](epics/E33-ot-and-rail-systems-cybersecurity.md) | OT and rail-systems cybersecurity | open | 0 / 4 |
 | [E34](epics/E34-legal-hold-records-requests-and-privacy.md) | Legal hold, records requests and privacy | open | 0 / 5 |
 | [E35](epics/E35-vendor-risk-lifecycle.md) | Vendor risk lifecycle | open | 0 / 5 |
 | [E36](epics/E36-integrations.md) | Integrations | open | 0 / 6 |
-| | **Total** | | **553 / 687** |
+| | **Total** | | **642 / 689** |
 
-Of the 134 issues not done, 6 are in progress and 128 are open or blocked. E23 to E30 are wave 10 and
+Of the 47 issues not done, 6 are in progress and 41 are open or blocked. E23 to E30 were built in wave 10 and
 E31 to E36 are planned for wave 11 (the product gaps of the November 2026 review). Their done issues
 are "Not planned" entries (E25-13, E29-11, E32-06): features recorded so that nobody builds them.
 
@@ -202,7 +202,6 @@ Keep this table in step with that file.
 
 | Gap | Issues |
 |---|---|
-| Wave 10 parts: corrective action plans, audits and inspections, safety event depth and targets, controls, funding, committees, staff roster, recurring obligations and enterprise risk | E23 to E30 |
 | Wave 11 parts: continuity, asset condition, OT security, legal hold and privacy, vendor lifecycle, integrations | E31 to E36 |
 | Not planned: drug and alcohol test results, hours of service and fatigue, maintenance work orders | E25-13, E29-11, E32-06 (done as "Not planned") |
 
@@ -227,6 +226,7 @@ Keep this table in step with that file.
 | Webhook addresses stored in clear | E22-45 |
 | Hand-written dialogs without the unsaved-changes guard | E22-14 |
 | Contract import dates | E06-15 (done) |
+| Wave 10 parts: closure evidence setting without a screen, evidence answers in text, controls panel on covered records, sub-recipient monitoring, meeting decisions and kind-less workflows, departments not a record type, monthly-only KRIs, no MCP tools | E26-11, E27-11 (open); E23, E24, E28, E29, E30 (done; the limits are recorded there) |
 | The If-Match lock and the Overview cache are per process | E13-12, E16-38 (done; the limits are recorded there) |
 | Least-privilege account queues custom fields for the owner; user services not proven across a restart or for the system examples | E16-37 (done; recorded there), E16-42 |
 | Load test with the database on its own machine and people in different roles | E16-41 |

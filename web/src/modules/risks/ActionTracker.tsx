@@ -14,6 +14,7 @@ interface Group { value: string | null; label: string; open: number; overdue: nu
 export interface ActionSummary {
   open: number;
   overdue: number;
+  awaiting_verification?: number;
   due_this_week: number;
   unassigned: number;
   today: string;
@@ -26,14 +27,14 @@ export interface ActionSummary {
 }
 
 type GroupKey = 'week' | 'owner' | 'source' | 'list';
-type Show = 'open' | 'overdue' | 'week' | 'unassigned';
+type Show = 'open' | 'overdue' | 'week' | 'unassigned' | 'verify';
 const GROUPS: { value: GroupKey; label: string }[] = [
   { value: 'week', label: 'By due week' },
   { value: 'owner', label: 'By owner' },
   { value: 'source', label: 'By source' },
   { value: 'list', label: 'List' },
 ];
-const SHOW_LABEL: Record<Show, string> = { open: 'Open', overdue: 'Overdue', week: 'Due this week', unassigned: 'Unassigned' };
+const SHOW_LABEL: Record<Show, string> = { open: 'Open', overdue: 'Overdue', week: 'Due this week', unassigned: 'Unassigned', verify: 'Awaiting verification' };
 
 const addDays = (ymd: string, n: number) => new Date(Date.parse(`${ymd}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 /** Monday of the week a date falls in. */
@@ -53,7 +54,7 @@ function sections(rows: Row[], group: Exclude<GroupKey, 'list'>, today: string, 
     const thisWeek = weekStart(today);
     for (const r of rows) {
       if (!r.due_on) put('9999-none', 'No due date', r);
-      else if (r.due_on < today) put('0000-overdue', 'Overdue', r, { tone: 'red' });
+      else if (r.due_on < today && !r.completed_on) put('0000-overdue', 'Overdue', r, { tone: 'red' });
       else {
         const start = weekStart(r.due_on);
         const label = start === thisWeek ? 'This week' : start === addDays(thisWeek, 7) ? 'Next week' : `Week of ${formatDate(start)}`;
@@ -67,7 +68,7 @@ function sections(rows: Row[], group: Exclude<GroupKey, 'list'>, today: string, 
     else put(r.source ?? '', r.source ? sourceLabel(r.source) : 'No source', r);
   }
   // Most overdue first, then the busiest; "Unassigned" stays visible near the top when it has work.
-  const overdue = (s: Section) => s.rows.filter((r) => r.due_on && r.due_on < today).length;
+  const overdue = (s: Section) => s.rows.filter((r) => r.due_on && r.due_on < today && !r.completed_on).length;
   return [...map.values()].sort((a, b) => overdue(b) - overdue(a) || b.rows.length - a.rows.length || a.label.localeCompare(b.label));
 }
 
@@ -177,7 +178,8 @@ export function ActionTracker() {
   const shown = useMemo(() => {
     const rows = open.data?.rows ?? [];
     if (!data) return rows;
-    if (show === 'overdue') return rows.filter((r) => r.due_on && r.due_on < data.today);
+    if (show === 'overdue') return rows.filter((r) => r.due_on && r.due_on < data.today && !r.completed_on);
+    if (show === 'verify') return rows.filter((r) => r.status === 'pending_verification');
     if (show === 'week') return rows.filter((r) => r.due_on && r.due_on >= data.today && r.due_on <= data.week_end);
     if (show === 'unassigned') return rows.filter((r) => !r.owner_id);
     return rows;
@@ -186,7 +188,8 @@ export function ActionTracker() {
   const listFilter = useMemo(() => {
     if (!data) return undefined;
     const f: Record<string, string> = {};
-    if (show === 'overdue') { f['due_on.lt'] = data.today; f.status = data.open_statuses.join(','); }
+    if (show === 'overdue') { f['due_on.lt'] = data.today; f['completed_on.null'] = 'true'; f.status = data.open_statuses.join(','); }
+    if (show === 'verify') f.status = 'pending_verification';
     if (show === 'week') { f['due_on.gte'] = data.today; f['due_on.lte'] = data.week_end; f.status = data.open_statuses.join(','); }
     if (show === 'unassigned') { f['owner_id.null'] = 'true'; f.status = data.open_statuses.join(','); }
     return f;
@@ -231,6 +234,7 @@ export function ActionTracker() {
         {tile('overdue', data.overdue, data.overdue > 0 ? 'red' : 'green', 'Open and past the due date')}
         {tile('week', data.due_this_week, 'amber', `Due by ${formatDate(data.week_end)}`)}
         {tile('unassigned', data.unassigned, 'gray', 'No owner yet')}
+        {(data.awaiting_verification ?? 0) > 0 || show === 'verify' ? tile('verify', data.awaiting_verification ?? 0, 'purple', 'Finished, effectiveness not yet checked') : null}
       </div>
 
       <div className="rk-tracker-bar">
@@ -268,7 +272,7 @@ export function ActionTracker() {
               {
                 field: 'due_on', label: 'Due', sortable: true,
                 render: (row) => {
-                  const overdue = Boolean(row.due_on) && row.due_on < data.today && data.open_statuses.includes(row.status);
+                  const overdue = Boolean(row.due_on) && row.due_on < data.today && !row.completed_on && data.open_statuses.includes(row.status);
                   return <span className={overdue ? 'is-overdue' : undefined}>{formatDate(row.due_on)}{overdue ? ' (overdue)' : ''}</span>;
                 },
               },
@@ -292,7 +296,7 @@ export function ActionTracker() {
             />
           </Card>
         ) : groups.map((g) => {
-          const overdue = g.rows.filter((r) => r.due_on && r.due_on < data.today).length;
+          const overdue = g.rows.filter((r) => r.due_on && r.due_on < data.today && !r.completed_on).length;
           const isOpen = !collapsed.has(g.key);
           return (
             <section key={g.key} className={`card rk-group${g.tone === 'red' ? ' rk-group-red' : ''}`}>

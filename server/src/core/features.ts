@@ -134,6 +134,7 @@ export const AREAS: Area[] = [
     description: 'Hazards, safety events, safety performance indicators and safety reporting from the portal.',
     permissions: ['safety'], modules: ['safety'], jobs: ['safety.'],
     lookupValues: { notification_kind: ['safety'], action_source: ['safety'] },
+    fields: { change: ['safety_impact'], position: ['safety_sensitive'] },
   },
   // Wave 10 (E24, E26, E27, E28). Declared ahead of their modules: a permission module, module folder,
   // job prefix or list value that does not exist yet is simply not there to hide.

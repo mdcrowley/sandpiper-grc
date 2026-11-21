@@ -1,12 +1,13 @@
 # Risks, actions and obligations
 
-This page covers the risk register, the action tracker and the obligations register. The **Risk register**, **Risk reviews**, **Action tracker** and **Obligations** are in the **Cybersecurity** group of the menu; **My actions** is under **Home**, the **Risk report** under **Reports** and **Risk scales** under **Administration**.
+This page covers the risk register, the action tracker, the obligations register and regulatory changes. The **Risk register**, **Key risk indicators**, **Risk reviews**, **Action tracker**, **Obligations** and **Regulatory changes** are in the **Cybersecurity** group of the menu; **My actions** is under **Home**, the **Risk report** under **Reports**, and **Risk scales** and **Risk appetite** under **Administration**.
 
 An administrator can switch the risk register and obligations off under **Administration > Features** (see [Administration](09-administration.md#features)); the action tracker always stays on. Records are kept and return when they are switched back on.
 
 - The **Risk register** records what could go wrong, how serious it is and what is being done about it.
 - The **Action tracker** is the single to-do list for follow-up work arising anywhere in the application.
-- **Obligations** lists the things your organization is required to do, how each is met and when it is next due.
+- **Obligations** lists the things your organization is required to do, how often, how each is met and when it is next due, with a history of each period attested.
+- **Regulatory changes** records new or changed requirements, what they mean for the organization and how they are put into effect.
 
 ## Who can see risks
 
@@ -17,19 +18,21 @@ Risks are **restricted records**. A person sees the risk register only if their 
 
 Without both, risks do not appear anywhere for that person: not in the register, the heat map, counts, search results, related-record links, reports or exports. The register carries the line "Restricted: visible only to people with access to security records" as a reminder.
 
-Asking for a risk to be accepted needs **Edit** on **Risks**; deciding a request, recording an acceptance by hand or revoking one needs **Approve** on **Risks**. Editing the risk scales needs **Administer** on **Risks**. Roles are managed by an administrator; see [Administration](09-administration.md).
+Key risk indicators and the risk appetite follow the same rule: they need both permissions too.
 
-Obligations are not restricted. An action is restricted when the record it was raised from is: an action raised from a risk, a security incident or any other restricted record is hidden from people without **View** on **Security incidents and restricted records**, including its owner. It still counts in the action tracker's tiles, which are the same for everyone, so a tile can be higher than the list you see. Such an action can be shared with one named person; see "Sharing a restricted action" below. Other actions are visible to anyone with **View** on **Actions**. You cannot raise an action on, or move one to, a record you cannot see.
+Asking for a risk to be accepted needs **Edit** on **Risks**; deciding a request, recording an acceptance by hand or revoking one needs **Approve** on **Risks**. Editing the risk scales and the risk appetite needs **Administer** on **Risks**. Roles are managed by an administrator; see [Administration](09-administration.md).
+
+Obligations and regulatory changes are not restricted. An action is restricted when the record it was raised from is: an action raised from a risk, a security incident or any other restricted record is hidden from people without **View** on **Security incidents and restricted records**, including its owner. It still counts in the action tracker's tiles, which are the same for everyone, so a tile can be higher than the list you see. Such an action can be shared with one named person; see "Sharing a restricted action" below. Other actions are visible to anyone with **View** on **Actions**. You cannot raise an action on, or move one to, a record you cannot see.
 
 ## The risk register
 
 Open **Cybersecurity > Risk register**. From top to bottom the page has:
 
-- a **summary strip**: **Open risks**, the number at the two highest common levels (**Critical** and **High**), **Reviews due** and **Acceptances to renew**. Select a tile to go to the matching list;
+- a **summary strip**: **Open risks** (with how many are above the risk appetite), the number at the two highest common levels (**Critical** and **High**), **Reviews due** and **Acceptances to renew**. Select a tile to go to the matching list;
 - the **Heat map** card, with the ranked risks beside it;
 - the list of risks.
 
-The buttons at the top open **Reviews and acceptances**, the **Risk report**, **Risk scales** (administrators of risks only) and **Print**.
+The buttons at the top open **Reviews and acceptances**, the **Risk report**, **Risk scales** and **Risk appetite** (administrators of risks only) and **Print**.
 
 ### The two scales
 
@@ -83,6 +86,8 @@ The controls at the top of the card:
 3. **Show movement**: draws an arrow from each risk's inherent cell to its residual cell, so you can see where controls move risks. One arrow is drawn for each pair of cells, however many risks make that move. Risks whose two scores fall in the same cell have no arrow.
 4. **Include closed risks**: closed risks are left out unless you switch this on. In the ranked list they then carry their **Closed** status.
 
+When a risk appetite is set for a category scored on the scale, the cells rated above it have a **dashed ring**. Where several categories share a scale, the ring follows the strictest of their appetites, and the legend names it, for example "Above appetite (Medium or lower is accepted for Cybersecurity)". Each risk is still judged against its own category's appetite in the register.
+
 Beside the grid, **Highest residual risks** (or **Highest inherent risks**) ranks the scored risks on that scale, highest first, with the inherent and residual ratings and the owner. The first eight are listed; the rest are in the list below.
 
 Everything you choose on the heat map is kept in the page address, so you can bookmark a view or send the link to a colleague who can see risks.
@@ -103,10 +108,10 @@ Select **Print**. The printout keeps the colors of the heat map, leaves out the 
 
 ### The list of risks
 
-The list shows **Reference**, **Title**, **Category**, **Inherent**, **Residual**, **Treatment**, **Status**, **Owner**, **Due** and **Next review**; **Last reviewed** can be added from the column options. You can:
+The list shows **Reference**, **Title**, **Category**, **Inherent**, **Residual**, **Appetite** ("Above appetite" in red, "Within", or a dash when no appetite is set for the category), **Treatment**, **Status**, **Owner**, **Due** and **Next review**; **Last reviewed** and **Parent risk** can be added from the column options. You can:
 
 - search by title, description, cause, consequence or affected systems;
-- filter by **Category**, **Summary level** (the common level), **Status**, **Treatment**, **Owner**, **Due** and **Next review**;
+- filter by **Category**, **Summary level** (the common level), **Above appetite**, **Status**, **Treatment**, **Owner**, **Parent risk**, **Due** and **Next review**;
 - sort by selecting a column heading;
 - save a search and filter combination as a view;
 - check several risks and change their **Owner**, **Treatment**, **Category**, **Next review** or **Due** date together;
@@ -116,7 +121,7 @@ The list shows **Reference**, **Title**, **Category**, **Inherent**, **Residual*
 
 1. On the risk register, select **New risk**. You can also use **Create > Risk** at the top of any page.
 2. Enter a **Title** that names the event plainly, for example "CAD/AVL outage during peak service".
-3. Choose the **Category**. This decides the scale.
+3. Choose the **Category**. This decides the scale. If the risk belongs under a wider enterprise risk, choose it as the **Parent risk** (see "Parent risks and the roll-up" below).
 4. Fill in what you know of **Description**, **Cause**, **Consequence**, **Affected systems and data** and **Existing controls**.
 5. Choose a **Treatment** and, if known, the **Owner**, **Due** date and **Next review** date.
 6. Save. The risk is given a reference beginning `RSK-` and a status of **Open**, and its page opens.
@@ -132,6 +137,10 @@ A risk's page tells its story from top to bottom. The header shows the inherent 
 3. **Treatment plan**: the treatment, status and due date (with the days left), and the risk's **Actions**.
 4. **Acceptance**: whether the risk is accepted, until when, the executive-approval rule, and a request waiting for approval. While acceptance has been asked for, the approval panel under the header shows its steps and decisions.
 5. **Review**: the next review date, the last review and the reviews so far.
+6. **Rolls up under** (the parent risk) or **Risks under this one** (each with its residual rating, appetite and status), when the risk has either.
+7. **Key risk indicators**: the risk's indicators with their latest value and level.
+
+The **Appetite** line on **The risk** card says whether the risk is above its category's appetite; the header shows **Above appetite** when it is.
 
 Below these are the **Activity**, **Attachments**, **Related** and **History** tabs.
 
@@ -278,6 +287,8 @@ Open **Reports > Risk report**, or select **Risk report** on the register. It is
 - **Open risks by level**: a bar of open risks at each common level;
 - **Top 10 risks** (fewer when there are fewer): reference and title, category, status, owner, inherent and residual ratings, the movement **Since last review** ("Up from Medium", "Down from Extreme", "No change" or "Not yet reviewed"), the treatment and the open and overdue actions;
 - **Movement since the last review**: the risks rated higher (**Increased**) and lower (**Reduced**) than at their last completed review;
+- **Risk appetite**: for each category with an appetite, the statement, the highest acceptable rating, the open risks and how many are above it;
+- **Enterprise risks and the risks under them** (when parent risks are used): each parent risk, its rating, the open risks under it, the worst of them and how many are above the appetite;
 - **Acceptances expiring**: acceptances that have expired or expire within 90 days.
 
 Select **Print or save as PDF** to print it, or to save it as a PDF from the print dialog. Movement is measured against the rating recorded when a review was completed, so complete reviews regularly for the report to be useful.
@@ -298,13 +309,55 @@ The safety hazard matrix can also be changed by a safety administrator under **A
 
 **Add scale** creates a new scale as a copy of the one shown: give its **Name** and **Key** (lower-case letters, numbers and underscores; it cannot be changed later). To use a new scale, an administrator points a risk category at it in **Administration > Lists** (the `risk_category` list).
 
+## Risk appetite
+
+The risk appetite says, for each risk category, how much risk the organization is willing to accept. Open **Administration > Risk appetite**, or **Risk appetite** on the register (needs **Administer** on **Risks** and **View** on **Security incidents and restricted records**). Each category has a card, named with the scale its risks are scored on:
+
+| Field | What to put in it |
+|---|---|
+| **Appetite statement** | In plain words, how much of this kind of risk is acceptable. |
+| **Highest acceptable rating** | A rating of the category's scale, or **No limit**. A risk whose residual rating (or inherent rating, while it has no residual score) is above it is **above appetite**. |
+| **Highest acceptable score** | Optional: a risk whose score is above it is above appetite too. |
+| **Approved on**, **Approved by**, **Reference** | Who set the appetite and when, for example the board and the number of its resolution. |
+
+The card's header shows how many open risks the category has and how many are above appetite; select either to open the list. Select **Save appetite** to save every card; every risk is checked against the new appetite at once, and the change is written to the audit log. Clearing every field of a card removes that category's appetite. Closed risks are never above appetite.
+
+A risk is checked every time it is saved, and once a day. Above appetite shows as a red **Above appetite** badge in the register's **Appetite** column, in the risk's header and on its page, as a dashed ring on the heat map, and in the risk report.
+
+## Parent risks and the roll-up
+
+A department or system risk can roll up under a wider enterprise risk. Choose the enterprise risk as the **Parent risk** when you add the risk or with **Edit details**. A parent risk cannot itself have a parent, and a risk with risks under it cannot be put under another, so the hierarchy is two levels deep.
+
+The parent's page lists **Risks under this one**; each child's page says what it **Rolls up under**. The **Risk report** has a section **Enterprise risks and the risks under them**, with the worst open risk under each and how many are above appetite. Filter the register by **Parent risk** to see one parent's risks in the list.
+
+## Key risk indicators
+
+A key risk indicator (KRI) is a monthly figure that warns early when a risk is growing: phishing test clicks, unplanned downtime, overdue actions. Open **Cybersecurity > Key risk indicators**. Indicators are restricted like risks.
+
+The tiles count the **Active indicators** and those **At red** and **At amber**. The list shows each indicator's risk, its **Latest value** and month, its **Level** (green, amber or red), whether its value is **Computed** or **Entered by hand**, the owner and the status.
+
+To add an indicator:
+
+1. Select **New key risk indicator**, or use **Create > Key risk indicator**.
+2. Give the **Indicator** a name, say **What it measures**, and choose its **Risk**.
+3. Choose the **Unit** (count, percent or number) and the **Direction**: **Higher is worse** (red at or above the red threshold) or **Lower is worse** (red at or below it).
+4. Enter the **Amber at** and **Red at** thresholds, the **Frequency** and the **Owner**, and save. The indicator is given a reference beginning `KRI-`.
+
+On the indicator's **Values** tab:
+
+- **Monthly values** lists each month's value, its level against the thresholds as they are now, the note and who entered it.
+- **Enter a value** (indicators entered by hand) takes the **Month** (YYYY-MM; entering a month again corrects it), the **Value** and an optional **Note**. A month that has not started cannot be entered.
+- **Where the value comes from**: keep **Entered by hand each month**, or choose a figure the application works out from its own records (for example overdue actions or overdue corrective action plans; the list shows only those of parts that are switched on). A computed indicator is filled in every day, for this month and last month, and cannot be entered by hand.
+
+When an indicator's latest value reaches **red**, its risk's **Next review** is brought forward to today (unless it is already due), and the risk's owner and the indicator's owner are notified once for that month.
+
 ## The action tracker
 
 Open **Cybersecurity > Action tracker**. It is built for the weekly review: every open action, from risks, assessments, incidents, audits, exercises, information requests, projects, changes, vulnerabilities, policies, training, vendors, problems, safety events and hazards, and anything else, in one place.
 
 ### Tiles and groups
 
-Four tiles show the number of actions that are **Open**, **Overdue** (open and past the due date), **Due this week** (due between today and Sunday) and **Unassigned** (no owner). Select a tile to show only those actions; select it again, or the button such as "Overdue: clear", to go back.
+Four tiles show the number of actions that are **Open**, **Overdue** (open, not yet finished and past the due date), **Due this week** (due between today and Sunday) and **Unassigned** (no owner). While any action is **Awaiting verification**, a fifth tile counts those. Select a tile to show only those actions; select it again, or the button such as "Overdue: clear", to go back.
 
 Choose how to group the open actions:
 
@@ -342,15 +395,18 @@ Select **Clear selection** to clear them all. The **List** grouping has its own 
 | Field | Notes |
 |---|---|
 | **Title**, **Description** | What has to be done. |
-| **Status** | **Open**, **In progress**, **Blocked**, **Done** or **Canceled**. |
+| **Status** | **Open**, **In progress**, **Blocked**, **Awaiting verification**, **Done** or **Canceled**. An action that needs verification goes to **Awaiting verification** when it is marked done, and is done only once its verification is recorded (see [Corrective action plans](24-corrective-action-plans.md#verification-of-effectiveness)). |
 | **Priority** | **High**, **Medium** or **Low**. New actions start as Medium. |
 | **Owner** | The person responsible. An action with no owner shows as Unassigned. |
 | **Due** | The date it should be finished. |
-| **Completed** | Filled in with today's date when the status becomes Done, and cleared if the action is reopened. |
+| **Completed** | Filled in with today's date when the status becomes Done (or Awaiting verification), and cleared if the action is reopened. |
+| **Corrective action plan** | The plan the action belongs to, if any. |
+| **Needs verification**, **Verifier**, **Verification due** | Whether someone must check that the action worked before it counts as done, who, and by when. On by default for actions in a corrective action plan. |
+| **Closure evidence** | What shows the action was done. Required, as text or an attachment, for the sources an administrator lists. |
 | **Source** | Where the action came from: Risk, Assessment, Incident, Audit, Exercise, Information request, Project, Change, Vulnerability, Policy, Training, Vendor, Problem, Safety or Other. A source whose part is switched off under **Administration > Features** is not offered. An action raised on a record is filed under that record's kind unless you choose otherwise. |
 | **Department**, **External reference**, **Notes** | Optional. |
 
-Each action has a reference beginning `ACT-`. Its page shows the due date with the days left, the owner, the priority, where it arose from, and the **Activity**, **Attachments**, **Related** and **History** tabs.
+Each action has a reference beginning `ACT-`. Its page shows the due date with the days left, the owner, the priority, where it arose from and the plan it belongs to, and the **Verification**, **Extensions** (asking for a later due date), **Activity**, **Attachments**, **Related** and **History** tabs. Grouping actions into a plan with a root cause, approval and verification is described in [Corrective action plans](24-corrective-action-plans.md).
 
 ### Adding an action
 
@@ -373,7 +429,7 @@ The action is tied to the record: its own page says "Arose from risk record" wit
 
 ### My actions
 
-Open **Home > My actions**, or select **My actions** on the action tracker. It lists the open actions you own, most urgent first, in **Overdue**, **Due this week**, **Later** and **No due date**, with tiles counting them. Type in **Add an action for yourself and press Enter** to add one that is yours. **Recently finished** shows the last five you completed, and **Shared with you** lists restricted actions shared with you by name.
+Open **Home > My actions**, or select **My actions** on the action tracker. It lists the open actions you own, most urgent first, in **Overdue**, **Due this week**, **Later** and **No due date**, with tiles counting them; **Finished, awaiting verification** holds yours that wait for a check, and **To verify** the actions that name you as their verifier. Type in **Add an action for yourself and press Enter** to add one that is yours. **Recently finished** shows the last five you completed, and **Shared with you** lists restricted actions shared with you by name.
 
 ### Notifications about actions
 
@@ -405,29 +461,73 @@ The tiles at the top count all **Obligations**, those **Not met** and **Partly m
 |---|---|
 | **Obligation** | A short name for the requirement. |
 | **Source** | Where it comes from, for example the name of the agreement or policy and the clause. |
+| **Type** | **Law or regulation**, **License or permit**, **Contract**, **Funding condition**, **Standard or certification**, **Internal policy** or **Other**. An administrator can change the list (`obligation_type`). |
+| **Frequency** | How often it recurs: **Once**, **Monthly**, **Quarterly**, **Every six months**, **Yearly**, **Every 2 years** or **Every 3 years**. |
 | **Requirement** | What exactly must be done. |
 | **Owner** | The person responsible for meeting it. |
 | **How it is met** | The process or control that satisfies it. |
 | **Evidence** | Where proof can be found, if not in the attached files. |
 | **Next due** | The next date something must be done or reviewed. |
-| **Status** | **Not assessed**, **Met**, **Partly met** or **Not met**. New obligations start as Not assessed. |
+| **Status** | **Not assessed**, **Met**, **Partly met** or **Not met**. New obligations start as Not assessed; attesting a period sets it. |
+
+**Applies to** (on the **Periods** tab) names what the obligation covers: services, sites, modes or departments. Type a name and select **Add**; select the cross beside a name to remove it. Obligations made by other parts of the application (for example a funding award's reporting conditions) may name a record there, shown as a link.
 
 To add an obligation:
 
 1. Select **New obligation**, or use **Create > Obligation**.
 2. Fill in the fields above and save. The obligation is given a reference beginning `OBL-`.
 
-An obligation's page shows its status, next due date with countdown and owner at the top. To review it, select **Edit** on the **Details** card, update **Status**, **How it is met**, **Evidence** and **Next due**, and save.
+An obligation's page shows its status, next due date with countdown, frequency, the date it was last attested and its owner at the top. To change it, select **Edit** on the **Details** card.
 
-The owner is reminded once when the next due date is 30 days away, and once more when it is reached; an obligation without an owner goes to everyone who may edit obligations. Setting a new **Next due** starts the reminders again for that date. An administrator changes the 30 days under **Administration** > **Reminders**.
+### Periods and attestation
+
+A recurring obligation is met (or not) period by period. The **Periods** tab lists each period with its dates, due date, result (**Met**, **Partly met**, **Not met**, or **To attest**, red once past due), who attested it and when, and the note and evidence. Above the list, **Next period to attest** gives the period that ends on the next due date: it starts the day after the same date one frequency earlier (for a quarterly obligation due December 16, September 17 to December 16).
+
+To attest a period:
+
+1. Select **Attest a period** (or **Attest** on a period already listed).
+2. For a new period, check the **Period starts**, **Period ends** and **Due** dates, which are filled in for the next period.
+3. Choose whether it was **Met**, **Partly met** or **Not met**. Partly met and not met need a **Note**: what was not met, and what is being done about it.
+4. Say where the **Evidence** is, and select **Attest**.
+
+Attesting the latest period sets the obligation's **Status** to the result and moves **Next due** on by one frequency (only ever forward, so correcting a period with **Correct** does not move it twice). The attestation is written to the obligation's history. Attesting needs **Edit** on **Obligations**. Without a frequency the next due date stays as it is; set it by hand.
+
+The owner is reminded once when the next due date is 30 days away, and once more when it is reached; an obligation without an owner goes to everyone who may edit obligations. For a recurring obligation the reminder asks for the period ending on that date to be attested; attesting it moves the date on, which starts the reminders for the next period. A period added by hand that is still to be attested, with another due date, is reminded about the same way. Setting a new **Next due** starts the reminders again for that date. An administrator changes the 30 days under **Administration** > **Reminders**.
 
 ### Evidence files
 
 The **Evidence** tab on an obligation holds the files that prove it is met: a signed form, a report, a certificate. Drag files onto it or select **Choose files**.
 
-The list can be searched, filtered by **Status**, **Owner** and **Next due**, sorted, saved as a view, changed in bulk (**Status**, **Owner**, **Next due**) and exported. Use the **Related** tab on an obligation to link it to the framework outcomes, contracts or risks it concerns; see [Cybersecurity frameworks and assessments](05-cybersecurity-frameworks.md).
+The list shows **Type** and **Frequency** beside the status; **Applies to**, **Source** and **Last attested** can be added from the column options. It can be searched, filtered by **Status**, **Type**, **Frequency**, **Owner** and **Next due**, sorted, saved as a view, changed in bulk (**Status**, **Type**, **Frequency**, **Owner**, **Next due**) and exported. Use the **Related** tab on an obligation to link it to the framework outcomes, contracts or risks it concerns; see [Cybersecurity frameworks and assessments](05-cybersecurity-frameworks.md).
+
+## Regulatory changes
+
+Open **Cybersecurity > Regulatory changes** (needs **View** on **Obligations**; the button **Regulatory changes** on the obligations register opens it too). A regulatory change is a new or changed law, rule, standard or funding term that the organization has to respond to. None are supplied: each is your own entry.
+
+The tiles count **Open changes**, those **To assess**, those of **High impact** still open, and those **Implemented**. The list is sorted by the date each change **Takes effect**, with a countdown until it is closed.
+
+To log a change, select **New regulatory change** or use **Create > Regulatory change**, and fill in:
+
+| Field | What to put in it |
+|---|---|
+| **Title** | What changes, in a few words. |
+| **Issued by**, **Citation** | Who issued it and its reference. |
+| **Published**, **Takes effect** | The dates. It cannot take effect before it is published. |
+| **Summary** | What the change says. |
+| **Impact**, **Impact assessment** | **Low**, **Medium** or **High**, and what it means for the organization. |
+| **Status** | **Identified**, **Assessing**, **Implementing**, **Implemented** or **Not applicable**. Implemented and Not applicable need the impact assessment (for Not applicable, why it does not apply). |
+| **Owner** | Who sees it through. |
+
+The change is given a reference beginning `REG-`. Its **Impact and actions** tab has:
+
+- **Affected records**: the policies, obligations and controls the change affects (only the kinds of record that are switched on). **Add affected record** links an existing one; the cross removes the link without changing the record. The same links appear on each record's **Related** tab, as "affects".
+- **Make an obligation**: creates an obligation from the change, with its title, source (citation and issuer), requirement (summary) and owner, a type, a frequency and a next due date (the date the change takes effect, unless you change it), and lists it as affected. Needs **Create** and **Edit** on **Obligations**.
+- **Start revision** beside an affected policy (when policies are switched on and you may edit them): starts a draft version of the policy, a copy of its published text with the change's reference as the summary of changes, and opens the policy to edit it there. The policy's own review and approval then apply.
+- **Actions**: actions raised from the change, with the source **Regulatory change**.
 
 ## Not available yet
 
 - The heat map shows one scale at a time; there is no combined heat map across scales (the **Risk report** counts all scales by common level).
+- Key risk indicators are monthly; there is no weekly or daily indicator.
+- A regulatory change is entered by hand; there is no feed of changes from outside the application.
 - An acceptance recorded by hand names its approver; they do not sign in to confirm it (ask for acceptance through the workflow when they can).

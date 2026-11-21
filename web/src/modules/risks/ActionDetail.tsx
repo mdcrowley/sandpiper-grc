@@ -6,6 +6,9 @@ import {
 } from '../../core';
 import type { RecordContext, Row } from '../../core';
 import { ActionStatus } from './ActionStatus';
+import { ExtensionDialog } from './ExtensionDialog';
+import { VerifyDialog } from './VerifyDialog';
+import './caps.css';
 import { DueChip } from './scales';
 
 interface Shares { restricted: boolean; shares: { user_id: string; name: string; shared_by: string | null; created_at: string }[] }
@@ -85,13 +88,111 @@ function SharingPanel({ rec }: { rec: RecordContext }) {
   );
 }
 
+interface Extensions {
+  available: boolean; original_due_on: string | null; extension_count: number;
+  requests: {
+    id: string; status: string; requested_on: string; old_due_on: string | null; new_due_on: string; reason: string;
+    decided_by_name: string | null; decided_on: string | null; decision_note: string | null; requested_by_name: string | null;
+  }[];
+}
+
+const EXT_STATUS: Record<string, { label: string; tone: string }> = {
+  pending: { label: 'Waiting for a decision', tone: 'amber' }, approved: { label: 'Approved', tone: 'green' },
+  rejected: { label: 'Rejected', tone: 'red' }, canceled: { label: 'Canceled', tone: 'gray' },
+};
+
+/**
+ * Verification of effectiveness (E23-03): whether the action needs it, who verifies and by when,
+ * the last result, and the button that records it while the action is awaiting verification.
+ */
+function VerificationPanel({ rec }: { rec: RecordContext }) {
+  const { user, can } = useAuth();
+  const [open, setOpen] = useState(false);
+  const row = rec.row;
+  const awaiting = row.status === 'pending_verification';
+  const mayVerify = awaiting && can('actions.edit') && (can('actions.approve') || row.verifier_id === user?.id);
+  return (
+    <Card title="Verification" actions={mayVerify ? <Button size="sm" variant="primary" icon="check-circle" onClick={() => setOpen(true)}>Record verification</Button> : null}>
+      {!row.verification_required ? (
+        <p className="muted">This action does not need its effectiveness verified: it is finished when it is marked done.</p>
+      ) : (
+        <div className="stack">
+          <p className="muted cap-flush">
+            {awaiting
+              ? 'The work is finished and waiting for someone to check that it worked. Until then the action stays open.'
+              : 'When the work is marked done, the action waits for someone to check that it worked before it counts as done.'}
+          </p>
+          <dl className="cap-facts">
+            <div><dt>Verifier</dt><dd>{row._display?.verifier_id ?? <span className="muted">Not named (the plan's responsible person or an approver)</span>}</dd></div>
+            <div><dt>Verification due</dt><dd>{row.verification_due ? formatDate(row.verification_due) : <span className="muted">Set when the work is finished</span>}</dd></div>
+            {row.verification_result && (
+              <>
+                <div><dt>Last result</dt><dd><LookupChip list="verification_result" value={row.verification_result} /></dd></div>
+                <div><dt>Method</dt><dd><LookupChip list="verification_method" value={row.verification_method} /></dd></div>
+                <div><dt>Verified</dt><dd>{formatDate(row.verified_on)}{row._display?.verified_by ? ` by ${row._display.verified_by}` : ''}</dd></div>
+                {row.verification_note && <div className="cap-facts-wide"><dt>Note</dt><dd className="cap-pre">{row.verification_note}</dd></div>}
+              </>
+            )}
+          </dl>
+        </div>
+      )}
+      <VerifyDialog action={row} open={open} onClose={() => setOpen(false)} onSaved={() => { setOpen(false); rec.reload(); }} />
+    </Card>
+  );
+}
+
+/** Due-date extension requests and their decisions (E23-05). */
+function ExtensionsPanel({ rec }: { rec: RecordContext }) {
+  const { can } = useAuth();
+  const { data, error, reload } = useFetch<Extensions>(`/api/actions/${rec.row.id}/extension-requests`);
+  const [open, setOpen] = useState(false);
+  const finished = Boolean(rec.row.completed_on) || rec.row.status === 'cancelled' || rec.row.status === 'done';
+  const pending = data?.requests.some((r) => r.status === 'pending');
+  const canAsk = can('actions.edit') && !finished && !pending && Boolean(data?.available);
+  return (
+    <Card title="Due date extensions" actions={canAsk ? <Button size="sm" icon="calendar" onClick={() => setOpen(true)}>Ask for more time</Button> : null}>
+      {error ? <ErrorState error={error} onRetry={reload} /> : !data ? <Loading lines={2} label="Loading extensions" /> : (
+        <div className="stack">
+          {data.original_due_on && (
+            <p className="cap-flush">Originally due <strong>{formatDate(data.original_due_on)}</strong>; extended {data.extension_count === 1 ? 'once' : `${data.extension_count} times`}.</p>
+          )}
+          {!data.available && !finished && <p className="muted cap-flush">No extension workflow is set up, so only someone who may approve actions can change the due date.</p>}
+          {data.requests.length === 0 ? <EmptyState icon="calendar" title="No extensions asked for" message="An owner who needs more time asks here; each decision and its reason are kept." /> : (
+            <ul className="cap-ext-list">
+              {data.requests.map((r) => (
+                <li key={r.id}>
+                  <div className="row">
+                    <strong>{r.old_due_on ? `${formatDate(r.old_due_on)} to ${formatDate(r.new_due_on)}` : `To ${formatDate(r.new_due_on)}`}</strong>
+                    <span className={`chip chip-${EXT_STATUS[r.status]?.tone ?? 'gray'}`}>{EXT_STATUS[r.status]?.label ?? r.status}</span>
+                  </div>
+                  <span className="cap-pre">{r.reason}</span>
+                  <span className="muted">
+                    Asked {formatDate(r.requested_on)}{r.requested_by_name ? ` by ${r.requested_by_name}` : ''}
+                    {r.decided_on ? `; decided ${formatDate(r.decided_on)}${r.decided_by_name ? ` by ${r.decided_by_name}` : ''}` : ''}
+                    {r.decision_note ? `: ${r.decision_note}` : ''}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+      <ExtensionDialog action={rec.row} open={open} onClose={() => setOpen(false)} onSaved={() => { setOpen(false); reload(); rec.reload(); }} />
+    </Card>
+  );
+}
+
 export function ActionDetail() {
   const { resources } = useMeta();
   const { can } = useAuth();
   const source = (row: Row) => {
     const target = row.source_type ? resources[row.source_type] : undefined;
-    if (!target || !row.source_id) return row.external_ref ? <span className="muted">External reference {row.external_ref}</span> : null;
-    return <span>Arose from <Link to={`${target.route}/${row.source_id}`}>{target.label.toLowerCase()} record</Link></span>;
+    const plan = row.cap_id ? <> · Part of <Link to={`/caps/${row.cap_id}`}>{row._display?.cap_id ?? 'a corrective action plan'}</Link></> : null;
+    if (!target || !row.source_id) {
+      if (row.external_ref) return <span className="muted">External reference {row.external_ref}{plan}</span>;
+      return plan ? <span>{plan}</span> : null;
+    }
+    return <span>Arose from <Link to={`${target.route}/${row.source_id}`}>{target.label.toLowerCase()} record</Link>{plan}</span>;
   };
   return (
     <RecordPage
@@ -129,8 +230,10 @@ export function ActionDetail() {
           )}
         </div>
       )}
-      summaryFields={['title', 'description', 'status', 'priority', 'owner_id', 'due_on', 'completed_on', 'source', 'department', 'external_ref', 'notes']}
+      summaryFields={['title', 'description', 'status', 'priority', 'owner_id', 'due_on', 'completed_on', 'source', 'department', 'external_ref', 'notes', 'cap_id', 'verification_required', 'verifier_id', 'closure_evidence']}
       tabs={[
+        { key: 'verification', label: 'Verification', content: (rec: RecordContext) => <VerificationPanel rec={rec} /> },
+        { key: 'extensions', label: 'Extensions', content: (rec: RecordContext) => <ExtensionsPanel rec={rec} /> },
         // Offered only to people who can see restricted records; the server checks again.
         ...(can('security.view') ? [{ key: 'sharing', label: 'Sharing', content: (rec: RecordContext) => (rec.row.restricted
           ? <SharingPanel rec={rec} />

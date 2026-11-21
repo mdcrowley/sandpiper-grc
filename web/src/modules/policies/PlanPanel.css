@@ -1,0 +1,9 @@
+/* The plan panel on a policy page (E28-08, E28-09). */
+.pl-map { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); }
+.pl-element { border: 1px solid var(--border); border-radius: var(--radius); padding: 0.75rem; min-width: 0; overflow-wrap: anywhere; }
+.pl-element h3 { margin: 0 0 0.5rem; font-size: 1rem; }
+.pl-element ul { margin: 0; padding-inline-start: 1.1rem; }
+.pl-gap { border-style: dashed; }
+.pl-rows { display: grid; gap: 0.75rem; }
+.pl-row { display: grid; gap: 0.5rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); align-items: end; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border); }
+.pl-element li + li { margin-top: 0.5rem; }

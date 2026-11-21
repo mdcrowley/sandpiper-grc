@@ -98,6 +98,17 @@ The risk questionnaire gives each change a score from 0 to 100 and a level: **Lo
 
 To change the answers, open the change while it is a **Draft** and select **Edit** on the **Risk** card. Once a change has been submitted the assessment is fixed; use **More > Return to draft** first.
 
+### Safety assessment
+
+When safety management is in use, a change can be marked as one that **Affects safety**: a new service, a new vehicle type, a timetable or infrastructure change. It is set by the risk questionnaire's safety question, when your administrator has marked one (an answer that scores above zero means yes), or by hand on the **Safety assessment** tab while the change is a draft. Like the rest of the assessment, it is fixed once the change is submitted.
+
+A change that affects safety needs at least one hazard linked as its **safety assessment** before it can be submitted for approval, scheduled or started; the message says so if one is missing. On the **Safety assessment** tab:
+
+- select **Link a hazard** to choose a hazard already in the hazard log, or
+- select **Create hazard from this change**, name the **Hazard** and its **Possible consequence**, and select **Create and link**. The hazard is added to the hazard log with the source **Change or new service**, owned by you, for the safety team to score.
+
+**Unlink** takes a hazard off. Linking needs **Edit** on changes and permission to see safety records; creating a hazard also needs permission to create them. People who may not see the hazard log see only how many hazards are linked. The link also shows on both records' **Related** panels. The tab is not shown while safety management is switched off, and the requirement then does not apply.
+
 ### Overriding the risk level
 
 If the questionnaire gives the wrong answer for a particular change:
@@ -300,6 +311,7 @@ On the **Risk questionnaire** tab:
 
 - **Risk levels** sets where each level ends: **Low up to** and **Medium up to** a score. **High** runs from there to 100.
 - **Questions** lists each **Question** with its **Weight**, optional **Help text**, and its answers, each with a **Score**. Use **Add answer** and **Add question** to extend the list.
+- When safety management is in use, check **This question asks whether the change affects safety** on a question such as "Could this change affect passenger or staff safety?" An answer that scores above zero then marks the change as affecting safety (see [Safety assessment](#safety-assessment)). Give it a weight of 0 if it should not change the risk score.
 
 The score of a change is worked out by multiplying the score of each chosen answer by the weight of its question, adding these up, and taking the total as a percentage of the highest total possible.
 

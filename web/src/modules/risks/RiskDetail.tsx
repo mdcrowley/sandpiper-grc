@@ -1,17 +1,58 @@
 import { useState } from 'react';
 import {
-  Button, Card, DefinitionList, formatDate, LookupChip, Modal, RecordPage, ResourceForm, useToast,
+  Button, Card, DefinitionList, ErrorState, formatDate, Loading, LookupChip, Modal, RecordPage, ResourceForm, useFetch, useToast,
 } from '../../core';
-import type { RecordContext } from '../../core';
+import type { ListResult, RecordContext, Row } from '../../core';
+import { Link } from 'react-router-dom';
 import { AcceptancePanel } from './AcceptancePanel';
 import { ActionsPanel } from './ActionsPanel';
 import { ReviewPanel } from './ReviewPanel';
 import { ScoringPanel } from './ScoringPanel';
-import { DueChip, RatingChip, useScales, type Scale } from './scales';
+import { RiskKris } from './KriPages';
+import { AppetiteBadge, DueChip, RatingChip, useScales, type Scale } from './scales';
+
+/** E30-08: the enterprise risk this one rolls up under, or the risks that roll up under it. */
+function RelatedRisks({ row }: { row: Row }) {
+  const { data, error, reload } = useFetch<ListResult>(row.parent_id ? null : `/api/risks?f.parent_id=${encodeURIComponent(row.id)}&sort=residual_score&dir=desc&pageSize=100`);
+  const { data: scales } = useScales();
+  const scaleOf = (key: unknown) => scales?.find((s) => s.key === key);
+  if (row.parent_id) {
+    return (
+      <Card title="Rolls up under">
+        <p style={{ margin: 0 }}><Link to={`/risks/${row.parent_id}`}>{row._display?.parent_id ?? 'The parent risk'}</Link></p>
+      </Card>
+    );
+  }
+  if (error) return <Card title="Risks under this one"><ErrorState error={error} onRetry={reload} /></Card>;
+  if (!data) return <Card title="Risks under this one"><Loading lines={2} label="Loading risks under this one" /></Card>;
+  if (data.rows.length === 0) return null;
+  return (
+    <Card title={<>Risks under this one <span className="tab-count rk-panel-count">{data.rows.length}</span></>} flush>
+      {(
+        <div className="table-wrap">
+          <table className="table">
+            <caption className="sr-only">Risks that roll up under this one</caption>
+            <thead><tr><th scope="col">Risk</th><th scope="col">Residual</th><th scope="col">Appetite</th><th scope="col">Status</th></tr></thead>
+            <tbody>
+              {data.rows.map((c) => (
+                <tr key={c.id}>
+                  <td><Link to={`/risks/${c.id}`}><span className="ref">{c.ref}</span> {c.title}</Link></td>
+                  <td><RatingChip scale={scaleOf(c.scale_key)} rating={c.residual_rating ?? c.inherent_rating} /></td>
+                  <td><AppetiteBadge breach={c.appetite_breach} /></td>
+                  <td><LookupChip list="risk_status" value={c.status} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Card>
+  );
+}
 
 const DETAIL_FIELDS = [
   'title', 'description', 'category', 'cause', 'consequence', 'affected', 'existing_controls',
-  'treatment', 'owner_id', 'due_on', 'review_on', 'status',
+  'treatment', 'owner_id', 'due_on', 'review_on', 'status', 'parent_id',
 ];
 
 /**
@@ -49,6 +90,7 @@ function RiskStory({ rec, scale }: { rec: RecordContext; scale: Scale | undefine
         <DefinitionList items={[
           { label: 'Category', value: <LookupChip list="risk_category" value={row.category} /> },
           { label: 'Owner', value: row._display?.owner_id ?? 'No owner' },
+          { label: 'Appetite', value: <AppetiteBadge breach={row.appetite_breach} /> },
           { label: 'Affected systems and data', value: row.affected ? <span className="prose">{row.affected}</span> : null, wide: true },
         ]} />
       </Card>
@@ -67,6 +109,8 @@ function RiskStory({ rec, scale }: { rec: RecordContext; scale: Scale | undefine
       {/* The approval rule depends on the rating: fetch it again whenever the scores change. */}
       <AcceptancePanel key={`${row.inherent_rating ?? ''}-${row.residual_rating ?? ''}-${row.scale_key}`} rec={rec} />
       <ReviewPanel rec={rec} />
+      <RelatedRisks row={row} />
+      <RiskKris riskId={row.id} />
 
       <Modal open={editing} title="Edit details" size="lg" onClose={() => setEditing(false)}>
         <ResourceForm
@@ -75,10 +119,10 @@ function RiskStory({ rec, scale }: { rec: RecordContext; scale: Scale | undefine
           initial={row}
           fields={DETAIL_FIELDS}
           sections={[
-            { title: 'What could happen', fields: ['title', 'description', 'category', 'cause', 'consequence', 'affected'] },
+            { title: 'What could happen', fields: ['title', 'description', 'category', 'parent_id', 'cause', 'consequence', 'affected'] },
             { title: 'Controls and treatment', fields: ['existing_controls', 'treatment', 'status', 'owner_id', 'due_on', 'review_on'] },
           ]}
-          hints={{ status: 'To mark a risk Accepted, record an acceptance instead.', category: 'The category decides which scale the risk is scored on.' }}
+          hints={{ status: 'To mark a risk Accepted, record an acceptance instead.', category: 'The category decides which scale the risk is scored on.', parent_id: 'The enterprise risk this one rolls up under, if any.' }}
           onCancel={() => setEditing(false)}
           onSaved={() => { setEditing(false); toast.success('Risk saved.'); rec.reload(); }}
         />
@@ -102,6 +146,7 @@ export function RiskDetail() {
           <RatingChip scale={scaleOf(row.scale_key)} rating={row.residual_rating} prefix="Residual" />
           <span className="muted">Treatment:</span>
           <LookupChip list="risk_treatment" value={row.treatment} />
+          {row.appetite_breach && <AppetiteBadge breach />}
         </span>
       )}
       summary={(rec) => <RiskStory rec={rec} scale={scaleOf(rec.row.scale_key)} />}

@@ -1,0 +1,116 @@
+{
+  "name": "Sample funder review areas (invented)",
+  "version": "1.0",
+  "description": "An invented set of review areas for trying the compliance review workspace. It does not reproduce any funder's or program's review guide: load your funder's own areas in the same format.",
+  "areas": [
+    {
+      "code": "FM",
+      "title": "Financial management",
+      "description": "How funds are budgeted, accounted for, drawn down and reconciled.",
+      "questions": [
+        "Are award funds recorded separately in the accounting system, by award?",
+        "Are drawdowns supported by costs actually incurred, and reconciled each period?",
+        "Was the most recent independent financial audit completed on time, and were its findings closed?"
+      ]
+    },
+    {
+      "code": "TC",
+      "title": "Technical capacity",
+      "description": "Whether the organization can manage its funded projects to scope, schedule and budget.",
+      "questions": [
+        "Is each funded project tracked against its approved scope, schedule and budget?",
+        "Are progress reports submitted on time and consistent with project records?"
+      ]
+    },
+    {
+      "code": "PR",
+      "title": "Procurement",
+      "description": "Purchasing with award funds: competition, documentation and required contract clauses.",
+      "questions": [
+        "Are written procurement procedures in place and followed?",
+        "Does each procurement file record the method chosen, the competition and the price analysis?",
+        "Do funded contracts carry the clauses the funder requires?"
+      ]
+    },
+    {
+      "code": "AM",
+      "title": "Asset management",
+      "description": "Records, use and disposal of equipment and facilities bought with award funds.",
+      "questions": [
+        "Is there an inventory of funded equipment with its funding source and share?",
+        "Is funded equipment used for its intended purpose, and is disposal approved before it happens?"
+      ]
+    },
+    {
+      "code": "MA",
+      "title": "Maintenance",
+      "description": "Keeping funded vehicles, equipment and facilities in good working order.",
+      "questions": [
+        "Is there a written maintenance plan for funded vehicles, equipment and facilities?",
+        "Are preventive maintenance inspections done on time?"
+      ]
+    },
+    {
+      "code": "SA",
+      "title": "Safety",
+      "description": "The safety program that covers funded operations.",
+      "questions": [
+        "Is there an approved safety plan that is reviewed each year?",
+        "Are safety events investigated and corrective actions tracked to closure?"
+      ]
+    },
+    {
+      "code": "AC",
+      "title": "Accessibility",
+      "description": "Access to services and facilities for riders with disabilities.",
+      "questions": [
+        "Are accessibility features on vehicles and at stations kept working, and failures repaired promptly?",
+        "Are complaints about accessibility recorded and answered?"
+      ]
+    },
+    {
+      "code": "PP",
+      "title": "Public participation",
+      "description": "Involving the public in service and fare changes and in funded projects.",
+      "questions": [
+        "Is there a written public participation process for service and fare changes?",
+        "Are comments received recorded and considered before decisions are made?"
+      ]
+    },
+    {
+      "code": "EO",
+      "title": "Equal opportunity",
+      "description": "Fair treatment of employees, applicants and riders.",
+      "questions": [
+        "Is there a written equal opportunity policy, communicated to staff?",
+        "Are complaints of unfair treatment recorded, investigated and answered?"
+      ]
+    },
+    {
+      "code": "SB",
+      "title": "Small business participation",
+      "description": "Opportunities for small businesses in funded contracting.",
+      "questions": [
+        "Are small business participation goals set and reported where the funder asks for them?",
+        "Are payments to subcontractors monitored?"
+      ]
+    },
+    {
+      "code": "RR",
+      "title": "Records and reporting",
+      "description": "Keeping the records the funder may ask for, and reporting on time.",
+      "questions": [
+        "Are award records kept for the period the award requires, and can they be found quickly?",
+        "Were all reports due in the review period submitted on time?"
+      ]
+    },
+    {
+      "code": "IN",
+      "title": "Insurance and risk financing",
+      "description": "Insurance cover for funded vehicles, equipment and facilities.",
+      "questions": [
+        "Is funded property insured as the award requires, with current certificates on file?"
+      ]
+    }
+  ]
+}

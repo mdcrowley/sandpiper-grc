@@ -92,6 +92,17 @@ const actionLoaders = import.meta.glob<{ ActionsPanel: ComponentType<{ sourceTyp
 const loadActions = Object.values(actionLoaders)[0];
 const LazyActions = loadActions ? lazy(() => loadActions().then((m) => ({ default: m.ActionsPanel }))) : null;
 
+// Corrective action plans (contract C1) live in the risks module too: shown when that file is in the build.
+const capLoaders = import.meta.glob<{ CapPanel: ComponentType<{ sourceType: string; sourceId: string; source?: string }> }>('../risks/CapPanel.tsx');
+const loadCaps = Object.values(capLoaders)[0];
+const LazyCaps = loadCaps ? lazy(() => loadCaps().then((m) => ({ default: m.CapPanel }))) : null;
+
+/** The event's corrective action plans; draws nothing when the panel is not part of this build. */
+export function SafetyCaps({ sourceType, sourceId }: { sourceType: string; sourceId: string }) {
+  if (!LazyCaps) return null;
+  return <Suspense fallback={null}><LazyCaps sourceType={sourceType} sourceId={sourceId} source="safety" /></Suspense>;
+}
+
 export function SafetyActions({ sourceType, sourceId }: { sourceType: string; sourceId: string }) {
   if (!LazyActions) return <Card title="Actions"><p className="muted">The action tracker is not part of this installation.</p></Card>;
   return <Suspense fallback={<Loading lines={3} />}><LazyActions sourceType={sourceType} sourceId={sourceId} source="safety" /></Suspense>;

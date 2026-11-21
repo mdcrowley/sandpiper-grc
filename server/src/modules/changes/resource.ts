@@ -1,9 +1,9 @@
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { takeForced, type Base, type Req } from './base.ts';
-import { computeRisk, FINAL_STATUSES, matchRule } from './rules.ts';
+import { computeRisk, FINAL_STATUSES, matchRule, safetyImpactOf } from './rules.ts';
 
 /** Fields that decide the approval path: fixed once the change has been submitted. */
-const LOCKED_AFTER_DRAFT = ['change_type', 'risk_answers', 'risk_override', 'risk_override_reason'];
+const LOCKED_AFTER_DRAFT = ['change_type', 'risk_answers', 'risk_override', 'risk_override_reason', 'safety_impact'];
 
 /** The `change` record type: generic CRUD plus the hooks that keep risk, approvals and status right. */
 export function defineChange(ctx: ModuleContext, base: Base): void {
@@ -43,6 +43,9 @@ export function defineChange(ctx: ModuleContext, base: Base): void {
       const risk = computeRisk(answers as Row, q);
       out.risk_score = risk.score;
       out.risk_computed = risk.level;
+      // A safety question in the questionnaire decides whether the change affects safety (E25-11).
+      const safety = safetyImpactOf(answers as Row, q);
+      if (safety !== null) out.safety_impact = safety;
     }
     if (Object.keys(errors).length) ctx.fail(400, 'validation', 'Check the highlighted fields.', errors);
 
@@ -90,6 +93,7 @@ export function defineChange(ctx: ModuleContext, base: Base): void {
       risk_override: { label: 'Risk override', type: 'lookup', list: 'change_risk' },
       risk_override_reason: { label: 'Reason for override', type: 'text' },
       risk_level: { label: 'Risk', type: 'lookup', list: 'change_risk', readOnly: true },
+      safety_impact: { label: 'Affects safety', type: 'boolean', default: false },
       implementation_plan: { label: 'Implementation plan', type: 'longtext' },
       test_plan: { label: 'Test plan', type: 'longtext' },
       backout_plan: { label: 'Back-out plan', type: 'longtext' },

@@ -1,3 +1,4 @@
+import { metricsAvailable } from '../../core/metrics.ts';
 import type { ModuleContext, Row, SeedOptions } from '../../core/module.ts';
 import { dayInZone } from '../../core/timezone.ts';
 import { monthsBack } from './indicators.ts';
@@ -59,6 +60,11 @@ function rng(seed: number) {
 
 export async function seedSafety(ctx: ModuleContext, opts: SeedOptions): Promise<string> {
   if (opts.profile !== 'dev') return 'nothing to load (sample safety data is dev profile only)';
+  const base = await seedBase(ctx);
+  return `${base}; ${await seedReportingSamples(ctx)}`;
+}
+
+async function seedBase(ctx: ModuleContext): Promise<string> {
   if (await ctx.db.one('select 1 from safety_events where notes = $1 limit 1', [SAMPLE_NOTE])) return 'sample safety data already loaded';
   const rand = rng(20261118);
   const pick = <T>(list: T[]): T => list[Math.floor(rand() * list.length)];
@@ -149,4 +155,97 @@ export async function seedSafety(ctx: ModuleContext, opts: SeedOptions): Promise
     }
   }
   return `hazards ${HAZARDS.length}, safety events ${events}, corrective actions ${actions}, indicators ${indicators.length}, exposure 12 months`;
+}
+
+// ---------- wave 10 (E25-12): reporting rules, people involved, indicators beyond counts, targets ----------
+
+const RULE_KEY = 'example_fatality';
+const ROLES = ['passenger', 'employee', 'public', 'passenger', 'contractor', 'passenger', 'public', 'employee', 'trespasser', 'passenger'];
+
+/**
+ * Loaded once (keyed by the first example rule), also on a database seeded before wave 10. The two
+ * reporting rules are invented examples, clearly labeled and switched off: no reporting rule of any
+ * jurisdiction is shipped, and an operator writes its own.
+ */
+async function seedReportingSamples(ctx: ModuleContext): Promise<string> {
+  if (await ctx.db.one('select 1 from safety_report_rules where key = $1', [RULE_KEY])) return 'sample reporting rules already loaded';
+  const rules: Row[] = [
+    {
+      key: RULE_KEY, name: 'Example (invented): any fatality', party: 'Example oversight body (invented)', deadline_hours: 2, required: true, sort: 10,
+      conditions: [{ field: 'fatalities', op: 'gte', value: 1 }],
+      guidance: 'An invented example to show how a rule is written. Replace it with your own rules before switching it on.',
+    },
+    {
+      key: 'example_two_transported', name: 'Example (invented): two or more people taken for treatment', party: 'Example insurer (invented)', deadline_hours: 72, required: false, sort: 20,
+      conditions: [{ field: 'people_transported', op: 'gte', value: 2 }],
+      guidance: 'An invented example. Rules stay switched off until an administrator switches them on.',
+    },
+  ];
+  for (const r of rules) {
+    await ctx.db.query(
+      `insert into safety_report_rules (key, name, conditions, party, deadline_hours, required, guidance, active, sort) values ($1,$2,$3::jsonb,$4,$5,$6,$7,false,$8)
+       on conflict (key) do nothing`, [r.key, r.name, JSON.stringify(r.conditions), r.party, r.deadline_hours, r.required, r.guidance, r.sort]);
+  }
+
+  // People involved on ten sample events that involve people, with conditions and contributing factors.
+  const events = await ctx.db.query<Row>(
+    `select id, event_type from safety_events where notes = $1 and deleted_at is null and event_type in ('passenger_injury', 'collision', 'operator_assault', 'slip_trip_fall')
+     order by occurred_at desc limit 10`, [SAMPLE_NOTE]);
+  let people = 0;
+  for (const [i, e] of events.entries()) {
+    const transported = i % 3 === 0;
+    await ctx.db.query(
+      `insert into safety_event_people (event_id, role, name, injury_severity, transported, fatality, notes) values ($1,$2,$3,$4,$5,false,$6)`,
+      [e.id, ROLES[i], `Invented person ${i + 1}`, transported ? 'medical' : i % 2 ? 'first_aid' : 'none', transported, 'Invented sample entry.']);
+    people++;
+    await ctx.db.query(
+      `update safety_events set people_transported = $2, fatalities = 0, weather = $3, lighting = $4, surface = $5, contributing_factors = $6::jsonb,
+         post_event_testing_required = $7 where id = $1`,
+      [e.id, transported ? 1 : 0, ['clear', 'rain', 'fog'][i % 3], ['daylight', 'dark_lit', 'dusk_dawn'][i % 3], i % 3 === 1 ? 'wet' : 'dry',
+        JSON.stringify(i % 2 ? ['human', 'environment'] : ['equipment']), e.event_type === 'collision']);
+    await ctx.db.query(
+      `insert into safety_event_timeline (event_id, at, entry, by_name) select id, occurred_at + interval '10 minutes', $2, 'Invented controller' from safety_events where id = $1`,
+      [e.id, 'Control room informed; a supervisor went to the scene (invented).']);
+  }
+
+  // Indicators beyond event counts.
+  const made: string[] = [];
+  const indicator = async (data: Row): Promise<string | null> => {
+    if (await ctx.db.one<Row>('select id from safety_indicators where lower(name) = lower($1) and deleted_at is null', [data.name])) return null;
+    made.push(data.name);
+    return (await ctx.resources.create('safety_indicator', data)).id;
+  };
+  const periods = monthsBack(12);
+  const year = Number(dayInZone().slice(0, 4));
+  const inspections = await indicator({ name: 'Safety inspections completed on time (%)', description: 'A leading indicator entered by hand each month (invented figures).', measure: 'manual', target: 95, target_direction: 'at_least', sort: 60 });
+  const briefings = await indicator({ name: 'Safety briefings delivered', description: 'Entered by hand each month (invented figures).', measure: 'manual', target: 20, target_direction: 'at_least', sort: 70 });
+  const pct = [92, 96, 97, 94, 98, 99, 95, 93, 97, 98, 96, 99];
+  for (const [i, p] of periods.entries()) {
+    if (inspections) await ctx.db.query('insert into safety_indicator_values (indicator_id, period, value, note) values ($1,$2::date,$3,$4) on conflict do nothing', [inspections, `${p}-01`, pct[i], 'Invented']);
+    if (briefings) await ctx.db.query('insert into safety_indicator_values (indicator_id, period, value) values ($1,$2::date,$3) on conflict do nothing', [briefings, `${p}-01`, 18 + ((i * 7) % 8)]);
+  }
+  // A computed indicator from another module's metric, when one is offered.
+  const metrics = metricsAvailable(ctx.app, ctx.resources);
+  const metric = metrics.find((m) => m.key === 'actions.overdue') ?? metrics[0];
+  if (metric) await indicator({ name: `${metric.label} (computed)`, description: 'Computed each month from another part of the application.', measure: 'computed', metric_key: metric.key, target_direction: 'at_most', sort: 80 });
+  // Distance between major failures, from revenue miles and failures in the exposure.
+  const mdbf = await indicator({ name: 'Revenue miles between major failures', description: 'Revenue miles divided by major mechanical failures (invented figures).', measure: 'distance_between', target: 25000, target_direction: 'at_least', sort: 90 });
+  const busFailures = [5, 6, 4, 8, 5, 7, 6, 5, 9, 4, 6, 5];
+  const railFailures = [1, 0, 2, 1, 1, 0, 1, 2, 1, 1, 0, 1];
+  for (const [i, p] of periods.entries()) {
+    for (const [mode, miles, failures] of [['bus', 160000, busFailures[i]], ['light_rail', 23000, railFailures[i]]] as const) {
+      await ctx.db.query(`update safety_exposure set revenue_miles = $3, major_failures = $4 where period = $1::date and mode = $2 and revenue_miles is null`,
+        [`${p}-01`, mode, Math.round(miles * (1 + 0.05 * Math.sin(i))), failures]);
+    }
+  }
+  // This year's targets: one approved at an invented committee meeting, one proposed.
+  if (mdbf) {
+    await ctx.db.query(
+      `insert into safety_indicator_targets (indicator_id, year, target, direction, status, approved_by_name, approved_on, approval_ref)
+       values ($1,$2,25000,'at_least','approved','Invented safety committee',$3::date,'Invented meeting, item 3') on conflict do nothing`, [mdbf, year, `${year}-01-20`]);
+  }
+  if (inspections) {
+    await ctx.db.query(`insert into safety_indicator_targets (indicator_id, year, target, direction, status) values ($1,$2,97,'at_least','proposed') on conflict do nothing`, [inspections, year]);
+  }
+  return `example reporting rules 2 (switched off), people involved ${people}, indicators ${made.length}, targets for ${year}`;
 }

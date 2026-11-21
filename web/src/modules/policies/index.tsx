@@ -8,7 +8,7 @@ import { PolicyLibrary } from './PolicyLibrary';
 import { PolicyDetail } from './PolicyPage';
 import { PolicyReader } from './PolicyReader';
 import './policies.css';
-// TODO(PEOPLE agent, E29-10): import { Kiosk } from './Kiosk'; (a stub that renders nothing yet, so its route is commented out)
+import { Kiosk } from './Kiosk';
 
 const mod: ModuleDef = {
   key: 'policies',
@@ -16,13 +16,15 @@ const mod: ModuleDef = {
     { group: 'Cybersecurity', label: 'Policies', path: '/policies', icon: 'file-text', permission: 'policies.view', order: 80 },
     // No permission: everyone who is asked to acknowledge a policy needs to reach their own list.
     { group: 'Cybersecurity', label: 'My acknowledgments', path: '/policies/acknowledgments', icon: 'check-square', order: 85 },
+    { group: 'Cybersecurity', label: 'Acknowledgment kiosk', path: '/policies/kiosk', icon: 'check-circle', permission: 'policies.edit', order: 86 },
     { group: 'Cybersecurity', label: 'Exceptions', path: '/exceptions', icon: 'clock', permission: 'exceptions.view', order: 90 },
   ],
   routes: [
     { path: '/policies', element: <PolicyLibrary />, permission: 'policies.view' },
     { path: '/policies/acknowledgments', element: <MyAcknowledgments /> },
     { path: '/policies/acknowledgments/:ackId', element: <PolicyReader /> },
-    // TODO(PEOPLE agent, E29-10): { path: '/policies/kiosk', element: <Kiosk />, permission: 'policies.edit' },
+    // A supervisor's signed-in device where roster people acknowledge (E29-10); never a public route.
+    { path: '/policies/kiosk', element: <Kiosk />, permission: 'policies.edit' },
     { path: '/policies/:id', element: <PolicyDetail />, permission: 'policies.view' },
     { path: '/policies/:id/edit', element: <PolicyEditor />, permission: 'policies.edit' },
     { path: '/exceptions', element: <ExceptionList />, permission: 'exceptions.view' },

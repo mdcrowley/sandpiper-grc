@@ -3,6 +3,7 @@ import { addDays, localDate } from './dates.ts';
 import { createFindingAction } from './exercises.ts';
 import { loadUsers, resolvePerson, saveTraining } from './people.ts';
 import { SAMPLE_COURSES, SAMPLE_EXERCISES, SAMPLE_PEOPLE, SAMPLE_RECORDS } from './seed-sample.ts';
+import { seedSampleQualifications } from './seed-qualifications.ts';
 import { syncTrainingAssignments } from './sync.ts';
 
 /**
@@ -105,6 +106,10 @@ export async function seedTraining(ctx: ModuleContext, _opts: SeedOptions, now: 
     }
     notes.push(`${SAMPLE_EXERCISES.length} sample exercises, ${findings} findings${actions ? `, ${raised} follow-up actions` : ''}`);
   }
+
+  // Qualifications for the sample roster (dev profile; E29-12).
+  const quals = await seedSampleQualifications(ctx, today);
+  if (quals) notes.push(quals);
 
   const sync = await syncTrainingAssignments(ctx, now);
   if (sync.created || sync.renewed) notes.push(`${sync.created + sync.renewed} records raised by rules`);

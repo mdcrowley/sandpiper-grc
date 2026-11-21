@@ -8,6 +8,8 @@ export interface HeatCell {
   color: string;
   count: number;
   risk_ids: string[];
+  /** E30-06: the cell's rating is above the strictest risk appetite of the categories on this scale. */
+  above_appetite?: boolean;
 }
 
 export interface HeatRisk {
@@ -40,6 +42,8 @@ export interface HeatMapData {
   unscored: number;
   include_closed: boolean;
   movements: HeatMovement[];
+  /** E30-06: the strictest appetite on this scale (the highest acceptable rating), and the categories it is set for. */
+  appetite?: { rating: string; label: string; categories: string[] } | null;
   risks: HeatRisk[];
 }
 
@@ -112,7 +116,7 @@ export function HeatMap({ data, selected, onSelect, showMovement }: Props) {
                   type="button"
                   data-row={r}
                   data-col={c}
-                  className={`rk-cell${cell.count === 0 ? ' is-empty' : ''}`}
+                  className={`rk-cell${cell.count === 0 ? ' is-empty' : ''}${cell.above_appetite ? ' is-above-appetite' : ''}`}
                   style={{ background: `var(--c-${cell.color}-bg)`, color: `var(--c-${cell.color}-fg)`, ['--cell-solid' as string]: `var(--c-${cell.color}-solid)` }}
                   aria-disabled={cell.count === 0}
                   aria-pressed={isSelected}
@@ -124,7 +128,7 @@ export function HeatMap({ data, selected, onSelect, showMovement }: Props) {
                   <span className="rk-cell-count">{cell.count > 0 ? cell.count : ''}</span>
                   {cell.count > 0 && <span className="sr-only"> </span>}
                   <span className="rk-cell-rating">{ratingLabel(cell.rating)}</span>
-                  <span className="sr-only">{cell.count > 0 ? ` ${cell.count === 1 ? 'risk' : 'risks'}: ${name}` : `, no risks: ${name}`}</span>
+                  <span className="sr-only">{cell.count > 0 ? ` ${cell.count === 1 ? 'risk' : 'risks'}: ${name}` : `, no risks: ${name}`}{cell.above_appetite ? ', above appetite' : ''}</span>
                 </button>
               );
             }))}
@@ -177,6 +181,12 @@ export function HeatMap({ data, selected, onSelect, showMovement }: Props) {
           </li>
         ))}
         {data.unscored > 0 && <li className="muted">Not yet scored <strong className="num">{data.unscored}</strong></li>}
+        {data.appetite && (
+          <li className="muted rk-legend-appetite">
+            <span className="rk-swatch rk-swatch-appetite" aria-hidden="true" />
+            Above appetite ({data.appetite.label} or lower is accepted for {data.appetite.categories.join(', ')})
+          </li>
+        )}
         {showMovement && (
           <li className="muted rk-legend-move">
             <svg width="34" height="10" viewBox="0 0 34 10" aria-hidden="true">

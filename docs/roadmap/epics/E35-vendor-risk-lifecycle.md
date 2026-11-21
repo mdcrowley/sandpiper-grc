@@ -1,6 +1,6 @@
 # E35 Vendor risk lifecycle
 
-**Status:** open
+**Status:** open (0 of 5 issues done)
 
 ## Goal
 

@@ -17,12 +17,14 @@ An administrator can switch policies and exceptions off under **Administration >
 | Record or edit an exception, withdraw it | **Create** or **Edit** on **Exceptions** |
 | Approve or reject an exception, or change the expiry date of an approved one | **Approve** on **Exceptions** |
 | Acknowledge a policy you have been asked to read | Nothing more than being able to sign in |
+| See which people on the roster were asked, and record their acknowledgments | **View** (to see) or **Edit** (to record) on **Policies**, and **View** on **People** |
+| Run the acknowledgment kiosk | **Edit** on **Policies** |
 
 Roles are managed by an administrator; see [Administration](09-administration.md).
 
 ## The policy library
 
-Open **Cybersecurity > Policies**. Each row shows the policy's reference (such as `POL-00004`), category, status, the version in force and its review date.
+Open **Cybersecurity > Policies**. Each row shows the policy's reference (such as `POL-00004`), document type, category, status, the version in force and its review date. Filter by **Document type** to see only procedures, rulebook sections or bulletins, for example.
 
 The tiles above the list each open the policies they count:
 
@@ -54,12 +56,27 @@ A published policy stays **Published** while its next version is being written a
 ### Add a policy
 
 1. Select **New policy**, or **Create** then **Policy**.
-2. Enter the **Title** and a short **Summary**.
+2. Enter the **Title**, choose the **Document type** (see below) and enter a short **Summary**.
 3. Choose the **Category**, the **Owner**, and enter the **Approver** and **Approver role**.
 4. Enter the **Review date**: when the policy should next be looked at.
 5. Select **Create policy**.
 
 The policy opens with no text yet. Write the first version next.
+
+### Document types
+
+Every document in the library has a **Document type**. Each type has its own review cycle: when a version is published, the **Review date** moves to the date the version takes effect plus that many months, unless a later review date is already set.
+
+| Document type | Review cycle |
+|---|---|
+| **Policy** (the default) | 24 months |
+| **Procedure** | 24 months |
+| **Rulebook section** | 12 months |
+| **Bulletin** | 6 months |
+| **Standard** | 36 months |
+| **Plan** | 12 months; plans also have plan elements and an annual review (see [Plans](#plans)) |
+
+An administrator can rename the types, add others and change a cycle under **Administration > Lists** (list **policy_document_type**: the number of months is `review_months` in the value's settings, and a value with `plan` set is a plan).
 
 ## The policy page
 
@@ -158,6 +175,10 @@ On the **Policy** tab, in **Who must acknowledge**, select **Change**.
 
 Select **Save audience**. The choice is used the next time a version is published; it does not change requests already sent.
 
+#### Staff on the roster
+
+Frontline staff often have no account. If the roster is in use (see [People and qualifications](29-people-and-qualifications.md)), **Who must acknowledge** also offers **Ask staff on the roster too**. Check it and choose the **Positions** whose people must acknowledge (with **Everyone** checked, everyone on the roster is asked). When a version is published, each active person on the roster in those positions gets a request with the same due date. A person whose account was already asked through the roles or departments above is not asked twice.
+
 ### What publishing does
 
 When a version is published:
@@ -184,6 +205,31 @@ Open the policy's **Acknowledgments** tab.
 - **By department** gives the same counts for each department.
 - **Version** switches to an earlier version's record.
 - **Export CSV** downloads the list for the version shown.
+- **Staff on the roster** (shown to people who can see the roster) lists the roster people asked, with their employee number, position, status, when and how they acknowledged (**Sign-in sheet**, **Kiosk** or **By hand**) and who recorded it, with the same counts.
+
+### Record acknowledgments from a sign-in sheet
+
+After a briefing, staff often sign a paper sheet. To record it (you need **Edit** on **Policies** and **View** on **People**):
+
+1. Scan the sheet and add it to the policy on its **Evidence files** tab.
+2. On the **Acknowledgments** tab, under **Staff on the roster**, select **Record acknowledgments**.
+3. Type or paste the **Employee numbers** from the sheet, one per line or separated by commas or spaces.
+4. Leave **How** as **Sign-in sheet**, or choose **Recorded by hand**. Set **Acknowledged on** if the briefing was on an earlier day (never a later one).
+5. Choose the **Scanned sheet** you added in step 1.
+6. Select **Record**.
+
+Everyone listed is recorded against the published version, including people on the roster who were not asked. People who had already acknowledged are skipped, and employee numbers not on the roster are named in the message so you can check them. You are recorded as the person who recorded the acknowledgments, and the change is in the policy's **History**.
+
+### The acknowledgment kiosk
+
+The kiosk lets staff acknowledge for themselves on a supervisor's device, for example a tablet in a depot's crew room. It runs only while someone with **Edit** on **Policies** is signed in on that device; there is no page that works without signing in.
+
+1. Sign in as the supervisor and open **Cybersecurity > Acknowledgment kiosk** (or **Open the kiosk** on a policy's **Acknowledgments** tab).
+2. The member of staff types the start of their name and picks it. Only people on the roster with something to acknowledge are listed, with their position.
+3. They enter their **Employee number** and select **Continue**. A wrong number is refused; after five wrong numbers for the same person the kiosk stops accepting numbers for that person for 15 minutes, and each wrong number is recorded in the audit log.
+4. They read each document, check **I have read and understood this document**, and select **Acknowledge**.
+
+The kiosk thanks them and returns to the list for the next person. Each acknowledgment is recorded with the method **Kiosk** and the signed-in supervisor as the person who recorded it. Sign out when you leave the device.
 
 ### Reminders
 
@@ -192,6 +238,28 @@ Once a day the application looks for acknowledgments that are past their due dat
 To change the 7 days, someone with **Administer** on **Policies** selects **Reminder settings** at the top of the policy library, enters **Days between reminders** (1 to 90) and selects **Save**. The change is recorded in the audit log.
 
 One policy can have its own interval: on the policy, select **Change** on **Who must acknowledge** and enter **Days between reminders** (1 to 90), or leave it empty to use the setting above.
+
+## Plans
+
+A plan, such as the safety plan, is a policy whose **Document type** is **Plan** (or any document type an administrator marks as a plan). Its page shows two more cards under the text: the **Plan elements** and the **Annual review**.
+
+### Plan elements
+
+**Plan elements** shows each element the plan must cover and where it does: one box per element, listing what covers it, the section of the plan and its owner. An element nothing covers yet is shown with a dashed border and "Not covered in the plan yet". The elements are a list an administrator keeps under **Administration > Lookups** (**Plan element**); it starts with the four generic pillars of safety management: **Safety policy and objectives**, **Safety risk management**, **Safety assurance** and **Safety promotion**.
+
+To change the map, someone who may edit policies selects **Edit map**, then for each entry chooses the **Element** and fills in **What covers it**, **Where in the plan** (for example "Section 2.1") and the **Owner**. **Add an entry** adds a row and the bin removes one. **Save** replaces the map; the change is recorded in the policy's history.
+
+### Annual review
+
+A plan is reviewed by several parties in turn. **Start annual review** (needs **Edit** on **Policies**) starts the **Annual plan review** approval workflow (see [Approval workflows](22-approval-workflows.md)). Its first version asks, in turn, the **Accountable executive**, the **Governing body** and the **Safety committee**, each a different person who may approve policies; an administrator names the right people in each step under **Administration > Approval workflows**. The person who starts the review cannot approve it. Its progress shows in the approval panel at the top of the page.
+
+When the last party approves, the review is recorded as approved and the plan's **Review date** moves to a year from that day (or the review cycle of its document type). A rejection is recorded with its reason, and the review date stays. The **Annual review** card lists every review: the year, its outcome, when it started and was approved, and the version reviewed. Only one review runs at a time.
+
+A committee can decide a step of the review at a meeting (see [Committees and meetings](28-committees-and-meetings.md#apply-a-decision-to-a-waiting-approval)).
+
+Once a plan's review date is within **30 days**, its owner (or, without one, everyone who may edit policies) is reminded once, and again once when the date is reached, unless a review is already running. An administrator can change the 30 days (**Remind plan owners before the annual review**, setting `policies.plan_review_reminder_days`) under **Administration > Reminders**.
+
+The `dev` sample data includes an invented **[Sample] Safety plan** with its element map and last year's approved review (loaded with the sample committees).
 
 ## Map a policy to framework outcomes
 

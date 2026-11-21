@@ -1,7 +1,9 @@
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row, SessionUser } from '../../core/module.ts';
 import { dayInZone, TIME_ZONE } from '../../core/timezone.ts';
+import { metricsAvailable } from '../../core/metrics.ts';
 import { hazardScale } from './hazards.ts';
+import { targetsByYear } from './targets.ts';
 
 /**
  * Safety performance indicators and the safety dashboard.
@@ -12,9 +14,16 @@ import { hazardScale } from './hazards.ts';
  * by `per_units` (for example events per 100,000 vehicle-miles). A target is met when the value
  * is at most (or at least) the target. Every figure counts every event, restricted or not, so all
  * readers see the same numbers; restriction protects an event's details, which are never returned here.
+ *
+ * Wave 10 (E25-07 to E25-10) adds three measures that are not counts of events: `manual` (a value
+ * entered for each month), `computed` (a metric another module offers, core/metrics.ts, read by its
+ * key) and `distance_between` (revenue miles divided by major failures, both from the exposure); and a
+ * target per year (targets.ts), which takes the place of the indicator's own target in that year.
  */
 
-const MEASURES = ['count', 'rate'];
+export const MEASURES = ['count', 'rate', 'manual', 'computed', 'distance_between'];
+/** Measures worked out from the safety events, which the event filters apply to. */
+export const EVENT_MEASURES = ['count', 'rate'];
 const PERIOD = /^\d{4}-\d{2}$/;
 const DONE_ACTION = ['done', 'cancelled'];
 
@@ -45,7 +54,12 @@ export function registerIndicators(ctx: ModuleContext) {
       const bad = strList(v).filter((x) => !allowed.includes(x));
       if (bad.length) errors[field] = `Not known: ${bad.join(', ')}.`;
     }
-    if (!MEASURES.includes(merged.measure ?? 'count')) errors.measure = 'Choose count or rate.';
+    if (!MEASURES.includes(merged.measure ?? 'count')) errors.measure = 'Choose how the indicator is measured.';
+    if (merged.measure === 'computed') {
+      const keys = metricsAvailable(app, ctx.resources).map((m) => m.key);
+      if (!merged.metric_key) errors.metric_key = 'Choose the figure the indicator is computed from.';
+      else if (!keys.includes(merged.metric_key)) errors.metric_key = 'That figure is not available on this installation.';
+    }
     if ((merged.measure ?? 'count') === 'rate') {
       if (!(await known('safety_exposure_measure')).includes(merged.exposure)) errors.exposure = 'Choose what the rate is per (vehicle-miles, vehicle-hours or boardings).';
       if (!(Number(merged.per_units) > 0)) errors.per_units = 'Give a number above zero, for example 100000.';
@@ -67,6 +81,7 @@ export function registerIndicators(ctx: ModuleContext) {
       severities: { label: 'Severities counted', type: 'json', default: [] },
       modes: { label: 'Modes counted', type: 'json', default: [] },
       measure: { label: 'Measure', type: 'text', default: 'count' },
+      metric_key: { label: 'Computed from', type: 'text' },
       exposure: { label: 'Per', type: 'lookup', list: 'safety_exposure_measure' },
       per_units: { label: 'Per how many', type: 'number' },
       target: { label: 'Target', type: 'number' },
@@ -87,9 +102,15 @@ export function registerIndicators(ctx: ModuleContext) {
     const months = Math.min(60, Math.max(1, Number(q.months) || 12));
     const periods = monthsBack(months);
     const rows = await db.query<Row>(
-      `select to_char(period, 'YYYY-MM') as period, mode, vehicle_miles, vehicle_hours, boardings, updated_at
+      `select to_char(period, 'YYYY-MM') as period, mode, vehicle_miles, vehicle_hours, boardings, revenue_miles, major_failures, updated_at
        from safety_exposure where period >= $1::date order by period, mode`, [`${periods[0]}-01`]);
-    return { periods, rows: rows.map((r) => ({ ...r, vehicle_miles: num(r.vehicle_miles), vehicle_hours: num(r.vehicle_hours), boardings: num(r.boardings) })) };
+    return {
+      periods,
+      rows: rows.map((r) => ({
+        ...r, vehicle_miles: num(r.vehicle_miles), vehicle_hours: num(r.vehicle_hours), boardings: num(r.boardings),
+        revenue_miles: num(r.revenue_miles), major_failures: num(r.major_failures),
+      })),
+    };
   });
   ctx.describeRoute({ method: 'GET', path: '/api/safety/exposure', summary: 'Exposure entered per month and mode', permission: 'safety.view', query: { months: 'How many months back (default 12)' } });
 
@@ -103,18 +124,21 @@ export function registerIndicators(ctx: ModuleContext) {
     const mode = String(b.mode ?? '');
     if (mode && !(await ctx.lookups.values('vehicle_mode')).some((m) => m.value === mode)) errors.mode = 'Not a vehicle mode.';
     const values: Row = {};
-    for (const k of ['vehicle_miles', 'vehicle_hours', 'boardings']) {
+    for (const k of EXPOSURE_COLUMNS) {
       if (b[k] === undefined || b[k] === null || b[k] === '') { values[k] = null; continue; }
       const n = Number(b[k]);
-      if (!Number.isFinite(n) || n < 0) errors[k] = 'Give zero or more.'; else values[k] = n;
+      if (!Number.isFinite(n) || n < 0) errors[k] = 'Give zero or more.';
+      else if (k === 'major_failures' && !Number.isInteger(n)) errors[k] = 'Give a whole number, zero or more.';
+      else values[k] = n;
     }
     if (Object.keys(errors).length) invalid(errors);
-    const before = await db.one<Row>(`select vehicle_miles, vehicle_hours, boardings from safety_exposure where period = $1::date and mode = $2`, [`${period}-01`, mode]);
+    const before = await db.one<Row>(`select ${EXPOSURE_COLUMNS.join(', ')} from safety_exposure where period = $1::date and mode = $2`, [`${period}-01`, mode]);
     await db.query(
-      `insert into safety_exposure (period, mode, vehicle_miles, vehicle_hours, boardings, updated_by) values ($1::date,$2,$3,$4,$5,$6)
+      `insert into safety_exposure (period, mode, vehicle_miles, vehicle_hours, boardings, revenue_miles, major_failures, updated_by) values ($1::date,$2,$3,$4,$5,$6,$7,$8)
        on conflict (period, mode) do update set vehicle_miles = excluded.vehicle_miles, vehicle_hours = excluded.vehicle_hours,
-         boardings = excluded.boardings, updated_at = now(), updated_by = excluded.updated_by`,
-      [`${period}-01`, mode, values.vehicle_miles, values.vehicle_hours, values.boardings, req.user!.id]);
+         boardings = excluded.boardings, revenue_miles = excluded.revenue_miles, major_failures = excluded.major_failures,
+         updated_at = now(), updated_by = excluded.updated_by`,
+      [`${period}-01`, mode, values.vehicle_miles, values.vehicle_hours, values.boardings, values.revenue_miles, values.major_failures, req.user!.id]);
     await ctx.audit(req, {
       action: 'safety.exposure', recordType: 'safety_exposure', recordId: `${period}:${mode || 'all'}`,
       summary: `Exposure for ${period}${mode ? ` (${mode})` : ''} recorded`, before: before ?? undefined, after: values,
@@ -122,13 +146,73 @@ export function registerIndicators(ctx: ModuleContext) {
     return { period, mode, ...values };
   });
   ctx.describeRoute({
-    method: 'PUT', path: '/api/safety/exposure', summary: 'Record vehicle-miles, vehicle-hours and boardings for a month', permission: 'safety.edit',
-    body: '{ period: "YYYY-MM", mode?: "" | mode, vehicle_miles?, vehicle_hours?, boardings? }',
+    method: 'PUT', path: '/api/safety/exposure', summary: 'Record vehicle-miles, vehicle-hours, boardings, revenue miles and major failures for a month', permission: 'safety.edit',
+    body: '{ period: "YYYY-MM", mode?: "" | mode, vehicle_miles?, vehicle_hours?, boardings?, revenue_miles?, major_failures? }',
   });
 
   // ---------- trend ----------
 
+  /** Exposure in one column for each period: per mode when the indicator names modes, else the whole operation (or the modes added up). */
+  async function exposureBy(col: string, modes: string[], periods: string[]): Promise<Map<string, number | null>> {
+    const rows = await db.query<Row>(
+      `select to_char(period, 'YYYY-MM') as m, mode, ${col} as v from safety_exposure where period >= $1::date and ${col} is not null`, [`${periods[0]}-01`]);
+    return new Map(periods.map((p) => {
+      const of = rows.filter((r) => r.m === p);
+      if (modes.length) {
+        const hit = of.filter((r) => modes.includes(r.mode));
+        return [p, hit.length ? hit.reduce((n, r) => n + Number(r.v), 0) : null];
+      }
+      const whole = of.find((r) => r.mode === '');
+      if (whole) return [p, Number(whole.v)];
+      return [p, of.length ? of.reduce((n, r) => n + Number(r.v), 0) : null];
+    }));
+  }
+
+  /** The target in force each period: the year's target (unless rejected), else the indicator's own. */
+  async function targetsFor(ind: Row) {
+    const years = await targetsByYear(ctx, ind.id);
+    const own = { target: ind.target === null || ind.target === undefined ? null : Number(ind.target), direction: String(ind.target_direction ?? 'at_most') };
+    return (p: string) => years.get(Number(p.slice(0, 4))) ?? own;
+  }
+
+  async function otherTrend(ind: Row, periods: string[]) {
+    const target = await targetsFor(ind);
+    let values = new Map<string, { value: number | null; events: number | null; exposure: number | null }>();
+    if (ind.measure === 'manual') {
+      const rows = await db.query<Row>(
+        `select to_char(period, 'YYYY-MM') as m, value from safety_indicator_values where indicator_id = $1 and period >= $2::date`, [ind.id, `${periods[0]}-01`]);
+      values = new Map(rows.map((r) => [r.m, { value: Number(r.value), events: null, exposure: null }]));
+    } else if (ind.measure === 'computed') {
+      // Figures from another module's metric: the same for everyone, worked out for each month.
+      const metric = metricsAvailable(app, ctx.resources).find((m) => m.key === ind.metric_key);
+      for (const p of periods) {
+        let value: number | null = null;
+        if (metric) {
+          try { value = await metric.compute(ctx, `${p}-01`); } catch (err) { console.error(`[safety] metric ${metric.key} for ${p}:`, err); }
+        }
+        values.set(p, { value: value === null || value === undefined || !Number.isFinite(Number(value)) ? null : round(Number(value)), events: null, exposure: null });
+      }
+    } else {
+      // distance_between: revenue miles divided by major failures, from the exposure.
+      const modes = strList(ind.modes);
+      const miles = await exposureBy('revenue_miles', modes, periods);
+      const failures = await exposureBy('major_failures', modes, periods);
+      for (const p of periods) {
+        const m = miles.get(p) ?? null;
+        const f = failures.get(p) ?? null;
+        values.set(p, { value: m !== null && f !== null && f > 0 ? Math.round(m / f) : null, events: f, exposure: m });
+      }
+    }
+    return periods.map((p) => {
+      const v = values.get(p) ?? { value: null, events: null, exposure: null };
+      const t = target(p);
+      const met = v.value === null || t.target === null ? null : t.direction === 'at_least' ? v.value >= t.target : v.value <= t.target;
+      return { period: p, events: v.events, exposure: v.exposure, value: v.value, target: t.target, direction: t.direction, met };
+    });
+  }
+
   async function trend(ind: Row, user: SessionUser | null, periods: string[]) {
+    if (!EVENT_MEASURES.includes(ind.measure ?? 'count')) return otherTrend(ind, periods);
     const types = strList(ind.event_types);
     const sevs = strList(ind.severities);
     const modes = strList(ind.modes);
@@ -148,30 +232,18 @@ export function registerIndicators(ctx: ModuleContext) {
       `select to_char(e.occurred_at at time zone $1, 'YYYY-MM') as m, count(*)::int as c from safety_events e ${join}
        where ${where.join(' and ')} group by 1`, params)).map((r) => [r.m, r.c as number]));
 
-    let exposure = new Map<string, number | null>();
     const rate = ind.measure === 'rate';
-    if (rate) {
-      const col = ['vehicle_miles', 'vehicle_hours', 'boardings'].includes(ind.exposure) ? ind.exposure : 'vehicle_miles';
-      const rows = await db.query<Row>(
-        `select to_char(period, 'YYYY-MM') as m, mode, ${col} as v from safety_exposure where period >= $1::date and ${col} is not null`, [`${periods[0]}-01`]);
-      exposure = new Map(periods.map((p) => {
-        const of = rows.filter((r) => r.m === p);
-        if (modes.length) {
-          const hit = of.filter((r) => modes.includes(r.mode));
-          return [p, hit.length ? hit.reduce((n, r) => n + Number(r.v), 0) : null];
-        }
-        const whole = of.find((r) => r.mode === '');
-        if (whole) return [p, Number(whole.v)];
-        return [p, of.length ? of.reduce((n, r) => n + Number(r.v), 0) : null];
-      }));
-    }
-    const target = ind.target === null || ind.target === undefined ? null : Number(ind.target);
+    const exposure = rate
+      ? await exposureBy(['vehicle_miles', 'vehicle_hours', 'boardings'].includes(ind.exposure) ? ind.exposure : 'vehicle_miles', modes, periods)
+      : new Map<string, number | null>();
+    const target = await targetsFor(ind);
     return periods.map((p) => {
       const events = counts.get(p) ?? 0;
       const exp = rate ? exposure.get(p) ?? null : null;
       const value = rate ? (exp && exp > 0 ? round((events / exp) * Number(ind.per_units)) : null) : events;
-      const met = value === null || target === null ? null : ind.target_direction === 'at_least' ? value >= target : value <= target;
-      return { period: p, events, exposure: exp, value, target, met };
+      const t = target(p);
+      const met = value === null || t.target === null ? null : t.direction === 'at_least' ? value >= t.target : value <= t.target;
+      return { period: p, events, exposure: exp, value, target: t.target, direction: t.direction, met };
     });
   }
 
@@ -181,7 +253,7 @@ export function registerIndicators(ctx: ModuleContext) {
   app.get('/api/safety-indicators/:id/trend', { preHandler: ctx.requirePerm('safety.view') }, async (req) => {
     const ind = await indicatorFor(req);
     const months = Math.min(60, Math.max(2, Number((req.query as Row).months) || 12));
-    return { indicator: { id: ind.id, name: ind.name, measure: ind.measure, exposure: ind.exposure, per_units: num(ind.per_units), target: num(ind.target), target_direction: ind.target_direction }, points: await trend(ind, req.user, monthsBack(months)) };
+    return { indicator: { id: ind.id, name: ind.name, measure: ind.measure, metric_key: ind.metric_key ?? null, exposure: ind.exposure, per_units: num(ind.per_units), target: num(ind.target), target_direction: ind.target_direction }, points: await trend(ind, req.user, monthsBack(months)) };
   });
   ctx.describeRoute({ method: 'GET', path: '/api/safety-indicators/:id/trend', summary: 'An indicator month by month, with its target', permission: 'safety.view', query: { months: 'How many months (default 12)' } });
 
@@ -240,7 +312,7 @@ export function registerIndicators(ctx: ModuleContext) {
       const pts = await trend(ind, user, periods);
       const last = [...pts].reverse().find((p) => p.value !== null) ?? null;
       shown.push({
-        id: ind.id, name: ind.name, measure: ind.measure, exposure: ind.exposure, per_units: num(ind.per_units),
+        id: ind.id, name: ind.name, measure: ind.measure, metric_key: ind.metric_key ?? null, exposure: ind.exposure, per_units: num(ind.per_units),
         target: num(ind.target), target_direction: ind.target_direction, latest: last, points: pts,
       });
     }
@@ -271,5 +343,6 @@ export function registerIndicators(ctx: ModuleContext) {
   ctx.describeRoute({ method: 'GET', path: '/api/safety/summary', summary: 'The safety dashboard: events, investigations, corrective actions, hazards and indicators', permission: 'safety.view' });
 }
 
+const EXPOSURE_COLUMNS = ['vehicle_miles', 'vehicle_hours', 'boardings', 'revenue_miles', 'major_failures'];
 const num = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
 const round = (n: number) => Math.round(n * 100) / 100;

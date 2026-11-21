@@ -1,12 +1,28 @@
+import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { MASKED_LABEL, MASKED_SQL, MASKED_VALUE } from '../../core/resource.ts';
+import { dayInZone } from '../../core/timezone.ts';
 import type { makeActionExtras } from './actions.ts';
+import { syncCap } from './caps.ts';
 
 // The cross-module action tracker: the `action` record type, its preparation rules and the
 // action summary. Moved out of index.ts unchanged (wave 10 step 0); the extras (sharing and
 // "assigned to you" notifications) stay in actions.ts.
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Contract C2: the action status an action that needs verification waits in once its work is finished. Not a closed status. */
+export const PENDING_VERIFICATION = 'pending_verification';
+/** E23-04: the `action_source` values whose actions need closure evidence (default none). */
+export const CLOSURE_EVIDENCE_SETTING = 'actions.closure_evidence_sources';
+/** Days after completion a verification falls due when nobody set a date. */
+export const VERIFICATION_DAYS = 30;
+
+/**
+ * Actions whose effective verification is being recorded right now (POST /api/actions/:id/verify):
+ * only that route may move an action that needs verification to a done status.
+ */
+export const verifiedNow = new Set<string>();
 
 export type ActionExtras = ReturnType<typeof makeActionExtras>;
 
@@ -16,8 +32,20 @@ export function registerActionResource(ctx: ModuleContext, extras: ActionExtras)
   const statusesWith = async (list: string, flag: string) =>
     (await ctx.lookups.values(list)).filter((v) => v.meta?.[flag]).map((v) => v.value);
 
-  async function prepareAction(existing: Row | null, data: Row): Promise<Row> {
+  async function prepareAction(req: FastifyRequest | null, existing: Row | null, data: Row): Promise<Row> {
     const errors: Record<string, string> = {};
+    // E23-01: an action added to a corrective action plan arose from the plan's source record, so it
+    // takes the plan's source (and with it the source's restriction) unless told otherwise, and
+    // needs its effectiveness verified unless told otherwise.
+    if (data.cap_id && data.cap_id !== existing?.cap_id) {
+      const cap = await ctx.resources.find('cap', String(data.cap_id), req?.user ?? null);
+      if (!cap) errors.cap_id = 'Choose a corrective action plan you can see.';
+      else if (!existing) {
+        if (!data.source_type && cap.source_type) { data.source_type = cap.source_type; data.source_id = cap.source_id; }
+        if ((data.source === undefined || data.source === null || data.source === '') && cap.source) data.source = cap.source;
+        if (data.verification_required === undefined) data.verification_required = true;
+      }
+    }
     // An action raised on a record files itself under that record's source unless told otherwise.
     if (!existing && (data.source === undefined || data.source === null || data.source === '')) {
       data.source = (data.source_type ? await extras.sourceFor(data.source_type) : undefined) ?? 'other';
@@ -25,12 +53,58 @@ export function registerActionResource(ctx: ModuleContext, extras: ActionExtras)
     if (data.source_id && !UUID.test(String(data.source_id))) errors.source_id = 'Source record is not a valid reference.';
     if (data.source_type && !/^[a-z_][a-z0-9_]*$/.test(String(data.source_type))) errors.source_type = 'Source record type is not valid.';
     if (Object.keys(errors).length) ctx.fail(400, 'validation', 'Check the highlighted fields.', errors);
+    const merged: Row = { ...(existing ?? {}), ...data };
+
+    // E23-05: once its plan is approved, an action's due date moves through an extension request;
+    // people who may approve actions can still change it directly.
+    if (req && existing && data.due_on !== undefined && data.due_on !== existing.due_on && existing.due_on && merged.cap_id
+      && !ctx.can(req.user ?? null, 'actions.approve') && await capApproved(String(merged.cap_id))) {
+      ctx.fail(400, 'validation', 'Check the highlighted fields.', {
+        due_on: 'This action belongs to an approved corrective action plan: ask for an extension instead of changing the due date.',
+      });
+    }
+
     if (data.status !== undefined && data.status !== existing?.status) {
       const done = (await statusesWith('action_status', 'done')).includes(data.status);
-      if (done && !data.completed_on) data.completed_on = await today();
-      if (!done && data.completed_on === undefined && existing?.completed_on) data.completed_on = null;
+      const finishing = done || data.status === PENDING_VERIFICATION;
+      if (finishing && existing?.status !== PENDING_VERIFICATION) await checkClosureEvidence(existing, merged);
+      // E23-03 (contract C2): finishing an action that needs verification makes it wait for the
+      // verification instead; only a recorded effective verification makes it done.
+      if (done && merged.verification_required === true && !(existing && verifiedNow.has(existing.id))) {
+        if (existing?.status === PENDING_VERIFICATION) {
+          ctx.fail(409, 'verification_needed', 'This action is waiting for its effectiveness to be verified. Record the verification to finish it.');
+        }
+        if ((await ctx.lookups.values('action_status')).some((v) => v.value === PENDING_VERIFICATION)) data.status = PENDING_VERIFICATION;
+      }
+      if (data.status === PENDING_VERIFICATION) {
+        if (!data.completed_on && !(existing?.status === PENDING_VERIFICATION)) data.completed_on = await today();
+        if (!merged.verification_due) data.verification_due = dayInZone(VERIFICATION_DAYS);
+      } else if (done) {
+        if (!data.completed_on && !existing?.completed_on) data.completed_on = await today();
+      } else if (data.completed_on === undefined && existing?.completed_on) {
+        data.completed_on = null;
+      }
     }
     return data;
+  }
+
+  /** E23-04: actions from the sources named in the setting need evidence before they are finished. */
+  async function checkClosureEvidence(existing: Row | null, merged: Row): Promise<void> {
+    const setting = await ctx.settings.get<unknown>(CLOSURE_EVIDENCE_SETTING, []);
+    const sources = Array.isArray(setting) ? setting.map(String) : [];
+    if (!merged.source || !sources.includes(String(merged.source))) return;
+    if (String(merged.closure_evidence ?? '').trim()) return;
+    // Files live in the attachments module; without it only the text counts.
+    if (existing && (await ctx.db.one<{ ok: boolean }>(`select to_regclass('attachments') is not null as ok`))?.ok
+      && await ctx.db.one('select 1 from attachments where record_type = $1 and record_id = $2 and deleted_at is null limit 1', ['action', existing.id])) return;
+    ctx.fail(400, 'validation', 'Check the highlighted fields.', {
+      closure_evidence: 'Actions from this source need closure evidence before they are finished: attach a file or describe the evidence.',
+    });
+  }
+
+  async function capApproved(capId: string): Promise<boolean> {
+    const cap = await ctx.db.one<Row>('select status from caps where id = $1 and deleted_at is null', [capId]);
+    return Boolean(cap && !['draft', 'submitted', 'rejected'].includes(String(cap.status ?? 'draft')));
   }
 
   ctx.defineResource({
@@ -58,13 +132,32 @@ export function registerActionResource(ctx: ModuleContext, extras: ActionExtras)
       department: { label: 'Department', type: 'text' },
       notes: { label: 'Notes', type: 'longtext' },
       restricted: { label: 'Restricted', type: 'boolean', readOnly: true },
+      // E23: corrective action plans, verification of effectiveness and due-date extensions.
+      cap_id: { label: 'Corrective action plan', type: 'ref', to: 'cap' },
+      verification_required: { label: 'Needs verification', type: 'boolean' },
+      verifier_id: { label: 'Verifier', type: 'user' },
+      verification_due: { label: 'Verification due', type: 'date' },
+      verified_by: { label: 'Verified by', type: 'user', readOnly: true },
+      verified_on: { label: 'Verified on', type: 'date', readOnly: true },
+      verification_method: { label: 'Verification method', type: 'lookup', list: 'verification_method', readOnly: true },
+      verification_result: { label: 'Verification result', type: 'lookup', list: 'verification_result', readOnly: true },
+      verification_note: { label: 'Verification note', type: 'longtext', readOnly: true },
+      closure_evidence: { label: 'Closure evidence', type: 'longtext' },
+      original_due_on: { label: 'Original due date', type: 'date', readOnly: true },
+      extension_count: { label: 'Extensions', type: 'number', readOnly: true },
     },
     hooks: {
-      beforeCreate: (_req, data) => prepareAction(null, data),
-      beforeUpdate: (_req, existing, patch) => prepareAction(existing, patch),
-      afterCreate: (req, row) => extras.notifyAssigned(req, row),
+      beforeCreate: (req, data) => prepareAction(req, null, data),
+      beforeUpdate: (req, existing, patch) => prepareAction(req, existing, patch),
+      afterCreate: async (req, row) => {
+        await extras.notifyAssigned(req, row);
+        if (row.cap_id) await syncCap(ctx, String(row.cap_id));
+      },
       afterUpdate: async (req, before, after) => {
         if (after.owner_id && after.owner_id !== before.owner_id) await extras.notifyAssigned(req, after);
+        // A plan follows its actions: in progress, verifying, closed, or back in progress on a reopen.
+        if (before.cap_id && before.cap_id !== after.cap_id) await syncCap(ctx, String(before.cap_id));
+        if (after.cap_id && (after.status !== before.status || after.cap_id !== before.cap_id)) await syncCap(ctx, String(after.cap_id));
       },
     },
   });
@@ -79,14 +172,15 @@ export function registerActionResource(ctx: ModuleContext, extras: ActionExtras)
     const masked = (col: string) => `case when coalesce(restricted, false) and ${col} is not null then ${MASKED_SQL} else ${col} end`;
     const head = (await ctx.db.one<Row>(
       `select count(*)::int as open,
-              count(*) filter (where due_on < current_date)::int as overdue,
+              count(*) filter (where due_on < current_date and completed_on is null)::int as overdue,
+              count(*) filter (where status = 'pending_verification')::int as awaiting_verification,
               count(*) filter (where due_on >= current_date and due_on <= current_date + (7 - extract(isodow from current_date))::int)::int as due_this_week,
               count(*) filter (where owner_id is null)::int as unassigned,
               current_date::text as today,
               (current_date + (7 - extract(isodow from current_date))::int)::text as week_end
        from actions where ${open}`, [closed]))!;
     const group = (expr: string) => ctx.db.query<Row>(
-      `select ${expr} as value, count(*)::int as open, count(*) filter (where due_on < current_date)::int as overdue
+      `select ${expr} as value, count(*)::int as open, count(*) filter (where due_on < current_date and completed_on is null)::int as overdue
        from actions where ${open} group by 1 order by 2 desc, 1`, [closed]);
     const owners = await group(masked('owner_id::text'));
     const names = new Map((await ctx.db.query<Row>(
@@ -94,7 +188,7 @@ export function registerActionResource(ctx: ModuleContext, extras: ActionExtras)
     )).map((u) => [u.id, u.display_name]));
     const sources = await ctx.lookups.values('action_source');
     const mine = (await ctx.db.one<Row>(
-      `select count(*)::int as open, count(*) filter (where due_on < current_date)::int as overdue,
+      `select count(*)::int as open, count(*) filter (where due_on < current_date and completed_on is null)::int as overdue,
               count(*) filter (where due_on >= current_date and due_on <= current_date + (7 - extract(isodow from current_date))::int)::int as due_this_week
        from actions where ${open} and owner_id = $2 and ${ctx.resources.visibleWhere('action', req.user)}`, [closed, req.user!.id]))!;
     return {

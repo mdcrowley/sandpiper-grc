@@ -47,6 +47,8 @@ export interface Summary {
 export interface Audiences {
   roles: { id: string; name: string }[];
   departments: { id: string; name: string }[];
+  /** Roster positions (people module); empty without it. */
+  positions?: { id: string; name: string }[];
   department_names: string[];
 }
 

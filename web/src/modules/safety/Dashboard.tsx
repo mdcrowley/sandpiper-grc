@@ -32,6 +32,8 @@ export function SafetyDashboard() {
   const { can } = useAuth();
   const exposures = useLookup('safety_exposure_measure');
   const { data: s, error, loading, reload } = useFetch<Summary>('/api/safety/summary');
+  // Notification clocks (E25-06): counted for everyone, whatever they may see.
+  const { data: clocks, reload: reloadClocks } = useFetch<{ summary: { red: number; amber: number; green: number; open: number } }>('/api/safety/clocks');
   const since = s ? monthStart(s.periods[0]) : '';
 
   const charts = useMemo(() => {
@@ -73,7 +75,7 @@ export function SafetyDashboard() {
     <>
       <PageHeader title="Safety" subtitle="The last twelve months of safety events, open investigations and corrective actions, the hazard log and the indicators."
         actions={<>
-          <Button icon="refresh" loading={loading && !!s} onClick={reload}>Refresh</Button>
+          <Button icon="refresh" loading={loading && !!s} onClick={() => { reload(); reloadClocks(); }}>Refresh</Button>
           {can('safety.create') && <Link className="btn btn-primary" to="/safety/events?new=1">Report a safety event</Link>}
         </>} />
       <SafetyTabs active="dashboard" />
@@ -98,6 +100,12 @@ export function SafetyDashboard() {
           hint={t.corrective_overdue ? `${t.corrective_overdue} overdue` : 'None overdue'} to="/actions?f.source=safety" />
         <Stat label="Open hazards" value={t.hazards_open} icon="shield" color={t.hazards_high ? 'orange' : undefined}
           hint={`${t.hazards_high} rated serious or high${t.hazards_review_overdue ? `, ${t.hazards_review_overdue} past review` : ''}`} to="/safety/hazards" />
+        {clocks && (
+          <Stat label="Notification clocks running" value={clocks.summary.open} icon="clock"
+            color={clocks.summary.red ? 'red' : clocks.summary.amber ? 'amber' : undefined}
+            hint={clocks.summary.red || clocks.summary.amber ? `${clocks.summary.red} overdue, ${clocks.summary.amber} due soon` : 'None overdue or due soon'}
+            to={ev('f.reportable=true')} />
+        )}
       </div>
 
       <div className="sf-grid">
@@ -141,7 +149,7 @@ export function SafetyDashboard() {
                   </div>
                   <div className="sf-ind-figure">
                     <strong className="sf-big">{i.latest ? formatNumber(i.latest.value) : '—'}</strong>
-                    <span className="muted">{i.latest ? `${monthLabel(i.latest.period)} · ${unit}` : unit} · Target {targetText(i).toLowerCase()}</span>
+                    <span className="muted">{i.latest ? `${monthLabel(i.latest.period)} · ${unit}` : unit} · Target {targetText(i.latest && i.latest.target !== null ? { target: i.latest.target, target_direction: i.latest.direction ?? i.target_direction } : i).toLowerCase()}</span>
                   </div>
                   <TrendChart points={i.points} name={i.name} unit={unit} height={150} />
                 </section>

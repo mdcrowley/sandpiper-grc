@@ -83,7 +83,7 @@ export function PolicyLibrary() {
         type="policy"
         urlState
         columns={[
-          'ref', 'title', 'category', 'status',
+          'ref', 'title', 'document_type', 'category', 'status',
           { field: 'current_version', label: 'In force', sortable: true, render: (row) => (row.current_version ? `Version ${row.current_version}` : <span className="muted">None</span>) },
           { field: 'review_date', label: 'Review', sortable: true, render: (row) => <ReviewChip date={row.review_date} status={row.status} /> },
           { field: 'owner_id', hidden: true },
@@ -91,9 +91,9 @@ export function PolicyLibrary() {
           { field: 'ack_days', hidden: true },
           { field: 'updated_at', hidden: true },
         ]}
-        filters={['status', 'category', 'owner_id', 'review_date']}
-        bulkFields={['category', 'owner_id', 'review_date']}
-        createFields={['title', 'summary', 'category', 'owner_id', 'approver_name', 'approver_role', 'review_date']}
+        filters={['document_type', 'status', 'category', 'owner_id', 'review_date']}
+        bulkFields={['document_type', 'category', 'owner_id', 'review_date']}
+        createFields={['title', 'document_type', 'summary', 'category', 'owner_id', 'approver_name', 'approver_role', 'review_date']}
       />
       {settings && <ReminderSettings onClose={() => setSettings(false)} />}
     </div>

@@ -5,26 +5,6 @@ What the prototype does not do yet. Update with every change. The roadmap
 
 ## Not built
 
-Planned for wave 10 (roadmap epics E23 to E30), not built yet:
-
-- **Corrective action plans** grouping actions, with plan approval, verification of effectiveness and
-  due-date extensions (E23).
-- **Audits and inspections**: audit plan and coverage, engagements, checklists, findings, evidence
-  requests and recurring inspections on a phone (E24).
-- **Safety event depth**: people involved, investigation record, operator-defined reportability rules
-  and notification clocks; measured safety indicators with yearly targets; safety impact on changes (E25).
-- **Control library and control testing** (E26).
-- **Funding and grant compliance**: awards, certifications, funder reviews and deficiencies (E27).
-- **Committees and meetings**, the decisions register, and the safety plan's element map and annual
-  review (E28).
-- **A staff roster** with positions, certifications, a qualification matrix, and policy
-  acknowledgments recorded for staff without accounts (E29).
-- **Recurring obligations** with per-period attestation, regulatory change intake, risk appetite,
-  key risk indicators and parent risks (E30).
-
-The permission keys, feature switches and default roles for these parts exist already (with nothing
-behind them yet), and so does the metric registry that their indicators read (`GET /api/metrics`).
-
 Planned for wave 11 (E31 to E36): business continuity and emergency management, asset condition
 and state of good repair, OT and rail-systems cybersecurity, legal hold with records and
 personal-data requests and privacy assessments, the vendor risk lifecycle, and integrations
@@ -35,6 +15,22 @@ work orders, which belong in specialist systems (E25-13, E29-11, E32-06).
 
 ## Built but incomplete
 
+- **Wave 10 parts** (corrective action plans, audits and inspections, controls, funding, committees,
+  the staff roster, obligations and enterprise risk):
+  - `actions.closure_evidence_sources` has no settings screen yet; set it through the settings API.
+  - The person asked for audit evidence answers in text only (attaching files needs `audits.edit`);
+    taking inspection photos needs `audits.edit` and the attachments module.
+  - The controls panel is not yet on the pages of the records a control covers (E26-11); coverage
+    cannot be imported from a spreadsheet, and controls have no per-control test steps.
+  - Funding: sub-recipient monitoring, and one clause checklist shared by funder clauses and contract
+    security terms (E27-11); drawdowns, budgets and spending by award are left to the finance system.
+  - A meeting decision can be applied only to approvals declared as an approval kind, not to
+    workflows an administrator defined with no kind; typed names of committee members are not
+    anonymized at the end of the retention period; meetings send no calendar invitations (E36).
+  - Departments are not a record type, so person and position exports show the department's id;
+    kiosk lockouts after wrong employee numbers are kept per server process.
+  - Key risk indicators are monthly only; regulatory changes are entered by hand (no outside feed).
+  - The new parts have no AI assistant (MCP) summary tools yet.
 - **Approval workflows and lifecycles**: project gates use a workflow only once an administrator
   names one on the gate template; while no disposal workflow is active, a disposal request is
   decided once by anyone who may approve disposals. The `change.approval_decided` webhook event

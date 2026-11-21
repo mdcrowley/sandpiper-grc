@@ -1,0 +1,75 @@
+/* Corrective action plans and verification (E23). Owned by the CAP pages; risks.css stays the
+   risk register's. */
+
+/* An action awaiting verification: its tick shows a clock instead of completing it. */
+.rk-tick.is-verifying {
+  background: var(--c-purple-bg);
+  border-color: var(--c-purple-solid);
+  color: var(--c-purple-solid);
+  cursor: default;
+}
+.rk-tick.is-verifying:hover { border-color: var(--c-purple-solid); color: var(--c-purple-solid); }
+
+/* CapPanel on host pages */
+.rk-cap-list { display: grid; margin: 0; padding: 0; list-style: none; }
+.rk-cap-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  padding: var(--s-3) var(--s-4);
+  border-bottom: 1px solid var(--border);
+}
+.rk-cap-list li:last-child { border-bottom: 0; }
+.rk-cap-main { display: grid; gap: 2px; min-width: 0; flex: 1 1 18rem; }
+.rk-cap-main a { overflow-wrap: anywhere; }
+
+/* Facts on the verification card */
+.cap-flush { margin: 0; }
+.cap-pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.cap-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: var(--s-3) var(--s-4);
+  margin: 0;
+}
+.cap-facts > div { display: grid; gap: 2px; min-width: 0; }
+.cap-facts dt { color: var(--text-muted); font-size: var(--fs-sm); }
+.cap-facts dd { margin: 0; }
+.cap-facts-wide { grid-column: 1 / -1; }
+
+/* Extension history */
+.cap-ext-list { display: grid; gap: var(--s-3); margin: 0; padding: 0; list-style: none; }
+.cap-ext-list li { display: grid; gap: var(--s-1); padding-bottom: var(--s-3); border-bottom: 1px solid var(--border); }
+.cap-ext-list li:last-child { border-bottom: 0; padding-bottom: 0; }
+
+/* Register: action counts */
+.cap-count { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }
+
+/* Plan progress steps */
+.cap-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cap-steps li { display: inline-flex; align-items: center; gap: var(--s-2); color: var(--text-muted); font-size: var(--fs-sm); }
+.cap-step-dot {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 50%;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+.cap-steps li.is-done { color: var(--text); }
+.cap-steps li.is-done .cap-step-dot { background: var(--c-green-solid); border-color: var(--c-green-solid); color: var(--surface); }
+.cap-steps li.is-current { color: var(--text); font-weight: 600; }
+.cap-steps li.is-current .cap-step-dot { border-color: var(--c-blue-solid); color: var(--c-blue-solid); }
+.cap-steps li.is-rejected { color: var(--danger-text); font-weight: 600; }
+.cap-steps li.is-rejected .cap-step-dot { border-color: var(--c-red-solid); color: var(--c-red-solid); }

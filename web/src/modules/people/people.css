@@ -1,0 +1,5 @@
+/* The roster (people module). Colors come from the design tokens so both themes work. */
+.ppl-layout { display: grid; gap: var(--s-4); grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); align-items: start; }
+@media (max-width: 1000px) { .ppl-layout { grid-template-columns: minmax(0, 1fr); } }
+.ppl-dept { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: end; }
+.ppl-dept > :first-child { flex: 1 1 200px; }

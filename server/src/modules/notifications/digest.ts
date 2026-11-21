@@ -35,6 +35,7 @@ async function actionsDue(ctx: ModuleContext, notify: Notify): Promise<number> {
     `select id, ${def.titleField}::text as title, owner_id, due_on from ${def.table}
      where deleted_at is null and owner_id is not null and due_on is not null and due_on <= $1::date + $2::int
        ${def.fields.status ? 'and (status is null or status <> all($3::text[]))' : 'and $3::text[] is not null'}
+       ${def.fields.completed_on ? 'and completed_on is null' : ''}
      order by due_on limit 2000`,
     [today, days, closed],
   );

@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { api, ApiError, Button, Card, errorMessage, IconButton, NumberField, TextField, useLookup, useToast } from '../../core';
+import { api, ApiError, Button, Card, Checkbox, errorMessage, IconButton, NumberField, TextField, useAuth, useLookup, useToast } from '../../core';
 import type { ChangeSettings, Questionnaire, RiskQuestion } from './types';
 
 /** The risk questionnaire: questions, weights, the score of each answer, and where each risk level ends. */
 export function QuestionnaireAdmin({ settings, onSaved }: { settings: ChangeSettings; onSaved: () => void }) {
   const toast = useToast();
   const risks = useLookup('change_risk');
+  const { areaOn } = useAuth();
   const [questions, setQuestions] = useState<RiskQuestion[]>([]);
   const [bands, setBands] = useState<Record<string, number | null>>({});
   const [fields, setFields] = useState<Record<string, string>>({});
@@ -78,6 +79,12 @@ export function QuestionnaireAdmin({ settings, onSaved }: { settings: ChangeSett
                 <IconButton icon="trash" variant="ghost" label={`Remove question ${i + 1}`} onClick={() => setQuestions((list) => list.filter((_, n) => n !== i))} />
               </div>
               <TextField label="Help text" value={q.help ?? ''} onChange={(help) => setQuestion(i, { help })} />
+              {/* E25-11: only while safety management is on (the safety assessment it asks for lives there). */}
+              {areaOn('safety') && (
+                <Checkbox label="This question asks whether the change affects safety" checked={q.meta?.safety_impact === true}
+                  hint="An answer scoring above zero marks the change as affecting safety: it then needs a hazard linked as its safety assessment before approval."
+                  onChange={(on) => setQuestion(i, { meta: on ? { safety_impact: true } : undefined })} />
+              )}
               {q.options.map((o, j) => (
                 <div key={j} className="chg-option-row">
                   <TextField label={`Answer ${j + 1}`} value={o.label} onChange={(label) => setOption(i, j, { label })} error={fields[`questions.${i}.options.${j}.label`]} />

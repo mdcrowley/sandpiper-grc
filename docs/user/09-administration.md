@@ -191,7 +191,7 @@ A role is a named set of permissions. People get access only through the roles t
 
 The list shows each role's **Access** (for example "12 permissions in 5 areas", or "Everything"), the number of **Members**, whether a **Second factor** is Required or Optional, and a **Switched on** switch. Treat the supplied roles as a starting point and check each one's permissions against how your organization works.
 
-The Compliance officer, Audit lead and Training coordinator roles, and the permissions for audits, controls, funding, committees and the staff roster, are ready ahead of the parts they are for, which are still being built. Until then those permissions are grayed out on a role's page, because nothing uses them yet. On an installation set up before these roles existed, the three new roles appear by themselves; the new permissions of the roles you already have are offered under [Applying default permissions after an upgrade](#applying-default-permissions-after-an-upgrade).
+The Compliance officer, Audit lead and Training coordinator roles come with the audits, controls, funding, committees and staff roster parts. On an installation set up before these roles existed, the three new roles appear by themselves; the new permissions of the roles you already have are offered under [Applying default permissions after an upgrade](#applying-default-permissions-after-an-upgrade).
 
 ### Applying default permissions after an upgrade
 
@@ -669,7 +669,6 @@ Each part has a switch, a line saying what it covers, whether it is **On** or **
 | **Funding and grant compliance** | Funding awards and what they fund, yearly certifications, funder compliance reviews and their deficiencies | On |
 | **Committees and meetings** | Committees and their members, meetings with agendas, packs and minutes, and the decisions register | On |
 
-The last four parts are listed ahead of their pages, which are still being built: switching them off or on changes nothing you can see yet.
 
 **AI assistant access** is listed too, with its state, but it keeps its own page: select the link to open **Administration > AI assistant access**. **Inventory** (systems, assets, sites, data categories and the relationship map), the **action tracker**, **notifications**, **files**, **administration**, the **Overview** and **Help** are always on.
 

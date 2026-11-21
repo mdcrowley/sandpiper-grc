@@ -1,9 +1,14 @@
 import type { ModuleContext, ModuleDef } from '../../core/module.ts';
+import { registerChangeAssessment } from './change-assessment.ts';
+import { anonymizeEventDetails, registerEventDetail } from './event-detail.ts';
+import { onAnonymize } from '../../core/retention.ts';
 import { registerEvents } from './events.ts';
 import { registerHazards } from './hazards.ts';
 import { registerIndicators } from './indicators.ts';
 import { registerPortalIntake } from './portal-intake.ts';
 import { registerReminders } from './reminders.ts';
+import { registerReporting, scheduleClockSweep } from './reporting.ts';
+import { registerTargets } from './targets.ts';
 import { seedSafety } from './seed.ts';
 
 /**
@@ -12,6 +17,11 @@ import { seedSafety } from './seed.ts';
  * and hazards, safety performance indicators over exposure the operator enters, and
  * notifications for serious events and overdue corrective actions. Permission module `safety`;
  * events flagged `restricted` (personal information) also need `security.view`.
+ *
+ * Wave 10 (E25): the people involved, conditions, timeline and statements of an event (people and
+ * statements always need `security.view`); the organization's own reporting rules and the
+ * notification clocks they start; indicators entered by hand, computed from other modules' metrics
+ * or measured as distance between failures; yearly targets with approval (kind `safety_targets`).
  */
 
 async function seedDefaults(ctx: ModuleContext) {
@@ -68,6 +78,46 @@ async function seedDefaults(ctx: ModuleContext) {
     { value: 'controlled', label: 'Controlled', color: 'green', sort: 30 },
     { value: 'closed', label: 'Closed', color: 'gray', sort: 40, meta: { closed: true } },
   ], own);
+  await ctx.lookups.ensure('safety_person_role', [
+    { value: 'passenger', label: 'Passenger', sort: 10 },
+    { value: 'employee', label: 'Employee', sort: 20 },
+    { value: 'contractor', label: 'Contractor', sort: 30 },
+    { value: 'public', label: 'Member of the public', sort: 40 },
+    { value: 'trespasser', label: 'Trespasser', sort: 50 },
+  ], own);
+  await ctx.lookups.ensure('safety_injury_severity', [
+    { value: 'none', label: 'No injury', color: 'gray', sort: 10 },
+    { value: 'first_aid', label: 'First aid only', color: 'blue', sort: 20 },
+    { value: 'medical', label: 'Medical treatment', color: 'amber', sort: 30 },
+    { value: 'hospital', label: 'Admitted to hospital', color: 'orange', sort: 40 },
+    { value: 'fatal', label: 'Fatal', color: 'red', sort: 50 },
+  ], own);
+  await ctx.lookups.ensure('safety_statement_type', [
+    { value: 'witness', label: 'Witness statement', sort: 10 },
+    { value: 'involved', label: 'Statement of a person involved', sort: 20 },
+    { value: 'employee', label: 'Employee report', sort: 30 },
+    { value: 'other', label: 'Other', sort: 90 },
+  ], own);
+  await ctx.lookups.ensure('safety_weather', [
+    { value: 'clear', label: 'Clear', sort: 10 }, { value: 'rain', label: 'Rain', sort: 20 }, { value: 'snow_ice', label: 'Snow or ice', sort: 30 },
+    { value: 'fog', label: 'Fog', sort: 40 }, { value: 'wind', label: 'High wind', sort: 50 }, { value: 'other', label: 'Other', sort: 90 },
+  ], own);
+  await ctx.lookups.ensure('safety_lighting', [
+    { value: 'daylight', label: 'Daylight', sort: 10 }, { value: 'dusk_dawn', label: 'Dusk or dawn', sort: 20 },
+    { value: 'dark_lit', label: 'Dark, lit', sort: 30 }, { value: 'dark_unlit', label: 'Dark, not lit', sort: 40 }, { value: 'indoors', label: 'Indoors', sort: 50 },
+  ], own);
+  await ctx.lookups.ensure('safety_surface', [
+    { value: 'dry', label: 'Dry', sort: 10 }, { value: 'wet', label: 'Wet', sort: 20 }, { value: 'snow_ice', label: 'Snow or ice', sort: 30 },
+    { value: 'contaminated', label: 'Oil, debris or leaves', sort: 40 }, { value: 'other', label: 'Other', sort: 90 },
+  ], own);
+  await ctx.lookups.ensure('safety_contributing_factor', [
+    { value: 'human', label: 'Human factors', sort: 10 },
+    { value: 'equipment', label: 'Equipment or vehicle', sort: 20 },
+    { value: 'environment', label: 'Weather or environment', sort: 30 },
+    { value: 'organizational', label: 'Organizational (procedures, training, scheduling)', sort: 40 },
+    { value: 'infrastructure', label: 'Infrastructure', sort: 50 },
+    { value: 'third_party', label: 'Third party', sort: 60 },
+  ], own);
   await ctx.lookups.ensure('safety_exposure_measure', [
     { value: 'vehicle_miles', label: 'Vehicle-miles', sort: 10 },
     { value: 'vehicle_hours', label: 'Vehicle-hours', sort: 20 },
@@ -87,10 +137,17 @@ async function seedDefaults(ctx: ModuleContext) {
 
 async function register(ctx: ModuleContext) {
   registerHazards(ctx);
-  registerEvents(ctx);
+  const reporting = registerReporting(ctx);
+  registerEvents(ctx, reporting);
+  registerEventDetail(ctx);
+  // Anonymizing an event at the end of retention also clears its people involved, statements and timeline (E25-15).
+  onAnonymize('safety_event', (tx, id) => anonymizeEventDetails(tx as never, id));
   registerIndicators(ctx);
+  registerTargets(ctx);
+  registerChangeAssessment(ctx);
   registerPortalIntake(ctx);
   await registerReminders(ctx);
+  await scheduleClockSweep(ctx, reporting);
 }
 
 const mod: ModuleDef = {

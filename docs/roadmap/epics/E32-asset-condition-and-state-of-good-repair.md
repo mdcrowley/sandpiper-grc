@@ -1,6 +1,6 @@
 # E32 Asset condition and state of good repair
 
-**Status:** open (1 of 6 issues done: E32-06 is a "Not planned" entry)
+**Status:** in progress (1 of 6 issues done)
 
 ## Goal
 

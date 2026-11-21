@@ -1,6 +1,6 @@
 # E33 OT and rail-systems cybersecurity
 
-**Status:** open
+**Status:** open (0 of 4 issues done)
 
 ## Goal
 

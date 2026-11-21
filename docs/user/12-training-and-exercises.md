@@ -1,6 +1,6 @@
 # Training and exercises
 
-This part of the application records the courses people must take, who has completed them and who is overdue, and the exercises you run to test your plans: tabletop exercises, restore tests and continuity tests, with what each one showed and the actions that followed. Lists and record pages work as described in [Getting started](01-getting-started.md).
+This part of the application records the courses people must take, who has completed them and who is overdue, the certifications each person holds and who is qualified for their position, and the exercises you run to test your plans: tabletop exercises, restore tests and continuity tests, with what each one showed and the actions that followed. Lists and record pages work as described in [Getting started](01-getting-started.md).
 
 An administrator can switch training and exercises off under **Administration > Features** (see [Administration](09-administration.md#features)); **My training** then goes too. Records are kept and return when it is switched back on.
 
@@ -9,14 +9,16 @@ An administrator can switch training and exercises off under **Administration > 
 | Permission | Allows |
 |---|---|
 | `training.view` | See courses, records and the training overview |
-| `training.create` | Add courses, record training and import completions |
-| `training.edit` | Change courses and add or remove assignment rules |
+| `training.create` | Add courses and certifications, record training and import completions |
+| `training.edit` | Change courses and certifications, add or remove assignment rules, and set what each position requires |
 | `training.delete` | Remove courses and training records |
 | `training.export` | Export courses and training records |
-| `training.administer` | Change the reminder settings on the **Training overview** |
+| `training.administer` | Change the reminder settings on the **Training overview** and the certification reminder days |
 | `exercises.view`, `exercises.create`, `exercises.edit`, `exercises.delete`, `exercises.export` | The same for exercises |
 
 Everyone who can sign in can open **My training**, which shows only their own records.
+
+**Qualifications**, the expiring certifications and a person's training on their roster page name people on the roster, so they also need `people.view`. The **Training coordinator** role holds both.
 
 ## Courses
 
@@ -50,14 +52,14 @@ The bar at the top shows how many of the people given the course have completed 
 
 ## Assign a course
 
-An assignment rule gives a course to people who have an account.
+An assignment rule gives a course to people who have an account, or, by position, to the people on the roster (see [People and qualifications](29-people-and-qualifications.md)) whether or not they have an account.
 
 1. Open the course and its **Assignment rules** tab.
 2. Select **Add rule**.
-3. In **Assign to**, choose **Everyone with an account**, **Everyone holding a role**, **Everyone in a department** or **One person**, then choose the role, department or person.
+3. In **Assign to**, choose **Everyone with an account**, **Everyone holding a role**, **Everyone in a department**, **Everyone on the roster in a position** or **One person**, then choose the role, department, position or person.
 4. Select **Add rule**.
 
-Each active user the rule matches gets a record at once, due after the course's days allowed. The rules are checked again every day and when the application starts, so a new starter, or someone who joins the role or department, is picked up without anyone doing anything. A person who already has a record for the course is never given a second one by a rule.
+Each active user (or, for a position, each active person on the roster) the rule matches gets a record at once, due after the course's days allowed. The rules are checked again every day and when the application starts, so a new starter, or someone who joins the role or department, is picked up without anyone doing anything. A person who already has a record for the course is never given a second one by a rule.
 
 Removing a rule with the trash button stops new records being raised. Records already raised are kept.
 
@@ -91,7 +93,7 @@ For anyone else:
 3. Under **People without an account**, type one person per line: the name, then optionally the email address and the department, separated by commas. Most staff may not have an account, and their training can still be recorded this way.
 4. Enter the completion details and select **Record completion**.
 
-A person whose email address matches an account is recorded against that account. Someone who already has the same completion (same course and date) is skipped, and the message tells you how many were skipped.
+A person whose email address matches an account is recorded against that account, and one whose email address matches someone on the roster against that person. Training recorded for an email address before the person was added to the roster becomes theirs when they are added. Someone who already has the same completion (same course and date) is skipped, and the message tells you how many were skipped.
 
 To remove a record entered by mistake, select the trash button on its row. The removal is kept in the course's history.
 
@@ -128,6 +130,18 @@ Open **Training overview** in the **Cybersecurity** group. Each person counts on
 | **Overdue now** | The people who are overdue, longest overdue first |
 
 Select any tile, bar segment, point or number to open **Training records** filtered to exactly those records. There you can search and filter by **Course**, **Department** and **Status**, switch **Show** between **Latest per person** and **Every record**, and select **Export** to download the list as a CSV file.
+
+## Qualifications and certifications
+
+Positions, the courses and certifications each one requires, and the roster itself are described in [People and qualifications](29-people-and-qualifications.md). In training:
+
+- **Certifications** (in the **Cybersecurity** group) lists every certification (`CRT-` numbers) with the person, type, number, issuing body, issue and expiry dates and status. Select **New certification**, or **Create** then **Certification**; when you give the **Issued on** date and leave **Expires on** empty, the expiry is worked out from the type's validity, and **Issued by** is filled from the type. Add the scanned certificate on the record's **Evidence files** tab.
+- **Expiring** on the certifications list shows the certifications that have expired or expire within 30, 60, 90 or 180 days and have not been renewed by a later certification of the same type.
+- **Qualifications** shows the qualification matrix (see the guide page above).
+
+### Certification reminders
+
+Once a day the application looks for certifications that expire within 90, 60 and 30 days, or have expired, and have not been renewed. The person (when they have an account) and their supervisor on the roster (when the supervisor has an account) are told once at each step. A new expiry date on the certification starts the steps again. Each reminder is recorded in the certification's history. Someone with **Administer** on **Training** can change the days (one to six numbers from 1 to 365) with `PUT /api/training/certifications/settings`, or under **Administration > Reminders** (setting `training.certification_reminder_days`).
 
 ## My training
 

@@ -423,7 +423,7 @@ The tab you are looking at is part of the page address, so a bookmark or a link 
 
 ### Activity and comments
 
-The **Activity** tab shows comments and changes together, newest first. Each entry shows who it was, and how long ago; rest the pointer on the time for the exact date and time. **Everything**, **Comments** and **Changes** above the list choose what is shown.
+The **Activity** tab shows comments and edits together, newest first. Each entry shows who it was, and how long ago; rest the pointer on the time for the exact date and time. **Everything**, **Comments** and **Edits** above the list choose what is shown.
 
 1. Type in the box at the top of the tab.
 2. Leave **Internal note** selected for a note meant for staff only. Select **Public comment** to mark the comment as visible to the requester as well. Internal notes are shown with an amber edge and a padlock.

@@ -104,16 +104,19 @@ function PolicyExceptions({ row }: { row: Row }) {
 
 function Summary({ rec, versions }: { rec: RecordContext; versions: VersionsState }) {
   return (
-    <div className="pol-layout">
-      <Reader row={rec.row} versions={versions} />
-      <div className="stack">
-        <EditableSummary
-          type="policy" row={rec.row} onSaved={rec.reload}
-          fields={['title', 'summary', 'category', 'owner_id', 'approver_name', 'approver_role', 'review_date', 'current_version']}
-        />
-        <AudienceCard rec={rec} />
-        {PlanPanel && <Suspense fallback={null}><PlanPanel policy={rec.row} onChanged={rec.reload} /></Suspense>}
+    <div className="stack">
+      <div className="pol-layout">
+        <Reader row={rec.row} versions={versions} />
+        <div className="stack">
+          <EditableSummary
+            type="policy" row={rec.row} onSaved={rec.reload}
+            fields={['title', 'document_type', 'summary', 'category', 'owner_id', 'approver_name', 'approver_role', 'review_date', 'current_version']}
+          />
+          <AudienceCard rec={rec} />
+        </div>
       </div>
+      {/* A plan's element map and reviews take the full width under the text (E28-08, E28-09). */}
+      {PlanPanel && <Suspense fallback={null}><PlanPanel policy={rec.row} onChanged={rec.reload} /></Suspense>}
     </div>
   );
 }

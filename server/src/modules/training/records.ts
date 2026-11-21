@@ -1,7 +1,7 @@
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { isDate, localDate, text, UUID } from './dates.ts';
-import { failingResults, loadUsers, RECORDS_CTE, resolvePerson, saveTraining } from './people.ts';
+import { failingResults, loadUsers, recordsCte, resolvePerson, rosterOn, saveTraining } from './people.ts';
 import type { Completion, Person } from './people.ts';
 import { notifyTraining } from './notify.ts';
 import { syncTrainingAssignments } from './sync.ts';
@@ -52,6 +52,7 @@ export function registerRecords(ctx: ModuleContext) {
 
   app.get('/api/training/audiences', view, async () => ({
     roles: await db.query('select id, name from roles where enabled order by lower(name)'),
+    positions: roster ? await db.query('select id, name from positions where deleted_at is null and active order by lower(name)') : [],
     departments: await db.query('select id, name from departments where deleted_at is null order by lower(name)'),
     department_names: (await db.query<{ name: string }>(
       `select distinct coalesce(d.name, r.person_department) as name
@@ -63,18 +64,24 @@ export function registerRecords(ctx: ModuleContext) {
 
   // ---------- assignment rules ----------
 
+  // Rules by position (E29-05) count and name roster people, when the roster is there.
+  const roster = rosterOn(db);
   const RULES = `
-    select a.id, a.course_id, a.audience_type, a.role_id, a.department_id, a.user_id, a.created_at,
+    select a.id, a.course_id, a.audience_type, a.role_id, a.department_id, a.user_id, a.position_id, a.created_at,
            case a.audience_type when 'everyone' then 'Everyone with an account'
                 when 'role' then coalesce(ro.name, 'Role removed')
                 when 'department' then coalesce(d.name, 'Department removed')
+                when 'position' then ${roster ? "'Position: ' || coalesce((select name from positions where id = a.position_id and deleted_at is null), 'removed')" : "'Position'"}
                 else coalesce(u.display_name, 'User removed') end as audience_label,
+           case when a.audience_type = 'position' then ${roster
+             ? "(select count(*)::int from people p where p.position_id = a.position_id and p.deleted_at is null and p.status = 'active')"
+             : '0'} else
            (select count(*)::int from users x where x.status = 'active' and x.deleted_at is null and (
               a.audience_type = 'everyone'
               or (a.audience_type = 'user' and x.id = a.user_id)
               or (a.audience_type = 'department' and x.department_id = a.department_id)
               or (a.audience_type = 'role' and exists (
-                    select 1 from user_roles ur where ur.user_id = x.id and ur.role_id = a.role_id)))) as people
+                    select 1 from user_roles ur where ur.user_id = x.id and ur.role_id = a.role_id)))) end as people
     from training_assignments a
     left join roles ro on ro.id = a.role_id
     left join departments d on d.id = a.department_id and d.deleted_at is null
@@ -90,34 +97,36 @@ export function registerRecords(ctx: ModuleContext) {
     const course = await needCourse((req.params as Row).id, req);
     const body = (req.body ?? {}) as Row;
     const type = String(body.audience_type ?? '');
-    const column = ({ role: 'role_id', department: 'department_id', user: 'user_id' } as Record<string, string>)[type];
+    const column = ({ role: 'role_id', department: 'department_id', user: 'user_id', ...(roster ? { position: 'position_id' } : {}) } as Record<string, string>)[type];
     if (type !== 'everyone' && !column) {
-      ctx.fail(400, 'validation', 'Check the highlighted fields.', { audience_type: 'Choose everyone, a role, a department or a person.' });
+      ctx.fail(400, 'validation', 'Check the highlighted fields.', { audience_type: 'Choose everyone, a role, a department, a position or a person.' });
     }
     let target: string | null = null;
     if (column) {
       target = text(body[column]);
-      const table = type === 'role' ? 'roles where true' : type === 'department' ? 'departments where deleted_at is null' : 'users where deleted_at is null';
+      const table = type === 'role' ? 'roles where true' : type === 'department' ? 'departments where deleted_at is null'
+        : type === 'position' ? 'positions where deleted_at is null' : 'users where deleted_at is null';
       if (!target || !UUID.test(target) || !(await db.one(`select 1 from ${table} and id = $1`, [target]))) {
         ctx.fail(400, 'validation', 'Check the highlighted fields.', { [column]: `Choose a ${type === 'user' ? 'person' : type}.` });
       }
     }
     const clash = await db.one(
       `select 1 from training_assignments where course_id = $1 and deleted_at is null and audience_type = $2
-         and coalesce(role_id, department_id, user_id)::text is not distinct from $3`,
+         and coalesce(role_id, department_id, user_id, position_id)::text is not distinct from $3`,
       [course.id, type, target],
     );
     if (clash) ctx.fail(409, 'duplicate', 'This course is already assigned to that audience.');
     const row = await db.one<Row>(
-      `insert into training_assignments (course_id, audience_type, role_id, department_id, user_id, created_by, updated_by)
-       values ($1,$2,$3,$4,$5,$6,$6) returning id`,
-      [course.id, type, type === 'role' ? target : null, type === 'department' ? target : null, type === 'user' ? target : null, req.user!.id],
+      `insert into training_assignments (course_id, audience_type, role_id, department_id, user_id, position_id, created_by, updated_by)
+       values ($1,$2,$3,$4,$5,$7,$6,$6) returning id`,
+      [course.id, type, type === 'role' ? target : null, type === 'department' ? target : null, type === 'user' ? target : null, req.user!.id,
+        type === 'position' ? target : null],
     );
     const rule = (await db.one<Row>(`${RULES} and a.id = $1`, [row!.id]))!;
     await ctx.audit(req, {
       action: 'training_assignment.create', recordType: 'course', recordId: course.id,
       summary: `Assignment rule added to ${courseName(course)}: ${rule.audience_label}`,
-      after: { audience_type: type, role_id: rule.role_id, department_id: rule.department_id, user_id: rule.user_id },
+      after: { audience_type: type, role_id: rule.role_id, department_id: rule.department_id, user_id: rule.user_id, position_id: rule.position_id },
     });
     const sync = await syncTrainingAssignments(ctx);
     await notifyTraining(ctx);
@@ -135,7 +144,7 @@ export function registerRecords(ctx: ModuleContext) {
     await ctx.audit(req, {
       action: 'training_assignment.delete', recordType: 'course', recordId: course.id,
       summary: `Assignment rule removed from ${courseName(course)}: ${rule!.audience_label}`,
-      before: { audience_type: rule!.audience_type, role_id: rule!.role_id, department_id: rule!.department_id, user_id: rule!.user_id },
+      before: { audience_type: rule!.audience_type, role_id: rule!.role_id, department_id: rule!.department_id, user_id: rule!.user_id, position_id: rule!.position_id },
     });
     return { ok: true };
   });
@@ -148,7 +157,7 @@ export function registerRecords(ctx: ModuleContext) {
     const course = await needCourse((req.params as Row).id, req);
     const today = localDate();
     const people = await db.query<Row>(
-      `${RECORDS_CTE} select * from latest where course_id = $2
+      `${recordsCte(db)} select * from latest where course_id = $2
        order by case status when 'overdue' then 0 when 'due' then 1 else 2 end, due_on nulls last, lower(person)`,
       [today, course.id],
     );
@@ -195,7 +204,7 @@ export function registerRecords(ctx: ModuleContext) {
       where.push(`due_on < ${p}::date and (completed_on is null or completed_on > ${p}::date) and coalesce(assigned_on, due_on) <= ${p}::date`);
     }
     const rows = await db.query<Row>(
-      `${RECORDS_CTE} select * from ${from} where ${where.join(' and ')}
+      `${recordsCte(db)} select * from ${from} where ${where.join(' and ')}
        order by case status when 'overdue' then 0 when 'due' then 1 else 2 end, due_on nulls last, completed_on desc nulls last, lower(person)
        limit 2000`,
       params,
@@ -207,7 +216,7 @@ export function registerRecords(ctx: ModuleContext) {
   app.get('/api/training/mine', async (req) => {
     const today = localDate();
     const rows = await db.query<Row>(
-      `${RECORDS_CTE} select * from rec where user_id = $2
+      `${recordsCte(db)} select * from rec where user_id = $2
        order by (completed_on is null) desc, due_on nulls last, completed_on desc`,
       [today, req.user!.id],
     );
@@ -247,7 +256,7 @@ export function registerRecords(ctx: ModuleContext) {
       after: { record_id: saved.id, completed_on: completed, evidence_note: evidence, self_certified: true },
     });
     reply.code(201);
-    return (await db.one<Row>(`${RECORDS_CTE} select * from rec where id = $2`, [today, saved.id]))!;
+    return (await db.one<Row>(`${recordsCte(db)} select * from rec where id = $2`, [today, saved.id]))!;
   });
 
   /** Courses a person may mark complete themselves, for My training. */
@@ -306,7 +315,7 @@ export function registerRecords(ctx: ModuleContext) {
   const needRecord = async (req: FastifyRequest): Promise<Row> => {
     const id = String((req.params as Row).id ?? '');
     const row = UUID.test(id)
-      ? await db.one<Row>(`${RECORDS_CTE} select * from rec where id = $2`, [localDate(), id]) : undefined;
+      ? await db.one<Row>(`${recordsCte(db)} select * from rec where id = $2`, [localDate(), id]) : undefined;
     return row ?? ctx.fail(404, 'not_found', 'Training record not found.');
   };
   const EDITABLE = ['assigned_on', 'due_on', 'completed_on', 'score', 'result', 'evidence_note'] as const;

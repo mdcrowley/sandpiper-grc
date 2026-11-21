@@ -226,6 +226,8 @@ Read them in code with `ctx.settings.get(key, fallback)`, using the same fallbac
 | `tokens.rate_per_minute` | `600` | Requests a minute per token |
 | `integrations.outbound_enabled` | `false` | Allows webhook deliveries at all |
 | `integrations.allowed_hosts` | `[]` | Hosts webhooks may reach (`host`, `host:port`, `*.domain`) |
+| `safety.clock_amber_fraction` | `0.25` | A safety notification clock turns amber when this fraction of its window remains |
+| `funding.certification_month` | `12` | Month in which next year's certification drafts are copied forward |
 | `retention.audit_months` | `84` | Audit log retention, recorded for the retention schedule (nothing deletes audit events) |
 | `retention.webhook_delivery_days` | `30` | Finished webhook deliveries are removed after this many days (pending ones never); delivered ones lose their content at once |
 | `retention.mail_log_days` | `180` | Outgoing message log (`mail_log`) rows that are no longer queued or retrying are removed after this many days |
@@ -797,14 +799,24 @@ an issue in `tools/a11y/known.json`.
 
 The `action` record type (module folder `risks`, defined in `risks/actions-resource.ts`; API
 `/api/actions`) is the one cross-module to-do list. Fields: `title`, `description`, `status` (`action_status`: open, in_progress,
-blocked, done, canceled), `priority` (`action_priority`: high, medium, low), `owner_id`,
+blocked, pending_verification, done, canceled), `priority` (`action_priority`: high, medium, low), `owner_id`,
 `due_on`, `source` (`action_source`: risk, assessment, incident, audit, exercise,
 information_request, project, change, vulnerability, policy, training, vendor, problem,
-other), `source_type` + `source_id` (the record it arose
+inspection, control, funding, meeting, regulatory_change, other), `source_type` + `source_id` (the record it arose
 from), `department`, `notes`, `restricted` (read-only: true when the source record is
 restricted; such actions are hidden without `security.view`). Any module may create one with
 `ctx.resources.create('action', {...})` after checking `ctx.resources.get('action')`.
 Always pass `source_type` and `source_id` so the restriction is inherited.
+
+Corrective action plans (type `cap`, `risks/caps.ts`): create one with
+`ctx.resources.create('cap', { title, source, source_type, source_id, problem_statement, root_cause?, responsible_id?, due_on? })`
+after checking `ctx.resources.get('cap')`, then actions with `cap_id` (they copy the plan's source and
+need verification by default). Show plans on a host page with `CapPanel` from
+`web/src/modules/risks/CapPanel.tsx`, loaded with `import.meta.glob`. `pending_verification` is not a
+closed status, so "no open actions" rules wait for verification.
+
+A module whose key sorts before `notifications` or `risks` adds its `notification_kind` and
+`action_source` values in `register` (those lists are seeded after its own `seedDefaults`).
 
 ### Metrics (shared registry)
 
@@ -868,7 +880,10 @@ kind (table `workflow_kind_installs`): it uses `h.define`, `h.adopt`, `h.usersWi
 `onFinish` errors are kept as the workflow's outcome error. The module keeps its own rules (for
 example "no work before approval") in its callbacks. Stand-ins: table `workflow_standins`; steps
 carry `principals` and `standins`; decisions carry `on_behalf_of`. Change approval, catalog
-requests, asset disposal, risk acceptance and project gates are approval kinds.
+requests, asset disposal, risk acceptance, project gates, corrective action plans and their due-date
+extensions, audit reports, funding certifications, meeting minutes, annual plan reviews and safety
+performance targets (`safety_targets`) are approval kinds. A committee decision may be applied through
+`decide` with `opts.userId` set to the chair (E28-06), only when the chair may decide the current step.
 
 A step may have `branches` (2 to 5 units run side by side; step rows carry `branch` and
 `group_name`) and `routes` (`[{ conditions, to: later step key | 'end' }]`, forward only;
@@ -931,14 +946,19 @@ has filter, sort, saved view and export; every record shows its history.
 | `changes` | `change` → changes |
 | `vendors` | `vendor` → vendors, `contract` → contracts, `evidence_item` → evidence_items |
 | `frameworks` | `framework` → frameworks, `framework_outcome` → framework_outcomes, `assessment_snapshot` → assessment_snapshots |
-| `risks` | `risk` → risks (restricted), `action` → actions (flag, inherited), `obligation` → obligations |
+| `risks` | `risk` → risks (restricted), `action` → actions (flag, inherited), `cap` → caps (flag, inherited), `obligation` → obligations, `regulatory_change` → regulatory_changes, `kri` → key_risk_indicators (restricted) |
 | `secincidents` | `security_incident` → security_incidents (restricted), `notification_task` → notification_tasks |
-| `policies` | `policy` → policies, `policy_exception` → policy_exceptions |
-| `training` | `course` → courses, `exercise` → exercises |
+| `policies` | `policy` → policies, `policy_exception` → policy_exceptions; tables `policy_person_acknowledgements`, `policy_plan_elements`, `policy_plan_reviews` |
+| `training` | `course` → courses, `exercise` → exercises, `certification` → certifications |
+| `people` | `person` → people, `position` → positions (always on, not a feature area) |
+| `audits` | `audit_area` → audit_areas, `audit_engagement` → audits (flag), `checklist_template` → checklist_templates, `inspection_schedule` → inspection_schedules, `inspection` → inspections, `audit_finding` → audit_findings (flag, inherited from its audit), `audit_request` → audit_requests (flag, inherited). The type is `audit_engagement` because `audit` would clash with the audit log (`GET /api/audit`, `audit.export`) |
+| `controls` | `control` → controls, `control_test` → control_tests (child table `control_test_samples`) |
+| `funding` | `funding_award` → funding_awards, `funding_certification` → funding_certifications, `compliance_review` → compliance_reviews, `review_deficiency` → review_deficiencies |
+| `governance` | `committee` → committees, `meeting` → meetings, `meeting_decision` → meeting_decisions (flag, inherited from the record decided) |
 | `vulnerabilities` | `vulnerability` → vulnerability_records (restricted) |
 | `projects` | `project` → projects |
 | `fleet` | `vehicle` → vehicles, `service` → services |
-| `safety` | `hazard` → hazards, `safety_event` → safety_events (flag), `safety_indicator` → safety_indicators |
+| `safety` | `hazard` → hazards, `safety_event` → safety_events (flag), `safety_indicator` → safety_indicators; tables safety_event_people, safety_event_timeline, safety_event_statements, safety_report_rules, safety_notifications, safety_indicator_values, safety_indicator_targets (no record type) |
 | `reports` | `report_definition` → report_definitions, `dashboard` → dashboards, `report_schedule` → report_schedules, `report_pack` → report_packs |
 | `attachments` | no record type: files on any record (table `attachments`; `AttachmentsPanel`; stored in `<data>/files`) |
 | `portal` | no record type: the self-service portal's settings and pages (portal requests are tickets, scoped to their requester) |
@@ -958,7 +978,14 @@ framework_outcome, assessment_snapshot → `frameworks`; risk → `risks`; actio
 policy → `policies`; policy_exception → `exceptions`; course → `training`; exercise →
 `exercises`; vulnerability → `vulnerabilities`; project → `projects`; report_definition,
 report_schedule, report_pack → `reports`; dashboard → `dashboards`; vehicle, service →
-`fleet`; hazard, safety_event, safety_indicator → `safety`.
+`fleet`; hazard, safety_event, safety_indicator → `safety`; cap → `actions`; regulatory_change →
+`obligations`; kri → `risks`; certification → `training`; person, position → `people`; audit_area,
+audit_engagement, checklist_template, inspection_schedule, inspection, audit_finding, audit_request →
+`audits`; control, control_test → `controls`; funding_award, funding_certification, compliance_review,
+review_deficiency → `funding`; committee, meeting, meeting_decision → `governance`.
+
+A module's own tables that hold personal details about a record register `onAnonymize(type, hook)`
+(`core/retention.ts`); anonymizing the record runs the hook in the same transaction.
 
 Not yet built: approval workflows that branch or run steps side by side (they are ordered steps). See [Known gaps](known-gaps.md) and the
 [roadmap](roadmap/README.md).

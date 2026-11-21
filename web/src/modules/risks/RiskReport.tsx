@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Badge, Button, Card, EmptyState, ErrorState, formatDate, Icon, Loading, PageHeader, Stat, useAuth, useFetch } from '../../core';
 import type { ColorName } from '../../core';
+import type { AppetiteData } from './Appetite';
 import { RatedChip } from './scales';
 
 interface ReportRisk {
@@ -47,6 +48,74 @@ interface Report {
 }
 
 const days = (n: number) => `${n} ${n === 1 ? 'day' : 'days'}`;
+
+interface Rollup {
+  id: string; ref: string; title: string; owner_name: string | null;
+  rating: { key: string; label: string; color: string } | null; appetite_breach: boolean | null;
+  children: number; open_children: number; breaches: number;
+  worst: { id: string; ref: string; title: string; rating: { label: string; color: string } | null } | null;
+}
+
+/** E30-06: each category's appetite against its open risks, and how many are above it. */
+function AppetiteSection() {
+  const { data, error, reload } = useFetch<AppetiteData>('/api/risks/appetite');
+  if (error) return <Card title="Risk appetite"><ErrorState error={error} onRetry={reload} /></Card>;
+  if (!data) return <Card title="Risk appetite"><Loading lines={3} label="Loading the risk appetite" /></Card>;
+  const set = data.categories.filter((c) => c.statement || c.max_rating || c.max_score !== null);
+  return (
+    <Card title="Risk appetite" flush={set.length > 0}>
+      {set.length === 0 ? <p className="muted">No risk appetite has been set. An administrator sets it under Administration, Risk appetite.</p> : (
+        <div className="table-wrap">
+          <table className="table rk-report-table">
+            <thead><tr><th scope="col">Category</th><th scope="col">Appetite</th><th scope="col">Highest acceptable</th><th scope="col" className="num">Open</th><th scope="col" className="num">Above appetite</th></tr></thead>
+            <tbody>
+              {set.map((c) => {
+                const max = c.ratings.find((r) => r.key === c.max_rating);
+                return (
+                  <tr key={c.category}>
+                    <td>{c.label}</td>
+                    <td>{c.statement ?? <span className="muted">No statement</span>}{c.approved_by_name && <span className="muted rk-action-sub">Approved by {c.approved_by_name}{c.approved_on ? `, ${formatDate(c.approved_on)}` : ''}</span>}</td>
+                    <td>{max ? <RatedChip label={max.label} color={max.color} /> : <span className="muted">No limit</span>}{c.max_score !== null && <span className="muted"> score {c.max_score}</span>}</td>
+                    <td className="num">{c.open}</td>
+                    <td className="num">{c.breaches > 0 ? <Link className="is-overdue" to={`/risks?f.category=${encodeURIComponent(c.category)}&f.appetite_breach=true`}>{c.breaches}</Link> : 0}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/** E30-08: enterprise risks with the department risks under them. */
+function RollupSection() {
+  const { data, error, reload } = useFetch<Rollup[]>('/api/risks/rollup');
+  if (error) return <Card title="Enterprise risks and the risks under them"><ErrorState error={error} onRetry={reload} /></Card>;
+  if (!data) return <Card title="Enterprise risks and the risks under them"><Loading lines={3} label="Loading the roll-up" /></Card>;
+  if (data.length === 0) return null;
+  return (
+    <Card title="Enterprise risks and the risks under them" flush>
+      <div className="table-wrap">
+        <table className="table rk-report-table">
+          <thead><tr><th scope="col">Enterprise risk</th><th scope="col">Rating</th><th scope="col" className="num">Open under it</th><th scope="col">Worst open risk under it</th><th scope="col" className="num">Above appetite</th></tr></thead>
+          <tbody>
+            {data.map((p) => (
+              <tr key={p.id}>
+                <td><Link to={`/risks/${p.id}`}><span className="ref">{p.ref}</span> {p.title}</Link>{p.appetite_breach && <> <Badge color="red">Above appetite</Badge></>}</td>
+                <td><RatedChip label={p.rating?.label ?? null} color={p.rating?.color ?? 'gray'} /></td>
+                <td className="num">{p.open_children} <span className="muted">of {p.children}</span></td>
+                <td>{p.worst ? <span className="rk-two-line"><Link to={`/risks/${p.worst.id}`}><span className="ref">{p.worst.ref}</span> {p.worst.title}</Link><RatedChip label={p.worst.rating?.label ?? null} color={p.worst.rating?.color ?? 'gray'} /></span> : <span className="muted">None scored</span>}</td>
+                <td className="num">{p.breaches}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
 
 /** Movement in words and a symbol, so it reads in black and white as well as in color. */
 function Movement({ r }: { r: ReportRisk }) {
@@ -178,6 +247,9 @@ export function RiskReport() {
               its last review; where nothing has changed since that review, with the review before it.
             </p>
           </Card>
+
+          <AppetiteSection />
+          <RollupSection />
 
           <Card title="Acceptances expiring" flush={data.acceptances.length > 0}>
             {data.acceptances.length === 0 ? <p className="muted">No acceptance has expired or expires within {data.window_days} days.</p> : (

@@ -1,9 +1,9 @@
 // Contracts list and the contract record.
-import { useState } from 'react';
+import { lazy, Suspense, useState, type ComponentType } from 'react';
 import { Link } from 'react-router-dom';
 import { Tooltip } from '@mantine/core';
 import {
-  Countdown, cx, EditableSummary, formatDate, formatDateTime, Icon, RecordPage, ResourceList, todayInZone, useFetch, useResource,
+  Countdown, cx, EditableSummary, formatDate, formatDateTime, Icon, Loading, RecordPage, ResourceList, todayInZone, useAuth, useFetch, useResource,
 } from '../../core';
 import type { Row } from '../../core';
 import { Checklist } from './Checklist';
@@ -15,6 +15,11 @@ import type { ReminderState } from './shared';
 import { ValueByYear } from './ValueByYear';
 
 const DAY = 24 * 3600 * 1000;
+
+// The funding module's "Funder-required clauses" panel (E27-08), only when that module is in the build.
+const fundingLoaders = import.meta.glob<{ ContractFundingClauses: ComponentType<{ contractId: string }> }>('../funding/ContractFundingClauses.tsx');
+const loadFunding = Object.values(fundingLoaders)[0];
+const FundingClauses = loadFunding ? lazy(() => loadFunding().then((m) => ({ default: m.ContractFundingClauses }))) : null;
 
 /** Whether contracts carry an approval number (an option under Administration > Features: E18-28). */
 const useApprovalNumber = () => Boolean(useResource('contract')?.fields.resolution_number);
@@ -189,6 +194,8 @@ function ContractEvidence({ row }: { row: Row }) {
 
 export function ContractDetail() {
   const actions = useActionsAvailable();
+  const { can, areaOn } = useAuth();
+  const funding = Boolean(FundingClauses) && areaOn('funding') && can('funding.view');
   const approval = useApprovalNumber();
   const valueFields = ['total_value', ...(approval ? ['resolution_number'] : []), 'notes'];
   return (
@@ -234,6 +241,10 @@ export function ContractDetail() {
         { key: 'terms', label: 'Security terms', content: ({ row }) => <Checklist contractId={row.id} /> },
         { key: 'evidence', label: 'Evidence', content: ({ row }) => <ContractEvidence row={row} /> },
         ...(actions ? [{ key: 'actions', label: 'Actions', content: ({ row }: { row: Row }) => <ActionsTab sourceType="contract" sourceId={row.id} /> }] : []),
+        ...(funding && FundingClauses ? [{
+          key: 'funder-clauses', label: 'Funder clauses',
+          content: ({ row }: { row: Row }) => <Suspense fallback={<Loading lines={4} />}><FundingClauses contractId={row.id} /></Suspense>,
+        }] : []),
       ]}
     />
   );

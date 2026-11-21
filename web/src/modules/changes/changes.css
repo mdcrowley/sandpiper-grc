@@ -167,3 +167,7 @@ a.chg-ev:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 .chg-rec-title { min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
 .chg-rec-meta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px var(--s-3); font-size: var(--fs-sm); color: var(--text-muted); }
 .chg-rec-group { margin: 0; padding: var(--s-2) var(--s-3); font-size: var(--fs-xs); font-weight: 650; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); border-bottom: 1px solid var(--border); }
+
+/* Safety assessment (E25-11) */
+.chg-pad { padding: var(--s-4) var(--s-4) 0; margin: 0; }
+.chg-actions-cell { text-align: right; white-space: nowrap; }

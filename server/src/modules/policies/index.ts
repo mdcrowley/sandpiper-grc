@@ -38,6 +38,21 @@ const mod: ModuleDef = {
       { value: 'third_party', label: 'Suppliers', color: 'orange', sort: 70 },
       { value: 'other', label: 'Other', color: 'gray', sort: 80 },
     ]);
+    // Document types (E29-08, contract C6). meta.review_months is the type's review cycle; a
+    // value with meta.plan is a plan (the safety plan's element map and annual review, E28).
+    await ctx.lookups.ensure('policy_document_type', [
+      { value: 'policy', label: 'Policy', color: 'blue', sort: 10, meta: { review_months: 24 } },
+      { value: 'procedure', label: 'Procedure', color: 'teal', sort: 20, meta: { review_months: 24 } },
+      { value: 'rulebook_section', label: 'Rulebook section', color: 'purple', sort: 30, meta: { review_months: 12 } },
+      { value: 'bulletin', label: 'Bulletin', color: 'amber', sort: 40, meta: { review_months: 6 } },
+      { value: 'standard', label: 'Standard', color: 'green', sort: 50, meta: { review_months: 36 } },
+      { value: 'plan', label: 'Plan', color: 'red', sort: 60, meta: { plan: true, review_months: 12 } },
+    ], { module: 'policies' });
+    await ctx.lookups.ensure('person_ack_method', [
+      { value: 'sign_in_sheet', label: 'Sign-in sheet', color: 'blue', sort: 10 },
+      { value: 'kiosk', label: 'Kiosk', color: 'teal', sort: 20 },
+      { value: 'recorded', label: 'Recorded by hand', color: 'gray', sort: 30 },
+    ], { module: 'policies' });
     await ctx.lookups.ensure('exception_status', [
       { value: 'requested', label: 'Requested', color: 'blue', sort: 10 },
       { value: 'approved', label: 'Approved', color: 'green', sort: 20 },
@@ -67,7 +82,20 @@ const mod: ModuleDef = {
         if (known.length !== wanted.length) invalid({ [key]: key === 'audience_roles' ? 'One of the roles does not exist.' : 'One of the departments does not exist.' });
         data[key] = wanted;
       }
+      if ('audience_positions' in data) {
+        const v = data.audience_positions ?? [];
+        if (!Array.isArray(v) || v.some((x) => typeof x !== 'string')) invalid({ audience_positions: 'Choose from the list.' });
+        const wanted = [...new Set(v as string[])];
+        // Positions belong to the people module (always on, but guarded: it may not be loaded).
+        if (wanted.length) {
+          if (!ctx.resources.get('position')) invalid({ audience_positions: 'Positions are not available.' });
+          const known = await db.query<{ k: string }>('select id::text as k from positions where deleted_at is null and id::text = any($1::text[])', [wanted]);
+          if (known.length !== wanted.length) invalid({ audience_positions: 'One of the positions does not exist.' });
+        }
+        data.audience_positions = wanted;
+      }
       if ('audience_everyone' in data && data.audience_everyone === null) data.audience_everyone = false;
+      if ('ack_roster' in data && data.ack_roster === null) data.ack_roster = false;
       if ('ack_days' in data) {
         const n = Number(data.ack_days);
         if (data.ack_days === null || !Number.isInteger(n) || n < 1 || n > 365) invalid({ ack_days: 'Days to acknowledge must be a whole number from 1 to 365.' });
@@ -89,6 +117,8 @@ const mod: ModuleDef = {
         title: { label: 'Title', type: 'text', required: true },
         summary: { label: 'Summary', type: 'longtext' },
         category: { label: 'Category', type: 'lookup', list: 'policy_category' },
+        // Contract C6: the review cycle comes from the type's meta.review_months; 'plan' is a plan.
+        document_type: { label: 'Document type', type: 'lookup', list: 'policy_document_type', default: 'policy' },
         // Status follows the versions (draft, in review, approved, published) and the retire action.
         status: { label: 'Status', type: 'lookup', list: 'policy_status', default: 'draft', readOnly: true },
         owner_id: { label: 'Owner', type: 'user' },
@@ -99,6 +129,9 @@ const mod: ModuleDef = {
         audience_everyone: { label: 'Everyone must acknowledge', type: 'boolean', default: false },
         audience_roles: { label: 'Roles that must acknowledge', type: 'json' },
         audience_departments: { label: 'Departments that must acknowledge', type: 'json' },
+        // E29-09: roster people (who may have no account) in these positions are asked too.
+        audience_positions: { label: 'Positions that must acknowledge', type: 'json' },
+        ack_roster: { label: 'Ask roster people (sign-in sheet or kiosk)', type: 'boolean', default: false },
         ack_days: { label: 'Days to acknowledge', type: 'number', default: 14 },
         // E10-18: empty uses the module setting (policies.reminder_interval_days).
         reminder_interval_days: { label: 'Days between reminders (empty: the usual interval)', type: 'number' },

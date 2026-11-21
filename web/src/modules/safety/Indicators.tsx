@@ -1,21 +1,36 @@
 // Safety performance indicators: the list, one indicator's trend against its target, the form
 // that defines what an indicator counts, and the exposure the rates divide by.
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   api, Button, Card, Chart, Checkbox, EmptyState, errorMessage, ErrorState, formatNumber, Loading, LookupChoices, LookupSelect, Modal, NumberField,
   PageHeader, ResourceList, Select, Stat, StatusChip, TextArea, TextField, useAuth, useFetch, useLookup, useRecord, useToast, HistoryPanel, Tabs,
 } from '../../core';
 import type { ChartOption, Row } from '../../core';
+import { TargetsTab, ValuesTab } from './IndicatorTabs';
 import { SafetyTabs } from './shared';
 
-export interface Point { period: string; events: number; exposure: number | null; value: number | null; target: number | null; met: boolean | null }
+/** Measures that count safety events: the event filters apply to them. */
+const EVENT_MEASURES = ['count', 'rate'];
+export const MEASURE_OPTIONS = [
+  { value: 'count', label: 'Number of events in the month' },
+  { value: 'rate', label: 'Rate: events per amount of exposure' },
+  { value: 'manual', label: 'Entered by hand each month' },
+  { value: 'computed', label: 'Computed from another part of the application' },
+  { value: 'distance_between', label: 'Revenue miles between major failures' },
+];
+interface Metric { key: string; label: string; unit: string; description: string }
+
+export interface Point { period: string; events: number | null; exposure: number | null; value: number | null; target: number | null; direction?: string; met: boolean | null }
 
 const nextMonth = (p: string) => { const [y, m] = p.split('-').map(Number); return m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`; };
 const monthLabel = (p: string) => new Date(`${p}-15T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', year: '2-digit', timeZone: 'UTC' });
 
 /** What the value means, in words: "per 100,000 vehicle-miles" or "events". */
 export function unitText(ind: { measure: string; exposure: string | null; per_units: number | null }, exposures: { value: string; label: string }[]) {
+  if (ind.measure === 'manual') return 'entered each month';
+  if (ind.measure === 'computed') return 'computed each month';
+  if (ind.measure === 'distance_between') return 'revenue miles per major failure';
   if (ind.measure !== 'rate') return 'events a month';
   const label = exposures.find((e) => e.value === ind.exposure)?.label.toLowerCase() ?? ind.exposure;
   return `per ${formatNumber(ind.per_units)} ${label}`;
@@ -48,7 +63,7 @@ export function TrendChart({ points, name, unit, height = 260 }: { points: Point
     } as ChartOption;
   }, [points, name, unit]);
   return <Chart label={`${name}, ${unit}, by month`} option={option} height={height} empty={points.every((p) => p.value === null)}
-    emptyMessage="No figures yet: a rate needs the exposure for the month" />;
+    emptyMessage={unit === 'entered each month' ? 'No values entered yet' : unit.startsWith('per ') || unit.startsWith('revenue') ? 'No figures yet: this needs the exposure for the month' : 'No figures yet'} />;
 }
 
 export function IndicatorList() {
@@ -79,22 +94,27 @@ export function IndicatorDetail() {
   const exposures = useLookup('safety_exposure_measure');
   const { row, error, reload } = useRecord('safety_indicator', id);
   const [months, setMonths] = useState('12');
-  const [tab, setTab] = useState('trend');
+  const [search, setSearch] = useSearchParams();
+  const tab = search.get('tab') ?? 'trend';
+  const setTab = (key: string) => setSearch((p) => { p.set('tab', key); return p; }, { replace: true });
   const { data, error: trendError, reload: reloadTrend } = useFetch<{ points: Point[] }>(row ? `/api/safety-indicators/${id}/trend?months=${months}` : null, { keepPrevious: true });
+  const { data: metrics } = useFetch<{ metrics: Metric[] }>(row?.measure === 'computed' ? '/api/metrics' : null);
   const [editing, setEditing] = useState(false);
   if (error) return <ErrorState title="The indicator could not be loaded" error={error} onRetry={reload} />;
   if (!row) return <Loading lines={8} label="Loading the indicator" />;
   const unit = unitText(row as never, exposures);
   const points = data?.points ?? [];
   const latest = [...points].reverse().find((p) => p.value !== null);
+  const counts = EVENT_MEASURES.includes(row.measure ?? 'count');
+  const metric = metrics?.metrics.find((m) => m.key === row.metric_key);
   return (
     <div className="stack">
       <PageHeader title={row.name} breadcrumbs={[{ label: 'Safety indicators', to: '/safety/indicators' }, { label: row.name }]}
-        subtitle={row.description || `Worked out as ${unit}. Target: ${targetText(row as never).toLowerCase()}.`}
+        subtitle={row.description || (row.measure === 'computed' ? `Computed from: ${metric?.label ?? row.metric_key}.` : `Worked out as ${unit}. Target: ${targetText(row as never).toLowerCase()}.`)}
         actions={can('safety.edit') && <Button icon="edit" onClick={() => setEditing(true)}>Edit</Button>} />
       <div className="grid-stats">
         <Stat label="Latest" value={latest ? formatNumber(latest.value) : '—'} icon="chart" hint={latest ? `${monthLabel(latest.period)} · ${unit}` : unit} />
-        <Stat label="Target" value={targetText(row as never)} icon="target"
+        <Stat label="Target" value={latest && latest.target !== null ? targetText({ target: latest.target, target_direction: latest.direction ?? row.target_direction }) : targetText(row as never)} icon="target"
           color={latest?.met === false ? 'red' : latest?.met ? 'green' : undefined}
           hint={latest?.met === null || latest?.met === undefined ? 'No figure yet' : latest.met ? 'On target in the latest month' : 'Off target in the latest month'} />
       </div>
@@ -109,26 +129,34 @@ export function IndicatorDetail() {
                   <div className="table-wrap">
                     <table className="table">
                       <caption className="sr-only">{row.name} by month</caption>
-                      <thead><tr><th scope="col">Month</th><th scope="col" className="num">Events</th>{row.measure === 'rate' && <th scope="col" className="num">Exposure</th>}<th scope="col" className="num">Value</th><th scope="col">Against target</th></tr></thead>
+                      <thead><tr><th scope="col">Month</th>{counts && <th scope="col" className="num">Events</th>}{row.measure === 'distance_between' && <><th scope="col" className="num">Revenue miles</th><th scope="col" className="num">Major failures</th></>}{row.measure === 'rate' && <th scope="col" className="num">Exposure</th>}<th scope="col" className="num">Value</th><th scope="col" className="num">Target</th><th scope="col">Against target</th></tr></thead>
                       <tbody>
                         {[...points].reverse().map((p) => (
                           <tr key={p.period}>
                             <td>{monthLabel(p.period)}</td>
-                            <td className="num"><Link to={`/safety/events?f.occurred_at.gt=${p.period}-01&f.occurred_at.lt=${nextMonth(p.period)}`}>{p.events}</Link></td>
+                            {counts && <td className="num"><Link to={`/safety/events?f.occurred_at.gt=${p.period}-01&f.occurred_at.lt=${nextMonth(p.period)}`}>{p.events}</Link></td>}
+                            {row.measure === 'distance_between' && <>
+                              <td className="num">{p.exposure === null ? <Link to="/safety/exposure">Enter</Link> : formatNumber(p.exposure)}</td>
+                              <td className="num">{p.events === null ? '—' : formatNumber(p.events)}</td>
+                            </>}
                             {row.measure === 'rate' && <td className="num">{p.exposure === null ? <Link to="/safety/exposure">Enter</Link> : formatNumber(p.exposure)}</td>}
                             <td className="num">{p.value === null ? '—' : formatNumber(p.value)}</td>
+                            <td className="num">{p.target === null ? '—' : formatNumber(p.target)}</td>
                             <td><MetChip met={p.met} /></td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
-                  <p className="muted sf-hint">Counts only the safety events you may see.</p>
+                  {counts && <p className="muted sf-hint">Counts every safety event, restricted ones included, so everyone sees the same figures; the event list shows only those you may see.</p>}
+                  {row.measure === 'computed' && <p className="muted sf-hint">{metric ? metric.description : 'The figure this indicator is computed from is not available on this installation (its part of the application may be switched off).'}</p>}
                 </div>
               )}
             </Card>
           ),
         },
+        ...(row.measure === 'manual' ? [{ key: 'values', label: 'Values', content: <ValuesTab indicatorId={id} periods={points.length ? points.map((p) => p.period) : []} onSaved={reloadTrend} /> }] : []),
+        { key: 'targets', label: 'Yearly targets', content: <TargetsTab indicatorId={id} defaultDirection={row.target_direction ?? 'at_most'} onChanged={reloadTrend} /> },
         { key: 'history', label: 'History', content: <HistoryPanel type="safety_indicator" id={id} row={row} /> },
       ]} />
       <IndicatorDialog open={editing} initial={row} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); reload(); reloadTrend(); }} />
@@ -138,7 +166,8 @@ export function IndicatorDetail() {
 
 export function IndicatorDialog({ open, initial, onClose, onSaved }: { open: boolean; initial?: Row; onClose: () => void; onSaved: (row: Row) => void }) {
   const toast = useToast();
-  const blank = { name: '', description: '', event_types: [] as string[], severities: [] as string[], modes: [] as string[], measure: 'count', exposure: 'vehicle_miles', per_units: 100000 as number | null, target: null as number | null, target_direction: 'at_most', active: true };
+  const blank = { name: '', description: '', event_types: [] as string[], severities: [] as string[], modes: [] as string[], measure: 'count', metric_key: '', exposure: 'vehicle_miles', per_units: 100000 as number | null, target: null as number | null, target_direction: 'at_most', active: true };
+  const { data: metrics } = useFetch<{ metrics: Metric[] }>(open ? '/api/metrics' : null);
   const [f, setF] = useState(blank);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -147,7 +176,7 @@ export function IndicatorDialog({ open, initial, onClose, onSaved }: { open: boo
       setErrors({});
       setF(initial ? {
         name: initial.name ?? '', description: initial.description ?? '', event_types: initial.event_types ?? [], severities: initial.severities ?? [], modes: initial.modes ?? [],
-        measure: initial.measure ?? 'count', exposure: initial.exposure ?? 'vehicle_miles', per_units: initial.per_units === null ? null : Number(initial.per_units ?? 100000),
+        measure: initial.measure ?? 'count', metric_key: initial.metric_key ?? '', exposure: initial.exposure ?? 'vehicle_miles', per_units: initial.per_units === null ? null : Number(initial.per_units ?? 100000),
         target: initial.target === null || initial.target === undefined ? null : Number(initial.target), target_direction: initial.target_direction ?? 'at_most', active: initial.active !== false,
       } : blank);
     }
@@ -156,7 +185,12 @@ export function IndicatorDialog({ open, initial, onClose, onSaved }: { open: boo
   const save = async () => {
     if (!f.name.trim()) { setErrors({ name: 'Name is required.' }); return; }
     setBusy(true); setErrors({});
-    const body = { ...f, exposure: f.measure === 'rate' ? f.exposure : null, per_units: f.measure === 'rate' ? f.per_units : null };
+    const events = EVENT_MEASURES.includes(f.measure);
+    const body = {
+      ...f, exposure: f.measure === 'rate' ? f.exposure : null, per_units: f.measure === 'rate' ? f.per_units : null,
+      metric_key: f.measure === 'computed' ? f.metric_key || null : null,
+      event_types: events ? f.event_types : [], severities: events ? f.severities : [], modes: events || f.measure === 'distance_between' ? f.modes : [],
+    };
     try {
       const row = initial ? await api.patch<Row>(`/api/safety-indicators/${initial.id}`, body) : await api.post<Row>('/api/safety-indicators', body);
       toast.success(initial ? 'Indicator saved.' : 'Indicator added.');
@@ -173,11 +207,24 @@ export function IndicatorDialog({ open, initial, onClose, onSaved }: { open: boo
         <div className="form-grid">
           <div className="form-cell-wide"><TextField label="Name" required value={f.name} onChange={(v) => set('name', v)} error={errors.name} placeholder="For example: Collisions per 100,000 vehicle-miles" /></div>
           <div className="form-cell-wide"><TextArea label="Description" value={f.description} onChange={(v) => set('description', v)} rows={2} /></div>
-          <LookupChoices label="Event types counted" list="safety_event_type" value={f.event_types} onChange={(v) => set('event_types', v)} error={errors.event_types} hint="Leave empty for every type." />
-          <LookupChoices label="Severities counted" list="safety_event_severity" value={f.severities} onChange={(v) => set('severities', v)} error={errors.severities} hint="Leave empty for every severity." />
-          <LookupChoices label="Modes counted" list="vehicle_mode" value={f.modes} onChange={(v) => set('modes', v)} error={errors.modes} hint="By the event's vehicle or service. Leave empty for all." />
-          <Select label="Measure" value={f.measure} onChange={(v) => set('measure', v || 'count')} error={errors.measure}
-            options={[{ value: 'count', label: 'Number of events in the month' }, { value: 'rate', label: 'Rate: events per amount of exposure' }]} />
+          <div className="form-cell-wide"><Select label="Measure" value={f.measure} onChange={(v) => set('measure', v || 'count')} error={errors.measure} options={MEASURE_OPTIONS} /></div>
+          {EVENT_MEASURES.includes(f.measure) && <>
+            <LookupChoices label="Event types counted" list="safety_event_type" value={f.event_types} onChange={(v) => set('event_types', v)} error={errors.event_types} hint="Leave empty for every type." />
+            <LookupChoices label="Severities counted" list="safety_event_severity" value={f.severities} onChange={(v) => set('severities', v)} error={errors.severities} hint="Leave empty for every severity." />
+          </>}
+          {(EVENT_MEASURES.includes(f.measure) || f.measure === 'distance_between') && (
+            <LookupChoices label={f.measure === 'distance_between' ? 'Modes' : 'Modes counted'} list="vehicle_mode" value={f.modes} onChange={(v) => set('modes', v)} error={errors.modes}
+              hint={f.measure === 'distance_between' ? 'Adds up the exposure entered for these modes. Leave empty for the whole operation.' : 'By the event\'s vehicle or service. Leave empty for all.'} />
+          )}
+          {f.measure === 'computed' && (
+            <div className="form-cell-wide">
+              <Select label="Computed from" required value={f.metric_key} onChange={(v) => set('metric_key', v ?? '')} error={errors.metric_key}
+                options={(metrics?.metrics ?? []).map((m) => ({ value: m.key, label: m.label }))}
+                hint={(metrics?.metrics ?? []).find((m) => m.key === f.metric_key)?.description ?? (metrics && !metrics.metrics.length ? 'No figures are offered on this installation yet.' : 'The figures other parts of the application offer, worked out each month.')} />
+            </div>
+          )}
+          {f.measure === 'manual' && <p className="muted sf-hint form-cell-wide">Enter the value each month on the indicator's Values tab.</p>}
+          {f.measure === 'distance_between' && <p className="muted sf-hint form-cell-wide">Revenue miles divided by major failures, both entered each month on the Exposure page.</p>}
           {f.measure === 'rate' && (
             <>
               <LookupSelect label="Per" list="safety_exposure_measure" required value={f.exposure ?? ''} onChange={(v) => set('exposure', v)} error={errors.exposure} />
@@ -196,8 +243,8 @@ export function IndicatorDialog({ open, initial, onClose, onSaved }: { open: boo
 
 // ---------- exposure ----------
 
-interface Exposure { periods: string[]; rows: { period: string; mode: string; vehicle_miles: number | null; vehicle_hours: number | null; boardings: number | null }[] }
-const FIELDS = [['vehicle_miles', 'Vehicle-miles'], ['vehicle_hours', 'Vehicle-hours'], ['boardings', 'Boardings']] as const;
+interface Exposure { periods: string[]; rows: { period: string; mode: string; vehicle_miles: number | null; vehicle_hours: number | null; boardings: number | null; revenue_miles: number | null; major_failures: number | null }[] }
+const FIELDS = [['vehicle_miles', 'Vehicle-miles'], ['vehicle_hours', 'Vehicle-hours'], ['boardings', 'Boardings'], ['revenue_miles', 'Revenue miles'], ['major_failures', 'Major failures']] as const;
 
 export function ExposurePage() {
   const { can } = useAuth();
@@ -209,7 +256,7 @@ export function ExposurePage() {
   const [draft, setDraft] = useState<Record<string, number | null>>({});
   const [busy, setBusy] = useState(false);
   const rowFor = (p: string) => data?.rows.find((r) => r.period === p && r.mode === mode);
-  const start = (p: string) => { const r = rowFor(p); setDraft({ vehicle_miles: r?.vehicle_miles ?? null, vehicle_hours: r?.vehicle_hours ?? null, boardings: r?.boardings ?? null }); setEditing(p); };
+  const start = (p: string) => { const r = rowFor(p); setDraft(Object.fromEntries(FIELDS.map(([k]) => [k, r?.[k] ?? null]))); setEditing(p); };
   const save = async () => {
     if (!editing) return;
     setBusy(true);
@@ -219,7 +266,7 @@ export function ExposurePage() {
   };
   return (
     <div className="stack">
-      <PageHeader title="Exposure" subtitle="Vehicle-miles, vehicle-hours and boardings each month: what the indicator rates divide by." />
+      <PageHeader title="Exposure" subtitle="Vehicle-miles, vehicle-hours and boardings each month, what the indicator rates divide by; and revenue miles and major failures, for distance between failures." />
       <SafetyTabs active="exposure" />
       <Card actions={<Select label="Mode" hideLabel size="xs" value={mode} onChange={setMode} options={[{ value: '', label: 'Whole operation' }, ...modes.map((m) => ({ value: m.value, label: m.label }))]} />}
         title={mode ? modes.find((m) => m.value === mode)?.label ?? mode : 'Whole operation'} flush>

@@ -220,7 +220,11 @@ async function sampleRisks(ctx: ModuleContext): Promise<number> {
   return added;
 }
 
-interface ObligationSeed { title: string; source?: string; requirement?: string; how_met?: string; evidence?: string; next_due_on?: string; status?: string }
+interface ObligationSeed {
+  title: string; source?: string; requirement?: string; how_met?: string; evidence?: string; next_due_on?: string; status?: string;
+  /** E30-01: values of the lists obligation_type and obligation_frequency, and what it applies to (names). */
+  type?: string; frequency?: string; applies_to?: string[];
+}
 
 const firstUser = async (ctx: ModuleContext): Promise<string | null> =>
   (await ctx.db.one<{ id: string }>(`select id from users where status = 'active' and deleted_at is null order by created_at limit 1`))?.id ?? null;
@@ -231,20 +235,22 @@ const devObligations = (): ObligationSeed[] => [
     title: 'Annual payment security self-assessment', source: 'Payment provider agreement (invented example)',
     requirement: 'Complete the self-assessment questionnaire every 12 months and keep service provider attestations on file',
     how_met: 'Fare systems team completes the questionnaire each spring', status: 'met', next_due_on: day(120),
+    type: 'contract', frequency: 'yearly', applies_to: ['Fare collection'],
   },
   {
     title: 'Cyber insurance policy conditions', source: 'Cyber insurance policy (invented example)',
     requirement: 'Second factor on remote access; tested off-site backups; notify the insurer promptly of any incident',
     how_met: 'Second factor on remote access; quarterly restore test', status: 'partly_met', next_due_on: day(18),
+    type: 'contract', frequency: 'yearly',
   },
   {
     title: 'Safety management system review of technology changes', source: 'Safety management plan (invented example)',
     requirement: 'Assess every change to dispatch, signal-priority and passenger information systems for safety hazards before it goes live',
-    status: 'not_met', next_due_on: day(-5),
+    status: 'not_met', next_due_on: day(-5), type: 'internal', frequency: 'monthly', applies_to: ['Bus operations', 'Light rail'],
   },
   {
     title: 'Software license true-up', source: 'Enterprise license agreement (invented example)',
-    requirement: 'Report the number of users to the supplier once a year', next_due_on: day(64),
+    requirement: 'Report the number of users to the supplier once a year', next_due_on: day(64), type: 'contract', frequency: 'yearly',
   },
 ];
 /**
@@ -256,16 +262,24 @@ async function loadObligations(ctx: ModuleContext, list: unknown, ownerId: strin
   if (!Array.isArray(list)) return 0;
   const text = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null);
   const statuses = new Set((await ctx.lookups.values('obligation_status')).map((v) => v.value));
+  const types = new Set((await ctx.lookups.values('obligation_type')).map((v) => v.value));
+  const frequencies = new Set((await ctx.lookups.values('obligation_frequency')).map((v) => v.value));
   let added = 0;
   for (const o of list as Partial<ObligationSeed>[]) {
     const title = text(o?.title);
     if (!title) continue;
     if (await ctx.db.one('select 1 from obligations where title = $1', [title])) continue;
     const status = text(o.status);
+    const type = text(o.type);
+    const frequency = text(o.frequency);
+    const appliesTo = Array.isArray(o.applies_to) ? o.applies_to.map(text).filter((x): x is string => !!x).slice(0, 50) : [];
     await ctx.resources.create('obligation', {
       title, source: text(o.source), requirement: text(o.requirement),
       how_met: text(o.how_met), evidence: text(o.evidence), next_due_on: text(o.next_due_on),
       ...(status && statuses.has(status) ? { status } : {}),
+      ...(type && types.has(type) ? { type } : {}),
+      ...(frequency && frequencies.has(frequency) ? { frequency } : {}),
+      ...(appliesTo.length ? { applies_to: appliesTo } : {}),
       ...(ownerId ? { owner_id: ownerId } : {}),
     });
     added += 1;

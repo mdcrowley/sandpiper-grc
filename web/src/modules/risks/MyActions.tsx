@@ -14,13 +14,17 @@ export function MyActions() {
   const s = summary.data;
   const mine = useFetch<ListResult>(s ? `/api/actions?f.owner_id=me&f.status=${s.open_statuses.join(',')}&sort=due_on&dir=asc&pageSize=500` : null);
   const shared = useFetch<Row[]>('/api/actions/shared-with-me');
-  const done = useFetch<ListResult>('/api/actions?f.owner_id=me&f.completed_on.null=false&sort=completed_on&dir=desc&pageSize=5');
-  const reload = () => { summary.reload(); mine.reload(); shared.reload(); done.reload(); };
+  const done = useFetch<ListResult>('/api/actions?f.owner_id=me&f.completed_on.null=false&f.status=done&sort=completed_on&dir=desc&pageSize=5');
+  // E23-03: verifications named for me, whoever owns the action.
+  const toVerify = useFetch<ListResult>('/api/actions?f.verifier_id=me&f.status=pending_verification&sort=verification_due&dir=asc&pageSize=200');
+  const reload = () => { summary.reload(); mine.reload(); shared.reload(); done.reload(); toVerify.reload(); };
 
   if (summary.error) return <><PageHeader title="My actions" /><ErrorState error={summary.error} onRetry={summary.reload} /></>;
   if (!s || !mine.data) return <><PageHeader title="My actions" />{mine.error ? <ErrorState error={mine.error} onRetry={mine.reload} /> : <Loading />}</>;
 
-  const rows = mine.data.rows;
+  const rows = mine.data.rows.filter((r) => r.status !== 'pending_verification');
+  const waiting = mine.data.rows.filter((r) => r.status === 'pending_verification');
+  const verifyRows = toVerify.data?.rows ?? [];
   const overdue = rows.filter((r) => r.due_on && r.due_on < s.today);
   const week = rows.filter((r) => r.due_on && r.due_on >= s.today && r.due_on <= s.week_end);
   const later = rows.filter((r) => r.due_on && r.due_on > s.week_end);
@@ -52,13 +56,20 @@ export function MyActions() {
         </div>
       )}
 
-      {rows.length === 0 && sharedOpen.length === 0 && (
+      {verifyRows.length > 0 && (
+        <Card flush className="rk-group" title={<>To verify<span className="tab-count rk-panel-count">{verifyRows.length}</span></>}>
+          <p className="muted rk-panel-pad">Actions whose work is finished and that name you as the verifier. Open one to record whether it worked.</p>
+          <ActionRows rows={verifyRows} today={s.today} openStatuses={s.open_statuses} onChanged={reload} caption="To verify" show={{ owner: true, priority: true, source: true }} />
+        </Card>
+      )}
+      {rows.length === 0 && sharedOpen.length === 0 && verifyRows.length === 0 && waiting.length === 0 && (
         <Card><EmptyState icon="check-circle" title="Nothing open" message="You have no open actions. Anything assigned to you will appear here." /></Card>
       )}
       {section('Overdue', overdue, 'red')}
       {section('Due this week', week)}
       {section('Later', later)}
       {section('No due date', undated)}
+      {section('Finished, awaiting verification', waiting)}
 
       {shared.data && shared.data.length > 0 && (
         <Card flush className="rk-group" title={<>Shared with you<span className="tab-count rk-panel-count">{shared.data.length}</span></>}>

@@ -1,0 +1,37 @@
+/* Control library. Tokens only, so both themes work. */
+
+.ctl-pad { padding: var(--s-4); }
+.ctl-hint { font-size: var(--fs-sm); margin: var(--s-2) 0 0; }
+.ctl-note { font-size: var(--fs-sm); align-self: center; }
+.ctl-wrap { white-space: normal; min-width: 12rem; }
+.ctl-wrap a { white-space: normal; max-width: none; }
+
+.ctl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: var(--s-4); align-items: start; }
+.ctl-summary { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-4); align-items: start; }
+@media (min-width: 1100px) { .ctl-summary { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); } }
+
+.ctl-ratings { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: var(--s-3); }
+.ctl-ratings > div { display: flex; flex-direction: column; gap: var(--s-1); align-items: flex-start; }
+.ctl-ratings .muted { font-size: var(--fs-sm); }
+
+/* Add coverage, add a sampled item: fields side by side, the button at the bottom. */
+.ctl-add { display: flex; flex-wrap: wrap; gap: var(--s-3); align-items: flex-end; }
+.ctl-add > * { flex: 1 1 12rem; min-width: 0; }
+.ctl-add > button { flex: 0 0 auto; }
+
+/* Lists of controls with a date or chip at the right. */
+.ctl-due { list-style: none; margin: 0; padding: 0; }
+.ctl-due li { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--s-2); padding: var(--s-3) var(--s-4); border-top: 1px solid var(--border); }
+.ctl-due li:first-child { border-top: 0; }
+.ctl-inline { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-3); }
+
+/* The coverage view's state filters. */
+.ctl-states { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); gap: var(--s-3); }
+.ctl-state {
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--s-1); text-align: left; font: inherit; color: var(--text);
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--s-3); cursor: pointer;
+}
+.ctl-state:hover { border-color: var(--border-strong); }
+.ctl-state.is-on { border-color: var(--brand); box-shadow: inset 0 0 0 1px var(--brand); background: var(--brand-soft); }
+.ctl-state strong { font-size: var(--fs-xl); line-height: 1.1; }
+.ctl-state-hint { font-size: var(--fs-xs); }

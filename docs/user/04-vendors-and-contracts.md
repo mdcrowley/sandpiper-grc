@@ -102,7 +102,7 @@ Below it:
 - **Value by year**: the contract's value year by year (see below).
 - **As recorded in the contract register**: free-text notes carried over from an earlier register, such as **Document on file** and **Term and renewal (as recorded)**.
 
-The tabs are **Security terms**, **Evidence**, **Actions** (when the action tracker is switched on), and the usual **Activity**, **Attachments**, **Related** and **History**. Attach the signed contract and its schedules on the **Attachments** tab.
+The tabs are **Security terms**, **Evidence**, **Actions** (when the action tracker is switched on), **Funder clauses** (when funding and grant compliance is switched on and you may see funding records), and the usual **Activity**, **Attachments**, **Related** and **History**. Attach the signed contract and its schedules on the **Attachments** tab. **Funder clauses** is a checklist of the clauses required by each award that pays for the contract; see [Funder-required clauses on contracts](27-funding-and-grants.md#funder-required-clauses-on-contracts).
 
 ### Value by year
 

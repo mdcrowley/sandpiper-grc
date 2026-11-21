@@ -1,6 +1,8 @@
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { dayInZone } from '../../core/timezone.ts';
+import { peopleCounts } from './event-detail.ts';
+import type { Reporting } from './reporting.ts';
 
 /**
  * Safety events: what happened, where (site, vehicle, service), how serious, what was done at
@@ -20,7 +22,7 @@ export async function openActions(ctx: ModuleContext, eventId: string): Promise<
   return r?.c ?? 0;
 }
 
-export function registerEvents(ctx: ModuleContext) {
+export function registerEvents(ctx: ModuleContext, reporting: Reporting) {
   const { app, db } = ctx;
   const invalid = (fields: Record<string, string>): never => ctx.fail(400, 'validation', 'Check the highlighted fields.', fields);
   const metaOf = async (list: string, value: unknown) => (await ctx.lookups.values(list)).find((v) => v.value === value)?.meta ?? {};
@@ -42,8 +44,34 @@ export function registerEvents(ctx: ModuleContext) {
       if (Number.isNaN(at)) invalid({ occurred_at: 'Enter the date and time.' });
       if (at > Date.now() + 5 * 60_000) invalid({ occurred_at: 'The event cannot be in the future.' });
     }
-    if (patch.injuries !== undefined && patch.injuries !== null && (!Number.isInteger(Number(patch.injuries)) || Number(patch.injuries) < 0)) {
-      invalid({ injuries: 'Enter a whole number, zero or more.' });
+    const errors: Record<string, string> = {};
+    for (const k of ['injuries', 'fatalities', 'people_transported']) {
+      if (patch[k] !== undefined && patch[k] !== null && (!Number.isInteger(Number(patch[k])) || Number(patch[k]) < 0)) errors[k] = 'Enter a whole number, zero or more.';
+    }
+    if (patch.damage_estimate !== undefined && patch.damage_estimate !== null && !(Number(patch.damage_estimate) >= 0)) errors.damage_estimate = 'Enter an amount, zero or more.';
+    for (const [k, lim] of [['latitude', 90], ['longitude', 180]] as const) {
+      const v = patch[k];
+      if (v !== undefined && v !== null && !(Math.abs(Number(v)) <= lim)) errors[k] = `Enter a number from -${lim} to ${lim}.`;
+    }
+    const blank = (v: unknown) => v === null || v === undefined;
+    if (('latitude' in patch || 'longitude' in patch) && blank(merged.latitude) !== blank(merged.longitude)) {
+      errors[blank(merged.latitude) ? 'latitude' : 'longitude'] ??= 'Give both latitude and longitude, or neither.';
+    }
+    if (patch.contributing_factors !== undefined && patch.contributing_factors !== null) {
+      const known = (await ctx.lookups.values('safety_contributing_factor')).map((v) => v.value);
+      if (!Array.isArray(patch.contributing_factors)) errors.contributing_factors = 'Give a list.';
+      else {
+        const given = [...new Set((patch.contributing_factors as unknown[]).map(String))];
+        const bad = given.filter((x) => !known.includes(x));
+        if (bad.length) errors.contributing_factors = `Not known: ${bad.join(', ')}.`;
+        else patch.contributing_factors = given;
+      }
+    }
+    if (Object.keys(errors).length) invalid(errors);
+    // With people involved recorded, the counts follow them (E25-02).
+    if (existing) {
+      const counts = await peopleCounts(ctx, existing.id);
+      if (counts.people > 0) { patch.fatalities = counts.fatalities; patch.people_transported = counts.transported; }
     }
     // Types that usually hold personal information start restricted unless the reporter says otherwise.
     if (!existing && (patch.restricted === undefined || patch.restricted === null)) {
@@ -82,6 +110,19 @@ export function registerEvents(ctx: ModuleContext) {
       description: { label: 'What happened', type: 'longtext' },
       immediate_actions: { label: 'Immediate actions', type: 'longtext' },
       injuries: { label: 'People injured', type: 'number' },
+      fatalities: { label: 'Fatalities', type: 'number' },
+      people_transported: { label: 'People taken for medical treatment', type: 'number' },
+      damage_estimate: { label: 'Estimated damage', type: 'currency' },
+      evacuation: { label: 'Vehicle or station evacuated', type: 'boolean' },
+      weather: { label: 'Weather', type: 'lookup', list: 'safety_weather' },
+      lighting: { label: 'Lighting', type: 'lookup', list: 'safety_lighting' },
+      surface: { label: 'Road or track surface', type: 'lookup', list: 'safety_surface' },
+      latitude: { label: 'Latitude', type: 'number' },
+      longitude: { label: 'Longitude', type: 'number' },
+      contributing_factors: { label: 'Contributing factors', type: 'json', default: [] },
+      post_event_testing_required: { label: 'Post-event testing required', type: 'boolean' },
+      reportable: { label: 'Reportable', type: 'boolean', readOnly: true },
+      reportable_reasons: { label: 'Reporting rules that apply', type: 'json', readOnly: true },
       reported_by_id: { label: 'Reported by', type: 'user' },
       investigator_id: { label: 'Investigator', type: 'user' },
       investigation_due: { label: 'Investigation due', type: 'date' },
@@ -98,8 +139,11 @@ export function registerEvents(ctx: ModuleContext) {
       beforeUpdate: (_req, existing, patch) => check({ ...existing, ...patch }, patch, existing),
       afterCreate: async (req, row) => {
         if ((await metaOf('safety_event_severity', row.severity)).notify === true) await announce(req, row);
+        // Reportability is worked out on every save (E25-05).
+        await reporting.evaluate(req, row);
       },
       afterUpdate: async (req, before, after) => {
+        await reporting.evaluate(req, after);
         if (before.severity === after.severity) return;
         const was = (await metaOf('safety_event_severity', before.severity)).notify === true;
         if (!was && (await metaOf('safety_event_severity', after.severity)).notify === true) await announce(req, after);

@@ -5,11 +5,11 @@ import { registerAcceptanceWorkflow } from './acceptance.ts';
 import { makeActionExtras } from './actions.ts';
 import { registerActionResource } from './actions-resource.ts';
 import { registerCaps, seedCapDefaults } from './caps.ts';
-import { registerEnterpriseRisk, seedEnterpriseDefaults } from './enterprise.ts';
+import { makeEnterprise, registerEnterpriseRisk, seedEnterpriseDefaults } from './enterprise.ts';
 import { makeLifecycle } from './lifecycle.ts';
 import { runObligationReminders } from './obligation-reminders.ts';
-import { registerObligations } from './obligations.ts';
-import { registerRegulatoryChanges } from './regulatory-change.ts';
+import { registerObligations, seedObligationDefaults } from './obligations.ts';
+import { registerRegulatoryChanges, seedRegulatoryChangeDefaults } from './regulatory-change.ts';
 import { DEFAULT_SCALE, makeScales, THRESHOLD_SETTING, type Scale } from './scales.ts';
 import { seedRisksModule } from './seed.ts';
 
@@ -68,18 +68,16 @@ async function seedLookups(ctx: ModuleContext): Promise<void> {
     { value: 'project', label: 'Project', color: 'green', sort: 70 },
     { value: 'change', label: 'Change', color: 'blue', sort: 72 },
     { value: 'vulnerability', label: 'Vulnerability', color: 'red', sort: 74 },
+    { value: 'regulatory_change', label: 'Regulatory change', color: 'purple', sort: 75 },
     { value: 'policy', label: 'Policy', color: 'purple', sort: 76 },
     { value: 'training', label: 'Training', color: 'teal', sort: 77 },
     { value: 'vendor', label: 'Vendor', color: 'orange', sort: 78 },
     { value: 'problem', label: 'Problem', color: 'amber', sort: 79 },
     { value: 'other', label: 'Other', color: 'gray', sort: 80 },
   ], { module: 'actions' });
-  await ctx.lookups.ensure('obligation_status', [
-    { value: 'not_assessed', label: 'Not assessed', color: 'gray', sort: 10 },
-    { value: 'met', label: 'Met', color: 'green', sort: 20 },
-    { value: 'partly_met', label: 'Partly met', color: 'amber', sort: 30 },
-    { value: 'not_met', label: 'Not met', color: 'red', sort: 40 },
-  ], { module: 'obligations' });
+  // Obligation status, type and frequency (E30-01).
+  await seedObligationDefaults(ctx);
+  await seedRegulatoryChangeDefaults(ctx);
 }
 
 const mod: ModuleDef = {
@@ -99,6 +97,8 @@ const mod: ModuleDef = {
 
   async register(ctx) {
     const scales = makeScales(ctx);
+    // Appetite breach and parent risks (E30-06, E30-08).
+    const enterprise = makeEnterprise(ctx, scales);
     const today = async () => (await ctx.db.one<{ d: string }>('select current_date::text as d'))!.d;
     const statusesWith = async (list: string, flag: string) =>
       (await ctx.lookups.values(list)).filter((v) => v.meta?.[flag]).map((v) => v.value);
@@ -151,9 +151,14 @@ const mod: ModuleDef = {
           'select 1 from risk_acceptances where risk_id = $1 and revoked_on is null and expires_on >= current_date', [existing.id]);
         if (!current) errors.status = 'Record an acceptance (approver, expiry and rationale) before marking a risk accepted.';
       }
+      if (data.parent_id !== undefined) {
+        const parentError = await enterprise.checkParent(existing, data.parent_id);
+        if (parentError) errors.parent_id = parentError;
+      }
       if (Object.keys(errors).length) ctx.fail(400, 'validation', 'Check the highlighted fields.', errors);
 
-      return { ...data, ...scales.scoreRisk(scale, await scales.summaryLevels(), merged) };
+      const scored = scales.scoreRisk(scale, await scales.summaryLevels(), merged);
+      return { ...data, ...scored, appetite_breach: await enterprise.breachFor({ ...merged, ...scored }, scale) };
     }
 
     ctx.defineResource({
@@ -190,6 +195,9 @@ const mod: ModuleDef = {
         // E08-23: kept by the module from the rating and its scale's approval threshold, so the
         // Risk acceptance workflow can ask for an executive only when it is set.
         acceptance_executive: { label: 'Acceptance needs an executive', type: 'boolean', readOnly: true },
+        // E30-08: the enterprise risk this one rolls up under; E30-06: above its category's appetite (kept by the module).
+        parent_id: { label: 'Parent risk', type: 'ref', to: 'risk' },
+        appetite_breach: { label: 'Above appetite', type: 'boolean', readOnly: true },
       },
       hooks: {
         beforeCreate: (req, data) => prepareRisk(req, null, data),
@@ -233,6 +241,7 @@ const mod: ModuleDef = {
         await ctx.settings.set(THRESHOLD_SETTING, thresholds, req);
       }
       const rerated = existing ? await scales.rescore(next.key) : 0;
+      if (existing) await enterprise.refreshBreaches();
       const saved = (await scales.get(next.key))!;
       await ctx.audit(req, {
         action: existing ? 'risk_scale.update' : 'risk_scale.create', recordType: 'risk_scale', recordId: saved.key,
@@ -307,14 +316,25 @@ const mod: ModuleDef = {
         m.risk_ids.push(r.id);
         moves.set(key, m);
       }
+      // E30-06: the strictest appetite among the categories scored on this scale; cells above it are outlined.
+      const categoriesHere = (await ctx.lookups.values('risk_category')).filter((c) => (c.meta?.scale ?? DEFAULT_SCALE) === scale.key);
+      const appetites = await enterprise.appetite();
+      const limits = categoriesHere
+        .map((c) => ({ label: c.label, rating: scale.ratings.find((r) => r.key === appetites.get(c.value)?.max_rating) }))
+        .filter((x): x is { label: string; rating: Scale['ratings'][number] } => !!x.rating);
+      const strictest = limits.reduce<Scale['ratings'][number] | null>((m, x) => (!m || x.rating.sort < m.sort ? x.rating : m), null);
       const cells = scale.likelihood_levels.flatMap((l) => scale.impact_levels.map((i) => {
         const rating = scale.ratings.find((r) => r.key === scale.matrix[String(l.value)]?.[String(i.value)]);
         const ids = rows.filter((r) => r.l === l.value && r.i === i.value).map((r) => r.id as string);
-        return { likelihood: l.value, impact: i.value, rating: rating?.key ?? null, color: rating?.color ?? 'gray', count: ids.length, risk_ids: ids };
+        return {
+          likelihood: l.value, impact: i.value, rating: rating?.key ?? null, color: rating?.color ?? 'gray', count: ids.length, risk_ids: ids,
+          above_appetite: !!strictest && !!rating && rating.sort > strictest.sort,
+        };
       }));
       const scored = cells.reduce((n, c) => n + c.count, 0);
       return {
         scale, basis, cells,
+        appetite: strictest ? { rating: strictest.key, label: strictest.label, categories: limits.filter((x) => x.rating.key === strictest.key).map((x) => x.label) } : null,
         totals: scale.ratings.map((r) => ({
           rating: r.key, label: r.label, color: r.color,
           count: cells.filter((c) => c.rating === r.key).reduce((n, c) => n + c.count, 0),
@@ -349,6 +369,7 @@ const mod: ModuleDef = {
       const watch = (await ctx.db.one<Row>(
         `select count(*) filter (where r.status = any($2::text[]))::int as needs_review,
                 count(*) filter (where r.review_on <= current_date)::int as reviews_due,
+                count(*) filter (where r.appetite_breach)::int as above_appetite,
                 count(*) filter (where r.status = 'accepted' and a.expires_on >= current_date and a.expires_on <= current_date + 60)::int as acceptances_expiring,
                 count(*) filter (where (r.status = 'accepted' or r.status = any($2::text[])) and a.expires_on < current_date)::int as acceptances_expired
          from risks r
@@ -484,7 +505,7 @@ const mod: ModuleDef = {
     registerObligations(ctx);
     // Regulatory change intake and enterprise risk (E30).
     await registerRegulatoryChanges(ctx);
-    await registerEnterpriseRisk(ctx);
+    await registerEnterpriseRisk(ctx, { scales, enterprise, riskPre });
   },
 
   seed: (ctx, opts) => seedRisksModule(ctx, opts),

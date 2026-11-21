@@ -258,7 +258,7 @@ export function makeAdmin(ctx: ModuleContext, base: Base, approval: ChangeApprov
       if (options.length < 2) errors[`questions.${i}.options`] = 'Give at least two answers.';
       else if (!options.some((o) => o.score > 0)) errors[`questions.${i}.options`] = 'At least one answer needs a score above zero.';
       const help = String(q?.help ?? '').trim();
-      questions.push({ key, label, weight, options, ...(help ? { help } : {}) });
+      questions.push({ key, label, weight, options, ...(help ? { help } : {}), ...(q?.meta?.safety_impact === true ? { meta: { safety_impact: true } } : {}) });
     }
     if (questions.length && !questions.some((q) => q.weight > 0)) errors.questions = 'At least one question needs a weight above zero.';
 

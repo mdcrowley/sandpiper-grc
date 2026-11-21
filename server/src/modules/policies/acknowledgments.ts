@@ -2,6 +2,7 @@
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { addDays, daysBetween, localDate } from './dates.ts';
+import { requestRosterAcks } from './personAcks.ts';
 
 export const REMINDER_SETTING = 'policies.reminder_interval_days';
 export const DEFAULT_REMINDER_INTERVAL = 7;
@@ -35,6 +36,14 @@ async function notifyAck(
   return res.sent;
 }
 
+/** The review cycle in months of a document type (list policy_document_type, meta.review_months), or null. */
+export async function reviewMonths(ctx: ModuleContext, documentType: unknown): Promise<number | null> {
+  if (!documentType) return null;
+  const v = (await ctx.lookups.values('policy_document_type')).find((x) => x.value === documentType);
+  const n = Number((v?.meta as Row | undefined)?.review_months);
+  return Number.isInteger(n) && n > 0 && n <= 120 ? n : null;
+}
+
 /** Active users in the policy's audience: everyone, or anyone holding one of the roles or in one of the departments. */
 export async function audienceUserIds(ctx: ModuleContext, policy: Row): Promise<string[]> {
   const rows = await ctx.db.query<{ id: string }>(
@@ -66,7 +75,7 @@ export async function syncPolicyStatus(ctx: ModuleContext, policyId: string, use
   ))!;
 }
 
-export interface PublishResult { policy: Row; version: Row; requested: number; due_on: string }
+export interface PublishResult { policy: Row; version: Row; requested: number; roster_requested?: number; due_on: string }
 
 /**
  * Publishes an approved version: it becomes what readers see, the version before it is kept
@@ -93,6 +102,17 @@ export async function publishVersion(
        updated_at = now(), updated_by = $5 where id = $1 returning *`,
     [version.id, now.toISOString(), opts.effective_on ?? null, today, userId],
   ))!;
+  // The document type's review cycle (E29-08): the next review falls that many months after the
+  // version takes effect, unless a later review date is already set.
+  const months = await reviewMonths(ctx, policy.document_type);
+  if (months) {
+    await ctx.db.query(
+      `update policies p set review_date = (v.effective_on + make_interval(months => $3::int))::date, updated_at = now(), updated_by = $4
+       from policy_versions v
+       where p.id = $1 and v.id = $2 and (p.review_date is null or p.review_date < (v.effective_on + make_interval(months => $3::int))::date)`,
+      [policy.id, published.id, months, userId],
+    );
+  }
   await ctx.db.query(
     `update policy_acknowledgements set superseded_at = $3
      where policy_id = $1 and version_id <> $2 and acknowledged_at is null and superseded_at is null`,
@@ -110,6 +130,8 @@ export async function publishVersion(
     );
     if (row) { requested += 1; made.push(row); }
   }
+  // Roster people (E29-09): asked by position, recorded on a sign-in sheet or the kiosk.
+  const roster = await requestRosterAcks(ctx, policy, published, dueOn, now);
   // Each person asked is told, except the person publishing (they know).
   for (const a of made) {
     if (a.user_id !== userId) await notifyAck(ctx, a, { ref: policy.ref, title: String(policy.title) }, Number(version.version), dueOn, false);
@@ -117,11 +139,11 @@ export async function publishVersion(
   const after = await syncPolicyStatus(ctx, policy.id, userId);
   await ctx.audit(req, {
     action: 'policy.publish', recordType: 'policy', recordId: policy.id,
-    summary: `Version ${version.version} of ${[policy.ref, policy.title].filter(Boolean).join(' ')} published; ${requested} ${requested === 1 ? 'person' : 'people'} asked to acknowledge by ${dueOn}`,
+    summary: `Version ${version.version} of ${[policy.ref, policy.title].filter(Boolean).join(' ')} published; ${requested} ${requested === 1 ? 'person' : 'people'} asked to acknowledge by ${dueOn}${roster ? `, and ${roster} on the roster` : ''}`,
     before: { status: policy.status, current_version: policy.current_version },
-    after: { status: after.status, current_version: Number(version.version), acknowledgements_requested: requested, due_on: dueOn },
+    after: { status: after.status, current_version: Number(version.version), acknowledgements_requested: requested, roster_requested: roster, due_on: dueOn },
   });
-  return { policy: after, version: published, requested, due_on: dueOn };
+  return { policy: after, version: published, requested, roster_requested: roster, due_on: dueOn };
 }
 
 export type AckState = 'acknowledged' | 'overdue' | 'outstanding' | 'superseded';

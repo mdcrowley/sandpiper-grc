@@ -7,9 +7,10 @@ import {
 } from '../../core';
 import { canMoveTo, editableLifecycle } from '../../core/lifecycleMenus';
 import type { RecordContext } from '../../core';
-import { RatingChip, SafetyActions, SafetyTabs, useHazardScale } from './shared';
+import { InvestigationTab, PeopleTab, ReportingTab } from './EventTabs';
+import { RatingChip, SafetyActions, SafetyCaps, SafetyTabs, useHazardScale } from './shared';
 
-const CREATE = ['title', 'occurred_at', 'event_type', 'severity', 'site_id', 'vehicle_id', 'service_id', 'location_detail', 'description', 'immediate_actions', 'injuries', 'reported_by_id', 'restricted'];
+const CREATE = ['title', 'occurred_at', 'event_type', 'severity', 'site_id', 'vehicle_id', 'service_id', 'location_detail', 'description', 'immediate_actions', 'injuries', 'fatalities', 'people_transported', 'damage_estimate', 'evacuation', 'reported_by_id', 'restricted'];
 
 export function EventList() {
   return (
@@ -19,8 +20,8 @@ export function EventList() {
       <ResourceList
         type="safety_event"
         urlState
-        columns={['ref', 'title', 'occurred_at', 'event_type', 'severity', 'status', 'vehicle_id', 'service_id', { field: 'site_id', hidden: true }, { field: 'investigator_id', hidden: true }, { field: 'restricted', hidden: true }]}
-        filters={['event_type', 'severity', 'status', 'occurred_at', 'vehicle_id', 'service_id', 'site_id', 'investigator_id', 'restricted']}
+        columns={['ref', 'title', 'occurred_at', 'event_type', 'severity', 'status', 'vehicle_id', 'service_id', { field: 'reportable', hidden: true }, { field: 'site_id', hidden: true }, { field: 'investigator_id', hidden: true }, { field: 'restricted', hidden: true }]}
+        filters={['event_type', 'severity', 'status', 'occurred_at', 'vehicle_id', 'service_id', 'site_id', 'investigator_id', 'reportable', 'restricted']}
         createFields={CREATE}
         // Most events are reported soon after they happen: start from now, to be corrected if not.
         createInitial={{ occurred_at: new Date(Math.floor(Date.now() / 60_000) * 60_000).toISOString() }}
@@ -125,14 +126,17 @@ export function EventDetail() {
       banner={({ row }) => (
         <div className="stack">
           {row.restricted && <p className="notice notice-warn">Restricted: this event holds personal information and is visible only to people who may see restricted records.</p>}
+          {row.reportable && <p className="notice notice-warn">Reportable: {(row.reportable_reasons ?? []).map((r: { party: string }) => r.party).join(', ')} must be notified. See the Reporting tab.</p>}
           <Stepper label="Progress" current={row.status} steps={STEPS} />
         </div>
       )}
       actions={(rec) => <Actions {...rec} />}
       summary={({ row, reload }) => (
-        <div className="sf-summary">
+        <div className="sf-summary sf-event-summary">
           <EditableSummary type="safety_event" row={row} onSaved={reload} title="What happened"
-            fields={['title', 'occurred_at', 'event_type', 'severity', 'description', 'immediate_actions', 'injuries', 'reported_by_id', 'restricted']} />
+            fields={['title', 'occurred_at', 'event_type', 'severity', 'description', 'immediate_actions', 'reported_by_id', 'restricted']} />
+          <EditableSummary type="safety_event" row={row} onSaved={reload} title="Harm and damage"
+            fields={['injuries', 'fatalities', 'people_transported', 'damage_estimate', 'evacuation']} />
           <EditableSummary type="safety_event" row={row} onSaved={reload} title="Where"
             fields={['site_id', 'vehicle_id', 'service_id', 'location_detail']} />
           <EditableSummary type="safety_event" row={row} onSaved={reload} title="Investigation"
@@ -140,7 +144,10 @@ export function EventDetail() {
         </div>
       )}
       tabs={[
-        { key: 'actions', label: 'Corrective actions', content: ({ row }) => <SafetyActions sourceType="safety_event" sourceId={row.id} /> },
+        { key: 'people', label: 'People involved', content: ({ row, reload }) => <PeopleTab eventId={row.id} onChanged={reload} /> },
+        { key: 'investigation', label: 'Investigation', content: ({ row, reload }) => <InvestigationTab row={row} reload={reload} /> },
+        { key: 'reporting', label: 'Reporting', content: ({ row }) => <ReportingTab key={`${row.updated_at}`} eventId={row.id} /> },
+        { key: 'actions', label: 'Corrective actions', content: ({ row }) => <div className="stack"><SafetyCaps sourceType="safety_event" sourceId={row.id} /><SafetyActions sourceType="safety_event" sourceId={row.id} /></div> },
         { key: 'hazards', label: 'Hazards', content: ({ row }) => <Hazards eventId={row.id} /> },
       ]}
     />

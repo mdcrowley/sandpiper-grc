@@ -61,6 +61,9 @@ export function registerVersionRoutes(ctx: ModuleContext) {
   ctx.app.get('/api/policies/audience-options', { preHandler: ctx.requirePerm('policies.view') }, async () => ({
     roles: await db.query<Row>('select key, name, enabled from roles order by name'),
     departments: await db.query<Row>('select id, name from departments where deleted_at is null order by lower(name)'),
+    // Positions of the roster (people module, E29-09), for roster audiences; empty without it.
+    positions: ctx.resources.get('position')
+      ? await db.query<Row>('select id, name, active from positions where deleted_at is null order by lower(name)') : [],
   }));
 
   /** How many people would be asked to acknowledge if a version were published now. */
@@ -208,7 +211,7 @@ export function registerVersionRoutes(ctx: ModuleContext) {
       ctx.fail(400, 'validation', 'Check the highlighted fields.', { effective_on: 'Effective date must be a date (YYYY-MM-DD).' });
     }
     const result = await publishVersion(ctx, req, policy, version, { effective_on: effectiveOn });
-    return { version: versionView(result.version), requested: result.requested, due_on: result.due_on, status: result.policy.status };
+    return { version: versionView(result.version), requested: result.requested, roster_requested: result.roster_requested ?? 0, due_on: result.due_on, status: result.policy.status };
   });
 
   ctx.app.post('/api/policies/:id/retire', { preHandler: ctx.requirePerm('policies.approve') }, async (req) => {
@@ -219,6 +222,11 @@ export function registerVersionRoutes(ctx: ModuleContext) {
       `update policy_acknowledgements set superseded_at = now() where policy_id = $1 and acknowledged_at is null and superseded_at is null returning id`,
       [policy.id],
     );
+    // Roster people's requests close too (E29-09).
+    closed.push(...await db.query<Row>(
+      `update policy_person_acknowledgements set superseded_at = now() where policy_id = $1 and acknowledged_at is null and superseded_at is null returning id`,
+      [policy.id],
+    ));
     await ctx.audit(req, {
       action: 'policy.retire', recordType: 'policy', recordId: policy.id,
       summary: `${label(policy)} retired; ${closed.length} outstanding acknowledgment request${closed.length === 1 ? '' : 's'} closed`,

@@ -67,3 +67,7 @@
 .trn-stepsbar > span { display: block; height: 100%; }
 .trn-stepsbar-none { background: repeating-linear-gradient(45deg, var(--border), var(--border) 3px, transparent 3px, transparent 6px); }
 .trn-stepsbar-text { font-size: var(--fs-sm); color: var(--text-muted); }
+
+/* ---- qualification matrix (E29-06) ---- */
+.trn-matrix { max-height: 70vh; }
+.trn-matrix .trn-person { font-weight: 600; white-space: nowrap; }

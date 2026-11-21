@@ -13,9 +13,9 @@ const told = async (userId: string, like: string) =>
   (await t.db.query(`select 1 from notifications where user_id = $1 and title like $2`, [userId, `%${like}%`])).length;
 
 describe('hazard review reminders', () => {
-  it('is scheduled on the job queue, beside the corrective-action reminders', async () => {
+  it('is scheduled on the job queue, beside the corrective-action reminders and the notification clocks', async () => {
     const names = (await t.db.query<{ name: string }>(`select name from job_schedules where name like 'safety.%' order by name`)).map((r) => r.name);
-    expect(names).toEqual(['safety.hazard_reviews', 'safety.reminders']);
+    expect(names).toEqual(['safety.clocks', 'safety.hazard_reviews', 'safety.reminders']);
   });
 
   it('sends nothing without the notifications module', async () => {

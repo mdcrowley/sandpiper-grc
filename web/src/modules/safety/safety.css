@@ -67,3 +67,24 @@ button.sf-cell:hover { border-color: var(--border-strong); }
   box-shadow: var(--shadow-2), 0 40px 0 var(--bg);
 }
 .sf-savebar-text { flex: 1 1 18rem; min-width: 0; }
+
+/* Safety event: investigation record (E25-03, E25-04) */
+.sf-investigation { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: var(--s-4); align-items: start; }
+.sf-investigation > .sf-hint { grid-column: 1 / -1; margin: 0; }
+.sf-chips { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.sf-statements { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s-3); }
+.sf-statements li { border-top: 1px solid var(--border); padding-top: var(--s-3); }
+.sf-statements li:first-child { border-top: 0; padding-top: 0; }
+.sf-statement-head { display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-3); align-items: baseline; }
+.sf-statement-text { margin: var(--s-1) 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* Indicator values and yearly targets (E25-07, E25-10) */
+.sf-value-input { max-width: 9rem; margin-left: auto; }
+.sf-rule-conditions { margin: 0; padding-left: 1.1rem; }
+.sf-condition { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1.4fr) auto; gap: var(--s-2); align-items: end; }
+@media (max-width: 700px) { .sf-condition { grid-template-columns: minmax(0, 1fr); } }
+
+/* Tables whose cells hold sentences (reporting rules, clocks, people involved) */
+.sf-wrap td { white-space: normal; overflow-wrap: anywhere; min-width: 7rem; }
+/* The event page: "Harm and damage" spans the width under "What happened". */
+.sf-event-summary > :nth-child(2) { grid-column: 1 / -1; }

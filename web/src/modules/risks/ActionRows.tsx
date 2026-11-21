@@ -9,8 +9,10 @@ import type { Row } from '../../core';
 import { editableLifecycle, moveBlockedReason } from '../../core/lifecycleMenus';
 import { actionPath, ActionStatus, isOverdue } from './ActionStatus';
 import { daysUntil } from './scales';
+import './caps.css';
 
 const DONE = 'done';
+const PENDING_VERIFICATION = 'pending_verification';
 
 /** Round tick that completes an action (or reopens a finished one) in one click. */
 function CompleteToggle({ row, onChanged }: { row: Row; onChanged: () => void }) {
@@ -24,13 +26,22 @@ function CompleteToggle({ row, onChanged }: { row: Row; onChanged: () => void })
   const values = statuses.map((s) => s.value);
   const blocked = moveBlockedReason(lifecycle, row.status, target, statuses.find((s) => s.value === target)?.label ?? target, values);
   if (!statuses.some((s) => s.value === DONE)) return null;
+  // E23-03: finished work that waits for its effectiveness check is recorded on the action page.
+  if (row.status === PENDING_VERIFICATION) {
+    return (
+      <Tooltip label="Awaiting verification: record it on the action">
+        <span className="rk-tick is-verifying" role="img" aria-label={`${row.ref ?? 'Action'} is awaiting verification`}><Icon name="clock" size={14} /></span>
+      </Tooltip>
+    );
+  }
   const label = done ? `Reopen ${row.ref ?? 'action'}` : `Mark ${row.ref ?? 'action'} done`;
   const toggle = async () => {
     if (blocked) return;
     setBusy(true);
     try {
-      await api.patch(actionPath(row), { status: target });
-      toast.success(done ? `${row.ref ?? 'Action'} reopened.` : `${row.ref ?? 'Action'} done.`);
+      const saved = await api.patch<Row>(actionPath(row), { status: target });
+      toast.success(done ? `${row.ref ?? 'Action'} reopened.`
+        : saved.status === PENDING_VERIFICATION ? `${row.ref ?? 'Action'} finished and awaiting verification.` : `${row.ref ?? 'Action'} done.`);
       onChanged();
     } catch (err) {
       toast.error(errorMessage(err));

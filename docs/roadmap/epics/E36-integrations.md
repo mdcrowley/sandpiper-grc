@@ -1,6 +1,6 @@
 # E36 Integrations
 
-**Status:** open
+**Status:** open (0 of 6 issues done)
 
 ## Goal
 

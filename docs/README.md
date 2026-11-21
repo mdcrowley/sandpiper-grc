@@ -43,6 +43,12 @@ The user guide is in [`user/`](user/) and is also shown inside the application u
 21. [AI assistants and MCP](user/21-ai-assistants-and-mcp.md)
 22. [Approval workflows](user/22-approval-workflows.md)
 23. [Lifecycles: allowed status changes and required fields](user/23-lifecycles.md)
+24. [Corrective action plans](user/24-corrective-action-plans.md)
+25. [Audits and inspections](user/25-audits-and-inspections.md)
+26. [Controls and testing](user/26-controls-and-testing.md)
+27. [Funding and grants](user/27-funding-and-grants.md)
+28. [Committees and meetings](user/28-committees-and-meetings.md)
+29. [People and qualifications](user/29-people-and-qualifications.md)
 
 ## For people who integrate with it
 

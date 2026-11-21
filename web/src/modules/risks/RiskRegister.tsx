@@ -6,13 +6,14 @@ import {
 } from '../../core';
 import type { ColorName, Row } from '../../core';
 import { cellKey, HeatMap, type HeatCell, type HeatMapData } from './HeatMap';
-import { RatingChip, useScales } from './scales';
+import { AppetiteBadge, RatingChip, useScales } from './scales';
 
 interface Summary {
   total: number;
   unscored: number;
   needs_review: number;
   reviews_due: number;
+  above_appetite?: number;
   acceptances_expiring: number;
   acceptances_expired: number;
   levels: { value: string; label: string; color: string; count: number }[];
@@ -73,6 +74,7 @@ export function RiskRegister() {
             <Link className="btn btn-secondary" to="/risks/reviews">Reviews and acceptances</Link>
             <Link className="btn btn-secondary" to="/risks/report">Risk report</Link>
             {can('risks.administer') && <Link className="btn btn-secondary" to="/risks/scales">Risk scales</Link>}
+            {can('risks.administer') && <Link className="btn btn-secondary" to="/risks/appetite">Risk appetite</Link>}
             <Button icon="download" onClick={() => window.print()}>Print</Button>
           </>
         )}
@@ -80,7 +82,10 @@ export function RiskRegister() {
 
       {summary.error ? <ErrorState error={summary.error} onRetry={summary.reload} /> : (
         <div className="grid-stats rk-strip" aria-busy={!s}>
-          <Stat label="Open risks" value={s?.total ?? '–'} color="blue" icon="alert" hint={s && s.unscored > 0 ? `${s.unscored} not yet scored` : 'All scales'} />
+          <Stat
+            label="Open risks" value={s?.total ?? '–'} color="blue" icon="alert"
+            hint={[s && s.unscored > 0 ? `${s.unscored} not yet scored` : 'All scales', s && (s.above_appetite ?? 0) > 0 ? `${s.above_appetite} above appetite` : null].filter(Boolean).join(' · ')}
+          />
           <Stat label={level('critical')?.label ?? 'Critical'} value={level('critical')?.count ?? '–'} color={(level('critical')?.color ?? 'red') as ColorName} to="/risks?f.summary_level=critical" hint="Common level" />
           <Stat label={level('high')?.label ?? 'High'} value={level('high')?.count ?? '–'} color={(level('high')?.color ?? 'orange') as ColorName} to="/risks?f.summary_level=high" hint="Common level" />
           <Stat label="Reviews due" value={s?.reviews_due ?? '–'} color={s && s.reviews_due > 0 ? 'amber' : 'green'} icon="calendar" to="/risks/reviews" hint="Review date reached" />
@@ -184,13 +189,15 @@ export function RiskRegister() {
             'ref', 'title', 'category',
             { field: 'inherent_score', label: 'Inherent', sortable: true, render: (row) => <RatingChip scale={scaleOf(row)} rating={row.inherent_rating} /> },
             { field: 'residual_score', label: 'Residual', sortable: true, render: (row) => <RatingChip scale={scaleOf(row)} rating={row.residual_rating} /> },
+            { field: 'appetite_breach', label: 'Appetite', sortable: true, render: (row) => <AppetiteBadge breach={row.appetite_breach} /> },
             'treatment', 'status', 'owner_id', 'due_on', 'review_on',
+            { field: 'parent_id', hidden: true },
             { field: 'last_reviewed_on', hidden: true },
           ]}
-          filters={['category', 'summary_level', 'status', 'treatment', 'owner_id', 'due_on', 'review_on']}
+          filters={['category', 'summary_level', 'appetite_breach', 'status', 'treatment', 'owner_id', 'parent_id', 'due_on', 'review_on']}
           bulkFields={['owner_id', 'treatment', 'category', 'review_on', 'due_on']}
           baseFilter={baseFilter}
-          createFields={['title', 'category', 'description', 'cause', 'consequence', 'affected', 'existing_controls', 'treatment', 'owner_id', 'due_on', 'review_on']}
+          createFields={['title', 'category', 'parent_id', 'description', 'cause', 'consequence', 'affected', 'existing_controls', 'treatment', 'owner_id', 'due_on', 'review_on']}
         />
       </div>
     </div>

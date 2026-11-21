@@ -150,6 +150,55 @@ export const ROUTE_HELP: RouteHelp[] = [
   { prefix: '/safety/hazards', page: '20-safety-management', section: 'hazard-log' },
   { prefix: '/safety/indicators', page: '20-safety-management', section: 'safety-performance-indicators' },
   { prefix: '/safety/exposure', page: '20-safety-management', section: 'exposure' },
+  { prefix: '/safety/reporting-rules', page: '20-safety-management', section: 'safety-reporting-rules' },
+
+  // Corrective action plans
+  { prefix: '/caps', exact: true, page: '24-corrective-action-plans', section: 'the-register' },
+  { prefix: '/caps', page: '24-corrective-action-plans', section: 'the-plan-page' },
+
+  // Audits and inspections
+  { prefix: '/audits', page: '25-audits-and-inspections', section: 'plan-and-coverage' },
+  { prefix: '/audits/areas', page: '25-audits-and-inspections', section: 'the-audit-universe' },
+  { prefix: '/audits/engagements', page: '25-audits-and-inspections', section: 'audits' },
+  { prefix: '/audits/templates', page: '25-audits-and-inspections', section: 'checklists' },
+  { prefix: '/audits/requests', page: '25-audits-and-inspections', section: 'evidence-requests' },
+  { prefix: '/audits/my-requests', page: '25-audits-and-inspections', section: 'evidence-requests' },
+  { prefix: '/inspections', page: '25-audits-and-inspections', section: 'inspections' },
+  { prefix: '/inspections/schedules', page: '25-audits-and-inspections', section: 'schedules' },
+  { prefix: '/audit-findings', page: '25-audits-and-inspections', section: 'findings' },
+
+  // Controls
+  { prefix: '/controls', exact: true, page: '26-controls-and-testing', section: 'the-control-library' },
+  { prefix: '/controls', page: '26-controls-and-testing', section: 'what-a-control-covers' },
+  { prefix: '/controls/dashboard', page: '26-controls-and-testing', section: 'the-controls-dashboard' },
+  { prefix: '/controls/coverage', page: '26-controls-and-testing', section: 'the-coverage-view' },
+  { prefix: '/controls/tests', exact: true, page: '26-controls-and-testing', section: 'testing-a-control' },
+  { prefix: '/controls/tests', page: '26-controls-and-testing', section: 'finish-and-sign-off' },
+
+  // Funding and grants
+  { prefix: '/funding', exact: true, page: '27-funding-and-grants', section: 'funding-dashboard' },
+  { prefix: '/funding/awards', page: '27-funding-and-grants', section: 'funding-awards' },
+  { prefix: '/funding/certifications', page: '27-funding-and-grants', section: 'yearly-certifications' },
+  { prefix: '/funding/reviews', page: '27-funding-and-grants', section: 'compliance-reviews' },
+  { prefix: '/funding/deficiencies', page: '27-funding-and-grants', section: 'deficiencies-and-corrective-action-plans' },
+  { prefix: '/funding/review-areas', page: '27-funding-and-grants', section: 'review-areas-from-a-file' },
+
+  // Committees and meetings
+  { prefix: '/governance/committees', page: '28-committees-and-meetings', section: 'committees' },
+  { prefix: '/governance/meetings', page: '28-committees-and-meetings', section: 'meetings' },
+  { prefix: '/governance/decisions', page: '28-committees-and-meetings', section: 'decisions-register' },
+
+  // People and qualifications
+  { prefix: '/people', page: '29-people-and-qualifications', section: 'the-roster' },
+  { prefix: '/people/positions', page: '29-people-and-qualifications', section: 'positions' },
+  { prefix: '/training/qualifications', page: '29-people-and-qualifications', section: 'the-qualification-matrix' },
+  { prefix: '/training/certifications', page: '12-training-and-exercises', section: 'qualifications-and-certifications' },
+  { prefix: '/policies/kiosk', page: '11-policies-and-exceptions', section: 'the-acknowledgment-kiosk' },
+
+  // Obligations, regulatory change and enterprise risk
+  { prefix: '/regulatory-changes', page: '06-risks-actions-obligations', section: 'regulatory-changes' },
+  { prefix: '/kris', page: '06-risks-actions-obligations', section: 'key-risk-indicators' },
+  { prefix: '/risks/appetite', page: '06-risks-actions-obligations', section: 'risk-appetite' },
 ];
 
 /** The guide entry for an address, or undefined when nothing covers it. */

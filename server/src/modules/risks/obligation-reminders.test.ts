@@ -52,4 +52,25 @@ describe('obligation due-date reminders', () => {
     await runObligationReminders(t.ctx);
     expect(await told(owner.userId, 'Five-year plan filing')).toBe(1);
   });
+
+  it('asks for recurring periods to be attested, once each (E30-03)', async () => {
+    if (!t.app.hasDecorator('notify')) return;
+    const owner = await t.as('compliance_officer');
+    const o = (await t.api.post('/api/obligations', { title: 'Quarterly route data return', owner_id: owner.userId, frequency: 'quarterly', next_due_on: dayInZone(5) })).body;
+    // A past period recorded by hand and not attested.
+    const past = await t.api.post(`/api/obligations/${o.id}/periods`, { period_start: dayInZone(-100), period_end: dayInZone(-10), due_on: dayInZone(-3) });
+    expect(past.status).toBe(201);
+    await runObligationReminders(t.ctx);
+    await runObligationReminders(t.ctx);
+    expect(await told(owner.userId, 'Obligation due on')).toBe(1);
+    expect(await told(owner.userId, 'Period to attest: ')).toBe(1);
+    const n = await t.db.one<{ body: string }>(`select body from notifications where user_id = $1 and title like 'Obligation due on%'`, [owner.userId]);
+    expect(n!.body).toContain('Periods tab');
+    expect((await t.db.one<{ d: string }>('select period_reminded_for::text as d from obligations where id = $1', [o.id]))!.d).toBe(dayInZone(5));
+    // Attested periods are not reminded again.
+    await t.api.post(`/api/obligations/${o.id}/periods/${past.body.id}/attest`, { status: 'met' });
+    await t.db.query(`delete from notifications where user_id = $1`, [owner.userId]);
+    await runObligationReminders(t.ctx);
+    expect(await told(owner.userId, 'Period to attest: ')).toBe(0);
+  });
 });

@@ -77,3 +77,18 @@
 
 /* Positioned, so screen-reader-only header text in a far-right column is clipped with the table instead of widening the page. */
 .pol-tw { position: relative; }
+
+/* ---- roster acknowledgments and the kiosk (E29-09, E29-10) ---- */
+.pol-roster-stats { padding: var(--s-3) var(--s-4); }
+.pol-kiosk { max-width: 60rem; }
+.pol-kiosk-names { display: grid; gap: var(--s-2); grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); margin: 0; padding: 0; list-style: none; }
+.pol-kiosk-name {
+  display: grid; gap: var(--s-1); width: 100%; min-height: 3.5rem; padding: var(--s-3) var(--s-4); text-align: start;
+  font: inherit; font-size: var(--fs-lg, 1.125rem); color: var(--text); background: var(--surface-2);
+  border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer;
+}
+.pol-kiosk-name:hover { border-color: var(--accent, var(--border)); }
+.pol-kiosk-name:focus-visible { outline: 2px solid var(--focus, currentColor); outline-offset: 2px; }
+.pol-kiosk-name .muted { font-size: var(--fs-sm); }
+.pol-kiosk-text { max-height: 50vh; overflow: auto; }
+.pol-kiosk-done { display: grid; gap: var(--s-3); justify-items: start; font-size: var(--fs-lg, 1.125rem); }

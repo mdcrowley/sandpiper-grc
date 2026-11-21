@@ -48,7 +48,8 @@ export function ActionStatus({ row, onChanged }: { row: Row; onChanged?: (saved:
 
 /** True when an action is past its due date and not finished. */
 export function isOverdue(row: Row, today: string, openStatuses?: string[]): boolean {
-  if (!row.due_on || row.due_on >= today) return false;
+  // Finished work (including work awaiting verification) is never overdue.
+  if (!row.due_on || row.due_on >= today || row.completed_on) return false;
   return openStatuses ? openStatuses.includes(row.status) : !row.completed_on && row.status !== 'cancelled';
 }
 

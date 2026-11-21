@@ -8,10 +8,10 @@ import {
 import type { Audiences } from './shared';
 
 interface Rule {
-  id: string; audience_type: 'everyone' | 'role' | 'department' | 'user'; audience_label: string; people: number; created_at: string;
+  id: string; audience_type: 'everyone' | 'role' | 'department' | 'user' | 'position'; audience_label: string; people: number; created_at: string;
 }
 
-const KIND: Record<Rule['audience_type'], string> = { everyone: 'Everyone', role: 'Role', department: 'Department', user: 'Person' };
+const KIND: Record<Rule['audience_type'], string> = { everyone: 'Everyone', role: 'Role', department: 'Department', user: 'Person', position: 'Position' };
 
 function RuleForm({ courseId, onDone, onCancel }: { courseId: string; onDone: () => void; onCancel: () => void }) {
   const toast = useToast();
@@ -31,7 +31,8 @@ function RuleForm({ courseId, onDone, onCancel }: { courseId: string; onDone: ()
     try {
       const res = await api.post<{ records_created: number }>(`/api/courses/${courseId}/assignments`, {
         audience_type: type,
-        ...(type === 'role' ? { role_id: target } : type === 'department' ? { department_id: target } : type === 'user' ? { user_id: userId } : {}),
+        ...(type === 'role' ? { role_id: target } : type === 'department' ? { department_id: target } : type === 'position' ? { position_id: target }
+          : type === 'user' ? { user_id: userId } : {}),
       });
       toast.success(`Rule added. ${res.records_created} ${res.records_created === 1 ? 'person was' : 'people were'} given the course.`);
       onDone();
@@ -44,6 +45,8 @@ function RuleForm({ courseId, onDone, onCancel }: { courseId: string; onDone: ()
   }
 
   const departments = audiences.data?.departments ?? [];
+  // Positions of the roster (E29-05): their people are asked whether or not they have an account.
+  const positions = audiences.data?.positions ?? [];
   return (
     <form className="form" onSubmit={submit} noValidate>
       {message && <div className="form-error" role="alert">{message}</div>}
@@ -52,7 +55,9 @@ function RuleForm({ courseId, onDone, onCancel }: { courseId: string; onDone: ()
         onChange={(v) => { setType((v || 'everyone') as Rule['audience_type']); setTarget(''); setUserId(null); }}
         options={[
           { value: 'everyone', label: 'Everyone with an account' }, { value: 'role', label: 'Everyone holding a role' },
-          { value: 'department', label: 'Everyone in a department' }, { value: 'user', label: 'One person' },
+          { value: 'department', label: 'Everyone in a department' },
+          ...(positions.length ? [{ value: 'position', label: 'Everyone on the roster in a position' }] : []),
+          { value: 'user', label: 'One person' },
         ]}
       />
       {type === 'role' && (
@@ -64,10 +69,15 @@ function RuleForm({ courseId, onDone, onCancel }: { courseId: string; onDone: ()
           options={departments.map((d) => ({ value: d.id, label: d.name }))}
           hint={audiences.data && !departments.length ? 'No departments are set up yet. An administrator adds them under Administration.' : undefined} />
       )}
+      {type === 'position' && (
+        <Select label="Position" required value={target} error={errors.position_id} placeholder="Choose a position" onChange={setTarget}
+          options={positions.map((p) => ({ value: p.id, label: p.name }))} />
+      )}
       {type === 'user' && <UserPicker label="Person" required value={userId} error={errors.user_id} onChange={(id) => setUserId(id)} />}
       <p className="muted">
         The rule gives the course to every active user it matches, now and whenever someone new matches it. Rules are checked when a rule
-        is added and once a day. People without an account are not covered by rules: record or import their training instead.
+        is added and once a day. A position rule covers the people on the roster in that position, with or without an account; other
+        rules cover people with accounts only.
       </p>
       <div className="form-actions">
         <Button onClick={onCancel}>Cancel</Button>
@@ -109,7 +119,7 @@ export function CourseAssignments({ courseId, onChanged }: { courseId: string; o
     body = (
       <EmptyState
         icon="users" title="No assignment rules"
-        message="Without a rule nobody is given this course automatically. Add a rule for everyone, a role, a department or one person."
+        message="Without a rule nobody is given this course automatically. Add a rule for everyone, a role, a department, a position or one person."
         action={add}
       />
     );
@@ -120,7 +130,7 @@ export function CourseAssignments({ courseId, onChanged }: { courseId: string; o
           <caption className="sr-only">Assignment rules for this course</caption>
           <thead>
             <tr>
-              <th scope="col">Assigned to</th><th scope="col">Kind</th><th scope="col" className="num">Active users matched</th><th scope="col">Added</th>
+              <th scope="col">Assigned to</th><th scope="col">Kind</th><th scope="col" className="num">People matched</th><th scope="col">Added</th>
               {editable && <th scope="col"><span className="sr-only">Actions</span></th>}
             </tr>
           </thead>

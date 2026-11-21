@@ -253,6 +253,9 @@ To delete a notification, select the bin button at the end of its row. **Delete 
 | **Notification clocks** | A deadline to notify someone outside the organization is close or has passed |
 | **Records I watch** | A record you watch has changed status or has a new comment |
 | **Safety events** (when safety management is on) | A serious safety event has been reported, or a corrective action is overdue |
+| **Audits** (when audits and inspections are on) | An inspection or an evidence request is due or overdue |
+| **Controls** (when the control library is on) | A control test is due or overdue, or a control covering your record failed its test |
+| **Committees** (when committees and meetings are on) | A meeting's pack is due, or minutes are waiting |
 | **Other** | Anything that does not fit the kinds above |
 
 Other parts of the application may add kinds of their own, and an administrator can add more under **Lists** (the list `notification_kind`). They appear in everyone's preferences.

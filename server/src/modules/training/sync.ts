@@ -1,5 +1,6 @@
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { addDays, localDate } from './dates.ts';
+import { rosterOn } from './people.ts';
 
 export const DEFAULT_DUE_DAYS = 30;
 
@@ -68,6 +69,35 @@ async function doSync(ctx: ModuleContext, now: Date): Promise<SyncResult> {
       [course.id, today, due],
     );
 
+    // Rules by position (E29-05): active roster people in the position, with or without an account.
+    if (rosterOn(ctx.db)) {
+      const roster = await ctx.db.query<Row>(
+        `with matched as (
+           select distinct on (p.id) p.id as person_id, a.id as assignment_id,
+                  u.id as user_id,
+                  case when u.id is not null then 'u:' || u.id::text else 'p:' || p.id::text end as person_key
+           from training_assignments a
+           join people p on p.position_id = a.position_id and p.deleted_at is null and p.status = 'active'
+           left join users u on u.id = p.user_id and u.deleted_at is null
+           where a.course_id = $1 and a.deleted_at is null and a.audience_type = 'position'
+           order by p.id, a.created_at
+         )
+         insert into training_records (course_id, user_id, person_id, person_key, assigned_on, due_on, source, assignment_id)
+         select $1, m.user_id, m.person_id, m.person_key, $2::date, $3::date, 'rule', m.assignment_id
+         from matched m
+         where not exists (
+           select 1 from training_records r
+           where r.course_id = $1 and r.deleted_at is null and (r.person_key = m.person_key or r.person_id = m.person_id))
+         returning id`,
+        [course.id, today, due],
+      );
+      made.push(...roster);
+    }
+    // Roster people who have left are not asked again.
+    const leftRoster = rosterOn(ctx.db)
+      ? `and (r.person_id is null or exists (select 1 from people p where p.id = r.person_id and p.deleted_at is null and p.status <> 'left'))`
+      : '';
+
     let renewed = 0;
     const months = Number(course.recurrence_months);
     if (Number.isInteger(months) && months > 0) {
@@ -77,6 +107,7 @@ async function doSync(ctx: ModuleContext, now: Date): Promise<SyncResult> {
          where r.course_id = $1 and r.deleted_at is null and r.completed_on is not null and r.renewal_id is null
            and (r.completed_on + make_interval(months => $2::int))::date <= $3::date
            and (r.user_id is null or (u.status = 'active' and u.deleted_at is null))
+           ${leftRoster}
            and not exists (
              select 1 from training_records o
              where o.course_id = r.course_id and o.person_key = r.person_key and o.deleted_at is null and o.id <> r.id
@@ -87,9 +118,9 @@ async function doSync(ctx: ModuleContext, now: Date): Promise<SyncResult> {
       for (const old of lapsed) {
         const next = await ctx.db.one<Row>(
           `insert into training_records
-             (course_id, user_id, person_name, person_email, person_department, person_key, assigned_on, due_on, source, assignment_id)
-           values ($1,$2,$3,$4,$5,$6,$7::date,$8::date,'rule',$9) returning id`,
-          [course.id, old.user_id, old.person_name, old.person_email, old.person_department, old.person_key, today, due, old.assignment_id],
+             (course_id, user_id, person_name, person_email, person_department, person_key, assigned_on, due_on, source, assignment_id, person_id)
+           values ($1,$2,$3,$4,$5,$6,$7::date,$8::date,'rule',$9,$10) returning id`,
+          [course.id, old.user_id, old.person_name, old.person_email, old.person_department, old.person_key, today, due, old.assignment_id, old.person_id ?? null],
         );
         // The guard keeps a completion from raising two follow-ups if runs ever overlap.
         const claimed = await ctx.db.one<Row>(

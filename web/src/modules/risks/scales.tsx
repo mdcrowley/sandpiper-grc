@@ -110,3 +110,13 @@ export function DueChip({ date, warnDays = 14, done, overdueWord = 'Overdue by' 
   if (days === 0) return <Badge color="amber">Due today</Badge>;
   return <Badge color={days <= warnDays ? 'amber' : 'green'}>{plural(days, 'day')} left</Badge>;
 }
+
+/**
+ * E30-06: whether a risk is above its category's appetite. Red "Above appetite" when it is, a quiet
+ * "Within" when it is not, and a dash when no appetite is set for its category (or it is not scored).
+ */
+export function AppetiteBadge({ breach }: { breach: boolean | null | undefined }) {
+  if (breach === true) return <Badge color="red">Above appetite</Badge>;
+  if (breach === false) return <span className="muted">Within</span>;
+  return <span className="muted">—</span>;
+}

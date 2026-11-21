@@ -1,0 +1,21 @@
+/* Committees and meetings. */
+.gv-pad { padding: var(--space-4, 1rem); }
+.gv-summary { display: grid; gap: var(--space-4, 1rem); grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); align-items: start; }
+.gv-actions { display: flex; gap: 0.25rem; justify-content: flex-end; flex-wrap: wrap; white-space: nowrap; }
+.gv-group + .gv-group { border-top: 1px solid var(--border); }
+.gv-caption { caption-side: top; text-align: start; font-weight: 600; padding: 0.75rem 1rem 0.25rem; }
+.gv-agenda { list-style: none; margin: 0; padding: 0; }
+.gv-agenda-item { display: flex; gap: 1rem; align-items: flex-start; justify-content: space-between; padding: 0.75rem 1rem; border-top: 1px solid var(--border); }
+.gv-agenda-item:first-child { border-top: 0; }
+.gv-agenda-main { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 640px) {
+  .gv-agenda-item { flex-direction: column; }
+  .gv-actions { justify-content: flex-start; }
+}
+.gv-check { inline-size: 1.15rem; block-size: 1.15rem; accent-color: var(--primary, currentColor); cursor: pointer; }
+/* The member tables, one per side, line their columns up. */
+.gv-group .table { table-layout: fixed; min-width: 40rem; }
+.gv-group .table th:nth-child(2) { width: 9rem; }
+.gv-group .table th:nth-child(3) { width: 5rem; }
+.gv-group .table th:nth-child(4) { width: 13rem; }
+.gv-group .table th:nth-child(5) { width: 11rem; }

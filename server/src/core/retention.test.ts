@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createSession, SESSION_COOKIE } from './auth.ts';
 import type { ModuleDef } from './module.ts';
-import { ANONYMIZED_TEXT, isPersonal, personalFields } from './retention.ts';
+import { ANONYMIZED_TEXT, isPersonal, onAnonymize, personalFields } from './retention.ts';
 import { testApp } from '../test/helpers.ts';
 
 // Anonymizing a record at the end of its retention period (E14-19), with an invented record type.
@@ -43,6 +43,9 @@ const PDF = Buffer.concat([Buffer.from('%PDF-1.7\n%âãÏÓ\n1 0 obj\n<< /Type /
 
 let t: Awaited<ReturnType<typeof testApp>>;
 let adminId = '';
+// A module's own tables about a record are cleared in the same transaction (E25-15).
+const hooked: string[] = [];
+onAnonymize('visit', async (tx, id) => { await tx.query('select 1'); hooked.push(id); });
 const audited = async (action: string) => t.db.query<any>('select * from audit_events where action = $1 order by id', [action]);
 const confirmNow = () => t.db.query(`update sessions set confirmed_at = now() where user_id = $1`, [adminId]);
 
@@ -122,6 +125,7 @@ describe('anonymizing at the end of the retention period', () => {
     const done = await t.api.post(`/api/admin/retention/reviews/${review.id}/anonymize`, { reason: 'Schedule item 4.2 allows disposal.', confirm: true });
     expect(done.status).toBe(200);
     expect(done.body).toMatchObject({ status: 'anonymized', anonymized: { comments: 1, files: 1 } });
+    expect(hooked).toContain(visit);
 
     const row = await t.db.one<any>('select * from test_visits where id = $1', [visit]);
     expect(row).toMatchObject({

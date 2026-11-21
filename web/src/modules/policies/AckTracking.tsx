@@ -5,6 +5,7 @@ import {
   useAuth, useFetch, useToast,
 } from '../../core';
 import type { Row } from '../../core';
+import { RosterAcks } from './RecordAcknowledgments';
 import { ACK_STATE, type AckRow, type AckTracking as Tracking, type PolicyVersion } from './shared';
 
 const FILTERS = [
@@ -155,6 +156,8 @@ export function AckTracking({ row, versions }: { row: Row; versions: PolicyVersi
           </div>
         </Card>
       )}
+
+      <RosterAcks policy={row} versionNumber={versionNumber} />
     </div>
   );
 }

@@ -1,7 +1,8 @@
 // Shapes returned by the change enablement API (server/src/modules/changes).
 
 export interface RiskOption { value: string; label: string; score: number }
-export interface RiskQuestion { key: string; label: string; help?: string; weight: number; options: RiskOption[] }
+/** `meta.safety_impact`: the question asks whether the change affects safety (an answer scoring above zero means yes). */
+export interface RiskQuestion { key: string; label: string; help?: string; weight: number; options: RiskOption[]; meta?: { safety_impact?: boolean } }
 export interface RiskBand { level: string; upTo: number }
 export interface Questionnaire { questions: RiskQuestion[]; bands: RiskBand[] }
 
