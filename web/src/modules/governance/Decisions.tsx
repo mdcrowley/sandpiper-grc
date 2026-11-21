@@ -46,7 +46,7 @@ export function DecisionDetail() {
       type="meeting_decision"
       summary={({ row, reload }) => (
         <div className="gv-summary">
-          <EditableSummary type="meeting_decision" row={row} onSaved={reload} title="Decision" editable={!row.applied_at}
+          <EditableSummary type="meeting_decision" row={row} onSaved={reload} title="Decision" editable={row.applied_at ? false : undefined}
             fields={['title', 'meeting_id', 'outcome', 'notes', 'applied_to_workflow', 'applied_at', 'applied_by']} />
           <DecidedRecord decision={row} onApplied={reload} />
         </div>

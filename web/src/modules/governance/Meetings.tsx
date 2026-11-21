@@ -402,7 +402,7 @@ export function MeetingDetail() {
       )}
       actions={(rec) => <Actions {...rec} />}
       summary={({ row, reload }) => (
-        <EditableSummary type="meeting" row={row} onSaved={reload} title="Meeting" editable={row.status !== LOCKED}
+        <EditableSummary type="meeting" row={row} onSaved={reload} title="Meeting" editable={row.status === LOCKED ? false : undefined}
           fields={['title', 'committee_id', 'scheduled_at', 'location', 'chair_id', 'secretary_id', 'quorum_met']} />
       )}
       tabs={[
@@ -411,7 +411,7 @@ export function MeetingDetail() {
         { key: 'attendance', label: 'Attendance', content: ({ row, reload }) => <AttendanceTab meeting={row} onChanged={reload} /> },
         {
           key: 'minutes', label: 'Minutes', content: ({ row, reload }) => (
-            <EditableSummary type="meeting" row={row} onSaved={reload} title="Minutes" fields={['minutes']} editable={row.status !== LOCKED} />
+            <EditableSummary type="meeting" row={row} onSaved={reload} title="Minutes" fields={['minutes']} editable={row.status === LOCKED ? false : undefined} />
           ),
         },
         { key: 'decisions', label: 'Decisions', content: ({ row }) => <Decisions meeting={row} /> },
