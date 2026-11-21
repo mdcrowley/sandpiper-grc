@@ -370,6 +370,8 @@ are on the server.
 
 **Implemented in:** `web/src/core/*.test.ts`
 
+**Note (wave 8).** Component tests that open a Mantine picker click it again until its list shows (up to 10 s; `openPicker` in `web/src/core/ListBulk.component.test.ts`): on GitHub's slower runners a single click could land before the picker was ready, and the bulk-edit test failed there while passing locally.
+
 ### E18-15 A ticket can be closed without a resolution code
 
 **Status:** done · **Priority:** P2 · **Type:** bug

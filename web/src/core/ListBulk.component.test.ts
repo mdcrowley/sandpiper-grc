@@ -32,12 +32,21 @@ const optionsOf = (input: HTMLElement | null) => {
   return box ? [...box.querySelectorAll('[role="option"]')].map((o) => textOf(o)) : [];
 };
 /** Opens the New status picker and waits until it offers exactly `expected` (options can render in more than one pass). */
+/**
+ * Opens the picker labelled `label` in the dialog. On a slow machine a click can land before the
+ * picker is ready and leave it closed, so it is clicked again until its list shows, for up to 10 s.
+ */
+async function openPicker(label: string): Promise<void> {
+  await waitFor(() => expect(byLabel(dialog(), label)).not.toBeNull(), 10_000);
+  const until = Date.now() + 10_000;
+  while (optionsOf(byLabel(dialog(), label)).length === 0 && Date.now() < until) {
+    await click(byLabel(dialog(), label));
+    await new Promise((r) => setTimeout(r, 250));
+  }
+}
 async function expectStatusOptions(expected: string[]): Promise<void> {
-  await waitFor(() => expect(byLabel(dialog(), 'New status')).not.toBeNull());
-  const input = byLabel(dialog(), 'New status');
-  await click(input);
-  await waitFor(() => expect(optionsOf(byLabel(dialog(), 'New status'))).toEqual(expected));
-  expect(optionsOf(byLabel(dialog(), 'New status'))).toEqual(expected);
+  await openPicker('New status');
+  await waitFor(() => expect(optionsOf(byLabel(dialog(), 'New status'))).toEqual(expected), 10_000);
 }
 /** The bulk edit dialog: the last one open (one closing from an earlier test may still be in the document). */
 const dialog = () => [...document.querySelectorAll<HTMLElement>('[role="dialog"]')].at(-1)!;
@@ -49,9 +58,9 @@ async function bulkEditStatus(meta: Meta, refs: string[]) {
   await waitFor(() => expect(textOf(ui!.container.querySelector('table'))).toContain('GZ-00001'));
   for (const ref of refs) await click(ui.container.querySelector(`[aria-label="Select ${ref}"]`));
   await click(byText(ui.container, 'button', 'Edit selected'));
-  await waitFor(() => expect(dialog()).not.toBeNull());
-  await click(byLabel(dialog(), 'Field to change'));
-  await waitFor(() => expect(optionsOf(byLabel(dialog(), 'Field to change'))).toContain('Status'));
+  await waitFor(() => expect(dialog()).not.toBeNull(), 10_000);
+  await openPicker('Field to change');
+  await waitFor(() => expect(optionsOf(byLabel(dialog(), 'Field to change'))).toContain('Status'), 10_000);
   const fieldBox = document.getElementById(byLabel(dialog(), 'Field to change')?.getAttribute('aria-controls') ?? '');
   await click([...(fieldBox?.querySelectorAll('[role="option"]') ?? [])].find((o) => textOf(o) === 'Status'));
 }
