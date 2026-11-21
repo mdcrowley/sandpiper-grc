@@ -1,6 +1,6 @@
 # E04 Inventory and relationship map
 
-**Status:** in progress (23 of 24 issues done)
+**Status:** done (24 of 24 issues done)
 
 ## Goal
 
@@ -43,7 +43,7 @@ other. Other modules (tickets, risks, vendors, incidents) point at these records
 | E04-21 | Reminder steps chosen on screen | done | P3 |
 | E04-22 | Export the relationship map as a picture | done | P3 |
 | E04-23 | Automated tests for the map layout | done | P3 |
-| E04-24 | Asset disposal requests on the shared approval workflows | open | P3 |
+| E04-24 | Asset disposal requests on the shared approval workflows | done | P3 |
 
 ---
 
@@ -413,12 +413,15 @@ eye in the browser.
 
 ### E04-24 Asset disposal requests on the shared approval workflows
 
-**Status:** open · **Priority:** P3 · **Type:** improvement
+**Status:** done · **Priority:** P3 · **Type:** improvement
 
 As an inventory manager, a disposal request runs on the shared approval workflows (E14-06), with the outcome writing the approver and the date onto the asset as the disposal request does today.
 
 **Acceptance criteria**
 
-- [ ] A ready-made "Asset disposal" workflow (inventory manager, then optionally the funder when the asset has a funder interest) whose outcome sets the approver and approval date
-- [ ] The setting that makes a decided request the only way to record approval also accepts an approved workflow
-- [ ] Earlier disposal requests stay readable
+- [x] A ready-made "Asset disposal" workflow (inventory manager, then optionally the funder when the asset has a funder interest) whose outcome sets the approver and approval date
+- [x] The setting that makes a decided request the only way to record approval also accepts an approved workflow
+- [x] Earlier disposal requests stay readable
+- [x] Requests that were waiting at the upgrade carry on as running workflows; the old decision route, the Disposal tab and the **Disposal approvals** queue keep working and show the workflow's progress; a stand-in's decision is recorded on behalf of the approver
+
+**Implemented in:** `server/src/modules/inventory/disposal.ts` (approval kind `asset_disposal`: ready-made workflow, adoption of waiting requests, outcome; decisions through `engine.decide`), `lifecycle.ts` (disposal cancels a waiting workflow), migration `inventory/003_disposal_on_workflows.sql`; `web/src/modules/inventory/AssetLifecycle.tsx`, `AssetDialogs.tsx`, `Assets.tsx`; tests `server/src/modules/inventory/disposal.test.ts`

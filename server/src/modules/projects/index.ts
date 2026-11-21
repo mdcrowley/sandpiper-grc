@@ -1,6 +1,7 @@
 import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleDef } from '../../core/module.ts';
 import { seedProjectDefaults } from './defaults.ts';
+import { registerGateApproval } from './gate-approval.ts';
 import { runOverdueReminders } from './overdue-reminders.ts';
 import { defineProject } from './resource.ts';
 import { registerProjectRoutes } from './routes.ts';
@@ -18,6 +19,8 @@ const mod: ModuleDef = {
     const svc = makeService(ctx);
     defineProject(ctx, svc);
     registerProjectRoutes(ctx, svc);
+    // Gate decisions may run on the shared approval workflows (E11-25).
+    registerGateApproval(ctx, svc);
 
     // Reminders for due status reports and waiting gates, and for overdue milestones and
     // register items: several times a day on the job queue (Administration > Background jobs).

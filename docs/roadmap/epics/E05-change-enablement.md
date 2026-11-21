@@ -1,6 +1,6 @@
 # E05 Change enablement
 
-**Status:** in progress (12 of 13 issues done)
+**Status:** done (13 of 13 issues done)
 
 ## Goal
 
@@ -24,9 +24,10 @@ wrong can be traced back to a change.
 - Affected systems and assets, and related tickets, problems and projects, are generic
   links (`record_links`); affected systems use the relation `affects`. The main system and
   asset are also `ref` fields on the change and are kept in step with their link.
-- Approvals are recorded by hand (approver name, role, date, reference), in the same way
-  as project gate decisions. The shared approval workflows ([E14-06](E14-platform-services.md))
-  can run beside them; moving change approval onto them is E05-13. See also E05-09.
+- Approvals run on the shared approval workflows ([E14-06](E14-platform-services.md), E05-13): each
+  approval rule names a workflow of the kind `change_approval` whose first step follows the rule.
+  A decision given outside the application can still be recorded by hand (approver name, role,
+  date, reference). See also E05-09.
 - Follow-up actions use the shared Actions contract and appear only when that module is
   loaded. Until the `action_source` list has a `change` value they are filed under
   `other` (E05-10).
@@ -47,7 +48,7 @@ wrong can be traced back to a change.
 | E05-10 | A "change" source for follow-up actions | done | P3 |
 | E05-11 | Calendar and blackout refinements | done | P3 |
 | E05-12 | Move a change by dragging it on the calendar | done | P3 |
-| E05-13 | Change approval on the shared approval workflows | open | P3 |
+| E05-13 | Change approval on the shared approval workflows | done | P3 |
 
 ---
 
@@ -364,12 +365,27 @@ browser with a scripted drag and the keyboard
 
 ### E05-13 Change approval on the shared approval workflows
 
-**Status:** open · **Priority:** P3 · **Type:** improvement
+**Status:** done · **Priority:** P3 · **Type:** improvement
 
 As a change manager, the approval rules by change type and risk level become approval workflows (E14-06), so changes get due times, escalation and the Approvals page, and `change.approval_decided` gives way to `workflow.decided`.
 
 **Acceptance criteria**
 
-- [ ] Each approval rule can be expressed as a workflow with conditions on change type and risk level
-- [ ] Submitting a change starts the matching workflow; its outcome moves the status as approvals do today
-- [ ] Approvals already recorded stay on the change; the old webhook event is kept for a release with a note
+- [x] Each approval rule can be expressed as a workflow with conditions on change type and risk level
+  (each rule names its own workflow of the kind `change_approval`; the rule's approvals and approvers
+  are its first step and stay in step with the rules editor; more steps, due times and escalation are
+  set on the workflow; workflows of the kind can also carry conditions on type and risk)
+- [x] Submitting a change starts the matching workflow; its outcome moves the status as approvals do today
+  (approved, rejected, flagged when approved after the work started; a rejection after the work
+  started asks again). "No work before approval" stays the module's rule; back to draft or canceling
+  ends the workflow; canceling it from the panel returns the change to draft
+- [x] Approvals already recorded stay on the change; the old webhook event is kept for a release with a note
+  (`change.approval_decided` is still sent beside `workflow.decided`; `POST /api/changes/:id/approvals`
+  decides the workflow's current step; changes waiting at the upgrade carry on in their rule's
+  workflow with the approvals already recorded)
+
+**Implemented in:** `server/src/modules/changes/approval.ts` (the kind, rule-to-workflow sync, the
+one-time move of rules and waiting changes), `workflow.ts` (submit starts the workflow, the old
+route decides through it), `admin.ts`, `resource.ts`; core `server/src/core/approval-kinds.ts` and
+the workflows engine; `web/src/modules/changes/ApprovalsPanel.tsx`, `RulesAdmin.tsx`; tests
+`server/src/modules/changes/approval-workflow.test.ts`, `changes.test.ts`, `routing.test.ts`

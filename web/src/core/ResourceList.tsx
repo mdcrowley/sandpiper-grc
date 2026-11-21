@@ -12,6 +12,7 @@ import { api, ApiError, errorMessage, listQuery, type ListResult, type Row } fro
 import { useAuth } from './auth';
 import { Checkbox, TextField } from './fields';
 import { fieldMeta, knownFields } from './FieldValue';
+import { knownFilters } from './fieldNames';
 import { formatNumber } from './format';
 import { useDebounced, useFetch } from './hooks';
 import { knownLabel, rememberLabel } from './labels';
@@ -102,7 +103,17 @@ export function ResourceList({
   const [params, setParams] = useSearchParams();
   // The list owns the address when it is the page: it has the page title, or sits at its type's own route.
   const atHome = useLocation().pathname.replace(/\/$/, '') === resource?.route;
-  const { view, page, change, setPage } = useListState(urlState ?? (Boolean(title) || atHome));
+  const urlSync = urlState ?? (Boolean(title) || atHome);
+  const { view: given, page, change, setPage } = useListState(urlSync);
+  // A filter from the page address or a saved view on a field the type lacks (or one hidden by a
+  // switched-off option) is ignored, and dropped from the address (E18-49).
+  const view = useMemo(() => {
+    const filters = knownFilters(resource, given.filters);
+    return Object.keys(filters).length === Object.keys(given.filters).length ? given : { ...given, filters };
+  }, [given, resource]);
+  useEffect(() => {
+    if (urlSync && view !== given) change({ filters: view.filters }, { replace: true });
+  }, [urlSync, view, given, change]);
 
   const prefKey = `grc.u.${user?.id ?? 'anon'}`;
   const [hidden, setHidden] = usePref<string[] | null>(`${prefKey}.cols.${type}`, null);

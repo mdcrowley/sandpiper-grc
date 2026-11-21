@@ -1,6 +1,6 @@
 # E11 Projects and portfolio
 
-**Status:** in progress (24 of 25 issues done)
+**Status:** done (25 of 25 issues done)
 
 ## Goal
 
@@ -44,7 +44,7 @@ it is at, how it is going, what it costs and whether too much is running at once
 | E11-22 | Notifications for gates, reports and red projects | done | P2 |
 | E11-23 | Redesign on the Mantine foundation | done | P1 |
 | E11-24 | Reminders for overdue milestones and register items | done | P3 |
-| E11-25 | Project gate decisions on the shared approval workflows | open | P3 |
+| E11-25 | Project gate decisions on the shared approval workflows | done | P3 |
 
 ---
 
@@ -425,12 +425,29 @@ date. Today only status reports and gates send reminders.
 
 ### E11-25 Project gate decisions on the shared approval workflows
 
-**Status:** open · **Priority:** P3 · **Type:** improvement
+**Status:** done · **Priority:** P3 · **Type:** improvement
 
 As a portfolio manager, a gate can ask for its approval through the shared approval workflows (E14-06), with the checklist and required documents still checked before the request is sent.
 
 **Acceptance criteria**
 
-- [ ] A gate template can name a workflow; the gate's blockers must clear before it starts
-- [ ] Approval passes the gate as a recorded decision does today
-- [ ] Gate decisions recorded by hand stay possible and visible
+- [x] A gate template can name a workflow; the gate's blockers must clear before it starts
+- [x] Approval passes the gate as a recorded decision does today
+- [x] Gate decisions recorded by hand stay possible and visible
+
+Notes: the approval kind is `project_gate` (approvers must hold `projects.approve`). A ready-made
+"Gate decision" workflow is installed once but named on no template, so gates keep being decided by
+hand until an administrator chooses a workflow per gate (gates were never "requested" before, so
+there was nothing waiting to take over). A rejection is recorded as a Rejected decision and the gate
+stays open; a decision recorded by hand while a request runs cancels the request. When the template
+names a workflow, the "gate ready" notice goes to the manager and sponsor ("ask for approval")
+instead of every approver.
+
+**Implemented in:** `server/src/modules/projects/gate-approval.ts` (the kind and its install),
+`service.ts` (`requestGateApproval`, `finishGateApproval`, `recordGateDecision`, gate views with
+`approval`), `routes.ts` (`POST /api/projects/:id/gates/:gateId/request-approval`,
+`GET /api/projects/gate-workflows`), migration `projects/003_gate_approval_workflow.sql`
+(`project_gate_defs.approval_workflow_id`), `core/api/docs/projects.ts`;
+`web/src/modules/projects/GateTab.tsx` (Ask for approval, waiting state), `GateTemplates.tsx`
+(workflow per template); tests `server/src/modules/projects/gate-workflow.test.ts`; user guide
+`docs/user/08-projects.md`.

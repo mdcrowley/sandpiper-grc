@@ -1,4 +1,5 @@
 import type { FastifyRequest } from 'fastify';
+import { approvalEngine } from '../../core/approval-kinds.ts';
 import { ApiError, UUID_RE } from '../../core/errors.ts';
 import type { ModuleContext, ResourceDef, Row, SessionUser } from '../../core/module.ts';
 import { todayInZone } from '../../core/timezone.ts';
@@ -26,6 +27,8 @@ export const REQUEST_FIELDS = [
 ];
 
 export const DECISIONS = ['approved', 'rejected', 'deferred'];
+/** The approval kind of gate decisions on the shared approval workflows (E11-25). */
+export const GATE_KIND = 'project_gate';
 /** The stage in which work in progress is counted against the limit. */
 export const DELIVERY_STAGE = 'deliver';
 
@@ -394,6 +397,10 @@ export function makeService(ctx: ModuleContext) {
       'select * from gate_checklist_items where project_gate_id = any($1::uuid[]) order by sort, label', [ids]);
     const decisions = await db.query<Row>(
       'select * from project_gate_decisions where project_gate_id = any($1::uuid[]) order by created_at desc', [ids]);
+    // E11-25: the approval workflow each gate's template names, and the one asked for on this project.
+    const named = await gateTemplateWorkflows(gates.map((g) => g.gate_def_id).filter(Boolean));
+    const engine = approvalEngine(ctx.app);
+    const latest = engine ? await engine.latest(GATE_KIND, project.id) : null;
     return gates.map((g) => {
       const own = items.filter((i) => i.project_gate_id === g.id);
       const outstanding = own.filter((i) => !i.checked).map((i) => i.label);
@@ -415,8 +422,87 @@ export function makeService(ctx: ModuleContext) {
         approvers_for_tier: (g.approvers ?? {})[project.tier] ?? [],
         change_available: changesLoaded && g.wants_change === true,
         change: changes.get(g.id) ?? null,
+        approval: gateApprovalView(g, isCurrent, blockers.length, named.find((n) => n.gate_def_id === g.gate_def_id) ?? null,
+          latest && latest.data.gate_id === g.id ? latest : null, user),
       };
     });
+  }
+
+  /** The active approval workflow each gate template names (none when the workflows module is absent). */
+  async function gateTemplateWorkflows(defIds: string[]): Promise<Row[]> {
+    if (!defIds.length || !approvalEngine(ctx.app)) return [];
+    const active = await gateWorkflows();
+    const rows = await db.query<Row>('select id as gate_def_id, approval_workflow_id from project_gate_defs where id = any($1::uuid[]) and approval_workflow_id is not null', [defIds]);
+    const out: Row[] = [];
+    for (const r of rows) {
+      const w = active.find((x) => x.id === r.approval_workflow_id);
+      if (w) out.push({ gate_def_id: r.gate_def_id, id: w.id, name: w.name });
+    }
+    return out;
+  }
+
+  /** Where a gate's approval workflow stands, and whether the reader may ask for it now (E11-25). */
+  function gateApprovalView(g: Row, isCurrent: boolean, blockers: number, workflow: Row | null, latest: { id: string; status: string; finishedAt: string | null } | null, user?: SessionUser | null) {
+    const running = latest?.status === 'running';
+    return {
+      workflow_id: workflow?.id ?? null, workflow_name: workflow?.name ?? null,
+      running, last_status: latest?.status ?? null, last_finished_at: latest?.finishedAt ?? null,
+      can_request: Boolean(workflow && isCurrent && blockers === 0 && !running && g.status !== 'approved'
+        && (user === undefined || (user && ctx.can(user, 'projects.edit')))),
+    };
+  }
+
+  /**
+   * Asks for a gate's decision through the approval workflow its template names (E11-25). The gate
+   * must be the current one and nothing may block it (checklist, required documents, status).
+   */
+  async function requestGateApproval(req: FastifyRequest, project: Row, gateId: string, body: Row) {
+    const gate = await needGate(project, gateId);
+    const engine = approvalEngine(ctx.app) ?? ctx.fail(409, 'approvals_unavailable', 'Approval workflows are not available in this installation.');
+    const view = (await gateViews(project, req.user)).find((g) => g.id === gate.id)!;
+    if (gate.status === 'approved') ctx.fail(409, 'gate_closed', 'This gate has already been approved.');
+    if (!view.is_current) ctx.fail(409, 'not_current_gate', "This is not the project's current gate.");
+    if (view.blockers.length) {
+      ctx.fail(409, 'gate_blocked', `Approval cannot be asked for yet: ${view.blockers.map((b: Row) => b.label).join('; ')}.`);
+    }
+    if (!view.approval.workflow_id) ctx.fail(409, 'no_workflow', "This gate's template names no approval workflow, so its decision is recorded by hand.");
+    if (view.approval.running) ctx.fail(409, 'already_running', 'Approval has already been asked for at this gate.');
+    const note = typeof body.note === 'string' && body.note.trim() ? body.note.trim().slice(0, 2000) : null;
+    const started = await engine.start(GATE_KIND, project, {
+      requester: req.user!.id, req, note, definitionId: view.approval.workflow_id, data: { gate_id: gate.id, gate_name: gate.name },
+    });
+    if (!started) ctx.fail(409, 'no_workflow', 'The approval workflow does not apply to this project (its conditions do not hold). Record the decision by hand.');
+    // The project's state changed (it now waits for approval): its record page reloads the approval panel.
+    await db.query('update projects set updated_at = now(), updated_by = $2 where id = $1', [project.id, req.user!.id]);
+    await ctx.audit(req, {
+      action: 'project.gate_approval_requested', recordType: 'project', recordId: project.id,
+      summary: `Approval asked for at the ${gate.name} gate (${projectLabel(project)}) through "${started!.name}"`,
+      after: { gate: gate.gate_key, workflow: started!.name, instance: started!.id },
+    });
+    return { instance_id: started!.id, workflow: started!.name, status: started!.status };
+  }
+
+  /** The approval workflow's outcome on a gate: approved passes it as a recorded decision does; rejected keeps it open. */
+  async function finishGateApproval(e: { instance: { name: string; recordId: string; data: Row }; outcome: string; approverName: string | null; onBehalfOfName: string | null; comment: string | null; req: Req }) {
+    if (e.outcome === 'canceled') return;
+    const project = await db.one<Row>('select * from projects where id = $1 and deleted_at is null', [e.instance.recordId]);
+    const gate = project ? await db.one<Row>('select * from project_gates where id = $1 and project_id = $2', [e.instance.data.gate_id, project.id]) : undefined;
+    if (!project || !gate) throw new Error('The project or its gate no longer exists, so the decision could not be recorded.');
+    const who = e.approverName ? `${e.approverName}${e.onBehalfOfName ? ` on behalf of ${e.onBehalfOfName}` : ''}` : 'The approval workflow';
+    try {
+      await recordGateDecision(e.req, project, gate, {
+        decision: e.outcome, approver_name: who, approver_role: null, decided_on: today(),
+        reference: `Approval workflow "${e.instance.name}"`, notes: e.comment ?? null,
+      });
+    } catch (err) {
+      if (err instanceof ApiError) throw new Error(`The gate decision could not be recorded: ${err.message}`);
+      throw err;
+    }
+  }
+
+  /** Active approval workflows a gate template may name. */
+  async function gateWorkflows(): Promise<{ id: string; name: string; description: string | null }[]> {
+    return (await approvalEngine(ctx.app)?.definitions(GATE_KIND)) ?? [];
   }
 
   async function gatesFor(project: Row, user?: SessionUser | null) {
@@ -452,8 +538,18 @@ export function makeService(ctx: ModuleContext) {
   }
 
   /** Tells the approvers, the sponsor and the manager that a gate is waiting for a decision. */
-  async function notifyGateReady(project: Row, gateName: string): Promise<void> {
+  async function notifyGateReady(project: Row, gateName: string, gateDefId?: string | null): Promise<void> {
     const common = { recordType: 'project', recordId: project.id, route: `/projects/${project.id}?tab=gate`, oncePerDay: true };
+    // E11-25: when the gate's template names an approval workflow, its approvers are asked by the
+    // workflow once someone asks for approval; only the manager and sponsor hear that it is ready.
+    if (gateDefId && (await gateTemplateWorkflows([gateDefId])).length) {
+      await notify({
+        ...common, kind: 'due', userIds: [project.project_manager_id, project.sponsor_id],
+        title: `Gate ready, ask for approval: ${gateName} (${projectLabel(project)})`,
+        body: 'Every checklist item is ticked and the required documents are in place. Ask for approval on the Gate tab.',
+      });
+      return;
+    }
     await notify({
       ...common, kind: 'approval', permission: 'projects.approve',
       title: `Gate ready for a decision: ${gateName} (${projectLabel(project)})`,
@@ -500,7 +596,7 @@ export function makeService(ctx: ModuleContext) {
       if (!g.ready) continue;
       gatesDue += 1;
       const p = await db.one<Row>('select * from projects where id = $1', [g.project_id]);
-      if (p) await notifyGateReady(p, g.gate_name);
+      if (p) await notifyGateReady(p, g.gate_name, (await db.one<Row>('select gate_def_id from project_gates where id = $1', [g.gate_id]))?.gate_def_id ?? null);
     }
     return { reportsDue, gatesDue };
   }
@@ -539,7 +635,7 @@ export function makeService(ctx: ModuleContext) {
       summary: `${gate.name} checklist item ${verb}: ${item.label}`,
       before: { item: item.label, ...diff.before }, after: { item: item.label, ...diff.after },
     });
-    if (diff.after.checked === true && (await gateReady(project, gate.id))) await notifyGateReady(project, gate.name);
+    if (diff.after.checked === true && (await gateReady(project, gate.id))) await notifyGateReady(project, gate.name, gate.gate_def_id);
     return saved;
   }
 
@@ -567,7 +663,7 @@ export function makeService(ctx: ModuleContext) {
       action: 'project.gate_document', recordType: 'project', recordId: project.id,
       summary: `${gate.name} document ${after.received ? 'received' : 'updated'}: ${after.name}`, before, after,
     });
-    if (after.received && !before.received && (await gateReady(project, gate.id))) await notifyGateReady(project, gate.name);
+    if (after.received && !before.received && (await gateReady(project, gate.id))) await notifyGateReady(project, gate.name, gate.gate_def_id);
     return saved;
   }
 
@@ -593,7 +689,7 @@ export function makeService(ctx: ModuleContext) {
       summary: waive ? `${gate.name} document waived: ${after.name}. Reason: ${reason}` : `${gate.name} document waiver withdrawn: ${after.name}`,
       before, after,
     });
-    if (waive && (await gateReady(project, gate.id))) await notifyGateReady(project, gate.name);
+    if (waive && (await gateReady(project, gate.id))) await notifyGateReady(project, gate.name, gate.gate_def_id);
     return saved;
   }
 
@@ -659,7 +755,21 @@ export function makeService(ctx: ModuleContext) {
     const d = c.finish();
     d.decided_on ??= today();
     if (d.decided_on > today()) ctx.fail(400, 'validation', 'Check the highlighted fields.', { decided_on: 'The decision date cannot be in the future.' });
+    const result = await recordGateDecision(req, project, gate, d);
+    // E11-25: a decision recorded by hand settles the gate, so an approval workflow asked for it stops.
+    const engine = approvalEngine(ctx.app);
+    const running = engine ? await engine.running(GATE_KIND, project.id) : null;
+    if (engine && running && running.data.gate_id === gate.id) {
+      await engine.cancel(GATE_KIND, project.id, `A gate decision (${d.decision}) was recorded by hand by ${actorName(req)}.`, req);
+    }
+    return result;
+  }
 
+  /**
+   * Records a gate decision and, for an approval, moves the project to the next stage. Used for a
+   * decision recorded by hand and for the outcome of a gate's approval workflow (E11-25).
+   */
+  async function recordGateDecision(req: Req, project: Row, gate: Row, d: Row) {
     if (gate.status === 'approved') ctx.fail(409, 'gate_closed', 'This gate has already been approved.');
     if (gate.from_stage !== project.stage) ctx.fail(409, 'not_current_gate', 'This is not the project\'s current gate.');
     if (project.status !== 'active') {
@@ -758,10 +868,16 @@ export function makeService(ctx: ModuleContext) {
         }
       }
     }
+    let workflowId: string | null | undefined;
+    if (body.approval_workflow_id !== undefined) {
+      workflowId = body.approval_workflow_id === null || body.approval_workflow_id === '' ? null : String(body.approval_workflow_id);
+      if (workflowId && !(await gateWorkflows()).some((w) => w.id === workflowId)) errors.approval_workflow_id = 'Choose an active gate decision workflow, or none.';
+    }
     if (Object.keys(errors).length) ctx.fail(400, 'validation', 'Check the highlighted fields.', errors);
 
     const patch: Row = {};
     if (name !== undefined) patch.name = name;
+    if (workflowId !== undefined) patch.approval_workflow_id = workflowId;
     if (documents) patch.required_documents = documents;
     if (approvers) patch.approvers = approvers;
     if (body.wants_change !== undefined) patch.wants_change = body.wants_change;
@@ -773,7 +889,7 @@ export function makeService(ctx: ModuleContext) {
       }
     }
     const after = (await gateDefinitions()).find((d) => d.key === key)!;
-    const pick = (d: Row) => ({ name: d.name, checklist: d.checklist, required_documents: d.required_documents, approvers: d.approvers, wants_change: d.wants_change });
+    const pick = (d: Row) => ({ name: d.name, checklist: d.checklist, required_documents: d.required_documents, approvers: d.approvers, wants_change: d.wants_change, approval_workflow_id: d.approval_workflow_id ?? null });
     if (JSON.stringify(pick(before)) !== JSON.stringify(pick(after))) {
       await ctx.audit(req, {
         action: 'project.gate_definition', recordType: 'project_gate_def', recordId: before.id,
@@ -1193,7 +1309,7 @@ export function makeService(ctx: ModuleContext) {
     needProject, getSettings, putSettings, derive, mayRequest, createRequest, myRequests, systemsFor,
     notifyTurnedRed, runReminders, waiveGateDocument, setGateChange, rollbackStage,
     openGate, gatesFor, gateViews, setChecklistItem, setGateDocument, decideGate,
-    gateDefinitions, putGateDefinition,
+    gateDefinitions, putGateDefinition, requestGateApproval, finishGateApproval, gateWorkflows,
     listReports, addReport, updateReport, statusTrend, refreshRag,
     listItems, addItem, updateItem, escalateItem,
     listMilestones, addMilestone, updateMilestone,

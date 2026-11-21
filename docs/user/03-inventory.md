@@ -212,11 +212,20 @@ Every disposal needs an approval: who approved it and when. There are two ways t
 2. Enter **Why it should be disposed of**. Optionally enter the **Disposal method** and, if you already have it, the **Disposal approval reference**.
 3. Select **Request approval**.
 
-The asset shows **Awaiting approval**, and everyone who may approve asset disposals is notified, except you. An approver opens **Disposal approvals** in the **Inventory** group (or the asset's **Disposal** tab) and selects **Approve** or **Refuse**, with a **Comment**; a refusal must say why. The person who asked cannot decide their own request. You are notified of the decision.
+The asset shows **Awaiting approval**, and the request runs on the **Asset disposal** approval workflow (see [Approval workflows](22-approval-workflows.md)). As set up, it has two steps:
 
-- If it is approved, the approver's name and the date are recorded on the asset. Select **Dispose** again, check the **Disposal method** and **Disposed on**, and select **Mark as disposed**.
+1. **Inventory manager**: anyone who may approve asset disposals, except you.
+2. **Funder's approval**: only when **Funder interest** is checked on the asset (and the funder-interest option is on). Someone who may approve asset disposals confirms that the funder has agreed.
+
+Each approver is notified, and the request appears on their **Approvals** page, with the due time and escalation the workflow sets. An approver decides it on the **Approvals** page, in the approval panel at the top of the asset, or on **Disposal approvals** in the **Inventory** group, with **Approve** or **Refuse** and a **Comment**; a refusal must say why. The person who asked cannot decide their own request. An approver's stand-in can decide while they are away; the decision is recorded as made on their behalf. You are notified of the outcome. The **Disposal** tab and **Disposal approvals** show how many approvals the workflow has and who it is waiting for.
+
+An administrator changes who approves, the steps, due times and escalation under **Administration > Approval workflows** (the workflows of the kind **Asset disposal**), and can add more of them with conditions, for example a different approver for vehicles. The one whose conditions hold, with the most conditions, is used. While no disposal workflow is active, a request is decided once by anyone who may approve asset disposals, as before.
+
+- If it is approved, the approver's name and the date are recorded on the asset (with "on behalf of" when a stand-in decided). Select **Dispose** again, check the **Disposal method** and **Disposed on**, and select **Mark as disposed**.
 - If it is refused, the asset shows **Disposal refused** with the approver's comment on the **Disposal** tab. You can ask again.
-- To take back a request that has not been decided, select **Withdraw request** on the **Disposal** tab.
+- To take back a request that has not been decided, select **Withdraw request** on the **Disposal** tab. This also cancels its workflow; canceling the workflow from its panel withdraws the request.
+
+Requests made before disposal approvals moved onto the workflows keep their decisions on the **Disposal** tab; one that was still waiting carried on as an **Asset disposal** workflow, with the people who may approve asset disposals as its approvers.
 
 **Approval already given (outside the application)**
 
@@ -225,7 +234,7 @@ The asset shows **Awaiting approval**, and everyone who may approve asset dispos
 3. Enter the **Disposal approval reference** if there is one, the **Disposal method**, and check **Disposed on**.
 4. Select **Mark as disposed**.
 
-An administrator can switch this second way off: on **Disposal approvals**, turn on **Only accept approvals decided here**. A disposal then needs a request approved in the application.
+An administrator can switch this second way off: on **Disposal approvals**, turn on **Only accept approvals decided here**. A disposal then needs a request approved in the application (through its approval workflow).
 
 Either way, the asset is checked in if it was out, its status becomes **Disposed**, and the approval is kept in its history. The **Disposal** tab shows the steps (**Request approval**, **Approver decides**, **Mark as disposed**, **Disposed**), every request with its decision, and the **Disposal record**.
 

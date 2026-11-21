@@ -1,14 +1,18 @@
 import { useState } from 'react';
 import {
-  api, Button, Card, errorMessage, ErrorState, IconButton, Loading, lookupLabel, Modal, Switch, TextArea, TextField, useFetch, useLookup, useToast,
+  api, Button, Card, errorMessage, ErrorState, IconButton, Loading, lookupLabel, Modal, Select, Switch, TextArea, TextField, useFetch, useLookup, useToast,
 } from '../../core';
 import type { GateDefinition } from './types';
 
 const toLines = (list: string[] | undefined) => (list ?? []).join('\n');
 const fromLines = (text: string) => text.split('\n').map((s) => s.trim()).filter(Boolean);
 
-function GateEditor({ gate, onClose, onSaved }: { gate: GateDefinition; onClose: () => void; onSaved: () => void }) {
+/** E11-25: the approval workflows (kind "project gate decision") a gate template may name. */
+interface GateWorkflow { id: string; name: string; description: string | null }
+
+function GateEditor({ gate, workflows, onClose, onSaved }: { gate: GateDefinition; workflows: GateWorkflow[]; onClose: () => void; onSaved: () => void }) {
   const toast = useToast();
+  const [workflowId, setWorkflowId] = useState(gate.approval_workflow_id ?? '');
   const tiers = useLookup('project_tier');
   const [name, setName] = useState(gate.name);
   const [checklist, setChecklist] = useState(toLines(gate.checklist));
@@ -33,6 +37,7 @@ function GateEditor({ gate, onClose, onSaved }: { gate: GateDefinition; onClose:
         checklist: fromLines(checklist),
         required_documents: documents.filter((d) => d.name.trim()),
         wants_change: wantsChange,
+        approval_workflow_id: workflowId || null,
         approvers: Object.fromEntries(tiers.map((t) => [t.value, fromLines(approvers[t.value] ?? '')])),
       });
       toast.success('Gate template saved. Gates opened from now on use it.');
@@ -71,6 +76,13 @@ function GateEditor({ gate, onClose, onSaved }: { gate: GateDefinition; onClose:
           checked={wantsChange}
           onChange={setWantsChange}
         />
+        <Select
+          label="Approval workflow"
+          hint="With a workflow, someone who may edit the project asks for approval once the checklist and required documents are complete, and the approval passes the gate. Decisions given elsewhere can always be recorded by hand. Workflows are set up under Administration > Approval workflows."
+          value={workflowId}
+          onChange={(v) => setWorkflowId(v ?? '')}
+          options={[{ value: '', label: 'None: decisions are recorded by hand' }, ...workflows.map((w) => ({ value: w.id, label: w.name }))]}
+        />
         <div className="form-grid">
           {tiers.map((t) => (
             <TextArea
@@ -96,6 +108,8 @@ function GateEditor({ gate, onClose, onSaved }: { gate: GateDefinition; onClose:
 /** Gate templates: the checklist, required documents and approvers by tier for each gate. */
 export function GateTemplates() {
   const { data, error, reload } = useFetch<GateDefinition[]>('/api/projects/gate-definitions');
+  const workflows = useFetch<{ rows: GateWorkflow[] }>('/api/projects/gate-workflows').data?.rows ?? [];
+  const workflowName = (id: string | null) => workflows.find((w) => w.id === id)?.name ?? null;
   const [editing, setEditing] = useState<GateDefinition | null>(null);
 
   return (
@@ -106,7 +120,7 @@ export function GateTemplates() {
             <thead>
               <tr>
                 <th scope="col">Gate</th><th scope="col">Between</th><th scope="col">Checklist</th>
-                <th scope="col">Documents</th><th scope="col"><span className="sr-only">Actions</span></th>
+                <th scope="col">Documents</th><th scope="col">Approval</th><th scope="col"><span className="sr-only">Actions</span></th>
               </tr>
             </thead>
             <tbody>
@@ -119,6 +133,7 @@ export function GateTemplates() {
                     {g.required_documents.length === 0 ? 'None' : `${g.required_documents.filter((d) => d.required).length} required`}
                     {g.required_documents.some((d) => !d.required) ? `, ${g.required_documents.filter((d) => !d.required).length} optional` : ''}
                   </td>
+                  <td>{workflowName(g.approval_workflow_id) ?? 'Recorded by hand'}</td>
                   <td><Button size="sm" icon="edit" onClick={() => setEditing(g)}>Edit</Button></td>
                 </tr>
               ))}
@@ -126,7 +141,7 @@ export function GateTemplates() {
           </table>
         </div>
       )}
-      {editing && <GateEditor key={editing.key} gate={editing} onClose={() => setEditing(null)} onSaved={reload} />}
+      {editing && <GateEditor key={editing.key} gate={editing} workflows={workflows} onClose={() => setEditing(null)} onSaved={reload} />}
     </Card>
   );
 }

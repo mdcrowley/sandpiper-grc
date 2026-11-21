@@ -1,6 +1,6 @@
 # E18 Quality and known defects
 
-**Status:** in progress (48 of 54 issues done)
+**Status:** in progress (49 of 54 issues done)
 
 ## Goal
 
@@ -69,7 +69,7 @@ has never been checked, so nobody relies on something untested.
 | E18-46 | A malformed date and time could be read as a date | done | P3 |
 | E18-47 | Agency-flavored wording in editable defaults | done | P3 |
 | E18-48 | Generic list and form show a field the metadata lacks | done | P3 |
-| E18-49 | A list filter in the page address on a field the type lacks is still applied | open | P3 |
+| E18-49 | A list filter in the page address on a field the type lacks is still applied | done | P3 |
 | E18-50 | Agency wording left in a core option name and an assistant prompt | done | P3 |
 | E18-51 | A public reply on an email ticket could be emailed before it was saved | done | P2 |
 | E18-52 | Continuous integration failed on macOS and on Linux before 06:00 | done | P2 |
@@ -1011,7 +1011,7 @@ would have to do the same.
 
 ### E18-49 A list filter in the page address on a field the type lacks is still applied
 
-**Status:** open · **Priority:** P3 · **Type:** bug
+**Status:** done · **Priority:** P3 · **Type:** bug
 
 Found by the component tests (E18-43). A page address or saved view with `f.<field>=` for a
 field the record type does not have (an option switched off since, E18-28) still shows a filter
@@ -1020,10 +1020,13 @@ the columns, the Filters popover and the forms, but not out of filters read from
 
 **Acceptance criteria**
 
-- [ ] `ResourceList` ignores (and drops from the address) a filter on a field that `knownFields` leaves out
-- [ ] A component test covers it (`web/src/core/ResourceList.component.test.ts`)
+- [x] `ResourceList` ignores (and drops from the address) a filter on a field that `knownFields` leaves out
+- [x] A component test covers it (`web/src/core/ResourceList.component.test.ts`)
+- [x] The list API keeps its behavior, now documented and tested: a filter on a field the type does not have (or one hidden by a switched-off option) or an unknown operator answers 400 `bad_filter`, for the list, `/stats` and the exports alike
 
 **Where:** `web/src/core/ResourceList.tsx`, `listState.ts`, `ListFilters.tsx`
+
+**Implemented in:** `knownFilters` in `web/src/core/fieldNames.ts`, applied to the view in `web/src/core/ResourceList.tsx` (and written back to the address); tests `web/src/core/knownFields.test.ts`, `web/src/core/ResourceList.component.test.ts`, `server/src/core/list-filters.test.ts`; [API guide](../../api.md#filtering), [user guide](../../user/01-getting-started.md)
 
 ### E18-50 Agency wording left in a core option name and an assistant prompt
 

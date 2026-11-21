@@ -5,13 +5,15 @@ What the prototype does not do yet. Update with every change. The roadmap
 
 ## Not built
 
-- **Workflow engine**: approval workflows (Administration > Approval workflows) run ordered
-  approval steps on any record type, but the allowed status changes and required fields of
-  each type are still per-module code plus configurable lists (E14-31), and a workflow
-  cannot branch, run steps side by side or delegate (E14-32). The approval rules some parts
-  keep of their own (catalog requests, asset disposal, change approval, risk acceptance,
-  project gates) do not yet run on the shared workflows (E03-22, E04-24, E05-13, E08-23,
-  E11-25).
+- **Workflow engine**: change approval, catalog request approval, asset disposal, risk
+  acceptance and project gate decisions run on the shared approval workflows, approvers can
+  name stand-ins and administrators can reassign a waiting step, and allowed status changes
+  and required fields are data (Administration > Lifecycles). Not built: steps that run side
+  by side, and choosing a route by condition beyond skipping a step (E14-32). Project gates
+  use a workflow only once an administrator names one on the gate template; while no
+  disposal workflow is active, a disposal request is decided once by anyone who may approve
+  disposals. The `change.approval_decided` webhook event is kept for this release beside
+  `workflow.decided`. Stand-ins are named on the Approvals page, not on Account security.
 
 ## Built but incomplete
 
@@ -20,10 +22,9 @@ What the prototype does not do yet. Update with every change. The roadmap
   application name only; a WebP logo is left off PDFs (they hold PNG and JPEG only); the browser
   tab icon is the logo as uploaded, not a square icon made from it (E14-36).
 - **Sign-in**: single sign-on supports OpenID Connect, SAML 2.0 and a directory (LDAP).
-  After a directory password, a person whose only second factor is a passkey must use a
-  recovery code; a directory cannot be linked from Account security, nor used to confirm
-  your identity for sensitive actions (E02-29). Directory sign-in has been tried against a
-  stand-in directory, not a real Active Directory.
+  Directory sign-in has been tried against a stand-in directory, not a real Active
+  Directory. Confirming your identity with a directory asks for the directory user name each
+  time.
 - **Second factor**: a new installation requires it for the roles that expect one
   (Administrator and Security lead) unless setup explicitly asks for a reminder only. An
   existing installation keeps its setting.
@@ -31,6 +32,10 @@ What the prototype does not do yet. Update with every change. The roadmap
   yet with hardware keys over real HTTPS.
 - **Default role changes** reach an existing database only when an administrator applies
   them on the Roles page.
+- **Lifecycles** (Administration > Lifecycles): a status change that needs approval does not
+  yet wait for an approval workflow (E14-37); a workflow can start on a status change. Status
+  menus written by hand in some parts, and bulk edit, offer every status; the server refuses a
+  move the lifecycle does not allow.
 - **Feature switches** (Administration > Features): while Risks and obligations is
   switched off, the hazard risk matrix (kept with the risk scales) cannot be edited, and
   Safety keeps using the saved one. The email digest may still list notifications about a
@@ -39,8 +44,8 @@ What the prototype does not do yet. Update with every change. The roadmap
   what stays is the organization's own text: role names and descriptions, record names, incident
   playbooks and the guide's wording on pages that stay. Search still matches, and its snippet
   may show, the text of a field hidden by a switch (a system's vendor name).
-- **Retention**: anonymizing or removing a record from the review list is recorded in the
-  audit log but does not raise a webhook event (E14-33). The fields anonymizing replaces are chosen
+- **Retention**: anonymizing or removing a record from the review list is audited and raises
+  webhook events, but does not run the record type's after-save hooks. The fields anonymizing replaces are chosen
   broadly (for example a ticket's description); check the list shown for each type before
   allowing it.
 - **Backups**: `backup` and `restore` cover the embedded database only; with a PostgreSQL

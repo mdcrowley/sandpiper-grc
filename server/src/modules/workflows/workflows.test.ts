@@ -256,7 +256,9 @@ describe('restricted records and switched-off areas', () => {
     try {
       expect((await waitingFor(bob)).map((x) => x.record_id)).not.toContain(r.id);
       expect((await t.api.get(`/api/workflows/records/wf_request/${r.id}`)).status).toBe(404);
-      expect((await t.api.get('/api/workflows/definitions')).body.rows.find((d: Row) => d.id === wf.id).available).toBe(false);
+      // Hidden with its area (E14-34): not listed, and not found by id.
+      expect((await t.api.get('/api/workflows/definitions')).body.rows.some((d: Row) => d.id === wf.id)).toBe(false);
+      expect((await t.api.get(`/api/workflows/definitions/${wf.id}`)).status).toBe(404);
     } finally {
       await t.ctx.settings.set('features', { tickets: true });
     }

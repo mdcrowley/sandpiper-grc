@@ -125,7 +125,7 @@ export function DisposalApprovalsPage() {
     <div className="stack">
       <PageHeader
         title="Disposal approvals"
-        subtitle="Requests to dispose of assets. Someone other than the requester approves or refuses each one."
+        subtitle="Requests to dispose of assets. Each runs on the Asset disposal approval workflow; someone other than the requester approves or refuses it."
         breadcrumbs={[{ label: 'Assets', to: '/assets' }, { label: 'Disposal approvals' }]}
         actions={<Button icon="refresh" onClick={reload}>Refresh</Button>}
       />

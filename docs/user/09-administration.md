@@ -25,11 +25,12 @@ Some changes decide who can do what, so the application checks it is really you 
 - anonymize a record or remove it for good from the **Retention** review list;
 - add, change or remove a sign-in provider, switch **Allow sign-in with a password** off or on, or change the **Application address**;
 - on a person's **Single sign-on** card: save **Ways to sign in**, **Allow** a link at next sign-in, **Unlink** an identity, or make or remove the break-glass account;
-- link or unlink a provider on your own **Account security** page.
+- link or unlink a provider on your own **Account security** page, including linking a directory (with its user name and password);
+- change the allowed source addresses of an API token.
 
 Outside this section, the same box appears when you allow another file type for uploads, change file storage, scanning or backups, change the email settings, switch the self-service portal on or off from the service desk settings, switch on vendor response links, merge duplicate vulnerability findings, or connect an AI assistant. The full list, with the reason for each and the actions that deliberately do not ask, is in [Security](../security.md#actions-that-ask-you-to-confirm-your-identity).
 
-Enter your password and select **Confirm and continue**. If you have a second factor, the box then asks for it too: type the **6-digit code** from your authenticator app (or a recovery code), or select **Use your passkey or security key**, and select **Confirm and continue** again. A wrong code is refused with "That code was not accepted", and too many wrong attempts make you wait a few minutes. The change you asked for is then made; you do not need to repeat it. Select **Cancel** and nothing is changed. You are not asked again for the next 10 minutes (an administrator can change this under **Settings**). Signing in counts, so you will not see the box straight after signing in; that includes signing in through a provider. If you have no password here (you only sign in through a provider), the **Single sign-on** card on **Account security** offers **Confirm with …** instead: you sign in at the provider again and come back.
+Enter your password and select **Confirm and continue**. If you have a second factor, the box then asks for it too: type the **6-digit code** from your authenticator app (or a recovery code), or select **Use your passkey or security key**, and select **Confirm and continue** again. A wrong code is refused with "That code was not accepted", and too many wrong attempts make you wait a few minutes. The change you asked for is then made; you do not need to repeat it. Select **Cancel** and nothing is changed. You are not asked again for the next 10 minutes (an administrator can change this under **Settings**). Signing in counts, so you will not see the box straight after signing in; that includes signing in through a provider. If you have no password here (you only sign in through a provider), the **Single sign-on** card on **Account security** offers **Confirm with …** instead: you sign in at the provider again and come back. If your account is linked to a directory, the box itself offers **Confirm with**: choose the directory and enter your directory user name and password, then your second factor if you have one.
 
 ## Users
 
@@ -355,7 +356,7 @@ With a directory provider, people type their directory user name and password in
 
 **Groups for role mapping.** Under **Role mapping**, choose where **Groups come from**: **The person's memberOf attribute**, or **A search for groups that list the person** (the **Group search filter**, where `{dn}` is the person's DN, and an optional **Group base DN**). **Include nested groups (Active Directory)** adds the groups the person is in through other groups, which Active Directory works out itself. A rule's group value is the group's full DN, exactly as the directory gives it: **Test connection** with a user name lists them to copy.
 
-**At sign-in.** The service account finds the person's entry; then the directory checks the password with the person's own DN, on a connection of its own. An empty password is never sent. Disabled, expired and locked directory accounts are refused. A directory password is one factor: a person who has a second factor here (an authenticator app, or recovery codes) is asked for it next, and the second-factor requirement applies as for everyone. A person whose only second factor is a passkey uses a recovery code after a directory password for now. Failures are limited as for a password: by address, by user name at the directory (five wrong passwords in 15 minutes stop further tries for that name for a while), and a wrong directory password counts toward the lockout of the account it is linked to. People always see the same "Sign-in failed" message; the audit log records the reason (`signin.failure`), never the password or the service account's details. Matching, linking and creating accounts work as for the other providers (below). A directory is linked at sign-in, not from **Account security**.
+**At sign-in.** The service account finds the person's entry; then the directory checks the password with the person's own DN, on a connection of its own. An empty password is never sent. Disabled, expired and locked directory accounts are refused. A directory password is one factor: a person who has a second factor here (an authenticator app, or recovery codes) is asked for it next, and the second-factor requirement applies as for everyone. A person whose second factor is a passkey is asked for it after the directory password; a recovery code also works. Failures are limited as for a password: by address, by user name at the directory (five wrong passwords in 15 minutes stop further tries for that name for a while), and a wrong directory password counts toward the lockout of the account it is linked to. People always see the same "Sign-in failed" message; the audit log records the reason (`signin.failure`), never the password or the service account's details. Matching, linking and creating accounts work as for the other providers (below). A directory can also be linked from **Account security** (see "Single sign-on" under My account).
 
 ### Role mapping (off unless you switch it on)
 
@@ -412,6 +413,8 @@ Lists are the choices offered in drop-downs across the application: statuses, pr
 The left-hand panel names every list with the number of values in it and, in small print, the record types that use it. Type in **Find a list** to narrow the panel by list name or record type. Select a list to see its values in the order they are offered, with **Shown as**, **Stored value** and **State** (In use or Retired).
 
 Above the values, a **Used by** line names each record type and field that offers the list, for example "Ticket (Status)". A list that no record field offers directly says so; it is usually used by a page of its own.
+
+To say which status changes are allowed, which fields a status needs and who may set it, see [Lifecycles](23-lifecycles.md) (**Administration > Lifecycles**).
 
 ### Adding a status or category
 
@@ -727,7 +730,7 @@ For each record waiting for a decision:
 
 - **Keep longer**: choose **For a number of months** or **Until a date**, give a **Reason** and select **Keep longer**. The record leaves the list and is flagged again once that date has passed.
 - **Anonymize…** (when the period allows it): give a **Reason**, check **I understand that the personal details will be removed permanently** and select **Anonymize**. You are asked to confirm your identity if you have not done so recently. Anonymizing **cannot be undone**. It replaces the record's personal fields (the people on it, names, email addresses, phone numbers and long text that may hold personal details) with "Removed at the end of the retention period" or empties them, empties the people who created and last changed it, replaces the text and author of each of its comments, deletes the contents of its files and renames them "Removed file", replaces the titles of notifications about it, and removes its watchers. Search no longer finds the removed details. The record itself, its reference, status, dates, numbers, tags, links and the number of its comments and files stay, so counts and charts stay the same for everyone; only a chart grouped by a person or a long-text field shows the record under no value. A person field that the record type requires cannot be emptied and is kept; the audit entry names it. The audit log is not changed: its earlier entries for the record, shown on the record's **History** tab, still hold the earlier values. The review moves to **Anonymized**, with your reason.
-- **Remove…** (when the period allows it): give a **Reason**, check **I understand that this record will be deleted permanently** and select **Remove for good**. You are asked for your password if you have not given it recently. The record, its comments, tags and links are deleted and cannot be brought back. A record with files attached cannot be removed until its files are. The audit log keeps the record's history and a note of the removal with your reason.
+- **Remove…** (when the period allows it): give a **Reason**, check **I understand that this record will be deleted permanently** and select **Remove for good**. You are asked for your password if you have not given it recently. The record, its comments, tags and links are deleted and cannot be brought back. A record with files attached cannot be removed until its files are. The audit log keeps the record's history and a note of the removal with your reason. Anonymizing and removing are sent to webhooks (see "Other events" under [Webhooks](#webhooks)), with no personal values from before the change.
 
 ## API tokens
 
@@ -739,7 +742,7 @@ Select **Revoke** and confirm to stop a token at once, for example when someone 
 
 A token can never do more than its owner can do at the time. Every change made with a token is recorded in the audit log with the token's name. Tokens cannot sign in, change account security or manage tokens, and cannot confirm a password, so they cannot make the changes listed under "Confirming your password". The longest life and the request limit are under **Settings > API tokens**.
 
-When making a token, its owner can fill in **Allowed source addresses** (up to 20 addresses or ranges, such as `203.0.113.7` or `198.51.100.0/24`). The token is then refused from anywhere else, and each refusal is recorded in the audit log.
+When making a token, its owner can fill in **Allowed source addresses** (up to 20 addresses or ranges, such as `203.0.113.7` or `198.51.100.0/24`). The token is then refused from anywhere else, and each refusal is recorded in the audit log. To change the list later, select **Addresses** on the token, edit the addresses (one per line, or leave it empty to allow any address) and select **Save addresses**; you may be asked to confirm it is you. Administrators can do the same for anyone's token on **Administration > API tokens**. Each change is recorded in the audit log with the lists before and after. A token without a list shows **From any address**.
 
 ### API reference
 
@@ -779,8 +782,10 @@ Besides record changes, a webhook can send these events. Each carries its own de
 | **Approval decided** | Someone approves or rejects a step of an [approval workflow](22-approval-workflows.md) | When the record is |
 | **Approval workflow finished** | An approval workflow ends: approved, rejected or canceled | When the record is |
 | **Backup failed** | A scheduled or manual backup failed | No |
+| **Record anonymized at the end of its retention period** | An administrator anonymizes a record from the retention review; only the names of the replaced fields are sent, never their earlier values | When the record is |
+| **Record removed for good at the end of its retention period** | An administrator removes a record for good from the retention review; it is named by its reference only | When the record is |
 
-A restricted event is sent only by a webhook with **Include restricted records** switched on, as for restricted records. When a part of the application is switched off under **Features**, its events are not sent and are not offered in the form: the clock and incident events belong to **Security incidents**, the change approval to **Change enablement** and the report delivery to **Dashboards and reports**.
+A restricted event is sent only by a webhook with **Include restricted records** switched on, as for restricted records. When a part of the application is switched off under **Features**, its events are not sent and are not offered in the form: the clock and incident events belong to **Security incidents**, the change approval to **Change enablement** and the report delivery to **Dashboards and reports**. Webhooks that follow a record type also get the record's own update or delete event for the two retention decisions, without the earlier values.
 
 ### Managing webhooks
 
@@ -874,6 +879,7 @@ When your administrator has set up a sign-in provider, the **Single sign-on** ca
 - To link one, select **Link** and the provider's name. Confirm your password if asked, then sign in at the provider. It must give the same email address as your account here, or nothing is linked and you are told why. You come back to this page with "Linked".
 - To unlink one, select **Unlink** and confirm. You may be asked to confirm your password. The last way you can sign in cannot be unlinked.
 - If you have no password here and are asked to confirm it is you, the card shows **Confirm with …**: you sign in at the provider again, and then have a few minutes to make the change.
+- A directory is linked with **Link …** too: enter your user name and password at the directory (it must give your account's email address). **Confirm with …** for a directory opens the confirmation box, where you enter your directory user name and password.
 
 You can also link a provider from the sign-in page: if you sign in through a provider and your email matches your account here, the page asks you to sign in once with your password to link them.
 
@@ -881,7 +887,7 @@ If you are signed in with the break-glass account, a red notice at the top of th
 
 On the sign-in page, a provider's button (**Sign in with …**) sends you to your organization's sign-in and back. Under the password form are **Sign in with a passkey** and **Forgot your password?**. When passwords are switched off, the password form is folded away under **Emergency access with a password**, for the break-glass account only, and neither of those is shown.
 
-When your organization's directory is set up for sign-in, the password form has a **Sign in with** choice: the directory's name (use your directory user name and password, as for your computer) or **Password for this application**. If you have a second factor here, you are asked for its code after your directory password, as with a password kept here.
+When your organization's directory is set up for sign-in, the password form has a **Sign in with** choice: the directory's name (use your directory user name and password, as for your computer) or **Password for this application**. If you have a second factor here, you are asked for it after your directory password, as with a password kept here: the code from your authenticator app, or your passkey or security key.
 
 ### API tokens on your account
 
@@ -899,7 +905,8 @@ The token is shown once. Select **Copy token** and keep it somewhere safe, such 
 
 ## Not available yet
 
-- Directory (LDAP) sign-in is not available. SAML 2.0 sign-in must start at this application (identity-provider-initiated sign-in is refused), a sign-out started at a SAML identity provider does not end sessions here, and SAML metadata signatures are not checked (paste or upload metadata you obtained from your identity provider yourself).
+- SAML 2.0 sign-in must start at this application (identity-provider-initiated sign-in is refused). A sign-out started at the identity provider is acted on only when switched on for that provider (see "SAML 2.0 providers").
+- When you confirm it is you with a directory, the directory user name is asked for each time.
 - A directory whose group list can be fetched only with its own kind of request gives no groups when a person is in too many to list; their roles are then left unchanged. Use application roles or a filtered groups claim instead.
 - Signing in through a provider never asks for this application's own second factor; it counts as one only when you trust the provider for it (see "The provider's own second factor").
 - Setup and reset links are emailed only when email is set up (see [Attachments and notifications](14-attachments-and-notifications.md#email-settings)); otherwise you pass them on by hand.

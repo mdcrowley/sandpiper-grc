@@ -108,9 +108,18 @@ export async function launchBrowser({ profileDir, debugPort = 0, headless = true
       if (msg.error) rej(new Error(`${method}: ${msg.error.message}`)); else res(msg.result ?? {});
     } else if (msg.method && msg.sessionId && listeners.has(msg.sessionId)) listeners.get(msg.sessionId)(msg);
   };
+  // A browser that stops answering (a page stuck in a script, a crashed renderer) fails the step
+  // after two minutes, naming the call, instead of holding up the whole run.
+  const CALL_TIMEOUT_MS = Number(process.env.E2E_CALL_TIMEOUT_MS) || 120_000;
   const send = (method, params = {}, sessionId) => new Promise((res, rej) => {
     const id = ++seq;
-    pending.set(id, { res, rej, method });
+    const timer = setTimeout(() => {
+      if (!pending.has(id)) return;
+      pending.delete(id);
+      rej(new Error(`${method}: the browser did not answer within ${CALL_TIMEOUT_MS / 1000} s`));
+    }, CALL_TIMEOUT_MS);
+    timer.unref?.();
+    pending.set(id, { res: (v) => { clearTimeout(timer); res(v); }, rej: (e) => { clearTimeout(timer); rej(e); }, method });
     ws.send(JSON.stringify({ id, method, params, sessionId }));
   });
 

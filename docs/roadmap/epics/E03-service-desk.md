@@ -1,6 +1,6 @@
 # E03 Service desk
 
-**Status:** in progress (21 of 22 issues done)
+**Status:** done (22 of 22 issues done)
 
 ## Goal
 
@@ -41,7 +41,7 @@ what they know in a knowledge base.
 | E03-19 | Follow-up actions on problems | done | P2 |
 | E03-20 | Server-side saved views for ticket queues | done | P3 |
 | E03-21 | Approval by more than one person, or by answer | done | P3 |
-| E03-22 | Catalog request approvals on the shared approval workflows | open | P3 |
+| E03-22 | Catalog request approvals on the shared approval workflows | done | P3 |
 ---
 
 ### E03-01 Tickets for incidents and requests
@@ -389,12 +389,16 @@ particular answer is given (for example access to a restricted system).
 
 ### E03-22 Catalog request approvals on the shared approval workflows
 
-**Status:** open · **Priority:** P3 · **Type:** improvement
+**Status:** done · **Priority:** P3 · **Type:** improvement
 
 As a service desk lead, the approvals a catalog item asks for (how many, from whom, only for some answers) run on the shared approval workflows (E14-06), so they get due times, escalation, department heads and the Approvals page like every other approval.
 
 **Acceptance criteria**
 
-- [ ] A catalog item can name an approval workflow in place of its own approval settings
-- [ ] Existing approval settings and decisions keep working and stay visible
-- [ ] The ticket strip and the portal's approvals read the workflow's state
+- [x] A catalog item can name an approval workflow in place of its own approval settings
+- [x] Existing approval settings and decisions keep working and stay visible
+- [x] The ticket strip and the portal's approvals read the workflow's state
+
+Approval kind `ticket_approval`: a request from an item that needs approval (for the chosen answers, E03-21) starts the item's workflow (`catalog_items.approval_workflow_id`; none: the catalog request approval workflow that fits best). The outcome writes `approval_status`, `approval_by`, `approval_at` and `approval_note`; the status gate is unchanged. One rejection now ends the approval (the earlier "an approval after a rejection overturns it" gave way to **Ask for approval again**, `POST /api/tickets/:id/approval/ask`). `POST /api/tickets/:id/approval` decides through the workflow; items' `approvals_needed` and `approver_ids` sent through the API name a workflow with exactly that step. At upgrade each item's settings became a workflow, and requests still waiting were adopted as running workflows with their approvers and the approvals already given; earlier decisions stay readable.
+
+**Implemented in:** `server/src/modules/tickets/catalog.ts` (kind, install, routes), migration `tickets/006_approval_workflows.sql`; `/api/portal/approvals` in `server/src/modules/portal/index.ts`; `web/src/modules/tickets/CatalogDesigner.tsx`, `Cockpit.tsx`; tests `server/src/modules/tickets/approvals.test.ts`, `server/src/modules/portal/portal.test.ts`

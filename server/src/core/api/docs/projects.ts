@@ -68,11 +68,11 @@ const SETTINGS_DESC = 'Partial body. Invalid values give 400 `validation` with p
 
 const GATE_DEF = `{ id: uuid, key: string, name: string, from_stage: string, to_stage: string, sort: integer, active: boolean,
   required_documents: [{ name: string, required: boolean }], checklist: [string], approvers: { [tier]: [string] },
-  wants_change: boolean, ... }`;
+  wants_change: boolean, approval_workflow_id: uuid | null "E11-25: the approval workflow gate decisions are asked through", ... }`;
 
 const GATE_DEF_BODY = `{ name?: string, checklist?: [string],
   required_documents?: [string | { name: string, required?: boolean }] "A plain name is required",
-  approvers?: { [tier]: [string] }, wants_change?: boolean }`;
+  approvers?: { [tier]: [string] }, wants_change?: boolean, approval_workflow_id?: uuid | null "From GET /api/projects/gate-workflows; null: decisions recorded by hand" }`;
 
 const GATE_DEF_DESC = 'Changes the template only; gates already opened on projects keep their copy. A new checklist replaces the old one. 404 `not_found` for an unknown key. Audited.';
 
@@ -141,6 +141,11 @@ export const DOCS: RouteDoc[] = [
   route('PATCH', '/api/projects/gate-definitions/:key', 'Change a gate template (same as PUT)', {
     tag: SET, permission: 'projects.administer', description: `The same as PUT. ${GATE_DEF_DESC}`, body: GATE_DEF_BODY, response: GATE_DEF,
   }),
+  route('GET', '/api/projects/gate-workflows', 'Approval workflows a gate template may name', {
+    tag: SET, permission: 'projects.administer',
+    description: 'The active approval workflows of the kind "Project gate decision" (E11-25), for `approval_workflow_id` on a gate template. Defined under Administration > Approval workflows.',
+    response: '{ rows: [{ id: uuid, name: string, description: string | null }] }',
+  }),
 
   // ---------- gates ----------
   route('GET', '/api/projects/:id/gates', 'Stages and gates of a project, with checklists, documents and decisions', {
@@ -186,6 +191,12 @@ export const DOCS: RouteDoc[] = [
     description: `\`index\` is the document's position in the gate's list, from 0. 409 \`gate_closed\` once the gate is approved. When the gate becomes ready, its approvers are notified. ${AUDITED}`,
     body: '{ received?: boolean, reference?: string | null, attachment_id?: uuid | null "A file attached to the project" }',
     response: GATE,
+  }),
+  route('POST', '/api/projects/:id/gates/:gateId/request-approval', 'Ask for a gate decision through its approval workflow', {
+    tag: T, permission: 'projects.edit',
+    description: 'Starts the approval workflow the gate\'s template names (E11-25), on the current gate of an active project once every checklist item is ticked and every required document is received or waived (409 `gate_blocked`, `not_current_gate`, `gate_closed`, `no_workflow`, `already_running`). Its approval is recorded as a gate decision and moves the project to the next stage; a rejection is recorded with the reason and the gate stays open. Follow it with GET /api/workflows/records/project/:id. Audited.',
+    body: '{ note?: string }',
+    response: '{ instance_id: uuid, workflow: string, status: string }',
   }),
   route('POST', '/api/projects/:id/gates/:gateId/decide', 'Record a gate decision', {
     tag: T, permission: 'projects.approve',

@@ -24,7 +24,7 @@ function WorkflowCard({ def, options }: { def: Definition; options: Options }) {
         <Link to={`/admin/workflows/${def.id}`} className="wf-def-name">{def.name}</Link>
         <span className="wf-def-chips">
           {!def.active && <StatusChip color="gray" label="Inactive" size="sm" />}
-          {def.available === false && <StatusChip color="amber" label="Area switched off" size="sm" />}
+          {def.kind_label && <StatusChip color="purple" label={def.kind_label} size="sm" />}
           {(def.running ?? 0) > 0 && <StatusChip color="blue" label={`${def.running} running`} size="sm" />}
         </span>
       </div>

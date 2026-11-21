@@ -1,8 +1,10 @@
 // Approval workflows (E14-06): administrator-defined, ordered approval steps on any record type.
 // Always on (not a feature area); a workflow on a record type whose area is switched off does
-// nothing until the area is back on. Modules keep their own approval rules; how one moves to this
-// engine is in docs/development.md ("Approval workflows").
+// nothing until the area is back on. Modules hand their own approvals to it as approval kinds
+// (core/approval-kinds.ts; docs/development.md, "Approval workflows"), and approvers name
+// stand-ins for a period (E14-32).
 import type { FastifyRequest } from 'fastify';
+import { setApprovalEngine } from '../../core/approval-kinds.ts';
 import { ensureJobs, scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleContext, ModuleDef, ResourceDef, Row } from '../../core/module.ts';
 import { registerRoutes } from './routes.ts';
@@ -48,6 +50,10 @@ const mod: ModuleDef = {
     const svc = makeService(ctx);
     registerRoutes(ctx, svc);
     follow(ctx, svc);
+    setApprovalEngine(ctx.app, svc.engine);
+    // Every module has declared its approval kinds by now: each installs once (its workflows, and
+    // the approvals that were waiting when it moved to workflows).
+    ctx.app.addHook('onReady', async () => { await svc.installed(); });
     const jobs = await ensureJobs(ctx);
     // A due step queues its own escalation for its due time; the sweep catches anything missed.
     jobs.register('workflows.escalate', async () => svc.escalateDue(), { maxAttempts: 3 });

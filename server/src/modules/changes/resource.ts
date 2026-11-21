@@ -51,8 +51,8 @@ export function defineChange(ctx: ModuleContext, base: Base): void {
 
     const rule = matchRule(await base.approvalRules(), merged.change_type, out.risk_level);
     const status = merged.status ?? 'draft';
-    // The number of approvals is fixed once approval has been given, so a later rule change does not undo it.
-    if (!existing || ['draft', 'submitted'].includes(status)) {
+    // A draft shows the approvals its rule asks for; once submitted the number follows its approval workflow (E05-13).
+    if (!existing || status === 'draft') {
       out.approvals_required = merged.change_type === 'standard' && merged.template_id ? 0 : rule.approvals;
     }
     const outcomes = merged.outcome ? await ctx.lookups.values('change_outcome') : [];

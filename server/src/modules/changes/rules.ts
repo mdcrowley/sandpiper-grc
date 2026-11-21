@@ -21,6 +21,8 @@ export interface ApprovalRule {
   approver_role_keys?: string[];
   /** A post-implementation review is needed before closure. */
   pir_required: boolean;
+  /** The approval workflow (kind `change_approval`) that runs when such a change is submitted (E05-13). */
+  workflow_id?: string | null;
   /** Work may start before approval; the approval is then recorded afterwards and flagged. */
   retrospective: boolean;
 }

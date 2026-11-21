@@ -19,3 +19,17 @@ export function knownFields(resource: ResourceMeta | undefined | null, names: st
   if (!resource) return names;
   return names.filter((f) => f in resource.fields || f in SYSTEM_FIELDS);
 }
+
+/**
+ * The filters of a view (keyed like the list contract without `f.`: `status`, `due_at.gt`) on fields
+ * the record type has, plus tags. A filter read from the page address or a saved view on a field the
+ * type lacks, or one hidden by a switched-off option, is dropped (E18-49). Without metadata yet, every
+ * filter is kept.
+ */
+export function knownFilters(resource: ResourceMeta | undefined | null, filters: Record<string, string[]>): Record<string, string[]> {
+  if (!resource) return filters;
+  return Object.fromEntries(Object.entries(filters).filter(([key]) => {
+    const name = key.split('.')[0];
+    return name === 'tags' || knownFields(resource, [name]).length > 0;
+  }));
+}

@@ -300,8 +300,17 @@ export function LoginPage() {
       await refresh();
     } catch (err) {
       const code = err instanceof ApiError ? err.code : '';
-      if (directory && code === 'mfa_required' && err instanceof ApiError && err.fields.recovery) {
-        // After a directory password, a passkey cannot be the second step yet (E02-29): a recovery code can.
+      if (directory && code === 'mfa_required' && err instanceof ApiError && err.fields.passkey && !needsCode) {
+        // After a directory password, the person's passkey is the second step (E02-29); a recovery code also works.
+        try {
+          await signInWithKeyAfterPassword(username.trim(), password, directory.key);
+          await refresh();
+        } catch (keyErr) {
+          setKeyOnly(true);
+          setNeedsCode(true);
+          setError(`${keyErr instanceof Error ? keyErr.message : errorMessage(keyErr)} If you cannot use your key, enter one of your recovery codes.`);
+        }
+      } else if (directory && code === 'mfa_required' && err instanceof ApiError && (err.fields.recovery || err.fields.passkey)) {
         setKeyOnly(true);
         setNeedsCode(true);
         if (needsCode) { setError('Sign-in failed. Check your details and try again.'); setTotp(''); }
@@ -342,8 +351,7 @@ export function LoginPage() {
   // The ways the password form can sign in: each directory, and this application's own password.
   const localOffered = Boolean(options?.localSignIn !== false || showPassword || linking);
   const ways = [...directories.map((d) => ({ value: d.key, label: d.name })), ...(localOffered ? [{ value: '', label: 'Password for this application' }] : [])];
-  const intro = needsCode && keyOnly && directory ? 'One more step: enter one of your recovery codes.'
-    : needsCode && keyOnly ? 'One more step: use your passkey or security key, or enter a recovery code.'
+  const intro = needsCode && keyOnly ? 'One more step: use your passkey or security key, or enter a recovery code.'
     : needsCode ? 'One more step: enter the code from your authenticator app.'
     : linking ? undefined
     : providers.length ? 'Use your organization account.' : undefined;
@@ -408,7 +416,7 @@ export function LoginPage() {
         <Button type="submit" variant={providers.length && !linking && !needsCode ? 'secondary' : 'primary'} loading={busy}>
           {needsCode && keyOnly ? 'Sign in with the recovery code' : needsCode ? 'Verify and sign in' : linking ? 'Sign in and link' : directory ? `Sign in with ${directory.name}` : 'Sign in'}
         </Button>
-        {needsCode && !directory && <PasskeySecondFactorButton username={username.trim()} password={password} label={keyOnly ? 'Try your passkey or security key again' : undefined} />}
+        {needsCode && <PasskeySecondFactorButton username={username.trim()} password={password} directory={directory?.key} label={keyOnly ? 'Try your passkey or security key again' : undefined} />}
       </form>
       )}
       {/* A passkey alone, as another way in beside the password (not while linking or at the code step). */}

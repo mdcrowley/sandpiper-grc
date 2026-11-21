@@ -198,7 +198,10 @@ const KINDS: Option[] = [
   { value: 'role', label: 'Everyone with a role' },
   { value: 'field', label: 'A person on the record (owner, manager...)' },
   { value: 'department_head', label: 'The head of a department' },
+  { value: 'people', label: 'Named people and roles together' },
+  { value: 'permission', label: 'Everyone who holds a permission' },
 ];
+const COUNTED = new Set(['users', 'role', 'people', 'permission']);
 
 function StepEditor({ index, count, step, fields, options, errors, names, onName, onChange, onMove, onRemove, open, onToggle }: {
   index: number; count: number; step: StepDef; fields: OptionField[]; options: Options; errors: Errors; names: Record<string, string>;
@@ -210,7 +213,7 @@ function StepEditor({ index, count, step, fields, options, errors, names, onName
   const userFields = fields.filter((f) => f.type === 'user');
   const deptFields = fields.filter((f) => ['user', 'text', 'lookup'].includes(f.type));
   const hasErrors = Object.keys(errors).some((k) => k.startsWith(`${at}.`));
-  const setApprovers = (next: ApproverSpec) => onChange({ ...step, approvers: next, quorum: next.kind === 'users' || next.kind === 'role' ? step.quorum : 'any' });
+  const setApprovers = (next: ApproverSpec) => onChange({ ...step, approvers: next, quorum: COUNTED.has(next.kind) ? step.quorum : 'any' });
   const dueDays = step.due_hours && step.due_hours % 24 === 0;
   const [unit, setUnit] = useState<'hours' | 'days'>(dueDays ? 'days' : 'hours');
   const shown = step.due_hours ? (unit === 'days' ? step.due_hours / 24 : step.due_hours) : null;
@@ -242,6 +245,8 @@ function StepEditor({ index, count, step, fields, options, errors, names, onName
               if (v === 'role') setApprovers({ kind: 'role', role: options.roles.find((r) => r.enabled)?.key ?? '' });
               if (v === 'field') setApprovers({ kind: 'field', field: userFields[0]?.name ?? '' });
               if (v === 'department_head') setApprovers({ kind: 'department_head', from: 'requester', field: null });
+              if (v === 'people') setApprovers({ kind: 'people', users: [], roles: [] });
+              if (v === 'permission') setApprovers({ kind: 'permission', permission: options.permissions?.[0] ?? '' });
             }} />
             <div className="form-cell-wide">
               {a.kind === 'users' && (
@@ -256,6 +261,30 @@ function StepEditor({ index, count, step, fields, options, errors, names, onName
                 <Select label="Person field" value={a.field} error={errors[`${at}.approvers`]} onChange={(field) => setApprovers({ kind: 'field', field })}
                   options={userFields.map((f) => ({ value: f.name, label: f.label }))} hint="Whoever that field names when the step starts." />
               )}
+              {a.kind === 'people' && (
+                <div className="form-grid">
+                  <PeopleList label="Approvers" ids={a.users} names={names} onName={onName} onChange={(users) => setApprovers({ ...a, users })}
+                    error={errors[`${at}.approvers`]} hint="The person who asks is never one of the approvers, even when named here." />
+                  <div>
+                    {a.roles.length > 0 && (
+                      <ul className="wf-chips" aria-label="Roles">
+                        {a.roles.map((r) => (
+                          <li key={r} className="wf-chip">
+                            {options.roles.find((x) => x.key === r)?.name ?? r}
+                            <IconButton icon="x" size="sm" variant="ghost" label={`Remove the role ${options.roles.find((x) => x.key === r)?.name ?? r}`} onClick={() => setApprovers({ ...a, roles: a.roles.filter((x) => x !== r) })} />
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <Select label={a.roles.length ? 'Add another role' : 'Add a role'} value="" onChange={(role) => role && !a.roles.includes(role) && setApprovers({ ...a, roles: [...a.roles, role] })}
+                      options={[{ value: '', label: 'Choose a role' }, ...options.roles.filter((r) => !a.roles.includes(r.key)).map((r) => ({ value: r.key, label: r.enabled ? r.name : `${r.name} (switched off)` }))]} />
+                  </div>
+                </div>
+              )}
+              {a.kind === 'permission' && (
+                <Select label="Permission" value={a.permission} error={errors[`${at}.approvers`]} onChange={(permission) => setApprovers({ kind: 'permission', permission })}
+                  options={(options.permissions ?? []).map((p) => ({ value: p, label: p }))} hint="Everyone whose roles grant it (for example changes.approve)." />
+              )}
               {a.kind === 'department_head' && (
                 <div className="form-grid">
                   <Select label="Which department" value={a.from} onChange={(from) => setApprovers({ kind: 'department_head', from: from as 'requester' | 'field', field: from === 'field' ? deptFields[0]?.name ?? '' : null })}
@@ -268,7 +297,7 @@ function StepEditor({ index, count, step, fields, options, errors, names, onName
                 </div>
               )}
             </div>
-            {(a.kind === 'users' || a.kind === 'role') && (
+            {COUNTED.has(a.kind) && (
               <Select label="How many must approve" value={String(step.quorum)} options={quorumOptions} error={errors[`${at}.quorum`]}
                 onChange={(v) => onChange({ ...step, quorum: v === 'any' || v === 'all' ? v : Number(v) })}
                 hint="Any rejection rejects the whole request." />
@@ -342,6 +371,9 @@ export function WorkflowEditor() {
   const update = (patch: Partial<Definition>) => setDef({ ...def, ...patch });
   const setStep = (i: number, s: StepDef) => update({ steps: def.steps.map((x, j) => (j === i ? s : x)) });
   const statusFields = fields.filter((f) => f.type === 'lookup');
+  // Approval kinds: a module (change approval, risk acceptance...) starts the workflow itself.
+  const kindsHere = (opts.kinds ?? []).filter((k) => k.record_type === def.record_type);
+  const kind = (opts.kinds ?? []).find((k) => k.key === def.kind);
 
   async function save() {
     if (!def) return;
@@ -409,7 +441,7 @@ export function WorkflowEditor() {
           <Card title="What it is for">
             <div className="form-grid">
               <TextField label="Name" required value={def.name} onChange={(v) => update({ name: v })} error={errors.name} placeholder="For example: Purchase over budget" />
-              <Select label="Record type" required value={def.record_type} error={errors.record_type}
+              <Select label="Record type" required value={def.record_type} error={errors.record_type} disabled={Boolean(def.kind && !isNew)}
                 options={opts.types.map((t) => ({ value: t.type, label: t.plural }))}
                 onChange={(v) => update({ record_type: v, conditions: [], on_approve: [], on_reject: [], trigger_field: null, trigger_value: null,
                   steps: def.steps.map((s) => ({ ...s, conditions: [], approvers: s.approvers.kind === 'field' || s.approvers.kind === 'department_head' ? { kind: 'users', users: [] } : s.approvers })) })}
@@ -425,6 +457,21 @@ export function WorkflowEditor() {
           <Card title="What starts it">
             {!def.record_type ? <p className="muted">Choose a record type first.</p> : (
               <>
+                {isNew && kindsHere.length > 0 && (
+                  <div className="form-grid">
+                    <Select label="Used for" value={def.kind ?? ''} error={errors.kind}
+                      options={[{ value: '', label: 'Its own approval (asked by hand, on creation or on a field change)' }, ...kindsHere.map((k) => ({ value: k.key, label: k.label }))]}
+                      onChange={(v) => update({ kind: v || null, trigger: v ? 'module' : 'manual', trigger_field: null, trigger_value: null })}
+                      hint="A module's own approval (for example change approval) is started by that module. This cannot be changed later." />
+                  </div>
+                )}
+                {def.kind ? (
+                  <div className="wf-kind-note" role="note">
+                    <p><strong>{kind?.label ?? def.kind_label ?? 'Module approval'}.</strong> {kind?.starts_when ?? def.kind_starts_when ?? 'Started by its module.'}</p>
+                    {(kind?.outcome ?? def.kind_outcome) && <p className="muted wf-small">{kind?.outcome ?? def.kind_outcome}</p>}
+                    {kind?.approver_permission && <p className="muted wf-small">Approvers must also hold {kind.approver_permission}.</p>}
+                  </div>
+                ) : (
                 <div className="form-grid">
                   <Select label="Starts" required value={def.trigger} error={errors.trigger}
                     options={[
@@ -445,10 +492,11 @@ export function WorkflowEditor() {
                     </>
                   )}
                 </div>
-                <p className="muted wf-small">Anyone who may edit the record can also ask for any active workflow by hand from the record page.</p>
+                )}
+                {!def.kind && <p className="muted wf-small">Anyone who may edit the record can also ask for any active workflow by hand from the record page.</p>}
                 <h4 className="wf-sub">Which records</h4>
                 <ConditionRows prefix="conditions" conditions={def.conditions} fields={fields} errors={errors} options={opts} names={names} onName={onName}
-                  onChange={(conditions) => update({ conditions })} intro="Every record of this type. Add a condition to start it only for some (for example, priority is high)." />
+                  onChange={(conditions) => update({ conditions })} intro={def.kind ? 'Every record its module asks about. With conditions, the workflow of this kind whose conditions hold (the one with the most conditions) is chosen.' : 'Every record of this type. Add a condition to start it only for some (for example, priority is high).'} />
               </>
             )}
           </Card>

@@ -42,6 +42,7 @@ The user guide is in [`user/`](user/) and is also shown inside the application u
 20. [Safety management](user/20-safety-management.md)
 21. [AI assistants and MCP](user/21-ai-assistants-and-mcp.md)
 22. [Approval workflows](user/22-approval-workflows.md)
+23. [Lifecycles: allowed status changes and required fields](user/23-lifecycles.md)
 
 ## For people who integrate with it
 

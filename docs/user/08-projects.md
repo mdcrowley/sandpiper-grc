@@ -11,6 +11,7 @@ An administrator can switch projects off under **Administration > Features** (se
 | See the portfolio and open projects | **View** on Projects |
 | Submit a project request | Whatever your administrator chose under **Who may submit a project request** (see [Project settings](#project-settings)). By default, **Create** on Projects |
 | Edit a project, check checklist items, mark documents received, attach files, add reports, items and milestones, save scores | **Edit** on Projects |
+| Ask for approval at a gate (when its template names an approval workflow) | **Edit** on Projects |
 | Record a gate decision, waive a required document, move a project back a stage | **Approve** on Projects |
 | Escalate a project risk to the risk register | **Edit** on Projects and **Create** on Risks |
 | Change project settings and gate templates | **Administer** on Projects |
@@ -86,6 +87,7 @@ The bar at the top of a project page shows the six stages with the gates between
 |---|---|
 | **Not reached** | The project has not got to this gate yet. |
 | **Blocked: N to do** | Checklist items or required documents are still outstanding. |
+| **Waiting for approval** | Approval was asked for through the approval workflow the gate's template names; the approval panel at the top of the page shows who it waits for. |
 | **Ready for a decision** | Every checklist item is checked and every required document is received or waived. |
 | **Deferred · …** | A decision to defer was recorded. The gate is still open. |
 | **Approved** with a date | The gate was passed. |
@@ -129,9 +131,22 @@ On a gate that asks for one (by default **Go-live**), and where change records a
 
 The **Approvers** card lists the roles expected to approve this gate for the project's tier. Open **Approvers for every tier** to see the full table. The list is guidance for whoever records the decision; the application does not check the approver's name against it. For the largest projects the supplied list ends with **Approving body (board, directors or owners)** (installations set up before this version show **Governing body**); an administrator changes the approvers of each gate under **Project settings**.
 
+### Asking for approval through a workflow
+
+A gate template may name an **approval workflow** (see **Project settings** below, and [Approval workflows](22-approval-workflows.md)). On such a gate, once every checklist item is ticked and every required document is received or waived, the box at the top says "Ready for a decision" and the **Gate** tab shows **Ask for approval** to anyone with **Edit** on Projects.
+
+1. Select **Ask for approval**. The workflow starts, and its approvers are told (in the application and by email, as their notification settings say). They find it on their **Approvals** page.
+2. While it runs, the box says "Waiting for approval", and the **approval panel** at the top of the project page shows the workflow's steps, who it is waiting for, its due time and every decision. Approvers decide there, or from the **Approvals** page.
+3. When the workflow approves, the approval is recorded as a gate decision, exactly as **Record decision** would: the approver's name (for a stand-in, "Stand-in name on behalf of approver name"), today's date and the reference "Approval workflow" followed by the workflow's name. The gate closes and the project moves to the next stage. If something blocks the gate again by then (for example a checklist item was unticked, or the project was put on hold), nothing changes and the workflow shows that its outcome could not be recorded; deal with the blocker and ask again.
+4. When the workflow is rejected, a **Rejected** decision is recorded with the approver's reason and the gate stays open. You can ask again once the reason has been dealt with.
+
+You cannot approve a request you asked for yourself. The person who asked, or an administrator, can cancel the request from the approval panel. Recording a decision by hand (below) while a request is waiting settles the gate and stops the request.
+
+On a gate whose template names no workflow (the default, and every gate template of an installation set up before this version), decisions are recorded by hand as below.
+
 ### Recording a decision
 
-Approvals are given outside the application, for example by email, and then recorded here. You need **Approve** on **Projects**, and the button appears only on the project's current gate.
+Approvals given outside the application, for example by email or at a board meeting, are recorded here; this is always possible, also on a gate whose template names an approval workflow. You need **Approve** on **Projects**, and the button appears only on the project's current gate.
 
 1. On the **Gate** tab, select **Record decision**.
 2. Choose the **Decision**: **Approved: move to** the next stage, **Deferred: decide later** or **Rejected**.
@@ -334,9 +349,11 @@ Open **Projects > Project settings**, or select **Settings** on the portfolio. Y
 | **Work-in-progress limit** | **Active projects in delivery**: a whole number of 1 or more. Select **Save limit**. |
 | **Requests and reminders** | **Who may submit a project request**: **People who can create projects** (the default), **Everyone who can view projects** or **Everyone who can sign in**. **Status report due after (days)**: 1 to 366, counted from the period end of the last report. Select **Save requests and reminders**. |
 | **Scoring criteria** | For each criterion, its name (**Criterion**), **What it means** and **Weight**. Use **Add criterion** or the trash icon, then **Save criteria**. At least one criterion must have a weight above zero. Every project's score is recalculated. |
-| **Gates** | For each gate, select **Edit** to change the **Gate name**, the **Checklist** (one item per line), the **Documents** (a name each, with a **Required** switch; **Add document** adds one, the trash button removes one), **Ask for a change record at this gate**, and the **Approvers** for each tier (one role per line). Select **Save gate**. |
+| **Gates** | For each gate, select **Edit** to change the **Gate name**, the **Checklist** (one item per line), the **Documents** (a name each, with a **Required** switch; **Add document** adds one, the trash button removes one), **Ask for a change record at this gate**, the **Approval workflow** (one of the active workflows of the kind "Project gate decision", or **None: decisions are recorded by hand**; the table shows it under **Approval**), and the **Approvers** for each tier (one role per line). Select **Save gate**. |
 
-Changes to a gate template apply to gates opened from then on. A gate already open on a project keeps the checklist and documents it started with.
+A ready-made workflow, **Gate decision** (one approval from anyone with **Approve** on Projects, due in five days), is supplied under **Administration > Approval workflows**, but no gate template names it until an administrator chooses it. The approval workflow a template names applies to its gates at once, including gates already open.
+
+Other changes to a gate template apply to gates opened from then on. A gate already open on a project keeps the checklist and documents it started with.
 
 ## Sample data
 

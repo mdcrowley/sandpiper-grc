@@ -116,6 +116,7 @@ export function MyTokensCard() {
   const { data, error, reload } = useFetch<MyTokens>('/api/me/tokens');
   const [creating, setCreating] = useState(false);
   const [revoking, setRevoking] = useState<ApiToken | null>(null);
+  const [limiting, setLimiting] = useState<ApiToken | null>(null);
   const [busy, setBusy] = useState(false);
   const live = data?.tokens.filter(isLive) ?? [];
   const old = data?.tokens.filter((t) => !isLive(t)) ?? [];
@@ -150,7 +151,10 @@ export function MyTokensCard() {
           <ScopeChips scopes={t.scopes} />
         </div>
         {isLive(t) && (
-          <Button size="sm" aria-label={`Revoke the token ${t.name}`} onClick={() => setRevoking(t)}>Revoke</Button>
+          <span className="row">
+            <Button size="sm" variant="ghost" aria-label={`Allowed addresses of the token ${t.name}`} onClick={() => setLimiting(t)}>Addresses</Button>
+            <Button size="sm" aria-label={`Revoke the token ${t.name}`} onClick={() => setRevoking(t)}>Revoke</Button>
+          </span>
         )}
       </li>
     );
@@ -187,12 +191,62 @@ export function MyTokensCard() {
         Treat it like a password.
       </p>
       {data && <NewTokenDialog open={creating} data={data} onClose={() => setCreating(false)} onCreated={reload} />}
+      <SourcesDialog key={limiting?.id ?? 'none'} token={limiting} path="/api/me/tokens" yourAddress={data?.yourAddress} onClose={() => setLimiting(null)} onSaved={reload} />
       <ConfirmDialog
         open={revoking !== null} danger busy={busy} title="Revoke this token?" confirmLabel="Revoke token"
         message={<p>Anything still using <strong>{revoking?.name}</strong> will be refused from now on. This cannot be undone; make a new token if you need one again.</p>}
         onConfirm={() => void revoke()} onCancel={() => setRevoking(null)}
       />
     </Card>
+  );
+}
+
+/**
+ * Changes where a live token may be used from (E02-18): its owner on Account security, or an
+ * administrator on the API tokens page. Asks for the password when it has not been given recently.
+ */
+function SourcesDialog({ token, path, yourAddress, onClose, onSaved }: {
+  token: ApiToken | null; path: string; yourAddress?: string; onClose: () => void; onSaved: () => void;
+}) {
+  const toast = useToast();
+  // Mounted afresh for each token (`key`), so the box starts from that token's list.
+  const [text, setText] = useState((token?.allowed_sources ?? []).join('\n'));
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!token) return;
+    setBusy(true);
+    setError('');
+    try {
+      const list = sourcesFrom(text);
+      await adminApi.patch(`${path}/${token.id}`, { allowedSources: list });
+      toast.success(list.length ? `Token "${token.name}" now works only from the addresses listed.` : `Token "${token.name}" now works from any address.`);
+      onSaved();
+      onClose();
+    } catch (err) {
+      setError(err instanceof ApiError && err.fields.allowedSources ? err.fields.allowedSources : errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal open={token !== null} title={`Allowed addresses of "${token?.name ?? ''}"`} onClose={onClose}>
+      <form className="form" onSubmit={save} noValidate>
+        <TextArea
+          label="Allowed source addresses" rows={4} value={text} onChange={(v) => { setText(v); setError(''); }} error={error}
+          placeholder="203.0.113.7 or 10.20.0.0/16"
+          hint={`Addresses or ranges (IPv4 or IPv6, up to 20), one per line. Leave empty to allow any address.${yourAddress ? ` This request came from ${yourAddress}.` : ''}`}
+        />
+        <Notice icon="lock">A request from any other address is refused and recorded in the audit log. Saving asks for your password if you have not given it in the last few minutes.</Notice>
+        <div className="form-actions">
+          <Button onClick={onClose}>Cancel</Button>
+          <Button type="submit" variant="primary" loading={busy}>Save addresses</Button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -330,6 +384,7 @@ export function AdminTokensPage() {
   const [owner, setOwner] = useState('');
   const [page, setPage] = useState(1);
   const [revoking, setRevoking] = useState<ApiToken | null>(null);
+  const [limiting, setLimiting] = useState<ApiToken | null>(null);
   const [busy, setBusy] = useState(false);
 
   const owners = useMemo(() => {
@@ -428,7 +483,7 @@ export function AdminTokensPage() {
                           <td className="adm-wrap">
                             <strong>{t.name}</strong>
                             <div className="muted adm-small"><code>{t.prefix}…</code> made {formatDate(t.created_at)}</div>
-                            {sourcesText(t.allowed_sources) && <div className="muted adm-small" title={t.allowed_sources!.join(', ')}>{sourcesText(t.allowed_sources)}</div>}
+                            <div className="muted adm-small" title={t.allowed_sources?.join(', ')}>{sourcesText(t.allowed_sources) ?? 'From any address'}</div>
                           </td>
                           <td className="adm-wrap"><ScopeChips scopes={t.scopes} max={3} /></td>
                           <td title={formatDateTime(t.expires_at)}>{formatDate(t.expires_at)}</td>
@@ -437,7 +492,12 @@ export function AdminTokensPage() {
                           </td>
                           <td><StatusChip color={s.color} label={s.label} /></td>
                           <td className="adm-row-actions">
-                            {isLive(t) && <Button size="sm" aria-label={`Revoke ${t.name}, owned by ${t.userName ?? t.username}`} onClick={() => setRevoking(t)}>Revoke</Button>}
+                            {isLive(t) && (
+                              <span className="row">
+                                <Button size="sm" variant="ghost" aria-label={`Allowed addresses of ${t.name}, owned by ${t.userName ?? t.username}`} onClick={() => setLimiting(t)}>Addresses</Button>
+                                <Button size="sm" aria-label={`Revoke ${t.name}, owned by ${t.userName ?? t.username}`} onClick={() => setRevoking(t)}>Revoke</Button>
+                              </span>
+                            )}
                           </td>
                         </tr>
                       );
@@ -449,6 +509,7 @@ export function AdminTokensPage() {
             </>
           )}
       </Card>
+      <SourcesDialog key={limiting?.id ?? 'none'} token={limiting} path="/api/admin/tokens" onClose={() => setLimiting(null)} onSaved={reload} />
       <ConfirmDialog
         open={revoking !== null} danger busy={busy} title="Revoke this token?" confirmLabel="Revoke token"
         message={(

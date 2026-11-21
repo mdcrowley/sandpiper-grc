@@ -135,6 +135,25 @@ export async function passkeySecondFactor(
 }
 
 /**
+ * Options for the second step of a sign-in, after the person's first factor has been checked (a
+ * local password here, or a directory password: E02-29): a challenge tied to that person, listing
+ * their keys at this address so that security keys which do not store passkeys work too. Throws
+ * 404 `no_passkeys` when they have none here.
+ */
+export async function passkeyLoginOptions(deps: WebAuthnDeps, req: FastifyRequest, userId: string) {
+  const rp = rpOrFail(req);
+  const keys = (await activeCredentials(deps.db, userId)).filter((c) => c.rp_id === rp.rpId);
+  if (!keys.length) fail(404, 'no_passkeys', 'No passkey or security key is registered for this account at this address.');
+  const challenge = await issueChallenge(deps.db, 'login', userId);
+  return {
+    publicKey: {
+      challenge, rpId: rp.rpId, timeout: CHALLENGE_SECONDS * 1000, userVerification: await uvPolicy(deps),
+      allowCredentials: keys.map((c) => ({ type: 'public-key', id: c.credential_id, transports: c.transports })),
+    },
+  };
+}
+
+/**
  * Recovery codes belong to a second factor. When a person's last factor goes (no passkey left and no
  * authenticator app), their codes go too, so they cannot later stand in for a factor that is gone.
  */
@@ -316,7 +335,6 @@ export function registerWebAuthn(app: FastifyInstance, deps: WebAuthnDeps) {
     const ip = clientIp(req);
     if (await signinFailures.blocked(ip)) fail(429, 'rate_limited', GENERIC_SIGNIN_ERROR);
     const b = (req.body ?? {}) as Record<string, unknown>;
-    const uv = await uvPolicy(deps);
     if (b.username === undefined) {
       if (!(await passwordlessAllowed(deps))) fail(403, 'passkey_sign_in_off', 'Signing in with a passkey alone is switched off here. Sign in with your password.');
       const challenge = await issueChallenge(db, 'login', null);
@@ -333,15 +351,7 @@ export function registerWebAuthn(app: FastifyInstance, deps: WebAuthnDeps) {
       await audit(req, { action: 'signin.failure', recordType: 'user', recordId: u?.id, summary: `Sign-in failed (passkey step: wrong details) for "${identifier.slice(0, 80)}" from ${ip}` });
       fail(401, 'invalid_credentials', GENERIC_SIGNIN_ERROR);
     }
-    const keys = (await activeCredentials(db, u!.id)).filter((c) => c.rp_id === rp.rpId);
-    if (!keys.length) fail(404, 'no_passkeys', 'No passkey or security key is registered for this account at this address.');
-    const challenge = await issueChallenge(db, 'login', u!.id);
-    return {
-      publicKey: {
-        challenge, rpId: rp.rpId, timeout: CHALLENGE_SECONDS * 1000, userVerification: uv,
-        allowCredentials: keys.map((c) => ({ type: 'public-key', id: c.credential_id, transports: c.transports })),
-      },
-    };
+    return passkeyLoginOptions(deps, req, u!.id);
   });
 
   /** Signs in with a passkey alone. The key must have checked a PIN or biometric (user verification). */

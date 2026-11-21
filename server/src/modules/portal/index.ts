@@ -5,6 +5,7 @@
 // permissions (the Requester role, off by default). It builds on the tickets module and does
 // nothing when that module is not loaded.
 import type { FastifyInstance } from 'fastify';
+import { approvalEngine } from '../../core/approval-kinds.ts';
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
 import { articleVote, recordArticleFeedback } from '../tickets/feedback.ts';
 import { makeAccess } from './access.ts';
@@ -151,24 +152,32 @@ const mod: ModuleDef = {
 
     app.get('/api/portal/approvals', view, async (req) => {
       if (!ctx.can(req.user, 'tickets.approve')) return { rows: [] };
+      // E03-22: a request's approval runs on its approval workflow; listed when its current step waits for me.
+      const engine = approvalEngine(app);
+      if (!engine) return { rows: [] };
+      const ids = await engine.waiting('ticket_approval', req.user!.id);
+      if (!ids.length) return { rows: [] };
       const rows = await db.query<Row>(
-        `select t.id, t.ref, t.title, t.requester_name, t.requester_department, t.opened_at, t.catalog_answers, c.name as item_name,
-                coalesce(t.approvals_needed, 1) as approvals_needed,
-                (select count(distinct a.user_id)::int from ticket_approvals a where a.ticket_id = t.id and not a.superseded and a.decision = 'approved'
-                   and not exists (select 1 from ticket_approvals b where b.ticket_id = t.id and b.user_id = a.user_id and not b.superseded and b.decided_at > a.decided_at)) as approvals_given
+        `select t.id, t.ref, t.title, t.requester_name, t.requester_department, t.opened_at, t.catalog_answers, c.name as item_name
          from tickets t left join catalog_items c on c.id = t.catalog_item_id
-         where t.deleted_at is null and t.approval_status = 'pending' and t.requester_id is distinct from $1
-           and (t.approver_ids is null or jsonb_array_length(t.approver_ids) = 0 or t.approver_ids ? $1::text)
-           and not exists (select 1 from ticket_approvals m where m.ticket_id = t.id and m.user_id = $1 and not m.superseded)
+         where t.id = any($2::uuid[]) and t.deleted_at is null and t.approval_status = 'pending' and coalesce(t.requester_id, t.created_by) is distinct from $1
            and ${ctx.resources.visibleWhere('ticket', req.user, 't')}
-         order by t.opened_at limit 100`, [req.user!.id]);
-      return {
-        rows: rows.map((r) => ({ ...r, catalog_answers: ((r.catalog_answers ?? []) as Row[]).map((a) => ({ label: a.label, value: a.value })) })),
-      };
+         order by t.opened_at limit 200`, [req.user!.id, ids]);
+      const out: Row[] = [];
+      for (const r of rows) {
+        const p = await engine.progress('ticket_approval', r.id, req.user!.id);
+        if (!p.canDecide) continue;
+        out.push({
+          ...r, approvals_needed: Math.max(1, p.required), approvals_given: p.approvals,
+          catalog_answers: ((r.catalog_answers ?? []) as Row[]).map((a) => ({ label: a.label, value: a.value })),
+        });
+        if (out.length >= 100) break;
+      }
+      return { rows: out };
     });
     ctx.describeRoute({
       method: 'GET', path: '/api/portal/approvals', permission: 'portal.view',
-      summary: 'Requests waiting for my approval (people who may approve service requests, named approvers only where an item names them; requests I have already decided are left out)',
+      summary: 'Requests whose approval workflow waits for my decision now (as on the Approvals page; requests I have already decided are left out)',
       response: '{ rows: [{ id, ref, title, requester_name, item_name, catalog_answers, approvals_needed, approvals_given }] }',
     });
 

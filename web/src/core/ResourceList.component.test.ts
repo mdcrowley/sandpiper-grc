@@ -109,4 +109,21 @@ describe('generic list (E18-43)', () => {
     await waitFor(() => expect(textOf(document.body)).toContain('Status'));
     expect(textOf(document.body)).not.toMatch(/funder/i);
   });
+
+  it('ignores a filter in the address on a field the type does not have, and drops it from the address (E18-49)', async () => {
+    ui = await render(h(ResourceList, { type: 'gizmo', title: 'Gizmos', columns: ['ref', 'name', 'status'], filters: ['status'] }),
+      { meta, route: '/gizmos?f.funder_interest=true&f.funder_interest_pct.gt=5&f.status=in_repair&f.tags=depot', handlers: { 'GET /api/gizmos': list } });
+    await waitFor(() => expect(textOf(ui!.container)).toContain('of 20 gizmos'));
+    for (const call of listCalls()) {
+      expect(call.query.get('f.funder_interest')).toBeNull();
+      expect(call.query.get('f.funder_interest_pct.gt')).toBeNull();
+    }
+    expect(lastList().query.get('f.status')).toBe('in_repair');
+    expect(lastList().query.get('f.tags')).toBe('depot');
+    const pills = textOf(ui.container.querySelector('[aria-label="Active filters"]'));
+    expect(pills).toContain('Status: In repair');
+    expect(pills).not.toMatch(/funder/i);
+    await waitFor(() => expect(ui!.location()).not.toContain('funder'));
+    expect(ui.location()).toContain('f.status=in_repair');
+  });
 });

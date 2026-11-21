@@ -15,11 +15,12 @@ import { DOCS as reports } from './reports.ts';
 import { DOCS as risks } from './risks.ts';
 import { DOCS as secincidents } from './secincidents.ts';
 import { DOCS as tickets } from './tickets.ts';
+import { DOCS as tokens } from './tokens.ts';
 import { DOCS as training } from './training.ts';
 import { DOCS as vendors } from './vendors.ts';
 import { DOCS as vulnerabilities } from './vulnerabilities.ts';
 
 export const MODULE_DOCS: Record<string, RouteDoc[]> = {
   attachments, changes, frameworks, inventory, notifications, policies, projects, reports, risks,
-  secincidents, tickets, training, vendors, vulnerabilities,
+  secincidents, tickets, tokens, training, vendors, vulnerabilities,
 };

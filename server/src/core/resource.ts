@@ -4,6 +4,7 @@ import { inTrial, type Db } from './db.ts';
 import { fail, UUID_RE } from './errors.ts';
 import type { CreateOptions, FieldDef, ResourceDef, ResourceRegistry, Row, SessionUser } from './module.ts';
 import { CUSTOM_PREFIX, customFieldDef, customName, type CustomField, type CustomFields } from './customfields.ts';
+import { makeLifecycles, type Lifecycles } from './lifecycle.ts';
 import { BODY_SEPARATOR, ensureCommentSearch, ensureSearchIndex, maySchemaChange, parseSearch, requestSchemaChange, schemaChangeDone, substringColumns } from './search.ts';
 import { can, type makeAudit, type makeLookups } from './services.ts';
 // Spreadsheet and PDF exports, record fact sheets and the generic import (core/export, core/import).
@@ -63,6 +64,13 @@ export const EVIDENCE_TYPES: ReadonlySet<string> = new Set(['evidence_item', 'fr
 /** Tags as stored: trimmed, lower case, single spaces, no commas, at most 40 characters. */
 export const normalizeTag = (raw: unknown) => String(raw ?? '').toLowerCase().replace(/[\s,]+/g, ' ').trim().slice(0, 40);
 
+declare module 'fastify' {
+  interface FastifyInstance {
+    /** Allowed status changes and required fields per record type (E14-31, core/lifecycle.ts). */
+    lifecycles: Lifecycles;
+  }
+}
+
 export interface RecordLabel { label: string; ref: string | null; hidden: boolean }
 
 export function makeResources({ app, db, audit, lookups, custom }: Deps) {
@@ -70,6 +78,9 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
   /** Record types with a working full-text index (the rest are searched by substring). */
   const ftsTypes = new Set<string>();
   const listeners: ChangeListener[] = [];
+  // Allowed status changes and required fields per record type (E14-31, core/lifecycle.ts).
+  const lifecycles = makeLifecycles({ db, lookups, customDefs: (type) => custom.defs(type) });
+  if (!app.hasDecorator('lifecycles')) app.decorate('lifecycles', lifecycles);
 
   /** Tells listeners (webhooks, watchers) about a change. A failing listener never fails the change. */
   async function emit(change: RecordChange): Promise<void> {
@@ -346,9 +357,20 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
     );
   }
 
+  /**
+   * The type's lifecycle rules (E14-31): a person's save that makes a move the rules do not allow,
+   * or leaves a field the new status needs empty, is refused like any other invalid field. It runs
+   * before the module's own hooks, which still apply their own rules afterwards.
+   */
+  async function checkLifecycle(def: ResourceDef, existing: Row | null, data: Row, req: FastifyRequest | null): Promise<void> {
+    const problems = await lifecycles.check(def, existing, data, req);
+    if (Object.keys(problems).length) fail(400, 'validation', 'Check the highlighted fields.', problems);
+  }
+
   async function create(type: string, input: Row, req: FastifyRequest | null = null, opts: CreateOptions = {}): Promise<Row> {
     const def = need(type);
     let data = await validate(def, input, 'create', !req, opts.skipCustomRequired === true);
+    await checkLifecycle(def, null, data, req);
     // Hooks see built-in fields only; custom values are stored beside them afterwards.
     const customValues = takeCustom(data);
     if (def.hooks?.beforeCreate) data = await def.hooks.beforeCreate(req, data);
@@ -376,6 +398,7 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
     const def = need(type);
     const existing = (await find(type, id, req?.user)) ?? fail(404, 'not_found', `${def.label} not found.`);
     let patch = await validate(def, input, 'update', !req);
+    await checkLifecycle(def, existing, patch, req);
     const customValues = takeCustom(patch);
     if (def.hooks?.beforeUpdate) patch = await def.hooks.beforeUpdate(req, existing, patch);
     if (def.restrictedFrom && (def.restrictedFrom.typeField in patch || def.restrictedFrom.idField in patch)) {
@@ -819,5 +842,7 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
     /** Subscribes to record changes (webhooks, watchers). */
     onChange: (fn: ChangeListener) => { listeners.push(fn); },
     ensureCustomColumn, refreshSearch, purge,
+    /** Allowed status changes and required fields per record type (core/lifecycle.ts). */
+    lifecycles,
   };
 }

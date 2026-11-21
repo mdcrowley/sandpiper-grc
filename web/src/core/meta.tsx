@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, type ReactNode } from 'react';
 import { useFetch } from './hooks';
+import type { LifecycleMeta } from './lifecycle';
 import { ErrorState, Loading, StatusChip } from './ui';
 
 export type FieldType =
@@ -52,6 +53,8 @@ export interface ResourceMeta {
   /** Files on this type are evidence (collection and expiry dates); the record page's file tab says so. */
   evidence?: boolean;
   fields: Record<string, FieldMeta>;
+  /** Allowed status changes and fields required per status (E14-31); absent for a type without a status. */
+  lifecycle?: LifecycleMeta;
 }
 
 export const COLOR_NAMES = ['gray', 'blue', 'teal', 'green', 'amber', 'orange', 'red', 'purple'] as const;

@@ -6,6 +6,7 @@ import type { FieldDef, ResourceDef, Row } from './module.ts';
 import type { makeResources } from './resource.ts';
 import { requirePerm, type makeAudit, type makeLookups } from './services.ts';
 import { dayInZone } from './timezone.ts';
+import type { RetentionChangeInput } from './webhooks.ts';
 
 /**
  * Retention (E14-11).
@@ -227,6 +228,14 @@ export function registerRetention({ app, db, audit, lookups, res, requireRecentA
       ? `The retention policy for ${def.plural.toLowerCase()} only allows keeping them longer. An administrator can change it under Retention periods.`
       : `The retention policy for ${def.plural.toLowerCase()} allows anonymizing, not removing for good. An administrator can change it under Retention periods.`);
   };
+  /** The webhook events of a decision (E14-33). Never fails the decision, which is already made. */
+  const raiseWebhooks = async (input: RetentionChangeInput) => {
+    try {
+      await app.webhookRetentionChange?.(input);
+    } catch (err) {
+      console.error('[retention] webhook events not queued:', err);
+    }
+  };
   const filesTable = async () => Boolean((await db.one<{ t: string | null }>(`select to_regclass('public.attachments')::text as t`))?.t);
 
   // Keep the record for longer: it leaves the list and is flagged again after the date given.
@@ -273,6 +282,8 @@ export function registerRetention({ app, db, audit, lookups, res, requireRecentA
       action: 'retention.delete', recordType: review.record_type, recordId: review.record_id,
       summary: `${def.label} ${label} removed for good at the end of its retention period: ${reason}`,
     });
+    // Systems that mirror records through webhooks drop it too (E14-33); only its id and reference are sent.
+    await raiseWebhooks({ action: 'deleted', def, row: existing!, req });
     return row;
   });
 
@@ -283,7 +294,7 @@ export function registerRetention({ app, db, audit, lookups, res, requireRecentA
    * and figures stay: the row, its status, dates, numbers, tags, links and the count of its comments
    * and files. The search index follows through its triggers. The audit log is not changed.
    */
-  async function anonymize(def: ResourceDef, id: string): Promise<{ fields: string[]; comments: number; files: number; kept: string[] }> {
+  async function anonymize(def: ResourceDef, id: string): Promise<{ fields: string[]; keys: string[]; comments: number; files: number; kept: string[] }> {
     const row = (await db.one<Row>(`select * from ${def.table} where id = $1`, [id])) ?? fail(404, 'not_found', 'Record not found.');
     const nullable = new Map((await db.query<{ column_name: string; is_nullable: string }>(
       `select column_name, is_nullable from information_schema.columns where table_schema = current_schema() and table_name = $1`, [def.table],
@@ -291,6 +302,7 @@ export function registerRetention({ app, db, audit, lookups, res, requireRecentA
     const sets: string[] = [];
     const params: unknown[] = [id];
     const changed: string[] = [];
+    const keys: string[] = []; // the same fields by key, for the webhook events (E14-33)
     const kept: string[] = [];
     for (const name of personalFields(def)) {
       const f = def.fields[name];
@@ -303,6 +315,7 @@ export function registerRetention({ app, db, audit, lookups, res, requireRecentA
       params.push(f.type === 'json' && value !== null ? JSON.stringify(value) : value);
       sets.push(`${name} = $${params.length}`);
       changed.push(f.label);
+      keys.push(name);
     }
     // Custom fields, including ones no longer in use: long text and people.
     if (nullable.has('custom') && row.custom && typeof row.custom === 'object') {
@@ -314,6 +327,7 @@ export function registerRetention({ app, db, audit, lookups, res, requireRecentA
         else if (cf.type === 'user') custom[cf.key] = null;
         else continue;
         changed.push(cf.label);
+        keys.push(`cf_${cf.key}`);
       }
       params.push(JSON.stringify(custom));
       sets.push(`custom = $${params.length}::jsonb`);
@@ -355,7 +369,7 @@ export function registerRetention({ app, db, audit, lookups, res, requireRecentA
           [def.type, id, `${def.label} (details removed at the end of its retention period)`]);
       }
     });
-    return { fields: changed, comments, files: files.length, kept };
+    return { fields: changed, keys, comments, files: files.length, kept };
   }
 
   // Anonymize the record: keep its shape and figures, remove the personal details. Cannot be undone.
@@ -383,6 +397,9 @@ export function registerRetention({ app, db, audit, lookups, res, requireRecentA
       summary: `${def.label} ${name} anonymized at the end of its retention period (${parts.join(', ')})`
         + `${done.kept.length ? `; kept because required: ${done.kept.join(', ')}` : ''}: ${reason}`,
     });
+    // Systems that mirror records through webhooks replace what they were sent (E14-33).
+    const now = await db.one<Row>(`select * from ${def.table} where id = $1`, [review.record_id]);
+    if (now) await raiseWebhooks({ action: 'anonymized', def, row: now, fields: done.keys, comments: done.comments, files: done.files, req });
     return { ...row, anonymized: done };
   });
 

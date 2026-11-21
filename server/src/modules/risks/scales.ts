@@ -200,6 +200,14 @@ export function makeScales(ctx: ModuleContext) {
     return { rating: rating.key, score: level * 100 + within, summary_level: rating.summary_level };
   }
 
+  /** Whether a rating is at or above the scale's acceptance approval threshold (null: not rated). */
+  function needsExecutive(scale: Scale, ratingKey: string | null): boolean | null {
+    if (!ratingKey) return null;
+    const rating = scale.ratings.find((r) => r.key === ratingKey);
+    const threshold = scale.ratings.find((r) => r.key === scale.acceptance_threshold);
+    return Boolean(rating && threshold && rating.sort >= threshold.sort);
+  }
+
   /** Computed columns for a risk row (or merged row + patch). */
   function scoreRisk(scale: Scale, levels: string[], risk: Row): Row {
     const inherent = score(scale, levels, risk.inherent_likelihood, risk.inherent_impact);
@@ -208,10 +216,14 @@ export function makeScales(ctx: ModuleContext) {
       inherent_rating: inherent.rating, inherent_score: inherent.score,
       residual_rating: residual.rating, residual_score: residual.score,
       summary_level: residual.summary_level ?? inherent.summary_level,
+      acceptance_executive: needsExecutive(scale, residual.rating ?? inherent.rating),
     };
   }
 
-  /** Re-rates every risk on a scale after the scale changes. Returns how many ratings changed. */
+  /**
+   * Re-rates every risk on a scale after the scale (or its approval threshold) changes, and keeps
+   * whether accepting each one needs an executive (E08-23). Returns how many ratings changed.
+   */
   async function rescore(scaleKey: string): Promise<number> {
     const scale = await get(scaleKey);
     if (!scale) return 0;
@@ -221,10 +233,10 @@ export function makeScales(ctx: ModuleContext) {
       const c = scoreRisk(scale, levels, r);
       if (Object.keys(c).every((k) => (r[k] ?? null) === c[k])) continue;
       await ctx.db.query(
-        `update risks set inherent_rating = $2, inherent_score = $3, residual_rating = $4, residual_score = $5, summary_level = $6 where id = $1`,
-        [r.id, c.inherent_rating, c.inherent_score, c.residual_rating, c.residual_score, c.summary_level],
+        `update risks set inherent_rating = $2, inherent_score = $3, residual_rating = $4, residual_score = $5, summary_level = $6, acceptance_executive = $7 where id = $1`,
+        [r.id, c.inherent_rating, c.inherent_score, c.residual_rating, c.residual_score, c.summary_level, c.acceptance_executive],
       );
-      changed += 1;
+      if (['inherent_rating', 'residual_rating'].some((k) => (r[k] ?? null) !== c[k])) changed += 1;
     }
     return changed;
   }

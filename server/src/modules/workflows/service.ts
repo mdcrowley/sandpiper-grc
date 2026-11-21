@@ -1,15 +1,20 @@
 // The approval workflow service (E14-06): starts workflows on records, routes each step to its
-// approvers, records decisions, escalates overdue steps and applies the outcome. The rules
+// approvers (and their stand-ins, E14-32), records decisions, escalates overdue steps and applies
+// the outcome. Approval kinds (core/approval-kinds.ts) let a module hand its own approvals to it:
+// the module starts the workflow and is called back on every decision and at the end. The rules
 // themselves are in engine.ts; this file stores and tells people.
 import type { FastifyRequest } from 'fastify';
+import {
+  approvalKind, approvalKinds, type ApprovalEngine, type ApprovalInstance, type ApprovalKind, type InstallHelpers,
+} from '../../core/approval-kinds.ts';
 import { loadUser } from '../../core/auth.ts';
 import { fail } from '../../core/errors.ts';
 import type { ModuleContext, ResourceDef, Row, SessionUser } from '../../core/module.ts';
 import { dayInZone } from '../../core/timezone.ts';
 import { emitWebhookEvent, WEBHOOK_EVENTS } from '../../core/webhooks.ts';
 import {
-  allHold, eligible, nextStep, outcomePatch, refusal, required, tally,
-  type ApproverSpec, type StepDef, type WorkflowDef,
+  allHold, eligible, nextStep, outcomePatch, required, slotFor, tally,
+  type ApproverSpec, type Standins, type StepDef, type WorkflowDef,
 } from './engine.ts';
 
 const HOUR = 3_600_000;
@@ -18,8 +23,36 @@ const TRIGGER_CACHE_MS = 5_000;
 
 export type Service = ReturnType<typeof makeService>;
 
-const asDef = (row: Row): WorkflowDef => (typeof row === 'string' ? JSON.parse(row) : row) as WorkflowDef;
+const asJson = <T>(v: unknown): T => (typeof v === 'string' ? JSON.parse(v) : v) as T;
+const asDef = (row: unknown): WorkflowDef => asJson<WorkflowDef>(row);
 const ids = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : typeof v === 'string' ? JSON.parse(v) : []);
+const iso = (v: unknown): string | null => (v === null || v === undefined ? null : v instanceof Date ? v.toISOString() : String(v));
+
+/** The columns of a definition copied into a running workflow (later edits do not change it). */
+export function snapshotOf(w: Row): WorkflowDef {
+  return {
+    record_type: w.record_type, kind: w.kind ?? null, name: w.name, description: w.description, active: w.active, trigger: w.trigger,
+    trigger_field: w.trigger_field, trigger_value: w.trigger_value, conditions: asJson(w.conditions), steps: asJson(w.steps),
+    on_approve: asJson(w.on_approve), on_reject: asJson(w.on_reject),
+  };
+}
+
+/** A running workflow as a module sees it. */
+export function instanceView(r: Row): ApprovalInstance {
+  return {
+    id: r.id, kind: r.kind, definitionId: r.definition_id, name: r.name, recordType: r.record_type, recordId: r.record_id,
+    status: r.status, requestedBy: r.requested_by ?? null, note: r.note ?? null, data: asJson<Row>(r.data ?? {}) ?? {},
+    startedAt: iso(r.started_at)!, finishedAt: iso(r.finished_at),
+  };
+}
+
+/** A step's people: the approvers it needs approvals from, and the stand-ins added beside them. */
+export function stepPeople(s: Row): { approvers: string[]; principals: string[]; standins: Standins } {
+  const approvers = ids(s.approvers);
+  const standins = asJson<Standins>(s.standins ?? {}) ?? {};
+  const principals = s.principals ? ids(s.principals) : approvers.filter((a) => !(a in standins));
+  return { approvers, principals, standins };
+}
 
 export function makeService(ctx: ModuleContext) {
   const { db, app } = ctx;
@@ -29,6 +62,7 @@ export function makeService(ctx: ModuleContext) {
 
   const typeDef = (type: string): ResourceDef | undefined => ctx.resources.get(type);
   const recordKey = (type: string, id: string) => `${type}:${id}`;
+  const kindOf = (row: Row | null | undefined): ApprovalKind | undefined => approvalKind(app, row?.kind);
 
   // ---------- people ----------
 
@@ -40,6 +74,11 @@ export function makeService(ctx: ModuleContext) {
       if (u) out.set(id, u);
     }
     return out;
+  }
+
+  async function nameOf(id: string | null | undefined): Promise<string | null> {
+    if (!id) return null;
+    return (await db.one<{ display_name: string }>('select display_name from users where id = $1', [id]))?.display_name ?? null;
   }
 
   /** Whether a person may see the record: view permission on its type and the restricted-record rule. */
@@ -54,6 +93,17 @@ export function makeService(ctx: ModuleContext) {
       `select u.id from users u join user_roles ur on ur.user_id = u.id join roles r on r.id = ur.role_id and r.enabled
        where r.key = $1 and u.status = 'active' and u.deleted_at is null order by u.display_name`, [role]);
     return rows.map((r) => r.id);
+  }
+
+  /** Active people who hold a permission (switched-off areas applied), by name. */
+  async function usersWith(permission: string): Promise<string[]> {
+    const rows = await db.query<Row>(
+      `select u.id, coalesce(array_agg(distinct r.key) filter (where r.enabled), '{}') as roles,
+          coalesce(array_agg(distinct rp.permission) filter (where r.enabled and rp.permission is not null), '{}') as permissions
+       from users u left join user_roles ur on ur.user_id = u.id left join roles r on r.id = ur.role_id
+       left join role_permissions rp on rp.role_id = r.id
+       where u.status = 'active' and u.deleted_at is null group by u.id, u.display_name order by u.display_name`);
+    return rows.filter((r) => ctx.can({ id: r.id, roles: r.roles, permissions: r.permissions } as SessionUser, permission)).map((r) => r.id as string);
   }
 
   async function departmentHead(departmentId: string | null | undefined): Promise<string | null> {
@@ -71,6 +121,12 @@ export function makeService(ctx: ModuleContext) {
     switch (spec.kind) {
       case 'users': return spec.users;
       case 'role': return roleMembers(spec.role);
+      case 'people': {
+        const out = [...(spec.users ?? [])];
+        for (const r of spec.roles ?? []) out.push(...(await roleMembers(r)));
+        return out;
+      }
+      case 'permission': return usersWith(spec.permission);
       case 'field': return def.fields[spec.field]?.type === 'user' && record[spec.field] ? [String(record[spec.field])] : [];
       case 'department_head': {
         if (spec.from === 'requester') return [await departmentHead(await departmentOfUser(requester))].filter(Boolean) as string[];
@@ -85,19 +141,105 @@ export function makeService(ctx: ModuleContext) {
     }
   }
 
-  /** The people who may decide: named, active, not the requester, and able to see the record. */
-  async function approversFor(list: string[], def: ResourceDef, recordId: string, requester: string | null): Promise<string[]> {
+  /**
+   * The people who may decide: named, active, not the requester, able to see the record, and
+   * holding the approval kind's permission when it names one.
+   */
+  async function approversFor(list: string[], def: ResourceDef, recordId: string, requester: string | null, kind?: ApprovalKind): Promise<string[]> {
     const loaded = await people(list.filter((id) => id !== requester));
     const ok = new Set<string>();
-    for (const [id, u] of loaded) if (await maySee(u, def, recordId)) ok.add(id);
+    for (const [id, u] of loaded) {
+      if (kind?.approverPermission && !ctx.can(u, kind.approverPermission)) continue;
+      if (await maySee(u, def, recordId)) ok.add(id);
+    }
     return eligible(list, requester, (id) => ok.has(id));
+  }
+
+  // ---------- stand-ins (E14-32) ----------
+
+  /** Stand-in periods running today for these approvers: [{ user_id, standin_id }]. */
+  async function activeStandins(principals: string[]): Promise<{ user_id: string; standin_id: string }[]> {
+    if (!principals.length) return [];
+    return db.query<{ user_id: string; standin_id: string }>(
+      `select user_id, standin_id from workflow_standins
+       where deleted_at is null and user_id = any($1::uuid[]) and starts_on <= $2::date and ends_on >= $2::date
+       order by created_at`, [principals, dayInZone(0)]);
+  }
+
+  /**
+   * Adds the stand-ins of a step's approvers (also a stand-in may decide; no chains: a stand-in's
+   * own stand-in is not added). A stand-in is left out when they asked for the approval, cannot
+   * see the record or lack the kind's permission. Answers the new stand-ins only.
+   */
+  async function standinsFor(principals: string[], current: Standins, def: ResourceDef, recordId: string, requester: string | null, kind?: ApprovalKind): Promise<Standins> {
+    const added: Standins = {};
+    const rows = await activeStandins(principals);
+    const fit = new Set(await approversFor([...new Set(rows.map((r) => r.standin_id))], def, recordId, requester, kind));
+    for (const r of rows) {
+      if (principals.includes(r.standin_id) || !fit.has(r.standin_id)) continue;
+      if ((current[r.standin_id] ?? []).includes(r.user_id)) continue;
+      (added[r.standin_id] ??= []).push(r.user_id);
+    }
+    return added;
+  }
+
+  const merge = (a: Standins, b: Standins): Standins => {
+    const out: Standins = { ...a };
+    for (const [k, v] of Object.entries(b)) out[k] = [...new Set([...(out[k] ?? []), ...v])];
+    return out;
+  };
+
+  /** Whether `standin` stands in for `principal` today. */
+  async function standsInToday(standin: string, principal: string): Promise<boolean> {
+    return Boolean(await db.one(
+      `select 1 from workflow_standins where deleted_at is null and user_id = $1 and standin_id = $2 and starts_on <= $3::date and ends_on >= $3::date`,
+      [principal, standin, dayInZone(0)]));
+  }
+
+  /**
+   * Gives running steps the stand-ins whose period has started (a period saved after the step began,
+   * or starting today). Runs from the sweep and when a stand-in is saved; tells each new stand-in.
+   */
+  async function applyStandins(onlyFor?: string): Promise<number> {
+    const steps = await db.query<Row>(
+      `select s.*, i.record_type, i.record_id, i.requested_by, i.kind, i.name as workflow_name
+       from workflow_steps s join workflow_instances i on i.id = s.instance_id and i.status = 'running'
+       where s.status = 'pending' ${onlyFor ? 'and s.approvers @> $1::jsonb' : ''} limit 500`, onlyFor ? [JSON.stringify([onlyFor])] : []);
+    let added = 0;
+    for (const s of steps) {
+      const def = typeDef(s.record_type);
+      if (!def) continue;
+      const { approvers, principals, standins } = stepPeople(s);
+      const extra = await standinsFor(principals, standins, def, s.record_id, s.requested_by, kindOf(s));
+      if (!Object.keys(extra).length) continue;
+      const all = merge(standins, extra);
+      const newcomers = Object.keys(extra).filter((u) => !approvers.includes(u));
+      await db.query('update workflow_steps set approvers = $2::jsonb, standins = $3::jsonb, principals = $4::jsonb where id = $1',
+        [s.id, JSON.stringify([...new Set([...approvers, ...Object.keys(extra)])]), JSON.stringify(all), JSON.stringify(principals)]);
+      added += newcomers.length;
+      await tellStandins(extra, def, s.record_id, `${s.workflow_name}: ${s.name}`);
+    }
+    return added;
+  }
+
+  async function tellStandins(added: Standins, def: ResourceDef, recordId: string, body: string) {
+    const name = await recordName(def.type, recordId);
+    for (const [standin, forWhom] of Object.entries(added)) {
+      const whom = (await Promise.all(forWhom.map(nameOf))).filter(Boolean).join(', ');
+      await tell({
+        userIds: [standin], recordType: def.type, recordId,
+        title: `Approval needed (standing in for ${whom || 'an approver'}): ${def.label.toLowerCase()} ${name}`, body,
+      });
+    }
   }
 
   // ---------- telling people ----------
 
   async function tell(input: { userIds: string[]; title: string; body?: string; recordType: string; recordId: string; route?: string }) {
     if (!input.userIds.length || !app.hasDecorator('notify')) return;
-    await app.notify({ kind: 'approval', ...input });
+    // A kind may send people to its own screen (the change's approvals tab) instead of the record page.
+    const route = input.route ?? approvalKinds(app).find((k) => k.recordType === input.recordType && k.route)?.route?.(input.recordId);
+    await app.notify({ kind: 'approval', ...input, ...(route ? { route } : {}) });
   }
 
   async function webhook(event: string, data: Row, record: { type: string; id: string }, req: FastifyRequest | null) {
@@ -113,7 +255,7 @@ export function makeService(ctx: ModuleContext) {
     if (!triggerCache || Date.now() - triggerCache.at > TRIGGER_CACHE_MS) {
       triggerCache = {
         at: Date.now(),
-        rows: await db.query<Row>(`select * from workflow_definitions where active and deleted_at is null and trigger <> 'manual' order by created_at`),
+        rows: await db.query<Row>(`select * from workflow_definitions where active and deleted_at is null and trigger in ('create', 'status') order by created_at`),
       };
     }
     return triggerCache.rows.filter((r) => r.record_type === type);
@@ -145,25 +287,20 @@ export function makeService(ctx: ModuleContext) {
 
   /**
    * Starts a definition on a record. `quiet` (automatic starts) skips a definition that is already
-   * running on the record instead of refusing.
+   * running on the record instead of refusing. `data` is what the module keeps with it.
    */
-  async function start(w: Row, def: ResourceDef, record: Row, requester: string | null, req: FastifyRequest | null, note: string | null, quiet = false): Promise<Row | null> {
+  async function start(w: Row, def: ResourceDef, record: Row, requester: string | null, req: FastifyRequest | null, note: string | null, quiet = false, data: Row = {}): Promise<Row | null> {
     const running = await db.one('select id from workflow_instances where definition_id = $1 and record_id = $2 and status = $3', [w.id, record.id, 'running']);
     if (running) {
       if (quiet) return null;
       fail(409, 'already_running', 'This workflow is already running on this record.');
     }
-    const snapshot: WorkflowDef = {
-      record_type: w.record_type, name: w.name, description: w.description, active: w.active, trigger: w.trigger,
-      trigger_field: w.trigger_field, trigger_value: w.trigger_value, conditions: w.conditions, steps: w.steps,
-      on_approve: w.on_approve, on_reject: w.on_reject,
-    };
     let instance: Row | undefined;
     try {
       instance = await db.one<Row>(
-        `insert into workflow_instances (definition_id, definition, name, record_type, record_id, requested_by, note)
-         values ($1, $2::jsonb, $3, $4, $5, $6, $7) returning *`,
-        [w.id, JSON.stringify(snapshot), w.name, def.type, record.id, requester, note]);
+        `insert into workflow_instances (definition_id, definition, name, record_type, record_id, requested_by, note, kind, data)
+         values ($1, $2::jsonb, $3, $4, $5, $6, $7, $8, $9::jsonb) returning *`,
+        [w.id, JSON.stringify(snapshotOf(w)), w.name, def.type, record.id, requester, note, w.kind ?? null, JSON.stringify(data ?? {})]);
     } catch (err) {
       // Two starts at once: the unique index keeps one running.
       if (quiet) return null;
@@ -185,7 +322,7 @@ export function makeService(ctx: ModuleContext) {
   }
 
   /** Moves a workflow on from step `from`: skips steps whose conditions do not hold and starts the next. */
-  async function advance(instance: Row, from: number, lastApprover: string | null, req: FastifyRequest | null): Promise<void> {
+  async function advance(instance: Row, from: number, last: { id: string; onBehalfOf: string | null; comment: string | null } | null, req: FastifyRequest | null): Promise<void> {
     const wf = asDef(instance.definition);
     const def = typeDef(instance.record_type);
     const record = def ? await ctx.resources.find(def.type, instance.record_id) : undefined;
@@ -201,7 +338,7 @@ export function makeService(ctx: ModuleContext) {
         [instance.id, i, wf.steps[i].key, wf.steps[i].name, 'Its conditions did not hold for this record.']);
     }
     if (next === null) {
-      await finish(instance, 'approved', lastApprover, req, null);
+      await finish(instance, 'approved', last, req, null);
       return;
     }
     await activate(instance, wf.steps[next], next, def, record);
@@ -209,28 +346,29 @@ export function makeService(ctx: ModuleContext) {
 
   async function activate(instance: Row, step: StepDef, position: number, def: ResourceDef, record: Row): Promise<void> {
     const requester = instance.requested_by ?? null;
-    let approvers = await approversFor(await candidates(step.approvers, record, def, requester), def, record.id, requester);
+    const kind = kindOf(instance);
+    let principals = await approversFor(await candidates(step.approvers, record, def, requester), def, record.id, requester, kind);
     let note: string | null = null;
     let escalatedAt: Date | null = null;
-    if (!approvers.length && step.escalate_to) {
+    if (!principals.length && step.escalate_to) {
       // Nobody can approve the step itself: it goes straight to the people it escalates to.
-      approvers = await approversFor(await escalationPeople(step), def, record.id, requester);
-      if (approvers.length) { escalatedAt = new Date(); note = 'Nobody named by the step could approve it, so it went to the people it escalates to.'; }
+      principals = await approversFor(await escalationPeople(step), def, record.id, requester, kind);
+      if (principals.length) { escalatedAt = new Date(); note = 'Nobody named by the step could approve it, so it went to the people it escalates to.'; }
     }
-    if (!approvers.length) note = 'Nobody named by this step can approve it (they may be inactive, the requester, or unable to see the record). An administrator can cancel the workflow.';
-    const need = required(step.quorum, approvers.length);
+    if (!principals.length) note = 'Nobody named by this step can approve it (they may be inactive, the requester, or unable to see the record). An administrator can reassign it or cancel the workflow.';
+    const need = required(step.quorum, principals.length);
+    const standins = await standinsFor(principals, {}, def, record.id, requester, kind);
+    const approvers = [...new Set([...principals, ...Object.keys(standins)])];
     const due = step.due_hours ? new Date(Date.now() + step.due_hours * HOUR) : null;
     const row = (await db.one<Row>(
-      `insert into workflow_steps (instance_id, position, step_key, name, status, approvers, required, due_at, escalated_at, note)
-       values ($1, $2, $3, $4, 'pending', $5::jsonb, $6, $7, $8, $9) returning *`,
-      [instance.id, position, step.key, step.name, JSON.stringify(approvers), need, due, escalatedAt, note]))!;
+      `insert into workflow_steps (instance_id, position, step_key, name, status, approvers, principals, standins, required, due_at, escalated_at, note)
+       values ($1, $2, $3, $4, 'pending', $5::jsonb, $6::jsonb, $7::jsonb, $8, $9, $10, $11) returning *`,
+      [instance.id, position, step.key, step.name, JSON.stringify(approvers), JSON.stringify(principals), JSON.stringify(standins), need, due, escalatedAt, note]))!;
     await db.query('update workflow_instances set current_step = $2 where id = $1', [instance.id, position]);
     const name = await recordName(def.type, record.id);
-    await tell({
-      userIds: approvers, recordType: def.type, recordId: record.id,
-      title: `Approval needed: ${def.label.toLowerCase()} ${name}`,
-      body: `${instance.name}: ${step.name}${need > 1 ? ` (${need} approvals needed)` : ''}`,
-    });
+    const body = `${instance.name}: ${step.name}${need > 1 ? ` (${need} approvals needed)` : ''}`;
+    await tell({ userIds: principals, recordType: def.type, recordId: record.id, title: `Approval needed: ${def.label.toLowerCase()} ${name}`, body });
+    await tellStandins(standins, def, record.id, body);
     if (due && app.hasDecorator('jobs') && !escalatedAt) {
       await app.jobs.enqueue('workflows.escalate', { stepId: row.id }, { key: `workflows.escalate:${row.id}`, runAt: due });
     }
@@ -242,8 +380,11 @@ export function makeService(ctx: ModuleContext) {
     return [...e.users, ...(e.role ? await roleMembers(e.role) : [])];
   }
 
-  /** Ends a workflow: records the outcome and sets the fields the definition names. */
-  async function finish(instance: Row, status: 'approved' | 'rejected' | 'canceled', approver: string | null, req: FastifyRequest | null, reason: string | null): Promise<void> {
+  /**
+   * Ends a workflow: records the outcome, calls the module back (approval kinds) and sets the fields
+   * the definition names. `last` is the decision that ended it.
+   */
+  async function finish(instance: Row, status: 'approved' | 'rejected' | 'canceled', last: { id: string; onBehalfOf: string | null; comment: string | null } | null, req: FastifyRequest | null, reason: string | null, byModule = false): Promise<void> {
     const done = await db.one<Row>(
       `update workflow_instances set status = $2, finished_at = now(), current_step = null, outcome_note = $3
        where id = $1 and status = 'running' returning *`, [instance.id, status, reason]);
@@ -253,42 +394,62 @@ export function makeService(ctx: ModuleContext) {
     const def = typeDef(instance.record_type);
     const label = def ? def.label.toLowerCase() : 'record';
     const name = await recordName(instance.record_type, instance.record_id);
-    let error: string | null = null;
-    const sets = status === 'approved' ? wf.on_approve : status === 'rejected' ? wf.on_reject : [];
-    if (def && sets?.length) {
-      const patch = outcomePatch(sets, def.fields, { today: dayInZone(0), approver, requester: instance.requested_by ?? null });
-      const key = recordKey(def.type, instance.record_id);
-      applying.add(key);
-      try {
-        await ctx.resources.update(def.type, instance.record_id, patch, null);
-      } catch (err) {
-        error = (err as Error).message || 'The record could not be changed.';
-        await db.query('update workflow_instances set outcome_error = $2 where id = $1', [instance.id, error.slice(0, 500)]);
-      } finally {
-        applying.delete(key);
+    const key = recordKey(instance.record_type, instance.record_id);
+    const errors: string[] = [];
+    const approver = last?.id ?? null;
+    const kind = kindOf(done);
+    applying.add(key);
+    try {
+      if (kind) {
+        try {
+          await kind.onFinish({
+            instance: instanceView(done), outcome: status, approverId: approver, approverName: await nameOf(approver),
+            onBehalfOf: last?.onBehalfOf ?? null, onBehalfOfName: await nameOf(last?.onBehalfOf), comment: status === 'approved' ? last?.comment ?? null : reason, byModule, req,
+          });
+        } catch (err) {
+          errors.push((err as Error).message || `The ${kind.label.toLowerCase()} could not be recorded.`);
+        }
       }
+      const sets = status === 'approved' ? wf.on_approve : status === 'rejected' ? wf.on_reject : [];
+      if (def && sets?.length) {
+        const patch = outcomePatch(sets, def.fields, { today: dayInZone(0), approver, requester: instance.requested_by ?? null });
+        try {
+          await ctx.resources.update(def.type, instance.record_id, patch, null);
+        } catch (err) {
+          errors.push((err as Error).message || 'The record could not be changed.');
+        }
+      }
+    } finally {
+      applying.delete(key);
     }
+    const error = errors.length ? errors.join(' ').slice(0, 500) : null;
+    if (error) await db.query('update workflow_instances set outcome_error = $2 where id = $1', [instance.id, error]);
     const word = status === 'approved' ? 'approved' : status === 'rejected' ? 'rejected' : 'canceled';
     await ctx.audit(req, {
       action: `workflow.${status === 'canceled' ? 'cancel' : 'finish'}`, recordType: instance.record_type, recordId: instance.record_id,
       summary: `Approval workflow "${instance.name}" ${word} on ${label} ${name}${error ? ` (the outcome could not be applied: ${error})` : ''}`,
       after: { workflow: instance.name, instance: instance.id, outcome: status, reason, error },
     });
-    if (instance.requested_by && status !== 'canceled') {
+    // A kind that tells the requester itself (with its own wording) is left to do so.
+    if (instance.requested_by && status !== 'canceled' && kind?.tellsRequester !== false) {
       await tell({
         userIds: [instance.requested_by], recordType: instance.record_type, recordId: instance.record_id,
         title: `${status === 'approved' ? 'Approved' : 'Rejected'}: ${label} ${name}`,
         body: `${instance.name}${error ? '. The record could not be updated; an administrator should check it.' : ''}`,
       });
     }
-    await webhook('workflow.finished', { workflow: instance.name, outcome: status, reason, outcomeError: error }, { type: instance.record_type, id: instance.record_id }, req);
+    await webhook('workflow.finished', { workflow: instance.name, kind: instance.kind ?? null, outcome: status, reason, outcomeError: error }, { type: instance.record_type, id: instance.record_id }, req);
   }
 
   // ---------- decisions ----------
 
-  /** One person's decision on a step. Refuses the requester, anyone not named, and second decisions. */
-  async function decide(stepId: string, req: FastifyRequest, decision: string, comment: string | null): Promise<Row> {
-    const user = req.user!;
+  /**
+   * One person's decision on a step. Refuses the requester, anyone not named, and second decisions.
+   * A stand-in decides on behalf of the first approver they stand in for who has not decided.
+   */
+  async function decide(stepId: string, req: FastifyRequest | null, decision: string, comment: string | null, via?: string, actor?: SessionUser): Promise<Row> {
+    const user = actor ?? req?.user;
+    if (!user) fail(401, 'unauthorized', 'Sign in to decide.');
     if (decision !== 'approved' && decision !== 'rejected') fail(400, 'validation', 'Choose approve or reject.', { decision: 'Choose approve or reject.' });
     if (decision === 'rejected' && !comment) fail(400, 'validation', 'Say why you reject it.', { comment: 'Say why you reject it.' });
     const step = await db.one<Row>('select * from workflow_steps where id = $1', [stepId]);
@@ -296,36 +457,66 @@ export function makeService(ctx: ModuleContext) {
     const def = instance ? typeDef(instance.record_type) : undefined;
     if (!step || !instance || !def || !(await maySee(user, def, instance.record_id))) fail(404, 'not_found', 'Approval not found.');
 
+    // Stand-in periods running today, checked before the transaction (only the database is used inside it).
+    const { standins } = stepPeople(step!);
+    const covering = new Set<string>();
+    for (const p of standins[user.id] ?? []) if (await standsInToday(user.id, p)) covering.add(p);
+
     const outcome = await db.tx(async (tx) => {
       // The step row is locked so two last approvals at once cannot both move the workflow on.
       const locked = (await tx.one<Row>('select * from workflow_steps where id = $1 for update', [stepId]))!;
       const inst = (await tx.one<{ status: string; requested_by: string | null }>('select status, requested_by from workflow_instances where id = $1', [locked.instance_id]))!;
-      const mine = await tx.one('select 1 from workflow_decisions where step_id = $1 and user_id = $2', [stepId, user.id]);
-      const why = refusal({ status: locked.status, approvers: ids(locked.approvers) }, inst, user.id, Boolean(mine));
-      if (why) fail(inst.requested_by === user.id || !ids(locked.approvers).includes(user.id) ? 403 : 409, 'not_allowed', why);
+      if (inst.status !== 'running') fail(409, 'not_allowed', 'This workflow has already finished.');
+      if (locked.status !== 'pending') fail(409, 'not_allowed', 'This step is not waiting for decisions.');
+      if (inst.requested_by === user.id) fail(403, 'not_allowed', 'You asked for this approval, so someone else must decide it.');
+      const sp = stepPeople(locked);
+      if (!sp.approvers.includes(user.id)) fail(403, 'not_allowed', 'You are not one of the approvers of this step.');
+      const before = await tx.query<{ user_id: string; on_behalf_of: string | null }>('select user_id, on_behalf_of from workflow_decisions where step_id = $1', [stepId]);
+      const slot = slotFor(sp, user.id, before, (p) => covering.has(p));
+      if ('error' in slot) fail(409, 'not_allowed', slot.error);
+      const onBehalfOf = (slot as { onBehalfOf: string | null }).onBehalfOf;
       await tx.query(
-        'insert into workflow_decisions (step_id, instance_id, user_id, decision, comment, via) values ($1,$2,$3,$4,$5,$6)',
-        [stepId, locked.instance_id, user.id, decision, comment, req.apiToken ? 'api' : 'web']);
+        'insert into workflow_decisions (step_id, instance_id, user_id, decision, comment, via, on_behalf_of) values ($1,$2,$3,$4,$5,$6,$7)',
+        [stepId, locked.instance_id, user.id, decision, comment, via ?? (req?.apiToken ? 'api' : req ? 'web' : 'system'), onBehalfOf]);
       const all = await tx.query<{ decision: string }>('select decision from workflow_decisions where step_id = $1', [stepId]);
       const result = tally(all, locked.required);
       if (result !== 'pending') await tx.query('update workflow_steps set status = $2, finished_at = now() where id = $1', [stepId, result]);
-      return { result, approvals: all.filter((d) => d.decision === 'approved').length, required: locked.required as number, position: locked.position as number };
+      const total = (await tx.one<{ n: number }>(`select count(*)::int as n from workflow_decisions where instance_id = $1 and decision = 'approved'`, [locked.instance_id]))!.n;
+      return { result, approvals: all.filter((d) => d.decision === 'approved').length, total, required: locked.required as number, position: locked.position as number, onBehalfOf };
     });
 
     const name = await recordName(def!.type, instance!.record_id);
+    const behalfName = await nameOf(outcome.onBehalfOf);
+    const behalf = behalfName ? ` on behalf of ${behalfName}` : '';
     await ctx.audit(req, {
       action: 'workflow.decide', recordType: def!.type, recordId: instance!.record_id,
-      summary: `${decision === 'approved' ? 'Approved' : 'Rejected'} step "${step!.name}" of approval workflow "${instance!.name}" on ${def!.label.toLowerCase()} ${name}`,
-      after: { workflow: instance!.name, step: step!.name, decision, comment },
+      summary: `${decision === 'approved' ? 'Approved' : 'Rejected'} step "${step!.name}" of approval workflow "${instance!.name}" on ${def!.label.toLowerCase()} ${name}${behalf}`,
+      after: { workflow: instance!.name, step: step!.name, decision, comment, on_behalf_of: outcome.onBehalfOf, on_behalf_of_name: behalfName },
     });
     await webhook('workflow.decided', {
-      workflow: instance!.name, step: step!.name, decision, approver: user.displayName, comment,
+      workflow: instance!.name, kind: instance!.kind ?? null, step: step!.name, decision, approver: user.displayName, onBehalfOf: behalfName, comment,
       approvalsReceived: outcome.approvals, approvalsRequired: outcome.required, stepOutcome: outcome.result,
     }, { type: def!.type, id: instance!.record_id }, req);
 
-    if (outcome.result === 'rejected') await finish(instance!, 'rejected', user.id, req, comment);
-    else if (outcome.result === 'approved') await advance(instance!, outcome.position + 1, user.id, req);
-    return { stepOutcome: outcome.result, approvalsReceived: outcome.approvals, approvalsRequired: outcome.required, instance: await loadInstance(instance!.id) };
+    const kind = kindOf(instance);
+    if (kind?.onDecision) {
+      try {
+        await kind.onDecision({
+          instance: instanceView(instance!), decision: decision as 'approved' | 'rejected', userId: user.id, userName: user.displayName,
+          onBehalfOf: outcome.onBehalfOf, onBehalfOfName: behalfName, comment, approvals: outcome.total, stepOutcome: outcome.result, req,
+        });
+      } catch (err) {
+        console.error(`[workflows] ${kind.key} decision:`, err);
+      }
+    }
+
+    const last = { id: user.id, onBehalfOf: outcome.onBehalfOf, comment };
+    if (outcome.result === 'rejected') await finish(instance!, 'rejected', last, req, comment);
+    else if (outcome.result === 'approved') await advance(instance!, outcome.position + 1, last, req);
+    return {
+      stepOutcome: outcome.result, approvalsReceived: outcome.approvals, approvalsRequired: outcome.required,
+      onBehalfOf: outcome.onBehalfOf, onBehalfOfName: behalfName, instance: await loadInstance(instance!.id),
+    };
   }
 
   async function cancel(instanceId: string, req: FastifyRequest, reason: string | null): Promise<Row> {
@@ -340,15 +531,52 @@ export function makeService(ctx: ModuleContext) {
     return (await loadInstance(instanceId))!;
   }
 
+  /**
+   * An administrator hands a waiting step from one approver to another (E14-32): the new person
+   * must be able to decide (active, not the requester, able to see the record). Audited and told.
+   */
+  async function reassign(stepId: string, req: FastifyRequest, from: string, to: string): Promise<Row> {
+    const step = await db.one<Row>('select * from workflow_steps where id = $1', [stepId]);
+    const instance = step ? await loadInstance(step.instance_id) : undefined;
+    const def = instance ? typeDef(instance.record_type) : undefined;
+    if (!step || !instance || !def) fail(404, 'not_found', 'Approval not found.');
+    if (instance!.status !== 'running' || step!.status !== 'pending') fail(409, 'finished', 'This step is not waiting for decisions.');
+    const sp = stepPeople(step!);
+    if (!sp.principals.includes(from)) fail(400, 'validation', 'Choose one of the approvers of this step.', { from: 'Choose one of the approvers of this step.' });
+    if (await db.one('select 1 from workflow_decisions where step_id = $1 and (user_id = $2 or on_behalf_of = $2)', [stepId, from])) {
+      fail(409, 'decided', 'That approver has already decided this step.');
+    }
+    if (sp.principals.includes(to)) fail(400, 'validation', 'That person is already an approver of this step.', { to: 'That person is already an approver of this step.' });
+    const fit = await approversFor([to], def!, instance!.record_id, instance!.requested_by ?? null, kindOf(instance));
+    if (!fit.length) fail(400, 'validation', 'That person cannot decide this step (inactive, the requester, or unable to see the record).', { to: 'That person cannot decide this step.' });
+    const principals = sp.principals.map((p) => (p === from ? to : p));
+    const standins: Standins = {};
+    for (const [k, v] of Object.entries(sp.standins)) { const rest = v.filter((p) => p !== from); if (rest.length) standins[k] = rest; }
+    const approvers = [...new Set([...principals, ...Object.keys(standins)])];
+    await db.query('update workflow_steps set approvers = $2::jsonb, principals = $3::jsonb, standins = $4::jsonb, note = null where id = $1',
+      [stepId, JSON.stringify(approvers), JSON.stringify(principals), JSON.stringify(standins)]);
+    const name = await recordName(def!.type, instance!.record_id);
+    const [fromName, toName] = [await nameOf(from), await nameOf(to)];
+    await ctx.audit(req, {
+      action: 'workflow.reassign', recordType: def!.type, recordId: instance!.record_id,
+      summary: `Step "${step!.name}" of approval workflow "${instance!.name}" on ${def!.label.toLowerCase()} ${name} reassigned from ${fromName ?? 'someone'} to ${toName ?? 'someone'}`,
+      before: { approver: from }, after: { approver: to },
+    });
+    await tell({ userIds: [to], recordType: def!.type, recordId: instance!.record_id, title: `Approval needed: ${def!.label.toLowerCase()} ${name}`, body: `${instance!.name}: ${step!.name} (reassigned to you)` });
+    await applyStandins(to);
+    return (await db.one<Row>('select * from workflow_steps where id = $1', [stepId]))!;
+  }
+
   // ---------- escalation ----------
 
   /**
    * Overdue steps (past their due time, not yet escalated) go to the people they escalate to, who may
-   * then decide too; the approvers still waiting are reminded. Runs from the job queue.
+   * then decide too; the approvers still waiting are reminded. Runs from the job queue, which also
+   * gives running steps the stand-ins whose period has started.
    */
-  async function escalateDue(): Promise<{ escalated: number }> {
+  async function escalateDue(): Promise<{ escalated: number; standins: number }> {
     const due = await db.query<Row>(
-      `select s.*, i.definition, i.record_type, i.record_id, i.requested_by, i.name as workflow_name
+      `select s.*, i.definition, i.record_type, i.record_id, i.requested_by, i.kind, i.name as workflow_name
        from workflow_steps s join workflow_instances i on i.id = s.instance_id and i.status = 'running'
        where s.status = 'pending' and s.escalated_at is null and s.due_at is not null and s.due_at <= now()
        order by s.due_at limit 200`);
@@ -357,12 +585,14 @@ export function makeService(ctx: ModuleContext) {
       const def = typeDef(s.record_type);
       if (!def) continue; // its area is switched off: nothing happens until it is back on
       const step = asDef(s.definition).steps[s.position];
-      const before = ids(s.approvers);
-      const extra = step ? await approversFor(await escalationPeople(step), def, s.record_id, s.requested_by) : [];
+      const { approvers: before, principals } = stepPeople(s);
+      const extra = step ? await approversFor(await escalationPeople(step), def, s.record_id, s.requested_by, kindOf(s)) : [];
       const approvers = [...new Set([...before, ...extra])];
+      const morePrincipals = [...new Set([...principals, ...extra])];
       const changed = await db.one(
-        `update workflow_steps set escalated_at = now(), approvers = $2::jsonb where id = $1 and escalated_at is null and status = 'pending' returning id`,
-        [s.id, JSON.stringify(approvers)]);
+        `update workflow_steps set escalated_at = now(), approvers = $2::jsonb, principals = $3::jsonb
+         where id = $1 and escalated_at is null and status = 'pending' returning id`,
+        [s.id, JSON.stringify(approvers), JSON.stringify(morePrincipals)]);
       if (!changed) continue;
       escalated += 1;
       const decided = new Set((await db.query<{ user_id: string }>('select user_id from workflow_decisions where step_id = $1', [s.id])).map((d) => d.user_id));
@@ -381,11 +611,190 @@ export function makeService(ctx: ModuleContext) {
         after: { step: s.name, added: extra.filter((u) => !before.includes(u)).length },
       });
     }
-    return { escalated };
+    // The people it escalated to may have stand-ins too, and periods may have started since.
+    const standins = await applyStandins();
+    return { escalated, standins };
+  }
+
+  // ---------- approval kinds (modules' own approvals) ----------
+
+  async function kindDefinitions(kind: string): Promise<Row[]> {
+    return db.query<Row>('select * from workflow_definitions where kind = $1 and active and deleted_at is null order by created_at', [kind]);
+  }
+
+  /** The kinds install once per process, before the first start (normally at onReady). */
+  let installing: Promise<string[]> | null = null;
+  const installed = () => (installing ??= installKinds());
+
+  const engine: ApprovalEngine = {
+    async start(key, record, opts) {
+      await installed(); // a command (seeding) may start one before the server is ready
+      const kind = approvalKind(app, key);
+      const def = kind ? typeDef(kind.recordType) : undefined;
+      if (!kind || !def) fail(409, 'approvals_unavailable', 'Approvals of this kind are not available.');
+      let chosen: Row | undefined;
+      if (opts.definitionId) {
+        chosen = (await kindDefinitions(key)).find((w) => w.id === opts.definitionId);
+        if (!chosen) fail(409, 'workflow_unavailable', 'The approval workflow named for this record is no longer active. An administrator should choose another one.');
+        if (!allHold(asJson(chosen!.conditions), record, def!.fields)) return null;
+      } else {
+        // The workflow with the most conditions that all hold; ties go to the oldest.
+        const fitting = (await kindDefinitions(key)).filter((w) => allHold(asJson(w.conditions), record, def!.fields));
+        chosen = fitting.sort((a, b) => asJson<unknown[]>(b.conditions).length - asJson<unknown[]>(a.conditions).length)[0];
+      }
+      if (!chosen) return null;
+      const row = await start(chosen, def!, record, opts.requester, opts.req, opts.note ?? null, false, opts.data ?? {});
+      return row ? instanceView((await loadInstance(row.id))!) : null;
+    },
+    async latest(key, recordId) {
+      const row = await db.one<Row>('select * from workflow_instances where kind = $1 and record_id = $2 order by started_at desc, id desc limit 1', [key, recordId]);
+      return row ? instanceView(row) : null;
+    },
+    async running(key, recordId) {
+      const row = await db.one<Row>(`select * from workflow_instances where kind = $1 and record_id = $2 and status = 'running' order by started_at desc limit 1`, [key, recordId]);
+      return row ? instanceView(row) : null;
+    },
+    async cancel(key, recordId, reason, req) {
+      const rows = await db.query<Row>(`select * from workflow_instances where kind = $1 and record_id = $2 and status = 'running'`, [key, recordId]);
+      for (const r of rows) await finish(r, 'canceled', null, req, reason, true);
+      return rows.length > 0;
+    },
+    async decide(key, recordId, req, decision, comment, opts) {
+      const step = await db.one<Row>(
+        `select s.id from workflow_steps s join workflow_instances i on i.id = s.instance_id
+         where i.kind = $1 and i.record_id = $2 and i.status = 'running' and s.status = 'pending' order by s.position limit 1`, [key, recordId]);
+      if (!step) fail(409, 'not_awaiting_approval', 'Nothing on this record is waiting for approval.');
+      let actor: SessionUser | undefined;
+      if (!req && opts?.userId) actor = (await loadUser(db, opts.userId)) ?? undefined;
+      return decide(step!.id, req, decision, comment, opts?.via, actor);
+    },
+    async waiting(key, userId) {
+      const rows = await db.query<Row>(
+        `select s.*, i.record_id, i.requested_by from workflow_steps s join workflow_instances i on i.id = s.instance_id
+         where i.kind = $1 and i.status = 'running' and s.status = 'pending' and s.approvers @> $2::jsonb and i.requested_by is distinct from $3`,
+        [key, JSON.stringify([userId]), userId]);
+      const out: string[] = [];
+      for (const s of rows) {
+        const ds = await db.query<{ user_id: string; on_behalf_of: string | null }>('select user_id, on_behalf_of from workflow_decisions where step_id = $1', [s.id]);
+        if ((await mayDecide(s, s.requested_by ?? null, userId, ds)).ok) out.push(s.record_id);
+      }
+      return out;
+    },
+    async definitions(key) {
+      await installed();
+      return (await kindDefinitions(key)).map((w) => ({ id: w.id, name: w.name, description: w.description ?? null }));
+    },
+    async progress(key, recordId, userId) {
+      const inst = await db.one<Row>('select * from workflow_instances where kind = $1 and record_id = $2 order by started_at desc, id desc limit 1', [key, recordId]);
+      if (!inst) return { instance: null, approvals: 0, required: 0, waitingFor: [], canDecide: false, stepId: null };
+      const approvals = (await db.one<{ n: number }>(`select count(*)::int as n from workflow_decisions where instance_id = $1 and decision = 'approved'`, [inst.id]))!.n;
+      const steps = await db.query<Row>('select * from workflow_steps where instance_id = $1 order by position', [inst.id]);
+      const required = steps.reduce((n, s) => n + Number(s.required ?? 0), 0);
+      const current = inst.status === 'running' ? steps.find((s) => s.status === 'pending') : undefined;
+      let waitingFor: string[] = [];
+      let canDecide = false;
+      if (current) {
+        const sp = stepPeople(current);
+        const ds = await db.query<{ user_id: string; on_behalf_of: string | null }>('select user_id, on_behalf_of from workflow_decisions where step_id = $1', [current.id]);
+        const taken = new Set(ds.map((d) => d.on_behalf_of ?? d.user_id));
+        waitingFor = (await Promise.all(sp.principals.filter((p) => !taken.has(p)).map(nameOf))).filter(Boolean) as string[];
+        if (userId && userId !== inst.requested_by && sp.approvers.includes(userId)) {
+          const covering = new Set<string>();
+          for (const p of sp.standins[userId] ?? []) if (await standsInToday(userId, p)) covering.add(p);
+          canDecide = !('error' in slotFor(sp, userId, ds, (p) => covering.has(p)));
+        }
+      }
+      return { instance: instanceView(inst), approvals, required, waitingFor, canDecide, stepId: current?.id ?? null };
+    },
+  };
+
+  /** Whether `userId` may decide the step now (for lists and the record panel). */
+  async function mayDecide(step: Row, instanceRequester: string | null, userId: string, decisions: { user_id: string; on_behalf_of: string | null }[]): Promise<{ ok: boolean; onBehalfOf: string | null }> {
+    if (step.status !== 'pending' || instanceRequester === userId) return { ok: false, onBehalfOf: null };
+    const sp = stepPeople(step);
+    if (!sp.approvers.includes(userId)) return { ok: false, onBehalfOf: null };
+    const covering = new Set<string>();
+    for (const p of sp.standins[userId] ?? []) if (await standsInToday(userId, p)) covering.add(p);
+    const slot = slotFor(sp, userId, decisions, (p) => covering.has(p));
+    return 'error' in slot ? { ok: false, onBehalfOf: null } : { ok: true, onBehalfOf: slot.onBehalfOf };
+  }
+
+  /**
+   * Runs each approval kind's one-time install (its workflows, and the approvals that were waiting
+   * when its module moved to workflows). Called once every module is registered; `force` reruns one
+   * (tests of the upgrade).
+   */
+  async function installKinds(force?: string): Promise<string[]> {
+    const done: string[] = [];
+    for (const kind of approvalKinds(app)) {
+      if (!kind.install) continue;
+      if (force !== kind.key && await db.one('select 1 from workflow_kind_installs where kind = $1', [kind.key])) continue;
+      const def = ctx.resources.all().find((d) => d.type === kind.recordType) ?? null;
+      const helpers: InstallHelpers = {
+        db,
+        async hasDefinitions() {
+          return Boolean(await db.one('select 1 from workflow_definitions where kind = $1 limit 1', [kind.key]));
+        },
+        async define(input) {
+          const steps = (input.steps as Row[] ?? []).map((s, i) => ({
+            key: s.key ?? `step-${i + 1}`, name: s.name, approvers: s.approvers, quorum: s.quorum ?? 'any',
+            conditions: s.conditions ?? [], due_hours: s.due_hours ?? null, escalate_to: s.escalate_to ?? null,
+          }));
+          const row = (await db.one<{ id: string }>(
+            `insert into workflow_definitions (record_type, kind, name, description, active, trigger, conditions, steps, on_approve, on_reject)
+             values ($1, $2, $3, $4, $5, 'module', $6::jsonb, $7::jsonb, $8::jsonb, $9::jsonb) returning id`,
+            [kind.recordType, kind.key, String(input.name).slice(0, 120), input.description ?? null, input.active !== false,
+              JSON.stringify(input.conditions ?? []), JSON.stringify(steps), JSON.stringify(input.on_approve ?? []), JSON.stringify(input.on_reject ?? [])]))!;
+          forget();
+          return row.id;
+        },
+        async adopt(input) {
+          if (await db.one(`select 1 from workflow_instances where kind = $1 and record_id = $2 and status = 'running'`, [kind.key, input.recordId])) return null;
+          const w = await db.one<Row>('select * from workflow_definitions where id = $1', [input.definitionId]);
+          if (!w) return null;
+          const inst = (await db.one<Row>(
+            `insert into workflow_instances (definition_id, definition, name, record_type, record_id, requested_by, note, kind, data, started_at, current_step)
+             values ($1, $2::jsonb, $3, $4, $5, $6, $7, $8, $9::jsonb, coalesce($10::timestamptz, now()), $11) returning *`,
+            [w.id, JSON.stringify(snapshotOf(w)), w.name, kind.recordType, input.recordId, input.requestedBy, input.note ?? null, kind.key,
+              JSON.stringify(input.data ?? {}), input.startedAt ?? null, input.position ?? 0]))!;
+          const steps = asJson<StepDef[]>(w.steps);
+          for (let i = 0; i < (input.position ?? 0); i += 1) {
+            await db.query(`insert into workflow_steps (instance_id, position, step_key, name, status, required, note, finished_at)
+              values ($1, $2, $3, $4, 'approved', 0, 'Decided before approvals moved to workflows.', now())`, [inst.id, i, steps[i]?.key ?? `step-${i + 1}`, steps[i]?.name ?? 'Approval']);
+          }
+          const pos = input.position ?? 0;
+          const step = (await db.one<Row>(
+            `insert into workflow_steps (instance_id, position, step_key, name, status, approvers, principals, required, started_at, note)
+             values ($1, $2, $3, $4, 'pending', $5::jsonb, $5::jsonb, $6, coalesce($7::timestamptz, now()), $8) returning *`,
+            [inst.id, pos, steps[pos]?.key ?? 'step-1', steps[pos]?.name ?? 'Approval', JSON.stringify(input.approvers), Math.max(1, input.required),
+              input.startedAt ?? null, input.approvers.length ? null : 'Nobody named by this step can approve it. An administrator can reassign it or cancel the workflow.']))!;
+          for (const d of input.decisions ?? []) {
+            await db.query(
+              `insert into workflow_decisions (step_id, instance_id, user_id, decision, comment, via, origin, created_at)
+               values ($1, $2, $3, $4, $5, 'web', 'adopted', coalesce($6::timestamptz, now())) on conflict (step_id, user_id) do nothing`,
+              [step.id, inst.id, d.userId, d.decision, d.comment ?? null, d.at ?? null]);
+          }
+          return inst.id as string;
+        },
+        usersWith,
+        definitions: async () => (await kindDefinitions(kind.key)).map((w) => ({ id: w.id as string, name: w.name as string, description: (w.description ?? null) as string | null })),
+      };
+      try {
+        await kind.install(helpers);
+        await db.query(`insert into workflow_kind_installs (kind, summary) values ($1, $2) on conflict (kind) do update set installed_at = now()`,
+          [kind.key, `${kind.label}${def ? '' : ' (its area was switched off)'}`]);
+        done.push(kind.key);
+      } catch (err) {
+        // Tried again at the next start; the module's own approvals are untouched meanwhile.
+        console.error(`[workflows] installing ${kind.key}:`, err);
+      }
+    }
+    if (done.length) forget();
+    return done;
   }
 
   return {
-    start, decide, cancel, escalateDue, recordCreated, recordUpdated, forget, maySee, people, roleMembers,
-    typeDef, recordName, loadInstance,
+    start, decide, cancel, reassign, escalateDue, applyStandins, recordCreated, recordUpdated, forget, maySee, people, roleMembers,
+    typeDef, recordName, loadInstance, engine, installKinds, installed, mayDecide, usersWith, approversFor, nameOf,
   };
 }

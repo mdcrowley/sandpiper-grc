@@ -1,19 +1,19 @@
 import { todayInZone } from '../../core/timezone.ts';
 import type { ModuleContext, Row, SessionUser } from '../../core/module.ts';
-import { emitWebhookEvent } from '../../core/webhooks.ts';
 import type { Base, Req } from './base.ts';
 import type { Conflicts } from './conflicts.ts';
-import { notifyApprovalRequested, notifyDecision } from './notify.ts';
-import { DECISIONS, FINAL_STATUSES, inPool, matchRule, poolOf, type ApproverPool } from './rules.ts';
+import { approvalEngine } from '../../core/approval-kinds.ts';
+import { KIND, type ChangeApproval } from './approval.ts';
+import { DECISIONS, FINAL_STATUSES, matchRule, poolOf, type ApproverPool } from './rules.ts';
 
 /** The status lifecycle, approvals and the post-implementation review. */
-export function makeWorkflow(ctx: ModuleContext, base: Base, conflicts: Conflicts) {
+export function makeWorkflow(ctx: ModuleContext, base: Base, conflicts: Conflicts, approval: ChangeApproval) {
   const { db } = ctx;
 
   const ruleFor = async (change: Row) => matchRule(await base.approvalRules(), change.change_type, change.risk_level);
   const statusLabel = (value: string) => base.lookupLabel('change_status', value);
 
-  // ---------- approvals ----------
+  // ---------- approvals (on the shared approval workflows, E05-13) ----------
 
   /** Decisions recorded since the change was last submitted count; earlier ones are history. */
   async function decisions(change: Row): Promise<Row[]> {
@@ -22,56 +22,25 @@ export function makeWorkflow(ctx: ModuleContext, base: Base, conflicts: Conflict
     return rows.map((r) => ({ ...r, current: new Date(r.created_at).getTime() >= since }));
   }
 
-  /** Who a decision belongs to: the person who recorded it (the system's own records go by name). */
-  const deciderOf = (r: Row) => (r.recorded_by ? `user:${r.recorded_by}` : `name:${String(r.approver_name).trim().toLowerCase()}`);
-
-  /** Approvals count once per person who recorded them, so one person cannot make up the number alone. */
-  const countApproved = (rows: Row[]) => new Set(rows.filter((r) => r.current && r.decision === 'approved').map(deciderOf)).size;
-
   const poolFor = (change: Row): ApproverPool | null => {
     const p = typeof change.approver_pool === 'string' ? JSON.parse(change.approver_pool) : change.approver_pool;
     return p && ((p.users?.length ?? 0) || (p.roles?.length ?? 0)) ? { users: p.users ?? [], roles: p.roles ?? [] } : null;
   };
 
-  /** Active users who hold changes.approve, with their role keys. */
-  async function approverCandidates(): Promise<SessionUser[]> {
-    const rows = await db.query<Row>(
-      `select u.id, u.username, u.display_name, u.email,
-          coalesce(array_agg(distinct r.key) filter (where r.enabled), '{}') as roles,
-          coalesce(array_agg(distinct rp.permission) filter (where r.enabled and rp.permission is not null), '{}') as permissions
-       from users u
-       left join user_roles ur on ur.user_id = u.id
-       left join roles r on r.id = ur.role_id
-       left join role_permissions rp on rp.role_id = r.id
-       where u.status = 'active' and u.deleted_at is null
-       group by u.id`,
-    );
-    return rows
-      .map((r) => ({ id: r.id, username: r.username, displayName: r.display_name, email: r.email, roles: r.roles, permissions: r.permissions }) as SessionUser)
-      .filter((u) => ctx.can(u, 'changes.approve'));
-  }
-
-  /** The people who may decide on this change now: in its pool, not its requester, and not already decided. */
-  async function eligibleApprovers(change: Row): Promise<SessionUser[]> {
-    const pool = poolFor(change);
-    const decided = new Set((await decisions(change)).filter((r) => r.current && r.recorded_by).map((r) => r.recorded_by));
-    return (await approverCandidates()).filter((u) => u.id !== change.created_by && !decided.has(u.id) && inPool(pool, u.id, u.roles ?? []));
-  }
-
   /** True when an approval may be recorded now; `retrospective` when the work has already started. */
-  function awaiting(change: Row): { open: boolean; retrospective: boolean } {
-    if (change.status === 'submitted') return { open: true, retrospective: false };
-    const late = ['in_progress', 'completed', 'reviewed'].includes(change.status)
-      && Number(change.approvals_received) < Number(change.approvals_required);
-    return { open: late, retrospective: late };
+  async function awaiting(change: Row): Promise<{ open: boolean; retrospective: boolean }> {
+    const eng = approvalEngine(ctx.app);
+    const running = eng ? await eng.running(KIND, change.id) : null;
+    return { open: Boolean(running), retrospective: Boolean(running) && change.status !== 'submitted' };
   }
 
   async function approvalsFor(change: Row, user?: SessionUser | null) {
     const rule = await ruleFor(change);
     const list = await decisions(change);
-    const state = awaiting(change);
+    const state = await awaiting(change);
     const pool = poolFor(change);
-    const eligible = state.open ? await eligibleApprovers(change) : [];
+    const eng = approvalEngine(ctx.app);
+    const p = eng ? await eng.progress(KIND, change.id, user?.id ?? null) : null;
     const roleNames = pool?.roles.length
       ? await db.query<{ key: string; name: string }>('select key, name from roles where key = any($1::text[])', [pool.roles])
       : [];
@@ -84,22 +53,35 @@ export function makeWorkflow(ctx: ModuleContext, base: Base, conflicts: Conflict
       approver_roles: rule.approver_roles, retrospective_allowed: rule.retrospective,
       awaiting: state.open, retrospective: state.retrospective,
       approved_retrospectively: change.approved_retrospectively === true,
-      /** Named approvers and roles, when the rule named them at submission; null: anyone with the approve permission. */
+      /** Named approvers and roles of the rule at submission; null: anyone with the approve permission. */
       pool: pool ? { users: userNames.map((u) => ({ id: u.id, name: u.display_name })), roles: roleNames.map((r) => ({ key: r.key, name: r.name })) } : null,
-      /** People who may still decide, by name. */
-      waiting_for: eligible.map((u) => u.displayName),
-      /** Whether the reader may record their own decision now. */
-      can_decide: Boolean(user && state.open && eligible.some((u) => u.id === user.id)),
+      /** The approval workflow of the current submission (its steps are on the shared approval panel). */
+      workflow: p?.instance ? { id: p.instance.id, name: p.instance.name, status: p.instance.status, step_id: p.stepId } : null,
+      /** Approvers of the current step who have not decided, by name. */
+      waiting_for: state.open ? p?.waitingFor ?? [] : [],
+      /** Whether the reader may record their own decision now (stand-ins included). */
+      can_decide: Boolean(state.open && p?.canDecide),
       decisions: list,
     };
   }
 
+  /** The errors the change's own route gave before approvals moved to workflows, for the engine's refusals. */
+  function asChangeError(err: unknown): never {
+    const m = String((err as { message?: string })?.message ?? '');
+    if (/already decided/.test(m)) {
+      ctx.fail(409, 'duplicate_approver', 'You have already recorded a decision on this change. Each approval must come from a different person.');
+    }
+    if (/not one of the approvers/.test(m)) ctx.fail(403, 'not_an_approver', 'This change is waiting for the approvers its rule names, and you are not one of them.');
+    if (/asked for this approval/.test(m)) ctx.fail(403, 'own_change', 'You raised this change, so someone else must record its approval.');
+    throw err;
+  }
+
   /**
-   * Records one decision. Body `{ decision, notes? }` is the reader's own decision. With
-   * `approver_name` (and optionally role, date and reference) it records a decision given
-   * outside the application, such as in a meeting or by email. Either way the decision
-   * belongs to the person recording it: each person decides once per submission, and when
-   * the rule named approvers, only they may decide.
+   * Records one decision through the change's own route (kept for the change page and integrations):
+   * it is the reader's decision on the change's approval workflow. With `approver_name` (and
+   * optionally role, date and reference) it records a decision given outside the application, such
+   * as in a meeting or by email; it still counts as the decision of the person recording it. Without
+   * a request (sample data), the system records it by name, as before (see recordAsSystem).
    */
   async function recordApproval(req: Req, change: Row, body: Row) {
     const own = body.approver_name === undefined || body.approver_name === null || String(body.approver_name).trim() === '';
@@ -114,54 +96,62 @@ export function makeWorkflow(ctx: ModuleContext, base: Base, conflicts: Conflict
     const d = c.finish();
     d.decided_on ??= todayInZone();
     if (d.decided_on > todayInZone()) ctx.fail(400, 'validation', 'Check the highlighted fields.', { decided_on: 'The decision date cannot be in the future.' });
-    if (!byHand && req?.user) d.approver_name = req.user.displayName;
 
-    const state = awaiting(change);
+    const state = await awaiting(change);
     if (!state.open) ctx.fail(409, 'not_awaiting_approval', 'This change is not waiting for approval.');
     if (req?.user && change.created_by === req.user.id) {
       ctx.fail(403, 'own_change', 'You raised this change, so someone else must record its approval.');
     }
-    const before = await decisions(change);
-    if (req?.user) {
-      if (!inPool(poolFor(change), req.user.id, req.user.roles ?? [])) {
-        ctx.fail(403, 'not_an_approver', 'This change is waiting for the approvers its rule names, and you are not one of them.');
-      }
-      if (before.some((r) => r.current && r.recorded_by === req.user!.id)) {
-        ctx.fail(409, 'duplicate_approver', 'You have already recorded a decision on this change. Each approval must come from a different person.');
-      }
-    } else if (d.decision === 'approved' && before.some((r) => r.current && deciderOf(r) === `name:${d.approver_name.toLowerCase()}`)) {
-      ctx.fail(409, 'duplicate_approver', `${d.approver_name} has already approved this change. Each approval must come from a different person.`);
+    const eng = approval.engine();
+    // The system (sample data, imports) records decisions given outside the application by name, as before.
+    if (!req?.user) return recordAsSystem(change, d, state.retrospective);
+    const userId = req.user.id;
+    const name = byHand ? d.approver_name : req.user.displayName;
+    approval.remember(change.id, userId, {
+      approver_name: name, approver_role: d.approver_role ?? null, decided_on: d.decided_on, reference: d.reference ?? null, notes: d.notes ?? null,
+    });
+    const said = byHand ? `Recorded for ${d.approver_name}${d.approver_role ? ` (${d.approver_role})` : ''}, decided ${d.decided_on}${d.reference ? `, reference ${d.reference}` : ''}` : null;
+    const comment = [said, d.notes].filter(Boolean).join(': ') || (d.decision === 'rejected' ? 'No reason given.' : null);
+    try {
+      await eng.decide(KIND, change.id, req, d.decision, comment);
+    } catch (err) {
+      asChangeError(err);
+    } finally {
+      approval.forget(change.id, userId);
     }
+    const updated = (await ctx.resources.find('change', change.id))!;
+    return { change: updated, approvals: await approvalsFor(updated, req?.user) };
+  }
 
+  /**
+   * A decision the system records with no signed-in person (sample data, given outside the
+   * application): kept on the change by name and counted per name as before; once it settles the
+   * approval the running workflow is closed with it.
+   */
+  async function recordAsSystem(change: Row, d: Row, retrospective: boolean) {
     await base.insertRow('change_approvals', {
       change_id: change.id, decision: d.decision, approver_name: d.approver_name, approver_role: d.approver_role ?? null,
-      decided_on: d.decided_on, reference: d.reference ?? null, notes: d.notes ?? null, retrospective: state.retrospective,
-      recorded_by: req?.user?.id ?? null, recorded_by_name: base.actorName(req),
-      approver_user_id: !byHand ? req?.user?.id ?? null : null,
+      decided_on: d.decided_on, reference: d.reference ?? null, notes: d.notes ?? null, retrospective,
+      recorded_by: null, recorded_by_name: base.actorName(null), approver_user_id: null,
     });
-    const received = countApproved(await decisions(change));
+    const current = (await decisions(change)).filter((r) => r.current && r.decision === 'approved');
+    const received = new Set(current.map((r) => String(r.approver_name).trim().toLowerCase())).size;
     const required = Number(change.approvals_required);
     const patch: Row = { approvals_received: received };
     if (change.status === 'submitted') {
       if (d.decision === 'rejected') patch.status = 'rejected';
       else if (received >= required) patch.status = 'approved';
-    } else if (d.decision === 'approved' && received >= required) {
-      patch.approved_retrospectively = true;
-    }
-    await ctx.audit(req, {
+    } else if (d.decision === 'approved' && received >= required) patch.approved_retrospectively = true;
+    if (d.decision === 'rejected' || received >= required) await approval.engine().cancel(KIND, change.id, `Decided outside the application: ${d.approver_name}.`, null);
+    await ctx.audit(null, {
       action: 'change.approval', recordType: 'change', recordId: change.id,
-      summary: `${base.changeLabel(change)} ${d.decision} by ${d.approver_name}${d.approver_role ? ` (${d.approver_role})` : ''}`
-        + `${state.retrospective ? ', recorded after the work started' : ''}: ${received} of ${required} approvals`,
-      after: { ...d, retrospective: state.retrospective, approvals_received: received, approvals_required: required },
+      summary: `${base.changeLabel(change)} ${d.decision} by ${d.approver_name}: ${received} of ${required} approvals`,
+      after: { ...d, retrospective, approvals_received: received, approvals_required: required },
     });
-    const updated = await base.setFields(req, change.id, patch);
-    await notifyDecision(ctx, updated, { decision: d.decision, by: d.approver_name, actorId: req?.user?.id ?? null, received, required });
-    await emitWebhookEvent(ctx.app, {
-      event: 'change.approval_decided', record: { type: 'change', id: change.id }, req,
-      data: { decision: d.decision, approver: d.approver_name, approvalsReceived: received, approvalsRequired: required, status: updated.status },
-    });
-    return { change: updated, approvals: await approvalsFor(updated, req?.user) };
+    const updated = await base.setFields(null, change.id, patch);
+    return { change: updated, approvals: await approvalsFor(updated, null) };
   }
+
 
   // ---------- status moves ----------
 
@@ -290,10 +280,35 @@ export function makeWorkflow(ctx: ModuleContext, base: Base, conflicts: Conflict
         + (to === 'submitted' && updated.status === 'approved' ? ' (the approval rules ask for no approval)' : ''),
       before: { status: from }, after: { status: updated.status },
     });
-    if (updated.status === 'submitted' && from !== 'submitted') {
-      await notifyApprovalRequested(ctx, updated, await eligibleApprovers(updated), req?.user?.id ?? null);
+    // Submitting starts the rule's approval workflow (E05-13); going back to draft or canceling ends it.
+    if (updated.status === 'submitted' && from !== 'submitted') return startApproval(req, change, updated);
+    if ((to === 'draft' || to === 'cancelled') && approvalEngine(ctx.app)) {
+      await approvalEngine(ctx.app)!.cancel(KIND, change.id, to === 'draft' ? 'The change went back to draft.' : 'The change was canceled.', req);
     }
     return updated;
+  }
+
+  /**
+   * Starts the approval workflow the change's rule names. When none applies the change needs no
+   * approval; when it cannot start, the change goes back to where it was and the reason is given.
+   */
+  async function startApproval(req: Req, before: Row, submitted: Row): Promise<Row> {
+    const rule = await ruleFor(submitted);
+    let started;
+    try {
+      started = await approval.engine().start(KIND, submitted, { requester: submitted.created_by ?? null, req, definitionId: rule.workflow_id ?? null });
+    } catch (err) {
+      await base.setFields(null, submitted.id, {
+        status: before.status, submitted_at: before.submitted_at ?? null, approvals_received: before.approvals_received, approver_pool: before.approver_pool ?? null,
+      });
+      throw err;
+    }
+    if (!started) {
+      const approved = await base.setFields(null, submitted.id, { status: 'approved', approvals_required: 0 });
+      await ctx.audit(req, { action: 'change.transition', recordType: 'change', recordId: submitted.id, summary: `${base.changeLabel(submitted)} needs no approval: no change approval workflow applies to it`, after: { status: 'approved' } });
+      return approved;
+    }
+    return approval.syncCounts(submitted.id);
   }
 
   // ---------- post-implementation review ----------
@@ -356,30 +371,25 @@ export function makeWorkflow(ctx: ModuleContext, base: Base, conflicts: Conflict
     return { id: action.id, ref: action.ref ?? null, title: action.title, route: def.route };
   }
 
-  /** Everything the change page needs about where the change stands. */
-  /** Changes waiting for this person's decision, soonest planned start first. */
+  /** Changes waiting for this person's decision (stand-ins included), soonest planned start first. */
   async function waitingFor(user: SessionUser): Promise<Row[]> {
-    if (!ctx.can(user, 'changes.approve')) return [];
+    const eng = approvalEngine(ctx.app);
+    if (!ctx.can(user, 'changes.approve') || !eng) return [];
+    const ids = await eng.waiting(KIND, user.id);
+    if (!ids.length) return [];
     const open = await db.query<Row>(
-      `select * from changes where deleted_at is null and ${ctx.resources.visibleWhere('change', user)}
-         and (status = 'submitted' or (status in ('in_progress', 'completed', 'reviewed') and approvals_received < approvals_required))
-         and created_by is distinct from $1
-       order by planned_start nulls last, ref`, [user.id],
-    );
-    const out: Row[] = [];
-    for (const c of open) {
-      if (!inPool(poolFor(c), user.id, user.roles ?? [])) continue;
-      if ((await decisions(c)).some((r) => r.current && r.recorded_by === user.id)) continue;
-      out.push({
-        id: c.id, ref: c.ref, title: c.title, status: c.status, change_type: c.change_type, risk_level: c.risk_level,
-        planned_start: c.planned_start, planned_end: c.planned_end,
-        approvals_required: c.approvals_required, approvals_received: c.approvals_received,
-        retrospective: c.status !== 'submitted',
-      });
-    }
-    return out;
+      `select * from changes where deleted_at is null and id = any($1::uuid[]) and ${ctx.resources.visibleWhere('change', user)}
+       order by planned_start nulls last, ref`, [ids]);
+    return open.map((c) => ({
+      id: c.id, ref: c.ref, title: c.title, status: c.status, change_type: c.change_type, risk_level: c.risk_level,
+      planned_start: c.planned_start, planned_end: c.planned_end,
+      approvals_required: c.approvals_required, approvals_received: c.approvals_received,
+      retrospective: c.status !== 'submitted',
+    }));
   }
 
+
+  /** Everything the change page needs about where the change stands. */
   async function workflowFor(change: Row, user?: SessionUser | null) {
     const allowed = (await base.transitions())[change.status] ?? [];
     return {

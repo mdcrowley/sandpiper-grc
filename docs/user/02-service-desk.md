@@ -208,15 +208,19 @@ Your administrator can set escalation rules, for example "tell the service desk 
 
 Some catalog items need approval before work starts (as installed, **Vendor access**). A ticket raised from one shows **Waiting for approval** in the strip and sits in the **Awaiting approval** queue. Meanwhile it can be assigned, paused or canceled, but not started or resolved.
 
-People allowed to approve (the `tickets.approve` permission) are told, and see **Approve** and **Reject** on the ticket. Rejecting needs a **Reason**. The decision, who made it and when are shown on the ticket and kept in its history. A rejected request can be canceled, or approved later with **Approve after all**.
+Approval runs on the item's approval workflow (see [Approval workflows](22-approval-workflows.md)), of the kind **Catalog request approval**. As installed, anyone allowed to approve service requests (the `tickets.approve` permission) may approve, and one approval is enough. The approvers are told, the request appears on their **Approvals** page (and, for staff, under **My approvals** in the portal), and the approval panel under the ticket's header shows each step, who decides it, the due time and every decision. Approvers decide there with **Approve** or **Reject**; rejecting needs a reason. An approver's stand-in can decide while they are away; the decision is recorded as made on their behalf. The strip says who the request is still waiting for, and the decision, who made it and when, once it is made. Each decision is kept in the ticket's history.
 
-An item can ask for more than this (see [Manage catalog items](#manage-catalog-items)):
+What the workflow can ask for (an administrator sets it up under **Administration > Approval workflows**; an item chooses its workflow, see [Manage catalog items](#manage-catalog-items)):
 
-- **More than one approval.** The strip shows the progress ("1 of 2 approvals so far") and, under it, each decision with its note. The request is approved when enough people have approved, and rejected as soon as anyone rejects. Each person decides once, and may change their mind; an approval given after a rejection overturns it (the rejection stays in the list, marked as no longer counting).
-- **Named approvers.** Only the people named on the item may decide (they also need the permission to approve); others see why they cannot.
-- **Approval for some answers only.** For example, approval only when the answer to "Restricted system?" is **Yes**. Requests with other answers start work at once.
+- **More than one approval**, from anyone who may approve requests or from named people: the strip shows the progress ("1 of 2 approvals so far"). The request is approved when enough people have approved.
+- **Several steps**, for example the team lead and then the system owner, each with a due time; an overdue step is escalated.
+- **Approval for some answers only** is set on the item itself: for example, approval only when the answer to "Restricted system?" is **Yes**. Requests with other answers start work at once.
 
-Nobody can approve a request they raised themselves. Each decision is audited.
+One rejection ends the approval: the request is **Rejected** and work stays blocked. Cancel the ticket, or, if the reason has been dealt with, select **Ask for approval again** in the strip (needs permission to edit tickets): a new approval starts and the request waits again. The same button appears when an approval was canceled, or could not start because no approval workflow was active (the strip says so).
+
+The approvers of a step are worked out when the step starts: someone given the permission to approve later is not asked about requests already waiting (an administrator can hand a waiting step to them). Nobody can approve a request they raised themselves, or one raised for them. Canceling or closing a ticket that waits for approval stops its approval. Each decision is audited.
+
+Requests decided before catalog approvals moved onto the approval workflows keep their decisions, shown in the strip under "Decided before approvals moved to approval workflows". A request that was still waiting carried on as a workflow with the same approvers, number of approvals and the approvals already given.
 
 ## Vendor-held tickets
 
@@ -354,7 +358,7 @@ Open an item to design its form on the **Form and tasks** tab:
 - **Questions**: select **Add question**, write the question, choose the **Answer** (**Short text**, **Long text**, **One of a list**, **Date** or **Yes or no**), list the **Choices** for a list (one on each line), add **Help text** if useful, and check **An answer is required** where needed. The arrows change the order.
 - **Fulfillment tasks**: select **Add task** for each step.
 
-- **Approval**: check **Needs approval before work starts**, then set **Approvals needed** (1 to 5), add people under **Who may approve** (leave it empty for anyone who may approve requests), and, if approval depends on an answer, choose the question under **Only when a question is answered** and tick the **Answers that need approval**.
+- **Approval**: check **Needs approval before work starts**, then choose the **Approval workflow** (who approves, how many approvals, due times and escalation; **The standard catalog request approval** unless you choose another), and, if approval depends on an answer, choose the question under **Only when a question is answered** and tick the **Answers that need approval**. Administrators make more catalog request approval workflows under **Administration > Approval workflows**, for example two approvals from named people for a restricted system. Items that had their own number of approvals and approvers before approvals moved to workflows were each given a workflow with exactly those settings.
 
 Select **Save form, tasks and approval**. Changes apply to tickets logged afterwards. The **Tickets created** tab lists every ticket started from the item.
 

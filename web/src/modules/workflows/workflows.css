@@ -228,3 +228,16 @@ button.wf-flow-button:hover { background: var(--surface-hover); }
   font-size: var(--fs-sm);
 }
 .wf-due-hint { margin: 0; align-self: center; }
+
+/* Approval kinds (a module starts the workflow) and stand-ins (E14-32) */
+.wf-kind-note { padding: var(--s-3); border-radius: var(--radius-sm); background: var(--surface-2); margin-bottom: var(--s-3); }
+.wf-kind-note p { margin: 0 0 var(--s-1); }
+.wf-person.is-standin { border-style: dashed; }
+.wf-standins { display: flex; flex-direction: column; gap: var(--s-4); min-width: 0; }
+.wf-standin-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s-2); }
+.wf-standin {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); flex-wrap: wrap;
+  padding: var(--s-3); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); min-width: 0;
+}
+.wf-standin-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.wf-standin-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--s-3); align-items: end; }

@@ -18,13 +18,15 @@ function signInError(err: unknown): string {
 
 /**
  * The second step after a correct password: asks the browser for one of this person's keys and
- * finishes the sign-in. Resolves when signed in; throws with a plain message otherwise.
+ * finishes the sign-in. Resolves when signed in; throws with a plain message otherwise. With
+ * `directory` (a directory provider's key), the password is that directory's (E02-29).
  */
-export async function signInWithKeyAfterPassword(username: string, password: string): Promise<void> {
+export async function signInWithKeyAfterPassword(username: string, password: string, directory?: string): Promise<void> {
+  const base = directory ? `/api/auth/sso/${encodeURIComponent(directory)}` : '';
   try {
-    const options = await api.post('/api/auth/webauthn/login/options', { username, password });
+    const options = await api.post(directory ? `${base}/passkey-options` : '/api/auth/webauthn/login/options', { username, password });
     const webauthn = await getAssertion(options);
-    await api.post('/api/auth/login', { username, password, webauthn });
+    await api.post(directory ? `${base}/login` : '/api/auth/login', { username, password, webauthn });
   } catch (err) {
     if (err instanceof ApiError && err.code === 'no_passkeys') throw new Error(err.message);
     throw new Error(signInError(err));
@@ -63,8 +65,8 @@ export function PasskeySignIn({ divider = true, primary = false }: { divider?: b
 }
 
 /** "Use a passkey or security key instead", for the 6-digit-code step of the sign-in page. */
-export function PasskeySecondFactorButton({ username, password, label = 'Use a passkey or security key instead' }: {
-  username: string; password: string; label?: string;
+export function PasskeySecondFactorButton({ username, password, directory, label = 'Use a passkey or security key instead' }: {
+  username: string; password: string; directory?: string; label?: string;
 }) {
   const { refresh } = useAuth();
   const [busy, setBusy] = useState(false);
@@ -74,7 +76,7 @@ export function PasskeySecondFactorButton({ username, password, label = 'Use a p
     setBusy(true);
     setError('');
     try {
-      await signInWithKeyAfterPassword(username, password);
+      await signInWithKeyAfterPassword(username, password, directory);
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : errorMessage(err));

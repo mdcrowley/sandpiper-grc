@@ -195,6 +195,7 @@ export function RequestCard({ request, label, onChanged, showAsset }: { request:
   const [busy, setBusy] = useState(false);
   const state = REQUEST_STATE[request.status];
   const pending = request.status === 'pending';
+  const wf = request.workflow ?? null;
 
   async function withdraw() {
     setBusy(true);
@@ -228,13 +229,21 @@ export function RequestCard({ request, label, onChanged, showAsset }: { request:
       )}
       {request.decided_at && request.status !== 'withdrawn' && (
         <Text size="sm">
-          {state.label} by <strong>{request.decided_by_name ?? 'an approver'}</strong> on {formatDateTime(request.decided_at)}
+          {state.label} by <strong>{request.decided_by_name ?? 'an approver'}</strong>
+          {request.decided_on_behalf_of_name ? <> on behalf of <strong>{request.decided_on_behalf_of_name}</strong></> : null} on {formatDateTime(request.decided_at)}
           {request.decision_comment ? `: ${request.decision_comment}` : '.'}
+        </Text>
+      )}
+      {pending && wf && (
+        <Text size="sm" c="dimmed">
+          Approval workflow "{wf.name}": {wf.approvals} of {wf.required} {wf.required === 1 ? 'approval' : 'approvals'}
+          {wf.waiting_for.length ? `, waiting for ${wf.waiting_for.join(', ')}.` : '. Nobody can approve it yet: an administrator can reassign the step or cancel the workflow.'}
+          {!showAsset && wf.can_decide ? ' Decide it in the approval panel at the top of this page.' : ''}
         </Text>
       )}
       {pending && (
         <Group gap="xs" mt={4}>
-          {can('assets.approve') && !request.own && (
+          {(wf ? wf.can_decide && showAsset : can('assets.approve') && !request.own) && (
             <>
               <Button variant="primary" size="sm" icon="check" onClick={() => setDeciding('approve')}>Approve</Button>
               <Button variant="danger" size="sm" icon="x" onClick={() => setDeciding('refuse')}>Refuse</Button>
@@ -242,7 +251,7 @@ export function RequestCard({ request, label, onChanged, showAsset }: { request:
           )}
           {can('assets.edit') && <Button size="sm" loading={busy} onClick={() => void withdraw()}>Withdraw request</Button>}
           {request.own && <Text size="sm" c="dimmed">You asked for this, so someone else must decide it.</Text>}
-          {!request.own && !can('assets.approve') && <Text size="sm" c="dimmed">Waiting for someone with the approval permission.</Text>}
+          {!wf && !request.own && !can('assets.approve') && <Text size="sm" c="dimmed">Waiting for someone with the approval permission.</Text>}
         </Group>
       )}
       {deciding && <DecideDialog request={request} label={label} decision={deciding} onClose={(changed) => { setDeciding(null); if (changed) onChanged(); }} />}
@@ -268,8 +277,9 @@ export function DisposalTab({ row, version, onChanged }: { row: Row; version: nu
           { key: 'done', label: 'Disposed' },
         ]} />
         <Text size="sm" c="dimmed">
-          Every disposal needs an approval: who approved it and when. Ask for it with the Dispose button; the people who may
-          approve are told, and the one who asked cannot approve it. An approval given outside the application can be recorded
+          Every disposal needs an approval: who approved it and when. Ask for it with the Dispose button; the "Asset disposal"
+          approval workflow tells the people who may approve (with a second step when an outside funder keeps an interest),
+          and the one who asked cannot approve it. An approval given outside the application can be recorded
           as a name and date instead, unless your organization has switched that off.
         </Text>
         {!funder.on ? null : row.funder_interest ? (

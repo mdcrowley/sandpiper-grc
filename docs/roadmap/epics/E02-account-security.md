@@ -1,6 +1,6 @@
 # E02 Account security
 
-**Status:** in progress (25 of 29 issues done)
+**Status:** in progress (27 of 29 issues done)
 
 ## Goal
 
@@ -43,7 +43,7 @@ everything else fails.
 | E02-15 | Send a blocked person straight to second-factor set-up | done | P1 |
 | E02-16 | Keep the secret key out of the data folder by default | done | P2 |
 | E02-17 | Enforce the second factor by default on new installations | done | P2 |
-| E02-18 | Limit a token to source addresses | open | P3 |
+| E02-18 | Limit a token to source addresses | done | P3 |
 | E02-19 | Second factor required when setup names no choice | done | P2 |
 | E02-20 | Re-encrypt webhook secrets after a key change | done | P2 |
 | E02-21 | A way back in for people whose only factor is a passkey | done | P3 |
@@ -54,7 +54,7 @@ everything else fails.
 | E02-26 | Directory (LDAP) sign-in | done | P3 |
 | E02-27 | SAML: act on sign-outs started at the identity provider | done | P3 |
 | E02-28 | SAML: check metadata signatures and refresh metadata | done | P3 |
-| E02-29 | Directory sign-in: passkey as second factor, linking and confirming from Account security | open | P3 |
+| E02-29 | Directory sign-in: passkey as second factor, linking and confirming from Account security | done | P3 |
 
 ---
 
@@ -428,9 +428,12 @@ machine, so a copied token is useless elsewhere. Found while building E02-12.
 
 - [x] A token may carry a list of allowed source addresses or ranges (up to 20, IPv4 and IPv6, CIDR; `allowedSources` on `POST /api/me/tokens` and `POST /api/mcp/tokens`; shown on the token screens)
 - [x] A request from elsewhere is refused (`403 token_source_not_allowed`) and audited as `token.refused`; it counts toward the wrong-token limit for that address
-- [ ] The per-token request count moves out of process memory with E14-12 (tracked there)
+- [x] The address checked is the one the application trusts (`clientIp`: the connection's own, or the entry the trusted proxy appended under `GRC_TRUST_PROXY`; a forwarded header is ignored otherwise) (tested)
+- [x] The list can be changed on a live token, by its owner (`PATCH /api/me/tokens/:id`, **Addresses** on Account security) or an administrator (`PATCH /api/admin/tokens/:id`, **Addresses** on Administration > API tokens), with a recent identity confirmation; an empty list allows any address again; audited as `token.update` with the lists before and after
+- [x] The administrators' token list shows "From any address" for a token without a list
+- [ ] The per-token request count moves out of process memory with E14-12 (tracked there; not part of this issue)
 
-**Implemented in:** `server/src/core/tokens.ts` (`checkSources`, `sourceAllowed`), `server/src/core/migrations/008_token_source_addresses.sql`; `web/src/modules/admin/ApiTokens.tsx`, `web/src/modules/mcp/ConnectCard.tsx`; test `server/src/core/api/token-sources.test.ts`
+**Implemented in:** `server/src/core/tokens.ts` (`checkSources`, `sourceAllowed`, `changeSources`), `server/src/core/migrations/008_token_source_addresses.sql`, route descriptions in `server/src/core/api/docs/tokens.ts`; `web/src/modules/admin/ApiTokens.tsx` (`SourcesDialog`), `web/src/modules/mcp/ConnectCard.tsx`; tests `server/src/core/api/token-sources.test.ts`, browser test "API token: change the allowed source addresses" (`tools/e2e/suites/07-dialogs.mjs`)
 
 ### E02-19 Second factor required when setup names no choice
 
@@ -596,7 +599,7 @@ signature was not checked.
 
 ### E02-29 Directory sign-in: passkey as second factor, linking and confirming from Account security
 
-**Status:** open · **Priority:** P3 · **Type:** improvement
+**Status:** done · **Priority:** P3 · **Type:** improvement
 
 Split from E02-26. After a directory password, a person whose only second factor is a passkey must
 use a recovery code: the passkey step (`/api/auth/webauthn/login/options` with a user name and
@@ -605,3 +608,13 @@ password) checks a local password. Also, a directory cannot be linked from **Acc
 with the directory password for sensitive actions. Offer a passkey challenge after a successful
 directory password, linking a directory from Account security and a directory confirmation in the
 confirmation dialog, and hide **Confirm with …** for a directory in `LinkedIdentities.tsx` until then.
+
+**Acceptance criteria**
+
+- [x] After a correct directory password, a person whose second factor is a passkey is asked for it: the sign-in answers 401 `mfa_required` with `fields.passkey: required`; `POST /api/auth/sso/:key/passkey-options` checks the directory user name and password again and gives the options for the linked account's keys; the sign-in takes the answer as `webauthn`. A recovery code still works; a person with an authenticator app can use a key instead of the code
+- [x] The existing limits and lockout apply to every step: failures by address and by directory user name, a wrong password, code or key counts toward the linked account's lockout, refusals audited
+- [x] A directory can be linked from **Account security** (`POST /api/auth/sso/:key/link-directory`, its user name and password after a recent confirmation; the directory must give the account's email address, trusted), audited as `identity.link`
+- [x] A person can confirm their identity for sensitive actions with a linked directory's password (`POST /api/auth/sso/:key/confirm`, the same entry as the link, then their second factor as for a password confirmation); the confirmation dialog offers it (`GET /api/auth/sso/confirm-methods`), and **Confirm with …** is shown for a directory on the Single sign-on card
+- [x] Tests with the stand-in directory and the software authenticator; the sign-in page's layout is unchanged (only the passkey step after a directory password is added)
+
+**Implemented in:** `server/src/modules/admin/sso.ts` (`checkDirectory`, the login route, `passkey-options`, `link-directory`, `confirm`, `confirm-methods`), `passkeyLoginOptions` in `server/src/core/webauthn/routes.ts`, route descriptions in `server/src/modules/admin/docs.ts`; web `web/src/core/reauth.ts` (directory choice in the confirmation dialog, `confirmIdentity`), `web/src/modules/admin/LinkedIdentities.tsx` (`LinkDirectoryDialog`, **Confirm with …**), `web/src/modules/account-keys/PasskeySignIn.tsx` and the directory branch of `LoginPage` in `web/src/core/AuthPages.tsx`; test `server/src/modules/admin/ldap-account.test.ts`; [user guide](../../user/16-passkeys-and-security-keys.md)

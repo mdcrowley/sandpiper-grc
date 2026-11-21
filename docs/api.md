@@ -211,7 +211,11 @@ Filters are query parameters named after fields:
 | `f.tags.null=true` | untagged records |
 | `f.cf_depot_code=north` | custom fields work like any other field |
 
-Filters combine with "and". The API reference lists every filter of every record type.
+Filters combine with "and". The API reference lists every filter of every record type. A
+filter on a field the type does not have, including a field hidden while its option is
+switched off (Administration > Features), or an unknown operator, answers 400 `bad_filter`,
+for the list, its counts (`/stats`) and its exports alike. (The application's own list pages
+leave such a filter out of a link or saved view instead.)
 
 ## Sorting
 
@@ -297,10 +301,12 @@ record change and every other event. A family name that is also a record type
 | `notification_clock.warning` | A security incident's notification deadline is close (the clock turned amber); once per notification task. `record` is the notification task | always | `incidentId`, `incidentRef`, `party`, `required`, `dueAt`, `secondsRemaining` |
 | `notification_clock.overdue` | The deadline passed with the notification still pending (the clock turned red); once per notification task | always | `incidentId`, `incidentRef`, `party`, `required`, `dueAt` |
 | `security_incident.declared` | A security incident was declared, starting its notification clocks. `record` is the incident | always | `severity`, `declaredAt`, `clocks`, `firstDeadline` |
-| `change.approval_decided` | An approver approved or rejected a change. `record` is the change | as the change | `decision` (`approved` or `rejected`), `approver`, `approvalsReceived`, `approvalsRequired`, `status` |
+| `change.approval_decided` | An approver approved or rejected a change. `record` is the change. Kept for this release only: change approval now runs on approval workflows, so move to `workflow.decided` and `workflow.finished` (which carry `kind`, and `onBehalfOf` for a stand-in's decision) | as the change | `decision` (`approved` or `rejected`), `approver`, `approvalsReceived`, `approvalsRequired`, `status` |
 | `report_schedule.delivered` | A report schedule ran and reached at least one person. Counts only: the figures stay in the application | never | `name`, `delivered`, `skipped`, `failed` |
 | `workflow.decided` | Someone approved or rejected a step of an approval workflow, on any record type. `record` is the record | as the record | `workflow`, `step`, `decision` (`approved` or `rejected`), `approver`, `comment`, `approvalsReceived`, `approvalsRequired`, `stepOutcome` (`approved`, `rejected` or `pending`) |
 | `workflow.finished` | An approval workflow ended: approved after its last step, rejected, or canceled. `record` is the record | as the record | `workflow`, `outcome` (`approved`, `rejected` or `canceled`), `reason`, `outcomeError` |
+| `retention.anonymized` | An administrator anonymized a record from the retention review. `record` is the record as it is now | as the record | `recordType`, `fields` (keys of the fields replaced, custom fields as `cf_<key>`), `comments`, `files` |
+| `retention.deleted` | An administrator removed a record for good from the retention review. `record` names it by `type`, `id` and `ref` only (`label` is the reference, `route` is `null`) | as the record | `recordType`, `purged` (always `true`) |
 | `backup.failed` | A scheduled or manual backup failed | never | `runId`, `trigger` (`scheduled` or `manual`), `destination`, `message` |
 
 The rules are those of record changes. An event marked **always** (about security incidents)
@@ -312,6 +318,24 @@ incident events belong to Security incidents, the change approval to Change enab
 the report delivery to Dashboards and reports. `GET /api/v1/admin/webhooks` lists the events
 on offer in `otherEvents`. Receivers should ignore events and fields they do not know: new
 ones may be added within v1.
+
+### Retention decisions
+
+Anonymizing a record or removing it for good from the retention review (Administration >
+Retention) changes it outside the usual edit, so a system that mirrors records through
+webhooks is told twice over, and never sent a value from before the change:
+
+- **Record changes.** A webhook that follows the type (`ticket.*`, `ticket.update`,
+  `ticket.delete` or `*`) receives `<type>.update` for an anonymized record, with only the
+  replaced fields and their new values (the placeholder text, or `null` for a person) in `data`
+  and `changes: { fields: [...], after: {...} }` (no `before`), and `<type>.delete` for a
+  removed record, with `data: {}` and `purged: true`. Both carry `retention: { decision:
+  "anonymized" | "deleted" }`.
+- **Other events.** A webhook that asks for `retention.anonymized`, `retention.deleted` or
+  `retention.*` receives the event in the table above.
+
+A webhook subscribed to `*` receives both. A restricted record is held back from webhooks that
+do not include restricted records, as for any change.
 
 ## Errors
 

@@ -3,7 +3,9 @@
 // server/src/core/identity; the administrator's screens are in providers.ts.
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { acceptTotpCode, consumeRecoveryCode, loadUser, requireRecentAuth, SESSION_COOKIE, sha256 } from '../../core/auth.ts';
+import { ApiError } from '../../core/errors.ts';
 import { DirectoryRefusal } from '../../core/identity/ldap.ts';
+import { passkeyLoginOptions, passkeySecondFactor } from '../../core/webauthn/index.ts';
 import { makeDbLimiter } from '../../core/ratelimit.ts';
 import { linkIdentity } from '../../core/identity/accounts.ts';
 import {
@@ -68,6 +70,7 @@ export function registerSso(ctx: ModuleContext) {
   // (the shared sign-in bucket), and by user name at this directory; a wrong password also counts
   // toward the progressive lockout of the account it is linked to. The second factor still applies.
   const directoryFailures = makeDbLimiter(db, 'signin_directory', 5, 15 * 60_000); // by provider and user name
+  const confirmFailures = makeDbLimiter(db, 'confirm', 8, 5 * 60_000); // by user, shared with POST /api/auth/confirm
   const GENERIC = 'Sign-in failed. Check your details, or wait a few minutes and try again.';
 
   /** Progressive lockout of a local account, as for a wrong local password (from the 5th failure, 1 minute doubling to 15). */
@@ -80,52 +83,80 @@ export function registerSso(ctx: ModuleContext) {
     await ctx.audit(null, { action: 'signin.lockout', recordType: 'user', recordId: userId, summary: `Account locked for ${lockMinutes} minute(s) after ${attempts} failed attempts (directory sign-in)` });
   }
 
-  app.post('/api/auth/sso/:key/login', { config: { public: true } }, async (req, reply) => {
-    reply.header('cache-control', 'no-store');
-    const ip = clientIp(req);
-    if (await signinLimiter(db).blocked(ip)) ctx.fail(429, 'rate_limited', GENERIC);
+  /** A directory provider by the key in the address, switched on. */
+  const directoryProvider = async (req: FastifyRequest) => {
     const p = await providerByKey(db, String((req.params as Record<string, string>).key ?? ''));
     if (!p || !p.enabled || DRIVERS[p.type]?.style !== 'credentials' || !DRIVERS[p.type].authenticate) ctx.fail(404, 'not_found', 'That sign-in provider is not available.');
+    return p!;
+  };
+
+  /**
+   * Checks a directory user name and password, with the rate limits and lockout of a directory sign-in
+   * (shared by signing in, the passkey step, linking and confirming: E02-26, E02-29). Every failure is
+   * audited (`what` names the step) and answered with the same message.
+   */
+  async function checkDirectory(req: FastifyRequest, p: ProviderRecord, what: 'Sign-in' | 'Linking' | 'Confirmation', userId?: string): Promise<ExternalIdentity> {
     const b = body(req);
     const username = String(b.username ?? '').trim();
     const password = typeof b.password === 'string' ? b.password : '';
     if (!username || !password) ctx.fail(400, 'validation', 'Check the highlighted fields.', { ...(!username ? { username: 'Enter your user name.' } : {}), ...(!password ? { password: 'Enter your password.' } : {}) });
     // Never logged: the password. The user name is shortened and shown as typed, like a local sign-in.
     const who = `"${username.slice(0, 80).replace(/[\u0000-\u001f]/g, '?')}"`;
-    const accountKey = `${p!.id}:${username.toLowerCase()}`;
+    const accountKey = `${p.id}:${username.toLowerCase()}`;
     if (await directoryFailures.blocked(accountKey)) {
-      await auditFailure(deps, req, p, `too many failed directory sign-ins for ${who}; refused for a while`);
+      await auditFailure(deps, req, p, `too many failed directory sign-ins for ${who}; refused for a while`, userId, what);
       ctx.fail(401, 'invalid_credentials', GENERIC);
     }
-    let identity: ExternalIdentity;
     try {
-      identity = await DRIVERS[p!.type].authenticate!(p!, readSecret(db, p!), username, password);
+      return await DRIVERS[p.type].authenticate!(p, readSecret(db, p), username, password);
     } catch (err) {
       const refusal = err instanceof DirectoryRefusal ? err : null;
       const reason = err instanceof IdentityError ? err.reason : 'unexpected error';
       if (!(err instanceof IdentityError)) console.error('[identity] directory sign-in failed:', (err as Error)?.message);
       const linked = refusal?.subject
-        ? await db.one<{ user_id: string }>('select user_id from user_identities where provider_id = $1 and subject = $2', [p!.id, refusal.subject]) : undefined;
+        ? await db.one<{ user_id: string }>('select user_id from user_identities where provider_id = $1 and subject = $2', [p.id, refusal.subject]) : undefined;
       if (refusal?.kind === 'password') {
         await directoryFailures.hit(accountKey);
         if (linked) await countAccountFailure(req, linked.user_id);
       }
-      await auditFailure(deps, req, p, `${reason} for ${who}`, linked?.user_id);
+      await auditFailure(deps, req, p, `${reason} for ${who}`, linked?.user_id ?? userId, what);
       if (refusal?.kind === 'unavailable' || refusal?.kind === 'config') {
-        return ctx.fail(502, 'provider_unavailable', `${p!.name} cannot be reached just now. Try again, or ask an administrator.`);
+        return ctx.fail(502, 'provider_unavailable', `${p.name} cannot be reached just now. Try again, or ask an administrator.`);
       }
       return ctx.fail(401, 'invalid_credentials', GENERIC);
     }
+  }
+  const clearDirectoryFailures = (req: FastifyRequest, p: ProviderRecord) =>
+    directoryFailures.clear(`${p.id}:${String(body(req).username ?? '').trim().toLowerCase()}`);
+  const webauthnDeps = { db, audit: ctx.audit, settings: ctx.settings };
+  const hasPasskey = async (userId: string) =>
+    Boolean(await db.one('select 1 from webauthn_credentials where user_id = $1 and revoked_at is null limit 1', [userId]).catch(() => undefined));
+  const given = (v: unknown) => v !== undefined && v !== null && v !== '';
+
+  app.post('/api/auth/sso/:key/login', { config: { public: true } }, async (req, reply) => {
+    reply.header('cache-control', 'no-store');
+    if (await signinLimiter(db).blocked(clientIp(req))) ctx.fail(429, 'rate_limited', GENERIC);
+    const p = await directoryProvider(req);
+    const identity = await checkDirectory(req, p, 'Sign-in');
+    const b = body(req);
     const code = String(b.totp ?? b.recoveryCode ?? '').trim();
-    const out = await finishSignIn(deps, req, reply, p!, identity, {
-      // A directory password is one factor: the person's own second factor still applies.
+    let keyOnly = false;
+    const out = await finishSignIn(deps, req, reply, p, identity, {
+      // A directory password is one factor: the person's own second factor still applies: an
+      // authenticator code, a passkey or security key (E02-29), or a recovery code.
       secondFactor: async (userId) => {
         const u = await db.one<{ totp_enabled: boolean; locked: boolean }>(
           'select totp_enabled, (locked_until is not null and locked_until > now()) as locked from users where id = $1', [userId],
         );
         if (u?.locked) return { result: 'failed', reason: 'account locked' };
-        const hasKey = Boolean(await db.one('select 1 from webauthn_credentials where user_id = $1 and revoked_at is null limit 1', [userId]).catch(() => undefined));
+        const hasKey = await hasPasskey(userId);
         if (!u?.totp_enabled && !hasKey) return { result: 'none' };
+        keyOnly = !u?.totp_enabled;
+        if (hasKey && given(b.webauthn)) {
+          if ((await passkeySecondFactor(webauthnDeps, req, userId, b.webauthn)) === 'passed') return { result: 'passed', how: 'a passkey' };
+          await countAccountFailure(req, userId);
+          return { result: 'failed', reason: 'passkey or security key not accepted' };
+        }
         if (!code) return { result: u?.totp_enabled ? 'mfa_required' : 'recovery_required' };
         if (u?.totp_enabled && (await acceptTotpCode(db, userId, code))) return { result: 'passed', how: 'second factor' };
         if (await consumeRecoveryCode(db, userId, code)) {
@@ -138,17 +169,151 @@ export function registerSso(ctx: ModuleContext) {
       },
     });
     if (out.ok) {
-      await directoryFailures.clear(accountKey);
+      await clearDirectoryFailures(req, p);
       return { ok: true };
     }
     if (out.code === 'mfa_required') return ctx.fail(401, 'mfa_required', 'Enter the 6-digit code from your authenticator app.');
     if (out.code === 'recovery_required') {
-      // E02-29: a passkey cannot yet be the second step after a directory password; a recovery code can.
-      return ctx.fail(401, 'mfa_required', 'Enter one of your recovery codes to finish signing in.', { recovery: 'required' });
+      // E02-29: the person's second factor is a passkey: POST /api/auth/sso/:key/passkey-options, then
+      // this route again with `webauthn`. A recovery code works too.
+      return ctx.fail(401, 'mfa_required', 'Use your passkey or security key to finish signing in, or enter one of your recovery codes.',
+        keyOnly ? { passkey: 'required', recovery: 'available' } : { recovery: 'required' });
     }
     if (out.code === 'link') return { ok: false, link: true };
     if (out.code === 'no_account') return ctx.fail(403, 'no_account', 'Your directory sign-in worked, but there is no account here for you. Ask an administrator to add you.');
     return ctx.fail(401, 'invalid_credentials', GENERIC);
+  });
+
+  /**
+   * E02-29: the passkey step after a directory password. Checks the directory user name and password
+   * again (so a key list is never handed out for a name alone), then answers the options for the
+   * linked person's keys, to pass to navigator.credentials.get and send back to the sign-in as `webauthn`.
+   */
+  app.post('/api/auth/sso/:key/passkey-options', { config: { public: true } }, async (req, reply) => {
+    reply.header('cache-control', 'no-store');
+    if (await signinLimiter(db).blocked(clientIp(req))) ctx.fail(429, 'rate_limited', GENERIC);
+    const p = await directoryProvider(req);
+    const identity = await checkDirectory(req, p, 'Sign-in');
+    const linked = await db.one<{ user_id: string }>(
+      `select i.user_id from user_identities i join users u on u.id = i.user_id
+       where i.provider_id = $1 and i.subject = $2 and u.deleted_at is null and u.status = 'active'
+         and (u.locked_until is null or u.locked_until <= now())`, [p.id, identity.subject]);
+    if (!linked) {
+      await auditFailure(deps, req, p, 'passkey step: no active account linked to this directory entry');
+      ctx.fail(401, 'invalid_credentials', GENERIC);
+    }
+    return passkeyLoginOptions(webauthnDeps, req, linked!.user_id);
+  });
+
+  // ---------- a directory on Account security (E02-29) ----------
+
+  /** Links a directory to the signed-in person with their directory user name and password. */
+  app.post('/api/auth/sso/:key/link-directory', async (req) => {
+    const me = req.user!;
+    const p = await directoryProvider(req);
+    const methods = await signInMethods(ctx, me.id);
+    if (methods.breakGlass) ctx.fail(409, 'break_glass', 'The break-glass account signs in with its password only, so it cannot be linked.');
+    if (!methods.allows(p.key)) ctx.fail(409, 'not_allowed', `Your account may not use ${p.name}. Ask an administrator.`);
+    if (methods.identities.some((i) => i.provider_id === p.id)) ctx.fail(409, 'already_linked', `Your account is already linked to ${p.name}.`);
+    // Proof that it is really the account holder: a confirmation in the last few minutes, then the directory's own.
+    await requireRecentAuth({ db, audit: ctx.audit, settings: ctx.settings }, req, `linking ${p.name}`);
+    if (await confirmFailures.blocked(me.id)) ctx.fail(429, 'rate_limited', 'Too many attempts. Wait a few minutes and try again.');
+    let identity: ExternalIdentity;
+    try {
+      identity = await checkDirectory(req, p, 'Linking', me.id);
+    } catch (err) {
+      await confirmFailures.hit(me.id);
+      throw err;
+    }
+    const problem = await linkProblem(ctx, me.id, p, identity);
+    if (problem) {
+      await auditFailure(deps, req, p, problem.reason, me.id, 'Linking');
+      ctx.fail(409, problem.code, problem.message);
+    }
+    await clearDirectoryFailures(req, p);
+    await linkIdentity(deps, req, { userId: me.id, provider: p, identity, method: 'self' });
+    return { ok: true, provider: p.name };
+  });
+
+  /**
+   * Confirms the signed-in person's identity with their directory password before a sensitive action
+   * (as POST /api/auth/confirm does with a password kept here): the entry must be the one linked to
+   * them, and a person with a second factor proves it too (`code` or `webauthn`; 400
+   * `second_factor_required` names what they have). Same limits as a password confirmation.
+   */
+  app.post('/api/auth/sso/:key/confirm', async (req) => {
+    const me = req.user!;
+    const p = await directoryProvider(req);
+    if (!(await db.one('select 1 from user_identities where user_id = $1 and provider_id = $2', [me.id, p.id]))) {
+      ctx.fail(409, 'not_linked', `Your account is not linked to ${p.name}.`);
+    }
+    if (await confirmFailures.blocked(me.id)) ctx.fail(429, 'rate_limited', 'Too many attempts. Wait a few minutes and try again.');
+    const refuse = async (reason: string, fields: Record<string, string>): Promise<never> => {
+      await confirmFailures.hit(me.id);
+      await ctx.audit(req, { action: 'reauth.failure', recordType: 'user', recordId: me.id, summary: `Confirmation through ${p.name} refused: ${reason}` });
+      return ctx.fail(400, 'validation', 'Check the highlighted fields.', fields);
+    };
+    let identity: ExternalIdentity;
+    try {
+      identity = await checkDirectory(req, p, 'Confirmation', me.id);
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'validation') throw err;
+      await confirmFailures.hit(me.id);
+      if (err instanceof ApiError && err.code === 'invalid_credentials') {
+        return ctx.fail(400, 'validation', 'Check the highlighted fields.', { password: `That is not your ${p.name} user name and password.` });
+      }
+      throw err;
+    }
+    if (!(await db.one('select 1 from user_identities where user_id = $1 and provider_id = $2 and subject = $3', [me.id, p.id, identity.subject]))) {
+      await refuse('a different directory entry', { password: `Those are not the ${p.name} details linked to your account.` });
+    }
+    await clearDirectoryFailures(req, p);
+    // E01-29: a person with a second factor proves it too: a code from the app, a recovery code, or a passkey.
+    const b = body(req);
+    const factor = await db.one<{ totp_enabled: boolean }>('select totp_enabled from users where id = $1', [me.id]);
+    const hasKey = await hasPasskey(me.id);
+    let how = `${p.name} password`;
+    if (factor?.totp_enabled || hasKey) {
+      const code = String(b.code ?? '').trim();
+      if (hasKey && given(b.webauthn)) {
+        if ((await passkeySecondFactor(webauthnDeps, req, me.id, b.webauthn)) !== 'passed') {
+          await refuse('passkey or security key not accepted', { code: 'That passkey or security key was not accepted. Try again, or enter a code.' });
+        }
+        how += ' and passkey';
+      } else if (code) {
+        if (factor?.totp_enabled && (await acceptTotpCode(db, me.id, code))) how += ' and authenticator code';
+        else if (await consumeRecoveryCode(db, me.id, code)) {
+          how += ' and a recovery code';
+          const left = await db.one<{ n: number }>('select jsonb_array_length(recovery_codes) as n from users where id = $1', [me.id]);
+          await ctx.audit(req, { action: 'mfa.recovery_code_used', recordType: 'user', recordId: me.id, summary: `Recovery code used to confirm identity; ${left?.n ?? 0} left` });
+        } else await refuse('wrong authenticator or recovery code', { code: 'That code was not accepted. Check it and try again.' });
+      } else {
+        // The password was right; now the second factor. Not counted as a failure.
+        const ask = factor?.totp_enabled
+          ? 'Enter the 6-digit code from your authenticator app, or a recovery code.'
+          : 'Use your passkey or security key, or enter a recovery code.';
+        ctx.fail(400, 'second_factor_required', ask, {
+          code: ask, ...(factor?.totp_enabled ? { totp: 'available' } : {}), ...(hasKey ? { passkey: 'available' } : {}),
+        });
+      }
+    }
+    const minutes = Math.max(1, Number(await ctx.settings.get('auth.reauth_minutes', 10)) || 10);
+    await db.query('update sessions set confirmed_at = now() where token_hash = $1', [req.sessionHash]);
+    await ctx.audit(req, { action: 'reauth.success', recordType: 'user', recordId: me.id, summary: `Identity confirmed (${how}) for administrative actions` });
+    return { ok: true, minutes };
+  });
+
+  /** How the signed-in person can confirm their identity: their password here, and the directories linked to them. */
+  app.get('/api/auth/sso/confirm-methods', async (req) => {
+    const me = req.user!;
+    const rows = await db.query<{ key: string; name: string; type: string }>(
+      `select p.key, p.name, p.type from user_identities i join identity_providers p on p.id = i.provider_id and p.deleted_at is null and p.enabled
+       where i.user_id = $1 order by p.name`, [me.id]);
+    const pw = await db.one<{ has: boolean }>('select password_hash is not null as has from users where id = $1', [me.id]);
+    return {
+      password: Boolean(pw?.has),
+      directories: rows.filter((r) => DRIVERS[r.type]?.style === 'credentials').map((r) => ({ key: r.key, name: r.name })),
+    };
   });
 
   app.post('/api/auth/sso/:key/start', { config: { public: true } }, async (req, reply) => {
@@ -300,9 +465,9 @@ export function registerSso(ctx: ModuleContext) {
     return {
       identities: linked,
       available: (await enabledProviders(db))
-        // A directory (E02-26) is linked at sign-in, not from here (E02-29).
-        .filter((p) => !linked.some((l: any) => l.provider_key === p.key) && methods.allows(p.key) && DRIVERS[p.type]?.style !== 'credentials')
-        .map((p) => ({ key: p.key, name: p.name })),
+        // `style`: a redirect provider is linked by a trip to it; a directory with its user name and password (E02-29).
+        .filter((p) => !linked.some((l: any) => l.provider_key === p.key) && methods.allows(p.key))
+        .map((p) => ({ key: p.key, name: p.name, style: DRIVERS[p.type]?.style ?? 'redirect' })),
       hasPassword: methods.hasPassword,
       localSignIn: methods.local,
       breakGlass: methods.breakGlass,

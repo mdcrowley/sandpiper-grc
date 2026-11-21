@@ -11,7 +11,7 @@ An administrator can switch change enablement off under **Administration > Featu
 | See the register, the calendar and any change | **View** |
 | Raise a change, including a standard change from a template | **Create** |
 | Edit a change, move it through its statuses, record the review, link records | **Edit** |
-| Approve or reject a change you are an approver for, and acknowledge a conflict | **Approve** |
+| Approve or reject a change you are an approver for (or stand in for), and acknowledge a conflict | **Approve** |
 | Maintain templates, blackout periods, approval rules and the risk questionnaire | **Administer** |
 
 Raising follow-up actions also needs **Create** on **Actions**. Roles are managed by an administrator; see [Administration](09-administration.md).
@@ -111,40 +111,41 @@ A notice on the change then shows the level that was set by hand, the level the 
 
 ## Approvals
 
-Each approver decides in the application, on their own behalf. The approval rule for the change's type and risk says how many approvals it needs and, optionally, who may give them: named people, the members of chosen roles, or (when it names nobody) anyone with **Approve** on **Changes**.
+Change approval runs on the shared [approval workflows](22-approval-workflows.md). Each approval rule (a change type and risk level) names an approval workflow: the rule's number of approvals and its approvers (named people, the members of chosen roles, or, when it names nobody, anyone with **Approve** on **Changes**) are the workflow's first step. An administrator can give that workflow more steps, due times and escalation under **Administration > Approval workflows**. Approvers always need **Approve** on **Changes**, and nobody decides a change they raised.
 
 ### Submitting for approval
 
 On a draft, select **Submit for approval**. If anything needed is missing, the message says what. If the approval rules ask for no approval for this type and risk, the change goes straight to **Approved**.
 
-When the change is submitted, the approvers it is waiting for are fixed from the rule in force at that moment, and each of them is sent a notification. A later change to the rules does not change who approves a change already submitted; returning it to draft and submitting it again does.
+Submitting starts the rule's approval workflow. Its approvers are worked out at that moment and each is sent a notification (and the stand-in of anyone who named one). A later change to the rules or the workflow does not change a change already submitted; returning it to draft and submitting it again does. Returning a change to draft, or canceling it, ends its running workflow.
 
 ### Approving or rejecting
 
-You need **Approve** on **Changes**, you must be one of the approvers the change is waiting for, and you cannot decide on a change you raised yourself.
+1. Open the change from the notification, **Waiting for your decision** on the register, the **Approvals** page, or the register itself.
+2. In the approval panel at the top of the change, select **Approve** or **Reject**.
+3. For an approval, add any comment (for example conditions for the implementer). For a rejection, say why; it is required.
 
-1. Open the change, from the notification, **Waiting for your decision** on the register, or the register itself.
-2. Select **Approve** or **Reject**, at the top of the page or on the **Approvals** tab.
-3. For an approval, add any **Notes** (for example conditions for the implementer). For a rejection, give the **Reason**; it is required.
-4. Select **Approve** or **Reject** in the dialog.
-
-The decision is recorded under your name with today's date. Each person decides once per submission, so one person can never make up the number on their own.
+You can also decide from **Home > Approvals**, or through an AI assistant (`my_approvals`, `decide_approval`). The decision is recorded under your name with today's date, and someone standing in for an approver is recorded as deciding on their behalf. Each person decides once per submission. When the workflow's last step is approved the change becomes **Approved**; a rejection makes it **Rejected** at once. The person who asked for approval (or an administrator) can **Cancel request** on the panel, which returns the change to draft.
 
 ### Recording a decision given outside the application
 
-If you gave your decision in a meeting or by email, record it yourself: on the **Approvals** tab open the menu beside **Reject** and choose **Record a decision given outside the application…**. Choose the **Decision**, check the **Approver name** and **Approver role**, enter the **Decision date** (it cannot be in the future), say in **Reference** where the evidence is filed, and select **Record decision**. It counts as your decision, exactly like **Approve** or **Reject**.
+If you gave your decision in a meeting or by email, record it yourself: on the **Approvals** tab open the menu at the top of the card and choose **Record a decision given outside the application…**. Choose the **Decision**, check the **Approver name** and **Approver role**, enter the **Decision date** (it cannot be in the future), say in **Reference** where the evidence is filed, and select **Record decision**. It counts as your decision on the workflow's current step, exactly like **Approve** or **Reject**.
 
 ### The Approvals tab
 
-The tab shows how many approvals have been recorded out of the number needed, **Who may approve** and, while the change is waiting, who is **Still to decide**. Below, **Decisions** lists every decision with who gave it and who recorded it. When the last approval needed is recorded the change becomes **Approved**. A rejection makes it **Rejected** at once. If you cannot decide, a note on the tab says why.
+The tab shows how many approvals have been recorded out of the number needed, **Who may approve**, the name of the approval workflow and, while the change is waiting, who is **Still to decide**. Below, **Decisions** lists every decision with who gave it and who recorded it, including decisions recorded before change approval moved to the approval workflows. If you cannot decide, a note on the tab says why.
 
-The owner, the implementer and the person who raised the change are told about each decision.
+The owner and the implementer, and the person who raised the change, are told the outcome.
 
 To revise a rejected change, select **Return to draft**, make the changes and submit it again. Decisions from the earlier submission stay in the list, marked **Earlier submission**, and no longer count.
 
 ### Approval after the work has started
 
-An administrator can allow this for a type of change, usually emergencies, in the approval rules. Where it is allowed, **Start work** is offered while the change is still **Awaiting approval**. The approval must then be recorded before the change can be closed, and it is marked **After the fact**.
+An administrator can allow this for a type of change, usually emergencies, in the approval rules. Where it is allowed, **Start work** is offered while the change is still **Awaiting approval**, and its approval workflow keeps running. The approval must be given before the change can be closed, and it is marked **After the fact**. A rejection given after the work started is kept on the change and the approval is asked for again.
+
+### For integrations
+
+The webhook event `change.approval_decided` is still sent for each decision for this release, beside the shared `workflow.decided` and `workflow.finished` events; move to those. `POST /api/changes/:id/approvals` keeps working and decides the current step of the change's workflow for the caller.
 
 ## Scheduling and carrying out a change
 
@@ -276,20 +277,22 @@ The table shows each period's **Repeats** and **Systems**. Deleting a blackout p
 
 ### Approval rules
 
-Each rule says what one kind of change needs.
+Each rule says what one kind of change needs. A rule that asks for approval has its own approval workflow, named under the rule (administrators can open it): the rule's **Approvals** and approvers are that workflow's first step, and saving the rules keeps the step in line with them. Further steps, due times and escalation are set on the workflow itself under **Administration > Approval workflows**.
 
 | Field | Meaning |
 |---|---|
 | **Change type** | The type the rule applies to, or **Any type**. |
 | **Risk** | The risk level the rule applies to, or **Any risk**. A rule for a named level wins over a rule for any risk. |
-| **Approvals** | How many different people must approve. An emergency change cannot need more than one. |
-| **Approver titles** | How the expected approvers are described, separated by commas (for example Change manager). Shown to people; they do not limit who approves. |
+| **Approvals** | How many different people must approve (the first step of the rule's workflow). **0** means no approval. An emergency change cannot need more than one. |
+| **Approver titles** | How the expected approvers are described, separated by commas (for example Change manager). Shown to people and used as the step's name; they do not limit who approves. |
 | **Named approvers** | People who may approve: search for each and select them; remove one with the cross on its chip. Name at least as many as the rule's **Approvals**, or also choose a role. |
 | **Approving roles** | Roles whose members may approve. With named approvers or roles, only those people may decide and only they are asked; with neither, anyone with **Approve** on **Changes** may. The line under them says who that is. |
 | **Review required** | A post-implementation review is needed before closure. Always on for emergency changes. |
-| **Approval may follow the work** | Work may start before approval is recorded. The approval is then marked **After the fact**. |
+| **Approval may follow the work** | Work may start before approval is given. The approval is then marked **After the fact**. |
 
-Select **Add rule** for a new rule and **Save rules** when finished. Saving applies the rules to drafts at once. Changes already submitted keep the number of approvals they were given. If no rule matches a change, it needs one approval.
+Select **Add rule** for a new rule and **Save rules** when finished. A new rule that asks for approval gets a new workflow. Saving applies the rules to drafts at once. Changes already submitted keep the workflow they were given. If no rule matches a change, it needs approval through the oldest active change approval workflow.
+
+When change approval moved to the approval workflows, each existing rule got its workflow, and changes that were waiting for approval carried on there with the approvals already recorded.
 
 ### Risk questionnaire
 

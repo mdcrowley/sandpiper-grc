@@ -107,6 +107,8 @@ export function registerCoreRoutes({ app, db, audit, lookups, res, custom, gate,
         // Custom fields follow the built-in ones, in the same shape, marked `custom: true` (core/customfields.ts).
         fields: { ...d.fields, ...(await custom.defs(d.type)) },
         search: res.ftsTypes.has(d.type) ? 'fulltext' : 'substring',
+        // Allowed status changes and fields required per status, for this person (E14-31, core/lifecycle.ts).
+        lifecycle: await res.lifecycles.metaFor(d, req.user),
       };
     }
     // Only the lists this person may read: list names and labels can themselves be sensitive.

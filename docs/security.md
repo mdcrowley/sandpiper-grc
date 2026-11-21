@@ -202,6 +202,11 @@ For scripts and other tools that call the API without a browser.
 - **Audited as such.** Every change made with a token names the token in its audit
   event (`audit_events.token_id`, `token_name`, shown in a record's History), and each
   successful non-read request also writes a `token.use` event.
+- **Source addresses.** A token may be limited to up to 20 addresses or ranges (IPv4, IPv6,
+  CIDR), checked against the client address the application trusts (the trusted-proxy
+  setting). The owner or an administrator can change the list later
+  (`PATCH /api/me/tokens/:id`, `PATCH /api/admin/tokens/:id`) after a recent identity
+  confirmation; each change is audited as `token.update` with the lists before and after.
 - **Listing and revoking.** A person lists and revokes their own tokens (with when each
   was last used, and from which address); an administrator lists and revokes anyone's
   (`/api/admin/tokens`). Creation and revocation are audited.
@@ -767,8 +772,14 @@ separate, tamper-evident copy.
     `LDAP_MATCHING_RULE_IN_CHAIN` matching rule; rules match the group's full DN.
   - **One factor.** A directory password never counts as a second factor (the provider's
     multi-factor option is forced off). A person with an authenticator app is asked for its code,
-    or a recovery code; a person whose only factor is a passkey uses a recovery code (E02-29). The
-    enrollment requirement applies as for everyone.
+    or a recovery code; a person whose second factor is a passkey is asked for it, the key list being
+    given only after the directory password is checked again (`POST /api/auth/sso/:key/passkey-options`,
+    same limits and lockout; E02-29). The enrollment requirement applies as for everyone.
+  - **Linking and confirming.** A directory can be linked from Account security with its user name and
+    password, after a recent confirmation, when the entry gives the account's trusted email. A person may
+    confirm their identity for sensitive actions with a linked directory's password
+    (`POST /api/auth/sso/:key/confirm`) followed by their second factor; it is limited by the same
+    `confirm` bucket as a password confirmation.
   - **Limits and lockout as for a password.** Failures count against the sign-in limit by source
     address (shared with password sign-in), and against a limit by provider and user name (5 wrong
     passwords in 15 minutes); a wrong password also counts toward the progressive lockout of the
@@ -923,6 +934,8 @@ put the prototype on a network or to hold sensitive real records in it.
   (`retention.audit_months` is recorded, not enforced): the audit log keeps earlier values
   of a record's personal fields.
 - Personal access tokens cannot be limited to particular records.
+- Retention decisions raise webhook events (E14-33) that carry no values from before the
+  change; they do not run the record type's after-save hooks.
 - Anonymizing or removing a record from the retention review raises no webhook event
   (E14-33).
 

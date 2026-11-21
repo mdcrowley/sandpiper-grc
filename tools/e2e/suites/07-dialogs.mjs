@@ -5,7 +5,7 @@
 // in, submitted, and the change is checked through the API. Covers E18-08.
 //
 // A case: { name, find(api) -> record path, steps: [opener...], title, submit, empty?, fill?,
-// pick?, verify(after, before) }. Openers: { button } (a text, or several to try), { menu, item }, { tab }.
+// pick?, verify(after, before), open? (the page to open the dialog on, when it is not the record page) }. Openers: { button } (a text, or several to try), { menu, item }, { tab }.
 import { sleep } from '../lib/browser.mjs';
 import { controls, fillRequired, invalidControls } from '../lib/forms.mjs';
 
@@ -143,16 +143,29 @@ const CASES = [
     verify: (row, before) => Boolean(row.last_reviewed_on) && String(row.last_reviewed_on) >= String(before.last_reviewed_on ?? ''),
   },
   {
-    name: 'risk: Record acceptance',
+    name: 'risk: Record acceptance by hand',
     async find(api) {
       const rows = (await api.must('GET', '/api/risks?pageSize=50&sort=ref')).rows.filter((r) => r.residual_rating && r.status !== 'closed');
       return `/risks/${rows[rows.length - 1].id}`;
     },
-    steps: [{ button: ['Record acceptance', 'Renew acceptance'] }],
+    steps: [{ button: ['Record by hand', 'Renew by hand'] }],
     title: 'acceptance',
     submit: 'Record acceptance',
     empty: true,
     fill: { 'Expires on': '15 Jan 2027' },
+  },
+  {
+    // E08-23: asking for acceptance starts the Risk acceptance approval workflow.
+    name: 'risk: Ask for acceptance',
+    async find(api) {
+      const rows = (await api.must('GET', '/api/risks?pageSize=50&sort=ref')).rows.filter((r) => r.residual_rating && r.status !== 'closed');
+      return `/risks/${rows[0].id}`;
+    },
+    steps: [{ button: ['Ask for acceptance', 'Ask to renew'] }],
+    title: '^Ask',
+    submit: 'Ask for acceptance',
+    empty: true,
+    fill: { 'Expires on': '15 Jan 2027', Rationale: 'Invented: the remaining exposure is small.' },
   },
   {
     name: 'risk: Add action from the risk page',
@@ -186,6 +199,20 @@ const CASES = [
     steps: [{ button: 'Approve' }],
     title: 'pprov',
     submit: ['Approve', 'Record approval', 'Record'],
+  },
+  {
+    // Wave 7: every part's approvals are on the one Approvals page (shared approval workflows). Runs
+    // after the change test, which approves the change waiting on its own page; the first row left is decided here.
+    name: 'approvals: Approve from the Approvals page',
+    open: '/approvals',
+    async find(api) {
+      const rows = (await api.must('GET', '/api/workflows/approvals')).rows;
+      if (!rows.length) throw new Error('nothing in the sample data is waiting for the administrator\'s approval');
+      return rows[0].route;
+    },
+    steps: [{ button: 'Approve' }],
+    title: '^Approve:',
+    submit: 'Approve',
   },
   {
     name: 'vulnerability: Assign finding',
@@ -260,7 +287,7 @@ function dialogTest(c) {
       const drive = async (spec, label) => {
         const before = await read();
         await t.step(`${label}: open the dialog`, async () => {
-          await page.goto(path);
+          await page.goto(c.open ?? path); // `open`: a page other than the record page (the Approvals page)
           for (const o of spec.steps) await opener(page, o);
           await markDialog(page, spec.title);
         });
@@ -320,4 +347,37 @@ function dialogTest(c) {
   };
 }
 
-export const tests = CASES.map(dialogTest);
+/** E02-18: changing where a personal API token may be used from, on Account security. */
+const tokenSources = {
+  name: 'API token: change the allowed source addresses',
+  async run(t) {
+    const { page } = t;
+    const api = t.api();
+    const name = `E2E token ${Date.now().toString(36)}`;
+    const made = await t.step('make a token through the API', () => api.must('POST', '/api/me/tokens', { name, scopes: ['tickets.view'], expiresInDays: 1 }));
+    try {
+      await t.step('open its addresses from Account security', async () => {
+        await page.goto('/account/security');
+        await page.click({ role: 'button', name: `Allowed addresses of the token ${name}` });
+        await markDialog(page, '^Allowed addresses of');
+      });
+      await t.step('save two addresses', async () => {
+        await page.fill({ label: 'Allowed source addresses', within: SCOPE }, '203.0.113.7\n198.51.100.0/24');
+        await pressInDialog(page, 'Save addresses');
+        for (let i = 0; i < 40 && (await dialogOpen(page, '^Allowed addresses of')); i++) await sleep(150);
+        if (await dialogOpen(page, '^Allowed addresses of')) throw new Error('the dialog is still open');
+        await page.settled();
+      });
+      await t.step('the token is limited, and the card says so', async () => {
+        const tok = (await api.must('GET', '/api/me/tokens')).tokens.find((x) => x.id === made.id);
+        if (JSON.stringify(tok.allowed_sources) !== JSON.stringify(['203.0.113.7', '198.51.100.0/24'])) throw new Error(`saved ${JSON.stringify(tok.allowed_sources)}`);
+        await page.waitFor({ text: 'Only from 203.0.113.7, 198.51.100.0/24', tag: 'span' });
+      });
+    } finally {
+      await api.must('DELETE', `/api/me/tokens/${made.id}`);
+    }
+    t.clean('token sources');
+  },
+};
+
+export const tests = [...CASES.map(dialogTest), tokenSources];

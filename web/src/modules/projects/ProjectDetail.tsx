@@ -177,7 +177,7 @@ export function ProjectDetail() {
         summary={(rec) => <Summary {...rec} />}
         tabs={[
           { key: 'overview', label: 'Overview', content: (rec) => <Overview {...rec} /> },
-          { key: 'gate', label: 'Gate', content: (rec) => <GateTab projectId={rec.row.id} onChanged={rec.reload} /> },
+          { key: 'gate', label: 'Gate', content: (rec) => <GateTab projectId={rec.row.id} version={String(rec.row.updated_at ?? '')} onChanged={rec.reload} /> },
           { key: 'reports', label: 'Status reports', content: (rec) => <StatusReportsTab projectId={rec.row.id} onChanged={rec.reload} /> },
           { key: 'items', label: 'Register', content: (rec) => <ItemsTab projectId={rec.row.id} onChanged={rec.reload} /> },
           { key: 'milestones', label: 'Milestones', content: (rec) => <MilestonesTab projectId={rec.row.id} onChanged={rec.reload} /> },

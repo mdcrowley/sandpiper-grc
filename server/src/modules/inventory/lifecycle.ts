@@ -1,4 +1,5 @@
 import type { FastifyRequest } from 'fastify';
+import { approvalEngine } from '../../core/approval-kinds.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { featureState, optionOn } from '../../core/features.ts';
 import { dayInZone } from '../../core/timezone.ts';
@@ -204,7 +205,10 @@ export function registerLifecycle(ctx: ModuleContext) {
       `update asset_disposal_requests set status = 'withdrawn', decided_at = now(), decision_comment = 'Asset disposed before a decision'
        where asset_id = $1 and status = 'pending' returning id`, [asset.id],
     );
-    if (waiting.length) row = await ctx.resources.update('asset', asset.id, { disposal_request_status: null });
+    if (waiting.length) {
+      await approvalEngine(ctx.app)?.cancel('asset_disposal', asset.id, 'The asset was disposed of before a decision.', req);
+      row = await ctx.resources.update('asset', asset.id, { disposal_request_status: null });
+    }
     await ctx.audit(req, {
       action: 'asset.dispose', recordType: 'asset', recordId: asset.id,
       summary: `Asset ${asset.tag ?? asset.name} disposed; approved by ${row.disposal_approved_by} on ${row.disposal_approved_on}`

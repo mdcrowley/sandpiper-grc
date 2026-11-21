@@ -74,11 +74,15 @@ Remove a key straight away if the device or security key is lost or stolen.
 - With no authenticator app, your browser asks for your key straight away. If you cannot use it (lost, or on another device), the page asks for a **Recovery code** instead: type one and select **Sign in with the recovery code**. **Try your passkey or security key again** asks for the key once more.
 - With the authenticator app as well, you are asked for the 6-digit code; select **Use a passkey or security key instead** to use your key.
 
+**After your directory password.** If your organization's directory is on the sign-in form (**Sign in with** your directory's name), the same happens after your directory user name and password: your browser asks for your key straight away, a **Recovery code** works instead, and with an authenticator app you can select **Use a passkey or security key instead** at the code step. Wrong passwords, codes and keys count toward locking the account, as for a password kept here.
+
 If the key is refused you see "Sign-in with the key failed. Try again, or sign in with your password." A key whose use counter has gone backwards is refused, because that can mean it was copied; tell your administrator.
 
 ## Confirming it is you with a key
 
 Before a sensitive change (a role, a sign-in setting, adding a key) the application asks you to **Confirm it is you**. After your password, a person with a second factor is asked for it too: select **Use your passkey or security key** and use your key, or type a 6-digit code or a recovery code instead.
+
+**With your directory password.** If your account is linked to your organization's directory (LDAP), the box offers it: choose the directory under **Confirm with** (it is the only choice if you have no password here), enter your **User name** and **Password** at the directory, then your key or code if you have a second factor. The directory details must be the ones linked to your account. Wrong attempts are limited as for a password. On **Account security**, the **Single sign-on** card's **Confirm with …** button opens the same box for the directory.
 
 ## For administrators
 

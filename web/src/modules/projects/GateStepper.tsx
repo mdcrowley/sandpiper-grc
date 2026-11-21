@@ -20,6 +20,7 @@ export function describeGate(gate: Gate | undefined, state: GateState = gateStat
   if (state === 'approved') return `Approved${gate.decided_on ? ` ${formatDate(gate.decided_on)}` : ''}`;
   if (state === 'rejected') return 'Rejected';
   const deferred = gate.status === 'deferred' ? 'Deferred · ' : '';
+  if (state === 'ready' && gate.approval?.running) return 'Waiting for approval';
   return state === 'ready' ? `${deferred}Ready for a decision` : `${deferred}Blocked: ${gate.blockers.length} to do`;
 }
 

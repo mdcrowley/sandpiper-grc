@@ -1,6 +1,6 @@
 # E08 Risks, actions and obligations
 
-**Status:** in progress (22 of 23 issues done)
+**Status:** done (23 of 23 issues done)
 
 ## Goal
 
@@ -47,7 +47,7 @@ module; and a register of the obligations the organization must meet.
 | E08-20 | Risk page as a story | done | P2 |
 | E08-21 | Expired-acceptance count on the overview dashboard | done | P3 |
 | E08-22 | Obligation due-date reminders | done | P3 |
-| E08-23 | Risk acceptance on the shared approval workflows | open | P3 |
+| E08-23 | Risk acceptance on the shared approval workflows | done | P3 |
 
 ---
 
@@ -423,12 +423,16 @@ As an obligation owner, I am reminded before an obligation's next due date.
 
 ### E08-23 Risk acceptance on the shared approval workflows
 
-**Status:** open · **Priority:** P3 · **Type:** improvement
+**Status:** done · **Priority:** P3 · **Type:** improvement
 
 As a risk owner, accepting a risk asks for approval through the shared approval workflows (E14-06); risks are restricted, so only approvers who may see restricted records are asked.
 
 **Acceptance criteria**
 
-- [ ] The acceptance approver rule becomes a workflow started by asking for acceptance
-- [ ] Approval records the acceptance (approver, date, expiry) as today; rejection leaves the risk open with the reason
-- [ ] Revoking an acceptance is unchanged
+- [x] The acceptance approver rule becomes a workflow started by asking for acceptance
+- [x] Approval records the acceptance (approver, date, expiry) as today; rejection leaves the risk open with the reason
+- [x] Revoking an acceptance is unchanged
+
+The ready-made "Risk acceptance" workflow (approval kind `risk_acceptance`) has a "Risk approver" step (holders of `risks.approve`) and an "Executive approver" step that applies only when the risk's read-only field `acceptance_executive` is set (its rating is at or above its scale's threshold; kept on every re-rating and filled for existing risks at the first start). Only approvers who hold `risks.approve` and may see restricted records are asked. Recording an acceptance by hand stays for decisions made outside the application and ends a waiting request. Nothing to carry over on upgrade: acceptances were recorded directly, with no pending state.
+
+**Implemented in:** `server/src/modules/risks/acceptance.ts` (kind `risk_acceptance`, `POST/GET /api/risks/:id/acceptance-request`), `scales.ts` (`acceptance_executive`), migration `risks/004_acceptance_workflow.sql`; `web/src/modules/risks/AcceptancePanel.tsx`; tests `server/src/modules/risks/acceptance-workflow.test.ts`

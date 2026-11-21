@@ -1,6 +1,6 @@
 # E14 Platform services not yet built
 
-**Status:** in progress (31 of 36 issues done)
+**Status:** in progress (33 of 37 issues done)
 full-text search built; custom fields, tags and watchers built with their screens; retention
 built on the server and screens, with anonymizing; evidence files on record pages built, with expiry reminders;
 feature switches for optional areas built; approval workflows built)
@@ -28,10 +28,13 @@ bulk edit) that make daily use quicker.
   Until `app.ts` starts them itself, the notifications module starts both in its
   `seedDefaults`, so they exist before any module's `register` runs.
 - Approval workflows (E14-06) are the `workflows` module: ordered approval steps any record
-  type can use, defined by an administrator. The modules' own approval rules (changes, catalog
-  requests, project gates, asset disposal, risk acceptance) keep working beside it until each
-  moves across (E05-13, E03-22, E11-25, E04-24, E08-23). Status lifecycles are still per-module
-  code plus configurable lists (E14-31).
+  type can use, defined by an administrator. Modules hand their own approvals to it as approval
+  kinds (`core/approval-kinds.ts`): change approval (E05-13), catalog request approval (E03-22),
+  project gates (E11-25), asset disposal (E04-24) and risk acceptance (E08-23). The module starts
+  the workflow and is called back on each decision and at the end, so it keeps its own rules;
+  each kind installs once (its ready-made workflows, and the approvals waiting at the upgrade). Allowed status changes, required
+  fields and who may set a status are data per record type (E14-31, Administration > Lifecycles);
+  modules' own lifecycle rules stay in code and the data can only restrict them.
 
 ## Issues
 
@@ -67,12 +70,13 @@ bulk edit) that make daily use quicker.
 | E14-28 | Switch optional parts of the application on and off | done | P2 |
 | E14-29 | Larger messages through Microsoft Graph | done | P3 |
 | E14-30 | Wait as long as a throttled mail service asks | done | P3 |
-| E14-31 | Allowed status changes and required fields as data per record type | open | P3 |
+| E14-31 | Allowed status changes and required fields as data per record type | done | P3 |
 | E14-32 | Approval workflows that branch, run steps side by side or delegate | open | P3 |
-| E14-33 | Retention decisions raise webhook events | open | P3 |
+| E14-33 | Retention decisions raise webhook events | done | P3 |
 | E14-34 | A switched-off part is shown nowhere but its switch | done | P2 |
 | E14-35 | Organization settings: details, logo and accessible brand colors | done | P2 |
 | E14-36 | Branding in the remaining places: email logo, HTML report documents, WebP logos in PDFs | open | P3 |
+| E14-37 | A status change that needs approval waits for an approval workflow | open | P3 |
 
 ---
 
@@ -287,8 +291,9 @@ them and what happens at the end, instead of this being written in each module.
   steps, an editor with the flow drawn beside it, running workflows (with cancel) and
   department heads
 - [x] Existing per-module rules keep working until moved across
-- [ ] First users: moving change approval, asset disposal and risk acceptance (and catalog request
+- [x] First users: moving change approval, asset disposal and risk acceptance (and catalog request
   approvals and project gates) across is raised per module: E05-13, E04-24, E08-23, E03-22, E11-25
+  (all five done in wave 7, through approval kinds: `server/src/core/approval-kinds.ts`)
 
 **Implemented in:** `server/src/modules/workflows/` (`engine.ts` rules, `service.ts`,
 `routes.ts`, `index.ts`, `migrations/001_workflows.sql`), `WEBHOOK_EVENTS` in
@@ -992,7 +997,7 @@ E14-34.
 
 ### E14-31 Allowed status changes and required fields as data per record type
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 As an administrator, I say for a record type which status changes are allowed, who may make
 them and which fields must be filled in first, instead of this being written in each module.
@@ -1000,11 +1005,39 @@ Split from E14-06, which built the approval workflows.
 
 **Acceptance criteria**
 
-- [ ] Allowed moves between the values of a status field, per record type, kept as data (some
-  modules already keep `meta.next` on their status lists)
-- [ ] Fields required before a move, and who may make it (a permission or role)
-- [ ] A move that needs approval starts an approval workflow (E14-06) and waits for it
-- [ ] Modules with their own lifecycle rules keep them until moved across
+- [x] Allowed moves between the values of a status field, per record type, kept as data (table
+  `lifecycle_rules`, core migration 015), including the statuses a new record may start with.
+  Stored as the moves that are *not* allowed, so the shipped defaults (no row) allow every move and
+  require nothing, exactly as before: an upgrade changes nothing (a table-driven test over every
+  record type)
+- [x] Fields required before a status (built-in fields a person fills in, and custom fields), and who
+  may move a record to it (a permission or one of some roles)
+- [x] Enforced in the resource engine on every save a person makes (forms, bulk edit, the API,
+  imports and their dry run, MCP tools), with the usual 400 `validation` field errors; system work
+  (seeding, automation) is not checked. The web form offers only the allowed next statuses and marks
+  the fields the chosen status needs (`lifecycle` per type in `/api/meta`)
+- [x] Administration > Lifecycles: a diagram of the moves (drawn like the workflow diagram), a table
+  of allowed changes, required fields and who may set each status, Save, Discard and Restore
+  defaults; every change audited (`lifecycle.update`, `lifecycle.restore`); types of switched-off
+  areas are not listed
+- [x] Modules with their own lifecycle rules keep them in code: the data runs before the module's
+  hooks and can only restrict. The page lists each module's rules as "Set by the application"; types
+  whose status only the application sets (changes, policies) are shown read-only (409
+  `set_by_application` on a change)
+- [x] A status added to the list is reachable to and from every status until the rules say otherwise
+  (the page marks it as new); a retired status breaks no record (records holding it may move
+  anywhere; rules naming it are ignored)
+- [ ] A move that needs approval starts an approval workflow (E14-06) and waits for it: not built
+  here (a workflow can already start when a status changes); left for a follow-up issue
+
+**Implemented in:** `server/src/core/lifecycle.ts` (rules, defaults, check, `/api/meta` part,
+`APPLICATION_RULES`), `core/resource.ts` (`checkLifecycle` in `create` and `update`),
+`core/migrations/015_lifecycle_rules.sql`, `core/routes.ts` (`lifecycle` in `/api/meta`),
+`server/src/modules/lifecycles/` (the `/api/admin/lifecycles` routes),
+`web/src/core/lifecycle.ts` and `ResourceForm.tsx` (status picker and required marks),
+`web/src/modules/lifecycles/` (the page), `docs/user/23-lifecycles.md`; tests in
+`core/lifecycle.test.ts`, `web/src/core/lifecycle.component.test.ts`,
+`web/src/modules/lifecycles/data.test.ts` and the browser suite `10-lifecycles`.
 
 ### E14-32 Approval workflows that branch, run steps side by side or delegate
 
@@ -1018,12 +1051,22 @@ built ordered steps only.
 
 - [ ] Steps that run side by side and all must finish
 - [ ] A choice of route by condition, beyond skipping a step
-- [ ] An approver names a stand-in for a period; their approvals go to the stand-in and are recorded as such
-- [ ] Reassign a waiting step to someone else (administrators), audited
+- [x] An approver names a stand-in for a period; their approvals go to the stand-in and are recorded as such
+  (from the Approvals page; administrators for anyone. While it runs, steps also go to the stand-in
+  and either may decide, once between them; recorded "X on behalf of Y" in history, audit and webhook.
+  Never their own request, no chains, restricted records only to stand-ins who may see them, the
+  kind's approve permission applies; periods starting later join waiting steps from the sweep)
+- [x] Reassign a waiting step to someone else (administrators), audited
+  (**Reassign** on the approval panel, `POST /api/workflows/steps/:id/reassign`, `workflow.reassign`)
+
+Stand-ins and reassignment are in `server/src/modules/workflows/standins.ts`, `service.ts` and
+`engine.ts` (`slotFor`), migration `workflows/002_kinds_and_standins.sql`, the **Stand-ins** tab of
+`web/src/modules/workflows/ApprovalsPage.tsx` (`Standins.tsx`) and `WorkflowPanel.tsx`; tests
+`server/src/modules/workflows/kinds.test.ts`. Steps side by side and routes by condition stay open.
 
 ### E14-33 Retention decisions raise webhook events
 
-**Status:** open · **Priority:** P3 · **Type:** improvement
+**Status:** done · **Priority:** P3 · **Type:** improvement
 
 Anonymizing or removing a record from the retention review (E14-11, E14-19) writes the record
 directly rather than through the resource engine, so it is audited but raises no webhook event and
@@ -1032,9 +1075,13 @@ personal data it was sent earlier.
 
 **Acceptance criteria**
 
-- [ ] Anonymizing raises a record-updated event (with the replaced fields only) and removing raises a record-deleted event, in the `WEBHOOK_EVENTS` catalog
-- [ ] The event carries no personal values from before the change
-- [ ] Tested, and listed in the webhook guide
+- [x] Anonymizing raises a record-updated event (`<type>.update` with the replaced fields only, `changes: { fields, after }`) and removing raises a record-deleted event (`<type>.delete`, `purged: true`, no fields); the catalog (`WEBHOOK_EVENTS`) lists `retention.anonymized` and `retention.deleted` for webhooks that want them by name
+- [x] The events carry no personal values from before the change (a removed record is named by type, id and reference only); restricted records follow the usual rule; nothing is sent while outbound connections are off
+- [x] Tested, and listed in the webhook guide and the integration guide (`docs/api.md`, "Retention decisions")
+
+After-save hooks of the record type still do not run for these two decisions (they are not edits).
+
+**Implemented in:** `webhookRetentionChange` and the two catalog entries in `server/src/core/webhooks.ts`, called from the anonymize and delete routes in `server/src/core/retention.ts`; test `server/src/core/retention-webhooks.test.ts`
 
 ### E14-34 A switched-off part is shown nowhere but its switch
 
@@ -1159,3 +1206,17 @@ Acceptance criteria:
 - [ ] A square favicon made from the logo
 - [ ] Mantine's brand scale generated from the brand color
 
+### E14-37 A status change that needs approval waits for an approval workflow
+
+**Status:** open · **Priority:** P3 · **Type:** feature
+
+Split from E14-31. A lifecycle (Administration > Lifecycles) says which status changes are allowed
+and who may make them, and an approval workflow can start when a status changes, but a move cannot
+yet be held until a workflow approves it: the record stays in its status, shows the pending move,
+and takes it when the workflow is approved (or stays when it is rejected).
+
+**Acceptance criteria**
+
+- [ ] A lifecycle move can name an approval workflow it waits for
+- [ ] The record shows the pending move; approval makes it, rejection leaves the record as it was
+- [ ] Works on every save path (forms, API, imports, MCP), audited, and respects feature switches

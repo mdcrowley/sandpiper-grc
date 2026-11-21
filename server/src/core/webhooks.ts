@@ -9,6 +9,7 @@ import { fail, UUID_RE } from './errors.ts';
 import { featureState } from './features.ts';
 import type { ResourceDef, Row, SessionUser } from './module.ts';
 import type { makeResources, RecordChange } from './resource.ts';
+import { CUSTOM_PREFIX } from './customfields.ts';
 import type { SecretBox } from './secretbox.ts';
 import { can, requirePerm, type makeAudit, type makeSettings } from './services.ts';
 
@@ -240,6 +241,16 @@ export const WEBHOOK_EVENTS: WebhookEventDef[] = [
     data: { workflow: 'Workflow name', outcome: '`approved`, `rejected` or `canceled`', reason: 'The rejection comment or why it was canceled, if any', outcomeError: 'Why the fields the workflow sets at the end could not be set, or null' },
   },
   {
+    event: 'retention.anonymized', label: 'Record anonymized at the end of its retention period', area: null, restricted: 'record',
+    description: 'An administrator anonymized a record from the retention review. Names the fields replaced, never their earlier values. The record-change event `<type>.update` is sent too, with the replaced fields only.',
+    data: { recordType: 'Record type', fields: 'Names (keys) of the fields replaced; custom fields as `cf_<key>`', comments: 'Comments whose text and author were removed', files: 'Files whose names and contents were removed' },
+  },
+  {
+    event: 'retention.deleted', label: 'Record removed for good at the end of its retention period', area: null, restricted: 'record',
+    description: 'An administrator removed a record for good from the retention review. Names the record by type, id and reference only. The record-change event `<type>.delete` is sent too, without the record\'s fields.',
+    data: { recordType: 'Record type', purged: 'Always true: the record no longer exists' },
+  },
+  {
     event: 'backup.failed', label: 'Backup failed', area: null, restricted: 'never',
     description: 'A scheduled or manual backup failed.',
     data: { runId: 'Backup run id', trigger: '`scheduled` or `manual`', destination: 'Where it was to be written', message: 'Why it failed' },
@@ -264,10 +275,28 @@ export interface WebhookEventInput {
   req?: FastifyRequest | null;
 }
 
+/**
+ * A retention decision that changed a record outside the resource engine (E14-33): anonymized
+ * (`row` is the record as it is now, `fields` the keys replaced) or removed for good (`row` is the
+ * record as it was, used only for its restriction, id and reference: none of its values are sent).
+ */
+export interface RetentionChangeInput {
+  action: 'anonymized' | 'deleted';
+  def: ResourceDef;
+  row: Row;
+  /** Anonymized: the keys of the fields replaced (custom fields as `cf_<key>`). */
+  fields?: string[];
+  comments?: number;
+  files?: number;
+  req?: FastifyRequest | null;
+}
+
 declare module 'fastify' {
   interface FastifyInstance {
     /** Queues a catalog event for the webhooks that ask for it (core/webhooks.ts). Returns how many. */
     webhookEvent?: (input: WebhookEventInput) => Promise<number>;
+    /** Queues the events of a retention decision (core/webhooks.ts, E14-33). Returns how many deliveries. */
+    webhookRetentionChange?: (input: RetentionChangeInput) => Promise<number>;
   }
 }
 
@@ -380,6 +409,63 @@ export function registerWebhooks({ app, db, audit, settings, res, box, loadUser,
     return queued;
   }
   if (!app.hasDecorator('webhookEvent')) app.decorate('webhookEvent', emitEvent);
+
+  /**
+   * A retention decision (E14-33): the record-change event (`<type>.update` with the replaced
+   * fields only, or `<type>.delete`) for webhooks that follow the type, and the catalog event
+   * (`retention.anonymized` or `retention.deleted`) for webhooks that ask for it. Neither carries
+   * a value from before the change: an anonymized record's replaced fields are sent with their new
+   * values, and a removed record is named by its type, id and reference only.
+   */
+  async function retentionChange(input: RetentionChangeInput): Promise<number> {
+    if (!(await enabled())) return 0;
+    const { def, row } = input;
+    if (!res.registry.get(def.type)) return 0; // a switched-off type sends nothing
+    const restricted = isRestricted(def, row);
+    const ref = def.ref ? row[def.ref.field] ?? null : null;
+    const anonymized = input.action === 'anonymized';
+    const fields = anonymized ? [...new Set(input.fields ?? [])] : [];
+    const record = anonymized
+      ? { type: def.type, id: row.id, ref, label: res.labelOf(def, row), route: `${def.route}/${row.id}` }
+      : { type: def.type, id: row.id, ref, label: ref, route: null };
+    const now = new Date().toISOString();
+    const actor = input.req?.user ? { id: input.req.user.id, name: input.req.user.displayName } : null;
+    const replaced = Object.fromEntries(fields.map((k) => [k, k.startsWith(CUSTOM_PREFIX) ? (row.custom as Row | null)?.[k.slice(CUSTOM_PREFIX.length)] ?? null : row[k] ?? null]));
+    const action = anonymized ? 'update' : 'delete';
+    const catalog = anonymized ? 'retention.anonymized' : 'retention.deleted';
+    const retention = { decision: input.action };
+    const hooks = await db.query<Row>('select * from webhooks where active and deleted_at is null');
+    let queued = 0;
+    for (const hook of hooks) {
+      const events = hook.events as string[];
+      const asChange = matches(events, def.type, action);
+      const asEvent = matchesEvent(events, catalog);
+      if (!asChange && !asEvent) continue;
+      if (restricted && !(await mayReceiveRestricted(hook))) continue;
+      if (asChange) {
+        await enqueue(hook, `${def.type}.${action}`, {
+          event: `${def.type}.${action}`, occurredAt: now, record,
+          data: anonymized ? replaced : {},
+          ...(anonymized ? { changes: { fields, after: replaced } } : { purged: true }),
+          retention, actor,
+        }, def.type, row.id);
+        queued += 1;
+      }
+      if (asEvent) {
+        await enqueue(hook, catalog, {
+          event: catalog, occurredAt: now, record,
+          data: anonymized
+            ? { recordType: def.type, fields, comments: input.comments ?? 0, files: input.files ?? 0 }
+            : { recordType: def.type, purged: true },
+          actor,
+        }, def.type, row.id);
+        queued += 1;
+      }
+    }
+    if (queued && autoRun) setImmediate(() => { void processDue().catch((err) => console.error('[webhooks]', err)); });
+    return queued;
+  }
+  if (!app.hasDecorator('webhookRetentionChange')) app.decorate('webhookRetentionChange', retentionChange);
 
   // ---------- sending ----------
 

@@ -557,6 +557,7 @@ Generated routes:
 | `GET /api/branding`, `/api/branding/logo/:variant` | The organization's public look: names, colors as tokens per theme, logo addresses (public; `publicBranding` in `core/organization.ts` never includes the address or contacts) |
 | `GET /api/auth/state` | `{ appName, branding, timeZone, currency, setupRequired, user, permissions, features, areasOff, pilot, mfa... }` (public) |
 | `POST /api/setup` | First-run administrator (public, only while no users exist) |
+| `/api/admin/lifecycles`, `/api/admin/lifecycles/:type` (GET, PUT, DELETE) | Lifecycle rules per record type (`admin.administer`) |
 | `POST /api/auth/login`, `/logout`, `/change-password`, `/confirm` | Local sign-in; `confirm` proves the password again before a sensitive action |
 | `GET /api/meta` | `{ resources: { [type]: meta }, lookups: { [list]: [{ value, label, color, sort }] } }` |
 | `GET /api/openapi.json` | OpenAPI document, cut down to what the caller may use |
@@ -601,6 +602,18 @@ the sign-in, account-security or token routes, and cannot pass a password confir
 See `examples/api-token.ps1`. Besides permissions, a token may carry a scope family that
 is not a permission (`SCOPE_FAMILIES` in `core/tokens.ts`): today only `mcp.use`, which
 lets it be used at `/mcp`.
+
+### Lifecycles (E14-31)
+
+`core/lifecycle.ts` holds, per record type, the moves that are not allowed (stored as `blocked`
+[from, to] pairs; from `''` is a new record), the fields each status needs, and who may set it (a
+permission or roles). `create` and `update` call `checkLifecycle` before the module's hooks for
+requests with a person (system work is exempt), refusing with 400 `validation`; it can only
+restrict, so a module's own rules still apply. The status field is `status` (or `stage`) when it is
+a lookup that is not read-only; a read-only status is managed by the application. A module with
+lifecycle rules in code adds a line to `APPLICATION_RULES` so the page shows them.
+`app.lifecycles.check(def, existing, data, req)` is there for hand-written routes. With no rule
+saved, a type allows every move and requires nothing.
 
 ### Permissions
 
@@ -755,19 +768,17 @@ How it sees record changes: once every module has defined its types (`onReady`),
 type's `afterCreate` and `afterUpdate` hooks; the module's own hook runs first, and a workflow
 failure never fails the change. Changes the engine makes itself (outcomes) start nothing.
 
-A module that wants to move its own approval rules onto the engine:
-
-1. Keep its fields (status, approver, approval date) and have the workflow's outcome set them
-   (`approver`, `requester` and `today` are special outcome values). An administrator defines the
-   workflow, or the module offers a ready-made one in `seedDefaults` (insert into
-   `workflow_definitions` only when that table exists and no definition of the same name does).
-2. Start it from the module's own route with `app.workflows.start(definitionRow, def, record,
-   requesterId, req, note)` (guard with `app.hasDecorator('workflows')`), or let a status change
-   start it.
-3. Drop its own approve and reject buttons: `RecordPage` shows the approval panel by itself, and
-   `GET /api/workflows/records/:type/:id` gives the state.
-4. Keep its old approval tables readable for history, and point integrators from its own webhook
-   event to `workflow.decided` and `workflow.finished`.
+A module declares an approval kind with `defineApprovalKind(app, { key, recordType, label,
+startsWhen, outcome, approverPermission?, route?, tellsRequester?, install?, onDecision?, onFinish })`
+in `register` (`core/approval-kinds.ts`), and reaches the engine at request time with
+`approvalEngine(app)`. The engine offers `start`, `running`, `latest`, `cancel`, `decide` (also with
+no request, given `opts.userId`), `waiting`, `progress` and `definitions`. `install` runs once per
+kind (table `workflow_kind_installs`): it uses `h.define`, `h.adopt`, `h.usersWith` and
+`h.definitions`, and must never call the engine itself, because the engine waits for the install.
+`onFinish` errors are kept as the workflow's outcome error. The module keeps its own rules (for
+example "no work before approval") in its callbacks. Stand-ins: table `workflow_standins`; steps
+carry `principals` and `standins`; decisions carry `on_behalf_of`. Change approval, catalog
+requests, asset disposal, risk acceptance and project gates are approval kinds.
 
 The follow-up issues per module are listed under E14-06 in the roadmap.
 
@@ -830,6 +841,7 @@ has filter, sort, saved view and export; every record shows its history.
 | `mcp` | no record type: the `/mcp` endpoint for AI assistants and its settings |
 | `notifications` | no record type: in-app notifications (tables `notifications`, `notification_preferences`; `app.notify(...)`, `NotificationBell`) |
 | `admin` | users, roles, second factor, audit viewer, lookups, settings, custom fields, tokens, webhooks, retention screens |
+| `lifecycles` | no record type: Administration > Lifecycles routes (`/api/admin/lifecycles`); rules and enforcement are core (`core/lifecycle.ts`, table `lifecycle_rules`) |
 | `workflows` | no record type: approval workflows (tables `workflow_definitions`, `workflow_instances`, `workflow_steps`, `workflow_decisions`, `workflow_department_heads`; `/api/workflows`; the record page's approval panel `WorkflowPanel`) |
 | `home` | the Overview page (web only) |
 | `help` | the user guide, rendered from `docs/user/*.md` (web only) |

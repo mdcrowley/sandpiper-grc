@@ -51,13 +51,15 @@ export function approverText(a: ApproverSpec, l: Labels): string {
     case 'department_head': return a.from === 'field' && a.field
       ? `Head of the department in ${l.fieldLabel(a.field).toLowerCase()}`
       : "Head of the requester's department";
+    case 'people': return [...a.users.map(l.person), ...a.roles.map((r) => `everyone with the role ${l.role(r)}`)].join(', ') || 'Nobody chosen yet';
+    case 'permission': return a.permission ? `Everyone who holds ${a.permission}` : 'A permission (not chosen yet)';
     default: return '';
   }
 }
 
 export function stepQuorumText(s: StepDef): string {
   if (s.approvers.kind === 'users') return quorumText(s.quorum, s.approvers.users.length);
-  if (s.approvers.kind === 'role') return quorumText(s.quorum);
+  if (s.approvers.kind === 'role' || s.approvers.kind === 'people' || s.approvers.kind === 'permission') return quorumText(s.quorum);
   return 'They approve';
 }
 
@@ -75,5 +77,6 @@ export function triggerText(d: Definition, l: Labels): string {
   if (d.trigger === 'status') return d.trigger_field && d.trigger_value
     ? `When ${l.fieldLabel(d.trigger_field).toLowerCase()} changes to ${l.value(d.trigger_field, d.trigger_value)}`
     : 'When a field changes to a value';
+  if (d.trigger === 'module') return d.kind_starts_when ?? `When its module asks for it${d.kind_label ? ` (${d.kind_label.toLowerCase()})` : ''}`;
   return 'When someone asks for approval';
 }

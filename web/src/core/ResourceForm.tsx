@@ -5,7 +5,8 @@ import { IconAlertTriangle } from '@tabler/icons-react';
 import { api, ApiError, errorMessage, type Row } from './api';
 import { FieldControl, isMissing, toApiValue, toFormValue } from './FieldControl';
 import { fieldMeta, knownFields } from './FieldValue';
-import { customFieldNames, useResource } from './meta';
+import { allowedStatuses, requiredFor } from './lifecycle';
+import { customFieldNames, useLookup, useResource } from './meta';
 import { ErrorState } from './ui';
 import './records.css';
 
@@ -83,6 +84,24 @@ export function ResourceForm({
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  // Allowed status changes and fields required per status (E14-31): the status picker offers only the
+  // statuses this record may move to, and the fields the chosen status needs are marked required.
+  const lifecycle = resource?.lifecycle;
+  const statusField = lifecycle && !lifecycle.managed && fields.includes(lifecycle.field) ? lifecycle.field : null;
+  const statusValues = useLookup(statusField ? resource?.fields[statusField]?.list ?? '' : '');
+  const startStatus = statusField ? ((id ? initial[statusField] : '') as string | null) ?? '' : '';
+  const allowed = useMemo(
+    () => (statusField ? allowedStatuses(lifecycle, startStatus, statusValues.map((v) => v.value)) : undefined),
+    [statusField, lifecycle, startStatus, statusValues],
+  );
+  // Checked here when the status changes (or on create), as on the server; emptying one of them
+  // without a change of status is left to the server's message.
+  const needed = statusField && (!id || (values[statusField] ?? '') !== startStatus) ? requiredFor(lifecycle, values[statusField]) : [];
+  /** A field's metadata, required when the chosen status needs it. */
+  const metaOf = (field: string) => {
+    const meta = fieldMeta(resource!, field);
+    return needed.includes(field) && !meta.required ? { ...meta, required: true } : meta;
+  };
 
   const dirty = useMemo(() => JSON.stringify(values) !== JSON.stringify(start), [values, start]);
   const dirtyCallback = useRef(onDirtyChange);
@@ -123,7 +142,7 @@ export function ResourceForm({
       }
     }
     for (const field of fields) {
-      const meta = fieldMeta(resource, field);
+      const meta = metaOf(field);
       if (meta.readOnly) continue;
       let value: unknown;
       try {
@@ -167,12 +186,13 @@ export function ResourceForm({
   };
 
   const control = (field: string) => {
-    const meta = fieldMeta(resource, field);
+    const meta = metaOf(field);
     const display = (initial._display as Record<string, string> | undefined)?.[field];
     return (
       <FieldControl
         meta={meta} value={values[field]} onChange={(v) => set(field, v)} error={errors[field]} hint={hints?.[field]}
         display={display} readOnlyText={meta.readOnly ? String(display ?? initial[field] ?? '') : undefined}
+        allowed={field === statusField ? allowed : undefined}
       />
     );
   };

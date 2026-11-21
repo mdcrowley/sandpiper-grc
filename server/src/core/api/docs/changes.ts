@@ -29,10 +29,13 @@ const QUESTIONNAIRE = `{ questions: [{ key: string, label: string, help?: string
 
 const RULES = `[{ change_type: string "A change type or 'any'", risk_level: string "A risk level or 'any'",
   approvals: integer, approver_roles: [string], approver_user_ids?: [uuid], approver_role_keys?: [string],
-  pir_required: boolean, retrospective: boolean }]`;
+  pir_required: boolean, retrospective: boolean,
+  workflow_id?: uuid | null "Its approval workflow (kind change_approval); its first step follows approvals and the approvers",
+  workflow_name?: string | null }]`;
 
 const SETTINGS = `{ questionnaire: ${QUESTIONNAIRE}, approval_rules: ${RULES},
-  roles: [{ key: string, name: string }], user_names: { [id]: string } }`;
+  roles: [{ key: string, name: string }], user_names: { [id]: string },
+  workflows: [{ id: uuid, name: string, description: string | null }] "The change approval workflows" }`;
 
 const TEMPLATE = `{ id: uuid, name: string, summary: string | null, title: string, description: string | null,
   reason: string | null, implementation_plan: string, test_plan: string | null, backout_plan: string,
@@ -160,7 +163,7 @@ export const DOCS: RouteDoc[] = [
   }),
   route('POST', '/api/changes/:id/transition', 'Move a change to another status', {
     tag: T, permission: 'changes.edit',
-    description: `409 \`bad_transition\` for a move the status table does not allow (approval and rejection come from recording decisions). Submitting needs the plans, window and risk answers (400 \`incomplete\`); scheduling and starting need the approvals (409 \`approvals_missing\`) and no unacknowledged conflicts (409 \`conflicts\`); closing needs a required review (409 \`review_missing\`). Completing needs \`outcome\`. Audited; submitting notifies the approvers. ${NOT_FOUND}`,
+    description: `409 \`bad_transition\` for a move the status table does not allow (approval and rejection come from recording decisions). Submitting needs the plans, window and risk answers (400 \`incomplete\`); scheduling and starting need the approvals (409 \`approvals_missing\`) and no unacknowledged conflicts (409 \`conflicts\`); closing needs a required review (409 \`review_missing\`). Completing needs \`outcome\`. Audited. Submitting starts the rule's approval workflow (kind \`change_approval\`), which notifies the approvers; back to draft or canceling ends it. ${NOT_FOUND}`,
     body: `{ to: string "The new status",
       actual_start?: datetime "When moving to in_progress", outcome?: string "Required when moving to completed",
       outcome_notes?: string, actual_end?: datetime, reason?: string "When canceling" }`,
@@ -171,7 +174,7 @@ export const DOCS: RouteDoc[] = [
   }),
   route('POST', '/api/changes/:id/approvals', 'Record an approval decision', {
     tag: T, permission: 'changes.approve',
-    description: `Without \`approver_name\` it records the caller's own decision; with it, a decision given outside the application. Each person decides once per submission (409 \`duplicate_approver\`); the raiser cannot decide (403 \`own_change\`); when the rule names approvers only they may (403 \`not_an_approver\`); 409 \`not_awaiting_approval\` when no decision is wanted. A rejection rejects the change; enough approvals approve it. Audited and notified. ${NOT_FOUND}`,
+    description: `Without \`approver_name\` it records the caller's own decision; with it, a decision given outside the application. Each person decides once per submission (409 \`duplicate_approver\`); the raiser cannot decide (403 \`own_change\`); when the rule names approvers only they may (403 \`not_an_approver\`); 409 \`not_awaiting_approval\` when no decision is wanted. It decides the current step of the change's approval workflow for the caller (a stand-in decides on behalf of the approver). A rejection rejects the change; the workflow's approval approves it. Audited and notified. ${NOT_FOUND}`,
     body: `{ decision: 'approved' | 'rejected', approver_name?: string, by_hand?: boolean, approver_role?: string,
       decided_on?: date "Not in the future; default today", reference?: string, notes?: string }`,
     response: `{ change: @change, approvals: ${APPROVALS} }`, status: 201,

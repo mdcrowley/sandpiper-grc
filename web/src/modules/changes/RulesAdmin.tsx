@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   api, ApiError, Button, Card, Checkbox, errorMessage, Icon, IconButton, MultiSelect, NumberField, Select, TextField, UserPicker,
-  useLookup, useToast,
+  useAuth, useLookup, useToast,
 } from '../../core';
 import { ANY, type ApprovalRule, type ChangeSettings } from './types';
 
@@ -47,6 +48,7 @@ function WhoApproves({ line, roles, onChange, errors }: {
 /** Approval rules: how many approvals each type and risk of change needs, and from whom. */
 export function RulesAdmin({ settings, onSaved }: { settings: ChangeSettings; onSaved: () => void }) {
   const toast = useToast();
+  const { can } = useAuth();
   const types = useLookup('change_type');
   const risks = useLookup('change_risk');
   const [lines, setLines] = useState<Line[]>([]);
@@ -91,6 +93,10 @@ export function RulesAdmin({ settings, onSaved }: { settings: ChangeSettings; on
           an emergency change proceeds with one approver and always needs a post-implementation review.
           Saving applies the rules to drafts at once; changes already submitted keep the approvals they were given.
         </p>
+        <p className="muted">
+          Each rule that asks for approval runs an approval workflow: the approvals and approvers here are its first step. Add further steps,
+          due times and escalation to it under Administration &gt; Approval workflows. Approvers decide on the Approvals page.
+        </p>
         {lines.map((l, i) => (
           <div key={i} className="chg-rule">
             <Select label="Change type" value={l.change_type} onChange={(change_type) => set(i, { change_type })} options={[...types, { value: ANY, label: 'Any type' }]} error={f(i, 'change_type')} />
@@ -104,6 +110,11 @@ export function RulesAdmin({ settings, onSaved }: { settings: ChangeSettings; on
               <Checkbox label="Review required" hint="A post-implementation review before closure." checked={l.pir_required || l.change_type === 'emergency'} disabled={l.change_type === 'emergency'} onChange={(pir_required) => set(i, { pir_required })} />
               <Checkbox label="Approval may follow the work" hint="Work may start unapproved; the approval is flagged." checked={l.retrospective} onChange={(retrospective) => set(i, { retrospective })} />
             </div>
+            {l.approvals > 0 && l.workflow_id && (
+              <p className="muted chg-rule-hint">
+                Workflow: {can('admin.administer') ? <Link to={`/admin/workflows/${l.workflow_id}`}>{l.workflow_name ?? 'open'}</Link> : l.workflow_name}
+              </p>
+            )}
             <IconButton icon="trash" variant="ghost" label="Remove this rule" onClick={() => setLines((list) => list.filter((_, n) => n !== i))} />
           </div>
         ))}

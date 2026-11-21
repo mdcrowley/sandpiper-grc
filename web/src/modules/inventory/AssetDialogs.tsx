@@ -200,7 +200,7 @@ export function DisposeDialog({ asset, onClose }: DialogProps) {
         const res = await api.post<{ approvers: number }>(`/api/assets/${asset.id}/disposal-requests`, {
           reason, disposal_method: method || null, disposal_approval_ref: ref || null,
         });
-        toast.success(res.approvers ? 'Disposal requested. The approvers have been told.' : 'Disposal requested. Nobody else holds the approval permission yet, so tell an administrator.');
+        toast.success(res.approvers ? 'Disposal requested. The approval workflow has told the approvers.' : 'Disposal requested. Nobody else holds the approval permission yet, so tell an administrator.');
       } else {
         await api.post(`/api/assets/${asset.id}/dispose`, {
           ...(approved ? {} : { disposal_approved_by: by, disposal_approved_on: on }),
@@ -285,6 +285,9 @@ export interface DisposalRequest {
   id: string; asset_id: string; status: 'pending' | 'approved' | 'refused' | 'withdrawn'; reason: string | null;
   disposal_method: string | null; approval_ref: string | null; requested_at: string; requested_by_name: string | null;
   decided_at: string | null; decided_by_name: string | null; decision_comment: string | null; own: boolean;
+  decided_on_behalf_of_name?: string | null;
+  /** The approval workflow deciding it (E04-24), while it waits; null when it is decided the older way. */
+  workflow?: { name: string; approvals: number; required: number; waiting_for: string[]; can_decide: boolean } | null;
   asset_tag?: string | null; asset_name?: string; funder_interest?: boolean;
 }
 

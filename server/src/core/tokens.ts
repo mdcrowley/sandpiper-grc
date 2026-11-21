@@ -386,6 +386,39 @@ export function registerTokens(app: FastifyInstance, deps: Deps) {
 
   app.delete('/api/me/tokens/:id', (req) => revoke(req, 'user_id = $3', [req.user!.id]));
 
+  /**
+   * Changes the source addresses of a live token (E02-18): its owner, or an administrator. An empty
+   * list allows any address again. Needs a recent password confirmation, since it can widen where the
+   * token works; audited with the lists before and after.
+   */
+  async function changeSources(req: FastifyRequest, where: string, params: unknown[]) {
+    const id = String((req.params as Row).id ?? '');
+    const row = UUID_RE.test(id) ? await db.one<Row>(
+      `select id, name, user_id, coalesce(allowed_sources, '[]'::jsonb) as allowed_sources from api_tokens
+       where id = $1 and revoked_at is null and expires_at > now() and ${where}`, [id, ...params]) : undefined;
+    if (!row) fail(404, 'not_found', 'Token not found, or it has expired or been revoked.');
+    const b = (req.body ?? {}) as Row;
+    if (b.allowedSources === undefined) fail(400, 'validation', 'Check the highlighted fields.', { allowedSources: 'Give the allowed source addresses, or an empty list to allow any address.' });
+    const sources = checkSources(b.allowedSources);
+    if ('error' in sources) fail(400, 'validation', 'Check the highlighted fields.', { allowedSources: sources.error });
+    const list = (sources as { list: string[] }).list;
+    const before = row!.allowed_sources as string[];
+    const by = row!.user_id === req.user!.id ? '' : ' by an administrator';
+    await deps.requireRecentAuth(req, 'changing where an API token may be used from');
+    const updated = await db.one<Row>(
+      `update api_tokens set allowed_sources = $2::jsonb where id = $1
+       returning id, name, prefix, scopes, expires_at, created_at, coalesce(allowed_sources, '[]'::jsonb) as allowed_sources`,
+      [id, list.length ? JSON.stringify(list) : null]);
+    await audit(req, {
+      action: 'token.update', recordType: 'api_token', recordId: id,
+      summary: `Allowed source addresses of API token "${row!.name}" changed${by}: ${list.length ? list.join(', ') : 'any address'}`,
+      before: { allowed_sources: before }, after: { allowed_sources: list },
+    });
+    return updated;
+  }
+
+  app.patch('/api/me/tokens/:id', (req) => changeSources(req, 'user_id = $2', [req.user!.id]));
+
   app.get('/api/admin/tokens', { preHandler: requirePerm('admin.administer') }, async (req) => {
     const q = req.query as Record<string, string>;
     const rows = await db.query<Row>(
@@ -395,6 +428,7 @@ export function registerTokens(app: FastifyInstance, deps: Deps) {
   });
 
   app.delete('/api/admin/tokens/:id', { preHandler: requirePerm('admin.administer') }, (req) => revoke(req, 'true', []));
+  app.patch('/api/admin/tokens/:id', { preHandler: requirePerm('admin.administer') }, (req) => changeSources(req, 'true', []));
 
   return { authenticate, can };
 }

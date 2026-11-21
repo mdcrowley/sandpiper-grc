@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Alert, Group, SimpleGrid, Stack, Text } from '@mantine/core';
 import {
@@ -46,10 +46,38 @@ function ChangeCard({ projectId, gate, editable, onChanged }: { projectId: strin
   );
 }
 
+/**
+ * E11-25: asks for the gate's decision through the approval workflow its template names. The
+ * workflow itself (its steps, approvers and decisions) is the approval panel at the top of the page.
+ */
+function AskForApproval({ projectId, gate, onAsked }: { projectId: string; gate: Gate; onAsked: () => void }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const ask = async () => {
+    setBusy(true);
+    try {
+      await api.post(`/api/projects/${projectId}/gates/${gate.id}/request-approval`, {});
+      toast.success(`Approval asked for through "${gate.approval.workflow_name}". The approvers have been told.`);
+      onAsked();
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return <Button variant="primary" icon="arrow-right" loading={busy} onClick={ask}>Ask for approval</Button>;
+}
+
 /** The Gate tab: what blocks approval, the checklist, documents, approvers and the decisions so far. */
-export function GateTab({ projectId, onChanged }: { projectId: string; onChanged: () => void }) {
+export function GateTab({ projectId, version, onChanged }: { projectId: string; version?: string; onChanged: () => void }) {
   const { can } = useAuth();
   const { data, error, reload } = useGates();
+  // A decision on the approval panel changes the project (its stage): read the gates again.
+  const seen = useRef(version);
+  useEffect(() => {
+    if (seen.current !== undefined && version !== seen.current) reload();
+    seen.current = version;
+  }, [version]); // eslint-disable-line react-hooks/exhaustive-deps
   const tiers = useLookup('project_tier');
   const [search, setSearch] = useSearchParams();
   const [deciding, setDeciding] = useState(false);
@@ -98,8 +126,9 @@ export function GateTab({ projectId, onChanged }: { projectId: string; onChanged
         </div>
         <Group gap="xs">
           <LookupChip list="project_gate_status" value={gate.status} />
+          {gate.approval.can_request && <AskForApproval projectId={projectId} gate={gate} onAsked={refresh} />}
           {gate.is_current && can('projects.approve') && (
-            <Button variant="primary" icon="check-square" onClick={() => setDeciding(true)}>Record decision</Button>
+            <Button variant={gate.approval.can_request ? 'secondary' : 'primary'} icon="check-square" onClick={() => setDeciding(true)}>Record decision</Button>
           )}
         </Group>
       </Group>
@@ -109,9 +138,17 @@ export function GateTab({ projectId, onChanged }: { projectId: string; onChanged
           {gate.blockers.length <= 3 && <BlockerList blockers={gate.blockers} />}
           <Text size="sm" mt={gate.blockers.length <= 3 ? 'xs' : 0}>{blockerAdvice(gate)} The project stays in {stageLabel(gate.from_stage)} until then.</Text>
         </Alert>
+      ) : gate.approval.running ? (
+        <Alert color="blue" variant="light" icon={<Icon name="clock" />} title="Waiting for approval">
+          Approval was asked for through "{gate.approval.workflow_name ?? 'the approval workflow'}". The approval panel at the top of the page shows who
+          it is waiting for. Once approved, the project moves to {stageLabel(gate.to_stage)}. A decision recorded by hand stops the request.
+        </Alert>
       ) : (
         <Alert color="green" variant="light" icon={<Icon name="check-circle" />} title="Ready for a decision">
-          Every checklist item is ticked and the required documents are in place. Record the approval to move the project to {stageLabel(gate.to_stage)}.
+          Every checklist item is ticked and the required documents are in place.{' '}
+          {gate.approval.workflow_id
+            ? <>Ask for approval through "{gate.approval.workflow_name}", or record a decision given elsewhere, to move the project to {stageLabel(gate.to_stage)}.</>
+            : <>Record the approval to move the project to {stageLabel(gate.to_stage)}.</>}
         </Alert>
       ))}
       {!gate.is_current && open && (

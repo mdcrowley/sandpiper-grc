@@ -21,8 +21,10 @@ regulator, and nothing in it is specific to one organization.
 - **Risk, safety and compliance**: risk register and heat map, a safety hazard log and safety
   events, NIST CSF 2.0 outcomes, obligations, policies, training and vulnerabilities
 - **Security incidents**: a restricted workspace with notification clocks you configure
-- **Approval workflows**: ordered approval steps on any kind of record, with due times,
-  escalation and an Approvals page for each person
+- **Approval workflows**: ordered approval steps on any kind of record (change approval,
+  catalog requests, asset disposal, risk acceptance and project gates included), with due
+  times, escalation, stand-ins and an Approvals page for each person; allowed status changes
+  and required fields set per record type
 - **Projects and reporting**: portfolio and stage gates, dashboards, a report builder,
   exports to Excel, CSV and PDF
 - **Sign-in and security**: single sign-on (OpenID Connect, SAML 2.0 or a directory over LDAP), passkeys, second factor,
@@ -30,6 +32,8 @@ regulator, and nothing in it is specific to one organization.
 - **Integrations**: a REST API with an OpenAPI description, webhooks, and AI assistant
   access over MCP (Claude Desktop, Claude Code and other MCP clients, by token or OAuth),
   all off until switched on
+- **Your organization**: name, address, contacts, logo and brand colors (kept readable in
+  light and dark) on screens, emails and PDFs
 - **Use only what you need**: switch optional areas (for example fleet or safety) off under
   Administration > Features, and they disappear everywhere; the data is kept
 - **Runs anywhere**: an embedded database or PostgreSQL, a container image for amd64 and

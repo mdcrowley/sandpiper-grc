@@ -7,7 +7,11 @@ import { Banner } from './bits';
 import { plural } from './util';
 import { useWorkflow } from './workflowContext';
 
-/** Approvals a change needs and the decisions recorded so far. */
+/**
+ * Approvals a change needs and the decisions recorded so far. Approving and rejecting happen on the
+ * shared approval panel under the change's header (E05-13): this card says where things stand and
+ * keeps the record of decisions, including those given outside the application.
+ */
 export function ApprovalsPanel({ row, onChanged }: { row: Row; onChanged: () => void }) {
   const { can, user } = useAuth();
   const { data, error, reload } = useWorkflow();
@@ -27,13 +31,9 @@ export function ApprovalsPanel({ row, onChanged }: { row: Row; onChanged: () => 
       <Card
         title="Approvals"
         actions={a.can_decide && (
-          <span className="row">
-            <Button size="sm" variant="primary" icon="check" onClick={() => setMode('approved')}>Approve</Button>
-            <Button size="sm" icon="x" onClick={() => setMode('rejected')}>Reject</Button>
-            <Menu label="More approval options" iconOnly icon="more" size="sm" align="end" items={[
-              { label: 'Record a decision given outside the application…', icon: 'edit', onSelect: () => setMode('by_hand') },
-            ]} />
-          </span>
+          <Menu label="More approval options" iconOnly icon="more" size="sm" align="end" items={[
+            { label: 'Record a decision given outside the application…', icon: 'edit', onSelect: () => setMode('by_hand') },
+          ]} />
         )}
       >
         <div className="stack">
@@ -53,7 +53,7 @@ export function ApprovalsPanel({ row, onChanged }: { row: Row; onChanged: () => 
                 valueText={`${a.received} of ${a.required}`}
               />
               <p className="muted">
-                By the rules, a {String(row._display?.change_type ?? row.change_type).toLowerCase()} change
+                By the rules and their approval workflow, a {String(row._display?.change_type ?? row.change_type).toLowerCase()} change
                 {row.risk_level ? <> at {String(row._display?.risk_level ?? row.risk_level).toLowerCase()} risk</> : null} needs {plural(a.required, 'approval')}
                 {a.approver_roles.length > 0 && <> from: {a.approver_roles.join(', ')}</>}.
                 {row.status === 'draft' && ' Submit the change to ask for approval.'}
@@ -73,6 +73,14 @@ export function ApprovalsPanel({ row, onChanged }: { row: Row; onChanged: () => 
                 ]} />
               )}
             </>
+          )}
+          {a.workflow && (
+            <p className="muted">
+              Approval workflow: <strong>{a.workflow.name}</strong>.{' '}
+              {a.awaiting
+                ? a.can_decide ? 'Your decision is needed: approve or reject it in the approval panel at the top of the page.' : 'Its steps, due times and decisions are in the approval panel at the top of the page.'
+                : 'Its steps and decisions are in the approval panel at the top of the page.'}
+            </p>
           )}
           {why && <Banner>{why}</Banner>}
           {a.retrospective && (

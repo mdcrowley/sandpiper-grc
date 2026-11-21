@@ -133,7 +133,7 @@ Select a policy under **Policies to acknowledge** to read it. When you have read
 
 People who approve service requests or changes see **My approvals** on the home page. Each item shows who asked and their answers (for a change, when it is planned). Select **Approve**, or **Reject** and then say **Why are you rejecting it?** and select **Reject** again. **Cancel** goes back.
 
-Some requests need more than one approval ("Needs 2 approvals: 1 given so far"), or may be approved only by the people named for them; you see only the requests you may still decide, and never your own.
+Requests are listed when their approval workflow is waiting for your decision (as on the **Approvals** page of the main application), including those you decide as someone's stand-in. Some need more than one approval ("Needs 2 approvals: 1 given so far"), or more than one step; you see only the requests you may decide now, and never your own.
 
 ## Settings for the service desk
 

@@ -373,12 +373,14 @@ const mod: ModuleDef = {
       }
     }
     async function afterCreate(req: FastifyRequest | null, row: Row): Promise<void> {
+      // E03-22: a request waiting for approval starts its approval workflow (also when the system raised it).
+      await catalog.afterCreate(req, row);
       // Seeding and other system work stays quiet.
       if (!req) return;
       await tellAssignee(req, null, row);
-      await catalog.afterCreate(row);
     }
     async function afterUpdate(req: FastifyRequest | null, before: Row, after: Row): Promise<void> {
+      await catalog.afterUpdate(req, before, after);
       if (req) await tellAssignee(req, before, after);
       if (req) await tellRequester(req, before, after);
     }
@@ -466,13 +468,16 @@ const mod: ModuleDef = {
         tasks: { label: 'Fulfillment tasks', type: 'json' },
         requires_approval: { label: 'Needs approval before work starts', type: 'boolean', default: false },
         portal: { label: 'Show in the self-service portal', type: 'boolean', default: false },
-        approvals_needed: { label: 'Approvals needed', type: 'number', default: 1 },
-        approver_ids: { label: 'Who may approve', type: 'json' },
+        // E03-22: who approves is the item's approval workflow; null = the catalog request approval workflow that fits best.
+        approval_workflow_id: { label: 'Approval workflow', type: 'text' },
+        // Before approval workflows (E03-21): kept for history, turned into workflows when approvals moved.
+        approvals_needed: { label: 'Approvals needed (before workflows)', type: 'number', default: 1 },
+        approver_ids: { label: 'Who may approve (before workflows)', type: 'json' },
         approval_condition: { label: 'Approval only for these answers', type: 'json' },
       },
       hooks: {
-        beforeCreate: (_req, data) => catalog.checkItem(data),
-        beforeUpdate: (_req, _existing, patch) => catalog.checkItem(patch),
+        beforeCreate: (_req, data) => catalog.checkWorkflow(data),
+        beforeUpdate: (_req, existing, patch) => catalog.checkWorkflow(patch, existing),
       },
     });
 

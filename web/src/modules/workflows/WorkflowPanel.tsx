@@ -1,10 +1,12 @@
 // The approval panel on a record page (E14-06). RecordPage finds this file at build time and shows
 // it under the header; it renders nothing unless a workflow has run on the record or one may be
-// started by the person looking. Approvers decide here; the requester (or an administrator) cancels.
+// started by the person looking. Approvers (and their stand-ins, E14-32) decide here; the requester
+// (or an administrator) cancels; an administrator hands a waiting step to someone else. Module pages
+// that have their own approval card (a change, a risk, a project gate) show this panel inside it.
 import { useEffect, useRef, useState } from 'react';
 import {
   api, ApiError, Button, ConfirmDialog, Countdown, errorMessage, formatDateTime, Icon, Menu, Modal, relativeTime,
-  StatusChip, Stepper, TextArea, useFetch, useToast, type Step,
+  Select, StatusChip, Stepper, TextArea, useFetch, UserPicker, useToast, type Step,
 } from '../../core';
 import { DecisionDialog, type DecisionTarget } from './DecisionDialog';
 import { plural, STATUS_LOOK, type Instance, type InstanceStep, type RecordWorkflows } from './data';
@@ -41,7 +43,8 @@ function Decisions({ instance }: { instance: Instance }) {
         <li key={`${d.user_id}-${d.at}`} className={d.decision === 'approved' ? 'is-approved' : 'is-rejected'}>
           <Icon name={d.decision === 'approved' ? 'check-circle' : 'alert-circle'} size={16} />
           <span>
-            <strong>{d.name}</strong> {d.decision === 'approved' ? 'approved' : 'rejected'} <em>{d.step}</em>
+            <strong>{d.name}</strong>{d.on_behalf_of_name && <> on behalf of <strong>{d.on_behalf_of_name}</strong></>} {d.decision === 'approved' ? 'approved' : 'rejected'} <em>{d.step}</em>
+            {d.adopted && <span className="muted"> (recorded before approvals moved to workflows)</span>}
             <span className="muted" title={formatDateTime(d.at)}> {relativeTime(d.at)}</span>
             {d.comment && <span className="wf-decision-comment">“{d.comment}”</span>}
           </span>
@@ -51,9 +54,12 @@ function Decisions({ instance }: { instance: Instance }) {
   );
 }
 
-function Running({ instance, onDecide, onCancel }: { instance: Instance; onDecide: (step: InstanceStep, decision: 'approved' | 'rejected') => void; onCancel: () => void }) {
+function Running({ instance, onDecide, onCancel, onReassign }: {
+  instance: Instance; onDecide: (step: InstanceStep, decision: 'approved' | 'rejected') => void; onCancel: () => void; onReassign: (step: InstanceStep) => void;
+}) {
   const current = instance.steps.find((s) => s.status === 'pending');
-  const decided = new Set(current?.decisions.map((d) => d.user_id) ?? []);
+  // An approver counts as decided when they, or a stand-in for them, decided.
+  const decided = new Set(current?.decisions.flatMap((d) => [d.user_id, ...(d.on_behalf_of_name ? current.approvers.filter((a) => a.name === d.on_behalf_of_name).map((a) => a.id) : [])]) ?? []);
   return (
     <div className="wf-instance">
       <div className="wf-instance-head">
@@ -62,7 +68,10 @@ function Running({ instance, onDecide, onCancel }: { instance: Instance; onDecid
           <span>{instance.workflow}</span>
           <StatusChip color="blue" label={STATUS_LOOK.running.label} size="sm" />
         </div>
-        {instance.can_cancel && <Button size="sm" variant="ghost" onClick={onCancel}>Cancel request</Button>}
+        <span className="wf-your-turn-buttons">
+          {instance.can_reassign && current && current.approvers.length > 0 && <Button size="sm" variant="ghost" onClick={() => onReassign(current)}>Reassign</Button>}
+          {instance.can_cancel && <Button size="sm" variant="ghost" onClick={onCancel}>Cancel request</Button>}
+        </span>
       </div>
       <p className="muted wf-meta">
         Asked {instance.requested_by_name ? `by ${instance.requested_by_name} ` : ''}<span title={formatDateTime(instance.started_at)}>{relativeTime(instance.started_at)}</span>
@@ -82,6 +91,14 @@ function Running({ instance, onDecide, onCancel }: { instance: Instance; onDecid
               : <span className="muted">nobody yet</span>}
             {current.required && current.approvers.length > 1 && <span className="muted">({current.required === current.approvers.length ? 'everyone' : current.required === 1 ? 'any one' : `${current.required} of them`})</span>}
           </div>
+          {current.standins?.length > 0 && (
+            <div className="wf-current-who">
+              <span className="wf-label">Stand-ins</span>
+              {current.standins.map((s) => (
+                <span key={s.id} className="wf-person is-standin">{s.name} <span className="muted">for {s.for.map((f) => f.name).join(', ')}</span></span>
+              ))}
+            </div>
+          )}
           {current.due_at && <Countdown label="Due" deadline={current.due_at} start={instance.started_at} />}
           {current.escalated_at && <StatusChip color="amber" label="Escalated" size="sm" />}
         </div>
@@ -89,7 +106,7 @@ function Running({ instance, onDecide, onCancel }: { instance: Instance; onDecid
       {current?.note && <p className="notice notice-warn wf-note">{current.note}</p>}
       {current?.can_decide && (
         <div className="wf-your-turn" role="group" aria-label="Your decision">
-          <span><Icon name="bell" size={16} /> Your decision is needed on <strong>{current.name}</strong></span>
+          <span><Icon name="bell" size={16} /> Your decision is needed on <strong>{current.name}</strong>{current.on_behalf_of_name && <> (standing in for {current.on_behalf_of_name})</>}</span>
           <span className="wf-your-turn-buttons">
             <Button size="sm" variant="primary" icon="check" onClick={() => onDecide(current, 'approved')}>Approve</Button>
             <Button size="sm" variant="danger" icon="x" onClick={() => onDecide(current, 'rejected')}>Reject</Button>
@@ -131,6 +148,9 @@ export function WorkflowPanel({ recordType, recordId, version, onChange }: Workf
   const [starting, setStarting] = useState<{ id: string; name: string } | null>(null);
   const [note, setNote] = useState('');
   const [canceling, setCanceling] = useState<Instance | null>(null);
+  const [reassigning, setReassigning] = useState<InstanceStep | null>(null);
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const seen = useRef(version);
   useEffect(() => {
@@ -178,6 +198,21 @@ export function WorkflowPanel({ recordType, recordId, version, onChange }: Workf
     }
   }
 
+  async function reassign() {
+    if (!reassigning || !from || !to) return;
+    setBusy(true);
+    try {
+      await api.post(`/api/workflows/steps/${reassigning.id}/reassign`, { from_user_id: from, to_user_id: to });
+      toast.success('The step was reassigned. The new approver has been told.');
+      setReassigning(null);
+      changed();
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const askButton = data.startable.length > 0 && (
     data.startable.length === 1
       ? <Button size="sm" icon="check-square" onClick={() => setStarting(data.startable[0])}>Request approval: {data.startable[0].name}</Button>
@@ -191,6 +226,7 @@ export function WorkflowPanel({ recordType, recordId, version, onChange }: Workf
           key={i.id}
           instance={i}
           onCancel={() => setCanceling(i)}
+          onReassign={(step) => { setReassigning(step); setFrom(step.approvers[0]?.id ?? ''); setTo(null); }}
           onDecide={(step, decision) => setDeciding({ stepId: step.id!, decision, step: step.name, what: i.workflow })}
         />
       ))}
@@ -215,6 +251,22 @@ export function WorkflowPanel({ recordType, recordId, version, onChange }: Workf
       >
         {data.startable.find((w) => w.id === starting?.id)?.description && <p className="muted">{data.startable.find((w) => w.id === starting?.id)?.description}</p>}
         <TextArea label="Note for the approvers (optional)" value={note} onChange={setNote} rows={3} />
+      </Modal>
+      <Modal
+        open={Boolean(reassigning)}
+        size="sm"
+        title={`Reassign: ${reassigning?.name ?? ''}`}
+        onClose={() => setReassigning(null)}
+        footer={(
+          <>
+            <Button variant="ghost" onClick={() => setReassigning(null)}>Cancel</Button>
+            <Button variant="primary" loading={busy} disabled={!from || !to} onClick={() => void reassign()}>Reassign</Button>
+          </>
+        )}
+      >
+        <p className="muted">The step goes to the new person instead. It is recorded in the record's history, and they are told.</p>
+        <Select label="Instead of" value={from} onChange={setFrom} options={(reassigning?.approvers ?? []).map((a) => ({ value: a.id, label: a.name }))} />
+        <UserPicker label="Hand it to" value={to} onChange={(id) => setTo(id)} placeholder="Search people" />
       </Modal>
       <ConfirmDialog
         open={Boolean(canceling)}

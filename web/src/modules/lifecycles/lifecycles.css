@@ -1,0 +1,64 @@
+/* Administration > Lifecycles (E14-31). The flow picture follows the approval workflow diagram. */
+.lc-layout { display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); gap: var(--s-5); align-items: start; }
+.lc-nav { display: grid; gap: 2px; max-height: 72vh; overflow: auto; padding: var(--s-2); scrollbar-width: thin; }
+.lc-nav button { display: flex; justify-content: space-between; align-items: center; gap: var(--s-2); text-align: start; padding: var(--s-2) var(--s-3); border: 0; border-radius: var(--radius-sm); background: none; color: inherit; cursor: pointer; font: inherit; }
+.lc-nav button:hover { background: var(--surface-hover); }
+.lc-nav button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.lc-nav button[aria-current="true"] { background: var(--brand-soft); color: var(--brand-strong); font-weight: 600; }
+.lc-nav-text { display: grid; min-width: 0; }
+.lc-nav-hint { color: var(--text-muted); font-size: var(--fs-xs); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.lc-detail { display: flex; flex-direction: column; gap: var(--s-4); min-width: 0; }
+.lc-link { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-sm); }
+.lc-state { margin: 0 0 var(--s-3); display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }
+.lc-small { font-size: var(--fs-sm); margin: var(--s-2) 0 0; }
+.lc-app { padding: var(--s-3); border-radius: var(--radius); background: var(--surface-2); border: 1px solid var(--border); }
+.lc-app-title { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.lc-app ul { margin: var(--s-2) 0 0; padding-inline-start: var(--s-5); font-size: var(--fs-sm); display: grid; gap: 4px; }
+.lc-warn, .lc-error { display: flex; gap: var(--s-2); align-items: flex-start; margin-top: var(--s-3); padding: var(--s-2) var(--s-3); border-radius: var(--radius); font-size: var(--fs-sm); }
+.lc-warn { background: var(--c-amber-bg); color: var(--c-amber-fg); }
+.lc-error { background: var(--c-red-bg); color: var(--c-red-fg); }
+.lc-warn svg, .lc-error svg { flex: none; margin-top: 2px; }
+
+.lc-matrix-wrap { margin-top: var(--s-3); }
+.lc-matrix th[scope="row"] { white-space: nowrap; background: var(--surface-2); color: var(--text); font-size: var(--fs-sm); font-weight: 500; text-transform: none; letter-spacing: 0; border-bottom: 0; }
+.lc-matrix tbody tr + tr th[scope="row"] { border-top: 1px solid var(--border); }
+.lc-matrix thead th { text-align: center; }
+.lc-matrix thead th:first-child { text-align: start; }
+.lc-matrix td.lc-cell { text-align: center; }
+.lc-cell input { width: 18px; height: 18px; accent-color: var(--brand); cursor: pointer; }
+
+.lc-status-rules { display: grid; gap: var(--s-3); margin-top: var(--s-3); }
+.lc-status-rule { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-3); margin: 0; padding: var(--s-3); border: 1px solid var(--border); border-radius: var(--radius); min-width: 0; }
+.lc-status-rule legend { padding: 0 var(--s-1); }
+
+.lc-actions { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; }
+.lc-spacer { flex: 1; }
+
+/* the flow picture */
+.lc-flow { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s-4); }
+.lc-flow-node { position: relative; }
+.lc-flow-node:not(.lc-flow-start)::before {
+  /* the line from the node above */
+  content: ""; position: absolute; left: 21px; top: calc(-1 * var(--s-4)); height: var(--s-4); width: 2px; background: var(--border-strong);
+}
+.lc-flow-start { display: flex; gap: var(--s-3); align-items: flex-start; padding: var(--s-3); border-radius: var(--radius); background: var(--surface-2); border: 1px solid var(--border); }
+.lc-flow-icon { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; background: var(--surface); border: 2px solid var(--border-strong); color: var(--text); }
+.lc-flow-box { display: flex; gap: var(--s-3); align-items: flex-start; padding: var(--s-3); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-1); }
+.lc-flow-num {
+  flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--brand); color: var(--brand-contrast); border: 2px solid var(--brand);
+  font-size: var(--fs-xs); font-weight: 700;
+}
+.lc-flow-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.lc-flow-title { font-weight: 600; }
+.lc-flow-line { font-size: var(--fs-sm); display: flex; gap: 4px; align-items: baseline; overflow-wrap: anywhere; }
+.lc-flow-line svg { flex: none; align-self: center; }
+.lc-flow-who { color: var(--c-purple-fg); }
+
+@media (max-width: 1100px) {
+  .lc-layout { grid-template-columns: minmax(0, 1fr); }
+  .lc-nav { max-height: 240px; }
+  .lc-status-rule { grid-template-columns: minmax(0, 1fr); }
+}

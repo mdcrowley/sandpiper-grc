@@ -1,10 +1,13 @@
-// Approvals (/approvals): what waits for my decision, what I decided, and what I asked for.
+// Approvals (/approvals): what waits for my decision (stand-ins included), what I decided, what I
+// asked for, and my stand-ins (E14-32). Modules' own approvals (a change, a disposal, a risk
+// acceptance, a gate) are here too: they run on the same workflows.
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   Button, Countdown, EmptyState, ErrorState, formatDateTime, Loading, PageHeader, relativeTime, StatusChip, Tabs, useFetch,
 } from '../../core';
 import { DecisionDialog, type DecisionTarget } from './DecisionDialog';
+import { Standins } from './Standins';
 import { STATUS_LOOK, type Approval, type Request } from './data';
 import './workflows.css';
 
@@ -44,6 +47,7 @@ function Waiting({ rows, onDecide }: { rows: Approval[]; onDecide: (t: DecisionT
               <StepDots position={a.position} total={a.steps_total} label={`Step ${a.position + 1} of ${a.steps_total}`} />
             </div>
             <div className="wf-item-meta muted">
+              {a.on_behalf_of_name && <StatusChip color="purple" label={`Standing in for ${a.on_behalf_of_name}`} size="sm" />}
               {a.requested_by_name && <span>Asked by {a.requested_by_name}</span>}
               <span title={formatDateTime(a.started_at)}>Started {relativeTime(a.started_at)}</span>
               {a.required > 1 && <span>{a.approvals} of {a.required} approvals so far</span>}
@@ -76,6 +80,7 @@ function Decided({ rows }: { rows: Approval[] }) {
           <div className="wf-item-main">
             <RecordLink a={a} />
             <div className="wf-item-meta"><span><strong>{a.workflow}</strong> · {a.step}</span></div>
+            {a.on_behalf_of_name && <div className="wf-item-meta muted">On behalf of {a.on_behalf_of_name}</div>}
             {a.comment && <div className="wf-item-meta muted">“{a.comment}”</div>}
           </div>
           <div className="wf-item-side">
@@ -116,13 +121,13 @@ function Requested({ rows }: { rows: Request[] }) {
 
 export function ApprovalsPage() {
   const [search, setSearch] = useSearchParams();
-  const view = (['waiting', 'decided', 'requested'] as const).find((v) => v === search.get('view')) ?? 'waiting';
+  const view = (['waiting', 'decided', 'requested', 'standins'] as const).find((v) => v === search.get('view')) ?? 'waiting';
   const waiting = useFetch<{ rows: Approval[] }>('/api/workflows/approvals');
-  const other = useFetch<{ rows: (Approval | Request)[] }>(view === 'waiting' ? null : `/api/workflows/approvals?view=${view}`);
+  const other = useFetch<{ rows: (Approval | Request)[] }>(view === 'waiting' || view === 'standins' ? null : `/api/workflows/approvals?view=${view}`);
   const [deciding, setDeciding] = useState<DecisionTarget | null>(null);
   const state = view === 'waiting' ? waiting : other;
 
-  const body = state.error
+  const body = view === 'standins' ? <Standins /> : state.error
     ? <ErrorState title="Approvals could not be loaded" error={state.error} onRetry={state.reload} />
     : !state.data
       ? <Loading label="Loading approvals" lines={5} />
@@ -140,6 +145,7 @@ export function ApprovalsPage() {
           { key: 'waiting', label: 'Waiting for me', count: waiting.data?.rows.length || undefined, content: view === 'waiting' ? body : null },
           { key: 'decided', label: 'Decided by me', content: view === 'decided' ? body : null },
           { key: 'requested', label: 'My requests', content: view === 'requested' ? body : null },
+          { key: 'standins', label: 'Stand-ins', content: view === 'standins' ? body : null },
         ]}
       />
       <DecisionDialog target={deciding} onClose={() => setDeciding(null)} onDone={() => { waiting.reload(); other.reload(); }} />

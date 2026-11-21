@@ -11,6 +11,13 @@ interface AcceptanceData {
   rule: { rating: string | null; rating_label: string | null; threshold: string | null; threshold_label: string | null; executive_required: boolean };
 }
 
+/** E08-23: the newest request through the Risk acceptance approval workflow. */
+interface RequestData {
+  available: boolean;
+  request: { id: string; workflow: string; status: 'running' | 'approved' | 'rejected' | 'canceled'; started_at: string; finished_at: string | null; expires_on: string | null; executive_required: boolean } | null;
+}
+
+const ASK_EMPTY = { expires_on: '', rationale: '' };
 const EMPTY = { approver_name: '', approver_title: '', approved_on: '', expires_on: '', reference: '', rationale: '' };
 const days = (n: number) => `${n} ${n === 1 ? 'day' : 'days'}`;
 
@@ -35,6 +42,9 @@ export function AcceptancePanel({ rec }: { rec: RecordContext }) {
   const [revoking, setRevoking] = useState<Row | null>(null);
   const [revoke, setRevoke] = useState({ reason: '', revoked_on: '' });
   const [showEarlier, setShowEarlier] = useState(false);
+  const asking = useFetch<RequestData>(`/api/risks/${rec.row.id}/acceptance-request`);
+  const [askOpen, setAskOpen] = useState(false);
+  const [ask, setAsk] = useState(ASK_EMPTY);
 
   if (error) return <Card title="Acceptance"><ErrorState error={error} onRetry={reload} /></Card>;
   if (!data) return <Card title="Acceptance"><Loading lines={3} /></Card>;
@@ -46,7 +56,33 @@ export function AcceptancePanel({ rec }: { rec: RecordContext }) {
   // The acceptance that counts: the newest one that has not been revoked.
   const standing = acceptances.find((a) => a.state === 'current' || a.state === 'expired');
   const earlier = acceptances.filter((a) => a !== standing);
-  const after = () => { reload(); rec.reload(); };
+  const after = () => { reload(); asking.reload(); rec.reload(); };
+  const request = asking.data?.request ?? null;
+  const waiting = request?.status === 'running';
+  const canAsk = can('risks.edit') && Boolean(rule.rating) && Boolean(asking.data?.available) && !waiting;
+
+  const submitAsk = async (e: FormEvent) => {
+    e.preventDefault();
+    const found: Record<string, string> = {};
+    if (!ask.expires_on) found.expires_on = 'Give the date the acceptance should expire.';
+    if (!ask.rationale.trim()) found.rationale = 'Say why the risk should be accepted.';
+    setErrors(found);
+    setMessage('');
+    if (Object.keys(found).length) return;
+    setSaving(true);
+    try {
+      await api.post(`/api/risks/${rec.row.id}/acceptance-request`, ask);
+      toast.success('Acceptance asked for. The approvers have been told.');
+      setAskOpen(false);
+      setAsk(ASK_EMPTY);
+      after();
+    } catch (err) {
+      if (err instanceof ApiError && err.fields) setErrors(err.fields);
+      setMessage(errorMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -100,7 +136,7 @@ export function AcceptancePanel({ rec }: { rec: RecordContext }) {
     : !rule.threshold
       ? 'No executive-approval threshold is set for this scale, so anyone who may approve risks can accept this one.'
       : exec
-        ? `This risk is rated ${rule.rating_label}, which is at or above the threshold (${rule.threshold_label}) for its scale. Accepting it needs a named executive approver: their name, title and a reference for the approval.`
+        ? `This risk is rated ${rule.rating_label}, which is at or above the threshold (${rule.threshold_label}) for its scale. Accepting it needs an executive approver: asked for through the approval workflow, its Executive approver step decides; recorded by hand, give their name, title and a reference for the approval.`
         : `This risk is rated ${rule.rating_label}, below the executive-approval threshold (${rule.threshold_label}) for its scale. Risks at or above the threshold need a named executive approver.`;
 
   const details = (a: Row) => (
@@ -124,12 +160,38 @@ export function AcceptancePanel({ rec }: { rec: RecordContext }) {
   return (
     <Card
       title="Acceptance"
-      actions={canApprove && rule.rating && (
-        <Button size="sm" icon="check-square" onClick={() => { setErrors({}); setMessage(''); setOpen(true); }}>
-          {standing ? 'Renew acceptance' : 'Record acceptance'}
-        </Button>
+      actions={(canAsk || (canApprove && rule.rating)) && (
+        <div className="row">
+          {canAsk && (
+            <Button size="sm" variant="primary" icon="arrow-right" onClick={() => { setErrors({}); setMessage(''); setAskOpen(true); }}>
+              {standing ? 'Ask to renew' : 'Ask for acceptance'}
+            </Button>
+          )}
+          {canApprove && rule.rating && (
+            <Button size="sm" icon="check-square" onClick={() => { setErrors({}); setMessage(''); setOpen(true); }}>
+              {standing ? 'Renew by hand' : 'Record by hand'}
+            </Button>
+          )}
+        </div>
       )}
     >
+      {waiting && (
+        <p className="rk-acc-none" role="status">
+          <Icon name="clock" size={18} />
+          <span>
+            <strong>Acceptance asked for {formatDate(request!.started_at)}.</strong>{' '}
+            <span className="muted">
+              Waiting for approval through "{request!.workflow}"{request!.expires_on ? `, to expire ${formatDate(request!.expires_on)}` : ''}. The approval panel above shows who decides and lets them decide.
+            </span>
+          </span>
+        </p>
+      )}
+      {request?.status === 'rejected' && !waiting && (
+        <p className="rk-acc-none">
+          <Icon name="x" size={18} />
+          <span><strong>The last request was rejected.</strong> <span className="muted">The reason is in the approval panel above. The risk stays as it was; you can ask again.</span></span>
+        </p>
+      )}
       <div className={`notice rk-rule${exec ? ' notice-pilot' : ''}`}>
         <Icon name={exec ? 'alert-circle' : 'info'} size={18} />
         <div>
@@ -187,9 +249,28 @@ export function AcceptancePanel({ rec }: { rec: RecordContext }) {
         </div>
       )}
 
-      <Modal open={open} title={standing ? 'Renew acceptance' : 'Record acceptance'} onClose={() => setOpen(false)}>
+      <Modal open={askOpen} title={standing ? 'Ask to renew the acceptance' : 'Ask for acceptance'} onClose={() => setAskOpen(false)}>
+        <form className="form" onSubmit={submitAsk} noValidate>
+          <p className="muted" style={{ margin: 0 }}>
+            The request goes through the Risk acceptance approval workflow{exec ? ', including an executive approver because of the rating' : ''}.
+            Once it is approved, the acceptance is recorded with the approver and today's date, and the risk becomes Accepted.
+          </p>
+          {message && <p role="alert" className="form-error">{message}</p>}
+          <div className="form-grid">
+            <DateField label="Expires on" required value={ask.expires_on} error={errors.expires_on} onChange={(v) => setAsk((a) => ({ ...a, expires_on: v }))} />
+            <TextArea className="form-cell-wide" label="Rationale" required value={ask.rationale} error={errors.rationale} onChange={(v) => setAsk((a) => ({ ...a, rationale: v }))} />
+          </div>
+          <div className="form-actions">
+            <Button variant="primary" type="submit" loading={saving}>Ask for acceptance</Button>
+            <Button onClick={() => setAskOpen(false)}>Cancel</Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal open={open} title={standing ? 'Renew acceptance by hand' : 'Record acceptance by hand'} onClose={() => setOpen(false)}>
         <form className="form" onSubmit={submit} noValidate>
           <p className="muted" style={{ margin: 0 }}>{explain}</p>
+          <p className="muted" style={{ margin: 0 }}>Record here an acceptance decided outside the application (for example at a committee meeting).{waiting ? ' It also ends the request waiting for approval.' : ''}</p>
           {message && <p role="alert" className="form-error">{message}</p>}
           <div className="form-grid">
             <TextField label="Approver name" required={exec} hint={exec ? undefined : 'Left empty, you are recorded as the approver.'} {...field('approver_name')} />

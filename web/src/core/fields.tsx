@@ -155,6 +155,8 @@ export function Select({ value, onChange, options, placeholder = 'Select…', se
 export interface LookupSelectProps extends Omit<SelectProps, 'options'> {
   /** Lookup list name from /api/meta. */
   list: string;
+  /** Offer only these values (the statuses a record may move to, E14-31). */
+  only?: string[];
 }
 
 export interface ChoicesFieldProps extends FieldProps {
@@ -195,8 +197,10 @@ export function LookupChoices({ list, ...rest }: Omit<ChoicesFieldProps, 'option
 }
 
 /** A Select filled from a configured lookup list, showing each value's color. */
-export function LookupSelect({ list, ...rest }: LookupSelectProps) {
-  return <Select {...rest} options={useLookup(list)} />;
+export function LookupSelect({ list, only, ...rest }: LookupSelectProps) {
+  const values = useLookup(list);
+  const options = useMemo(() => (only ? values.filter((v) => only.includes(v.value)) : values), [values, only]);
+  return <Select {...rest} options={options} />;
 }
 
 export interface CheckboxProps {

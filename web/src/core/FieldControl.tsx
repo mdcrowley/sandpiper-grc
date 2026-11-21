@@ -40,9 +40,11 @@ export interface FieldControlProps {
   display?: string;
   /** Shown as text that cannot be changed (a `readOnly` field). */
   readOnlyText?: string;
+  /** A lookup field: offer only these values (the statuses a record may move to, E14-31). */
+  allowed?: string[];
 }
 
-export function FieldControl({ meta, value, onChange, error, hint, display, readOnlyText }: FieldControlProps) {
+export function FieldControl({ meta, value, onChange, error, hint, display, readOnlyText, allowed }: FieldControlProps) {
   const common = { label: meta.label, required: meta.required, error, hint: hint ?? meta.help };
   if (meta.readOnly) {
     return <TextField {...common} required={false} disabled value={readOnlyText ?? String(display ?? value ?? '')} onChange={() => {}} />;
@@ -64,7 +66,7 @@ export function FieldControl({ meta, value, onChange, error, hint, display, read
       return <Checkbox label={meta.label} error={error} hint={common.hint} checked={value as boolean} onChange={onChange} />;
     case 'lookup':
       if (meta.multiple) return <LookupChoices {...common} list={meta.list ?? ''} value={value as string[]} onChange={onChange} />;
-      return <LookupSelect {...common} list={meta.list ?? ''} value={value as string} onChange={onChange} />;
+      return <LookupSelect {...common} list={meta.list ?? ''} only={allowed} value={value as string} onChange={onChange} />;
     case 'user':
       return <UserPicker {...common} value={value as string | null} display={display} onChange={(v) => onChange(v)} />;
     case 'ref':

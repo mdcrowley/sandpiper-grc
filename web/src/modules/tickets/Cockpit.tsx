@@ -44,65 +44,64 @@ function Clock({ label, clock, total, start, paused }: { label: string; clock: C
 
 interface ApprovalState {
   status: string | null; needed: number; approved: number; rejected: number;
+  /** Approvers still to decide on the current step, by name. */
   approvers: { id: string; label: string }[] | null;
-  decisions: { id: string; user_name: string; decision: 'approved' | 'rejected'; note: string | null; decided_at: string; superseded: boolean; counts: boolean }[];
-  my_decision: string | null; can_decide: boolean; cannot_decide_reason: string | null;
+  workflow: { id: string; name: string; status: string; step_id: string | null } | null;
+  /** Decisions recorded before catalog approvals moved to approval workflows (E03-22). */
+  decisions: { id: string; user_name: string; decision: 'approved' | 'rejected'; note: string | null; decided_at: string; superseded: boolean }[];
+  can_decide: boolean; cannot_decide_reason: string | null; can_ask_again: boolean;
 }
 
-/** E03-21: who has decided so far, and who may still decide. */
-function ApprovalProgress({ state }: { state: ApprovalState }) {
-  if (state.needed <= 1 && !state.approvers && state.decisions.length <= 1) return null;
+/** Decisions given before approvals ran on the approval workflows: history only. */
+function EarlierDecisions({ state }: { state: ApprovalState }) {
+  if (!state.decisions.length) return null;
   return (
     <div className="sd-approval-progress">
-      {state.needed > 1 && (
-        <ProgressBar label="Approvals given" value={state.approved} max={state.needed} size="sm"
-          color={state.rejected ? 'red' : state.approved >= state.needed ? 'green' : 'amber'} valueText={`${state.approved} of ${state.needed} approvals`} />
-      )}
-      {state.approvers && <p className="muted">May approve: {state.approvers.map((a) => a.label).join(', ')}.</p>}
-      {state.decisions.length > 0 && (
-        <ul className="sd-decisions">
-          {state.decisions.map((d) => (
-            <li key={d.id} className={d.counts ? undefined : 'is-superseded'}>
-              <Icon name={d.decision === 'approved' ? 'check-circle' : 'x'} size={14} />
-              <span><strong>{d.user_name}</strong> {d.decision === 'approved' ? 'approved' : 'rejected'} {formatDateTime(d.decided_at)}
-                {d.note ? <> · “{d.note}”</> : null}{!d.counts ? <span className="muted"> (no longer counts)</span> : null}</span>
-            </li>
-          ))}
-        </ul>
-      )}
+      <p className="muted">Decided before approvals moved to approval workflows:</p>
+      <ul className="sd-decisions">
+        {state.decisions.map((d) => (
+          <li key={d.id} className={d.superseded ? 'is-superseded' : undefined}>
+            <Icon name={d.decision === 'approved' ? 'check-circle' : 'x'} size={14} />
+            <span><strong>{d.user_name}</strong> {d.decision === 'approved' ? 'approved' : 'rejected'} {formatDateTime(d.decided_at)}
+              {d.note ? <> · “{d.note}”</> : null}{d.superseded ? <span className="muted"> (overturned)</span> : null}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
 
+/**
+ * E03-22: where the request's approval stands. The decisions themselves are made in the approval
+ * panel on this page (or on the Approvals page); this strip says why work is held and lets an agent
+ * ask for approval again after a rejection.
+ */
 function Approval({ rec }: { rec: RecordContext }) {
   const { row, reload } = rec;
-  const { can } = useAuth();
   const toast = useToast();
-  const [decision, setDecision] = useState<null | 'approved' | 'rejected'>(null);
-  const [note, setNote] = useState('');
-  const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const state = useFetch<ApprovalState>(row.approval_status ? `/api/tickets/${row.id}/approvals` : null);
   const reloadState = state.reload;
   useEffect(() => { if (row.approval_status) reloadState(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [row.updated_at]);
   if (!row.approval_status) return null;
-  const mayDecide = can('tickets.approve') && (state.data ? state.data.can_decide : true);
-  const progress = state.data && state.data.needed > 1 ? ` ${state.data.approved} of ${state.data.needed} approvals so far.` : '';
+  const s = state.data;
+  const running = s?.workflow?.status === 'running';
+  const progress = s && running && s.needed > 1 ? ` ${s.approved} of ${s.needed} approvals so far.` : '';
+  const waiting = s && running && s.approvers?.length ? ` Waiting for ${s.approvers.map((a) => a.label).join(', ')}.` : '';
 
-  async function decide() {
+  async function askAgain() {
     setBusy(true);
-    setError('');
     try {
-      await api.post(`/api/tickets/${row.id}/approval`, { decision, note });
-      toast.success(decision === 'approved' ? 'Request approved.' : 'Request rejected.');
-      setDecision(null);
+      await api.post(`/api/tickets/${row.id}/approval/ask`, {});
+      toast.success('Approval asked for again.');
       reload();
     } catch (err) {
-      setError(fieldErrors(err).note ?? errorMessage(err));
+      toast.error(errorMessage(err));
     } finally {
       setBusy(false);
     }
   }
+  const ask = s?.can_ask_again && <Button size="sm" loading={busy} onClick={askAgain}>Ask for approval again</Button>;
 
   const who = row.approval_at ? ` by ${row._display?.approval_by ?? 'an approver'} on ${formatDateTime(row.approval_at)}` : '';
   return (
@@ -111,34 +110,23 @@ function Approval({ rec }: { rec: RecordContext }) {
         <div className="notice notice-pilot sd-cockpit-note">
           <Icon name="lock" size={16} />
           <span className="sd-grow">
-            <strong>Waiting for approval.</strong>{progress} Work can start once this request is approved. It can be assigned, paused or canceled meanwhile.
-            {can('tickets.approve') && state.data && !state.data.can_decide && state.data.cannot_decide_reason ? <span className="muted"> {state.data.cannot_decide_reason}</span> : null}
+            <strong>Waiting for approval.</strong>{progress}{waiting} Work can start once this request is approved. It can be assigned, paused or canceled meanwhile.
+            {running && s?.can_decide ? ' You can decide it in the approval panel.' : ''}
+            {!running && row.approval_note ? <span className="muted"> {row.approval_note}</span> : null}
           </span>
-          {mayDecide && (
-            <span className="row">
-              {state.data?.my_decision !== 'approved' && <Button size="sm" variant="primary" icon="check" onClick={() => { setNote(''); setError(''); setDecision('approved'); }}>Approve</Button>}
-              {state.data?.my_decision !== 'rejected' && <Button size="sm" icon="x" onClick={() => { setNote(''); setError(''); setDecision('rejected'); }}>Reject</Button>}
-            </span>
-          )}
+          {ask}
         </div>
       ) : (
         <div className={`notice ${row.approval_status === 'rejected' ? 'notice-warn' : 'notice-success'} sd-cockpit-note`}>
           <Icon name={row.approval_status === 'rejected' ? 'x' : 'check-circle'} size={16} />
           <span className="sd-grow">
             <strong>{lookupLabel('ticket_approval', row.approval_status)}</strong>{who}.{row.approval_note ? ` “${row.approval_note}”` : ''}
-            {row.approval_status === 'rejected' ? ' Cancel the ticket, or ask for the decision to be changed.' : ''}
+            {row.approval_status === 'rejected' ? ' Cancel the ticket, or ask for approval again.' : ''}
           </span>
-          {row.approval_status === 'rejected' && mayDecide && (
-            <Button size="sm" onClick={() => { setNote(''); setError(''); setDecision('approved'); }}>Approve after all</Button>
-          )}
+          {ask}
         </div>
       )}
-      {state.data && <ApprovalProgress state={state.data} />}
-      <Modal open={decision !== null} size="sm" title={decision === 'approved' ? 'Approve this request' : 'Reject this request'} onClose={() => setDecision(null)}
-        footer={<><Button onClick={() => setDecision(null)}>Cancel</Button><Button variant={decision === 'rejected' ? 'danger' : 'primary'} loading={busy} onClick={decide}>{decision === 'approved' ? 'Approve' : 'Reject'}</Button></>}>
-        <TextArea label={decision === 'rejected' ? 'Reason' : 'Note (optional)'} required={decision === 'rejected'} rows={3} value={note} onChange={setNote} error={error || undefined}
-          hint="Shown on the ticket and in its history." />
-      </Modal>
+      {s && <EarlierDecisions state={s} />}
     </>
   );
 }

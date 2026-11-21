@@ -34,7 +34,7 @@ const DOCS: [RouteDoc['method'], string, string, Extra?][] = [
   ['DELETE', '/api/admin/tokens/:id', 'Revoke anyone\'s API token', { tag: 'API tokens', permission: A }],
 
   // ---- metadata, pickers, search ----
-  ['GET', '/api/meta', 'Record types the caller may view (with fields, custom fields included) and the lists they may read', { tag: 'Metadata', response: '{ resources: { [type]: { type, label, plural, module, path, route, titleField, refField, restricted, evidence, fields, search } }, lookups: { [list]: [{ value, label, color, sort }] } }' }],
+  ['GET', '/api/meta', 'Record types the caller may view (with fields, custom fields included) and the lists they may read', { tag: 'Metadata', response: '{ resources: { [type]: { type, label, plural, module, path, route, titleField, refField, restricted, evidence, fields, search, lifecycle?: { field, managed, blocked: [[from, to]], required: { [status]: [field] }, denied: [status] } } }, lookups: { [list]: [{ value, label, color, sort }] } }' }],
   ['GET', '/api/openapi.json', 'This document, cut down to what the caller may use', { tag: 'Metadata' }],
   ['GET', '/api/records/lookup', 'Records for a record picker', { tag: 'Records', query: { type: 'Record type key.', q: 'Part of the title or reference.' }, response: '[{ id, label, ref }]' }],
   ['POST', '/api/records/labels', 'Labels for record ids', { tag: 'Records', body: '{ records: { [type]: [id, ...] } } (at most 1000 ids)', response: '{ [type]: { [id]: { label, ref, route } } }. Ids the caller may not see are left out.' }],

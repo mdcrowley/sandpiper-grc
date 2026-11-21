@@ -114,6 +114,7 @@ export const ROUTE_HELP: RouteHelp[] = [
   { prefix: '/approvals', page: '22-approval-workflows', section: 'approvals-waiting-for-you' },
   { prefix: '/admin/reminders', page: '14-attachments-and-notifications', section: 'reminders' },
   { prefix: '/admin/lists', page: '09-administration', section: 'lists' },
+  { prefix: '/admin/lifecycles', page: '23-lifecycles', section: 'setting-up-a-lifecycle-administrators' },
   { prefix: '/admin/settings', page: '09-administration', section: 'settings' },
   { prefix: '/admin/audit', page: '09-administration', section: 'the-audit-log' },
   { prefix: '/admin/tokens', page: '09-administration', section: 'api-tokens' },

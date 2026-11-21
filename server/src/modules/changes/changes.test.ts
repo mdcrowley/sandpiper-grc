@@ -79,7 +79,8 @@ async function approved(day: string, extra: Record<string, unknown> = {}) {
 }
 
 beforeAll(async () => {
-  process.env.GRC_MODULES = 'changes'; // the stand-ins replace the real inventory and risks modules
+  // The stand-ins replace the real inventory and risks modules; approvals run on the shared workflows (E05-13).
+  process.env.GRC_MODULES = 'changes,workflows';
   t = await testApp({ extraModules: [standIns] });
   agent = await t.as('agent');
   approver = await t.as('approver');
@@ -256,7 +257,7 @@ describe('lifecycle and approvals', () => {
     const two = await t.api.patch('/api/changes/settings', { approval_rules: rules.map((r) => (r.change_type === 'emergency' ? { ...r, approvals: 2 } : r)) });
     expect(two.body.error.fields['approval_rules.4.approvals']).toMatch(/one approver/);
     expect((await t.api.patch('/api/changes/settings', { approval_rules: rules })).status).toBe(200);
-    expect((await t.db.query(`select 1 from audit_events where action = 'setting.change' and record_id = 'changes.approval_rules'`)).length).toBe(1);
+    expect((await t.db.query(`select 1 from audit_events where action = 'setting.change' and record_id = 'changes.approval_rules' and actor_id is not null`)).length).toBe(1); // the start-up move to workflows saved them once as the system
 
     const made = await agent.post('/api/changes', complete('2031-03-17', { change_type: 'emergency' }));
     const id = made.body.id;

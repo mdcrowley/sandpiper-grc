@@ -2,6 +2,7 @@ import type { FastifyRequest } from 'fastify';
 import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
 import { MASKED_LABEL, MASKED_SQL, MASKED_VALUE } from '../../core/resource.ts';
+import { registerAcceptanceWorkflow } from './acceptance.ts';
 import { makeActionExtras } from './actions.ts';
 import { makeLifecycle } from './lifecycle.ts';
 import { runObligationReminders } from './obligation-reminders.ts';
@@ -82,7 +83,12 @@ const mod: ModuleDef = {
 
   async seedDefaults(ctx) {
     await seedLookups(ctx);
-    await makeScales(ctx).seedDefaults();
+    const scales = makeScales(ctx);
+    await scales.seedDefaults();
+    // E08-23: risks rated before "needs an executive" was kept on the risk get it once.
+    if (await ctx.db.one('select 1 from risks where acceptance_executive is null and deleted_at is null and coalesce(residual_rating, inherent_rating) is not null limit 1')) {
+      for (const s of await scales.all()) await scales.rescore(s.key);
+    }
   },
 
   async register(ctx) {
@@ -175,6 +181,9 @@ const mod: ModuleDef = {
         status: { label: 'Status', type: 'lookup', list: 'risk_status', default: 'open' },
         review_on: { label: 'Next review', type: 'date' },
         last_reviewed_on: { label: 'Last reviewed', type: 'date', readOnly: true },
+        // E08-23: kept by the module from the rating and its scale's approval threshold, so the
+        // Risk acceptance workflow can ask for an executive only when it is set.
+        acceptance_executive: { label: 'Acceptance needs an executive', type: 'boolean', readOnly: true },
       },
       hooks: {
         beforeCreate: (req, data) => prepareRisk(req, null, data),
@@ -444,9 +453,14 @@ const mod: ModuleDef = {
         after: row,
       });
       await ctx.resources.update('risk', risk.id, { status: 'accepted', treatment: 'accept' }, req);
+      // An acceptance recorded by hand settles a request still waiting on the approval workflow.
+      await acceptance.settledByHand(risk, req);
       reply.code(201);
       return row;
     });
+
+    // E08-23: asking for acceptance through the shared approval workflows.
+    const acceptance = registerAcceptanceWorkflow(ctx, { riskPre, visibleRisk, acceptanceRule, today });
 
     // Revoking and expiry, reviews, the daily check and the board report.
     await makeLifecycle(ctx, { scales, riskPre, visibleRisk, statusesWith, today }).register();

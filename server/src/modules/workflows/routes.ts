@@ -1,13 +1,15 @@
 // HTTP routes of the approval workflows (E14-06). Administrators define workflows; everyone sees
 // and decides the approvals waiting for them, and sees the workflows on records they may view.
 import type { FastifyRequest } from 'fastify';
+import { approvalKind, approvalKinds } from '../../core/approval-kinds.ts';
 import { UUID_RE } from '../../core/errors.ts';
 import type { FieldDef, ModuleContext, ResourceDef, Row } from '../../core/module.ts';
 import { checkDefinition, type DefinitionContext, type WorkflowDef } from './engine.ts';
-import type { Service } from './service.ts';
+import { stepPeople, type Service } from './service.ts';
+import { registerStandinRoutes } from './standins.ts';
 
 const ADMIN = 'admin.administer';
-const DEF_COLUMNS = ['record_type', 'name', 'description', 'active', 'trigger', 'trigger_field', 'trigger_value', 'conditions', 'steps', 'on_approve', 'on_reject'] as const;
+const DEF_COLUMNS = ['record_type', 'kind', 'name', 'description', 'active', 'trigger', 'trigger_field', 'trigger_value', 'conditions', 'steps', 'on_approve', 'on_reject'] as const;
 /** Field types offered for conditions and outcomes (json fields are not). */
 const USABLE = new Set(['text', 'longtext', 'number', 'currency', 'date', 'datetime', 'boolean', 'lookup', 'user', 'ref']);
 
@@ -49,16 +51,26 @@ export function registerRoutes(ctx: ModuleContext, svc: Service) {
     const users = mentioned.length
       ? (await db.query<{ id: string }>(`select id from users where id = any($1::uuid[]) and status = 'active' and deleted_at is null`, [mentioned])).map((r) => r.id)
       : [];
-    return { types, lookup: (list) => lists.get(list) ?? [], roles, users };
+    const kinds = Object.fromEntries(approvalKinds(app).filter((k) => ctx.resources.get(k.recordType)).map((k) => [k.key, k.recordType]));
+    return { types, lookup: (list) => lists.get(list) ?? [], roles, users, kinds, permissions: await permissionKeys() };
+  }
+
+  /** Permission keys roles grant, and those approval kinds ask for (for steps approved by a permission). */
+  async function permissionKeys(): Promise<string[]> {
+    const granted = (await db.query<{ permission: string }>('select distinct permission from role_permissions')).map((r) => r.permission);
+    const asked = approvalKinds(app).map((k) => k.approverPermission).filter(Boolean) as string[];
+    return [...new Set([...granted, ...asked])].filter((p) => /^[a-z_]+.[a-z_]+$/.test(p)).sort();
   }
 
   async function present(row: Row): Promise<Row> {
     const def = ctx.resources.get(row.record_type);
+    const kind = approvalKind(app, row.kind);
     const counts = await db.one<{ running: number; total: number }>(
       `select count(*) filter (where status = 'running')::int as running, count(*)::int as total from workflow_instances where definition_id = $1`, [row.id]);
     return {
       ...row,
       record_type_label: def?.label ?? row.record_type,
+      kind_label: kind?.label ?? null, kind_starts_when: kind?.startsWhen ?? null, kind_outcome: kind?.outcome ?? null,
       // The record type's area is switched off (or its module is not loaded): the workflow does nothing meanwhile.
       available: Boolean(def),
       running: counts?.running ?? 0,
@@ -69,6 +81,8 @@ export function registerRoutes(ctx: ModuleContext, svc: Service) {
 
   async function save(req: FastifyRequest, existing: Row | null): Promise<Row> {
     const input = { ...(existing ?? {}), ...((req.body ?? {}) as Row) };
+    // A workflow's approval kind is chosen when it is made and never changes.
+    if (existing) input.kind = existing.kind ?? null;
     const { def, errors } = checkDefinition(input, await definitionContext(input));
     if (errors) ctx.fail(400, 'validation', 'Check the highlighted fields.', errors);
     const d = def as WorkflowDef;
@@ -93,8 +107,10 @@ export function registerRoutes(ctx: ModuleContext, svc: Service) {
   const pick = (row: Row) => Object.fromEntries(DEF_COLUMNS.map((c) => [c, row[c]]));
 
   async function definition(req: FastifyRequest): Promise<Row> {
-    return (await db.one<Row>('select * from workflow_definitions where id = $1 and deleted_at is null', [param(req)]))
-      ?? ctx.fail(404, 'not_found', 'Workflow not found.');
+    const row = await db.one<Row>('select * from workflow_definitions where id = $1 and deleted_at is null', [param(req)]);
+    // A workflow of a switched-off record type is hidden with its area (E14-34).
+    if (!row || !ctx.resources.get(row.record_type)) ctx.fail(404, 'not_found', 'Workflow not found.');
+    return row!;
   }
 
   app.get('/api/workflows/options', admin, async () => {
@@ -110,31 +126,34 @@ export function registerRoutes(ctx: ModuleContext, svc: Service) {
       `select d.id, d.name, h.user_id as head_id, u.display_name as head_name
        from departments d left join workflow_department_heads h on h.department_id = d.id left join users u on u.id = h.user_id
        where d.deleted_at is null order by d.name`);
-    return { types, lookups, roles, departments };
+    const kinds = approvalKinds(app).filter((k) => ctx.resources.get(k.recordType))
+      .map((k) => ({ key: k.key, record_type: k.recordType, label: k.label, starts_when: k.startsWhen, outcome: k.outcome, approver_permission: k.approverPermission ?? null }));
+    return { types, lookups, roles, departments, kinds, permissions: await permissionKeys() };
   });
   ctx.describeRoute({
     method: 'GET', path: '/api/workflows/options', tag: 'Workflows', permission: ADMIN,
     summary: 'What a workflow can use: record types and their fields, list values, roles and departments with their heads',
-    response: '{ types: [{ type, label, plural, module, restricted, fields: [{ name, label, type, list, readOnly }] }], lookups: { [list]: [{ value, label, color }] }, roles: [{ key, name, enabled }], departments: [{ id, name, head_id, head_name }] }',
+    response: '{ types: [{ type, label, plural, module, restricted, fields: [{ name, label, type, list, readOnly }] }], lookups: { [list]: [{ value, label, color }] }, roles: [{ key, name, enabled }], departments: [{ id, name, head_id, head_name }], kinds: [{ key, record_type, label, starts_when, outcome, approver_permission }], permissions: [string] }',
   });
 
   app.get('/api/workflows/definitions', admin, async (req) => {
     const type = text((req.query as Row).record_type, 60);
     const rows = await db.query<Row>(
       `select * from workflow_definitions where deleted_at is null and ($1::text is null or record_type = $1) order by record_type, name`, [type]);
-    return { rows: await Promise.all(rows.map(present)) };
+    // Workflows of switched-off record types are hidden with their area (E14-34).
+    return { rows: await Promise.all(rows.filter((r) => ctx.resources.get(r.record_type)).map(present)) };
   });
   ctx.describeRoute({
     method: 'GET', path: '/api/workflows/definitions', tag: 'Workflows', permission: ADMIN,
-    summary: 'Approval workflows, with how many are running', query: { record_type: 'Only the workflows of this record type' },
-    response: '{ rows: [workflow definition with record_type_label, available, running, started, people] }',
+    summary: 'Approval workflows, with how many are running (those of switched-off record types are left out)', query: { record_type: 'Only the workflows of this record type' },
+    response: '{ rows: [workflow definition with kind, kind_label, record_type_label, available, running, started, people] }',
   });
 
   const DEF_BODY = {
     type: 'object',
-    description: 'A workflow definition. `trigger`: create | status | manual (with `trigger_field` and `trigger_value` for status). '
+    description: 'A workflow definition. `kind` (set when it is made, never changed): the approval kind it serves, from GET /api/workflows/options; its module starts it and `trigger` is then `module`. `trigger`: create | status | manual (with `trigger_field` and `trigger_value` for status). '
       + '`conditions`: [{ field, op: eq|ne|gt|gte|lt|lte|in|empty|set, value }]. `steps`: [{ name, approvers: { kind: users, users: [id] } | '
-      + '{ kind: role, role } | { kind: field, field } | { kind: department_head, from: requester|field, field }, quorum: any|all|n, conditions, '
+      + '{ kind: role, role } | { kind: people, users, roles } | { kind: permission, permission } | { kind: field, field } | { kind: department_head, from: requester|field, field }, quorum: any|all|n, conditions, '
       + 'due_hours, escalate_to: { users, role } }]. `on_approve`, `on_reject`: [{ field, value }] (value `today` for a date, `approver` or `requester` for a person).',
   };
 
@@ -226,11 +245,14 @@ export function registerRoutes(ctx: ModuleContext, svc: Service) {
       due_at: r.due_at, overdue: Boolean(r.due_at && new Date(r.due_at).getTime() < Date.now()), escalated: Boolean(r.escalated_at),
       approvals: r.approvals ?? 0, required: r.required, status: r.instance_status, step_status: r.step_status,
       decision: r.my_decision ?? null, decided_at: r.my_decided_at ?? null, comment: r.my_comment ?? null,
+      kind: r.kind ?? null, kind_label: approvalKind(app, r.kind)?.label ?? null,
+      // E14-32: the approver this person stands in for here (waiting), or decided for (decided).
+      on_behalf_of: r.on_behalf_of ?? null, on_behalf_of_name: r.on_behalf_of ? (await names([r.on_behalf_of]))[r.on_behalf_of] ?? 'Someone' : null,
     };
   }
 
   const STEP_SELECT = `select s.id as step_id, s.instance_id, s.name as step_name, s.position, s.status as step_status, s.required, s.due_at,
-      s.escalated_at, s.started_at as step_started_at, i.name as workflow_name, i.definition, i.record_type, i.record_id, i.requested_by,
+      s.escalated_at, s.started_at as step_started_at, s.approvers, s.principals, s.standins, i.kind, i.name as workflow_name, i.definition, i.record_type, i.record_id, i.requested_by,
       i.status as instance_status, u.display_name as requested_by_name,
       (select count(*)::int from workflow_decisions d where d.step_id = s.id and d.decision = 'approved') as approvals
     from workflow_steps s join workflow_instances i on i.id = s.instance_id left join users u on u.id = i.requested_by`;
@@ -243,7 +265,16 @@ export function registerRoutes(ctx: ModuleContext, svc: Service) {
        where s.status = 'pending' and i.status = 'running' and s.approvers @> $1::jsonb and i.requested_by is distinct from $2
          and not exists (select 1 from workflow_decisions d where d.step_id = s.id and d.user_id = $2)
        order by s.due_at nulls last, s.started_at limit 200`, [JSON.stringify([me]), me]);
-    return (await Promise.all(rows.map((r) => approvalItem(req, r)))).filter(Boolean) as Row[];
+    const out: Row[] = [];
+    for (const r of rows) {
+      // A stand-in sees a step only while their period runs and someone they stand in for has not decided.
+      const ds = await db.query<{ user_id: string; on_behalf_of: string | null }>('select user_id, on_behalf_of from workflow_decisions where step_id = $1', [r.step_id]);
+      const may = await svc.mayDecide({ status: 'pending', approvers: r.approvers, principals: r.principals, standins: r.standins }, r.requested_by, me, ds);
+      if (!may.ok) continue;
+      const item = await approvalItem(req, { ...r, on_behalf_of: may.onBehalfOf });
+      if (item) out.push(item);
+    }
+    return out;
   }
 
   app.get('/api/workflows/approvals', async (req) => {
@@ -251,7 +282,7 @@ export function registerRoutes(ctx: ModuleContext, svc: Service) {
     const me = req.user!.id;
     if (view === 'decided') {
       const rows = await db.query<Row>(
-        `${STEP_SELECT.replace('from workflow_steps s', ', d.decision as my_decision, d.created_at as my_decided_at, d.comment as my_comment from workflow_steps s')}
+        `${STEP_SELECT.replace('from workflow_steps s', ', d.decision as my_decision, d.created_at as my_decided_at, d.comment as my_comment, d.on_behalf_of from workflow_steps s')}
          join workflow_decisions d on d.step_id = s.id and d.user_id = $1 order by d.created_at desc limit 100`, [me]);
       return { rows: (await Promise.all(rows.map((r) => approvalItem(req, r)))).filter(Boolean) };
     }
@@ -280,7 +311,7 @@ export function registerRoutes(ctx: ModuleContext, svc: Service) {
     method: 'GET', path: '/api/workflows/approvals', tag: 'Workflows',
     summary: 'Approvals for the signed-in person: waiting for their decision (default), decided by them, or requested by them',
     query: { view: '`waiting` (default), `decided` or `requested`' },
-    response: '{ rows: [{ step_id, instance_id, workflow, step, position, steps_total, record_type, record_type_label, record_id, record_ref, record_title, route, requested_by_name, due_at, overdue, escalated, approvals, required, decision?, comment? }] }',
+    response: '{ rows: [{ step_id, instance_id, workflow, step, position, steps_total, record_type, record_type_label, record_id, record_ref, record_title, route, requested_by_name, due_at, overdue, escalated, approvals, required, kind, kind_label, on_behalf_of, on_behalf_of_name, decision?, comment? }] }',
   });
 
   app.get('/api/workflows/approvals/count', async (req) => ({ waiting: (await waiting(req)).length }));
@@ -304,34 +335,52 @@ export function registerRoutes(ctx: ModuleContext, svc: Service) {
       'select * from workflow_instances where record_type = $1 and record_id = $2 order by started_at desc limit 20', [def.type, id]);
     const steps = instances.length ? await db.query<Row>('select * from workflow_steps where instance_id = any($1::uuid[]) order by position', [instances.map((i) => i.id)]) : [];
     const decisions = steps.length ? await db.query<Row>('select * from workflow_decisions where step_id = any($1::uuid[]) order by created_at', [steps.map((s) => s.id)]) : [];
-    const people = await names([...new Set([...instances.map((i) => i.requested_by), ...steps.flatMap((s) => asJson<string[]>(s.approvers)), ...decisions.map((d) => d.user_id)].filter(Boolean))]);
+    const people = await names([...new Set([...instances.map((i) => i.requested_by), ...steps.flatMap((s) => [...asJson<string[]>(s.approvers), ...stepPeople(s).principals]),
+      ...decisions.flatMap((d) => [d.user_id, d.on_behalf_of])].filter(Boolean))]);
+    const deciding = new Map<string, { ok: boolean; onBehalfOf: string | null }>();
+    for (const s of steps) {
+      const inst = instances.find((i) => i.id === s.instance_id)!;
+      if (inst.status !== 'running' || s.status !== 'pending') continue;
+      deciding.set(s.id, await svc.mayDecide(s, inst.requested_by ?? null, me, decisions.filter((d) => d.step_id === s.id) as { user_id: string; on_behalf_of: string | null }[]));
+    }
     const isAdmin = ctx.can(req.user, ADMIN);
     const out = instances.map((i) => {
       const wf = asJson<WorkflowDef>(i.definition);
+      const kind = approvalKind(app, i.kind);
       const mine = steps.filter((s) => s.instance_id === i.id);
       return {
         id: i.id, workflow: i.name, status: i.status, current_step: i.current_step, started_at: i.started_at, finished_at: i.finished_at,
         requested_by: i.requested_by, requested_by_name: i.requested_by ? people[i.requested_by] ?? 'Someone' : null, note: i.note,
         outcome_note: i.outcome_note, outcome_error: i.outcome_error,
+        kind: i.kind ?? null, kind_label: kind?.label ?? null,
         can_cancel: i.status === 'running' && (i.requested_by === me || isAdmin),
+        can_reassign: i.status === 'running' && isAdmin,
         steps: wf.steps.map((sd, position) => {
           const s = mine.find((x) => x.position === position);
-          const approvers = s ? asJson<string[]>(s.approvers) : [];
+          const sp = s ? stepPeople(s) : { approvers: [] as string[], principals: [] as string[], standins: {} as Record<string, string[]> };
           const ds = s ? decisions.filter((d) => d.step_id === s.id) : [];
+          const mayI = s ? deciding.get(s.id) : undefined;
           return {
             position, key: sd.key, name: sd.name, id: s?.id ?? null,
             status: s?.status ?? (i.status === 'running' ? 'waiting' : 'not_reached'),
-            approvers: approvers.map((a) => ({ id: a, name: people[a] ?? 'Someone' })),
+            approvers: sp.principals.map((a) => ({ id: a, name: people[a] ?? 'Someone' })),
+            // E14-32: stand-ins added beside the approvers they stand in for.
+            standins: Object.entries(sp.standins).map(([sid, forWhom]) => ({ id: sid, name: people[sid] ?? 'Someone', for: forWhom.map((f) => ({ id: f, name: people[f] ?? 'Someone' })) })),
             required: s?.required ?? null, quorum: sd.quorum, due_at: s?.due_at ?? null, escalated_at: s?.escalated_at ?? null, note: s?.note ?? null,
             has_conditions: (sd.conditions ?? []).length > 0,
-            decisions: ds.map((d) => ({ user_id: d.user_id, name: people[d.user_id] ?? 'Someone', decision: d.decision, comment: d.comment, at: d.created_at })),
-            can_decide: Boolean(s && s.status === 'pending' && i.status === 'running' && approvers.includes(me) && i.requested_by !== me && !ds.some((d) => d.user_id === me)),
+            decisions: ds.map((d) => ({
+              user_id: d.user_id, name: people[d.user_id] ?? 'Someone', decision: d.decision, comment: d.comment, at: d.created_at,
+              on_behalf_of: d.on_behalf_of ?? null, on_behalf_of_name: d.on_behalf_of ? people[d.on_behalf_of] ?? 'Someone' : null, adopted: d.origin === 'adopted',
+            })),
+            can_decide: Boolean(mayI?.ok),
+            on_behalf_of_name: mayI?.ok && mayI.onBehalfOf ? people[mayI.onBehalfOf] ?? 'Someone' : null,
           };
         }),
       };
     });
     const startable = ctx.can(req.user, `${def.module}.edit`)
-      ? (await db.query<Row>('select id, name, description, trigger from workflow_definitions where record_type = $1 and active and deleted_at is null order by name', [def.type]))
+      // A kind's workflows are started by their module (submitting a change, asking for a disposal).
+      ? (await db.query<Row>('select id, name, description, trigger from workflow_definitions where record_type = $1 and kind is null and active and deleted_at is null order by name', [def.type]))
         .filter((w) => !instances.some((i) => i.status === 'running' && i.definition_id === w.id))
       : [];
     return { instances: out, startable };
@@ -339,7 +388,7 @@ export function registerRoutes(ctx: ModuleContext, svc: Service) {
   ctx.describeRoute({
     method: 'GET', path: '/api/workflows/records/:type/:id', tag: 'Workflows',
     summary: 'The approval workflows on one record (needs view on it), and those the caller may start',
-    response: '{ instances: [{ id, workflow, status, steps: [{ position, name, status, approvers, required, due_at, decisions, can_decide }], can_cancel }], startable: [{ id, name, description, trigger }] }',
+    response: '{ instances: [{ id, workflow, kind, kind_label, status, steps: [{ position, name, status, approvers, standins: [{ id, name, for }], required, due_at, decisions: [{ name, decision, comment, at, on_behalf_of_name }], can_decide, on_behalf_of_name }], can_cancel, can_reassign }], startable: [{ id, name, description, trigger }] }',
   });
 
   app.post('/api/workflows/records/:type/:id/start', async (req, reply) => {
@@ -347,7 +396,7 @@ export function registerRoutes(ctx: ModuleContext, svc: Service) {
     const id = param(req);
     if (!ctx.can(req.user, `${def.module}.edit`)) ctx.fail(403, 'forbidden', `You need permission to edit ${def.plural.toLowerCase()} to ask for an approval.`);
     const body = (req.body ?? {}) as Row;
-    const w = await db.one<Row>('select * from workflow_definitions where id = $1 and record_type = $2 and active and deleted_at is null',
+    const w = await db.one<Row>('select * from workflow_definitions where id = $1 and record_type = $2 and kind is null and active and deleted_at is null',
       [UUID_RE.test(String(body.workflow_id ?? '')) ? body.workflow_id : null, def.type]);
     if (!w) ctx.fail(400, 'validation', 'Choose a workflow.', { workflow_id: 'Choose a workflow.' });
     const record = (await ctx.resources.find(def.type, id))!;
@@ -367,8 +416,23 @@ export function registerRoutes(ctx: ModuleContext, svc: Service) {
   ctx.describeRoute({
     method: 'POST', path: '/api/workflows/steps/:id/decision', tag: 'Workflows',
     summary: 'Approve or reject a step waiting for you (the person who asked can never decide; a rejection needs a comment)',
-    body: '{ decision: "approved" | "rejected", comment?: string }', response: '{ stepOutcome: approved | rejected | pending, approvalsReceived, approvalsRequired, instance }',
+    body: '{ decision: "approved" | "rejected", comment?: string }', response: '{ stepOutcome: approved | rejected | pending, approvalsReceived, approvalsRequired, onBehalfOf, onBehalfOfName, instance }',
   });
+
+  app.post('/api/workflows/steps/:id/reassign', admin, async (req) => {
+    const body = (req.body ?? {}) as Row;
+    const from = String(body.from_user_id ?? '');
+    const to = String(body.to_user_id ?? '');
+    if (!UUID_RE.test(from) || !UUID_RE.test(to)) ctx.fail(400, 'validation', 'Choose the approver and the person to hand the step to.', { to_user_id: 'Choose a person.' });
+    return svc.reassign(param(req), req, from, to);
+  });
+  ctx.describeRoute({
+    method: 'POST', path: '/api/workflows/steps/:id/reassign', tag: 'Workflows', permission: ADMIN,
+    summary: 'Hand a waiting step from one approver to another (administrators; audited, and the new approver is told)',
+    body: '{ from_user_id: uuid, to_user_id: uuid }', response: 'The step',
+  });
+
+  registerStandinRoutes(ctx, svc);
 
   app.post('/api/workflows/instances/:id/cancel', async (req) => svc.cancel(param(req), req, text((req.body as Row)?.reason)));
   ctx.describeRoute({

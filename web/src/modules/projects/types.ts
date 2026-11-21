@@ -217,6 +217,17 @@ export interface Gate {
   wants_change: boolean;
   change_available: boolean;
   change: (LinkedRecord & { status: string | null }) | null;
+  /** E11-25: the approval workflow the gate's template names, and the one asked for here. */
+  approval: GateApproval;
+}
+
+export interface GateApproval {
+  workflow_id: string | null;
+  workflow_name: string | null;
+  running: boolean;
+  last_status: 'running' | 'approved' | 'rejected' | 'canceled' | null;
+  last_finished_at: string | null;
+  can_request: boolean;
 }
 
 export interface GateDefinitionOutline {
@@ -244,6 +255,7 @@ export interface GateDefinition extends GateDefinitionOutline {
   required_documents: { name: string; required: boolean }[];
   wants_change: boolean;
   approvers: Record<string, string[]>;
+  approval_workflow_id: string | null;
 }
 
 export interface StatusReport extends TrendPoint {

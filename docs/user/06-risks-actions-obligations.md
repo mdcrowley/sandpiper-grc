@@ -17,7 +17,7 @@ Risks are **restricted records**. A person sees the risk register only if their 
 
 Without both, risks do not appear anywhere for that person: not in the register, the heat map, counts, search results, related-record links, reports or exports. The register carries the line "Restricted: visible only to people with access to security records" as a reminder.
 
-Recording or revoking an acceptance needs **Approve** on **Risks**. Editing the risk scales needs **Administer** on **Risks**. Roles are managed by an administrator; see [Administration](09-administration.md).
+Asking for a risk to be accepted needs **Edit** on **Risks**; deciding a request, recording an acceptance by hand or revoking one needs **Approve** on **Risks**. Editing the risk scales needs **Administer** on **Risks**. Roles are managed by an administrator; see [Administration](09-administration.md).
 
 Obligations are not restricted. An action is restricted when the record it was raised from is: an action raised from a risk, a security incident or any other restricted record is hidden from people without **View** on **Security incidents and restricted records**, including its owner. It still counts in the action tracker's tiles, which are the same for everyone, so a tile can be higher than the list you see. Such an action can be shared with one named person; see "Sharing a restricted action" below. Other actions are visible to anyone with **View** on **Actions**. You cannot raise an action on, or move one to, a record you cannot see.
 
@@ -130,7 +130,7 @@ A risk's page tells its story from top to bottom. The header shows the inherent 
 1. **The risk**: the **Cause**, the **Event** (the risk's title and description) and the **Consequence**, then the category, owner and the systems and data affected. Select **Edit details** to change any of these, the existing controls, treatment, status, owner, due date or next review.
 2. **Assessment**: the inherent risk, the existing controls and the residual risk, each with its rating, and a small copy of the scale's matrix marking where the risk sits: **I** for inherent, **R** for residual.
 3. **Treatment plan**: the treatment, status and due date (with the days left), and the risk's **Actions**.
-4. **Acceptance**: whether the risk is accepted, until when, and the executive-approval rule.
+4. **Acceptance**: whether the risk is accepted, until when, the executive-approval rule, and a request waiting for approval. While acceptance has been asked for, the approval panel under the header shows its steps and decisions.
 5. **Review**: the next review date, the last review and the reviews so far.
 
 Below these are the **Activity**, **Attachments**, **Related** and **History** tabs.
@@ -163,16 +163,40 @@ Rules to know:
 
 **Status** records where the risk is: **Open**, **In treatment**, **Accepted**, **Needs review** or **Closed**. **Needs review** is set by the application when an acceptance expires (see "Expiry" below).
 
-To change either, select **Edit details**, change the field and save. You cannot set the status to **Accepted** this way unless the risk already has an acceptance that is current; record the acceptance instead, as described next.
+To change either, select **Edit details**, change the field and save. You cannot set the status to **Accepted** this way unless the risk already has an acceptance that is current; ask for acceptance (or record it) instead, as described next.
 
 The **Actions** list on the **Treatment plan** card holds the work that carries out the treatment; see "Actions on a record" below.
 
-## Recording an acceptance
+## Asking for acceptance
 
-An acceptance is a recorded decision to live with a risk for a limited time. You need **Approve** on **Risks**, and the risk must be scored.
+An acceptance is a recorded decision to live with a risk for a limited time. It is given through the **Risk acceptance** approval workflow (see [Approval workflows](22-approval-workflows.md)), so it gets due times, escalation, stand-ins and the **Approvals** page like every other approval. You need **Edit** on **Risks**, and the risk must be scored.
 
 1. On the risk's **Acceptance** card, read the note at the top: it says whether the executive-approval rule applies to this risk, and why.
-2. Select **Record acceptance** (or **Renew acceptance** when one already stands).
+2. Select **Ask for acceptance** (or **Ask to renew** when one already stands).
+3. Enter **Expires on** (after today) and the **Rationale**: why the risk should be accepted. Both are required.
+4. Select **Ask for acceptance**.
+
+The approvers are told, and the approval panel at the top of the risk shows each step, who decides it and their decisions. The **Acceptance** card says the acceptance has been asked for and is waiting. You cannot decide your own request.
+
+The ready-made **Risk acceptance** workflow has two steps:
+
+1. **Risk approver**: anyone who holds **Approve** on **Risks**.
+2. **Executive approver**: only when the executive-approval rule applies to the risk (the risk's read-only field **Acceptance needs an executive** is set); out of the box also anyone who holds **Approve** on **Risks**. An administrator should name your executives in this step under **Administration > Approval workflows**.
+
+Because risks are restricted records, only approvers (and stand-ins) who may see restricted records are ever asked; an approver must also hold **Approve** on **Risks**. An administrator can change the steps, the approvers, due times and escalation without any change to the application.
+
+- **Approved**: the acceptance is recorded with the last approver as **Approved by** (with "on behalf of" when a stand-in decided), today as **Approved on**, the expiry and rationale you gave, and the workflow's name as the **Reference**. When the executive step applied the acceptance is labeled **Executive approval**. The risk's status becomes **Accepted** and its treatment becomes **Accept**.
+- **Rejected**: nothing changes on the risk. The reason is shown in the approval panel and written to the risk's history, and the card says the last request was rejected. You can ask again.
+- If the expiry date asked for has passed by the time the request is approved, no acceptance is recorded; the approval panel says so. Ask again with a later date.
+
+If no **Risk acceptance** workflow is active, asking is refused with a message; an approver can still record an acceptance by hand.
+
+## Recording an acceptance by hand
+
+When the acceptance was decided outside the application (for example at a risk committee), someone with **Approve** on **Risks** records it directly. Recording one also ends a request still waiting for approval.
+
+1. On the risk's **Acceptance** card, read the note at the top: it says whether the executive-approval rule applies to this risk, and why.
+2. Select **Record by hand** (or **Renew by hand** when one already stands).
 3. Enter the **Approver name** and **Approver title**. If the executive-approval rule does not apply you may leave the name empty, and you are recorded as the approver.
 4. Enter **Approved on**, or leave it empty for today.
 5. Enter **Expires on**. This is required and must be after the approval date.
@@ -191,9 +215,9 @@ Each scale has a threshold rating. A risk rated at or above the threshold can be
 | Cyber and enterprise risk (5 by 5) | High or Extreme |
 | Safety hazard matrix (4 by 5) | Serious or High |
 
-When the rule applies, **Approver name**, **Approver title** and **Reference** are all required, and the acceptance is refused without them. The acceptance is then labeled **Executive approval**. The rating tested is the residual rating, or the inherent rating if the residual risk has not been scored. An administrator can change the threshold on the **Risk scales** page.
+When the rule applies to an acceptance recorded by hand, **Approver name**, **Approver title** and **Reference** are all required, and the acceptance is refused without them; through the workflow, the **Executive approver** step applies instead. The acceptance is then labeled **Executive approval**. The rating tested is the residual rating, or the inherent rating if the residual risk has not been scored. An administrator can change the threshold on the **Risk scales** page.
 
-The application records who approved; it does not ask the approver to sign in and confirm. Keep the memo or email the reference points to.
+An acceptance recorded by hand records who approved; it does not ask the approver to sign in and confirm, so keep the memo or email the reference points to. An acceptance through the workflow is decided by the approvers themselves, signed in.
 
 ### Expiry
 
@@ -405,4 +429,4 @@ The list can be searched, filtered by **Status**, **Owner** and **Next due**, so
 
 - Obligations are not notified when their next due date approaches; use the **Due in 30 days** and **Overdue** tiles.
 - The heat map shows one scale at a time; there is no combined heat map across scales (the **Risk report** counts all scales by common level).
-- An approver of an acceptance is recorded by name; they do not sign in to confirm it.
+- An acceptance recorded by hand names its approver; they do not sign in to confirm it (ask for acceptance through the workflow when they can).

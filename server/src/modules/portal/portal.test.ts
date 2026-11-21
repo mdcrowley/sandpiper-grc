@@ -352,10 +352,11 @@ describe('knowledge for staff', () => {
 
 describe('approvals and assets', () => {
   it('shows approvers the requests waiting for them, and nobody else', async () => {
+    // The approvers are worked out when the approval starts (E03-22), so the manager exists first.
+    const boss = await person('Sam Manager', ['requester', 'approver']);
     const item = (await t.api.post('/api/catalog-items', { name: 'Scheduling access', active: true, portal: true, requires_approval: true, defaults: { type: 'request' } })).body.id;
     const req = (await pat.post('/api/portal/requests', { catalog_item_id: item })).body.id;
     expect((await pat.get(`/api/portal/requests/${req}`)).body.status.key).toBe('approval');
-    const boss = await person('Sam Manager', ['requester', 'approver']);
     const waiting = (await boss.get('/api/portal/approvals')).body.rows;
     expect(waiting.map((r: any) => r.id)).toContain(req);
     expect((await boss.get('/api/portal/config')).body.has.ticket_approvals).toBe(true);

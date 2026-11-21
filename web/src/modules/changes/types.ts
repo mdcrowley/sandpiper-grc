@@ -16,6 +16,9 @@ export interface ApprovalRule {
   approver_role_keys?: string[];
   pir_required: boolean;
   retrospective: boolean;
+  /** The approval workflow that runs when such a change is submitted (E05-13); its first step follows this rule. */
+  workflow_id?: string | null;
+  workflow_name?: string | null;
 }
 
 export interface ChangeSettings {
@@ -24,6 +27,8 @@ export interface ChangeSettings {
   recalculated?: number;
   roles?: { key: string; name: string }[];
   user_names?: Record<string, string>;
+  /** The change approval workflows (Administration > Approval workflows). */
+  workflows?: { id: string; name: string; description: string | null }[];
 }
 
 export interface WaitingChange {
@@ -74,6 +79,8 @@ export interface Approvals {
   waiting_for: string[];
   /** Whether the reader may record their own decision now. */
   can_decide: boolean;
+  /** The approval workflow of the current submission; its steps are on the approval panel under the header. */
+  workflow: { id: string; name: string; status: string; step_id: string | null } | null;
   decisions: Decision[];
 }
 

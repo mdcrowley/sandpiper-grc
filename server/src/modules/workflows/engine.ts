@@ -3,7 +3,8 @@
 // many approvals a step needs, and the field values set at the end. service.ts does the storing.
 import type { FieldDef, Row } from '../../core/module.ts';
 
-export const TRIGGERS = ['create', 'status', 'manual'] as const;
+/** `module`: started by the module that owns an approval kind (a change submitted, a disposal asked for). */
+export const TRIGGERS = ['create', 'status', 'manual', 'module'] as const;
 export type Trigger = (typeof TRIGGERS)[number];
 
 export const OPS = ['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'in', 'empty', 'set'] as const;
@@ -19,7 +20,11 @@ export type ApproverSpec =
   | { kind: 'users'; users: string[] }
   | { kind: 'role'; role: string }
   | { kind: 'field'; field: string }
-  | { kind: 'department_head'; from: 'requester' | 'field'; field?: string | null };
+  | { kind: 'department_head'; from: 'requester' | 'field'; field?: string | null }
+  /** Named people and the members of roles together (a change approval rule's approvers). */
+  | { kind: 'people'; users: string[]; roles: string[] }
+  /** Everyone who holds a permission (for example `changes.approve`). */
+  | { kind: 'permission'; permission: string };
 
 /** `any`: one approval is enough; `all`: everyone named; a number: that many of them. */
 export type Quorum = 'any' | 'all' | number;
@@ -41,6 +46,8 @@ export interface FieldSet { field: string; value: unknown }
 
 export interface WorkflowDef {
   record_type: string;
+  /** The approval kind it serves (started by its module), or null. */
+  kind?: string | null;
   name: string;
   description: string | null;
   active: boolean;
@@ -181,6 +188,38 @@ export function refusal(step: { status: string; approvers: string[] }, instance:
   return null;
 }
 
+/** A step's stand-ins: `{ standinId: [approverId, ...] }`. */
+export type Standins = Record<string, string[]>;
+
+/**
+ * Whose place a decision by `userId` takes on a step (E14-32): their own when they are one of the
+ * step's approvers, otherwise the first approver they stand in for (while that stand-in period
+ * runs) who has not decided yet, in person or through a stand-in. Answers `{ onBehalfOf }` (null:
+ * their own) or `{ error }`.
+ */
+export function slotFor(
+  step: { principals: string[]; standins: Standins },
+  userId: string,
+  decisions: { user_id: string; on_behalf_of: string | null }[],
+  standinActive: (principal: string) => boolean,
+): { onBehalfOf: string | null } | { error: string } {
+  if (decisions.some((d) => d.user_id === userId)) return { error: 'You have already decided this step.' };
+  const taken = new Set(decisions.map((d) => d.on_behalf_of ?? d.user_id));
+  if (step.principals.includes(userId)) {
+    if (taken.has(userId)) return { error: 'Your stand-in has already decided this step for you.' };
+    return { onBehalfOf: null };
+  }
+  const forWhom = (step.standins[userId] ?? []).filter((p) => standinActive(p));
+  if (!forWhom.length) return { error: 'You are not one of the approvers of this step.' };
+  const free = forWhom.find((p) => !taken.has(p));
+  if (!free) return { error: 'The approvers you stand in for have already decided this step.' };
+  return { onBehalfOf: free };
+}
+
+/** Whether a stand-in period covers a day (`YYYY-MM-DD`, both ends included). */
+export const standinCovers = (s: { starts_on: string; ends_on: string }, day: string) =>
+  String(s.starts_on).slice(0, 10) <= day && day <= String(s.ends_on).slice(0, 10);
+
 /** The patch an outcome makes, with the special values filled in. Unknown fields are left out. */
 export function outcomePatch(sets: FieldSet[], fields: Record<string, FieldDef>, who: { today: string; approver: string | null; requester: string | null }): Row {
   const patch: Row = {};
@@ -207,6 +246,10 @@ export interface DefinitionContext {
   lookup(list: string): string[];
   roles: string[];
   users: string[];
+  /** Approval kinds the modules declared: key to record type. */
+  kinds?: Record<string, string>;
+  /** Permission keys that exist (for steps approved by everyone holding one). */
+  permissions?: string[];
 }
 
 const WRITABLE: ReadonlySet<string> = new Set(['text', 'longtext', 'number', 'currency', 'date', 'datetime', 'boolean', 'lookup', 'user', 'ref']);
@@ -229,7 +272,13 @@ export function checkDefinition(input: Row, c: DefinitionContext): { def?: Workf
   if (!type) errors.record_type = 'Choose a record type.';
   const fields = type?.fields ?? {};
 
-  const trigger = (TRIGGERS as readonly string[]).includes(String(input.trigger)) ? (input.trigger as Trigger) : null;
+  const kind = input.kind ? String(input.kind) : null;
+  if (kind && c.kinds?.[kind] === undefined) errors.kind = 'This kind of approval is not available.';
+  else if (kind && c.kinds?.[kind] !== recordType) errors.kind = 'This kind of approval belongs to another record type.';
+  // A kind's workflow is started by its module; any other workflow cannot claim that trigger.
+  let trigger = (TRIGGERS as readonly string[]).includes(String(input.trigger)) ? (input.trigger as Trigger) : null;
+  if (kind) trigger = 'module';
+  else if (trigger === 'module') trigger = null;
   if (!trigger) errors.trigger = 'Choose what starts the workflow.';
   let triggerField: string | null = null;
   let triggerValue: string | null = null;
@@ -312,6 +361,18 @@ export function checkDefinition(input: Row, c: DefinitionContext): { def?: Workf
         errors[`${at}.approvers`] = 'Choose the field that names the department or a person in it.';
       }
       approvers = { kind: 'department_head', from, field };
+    } else if (a.kind === 'people') {
+      const users = [...new Set(list(a.users).map(String))];
+      const roles = [...new Set(list(a.roles).map(String))];
+      if (!users.length && !roles.length) errors[`${at}.approvers`] = 'Name at least one person or role.';
+      else if (users.length > 20) errors[`${at}.approvers`] = 'Name at most 20 approvers.';
+      else if (users.some((u) => !c.users.includes(u))) errors[`${at}.approvers`] = 'One of the approvers is not an active person.';
+      else if (roles.some((r) => !c.roles.includes(r))) errors[`${at}.approvers`] = 'Choose roles that exist.';
+      approvers = { kind: 'people', users, roles };
+    } else if (a.kind === 'permission') {
+      const permission = String(a.permission ?? '');
+      if (!/^[a-z_]+.[a-z_]+$/.test(permission) || (c.permissions && !c.permissions.includes(permission))) errors[`${at}.approvers`] = 'Choose a permission.';
+      approvers = { kind: 'permission', permission };
     } else {
       errors[`${at}.approvers`] = 'Choose who approves this step.';
     }
@@ -367,6 +428,7 @@ export function checkDefinition(input: Row, c: DefinitionContext): { def?: Workf
 
   const def: WorkflowDef = {
     record_type: recordType,
+    kind,
     name: name ?? '',
     description: str(input.description, 2000),
     active: input.active !== false,

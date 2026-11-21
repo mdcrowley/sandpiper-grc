@@ -52,6 +52,9 @@ export function registerProjectRoutes(ctx: ModuleContext, svc: ProjectService): 
     handler: async (req) => svc.putGateDefinition(req, params(req).key, body(req)),
   });
 
+  // E11-25: the approval workflows a gate template may name (kind project_gate).
+  app.get('/api/projects/gate-workflows', administer, async () => ({ rows: await svc.gateWorkflows() }));
+
   // ---------- gates ----------
 
   app.get('/api/projects/:id/gates', view, async (req) => svc.gatesFor(await svc.needProject(params(req).id, req), req.user));
@@ -79,6 +82,14 @@ export function registerProjectRoutes(ctx: ModuleContext, svc: ProjectService): 
   app.patch('/api/projects/:id/gates/:gateId/documents/:index', edit, async (req) => {
     const p = params(req);
     return svc.setGateDocument(req, await svc.needProject(p.id, req), p.gateId, Number(p.index), body(req));
+  });
+
+  // E11-25: ask for the gate's decision through the approval workflow its template names.
+  app.post('/api/projects/:id/gates/:gateId/request-approval', edit, async (req, reply) => {
+    const p = params(req);
+    const started = await svc.requestGateApproval(req, await svc.needProject(p.id, req), p.gateId, body(req));
+    reply.code(201);
+    return started;
   });
 
   app.post('/api/projects/:id/gates/:gateId/decide', approve, async (req) => {

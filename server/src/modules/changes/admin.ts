@@ -1,6 +1,8 @@
 import { UUID_RE } from '../../core/errors.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { SETTING_QUESTIONNAIRE, SETTING_RULES, type Base, type Req } from './base.ts';
+import { approvalEngine } from '../../core/approval-kinds.ts';
+import { KIND, type ChangeApproval } from './approval.ts';
 import { ANY, type ApprovalRule, type Questionnaire, type RiskQuestion } from './rules.ts';
 
 const KEY = /^[a-z_][a-z0-9_]*$/;
@@ -9,7 +11,7 @@ const CLEAN = ['id', 'created_by', 'updated_by', 'created_at', 'updated_at', 'de
 const content = (row: Row) => Object.fromEntries(Object.entries(row).filter(([k, v]) => v !== null && !CLEAN.includes(k)));
 
 /** Data an administrator maintains: templates, blackout periods, the questionnaire and approval rules. */
-export function makeAdmin(ctx: ModuleContext, base: Base) {
+export function makeAdmin(ctx: ModuleContext, base: Base, approval: ChangeApproval) {
   const { db } = ctx;
 
   async function needRow(table: string, label: string, id: string): Promise<Row> {
@@ -210,11 +212,14 @@ export function makeAdmin(ctx: ModuleContext, base: Base) {
   // ---------- questionnaire and approval rules (settings) ----------
 
   async function getSettings() {
-    const rules = await base.approvalRules();
+    // Each rule's approvals and approvers are read from the first step of its approval workflow (E05-13).
+    const rules = await approval.rulesWithWorkflows(await base.approvalRules());
     const named = [...new Set(rules.flatMap((r) => r.approver_user_ids ?? []))];
     return {
       questionnaire: await base.questionnaire(),
       approval_rules: rules,
+      // The change approval workflows a rule may name (Administration > Approval workflows).
+      workflows: approvalEngine(ctx.app) ? await approvalEngine(ctx.app)!.definitions(KIND) : [],
       // For the rules editor: the roles that can be chosen and the names of the people already named.
       roles: await db.query<{ key: string; name: string }>('select key, name from roles where enabled order by name'),
       user_names: Object.fromEntries((named.length
@@ -312,6 +317,7 @@ export function makeAdmin(ctx: ModuleContext, base: Base) {
         approver_roles: [...new Set((roles as unknown[]).map((x) => String(x).trim()).filter(Boolean))],
         ...(userIds.length ? { approver_user_ids: userIds } : {}),
         ...(roleKeys.length ? { approver_role_keys: roleKeys } : {}),
+        workflow_id: r?.workflow_id && UUID_RE.test(String(r.workflow_id)) ? String(r.workflow_id) : null,
         pir_required: changeType === 'emergency' ? true : r?.pir_required === true,
         retrospective: r?.retrospective === true,
       });
@@ -329,7 +335,16 @@ export function makeAdmin(ctx: ModuleContext, base: Base) {
     const differs = (a: unknown, b: unknown) => JSON.stringify(a) !== JSON.stringify(b);
     let recalculate = false;
     if (questionnaire && differs(questionnaire, current.questionnaire)) { await ctx.settings.set(SETTING_QUESTIONNAIRE, questionnaire, req); recalculate = true; }
-    if (rules && differs(rules, current.approval_rules)) { await ctx.settings.set(SETTING_RULES, rules, req); recalculate = true; }
+    const plain = (list: ApprovalRule[]) => list.map(({ workflow_name: _n, ...r }: ApprovalRule & { workflow_name?: string | null }) => r);
+    // A rule sent without its workflow (an older client) keeps the one it has.
+    const pair = (r: ApprovalRule) => `${r.change_type}/${r.risk_level}`;
+    const had = new Map(current.approval_rules.map((r) => [pair(r), r.workflow_id ?? null]));
+    for (const r of rules ?? []) r.workflow_id ??= had.get(pair(r)) ?? null;
+    if (rules && differs(rules, plain(current.approval_rules))) {
+      // Each rule that asks for approval keeps a workflow whose first step follows it.
+      await ctx.settings.set(SETTING_RULES, await approval.syncWorkflows(rules, req), req);
+      recalculate = true;
+    }
 
     // Drafts follow the new rules at once (each change is audited); submitted changes keep the path they were given.
     let recalculated = 0;
