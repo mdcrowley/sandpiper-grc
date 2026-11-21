@@ -1,6 +1,6 @@
 // The policy page: the published text for reading, with versions, acknowledgment tracking,
 // mapped outcomes and exceptions behind tabs.
-import { useState } from 'react';
+import { lazy, Suspense, useState, type ComponentType } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   Card, EditableSummary, EmptyState, ErrorState, Loading, RecordPage, ResourceList, Select, useAuth, useFetch, useResource,
@@ -12,6 +12,13 @@ import { OutcomesPanel } from './OutcomesPanel';
 import { PolicyActions } from './PolicyActions';
 import { ExpiryChip, PolicyBody, ReviewChip, VERSION_STATUS, VersionChip, type PolicyVersion } from './shared';
 import { VersionMeta, VersionsPanel } from './VersionsPanel';
+
+// The plan panel (E28, GOVERNANCE): the element map and annual review of a policy whose document type
+// is a plan. Loaded only when its file is in the build; it shows nothing for other policies.
+type PlanPanelProps = { policy: Row; onChanged?: () => void };
+const planLoaders = import.meta.glob<{ PlanPanel: ComponentType<PlanPanelProps> }>('./PlanPanel.tsx');
+const loadPlan = Object.values(planLoaders)[0];
+const PlanPanel = loadPlan ? lazy(() => loadPlan().then((m) => ({ default: m.PlanPanel }))) : null;
 
 interface VersionsState { data: PolicyVersion[] | undefined; error: unknown; reload: () => void }
 
@@ -105,6 +112,7 @@ function Summary({ rec, versions }: { rec: RecordContext; versions: VersionsStat
           fields={['title', 'summary', 'category', 'owner_id', 'approver_name', 'approver_role', 'review_date', 'current_version']}
         />
         <AudienceCard rec={rec} />
+        {PlanPanel && <Suspense fallback={null}><PlanPanel policy={rec.row} onChanged={rec.reload} /></Suspense>}
       </div>
     </div>
   );

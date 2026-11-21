@@ -8,6 +8,7 @@ import { PolicyLibrary } from './PolicyLibrary';
 import { PolicyDetail } from './PolicyPage';
 import { PolicyReader } from './PolicyReader';
 import './policies.css';
+// TODO(PEOPLE agent, E29-10): import { Kiosk } from './Kiosk'; (a stub that renders nothing yet, so its route is commented out)
 
 const mod: ModuleDef = {
   key: 'policies',
@@ -21,6 +22,7 @@ const mod: ModuleDef = {
     { path: '/policies', element: <PolicyLibrary />, permission: 'policies.view' },
     { path: '/policies/acknowledgments', element: <MyAcknowledgments /> },
     { path: '/policies/acknowledgments/:ackId', element: <PolicyReader /> },
+    // TODO(PEOPLE agent, E29-10): { path: '/policies/kiosk', element: <Kiosk />, permission: 'policies.edit' },
     { path: '/policies/:id', element: <PolicyDetail />, permission: 'policies.view' },
     { path: '/policies/:id/edit', element: <PolicyEditor />, permission: 'policies.edit' },
     { path: '/exceptions', element: <ExceptionList />, permission: 'exceptions.view' },

@@ -19,6 +19,11 @@ export const PAGE_AREA: Record<string, string> = {
   'fleet-and-services': 'fleet',
   'safety-management': 'safety',
   'self-service-portal': 'portal',
+  // Wave 10 guide pages (25 to 28), named ahead of the pages; an entry with no page does nothing.
+  'audits-and-inspections': 'audits',
+  'controls-and-testing': 'controls',
+  'funding-and-grants': 'funding',
+  'committees-and-meetings': 'governance',
 };
 
 /** Whether a guide page's part of the application is on (pages of no particular part always are). */

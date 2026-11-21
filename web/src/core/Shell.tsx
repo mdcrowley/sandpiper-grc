@@ -18,7 +18,7 @@ import { cx } from './ui';
 
 const GROUP_ICON: Record<NavGroup, IconName> = {
   Home: 'home', 'Service desk': 'ticket', Inventory: 'server', Change: 'refresh', Vendors: 'building',
-  Cybersecurity: 'shield', Safety: 'alert', Projects: 'folder', Reports: 'chart', Administration: 'settings', Help: 'help',
+  Cybersecurity: 'shield', Safety: 'alert', Governance: 'scale', Projects: 'folder', Reports: 'chart', Administration: 'settings', Help: 'help',
 };
 
 // The notification bell belongs to the notifications module. It is looked up rather than imported, so the

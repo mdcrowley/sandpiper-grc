@@ -6,6 +6,8 @@ import { DEFAULT_REMINDER_INTERVAL, REMINDER_SETTING, reminderInterval, runPolic
 import { registerAckRoutes } from './ackRoutes.ts';
 import { registerExceptions, runExceptionExpiry } from './exceptions.ts';
 import { registerOutcomeRoutes } from './outcomes.ts';
+import { registerPersonAcks } from './personAcks.ts';
+import { registerPlans } from './plans.ts';
 import { seedPolicies } from './seed.ts';
 import { registerVersionRoutes } from './versions.ts';
 
@@ -117,6 +119,9 @@ const mod: ModuleDef = {
     registerAckRoutes(ctx);
     registerOutcomeRoutes(ctx);
     registerExceptions(ctx);
+    // Acknowledgments by roster people (E29) and plans (E28).
+    registerPersonAcks(ctx);
+    registerPlans(ctx);
 
     // ---------- settings: the acknowledgment reminder interval ----------
 

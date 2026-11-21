@@ -1,6 +1,6 @@
 # E14 Platform services not yet built
 
-**Status:** done (38 of 38 issues done)
+**Status:** done (39 of 39 issues done)
 full-text search built; custom fields, tags and watchers built with their screens; retention
 built on the server and screens, with anonymizing; evidence files on record pages built, with expiry reminders;
 feature switches for optional areas built; approval workflows built)
@@ -78,6 +78,7 @@ bulk edit) that make daily use quicker.
 | E14-36 | Branding in the remaining places: email logo, HTML report documents, WebP logos in PDFs | done | P3 |
 | E14-37 | A status change that needs approval waits for an approval workflow | done | P3 |
 | E14-38 | The daily email summary leaves out switched-off parts | done | P3 |
+| E14-39 | A metric registry for computed indicators | done | P2 |
 
 ---
 
@@ -1322,3 +1323,22 @@ email summary still listed those that lead there by a link only, and dropped the
 - [x] Unit test
 
 **Implemented in:** `server/src/modules/notifications/email.ts`, `service.ts`, `index.ts`; test `email.test.ts`; [user guide](../../user/14-attachments-and-notifications.md#notifications-by-email)
+
+### E14-39 A metric registry for computed indicators
+
+**Status:** done · **Priority:** P2 · **Type:** feature
+
+Wave 10 step 0 (contract C3 of the wave 10 plan). Safety performance indicators (E25-08) and key
+risk indicators (E30-07) need figures from other modules, such as overdue corrective actions or
+inspections done on time, without knowing those modules' tables. Modules now offer named monthly
+figures, and readers list and compute them in one place.
+
+**Acceptance criteria**
+
+- [x] `defineMetric(app, { key, label, unit, description, recordType?, compute(ctx, monthStart) })` in a module's `register`; a malformed or duplicate key fails at start-up
+- [x] `metricsAvailable(app, resources)` leaves out metrics whose record type is not loaded or is switched off
+- [x] `GET /api/metrics` (signed in) lists the metrics the caller may read (view on the record type's module), with values for `month=YYYY-MM`; a failing metric gives null and the rest still answer
+- [x] Figures count every record, restricted or not, and are the same for everyone
+- [x] Unit test
+
+**Implemented in:** `server/src/core/metrics.ts`, `app.ts`; test `core/metrics.test.ts`; [developer guide](../../development.md#metrics-shared-registry)

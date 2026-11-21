@@ -5,7 +5,33 @@ What the prototype does not do yet. Update with every change. The roadmap
 
 ## Not built
 
-Nothing planned is unbuilt; what remains is listed below as incomplete or unproven.
+Planned for wave 10 (roadmap epics E23 to E30), not built yet:
+
+- **Corrective action plans** grouping actions, with plan approval, verification of effectiveness and
+  due-date extensions (E23).
+- **Audits and inspections**: audit plan and coverage, engagements, checklists, findings, evidence
+  requests and recurring inspections on a phone (E24).
+- **Safety event depth**: people involved, investigation record, operator-defined reportability rules
+  and notification clocks; measured safety indicators with yearly targets; safety impact on changes (E25).
+- **Control library and control testing** (E26).
+- **Funding and grant compliance**: awards, certifications, funder reviews and deficiencies (E27).
+- **Committees and meetings**, the decisions register, and the safety plan's element map and annual
+  review (E28).
+- **A staff roster** with positions, certifications, a qualification matrix, and policy
+  acknowledgments recorded for staff without accounts (E29).
+- **Recurring obligations** with per-period attestation, regulatory change intake, risk appetite,
+  key risk indicators and parent risks (E30).
+
+The permission keys, feature switches and default roles for these parts exist already (with nothing
+behind them yet), and so does the metric registry that their indicators read (`GET /api/metrics`).
+
+Planned for wave 11 (E31 to E36): business continuity and emergency management, asset condition
+and state of good repair, OT and rail-systems cybersecurity, legal hold with records and
+personal-data requests and privacy assessments, the vendor risk lifecycle, and integrations
+(user provisioning, audit log forwarding, calendar feeds).
+
+Not planned: drug and alcohol test results, hours-of-service and fatigue records, and maintenance
+work orders, which belong in specialist systems (E25-13, E29-11, E32-06).
 
 ## Built but incomplete
 

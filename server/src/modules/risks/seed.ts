@@ -2,6 +2,8 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ModuleContext, Row, SeedOptions } from '../../core/module.ts';
 import { dayInZone } from '../../core/timezone.ts';
+import { seedCaps } from './seed-caps.ts';
+import { seedCompliance } from './seed-compliance.ts';
 
 // Seed loader. Pilot: information requests from the seed folder, when the file is there (read
 // at run time, never copied into the repository). Dev: invented actions and example
@@ -290,5 +292,10 @@ export async function seedRisksModule(ctx: ModuleContext, opts: SeedOptions): Pr
   if (opts.profile === 'dev') obligationsAdded += await loadObligations(ctx, devObligations(), await firstUser(ctx));
   const obligations = (await ctx.db.one<{ c: number }>('select count(*)::int as c from obligations where deleted_at is null'))!.c;
   parts.push(`${obligationsAdded} obligations added (${obligations} in the register)`);
+  // Corrective action plans (E23, seed-caps.ts) and the compliance samples (E30, seed-compliance.ts).
+  const caps = await seedCaps(ctx, opts);
+  if (caps) parts.push(caps);
+  const compliance = await seedCompliance(ctx, opts);
+  if (compliance) parts.push(compliance);
   return parts.join('; ');
 }

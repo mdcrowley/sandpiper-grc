@@ -599,6 +599,7 @@ Generated routes:
 | `/api/me/preferences/:key` | Per-person preferences |
 | `/api/views...` | List views shared with everyone who can see the list (audited) |
 | `GET /api/version` | The installed version (signed in) |
+| `GET /api/metrics` | Metrics modules offer for computed indicators, with values for `month=YYYY-MM` (signed in; see [Metrics](#metrics-shared-registry)) |
 | `/api/me/tokens`, `/api/admin/tokens` | Personal access tokens |
 | `/api/admin/webhooks...` | Webhooks and their deliveries |
 | `/api/admin/custom-fields...`, `/api/admin/retention...` | Custom fields; retention schedule and reviews |
@@ -667,11 +668,16 @@ Module keys (fixed, `MODULE_KEYS` in `server/src/modules/admin/shared.ts`): `tic
 `knowledge`, `assets`, `systems`, `sites`, `data`, `changes`, `vendors`, `contracts`,
 `frameworks`, `risks`, `security`, `vulnerabilities`, `policies`, `training`,
 `exceptions`, `obligations`, `exercises`, `actions`, `projects`, `dashboards`, `reports`,
-`audit`, `admin`, `portal`, `fleet`, `safety`. A new key is added there and here.
+`audit`, `admin`, `portal`, `fleet`, `safety`, `audits`, `controls`, `funding`, `governance`,
+`people`. A new key is added there and here. The last five belong to the wave 10 modules (roadmap
+E24, E26 to E29); until those modules land nothing checks them, so the role editor shows them grayed out.
 
 Default roles (`server/src/core/services.ts`): Administrator, Agent, Security lead,
-Project manager and Safety manager are enabled; Approver, Executive viewer, Auditor and
-Requester are present but switched off until an administrator enables them.
+Project manager, Safety manager, Compliance officer, Audit lead and Training coordinator are
+enabled; Approver, Executive viewer, Auditor and Requester are present but switched off until an
+administrator enables them. A new default role is created on an existing database at the next
+start; new grants on an existing role reach it only when an administrator applies them with
+"Sync default grants" on the Roles page (`defaultGrantDifferences`, `syncDefaultGrants`).
 
 Restricted records (security incidents, risks, vulnerabilities, anything flagged) are
 invisible without `security.view` in lists, counts, search, links, exports and stats.
@@ -789,8 +795,8 @@ an issue in `tools/a11y/known.json`.
 
 ### Actions (shared contract)
 
-The `action` record type (module folder `risks`, API `/api/actions`) is the one cross-module
-to-do list. Fields: `title`, `description`, `status` (`action_status`: open, in_progress,
+The `action` record type (module folder `risks`, defined in `risks/actions-resource.ts`; API
+`/api/actions`) is the one cross-module to-do list. Fields: `title`, `description`, `status` (`action_status`: open, in_progress,
 blocked, done, canceled), `priority` (`action_priority`: high, medium, low), `owner_id`,
 `due_on`, `source` (`action_source`: risk, assessment, incident, audit, exercise,
 information_request, project, change, vulnerability, policy, training, vendor, problem,
@@ -799,6 +805,33 @@ from), `department`, `notes`, `restricted` (read-only: true when the source reco
 restricted; such actions are hidden without `security.view`). Any module may create one with
 `ctx.resources.create('action', {...})` after checking `ctx.resources.get('action')`.
 Always pass `source_type` and `source_id` so the restriction is inherited.
+
+### Metrics (shared registry)
+
+`core/metrics.ts` holds named monthly figures that one module offers and others read, so a computed
+safety performance indicator or key risk indicator never needs another module's tables (wave 10,
+E14-39). A module defines its metrics in `register`:
+
+```ts
+import { defineMetric } from '../../core/metrics.ts';
+defineMetric(ctx.app, {
+  key: 'actions.overdue', label: 'Overdue actions', unit: 'count',   // unit: count | percent | number
+  description: 'Open actions past their due date at the end of the month.',
+  recordType: 'action',          // optional: skipped while that type is not loaded or switched off
+  compute: async (ctx, monthStart) => 0,   // monthStart = 'YYYY-MM-01'; null when it cannot be worked out
+});
+```
+
+Readers call `metricsAvailable(ctx.app, ctx.resources)` (sorted by key). Keys are
+`<module>.<name>` and unique; a malformed or duplicate key fails at start-up. A metric is a figure,
+so `compute` counts every record, restricted or not, never uses `visibleWhere`, and never returns
+words or people ("Figures are the same for everyone"). `GET /api/metrics` (signed in) lists the
+metrics the caller may read (one about a record type needs view on its module) and, with
+`month=YYYY-MM`, their values; a metric that fails gives `null` with an `error` and is logged.
+The wave 10 plan's keys: `actions.overdue`, `actions.caps_overdue`,
+`actions.awaiting_verification`, `audits.inspections_on_time_pct`, `audits.findings_overdue`,
+`training.compliance_pct`, `training.certifications_expired`, `controls.tests_overdue`,
+`controls.ineffective` and `safety.hazard_reviews_on_time_pct`.
 
 ### Approval workflows (shared engine)
 
@@ -883,7 +916,8 @@ The build reads each module's `key`, `nav`, `create` and route paths at build ti
 keep them literal; the rest of the module is loaded when one of its routes is first opened.
 
 Nav groups, in order (`web/src/core/module.ts`): Home, Service desk, Inventory, Change,
-Vendors, Cybersecurity, Safety, Projects, Reports, Administration, Help.
+Vendors, Cybersecurity, Safety, Governance, Projects, Reports, Administration, Help. A group with
+no entry the person may open is not shown.
 
 Quality bar: every screen has empty, loading and error states; every list
 has filter, sort, saved view and export; every record shows its history.

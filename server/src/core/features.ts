@@ -86,7 +86,7 @@ export const AREAS: Area[] = [
     description: 'The risk register, risk reviews and acceptances, and compliance obligations. The action tracker stays on.',
     // The risks folder also holds the action tracker, which stays on: its routes are not switched off wholesale.
     permissions: ['risks', 'obligations'], modules: [], jobs: ['risks.', 'obligations.'],
-    lookupValues: { action_source: ['risk'] },
+    lookupValues: { action_source: ['risk', 'regulatory_change'] },
   },
   {
     key: 'secincidents', label: 'Security incidents', defaultOn: true,
@@ -134,6 +134,32 @@ export const AREAS: Area[] = [
     description: 'Hazards, safety events, safety performance indicators and safety reporting from the portal.',
     permissions: ['safety'], modules: ['safety'], jobs: ['safety.'],
     lookupValues: { notification_kind: ['safety'], action_source: ['safety'] },
+  },
+  // Wave 10 (E24, E26, E27, E28). Declared ahead of their modules: a permission module, module folder,
+  // job prefix or list value that does not exist yet is simply not there to hide.
+  {
+    key: 'audits', label: 'Audits and inspections', defaultOn: true,
+    description: 'The audit plan and coverage, audit engagements and findings, checklist templates and recurring inspections.',
+    permissions: ['audits'], modules: ['audits'], jobs: ['audits.'],
+    lookupValues: { action_source: ['inspection'], notification_kind: ['audits'] },
+  },
+  {
+    key: 'controls', label: 'Control library and testing', defaultOn: true,
+    description: 'The control library, what each control covers, control tests and their schedule.',
+    permissions: ['controls'], modules: ['controls'], jobs: ['controls.'],
+    lookupValues: { action_source: ['control'], notification_kind: ['controls'] },
+  },
+  {
+    key: 'funding', label: 'Funding and grant compliance', defaultOn: true,
+    description: 'Funding awards and what they fund, yearly certifications, funder compliance reviews and their deficiencies.',
+    permissions: ['funding'], modules: ['funding'], jobs: ['funding.'],
+    lookupValues: { action_source: ['funding'] },
+  },
+  {
+    key: 'governance', label: 'Committees and meetings', defaultOn: true,
+    description: 'Committees and their members, meetings with agendas, packs and minutes, and the decisions register.',
+    permissions: ['governance'], modules: ['governance'], jobs: ['governance.'],
+    lookupValues: { action_source: ['meeting'], notification_kind: ['governance'] },
   },
 ];
 

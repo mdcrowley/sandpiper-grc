@@ -148,7 +148,7 @@ status `done`; issues in progress, open or blocked are counted in the total only
 | [E11](epics/E11-projects-and-portfolio.md) | Projects and portfolio | done | 25 / 25 |
 | [E12](epics/E12-dashboards-and-reporting.md) | Dashboards and reporting | done | 16 / 16 |
 | [E13](epics/E13-imports-api-integrations.md) | Imports, API and integrations | done | 23 / 23 |
-| [E14](epics/E14-platform-services.md) | Platform services | done | 38 / 38 |
+| [E14](epics/E14-platform-services.md) | Platform services | done | 39 / 39 |
 | [E15](epics/E15-self-service-portal.md) | Self-service portal | done | 14 / 14 |
 | [E16](epics/E16-hosting-operations-and-hardening.md) | Hosting, operations and hardening | in progress | 33 / 38 |
 | [E17](epics/E17-documentation.md) | Documentation | in progress | 11 / 14 |
@@ -157,9 +157,25 @@ status `done`; issues in progress, open or blocked are counted in the total only
 | [E20](epics/E20-safety-management.md) | Safety management | done | 15 / 15 |
 | [E21](epics/E21-mcp-server.md) | MCP server (AI assistant access) | done | 23 / 23 |
 | [E22](epics/E22-review-fixes.md) | Review fixes (wave 9) | in progress | 40 / 45 |
-| | **Total** | | **549 / 563** |
+| [E23](epics/E23-corrective-action-plans.md) | Corrective action plans and verification | open | 0 / 11 |
+| [E24](epics/E24-audits-and-inspections.md) | Audits and inspections | open | 0 / 13 |
+| [E25](epics/E25-safety-reporting-investigation-and-targets.md) | Safety reporting, investigation and performance targets | open | 1 / 14 |
+| [E26](epics/E26-control-library-and-testing.md) | Control library and control testing | open | 0 / 10 |
+| [E27](epics/E27-funding-and-grant-compliance.md) | Funding and grant compliance | open | 0 / 11 |
+| [E28](epics/E28-committees-meetings-and-safety-plan.md) | Committees, meetings and the safety plan | open | 0 / 11 |
+| [E29](epics/E29-staff-roster-qualifications-and-acknowledgments.md) | Staff roster, qualifications and frontline acknowledgments | open | 1 / 12 |
+| [E30](epics/E30-obligations-regulatory-change-and-enterprise-risk.md) | Obligations, regulatory change and enterprise risk | open | 0 / 9 |
+| [E31](epics/E31-business-continuity.md) | Business continuity and emergency management | open | 0 / 6 |
+| [E32](epics/E32-asset-condition-and-state-of-good-repair.md) | Asset condition and state of good repair | open | 1 / 6 |
+| [E33](epics/E33-ot-and-rail-systems-cybersecurity.md) | OT and rail-systems cybersecurity | open | 0 / 4 |
+| [E34](epics/E34-legal-hold-records-requests-and-privacy.md) | Legal hold, records requests and privacy | open | 0 / 5 |
+| [E35](epics/E35-vendor-risk-lifecycle.md) | Vendor risk lifecycle | open | 0 / 5 |
+| [E36](epics/E36-integrations.md) | Integrations | open | 0 / 6 |
+| | **Total** | | **553 / 687** |
 
-Of the 14 issues not done, 6 are in progress and 8 are open or blocked.
+Of the 134 issues not done, 6 are in progress and 128 are open or blocked. E23 to E30 are wave 10 and
+E31 to E36 are planned for wave 11 (the product gaps of the November 2026 review). Their done issues
+are "Not planned" entries (E25-13, E29-11, E32-06): features recorded so that nobody builds them.
 
 ## Next up
 
@@ -186,7 +202,9 @@ Keep this table in step with that file.
 
 | Gap | Issues |
 |---|---|
-| Nothing planned is unbuilt | none |
+| Wave 10 parts: corrective action plans, audits and inspections, safety event depth and targets, controls, funding, committees, staff roster, recurring obligations and enterprise risk | E23 to E30 |
+| Wave 11 parts: continuity, asset condition, OT security, legal hold and privacy, vendor lifecycle, integrations | E31 to E36 |
+| Not planned: drug and alcohol test results, hours of service and fatigue, maintenance work orders | E25-13, E29-11, E32-06 (done as "Not planned") |
 
 ### Built but incomplete
 

@@ -53,6 +53,7 @@ export const DEFAULT_ROLES: {
       'obligations.*', 'exercises.*', 'vendors.*', 'contracts.*', 'actions.*',
       'tickets.*', 'knowledge.*', 'assets.*', 'systems.*', 'sites.*', 'data.*', 'changes.*',
       'projects.view', 'dashboards.*', 'reports.*', 'audit.view', 'fleet.view', 'safety.view',
+      'controls.*', 'audits.view', 'governance.view', 'people.view',
     ],
   },
   {
@@ -66,7 +67,29 @@ export const DEFAULT_ROLES: {
   {
     key: 'safety_manager', name: 'Safety manager', enabled: true, requiresMfa: false,
     description: 'Safety team: hazard log, safety events, investigations and safety performance indicators.',
-    grants: ['safety.*', 'fleet.view', 'systems.view', 'sites.view', 'actions.*', 'dashboards.view', 'reports.view', 'policies.view', 'training.view'],
+    grants: [
+      'safety.*', 'fleet.view', 'systems.view', 'sites.view', 'actions.*', 'dashboards.view', 'reports.view', 'policies.view', 'training.view',
+      'audits.*', 'governance.view', 'people.view',
+    ],
+  },
+  // Wave 10: compliance, audit and training roles (switched on, like the other working roles).
+  {
+    key: 'compliance_officer', name: 'Compliance officer', enabled: true, requiresMfa: false,
+    description: 'Compliance obligations, funding and grant compliance, controls and committees.',
+    grants: [
+      'obligations.*', 'funding.*', 'controls.*', 'governance.*', 'audits.view', 'policies.view', 'vendors.view',
+      'contracts.view', 'projects.view', 'assets.view', 'fleet.view', 'people.view', 'actions.*', 'reports.view', 'dashboards.view',
+    ],
+  },
+  {
+    key: 'audit_lead', name: 'Audit lead', enabled: true, requiresMfa: false,
+    description: 'Internal audits and inspections, control testing and corrective actions.',
+    grants: ['audits.*', 'controls.*', 'actions.*', 'governance.view', 'obligations.view', 'policies.view', 'frameworks.view'],
+  },
+  {
+    key: 'training_coordinator', name: 'Training coordinator', enabled: true, requiresMfa: false,
+    description: 'Training, the roster of people and their qualifications.',
+    grants: ['training.*', 'people.*', 'policies.view'],
   },
   {
     key: 'approver', name: 'Approver', enabled: false, requiresMfa: false,
@@ -82,7 +105,7 @@ export const DEFAULT_ROLES: {
   {
     key: 'executive_viewer', name: 'Executive viewer', enabled: false, requiresMfa: false,
     description: 'Read-only dashboards and report packs.',
-    grants: ['dashboards.view', 'reports.view', 'projects.view', 'frameworks.view'],
+    grants: ['dashboards.view', 'reports.view', 'projects.view', 'frameworks.view', 'governance.view'],
   },
   {
     key: 'auditor', name: 'Auditor', enabled: false, requiresMfa: false,
@@ -90,6 +113,7 @@ export const DEFAULT_ROLES: {
     grants: [
       'frameworks.view', 'frameworks.export', 'policies.view', 'obligations.view', 'vendors.view',
       'contracts.view', 'systems.view', 'assets.view', 'audit.view', 'fleet.view',
+      'audits.view', 'audits.export', 'controls.view', 'controls.export', 'governance.view', 'funding.view',
     ],
   },
   {

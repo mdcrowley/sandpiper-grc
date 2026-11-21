@@ -23,13 +23,14 @@ export const MODULE_AREA: Record<string, string> = {
   tickets: 'tickets', changes: 'changes', vendors: 'vendors', frameworks: 'frameworks', secincidents: 'secincidents',
   policies: 'policies', training: 'training', vulnerabilities: 'vulnerabilities', projects: 'projects',
   reports: 'reports', fleet: 'fleet', safety: 'safety', portal: 'portal',
+  audits: 'audits', controls: 'controls', funding: 'funding', governance: 'governance',
 };
 
 /** Whether a web module's area is on (always true for a module that is not part of an area). */
 export const moduleOn = (key: string, areaOn: (area: string) => boolean) => !MODULE_AREA[key] || areaOn(MODULE_AREA[key]);
 
 export const NAV_GROUPS = [
-  'Home', 'Service desk', 'Inventory', 'Change', 'Vendors', 'Cybersecurity', 'Safety', 'Projects', 'Reports', 'Administration', 'Help',
+  'Home', 'Service desk', 'Inventory', 'Change', 'Vendors', 'Cybersecurity', 'Safety', 'Governance', 'Projects', 'Reports', 'Administration', 'Help',
 ] as const;
 export type NavGroup = (typeof NAV_GROUPS)[number];
 

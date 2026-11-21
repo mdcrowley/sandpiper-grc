@@ -13,6 +13,7 @@ import { registerWebAssets, sendIndex } from './core/webassets.ts';
 import { registerPermissionUse } from './core/permission-use.ts';
 import { ApiError, fail } from './core/errors.ts';
 import { addHsts, trustProxyFn } from './core/http.ts';
+import { registerMetrics } from './core/metrics.ts';
 import { migrate } from './core/migrate.ts';
 import { registerBranding } from './core/organization.ts';
 import type { ModuleContext, ModuleDef, Row } from './core/module.ts';
@@ -221,6 +222,9 @@ export async function buildApp(opts: BuildOptions) {
     fail,
     describeRoute: openapi.describe,
   };
+
+  // The metric registry's route (wave 10, C3); modules add their metrics with defineMetric in register.
+  registerMetrics(ctx);
 
   const modules: ModuleDef[] = [];
   for (const key of moduleKeys) {
