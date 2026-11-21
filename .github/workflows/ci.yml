@@ -48,10 +48,10 @@ jobs:
       GRC_SEED_DIR: ${{ github.workspace }}/no-seed-folder
     steps:
       - name: Check out
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           # The major version is pinned in one place, shared with tools/install-node.ps1.
           node-version-file: tools/node-version.txt
@@ -113,10 +113,10 @@ jobs:
       GRC_DATABASE_POOL_MAX: '5'
     steps:
       - name: Check out
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version-file: tools/node-version.txt
           cache: npm
@@ -175,7 +175,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Check out (with tags)
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -208,7 +208,7 @@ jobs:
       GRC_PORT: '8170'
     steps:
       - name: Check out
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Fetch the pinned Node.js into .tools/node (checksum verified)
         run: ./tools/install-node.sh
@@ -317,17 +317,17 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Check out
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Node.js major version
         id: node
         run: echo "major=$(head -n 1 tools/node-version.txt | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Build the image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           load: true
@@ -443,20 +443,20 @@ jobs:
       attestations: write
     steps:
       - name: Check out
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Node.js major version
         id: node
         run: echo "major=$(head -n 1 tools/node-version.txt | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU (to build for arm64)
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Sign in to the GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -464,7 +464,7 @@ jobs:
 
       - name: Tags and labels
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         env:
           DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
         with:
@@ -485,7 +485,7 @@ jobs:
 
       - name: Build and push (linux/amd64, linux/arm64)
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/amd64,linux/arm64
@@ -503,7 +503,7 @@ jobs:
           cache-to: type=gha,scope=publish,mode=max
 
       - name: Sign the build provenance
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-name: ghcr.io/${{ github.repository }}
           subject-digest: ${{ steps.build.outputs.digest }}
@@ -515,10 +515,10 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Check out
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version-file: tools/node-version.txt
           cache: npm
@@ -543,7 +543,7 @@ jobs:
 
       - name: Keep the logs and screenshots of a failed run
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: browser-test-output
           path: |
