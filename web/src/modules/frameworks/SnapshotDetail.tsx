@@ -4,7 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Chip } from '@mantine/core';
 import {
   ApiError, Button, Card, ConfirmDialog, CustomFieldsCard, customFieldNames, EmptyState, ErrorState, HistoryPanel, Icon, Loading,
-  NotFound, PageHeader, Stat, StatusChip, Tabs, api, errorMessage, formatDate, useAuth, useFetch, useResource, useToast,
+  NotFound, PageHeader, Stat, StatusChip, TableWrap, Tabs, api, errorMessage, formatDate, useAuth, useFetch, useResource, useToast,
 } from '../../core';
 import type { Row } from '../../core';
 import { StatusBar, StatusLegend, TargetRing } from './StatusBar';
@@ -71,7 +71,7 @@ export function SnapshotPage() {
       {rows.length === 0 ? (
         <EmptyState icon="filter" title={data.outcomes.length ? 'No outcomes match these filters' : 'This snapshot holds no outcomes'} />
       ) : (
-        <div className="table-wrap">
+        <TableWrap label="Outcomes in this snapshot">
           <table className="table">
             <thead><tr><th scope="col">Outcome</th><th scope="col">Status at the time</th></tr></thead>
             <tbody>
@@ -87,7 +87,7 @@ export function SnapshotPage() {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableWrap>
       )}
     </div>
   );

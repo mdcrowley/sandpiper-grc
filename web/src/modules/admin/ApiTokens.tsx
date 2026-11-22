@@ -4,7 +4,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ApiError, Badge, Button, Card, ChoicesField, ConfirmDialog, EmptyState, ErrorState, errorMessage, formatDate, formatDateTime, humanize,
-  Icon, Loading, Modal, PageHeader, relativeTime, Select, StatusChip, TextArea, TextField, useAuth, useFetch, useMeta, useToast,
+  Icon, Loading, Modal, PageHeader, relativeTime, Select, StatusChip, TableWrap, TextArea, TextField, useAuth, useFetch, useMeta, useToast,
 } from '../../core';
 import type { ColorName, Option } from '../../core';
 import { CopyBox, FilterPills, Initials, Notice, Pager, type FilterPill } from './common';
@@ -463,7 +463,7 @@ export function AdminTokensPage() {
             />
           ) : (
             <>
-              <div className="table-wrap adm-table-frame">
+              <TableWrap label="API tokens" className="adm-table-frame">
                 <table className="table adm-tokens">
                   <thead>
                     <tr>
@@ -510,7 +510,7 @@ export function AdminTokensPage() {
                     })}
                   </tbody>
                 </table>
-              </div>
+              </TableWrap>
               <Pager summary={`${rows.length} ${rows.length === 1 ? 'token' : 'tokens'}`} page={Math.min(page, pages)} pages={pages} onPage={setPage} />
             </>
           )}

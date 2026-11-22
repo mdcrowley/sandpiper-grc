@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { SegmentedControl } from '@mantine/core';
 import {
   api, ApiError, Button, Card, Checkbox, DateField, EmptyState, ErrorState, errorMessage, formatDate, formatDateTime, Loading, Modal,
-  NumberField, PageHeader, qs, relativeTime, Select, StatusChip, Tabs, TextArea, todayInZone, useFetch, useToast,
+  NumberField, PageHeader, qs, relativeTime, Select, StatusChip, TableWrap, Tabs, TextArea, todayInZone, useFetch, useToast,
 } from '../../core';
 import { Notice, Pager } from './common';
 import { adminApi, withReauth } from './reauth';
@@ -148,7 +148,7 @@ function PolicyTable({ data, onSaved }: { data: RetentionResponse; onSaved: () =
       </p>
       <Card flush>
         {data.types.length === 0 ? <EmptyState icon="clock" title="No record types" message="This installation has no record types to keep." /> : (
-          <div className="table-wrap adm-table-frame">
+          <TableWrap label="Retention periods by record type" className="adm-table-frame">
             <table className="table adm-retention">
               <thead>
                 <tr>
@@ -183,7 +183,7 @@ function PolicyTable({ data, onSaved }: { data: RetentionResponse; onSaved: () =
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
       </Card>
       {editing && (
@@ -311,7 +311,7 @@ function ReviewList({ data, onDecided }: { data: RetentionResponse; onDecided: (
             />
           ) : (
             <>
-              <div className={`table-wrap adm-table-frame${loading ? ' table-loading' : ''}`} aria-busy={loading}>
+              <TableWrap label="Records past their retention period" className={`adm-table-frame${loading ? ' table-loading' : ''}`} aria-busy={loading}>
                 <table className="table adm-reviews">
                   <thead>
                     <tr>
@@ -369,7 +369,7 @@ function ReviewList({ data, onDecided }: { data: RetentionResponse; onDecided: (
                     })}
                   </tbody>
                 </table>
-              </div>
+              </TableWrap>
               <Pager summary={`${list.total} ${list.total === 1 ? 'record' : 'records'}`} page={page} pages={pages} onPage={setPage} />
             </>
           )}

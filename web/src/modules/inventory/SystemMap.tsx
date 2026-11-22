@@ -4,7 +4,7 @@ import type { ComponentType, ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Chip, Group, SegmentedControl, Select as MantineSelect, Text } from '@mantine/core';
 import {
-  Button, EmptyState, ErrorState, Icon, Loading, lookupColor, lookupLabel, PageHeader, Select, TextField, useAuth, useFetch, useLookup, useMediaQuery,
+  Button, EmptyState, ErrorState, Icon, Loading, lookupColor, lookupLabel, PageHeader, Select, TableWrap, TextField, useAuth, useFetch, useLookup, useMediaQuery,
 } from '../../core';
 
 /** What the map can hold, in words, without the parts that are switched off (Administration > Features). */
@@ -74,7 +74,7 @@ export function RelationshipTable({ nodes, edges }: GraphData) {
       {rows.length === 0 ? (
         <EmptyState icon="link" title="No relationships" message={q ? 'Nothing matches that search.' : 'No relationships have been recorded yet.'} />
       ) : (
-        <div className="table-wrap">
+        <TableWrap label={words.caption}>
           <table className="table">
             <caption className="sr-only">{words.caption}</caption>
             <thead>
@@ -92,7 +92,7 @@ export function RelationshipTable({ nodes, edges }: GraphData) {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableWrap>
       )}
     </div>
   );

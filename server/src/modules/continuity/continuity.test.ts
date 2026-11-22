@@ -127,12 +127,82 @@ describe('impact analyses (E31-02)', () => {
     expect(bia.impacts.map((r: Row) => r.band)).toEqual(['1h', '4h']);
     expect((await manager.patch(`/api/bias/${bia.id}`, { status: 'signed_off' })).status).toBe(400);
     expect((await manager.post(`/api/bias/${bia.id}/sign-off`)).status).toBe(409);
-    ok(await manager.patch(`/api/bias/${bia.id}`, { status: 'submitted' }));
+    // Submitted only with "Submit for sign-off"; a process with no owner has no workflow, so it waits for "Sign off".
+    expect((await manager.patch(`/api/bias/${bia.id}`, { status: 'submitted' })).status).toBe(400);
+    expect(ok(await manager.post(`/api/bias/${bia.id}/submit`))).toMatchObject({ status: 'submitted', instance_id: null });
+    expect((await manager.post(`/api/bias/${bia.id}/submit`)).body.error.code).toBe('already_submitted');
     expect((await viewer.post(`/api/bias/${bia.id}/sign-off`)).status).toBe(403);
     ok(await manager.post(`/api/bias/${bia.id}/sign-off`));
     const proc = ok(await manager.get(`/api/business-processes/${p}`));
     expect(proc).toMatchObject({ mtd_hours: 12, rto_target_hours: 6, last_bia_on: dayInZone(), next_bia_due: addMonths(dayInZone(), 12) });
     expect((await manager.patch(`/api/bias/${bia.id}`, { notes: 'late change' })).status).toBe(409);
+  });
+});
+
+describe('impact analysis sign-off through an approval workflow (E31-10)', () => {
+  it('asks the process owner, whose approval signs the analysis off and whose rejection sends it back', async () => {
+    const owner = viewer; // continuity.view only: the owner need not hold continuity.approve
+    const p = await process('Owned process', { owner_id: owner.userId });
+    const bia = ok(await manager.post('/api/bias', { process_id: p, mtd_hours: 8, rto_target_hours: 4 }), 201);
+    expect((await owner.post(`/api/bias/${bia.id}/submit`)).status).toBe(403);
+    const sent = ok(await manager.post(`/api/bias/${bia.id}/submit`, { note: 'Please check the 4 hour band' }));
+    expect(sent).toMatchObject({ status: 'submitted', workflow: 'Impact analysis sign-off' });
+    expect(sent.instance_id).toBeTruthy();
+    expect(ok(await manager.get(`/api/bias/${bia.id}`)).process_owner_id).toBe(owner.userId);
+    expect(ok(await viewer.get(`/api/bias/${bia.id}/sign-off`))).toMatchObject({ available: true, request: { status: 'running' } });
+    const eng = approvalEngine(t.app)!;
+    expect(await eng.waiting('bia_signoff', owner.userId)).toContain(bia.id);
+    expect(await eng.waiting('bia_signoff', manager.userId)).not.toContain(bia.id);
+    // The owner is told.
+    const told = await t.db.query<Row>(`select title from notifications where user_id = $1 and record_id = $2`, [owner.userId, bia.id]);
+    expect(told.length).toBeGreaterThan(0);
+
+    // Rejection: back to draft with the reason in the history.
+    await eng.decide('bia_signoff', bia.id, null, 'rejected', 'The 1 day band is too low', { userId: owner.userId });
+    expect(ok(await manager.get(`/api/bias/${bia.id}`)).status).toBe('draft');
+    const history = ok(await manager.get(`/api/history?record_type=bia&record_id=${bia.id}`));
+    expect(JSON.stringify(history)).toContain('The 1 day band is too low');
+
+    // Approval: signed off as "Sign off" does, by the owner.
+    ok(await manager.post(`/api/bias/${bia.id}/submit`));
+    await eng.decide('bia_signoff', bia.id, null, 'approved', null, { userId: owner.userId });
+    const done = ok(await manager.get(`/api/bias/${bia.id}`));
+    expect(done).toMatchObject({ status: 'signed_off', signed_off_on: dayInZone() });
+    expect(done.signed_off_by_name).toContain('safety_manager');
+    expect(ok(await manager.get(`/api/business-processes/${p}`))).toMatchObject({ mtd_hours: 8, rto_target_hours: 4, last_bia_on: dayInZone() });
+  });
+
+  it('lets an approver sign off directly, ends the request on a return to draft, and refuses the owner submitting', async () => {
+    const owner = await t.as('continuity_manager');
+    const p = await process('Directly signed', { owner_id: owner.userId });
+    const eng = approvalEngine(t.app)!;
+    const a = ok(await manager.post('/api/bias', { process_id: p, mtd_hours: 24 }), 201);
+    expect((await owner.post(`/api/bias/${a.id}/submit`)).body.error.code).toBe('owner_submits');
+    ok(await manager.post(`/api/bias/${a.id}/submit`));
+    expect((await eng.running('bia_signoff', a.id))).toBeTruthy();
+    // Sent back to draft by hand: the request ends.
+    ok(await manager.patch(`/api/bias/${a.id}`, { status: 'draft' }));
+    expect(await eng.running('bia_signoff', a.id)).toBeNull();
+    expect((await eng.latest('bia_signoff', a.id))!.status).toBe('canceled');
+    // Signed off directly while the owner is asked: the request is replaced.
+    ok(await manager.post(`/api/bias/${a.id}/submit`));
+    ok(await manager.post(`/api/bias/${a.id}/sign-off`));
+    expect((await eng.latest('bia_signoff', a.id))!.status).toBe('canceled');
+    expect(ok(await manager.get(`/api/bias/${a.id}`))).toMatchObject({ status: 'signed_off', signed_off_by_name: expect.stringContaining('continuity_manager') });
+    // A submission needs the tolerable downtime.
+    const b = ok(await manager.post('/api/bias', { process_id: p }), 201);
+    expect((await manager.post(`/api/bias/${b.id}/submit`)).body.error.fields.mtd_hours).toBeTruthy();
+  });
+
+  it('is gone while the continuity area is off', async () => {
+    expect(ok(await t.api.get('/api/workflows/options')).kinds.some((k: Row) => k.key === 'bia_signoff')).toBe(true);
+    await t.db.query('update sessions set confirmed_at = now()');
+    ok(await t.api.patch('/api/admin/features', { features: { continuity: false } }));
+    try {
+      expect(ok(await t.api.get('/api/workflows/options')).kinds.some((k: Row) => k.key === 'bia_signoff')).toBe(false);
+    } finally {
+      ok(await t.api.patch('/api/admin/features', { features: { continuity: true } }));
+    }
   });
 });
 

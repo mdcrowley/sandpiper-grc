@@ -1,6 +1,6 @@
 # E22 Review fixes (wave 9)
 
-**Status:** in progress (47 of 48 issues done)
+**Status:** done (48 of 48 issues done)
 
 ## Goal
 
@@ -64,7 +64,7 @@ performance. Finding IDs (SA-, AZ-, SP-, BS-, BW-, DOC-, OP-) are those of the r
 | E22-45 | Webhook addresses encrypted at rest | done | P3 |
 | E22-46 | A reference field never names a record the person cannot see | done | P2 |
 | E22-47 | Picker highlight contrast and keyboard-reachable scrolling tables | done | P2 |
-| E22-48 | Every sideways-scrolling table reachable by keyboard | open | P3 |
+| E22-48 | Every sideways-scrolling table reachable by keyboard | done | P3 |
 
 ---
 
@@ -669,10 +669,16 @@ The accessibility audit found low contrast on the highlighted option of the shar
 
 ### E22-48 Every sideways-scrolling table reachable by keyboard
 
-**Status:** open · **Priority:** P3 · **Type:** improvement
+**Status:** done · **Priority:** P3 · **Type:** improvement
 
-About 128 files still use a plain `div.table-wrap`. A table with no links that scrolls sideways cannot be reached with the keyboard.
+About 128 files still used a plain `div.table-wrap`. A table with no links that scrolls sideways could not be reached with the keyboard.
 
 **Acceptance criteria**
 
-- [ ] Tables use `TableWrap`
+- [x] Tables use `TableWrap`: all 166 hand-written `table-wrap` boxes, the calendar feeds and API parameter tables; the box takes its name from the table's caption or card title
+- [x] `TableWrap` passes other attributes through (`aria-busy`, `key`, `ref`) and also becomes a Tab stop when a table is taller than a box with a height limit (report results)
+- [x] Tables in a policy's text sit in their own scroll box, a named Tab stop while it scrolls; the hazard matrix grid becomes a Tab stop when it scrolls on a narrow screen
+- [x] A unit test (`web/src/core/tableWrap.test.ts`) fails on a hand-written `table-wrap` box, a Mantine `Table.ScrollContainer`, or a file with a `<table>` and no `TableWrap` that is not on its list of exceptions (with reasons); a component test covers `TableWrap` itself
+- [x] The audit of 20 affected pages, light and dark, 1440 and 820, has no finding
+
+**Implemented in:** `web/src/core/ui.tsx` (`TableWrap`), `tableWrap.test.ts`, `TableWrap.component.test.ts`, `ImportWizardParts.tsx`, about 130 page files under `web/src/modules`, `policies/shared.tsx`, `policies/policyTables.ts`, `policies/policies.css`, `safety/shared.tsx`, `help/ApiReference.tsx`, `feeds/FeedsAdmin.tsx`, `reports/ResultView.tsx`

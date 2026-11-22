@@ -20,7 +20,7 @@ let t: Awaited<ReturnType<typeof testApp>>;
 beforeAll(async () => { t = await testApp(); });
 afterAll(async () => { await t.close(); });
 
-async function call(cookie: string | undefined, method: 'GET' | 'POST' | 'DELETE', url: string, payload?: object) {
+async function call(cookie: string | undefined, method: 'GET' | 'POST' | 'PATCH' | 'DELETE', url: string, payload?: object) {
   const res = await t.app.inject({
     method, url,
     headers: { ...(cookie ? { cookie: `${SESSION_COOKIE}=${cookie}` } : {}), 'x-grc-csrf': '1' },
@@ -183,6 +183,55 @@ describe('recovery codes for people whose only factor is a passkey (E02-21)', ()
     await t.db.query('update users set totp_last_step = null where id = $1', [p.id]);
     expect((await call(p.cookie, 'POST', '/api/auth/totp/disable', { password: PASSWORD, code: totpCode(secret) })).status).toBe(200);
     expect((await call(p.cookie, 'GET', '/api/auth/security')).body).toMatchObject({ totpEnabled: false, passkeys: 1, recoveryCodesLeft: 10 });
+  });
+});
+
+describe('passkeys count as a second factor for administrators (E02-08)', () => {
+  /** Registers a software passkey for a signed-in person (the sign-in just now is the recent confirmation). */
+  async function addPasskey(p: { cookie: string }, name: string) {
+    const auth = new SoftAuthenticator({ origin: ORIGIN });
+    const opts = await call(p.cookie, 'POST', '/api/auth/webauthn/register/options');
+    expect(opts.status).toBe(200);
+    expect((await call(p.cookie, 'POST', '/api/auth/webauthn/register', { name, credential: auth.create(opts.body.publicKey) })).status).toBe(200);
+  }
+  async function administrator(username: string) {
+    const p = await person(username);
+    await t.db.query(`insert into user_roles (user_id, role_id) select $1, id from roles where key = 'administrator'`, [p.id]);
+    return p;
+  }
+  const passkeys = async (userId: string) =>
+    Number((await t.db.one<{ n: number }>('select count(*)::int as n from webauthn_credentials where user_id = $1 and revoked_at is null', [userId]))!.n);
+
+  it("an administrator's second-factor reset removes the person's passkeys", async () => {
+    const p = await person('reset-keys');
+    await addPasskey(p, 'Desk key');
+    await addPasskey(p, 'Spare key');
+    expect(await passkeys(p.id)).toBe(2);
+    const reset = await t.api.post(`/api/admin/users/${p.id}/reset-mfa`);
+    expect(reset.status).toBe(200);
+    expect(await passkeys(p.id)).toBe(0);
+    expect((await audited('mfa.reset', p.id)).at(-1)).toMatch(/2 passkey\(s\) removed/);
+    // Signing in now needs the password only: no second factor is left.
+    expect((await call(undefined, 'POST', '/api/auth/login', { username: 'reset-keys', password: PASSWORD })).status).toBe(200);
+  });
+
+  it('lets an administrator whose only second factor is a passkey require it, and not one without any', async () => {
+    const plain = await administrator('admin-nofactor');
+    const refused = await call(plain.cookie, 'PATCH', '/api/admin/settings', { 'auth.mfa_enforcement': 'required' });
+    expect(refused.status).toBe(400);
+    expect(refused.body.error.fields['auth.mfa_enforcement']).toMatch(/your own second factor/);
+
+    const keyed = await administrator('admin-keyonly');
+    await addPasskey(keyed, 'Admin key');
+    expect((await call(keyed.cookie, 'GET', '/api/auth/security')).body).toMatchObject({ totpEnabled: false, passkeys: 1 });
+    try {
+      const ok = await call(keyed.cookie, 'PATCH', '/api/admin/settings', { 'auth.mfa_enforcement': 'required' });
+      expect(ok.status).toBe(200);
+      expect((await call(keyed.cookie, 'GET', '/api/admin/settings')).body.values['auth.mfa_enforcement']).toBe('required');
+    } finally {
+      // Back to the default through the same route, so no cached value outlives the test.
+      expect((await call(keyed.cookie, 'PATCH', '/api/admin/settings', { 'auth.mfa_enforcement': 'notice' })).status).toBe(200);
+    }
   });
 });
 

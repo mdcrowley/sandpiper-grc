@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  api, Button, Card, errorMessage, ErrorState, IconButton, Loading, lookupLabel, Modal, Select, Switch, TextArea, TextField, useFetch, useLookup, useToast,
+  api, Button, Card, errorMessage, ErrorState, IconButton, Loading, lookupLabel, Modal, Select, Switch, TableWrap, TextArea, TextField, useFetch, useLookup, useToast,
 } from '../../core';
 import type { GateDefinition } from './types';
 
@@ -118,7 +118,7 @@ export function GateTemplates() {
   return (
     <Card title="Gates" flush>
       {error ? <ErrorState title="The gate templates could not be loaded" error={error} onRetry={reload} /> : !data ? <Loading /> : (
-        <div className="table-wrap prj-scroll">
+        <TableWrap label="Gates" className="prj-scroll">
           <table className="table">
             <thead>
               <tr>
@@ -142,7 +142,7 @@ export function GateTemplates() {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableWrap>
       )}
       {editing && <GateEditor key={editing.key} gate={editing} workflows={workflows} onClose={() => setEditing(null)} onSaved={reload} />}
     </Card>

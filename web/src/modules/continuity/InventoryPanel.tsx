@@ -2,7 +2,7 @@
 // site, with how long each can be down. A system also lists the processes that depend on a service
 // built on it.
 import { Link } from 'react-router-dom';
-import { Card, EmptyState, ErrorState, Loading, LookupChip, useAuth, useFetch } from '../../core';
+import { Card, EmptyState, ErrorState, Loading, LookupChip, TableWrap, useAuth, useFetch } from '../../core';
 import type { InventoryPanelDef, InventoryPanelProps } from '../inventory/Extensions';
 import { hoursText } from './shared';
 
@@ -20,7 +20,7 @@ function DependentProcesses({ recordType, recordId, row }: InventoryPanelProps) 
         : !data ? <div className="bc-pad"><Loading lines={2} /></div>
         : data.length === 0 ? <EmptyState icon="shield" title="No business process depends on this" message="Dependencies are recorded on each business process." />
         : (
-          <div className="table-wrap">
+          <TableWrap label="Business processes that depend on this record">
             <table className="table">
               <caption className="sr-only">Business processes that depend on this record</caption>
               <thead><tr><th scope="col">Process</th><th scope="col">Criticality</th><th scope="col">Tolerable downtime</th><th scope="col">Through</th></tr></thead>
@@ -37,7 +37,7 @@ function DependentProcesses({ recordType, recordId, row }: InventoryPanelProps) 
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
     </Card>
   );

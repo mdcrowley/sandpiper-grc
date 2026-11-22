@@ -6,7 +6,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import {
   api, ApiError, Button, Card, ChoicesField, ConfirmDialog, EmptyState, ErrorState, errorMessage, formatDateTime, Icon, Loading, Menu, Modal,
-  PageHeader, relativeTime, Select, StatusChip, Switch, TextArea, TextField, useFetch, useToast,
+  PageHeader, relativeTime, Select, StatusChip, Switch, TableWrap, TextArea, TextField, useFetch, useToast,
 } from '../../core';
 import '../admin/admin.css';
 import { CopyBox, Notice } from '../admin/common';
@@ -121,7 +121,7 @@ function TokensCard({ tokens, onChanged }: { tokens: ScimToken[]; onChanged: () 
       {tokens.length === 0 ? (
         <EmptyState icon="key" title="No provisioning tokens yet" message="Make one for each identity provider that provisions accounts here." />
       ) : (
-        <div className="table-wrap adm-table-frame">
+        <TableWrap label="Provisioning tokens" className="adm-table-frame">
           <table className="table">
             <thead><tr><th scope="col">Token</th><th scope="col">Used from</th><th scope="col">Last used</th><th scope="col">Status</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
             <tbody>
@@ -146,7 +146,7 @@ function TokensCard({ tokens, onChanged }: { tokens: ScimToken[]; onChanged: () 
               ))}
             </tbody>
           </table>
-        </div>
+        </TableWrap>
       )}
       {making && <TokenDialog onClose={() => setMaking(false)} onMade={(made) => { setMaking(false); setShown(made); onChanged(); }} />}
       {editing && <AddressesDialog token={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); onChanged(); }} />}
@@ -242,7 +242,7 @@ function GroupsCard({ groups, roles, onChanged }: { groups: ScimGroup[]; roles: 
       {groups.length === 0 ? (
         <EmptyState icon="users" title="No groups yet" message="Groups appear here when your identity provider sends them. A group gives no role until you map it." />
       ) : (
-        <div className="table-wrap adm-table-frame">
+        <TableWrap label="Groups and roles" className="adm-table-frame">
           <table className="table">
             <thead><tr><th scope="col">Group</th><th scope="col">Members</th><th scope="col">Roles it gives</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
             <tbody>
@@ -261,7 +261,7 @@ function GroupsCard({ groups, roles, onChanged }: { groups: ScimGroup[]; roles: 
               ))}
             </tbody>
           </table>
-        </div>
+        </TableWrap>
       )}
       {mapping && <MapDialog group={mapping} roles={roles} onClose={() => setMapping(null)} onSaved={() => { setMapping(null); onChanged(); }} />}
     </Card>

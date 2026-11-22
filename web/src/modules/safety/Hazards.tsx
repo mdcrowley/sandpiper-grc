@@ -2,7 +2,7 @@
 import { lazy, Suspense, useState, type ComponentType } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Card, EditableSummary, EmptyState, errorMessage, ErrorState, formatDateTime, Loading, LookupChip, PageHeader, RecordPage, ResourceList, useAuth, useFetch, useToast,
+  Card, EditableSummary, EmptyState, errorMessage, ErrorState, formatDateTime, Loading, LookupChip, PageHeader, RecordPage, ResourceList, TableWrap, useAuth, useFetch, useToast,
 } from '../../core';
 import type { RecordContext } from '../../core';
 import { HazardMatrix, RatingChip, SafetyActions, SafetyTabs, useHazardScale } from './shared';
@@ -80,7 +80,7 @@ function Events({ hazardId }: { hazardId: string }) {
         : !data ? <div className="sf-pad"><Loading lines={3} /></div>
         : data.length === 0 ? <EmptyState icon="alert" title="No events linked" message="Link events to this hazard from the event's Hazards tab." />
         : (
-          <div className="table-wrap">
+          <TableWrap label="Safety events linked to this hazard">
             <table className="table">
               <caption className="sr-only">Safety events linked to this hazard</caption>
               <thead><tr><th scope="col">Event</th><th scope="col">When</th><th scope="col">Type</th><th scope="col">Severity</th><th scope="col">Status</th></tr></thead>
@@ -96,7 +96,7 @@ function Events({ hazardId }: { hazardId: string }) {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
     </Card>
   );

@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Card, EmptyState, ErrorState, Loading, LookupChip, ProgressBar, StatusChip,
-  formatDateTime, listQuery, toColorName, useFetch, useLookup,
+  formatDateTime, listQuery, TableWrap, toColorName, useFetch, useLookup,
 } from '../../core';
 import type { ColorName, ListResult, StatsResult } from '../../core';
 import { GroupBars } from './charts';
@@ -50,7 +50,7 @@ function ChangesThisWeek() {
               <EmptyState icon="calendar" title="No changes are planned for this week"
                 message={o.awaiting_approval ? `${o.awaiting_approval} ${o.awaiting_approval === 1 ? 'change is' : 'changes are'} waiting for approval.` : undefined} />
             ) : (
-              <div className="table-wrap"><table className="table">
+              <TableWrap label="Changes this week"><table className="table">
                 <thead><tr><th>Change</th><th>Planned start</th><th>Status</th></tr></thead>
                 <tbody>
                   {rows.map((c) => (
@@ -61,7 +61,7 @@ function ChangesThisWeek() {
                     </tr>
                   ))}
                 </tbody>
-              </table></div>
+              </table></TableWrap>
             )}
             {list.data && list.data.total > rows.length && (
               <p className="muted"><Link to="/changes?view=week">and {list.data.total - rows.length} more this week</Link></p>

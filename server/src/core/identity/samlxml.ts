@@ -13,7 +13,7 @@
 // not the message as received) for the checks the library leaves to its caller: the bearer
 // confirmation's Recipient and InResponseTo, the assertion ID for replay protection, and the
 // authentication context.
-import { DOMParser } from '@xmldom/xmldom';
+import { DOMParser, type Document, type Element, type Node } from '@xmldom/xmldom';
 import { SignedXml } from 'xml-crypto';
 import { IdentityError } from './types.ts';
 
@@ -71,7 +71,10 @@ const ELEMENT = 1;
  * entity), markup declarations, processing instructions other than the XML declaration, NUL
  * characters, malformed documents, and documents over the byte, element or depth limits.
  */
-export function parseXml(text: string, maxBytes: number = LIMITS.messageBytes): Document {
+/** A parsed document that has a root element (parseXml refuses one without). */
+export type XmlDocument = Document & { readonly documentElement: Element };
+
+export function parseXml(text: string, maxBytes: number = LIMITS.messageBytes): XmlDocument {
   if (typeof text !== 'string' || !text.trim()) throw new IdentityError('empty XML', 'The XML is empty.');
   if (Buffer.byteLength(text, 'utf8') > maxBytes) throw new IdentityError('XML too large', `The XML is larger than ${Math.round(maxBytes / 1024)} KB.`);
   if (text.includes('\u0000') || text.includes('\uFFFD')) throw new IdentityError('XML not UTF-8', 'The XML is not readable UTF-8 text.');
@@ -81,11 +84,15 @@ export function parseXml(text: string, maxBytes: number = LIMITS.messageBytes): 
   if (/<\?(?!xml\s)[^?]*\?>/i.test(text.replace(/^\uFEFF?\s*<\?xml\s[^?]*\?>/, ''))) {
     throw new IdentityError('XML processing instruction refused', 'The XML holds a processing instruction, which is not accepted.');
   }
+  // Every warning and error refuses the document, not only fatal ones (the parser recovers from some
+  // malformed input); a fatal error stops the parser with a ParseError.
   const problems: string[] = [];
-  const doc = new DOMParser({
-    locator: {},
-    errorHandler: { warning: (m: string) => { problems.push(m); }, error: (m: string) => { problems.push(m); }, fatalError: (m: string) => { problems.push(m); } },
-  }).parseFromString(text, 'text/xml');
+  let doc: Document;
+  try {
+    doc = new DOMParser({ locator: true, onError: (_level, message) => { problems.push(message); } }).parseFromString(text, 'text/xml');
+  } catch {
+    throw new IdentityError('malformed XML', 'The XML is not well formed.');
+  }
   if (problems.length || !doc || !doc.documentElement) throw new IdentityError('malformed XML', 'The XML is not well formed.');
   // Element count and depth, iteratively (no recursion on attacker-shaped input).
   let count = 0;
@@ -97,7 +104,7 @@ export function parseXml(text: string, maxBytes: number = LIMITS.messageBytes): 
     if (depth > LIMITS.depth) throw new IdentityError('XML nested too deeply', 'The XML is nested too deeply.');
     for (let c = node.firstChild; c; c = c.nextSibling) if (c.nodeType === ELEMENT) stack.push({ node: c, depth: depth + 1 });
   }
-  return doc;
+  return doc as XmlDocument;
 }
 
 /** Every element below (and including) `root`, in document order. */
@@ -125,7 +132,7 @@ const text = (el: Element | null | undefined) => (el?.textContent ?? '').trim();
 const attr = (el: Element | null | undefined, name: string): string | null => (el && el.hasAttribute(name) ? el.getAttribute(name) : null);
 
 /** Checks every signature in a message or assertion: placement and algorithms. */
-function checkSignatures(doc: Document, allowedParents: Element[]): void {
+function checkSignatures(doc: XmlDocument, allowedParents: Element[]): void {
   for (const sig of elements(doc.documentElement).filter((e) => e.localName === 'Signature')) {
     if (sig.namespaceURI !== NS.ds) throw new IdentityError('signature in an unknown namespace');
     if (!allowedParents.includes(sig.parentNode as Element)) throw new IdentityError('signature in an unexpected place');
@@ -154,7 +161,7 @@ function checkSignatures(doc: Document, allowedParents: Element[]): void {
 }
 
 /** Refuses repeated ID values anywhere (an ID must name one element, or a signature could point at either). */
-function checkUniqueIds(doc: Document): void {
+function checkUniqueIds(doc: XmlDocument): void {
   const seen = new Set<string>();
   for (const el of elements(doc.documentElement)) {
     for (const name of ['ID', 'Id', 'id', 'AssertionID']) {

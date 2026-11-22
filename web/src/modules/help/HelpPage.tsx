@@ -122,7 +122,7 @@ export default function HelpPage() {
 
   return (
     <>
-      <PageHeader title={title} breadcrumbs={[{ label: 'Help', to: '/help' }, { label: title }]} />
+      <PageHeader title={title} breadcrumbs={[{ label: 'User guide', to: '/help' }, { label: title }]} />
       <div className="help-layout">
         <Contents current={ref.slug} titles={titles} />
         <article className="help-article">

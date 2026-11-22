@@ -3,7 +3,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import {
   api, ApiError, Button, Card, EmptyState, ErrorState, errorMessage, formatDateTime, Loading, NumberField, PageHeader,
-  relativeTime, Select, Stat, StatusChip, Switch, TextField, useFetch, useToast,
+  relativeTime, Select, Stat, StatusChip, Switch, TableWrap, TextField, useFetch, useToast,
 } from '../../core';
 import type { BackupRun, BackupSettings as Settings, BackupsOverview } from './adminTypes';
 import { usePasswordConfirm } from './confirm';
@@ -141,7 +141,7 @@ export function BackupSettings() {
             {data.runs.length === 0 ? (
               <EmptyState icon="database" title="No backups taken yet" message="Choose where backups go, then use Back up now or switch on the daily backup." />
             ) : (
-              <div className="table-wrap">
+              <TableWrap label="The last 20 backups taken by the server">
                 <table className="table">
                   <caption className="sr-only">The last 20 backups taken by the server</caption>
                   <thead>
@@ -166,7 +166,7 @@ export function BackupSettings() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </TableWrap>
             )}
           </Card>
           <p className="att-facts">{data.secretKeyNote}</p>

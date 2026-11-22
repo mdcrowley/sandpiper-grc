@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { Alert, Group, Stack, Text } from '@mantine/core';
 import {
-  api, Button, Card, errorMessage, formatDateTime, Icon, MultiSelect, NumberField, useFetch, useToast, withReauth,
+  api, Button, Card, errorMessage, formatDateTime, Icon, MultiSelect, NumberField, TableWrap, useFetch, useToast, withReauth,
 } from '../../core';
 
 interface KitCopy {
@@ -142,7 +142,7 @@ export function KitCopies() {
           {!shown.can_export && ' Downloading a copy needs export permission for security incidents.'}
         </Text>
         {shown.copies.length > 0 && (
-          <div className="table-wrap">
+          <TableWrap label="Stored PDF copies of the kit, newest first">
             <table className="table">
               <caption className="sr-only">Stored PDF copies of the kit, newest first</caption>
               <thead>
@@ -171,7 +171,7 @@ export function KitCopies() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
         {shown.can_administer && <Schedule data={shown} onSaved={setState} />}
       </Stack>

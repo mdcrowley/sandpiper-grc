@@ -4,7 +4,7 @@ The business continuity pages hold what your organization's work depends on and 
 
 If your organization does not use these pages, an administrator can switch **Business continuity and emergency management** off under **Administration > Features** (see [Administration](09-administration.md#features)). The pages, their reminders, the "Business processes" section on system and site pages, the "Business continuity" source in the action tracker, the continuity notifications, the calendar entries and the continuity figures then disappear. Records are kept and return when it is switched back on.
 
-You need the **continuity** permissions: `continuity.view` to read processes, analyses, plans and activations, `continuity.create` and `continuity.edit` to record and change them (and to run an activation), `continuity.approve` to sign off impact analyses and approve plans, `continuity.export` to print call trees and export lists, `continuity.delete`, and `continuity.administer` to send the reminders by hand. The default **Continuity manager** role holds all of them; **Security lead**, **Safety manager**, **Compliance officer**, **Auditor** and **Executive viewer** can read the pages. An administrator can grant the permissions to any other role under **Administration > Roles**.
+You need the **continuity** permissions: `continuity.view` to read processes, analyses, plans and activations, `continuity.create` and `continuity.edit` to record and change them (and to run an activation), `continuity.approve` to sign off impact analyses directly and approve plans, `continuity.export` to print call trees and export lists, `continuity.delete`, and `continuity.administer` to send the reminders by hand. The default **Continuity manager** role holds all of them; **Security lead**, **Safety manager**, **Compliance officer**, **Auditor** and **Executive viewer** can read the pages. An administrator can grant the permissions to any other role under **Administration > Roles**.
 
 Security incidents keep their own, restricted workspace (see [Security incidents](07-security-incidents.md)). An emergency activation is for everything else and shares nothing with it.
 
@@ -34,7 +34,14 @@ On the analysis's **Impacts** tab, rate how badly an outage of **1 hour**, **4 h
 
 The questions are the organization's own: an administrator changes them under **Administration > Lists** (list "bia_question"). Each value's `kind` in its settings says how it is answered: `yes_no`, `number` or `text`.
 
-When the analysis is ready, select **Submit for sign-off**. Someone with `continuity.approve` then selects **Sign off**: the analysis is locked, its downtime and targets are copied onto the process, **Last impact analysis** becomes today and **Next impact analysis due** becomes a year later (the setting `continuity.bia_every_months`, 12 unless changed). Start a new analysis for the next review.
+When the analysis is ready (it needs the maximum tolerable downtime), select **Submit for sign-off**. Signing it off locks the analysis, copies its downtime and targets onto the process, makes **Last impact analysis** today and **Next impact analysis due** a year later (the setting `continuity.bia_every_months`, 12 unless changed). Start a new analysis for the next review.
+
+Who signs it off:
+
+- **The process owner, through the approval workflow.** When the process has an **Owner**, submitting starts the **Impact analysis sign-off** workflow: the owner is asked to approve (they need only `continuity.view`), finds it under **Approvals**, and the workflow's progress shows at the top of the analysis (see [Approval workflows](22-approval-workflows.md)). **Process owner at submission** on the analysis says who was asked. Approval signs the analysis off in the owner's name; rejection sends it back to **Draft** with the reason in its history. Because the owner signs it off, the owner cannot submit it themselves: someone else does. An administrator can change the workflow (add steps, due times and escalation) or switch it off under **Administration > Approval workflows**.
+- **Directly, with Sign off.** When no workflow applies (the process has no owner, or the workflow is switched off), the analysis stays **Submitted** and someone with `continuity.approve` selects **Sign off**. While the owner is still being asked, the button reads **Sign off directly**: it signs the analysis off at once and cancels the waiting request.
+
+Setting a submitted analysis back to **Draft** by hand also cancels a waiting request.
 
 ### Plans
 

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   api, Button, Card, Checkbox, ConfirmDialog, EmptyState, errorMessage, ErrorState, formatDateTime, KeyValue, Loading, LookupChip, LookupSelect,
-  Modal, MultiSelect, PageHeader, ProgressBar, RecordPage, RecordPicker, ResourceList, Select, Stepper, TextArea, TextField, useAuth, useFetch,
+  Modal, MultiSelect, PageHeader, ProgressBar, RecordPage, RecordPicker, ResourceList, Select, Stepper, TableWrap, TextArea, TextField, useAuth, useFetch,
   useResource, useToast, UserPicker,
 } from '../../core';
 import type { RecordContext, Row } from '../../core';
@@ -151,7 +151,7 @@ function RolesTab({ activation, onChanged }: { activation: Row; onChanged: () =>
     <div className="stack">
       <Card title="Who is doing what" flush>
         {data.length === 0 ? <EmptyState icon="users" title="No roles assigned" message="Assign an emergency manager, an operations lead, communications and a scribe." /> : (
-          <div className="table-wrap">
+          <TableWrap label="Roles">
             <table className="table">
               <caption className="sr-only">Roles</caption>
               <thead><tr><th scope="col">Role</th><th scope="col">Person</th><th scope="col">Phone</th><th scope="col">Since</th>{canEdit && <th scope="col"><span className="sr-only">Actions</span></th>}</tr></thead>
@@ -167,7 +167,7 @@ function RolesTab({ activation, onChanged }: { activation: Row; onChanged: () =>
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
       </Card>
       {canEdit && (

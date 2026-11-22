@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import {
   ApiError, api, Badge, Button, Card, Checkbox, ConfirmDialog, DateField, DateTimeField, EditableSummary, EmptyState, ErrorState, errorMessage,
-  formatDate, formatDateTime, Loading, LookupChoices, LookupSelect, Modal, StatusChip, TextArea, TextField, Timeline, useAuth, useFetch, useLookup, useToast,
+  formatDate, formatDateTime, Loading, LookupChoices, LookupSelect, Modal, StatusChip, TableWrap, TextArea, TextField, Timeline, useAuth, useFetch, useLookup, useToast,
 } from '../../core';
 import type { ColorName, Row } from '../../core';
 
@@ -69,7 +69,7 @@ export function PeopleTab({ eventId, onChanged }: { eventId: string; onChanged: 
         : !data ? <div className="sf-pad"><Loading lines={3} /></div>
         : data.length === 0 ? <EmptyState icon="users" title="No people recorded" message="Record each person involved: passengers, employees, contractors, members of the public and trespassers." />
         : (
-          <div className="table-wrap">
+          <TableWrap label="People involved in this event">
             <table className="table sf-wrap">
               <caption className="sr-only">People involved in this event</caption>
               <thead><tr><th scope="col">Role</th><th scope="col">Name</th><th scope="col">Injury</th><th scope="col">Taken for treatment</th><th scope="col">Fatality</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
@@ -92,7 +92,7 @@ export function PeopleTab({ eventId, onChanged }: { eventId: string; onChanged: 
                 })}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
       <Modal open={!!editing} title={editing === 'new' ? 'Add a person involved' : 'Edit person involved'} onClose={() => setEditing(null)}
         dirty={JSON.stringify(form) !== JSON.stringify(start)}
@@ -311,7 +311,7 @@ export function ReportingTab({ eventId }: { eventId: string }) {
       </Card>
       <Card title="Notification clocks" flush>
         {data.clocks.length === 0 ? <EmptyState icon="clock" title="No clocks" message="A clock starts when a reporting rule applies to the event. Administrators write the rules under Safety reporting rules." /> : (
-          <div className="table-wrap">
+          <TableWrap label="Notification clocks of this event">
             <table className="table sf-wrap">
               <caption className="sr-only">Notification clocks of this event</caption>
               <thead><tr><th scope="col">Notify</th><th scope="col">Due</th><th scope="col">State</th><th scope="col">Record</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
@@ -336,7 +336,7 @@ export function ReportingTab({ eventId }: { eventId: string }) {
                 })}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
       </Card>
       <Modal open={!!recording} title={recording ? `${recording.mode === 'done' ? 'Record notification' : 'Not required'}: ${recording.clock.party}` : ''} onClose={() => setRecording(null)}

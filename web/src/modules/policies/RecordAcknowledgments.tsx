@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   api, ApiError, Badge, Button, Card, DateField, EmptyState, ErrorState, errorMessage, formatDate, Loading, Modal, Select, Stat,
-  StatusChip, TextArea, todayInZone, useAuth, useFetch, useToast,
+  StatusChip, TableWrap, TextArea, todayInZone, useAuth, useFetch, useToast,
 } from '../../core';
 import type { Row } from '../../core';
 import { ACK_STATE } from './shared';
@@ -101,7 +101,7 @@ export function RosterAcks({ policy, versionNumber }: { policy: Row; versionNumb
             <Stat label="Outstanding" value={data.counts.outstanding} color={data.counts.outstanding ? 'amber' : undefined} size="sm" />
             <Stat label="Overdue" value={data.counts.overdue} color={data.counts.overdue ? 'red' : undefined} size="sm" />
           </div>
-          <div className="table-wrap pol-tw">
+          <TableWrap label="Roster acknowledgments" className="pol-tw">
             <table className="table">
               <caption className="sr-only">Roster acknowledgments</caption>
               <thead>
@@ -121,7 +121,7 @@ export function RosterAcks({ policy, versionNumber }: { policy: Row; versionNumb
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         </>
       )}
       {recording && <RecordDialog policy={policy} onClose={() => setRecording(false)} onDone={() => { setRecording(false); reload(); }} />}

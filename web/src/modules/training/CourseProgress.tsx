@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   api, Button, Card, ConfirmDialog, EmptyState, ErrorState, errorMessage, IconButton, Loading, ProgressBar, Stat,
-  useAuth, useFetch, useToast,
+  TableWrap, useAuth, useFetch, useToast,
 } from '../../core';
 import { RecordDialog } from './RecordDialog';
 import { rateColor, recordsLink, RecordStatusChip, ResultCell, SOURCE, WhenCell } from './shared';
@@ -36,7 +36,7 @@ function PeopleTable({ caption, rows, today, selected, onToggle, onComplete, onR
 }) {
   const outstanding = !!selected;
   return (
-    <div className="table-wrap trn-tw">
+    <TableWrap label={caption} className="trn-tw">
       <table className="table">
         <caption className="sr-only">{caption}</caption>
         <thead>
@@ -76,7 +76,7 @@ function PeopleTable({ caption, rows, today, selected, onToggle, onComplete, onR
           ))}
         </tbody>
       </table>
-    </div>
+    </TableWrap>
   );
 }
 

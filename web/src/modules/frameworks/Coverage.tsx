@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  Button, Card, EmptyState, ErrorState, Icon, Loading, PageHeader, Select, StatusChip, TextField, cx, useFetch,
+  Button, Card, EmptyState, ErrorState, Icon, Loading, PageHeader, Select, StatusChip, TableWrap, TextField, cx, useFetch,
 } from '../../core';
 import { useFrameworkChoice } from './Board';
 import { rememberFramework } from './boardState';
@@ -97,7 +97,7 @@ export function CoveragePage() {
               : !detail.data?.requirements ? <Loading lines={6} label="Loading requirements" />
               : requirements.length === 0 ? <EmptyState icon="search" title="No requirement matches that search" />
               : (
-                <div className="table-wrap">
+                <TableWrap label={detail.data?.name ?? name}>
                   <table className="table fw-coverage-table">
                     <thead>
                       <tr><th scope="col">Requirement</th><th scope="col">Satisfied by</th><th scope="col">Status</th><th scope="col" className="num">At target</th></tr>
@@ -127,7 +127,7 @@ export function CoveragePage() {
                       )))}
                     </tbody>
                   </table>
-                </div>
+                </TableWrap>
               )}
           </Card>
         </div>

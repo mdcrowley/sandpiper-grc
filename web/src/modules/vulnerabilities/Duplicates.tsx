@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  api, Button, Card, ConfirmDialog, EmptyState, ErrorState, errorMessage, formatDate, Loading, PageHeader, StatusChip, useFetch, useToast, withReauth,
+  api, Button, Card, ConfirmDialog, EmptyState, ErrorState, errorMessage, formatDate, Loading, PageHeader, StatusChip, TableWrap, useFetch, useToast, withReauth,
 } from '../../core';
 import { SectionTabs, SeverityChip } from './shared';
 
@@ -47,7 +47,7 @@ function GroupCard({ group, canMerge, onMerged }: { group: Group; canMerge: bool
       flush
     >
       <p className="muted vuln-dup-key">Host <strong>{group.host}</strong> · port <strong>{group.port ?? 'none'}</strong> · finding <strong>{group.finding}</strong></p>
-      <div className="table-wrap vuln-tw">
+      <TableWrap label={`Findings with the same host, port and identifier${canMerge ? '; choose the one to keep' : ''}`} className="vuln-tw">
         <table className="table">
           <caption className="sr-only">Findings with the same host, port and identifier{canMerge ? '; choose the one to keep' : ''}</caption>
           <thead>
@@ -79,7 +79,7 @@ function GroupCard({ group, canMerge, onMerged }: { group: Group; canMerge: bool
             ))}
           </tbody>
         </table>
-      </div>
+      </TableWrap>
       <ConfirmDialog
         open={confirming} title={`Merge into ${kept.ref}?`} confirmLabel="Merge" busy={busy}
         message={`${others.map((f) => f.ref).join(', ')} will be removed. Their comments, files, links, tags and watchers move to ${kept.ref}, which keeps its own status and owner and takes the earliest first-seen and latest last-seen dates. The merge is recorded in ${kept.ref}'s history with the details of the findings removed.`}

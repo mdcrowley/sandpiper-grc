@@ -1,6 +1,6 @@
 // Sites: list and record, with the systems that serve the site and the assets held there.
 import { Link } from 'react-router-dom';
-import { Card, EditableSummary, EmptyState, ErrorState, Loading, LookupChip, RecordPage, ResourceList, useAuth, useFetch, useResource } from '../../core';
+import { Card, EditableSummary, EmptyState, ErrorState, Loading, LookupChip, RecordPage, ResourceList, TableWrap, useAuth, useFetch, useResource } from '../../core';
 import { ExtensionSections } from './Extensions';
 
 export function SiteList() {
@@ -28,7 +28,7 @@ function SiteSystems({ siteId }: { siteId: string }) {
         : data.length === 0 ? (
           <EmptyState icon="server" title="No systems linked" message="Link a site from a system's Overview tab (Sites served) and it will appear here." />
         ) : (
-          <div className="table-wrap">
+          <TableWrap label="Systems serving this site">
             <table className="table">
               <thead><tr><th scope="col">Reference</th><th scope="col">System</th><th scope="col">Group</th>{vendor && <th scope="col">Vendor</th>}<th scope="col">Criticality</th></tr></thead>
               <tbody>
@@ -43,7 +43,7 @@ function SiteSystems({ siteId }: { siteId: string }) {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
     </Card>
   );

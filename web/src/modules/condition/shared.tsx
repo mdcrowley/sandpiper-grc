@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  Button, Card, EmptyState, ErrorState, formatDate, formatNumber, KeyValue, Loading, LookupChip, Modal, ResourceForm, StatusChip, Tabs,
+  Button, Card, EmptyState, ErrorState, formatDate, formatNumber, KeyValue, Loading, LookupChip, Modal, ResourceForm, StatusChip, TableWrap, Tabs,
   todayInZone, useAuth, useFetch, useResource,
 } from '../../core';
 import type { ListResult, Row } from '../../core';
@@ -118,7 +118,7 @@ export function ConditionSection({ recordType, recordId }: { recordType: TargetT
           : !history.data ? <Loading lines={2} label="Loading the assessments" />
             : history.data.rows.length === 0 ? <EmptyState icon="clipboard" title="No assessments yet" message="Record the first one to rate its condition." />
               : (
-                <div className="table-wrap">
+                <TableWrap label="Condition assessments, newest first">
                   <table className="table">
                     <caption className="sr-only">Condition assessments, newest first</caption>
                     <thead><tr><th scope="col">Assessed on</th><th scope="col">Condition</th><th scope="col">Method</th><th scope="col">By</th><th scope="col">Reference</th></tr></thead>
@@ -134,7 +134,7 @@ export function ConditionSection({ recordType, recordId }: { recordType: TargetT
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </TableWrap>
               )}
       </div>
 

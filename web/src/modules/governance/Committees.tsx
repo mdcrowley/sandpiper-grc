@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   api, Badge, Button, Card, Checkbox, ConfirmDialog, DateField, EditableSummary, EmptyState, errorMessage, ErrorState, formatDate,
-  formatDateTime, Loading, LookupChip, LookupSelect, Modal, PageHeader, RecordPage, RecordPicker, ResourceList, TextField, useAuth,
+  formatDateTime, Loading, LookupChip, LookupSelect, Modal, PageHeader, RecordPage, RecordPicker, ResourceList, TableWrap, TextField, useAuth,
   useFetch, useLookup, useResource, useToast, UserPicker,
 } from '../../core';
 import type { Row } from '../../core';
@@ -108,7 +108,7 @@ function Members({ committee }: { committee: Row }) {
           : !data ? <div className="gv-pad"><Loading lines={3} /></div>
           : data.length === 0 ? <EmptyState icon="users" title="No members yet" message="Add the members, the side each sits for, and whether they vote." />
           : groups.map((g) => (
-            <div key={g.key} className="table-wrap gv-group">
+            <TableWrap label={`${g.label} (${g.rows.length})`} className="gv-group" key={g.key}>
               <table className="table">
                 <caption className="gv-caption">{g.label} ({g.rows.length})</caption>
                 <thead><tr><th scope="col">Name</th><th scope="col">Role</th><th scope="col">Votes</th><th scope="col">Term</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
@@ -127,7 +127,7 @@ function Members({ committee }: { committee: Row }) {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableWrap>
           ))}
       </Card>
       {editing && <MemberDialog committeeId={committee.id} member={editing === 'new' ? null : editing} onClose={() => setEditing(null)}
@@ -155,7 +155,7 @@ export function WaitingApprovals({ committeeId, onPick, picking }: { committeeId
   if (!data.chair_id) return <EmptyState icon="user" title="No chair named" message="Name the committee's chair to see the approvals waiting for them." />;
   if (!data.items.length) return <EmptyState icon="check-circle" title="Nothing waiting for the chair" message="No approval step is waiting for the chair's decision now." />;
   return (
-    <div className="table-wrap">
+    <TableWrap label="Approvals waiting for the chair">
       <table className="table">
         <caption className="sr-only">Approvals waiting for the chair</caption>
         <thead><tr><th scope="col">Record</th><th scope="col">Approval</th><th scope="col">Waiting since</th>{onPick && <th scope="col"><span className="sr-only">Actions</span></th>}</tr></thead>
@@ -170,7 +170,7 @@ export function WaitingApprovals({ committeeId, onPick, picking }: { committeeId
           ))}
         </tbody>
       </table>
-    </div>
+    </TableWrap>
   );
 }
 

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   api, Button, Card, ConfirmDialog, EmptyState, errorMessage, ErrorState, formatDate, formatDateTime, Loading, Modal, PageHeader,
-  RecordPage, RecordPicker, ResourceList, Select, StatusChip, TextArea, TextField, useAuth, useFetch, useMeta, useToast,
+  RecordPage, RecordPicker, ResourceList, Select, StatusChip, TableWrap, TextArea, TextField, useAuth, useFetch, useMeta, useToast,
 } from '../../core';
 import type { Row } from '../../core';
 import './holds.css';
@@ -99,7 +99,7 @@ function Records({ hold }: { hold: Row }) {
                 {data.total} record{data.total === 1 ? '' : 's'} held{data.hidden ? `, of which ${data.hidden} you cannot see (restricted, or in a part switched off)` : ''}.
               </p>
               {current.length === 0 ? <EmptyState icon="lock" title="No records you can see" message="Add records by hand, or save a query on the Queries tab." /> : (
-                <div className="table-wrap">
+                <TableWrap label="Records under this hold">
                   <table className="table">
                     <caption className="sr-only">Records under this hold</caption>
                     <thead><tr><th scope="col">Record</th><th scope="col">Added</th><th scope="col">How</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
@@ -118,7 +118,7 @@ function Records({ hold }: { hold: Row }) {
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </TableWrap>
               )}
             </>
           )}
@@ -219,7 +219,7 @@ function Queries({ hold }: { hold: Row }) {
         : !data ? <div className="lh-pad"><Loading lines={3} /></div>
         : data.length === 0 ? <EmptyState icon="search" title="No saved queries" message="A query holds every record of a kind that matches a search and conditions, now and as new ones appear." />
         : (
-          <div className="table-wrap">
+          <TableWrap label="Saved queries">
             <table className="table">
               <caption className="sr-only">Saved queries</caption>
               <thead><tr><th scope="col">Records</th><th scope="col">Matches</th><th scope="col">Last run</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
@@ -245,7 +245,7 @@ function Queries({ hold }: { hold: Row }) {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
       {adding && <QueryDialog holdId={hold.id} onClose={() => setAdding(false)} onSaved={() => { setAdding(false); reload(); }} />}
       <ConfirmDialog open={!!removing} title="Remove this query?" busy={busy === removing?.id} confirmLabel="Remove" onConfirm={remove} onCancel={() => setRemoving(null)}

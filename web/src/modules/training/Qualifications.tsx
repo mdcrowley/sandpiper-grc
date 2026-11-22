@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
-  Badge, Card, EmptyState, ErrorState, formatDate, Loading, LookupChip, PageHeader, RecordPage, ResourceList, Select, Stat, useAuth, useFetch,
+  Badge, Card, EmptyState, ErrorState, formatDate, Loading, LookupChip, PageHeader, RecordPage, ResourceList, Select, Stat, TableWrap, useAuth, useFetch,
   type ColorName,
 } from '../../core';
 
@@ -53,7 +53,7 @@ export function QualificationMatrix() {
     body = <EmptyState icon="users" title="Nobody to show" message="No one on the roster matches, or their positions have no requirements yet. Add requirements on each position." />;
   } else {
     body = (
-      <div className="table-wrap trn-matrix">
+      <TableWrap label="Each person against the requirements of their position" className="trn-matrix">
         <table className="table">
           <caption className="sr-only">Each person against the requirements of their position</caption>
           <thead>
@@ -75,7 +75,7 @@ export function QualificationMatrix() {
             ))}
           </tbody>
         </table>
-      </div>
+      </TableWrap>
     );
   }
 
@@ -128,7 +128,7 @@ function ExpiringCard() {
   else if (!data.rows.length) body = <EmptyState icon="check-circle" title="Nothing expiring" message={`No certification has expired or expires within ${days} days without a renewal.`} />;
   else {
     body = (
-      <div className="table-wrap">
+      <TableWrap label="Certifications expired or expiring">
         <table className="table">
           <caption className="sr-only">Certifications expired or expiring</caption>
           <thead><tr><th scope="col">Certification</th><th scope="col">Person</th><th scope="col">Position</th><th scope="col">Expires</th><th scope="col" className="num">Days left</th></tr></thead>
@@ -144,7 +144,7 @@ function ExpiringCard() {
             ))}
           </tbody>
         </table>
-      </div>
+      </TableWrap>
     );
   }
   return (

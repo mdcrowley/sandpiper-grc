@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   api, Button, Card, ConfirmDialog, EditableSummary, EmptyState, errorMessage, ErrorState, Loading, Modal, PageHeader, RecordPage, RecordPicker,
-  ResourceList, Stepper, useAuth, useFetch, useLookup, useResource, useToast,
+  ResourceList, Stepper, TableWrap, useAuth, useFetch, useLookup, useResource, useToast,
 } from '../../core';
 import { canMoveTo, editableLifecycle } from '../../core/lifecycleMenus';
 import type { RecordContext } from '../../core';
@@ -92,7 +92,7 @@ function Hazards({ eventId }: { eventId: string }) {
         : !data ? <div className="sf-pad"><Loading lines={3} /></div>
         : data.length === 0 ? <EmptyState icon="shield" title="No hazards linked" message="Link the hazards this event shows, so the hazard log reflects what happens." />
         : (
-          <div className="table-wrap">
+          <TableWrap label="Hazards linked to this event">
             <table className="table">
               <caption className="sr-only">Hazards linked to this event</caption>
               <thead><tr><th scope="col">Hazard</th><th scope="col">Rating</th><th scope="col">After mitigation</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
@@ -107,7 +107,7 @@ function Hazards({ eventId }: { eventId: string }) {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
       <Modal open={adding} title="Link a hazard" size="sm" onClose={() => setAdding(false)} dirty={!!pick}
         footer={<><Button onClick={() => setAdding(false)}>Cancel</Button><Button variant="primary" loading={busy} disabled={!pick} onClick={add}>Link</Button></>}>

@@ -3,7 +3,7 @@
 // records this person may see are listed.
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Card, EmptyState, ErrorState, Loading, LookupChip, MultiSelect, PageHeader, useFetch } from '../../core';
+import { Card, EmptyState, ErrorState, Loading, LookupChip, MultiSelect, PageHeader, TableWrap, useFetch } from '../../core';
 import { ControlsTabs, STATE_INFO, STATE_ORDER, StateChip, type CoverState } from './shared';
 
 interface MatrixControl { id: string; ref: string; title: string; key_control: boolean; state: CoverState }
@@ -50,7 +50,7 @@ export function CoveragePage() {
           <EmptyState icon="shield" title={data.rows.length ? 'Nothing matches the filters' : 'No covered records you can see'}
             message={data.rows.length ? 'Clear a filter to see more.' : 'Link controls to the risks, hazards, outcomes, obligations and policies they cover, from each control\'s Coverage tab.'} />
         ) : (
-          <div className="table-wrap">
+          <TableWrap label="Covered records, weakest first, with the controls each relies on">
             <table className="table">
               <caption className="sr-only">Covered records, weakest first, with the controls each relies on</caption>
               <thead><tr><th scope="col">Record</th><th scope="col">Kind</th><th scope="col">Status</th><th scope="col">Weakest control</th><th scope="col">Controls</th></tr></thead>
@@ -72,7 +72,7 @@ export function CoveragePage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
       </Card>
     </div>

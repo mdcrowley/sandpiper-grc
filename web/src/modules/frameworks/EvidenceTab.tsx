@@ -2,7 +2,7 @@ import { Suspense, lazy, useState } from 'react';
 import type { ComponentType, FormEvent } from 'react';
 import {
   ApiError, Button, Card, ConfirmDialog, DateField, EmptyState, ErrorState, IconButton, Loading, Modal, StatusChip,
-  TextArea, TextField, api, errorMessage, formatDate, useFetch, useToast, useUnsavedChanges,
+  TableWrap, TextArea, TextField, api, errorMessage, formatDate, useFetch, useToast, useUnsavedChanges,
 } from '../../core';
 import type { Row } from '../../core';
 import type { Evidence } from './types';
@@ -139,7 +139,7 @@ export function EvidenceTab({ outcome, canEdit }: { outcome: Row; canEdit: boole
               action={addButton || undefined}
             />
           ) : (
-            <div className="table-wrap">
+            <TableWrap label={`${data.length} evidence note${data.length === 1 ? '' : 's'}${expired ? `, ${expired} expired` : ''}`}>
               <table className="table">
                 <caption className="sr-only">{data.length} evidence note{data.length === 1 ? '' : 's'}{expired ? `, ${expired} expired` : ''}</caption>
                 <thead>
@@ -167,7 +167,7 @@ export function EvidenceTab({ outcome, canEdit }: { outcome: Row; canEdit: boole
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableWrap>
           )}
       </Card>
 

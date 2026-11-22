@@ -1,7 +1,7 @@
 // A roster person's training, certifications and qualification (E29-05, E29-06), shown on their
 // record page in the people module, which loads it only when training is in the build.
 import { Link } from 'react-router-dom';
-import { Badge, Card, EmptyState, ErrorState, formatDate, Loading, LookupChip, useAuth, useFetch } from '../../core';
+import { Badge, Card, EmptyState, ErrorState, formatDate, Loading, LookupChip, TableWrap, useAuth, useFetch } from '../../core';
 import { CellChip, QualifiedBadge } from './Qualifications';
 import { STATUS } from './shared';
 
@@ -31,7 +31,7 @@ export function PersonTraining({ personId }: { personId: string }) {
     <div className="stack">
       <Card title="Qualification" actions={<QualifiedBadge qualified={data.qualified} required={data.requirements.filter((r) => r.mandatory).length} />} flush={!!data.requirements.length}>
         {data.requirements.length ? (
-          <div className="table-wrap">
+          <TableWrap label="Requirements of the person's position">
             <table className="table">
               <caption className="sr-only">Requirements of the person's position</caption>
               <thead><tr><th scope="col">Requirement</th><th scope="col">Mandatory</th><th scope="col">State</th><th scope="col">In date until</th></tr></thead>
@@ -44,13 +44,13 @@ export function PersonTraining({ personId }: { personId: string }) {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         ) : <p className="muted">The person has no position, or their position has no requirements.</p>}
       </Card>
       <Card title="Certifications" flush={!!data.certifications.length}
         actions={can('training.create') && <Link className="btn btn-secondary btn-sm" to={`/training/certifications?new=1`}>Add certification</Link>}>
         {data.certifications.length ? (
-          <div className="table-wrap">
+          <TableWrap label="Certifications">
             <table className="table">
               <caption className="sr-only">Certifications</caption>
               <thead><tr><th scope="col">Reference</th><th scope="col">Certification</th><th scope="col">Expires</th><th scope="col">Status</th></tr></thead>
@@ -65,12 +65,12 @@ export function PersonTraining({ personId }: { personId: string }) {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         ) : <EmptyState icon="star" title="No certifications" message="Certifications recorded for this person appear here." />}
       </Card>
       <Card title="Training records" flush={!!data.records.length}>
         {data.records.length ? (
-          <div className="table-wrap">
+          <TableWrap label="Training records">
             <table className="table">
               <caption className="sr-only">Training records</caption>
               <thead><tr><th scope="col">Course</th><th scope="col">Status</th><th scope="col">Due</th><th scope="col">Completed</th></tr></thead>
@@ -85,7 +85,7 @@ export function PersonTraining({ personId }: { personId: string }) {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         ) : <EmptyState icon="graduation" title="No training yet" message="Training assigned by position, recorded or imported appears here." />}
       </Card>
     </div>

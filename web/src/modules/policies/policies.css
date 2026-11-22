@@ -20,7 +20,8 @@
 .pol-body pre code { padding: 0; background: none; }
 .pol-body blockquote { margin: 0 0 var(--s-3); padding: var(--s-2) var(--s-3); border-inline-start: 3px solid var(--border-strong); color: var(--text-muted); }
 .pol-body blockquote p:last-child { margin-bottom: 0; }
-.pol-body table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; margin: 0 0 var(--s-3); }
+.pol-body .pol-table-wrap { max-width: 100%; overflow-x: auto; margin: 0 0 var(--s-3); scrollbar-width: thin; }
+.pol-body table { border-collapse: collapse; }
 .pol-body th, .pol-body td { padding: var(--s-2) var(--s-3); text-align: start; vertical-align: top; border: 1px solid var(--border); }
 .pol-body th { font-weight: 600; background: var(--surface-2); }
 .pol-body hr { border: 0; border-top: 1px solid var(--border); margin: var(--s-4) 0; }

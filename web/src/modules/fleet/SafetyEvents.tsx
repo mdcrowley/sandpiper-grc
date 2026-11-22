@@ -1,6 +1,6 @@
 // Safety events recorded against a vehicle or a service (served by the safety module).
 import { Link } from 'react-router-dom';
-import { Card, EmptyState, ErrorState, formatDateTime, Loading, LookupChip, useFetch } from '../../core';
+import { Card, EmptyState, ErrorState, formatDateTime, Loading, LookupChip, TableWrap, useFetch } from '../../core';
 
 interface EventRow { id: string; ref: string; title: string; occurred_at: string; event_type: string; severity: string; status: string }
 
@@ -12,7 +12,7 @@ export function SafetyEventsCard({ url }: { url: string }) {
         : !data ? <div className="fl-pad"><Loading lines={3} label="Loading safety events" /></div>
         : data.length === 0 ? <EmptyState icon="shield" title="No safety events recorded" />
         : (
-          <div className="table-wrap">
+          <TableWrap label="Safety events">
             <table className="table">
               <caption className="sr-only">Safety events</caption>
               <thead><tr><th scope="col">Event</th><th scope="col">When</th><th scope="col">Type</th><th scope="col">Severity</th><th scope="col">Status</th></tr></thead>
@@ -28,7 +28,7 @@ export function SafetyEventsCard({ url }: { url: string }) {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
     </Card>
   );

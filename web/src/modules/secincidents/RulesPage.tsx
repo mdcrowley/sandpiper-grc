@@ -176,7 +176,7 @@ export function RulesPage() {
 
   return (
     <div className="stack">
-      <PageHeader title="Notification rules and checklists"
+      <PageHeader title="Rules and checklists"
         subtitle={admin ? 'Who must be told, by when, and what to do first' : 'Read-only: an administrator can change these'}
         breadcrumbs={[{ label: 'Security incidents', to: '/security-incidents' }, { label: 'Rules and checklists' }]}
         actions={<Link className="btn btn-secondary" to="/security-incidents/kit">Offline incident kit</Link>} />

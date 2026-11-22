@@ -133,15 +133,23 @@ function ImpactGrid({ row, save, canEdit }: RecordContext) {
   );
 }
 
-function Actions({ row, save, canEdit, reload }: RecordContext) {
+interface SignOffState { available: boolean; request: { id: string; workflow: string; status: string } | null }
+
+function Actions({ row, canEdit, reload }: RecordContext) {
   const { can } = useAuth();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
   const [signing, setSigning] = useState(false);
+  const state = useFetch<SignOffState>(row.status === 'submitted' ? `/api/bias/${row.id}/sign-off?v=${encodeURIComponent(String(row.updated_at ?? ''))}` : null).data;
   if (row.status === 'signed_off') return null;
+  const waiting = state?.request?.status === 'running';
   const submit = async () => {
     setBusy(true);
-    try { await save({ status: 'submitted' }); toast.success('Submitted for sign-off.'); } catch (err) { toast.error(errorMessage(err)); } finally { setBusy(false); }
+    try {
+      const res = await api.post<{ workflow: string | null }>(`/api/bias/${row.id}/submit`);
+      toast.success(res.workflow ? 'Sent to the process owner for sign-off.' : 'Submitted for sign-off.');
+      reload();
+    } catch (err) { toast.error(errorMessage(err)); } finally { setBusy(false); }
   };
   const signOff = async () => {
     setBusy(true);
@@ -151,9 +159,11 @@ function Actions({ row, save, canEdit, reload }: RecordContext) {
   return (
     <>
       {canEdit && row.status === 'draft' && <Button loading={busy} onClick={submit}>Submit for sign-off</Button>}
-      {can('continuity.approve') && row.status === 'submitted' && <Button variant="primary" loading={busy} onClick={() => setSigning(true)}>Sign off</Button>}
+      {can('continuity.approve') && row.status === 'submitted' && (
+        <Button variant={waiting ? undefined : 'primary'} loading={busy} onClick={() => setSigning(true)}>{waiting ? 'Sign off directly' : 'Sign off'}</Button>
+      )}
       <ConfirmDialog open={signing} title="Sign off this impact analysis?" confirmLabel="Sign off" busy={busy} onConfirm={signOff} onCancel={() => setSigning(false)}
-        message="Its tolerable downtime and recovery targets are copied onto the process, and the next analysis becomes due in a year. The analysis can no longer be changed." />
+        message={`${waiting ? 'The sign-off request waiting for the process owner is canceled. ' : ''}Its tolerable downtime and recovery targets are copied onto the process, and the next analysis becomes due. The analysis can no longer be changed.`} />
     </>
   );
 }
@@ -166,7 +176,7 @@ export function BiaDetail() {
       actions={(rec) => <Actions {...rec} />}
       banner={({ row }) => (row.status === 'signed_off'
         ? <p className="notice notice-success">Signed off by {row.signed_off_by_name ?? 'an approver'}. Start a new analysis for the next review.</p> : null)}
-      summary={({ row, reload }) => <EditableSummary type="bia" row={row} onSaved={reload} editable={row.status !== 'signed_off' && undefined} fields={['process_id', 'assessed_on', 'assessor_id', 'notes', 'signed_off_by_name', 'signed_off_on']} />}
+      summary={({ row, reload }) => <EditableSummary type="bia" row={row} onSaved={reload} editable={row.status !== 'signed_off' && undefined} fields={['process_id', 'assessed_on', 'assessor_id', 'notes', 'process_owner_id', 'signed_off_by_name', 'signed_off_on']} />}
       tabs={[{ key: 'impacts', label: 'Impacts', content: (rec) => <ImpactGrid key={String(rec.row.updated_at)} {...rec} /> }]}
     />
   );

@@ -268,6 +268,9 @@ ${keys}
           rsa_pub: rsaPub, pem: o.encryptFor,
           encryptionAlgorithm: o.encryptionAlgorithm ?? 'http://www.w3.org/2009/xmlenc11#aes256-gcm',
           keyEncryptionAlgorithm: 'http://www.w3.org/2001/04/xmlenc#rsa-oaep-mgf1p',
+          // xml-encryption 4+ refuses to encrypt with CBC by default; this test provider still sends
+          // it when asked, so the tests can show the application refusing it.
+          disallowEncryptionWithInsecureAlgorithm: false, warnInsecureAlgorithm: false,
         }) as string;
         assertion = `<saml:EncryptedAssertion xmlns:saml="${A}">${encrypted}</saml:EncryptedAssertion>`;
       }

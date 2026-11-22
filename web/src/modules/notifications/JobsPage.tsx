@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   api, Button, Card, Drawer, EmptyState, ErrorState, errorMessage, formatDateTime, KeyValue, Loading, PageHeader, qs, relativeTime,
-  Select, Stat, StatusChip, useFetch, useToast,
+  Select, Stat, StatusChip, TableWrap, useFetch, useToast,
 } from '../../core';
 import type { ColorName } from '../../core';
 import './notifications.css';
@@ -153,7 +153,7 @@ export function JobsPage() {
 
           <Card title="Schedules" flush>
             {data.schedules.length === 0 ? <EmptyState icon="clock" title="No schedules" message="Parts of the application add their own regular work here." /> : (
-              <div className="table-wrap">
+              <TableWrap label="Schedules">
                 <table className="table ml-table">
                   <thead><tr><th scope="col">Work</th><th scope="col">How often</th><th scope="col">Last run</th><th scope="col">Next run</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
                   <tbody>
@@ -171,7 +171,7 @@ export function JobsPage() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </TableWrap>
             )}
           </Card>
 
@@ -186,7 +186,7 @@ export function JobsPage() {
             {data.total === 0 ? (
               <EmptyState icon="check-circle" title={status ? 'No jobs with this status' : 'No jobs yet'} message={status === 'dead' ? 'Nothing has given up. Good.' : 'Jobs appear here as the application queues work.'} />
             ) : (
-              <div className="table-wrap" style={{ marginTop: 'var(--s-3)' }}>
+              <TableWrap label="Recent jobs" style={{ marginTop: 'var(--s-3)' }}>
                 <table className="table ml-table">
                   <thead><tr><th scope="col">Job</th><th scope="col">Status</th><th scope="col">Attempts</th><th scope="col">Queued</th><th scope="col">Finished or next</th></tr></thead>
                   <tbody>
@@ -204,7 +204,7 @@ export function JobsPage() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </TableWrap>
             )}
           </Card>
           {data.total > data.pageSize && (

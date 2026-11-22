@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  ApiError, Button, EmptyState, ErrorState, IconButton, Loading, Modal, TextField, api, errorMessage, useFetch, useLookup, useToast,
+  ApiError, Button, EmptyState, ErrorState, IconButton, Loading, Modal, TableWrap, TextField, api, errorMessage, useFetch, useLookup, useToast,
   useUnsavedChanges,
 } from '../../core';
 import type { Row } from '../../core';
@@ -100,7 +100,7 @@ export function MappingsTab({ outcome, canEdit, onChanged }: { outcome: Row; can
           <EmptyState icon="link" title="Not mapped to anything else yet"
             message={canEdit ? 'Add the first mapping below.' : 'Nobody has mapped this outcome to another framework.'} />
         ) : (
-          <div className="table-wrap">
+          <TableWrap label="Mappings to other frameworks">
             <table className="table">
               <thead><tr><th scope="col">Framework or requirement</th><th scope="col">Reference</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
               <tbody>
@@ -120,7 +120,7 @@ export function MappingsTab({ outcome, canEdit, onChanged }: { outcome: Row; can
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
 
       {canEdit && (

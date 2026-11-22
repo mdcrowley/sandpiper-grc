@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  api, Badge, Button, Card, EmptyState, errorMessage, ErrorState, IconButton, Loading, RecordPicker, Select, useAuth, useFetch, useMeta, useToast,
+  api, Badge, Button, Card, EmptyState, errorMessage, ErrorState, IconButton, Loading, RecordPicker, Select, TableWrap, useAuth, useFetch, useMeta, useToast,
   type Row,
 } from '../../core';
 
@@ -66,7 +66,7 @@ function AddLink({ changeId, types, affects, onAdded }: AddProps) {
 
 function LinkTable({ rows, mainIds, canEdit, onRemove, phrase }: { rows: LinkRow[]; mainIds: string[]; canEdit: boolean; onRemove: (l: LinkRow) => void; phrase: boolean }) {
   return (
-    <div className="table-wrap chg-tw">
+    <TableWrap label="Related records" className="chg-tw">
       <table className="table">
         <thead><tr><th>Type</th><th>Record</th>{phrase && <th>How it relates</th>}<th><span className="sr-only">Remove</span></th></tr></thead>
         <tbody>
@@ -89,7 +89,7 @@ function LinkTable({ rows, mainIds, canEdit, onRemove, phrase }: { rows: LinkRow
           ))}
         </tbody>
       </table>
-    </div>
+    </TableWrap>
   );
 }
 

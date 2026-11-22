@@ -1,7 +1,7 @@
 // Administration > Email > Delivery log: every message the application tried to send.
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Button, Card, EmptyState, ErrorState, formatDateTime, Loading, qs, relativeTime, Select, StatusChip, useFetch } from '../../core';
+import { Button, Card, EmptyState, ErrorState, formatDateTime, Loading, qs, relativeTime, Select, StatusChip, TableWrap, useFetch } from '../../core';
 import type { ColorName } from '../../core';
 
 interface LogRow {
@@ -57,7 +57,7 @@ export function MailLog() {
         {data.total === 0 ? (
           <EmptyState icon="message" title={status ? 'Nothing with this status' : 'Nothing sent yet'} message="Each message the application tries to send is listed here, with what happened to it." />
         ) : (
-          <div className="table-wrap">
+          <TableWrap label="Messages sent">
             <table className="table ml-table">
               <thead>
                 <tr><th scope="col">When</th><th scope="col">To</th><th scope="col">Subject</th><th scope="col">Kind</th><th scope="col">Status</th></tr>
@@ -83,7 +83,7 @@ export function MailLog() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
       </Card>
       {data.total > data.pageSize && (

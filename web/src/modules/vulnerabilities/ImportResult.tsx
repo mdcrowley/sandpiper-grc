@@ -2,7 +2,7 @@
 // with the rows sorted into what is new, what changes, what is left alone and what is wrong.
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Button, Card, Checkbox, EmptyState, Icon, Stat, StatusChip, Tabs } from '../../core';
+import { Button, Card, Checkbox, EmptyState, Icon, Stat, StatusChip, TableWrap, Tabs } from '../../core';
 import type { ColorName } from '../../core';
 import { SeverityChip } from './shared';
 
@@ -36,7 +36,7 @@ function Rows({ rows, total, empty }: { rows: ImportRow[]; total: number; empty:
   if (rows.length === 0) return <EmptyState icon="check-circle" title={total > 0 ? 'Not in the rows shown' : empty} message={total > 0 ? 'A long file shows its first rows only, problems first.' : undefined} />;
   return (
     <>
-      <div className="table-wrap vuln-tw vuln-wrap">
+      <TableWrap label="Rows of the file with what the import does with each" className="vuln-tw vuln-wrap">
         <table className="table">
           <caption className="sr-only">Rows of the file with what the import does with each</caption>
           <thead>
@@ -66,7 +66,7 @@ function Rows({ rows, total, empty }: { rows: ImportRow[]; total: number; empty:
             ))}
           </tbody>
         </table>
-      </div>
+      </TableWrap>
       {total > rows.length && <p className="vuln-pad muted vuln-note">Showing {rows.length} of {total}.</p>}
     </>
   );

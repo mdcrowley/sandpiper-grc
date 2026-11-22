@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   api, ApiError, Button, Card, Chart, chartColor, EmptyState, errorMessage, ErrorState, formatDate, Loading, Modal, NumberField, PageHeader,
-  Stat, useAuth, useFetch, useToast,
+  Stat, TableWrap, useAuth, useFetch, useToast,
 } from '../../core';
 import type { ChartOption, ChartSegment } from '../../core';
 import { daysPhrase, rateColor, recordsLink } from './shared';
@@ -36,7 +36,7 @@ function Breakdown({ caption, first, rows }: {
   caption: string; first: string; rows: (Tally & { key: string; name: string; to: (status?: RecordStatus) => string; open?: string })[];
 }) {
   return (
-    <div className="table-wrap trn-tw">
+    <TableWrap label={caption} className="trn-tw">
       <table className="table trn-breakdown">
         <caption className="sr-only">{caption}</caption>
         <thead>
@@ -58,7 +58,7 @@ function Breakdown({ caption, first, rows }: {
           ))}
         </tbody>
       </table>
-    </div>
+    </TableWrap>
   );
 }
 
@@ -208,7 +208,7 @@ export function TrainingOverview() {
         {data.overdue.length === 0 ? (
           <EmptyState icon="check" title="Nothing is overdue" message="Everyone is up to date or still within their due date." />
         ) : (
-          <div className="table-wrap trn-tw">
+          <TableWrap label="Overdue training, longest overdue first" className="trn-tw">
             <table className="table">
               <caption className="sr-only">Overdue training, longest overdue first</caption>
               <thead><tr><th scope="col">Person</th><th scope="col">Department</th><th scope="col">Course</th><th scope="col">Due</th></tr></thead>
@@ -223,7 +223,7 @@ export function TrainingOverview() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
         {data.overdue.length > 15 && <p className="muted trn-more">Showing the 15 longest overdue of {data.overdue.length}.</p>}
       </Card>

@@ -470,4 +470,4 @@ It has no dependencies and runs on any Node.js 18 or later, including the portab
   screen warns about it.
 - Not built (see the epic E21): `private_key_jwt` for metadata-document connectors, sign-in
   through the stdio bridge, and keeping the per-token request counts
-  outside process memory (E14-12).
+  outside process memory, so that several server processes share them (E16-43).

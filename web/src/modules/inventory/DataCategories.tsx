@@ -1,6 +1,6 @@
 // Data categories: list and record, with the systems that hold each category.
 import { Link } from 'react-router-dom';
-import { Card, EditableSummary, EmptyState, ErrorState, Loading, LookupChip, RecordPage, ResourceList, useAuth, useFetch } from '../../core';
+import { Card, EditableSummary, EmptyState, ErrorState, Loading, LookupChip, RecordPage, ResourceList, TableWrap, useAuth, useFetch } from '../../core';
 import { ExtensionSections } from './Extensions';
 
 export function DataCategoryList() {
@@ -27,7 +27,7 @@ function Holders({ categoryId }: { categoryId: string }) {
         : data.length === 0 ? (
           <EmptyState icon="database" title="No systems linked" message="Link this category from a system's Data held tab and the system will appear here." />
         ) : (
-          <div className="table-wrap">
+          <TableWrap label="Systems holding this data">
             <table className="table">
               <thead><tr><th scope="col">Reference</th><th scope="col">System</th><th scope="col">Group</th><th scope="col">Hosting</th><th scope="col">Multi-factor</th></tr></thead>
               <tbody>
@@ -42,7 +42,7 @@ function Holders({ categoryId }: { categoryId: string }) {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
     </Card>
   );

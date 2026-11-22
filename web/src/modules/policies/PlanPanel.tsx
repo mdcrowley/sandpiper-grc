@@ -3,7 +3,7 @@
 // annual review". Shows nothing for other policies. Owned by the governance work (wave 10).
 import { useState } from 'react';
 import {
-  api, Button, Card, ConfirmDialog, EmptyState, errorMessage, formatDate, IconButton, Modal, Select, TextField, useAuth, useFetch,
+  api, Button, Card, ConfirmDialog, EmptyState, errorMessage, formatDate, IconButton, Modal, Select, TableWrap, TextField, useAuth, useFetch,
   useLookup, UserPicker, useToast,
 } from '../../core';
 import type { Row } from '../../core';
@@ -105,7 +105,7 @@ export function PlanPanel({ policy, onChanged }: { policy: Row; onChanged?: () =
           {!data.review_available ? ' No Annual plan review workflow is active; an administrator can set one up under Administration > Approval workflows.' : ''}
         </p>
         {data.reviews.length === 0 ? <p className="muted">No reviews recorded yet.</p> : (
-          <div className="table-wrap">
+          <TableWrap label="Plan reviews">
             <table className="table">
               <caption className="sr-only">Plan reviews</caption>
               <thead><tr><th scope="col">Year</th><th scope="col">Outcome</th><th scope="col">Started</th><th scope="col">Approved</th><th scope="col">Version</th></tr></thead>
@@ -121,7 +121,7 @@ export function PlanPanel({ policy, onChanged }: { policy: Row; onChanged?: () =
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
       </Card>
       {editing && <MapEditor policyId={String(policy.id)} elements={data.elements} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); reload(); }} />}

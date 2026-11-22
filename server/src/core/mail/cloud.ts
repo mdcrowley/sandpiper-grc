@@ -71,7 +71,7 @@ export async function cloudFetch(url: string, init: { method?: string; headers?:
   try {
     res = await fetch(url, {
       method: init.method ?? 'GET', headers: { accept: 'application/json', ...init.headers },
-      body: init.body as BodyInit | undefined, redirect: 'manual', signal: AbortSignal.timeout(TIMEOUT_MS),
+      body: init.body as RequestInit['body'], redirect: 'manual', signal: AbortSignal.timeout(TIMEOUT_MS),
     });
   } catch (err) {
     const timedOut = (err as Error)?.name === 'TimeoutError';

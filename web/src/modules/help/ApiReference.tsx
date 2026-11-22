@@ -5,7 +5,7 @@
 // The server cuts the description down to what the signed-in person may use.
 import { Fragment, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { Card, cx, EmptyState, ErrorState, Loading, PageHeader, TextField, useFetch } from '../../core';
+import { Card, cx, EmptyState, ErrorState, Loading, PageHeader, TableWrap, TextField, useFetch } from '../../core';
 import ApiExamples from './ApiExamples';
 import './help.css';
 
@@ -156,12 +156,12 @@ function SchemaView({ schema, doc, depth = 0 }: { schema: Schema | undefined; do
 
 const PARAMS_SHOWN = 12;
 
-function Parameters({ params }: { params: Parameter[] }) {
+function Parameters({ params, label }: { params: Parameter[]; label: string }) {
   const [all, setAll] = useState(false);
   const shown = all ? params : params.slice(0, PARAMS_SHOWN);
   return (
     <>
-      <div className="api-table-wrap">
+      <TableWrap label={label} className="api-table-wrap">
         <table className="api-table">
           <thead><tr><th scope="col">Name</th><th scope="col">In</th><th scope="col">Type</th><th scope="col">About</th></tr></thead>
           <tbody>
@@ -175,7 +175,7 @@ function Parameters({ params }: { params: Parameter[] }) {
             ))}
           </tbody>
         </table>
-      </div>
+      </TableWrap>
       {params.length > PARAMS_SHOWN && (
         <button type="button" className="api-more" onClick={() => setAll(!all)}>
           {all ? 'Show fewer' : `Show all ${params.length} parameters`}
@@ -201,7 +201,7 @@ function OperationBody({ entry, doc }: { entry: Entry; doc: OpenApiDoc }) {
         {op.operationId && <li>Operation id <code>{op.operationId}</code></li>}
       </ul>
       {params.length > 0 && (
-        <section><h4>Parameters</h4><Parameters params={params} /></section>
+        <section><h4>Parameters</h4><Parameters params={params} label={`Parameters of ${entry.method.toUpperCase()} ${entry.path}`} /></section>
       )}
       {Object.keys(body).length > 0 && (
         <section>
@@ -280,7 +280,7 @@ export default function ApiReference() {
       <PageHeader
         title="API reference"
         subtitle="Every route you may call, with its parameters and what it returns. Generated from the running application."
-        breadcrumbs={[{ label: 'Help', to: '/help' }, { label: 'API reference' }]}
+        breadcrumbs={[{ label: 'User guide', to: '/help' }, { label: 'API reference' }]}
       />
       {error ? <ErrorState title="The API description could not be loaded" error={error} onRetry={reload} />
         : !doc ? <Loading lines={10} label="Loading the API description" />

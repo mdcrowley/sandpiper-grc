@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useState, type ComponentType, type FormEvent
 import { Link } from 'react-router-dom';
 import {
   api, ApiError, Button, Card, DateField, EmptyState, ErrorState, errorMessage, formatDate, IconButton, Loading, LookupChip, LookupSelect,
-  Modal, PageHeader, RecordPage, ResourceList, Stat, StatusChip, TextArea, TextField, todayInZone, useFetch, useMeta, useToast,
+  Modal, PageHeader, RecordPage, ResourceList, Stat, StatusChip, TableWrap, TextArea, TextField, todayInZone, useFetch, useMeta, useToast,
 } from '../../core';
 import type { ListResult, RecordContext, Row, StatsResult } from '../../core';
 import { DueChip } from './scales';
@@ -254,7 +254,7 @@ function PeriodsPanel({ rec }: { rec: RecordContext }) {
             {data.periods.length === 0 ? (
               <EmptyState icon="calendar" title="No periods attested yet" message="Attest a period to record whether the obligation was met for it, with the evidence." />
             ) : (
-              <div className="table-wrap">
+              <TableWrap label="Periods of this obligation">
                 <table className="table">
                   <caption className="sr-only">Periods of this obligation</caption>
                   <thead>
@@ -277,7 +277,7 @@ function PeriodsPanel({ rec }: { rec: RecordContext }) {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </TableWrap>
             )}
           </>
         )}

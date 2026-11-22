@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   api, Button, Card, EditableSummary, EmptyState, ErrorState, errorMessage, formatDate, Loading, LookupChip, PageHeader,
-  RecordPage, RecordPicker, ResourceList, Select, useAuth, useFetch, useToast,
+  RecordPage, RecordPicker, ResourceList, Select, TableWrap, useAuth, useFetch, useToast,
 } from '../../core';
 import type { ReactNode } from 'react';
 import type { RecordTab, Row } from '../../core';
@@ -84,7 +84,7 @@ function MembersTab({ zone }: { zone: Row }) {
   const table = (title: string, rows: Row[], route: string, refField: string, cols: [string, string, (r: Row) => ReactNode][]) => (
     <Card title={`${title} (${rows.length})`} flush>
       {rows.length === 0 ? <EmptyState icon="server" title={`No ${title.toLowerCase()} in this zone`} message="Set the zone on a record's OT details, or add one here." /> : (
-        <div className="table-wrap">
+        <TableWrap label={`${title} in this zone`}>
           <table className="table">
             <caption className="sr-only">{title} in this zone</caption>
             <thead><tr><th scope="col">Name</th>{cols.map(([k, label]) => <th key={k} scope="col">{label}</th>)}</tr></thead>
@@ -97,7 +97,7 @@ function MembersTab({ zone }: { zone: Row }) {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableWrap>
       )}
     </Card>
   );
@@ -144,7 +144,7 @@ export function ZoneConduits({ zoneId }: { zoneId: string }) {
     <Card title="Conduits" flush
       actions={can('systems.create') ? <Link className="btn btn-ghost btn-sm" to={`/ot/conduits?new=1`}>New conduit</Link> : undefined}>
       {rows.length === 0 ? <EmptyState icon="link" title="No conduits" message="Record a conduit for each way data passes between this zone and another." /> : (
-        <div className="table-wrap">
+        <TableWrap label="Conduits joining this zone to others">
           <table className="table">
             <caption className="sr-only">Conduits joining this zone to others</caption>
             <thead><tr><th scope="col">Conduit</th><th scope="col">Other zone</th><th scope="col">Remote access</th><th scope="col">Target</th><th scope="col">Achieved</th><th scope="col">Flag</th></tr></thead>
@@ -164,7 +164,7 @@ export function ZoneConduits({ zoneId }: { zoneId: string }) {
               })}
             </tbody>
           </table>
-        </div>
+        </TableWrap>
       )}
     </Card>
   );

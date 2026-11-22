@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   api, Badge, Button, Card, EmptyState, ErrorState, errorMessage, formatDateTime, Loading, NumberField, PageHeader,
-  relativeTime, StatusChip, Switch, TextArea, useFetch, useToast,
+  relativeTime, StatusChip, Switch, TableWrap, TextArea, useFetch, useToast,
 } from '../../core';
 import { Notice } from '../admin/common';
 import { withReauth } from '../admin/reauth';
@@ -105,7 +105,7 @@ export function AdminAssistantsPage() {
                 Only allowed tools are offered to assistants. Each tool also needs the person&apos;s own permissions; tools that change records also need write access above.
               </p>
             </div>
-            <div className="table-wrap">
+            <TableWrap label="Tools">
               <table className="table mcp-tools">
                 <thead><tr><th scope="col">Allowed</th><th scope="col">Tool</th><th scope="col">Kind</th><th scope="col">What it does</th></tr></thead>
                 {groups.map(([group, tools]) => (
@@ -127,7 +127,7 @@ export function AdminAssistantsPage() {
                   </tbody>
                 ))}
               </table>
-            </div>
+            </TableWrap>
           </Card>
 
           <WhoMayConnectCard settings={data.settings} roles={data.roles} busy={busy} save={save} />
@@ -140,7 +140,7 @@ export function AdminAssistantsPage() {
             {data.usage.length === 0 ? (
               <EmptyState icon="history" title="No calls yet" message="Calls made by assistants appear here, per token." />
             ) : (
-              <div className="table-wrap">
+              <TableWrap label={`Call log, last ${data.days} days`}>
                 <table className="table">
                   <thead><tr><th scope="col">Token</th><th scope="col">Owner</th><th scope="col" className="num">Calls</th><th scope="col" className="num">Errors</th><th scope="col">Last call</th><th scope="col">Most used tools</th></tr></thead>
                   <tbody>
@@ -156,7 +156,7 @@ export function AdminAssistantsPage() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </TableWrap>
             )}
             {data.recent.length > 0 && (
               <details className="mcp-fold card-body">

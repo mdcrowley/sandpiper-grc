@@ -353,7 +353,7 @@ see in their action list.
 
 - [x] An Actions tab on the problem page, using the shared Actions panel
 - [x] Shown only when the `action` record type is loaded
-- [ ] The action source list has a "Problem" value (owned by the risks module; actions from problems are recorded with no source value until then)
+- [x] The action source list has a "Problem" value (owned by the risks module: `problem` in `action_source`, `server/src/modules/risks/index.ts` and `actions.ts`; an action made from a problem records it, tested in `risks/lifecycle.test.ts` "action sources and assignment")
 
 **Implemented in:** `web/src/modules/tickets/actions.tsx`, `Problems.tsx`
 

@@ -4,7 +4,7 @@ Looking after a vendor does not stop when the contract is signed. This page cove
 
 All of it is part of **Vendors and contracts**: it is switched off with that part under **Administration > Features**, and it uses the vendor permissions (`vendors.view` to read, `vendors.create` and `vendors.edit` to record and change, `vendors.approve` to sign off an offboarding, `vendors.administer` to change the settings). The **Security lead** role holds them all; **Agent**, **Compliance officer** and others can read. Lists and record pages work as described in [Getting started](01-getting-started.md).
 
-Open a vendor and its **Lifecycle** tab to see everything about one vendor in one place: its reassessment, its exclusion-list checks, its issues and its offboardings. Under **Vendors** in the menu, **Reassessments due**, **Vendor issues** and **Offboarding** list them across every vendor.
+Open a vendor and its **Lifecycle** tab to see everything about one vendor in one place: its reassessment, its exclusion-list checks, its issues and its offboardings. Under **Vendors** in the menu, **Reassessments due**, **Vendor issues** and **Vendor offboarding** list them across every vendor.
 
 ## Reassessment on a cadence
 
@@ -71,7 +71,7 @@ When a vendor leaves, the people who look after systems, assets and data need to
 
 - **When a contract ends.** Changing a contract's status to **Expired** or **Ended** (or any status an administrator marks as ended) starts an offboarding for that contract, once.
 - **When an end date passes.** Every night, a contract whose end date passed in the last 30 days, which does not renew by itself and is still not marked as ended, gets an offboarding too.
-- **By hand.** Select **Start offboarding** on a contract page (it shows **Open offboarding** once there is one), or **New vendor offboarding** under **Vendors > Offboarding** or on the vendor's **Lifecycle** tab (for example when a vendor leaves without a contract ending).
+- **By hand.** Select **Start offboarding** on a contract page (it shows **Open offboarding** once there is one), or **New vendor offboarding** under **Vendors > Vendor offboarding** or on the vendor's **Lifecycle** tab (for example when a vendor leaves without a contract ending).
 
 Each offboarding gets a reference such as `OFB-00001`, an **Owner** (the contract's owner when it started by itself; they are notified), a **Due** date 30 days ahead, and says why it started.
 

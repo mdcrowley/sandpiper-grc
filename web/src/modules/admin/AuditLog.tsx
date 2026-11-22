@@ -2,7 +2,7 @@ import { Fragment, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   api, Button, Card, DateField, EmptyState, ErrorState, errorMessage, formatDate, formatDateTime, humanize, Icon, IconButton, Loading,
-  PageHeader, qs, relativeTime, Select, TextField, todayInZone, useDebounced, useFetch, useMeta, UserPicker, useToast,
+  PageHeader, qs, relativeTime, Select, TableWrap, TextField, todayInZone, useDebounced, useFetch, useMeta, UserPicker, useToast,
 } from '../../core';
 import type { ListResult } from '../../core';
 import { AuditDiff, FilterPills, Pager } from './common';
@@ -126,7 +126,7 @@ export function AuditLogPage() {
               action={filtered ? <Button onClick={clear}>Clear filters</Button> : undefined} />
           ) : (
             <>
-              <div className={`table-wrap adm-table-frame${loading ? ' table-loading' : ''}`} aria-busy={loading}>
+              <TableWrap label="Audit events" className={`adm-table-frame${loading ? ' table-loading' : ''}`} aria-busy={loading}>
                 <table className="table adm-audit">
                   <thead>
                     <tr>
@@ -186,7 +186,7 @@ export function AuditLogPage() {
                     })}
                   </tbody>
                 </table>
-              </div>
+              </TableWrap>
               <Pager
                 summary={`${data.total.toLocaleString('en-US')} ${data.total === 1 ? 'event' : 'events'}, newest first`}
                 page={page} pages={pages} onPage={setPage} previous="Newer" next="Older"

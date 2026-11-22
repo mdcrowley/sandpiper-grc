@@ -4,7 +4,7 @@
 // is edited with the risk scales, which this page names only while that part is on.
 import { useEffect, useState, type CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
-import { api, ApiError, Button, Card, ErrorState, errorMessage, Loading, PageHeader, TextField, useAuth, useToast } from '../../core';
+import { api, ApiError, Button, Card, ErrorState, errorMessage, Loading, PageHeader, TableWrap, TextField, useAuth, useToast } from '../../core';
 import { useFetch } from '../../core';
 import type { Level, Scale } from './shared';
 
@@ -20,7 +20,7 @@ function Levels({ title, hint, levels, error, onChange }: {
     <Card title={title}>
       <p className="muted sf-hint sf-hint-top">{hint}</p>
       {error && <p role="alert" className="form-error">{error}</p>}
-      <div className="table-wrap">
+      <TableWrap label={title}>
         <table className="table sf-level-table">
           <thead><tr><th scope="col" className="sf-col-num">Value</th><th scope="col">Name</th><th scope="col">What it means</th></tr></thead>
           <tbody>
@@ -33,7 +33,7 @@ function Levels({ title, hint, levels, error, onChange }: {
             ))}
           </tbody>
         </table>
-      </div>
+      </TableWrap>
     </Card>
   );
 }
@@ -91,7 +91,7 @@ export function MatrixEditor() {
       <Card title="Matrix">
         <p className="muted sf-hint sf-hint-top">Choose the rating each pair of levels gives. {draft.likelihood_label} runs down the side, {draft.impact_label.toLowerCase()} along the bottom.</p>
         {fields.matrix && <p role="alert" className="form-error">{fields.matrix}</p>}
-        <div className="table-wrap sf-matrix-edit-wrap">
+        <TableWrap label="Matrix" className="sf-matrix-edit-wrap">
           <table className="sf-matrix-edit">
             <tbody>
               {rows.map((l) => (
@@ -117,7 +117,7 @@ export function MatrixEditor() {
             </tbody>
             <tfoot><tr><td />{cols.map((s) => <th key={s.value} scope="col">{s.label || s.value}</th>)}</tr></tfoot>
           </table>
-        </div>
+        </TableWrap>
       </Card>
 
       <div className="sf-grid">

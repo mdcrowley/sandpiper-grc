@@ -4,7 +4,7 @@ import { lazy, Suspense, useState, type ComponentType, type FormEvent } from 're
 import { Link } from 'react-router-dom';
 import {
   api, ApiError, Button, Card, DateField, EmptyState, ErrorState, errorMessage, formatDate, Loading, LookupChip, Modal,
-  ResourceList, Select, StatusChip, TextArea, TextField, todayInZone, useAuth, useFetch, useLookup, useResource, useToast,
+  ResourceList, Select, StatusChip, TableWrap, TextArea, TextField, todayInZone, useAuth, useFetch, useLookup, useResource, useToast,
   useUnsavedChanges,
 } from '../../core';
 import type { ColorName, Row } from '../../core';
@@ -135,7 +135,7 @@ export function ExclusionChecks({ vendorId, onChanged }: { vendorId: string; onC
       {data.rows.length === 0 ? (
         <EmptyState icon="shield" title="No checks recorded" message="Record each check of this vendor against an exclusion list, with its date and result." action={add} />
       ) : (
-        <div className="table-wrap">
+        <TableWrap label="Exclusion-list checks, newest first">
           <table className="table">
             <caption className="sr-only">Exclusion-list checks, newest first</caption>
             <thead>
@@ -154,7 +154,7 @@ export function ExclusionChecks({ vendorId, onChanged }: { vendorId: string; onC
               ))}
             </tbody>
           </table>
-        </div>
+        </TableWrap>
       )}
       {adding && <CheckForm vendorId={vendorId} onCancel={() => setAdding(false)} onDone={() => { setAdding(false); reload(); onChanged?.(); }} />}
     </Card>

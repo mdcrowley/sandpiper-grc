@@ -187,8 +187,8 @@ problem or project that caused it, so each of those shows the change in turn.
 - [x] A system page lists its recent and planned changes (through its Related tab, which
       shows every change linked to the system; a dated panel is E05-08)
 - [x] Links to tickets, problems and projects use the generic links
-- [ ] The relationship map can show what else a change may affect (moved to E05-08: the
-      map belongs to the inventory module)
+- [x] The relationship map can show what else a change may affect (built in E05-08: the
+      map's `?change=<id>` and **Show on relationship map**)
 
 **Implemented in**
 
@@ -284,7 +284,7 @@ the application, instead of someone recording my decision from an email.
 
 **Acceptance criteria**
 
-- [ ] Reuses the shared approval service ([E14-06](E14-platform-services.md)) once it exists (not built yet; the change module keeps its own)
+- [x] Reuses the shared approval service ([E14-06](E14-platform-services.md)) (built in E05-13: each rule names a `change_approval` workflow, `server/src/modules/changes/approval.ts`)
 - [x] An approval rule can name users or roles, not only role titles; it says how many must approve
 - [x] A "Waiting for me" view and a notification for each approver
 - [x] The recorded-by-hand route stays for approvals given outside the application

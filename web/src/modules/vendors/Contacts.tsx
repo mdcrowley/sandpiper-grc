@@ -3,7 +3,7 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import {
   api, ApiError, Badge, Button, Card, Checkbox, ConfirmDialog, EmptyState, ErrorState, errorMessage, IconButton, Loading,
-  Modal, TextField, useAuth, useFetch, useToast, useUnsavedChanges,
+  Modal, TableWrap, TextField, useAuth, useFetch, useToast, useUnsavedChanges,
 } from '../../core';
 
 interface Contact {
@@ -118,7 +118,7 @@ export function Contacts({ vendorId, onChanged }: { vendorId: string; onChanged?
     );
   } else {
     body = (
-      <div className="table-wrap">
+      <TableWrap label="Vendor contacts">
         <table className="table">
           <caption className="sr-only">Vendor contacts</caption>
           <thead>
@@ -149,7 +149,7 @@ export function Contacts({ vendorId, onChanged }: { vendorId: string; onChanged?
             ))}
           </tbody>
         </table>
-      </div>
+      </TableWrap>
     );
   }
 

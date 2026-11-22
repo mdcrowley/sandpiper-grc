@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  api, Button, Card, EditableSummary, EmptyState, ErrorState, errorMessage, Loading, Modal, RecordPicker, StatusChip, TextArea, TextField,
+  api, Button, Card, EditableSummary, EmptyState, ErrorState, errorMessage, Loading, Modal, RecordPicker, StatusChip, TableWrap, TextArea, TextField,
   useAuth, useFetch, useToast, type Row,
 } from '../../core';
 
@@ -66,7 +66,7 @@ export function SafetyAssessment({ row, canEdit, onChanged }: { row: Row; canEdi
           ? <EmptyState icon="shield" title={data.count ? `${data.count} hazard${data.count === 1 ? '' : 's'} linked` : 'No hazards linked'}
             message={data.count ? 'You may not see the hazard log.' : 'Link the hazards this change brings or changes, assessed in the hazard log.'} />
           : (
-            <div className="table-wrap">
+            <TableWrap label="Hazards linked as the safety assessment">
               <table className="table">
                 <caption className="sr-only">Hazards linked as the safety assessment</caption>
                 <thead><tr><th scope="col">Hazard</th><th scope="col">Status</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
@@ -80,7 +80,7 @@ export function SafetyAssessment({ row, canEdit, onChanged }: { row: Row; canEdi
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableWrap>
           )}
       </Card>
       <Modal open={!!mode} size="sm" title={mode === 'link' ? 'Link a hazard' : 'Create a hazard from this change'} onClose={() => setMode(null)}

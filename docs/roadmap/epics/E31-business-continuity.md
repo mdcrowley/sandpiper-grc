@@ -1,6 +1,6 @@
 # E31 Business continuity and emergency management
 
-**Status:** in progress (9 of 10 issues done)
+**Status:** done (10 of 10 issues done)
 
 ## Goal
 
@@ -12,7 +12,7 @@ Analyze the impact of losing each business process, keep continuity and emergenc
 - No mass notification to the public and no paging through outside services: a call tree is a list to print and call.
 - Security incidents keep their own restricted workspace; activations share no tables with it.
 - The impact area stored as `safety` is labeled **Harm to people**, so the impact grid names no switched-off area whatever is on; stored ratings are unchanged. The empty dependency list names only the kinds that can be added.
-- E31-10 (impact analysis sign-off through an approval workflow) was a wave 11 stretch and stays open for wave 12; sign-off is a direct action of a `continuity.approve` holder meanwhile.
+- E31-10 (impact analysis sign-off through an approval workflow) was a wave 11 stretch, built in wave 12: the process owner signs off through the `bia_signoff` approval kind; a `continuity.approve` holder can still sign off directly.
 
 ## Issues
 
@@ -27,7 +27,7 @@ Analyze the impact of losing each business process, keep continuity and emergenc
 | E31-07 | Area, permission key and Continuity manager role | done | P2 |
 | E31-08 | Dashboard, metrics and calendar | done | P2 |
 | E31-09 | Sample data and guide | done | P2 |
-| E31-10 | Impact analysis sign-off through an approval workflow | open | P3 |
+| E31-10 | Impact analysis sign-off through an approval workflow | done | P3 |
 
 ---
 
@@ -158,10 +158,16 @@ An evaluator wants invented sample processes, plans and an activation, and a gui
 
 ### E31-10 Impact analysis sign-off through an approval workflow
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
-A continuity manager wants the process owner to sign off an impact analysis through the approval workflows (approval kind `bia_signoff`), with the history of who decided. Wave 11 stretch, not built: a holder of `continuity.approve` signs off directly.
+A continuity manager wants the process owner to sign off an impact analysis through the approval workflows (approval kind `bia_signoff`), with the history of who decided. Wave 11 stretch, built in wave 12.
 
 **Acceptance criteria**
 
-- [ ] Approval kind `bia_signoff` (one step: the process owner); approval signs the analysis off as "Sign off" does today
+- [x] Approval kind `bia_signoff` (one step: the process owner); approval signs the analysis off as "Sign off" does today
+- [x] `POST /api/bias/:id/submit` records the process owner on the analysis (`process_owner_id`, migration `continuity/002`) and starts the workflow when one applies (the ready-made one needs a process owner); the owner needs only `continuity.view`, and cannot submit their own analysis while a workflow is active
+- [x] Rejection, or an administrator's cancellation, sends the analysis back to Draft with the reason in its history; setting it back to Draft by hand cancels the request
+- [x] With no workflow that applies, a `continuity.approve` holder signs off with "Sign off" as before; "Sign off directly" while the owner is asked cancels the request
+- [x] The kind follows the continuity area: gone while it is off
+
+**Implemented in:** `server/src/modules/continuity/bia.ts`, `migrations/002_bia_signoff.sql`; `web/src/modules/continuity/Bia.tsx`; `tools/e2e/suites/13-continuity.mjs`

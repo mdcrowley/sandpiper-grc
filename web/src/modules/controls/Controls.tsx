@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   api, Button, Card, ConfirmDialog, EditableSummary, EmptyState, ErrorState, errorMessage, formatDate, IconButton, Loading, LookupChip,
-  PageHeader, RecordPage, RecordPicker, ResourceList, Select, todayInZone, useAuth, useFetch, useToast,
+  PageHeader, RecordPage, RecordPicker, ResourceList, Select, TableWrap, todayInZone, useAuth, useFetch, useToast,
 } from '../../core';
 import type { RecordContext, Row } from '../../core';
 import { ControlsTabs, StateChip } from './shared';
@@ -96,7 +96,7 @@ export function CoverageTab({ control }: { control: Row }) {
               : canEdit ? 'Choose a kind of record and search for it above, to show which risks, hazards, outcomes, obligations or policies rely on this control.'
               : 'This control has not been linked to any record you can see.'} />
         ) : (
-          <div className="table-wrap">
+          <TableWrap label="Records this control covers">
             <table className="table">
               <caption className="sr-only">Records this control covers</caption>
               <thead>
@@ -114,7 +114,7 @@ export function CoverageTab({ control }: { control: Row }) {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
       </div>
       <ConfirmDialog

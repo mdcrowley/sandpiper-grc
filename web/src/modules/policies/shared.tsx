@@ -1,5 +1,7 @@
 // Types and small pieces shared by the policy and exception screens.
+import { useEffect, useMemo, useRef } from 'react';
 import { StatusChip, formatDate } from '../../core';
+import { wrapPolicyTables } from './policyTables';
 import type { ColorName } from '../../core';
 
 export interface PolicyVersion {
@@ -133,6 +135,28 @@ export function ExpiryChip({ date, status }: { date: string | null | undefined; 
  * attributes rebuilt from an allow-list, unsafe addresses dropped), so it can be placed as is.
  */
 export function PolicyBody({ html, empty = 'This version has no text.' }: { html: string | undefined; empty?: string }) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  // Each table scrolls inside its own box. A box that scrolls joins the tab order as a named
+  // region, so the keyboard can scroll it (the same behavior as TableWrap).
+  const wrapped = useMemo(() => wrapPolicyTables(html ?? ''), [html]);
+  useEffect(() => {
+    const boxes = Array.from(ref.current?.querySelectorAll<HTMLElement>('.pol-table-wrap') ?? []);
+    if (!boxes.length) return undefined;
+    const check = () => boxes.forEach((box, i) => {
+      if (box.scrollWidth > box.clientWidth + 1) {
+        box.setAttribute('tabindex', '0');
+        box.setAttribute('role', 'region');
+        box.setAttribute('aria-label', boxes.length > 1 ? `Table ${i + 1} of the policy text` : 'Table in the policy text');
+      } else {
+        box.removeAttribute('tabindex'); box.removeAttribute('role'); box.removeAttribute('aria-label');
+      }
+    });
+    check();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const watch = new ResizeObserver(check);
+    boxes.forEach((box) => { watch.observe(box); if (box.firstElementChild) watch.observe(box.firstElementChild); });
+    return () => watch.disconnect();
+  }, [wrapped]);
   if (!html || !html.trim()) return <p className="muted">{empty}</p>;
-  return <div className="pol-body" dangerouslySetInnerHTML={{ __html: html }} />;
+  return <div className="pol-body" ref={ref} dangerouslySetInnerHTML={{ __html: wrapped }} />;
 }

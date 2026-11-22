@@ -25,7 +25,7 @@ const mod: ModuleDef = {
     { group: 'Vendors', label: 'Expiring evidence', path: '/evidence/expiring', icon: 'clock', permission: 'vendors.view', order: 60 },
     { group: 'Vendors', label: 'Reassessments due', path: '/vendors/reassessments', icon: 'calendar', permission: 'vendors.view', order: 70 },
     { group: 'Vendors', label: 'Vendor issues', path: '/vendors/issues', icon: 'alert', permission: 'vendors.view', order: 80 },
-    { group: 'Vendors', label: 'Offboarding', path: '/vendors/offboardings', icon: 'logout', permission: 'vendors.view', order: 90 },
+    { group: 'Vendors', label: 'Vendor offboarding', path: '/vendors/offboardings', icon: 'logout', permission: 'vendors.view', order: 90 },
   ],
   routes: [
     { path: '/vendors', element: <VendorList />, permission: 'vendors.view' },

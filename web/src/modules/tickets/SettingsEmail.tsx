@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   api, ApiError, Badge, Button, Card, errorMessage, ErrorState, formatDateTime, Icon, Loading, LookupSelect, NumberField, relativeTime, Select,
-  Switch, TextField, useAuth, useFetch, useToast, type ColorName,
+  Switch, TableWrap, TextField, useAuth, useFetch, useToast, type ColorName,
 } from '../../core';
 import { useReauth } from './reauth';
 
@@ -60,7 +60,7 @@ function InboundLog({ refresh }: { refresh: number }) {
           : !data.rows.length ? <p className="muted">Nothing received yet{outcome ? ' with this outcome' : ''}.</p>
             : (
               <>
-                <div className="table-wrap">
+                <TableWrap label="Messages received">
                   <table className="table sd-table sd-mail-log">
                     <thead><tr><th scope="col">Received</th><th scope="col">From</th><th scope="col">Subject</th><th scope="col">What happened</th></tr></thead>
                     <tbody>
@@ -79,7 +79,7 @@ function InboundLog({ refresh }: { refresh: number }) {
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </TableWrap>
                 {data.total > data.rows.length && (
                   <div className="form-actions"><Button onClick={() => setPageSize((n) => Math.min(200, n + 50))}>Show more ({data.total - data.rows.length} older)</Button></div>
                 )}

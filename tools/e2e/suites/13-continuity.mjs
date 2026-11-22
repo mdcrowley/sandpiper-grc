@@ -51,4 +51,41 @@ const continuityTest = (theme, width) => ({
   },
 });
 
-export const tests = [continuityTest('light', 1440), continuityTest('dark', 820)];
+// E31-10: submitting an impact analysis asks the process owner through the approval workflow; the
+// owner's approval signs it off.
+const biaSignOffTest = {
+  name: 'continuity: the process owner signs off an impact analysis through the approval workflow',
+  theme: 'light', width: 1440,
+  async run(t) {
+    const { page } = t;
+    const api = t.api();
+    const tag = Date.now().toString(36);
+    const owner = await t.step('make a process owner who may only read continuity records', () => t.app.newUser(`e2e.bia-owner-${tag}`, ['safety_manager']));
+    const p = await api.must('POST', '/api/business-processes', { name: `E2E owned process ${tag}`, status: 'active', criticality: 'vital', owner_id: owner.id });
+    const bia = await api.must('POST', '/api/bias', { process_id: p.id, mtd_hours: 6, rto_target_hours: 3 });
+
+    await t.step('submit it for sign-off', async () => {
+      await page.goto(`/continuity/impact-analyses/${bia.id}`);
+      await page.click({ text: 'Submit for sign-off', tag: 'button' });
+      await page.waitFor({ text: 'Sign off directly', tag: 'button' });
+      const main = await page.text('main');
+      t.soft(main.includes('Impact analysis sign-off'), 'the approval panel is missing');
+      t.soft(main.includes(`Test e2e.bia-owner-${tag}`), 'the process owner is not named');
+    });
+    await t.step('the owner approves', async () => {
+      const ownerApi = t.app.api(owner.token);
+      const flows = await ownerApi.must('GET', `/api/workflows/records/bia/${bia.id}`);
+      const step = flows.instances.flatMap((i) => i.steps).find((s) => s.can_decide);
+      t.soft(Boolean(step), 'the owner is not asked to decide');
+      if (step) await ownerApi.must('POST', `/api/workflows/steps/${step.id}/decision`, { decision: 'approved' });
+    });
+    await t.step('the analysis is signed off and the process carries its targets', async () => {
+      await page.goto(`/continuity/impact-analyses/${bia.id}`);
+      await page.waitFor({ text: `Signed off by Test e2e.bia-owner-${tag}`, tag: 'p' });
+      const proc = await api.must('GET', `/api/business-processes/${p.id}`);
+      t.soft(Number(proc.mtd_hours) === 6, 'the tolerable downtime was not copied onto the process');
+    });
+  },
+};
+
+export const tests = [continuityTest('light', 1440), continuityTest('dark', 820), biaSignOffTest];

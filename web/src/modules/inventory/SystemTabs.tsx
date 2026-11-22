@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
   api, ApiError, Button, Card, ConfirmDialog, EmptyState, ErrorState, errorMessage, IconButton, Loading,
-  LookupSelect, Modal, RecordPicker, ResourceList, Select, StatusChip, TextArea, useAuth, useFetch, useToast,
+  LookupSelect, Modal, RecordPicker, ResourceList, Select, StatusChip, TableWrap, TextArea, useAuth, useFetch, useToast,
 } from '../../core';
 import type { ColorName } from '../../core';
 import { Callout } from './shared';
@@ -56,7 +56,7 @@ function LinkedList({
         : !data ? <Loading lines={3} />
         : data.length === 0 ? <EmptyState icon="link" title={emptyTitle} message={emptyMessage} action={addButton} />
         : (
-          <div className="table-wrap inv-wrap-cells">
+          <TableWrap label={title} className="inv-wrap-cells">
             <table className="table">
               <thead>
                 <tr>
@@ -80,7 +80,7 @@ function LinkedList({
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
       {adding && addDialog((changed) => { setAdding(false); if (changed) { reload(); onChanged?.(); } })}
       {editing && editDialog?.(editing, (changed) => { setEditing(null); if (changed) { reload(); onChanged?.(); } })}

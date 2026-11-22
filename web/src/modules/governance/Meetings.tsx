@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   api, Button, Card, ConfirmDialog, EditableSummary, EmptyState, errorMessage, ErrorState, formatDateTime, IconButton, Loading,
-  LookupChip, LookupSelect, Modal, PageHeader, RecordPage, RecordPicker, ResourceList, Select, Stepper, TextArea, TextField, useAuth,
+  LookupChip, LookupSelect, Modal, PageHeader, RecordPage, RecordPicker, ResourceList, Select, Stepper, TableWrap, TextArea, TextField, useAuth,
   useFetch, useMeta, useResource, useLookup, useToast,
 } from '../../core';
 import type { RecordContext, Row } from '../../core';
@@ -255,7 +255,7 @@ function AttendanceTab({ meeting, onChanged }: { meeting: Row; onChanged: () => 
           : `${q.present} of ${q.voting} voting members present; ${q.needed} needed. Quorum ${q.met ? 'met' : 'not met'}.`}
       </p>
       {data.members.length === 0 ? <EmptyState icon="users" title="No members in office" message="Add members to the committee first." /> : (
-        <div className="table-wrap">
+        <TableWrap label="Attendance">
           <table className="table">
             <caption className="sr-only">Attendance</caption>
             <thead><tr><th scope="col">Member</th><th scope="col">Side</th><th scope="col">Votes</th><th scope="col">Present</th><th scope="col">Apologies</th></tr></thead>
@@ -276,7 +276,7 @@ function AttendanceTab({ meeting, onChanged }: { meeting: Row; onChanged: () => 
               })}
             </tbody>
           </table>
-        </div>
+        </TableWrap>
       )}
     </Card>
   );
@@ -365,7 +365,7 @@ function Decisions({ meeting }: { meeting: Row }) {
         : !data ? <div className="gv-pad"><Loading lines={3} /></div>
         : data.length === 0 ? <EmptyState icon="check-square" title="No decisions recorded" message="Record each decision the committee takes, and the record it is about." />
         : (
-          <div className="table-wrap">
+          <TableWrap label="Decisions taken at this meeting">
             <table className="table">
               <caption className="sr-only">Decisions taken at this meeting</caption>
               <thead><tr><th scope="col">Decision</th><th scope="col">Outcome</th><th scope="col">Record</th><th scope="col">Approval</th></tr></thead>
@@ -384,7 +384,7 @@ function Decisions({ meeting }: { meeting: Row }) {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
       {adding && <DecisionDialog meeting={meeting} onClose={() => setAdding(false)} onSaved={() => { setAdding(false); reload(); }} />}
     </Card>

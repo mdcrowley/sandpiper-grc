@@ -3,7 +3,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import {
   api, ApiError, Button, Card, EmptyState, ErrorState, errorMessage, formatDate, Loading, LookupChip, Modal, NumberField, PageHeader,
-  Select, StatusChip, Switch, useFetch, useToast, useUnsavedChanges,
+  Select, StatusChip, Switch, TableWrap, useFetch, useToast, useUnsavedChanges,
 } from '../../core';
 import { DueChip, type LifecycleSettings } from './Lifecycle';
 
@@ -106,7 +106,7 @@ export function Reassessments() {
   else if (!data.rows.length) body = <EmptyState icon="check-circle" title="Nothing due" message="No vendor's reassessment or exclusion-list check falls in this window." />;
   else {
     body = (
-      <div className="table-wrap">
+      <TableWrap label="Vendors with a reassessment or exclusion-list check due">
         <table className="table">
           <caption className="sr-only">Vendors with a reassessment or exclusion-list check due</caption>
           <thead>
@@ -132,7 +132,7 @@ export function Reassessments() {
             ))}
           </tbody>
         </table>
-      </div>
+      </TableWrap>
     );
   }
 

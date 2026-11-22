@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Group, SegmentedControl, Text, Tooltip } from '@mantine/core';
-import { Card, ColorDot, EmptyState, formatDate, Icon, lookupColor, lookupLabel, toColorName, useLookup, useMediaQuery } from '../../core';
+import { Card, ColorDot, EmptyState, formatDate, Icon, lookupColor, lookupLabel, TableWrap, toColorName, useLookup, useMediaQuery } from '../../core';
 import { daysBetween, type Milestone, type PortfolioRow } from './types';
 
 const DAY = 86400000;
@@ -198,7 +198,7 @@ export function PortfolioTimeline({ rows, today }: { rows: PortfolioRow[]; today
 
       <details className="prj-details">
         <summary>Show milestones as a table</summary>
-        <div className="table-wrap">
+        <TableWrap label="Timeline">
           <table className="table">
             <thead><tr><th scope="col">Project</th><th scope="col">Milestone</th><th scope="col">Due</th><th scope="col">State</th></tr></thead>
             <tbody>
@@ -215,7 +215,7 @@ export function PortfolioTimeline({ rows, today }: { rows: PortfolioRow[]; today
               }))}
             </tbody>
           </table>
-        </div>
+        </TableWrap>
       </details>
     </Card>
   );

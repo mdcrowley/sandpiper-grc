@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  api, Button, Card, ConfirmDialog, EmptyState, ErrorState, errorMessage, IconButton, Loading, LookupChip, RecordPicker, useAuth, useFetch, useToast,
+  api, Button, Card, ConfirmDialog, EmptyState, ErrorState, errorMessage, IconButton, Loading, LookupChip, RecordPicker, TableWrap, useAuth, useFetch, useToast,
 } from '../../core';
 import type { Row } from '../../core';
 
@@ -74,7 +74,7 @@ export function OutcomesPanel({ row }: { row: Row }) {
             message={canEdit ? 'Search for a framework outcome above to show which outcomes this policy helps to meet.' : 'This policy has not been mapped to any framework outcome.'}
           />
         ) : (
-          <div className="table-wrap pol-tw">
+          <TableWrap label="Framework outcomes mapped to this policy" className="pol-tw">
             <table className="table">
               <caption className="sr-only">Framework outcomes mapped to this policy</caption>
               <thead>
@@ -91,7 +91,7 @@ export function OutcomesPanel({ row }: { row: Row }) {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
       </div>
       <ConfirmDialog

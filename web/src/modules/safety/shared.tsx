@@ -1,7 +1,7 @@
 // Shared pieces of the safety pages: section tabs, the hazard matrix and the action panel loader.
 import { lazy, Suspense, type ComponentType, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, Loading, StatusChip, Tabs, useFetch } from '../../core';
+import { Card, Loading, StatusChip, Tabs, useFetch, useScrollFocus } from '../../core';
 import type { ColorName } from '../../core';
 
 const SECTIONS = [
@@ -55,8 +55,10 @@ export function HazardMatrix({ scale, value, onPick, counts, label }: {
   const rows = [...scale.likelihood_levels].sort((a, b) => b.value - a.value);
   const cols = [...scale.impact_levels].sort((a, b) => a.value - b.value);
   const rating = (l: number, s: number) => scale.ratings.find((r) => r.key === scale.matrix[String(l)]?.[String(s)]);
+  // Narrow screens scroll the grid sideways; it then joins the tab order so the keyboard can scroll it.
+  const scrollRef = useScrollFocus<HTMLDivElement>();
   return (
-    <div className="sf-matrix" role="group" aria-label={label}>
+    <div className="sf-matrix" role="group" aria-label={label} ref={scrollRef}>
       <div className="sf-matrix-grid" style={{ gridTemplateColumns: `minmax(5.5rem, auto) repeat(${cols.length}, minmax(0, 1fr))` }}>
         <span className="sf-axis-corner muted">{scale.likelihood_label} ↓ / {scale.impact_label} →</span>
         {cols.map((c) => <span key={c.value} className="sf-col-label" title={c.description}>{c.label}</span>)}

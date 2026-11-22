@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   api, Button, Card, Checkbox, ConfirmDialog, EmptyState, errorMessage, ErrorState, formatDate, Loading, LookupChip, PageHeader, RecordPage,
-  RecordPicker, ResourceList, Select, TextField, useAuth, useFetch, useMeta, useToast,
+  RecordPicker, ResourceList, Select, TableWrap, TextField, useAuth, useFetch, useMeta, useToast,
 } from '../../core';
 import type { Row } from '../../core';
 import { ContinuityTabs, hoursText } from './shared';
@@ -74,7 +74,7 @@ function Dependencies({ process }: { process: Row }) {
         {shown.length === 0 ? (
           <EmptyState icon="link" title="No dependencies yet" message={`Add the ${kindWords(kinds.map((k) => (k === 'process' ? 'other processes' : resources[KIND_TYPE[k]].plural.toLowerCase())))} this process needs to run.`} />
         ) : (
-          <div className="table-wrap">
+          <TableWrap label="Dependencies">
             <table className="table">
               <caption className="sr-only">Dependencies</caption>
               <thead><tr><th scope="col">Kind</th><th scope="col">Record</th><th scope="col">Recovery time</th><th scope="col">Critical</th><th scope="col">Notes</th>{canEdit && <th scope="col"><span className="sr-only">Actions</span></th>}</tr></thead>
@@ -93,7 +93,7 @@ function Dependencies({ process }: { process: Row }) {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
         {data.dependencies.length > shown.length && (
           <p className="bc-pad muted">{data.dependencies.length - shown.length} more {data.dependencies.length - shown.length === 1 ? 'dependency is' : 'dependencies are'} on records you cannot see. They are kept when you change the list.</p>

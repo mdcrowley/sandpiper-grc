@@ -3,7 +3,7 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import {
   api, ApiError, Button, Card, Checkbox, ConfirmDialog, EmptyState, ErrorState, errorMessage, IconButton, Loading, Modal,
-  StatusChip, TextArea, TextField, useAuth, useFetch, useToast, useUnsavedChanges,
+  StatusChip, TableWrap, TextArea, TextField, useAuth, useFetch, useToast, useUnsavedChanges,
 } from '../../core';
 
 interface Participant { id: string; name: string; role: string | null; attended: boolean }
@@ -86,7 +86,7 @@ export function ExerciseParticipants({ exerciseId }: { exerciseId: string }) {
     body = <EmptyState icon="users" title="No participants yet" message="List who was invited, and mark who attended." action={add} />;
   } else {
     body = (
-      <div className="table-wrap trn-tw">
+      <TableWrap label="Exercise participants" className="trn-tw">
         <table className="table">
           <caption className="sr-only">Exercise participants</caption>
           <thead>
@@ -114,7 +114,7 @@ export function ExerciseParticipants({ exerciseId }: { exerciseId: string }) {
             ))}
           </tbody>
         </table>
-      </div>
+      </TableWrap>
     );
   }
 

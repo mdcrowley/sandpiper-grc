@@ -1,6 +1,6 @@
 // Version history, and two versions side by side to compare by reading.
 import { useState } from 'react';
-import { Button, Card, EmptyState, Select, formatDate, formatDateTime } from '../../core';
+import { Button, Card, EmptyState, Select, formatDate, formatDateTime, TableWrap } from '../../core';
 import { PolicyBody, VersionChip, type PolicyVersion } from './shared';
 
 export function VersionMeta({ v }: { v: PolicyVersion }) {
@@ -49,7 +49,7 @@ export function VersionsPanel({ versions }: { versions: PolicyVersion[] }) {
   return (
     <div className="stack">
       <Card title="Version history" flush>
-        <div className="table-wrap pol-tw">
+        <TableWrap label="Every version of this policy, newest first" className="pol-tw">
           <table className="table">
             <caption className="sr-only">Every version of this policy, newest first</caption>
             <thead>
@@ -72,7 +72,7 @@ export function VersionsPanel({ versions }: { versions: PolicyVersion[] }) {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableWrap>
       </Card>
 
       <section id="pol-compare" className="stack" aria-label="Read and compare versions">

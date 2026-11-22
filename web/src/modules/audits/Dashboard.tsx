@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  AgendaList, Button, Card, Chart, chartColor, EmptyState, ErrorState, formatDate, Loading, LookupChip, PageHeader, Select, Stat, useAuth, useFetch,
+  AgendaList, Button, Card, Chart, chartColor, EmptyState, ErrorState, formatDate, Loading, LookupChip, PageHeader, Select, Stat, TableWrap, useAuth, useFetch,
 } from '../../core';
 import type { ChartOption, ColorName } from '../../core';
 import { AuditTabs } from './shared';
@@ -43,7 +43,7 @@ function CoverageGrid({ years }: { years: number }) {
   }
   const thisYear = Number(data.today.slice(0, 4));
   return (
-    <div className="table-wrap au-coverage">
+    <TableWrap label="Audits of each area by year, with the area's cycle and next due date" className="au-coverage">
       <table className="table">
         <caption className="sr-only">Audits of each area by year, with the area's cycle and next due date</caption>
         <thead>
@@ -72,7 +72,7 @@ function CoverageGrid({ years }: { years: number }) {
           ))}
         </tbody>
       </table>
-    </div>
+    </TableWrap>
   );
 }
 
@@ -112,7 +112,7 @@ export function AuditsDashboard() {
 
   const header = (
     <>
-      <PageHeader title="Audits and inspections" subtitle="The audit plan and its coverage over the years, open findings, evidence requests and how inspections are going."
+      <PageHeader title="Audits" subtitle="The audit plan and its coverage over the years, open findings, evidence requests and how inspections are going."
         actions={<>
           <Button icon="refresh" loading={loading && !!s} onClick={reload}>Refresh</Button>
           {can('audits.create') && <Link className="btn btn-primary" to="/audits/engagements?new=1">Plan an audit</Link>}

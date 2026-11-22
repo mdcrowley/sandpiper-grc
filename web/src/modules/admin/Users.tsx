@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ApiError, Button, Card, Checkbox, EmptyState, ErrorState, errorMessage, formatDateTime, Icon, Loading, Modal,
-  PageHeader, qs, relativeTime, Select, StatusChip, TextField, useDebounced, useFetch, useToast,
+  PageHeader, qs, relativeTime, Select, StatusChip, TableWrap, TextField, useDebounced, useFetch, useToast,
 } from '../../core';
 import type { ListResult } from '../../core';
 import { absoluteLink, CopyBox, FilterPills, Initials, Notice, Pager, RoleChips, UserStatus } from './common';
@@ -71,7 +71,7 @@ export function UsersPage() {
             />
           ) : (
             <>
-              <div className={`table-wrap adm-table-frame${loading ? ' table-loading' : ''}`} aria-busy={loading}>
+              <TableWrap label="Users" className={`adm-table-frame${loading ? ' table-loading' : ''}`} aria-busy={loading}>
                 <table className="table adm-users">
                   <thead>
                     <tr>
@@ -103,7 +103,7 @@ export function UsersPage() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </TableWrap>
               <Pager summary={`${data.total} ${data.total === 1 ? 'user' : 'users'}`} page={page} pages={pages} onPage={setPage} />
             </>
           )}

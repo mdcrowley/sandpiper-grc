@@ -56,7 +56,9 @@ below.
 - Light and dark themes follow the operating system, and either can be chosen. Motion is
   reduced when the operating system asks for it.
 - Pages work at 820 pixels wide and when zoomed to 200 percent without scrolling sideways;
-  wide tables scroll inside their own frame.
+  wide tables scroll inside their own frame. A frame that scrolls is a named region in the tab
+  order, so the keyboard can scroll it even when the table holds no link or button (the shared
+  `TableWrap`; a unit test, `web/src/core/tableWrap.test.ts`, keeps every table on it).
 
 ## Known limitations
 

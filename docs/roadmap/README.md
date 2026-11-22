@@ -150,13 +150,13 @@ status `done`; issues in progress, open or blocked are counted in the total only
 | [E13](epics/E13-imports-api-integrations.md) | Imports, API and integrations | done | 23 / 23 |
 | [E14](epics/E14-platform-services.md) | Platform services | done | 39 / 39 |
 | [E15](epics/E15-self-service-portal.md) | Self-service portal | done | 14 / 14 |
-| [E16](epics/E16-hosting-operations-and-hardening.md) | Hosting, operations and hardening | in progress | 33 / 38 |
+| [E16](epics/E16-hosting-operations-and-hardening.md) | Hosting, operations and hardening | in progress | 33 / 39 |
 | [E17](epics/E17-documentation.md) | Documentation | in progress | 11 / 14 |
 | [E18](epics/E18-quality-and-known-defects.md) | Quality and known defects | done | 59 / 59 |
 | [E19](epics/E19-fleet-and-services.md) | Fleet and services | done | 14 / 14 |
 | [E20](epics/E20-safety-management.md) | Safety management | done | 15 / 15 |
 | [E21](epics/E21-mcp-server.md) | MCP server (AI assistant access) | done | 24 / 24 |
-| [E22](epics/E22-review-fixes.md) | Review fixes (wave 9) | in progress | 47 / 48 |
+| [E22](epics/E22-review-fixes.md) | Review fixes (wave 9) | done | 48 / 48 |
 | [E23](epics/E23-corrective-action-plans.md) | Corrective action plans and verification | done | 12 / 12 |
 | [E24](epics/E24-audits-and-inspections.md) | Audits and inspections | done | 13 / 13 |
 | [E25](epics/E25-safety-reporting-investigation-and-targets.md) | Safety reporting, investigation and performance targets | done | 15 / 15 |
@@ -165,16 +165,17 @@ status `done`; issues in progress, open or blocked are counted in the total only
 | [E28](epics/E28-committees-meetings-and-safety-plan.md) | Committees, meetings and the safety plan | done | 12 / 12 |
 | [E29](epics/E29-staff-roster-qualifications-and-acknowledgments.md) | Staff roster, qualifications and frontline acknowledgments | done | 12 / 12 |
 | [E30](epics/E30-obligations-regulatory-change-and-enterprise-risk.md) | Obligations, regulatory change and enterprise risk | done | 9 / 9 |
-| [E31](epics/E31-business-continuity.md) | Business continuity and emergency management | in progress | 9 / 10 |
+| [E31](epics/E31-business-continuity.md) | Business continuity and emergency management | done | 10 / 10 |
 | [E32](epics/E32-asset-condition-and-state-of-good-repair.md) | Asset condition and state of good repair | done | 9 / 9 |
 | [E33](epics/E33-ot-and-rail-systems-cybersecurity.md) | OT and rail-systems cybersecurity | done | 6 / 6 |
 | [E34](epics/E34-legal-hold-records-requests-and-privacy.md) | Legal hold, records requests and privacy | done | 9 / 9 |
 | [E35](epics/E35-vendor-risk-lifecycle.md) | Vendor risk lifecycle | done | 7 / 7 |
 | [E36](epics/E36-integrations.md) | Integrations | done | 8 / 8 |
-| | **Total** | | **701 / 712** |
+| | **Total** | | **703 / 713** |
 
-Of the 11 issues not done, 6 are in progress and 5 are open or blocked. E23 to E30 were built in wave 10 and
-E31 to E36 in wave 11 (the product gaps of the November 2026 review); E31-10 is left open. Some of their
+Of the 10 issues not done, 6 are in progress and 4 are open or blocked (all but E16-43 need a person or
+a real machine). E23 to E30 were built in wave 10 and
+E31 to E36 in wave 11 (the product gaps of the November 2026 review); E31-10, the last of them, was built in wave 12. Some of their
 done issues are "Not planned" entries (E25-13, E29-11, E32-06, E34-09): features recorded so that nobody
 builds them.
 
@@ -193,7 +194,6 @@ with real data, then those that close the main known gaps.
 | 6 | [E17-08](epics/E17-documentation.md) User guide | The pages changed or added in waves 8 to 11 need a review against the application |
 | 7 | [E17-11](epics/E17-documentation.md) Operations runbook | Restore has been tried by the tests only; try it by hand once |
 | 8 | [E16-42](epics/E16-hosting-operations-and-hardening.md) User services across a restart, and the system examples | Proven on GitHub's runners; a restart and the deploy/ examples need a real machine |
-| 9 | [E31-10](epics/E31-business-continuity.md) Impact analysis sign-off through an approval workflow | Impact analyses are the one continuity sign-off outside the approval workflows |
 
 ## Known gaps coverage
 
@@ -224,11 +224,11 @@ Keep this table in step with that file.
 | The portal does not ask ticket custom fields | E15-14 (done) |
 | JSON API responses are not compressed by the application | E22-32 (done; the limit is recorded there) |
 | Contract import dates | E06-15 (done) |
-| Sideways-scrolling tables without TableWrap are not reachable by keyboard | E22-48 |
 | Wave 10 parts: evidence answers in text, no coverage import or per-control test steps, finance left to the finance system, meeting decisions and kind-less workflows, no emailed calendar invitations, departments not a record type, monthly-only KRIs | E23, E24, E26, E27, E28, E29, E30 (done; the limits are recorded there), E36-03 |
-| Wave 11: impact analyses signed off outside the approval workflows | E31-10 |
 | Wave 11 parts: printed call trees; one useful-life benchmark per class; no OT network scanning, starter mappings not loaded, no history for zones below target, no OT badge in a saved map picture; working days skip weekends only; exclusion checks and offboarding by hand; no SCIM bulk or sorting, one collector per forwarder, read-only feeds, no product-specific work-tracker connections | E31, E32, E33, E34, E35, E36 (done; the limits are recorded there) |
 | The If-Match lock and the Overview cache are per process | E13-12, E16-38 (done; the limits are recorded there) |
+| Per-token request limits counted separately by each server process | E16-43 |
+| Help page tables always take a Tab stop and have a generic name | E22-48 (done; the limit is recorded there) |
 | Least-privilege account queues custom fields for the owner; user services not proven across a restart or for the system examples | E16-37 (done; recorded there), E16-42 |
 | Load test with the database on its own machine and people in different roles | E16-41 |
 

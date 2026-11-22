@@ -267,9 +267,9 @@ them and what happens at the end, instead of this being written in each module.
 
 **Acceptance criteria**
 
-- [ ] Transitions, conditions and required fields are data per record type: split out as E14-31
-  (allowed status changes and required fields); conditions are built here, on starting a
-  workflow and on each step
+- [x] Transitions, conditions and required fields are data per record type: conditions are built
+  here, on starting a workflow and on each step; allowed status changes and required fields were
+  built in E14-31
 - [x] Per record type, workflows with ordered steps; each step approved by named people, a role,
   a person field of the record (owner, manager) or a department head (of the requester's
   department or the one a field names; heads set on the Department heads tab), with a quorum
@@ -330,7 +330,7 @@ ranks the best matches first. Before, search was plain substring matching.
   word inside a longer one (codes, serial numbers)
 - [x] Permissions and restricted-record rules are unchanged; list `q` uses the same index
   and orders by rank when no sort is chosen; `/api/meta` says `search: 'fulltext'`
-- [ ] Global search box shows the snippet with matches marked (web core; additive)
+- [x] Global search box shows the snippet with matches marked (`web/src/core/CommandPalette.tsx`: `snippetParts` drawn with `<mark>`)
 
 **Implemented in:** `server/src/core/search.ts`, `server/src/core/resource.ts` (list `q`),
 `GET /api/search` in `server/src/core/routes.ts`,
@@ -553,7 +553,7 @@ restore one before then.
 - [x] A check that reports stored files with no row and rows with no stored file, on both
   stores
 - [x] Storage usage is shown on the File settings page
-- [ ] The daily job runs on an in-process timer, not yet on the job queue (E14-27)
+- [x] The daily job runs on the job queue (built in E14-27: schedule `attachments.housekeeping`)
 
 **Implemented in:** `server/src/modules/attachments/housekeeping.ts`, `admin.ts`,
 `migrations/002_storage_scanning_purge_backups.sql`, `index.ts` (daily timer);
@@ -1029,8 +1029,8 @@ Split from E14-06, which built the approval workflows.
 - [x] A status added to the list is reachable to and from every status until the rules say otherwise
   (the page marks it as new); a retired status breaks no record (records holding it may move
   anywhere; rules naming it are ignored)
-- [ ] A move that needs approval starts an approval workflow (E14-06) and waits for it: not built
-  here (a workflow can already start when a status changes); built in E14-37
+- [x] A move that needs approval starts an approval workflow (E14-06) and waits for it (built in
+  E14-37: **Changes that wait for approval** on the Lifecycles page)
 
 **Implemented in:** `server/src/core/lifecycle.ts` (rules, defaults, check, `/api/meta` part,
 `APPLICATION_RULES`), `core/resource.ts` (`checkLifecycle` in `create` and `update`),

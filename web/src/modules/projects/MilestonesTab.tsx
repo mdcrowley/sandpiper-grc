@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   api, ApiError, Button, Card, ConfirmDialog, DateField, EmptyState, errorMessage, ErrorState, formatDate, Loading, Modal,
-  StatusChip, TextField, useAuth, useFetch, useToast,
+  StatusChip, TableWrap, TextField, useAuth, useFetch, useToast,
 } from '../../core';
 import { todayIso, type Milestone } from './types';
 
@@ -107,7 +107,7 @@ export function MilestonesTab({ projectId, onChanged }: { projectId: string; onC
         {data.length === 0 ? (
           <EmptyState icon="calendar" title="No milestones yet" message="Add the handful of dates that matter. They appear on the portfolio timeline." action={add} />
         ) : (
-          <div className="table-wrap prj-scroll">
+          <TableWrap label="Milestones" className="prj-scroll">
             <table className="table">
               <thead>
                 <tr><th scope="col">Milestone</th><th scope="col">Due</th><th scope="col">State</th><th scope="col"><span className="sr-only">Actions</span></th></tr>
@@ -139,7 +139,7 @@ export function MilestonesTab({ projectId, onChanged }: { projectId: string; onC
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
       </Card>
       <MilestoneDialog projectId={projectId} open={dialogOpen} milestone={editing} onClose={() => setDialogOpen(false)} onSaved={refresh} />

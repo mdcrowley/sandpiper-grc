@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   api, Badge, Button, Card, EmptyState, ErrorState, errorMessage, formatDate, IconButton, Loading, PageHeader, Select,
-  TextArea, TextField, useAuth, useFetch, useToast,
+  TableWrap, TextArea, TextField, useAuth, useFetch, useToast,
 } from '../../core';
 import type { Question } from './Assessment';
 import { ResponseLinkSettings } from './ResponseLink';
@@ -119,7 +119,7 @@ export function AssessmentQuestions() {
           <ResponseLinkSettings />
         </Card>
         <Card title="Versions" flush>
-          <div className="table-wrap">
+          <TableWrap label="Versions">
             <table className="table">
               <thead><tr><th scope="col">Version</th><th scope="col">Name</th><th scope="col">Questions</th><th scope="col">Saved</th><th scope="col">Status</th></tr></thead>
               <tbody>
@@ -132,7 +132,7 @@ export function AssessmentQuestions() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         </Card>
       </>
     );

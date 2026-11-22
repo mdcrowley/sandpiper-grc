@@ -210,7 +210,7 @@ types from CSV through the same mapping and dry-run screen that assets have.
   transaction (PGlite would wait for itself); after-hooks and database constraints are still
   checked only by the real import (E13-22). Before-hooks must not write (they never did)
 - [x] Describe the import and fact-sheet routes for the OpenAPI document (`core/export/docs.ts`, registered from `core/apidocs.ts`)
-- [ ] Let the asset screen delegate to the generic import once it can express the asset-specific checks (moved to E13-21)
+- [x] Let the asset screen delegate to the generic import once it can express the asset-specific checks (built in E13-21)
 
 **Implemented in:** `checkWithoutWriting` in `server/src/core/import/service.ts` (replaced by the rolled-back check of E13-22); tests
 `server/src/core/import/check.test.ts` (create hook, update hook, restricted source)
@@ -354,8 +354,9 @@ administrators could put it in a token.
 - [x] Scope families (`SCOPE_FAMILIES`, `registerScopeFamily`, `scopeGrantable` in
   `core/tokens.ts`): `mcp.use` (and `mcp.*`) may be added by anyone holding a permission; they
   add no access to records; `GET /api/me/tokens` lists them in `scopeFamilies`
-- [ ] The token screen offers `scopeFamilies` (web, admin module) and the MCP module may stop
-  issuing its own tokens (`POST /api/mcp/tokens`)
+- [x] The token screen offers `scopeFamilies` (built in E21-14: `web/src/modules/admin/ApiTokens.tsx`).
+  The MCP module's `POST /api/mcp/tokens` stays as a convenience, by decision, and makes the token
+  with the core's `issueToken`
 
 ### E13-19 Webhook events other than record changes
 

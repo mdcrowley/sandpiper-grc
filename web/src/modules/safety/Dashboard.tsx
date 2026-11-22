@@ -73,7 +73,7 @@ export function SafetyDashboard() {
 
   const header = (
     <>
-      <PageHeader title="Safety" subtitle="The last twelve months of safety events, open investigations and corrective actions, the hazard log and the indicators."
+      <PageHeader title="Safety dashboard" subtitle="The last twelve months of safety events, open investigations and corrective actions, the hazard log and the indicators."
         actions={<>
           <Button icon="refresh" loading={loading && !!s} onClick={() => { reload(); reloadClocks(); }}>Refresh</Button>
           {can('safety.create') && <Link className="btn btn-primary" to="/safety/events?new=1">Report a safety event</Link>}

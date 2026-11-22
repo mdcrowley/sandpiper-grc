@@ -152,6 +152,9 @@ export const APPLICATION_RULES: Record<string, string[]> = {
   review_deficiency: [
     'A deficiency cannot close while a corrective action plan for it is open; it closes by itself when its last plan closes.',
   ],
+  bia: [
+    'Submitted is set only by "Submit for sign-off" (which starts the Impact analysis sign-off workflow when one applies) and Signed off only by that workflow\'s approval or by "Sign off"; a signed-off analysis can no longer be changed.',
+  ],
   meeting: [
     'Minutes approved is set only by the chair\'s approval of the minutes (Minutes approval workflow); a meeting with approved minutes can no longer be changed.',
     'A meeting stays with its committee.',

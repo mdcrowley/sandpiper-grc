@@ -4,7 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { Badge, Group, Text, UnstyledButton } from '@mantine/core';
 import {
   api, Button, Card, EmptyState, ErrorState, errorMessage, formatCurrency, formatDate, formatDateTime, formatNumber,
-  Icon, Loading, PageHeader, TextField, useAuth, useFetch, useToast,
+  Icon, Loading, PageHeader, TableWrap, TextField, useAuth, useFetch, useToast,
 } from '../../core';
 import type { IconName } from '../../core';
 
@@ -115,7 +115,7 @@ function ReportRows({ report, onClose }: { report: ReportInfo; onClose: () => vo
                 <Text c="dimmed" size="sm" role="status">{rows.length} of {data.total} rows</Text>
               </Group>
               {rows.length === 0 ? <EmptyState icon="search" title="No rows match" message="Clear the filter to see every row." /> : (
-                <div className="table-wrap inv-wrap-cells">
+                <TableWrap label={report.title} className="inv-wrap-cells">
                   <table className="table">
                     <caption className="sr-only">{report.title}</caption>
                     <thead>
@@ -146,7 +146,7 @@ function ReportRows({ report, onClose }: { report: ReportInfo; onClose: () => vo
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </TableWrap>
               )}
             </>
           )}

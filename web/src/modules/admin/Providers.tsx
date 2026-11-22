@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  api, Button, Card, ConfirmDialog, EmptyState, ErrorState, errorMessage, Icon, Loading, Menu, PageHeader, StatusChip, TextField,
+  api, Button, Card, ConfirmDialog, EmptyState, ErrorState, errorMessage, Icon, Loading, Menu, PageHeader, StatusChip, TableWrap, TextField,
   useFetch, useToast,
 } from '../../core';
 import { Notice } from './common';
@@ -108,7 +108,7 @@ export function ProvidersPage() {
                   action={<Button variant="primary" icon="plus" onClick={() => setEditing('new')}>Add provider</Button>}
                 />
               ) : (
-                <div className="table-wrap adm-table-frame">
+                <TableWrap label="Sign-in providers" className="adm-table-frame">
                   <table className="table adm-providers">
                     <thead>
                       <tr>
@@ -155,7 +155,7 @@ export function ProvidersPage() {
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </TableWrap>
               )}
             </Card>
             <div className="grid-2 adm-sso-grid">

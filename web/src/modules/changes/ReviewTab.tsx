@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   api, ApiError, Button, Card, DateField, EmptyState, errorMessage, ErrorState, formatDate, formatDateTime, IconButton, Loading,
-  LookupChip, Modal, TextArea, TextField, useAuth, useFetch, useResource, UserPicker, useToast, type ListResult, type Row,
+  LookupChip, Modal, TableWrap, TextArea, TextField, useAuth, useFetch, useResource, UserPicker, useToast, type ListResult, type Row,
 } from '../../core';
 import { Banner, TextBlock } from './bits';
 import { useWorkflow } from './workflowContext';
@@ -48,7 +48,7 @@ function FollowUpActions({ row, canEdit }: { row: Row; canEdit: boolean }) {
         : !data ? <Loading lines={2} label="Loading actions" />
         : data.rows.length === 0 ? <EmptyState icon="check-square" title="No follow-up actions" message="Work that comes out of the review can be raised here and tracked in the Actions list." />
         : (
-          <div className="table-wrap chg-tw">
+          <TableWrap label="Follow-up actions" className="chg-tw">
             <table className="table">
               <thead><tr><th>Action</th><th>Status</th><th>Owner</th><th>Due</th></tr></thead>
               <tbody>
@@ -62,7 +62,7 @@ function FollowUpActions({ row, canEdit }: { row: Row; canEdit: boolean }) {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
       <Modal open={open} title="Raise a follow-up action" onClose={() => setOpen(false)} size="sm"
         dirty={open && Boolean(draft.title.trim() || draft.owner_id || draft.due_on)}>

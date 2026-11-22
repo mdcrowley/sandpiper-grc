@@ -2,7 +2,7 @@
 import { useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
-  Badge, Card, EmptyState, ErrorState, formatDateTime, KeyValue, Loading, PageHeader, relativeTime, ResourceList, Stat, useFetch, useResource,
+  Badge, Card, EmptyState, ErrorState, formatDateTime, KeyValue, Loading, PageHeader, relativeTime, ResourceList, Stat, TableWrap, useFetch, useResource,
 } from '../../core';
 import { SectionTabs, useVulnAccess } from './shared';
 import type { ImportBatch } from './shared';
@@ -28,7 +28,7 @@ export function ImportHistory() {
           </Card>
         ) : (
           <Card flush>
-            <div className="table-wrap vuln-tw">
+            <TableWrap label="Imports, newest first" className="vuln-tw">
               <table className="table">
                 <caption className="sr-only">Imports, newest first</caption>
                 <thead>
@@ -59,7 +59,7 @@ export function ImportHistory() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableWrap>
           </Card>
         )}
     </div>

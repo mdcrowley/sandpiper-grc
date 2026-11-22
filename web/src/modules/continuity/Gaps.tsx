@@ -3,7 +3,7 @@
 // recovery time is not known.
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Card, EmptyState, ErrorState, Loading, LookupChip, PageHeader, Switch, useFetch } from '../../core';
+import { Card, EmptyState, ErrorState, Loading, LookupChip, PageHeader, Switch, TableWrap, useFetch } from '../../core';
 import { ContinuityTabs, hoursText } from './shared';
 
 interface GapSystem { id: string; name: string | null; hidden: boolean; rto_hours: number | null; via: { id: string; label: string | null } | null; exceeds_mtd: boolean; exceeds_target: boolean }
@@ -55,7 +55,7 @@ export function GapReport() {
           </div>
           <Findings r={r} />
           {r.systems.length === 0 ? <p className="muted">No critical system dependencies recorded.</p> : (
-            <div className="table-wrap">
+            <TableWrap label={`Critical systems of ${r.name}`}>
               <table className="table">
                 <caption className="sr-only">Critical systems of {r.name}</caption>
                 <thead><tr><th scope="col">System</th><th scope="col">Recovery time</th><th scope="col">Through</th><th scope="col">Finding</th></tr></thead>
@@ -70,7 +70,7 @@ export function GapReport() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableWrap>
           )}
         </Card>
       ))}

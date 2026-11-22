@@ -71,7 +71,7 @@ export function RiskRegister() {
         subtitle="Restricted: visible only to people with access to security records."
         actions={(
           <>
-            <Link className="btn btn-secondary" to="/risks/reviews">Reviews and acceptances</Link>
+            <Link className="btn btn-secondary" to="/risks/reviews">Risk reviews</Link>
             <Link className="btn btn-secondary" to="/risks/report">Risk report</Link>
             {can('risks.administer') && <Link className="btn btn-secondary" to="/risks/scales">Risk scales</Link>}
             {can('risks.administer') && <Link className="btn btn-secondary" to="/risks/appetite">Risk appetite</Link>}

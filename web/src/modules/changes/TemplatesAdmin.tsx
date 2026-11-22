@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   api, ApiError, Badge, Button, Card, Checkbox, ConfirmDialog, EmptyState, errorMessage, ErrorState, formatDate, IconButton, Loading,
-  LookupChip, LookupSelect, Modal, NumberField, RecordPicker, TextArea, TextField, useFetch, useResource, useToast,
+  LookupChip, LookupSelect, Modal, NumberField, RecordPicker, TableWrap, TextArea, TextField, useFetch, useResource, useToast,
 } from '../../core';
 import type { Template } from './types';
 
@@ -75,7 +75,7 @@ export function TemplatesAdmin() {
         : data.length === 0 ? (
           <EmptyState icon="clipboard" title="No templates yet" message="A template describes routine, low-risk work that has been approved in advance. A change raised from it needs no further approval." />
         ) : (
-          <div className="table-wrap chg-tw">
+          <TableWrap label="Standard change templates" className="chg-tw">
             <table className="table">
               <thead><tr><th>Template</th><th>Risk</th><th className="num">Duration</th><th className="num">Used, last 90 days</th><th className="num">Used in total</th><th>Last used</th><th><span className="sr-only">Actions</span></th></tr></thead>
               <tbody>
@@ -100,7 +100,7 @@ export function TemplatesAdmin() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
       <p className="muted chg-card-foot">The usage counts show how often each template is raised, so a template that is being used for work it was not approved for can be spotted.</p>
 

@@ -69,7 +69,7 @@ export default function HelpHome() {
 
   return (
     <>
-      <PageHeader title="Help" subtitle="How to use each part of the application." />
+      <PageHeader title="User guide" subtitle="How to use each part of the application." />
       <div className="stack">
         {pageRefs.length > 0 && (
           <div className="help-search" role="search">

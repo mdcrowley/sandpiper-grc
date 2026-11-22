@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   ApiError, Button, Card, Checkbox, EmptyState, ErrorState, errorMessage, humanize, Icon, Loading, NotFound, PageHeader,
-  StatusChip, TextArea, TextField, useAuth, useFetch, useToast,
+  StatusChip, TableWrap, TextArea, TextField, useAuth, useFetch, useToast,
 } from '../../core';
 import { Notice } from './common';
 import type { Role, RolesResponse } from './common';
@@ -155,7 +155,7 @@ export function RoleDetailPage() {
           </Card>
           <Card title={`Members (${role.members})`} flush>
             {!role.users?.length ? <EmptyState icon="users" title="Nobody holds this role" message="Give it to people from their user page." /> : (
-              <div className="table-wrap adm-table-frame adm-members">
+              <TableWrap label={`Members (${role.members})`} className="adm-table-frame adm-members">
                 <table className="table">
                   <thead><tr><th scope="col">Name</th><th scope="col">Username</th><th scope="col">Status</th></tr></thead>
                   <tbody>
@@ -164,7 +164,7 @@ export function RoleDetailPage() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </TableWrap>
             )}
           </Card>
         </div>

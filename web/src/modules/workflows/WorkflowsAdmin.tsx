@@ -3,7 +3,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  api, Button, Card, EmptyState, ErrorState, errorMessage, formatDateTime, Loading, PageHeader, relativeTime, StatusChip, Tabs,
+  api, Button, Card, EmptyState, ErrorState, errorMessage, formatDateTime, Loading, PageHeader, relativeTime, StatusChip, TableWrap, Tabs,
   UserPicker, useFetch, useToast,
 } from '../../core';
 import { FlowDiagram } from './FlowDiagram';
@@ -80,7 +80,7 @@ function Running() {
   };
   return (
     <Card flush>
-      <div className="table-wrap">
+      <TableWrap label="Workflows running now">
         <table className="table">
           <caption className="sr-only">Workflows running now</caption>
           <thead><tr><th scope="col">Record</th><th scope="col">Workflow</th><th scope="col">Waiting at</th><th scope="col">Asked by</th><th scope="col">Started</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
@@ -100,7 +100,7 @@ function Running() {
             ))}
           </tbody>
         </table>
-      </div>
+      </TableWrap>
     </Card>
   );
 }

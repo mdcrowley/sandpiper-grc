@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   api, ApiError, Button, Card, COLOR_NAMES, EmptyState, ErrorState, errorMessage, humanize, Icon, IconButton, Loading, Modal,
-  PageHeader, Select, StatusChip, Tabs, TagChips, TextField, toColorName, useFetch, useMeta, useToast,
+  PageHeader, Select, StatusChip, TableWrap, Tabs, TagChips, TextField, toColorName, useFetch, useMeta, useToast,
 } from '../../core';
 import type { ColorName, ResourceMeta } from '../../core';
 
@@ -55,7 +55,7 @@ export function ListsPage() {
   return (
     <>
       <PageHeader
-        title="Lists and tags"
+        title="Lists"
         subtitle="The choices offered in drop-downs across the application (statuses, priorities, categories and so on), and the free-form tags people put on records. Changes apply at once, with no code."
       />
       <Tabs
@@ -156,7 +156,7 @@ function TagsTab() {
             <EmptyState icon="tag" title={`No ${resource?.plural.toLowerCase() ?? 'records'} are tagged yet`}
               message="Tags are added on a record’s page, under its title. They are listed here with how many records carry each one." />
           ) : shown.length === 0 ? <p className="card-body muted" role="status">No tag matches “{find.trim()}”.</p> : (
-            <div className={`table-wrap adm-table-frame${loading ? ' table-loading' : ''}`} aria-busy={loading}>
+            <TableWrap label={resource ? `Tags on ${resource.plural.toLowerCase()}${data ? ` (${data.length})` : ''}` : 'Tags'} className={`adm-table-frame${loading ? ' table-loading' : ''}`} aria-busy={loading}>
               <table className="table adm-tags">
                 <thead>
                   <tr><th scope="col">Tag</th><th scope="col" className="num">Records</th><th scope="col"><span className="sr-only">Actions</span></th></tr>
@@ -177,7 +177,7 @@ function TagsTab() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableWrap>
           )}
         {data && data.length >= 200 && <p className="card-body adm-card-foot muted">The 200 most used tags are shown. Find a tag to narrow the list.</p>}
       </Card>
@@ -304,7 +304,7 @@ function ListValues({ list, usage, onChanged }: { list: string; usage: Usage[]; 
         : !rows ? <div className="card-body"><Loading lines={5} label="Loading values" /></div>
         : rows.length === 0 ? <EmptyState icon="clipboard" title="This list has no values" message="Add the first value." action={<Button variant="primary" icon="plus" onClick={() => setEditing('new')}>Add value</Button>} />
         : (
-          <div className="table-wrap adm-table-frame" aria-busy={busy}>
+          <TableWrap label={listTitle(list, usage)} className="adm-table-frame" aria-busy={busy}>
             <table className="table adm-values">
               <thead><tr><th scope="col">Order</th><th scope="col">Shown as</th><th scope="col">Stored value</th><th scope="col">State</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
               <tbody>
@@ -330,7 +330,7 @@ function ListValues({ list, usage, onChanged }: { list: string; usage: Usage[]; 
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
       <p className="sr-only" role="status">{announce}</p>
       <p className="card-body adm-card-foot muted">

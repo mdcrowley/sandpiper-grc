@@ -1,6 +1,6 @@
 // A roster person's policy acknowledgments (E29-09), for their record page in the people module.
 import { Link } from 'react-router-dom';
-import { Badge, Card, EmptyState, ErrorState, formatDate, Loading, LookupChip, StatusChip, useAuth, useFetch } from '../../core';
+import { Badge, Card, EmptyState, ErrorState, formatDate, Loading, LookupChip, StatusChip, TableWrap, useAuth, useFetch } from '../../core';
 import { ACK_STATE } from './shared';
 
 interface Ack {
@@ -21,7 +21,7 @@ export function PersonAcks({ personId }: { personId: string }) {
   }
   return (
     <Card title="Acknowledgments" flush>
-      <div className="table-wrap">
+      <TableWrap label="Documents this person was asked to acknowledge">
         <table className="table">
           <caption className="sr-only">Documents this person was asked to acknowledge</caption>
           <thead><tr><th scope="col">Document</th><th scope="col">Type</th><th scope="col">Version</th><th scope="col">Status</th><th scope="col">Acknowledged</th><th scope="col">How</th></tr></thead>
@@ -38,7 +38,7 @@ export function PersonAcks({ personId }: { personId: string }) {
             ))}
           </tbody>
         </table>
-      </div>
+      </TableWrap>
     </Card>
   );
 }

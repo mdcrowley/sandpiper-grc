@@ -4,7 +4,7 @@
 import { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  Button, Card, Chart, chartColor, EmptyState, ErrorState, Loading, LookupChip, PageHeader, Stat, useAuth, useFetch,
+  Button, Card, Chart, chartColor, EmptyState, ErrorState, Loading, LookupChip, PageHeader, Stat, TableWrap, useAuth, useFetch,
 } from '../../core';
 import type { ChartOption, ColorName } from '../../core';
 import { OtTabs, TargetChip } from './shared';
@@ -100,7 +100,7 @@ export function OtOverview() {
         {!m ? (matrix.error ? null : <div className="ot-pad"><Loading lines={3} label="Loading the conduits" /></div>)
           : flagged.length === 0 ? <EmptyState icon="link" title="No conduit is flagged" message="A conduit is flagged when it allows remote access or touches a zone below target." />
           : (
-            <div className="table-wrap">
+            <TableWrap label="Conduits that allow remote access or touch a zone below target">
               <table className="table">
                 <caption className="sr-only">Conduits that allow remote access or touch a zone below target</caption>
                 <thead><tr><th scope="col">Conduit</th><th scope="col">From</th><th scope="col">To</th><th scope="col">Why</th></tr></thead>
@@ -120,7 +120,7 @@ export function OtOverview() {
                   })}
                 </tbody>
               </table>
-            </div>
+            </TableWrap>
           )}
       </Card>
     </div>

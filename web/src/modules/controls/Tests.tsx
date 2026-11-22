@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   api, Button, Card, ConfirmDialog, EditableSummary, EmptyState, ErrorState, errorMessage, IconButton, Loading, LookupChip, LookupSelect,
-  Modal, PageHeader, RecordPage, ResourceList, TextArea, TextField, useAuth, useFetch, useResource, useToast,
+  Modal, PageHeader, RecordPage, ResourceList, TableWrap, TextArea, TextField, useAuth, useFetch, useResource, useToast,
 } from '../../core';
 import type { RecordContext } from '../../core';
 import { capsInBuild, ControlCaps, ControlsTabs } from './shared';
@@ -81,7 +81,7 @@ function Samples({ row, reload: reloadTest }: RecordContext) {
               <EmptyState icon="clipboard" title="No items listed"
                 message={locked ? 'This test was recorded with totals only.' : 'List each item the test looked at; the sample size and exceptions then follow the list.'} />
             ) : (
-              <div className="table-wrap">
+              <TableWrap label="Items this test sampled">
                 <table className="table">
                   <caption className="sr-only">Items this test sampled</caption>
                   <thead><tr><th scope="col">Item</th><th scope="col">Result</th><th scope="col">Note</th>{canEdit && <th scope="col"><span className="sr-only">Remove</span></th>}</tr></thead>
@@ -98,7 +98,7 @@ function Samples({ row, reload: reloadTest }: RecordContext) {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </TableWrap>
             )}
             <p className="muted ctl-hint">{data.sample_size ?? 0} item{data.sample_size === 1 ? '' : 's'} sampled, {data.exceptions_found ?? 0} exception{data.exceptions_found === 1 ? '' : 's'}.</p>
           </div>

@@ -129,7 +129,7 @@ export function KitPage() {
               {own.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
             </dl>
           )}
-          {!data.contacts.length ? <p className="si-doc-empty">No contacts are set up. Add them under Notification rules and checklists, then reprint.</p> : (
+          {!data.contacts.length ? <p className="si-doc-empty">No contacts are set up. Add them under Rules and checklists, then reprint.</p> : (
             <table className="si-doc-table">
               <thead><tr><th scope="col" style={{ width: '22%' }}>Role</th><th scope="col" style={{ width: '22%' }}>Person</th><th scope="col" style={{ width: '22%' }}>Contact</th><th scope="col">What the role does</th></tr></thead>
               <tbody>

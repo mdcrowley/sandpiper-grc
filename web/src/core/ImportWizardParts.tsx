@@ -5,7 +5,7 @@ import { Select, type Option } from './fields';
 import { formatDateTime, formatNumber } from './format';
 import { useLookup, type ColorName } from './meta';
 import { RecordPicker, UserPicker } from './pickers';
-import { StatusChip } from './ui';
+import { StatusChip, TableWrap } from './ui';
 
 export type ImportMode = 'create' | 'update' | 'upsert';
 
@@ -52,7 +52,7 @@ export function MappingTable({ read, mapping, onChange }: {
   }, [read]);
   const taken = new Map(Object.entries(mapping).filter(([, f]) => f).map(([h, f]) => [f, h]));
   return (
-    <div className="table-wrap iw-map">
+    <TableWrap label="Columns in the file and the fields they fill" className="iw-map">
       <table className="table">
         <caption className="sr-only">Columns in the file and the fields they fill</caption>
         <thead>
@@ -78,7 +78,7 @@ export function MappingTable({ read, mapping, onChange }: {
           })}
         </tbody>
       </table>
-    </div>
+    </TableWrap>
   );
 }
 
@@ -182,7 +182,7 @@ export function RowResults({ read, s }: { read: ReadResult; s: ImportSummary }) 
       {!rows.length ? (
         <p className="muted iw-small">{show === 'problems' ? 'No problems: every row can be imported.' : 'No rows.'}</p>
       ) : (
-        <div className="table-wrap">
+        <TableWrap label="Import results by row">
           <table className="table iw-results">
             <thead><tr><th scope="col" className="num">Row</th><th scope="col">Result</th><th scope="col">Details</th></tr></thead>
             <tbody>
@@ -201,7 +201,7 @@ export function RowResults({ read, s }: { read: ReadResult; s: ImportSummary }) 
               ))}
             </tbody>
           </table>
-        </div>
+        </TableWrap>
       )}
       {rows.length > shown.length && <p className="muted iw-small">The first {shown.length} of {formatNumber(rows.length)} rows are listed.</p>}
     </section>
@@ -211,7 +211,7 @@ export function RowResults({ read, s }: { read: ReadResult; s: ImportSummary }) 
 export function PastImports({ rows }: { rows: PastImport[] }) {
   if (!rows.length) return <p className="muted iw-small">No imports yet.</p>;
   return (
-    <div className="table-wrap">
+    <TableWrap label="Past imports">
       <table className="table iw-history">
         <thead><tr><th scope="col">When</th><th scope="col">Who</th><th scope="col">File</th><th scope="col">Result</th></tr></thead>
         <tbody>
@@ -225,6 +225,6 @@ export function PastImports({ rows }: { rows: PastImport[] }) {
           ))}
         </tbody>
       </table>
-    </div>
+    </TableWrap>
   );
 }

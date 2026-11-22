@@ -4,7 +4,7 @@ import type { ChangeEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   api, ApiError, Button, Card, Checkbox, EmptyState, ErrorState, formatDate, PageHeader, Select, Stat, StatusChip, Stepper,
-  TextArea, useFetch, useToast,
+  TableWrap, TextArea, useFetch, useToast,
 } from '../../core';
 import type { ColorName, ListResult, Row } from '../../core';
 
@@ -209,7 +209,7 @@ export function TrainingImport() {
                 </p>
               )}
               {shown.length === 0 ? <EmptyState icon="check" title="No problems found" message="Every row is ready to import." /> : (
-                <div className="table-wrap trn-tw trn-preview">
+                <TableWrap label="Import preview, one row per line of the file" className="trn-tw trn-preview">
                   <table className="table">
                     <caption className="sr-only">Import preview, one row per line of the file</caption>
                     <thead>
@@ -248,7 +248,7 @@ export function TrainingImport() {
                       })}
                     </tbody>
                   </table>
-                </div>
+                </TableWrap>
               )}
               <div className="form-actions">
                 {step === 'preview' ? (

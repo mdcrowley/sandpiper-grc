@@ -39,7 +39,7 @@ const TYPES = [
   // A report is created and changed in the same builder: the create step drives it.
   { type: 'report_definition', pick: 'Tickets', skip: ['edit', 'status', 'comment', 'attachment'] },
   // A dashboard opens in its layout editor once created; the layout is covered by the keyboard suite.
-  { type: 'dashboard', skip: ['edit', 'status', 'comment', 'attachment'], known: { empty: 'E18-37' } },
+  { type: 'dashboard', skip: ['edit', 'status', 'comment', 'attachment'] },
   // A report pack is edited section by section in its own editor (covered by the reports module's tests).
   { type: 'report_pack', skip: ['edit', 'status', 'comment', 'attachment'] },
 ];

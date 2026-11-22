@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Badge, Button, Card, EmptyState, ErrorState, formatDate, Icon, Loading, PageHeader, Stat, useAuth, useFetch } from '../../core';
+import { Badge, Button, Card, EmptyState, ErrorState, formatDate, Icon, Loading, PageHeader, Stat, TableWrap, useAuth, useFetch } from '../../core';
 import type { ColorName } from '../../core';
 import type { AppetiteData } from './Appetite';
 import { RatedChip } from './scales';
@@ -65,7 +65,7 @@ function AppetiteSection() {
   return (
     <Card title="Risk appetite" flush={set.length > 0}>
       {set.length === 0 ? <p className="muted">No risk appetite has been set. An administrator sets it under Administration, Risk appetite.</p> : (
-        <div className="table-wrap">
+        <TableWrap label="Risk appetite">
           <table className="table rk-report-table">
             <thead><tr><th scope="col">Category</th><th scope="col">Appetite</th><th scope="col">Highest acceptable</th><th scope="col" className="num">Open</th><th scope="col" className="num">Above appetite</th></tr></thead>
             <tbody>
@@ -83,7 +83,7 @@ function AppetiteSection() {
               })}
             </tbody>
           </table>
-        </div>
+        </TableWrap>
       )}
     </Card>
   );
@@ -97,7 +97,7 @@ function RollupSection() {
   if (data.length === 0) return null;
   return (
     <Card title="Enterprise risks and the risks under them" flush>
-      <div className="table-wrap">
+      <TableWrap label="Enterprise risks and the risks under them">
         <table className="table rk-report-table">
           <thead><tr><th scope="col">Enterprise risk</th><th scope="col">Rating</th><th scope="col" className="num">Open under it</th><th scope="col">Worst open risk under it</th><th scope="col" className="num">Above appetite</th></tr></thead>
           <tbody>
@@ -112,7 +112,7 @@ function RollupSection() {
             ))}
           </tbody>
         </table>
-      </div>
+      </TableWrap>
     </Card>
   );
 }
@@ -206,7 +206,7 @@ export function RiskReport() {
           </Card>
 
           <Card title={`Top ${data.top.length} risks`} flush>
-            <div className="table-wrap">
+            <TableWrap label={`Top ${data.top.length} risks`}>
               <table className="table rk-report-table">
                 <thead>
                   <tr>
@@ -234,7 +234,7 @@ export function RiskReport() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableWrap>
           </Card>
 
           <Card title="Movement since the last review">
@@ -253,7 +253,7 @@ export function RiskReport() {
 
           <Card title="Acceptances expiring" flush={data.acceptances.length > 0}>
             {data.acceptances.length === 0 ? <p className="muted">No acceptance has expired or expires within {data.window_days} days.</p> : (
-              <div className="table-wrap">
+              <TableWrap label="Acceptances expiring">
                 <table className="table rk-report-table">
                   <thead><tr><th scope="col">Risk</th><th scope="col">Rating</th><th scope="col">Approved by</th><th scope="col">Expires</th><th scope="col">Time left</th></tr></thead>
                   <tbody>
@@ -268,7 +268,7 @@ export function RiskReport() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </TableWrap>
             )}
             {expired > 0 && <p className="muted rk-report-note rk-panel-pad">{expired === 1 ? 'One acceptance has' : `${expired} acceptances have`} expired: those risks are no longer accepted and need review.</p>}
           </Card>

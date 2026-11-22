@@ -183,7 +183,7 @@ export function OffboardingDetail() {
   return (
     <RecordPage
       type="vendor_offboarding"
-      breadcrumbs={[{ label: 'Vendors', to: '/vendors' }, { label: 'Offboarding', to: '/vendors/offboardings' }]}
+      breadcrumbs={[{ label: 'Vendors', to: '/vendors' }, { label: 'Vendor offboarding', to: '/vendors/offboardings' }]}
       title={(row) => `Offboarding ${row._display?.vendor_id ?? ''}`.trim()}
       subtitle={(row) => (
         <>

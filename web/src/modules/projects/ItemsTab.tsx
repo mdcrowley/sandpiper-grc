@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Group, SegmentedControl, Text } from '@mantine/core';
 import {
   api, Badge, Button, Card, ConfirmDialog, EmptyState, errorMessage, ErrorState, formatDate, Icon, Loading, LookupChip, Menu,
-  useAuth, useFetch, useLookup, useResource, useToast,
+  TableWrap, useAuth, useFetch, useLookup, useResource, useToast,
 } from '../../core';
 import { Person } from './bits';
 import { ItemDialog } from './ItemDialog';
@@ -84,7 +84,7 @@ export function ItemsTab({ projectId, onChanged }: { projectId: string; onChange
             action={add}
           />
         ) : (
-          <div className="table-wrap prj-scroll">
+          <TableWrap label={kindLabel ? `Project ${kindLabel} items` : 'Project items'} className="prj-scroll">
             <table className="table">
               <thead>
                 <tr>
@@ -143,7 +143,7 @@ export function ItemsTab({ projectId, onChanged }: { projectId: string; onChange
                 })}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
       </Card>
 

@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   api, Button, Card, ConfirmDialog, DateField, EmptyState, ErrorState, errorMessage, formatDate, Loading, LookupChip, LookupSelect, Modal,
-  PageHeader, RecordPage, ResourceForm, ResourceList, Select, Stepper, TextArea, useAuth, useFetch, UserPicker, useToast, useUnsavedChanges,
+  PageHeader, RecordPage, ResourceForm, ResourceList, Select, Stepper, TableWrap, TextArea, useAuth, useFetch, UserPicker, useToast, useUnsavedChanges,
 } from '../../core';
 import type { Row } from '../../core';
 import { FundingTabs, ofText } from './shared';
@@ -233,7 +233,7 @@ function Requests({ row, canEdit }: { row: Row; canEdit: boolean }) {
         : !data ? <div className="fd-pad"><Loading lines={4} /></div>
         : data.length === 0 ? <EmptyState icon="folder" title="No document requests" message="Record what the funder asks to see, who gathers it and by when." />
         : (
-          <div className="table-wrap">
+          <TableWrap label="Document requests of this review">
             <table className="table">
               <caption className="sr-only">Document requests of this review</caption>
               <thead><tr><th scope="col">Request</th><th scope="col">Area</th><th scope="col">Assigned to</th><th scope="col">Due</th><th scope="col">Status</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
@@ -256,7 +256,7 @@ function Requests({ row, canEdit }: { row: Row; canEdit: boolean }) {
                 })}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
       {editing && <RequestDialog reviewId={row.id} request={editing} areas={areas} full={canEdit} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reload(); }} />}
       <ConfirmDialog open={!!removing} title="Remove this request?" message="The request and its response are removed from the review."

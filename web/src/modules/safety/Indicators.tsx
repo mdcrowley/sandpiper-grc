@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   api, Button, Card, Chart, Checkbox, EmptyState, errorMessage, ErrorState, formatNumber, Loading, LookupChoices, LookupSelect, Modal, NumberField,
-  PageHeader, ResourceList, Select, Stat, StatusChip, TextArea, TextField, useAuth, useFetch, useLookup, useRecord, useToast, HistoryPanel, Tabs,
+  PageHeader, ResourceList, Select, Stat, StatusChip, TableWrap, TextArea, TextField, useAuth, useFetch, useLookup, useRecord, useToast, HistoryPanel, Tabs,
 } from '../../core';
 import type { ChartOption, Row } from '../../core';
 import { TargetsTab, ValuesTab } from './IndicatorTabs';
@@ -126,7 +126,7 @@ export function IndicatorDetail() {
               {trendError && !data ? <ErrorState error={trendError} onRetry={reloadTrend} /> : !data ? <Loading lines={6} /> : (
                 <div className="stack">
                   <TrendChart points={points} name={row.name} unit={unit} />
-                  <div className="table-wrap">
+                  <TableWrap label={`${row.name} by month`}>
                     <table className="table">
                       <caption className="sr-only">{row.name} by month</caption>
                       <thead><tr><th scope="col">Month</th>{counts && <th scope="col" className="num">Events</th>}{row.measure === 'distance_between' && <><th scope="col" className="num">Revenue miles</th><th scope="col" className="num">Major failures</th></>}{row.measure === 'rate' && <th scope="col" className="num">Exposure</th>}<th scope="col" className="num">Value</th><th scope="col" className="num">Target</th><th scope="col">Against target</th></tr></thead>
@@ -147,7 +147,7 @@ export function IndicatorDetail() {
                         ))}
                       </tbody>
                     </table>
-                  </div>
+                  </TableWrap>
                   {counts && <p className="muted sf-hint">Counts every safety event, restricted ones included, so everyone sees the same figures; the event list shows only those you may see.</p>}
                   {row.measure === 'computed' && <p className="muted sf-hint">{metric ? metric.description : 'The figure this indicator is computed from is not available on this installation (its part of the application may be switched off).'}</p>}
                 </div>
@@ -277,7 +277,7 @@ export function ExposurePage() {
         {error ? <ErrorState error={error} onRetry={reload} /> : !data ? <div className="sf-pad"><Loading lines={8} /></div> : (
           <>
             {mode === '' && <p className="muted sf-pad sf-hint">When no figure is entered for the whole operation, a rate adds up the figures entered for each mode.</p>}
-            <div className="table-wrap">
+            <TableWrap label="Exposure by month">
               <table className="table">
                 <caption className="sr-only">Exposure by month</caption>
                 <thead><tr><th scope="col">Month</th>{FIELDS.map(([, l]) => <th key={l} scope="col" className="num">{l}</th>)}<th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
@@ -294,7 +294,7 @@ export function ExposurePage() {
                   })}
                 </tbody>
               </table>
-            </div>
+            </TableWrap>
           </>
         )}
       </Card>

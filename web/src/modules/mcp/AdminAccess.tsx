@@ -3,7 +3,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import {
   api, ApiError, Badge, Button, Card, Checkbox, ChoicesField, ConfirmDialog, EmptyState, errorMessage, formatDate, Modal, relativeTime, Select, Switch,
-  TextArea, TextField, useToast,
+  TableWrap, TextArea, TextField, useToast,
 } from '../../core';
 import { CopyBox, Notice } from '../admin/common';
 import { adminApi, withReauth } from '../admin/reauth';
@@ -267,7 +267,7 @@ export function OAuthCard({ settings, oauth, busy, save, reload }: { settings: A
       </div>
       {settings.oauthEnabled && (
         oauth.clients.length === 0 ? <EmptyState icon="link" title="No connectors yet" message="Connectors appear here when they register or when you add one." /> : (
-          <div className="table-wrap">
+          <TableWrap label="Connectors">
             <table className="table mcp-clients">
               <caption className="sr-only">Connectors</caption>
               <thead><tr><th scope="col">Connector</th><th scope="col">Returns to</th><th scope="col">Added</th><th scope="col" className="num">Connections</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
@@ -300,7 +300,7 @@ export function OAuthCard({ settings, oauth, busy, save, reload }: { settings: A
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )
       )}
       {settings.oauthEnabled && oauth.grants.length > 0 && (

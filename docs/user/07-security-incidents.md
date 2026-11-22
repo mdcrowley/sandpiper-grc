@@ -93,7 +93,7 @@ Open the incident and select **Declare incident** at the top of the page, or sel
 
 The workspace is laid out so that the things that matter most under pressure are always in view:
 
-- At the top, the title, reference, severity and status, with **Edit details**, **Incident report** and a **More** menu (links to **All notifications**, **Offline incident kit** and **Notification rules and checklists**).
+- At the top, the title, reference, severity and status, with **Edit details**, **Incident report** and a **More** menu (links to **All notifications**, **Offline incident kit** and **Rules and checklists**).
 - The **status bar**, with the key times beneath it: **Discovered** (and how long ago), **Declared**, **Contained**, **Closed**, **Incident lead** and **Scenario**, then the summary.
 - On a wide screen, the **Notification clocks** and the **Team** down the right-hand side, staying in view as you scroll; on a narrow screen the clocks come first, above the tabs.
 - The tabs: **Log**, **Checklists**, **Roles**, **Evidence**, **Affected**, **Ransom**, **Lessons**, **Attachments** and **History**.

@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Alert, Collapse, Group, Paper, Progress, SegmentedControl, SimpleGrid, Text, UnstyledButton } from '@mantine/core';
 import {
   Button, Card, ColorDot, EmptyState, ErrorState, formatCurrency, Icon, Loading, MultiSelect, PageHeader, StatusChip,
-  TextField, toColorName, useAuth, useFetch, useLookup,
+  TableWrap, TextField, toColorName, useAuth, useFetch, useLookup,
 } from '../../core';
 import type { IconName } from '../../core';
 import { compactCurrency } from './bits';
@@ -103,7 +103,7 @@ function Summary({ data, onShowGates, gatesOpen }: { data: Portfolio; onShowGate
 function GatesDue({ data }: { data: Portfolio }) {
   return (
     <Card title="Gate decisions due" flush>
-      <div className="table-wrap prj-scroll">
+      <TableWrap label="Gate decisions due" className="prj-scroll">
         <table className="table">
           <thead>
             <tr><th scope="col">Project</th><th scope="col">Gate</th><th scope="col">Checklist</th><th scope="col">State</th></tr>
@@ -119,7 +119,7 @@ function GatesDue({ data }: { data: Portfolio }) {
             ))}
           </tbody>
         </table>
-      </div>
+      </TableWrap>
     </Card>
   );
 }

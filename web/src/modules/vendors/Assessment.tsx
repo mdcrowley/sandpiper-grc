@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { RingProgress, SegmentedControl } from '@mantine/core';
 import {
   api, ApiError, Badge, Button, Card, Checkbox, ConfirmDialog, DateField, EmptyState, ErrorState, errorMessage, formatDate,
-  Loading, Modal, StatusChip, TextArea, TextField, todayInZone, useAuth, useFetch, useToast, useUnsavedChanges,
+  Loading, Modal, StatusChip, TableWrap, TextArea, TextField, todayInZone, useAuth, useFetch, useToast, useUnsavedChanges,
 } from '../../core';
 import type { ColorName } from '../../core';
 import { ResponseLinkPanel } from './ResponseLink';
@@ -374,7 +374,7 @@ export function AssessmentTab({ vendorId, onChanged }: { vendorId: string; onCha
       </Card>
       {completed.length > 0 && (
         <Card title="History" flush>
-          <div className="table-wrap">
+          <TableWrap label="Completed assessments, newest first">
             <table className="table">
               <caption className="sr-only">Completed assessments, newest first</caption>
               <thead>
@@ -396,7 +396,7 @@ export function AssessmentTab({ vendorId, onChanged }: { vendorId: string; onCha
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         </Card>
       )}
       <Modal open={formId !== null} size="lg" title="Security assessment" onClose={() => { setFormId(null); refresh(); }}>

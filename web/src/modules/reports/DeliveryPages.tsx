@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   Button, ConfirmDialog, CustomFieldsCard, Drawer, EmptyState, ErrorState, Icon, Loading, NotFound, PageHeader, ResourceList, StatusChip,
-  api, errorMessage, formatDateTime, useAuth, useFetch, useToast,
+  api, errorMessage, formatDateTime, TableWrap, useAuth, useFetch, useToast,
 } from '../../core';
 import type { ApiError, Row } from '../../core';
 import { downloadFile } from './data';
@@ -104,7 +104,7 @@ export function SnapshotsPage() {
         : !list.data ? <Loading lines={6} />
         : list.data.length === 0 ? <EmptyState icon="file-text" title="Nothing delivered yet" message="When a report or dashboard is scheduled for you, each delivery appears here and in your notifications." />
         : (
-          <div className="table-wrap">
+          <TableWrap label="Documents delivered to me">
             <table className="table">
               <thead><tr><th scope="col">Document</th><th scope="col">From</th><th scope="col">Format</th><th scope="col">Produced</th></tr></thead>
               <tbody>
@@ -118,7 +118,7 @@ export function SnapshotsPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
     </div>
   );

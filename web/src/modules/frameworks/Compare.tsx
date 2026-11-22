@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react';
 import type { CSSProperties } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
-  Card, EmptyState, ErrorState, Icon, IconButton, Loading, Select, Stat, StatusChip, cx, formatDate, useFetch,
+  Card, EmptyState, ErrorState, Icon, IconButton, Loading, Select, Stat, StatusChip, cx, formatDate, TableWrap, useFetch,
 } from '../../core';
 import { StatusBar, StatusLegend } from './StatusBar';
 import type { ChangedOutcome, Comparison, ProgressPoint } from './types';
@@ -145,7 +145,7 @@ export function ComparePanel({ points }: { points: ProgressPoint[] }) {
                 <EmptyState icon="check" title="No outcome changed status"
                   message={`Every status is the same at "${data.to.name}" as it was at "${data.from.name}".`} />
               ) : (
-                <div className="table-wrap">
+                <TableWrap label="Compare two points in time">
                   <table className="table">
                     <thead><tr><th scope="col">Outcome</th><th scope="col">{data.from.name}</th><th scope="col">{data.to.name}</th><th scope="col">Direction</th></tr></thead>
                     <tbody>
@@ -168,7 +168,7 @@ export function ComparePanel({ points }: { points: ProgressPoint[] }) {
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </TableWrap>
               )}
             </section>
           </div>

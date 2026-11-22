@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  ApiError, Badge, Button, Card, EmptyState, ErrorState, errorMessage, Loading, Modal, PageHeader, StatusChip, TextArea,
+  ApiError, Badge, Button, Card, EmptyState, ErrorState, errorMessage, Loading, Modal, PageHeader, StatusChip, TableWrap, TextArea,
   TextField, useFetch, useToast,
 } from '../../core';
 import { Notice } from './common';
@@ -89,7 +89,7 @@ export function RolesPage() {
           : !data ? <div className="card-body"><Loading lines={8} label="Loading roles" /></div>
           : data.roles.length === 0 ? <EmptyState icon="users" title="No roles" message="Add a role to start granting access." action={<Button variant="primary" icon="plus" onClick={() => setCreating(true)}>New role</Button>} />
           : (
-            <div className="table-wrap adm-table-frame">
+            <TableWrap label="Roles" className="adm-table-frame">
               <table className="table">
                 <thead>
                   <tr><th scope="col">Role</th><th scope="col">Access</th><th scope="col" className="num">Members</th><th scope="col">Second factor</th><th scope="col">Switched on</th></tr>
@@ -115,7 +115,7 @@ export function RolesPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableWrap>
           )}
       </Card>
       <NewRoleDialog open={creating} onClose={() => setCreating(false)} onCreated={(r) => navigate(`/admin/roles/${r.id}`)} />

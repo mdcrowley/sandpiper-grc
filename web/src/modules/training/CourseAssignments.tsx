@@ -3,7 +3,7 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import {
   api, ApiError, Badge, Button, Card, ConfirmDialog, EmptyState, ErrorState, errorMessage, formatDate, IconButton, Loading, Modal,
-  Select, UserPicker, useAuth, useFetch, useToast, useUnsavedChanges,
+  Select, TableWrap, UserPicker, useAuth, useFetch, useToast, useUnsavedChanges,
 } from '../../core';
 import type { Audiences } from './shared';
 
@@ -126,7 +126,7 @@ export function CourseAssignments({ courseId, onChanged }: { courseId: string; o
     );
   } else {
     body = (
-      <div className="table-wrap trn-tw">
+      <TableWrap label="Assignment rules for this course" className="trn-tw">
         <table className="table">
           <caption className="sr-only">Assignment rules for this course</caption>
           <thead>
@@ -151,7 +151,7 @@ export function CourseAssignments({ courseId, onChanged }: { courseId: string; o
             ))}
           </tbody>
         </table>
-      </div>
+      </TableWrap>
     );
   }
 

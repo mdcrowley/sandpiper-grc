@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { FileInput, SegmentedControl } from '@mantine/core';
 import { Link } from 'react-router-dom';
 import {
-  api, ApiError, Badge, Button, Card, Checkbox, ErrorState, errorMessage, Icon, KeyValue, Loading, PageHeader, Select, Stepper, TextArea, TextField,
+  api, ApiError, Badge, Button, Card, Checkbox, ErrorState, errorMessage, Icon, KeyValue, Loading, PageHeader, Select, Stepper, TableWrap, TextArea, TextField,
   useFetch, UserPicker, useToast,
 } from '../../core';
 import { detectDelimiter, firstRecords, guessMapping } from './csvPreview';
@@ -239,7 +239,7 @@ export function ImportWizard() {
 
           <Card title="How the first rows will be read" flush>
             {previewFields.length === 0 ? <p className="muted vuln-pad">Map a column to see how the first rows will be read.</p> : (
-              <div className="table-wrap vuln-tw vuln-wrap">
+              <TableWrap label="The first rows of the file as they will be imported" className="vuln-tw vuln-wrap">
                 <table className="table">
                   <caption className="sr-only">The first rows of the file as they will be imported</caption>
                   <thead><tr>{previewFields.map((f) => <th key={f.key} scope="col">{f.label}</th>)}</tr></thead>
@@ -251,7 +251,7 @@ export function ImportWizard() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </TableWrap>
             )}
           </Card>
 

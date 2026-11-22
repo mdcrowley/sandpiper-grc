@@ -484,7 +484,7 @@ built; see [Known gaps](known-gaps.md).
   administrator are built. Still to do: a passkey second factor after a directory password
   and linking a directory from Account security (E02-29).
 - **More than one process.** The job queue already works across processes. Still to do:
-  move the remaining timers onto it, and move the per-token request count, the `If-Match`
+  move the remaining timers onto it, and move the per-token request count (E16-43), the `If-Match`
   lock and the webhook worker out of process memory, before running several instances.
 - **Operations.** Scheduled, verified backups, an upgrade with automatic rollback and
   continuous integration are built. Still to do: log retention and monitoring.

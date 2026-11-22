@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   api, Button, Card, ConfirmDialog, EditableSummary, EmptyState, ErrorState, errorMessage, formatDate, Loading, LookupChip, Modal,
-  PageHeader, RecordPage, RecordPicker, ResourceList, Select, useAuth, useFetch, useToast,
+  PageHeader, RecordPage, RecordPicker, ResourceList, Select, TableWrap, useAuth, useFetch, useToast,
 } from '../../core';
 import { FundingTabs } from './shared';
 
@@ -66,7 +66,7 @@ function FundedItems({ awardId, canEdit }: { awardId: string; canEdit: boolean }
           <EmptyState icon="link" title="Nothing recorded as funded by this award"
             message={types.length ? `Link the ${types.map((t) => t.label.toLowerCase()).join(', ')} this award paid for.` : 'The kinds of record an award can pay for are not part of this installation.'} />
         ) : (
-          <div className="table-wrap">
+          <TableWrap label="Records funded by this award">
             <table className="table">
               <caption className="sr-only">Records funded by this award</caption>
               <thead><tr><th scope="col">Record</th><th scope="col">Type</th><th scope="col">Linked</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
@@ -81,7 +81,7 @@ function FundedItems({ awardId, canEdit }: { awardId: string; canEdit: boolean }
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
       <Modal open={adding} title="Add a funded item" size="sm" onClose={() => setAdding(false)} dirty={adding && Boolean(pick)}
         footer={<><Button onClick={() => setAdding(false)}>Cancel</Button><Button variant="primary" loading={busy} disabled={!pick} onClick={add}>Add</Button></>}>
@@ -123,7 +123,7 @@ function ReportingObligations({ awardId, canEdit }: { awardId: string; canEdit: 
           <EmptyState icon="calendar" title="No reporting obligations yet"
             message="When the award is awarded or active, its reports (at the reporting frequency) and its close-out become obligations with due dates." />
         ) : (
-          <div className="table-wrap">
+          <TableWrap label="Obligations made from this award">
             <table className="table">
               <caption className="sr-only">Obligations made from this award</caption>
               <thead><tr><th scope="col">Obligation</th><th scope="col">Frequency</th><th scope="col">Next due</th><th scope="col">Status</th></tr></thead>
@@ -138,7 +138,7 @@ function ReportingObligations({ awardId, canEdit }: { awardId: string; canEdit: 
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
     </Card>
   );

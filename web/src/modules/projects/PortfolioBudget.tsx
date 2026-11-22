@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { SimpleGrid } from '@mantine/core';
-import { Card, Chart, chartColor, EmptyState, escapeHtml, formatCurrency, LookupChip, Stat } from '../../core';
+import { Card, Chart, chartColor, EmptyState, escapeHtml, formatCurrency, LookupChip, Stat, TableWrap } from '../../core';
 import type { ChartOption } from '../../core';
 import { BudgetBar, compactCurrency } from './bits';
 import type { PortfolioRow } from './types';
@@ -87,7 +87,7 @@ export function PortfolioBudget({ rows }: { rows: PortfolioRow[] }) {
         />
       </Card>
       <Card title="Figures" flush>
-        <div className="table-wrap prj-scroll">
+        <TableWrap label="Figures" className="prj-scroll">
           <table className="table prj-figures">
             <thead>
               <tr>
@@ -121,7 +121,7 @@ export function PortfolioBudget({ rows }: { rows: PortfolioRow[] }) {
               </tr>
             </tfoot>
           </table>
-        </div>
+        </TableWrap>
       </Card>
     </div>
   );

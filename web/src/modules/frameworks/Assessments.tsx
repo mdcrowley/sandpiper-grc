@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  ApiError, Button, Card, DateField, EmptyState, ErrorState, Loading, Modal, PageHeader, Select, Stat, TextArea, TextField,
+  ApiError, Button, Card, DateField, EmptyState, ErrorState, Loading, Modal, PageHeader, Select, Stat, TableWrap, TextArea, TextField,
   api, errorMessage, formatDate, todayInZone, useAuth, useCustomFieldInputs, useFetch, useToast, useUnsavedChanges,
 } from '../../core';
 import { useFrameworkChoice } from './Board';
@@ -71,7 +71,7 @@ function TakeSnapshot({ frameworkId, onDone, onCancel }: { frameworkId: string; 
 function SnapshotTable({ progress }: { progress: Progress }) {
   const rows = [...progress.series].reverse();
   return (
-    <div className="table-wrap">
+    <TableWrap label="Snapshots, newest first">
       <table className="table">
         <thead>
           <tr>
@@ -96,7 +96,7 @@ function SnapshotTable({ progress }: { progress: Progress }) {
           ))}
         </tbody>
       </table>
-    </div>
+    </TableWrap>
   );
 }
 

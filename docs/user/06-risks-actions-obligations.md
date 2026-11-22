@@ -32,7 +32,7 @@ Open **Cybersecurity > Risk register**. From top to bottom the page has:
 - the **Heat map** card, with the ranked risks beside it;
 - the list of risks.
 
-The buttons at the top open **Reviews and acceptances**, the **Risk report**, **Risk scales** and **Risk appetite** (administrators of risks only) and **Print**.
+The buttons at the top open **Risk reviews**, the **Risk report**, **Risk scales** and **Risk appetite** (administrators of risks only) and **Print**.
 
 ### The two scales
 
@@ -258,7 +258,7 @@ The acceptance is never deleted: it stays on record, labeled **Revoked**, with t
 
 ## Risk reviews
 
-Each risk has a **Next review** date. When it arrives the risk's owner is notified once, and the risk appears on the **Reviews and acceptances** page.
+Each risk has a **Next review** date. When it arrives the risk's owner is notified once, and the risk appears on the **Risk reviews** page.
 
 To complete a review:
 
@@ -270,7 +270,7 @@ To complete a review:
 
 Today is recorded as the review date, the ratings are kept as they stand now (the **Risk report** compares later ratings with them), and the next review date is set. The **Review** card lists the reviews so far with the rating at each.
 
-### The Reviews and acceptances page
+### The Risk reviews page
 
 Open **Cybersecurity > Risk reviews**. It has two worklists, looking ahead **30 days**, **60 days** or **90 days**:
 

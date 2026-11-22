@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   api, Button, Card, ConfirmDialog, EmptyState, errorMessage, ErrorState, formatDate, IconButton, KeyValue, Loading, LookupChip, Modal,
-  PageHeader, RecordPage, RecordPicker, ResourceList, Select, TextArea, TextField, useAuth, useFetch, useResource, useToast, useUnsavedChanges,
+  PageHeader, RecordPage, RecordPicker, ResourceList, Select, TableWrap, TextArea, TextField, useAuth, useFetch, useResource, useToast, useUnsavedChanges,
   UserPicker,
 } from '../../core';
 import type { RecordContext, Row } from '../../core';
@@ -45,7 +45,7 @@ function CoveredProcesses({ plan }: { plan: Row }) {
   return (
     <Card title="Processes this plan covers" flush>
       {data.length === 0 ? <EmptyState icon="shield" title="No processes yet" message="Add the business processes this plan recovers." /> : (
-        <div className="table-wrap">
+        <TableWrap label="Processes covered">
           <table className="table">
             <caption className="sr-only">Processes covered</caption>
             <thead><tr><th scope="col">Process</th><th scope="col">Criticality</th><th scope="col">Tolerable downtime</th>{canEdit && <th scope="col"><span className="sr-only">Actions</span></th>}</tr></thead>
@@ -60,7 +60,7 @@ function CoveredProcesses({ plan }: { plan: Row }) {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableWrap>
       )}
       {canEdit && (
         <div className="bc-pad bc-add-row">

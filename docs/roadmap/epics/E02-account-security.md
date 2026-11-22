@@ -139,7 +139,7 @@ confirm password) and sign-out. Everything else answers `403 mfa_enrolment_requi
 **Acceptance criteria**
 
 - [x] A user for whom the factor is required and missing is limited to the enrollment routes
-- [ ] The web app sends them to enrollment after sign-in (the Account security page shows the reason, but the shell does not redirect: E02-15)
+- [x] The web app sends them to enrollment after sign-in (built in E02-15: with `mfaEnrollmentBlocked` the shell shows only second-factor set-up and sign out, `EnrollmentGate` in `web/src/App.tsx`)
 - [x] A grace period is configurable (`auth.mfa_grace_days`, default none)
 - [x] The Administrator and Security lead roles are the ones enforced when the setting is `required` (they carry the "requires second factor" flag by default). The setting itself defaults to `notice`, by decision, so existing installations keep working; see E02-17
 - [x] An administrator cannot switch to `required` before setting up their own second factor
@@ -207,8 +207,8 @@ password, a touch-only security key is enough unless `auth.passkey_user_verifica
 - [x] Checked in a real browser (headless Edge with a virtual authenticator, `VIRTUAL_AUTHENTICATOR=1` in `tools/browse.mjs`): adding a passkey, signing in with it alone, and as the second factor after the password
 - [ ] Works once the application is served over HTTPS on a real host name (configuration exists; not tried on a real host, depends on E16-07)
 - [x] All key events are audited (`passkey.register`, `.rename`, `.revoke`, `.used`, `.refused`, `.register_refused`, `.sign_count_regression`; `signin.success` "via passkey")
-- [ ] The card is on the Account security page and on an administrator's user page, and the sign-in page offers **Sign in with a passkey** and **Use a passkey or security key instead** (components are ready in `web/src/modules/account-keys`; the embeds belong to the administration and sign-in screens)
-- [ ] An administrator's second-factor reset also removes the person's passkeys (`revokeAllPasskeys`), and the "set up your own second factor first" check on `auth.mfa_enforcement` counts a passkey
+- [x] The card is on the Account security page and on an administrator's user page, and the sign-in page offers **Sign in with a passkey** and **Use a passkey or security key instead** (`PasskeysCard` in `web/src/modules/admin/AccountSecurity.tsx` and `UserDetail.tsx`; `PasskeySignIn` and `PasskeySecondFactorButton` in `web/src/core/AuthPages.tsx`)
+- [x] An administrator's second-factor reset also removes the person's passkeys (`revokeAllPasskeys` in `POST /api/admin/users/:id/reset-mfa`, `server/src/modules/admin/users.ts`), and the "set up your own second factor first" check on `auth.mfa_enforcement` counts a passkey (`hasActivePasskey` in `server/src/modules/admin/settings.ts`); both tested in `server/src/modules/admin/security.test.ts` ("passkeys count as a second factor for administrators")
 
 **Implemented in:** `server/src/core/webauthn/` (`cbor.ts`, `cose.ts`, `ceremony.ts`, `config.ts`, `store.ts`, `routes.ts`, `apidocs.ts`, `softauthn.ts` test authenticator, `webauthn.test.ts`); hooks in `server/src/core/auth.ts` (`registerWebAuthn`, `passkeySecondFactor`, `hasActivePasskey`, `WEBAUTHN_ENROLLMENT_ROUTES`); `server/src/core/migrations/004_webauthn.sql`; web `web/src/modules/account-keys/` (`PasskeysCard`, `PasskeySignIn`, `PasskeySecondFactorButton`, pages `/account/passkeys` and `/sign-in/passkey`); `tools/browse.mjs` (`VIRTUAL_AUTHENTICATOR=1`); [user guide](../../user/16-passkeys-and-security-keys.md)
 
@@ -245,7 +245,9 @@ same way as OpenID Connect.
 Unblocked by decision: no paid service; an open-source XML-signature library inside the
 application. **@node-saml/node-saml** 5.2.0 (MIT, the maintained successor of passport-saml's
 core; on xml-crypto 6.4.0 and @xmldom/xmldom 0.8.15, with xml-encryption 3.1.0), pinned to exact
-versions; `npm audit` clean. It checks the XML signatures (configured certificates only, signed
+versions; `npm audit` clean. Since wave 12 the application's own parsing (`samlxml.ts`) is on
+@xmldom/xmldom 0.9.12 and its decryption (`saml.ts`) on xml-encryption 6.0.2; the library and
+xml-crypto keep their own @xmldom/xmldom 0.8.15 until they move. It checks the XML signatures (configured certificates only, signed
 bytes read, one assertion, InResponseTo, audience, issuer, times); this application adds hardened
 parsing, a signature-wrapping and algorithm allow-list check, exact Destination and Recipient,
 browser binding and one-time assertion IDs (see [Security](../../security.md)).
@@ -432,7 +434,7 @@ machine, so a copied token is useless elsewhere. Found while building E02-12.
 - [x] The address checked is the one the application trusts (`clientIp`: the connection's own, or the entry the trusted proxy appended under `GRC_TRUST_PROXY`; a forwarded header is ignored otherwise) (tested)
 - [x] The list can be changed on a live token, by its owner (`PATCH /api/me/tokens/:id`, **Addresses** on Account security) or an administrator (`PATCH /api/admin/tokens/:id`, **Addresses** on Administration > API tokens), with a recent identity confirmation; an empty list allows any address again; audited as `token.update` with the lists before and after
 - [x] The administrators' token list shows "From any address" for a token without a list
-- [ ] The per-token request count moves out of process memory with E14-12 (tracked there; not part of this issue)
+- [ ] The per-token request count moves out of process memory: not part of this issue, raised as [E16-43](E16-hosting-operations-and-hardening.md) (the count behind `tokens.rate_per_minute` is kept per server process, so a restart resets the current minute and each of several processes counts on its own)
 
 **Implemented in:** `server/src/core/tokens.ts` (`checkSources`, `sourceAllowed`, `changeSources`), `server/src/core/migrations/008_token_source_addresses.sql`, route descriptions in `server/src/core/api/docs/tokens.ts`; `web/src/modules/admin/ApiTokens.tsx` (`SourcesDialog`), `web/src/modules/mcp/ConnectCard.tsx`; tests `server/src/core/api/token-sources.test.ts`, browser test "API token: change the allowed source addresses" (`tools/e2e/suites/07-dialogs.mjs`)
 

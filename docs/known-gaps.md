@@ -14,7 +14,7 @@ content, which belongs in a document tool (E25-13, E29-11, E32-06, E34-09).
 
 ## Built but incomplete
 
-- **Accessibility**: tables that scroll sideways and hold no links are reachable with the keyboard only where they use the shared `TableWrap` (E22-48).
+- **Accessibility**: tables on the Help pages always take a Tab stop, even when they fit, and carry the generic name "Table".
 - **Wave 10 parts** (corrective action plans, audits and inspections, controls, funding, committees,
   the staff roster, obligations and enterprise risk):
   - The person asked for audit evidence answers in text only (attaching files needs `audits.edit`);
@@ -29,9 +29,8 @@ content, which belongs in a document tool (E25-13, E29-11, E32-06, E34-09).
   - Key risk indicators are monthly only; regulatory changes are entered by hand (no outside feed).
 - **Wave 11 parts** (business continuity, asset condition, OT security, legal holds, records
   requests and privacy, the vendor risk lifecycle and integrations):
-  - Business continuity: impact analyses are signed off directly by a holder of
-    `continuity.approve`, not through an approval workflow (E31-10). Call trees are printed and
-    called by hand; nothing pages or messages people.
+  - Business continuity: call trees are printed and called by hand; nothing pages or messages
+    people.
   - Asset condition: one useful-life benchmark per class (changing it recomputes every member);
     condition history is listed, not charted.
   - OT security: no network scanning or device discovery; the starter structure file's mappings are
@@ -93,6 +92,10 @@ content, which belongs in a document tool (E25-13, E29-11, E32-06, E34-09).
   processes on one database do not share it. The Overview's figures are kept for a few
   seconds per process, so a change saved through another process shows up there after up
   to 10 seconds.
+- **Per-token request limits are per process.** The limit set by `tokens.rate_per_minute`, the
+  `RateLimit` headers and `mcp.rate_per_minute` count in memory: a restart resets the current
+  minute, and with several application processes each counts on its own. Run one process, or
+  allow for this, until E16-43.
 - **Hosting**: with a least-privilege database account, adding a custom field is queued
   for the database owner, and a new text custom field is searched only after the owner's
   next `migrate` step. JSON API responses are not compressed by the application (a risk with

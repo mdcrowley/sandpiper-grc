@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   ApiError, api, Button, Checkbox, ConfirmDialog, DateTimeField, EmptyState, ErrorState, errorMessage, formatDateTime,
-  IconButton, Loading, Modal, NumberField, Select, TextArea, TextField, useFetch, useToast,
+  IconButton, Loading, Modal, NumberField, Select, TableWrap, TextArea, TextField, useFetch, useToast,
 } from '../../core';
 import type { IconName } from '../../core';
 
@@ -152,7 +152,7 @@ export function EditableTable({
         : !rows ? <Loading />
         : !rows.length ? <EmptyState icon={emptyIcon} title={emptyTitle} message={emptyMessage} />
         : (
-          <div className="table-wrap">
+          <TableWrap label={`${noun} list`}>
             <table className="table si-table">
               <thead>
                 <tr>
@@ -178,7 +178,7 @@ export function EditableTable({
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
 
       <Modal open={!!editing} title={editing?.id ? `Edit ${lower}` : `Add ${lower}`} onClose={() => setEditing(null)}

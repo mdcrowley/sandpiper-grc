@@ -5,7 +5,7 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   api, ApiError, Button, Card, DateField, EmptyState, ErrorState, errorMessage, formatDate, Loading, Modal, PageHeader,
-  RecordPage, ResourceList, Select, StatusChip, TextArea, todayInZone, useFetch, useResource, useToast, useUnsavedChanges,
+  RecordPage, ResourceList, Select, StatusChip, TableWrap, TextArea, todayInZone, useFetch, useResource, useToast, useUnsavedChanges,
 } from '../../core';
 import type { ColorName, Row } from '../../core';
 import { capsInBuild, FundingTabs } from './shared';
@@ -124,7 +124,7 @@ function MonitoringTab({ row, reload: reloadRecord }: { row: Row; reload: () => 
       {data.rows.length === 0 ? (
         <EmptyState icon="clipboard" title="Not monitored yet" message="Record each desk review, site visit or report review with its result." action={add} />
       ) : (
-        <div className="table-wrap">
+        <TableWrap label="Monitoring history, newest first">
           <table className="table">
             <caption className="sr-only">Monitoring history, newest first</caption>
             <thead><tr><th scope="col">Date</th><th scope="col">Method</th><th scope="col">Result</th><th scope="col">Findings</th><th scope="col">By</th><th scope="col">Corrective action plan</th></tr></thead>
@@ -147,7 +147,7 @@ function MonitoringTab({ row, reload: reloadRecord }: { row: Row; reload: () => 
               ))}
             </tbody>
           </table>
-        </div>
+        </TableWrap>
       )}
       {adding && <RecordMonitoring subId={row.id} onCancel={() => setAdding(false)} onDone={() => { setAdding(false); reload(); reloadRecord(); }} />}
     </Card>

@@ -2,7 +2,7 @@ import { useState, type FormEvent, type Ref } from 'react';
 import { Link } from 'react-router-dom';
 import { Checkbox as MCheckbox, Popover, TextInput, Tooltip, UnstyledButton } from '@mantine/core';
 import {
-  api, ApiError, Button, customFieldNames, DateField, errorMessage, formatDate, Icon, InlinePopups, LookupChip, useAuth, useCustomFieldInputs,
+  api, ApiError, Button, customFieldNames, DateField, errorMessage, formatDate, Icon, InlinePopups, LookupChip, TableWrap, useAuth, useCustomFieldInputs,
   useLookup, useMeta, UserPicker, useResource, useToast,
 } from '../../core';
 import type { Row } from '../../core';
@@ -130,7 +130,7 @@ export function ActionRows({ rows, today, openStatuses, onChanged, caption, show
   };
 
   return (
-    <div className="table-wrap rk-actions-wrap">
+    <TableWrap label={caption} className="rk-actions-wrap">
       <table className="table rk-actions">
         <caption className="sr-only">{caption}</caption>
         <thead>
@@ -197,7 +197,7 @@ export function ActionRows({ rows, today, openStatuses, onChanged, caption, show
           })}
         </tbody>
       </table>
-    </div>
+    </TableWrap>
   );
 }
 

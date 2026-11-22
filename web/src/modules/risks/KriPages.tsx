@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import {
   api, ApiError, Button, Card, EmptyState, ErrorState, errorMessage, Loading, Modal, NumberField, PageHeader, RecordPage,
-  ResourceList, Select, Stat, StatusChip, TextArea, TextField, todayInZone, useAuth, useFetch, useToast,
+  ResourceList, Select, Stat, StatusChip, TableWrap, TextArea, TextField, todayInZone, useAuth, useFetch, useToast,
 } from '../../core';
 import type { ColorName, ListResult, RecordContext, Row } from '../../core';
 
@@ -37,7 +37,7 @@ export function RiskKris({ riskId }: { riskId: string }) {
         : !data ? <div className="rk-panel-pad"><Loading lines={2} label="Loading indicators" /></div>
         : data.rows.length === 0 ? <EmptyState icon="target" title="No indicators for this risk" message="Indicators with amber and red thresholds warn early when the risk is growing." />
         : (
-          <div className="table-wrap">
+          <TableWrap label="Key risk indicators of this risk">
             <table className="table">
               <caption className="sr-only">Key risk indicators of this risk</caption>
               <thead><tr><th scope="col">Indicator</th><th scope="col">Latest</th><th scope="col">Level</th><th scope="col">Thresholds</th></tr></thead>
@@ -52,7 +52,7 @@ export function RiskKris({ riskId }: { riskId: string }) {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
     </Card>
   );
@@ -196,7 +196,7 @@ function ValuesPanel({ rec }: { rec: RecordContext }) {
           : data.values.length === 0 ? (
             <EmptyState icon="target" title="No values yet" message={data.computed ? 'Computed values appear after the daily check runs.' : 'Enter the value for each month.'} />
           ) : (
-            <div className="table-wrap">
+            <TableWrap label="Values of this indicator by month">
               <table className="table">
                 <caption className="sr-only">Values of this indicator by month</caption>
                 <thead><tr><th scope="col">Month</th><th scope="col">Value</th><th scope="col">Level</th><th scope="col">Note</th><th scope="col">Entered by</th></tr></thead>
@@ -212,7 +212,7 @@ function ValuesPanel({ rec }: { rec: RecordContext }) {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableWrap>
           )}
       </Card>
       <SourceCard rec={rec} values={data ?? null} />

@@ -306,7 +306,7 @@ script errors or failed requests.
 - [x] Every route loaded once
 - [x] No script errors and no failed API calls
 - [x] The two pages that overflow were noted (E18-01, E18-02)
-- [ ] Repeatable as an automated check (see E18-12)
+- [x] Repeatable as an automated check (built in E18-12: `tools/e2e/suites/01-smoke.mjs` loads every route)
 
 **Recorded in:** `docs/known-gaps.md` ("Verification status"). No script for this pass is kept in the repository.
 
@@ -499,10 +499,10 @@ For example Catalog / Service catalog and Security terms / Security terms matrix
 
 **Acceptance criteria**
 
-- [x] Each navigation item and its page title match in the service desk, inventory, vendors, frameworks, security incidents and projects modules (now "Service catalog", "Security terms matrix", "Notification rules and checklists", "Project portfolio", "New project request")
-- [ ] The newer modules are checked too
+- [x] Each navigation item and its page title match in the service desk, inventory, vendors, frameworks, security incidents and projects modules (now "Service catalog", "Security terms matrix", "Project portfolio", "New project request"; the incident page is "Rules and checklists" since wave 12)
+- [x] The newer modules are checked too (wave 12: every navigation entry, 123 of them, checked by the browser test "navigation labels match page titles" in `tools/e2e/suites/01-smoke.mjs`, which also fails when a label is cut off in the sidebar; only **Overview** is exempt, as it greets the person by name). Fixed: **Vendor offboarding** (menu), and the page titles **Risk reviews** (was "Reviews and acceptances"), **Rules and checklists** (was "Notification rules and checklists"), **Safety dashboard** (was "Safety"), **Audits** (was "Audits and inspections"), **Lists** (was "Lists and tags") and **User guide** (was "Help")
 
-**Implemented in:** each module's `web/src/modules/<key>/index.tsx`
+**Implemented in:** each module's `web/src/modules/<key>/index.tsx` and page headers (`vendors/index.tsx`, `vendors/Offboardings.tsx`, `risks/RiskReviews.tsx`, `risks/RiskRegister.tsx`, `secincidents/RulesPage.tsx`, `Workspace.tsx`, `KitPage.tsx`, `safety/Dashboard.tsx`, `audits/Dashboard.tsx`, `admin/Lists.tsx`, `help/HelpHome.tsx`, `HelpPage.tsx`, `ApiReference.tsx`); test in `tools/e2e/suites/01-smoke.mjs`; the menu table in `docs/user/01-getting-started.md` brought up to date
 
 ### E18-25 Permissions granted but never checked
 
@@ -649,7 +649,7 @@ events, unvalidated SQL identifiers and state-changing `GET` requests.
 - [x] A resource's default sort field and inherited-restriction fields are checked against the identifier pattern like every other column name
 - [x] `GET /api/audit` answered a malformed date with a server error: now 400
 - [x] No state-changing `GET` that another site could abuse; see E18-29 for the one read that writes
-- [ ] Left open and raised separately: E18-29, E18-30, E18-31
+- [x] Left open and raised separately: E18-29, E18-30, E18-31 (all three since done)
 
 ### E18-33 Web bundle is a single 1.8 MB script
 
@@ -754,13 +754,13 @@ On the Assets and systems dashboard, the Assets by status chart prints its categ
 Found by the browser tests (E18-08). In Reports > Dashboards > New dashboard, pressing
 "Create and add widgets" with no name shows a passing notice ("Give the dashboard a
 name.") instead of a message under the Name field, so a screen-reader user may miss it and
-focus stays on the button. The browser tests report this step as a known defect until it is
-fixed (`tools/e2e/suites/03-records.mjs`, `known: { empty: 'E18-37' }`).
+focus stays on the button. The browser tests reported this step as a known defect until it was
+fixed (`tools/e2e/suites/03-records.mjs`, `known: { empty: 'E18-37' }`, removed in wave 12).
 
 **Acceptance criteria**
 
 - [x] The message appears under the Name field (`error` on the `TextField`) and focus moves to the field (`web/src/modules/reports/DashboardPages.tsx`, `create()`); a server refusal of the name shows there too, and the dashboard settings dialog marks an empty name the same way
-- [ ] The `known` entry for dashboards is removed from the browser tests (`tools/e2e/suites/03-records.mjs`, shared: handed to the coordinator)
+- [x] The `known` entry for dashboards is removed from the browser tests (`tools/e2e/suites/03-records.mjs`, removed by the coordinator in wave 12; the step passes)
 
 ### E18-38 A report on records the role cannot see makes a refused request
 

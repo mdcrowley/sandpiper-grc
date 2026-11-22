@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import {
   ApiError, api, Button, Card, DateField, EmptyState, ErrorState, errorMessage, formatDate, formatNumber, Loading, Modal, NumberField,
-  Select, StatusChip, TextArea, TextField, useAuth, useFetch, useToast,
+  Select, StatusChip, TableWrap, TextArea, TextField, useAuth, useFetch, useToast,
 } from '../../core';
 import type { ColorName } from '../../core';
 
@@ -36,7 +36,7 @@ export function ValuesTab({ indicatorId, periods, onSaved }: { indicatorId: stri
   return (
     <Card title="Values by month" flush>
       {error ? <ErrorState error={error} onRetry={reload} /> : !data ? <div className="sf-pad"><Loading lines={6} /></div> : (
-        <div className="table-wrap">
+        <TableWrap label="Values entered by month">
           <table className="table">
             <caption className="sr-only">Values entered by month</caption>
             <thead><tr><th scope="col">Month</th><th scope="col" className="num">Value</th><th scope="col">Note</th><th scope="col">Entered by</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
@@ -55,7 +55,7 @@ export function ValuesTab({ indicatorId, periods, onSaved }: { indicatorId: stri
               })}
             </tbody>
           </table>
-        </div>
+        </TableWrap>
       )}
       <Modal open={!!editing} size="sm" title={`Value for ${editing ? monthLabel(editing) : ''}`} onClose={() => setEditing(null)} dirty={dirty}
         footer={<><Button onClick={() => setEditing(null)}>Cancel</Button><Button variant="primary" loading={busy} onClick={save}>Save</Button></>}>
@@ -126,7 +126,7 @@ export function TargetsTab({ indicatorId, defaultDirection, onChanged }: { indic
     <Card title="Targets by year" flush actions={can('safety.edit') && <Button size="sm" icon="plus" onClick={() => open('new')}>Add a target</Button>}>
       <p className="muted sf-pad sf-hint">A year's target takes the place of the indicator's own target for the months of that year, unless it is rejected. Approve it through the approval workflow, or record a decision taken elsewhere, for example at a safety committee meeting.</p>
       {data.targets.length === 0 ? <EmptyState icon="target" title="No yearly targets" message="Set this year's target, then have it approved." /> : (
-        <div className="table-wrap">
+        <TableWrap label="Targets by year">
           <table className="table">
             <caption className="sr-only">Targets by year</caption>
             <thead><tr><th scope="col">Year</th><th scope="col">Target</th><th scope="col">Status</th><th scope="col">Decided</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
@@ -149,7 +149,7 @@ export function TargetsTab({ indicatorId, defaultDirection, onChanged }: { indic
               })}
             </tbody>
           </table>
-        </div>
+        </TableWrap>
       )}
       <Modal open={!!editing} size="sm" title={editing === 'new' ? 'Add a yearly target' : `Target for ${editing ? (editing as Target).year : ''}`} onClose={() => setEditing(null)}
         dirty={JSON.stringify(f) !== JSON.stringify(start)}

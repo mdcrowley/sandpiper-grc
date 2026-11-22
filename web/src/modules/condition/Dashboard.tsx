@@ -3,7 +3,7 @@
 // ten years. The figures count every record and are the same for everyone.
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Card, Chart, chartColor, EmptyState, ErrorState, Loading, PageHeader, Select, Stat, StatusChip, todayInZone, useAuth, useFetch } from '../../core';
+import { Card, Chart, chartColor, EmptyState, ErrorState, Loading, PageHeader, Select, Stat, StatusChip, TableWrap, todayInZone, useAuth, useFetch } from '../../core';
 import type { ChartOption } from '../../core';
 import { ConditionTabs, pct, useTargetWords } from './shared';
 
@@ -99,7 +99,7 @@ export function ConditionDashboard() {
 
       <Card title="By class" flush actions={can('assets.create') ? <Link className="btn btn-ghost btn-sm" to="/condition/classes?new=1">New asset class</Link> : undefined}>
         {d.classes.length === 0 ? <EmptyState icon="chart" title="No asset classes yet" message={`Add an asset class with its useful life, then put ${words.plural} in it.`} /> : (
-          <div className="table-wrap">
+          <TableWrap label={`State of good repair by asset class in ${d.year}`}>
             <table className="table">
               <caption className="sr-only">State of good repair by asset class in {d.year}</caption>
               <thead>
@@ -128,7 +128,7 @@ export function ConditionDashboard() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
       </Card>
     </div>

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { SegmentedControl } from '@mantine/core';
 import {
-  api, ApiError, Button, Card, COLOR_NAMES, ErrorState, errorMessage, IconButton, Loading, Modal, NumberField, PageHeader, Select, TextArea, TextField,
+  api, ApiError, Button, Card, COLOR_NAMES, ErrorState, errorMessage, IconButton, Loading, Modal, NumberField, PageHeader, Select, TableWrap, TextArea, TextField,
   useDebounced, useLookup, useToast,
 } from '../../core';
 import { useScales, type Scale, type ScaleLevel, type ScaleRating } from './scales';
@@ -29,7 +29,7 @@ function LevelsTable({ title, hint, levels, error, onChange }: {
       <h3 className="rk-report-h3">{title}</h3>
       <p className="muted rk-step-hint">{hint}</p>
       {error && <p role="alert" className="form-error">{error}</p>}
-      <div className="table-wrap">
+      <TableWrap label={`${title} levels`}>
         <table className="table rk-edit-table">
           <thead><tr><th scope="col" className="rk-col-num">Value</th><th scope="col" className="rk-col-label">Label</th><th scope="col">What it means</th><th scope="col" aria-label="Remove" /></tr></thead>
           <tbody>
@@ -43,7 +43,7 @@ function LevelsTable({ title, hint, levels, error, onChange }: {
             ))}
           </tbody>
         </table>
-      </div>
+      </TableWrap>
       <div>
         <Button size="sm" icon="plus" disabled={levels.length >= 10} onClick={() => onChange([...levels, { value: Math.max(0, ...levels.map((l) => l.value)) + 1, label: '', description: '' }])}>
           Add level
@@ -177,7 +177,7 @@ export function ScaleEditor() {
       <Card title="Ratings">
         <p className="muted rk-step-hint">The order runs from least to most severe. Each rating maps to a common level so risks on different scales can be counted together.</p>
         {fields.ratings && <p role="alert" className="form-error">{fields.ratings}</p>}
-        <div className="table-wrap">
+        <TableWrap label="Ratings">
           <table className="table rk-edit-table">
             <thead><tr><th scope="col" className="rk-col-label">Label</th><th scope="col">Key</th><th scope="col">Color</th><th scope="col" className="rk-col-num">Order</th><th scope="col">Common level</th><th scope="col" aria-label="Remove" /></tr></thead>
             <tbody>
@@ -199,7 +199,7 @@ export function ScaleEditor() {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableWrap>
         <div>
           <Button size="sm" icon="plus" onClick={() => update({ ratings: [...draft.ratings, { key: '', label: '', color: 'gray', sort: Math.max(0, ...draft.ratings.map((r) => r.sort)) + 10, summary_level: summaryLevels[0]?.value ?? 'low' }] })}>
             Add rating
@@ -210,7 +210,7 @@ export function ScaleEditor() {
       <Card title="Matrix">
         <p className="muted rk-step-hint">Choose the rating each pair of levels gives. {draft.likelihood_label} runs down the side, {draft.impact_label.toLowerCase()} along the bottom.</p>
         {(fields.matrix || unset) && <p role="alert" className="form-error">{fields.matrix ?? 'Every cell of the matrix needs one of the ratings.'}</p>}
-        <div className="table-wrap rk-matrix-wrap">
+        <TableWrap label="Matrix" className="rk-matrix-wrap">
           <table className="rk-matrix-edit">
             <tbody>
               {rows.map((l) => (
@@ -241,7 +241,7 @@ export function ScaleEditor() {
               <tr><td />{cols.map((i) => <th key={i.value} scope="col">{i.label || i.value}</th>)}</tr>
             </tfoot>
           </table>
-        </div>
+        </TableWrap>
       </Card>
 
       <Card title="Acceptance threshold">

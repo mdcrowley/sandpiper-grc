@@ -485,11 +485,13 @@ whichever modules are loaded (`ensureJobs` and `ensureMail` are safe to call aga
 ### Migrations
 
 `server/src/modules/<key>/migrations/001_name.sql`, applied in file-name order, core first
-then modules alphabetically, tracked in `schema_migrations`. Never edit an applied migration
-in a way that matters after pilot; during prototyping it is fine to edit and delete `data/`.
+then modules alphabetically, tracked in `schema_migrations`. **Never edit or delete a migration
+that is in a release** (any `v*` tag, from v0.1.0 on): installations have applied it, and the edit
+would never run there. Add a new migration instead. A migration added since the last release may
+still be edited until the next release is tagged.
 A checksum of each applied migration is recorded: start-up and `status` warn when an applied
-migration has changed, and continuous integration compares migrations with the last release
-tag (`v*`). Never edit a released migration; add a new one.
+migration has changed, and continuous integration ("Released migrations unchanged") fails when a
+migration in the last release tag differs.
 A restore or `import-all` of an export builds the schema with the export's own migrations, loads
 the rows, then applies the newer ones (`ops/export.ts` `importStaged`), so a migration may change
 existing data and it will also run on restored backups.
@@ -798,7 +800,8 @@ The test commands:
   twice, the second time with the clock on UTC.
 - `npm run test:e2e`: the browser suite (`tools/e2e/suites`). It builds the web app (or
   serves the build in `E2E_WEB_DIST`), starts a throw-away instance and drives a real
-  browser through every route, every role, every record type, the hand-written dialogs and
+  browser through every route (checking that every menu label matches the title of the page
+  it opens), every role, every record type, the hand-written dialogs and
   the keyboard, module by module, every page with the optional parts switched off, and the
   Lifecycles page, and then one suite per newer module area (`01-smoke` to `20-followups`). Options
   after `--`: `--only smoke,roles` (some suites), `--skip roles` (every suite but these; the
@@ -966,7 +969,7 @@ example "no work before approval") in its callbacks. Stand-ins: table `workflow_
 carry `principals` and `standins`; decisions carry `on_behalf_of`. Change approval, catalog
 requests, asset disposal, risk acceptance, project gates, corrective action plans and their due-date
 extensions, audit reports, funding certifications, meeting minutes, annual plan reviews, safety
-performance targets (`safety_targets`), continuity plans, asset condition targets, legal hold
+performance targets (`safety_targets`), continuity plans, impact analysis sign-off (`bia_signoff`, by the process owner), asset condition targets, legal hold
 releases (`legal_hold_release`), privacy impact assessments and vendor offboarding sign-off
 (`vendor_offboarding`) are approval kinds. A committee decision may be applied through
 `decide` with `opts.userId` set to the chair (E28-06), only when the chair may decide the current step.
@@ -992,6 +995,11 @@ wrapped by the core design system: import from `'../../core'` first, and use
 `web/src/core/README.md` for the component catalog. Libraries are split into chunks of their own by
 `VENDOR_GROUPS` in `vite.config.ts` (E18-55); charts and date pickers load with the first page that
 needs them.
+
+Every data table goes in `<TableWrap label="…">` (from core), never a hand-written `div.table-wrap`:
+the label names the scroll region (usually the table's caption), and the region becomes a Tab stop
+only when it scrolls, so keyboard users can reach every column (E22-48). `web/src/core/tableWrap.test.ts`
+enforces this; a file that cannot use it goes on that test's list of exceptions with a reason.
 
 Forms register unsaved changes with `useUnsavedChanges(dirty)` (`core/unsaved.tsx`): leaving the page
 asks first, dialogs ask before closing, and a session that ends mid-edit keeps the draft. Call

@@ -2,8 +2,8 @@
 // skeletons) are Mantine components; purely presentational ones render the documented helper
 // classes (`card`, `chip chip-<color>` ...) so a component and its CSS class are one thing.
 import {
-  useEffect, useRef, useState,
-  type ButtonHTMLAttributes, type ReactNode,
+  useCallback, useEffect, useRef, useState,
+  type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode, type Ref,
 } from 'react';
 import { ActionIcon, Button as MButton, Skeleton, Tabs as MTabs, Tooltip } from '@mantine/core';
 import { Link } from 'react-router-dom';
@@ -174,22 +174,38 @@ export function Card({ title, actions, children, flush, className, id, padding =
  * The scroll box around a table (`.table-wrap`). When the table is wider than the box, the box joins the tab order as a
  * named region, so keyboard users can scroll it even when the table holds no link or button of its own.
  */
-export function TableWrap({ label, className, children }: { label: string; className?: string; children: ReactNode }) {
+export interface TableWrapProps extends Omit<HTMLAttributes<HTMLDivElement>, 'role' | 'aria-label' | 'tabIndex' | 'children'> {
+  /** Names the region while the table scrolls: usually the table's caption. */
+  label: string;
+  children?: ReactNode;
+  ref?: Ref<HTMLDivElement>;
+}
+
+export function TableWrap({ label, className, children, ref: outerRef, ...rest }: TableWrapProps) {
   const ref = useRef<HTMLDivElement | null>(null);
   const [scrolls, setScrolls] = useState(false);
+  const setRef = useCallback((el: HTMLDivElement | null) => {
+    ref.current = el;
+    if (typeof outerRef === 'function') outerRef(el);
+    else if (outerRef) outerRef.current = el;
+  }, [outerRef]);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const check = () => setScrolls(el.scrollWidth > el.clientWidth + 1);
+    const check = () => setScrolls(el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1);
     check();
     if (typeof ResizeObserver === 'undefined') return;
     const watch = new ResizeObserver(check);
+    const observeChildren = () => { for (const child of Array.from(el.children)) watch.observe(child); };
     watch.observe(el);
-    if (el.firstElementChild) watch.observe(el.firstElementChild);
-    return () => watch.disconnect();
+    observeChildren();
+    // The table may be swapped for another element (a loading state, a different view).
+    const mutations = typeof MutationObserver === 'undefined' ? null : new MutationObserver(() => { observeChildren(); check(); });
+    mutations?.observe(el, { childList: true });
+    return () => { watch.disconnect(); mutations?.disconnect(); };
   }, []);
   return (
-    <div ref={ref} className={cx('table-wrap', className)} role={scrolls ? 'region' : undefined}
+    <div {...rest} ref={setRef} className={cx('table-wrap', className)} role={scrolls ? 'region' : undefined}
       aria-label={scrolls ? label : undefined} tabIndex={scrolls ? 0 : undefined}>
       {children}
     </div>

@@ -4,7 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { SegmentedControl } from '@mantine/core';
 import {
   ApiError, Button, Card, Checkbox, EmptyState, ErrorState, errorMessage, humanize, IconButton, Loading, Modal, NumberField, PageHeader, Select,
-  StatusChip, TextArea, TextField, useFetch, useMeta, useToast,
+  StatusChip, TableWrap, TextArea, TextField, useFetch, useMeta, useToast,
 } from '../../core';
 import { Notice } from './common';
 import { adminApi } from './reauth';
@@ -132,7 +132,7 @@ export function CustomFieldsPage() {
               action={current && <Button variant="primary" icon="plus" onClick={() => setEditing('new')}>Add field</Button>}
             />
           ) : (
-            <div className={`table-wrap adm-table-frame${loading ? ' table-loading' : ''}`} aria-busy={loading}>
+            <TableWrap label={current ? `Custom fields on ${current.plural.toLowerCase()}` : 'Custom fields'} className={`adm-table-frame${loading ? ' table-loading' : ''}`} aria-busy={loading}>
               <table className="table adm-custom">
                 <thead>
                   <tr>
@@ -175,7 +175,7 @@ export function CustomFieldsPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableWrap>
           )}
       </Card>
       {editing && current && data && (

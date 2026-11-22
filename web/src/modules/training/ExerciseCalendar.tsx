@@ -1,7 +1,7 @@
 // Exercise calendar: what is overdue, what is coming up month by month, and when each kind was last run.
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  Badge, Button, Card, EmptyState, ErrorState, formatDate, Loading, LookupChip, PageHeader, Stat, StatusChip, toColorName,
+  Badge, Button, Card, EmptyState, ErrorState, formatDate, Loading, LookupChip, PageHeader, Stat, StatusChip, TableWrap, toColorName,
   useAuth, useFetch,
 } from '../../core';
 import { daysPhrase } from './shared';
@@ -108,7 +108,7 @@ export function ExerciseCalendar() {
       </div>
 
       <Card title="When each kind was last run" flush>
-        <div className="table-wrap trn-tw">
+        <TableWrap label="Exercise types with the last run and the next one due" className="trn-tw">
           <table className="table">
             <caption className="sr-only">Exercise types with the last run and the next one due</caption>
             <thead>
@@ -131,7 +131,7 @@ export function ExerciseCalendar() {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableWrap>
       </Card>
 
       {nothing && (

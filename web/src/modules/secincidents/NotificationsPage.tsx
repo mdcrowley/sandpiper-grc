@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  Badge, Button, EmptyState, ErrorState, formatDateTime, Icon, Loading, LookupChip, PageHeader, ResourceList, Stat, Tabs, useAuth, useFetch,
+  Badge, Button, EmptyState, ErrorState, formatDateTime, Icon, Loading, LookupChip, PageHeader, ResourceList, Stat, TableWrap, Tabs, useAuth, useFetch,
 } from '../../core';
 import { AlertResponders } from './AlertResponders';
 import { NotRequiredDialog, RecordNotificationDialog, useTaskBlocked } from './Clocks';
@@ -51,7 +51,7 @@ function Deadlines() {
             title={show === 'pending' ? 'No notifications to make' : 'Nothing to show'}
             message={show === 'pending' ? 'Every notification on a declared incident has been recorded or stood down.' : 'No notification matches this choice.'} />
         ) : (
-          <div className="table-wrap">
+          <TableWrap label="Notification deadlines">
             <table className="table si-table si-deadlines">
               <thead>
                 <tr>
@@ -113,7 +113,7 @@ function Deadlines() {
                 })}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
       <RecordNotificationDialog clock={recording} onClose={() => setRecording(null)} onSaved={reload} />
       <NotRequiredDialog clock={skipping} onClose={() => setSkipping(null)} onSaved={reload} />

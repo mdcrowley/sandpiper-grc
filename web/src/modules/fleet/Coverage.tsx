@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   api, Button, Card, Checkbox, EmptyState, errorMessage, ErrorState, Icon, Loading, Modal, PageHeader, RecordPicker, Select, Stat,
-  StatusChip, Switch, useAuth, useFetch, useLookup, useToast, useUnsavedChanges,
+  StatusChip, Switch, TableWrap, useAuth, useFetch, useLookup, useToast, useUnsavedChanges,
 } from '../../core';
 import type { ColorName } from '../../core';
 import { FleetTabs } from './shared';
@@ -71,7 +71,7 @@ export function CoveragePage() {
               {Object.entries(CELL).map(([k, c]) => <li key={k}><span className={`fl-cell ${c.cls}`}><Icon name={c.icon} size={16} /></span>{c.label}</li>)}
               <li><span className="fl-cell fl-cell-na">—</span>Not needed for this mode</li>
             </ul>
-            <div className="table-wrap fl-coverage">
+            <TableWrap label="Equipment coverage by vehicle" className="fl-coverage">
               <table className="table">
                 <caption className="sr-only">Equipment coverage by vehicle</caption>
                 <thead>
@@ -104,7 +104,7 @@ export function CoveragePage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableWrap>
           </Card>
         )}
       <RequirementsDialog open={editing} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); reload(); }} />

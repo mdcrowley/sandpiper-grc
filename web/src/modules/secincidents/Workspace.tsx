@@ -225,7 +225,7 @@ export function Workspace() {
             <Menu label="More" icon="more" iconOnly align="end" items={[
               { label: 'All notifications', icon: 'clock', to: '/security-incidents/notifications' },
               { label: 'Offline incident kit', icon: 'clipboard', to: '/security-incidents/kit' },
-              { label: 'Notification rules and checklists', icon: 'settings', to: '/security-incidents/rules' },
+              { label: 'Rules and checklists', icon: 'settings', to: '/security-incidents/rules' },
             ]} />
           </>
         )}

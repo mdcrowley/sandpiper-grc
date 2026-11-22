@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   api, Button, Card, Checkbox, ConfirmDialog, EmptyState, ErrorState, errorMessage, formatDate, Loading, LookupChip, LookupSelect, Modal,
-  PageHeader, ProgressBar, RecordPage, ResourceList, Select, Stepper, TextArea, useAuth, useFetch, UserPicker, useToast, useUnsavedChanges,
+  PageHeader, ProgressBar, RecordPage, ResourceList, Select, Stepper, TableWrap, TextArea, useAuth, useFetch, UserPicker, useToast, useUnsavedChanges,
 } from '../../core';
 import type { RecordContext, Row } from '../../core';
 import { FundingTabs, ofText } from './shared';
@@ -154,7 +154,7 @@ function Checklist({ row, canEdit, reloadRecord }: { row: Row; canEdit: boolean;
               <ProgressBar label="Applicable items confirmed" value={data.confirmed} max={Math.max(data.applicable, 1)}
                 color={data.confirmed === data.applicable ? 'green' : 'blue'} valueText={ofText(data.confirmed, data.applicable)} />
             </div>
-            <div className="table-wrap">
+            <TableWrap label="Statements of this certification">
               <table className="table fd-checklist">
                 <caption className="sr-only">Statements of this certification</caption>
                 <thead><tr><th scope="col">Statement</th><th scope="col">Category</th><th scope="col">Responsible</th><th scope="col">Confirmation</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
@@ -186,7 +186,7 @@ function Checklist({ row, canEdit, reloadRecord }: { row: Row; canEdit: boolean;
                   })}
                 </tbody>
               </table>
-            </div>
+            </TableWrap>
           </>
         )}
       {editing && <ItemDialog certId={row.id} item={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reload(); reloadRecord(); }} />}

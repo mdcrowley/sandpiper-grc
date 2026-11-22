@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import {
-  api, ApiError, Button, Card, ConfirmDialog, EmptyState, ErrorState, errorMessage, Loading, Modal, TextField, useFetch, useToast,
+  api, ApiError, Button, Card, ConfirmDialog, EmptyState, ErrorState, errorMessage, Loading, Modal, TableWrap, TextField, useFetch, useToast,
 } from '../../core';
 import type { Department } from './common';
 
@@ -54,7 +54,7 @@ export function DepartmentsCard() {
         : !data ? <div className="card-body"><Loading lines={3} /></div>
         : data.length === 0 ? <EmptyState icon="building" title="No departments yet" message="Add departments so that people can be grouped." />
         : (
-          <div className="table-wrap">
+          <TableWrap label="Departments">
             <table className="table">
               <thead><tr><th scope="col">Name</th><th scope="col" className="num">People</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
               <tbody>
@@ -70,7 +70,7 @@ export function DepartmentsCard() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
       <Modal open={editing !== null} title={editing === 'new' ? 'Add department' : 'Rename department'} size="sm" onClose={() => setEditing(null)} dirty={editing !== null && name !== (editing === 'new' ? '' : editing.name)}>
         <form className="form" onSubmit={submit} noValidate>

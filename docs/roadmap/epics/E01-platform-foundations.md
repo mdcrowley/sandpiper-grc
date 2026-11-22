@@ -585,7 +585,7 @@ do not, and the prompt lives in the administration module rather than the shared
 
 **Acceptance criteria**
 
-- [ ] The list of sensitive actions is reviewed module by module (moved to E01-33)
+- [x] The list of sensitive actions is reviewed module by module (built in E01-33: the decisions are in `docs/security.md`)
 - [x] The prompt moves into the shared web code so any screen can use it (`withReauth` in `web/src/modules/admin/reauth.ts` now asks for the second factor too and is used by Account security; moving it into `web/src/core`, and replacing `useConfirmPassword` in `web/src/modules/account-keys`, which asks for the password only, was handed to the owners of those folders in wave 4)
 
 The module-by-module review of which actions should ask moved to E01-33.

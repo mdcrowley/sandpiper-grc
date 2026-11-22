@@ -112,7 +112,8 @@ web/src/modules/<key>/       index.tsx and its pages
   update, soft-delete, statistics and export routes with permission checks, validation
   and audit.
 - Database changes are numbered SQL migrations in the module's `migrations/` folder.
-  There are **no foreign keys across modules**: store the other record's identifier in a
+  **Never edit or delete a migration that is in a release** (any `v*` tag): add a new one.
+  Continuous integration fails when a released migration changes. There are **no foreign keys across modules**: store the other record's identifier in a
   plain column and declare the field as a reference.
 - On the web a module exports its navigation entries and routes; pages are built from
   the shared components in `web/src/core/` (see `web/src/core/README.md`).

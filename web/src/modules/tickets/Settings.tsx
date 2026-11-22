@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
-  Button, Card, ErrorState, errorMessage, Loading, LookupChip, LookupSelect, lookupColor, NumberField, PageHeader, Select, Tabs,
+  Button, Card, ErrorState, errorMessage, Loading, LookupChip, LookupSelect, lookupColor, NumberField, PageHeader, Select, TableWrap, Tabs,
   useAuth, useFetch, useLookup, useToast,
 } from '../../core';
 import { EscalationSettings, NotificationSettings } from './SettingsAutomation';
@@ -55,7 +55,7 @@ function MatrixSettings({ canEdit }: { canEdit: boolean }) {
   return (
     <Card title="Priority from impact and urgency">
       <p className="muted">When a ticket is logged, its priority is read from this table. An agent can still set a priority by hand.</p>
-      <div className="table-wrap">
+      <TableWrap label="Priority from impact and urgency">
         <table className="table sd-table sd-matrix">
           <thead>
             <tr>
@@ -82,7 +82,7 @@ function MatrixSettings({ canEdit }: { canEdit: boolean }) {
             ))}
           </tbody>
         </table>
-      </div>
+      </TableWrap>
       <div className="sd-inline-form">
         {canEdit
           ? <LookupSelect label="Default priority" list="ticket_priority" required value={m.default} onChange={(v) => setM({ ...m, default: v })}
@@ -170,7 +170,7 @@ function TargetSettings({ canEdit }: { canEdit: boolean }) {
   return (
     <Card title="Respond and resolve targets">
       <p className="notice">{APPLY_NOTE}</p>
-      <div className="table-wrap">
+      <TableWrap label="Respond and resolve targets">
         <table className="table sd-table sd-targets">
           <thead>
             <tr><th scope="col">Priority</th><th scope="col">Respond within</th><th scope="col">Resolve within</th><th scope="col">Hours counted on</th></tr>
@@ -203,7 +203,7 @@ function TargetSettings({ canEdit }: { canEdit: boolean }) {
             })}
           </tbody>
         </table>
-      </div>
+      </TableWrap>
       <p className="muted">Times are working time on the chosen calendar. With business hours of 08:00 to 17:00, 27 hours is three working days.</p>
       {canEdit && (
         <div className="form-actions">

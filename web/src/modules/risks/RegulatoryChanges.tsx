@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   api, ApiError, Button, Card, ConfirmDialog, DateField, EmptyState, ErrorState, errorMessage, formatDate, IconButton, Loading,
-  LookupChip, LookupSelect, Modal, PageHeader, RecordPage, RecordPicker, ResourceList, Select, Stat, TextField, useAuth, useFetch, useMeta, useToast,
+  LookupChip, LookupSelect, Modal, PageHeader, RecordPage, RecordPicker, ResourceList, Select, Stat, TableWrap, TextField, useAuth, useFetch, useMeta, useToast,
 } from '../../core';
 import type { ListResult, RecordContext, StatsResult } from '../../core';
 import { ActionsPanel } from './ActionsPanel';
@@ -212,7 +212,7 @@ function AffectedPanel({ rec }: { rec: RecordContext }) {
         : data.length === 0 ? (
           <EmptyState icon="link" title="No affected records yet" message="Name the policies, obligations and controls this change affects, or make a new obligation from it." />
         ) : (
-          <div className="table-wrap">
+          <TableWrap label="Records this change affects">
             <table className="table">
               <caption className="sr-only">Records this change affects</caption>
               <thead><tr><th scope="col">Record</th><th scope="col">Kind</th><th scope="col">Status</th><th scope="col" aria-label="Actions" /></tr></thead>
@@ -234,7 +234,7 @@ function AffectedPanel({ rec }: { rec: RecordContext }) {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
       {adding && <AffectDialog changeId={row.id} onClose={() => setAdding(false)} onDone={reload} />}
       {making && <ObligationDialog change={row} onClose={() => setMaking(false)} onDone={reload} />}

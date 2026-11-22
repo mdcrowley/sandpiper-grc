@@ -4,7 +4,7 @@ import { Suspense, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   api, Button, Card, Checkbox, EditableSummary, EmptyState, errorMessage, ErrorState, formatDate, Loading, LookupChip, PageHeader,
-  RecordPage, ResourceList, Select, StatusChip, TextField, useAuth, useFetch, useToast,
+  RecordPage, ResourceList, Select, StatusChip, TableWrap, TextField, useAuth, useFetch, useToast,
 } from '../../core';
 import type { Row } from '../../core';
 import { LazyActions } from './Requests';
@@ -35,7 +35,7 @@ export function CoveragePage() {
                 {data.total} system{data.total === 1 ? '' : 's'} hold personal data; {data.without_current} without a current assessment
                 {data.hidden ? ` (${data.hidden} you cannot see)` : ''}.
               </p>
-              <div className="table-wrap">
+              <TableWrap label="Systems holding personal data">
                 <table className="table">
                   <caption className="sr-only">Systems holding personal data</caption>
                   <thead><tr><th scope="col">System</th><th scope="col">Personal data</th><th scope="col">Assessment</th><th scope="col">Next review</th></tr></thead>
@@ -53,7 +53,7 @@ export function CoveragePage() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </TableWrap>
             </>
           )}
       </Card>

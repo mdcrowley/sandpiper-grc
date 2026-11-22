@@ -4,7 +4,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import {
   api, ApiError, Button, Card, Checkbox, ChoicesField, ConfirmDialog, Drawer, EmptyState, ErrorState, errorMessage, formatDateTime, Icon,
-  Loading, Menu, Modal, PageHeader, qs, relativeTime, Select, StatusChip, TextField, useAuth, useFetch, useToast,
+  Loading, Menu, Modal, PageHeader, qs, relativeTime, Select, StatusChip, TableWrap, TextField, useAuth, useFetch, useToast,
 } from '../../core';
 import type { ColorName, Option } from '../../core';
 import { CopyBox, Notice, Pager } from './common';
@@ -177,7 +177,7 @@ export function WebhooksPage() {
                   action={<Button variant="primary" icon="plus" onClick={() => setEditing('new')}>Add webhook</Button>}
                 />
               ) : (
-                <div className="table-wrap adm-table-frame">
+                <TableWrap label="Webhooks" className="adm-table-frame">
                   <table className="table adm-webhooks">
                     <thead>
                       <tr>
@@ -228,7 +228,7 @@ export function WebhooksPage() {
                       })}
                     </tbody>
                   </table>
-                </div>
+                </TableWrap>
               )}
             </Card>
             <HowItWorks retry={data.retryMinutes} />

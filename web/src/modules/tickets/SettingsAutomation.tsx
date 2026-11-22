@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { SegmentedControl } from '@mantine/core';
 import {
   api, Badge, Button, Card, ConfirmDialog, EmptyState, ErrorState, errorMessage, IconButton, Loading, lookupLabel, LookupSelect, Modal, NumberField,
-  Select, Switch, TextField, useFetch, UserPicker, useToast,
+  Select, Switch, TableWrap, TextField, useFetch, UserPicker, useToast,
 } from '../../core';
 import { fieldErrors, put, splitMinutes, workingText, type DeskSettings, type EscalationRule } from './util';
 
@@ -85,7 +85,7 @@ export function EscalationSettings({ canEdit }: { canEdit: boolean }) {
           message="A rule tells a named person or group when an open ticket has waited too long. The wait is counted in the ticket’s working calendar, and each rule fires once for each ticket."
           action={canEdit ? <Button variant="primary" icon="plus" onClick={() => { setErrors({}); begin(blank); }}>New rule</Button> : undefined} />
       ) : (
-        <div className="table-wrap">
+        <TableWrap label="Escalation rules">
           <table className="table sd-table">
             <thead>
               <tr><th scope="col">Rule</th><th scope="col">When an open ticket</th><th scope="col">Escalate to</th><th scope="col" className="num">Fired</th><th scope="col">On</th>{canEdit && <th scope="col"><span className="sr-only">Actions</span></th>}</tr>
@@ -110,7 +110,7 @@ export function EscalationSettings({ canEdit }: { canEdit: boolean }) {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableWrap>
       )}
 
       <Modal open={draft !== null} title={draft?.id ? 'Edit escalation rule' : 'New escalation rule'} onClose={() => setDraft(null)}

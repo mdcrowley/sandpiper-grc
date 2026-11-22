@@ -3,7 +3,7 @@
 // page, with the filters in the address).
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Chart, EmptyState, Icon, StatusChip, toColorName, todayInZone } from '../../core';
+import { Chart, EmptyState, Icon, StatusChip, TableWrap, toColorName, todayInZone } from '../../core';
 import { buildChart, chartFit } from './charts';
 import { cellText, compact, formatValue } from './data';
 import type { ChartSpec, ReportResult, ResultColumn, ResultRow } from './types';
@@ -24,12 +24,13 @@ function Cell({ col, row }: { col: ResultColumn; row: ResultRow }) {
   return <>{text.length > 140 ? `${text.slice(0, 140)}…` : text}</>;
 }
 
-export function ResultTable({ result, maxRows = 200, sticky }: { result: ReportResult; maxRows?: number; sticky?: boolean }) {
+export function ResultTable({ result, maxRows = 200, sticky, label }: { result: ReportResult; maxRows?: number; sticky?: boolean; label?: string }) {
+  const name = label ? `${label}: results` : 'Report results';
   const drill = useDrill();
   if (result.pivot) {
     const p = result.pivot;
     return (
-      <div className={`table-wrap rp-table${sticky ? ' rp-table-sticky' : ''}`}>
+      <TableWrap label={name} className={`rp-table${sticky ? ' rp-table-sticky' : ''}`}>
         <table className="table">
           <thead><tr>
             <th scope="col">{result.columns[0].label}</th>
@@ -53,13 +54,13 @@ export function ResultTable({ result, maxRows = 200, sticky }: { result: ReportR
             <td className="num rp-total">{p.grand === null ? '' : formatValue(p.grand)}</td>
           </tr></tfoot>
         </table>
-      </div>
+      </TableWrap>
     );
   }
   const rows = result.rows.slice(0, maxRows);
   const firstAgg = result.columns.find((c) => c.role === 'agg')?.key;
   return (
-    <div className={`table-wrap rp-table${sticky ? ' rp-table-sticky' : ''}`}>
+    <TableWrap label={name} className={`rp-table${sticky ? ' rp-table-sticky' : ''}`}>
       <table className="table">
         <thead><tr>{result.columns.map((c) => <th key={c.key} scope="col" className={isNumeric(c) ? 'num' : undefined}>{c.label}</th>)}</tr></thead>
         <tbody>
@@ -81,7 +82,7 @@ export function ResultTable({ result, maxRows = 200, sticky }: { result: ReportR
       {(result.rows.length > rows.length || result.truncated) && (
         <p className="rp-table-note muted">Showing the first {rows.length} of {result.mode === 'rows' ? result.total : 'many'} rows. Export the report to get every row.</p>
       )}
-    </div>
+    </TableWrap>
   );
 }
 
@@ -135,7 +136,7 @@ export function ResultView({ result, chart, height = 300, withTable, maxRows, la
   const counting = !result.countingNote ? null : shortNote
     ? <p className="rp-table-note rp-counting-short muted" title={result.countingNote}><Icon name="info" size={14} /> <span aria-hidden="true">Records with several values count under each.</span><span className="sr-only">{result.countingNote}</span></p>
     : <p className="rp-table-note muted"><Icon name="info" size={14} /> {result.countingNote}</p>;
-  const table = <ResultTable result={result} maxRows={maxRows} />;
+  const table = <ResultTable result={result} maxRows={maxRows} label={label} />;
   if (kind === 'table') return result.mode === 'total' ? <Figures result={result} /> : counting ? <div className="rp-result">{table}{counting}</div> : table;
 
   let visual: React.ReactNode = null;

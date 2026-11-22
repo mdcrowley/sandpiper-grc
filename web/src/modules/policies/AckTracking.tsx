@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import {
   api, Button, Card, EmptyState, ErrorState, errorMessage, formatDate, formatDateTime, Loading, ProgressBar, Select, Stat, StatusChip,
-  useAuth, useFetch, useToast,
+  TableWrap, useAuth, useFetch, useToast,
 } from '../../core';
 import type { Row } from '../../core';
 import { RosterAcks } from './RecordAcknowledgments';
@@ -100,7 +100,7 @@ export function AckTracking({ row, versions }: { row: Row; versions: PolicyVersi
               message={show === 'outstanding' ? 'Everyone who was asked has acknowledged this version.' : undefined}
             />
           ) : (
-            <div className="table-wrap pol-tw">
+            <TableWrap label="People asked to acknowledge this version" className="pol-tw">
               <table className="table">
                 <caption className="sr-only">People asked to acknowledge this version</caption>
                 <thead>
@@ -127,14 +127,14 @@ export function AckTracking({ row, versions }: { row: Row; versions: PolicyVersi
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableWrap>
           )}
         </Card>
       )}
 
       {data.departments.length > 1 && (
         <Card title="By department" flush>
-          <div className="table-wrap pol-tw">
+          <TableWrap label="Acknowledgment by department" className="pol-tw">
             <table className="table">
               <caption className="sr-only">Acknowledgment by department</caption>
               <thead>
@@ -153,7 +153,7 @@ export function AckTracking({ row, versions }: { row: Row; versions: PolicyVersi
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         </Card>
       )}
 

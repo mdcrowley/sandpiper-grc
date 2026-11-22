@@ -3,7 +3,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import {
   api, ApiError, Button, Card, EmptyState, ErrorState, errorMessage, formatDate, formatDateTime, Loading, NumberField,
-  StatusChip, useFetch, useToast,
+  StatusChip, TableWrap, useFetch, useToast,
 } from '../../core';
 import type { RemovedFile } from './adminTypes';
 import { usePasswordConfirm } from './confirm';
@@ -93,7 +93,7 @@ export function RemovedFiles({ purgeDays, onChanged }: { purgeDays: number; onCh
         {error ? <ErrorState error={error} onRetry={reload} /> : !data ? <Loading lines={4} label="Loading removed files" /> : data.rows.length === 0 ? (
           <EmptyState icon="trash" title="No removed files waiting" message="Files that people remove are listed here until they are purged." />
         ) : (
-          <div className="table-wrap">
+          <TableWrap label="Removed files that have not been purged">
             <table className="table att-removed">
               <caption className="sr-only">Removed files that have not been purged</caption>
               <thead>
@@ -120,7 +120,7 @@ export function RemovedFiles({ purgeDays, onChanged }: { purgeDays: number; onCh
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
       </Card>
     </div>

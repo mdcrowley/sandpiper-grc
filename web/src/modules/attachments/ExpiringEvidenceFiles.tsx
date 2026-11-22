@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Card, cx, EmptyState, ErrorState, errorMessage, formatDate, Loading, PageHeader, routePaths, Select, Stat, StatusChip, useAuth,
+  Card, cx, EmptyState, ErrorState, errorMessage, formatDate, Loading, PageHeader, routePaths, Select, Stat, StatusChip, TableWrap, useAuth,
   useFetch, useToast,
 } from '../../core';
 import { downloadAttachment, expiryState, FileTypeIcon, type Attachment } from './shared';
@@ -49,7 +49,7 @@ export function ExpiringEvidenceFiles() {
           <Stat label="Already expired" value={expired} color={expired ? 'red' : 'green'} />
           <Stat label={`Expiring in ${data.days} days`} value={data.rows.length - expired} color="amber" />
         </div>
-        <div className={cx('table-wrap', loading && 'table-loading')}>
+        <TableWrap label="Evidence files that have expired or are about to, soonest first" className={cx(loading && 'table-loading')}>
           <table className="table">
             <caption className="sr-only">Evidence files that have expired or are about to, soonest first</caption>
             <thead>
@@ -84,7 +84,7 @@ export function ExpiringEvidenceFiles() {
               })}
             </tbody>
           </table>
-        </div>
+        </TableWrap>
       </>
     );
   }

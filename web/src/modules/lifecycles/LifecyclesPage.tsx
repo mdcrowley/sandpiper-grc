@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   api, ApiError, Button, Card, ChoicesField, ConfirmDialog, EmptyState, ErrorState, errorMessage, formatDateTime, Icon, Loading, PageHeader,
-  Select, StatusChip, toColorName, useFetch, useMeta, useToast,
+  Select, StatusChip, TableWrap, toColorName, useFetch, useMeta, useToast,
 } from '../../core';
 import { describeMoves, NEW, unreachable, type Detail, type Rules, type TypeSummary } from './data';
 import './lifecycles.css';
@@ -156,7 +156,7 @@ function TypeLifecycle({ type, onChanged }: { type: string; onChanged: () => voi
                 <span>A new record can never reach {stuck.map((s) => `"${label(s)}"`).join(', ')} through the allowed changes. Records that already have {stuck.length === 1 ? 'it' : 'them'} keep {stuck.length === 1 ? 'it' : 'them'}.</span>
               </div>
             )}
-            <div className="table-wrap lc-matrix-wrap">
+            <TableWrap label={`Allowed changes of ${data.fieldLabel.toLowerCase()} for ${data.plural.toLowerCase()}: rows are the current status, columns the new one`} className="lc-matrix-wrap">
               <table className="table lc-matrix">
                 <caption className="sr-only">Allowed changes of {data.fieldLabel.toLowerCase()} for {data.plural.toLowerCase()}: rows are the current status, columns the new one</caption>
                 <thead>
@@ -185,7 +185,7 @@ function TypeLifecycle({ type, onChanged }: { type: string; onChanged: () => voi
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableWrap>
           </Card>
 
           {data.workflows && (

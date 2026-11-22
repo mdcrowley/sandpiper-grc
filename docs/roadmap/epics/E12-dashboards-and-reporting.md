@@ -205,7 +205,7 @@ server, and schedule them in those formats.
 - [x] Dashboards: a group of widgets with a chart or table starts a new page; packs: cover page, one section per page, page numbers
 - [x] Restricted content watermarked on every page (PDF) and under the table (XLSX); exports audited with the format; export permission on every record type as for CSV
 - [x] Scheduled delivery in PDF or Excel stores the file as the snapshot (recipients who may not export get the document); with an `app.sendMail` decorator the file is attached to a link email and the attachment is audited; without it delivery stays in the application
-- [ ] Non-Latin text in PDFs: see E12-14
+- [x] Non-Latin text in PDFs (built in E12-14: `server/src/core/export/fonts.ts`; right-to-left text is E12-16)
 
 **Implemented in:** `server/src/core/export/pdf.ts`, `xlsx.ts`, `zone.ts`; `server/src/modules/reports/files.ts` (renderers, filter descriptions), `documents.ts`, `index.ts` (`?format=pdf|xlsx` on `/api/reports/:id/export`, `POST /api/reports/export`, `/api/dashboards/:id/export`, `/api/report-packs/:id/export`), `schedule.ts` (email channel), `snapshots.ts` (binary snapshots); `web/src/modules/reports/` (`ReportPages.tsx`, `Builder.tsx`, `DashboardPages.tsx`, `PackPages.tsx`, `DeliveryPages.tsx`, `dialogs.tsx`). Tests: `files.test.ts`, `server/src/core/export/export.test.ts`.
 

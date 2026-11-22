@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   api, Button, Card, ConfirmDialog, EmptyState, errorMessage, ErrorState, Loading, LookupSelect, Modal, PageHeader, RecordPage, RecordPicker,
-  ResourceList, StatusChip, TextField, useAuth, useFetch, useToast, useUnsavedChanges,
+  ResourceList, StatusChip, TableWrap, TextField, useAuth, useFetch, useToast, useUnsavedChanges,
 } from '../../core';
 import type { ColorName } from '../../core';
 import { SafetyEventsCard } from './SafetyEvents';
@@ -53,7 +53,7 @@ function Dependencies({ serviceId, code }: { serviceId: string; code: string }) 
         : !data ? <div className="fl-pad"><Loading lines={3} label="Loading the systems" /></div>
         : data.length === 0 ? <EmptyState icon="server" title="No systems recorded" message="Record the CAD/AVL, fare, passenger information, scheduling and radio systems this service needs, so an outage shows which services it affects." />
         : (
-          <div className="table-wrap">
+          <TableWrap label={`Systems service ${code} depends on`}>
             <table className="table">
               <caption className="sr-only">Systems service {code} depends on</caption>
               <thead><tr><th scope="col">System</th><th scope="col">For</th><th scope="col">Criticality</th><th scope="col">Notes</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
@@ -69,7 +69,7 @@ function Dependencies({ serviceId, code }: { serviceId: string; code: string }) 
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
       <AddDependency open={adding} serviceId={serviceId} onClose={() => setAdding(false)} onDone={() => { setAdding(false); toast.success('System added.'); reload(); }} />
       <ConfirmDialog open={!!removing} title="Remove this dependency?" message={`Service ${code} will no longer be shown as affected when ${removing?.name ?? 'this system'} fails.`}

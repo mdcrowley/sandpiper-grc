@@ -6,7 +6,7 @@
 import { useState, type FormEvent } from 'react';
 import {
   adminApi, api, ApiError, Badge, Button, Card, Checkbox, ConfirmDialog, EmptyState, ErrorState, errorMessage, formatDate, Loading, Modal,
-  PageHeader, relativeTime, StatusChip, Switch, TextArea, TextField, useAuth, useFetch, useToast, withReauth,
+  PageHeader, relativeTime, StatusChip, Switch, TableWrap, TextArea, TextField, useAuth, useFetch, useToast, withReauth,
 } from '../../core';
 import { CopyBox } from '../admin/common';
 import './feeds.css';
@@ -77,7 +77,7 @@ function CalendarCard() {
             {feeds.data.feeds.length === 0 ? (
               <EmptyState icon="calendar" title="Nobody has a calendar feed" message="People make their own under Calendar feeds, in the menu under their name." />
             ) : (
-              <div className="feeds-table-wrap">
+              <TableWrap label="Calendar feeds" className="feeds-table-wrap">
                 <table className="feeds-table">
                   <thead><tr><th scope="col">Person</th><th scope="col">Feed</th><th scope="col">Shows</th><th scope="col">Last read</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
                   <tbody>
@@ -92,7 +92,7 @@ function CalendarCard() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </TableWrap>
             )}
           </div>
         )}

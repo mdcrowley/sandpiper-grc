@@ -6,7 +6,7 @@
 // (server/src/core/branding-colors.ts) and the preview shows exactly those shades.
 import { useEffect, useRef, useState, type ChangeEvent, type CSSProperties } from 'react';
 import {
-  api, ApiError, Button, Card, ErrorState, errorMessage, Loading, PageHeader, TextArea, TextField, useAuth, useFetch, useToast,
+  api, ApiError, Button, Card, ErrorState, errorMessage, Loading, PageHeader, TableWrap, TextArea, TextField, useAuth, useFetch, useToast,
 } from '../../core';
 import { Notice } from './common';
 import { adminApi } from './reauth';
@@ -410,7 +410,7 @@ function ColorSettings({ form, set, errors, isChanged, logo, appName }: ColorPro
             {colors.notes.length > 0 && <Notice tone="info">{colors.notes.join(' ')}</Notice>}
             <details className="adm-color-checks">
               <summary>{failing.length === 0 ? `All ${colors.checks.length} contrast checks pass` : `${failing.length} of ${colors.checks.length} contrast checks fail`}</summary>
-              <div className="table-wrap"><table className="table">
+              <TableWrap label="Contrast checks"><table className="table">
                 <thead><tr><th scope="col">Theme</th><th scope="col">What</th><th scope="col">Colors</th><th scope="col">Contrast</th></tr></thead>
                 <tbody>
                   {colors.checks.map((c) => (
@@ -422,7 +422,7 @@ function ColorSettings({ form, set, errors, isChanged, logo, appName }: ColorPro
                     </tr>
                   ))}
                 </tbody>
-              </table></div>
+              </table></TableWrap>
             </details>
           </>
         )}

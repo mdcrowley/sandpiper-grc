@@ -2,7 +2,7 @@
 import { useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
-  Button, Card, EmptyState, ErrorState, formatDate, Loading, PageHeader, qs, Select, TextField, useAuth, useDebounced, useFetch,
+  Button, Card, EmptyState, ErrorState, formatDate, Loading, PageHeader, qs, Select, TableWrap, TextField, useAuth, useDebounced, useFetch,
 } from '../../core';
 import type { ListResult, Row } from '../../core';
 import { RecordStatusChip, ResultCell, SOURCE, STATUS, WhenCell } from './shared';
@@ -69,7 +69,7 @@ export function TrainingRecords() {
     );
   } else {
     body = (
-      <div className="table-wrap trn-tw">
+      <TableWrap label="Training records" className="trn-tw">
         <table className="table">
           <caption className="sr-only">Training records</caption>
           <thead>
@@ -95,7 +95,7 @@ export function TrainingRecords() {
             ))}
           </tbody>
         </table>
-      </div>
+      </TableWrap>
     );
   }
 

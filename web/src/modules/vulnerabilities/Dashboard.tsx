@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { SegmentedControl } from '@mantine/core';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  Button, Card, Chart, chartColor, EmptyState, ErrorState, formatDate, Loading, PageHeader, Stat, useFetch,
+  Button, Card, Chart, chartColor, EmptyState, ErrorState, formatDate, Loading, PageHeader, Stat, TableWrap, useFetch,
 } from '../../core';
 import type { ChartOption } from '../../core';
 import { ageFilters, fixedThisMonthLink, listLink, SectionTabs, SeverityChip, useVulnAccess } from './shared';
@@ -78,7 +78,7 @@ function OverdueCard({ summary }: { summary: Summary | undefined }) {
         : data.groups.length === 0 ? <EmptyState icon="check-circle" title="Nothing is overdue" message="Every open finding is inside its fix-by date." />
         : (
           <>
-            <div className="table-wrap vuln-tw">
+            <TableWrap label={`Overdue findings for each ${group === 'owner' ? 'owner' : 'system owner'}`} className="vuln-tw">
               <table className="table">
                 <caption className="sr-only">Overdue findings for each {group === 'owner' ? 'owner' : 'system owner'}</caption>
                 <thead>
@@ -102,7 +102,7 @@ function OverdueCard({ summary }: { summary: Summary | undefined }) {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableWrap>
             <p className="muted vuln-pad vuln-note">
               {group === 'owner'
                 ? 'Grouped by the owner of each finding.'
@@ -206,7 +206,7 @@ export function VulnerabilityDashboard() {
       <div className="vuln-grid">
         <Card title="By severity" flush>
           {!s ? <div className="vuln-pad"><Loading lines={5} label="Loading the figures" /></div> : (
-            <div className="table-wrap vuln-tw">
+            <TableWrap label="Open, overdue and time to fix for each severity" className="vuln-tw">
               <table className="table">
                 <caption className="sr-only">Open, overdue and time to fix for each severity</caption>
                 <thead>
@@ -227,13 +227,13 @@ export function VulnerabilityDashboard() {
                   })}
                 </tbody>
               </table>
-            </div>
+            </TableWrap>
           )}
         </Card>
         <Card title="Hosts with the most serious open findings" flush>
           {!s ? <div className="vuln-pad"><Loading lines={5} label="Loading the hosts" /></div>
             : s.topHosts.length === 0 ? <EmptyState icon="server" title="No open findings on any host" /> : (
-              <div className="table-wrap vuln-tw">
+              <TableWrap label="Ten hosts with the worst open findings" className="vuln-tw">
                 <table className="table">
                   <caption className="sr-only">Ten hosts with the worst open findings</caption>
                   <thead>
@@ -253,7 +253,7 @@ export function VulnerabilityDashboard() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </TableWrap>
             )}
         </Card>
       </div>

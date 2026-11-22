@@ -249,7 +249,7 @@ For scripts and other tools that call the API without a browser.
   `token_source_not_allowed` and writes a `token.refused` audit event.
 
 Limits: a token cannot be narrowed to particular records, and the per-token request count
-is kept in memory (a restart resets the current minute).
+is kept in memory (a restart resets the current minute, and each of several server processes counts on its own: E16-43).
 
 ### Outbound webhooks
 
@@ -727,7 +727,10 @@ separate, tamper-evident copy.
   RSA-SHA256), the Response comes back with the HTTP-POST binding to the provider's assertion
   consumer service, `POST /api/auth/sso/<key>/acs`. XML signature verification is done by
   **@node-saml/node-saml** (MIT; on **xml-crypto** and **@xmldom/xmldom**, MIT, with
-  **xml-encryption**, MIT, for encrypted assertions), pinned to exact versions: only the
+  **xml-encryption**, MIT, for encrypted assertions), pinned to exact versions (the application's
+  own parsing uses @xmldom/xmldom 0.9 and decrypts with xml-encryption 6, which refuses CBC
+  content encryption and RSA 1.5 key transport by default; the library keeps its own 0.8 copy
+  of @xmldom/xmldom for the signature checks): only the
   configured certificates are trusted (several, for a certificate change; RSA of 2048 bits or
   more), never a key carried in the message; what is read is the signed bytes the library
   returns, not the message as received. Around the library, this application adds:

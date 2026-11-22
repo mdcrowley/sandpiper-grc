@@ -5,7 +5,7 @@ import type { FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import {
   api, ApiError, Badge, Button, Card, Checkbox, ConfirmDialog, EmptyState, ErrorState, errorMessage, IconButton, Loading, LookupChip,
-  LookupSelect, Modal, NumberField, Select, useAuth, useFetch, useToast, useUnsavedChanges,
+  LookupSelect, Modal, NumberField, Select, TableWrap, useAuth, useFetch, useToast, useUnsavedChanges,
 } from '../../core';
 
 interface Requirement {
@@ -78,7 +78,7 @@ export function RequirementsPanel({ positionId }: { positionId: string }) {
   else if (!data.length) body = <EmptyState icon="graduation" title="No requirements" message="Add the courses and certifications people in this position need." action={add} />;
   else {
     body = (
-      <div className="table-wrap">
+      <TableWrap label="Requirements of this position">
         <table className="table">
           <caption className="sr-only">Requirements of this position</caption>
           <thead><tr><th scope="col">Requirement</th><th scope="col">Kind</th><th scope="col">Mandatory</th><th scope="col" className="num">Grace days</th>{editable && <th scope="col"><span className="sr-only">Actions</span></th>}</tr></thead>
@@ -96,7 +96,7 @@ export function RequirementsPanel({ positionId }: { positionId: string }) {
             ))}
           </tbody>
         </table>
-      </div>
+      </TableWrap>
     );
   }
   return (

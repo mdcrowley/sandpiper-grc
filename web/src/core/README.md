@@ -599,6 +599,7 @@ is needed around it).
 | `StatusChip` | `color?`, `label` | Chip with a dot; use for status and priority |
 | `LookupChip` | `list`, `value` | Label and color from the lookup list |
 | `Card` | `title?`, `actions?`, `flush?`, `className?`, `children` | `flush` removes body padding; a `table-wrap` directly inside a flush card loses its own border |
+| `TableWrap` | `label` (required: the region name, usually the caption), `className?`, `ref?`, plus `<div>` attributes | The bordered scroll box around a data table (`.table-wrap`). While the table is wider or taller than the box, the box is a named region in the tab order so the keyboard can scroll it (WCAG 2.1.1). Every `<table>` goes in one; `tableWrap.test.ts` fails on a hand-written `table-wrap` box or Mantine `Table.ScrollContainer` |
 | `Stat` | `label`, `value`, `trend?: { direction: 'up' \| 'down' \| 'flat', label, tone?: 'good' \| 'bad' \| 'neutral' }`, `color?`, `to?`, `icon?`, `hint?` | Number tile; `to` makes it a drill-down link, `icon` sits beside the label, `hint` is a short line under the value. Lay several out with `<div className="grid-stats">` |
 | `Tabs` | `tabs: { key, label, count?, content? }[]`, `active?`, `onChange?`, `label?` | Mantine `Tabs`: arrow keys, Home and End move between tabs. Uncontrolled unless `active` is passed; only the active panel is mounted |
 | `Modal` (alias `Dialog`) | `open`, `title`, `onClose`, `footer?`, `size?: 'sm' \| 'md' \| 'lg'`, `dirty?`, `discardPrompt?`, `children` | Mantine `Modal`: focus trap, Esc and backdrop close, focus returns to the opener. With `dirty` (or a `ResourceForm` inside that has changes) closing asks "Discard this draft?" first. Focus starts in the first form control. With several open, Esc closes only the top one, and never while a dropdown inside it is open. `footer` stays visible while the body scrolls |
@@ -788,7 +789,7 @@ line to the map. Names (`IconName`, `ICON_NAMES`):
 | `stack`, `row` | Vertical flow with gaps; horizontal, wrapping, centered |
 | `grid-stats`, `grid-2` | Responsive tiles for `Stat`; two columns, one when narrow |
 | `muted`, `num`, `ref`, `truncate`, `prose`, `sr-only` | Muted text; right-aligned tabular numbers; record reference; one-line ellipsis; keeps line breaks; screen-reader only |
-| `table` inside `<div className="table-wrap">` | Data table with a scrolling, bordered wrapper |
+| `table` inside `<TableWrap label="...">` | Data table with a scrolling, bordered wrapper (the `table-wrap` class; always through `TableWrap`) |
 | `chip chip-<color>` | The chip that `Badge` and `StatusChip` render |
 | `card`, `card-head`, `card-title`, `card-body` | The markup `Card` renders, for hand-built cards |
 | `btn` with `btn-primary`, `btn-secondary`, `btn-ghost` or `btn-danger` (and `btn-sm`) | Button look for links and other non-button elements |

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   api, ApiError, Badge, Button, Card, ConfirmDialog, DateField, DateTimeField, EmptyState, errorMessage, ErrorState, formatDate,
-  formatDateTime, Icon, IconButton, Loading, Modal, RecordPicker, Select, TextArea, TextField, useFetch, useResource, useToast,
+  formatDateTime, Icon, IconButton, Loading, Modal, RecordPicker, Select, TableWrap, TextArea, TextField, useFetch, useResource, useToast,
 } from '../../core';
 import type { Blackout } from './types';
 
@@ -115,7 +115,7 @@ export function BlackoutsAdmin() {
         : data.length === 0 ? (
           <EmptyState icon="calendar" title="No blackout periods" message="Add the times when changes should not be made, such as a year-end close or a major event. A change planned in one is flagged as a conflict." />
         ) : (
-          <div className="table-wrap chg-tw">
+          <TableWrap label="Blackout periods" className="chg-tw">
             <table className="table">
               <thead><tr><th>Name</th><th>Start</th><th>End</th><th>Repeats</th><th>Systems</th><th>Reason</th><th><span className="sr-only">Actions</span></th></tr></thead>
               <tbody>
@@ -145,7 +145,7 @@ export function BlackoutsAdmin() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
 
       <Modal open={form !== null} title={form?.id ? 'Edit blackout period' : 'Add blackout period'} onClose={() => setForm(null)} size="md" dirty={form !== null && JSON.stringify(form) !== JSON.stringify(start)}>

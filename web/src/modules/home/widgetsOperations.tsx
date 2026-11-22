@@ -2,7 +2,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Card, Countdown, EmptyState, ErrorState, Icon, Loading, ProgressBar, StatusChip,
-  formatDate, listQuery, toColorName, useFetch,
+  formatDate, listQuery, TableWrap, toColorName, useFetch,
 } from '../../core';
 import type { ColorName, IconName, StatsResult } from '../../core';
 import { GroupBars } from './charts';
@@ -117,7 +117,7 @@ function TopRisks() {
           <div className="row">
             {d.levels.map((l) => <StatusChip key={l.value} color={toColorName(l.color)} label={`${l.label}: ${l.count}`} />)}
           </div>
-          <div className="table-wrap"><table className="table">
+          <TableWrap label="Top risks"><table className="table">
             <thead><tr><th>Risk</th><th>Residual rating</th><th>Owner</th></tr></thead>
             <tbody>
               {d.top.slice(0, 5).map((r) => (
@@ -128,7 +128,7 @@ function TopRisks() {
                 </tr>
               ))}
             </tbody>
-          </table></div>
+          </table></TableWrap>
         </div>
       )}
     </Panel>
@@ -144,7 +144,7 @@ function ContractNotice() {
         return (
           <div className="stack">
             {soon.length === 0 ? <EmptyState icon="calendar" title="No notice dates in the next 120 days" /> : (
-              <div className="table-wrap"><table className="table">
+              <TableWrap label="Contracts approaching notice"><table className="table">
                 <thead><tr><th>Contract</th><th>Notice date</th><th className="num">Days</th></tr></thead>
                 <tbody>
                   {soon.map((c) => (
@@ -158,7 +158,7 @@ function ContractNotice() {
                     </tr>
                   ))}
                 </tbody>
-              </table></div>
+              </table></TableWrap>
             )}
             {d.undated.length > 0 && (
               <p className="muted">{d.undated.length} {d.undated.length === 1 ? 'contract has' : 'contracts have'} no notice date recorded yet.</p>
@@ -181,7 +181,7 @@ function ProjectsByStatus() {
           <div className="row">
             {d.funnel.map((f) => <StatusChip key={f.stage} color={toColorName(f.color)} label={`${f.label}: ${f.count}`} />)}
           </div>
-          <div className="table-wrap"><table className="table">
+          <TableWrap label="Projects by status"><table className="table">
             <thead><tr><th>Project</th><th>Overall</th><th>Trend</th></tr></thead>
             <tbody>
               {d.register.slice(0, 7).map((p) => {
@@ -199,7 +199,7 @@ function ProjectsByStatus() {
                 );
               })}
             </tbody>
-          </table></div>
+          </table></TableWrap>
         </div>
       )}
     </Panel>

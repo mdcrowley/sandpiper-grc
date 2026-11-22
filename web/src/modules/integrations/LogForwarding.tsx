@@ -5,7 +5,7 @@ import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ApiError, Button, Card, ConfirmDialog, Drawer, EmptyState, ErrorState, errorMessage, formatDateTime, Icon, Loading, Menu, Modal, NumberField,
-  PageHeader, qs, relativeTime, Select, StatusChip, Switch, TextArea, TextField, useFetch, useToast,
+  PageHeader, qs, relativeTime, Select, StatusChip, Switch, TableWrap, TextArea, TextField, useFetch, useToast,
 } from '../../core';
 import type { ColorName } from '../../core';
 import '../admin/admin.css';
@@ -76,7 +76,7 @@ export function LogForwardingPage() {
                   action={<Button variant="primary" icon="plus" onClick={() => setEditing('new')}>Add forwarder</Button>}
                 />
               ) : (
-                <div className="table-wrap adm-table-frame">
+                <TableWrap label="Log forwarders" className="adm-table-frame">
                   <table className="table">
                     <thead><tr><th scope="col">Forwarder</th><th scope="col">Sending</th><th scope="col">On</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
                     <tbody>
@@ -112,7 +112,7 @@ export function LogForwardingPage() {
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </TableWrap>
               )}
             </Card>
             <RetentionCard days={data.logDays} onSaved={reload} />

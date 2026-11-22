@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState, type ComponentType } from 'react';
 import {
-  Button, Card, DefinitionList, ErrorState, formatDate, Loading, LookupChip, Modal, RecordPage, ResourceForm, useFetch, useToast,
+  Button, Card, DefinitionList, ErrorState, formatDate, Loading, LookupChip, Modal, RecordPage, ResourceForm, TableWrap, useFetch, useToast,
 } from '../../core';
 import type { ListResult, RecordContext, Row } from '../../core';
 import { Link } from 'react-router-dom';
@@ -35,7 +35,7 @@ function RelatedRisks({ row }: { row: Row }) {
   return (
     <Card title={<>Risks under this one <span className="tab-count rk-panel-count">{data.rows.length}</span></>} flush>
       {(
-        <div className="table-wrap">
+        <TableWrap label="Risks that roll up under this one">
           <table className="table">
             <caption className="sr-only">Risks that roll up under this one</caption>
             <thead><tr><th scope="col">Risk</th><th scope="col">Residual</th><th scope="col">Appetite</th><th scope="col">Status</th></tr></thead>
@@ -50,7 +50,7 @@ function RelatedRisks({ row }: { row: Row }) {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableWrap>
       )}
     </Card>
   );

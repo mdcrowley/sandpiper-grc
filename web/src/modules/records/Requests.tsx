@@ -4,7 +4,7 @@ import { lazy, Suspense, useState, type ComponentType } from 'react';
 import { Link } from 'react-router-dom';
 import {
   api, Button, Card, ConfirmDialog, DateField, EditableSummary, EmptyState, errorMessage, ErrorState, formatDate, KeyValue, Loading,
-  LookupChip, LookupSelect, Modal, NumberField, PageHeader, RecordPage, RecordPicker, ResourceList, Select, StatusChip, Switch, TextArea,
+  LookupChip, LookupSelect, Modal, NumberField, PageHeader, RecordPage, RecordPicker, ResourceList, Select, StatusChip, Switch, TableWrap, TextArea,
   TextField, useAuth, useFetch, useLookup, useMeta, useToast,
 } from '../../core';
 import type { Row } from '../../core';
@@ -249,7 +249,7 @@ function ResponsiveTab({ request }: { request: Row }) {
         : (
           <>
             {data.hidden > 0 && <p className="rr-pad muted">{data.total} records in all; {data.hidden} you cannot see.</p>}
-            <div className="table-wrap">
+            <TableWrap label="Responsive records">
               <table className="table">
                 <caption className="sr-only">Responsive records</caption>
                 <thead><tr><th scope="col">Record</th><th scope="col">Disclosed</th><th scope="col">Exemption</th><th scope="col">Note</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
@@ -268,7 +268,7 @@ function ResponsiveTab({ request }: { request: Row }) {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableWrap>
           </>
         )}
       {editing && <ItemDialog request={request} item={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reload(); }} />}

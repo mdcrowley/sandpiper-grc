@@ -2,7 +2,7 @@
 // check that compares stored files with the records of them.
 import { useEffect, useState, type FormEvent } from 'react';
 import {
-  api, ApiError, Button, Card, Checkbox, errorMessage, formatDateTime, Select, TextField, useToast,
+  api, ApiError, Button, Card, Checkbox, errorMessage, formatDateTime, Select, TableWrap, TextField, useToast,
 } from '../../core';
 import type { FilesOverview, S3Settings } from './adminTypes';
 import { STORE_LABELS } from './adminTypes';
@@ -162,22 +162,22 @@ export function StorageSettings({ overview, onSaved }: { overview: FilesOverview
                 {report.unavailable.map((u) => ` ${STORE_LABELS[u.driver] ?? u.driver} could not be checked: ${u.reason}`).join('')}
               </div>
               {report.missing.length > 0 && (
-                <div className="table-wrap">
+                <TableWrap label="Files missing from storage">
                   <table className="table">
                     <caption className="sr-only">Files missing from storage</caption>
                     <thead><tr><th>Missing file</th><th>Store</th></tr></thead>
                     <tbody>{report.missing.map((m) => <tr key={m.id}><td>{m.file_name}</td><td>{STORE_LABELS[m.driver] ?? m.driver}</td></tr>)}</tbody>
                   </table>
-                </div>
+                </TableWrap>
               )}
               {report.unreferenced.length > 0 && (
-                <div className="table-wrap">
+                <TableWrap label="Stored files with no record">
                   <table className="table">
                     <caption className="sr-only">Stored files with no record</caption>
                     <thead><tr><th>Stored with no record</th><th>Store</th><th className="num">Size</th></tr></thead>
                     <tbody>{report.unreferenced.map((u) => <tr key={`${u.driver}:${u.key}`}><td className="att-hash">{u.key}</td><td>{STORE_LABELS[u.driver] ?? u.driver}</td><td className="num">{formatBytes(u.size)}</td></tr>)}</tbody>
                   </table>
-                </div>
+                </TableWrap>
               )}
             </div>
           )}

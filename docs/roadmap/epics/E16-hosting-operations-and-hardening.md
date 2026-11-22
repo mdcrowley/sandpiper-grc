@@ -1,6 +1,6 @@
 # E16 Hosting, operations and hardening
 
-**Status:** in progress (33 of 38 issues done)
+**Status:** in progress (33 of 39 issues done)
 
 ## Goal
 
@@ -69,6 +69,7 @@ and usable by everyone.
 | E16-40 | Independent security review or penetration test | open | P2 |
 | E16-41 | Load test with the database server on its own machine | open | P3 |
 | E16-42 | User services across a restart of the machine, and the system examples, on real machines | open | P3 |
+| E16-43 | Per-token request counts shared by every server process | open | P3 |
 
 ---
 
@@ -126,7 +127,7 @@ command, and I can tell afterwards that the copy is whole.
 - [x] `verify-backup` re-checks a backup at any time; `backups` lists them
 - [x] `backup -Prune <n>` keeps the newest n and never deletes a folder it did not make
 - [x] Refuses to run while the server has the data folder open
-- [ ] Runs on a schedule (see E16-08)
+- [x] Runs on a schedule (`grc.ps1 schedule-backup`, E16-08; the server's own daily backups, E16-17)
 - [x] Can be restored by a command (see E16-09)
 
 **Implemented in:** `server/src/ops/backup.ts`, `files.ts`, `migrations.ts` (tests in `backup.test.ts`); `server/src/cli.ts` (`backup`, `backups`, `verify-backup`); `grc.ps1`
@@ -142,7 +143,7 @@ signing in.
 
 - [x] `GET /api/health` returns OK without a session
 - [x] `grc.ps1 health` reports the result
-- [ ] The check also confirms the database answers
+- [x] The check also confirms the database answers (built in E22-33: `GET /api/ready`, a 2-second database check; `/api/health` stays a cheap liveness check)
 
 **Implemented in:** `GET /api/health` (`server/src/core/auth.ts`); `grc.ps1`
 
@@ -289,7 +290,7 @@ migrations and tells me if anything went wrong.
 - [x] It stops at the first failed step, leaves the server stopped, says whether the database may have changed, and prints the exact rollback commands naming the backup it took
 - [x] `-SkipInstall` for a machine with no network access
 - [x] A failed migration leaves the previous version running from the backup, automatically (E16-18)
-- [ ] The installed version is shown in the application (E16-19: `GET /api/version` and `grc version` are built; the screen is not)
+- [x] The installed version is shown in the application (built in E16-19: the Help page, `web/src/modules/help/HelpHome.tsx`, from `GET /api/version`)
 - [x] Migrations are never edited once released: checksums at start and in `status`, and a CI check against the last release (E16-20)
 
 **Implemented in:** `grc.ps1` (`upgrade`); `server/src/cli.ts` (`migrate`, `backup --label pre-upgrade`); `docs/operations.md` (Upgrading)
@@ -310,7 +311,7 @@ another installation, so data is never locked in.
 - [x] Number sequences continue after the highest imported value
 - [x] A changed export, a target that already has users, an export from newer code and a table the target lacks are each refused, and a failure loads nothing
 - [x] Secrets (password hashes, second-factor keys, recovery codes, sessions, one-time links) can be left out with `-NoSecrets`. They are included by default, because an installation cannot be moved without them: there is no command to set a password from outside the application ([E02-13](E02-account-security.md))
-- [ ] Loaded into a PostgreSQL server (see E16-05)
+- [x] Loaded into a PostgreSQL server (built in E16-05: `import-all` against `GRC_DATABASE_URL`; the round-trip tests in `export.test.ts` also run on PostgreSQL 17 in continuous integration)
 
 **Implemented in:** `server/src/ops/export.ts` (tests in `export.test.ts`); `server/src/cli.ts` (`export-all`, `import-all`); `grc.ps1`; `docs/operations.md` (Export and import)
 
@@ -444,7 +445,7 @@ machine, and I am told when one fails.
 - [x] A backup is taken without stopping the server: a logical export of every table inside
   one transaction (requests wait about two seconds for the sample data), packed into one
   archive, encrypted when a key is set; `restore` loads it into a new database
-- [ ] The schedule runs on the job queue rather than an in-process timer (E14-27)
+- [x] The schedule runs on the job queue rather than an in-process timer (built in E14-27: schedule `backups.schedule`)
 
 **Implemented in:** `server/src/ops/online-backup.ts`, `export.ts` (catalog read once),
 `backup.ts` (archive restore), `status.ts`; `server/src/modules/attachments/backups.ts`,
@@ -477,9 +478,9 @@ anything.
 - [x] Tested with a migration that fails on purpose: rehearsed on a copy of the application
   (release with a broken migration: rolled back, previous version healthy);
   `server/src/ops/code-snapshot.test.ts` covers save, apply and restore
-- [ ] A rollback after a package change needs network access for `npm install` (or
-  `-SkipInstall` and a manual install); keeping the previous `node_modules` aside would
-  avoid it
+- [ ] A rollback after a package change works without network access. Not built, a deliberate
+  limit: the rollback runs `npm install` for the previous version (or `-SkipInstall` and a
+  manual install); keeping the previous `node_modules` aside would avoid it
 
 **Implemented in:** `grc.ps1` (`upgrade`, `save-code`, `start`); `tools/code-snapshot.mjs`;
 `server/src/ops/code-snapshot.test.ts`; `docs/operations.md` (Upgrading)
@@ -515,7 +516,7 @@ applied.
 - [x] A checksum of each migration is recorded when it is applied (SHA-256 of the text, line endings and byte-order mark ignored; filled in for migrations applied before checksums were kept)
 - [x] Start-up and `status` warn when an applied migration's file no longer matches; the edit is never run
 - [x] Continuous integration fails when a released migration file changes (job "Released migrations unchanged": compared with the newest `v*` tag; before the first release there is nothing to compare. Tried in a scratch clone with a tag: an edited migration is reported, a new one is not)
-- [ ] The rule is stated in `docs/development.md` and `CONTRIBUTING.md` once the first release is made (the text is ready; no release yet)
+- [x] The rule is stated in `docs/development.md` and `CONTRIBUTING.md` once the first release is made (stated before v0.2.0; releases v0.1.0 and v0.1.1 exist)
 
 **Implemented in:** `server/src/core/migrate.ts` (`migrationChecksum`, `changedMigrations`; tests in `migrate.test.ts`); `server/src/ops/migrations.ts` (`migrationFiles`, `readMigrationState`), `status.ts`; `.github/workflows/ci.yml` (job `released-migrations`); `docs/operations.md` (Status, Upgrading)
 
@@ -533,7 +534,7 @@ command instead of downloading, checking and extracting it by hand.
 - [x] The major version is pinned in one place, `tools/node-version.txt`, which continuous integration also reads
 - [x] An existing copy is left alone unless `-Force` is given; a copy in use is not half-replaced
 - [x] A mirror address can be given for networks that cannot reach nodejs.org
-- [ ] The OpenPGP signature of the checksum list is verified (the manual steps in `docs/installation.md` say how)
+- [ ] The OpenPGP signature of the checksum list is verified. Not built, a deliberate limit: the list is fetched over HTTPS from nodejs.org and the scripts do not check its signature; the manual steps in `docs/installation.md` say how
 
 **Implemented in:** `tools/install-node.ps1`; `tools/node-version.txt`; `docs/installation.md`
 
@@ -573,7 +574,7 @@ The project is released under the MIT License (`LICENSE`); `CONTRIBUTING.md` say
 - [x] A pull-request template with the "documentation and roadmap updated" checklist from the hard rules
 - [x] `.gitattributes` stores text with LF line endings and checks out PowerShell scripts with CRLF; `.editorconfig` matches
 - [x] A license: MIT (`LICENSE`)
-- [ ] Private vulnerability reporting is switched on in the repository's settings, and the labels the templates use exist (repository settings)
+- [x] Private vulnerability reporting is switched on in the repository's settings, and the labels the templates use exist (repository settings; switched on, and `type:bug` and `type:feature` created, 22 Nov 2026)
 
 **Implemented in:** `CONTRIBUTING.md`; `SECURITY.md`; `.github/ISSUE_TEMPLATE/`; `.github/pull_request_template.md`; `.gitattributes`; `.editorconfig`
 
@@ -654,8 +655,8 @@ append-only trigger.
 - [x] Migrations can run as an owner role separate from the role the server uses at run time (`GRC_DATABASE_MIGRATE_URL` and `GRC_DATABASE_MIGRATE_PASSWORD(_FILE)`: at start, or with `migrate` from an administrator's session; `import-all` too)
 - [x] The run-time role has only the privileges it needs, and cannot alter or drop triggers: after migrating, the owner grants it read and write on every table and sequence, no update, delete or truncate on the audit log, and reading only on the migration list (`grant-runtime-role` repeats it). Tested on the real PostgreSQL engine (embedded, with `set role`): rows can be written; the trigger, a table and the audit log cannot be changed; start-up with nothing pending works; a pending migration stops with a message naming the owner setting
 - [x] Documented in `docs/installation.md` ("A least-privilege database role")
-- [ ] The same end to end on PostgreSQL 17 in continuous integration (step "Least-privilege database role" of the postgres-17 leg: written, not yet run; remove its `continue-on-error` after the first green run)
-- [ ] New custom fields and a changed search definition still need the owner at run time (E16-37)
+- [x] The same end to end on PostgreSQL 17 in continuous integration (step "Least-privilege database role" of the postgres-17 leg: green, and its `continue-on-error` removed in wave 12)
+- [x] New custom fields need no owner at run time, and a changed search definition is queued for the owner's next run instead of failing (built in E16-37)
 
 **Implemented in:** `server/src/ops/db-roles.ts` (tests in `db-roles.test.ts`); `server/src/core/migrate.ts` (tests in `migrate.test.ts`); `server/src/main.ts`; `server/src/cli.ts` (`migrate`, `grant-runtime-role`, `import-all`); `.github/workflows/ci.yml`; `docs/installation.md`
 
@@ -904,3 +905,26 @@ restarted, and the system examples need their own account and folders.
 - [ ] On a Linux machine: the user service with `loginctl enable-linger` starts after a restart of the machine with nobody signed in
 - [ ] On macOS: the launchd agent starts at sign-in after a restart
 - [ ] The system examples `deploy/systemd/` and `deploy/launchd/` (with their daily backups) installed and run as documented
+
+### E16-43 Per-token request counts shared by every server process
+
+**Status:** open · **Priority:** P3 · **Type:** debt
+
+As an operator running more than one application process against one PostgreSQL server, an
+API token's request limit holds across all of them. Found while checking E02-18: the counts
+behind `tokens.rate_per_minute` (`core/tokens.ts`), the `RateLimit` headers on token answers
+(`core/api/conventions.ts`) and `mcp.rate_per_minute` (`modules/mcp/http.ts`) are kept in
+process memory. A restart only resets the current minute, which is harmless; with several
+processes each counts on its own, so a token can make that many requests a minute per process.
+Wrong-token attempts by address and the provisioning (SCIM) token's limit are already kept in
+the database (`core/ratelimit.ts`). The `If-Match` lock and the webhook worker, listed beside
+it under "More than one process" in `docs/architecture.md`, are not part of this issue.
+
+**Acceptance criteria**
+
+- [ ] The per-token counts are kept where every process sees them (the database, as
+  `core/ratelimit.ts` does, or another shared store), without a database write slowing every
+  token request noticeably (measured with `tools/load/run.mjs`)
+- [ ] The limit, the `RateLimit` headers and the MCP limit read the same count
+- [ ] A test with two application instances on one database shows the limit holding across them
+- [ ] `docs/security.md`, `docs/mcp.md` and `docs/architecture.md` no longer call the count per process

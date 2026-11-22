@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  Badge, Button, Card, EmptyState, ErrorState, formatDate, KeyValue, Loading, Menu, ProgressBar, StatusChip, useAuth, type Row,
+  Badge, Button, Card, EmptyState, ErrorState, formatDate, KeyValue, Loading, Menu, ProgressBar, StatusChip, TableWrap, useAuth, type Row,
 } from '../../core';
 import { ApprovalDialog } from './ApprovalDialog';
 import { Banner } from './bits';
@@ -95,7 +95,7 @@ export function ApprovalsPanel({ row, onChanged }: { row: Row; onChanged: () => 
         {a.decisions.length === 0 ? (
           <EmptyState icon="check-square" title="No decisions recorded" message="Each approval or rejection appears here with who gave it and when." />
         ) : (
-          <div className="table-wrap chg-tw">
+          <TableWrap label="Decisions" className="chg-tw">
             <table className="table">
               <thead>
                 <tr><th>Decision</th><th>Approver</th><th>Role</th><th>Date</th><th>Reference</th><th>Notes</th><th>Recorded by</th></tr>
@@ -120,7 +120,7 @@ export function ApprovalsPanel({ row, onChanged }: { row: Row; onChanged: () => 
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
       </Card>
 

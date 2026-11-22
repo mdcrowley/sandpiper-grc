@@ -4,7 +4,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { SegmentedControl } from '@mantine/core';
 import {
-  Button, Card, Chart, chartColor, DateField, EmptyState, ErrorState, formatDate, formatDateTime, PageHeader, qs, Stat, timeZone, useFetch,
+  Button, Card, Chart, chartColor, DateField, EmptyState, ErrorState, formatDate, formatDateTime, PageHeader, qs, Stat, TableWrap, timeZone, useFetch,
 } from '../../core';
 import type { ChartOption, ChartSegment } from '../../core';
 import { minutesText, ticketListHref, type Group, type Metrics, type QueueCounts } from './util';
@@ -218,7 +218,7 @@ export function ServiceDeskDashboard() {
                 </Card>
                 <Card title="Figures" flush>
                   {!data || quiet ? <EmptyState title="No figures yet" message="The numbers behind the charts are listed here." icon="chart" /> : (
-                    <div className="table-wrap sd-figures">
+                    <TableWrap label="Figures" className="sd-figures">
                       <table className="table sd-table">
                         <thead><tr><th scope="col">Group</th><th scope="col" className="num">Tickets</th><th scope="col" className="num">Missed a target</th></tr></thead>
                         <tbody>
@@ -232,7 +232,7 @@ export function ServiceDeskDashboard() {
                             )))}
                         </tbody>
                       </table>
-                    </div>
+                    </TableWrap>
                   )}
                 </Card>
               </div>

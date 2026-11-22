@@ -2,7 +2,7 @@
 // life first, with their condition, next assessment and replacement project. A list, not a figure:
 // it shows only the records the person may see.
 import { Link, useSearchParams } from 'react-router-dom';
-import { Card, EmptyState, ErrorState, formatDate, Loading, LookupChip, PageHeader, Select, StatusChip, useAuth, useFetch } from '../../core';
+import { Card, EmptyState, ErrorState, formatDate, Loading, LookupChip, PageHeader, Select, StatusChip, TableWrap, useAuth, useFetch } from '../../core';
 import { capitalized, ConditionTabs, LifeChip, useTargetWords } from './shared';
 
 interface Row {
@@ -54,7 +54,7 @@ export function AgingPage() {
           : !data ? <Loading lines={8} label="Loading the aging list" />
             : data.rows.length === 0 ? <EmptyState icon="clock" title="Nothing to show" message="No record you may see matches these choices." />
               : (
-                <div className="table-wrap">
+                <TableWrap label="Records by end of useful life">
                   <table className="table">
                     <caption className="sr-only">Records by end of useful life</caption>
                     <thead><tr><th scope="col">Record</th><th scope="col">Kind</th><th scope="col">Class</th><th scope="col">End of useful life</th><th scope="col" className="num">Age</th><th scope="col">Condition</th><th scope="col">Next assessment</th><th scope="col">Replacement</th></tr></thead>
@@ -73,7 +73,7 @@ export function AgingPage() {
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </TableWrap>
               )}
       </Card>
     </div>

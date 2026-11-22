@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   ApiError, Button, Card, ConfirmDialog, Countdown, cx, DateField, EditableSummary, EmptyState, ErrorState, errorMessage, formatDate,
-  Loading, Modal, PageHeader, RecordPage, ResourceList, Select, Stat, StatusChip, Tabs, TextField, toColorName, useAuth, useFetch, useResource,
+  Loading, Modal, PageHeader, RecordPage, ResourceList, Select, Stat, StatusChip, TableWrap, Tabs, TextField, toColorName, useAuth, useFetch, useResource,
   useLookup, useToast,
 } from '../../core';
 import type { RecordContext, Row, StatsResult } from '../../core';
@@ -38,7 +38,7 @@ function ExpiringExceptions() {
           <Stat label="Already expired" value={expired} color={expired ? 'red' : 'green'} />
           <Stat label={`Expiring in ${data.days} days`} value={data.rows.length - expired} color="amber" />
         </div>
-        <div className={cx('table-wrap', loading && 'table-loading')}>
+        <TableWrap label="Exceptions that have expired or are about to, soonest first" className={cx(loading && 'table-loading')}>
           <table className="table">
             <caption className="sr-only">Exceptions that have expired or are about to, soonest first</caption>
             <thead>
@@ -57,7 +57,7 @@ function ExpiringExceptions() {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableWrap>
       </>
     );
   }

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { SegmentedControl } from '@mantine/core';
-import { Badge, Button, Card, EmptyState, ErrorState, formatDate, Loading, LookupChip, PageHeader, Stat, useAuth, useFetch } from '../../core';
+import { Badge, Button, Card, EmptyState, ErrorState, formatDate, Loading, LookupChip, PageHeader, Stat, TableWrap, useAuth, useFetch } from '../../core';
 import type { Row } from '../../core';
 import { ReviewDialog } from './ReviewPanel';
 import { RatedChip, RatingChip, useScales } from './scales';
@@ -27,9 +27,9 @@ export function RiskReviews() {
   return (
     <div className="stack rk-page">
       <PageHeader
-        title="Reviews and acceptances"
+        title="Risk reviews"
         subtitle="Risks whose acceptance is running out, and risks whose review date has arrived. Restricted: visible only to people with access to security records."
-        breadcrumbs={[{ label: 'Risk register', to: '/risks' }, { label: 'Reviews and acceptances' }]}
+        breadcrumbs={[{ label: 'Risk register', to: '/risks' }, { label: 'Risk reviews' }]}
         actions={<SegmentedControl size="xs" aria-label="Look ahead" value={ahead} data={WINDOWS} onChange={setAhead} />}
       />
       <div className="grid-stats">
@@ -44,7 +44,7 @@ export function RiskReviews() {
           : !acceptances.data ? <Loading lines={3} label="Loading acceptances" />
           : acc.length === 0 ? <EmptyState icon="check-circle" title="Nothing to renew" message={`No acceptance has expired or expires within ${ahead} days.`} />
           : (
-            <div className="table-wrap">
+            <TableWrap label="Acceptances to renew">
               <table className="table">
                 <thead>
                   <tr><th scope="col">Risk</th><th scope="col">Rating</th><th scope="col">Status</th><th scope="col">Approved by</th><th scope="col">Expires</th><th scope="col">Owner</th><th scope="col" aria-label="Open" /></tr>
@@ -68,7 +68,7 @@ export function RiskReviews() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableWrap>
           )}
       </Card>
 
@@ -77,7 +77,7 @@ export function RiskReviews() {
           : !reviews.data ? <Loading lines={3} label="Loading reviews" />
           : rev.length === 0 ? <EmptyState icon="check-circle" title="No reviews due" message={`No open risk has a review date within ${ahead} days.`} />
           : (
-            <div className="table-wrap">
+            <TableWrap label="Reviews due">
               <table className="table">
                 <thead>
                   <tr><th scope="col">Risk</th><th scope="col">Rating</th><th scope="col">Review date</th><th scope="col">Last reviewed</th><th scope="col">Owner</th><th scope="col" aria-label="Review" /></tr>
@@ -100,7 +100,7 @@ export function RiskReviews() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableWrap>
           )}
       </Card>
       <ReviewDialog risk={reviewing} onClose={() => setReviewing(null)} onDone={reviews.reload} />

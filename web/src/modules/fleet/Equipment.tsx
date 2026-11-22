@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  api, Button, Card, DateField, EmptyState, errorMessage, ErrorState, formatDate, Loading, Modal, RecordPicker, StatusChip, TextArea,
+  api, Button, Card, DateField, EmptyState, errorMessage, ErrorState, formatDate, Loading, Modal, RecordPicker, StatusChip, TableWrap, TextArea,
   useAuth, useFetch, useToast, useUnsavedChanges,
 } from '../../core';
 import type { ColorName } from '../../core';
@@ -59,7 +59,7 @@ export function EquipmentPanel({ vehicleId, fleetNumber, retired }: { vehicleId:
         {current.length === 0
           ? <EmptyState icon="box" title="Nothing installed" message={retired ? 'This vehicle is retired.' : 'Install equipment from the asset register to track it here.'} />
           : (
-            <div className="table-wrap">
+            <TableWrap label={`Equipment installed on ${fleetNumber}`}>
               <table className="table">
                 <caption className="sr-only">Equipment installed on {fleetNumber}</caption>
                 <thead><tr><th scope="col">Equipment</th><th scope="col">Type</th><th scope="col">Asset status</th><th scope="col">Installed</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
@@ -75,13 +75,13 @@ export function EquipmentPanel({ vehicleId, fleetNumber, retired }: { vehicleId:
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableWrap>
           )}
       </Card>
 
       <Card title="Earlier installations" flush>
         {past.length === 0 ? <p className="muted fl-pad">No equipment has been removed from this vehicle.</p> : (
-          <div className="table-wrap">
+          <TableWrap label={`Equipment removed from ${fleetNumber}`}>
             <table className="table">
               <caption className="sr-only">Equipment removed from {fleetNumber}</caption>
               <thead><tr><th scope="col">Equipment</th><th scope="col">Type</th><th scope="col">Installed</th><th scope="col">Removed</th><th scope="col">Reason</th></tr></thead>
@@ -97,7 +97,7 @@ export function EquipmentPanel({ vehicleId, fleetNumber, retired }: { vehicleId:
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableWrap>
         )}
       </Card>
 

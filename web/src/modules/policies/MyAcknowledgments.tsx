@@ -2,7 +2,7 @@
 // Each policy opens in the reader (PolicyReader), where it is acknowledged.
 import { Link } from 'react-router-dom';
 import {
-  Card, EmptyState, ErrorState, formatDate, formatDateTime, Loading, PageHeader, Stat, StatusChip, useFetch,
+  Card, EmptyState, ErrorState, formatDate, formatDateTime, Loading, PageHeader, Stat, StatusChip, TableWrap, useFetch,
 } from '../../core';
 import { daysPhrase, type MyAck } from './shared';
 
@@ -54,7 +54,7 @@ export function MyAcknowledgments() {
         </Card>
         {data.acknowledged.length > 0 && (
           <Card title="Already acknowledged" flush>
-            <div className="table-wrap pol-tw">
+            <TableWrap label="Policies you have acknowledged, newest first" className="pol-tw">
               <table className="table">
                 <caption className="sr-only">Policies you have acknowledged, newest first</caption>
                 <thead><tr><th scope="col">Policy</th><th scope="col">Version</th><th scope="col">Acknowledged</th></tr></thead>
@@ -70,7 +70,7 @@ export function MyAcknowledgments() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableWrap>
           </Card>
         )}
       </>

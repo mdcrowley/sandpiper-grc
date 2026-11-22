@@ -131,14 +131,15 @@ The menu on the left is divided into groups. You see only the items your role al
 |---|---|
 | (top) | **Overview**, **My actions**, **Approvals**, **Notifications**, **Self-service portal** |
 | Service desk | **Tickets**, **Service desk dashboard**, **Service catalog**, **Problems**, **Knowledge base** |
-| Inventory | **Systems**, **Relationship map**, **Assets**, **Disposal approvals**, **Sites**, **Data categories**, **Vehicles**, **Services**, **Equipment coverage**, **What is affected**, **Inventory reports** |
+| Inventory | **Systems**, **Relationship map**, **Assets**, **Disposal approvals**, **Sites**, **Asset condition**, **Data categories**, **Vehicles**, **Services**, **Equipment coverage**, **What is affected**, **Inventory reports** |
 | Change | **Changes**, **Change calendar**, **New change**, **Change settings** |
-| Vendors | **Vendors**, **Security terms matrix**, **Contracts**, **Renewal calendar**, **Evidence**, **Expiring evidence** |
-| Cybersecurity | **Framework outcomes**, **Assessments**, **Risk register**, **Risk reviews**, **Security incidents**, **Notification deadlines**, **Rules and checklists**, **Offline incident kit**, **Vulnerabilities**, **Vulnerability dashboard**, **Action tracker**, **Obligations**, **Policies**, **Training overview**, **Courses**, **My training**, **My acknowledgments**, **Exercises**, **Exercise calendar**, **Exceptions** |
-| Safety | **Safety dashboard**, **Safety events**, **Hazard log**, **Safety indicators** |
+| Vendors | **Vendors**, **Security terms matrix**, **Contracts**, **Renewal calendar**, **Evidence**, **Expiring evidence**, **Reassessments due**, **Vendor issues**, **Vendor offboarding** |
+| Cybersecurity | **Framework outcomes**, **Assessments**, **Risk register**, **Risk reviews**, **Key risk indicators**, **Security incidents**, **Notification deadlines**, **Rules and checklists**, **Offline incident kit**, **OT security**, **Vulnerabilities**, **Security zones**, **Vulnerability dashboard**, **Action tracker**, **Obligations**, **Regulatory changes**, **Policies**, **Training overview**, **Courses**, **My training**, **Qualifications**, **Certifications**, **Exercises**, **My acknowledgments**, **Acknowledgment kiosk**, **Exercise calendar**, **Exceptions** |
+| Safety | **Safety dashboard**, **Safety events**, **Hazard log**, **Safety indicators**, **Inspections**, **Business continuity**, **Continuity plans**, **Emergency activations** |
+| Governance | **Audits**, **Audit findings**, **Controls**, **Control tests**, **Corrective action plans**, **Funding and grants**, **Records requests**, **Privacy**, **Committees**, **Meetings**, **Decisions** |
 | Projects | **Project portfolio**, **New project request**, **Project settings** |
-| Reports | **Dashboards**, **Reports**, **Report packs**, **Schedules**, **Risk report**, **Delivered to me**, **Expiring evidence files** |
-| Administration | **Users**, **Roles**, **Sign-in providers**, **Lists**, **Organization**, **Settings**, **Features**, **Custom fields**, **Lifecycles**, **Retention**, **API tokens**, **Approval workflows**, **AI assistant access**, **Email**, **Webhooks**, **Reminders**, **Background jobs**, **Audit log**, **Risk scales**, **Service desk settings**, **Hazard matrix**, **File settings**, **Backups** |
+| Reports | **Dashboards**, **Reports**, **Report packs**, **Risk report**, **Schedules**, **Delivered to me**, **Expiring evidence files** |
+| Administration | **Users**, **People**, **Positions**, **Roles**, **Sign-in providers**, **User provisioning**, **Lists**, **Organization**, **Settings**, **Features**, **Custom fields**, **Lifecycles**, **Retention**, **Legal holds**, **API tokens**, **Approval workflows**, **AI assistant access**, **Email**, **Calendar and work trackers**, **Reminders**, **Webhooks**, **Background jobs**, **Log forwarding**, **Audit log**, **Risk scales**, **Service desk settings**, **Hazard matrix**, **Risk appetite**, **Safety reporting rules**, **File settings**, **Backups** |
 | Help | **User guide**, **API reference** |
 
 A few entries are for everyone and have no permission of their own: **Overview**, **Approvals**, **Notifications**, **My training**, **My acknowledgments**, **New project request**, **Delivered to me**, **Expiring evidence files**, **User guide** and **API reference**. The settings entries (**Change settings**, **Project settings**, **Risk scales**, **Hazard matrix**, **File settings**) appear only for people who administer that area. A part of the application an administrator has switched off under **Administration > Features** (for example the self-service portal, which starts off) has no entries at all.
@@ -254,6 +255,8 @@ Press `?` (when you are not typing in a box) to see the keyboard shortcuts, or c
 | `Esc` | Close the dialog, menu or list that is open |
 
 Shortcuts made of single letters do nothing while you are typing in a box or while a dialog is open.
+
+A table that is wider than its frame (on a narrow window, for example) becomes a stop for `Tab` itself, named after the table: once it has focus, the `Left` and `Right` arrows scroll it sideways (and `Up` and `Down` scroll a table that is taller than its frame). The same goes for tables in a policy's text.
 
 In a dialog, `Esc` first closes a list that is open in a field (a choice list or a record picker), and the next `Esc` closes the dialog. If you have typed or picked something that is not saved yet, the dialog asks before throwing it away: `Tab` to **Discard** and press `Enter`, or choose **Keep editing** to go back to it. In a record picker, type a few letters, move through the matches with the `Down` and `Up` arrows and press `Enter` to choose one.
 
@@ -480,7 +483,7 @@ The label is there so nobody mistakes a trial installation for the system of rec
 - If you cannot see a menu item or button that this guide describes, your role does not include it. Ask an administrator.
 - Select the question-mark button at the top right to open this guide at the section about the page you are on, or **Help** in the menu under your name for its first page. The first page has a search box that looks through every page of the guide and takes you to the matching section.
 - If a page fails to load, select **Try again** on the message. If it keeps failing, tell whoever looks after the installation.
-- The foot of the Help page shows the installed version and the commit it was built from. Give it when you report a problem.
+- The foot of the guide's first page (**User guide**) shows the installed version and the commit it was built from. Give it when you report a problem.
 
 ## Not available yet
 

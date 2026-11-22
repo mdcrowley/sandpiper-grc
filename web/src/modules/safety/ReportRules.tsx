@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import {
   ApiError, api, Badge, Button, Card, Checkbox, ConfirmDialog, EmptyState, ErrorState, errorMessage, formatNumber, IconButton, Loading,
-  LookupChoices, Modal, NumberField, PageHeader, Select, StatusChip, TextArea, TextField, useAuth, useFetch, useLookup, useToast,
+  LookupChoices, Modal, NumberField, PageHeader, Select, StatusChip, TableWrap, TextArea, TextField, useAuth, useFetch, useLookup, useToast,
 } from '../../core';
 
 interface Condition { field: string; op: string; value: unknown }
@@ -90,7 +90,7 @@ export function ReportRules() {
         ? <EmptyState icon="clock" title="No reporting rules" message="Add the reporting duties your organization has, for example a fatality to be reported to an oversight body within a few hours." />
         : (
           <Card flush>
-            <div className="table-wrap">
+            <TableWrap label="Safety reporting rules">
               <table className="table sf-wrap">
                 <caption className="sr-only">Safety reporting rules</caption>
                 <thead><tr><th scope="col">Rule</th><th scope="col">Applies when</th><th scope="col">Notify</th><th scope="col" className="num">Within</th><th scope="col">State</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
@@ -111,7 +111,7 @@ export function ReportRules() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableWrap>
           </Card>
         )}
       <Modal open={!!editing} size="lg" title={editing === 'new' ? 'New reporting rule' : 'Edit reporting rule'} onClose={() => setEditing(null)}
