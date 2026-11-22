@@ -63,7 +63,9 @@ const event = (action: string, after: Row = {}) => t.db.query(`insert into audit
 const forwarderRow = (id: string) => t.db.one<Row>('select * from audit_forwarders where id = $1', [id]);
 
 beforeAll(async () => {
-  forwardTuning.settleSeconds = 0;
+  // Below zero, so an event written just before a run is always picked up: with 0, a coarse clock
+  // (seen on macOS runners) can give the event and the run's now() the same time, and `at < now()` skips it.
+  forwardTuning.settleSeconds = -1;
   t = await testApp();
   fwd = makeForwarding(t.ctx);
   tcpPort = await listen(tcp.server);
