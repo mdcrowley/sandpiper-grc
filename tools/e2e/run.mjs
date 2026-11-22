@@ -4,6 +4,7 @@
 //
 //   npm run test:e2e                          every suite
 //   npm run test:e2e -- --only smoke,roles    some suites (file names without .mjs, with or without the number)
+//   npm run test:e2e -- --skip roles,smoke    every suite but these (same names as --only)
 //   npm run test:e2e -- --grep ticket,site    only tests whose name contains one of these
 //   npm run test:e2e -- --headed              show the browser
 //   npm run test:e2e -- --keep                keep the scratch data folder afterwards
@@ -26,6 +27,7 @@ const argv = process.argv.slice(2);
 const has = (f) => argv.includes(f);
 const value = (f) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : undefined; };
 const onlySuites = value('--only')?.split(',').map((s) => s.trim()).filter(Boolean);
+const skipSuites = value('--skip')?.split(',').map((s) => s.trim()).filter(Boolean);
 const grep = value('--grep')?.toLowerCase().split(',').map((s) => s.trim()).filter(Boolean);
 
 const here = import.meta.dirname;
@@ -38,8 +40,10 @@ const started = Date.now();
 const stamp = () => `${String(Math.round((Date.now() - started) / 1000)).padStart(4)}s`;
 export const log = (m) => { const line = `${stamp()} ${m}`; console.log(line); appendFileSync(logFile, `${line}\n`); };
 
+const suiteNames = (f) => [f.replace(/\.mjs$/, ''), f.replace(/\.mjs$/, '').replace(/^\d+-/, '')];
 const suiteFiles = readdirSync(join(here, 'suites')).filter((f) => f.endsWith('.mjs')).sort()
-  .filter((f) => !onlySuites || [f.replace(/\.mjs$/, ''), f.replace(/\.mjs$/, '').replace(/^\d+-/, '')].some((n) => onlySuites.includes(n)));
+  .filter((f) => !onlySuites || suiteNames(f).some((n) => onlySuites.includes(n)))
+  .filter((f) => !skipSuites || !suiteNames(f).some((n) => skipSuites.includes(n)));
 const suites = [];
 for (const f of suiteFiles) {
   const mod = await import(pathToFileURL(join(here, 'suites', f)).href);

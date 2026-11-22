@@ -323,7 +323,7 @@ every change, so a broken screen is caught before a user finds it.
 - [x] One journey per module: create, edit, and one module-specific action (per record type: create, an empty form refused, edit, status, comment, attachment; plus sign-in and sign-out, second-factor enrollment, search, bulk edit and export)
 - [x] Run as an administrator and as one non-administrator role (every default role, in `04-roles.mjs`)
 - [x] Run in both themes (the smoke test runs light at 1440 and dark at 820)
-- [x] Part of continuous integration ([E16-12](E16-hosting-operations-and-hardening.md)): the browser job in `.github/workflows/ci.yml` builds the web application once and runs `npm run test:e2e` on every push and pull request, then the accessibility audit
+- [x] Part of continuous integration ([E16-12](E16-hosting-operations-and-hardening.md)): the browser job in `.github/workflows/ci.yml` runs `npm run test:e2e` on every push and pull request, split into parallel parts (roles; smoke, sign-in and features off; the rest through `--skip`; the accessibility audit) once the whole run passed an hour
 
 **Implemented in:** `tools/e2e/` (`run.mjs`, `lib/`, `suites/01-smoke` to `08-keyboard-modules`),
 started by `npm run test:e2e`: it builds the web application (or uses `E2E_WEB_DIST`),

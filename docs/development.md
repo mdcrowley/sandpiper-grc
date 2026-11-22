@@ -126,8 +126,9 @@ user guide in `docs/user`, and the top-level Markdown files) runs none of this; 
 bundled into the in-app Help and tested, so a change there runs everything.
 
 For one change, run `.\grc.ps1 ci` and only the browser tests that cover it
-(`npm run test:e2e -- --only smoke,<suite>` or `--grep <name>`). The whole browser suite (about 45
-minutes) and the accessibility audit run on GitHub for every push; run them locally at the end of a
+(`npm run test:e2e -- --only smoke,<suite>` or `--grep <name>`). The whole browser suite (over an
+hour in one run; on GitHub it is split into four parallel jobs: roles, smoke with sign-in and
+features off, the rest, and the accessibility audit) runs on GitHub for every push; run them locally at the end of a
 larger piece of work, before a release, or when a change touches the shell, routing or theme.
 
 The API description: `npx tsx server/src/core/openapi-cli.ts [file] [--unversioned]`
@@ -799,8 +800,9 @@ The test commands:
   serves the build in `E2E_WEB_DIST`), starts a throw-away instance and drives a real
   browser through every route, every role, every record type, the hand-written dialogs and
   the keyboard, module by module, every page with the optional parts switched off, and the
-  Lifecycles page (101 tests in 10 suites, `01-smoke` to `10-lifecycles`). Options
-  after `--`: `--only smoke,roles` (some suites), `--grep ticket` (tests whose name
+  Lifecycles page, and then one suite per newer module area (`01-smoke` to `20-followups`). Options
+  after `--`: `--only smoke,roles` (some suites), `--skip roles` (every suite but these; the
+  numbered name, such as `03-records`, picks one of two suites with the same name), `--grep ticket` (tests whose name
   contains it), `--headed` (show the browser), `--keep` (keep the scratch data folder).
   Logs and screenshots go to `tools/e2e/out`. `node tools/e2e/serve.mjs` keeps an
   instance running, and `E2E_BASE` points the tests at it; `E2E_BROWSER` picks the

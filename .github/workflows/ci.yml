@@ -527,9 +527,23 @@ jobs:
           push-to-registry: true
 
   browser:
-    name: Browser tests and accessibility (ubuntu-latest)
+    # End to end the browser suites take over an hour, so they run as parallel parts. The "rest"
+    # part skips only the suites that have a part of their own, so a new suite is always covered.
+    name: Browser tests (${{ matrix.part }})
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - part: roles
+            args: --only roles
+          - part: smoke, sign-in, features off
+            args: --only smoke,auth,features-off
+          - part: rest
+            args: --skip roles,smoke,auth,features-off
+          - part: accessibility
+            args: ''
     steps:
       - name: Check out
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -548,12 +562,14 @@ jobs:
         env:
           GRC_WEB_DIST: ${{ github.workspace }}/e2e-web
 
-      - name: Browser tests (every route, every role, every record type, keyboard)
-        run: npm run test:e2e
+      - name: Browser tests
+        if: matrix.part != 'accessibility'
+        run: npm run test:e2e -- ${{ matrix.args }}
         env:
           E2E_WEB_DIST: ${{ github.workspace }}/e2e-web
 
       - name: Accessibility audit
+        if: matrix.part == 'accessibility'
         run: npm run test:a11y -- --quick
         env:
           E2E_WEB_DIST: ${{ github.workspace }}/e2e-web
@@ -562,7 +578,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: browser-test-output
+          name: browser-test-output-${{ strategy.job-index }}
           path: |
             tools/e2e/out
             tools/a11y/out
