@@ -4,7 +4,9 @@
 
 ## Goal
 
-Native apps for people who work away from a desk: see what is assigned to them, scan tags, report
+Native apps for people who work away from a desk: see what is assigned to them, point the camera at an
+asset tag (whatever it carries: printed digits or letters, a barcode, a QR or Data Matrix code) to act on
+the thing it is stuck to, report
 problems and hazards with photos, run inspections and condition assessments, count inventory, decide
 approvals, and keep working where there is no signal. The design is in
 [the asset tags and mobile apps specification](../specs/asset-tags-and-mobile-apps.md) (§5, §7, §9, §10);
@@ -18,8 +20,9 @@ section numbers below refer to it.
   on the web.
 - Feature area **Mobile app** (off by default). Switched off, the OAuth client, device pages and mobile
   endpoints are gone and every device is signed out.
-- Decisions 1 (publishing), 2 (push) and 4 (name and identifiers) in §9 are needed before E38-13 and
-  E38-14; the rest can start now.
+- Beta distribution only for now: TestFlight on iPhone and a signed APK installed directly on Android
+  (§5.10); no store release. Decisions 1 (developer membership and signing key) and 4 (name and
+  identifiers) in §9 are needed before the first beta; decision 2 (Android text recognition) before E38-05.
 
 ## Issues
 
@@ -29,7 +32,7 @@ section numbers below refer to it.
 | E38-02 | OAuth for mobile clients and device sessions | open | P1 |
 | E38-03 | Connect to a server and sign in | open | P1 |
 | E38-04 | My work | open | P1 |
-| E38-05 | Scan and the scan card in the app | open | P1 |
+| E38-05 | Read a tag with the camera and the tag card | open | P1 |
 | E38-06 | Report a problem or a hazard with photos | open | P1 |
 | E38-07 | Search and record views | open | P2 |
 | E38-08 | Approvals and acknowledgments | open | P2 |
@@ -37,8 +40,8 @@ section numbers below refer to it.
 | E38-10 | Offline packages, outbox and idempotent sync | open | P1 |
 | E38-11 | Inspections and condition assessments offline | open | P1 |
 | E38-12 | Inventory counts and reports offline | open | P2 |
-| E38-13 | Guide, build instructions and store release | open | P1 |
-| E38-14 | Push notifications (decision 2) | open | P3 |
+| E38-13 | Guide, build instructions and beta distribution | open | P1 |
+| E38-14 | Push notifications | open | P3 |
 | E38-15 | Accessibility and security review of the apps | open | P1 |
 
 ---
@@ -69,7 +72,7 @@ A person wants to sign in to the app the same way as on the web, and to sign out
 - [ ] Short access tokens (15 minutes) and rotating refresh tokens bound to the installation; reuse of an old refresh token revokes the device; lifetimes are settings
 - [ ] Account > Devices and the administrator's user page list devices and sign them out; deactivation and SCIM deprovisioning sign out every device
 - [ ] Sensitive actions ask again through the browser (`prompt=login`, a recent sign-in claim)
-- [ ] Apple and Android app-link files served from `/.well-known/` when the area is on
+- [ ] The app's own redirect scheme registered for the mobile client; no other redirect accepted
 - [ ] Tests: token rotation and reuse detection, revocation paths, switched-off, the sensitive-action claim
 
 ### E38-03 Connect to a server and sign in
@@ -80,7 +83,7 @@ A new user wants to point the app at their organization's server and sign in, in
 
 **Acceptance criteria**
 
-- [ ] Server address typed or scanned from Account > Mobile app's connect code; version compatibility checked (§5.9); HTTPS only
+- [ ] Server address typed and remembered; version compatibility checked (§5.9); HTTPS only
 - [ ] Sign-in in the system browser with PKCE; tokens only in the Keychain or Keystore
 - [ ] Optional or required biometric or device-credential unlock after idle time
 - [ ] Sign-out (and a failed refresh) wipes local data after warning about unsent work
@@ -98,27 +101,31 @@ A field employee wants one screen with everything waiting for them.
 - [ ] Pull to refresh; refresh on opening; badge from the last refresh
 - [ ] Tests: the same figures as the web for the same person; switched-off areas absent
 
-### E38-05 Scan and the scan card in the app
+### E38-05 Read a tag with the camera and the tag card
 
 **Status:** open · **Priority:** P1 · **Type:** feature
 
-A technician wants to scan a tag with the app and act on it.
+A technician wants to point the phone at any asset tag, whatever it carries, and act on the thing it is
+stuck to, without choosing between "scan a barcode" and "read a number".
 
 **Acceptance criteria**
 
-- [ ] Native camera scanning of QR and Code 128 on the device, torch, manual entry; tag addresses from the system camera open the app
-- [ ] The scan card from `GET /api/tags/resolve` with the server's actions (E37-04, E37-06)
-- [ ] Maestro flow with a test image: scan, see the card, add a photo
+- [ ] One camera screen reads every code type in §5.1 (QR, Data Matrix, PDF417, Aztec, Code 128, 39 and 93, EAN, UPC, ITF, Codabar) and printed text at the same time, on the phone; torch; shutter for a still picture; keyboard entry
+- [ ] Works out the value as in §5.5: codes exact (with the format's extraction pattern), text checked against the formats and their check characters, two-frame agreement for text, code wins when code and text disagree, text without a format only offered for confirmation
+- [ ] Several tags in view are listed; candidates outlined on screen with how they were read
+- [ ] The tag card from `GET /api/tags/lookup` with the server's actions (E37-04, E37-06); a value in stock offers Attach
+- [ ] Pictures processed on the phone and discarded unless attached to a record
+- [ ] Unit tests for candidate extraction and normalization; the tag photo test set (§5.5) at 98% or better with no wrong record; Maestro flow reading a test image
 
 ### E38-06 Report a problem or a hazard with photos
 
 **Status:** open · **Priority:** P1 · **Type:** feature
 
-An operator wants to report a defect or a close call quickly, from a scan or from scratch.
+An operator wants to report a defect or a close call quickly, from a tag or from scratch.
 
 **Acceptance criteria**
 
-- [ ] Report a problem (ticket) and report a hazard or close call (safety), with the record linked when started from a scan, location picked from sites, and several photos
+- [ ] Report a problem (ticket) and report a hazard or close call (safety), with the record linked when started from a tag, location picked from sites, and several photos
 - [ ] Photos resized on the device to the server's limits; uploads resume
 - [ ] Works offline through the outbox once E38-10 is built
 - [ ] Maestro flow: report with two photos; the ticket appears on the web
@@ -195,24 +202,25 @@ An asset manager wants to count a depot with no signal.
 
 **Acceptance criteria**
 
-- [ ] Join an open count; continuous scanning offline against the package; found and unexpected shown as they happen
+- [ ] Join an open count; camera in counting mode offline against the package (every tag read in view is added); found and unexpected shown as they happen
 - [ ] Problem and hazard reports offline through the outbox
-- [ ] Synced scans merge with other counters' scans; tests
+- [ ] Synced finds merge with other counters' finds; tests
 
-### E38-13 Guide, build instructions and store release
+### E38-13 Guide, build instructions and beta distribution
 
 **Status:** open · **Priority:** P1 · **Type:** docs
 
-Organizations want to install the app, or build their own, and their people want to know how to use it.
+Testers want to install the app, organizations want to build their own copy if they prefer, and
+everyone wants to know how to use it.
 
 **Acceptance criteria**
 
-- [ ] User guide page "The mobile app": connecting, signing in, each screen, offline work, lost phones
-- [ ] `docs/mobile.md`: building and signing for both platforms, own name and icon, device-management distribution, app-link files, push credentials (once E38-14)
-- [ ] Release as decided (§9, decision 1): store listings with privacy details (no data collected by the publisher), or source-only release notes
+- [ ] User guide page "The mobile app": installing the beta, connecting, signing in, reading tags, each screen, offline work, lost phones
+- [ ] `docs/mobile.md`: building and signing for both platforms, own name and icon, TestFlight uploads (builds expire after 90 days), the Android signing key kept outside the repository, device-management distribution, push credentials (once E38-14)
+- [ ] CI produces a signed Android APK attached to each release and an iPhone build uploaded to TestFlight by the maintainer; the beta's privacy notes say the publisher collects no data
 - [ ] The app's version range in `GET /api/version`; release checklist in `docs/operations.md`
 
-### E38-14 Push notifications (decision 2)
+### E38-14 Push notifications
 
 **Status:** open · **Priority:** P3 · **Type:** feature
 
@@ -220,7 +228,7 @@ A person wants to be told on the phone when something needs them.
 
 **Acceptance criteria**
 
-- [ ] As decided in §9 (per-organization credentials, a relay, or UnifiedPush); content never includes record details, only "you have N new notifications"
+- [ ] Push through Apple's and Google's push services with the project's credentials configured on the server (§5.7), or UnifiedPush on Android; content never includes record details, only "you have N new notifications"
 - [ ] Per-person notification choices apply to push as to email
 - [ ] Tests with fake push services; delivery claimed so overlapping runs send once
 

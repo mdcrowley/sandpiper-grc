@@ -1,118 +1,114 @@
-# E37 Asset tags: printing and scanning
+# E37 Asset tags: values, printing and lookup
 
-**Status:** open (0 of 12 issues done)
+**Status:** open (0 of 10 issues done)
 
 ## Goal
 
-Print durable tags with a QR code for assets, vehicles, sites and systems, and scan them with any
-phone camera, a handheld scanner or the mobile apps to see the record and act on it: report a
-problem, edit it, record its condition, run its inspection, attach a photo, or count it in an
-inventory check. The design is in [the asset tags and mobile apps specification](../specs/asset-tags-and-mobile-apps.md)
-(§3, §4, §6, §7); section numbers below refer to it.
+Keep track of which asset tag is on which asset, vehicle, site or system, whatever the tag carries:
+printed digits, letters and digits, a barcode, a QR code or a Data Matrix code. Organizations buy tags
+or print their own; people find a tag by pointing the mobile app's camera at it (E38-05), by typing it,
+or with a handheld scanner, and act on the record. The design is in
+[the asset tags and mobile apps specification](../specs/asset-tags-and-mobile-apps.md) (§3, §4, §6, §7);
+section numbers below refer to it.
 
 ## Scope notes
 
-- New module `tags` and feature area **Asset tags and scanning** (on by default). Switched off, tags,
-  the scanner, counts and their actions appear nowhere except Administration > Features.
-- Works in the web application on any phone with no app; the mobile apps (E38) use the same endpoints.
-- Not planned: GPS, RFID or Bluetooth tracking; maintenance work orders (E32-06).
-- Real-machine check before the first release: a printed sheet on an office printer and a label
-  printer (E37-12).
+- New module `tags` and feature area **Asset tags** (on by default). Switched off, tag values, stock,
+  printing, counts and their actions appear nowhere except Administration > Features.
+- The application never puts a web address on a tag, and never opens anything a tag holds.
+- The camera reading itself is in the mobile app (E38-05); this epic is the server and the web side.
+- Not planned: GPS, RFID or Bluetooth tracking; maintenance work orders (E32-06); reporting by people
+  without an account.
 
 ## Issues
 
 | ID | Title | Status | Priority |
 |---|---|---|---|
-| E37-01 | Tag codes, the tag registry and taggable types | open | P1 |
-| E37-02 | Label templates and layouts | open | P1 |
-| E37-03 | Print tags as a PDF from records, lists and blank batches | open | P1 |
-| E37-04 | Resolve a scan and the scan card | open | P1 |
-| E37-05 | Web scanner page with camera and handheld scanners | open | P1 |
-| E37-06 | Actions from a scan: report a problem, quick updates, photos | open | P1 |
-| E37-07 | Tag life cycle: attach blank tags, replace, void, lost | open | P2 |
-| E37-08 | Inventory counts | open | P2 |
-| E37-09 | Scan history and last verified | open | P3 |
-| E37-10 | Guide page, sample data and administration | open | P1 |
-| E37-11 | Anonymous problem reports from a tag (decision 3) | open | P3 |
-| E37-12 | Thermal-printer format and a real printer check | open | P3 |
+| E37-01 | Tag values on records, taggable types and history | open | P1 |
+| E37-02 | Tag formats | open | P1 |
+| E37-03 | Tag stock: bought ranges and lists, printed series | open | P1 |
+| E37-04 | Look up a tag and the tag card | open | P1 |
+| E37-05 | Find by tag on the web, typed or with a handheld scanner | open | P1 |
+| E37-06 | Actions from a tag: report a problem, quick updates, photos | open | P1 |
+| E37-07 | Attach, replace and end tags | open | P1 |
+| E37-08 | Print your own tags | open | P2 |
+| E37-09 | Inventory counts | open | P2 |
+| E37-10 | Lookup history, guide page and sample data | open | P2 |
 
 ---
 
-### E37-01 Tag codes, the tag registry and taggable types
+### E37-01 Tag values on records, taggable types and history
 
 **Status:** open · **Priority:** P1 · **Type:** feature
 
-An asset manager wants every asset, vehicle, site and system to be able to carry a tag whose code
-is unique, short, not guessable and checkable when typed.
+An asset manager wants each asset, vehicle, site and system to carry the value of the tag stuck on it,
+unique across everything, with a history when tags are replaced.
 
 **Acceptance criteria**
 
-- [ ] Codes are 8 Crockford base-32 characters plus a check character, shown grouped (`7KQ2-M9XF-R`); typing ignores case, spaces and dashes; a wrong check character is refused before any lookup (§3.2)
-- [ ] Tables `tags` and `tag_batches` (§3.3); a code is never reused; one active tag per record unless the setting allows several
-- [ ] `defineTaggable(app, …)` registry in `core/tags.ts`; assets, vehicles, sites and systems registered by their modules, each naming its identifier fields for lookup; a type in a switched-off area is not taggable
-- [ ] Permissions `tags.view`, `tags.manage`, `tags.count`, given to the default roles as in §7; area **Asset tags and scanning** in `core/features.ts`
-- [ ] Retention: anonymizing or removing a record voids its tags; a held record's tags cannot be voided or reassigned
-- [ ] Tests: code generation and checks, uniqueness under concurrent creation, registry, retention and holds, features-hidden, permission-use
+- [ ] `defineTaggable(app, …)` registry in `core/tags.ts`; assets, vehicles, sites and systems registered by their modules, each naming its other identifier fields for lookup; a type in a switched-off area is not taggable
+- [ ] The asset's existing Tag field is its tag value; vehicles, sites and systems gain a **Tag number** field; values unique across all taggable types (compared by `value_key`, §3.2), checked under concurrent writes
+- [ ] `tag_assignments` history; one active tag per record unless the setting allows several
+- [ ] Permissions `tags.view`, `tags.manage`, `tags.count`, given to the default roles as in §7; area **Asset tags** in `core/features.ts`
+- [ ] Retention ends a record's tags when it is anonymized or removed; a held record's tags cannot be ended or moved
+- [ ] Tests: uniqueness across types, comparison rules (text versus code values), registry, retention and holds, features-hidden, permission-use
 
-### E37-02 Label templates and layouts
+### E37-02 Tag formats
 
 **Status:** open · **Priority:** P1 · **Type:** feature
 
-An asset manager wants to choose what a label shows and which label stock it prints on.
+An administrator wants to tell the application what the organization's tags look like, so that
+printed text read by the camera can be trusted and misreads are refused.
 
 **Acceptance criteria**
 
-- [ ] Templates: ordered fields (logo, organization name, record name, record number, code text, QR code, linear Code 128 barcode, instruction line, help phone number), QR size and font scale; a default template supplied
-- [ ] Layouts: sheet (page size, label size, rows, columns, margins, gaps) and roll (label size); presets for common Letter and A4 sheet sizes and label-printer sizes, named by their dimensions only; custom layouts
-- [ ] Fields that do not fit are dropped in template order and the preview says which; text never below a legible minimum
-- [ ] Administration > Asset tags: Templates and Layouts tabs with a real-size preview
-- [ ] Tests: layout geometry (label positions in points for each preset), field dropping
+- [ ] Formats with characters (digits, letters and digits, or a pattern), prefix, length, check character (none, mod 10, mod 11, mod 36), carrier (any, text, code, both), an optional extraction pattern for codes holding more than the value, and record types (§3.3)
+- [ ] Administration > Asset tags > Formats, with a "try a value" box that says whether and how it matches
+- [ ] Formats reach the app through `GET /api/mobile/settings` and the offline package
+- [ ] Without any format, code values are accepted as they are and text needs the person's confirmation
+- [ ] Tests for each check scheme, extraction patterns and pattern safety (patterns are limited in length and checked so they cannot hang the server)
 
-### E37-03 Print tags as a PDF from records, lists and blank batches
+### E37-03 Tag stock: bought ranges and lists, printed series
 
 **Status:** open · **Priority:** P1 · **Type:** feature
 
-An asset manager wants to print tags for one record, a filtered list, or a batch of blank tags,
-from any printer.
+An asset manager who receives a box of pre-printed tags wants to register them, so the application
+knows they are ours and not yet attached.
 
 **Acceptance criteria**
 
-- [ ] "Print tag" on taggable record pages, "Print tags" bulk action on their lists (selection or whole filtered list), "Print blank tags" in administration
-- [ ] `POST /api/tags/print` makes a PDF on the server (existing PDF engine) at the layout's exact size; QR codes at error correction M with a four-module quiet zone; "Start at label" for partial sheets; an alignment test page
-- [ ] A record without a tag gets one when printed; printing is audit-logged with the number of tags; a limit on tags per print (default 1,000)
-- [ ] Only records the person may see can be printed; restricted records need their area's permission as for viewing
-- [ ] Tests: PDF page sizes and label count, start position, permission, audit entry; browser test printing a list selection
+- [ ] Register a sequential range ("010000 to 010999") or import a list of values from a file for tags that are not sequential; overlaps with existing stock or attached values refused
+- [ ] Series for printing your own (format, next number), taking numbers safely when two people print at once
+- [ ] Stock view: per range, how many attached, available, void or lost; mark values void or lost
+- [ ] Tests: overlap rules, counts, concurrent series use
 
-### E37-04 Resolve a scan and the scan card
+### E37-04 Look up a tag and the tag card
 
 **Status:** open · **Priority:** P1 · **Type:** feature
 
-Anyone who scans a tag wants to see at once what it is stuck to and what they can do with it.
+Anyone who finds a tag wants to see at once what it is stuck to and what they can do with it.
 
 **Acceptance criteria**
 
-- [ ] `GET /api/tags/resolve?value=` accepts a tag address, a code, or an identifier (asset tag and serial, fleet number and vehicle identification number, site code) and answers one record, a short list, or "Nothing found" (§4.2)
-- [ ] Unknown, restricted (without permission), switched-off and voided-without-replacement answer identically; a replaced tag finds the record with a "remove this old tag" notice
-- [ ] The answer carries the summary, recent activity and the list of allowed actions, computed on the server (§4.3)
-- [ ] `/t/:code` page: phone-width first, sign-in and return when signed out, nothing shown before sign-in
-- [ ] Tests: every match rule, the identical answers, actions per role and per switched-off area, a held record; browser test at 390 px
+- [ ] `GET /api/tags/lookup?value=` and `?values=` (up to 10 candidates, with how each was read) answer per §4.2: current, replaced, in stock, unknown but matching a format, other identifiers, nothing
+- [ ] Unknown, restricted (without permission), switched-off and ended values answer identically
+- [ ] The answer carries the tag card: summary, recent activity, and the actions computed on the server (§4.3)
+- [ ] Tests: every rule, the identical answers, actions per role and per switched-off area, a held record
 
-### E37-05 Web scanner page with camera and handheld scanners
+### E37-05 Find by tag on the web, typed or with a handheld scanner
 
 **Status:** open · **Priority:** P1 · **Type:** feature
 
-A technician without the app wants to scan tags with the phone's browser, and a storeroom clerk
-wants to use a handheld scanner.
+A service desk agent wants to find equipment from a tag a caller reads out, and a storeroom clerk
+wants to use a handheld scanner on barcoded tags.
 
 **Acceptance criteria**
 
-- [ ] `/scan` uses the camera: `BarcodeDetector` where available, otherwise a ZXing WebAssembly decoder loaded only on this page; torch toggle where supported; the camera permission explained before the browser asks
-- [ ] A scan box that a keyboard-mode handheld scanner fills (code plus Enter opens it); typed codes and identifiers work the same; the global search box accepts a scanned address or code
-- [ ] Continuous mode for counting (E37-08) with a sound and vibration on each read where allowed
-- [ ] Works from 360 px wide; keyboard and screen-reader usable; accessibility audit clean
-- [ ] Tests: component tests with a fake camera stream and a fake handheld scanner; browser suite `21-tags`
+- [ ] The global search box and a **Find by tag number** box on the inventory pages accept a tag value; a keyboard-mode scanner's value plus Enter opens it
+- [ ] The tag card as a web page with its actions; several matches listed
+- [ ] Keyboard and screen-reader usable; accessibility audit clean; browser suite `21-tags`
 
-### E37-06 Actions from a scan: report a problem, quick updates, photos
+### E37-06 Actions from a tag: report a problem, quick updates, photos
 
 **Status:** open · **Priority:** P1 · **Type:** feature
 
@@ -121,28 +117,44 @@ technician wants to update its status or location on the spot.
 
 **Acceptance criteria**
 
-- [ ] Report a problem: a ticket with the record pre-filled as affected asset, system or site (portal form for requesters, the service desk form for agents), photos from the camera
+- [ ] Report a problem: a ticket with the record pre-filled as affected asset, system or site (portal form for requesters, the service desk form for agents), with photos
 - [ ] Report a hazard or close call: a safety report at the record's site with the record linked
 - [ ] Quick updates: status, location, assignee or custodian in one step, through the normal update path (validation, `If-Match`, audit)
-- [ ] Add photo or note; mark one image attachment as the record's photo, shown on the scan card
+- [ ] Add photo or note; mark one image attachment as the record's photo, shown on the tag card
 - [ ] Record condition and Start inspection open those forms for the record when their areas are on
 - [ ] Every action appears only when the server lists it; tests for each action's conditions
 
-### E37-07 Tag life cycle: attach blank tags, replace, void, lost
+### E37-07 Attach, replace and end tags
 
-**Status:** open · **Priority:** P2 · **Type:** feature
+**Status:** open · **Priority:** P1 · **Type:** feature
 
-An asset manager wants to stick pre-printed tags on new equipment and attach them by scanning, and
-to replace a damaged tag without losing the link.
+An asset manager wants to stick a tag on new equipment and attach it by reading the tag, and to replace
+a damaged tag without losing the link.
 
 **Acceptance criteria**
 
-- [ ] Scanning a blank tag offers "Attach this tag" to a found record or to a new one (create form pre-filled with nothing but the tag)
-- [ ] Replace prints a new tag and marks the old one replaced (pointing at the new one); void and lost with a reason; all audited
-- [ ] The record page's Tags panel lists active and earlier tags with these actions
-- [ ] Tests: each transition, a held record, two people attaching the same blank tag at once (one wins)
+- [ ] Attach a value to a record from the record page (typed or read by the app) or from a tag card of a value in stock or unknown (to a found record or a new one)
+- [ ] Replace records a new value and marks the old one replaced (pointing at the new one); end as void or lost with a reason; all audited
+- [ ] The record page's Tags panel lists current and earlier values with these actions
+- [ ] Tests: each transition, a held record, two people attaching the same value at once (one wins)
 
-### E37-08 Inventory counts
+### E37-08 Print your own tags
+
+**Status:** open · **Priority:** P2 · **Type:** feature
+
+An organization that prints its own tags wants new values from a series, or reprints of existing ones,
+on its label stock.
+
+**Acceptance criteria**
+
+- [ ] The value in large type and optionally a code holding the same value (Code 128, QR or Data Matrix; text and code by default), an optional line above and the logo (§3.5); a code never holds an address
+- [ ] PDF on the server: sheet layouts (presets by dimensions, custom, start at label, alignment test page) and roll layouts at exact label size; a print limit (default 1,000)
+- [ ] New values from a series are registered as stock; reprints of existing values; bulk action on lists; audit-logged
+- [ ] Legibility rules (typeface with distinct look-alikes, minimum text height, quiet zones around codes)
+- [ ] Optional thermal-printer format (ZPL) for roll layouts (decision 5)
+- [ ] Tests: label geometry for each preset, PDF sizes, series under concurrent prints; a printed sheet read by the app on real phones before release
+
+### E37-09 Inventory counts
 
 **Status:** open · **Priority:** P2 · **Type:** feature
 
@@ -151,56 +163,20 @@ An asset manager wants to check that what the register says is at a site is real
 **Acceptance criteria**
 
 - [ ] Start a count for a site (optionally an area and record types); the expected list is fixed at the start
-- [ ] Scans mark records found; records registered elsewhere are unexpected; several people can count at once; scanning twice is harmless
-- [ ] Finishing lists missing records; the counter may move unexpected records here and mark missing ones missing; a discrepancy summary can raise a ticket or an action
+- [ ] Tags found mark records found (app camera in counting mode, or typed and handheld scanner on the web); records registered elsewhere are unexpected; several people at once; finding twice is harmless
+- [ ] Finishing lists missing records; move unexpected records here, mark missing ones missing; a discrepancy summary can raise a ticket or an action
 - [ ] Found records get a last verified date and place; a report of counts, coverage by site and records not verified for a chosen time
-- [ ] Counts are records with history, comments and attachments; tests for each outcome and for concurrent scans
+- [ ] Counts are records with history, comments and attachments; tests for each outcome and concurrent finds
 
-### E37-09 Scan history and last verified
+### E37-10 Lookup history, guide page and sample data
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** open · **Priority:** P2 · **Type:** docs
 
-A manager wants to know when equipment was last seen and by whom.
-
-**Acceptance criteria**
-
-- [ ] `tag_scans` when `tags.log_scans` is on (default on), kept `retention.tag_scans_days` (90); no device location ever
-- [ ] "Last scanned" on the record page for people who may edit the record; restricted records' scans not logged for people who may not see them
-- [ ] Anonymization and retention cover the scan log; tests
-
-### E37-10 Guide page, sample data and administration
-
-**Status:** open · **Priority:** P1 · **Type:** docs
-
-An administrator and the people who use tags want to know how to set up, print, stick and scan.
+People want to know when equipment was last seen, and how to set up and use tags.
 
 **Acceptance criteria**
 
-- [ ] User guide page "Asset tags and scanning": setting up templates and layouts, printing (alignment test, partial sheets), label materials and minimum sizes, scanning with a phone or handheld scanner, actions, blank tags, counts, switching the area off
-- [ ] Administration page documented in the Administration guide; the API in `docs/api.md`; help route map entries
-- [ ] Sample data: tags on the sample assets, vehicles and sites, one finished and one open count
-
-### E37-11 Anonymous problem reports from a tag (decision 3)
-
-**Status:** open · **Priority:** P3 · **Type:** feature
-
-An administrator wants people without an account (contractors, temporary staff) to report a
-problem with tagged equipment in places the administrator chooses.
-
-**Acceptance criteria**
-
-- [ ] Off by default; allowed per template; the anonymous scan card shows only the public name and a short form (§4.8)
-- [ ] Tickets from source "Tag report"; limits per address and per tag; photo size limit; no outside service
-- [ ] Tests for the limits and that nothing else about the record is revealed
-
-### E37-12 Thermal-printer format and a real printer check
-
-**Status:** open · **Priority:** P3 · **Type:** feature
-
-An asset manager with a label printer that cannot print PDFs at the right size wants a format it
-accepts, and everyone wants to know the printed output really scans.
-
-**Acceptance criteria**
-
-- [ ] Optional ZPL output for roll layouts, with the same fields and sizes as the PDF
-- [ ] A sheet printed on a real office printer and a roll on a real label printer, scanned by an iPhone, an Android phone and a handheld scanner; results recorded here
+- [ ] `tag_lookups` when `tags.log_lookups` is on (default on), kept 90 days, no phone location; "Last seen" on the record page for people who may edit it; covered by retention and anonymization
+- [ ] User guide page "Asset tags": formats, registering bought tags, printing, choosing tags that read well (size, contrast, codes), finding tags on the web and in the app, attaching and replacing, counts, switching the area off
+- [ ] Administration and API documented (`docs/api.md`); help route map entries
+- [ ] Sample data: tag values on the sample assets, vehicles and sites, a bought range, one finished and one open count
