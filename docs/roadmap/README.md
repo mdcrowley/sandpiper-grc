@@ -171,10 +171,13 @@ status `done`; issues in progress, open or blocked are counted in the total only
 | [E34](epics/E34-legal-hold-records-requests-and-privacy.md) | Legal hold, records requests and privacy | done | 9 / 9 |
 | [E35](epics/E35-vendor-risk-lifecycle.md) | Vendor risk lifecycle | done | 7 / 7 |
 | [E36](epics/E36-integrations.md) | Integrations | done | 8 / 8 |
-| | **Total** | | **703 / 713** |
+| [E37](epics/E37-asset-tags.md) | Asset tags: printing and scanning | open | 0 / 12 |
+| [E38](epics/E38-mobile-apps.md) | Mobile apps for iPhone and Android | open | 0 / 15 |
+| | **Total** | | **703 / 740** |
 
-Of the 10 issues not done, 6 are in progress and 4 are open or blocked (all but E16-43 need a person or
-a real machine). E23 to E30 were built in wave 10 and
+Of the 37 issues not done, 6 are in progress and 31 are open or blocked. 27 of them are the new epics E37
+(asset tags) and E38 (mobile apps), specified in [the asset tags and mobile apps specification](specs/asset-tags-and-mobile-apps.md);
+of the other 10, all but E16-43 need a person or a real machine. E23 to E30 were built in wave 10 and
 E31 to E36 in wave 11 (the product gaps of the November 2026 review); E31-10, the last of them, was built in wave 12. Some of their
 done issues are "Not planned" entries (E25-13, E29-11, E32-06, E34-09): features recorded so that nobody
 builds them.
@@ -194,6 +197,8 @@ with real data, then those that close the main known gaps.
 | 6 | [E17-08](epics/E17-documentation.md) User guide | The pages changed or added in waves 8 to 11 need a review against the application |
 | 7 | [E17-11](epics/E17-documentation.md) Operations runbook | Restore has been tried by the tests only; try it by hand once |
 | 8 | [E16-42](epics/E16-hosting-operations-and-hardening.md) User services across a restart, and the system examples | Proven on GitHub's runners; a restart and the deploy/ examples need a real machine |
+| 9 | [E37](epics/E37-asset-tags.md) Asset tags: printing and scanning (wave 13) | Print tags and scan them with any phone's browser, no app needed; the mobile apps build on it ([specification](specs/asset-tags-and-mobile-apps.md)) |
+| 10 | [E38](epics/E38-mobile-apps.md) Mobile apps for iPhone and Android (waves 14 to 16) | Field work, scanning and offline inspections; publishing and push need decisions first (specification §9) |
 
 ## Known gaps coverage
 
