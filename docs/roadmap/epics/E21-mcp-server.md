@@ -1,6 +1,6 @@
 # E21 MCP server (AI assistant access)
 
-**Status:** in progress (23 of 24 issues done)
+**Status:** done (24 of 24 issues done)
 
 ## Goal
 
@@ -47,7 +47,7 @@ rights than they have.
 | E21-21 | Client ID metadata documents for connectors | done | P3 |
 | E21-22 | "What is affected if this system fails" tool | done | P2 |
 | E21-23 | Audit log search tool (by request id) | done | P3 |
-| E21-24 | Summary tools for the wave 10 and 11 parts | open | P2 |
+| E21-24 | Summary tools for the wave 10 and 11 parts | done | P2 |
 
 ---
 
@@ -360,11 +360,15 @@ Follow-up of E13-20: an assistant can find everything one request did.
 
 ### E21-24 Summary tools for the wave 10 and 11 parts
 
-**Status:** open · **Priority:** P2 · **Type:** feature
+**Status:** done · **Priority:** P2 · **Type:** feature
 
 An assistant user wants figures from audits, controls, corrective action plans, funding, committees, qualifications, continuity, asset condition, OT, records requests and the vendor lifecycle.
 
 **Acceptance criteria**
 
-- [ ] One summary tool per part, reading its summary route with the caller's token (figures only, never requester details)
-- [ ] A switched-off part's tool is not offered
+- [x] One summary tool per part, reading its summary route with the caller's token (figures only, never requester details): `audit_summary`, `controls_summary`, `cap_summary`, `funding_summary`, `governance_summary`, `qualifications_summary`, `continuity_summary`, `asset_condition_summary`, `ot_summary`, `records_requests_summary`, `vendor_lifecycle_summary`
+- [x] A switched-off part's tool is not offered (each is available only to a caller who may view the part's main record type)
+- [x] A route that does not answer for the caller gives "not available" rather than an error
+- [x] New `GET /api/governance/summary` (committees, meetings coming up and held, minutes waiting, decisions by outcome; figures only, the same for everyone)
+
+**Implemented in:** `server/src/modules/mcp/tools-programs.ts`, `governance/summary.ts`; tests `mcp/tools-programs.test.ts` (stand-in routes for the wave 11 parts), `governance/summary.test.ts`; `docs/mcp.md`, `docs/user/21-ai-assistants-and-mcp.md`, `docs/user/28-committees-and-meetings.md`

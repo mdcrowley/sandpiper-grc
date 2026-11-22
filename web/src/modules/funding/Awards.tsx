@@ -83,7 +83,7 @@ function FundedItems({ awardId, canEdit }: { awardId: string; canEdit: boolean }
             </table>
           </div>
         )}
-      <Modal open={adding} title="Add a funded item" size="sm" onClose={() => setAdding(false)}
+      <Modal open={adding} title="Add a funded item" size="sm" onClose={() => setAdding(false)} dirty={adding && Boolean(pick)}
         footer={<><Button onClick={() => setAdding(false)}>Cancel</Button><Button variant="primary" loading={busy} disabled={!pick} onClick={add}>Add</Button></>}>
         <div className="stack">
           <Select label="Kind of record" required value={type} options={types.map((t) => ({ value: t.type, label: t.label }))}

@@ -1,4 +1,5 @@
 import type { FastifyRequest } from 'fastify';
+import { checksOf, clauseSet, defineClauseSet, saveChecklist } from '../../core/clauses.ts';
 import { UUID_RE } from '../../core/errors.ts';
 import type { LookupValue, ModuleContext, Row } from '../../core/module.ts';
 import { cleanText } from './shared.ts';
@@ -8,9 +9,12 @@ import { FUNDED_BY } from './awards.ts';
  * Funder-required contract clauses (E27-08): for a contract paid for by an award, a checklist of the
  * clauses the funder requires, per award. The clause list (`funding_clause`) is the organization's
  * own, edited under Administration > Lookups; a few neutral examples ship with the application.
- * Shaped like the contract security-terms checklist (vendors/clauses.ts); wave 11 (E27-11, E35)
- * merges the two into one clause-checklist engine.
+ * Stored by the shared clause-checklist engine (core/clauses.ts, contract C4, E35-05 and E27-11) as
+ * the set `funder_clauses`, one checklist per award (the sub-key is the award id), beside the
+ * contract security terms (set `security_terms`, vendors module).
  */
+
+export const FUNDER_CLAUSES = 'funder_clauses';
 
 export const DEFAULT_FUNDING_CLAUSES: LookupValue[] = [
   { value: 'access_to_records', label: 'Access to records', sort: 10, meta: { description: 'The funder and its auditors may inspect the contractor\'s records about the contract.' } },
@@ -32,6 +36,17 @@ export const FUNDING_CLAUSE_STATUSES: LookupValue[] = [
 export function registerClauses(ctx: ModuleContext) {
   const { db, app } = ctx;
 
+  if (!clauseSet(app, FUNDER_CLAUSES)) {
+    defineClauseSet(app, {
+      key: FUNDER_CLAUSES, label: 'Funder-required clauses', list: 'funding_clause', statusList: 'funding_clause_status',
+      scopeType: 'contract', subKey: 'funding_award', permission: 'funding.view', auditAction: 'contract.funding_clause',
+      async describe({ clause, status, scope, subKey }) {
+        const award = UUID_RE.test(subKey) ? await db.one<Row>('select ref from funding_awards where id = $1', [subKey]) : undefined;
+        return `Funder clause "${clause}" for ${award?.ref ?? 'an award'} ${status ? `marked ${status.replace('_', ' ')}` : 'cleared'} on ${scope?.ref ?? scope?.title ?? 'a contract'}`;
+      },
+    });
+  }
+
   /** The contract, when contracts are installed and the reader may see it (404 otherwise). */
   async function needContract(req: FastifyRequest): Promise<Row> {
     const id = String((req.params as Row).contractId ?? '');
@@ -45,21 +60,21 @@ export function registerClauses(ctx: ModuleContext) {
       `select a.id, a.ref, a.title, a.funder_name from funding_awards a
        where a.deleted_at is null and ${ctx.resources.visibleWhere('funding_award', user, 'a')} and (
          exists (select 1 from record_links l where l.from_type = 'contract' and l.from_id = $1 and l.to_type = 'funding_award' and l.to_id = a.id and l.relation = $2)
-         or exists (select 1 from contract_funding_clauses c where c.contract_id = $1 and c.award_id = a.id))
-       order by a.ref`, [contractId, FUNDED_BY]);
+         or exists (select 1 from clause_checks c where c.set_key = $3 and c.scope_type = 'contract' and c.scope_id = $1 and c.sub_key = a.id::text and c.deleted_at is null))
+       order by a.ref`, [contractId, FUNDED_BY, FUNDER_CLAUSES]);
   }
 
   app.get('/api/funding/contracts/:contractId/clauses', { preHandler: ctx.requirePerm('funding.view') }, async (req) => {
     const contract = await needContract(req);
     const clauses = await ctx.lookups.values('funding_clause');
     const awards = await awardsFor(contract.id, req.user);
-    const rows = await db.query<Row>('select * from contract_funding_clauses where contract_id = $1', [contract.id]);
+    const rows = await checksOf(db, FUNDER_CLAUSES, { scopeIds: [contract.id] });
     return {
       clauses: clauses.map((c) => ({ key: c.value, label: c.label, description: (c.meta as Row | undefined)?.description ?? null })),
       awards: awards.map((a) => ({
         ...a,
         checklist: clauses.map((c) => {
-          const r = rows.find((x) => x.award_id === a.id && x.clause_key === c.value);
+          const r = rows.find((x) => x.sub_key === a.id && x.clause_key === c.value);
           return { clause_key: c.value, status: r?.status ?? null, note: r?.note ?? null, updated_at: r?.updated_at ?? null };
         }),
       })),
@@ -86,26 +101,14 @@ export function registerClauses(ctx: ModuleContext) {
     }
     if (Object.keys(errors).length) ctx.fail(400, 'validation', 'Check the highlighted fields.', errors);
     const note = cleanText(b.note, 2000);
-    const before = await db.one<Row>('select status, note from contract_funding_clauses where contract_id = $1 and award_id = $2 and clause_key = $3',
-      [contract.id, award!.id, clause!.value]);
-    const row = (await db.one<Row>(
-      `insert into contract_funding_clauses (contract_id, award_id, clause_key, status, note, created_by, updated_by) values ($1,$2,$3,$4,$5,$6,$6)
-       on conflict (contract_id, award_id, clause_key) do update set status = excluded.status, note = excluded.note, updated_at = now(), updated_by = excluded.updated_by
-       returning *`, [contract.id, award!.id, clause!.value, status, note, req.user!.id]))!;
-    if ((before?.status ?? null) !== status || (before?.note ?? null) !== note) {
-      await ctx.audit(req, {
-        action: 'contract.funding_clause', recordType: 'contract', recordId: contract.id,
-        summary: `Funder clause "${clause!.label}" for ${award!.ref} ${status ? `marked ${status.replace('_', ' ')}` : 'cleared'} on ${contract.ref ?? contract.title}`,
-        before: { award: award!.id, clause: clause!.value, status: before?.status ?? null, note: before?.note ?? null },
-        after: { award: award!.id, clause: clause!.value, status, note },
-      });
-    }
-    return row;
+    const { checklist } = await saveChecklist(ctx, FUNDER_CLAUSES, contract.id, award!.id, [{ clause_key: clause!.value, status, note }], req);
+    const row = checklist.find((c) => c.clause_key === clause!.value)!;
+    return { contract_id: contract.id, award_id: award!.id, clause_key: row.clause_key, status: row.status, note: row.note, updated_at: row.updated_at };
   });
   ctx.describeRoute({
     method: 'PUT', path: '/api/funding/contracts/:contractId/clauses', tag: 'Funding', permission: 'funding.edit',
     summary: 'Record whether a contract has one funder-required clause for one award (also needs contracts.view)',
     body: '{ award_id: uuid, clause_key: string, status: "present" | "partial" | "absent" | "not_required" | null, note?: string }',
-    response: 'the checklist row',
+    response: '{ contract_id, award_id, clause_key, status, note, updated_at }',
   });
 }

@@ -546,14 +546,14 @@ export function makeService(ctx: ModuleContext) {
       await notify({
         ...common, kind: 'due', userIds: [project.project_manager_id, project.sponsor_id],
         title: `Gate ready, ask for approval: ${gateName} (${projectLabel(project)})`,
-        body: 'Every checklist item is ticked and the required documents are in place. Ask for approval on the Gate tab.',
+        body: 'Every checklist item is checked and the required documents are in place. Ask for approval on the Gate tab.',
       });
       return;
     }
     await notify({
       ...common, kind: 'approval', permission: 'projects.approve',
       title: `Gate ready for a decision: ${gateName} (${projectLabel(project)})`,
-      body: 'Every checklist item is ticked and the required documents are in place.',
+      body: 'Every checklist item is checked and the required documents are in place.',
     });
     await notify({
       ...common, kind: 'due', userIds: [project.project_manager_id, project.sponsor_id],
@@ -629,7 +629,7 @@ export function makeService(ctx: ModuleContext) {
     for (const k of Object.keys(diff.after)) if (diff.after[k] === undefined) { delete diff.after[k]; delete diff.before[k]; }
     if (!Object.keys(diff.after).length) return item;
     const saved = await updateRow('gate_checklist_items', item.id, Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)), req);
-    const verb = diff.after.checked === true ? 'ticked' : diff.after.checked === false ? 'unticked' : 'updated';
+    const verb = diff.after.checked === true ? 'checked' : diff.after.checked === false ? 'unchecked' : 'updated';
     await ctx.audit(req, {
       action: 'project.gate_item', recordType: 'project', recordId: project.id,
       summary: `${gate.name} checklist item ${verb}: ${item.label}`,

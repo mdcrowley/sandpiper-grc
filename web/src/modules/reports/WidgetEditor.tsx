@@ -106,7 +106,7 @@ export function WidgetEditor({ widget, types, onClose, onSave }: { widget: Widge
   }
 
   return (
-    <Drawer open title={`${lib?.label ?? 'Saved report'} widget`} onClose={onClose} size="lg"
+    <Drawer open title={`${lib?.label ?? 'Saved report'} widget`} onClose={onClose} size="lg" dirty={JSON.stringify(w) !== JSON.stringify(widget)}
       footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" onClick={save}>Done</Button></>}>
       <form className="form rp-widget-form" onSubmit={(e) => { e.preventDefault(); save(); }}>
         <TextField label="Title" value={w.title} onChange={(title) => setW({ ...w, title })} placeholder={lib?.label} />

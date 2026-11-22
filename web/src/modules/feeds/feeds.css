@@ -1,0 +1,38 @@
+/* Calendar feeds and the work-tracker bridge. Colors come from the design tokens so both themes work. */
+
+.feeds-page { display: grid; gap: var(--s-4); min-width: 0; }
+.feeds-notice { margin: 0; }
+.feeds-copy-hint { margin: var(--s-2) 0 0; }
+
+.feeds-list { display: grid; margin: var(--s-3) 0 0; padding: 0; list-style: none; border: 1px solid var(--border); border-radius: var(--radius-lg); }
+.feeds-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+  padding: var(--s-3) var(--s-4);
+}
+.feeds-item + .feeds-item { border-top: 1px solid var(--border); }
+.feeds-main { display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.feeds-kinds { font-size: var(--fs-sm); }
+.feeds-actions { display: flex; flex-wrap: wrap; gap: var(--s-2); justify-content: flex-end; }
+.feeds-kinds-field { display: grid; gap: var(--s-2); margin: 0; padding: 0; border: 0; min-width: 0; }
+
+.feeds-table { width: 100%; border-collapse: collapse; }
+.feeds-table th, .feeds-table td { padding: var(--s-2) var(--s-3); border-top: 1px solid var(--border); text-align: start; vertical-align: top; overflow-wrap: anywhere; }
+.feeds-table th { border-top: 0; color: var(--text-muted); font-size: var(--fs-sm); font-weight: 600; }
+.feeds-table-wrap { overflow-x: auto; }
+
+.feeds-secrets { display: grid; gap: var(--s-3); }
+
+/* The work-tracker panel on a record page. */
+.tracker-panel { display: grid; gap: var(--s-3); min-width: 0; }
+.tracker-links { display: grid; gap: var(--s-2); margin: 0; padding: 0; list-style: none; }
+.tracker-link { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-3); overflow-wrap: anywhere; }
+.tracker-send { display: flex; flex-wrap: wrap; align-items: end; gap: var(--s-2); }
+.tracker-send > :first-child { flex: 1 1 220px; min-width: 0; }
+
+@media (max-width: 720px) {
+  .feeds-item { grid-template-columns: minmax(0, 1fr); }
+  .feeds-actions { justify-content: flex-start; }
+}

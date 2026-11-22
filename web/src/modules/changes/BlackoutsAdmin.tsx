@@ -53,13 +53,16 @@ export function BlackoutsAdmin() {
   const now = Date.now();
 
   const set = (patch: Partial<Form>) => setForm((f) => (f ? { ...f, ...patch } : f));
+  // What the dialog opened with, so closing it after a change asks first.
+  const [start, setStart] = useState<Form | null>(null);
   const begin = (b?: Blackout) => {
-    setForm(b
+    const first: Form = b
       ? {
         id: b.id, name: b.name, starts_at: b.starts_at, ends_at: b.ends_at, reason: b.reason ?? '',
         systems: b.systems ?? [], repeat: b.repeat ?? 'none', repeat_until: b.repeat_until ? String(b.repeat_until).slice(0, 10) : '',
       }
-      : { name: '', starts_at: '', ends_at: '', reason: '', systems: [], repeat: 'none', repeat_until: '' });
+      : { name: '', starts_at: '', ends_at: '', reason: '', systems: [], repeat: 'none', repeat_until: '' };
+    setForm(first); setStart(first);
     setFields({}); setFormError('');
   };
 
@@ -145,7 +148,7 @@ export function BlackoutsAdmin() {
           </div>
         )}
 
-      <Modal open={form !== null} title={form?.id ? 'Edit blackout period' : 'Add blackout period'} onClose={() => setForm(null)} size="md">
+      <Modal open={form !== null} title={form?.id ? 'Edit blackout period' : 'Add blackout period'} onClose={() => setForm(null)} size="md" dirty={form !== null && JSON.stringify(form) !== JSON.stringify(start)}>
         {form && (
           <form className="form" onSubmit={save} noValidate>
             <TextField label="Name" required value={form.name} onChange={(name) => set({ name })} error={fields.name} />

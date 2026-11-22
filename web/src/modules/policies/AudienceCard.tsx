@@ -32,11 +32,16 @@ export function AudienceCard({ rec }: { rec: RecordContext }) {
   const rosterOn = (data?.positions?.length ?? 0) > 0;
   const nobody = !row.audience_everyone && roles.length === 0 && departments.length === 0;
 
+  const [start, setStart] = useState('');
+  const dirty = open && JSON.stringify(form) !== start;
+
   const edit = () => {
-    setForm({
+    const next = {
       everyone: row.audience_everyone === true, roles, departments, days: Number(row.ack_days) || 14,
       remind: row.reminder_interval_days == null ? null : Number(row.reminder_interval_days), roster: row.ack_roster === true, positions,
-    });
+    };
+    setForm(next);
+    setStart(JSON.stringify(next));
     setMessage('');
     setOpen(true);
   };
@@ -86,7 +91,7 @@ export function AudienceCard({ rec }: { rec: RecordContext }) {
       </div>
 
       <Modal
-        open={open} title="Who must acknowledge this policy" onClose={() => setOpen(false)} size="sm"
+        open={open} title="Who must acknowledge this policy" onClose={() => setOpen(false)} size="sm" dirty={dirty}
         footer={<><Button onClick={() => setOpen(false)}>Cancel</Button><Button variant="primary" loading={saving} onClick={save}>Save audience</Button></>}
       >
         <div className="stack">

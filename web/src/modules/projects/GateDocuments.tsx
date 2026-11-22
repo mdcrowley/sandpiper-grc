@@ -26,7 +26,7 @@ function WaiveDialog({ doc, onClose, onSubmit }: { doc: GateDocument | null; onC
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   return (
-    <Modal open={Boolean(doc)} title={`Waive: ${doc?.name ?? ''}`} onClose={onClose} size="sm">
+    <Modal open={Boolean(doc)} title={`Waive: ${doc?.name ?? ''}`} onClose={onClose} size="sm" dirty={Boolean(doc) && Boolean(reason.trim())}>
       <form
         className="form"
         noValidate

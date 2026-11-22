@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   api, Button, Card, DateField, EmptyState, errorMessage, ErrorState, formatDate, Loading, Modal, RecordPicker, StatusChip, TextArea,
-  useAuth, useFetch, useToast,
+  useAuth, useFetch, useToast, useUnsavedChanges,
 } from '../../core';
 import type { ColorName } from '../../core';
 import type { Installation } from './shared';
@@ -117,11 +117,14 @@ function InstallDialog({ open, vehicleId, fleetNumber, onClose, onDone }: { open
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState('');
   const close = () => { setAssetId(null); setOn(''); setNotes(''); setErrors({}); setMessage(''); onClose(); };
+  const dirty = !!assetId || !!on || !!notes.trim();
+  const unsaved = useUnsavedChanges(open && dirty);
   const submit = async () => {
     if (!assetId) { setErrors({ asset_id: 'Choose the equipment to install.' }); return; }
     setBusy(true); setErrors({}); setMessage('');
     try {
       await api.post(`/api/vehicles/${vehicleId}/equipment`, { asset_id: assetId, installed_on: on || undefined, install_notes: notes || undefined });
+      unsaved.release();
       setAssetId(null); setOn(''); setNotes('');
       onDone();
     } catch (err) {
@@ -130,8 +133,8 @@ function InstallDialog({ open, vehicleId, fleetNumber, onClose, onDone }: { open
     } finally { setBusy(false); }
   };
   return (
-    <Modal open={open} title={`Install equipment on ${fleetNumber}`} onClose={close}
-      footer={<><Button onClick={close}>Cancel</Button><Button variant="primary" loading={busy} onClick={submit}>Install</Button></>}>
+    <Modal open={open} title={`Install equipment on ${fleetNumber}`} onClose={close} dirty={open && dirty}
+      footer={<><Button onClick={unsaved.guard(close)}>Cancel</Button><Button variant="primary" loading={busy} onClick={submit}>Install</Button></>}>
       <div className="form">
         {message && <div className="form-error" role="alert">{message}</div>}
         <RecordPicker label="Equipment (asset)" type="asset" required value={assetId} onChange={(id) => setAssetId(id)} error={errors.asset_id}
@@ -150,11 +153,14 @@ function RemoveDialog({ install, vehicleId, onClose, onDone }: { install: Instal
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState('');
   const close = () => { setOff(''); setReason(''); setErrors({}); setMessage(''); onClose(); };
+  const dirty = !!install && (!!off || !!reason.trim());
+  const unsaved = useUnsavedChanges(dirty);
   const submit = async () => {
     if (!install) return;
     setBusy(true); setErrors({}); setMessage('');
     try {
       await api.post(`/api/vehicles/${vehicleId}/equipment/${install.id}/remove`, { removed_on: off || undefined, removal_reason: reason || undefined });
+      unsaved.release();
       setOff(''); setReason('');
       onDone();
     } catch (err) {
@@ -163,8 +169,8 @@ function RemoveDialog({ install, vehicleId, onClose, onDone }: { install: Instal
     } finally { setBusy(false); }
   };
   return (
-    <Modal open={!!install} title={`Remove ${install?.asset_name ?? 'equipment'}`} onClose={close} size="sm"
-      footer={<><Button onClick={close}>Cancel</Button><Button variant="primary" loading={busy} onClick={submit}>Remove</Button></>}>
+    <Modal open={!!install} title={`Remove ${install?.asset_name ?? 'equipment'}`} onClose={close} size="sm" dirty={dirty}
+      footer={<><Button onClick={unsaved.guard(close)}>Cancel</Button><Button variant="primary" loading={busy} onClick={submit}>Remove</Button></>}>
       <div className="form">
         {message && <div className="form-error" role="alert">{message}</div>}
         <p className="muted">The installation stays in the vehicle's history. The asset itself is not changed.</p>

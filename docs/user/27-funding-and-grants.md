@@ -164,9 +164,20 @@ A deficiency with no plan can be closed by hand. **Closed on** is filled in when
 
 A review can be closed only when none of its deficiencies is open. **Closed on** is filled in for you. A closed review takes no new deficiencies, and its areas and requests cannot change until it is reopened.
 
+## Sub-recipients
+
+A sub-recipient is an organization that receives part of an award to carry out part of its work, such as a partner agency that runs some of the service or a research partner. Funders usually expect you to monitor each one. Open **Funding and grants**, then the **Sub-recipients** tab (or **Create** then **Sub-recipient**).
+
+1. Select **New sub-recipient** and enter its **Name**, the **Award** it receives funding from, optionally the matching **Vendor record**, the **Amount passed through**, a **Risk level** (high, medium or low), how often it is monitored (**Monitoring frequency**: monthly, quarterly, every six months, yearly or once) and who monitors it (**Monitored by**). Each gets a reference such as `SUB-00001`.
+2. A new sub-recipient is due for monitoring at once. Open its **Monitoring** tab and select **Record monitoring**: the date, the **Method** (desk review, site visit or report review) and the **Result** (satisfactory, findings or unsatisfactory). Any result other than satisfactory needs the **Findings**.
+3. **Last monitored on** and **Next monitoring due** are worked out for you: the latest monitoring plus the frequency ("once" is not due again).
+4. When monitoring found something, select **Raise a plan** on that row to raise a corrective action plan with source **Funding** (see [Corrective action plans](24-corrective-action-plans.md)). Raising a plan also needs permission to create actions.
+
+The person monitoring it (or else the award's manager, or else everyone who may edit funding records) is reminded once for each due date, from the number of days before it in the setting `funding.subrecipient_reminder_days` (30 as installed). The **Related** tab links it to other records. Anonymizing a sub-recipient at the end of its retention period clears who monitored it and the findings text.
+
 ## Funder-required clauses on contracts
 
-A funder may require certain clauses in contracts paid for with its money. A contract that is a funded item of an award (see [Funded items](#funded-items)) shows a **Funder clauses** tab (see [The contract record](04-vendors-and-contracts.md#the-contract-record)). For each award that funds it, the tab lists the clauses in your list, each marked **Present**, **Partial**, **Absent**, **Not required** or **Not checked**, with a note of where in the contract it is. A change is saved at once and recorded in the contract's history.
+A funder may require certain clauses in contracts paid for with its money. A contract that is a funded item of an award (see [Funded items](#funded-items)) shows a **Funder clauses** tab (see [The contract record](04-vendors-and-contracts.md#the-contract-record)). For each award that funds it, the tab lists the clauses in your list, each marked **Present**, **Partial**, **Absent**, **Not required** or **Not checked**, with a note of where in the contract it is. A change is saved at once and recorded in the contract's history. The checklist is kept by the same clause-checklist engine as the contract security terms (see [The security-terms checklist](04-vendors-and-contracts.md#the-security-terms-checklist)); checks recorded before were moved across when the application was upgraded.
 
 The clause list is your organization's own: an administrator edits it under **Administration > Lookups**, in the list **Funding clause**. A few neutral examples are there to start with (access to records, record retention, termination, excluded parties, conflict of interest, flow-down to subcontracts, funder acknowledgment).
 
@@ -174,10 +185,8 @@ The tab needs `funding.view` (and `funding.edit` to change it) besides the contr
 
 ## Sample data
 
-The `dev` sample data adds four invented awards ("Bus replacement (sample)", "Station accessibility upgrade (sample)", "Operating assistance (sample)" and "Cybersecurity improvement (sample)") from invented funders, this year's certification with twenty statements, and one compliance review built from the invented sample file of review areas, with three requests and two deficiencies (one with a corrective action plan). The sample awards are linked to the sample vehicles, assets, projects and contracts that exist when the sample data is loaded.
+The `dev` sample data adds four invented awards ("Bus replacement (sample)", "Station accessibility upgrade (sample)", "Operating assistance (sample)" and "Cybersecurity improvement (sample)") from invented funders, this year's certification with twenty statements, and one compliance review built from the invented sample file of review areas, with three requests and two deficiencies (one with a corrective action plan), and two invented sub-recipients of "Operating assistance (sample)" ("Sample county paratransit partner (sample)" and "Sample university research partner (sample)"), each with monitoring history, one with findings and a corrective action plan. The sample awards are linked to the sample vehicles, assets, projects and contracts that exist when the sample data is loaded.
 
 ## Not available yet
 
-- Monitoring of sub-recipients (organizations you pass funding on to).
-- One clause checklist shared by funder clauses and the contract security terms: they are separate lists today.
 - Drawdowns, budgets and expenditure by award: keep those in your finance system.

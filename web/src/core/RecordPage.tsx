@@ -150,6 +150,10 @@ const workflowLoaders = import.meta.glob<{ WorkflowPanel: ComponentType<{ record
 );
 const loadWorkflows = Object.values(workflowLoaders)[0];
 const WorkflowPanel = loadWorkflows ? lazy(() => loadWorkflows().then((m) => ({ default: m.WorkflowPanel }))) : null;
+// Legal holds (E34): a banner on a held record, for people who may see holds (the server sends `_holds`).
+const holdLoaders = import.meta.glob<{ HoldBanner: ComponentType<{ row: Row }> }>('../modules/holds/HoldBanner.tsx');
+const loadHolds = Object.values(holdLoaders)[0];
+const HoldBanner = loadHolds ? lazy(() => loadHolds().then((m) => ({ default: m.HoldBanner }))) : null;
 
 export interface RecordPageProps {
   /** Record type key, e.g. "ticket". */
@@ -293,6 +297,7 @@ export function RecordPage({
         breadcrumbs={breadcrumbs ?? [{ label: resource.plural, to: resource.route }, { label: reference ?? heading }]}
       />
       {tags && <RecordTags recordType={type} recordId={id} canEdit={rec.canEdit} />}
+      {HoldBanner && Array.isArray(row._holds) && row._holds.length > 0 && <Suspense fallback={null}><HoldBanner row={row} /></Suspense>}
       {WorkflowPanel && <Suspense fallback={null}><WorkflowPanel recordType={type} recordId={id} version={String(row.updated_at ?? '')} onChange={reload} /></Suspense>}
       {banner && <div className="rc-record-banner">{banner(rec)}</div>}
       {summary

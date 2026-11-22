@@ -40,6 +40,7 @@ The tabs hold the rest:
 | **Assets** | Assets linked to this system |
 | **Changes and issues** | Change records, open tickets and open vulnerabilities that name this system |
 | **Map** | The system's connections, and what is affected if it fails |
+| **OT** | Operational technology details: control level, whether it is life-critical, security zone, supplier remote access, patching and field location ([OT security](32-ot-security.md)); shown while **OT and rail-systems security** is on |
 | **Attachments** | Files kept with the record, such as a contract summary or a recovery plan |
 
 **Activity**, **Related** and **History** follow, as on every record page.
@@ -87,7 +88,7 @@ The map draws systems, the integrations between them, and the vendors, sites, da
 ### Read the map
 
 - Systems sit in the middle, in a box for each group. **Vendors** are in a lane on the left; **Sites**, **Data categories**, **Assets** and **Services** are in lanes on the right, each level with the systems it belongs to, or one under another when they are short, to keep the map narrow. A very large group shows its systems two or more to a row. The same estate always draws the same way.
-- Color shows the type. The dot at the end of a system shows its criticality.
+- Color shows the type. The dot at the end of a system shows its criticality. Systems and assets marked as operational technology carry an **OT** badge ([OT security](32-ot-security.md)).
 - A solid line with an arrow is an integration, and the arrow shows the way data flows. A dashed line is another relationship: "supplied by" a vendor, "serves" a site, "holds" a data category, "runs on" an asset, "needed for" a service (with what the service needs the system for, such as CAD/AVL or fare collection).
 - The legend under the map repeats this.
 
@@ -101,7 +102,7 @@ The map draws systems, the integrations between them, and the vendors, sites, da
 ### Find and filter
 
 - **Find a system, vendor, site…** searches the records on the map. Choosing one selects it and centers the map on it.
-- **Arrange systems by** groups the systems by **Group**, **Criticality** or **Hosting**.
+- **Arrange systems by** groups the systems by **Group**, **Criticality** or **Hosting**, and by **Zone** (one box for each OT security zone you may see) while **OT and rail-systems security** is on.
 - The group box (showing **All groups**) limits the map to systems in one group.
 - **Show** chooses which other types are drawn. Vendors, sites and data categories are shown to start with; select **Assets** or **Services** to add them. Only assets linked to a system appear. **Services** are routes and lines that depend on at least one system; they appear when the fleet module is installed and you may see fleet records, and discontinued services are left out. A system's **Map** tab shows every type.
 - **Reset** puts these back.
@@ -181,6 +182,8 @@ The top of the record shows where the asset is in its life: **Ordered**, **In st
 - **Disposal awaiting approval** or **Disposal approved** appears while a disposal is in progress.
 
 The **Details** card holds what the asset is. The **Who has it and where** card shows **Assigned to**, **Owner**, **Department**, **Site** and **Location**; select **Edit** to change the owner, department, site or location. **Department** is chosen from the organization's department list (set up under **Administration**, **Settings**); it is free text only while no departments exist.
+
+While **OT and rail-systems security** is on, an **Operational technology (OT)** section under the details records whether the asset is OT, its control level, whether it is life-critical, its security zone and its firmware version ([OT security](32-ot-security.md)).
 
 The tabs are **Assignment**, **Purchase and support** (purchase, funding, warranty and support dates, and technical details such as operating system and addresses), **Disposal**, **Changes and issues**, then **Activity**, **Attachments** (for purchase documents or disposal certificates), **Related** and **History**.
 
@@ -269,6 +272,8 @@ The site record has two tabs of its own:
 
 - **Systems** lists the systems serving the site. To add one, open that system and use **Sites served** on its **Fact sheet** tab.
 - **Assets** lists the assets held at the site. Select **New asset** there to add one with the site already filled in.
+
+System and site pages show a **Business processes** section (a tab on systems) listing the business processes that depend on the record, with their tolerable downtime; a system also lists those that depend on a service built on it. See [Business continuity](30-business-continuity.md).
 
 ## Data categories
 

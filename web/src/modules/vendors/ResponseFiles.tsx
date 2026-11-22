@@ -218,7 +218,7 @@ export function HeldFiles({ assessmentId, files, editable, onChange }: {
           </li>
         ))}
       </ul>
-      <Modal open={taking !== null} title="Take over this file" size="md" onClose={() => setTaking(null)}>
+      <Modal open={taking !== null} title="Take over this file" size="md" onClose={() => setTaking(null)} dirty={description !== '' || expires !== '' || kind !== 'evidence'}>
         <form className="form" onSubmit={(e) => { e.preventDefault(); void take(); }} noValidate>
           <p className="muted">“{taking?.file_name}” becomes a file on the vendor. Download it and look at it first if you have not.</p>
           <Select label="Keep it as" value={kind} onChange={setKind} options={[{ value: 'evidence', label: 'Evidence of the vendor' }, { value: 'file', label: 'An ordinary file' }]} error={errors.kind} />

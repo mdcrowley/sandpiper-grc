@@ -2,15 +2,16 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { testApp } from '../test/helpers.ts';
 import { assertNotHeld, heldIdsOf, holdsOn } from './holds.ts';
 
-// Legal-hold hook points (wave 11, contract C1). Until the legal holds work fills them in, nothing is
-// held, and every removal path that calls them behaves as before.
+// Legal-hold hook points (wave 11, contract C1). With no hold placed nothing is held, and every removal
+// path that calls them behaves as before. Each path refusing a held record is tested in
+// modules/holds/holds.test.ts.
 
 let t: Awaited<ReturnType<typeof testApp>>;
 beforeAll(async () => { t = await testApp(); });
 afterAll(async () => { await t.close(); });
 
 describe('legal-hold hook points', () => {
-  it('holds nothing yet', async () => {
+  it('holds nothing while no hold is placed', async () => {
     const id = '00000000-0000-4000-8000-000000000001';
     expect(await holdsOn(t.db, 'system', id)).toEqual([]);
     expect((await heldIdsOf(t.db, 'system')).size).toBe(0);

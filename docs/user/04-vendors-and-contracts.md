@@ -1,6 +1,6 @@
 # Vendors and contracts
 
-This part of the application records the organizations that supply you (scheduling software, fare collection, vehicle location services and so on), the contracts you hold with them, the security terms those contracts contain, the assurance evidence vendors send, your own security assessment of each vendor, and the dates by which you must decide whether to renew. Lists and record pages work as described in [Getting started](01-getting-started.md).
+This part of the application records the organizations that supply you (scheduling software, fare collection, vehicle location services and so on), the contracts you hold with them, the security terms those contracts contain, the assurance evidence vendors send, your own security assessment of each vendor, and the dates by which you must decide whether to renew. Reassessment on a cadence, exclusion-list checks, vendor issues and offboarding when a contract ends are described in [Vendor risk lifecycle](34-vendor-risk-lifecycle.md). Lists and record pages work as described in [Getting started](01-getting-started.md).
 
 An administrator can switch vendors and contracts off under **Administration > Features** if your organization does not use them here (see [Administration](09-administration.md#features)). Records are kept and return when it is switched back on.
 
@@ -18,10 +18,11 @@ These two columns appear only if you may view contracts. **Security terms matrix
 1. Select **New vendor**, or **Create** then **Vendor**.
 2. Enter the **Name**. Two vendors cannot have the same name.
 3. Describe what they supply in **Services**.
-4. Choose the **Criticality**: **Critical**, **High**, **Medium** or **Low**. This is how much the organization depends on the vendor.
-5. Enter the **Remote access method** if the vendor connects to your systems.
-6. Enter the **Incident contact**, **Incident contact phone** and **Incident contact email**: the person to reach when something goes wrong.
-7. Add any **Notes** and select **Create vendor**.
+4. Choose the **Criticality**: **Critical**, **High**, **Medium** or **Low**. This is how much the organization depends on the vendor, and it sets how often the vendor is reassessed (see [Reassessment on a cadence](34-vendor-risk-lifecycle.md#reassessment-on-a-cadence)).
+5. Choose the **Vendor owner**: the person reminded when the vendor's reassessment or exclusion-list check comes due.
+6. Enter the **Remote access method** if the vendor connects to your systems. It also adds remote-access items to the vendor's offboarding checklist.
+7. Enter the **Incident contact**, **Incident contact phone** and **Incident contact email**: the person to reach when something goes wrong.
+8. Add any **Notes** and select **Create vendor**.
 
 The vendor gets a reference such as `VND-00007` and its status starts as **Active**. The other statuses are **Prospective** and **Former**; change the status by editing the **Details** card.
 
@@ -47,6 +48,7 @@ Below the profile, a strip repeats **What they supply**, **Criticality**, **Remo
 | **Security terms** | The security-terms checklist for each of the vendor's contracts |
 | **Evidence** | Assurance evidence received from the vendor |
 | **Assessment** | The vendor security assessment: the latest score and gaps, an assessment in progress, and the history |
+| **Lifecycle** | When the vendor is next reassessed, its exclusion-list checks, its issues and its offboardings; see [Vendor risk lifecycle](34-vendor-risk-lifecycle.md) |
 | **Contacts** | The people you deal with |
 | **Systems supplied** | Systems whose **Vendor** field points to this vendor; see [Inventory](03-inventory.md) |
 | **Actions** | Follow-up actions raised for this vendor, including those raised from assessment gaps. Shown when the action tracker is switched on |
@@ -101,6 +103,8 @@ Below it:
 - **Details**, in three sections: **Agreement**, **Dates and renewal**, and **Value and approval**. **Value and approval** holds the **Total value**, the **Approval or resolution number** (the number of the decision that approved the contract, such as a board resolution, a purchase approval or a delegated-authority reference) and **Notes**. Your administrator may have renamed that field, for example to **Board resolution** or **Approval reference**, or switched it off under **Administration > Features** if your contracts are not approved that way; the section is then called **Value**, and the field is left out of the list columns, exports and imports too (see [Features](09-administration.md#options-within-the-parts)).
 - **Value by year**: the contract's value year by year (see below).
 - **As recorded in the contract register**: free-text notes carried over from an earlier register, such as **Document on file** and **Term and renewal (as recorded)**.
+
+The header has **Start offboarding**, which starts an offboarding checklist for the contract by hand, or **Open offboarding** once it has one (an offboarding also starts by itself when the contract's status becomes **Expired** or **Ended**; see [Offboarding](34-vendor-risk-lifecycle.md#offboarding)). When your administrator has asked for it, a contract can be made **Active** only after a recent exclusion-list check of its vendor (see [Exclusion-list checks](34-vendor-risk-lifecycle.md#exclusion-list-checks)).
 
 The tabs are **Security terms**, **Evidence**, **Actions** (when the action tracker is switched on), **Funder clauses** (when funding and grant compliance is switched on and you may see funding records), and the usual **Activity**, **Attachments**, **Related** and **History**. Attach the signed contract and its schedules on the **Attachments** tab. **Funder clauses** is a checklist of the clauses required by each award that pays for the contract; see [Funder-required clauses on contracts](27-funding-and-grants.md#funder-required-clauses-on-contracts).
 
@@ -167,6 +171,8 @@ The statuses mean:
 - **Absent**: the contract does not contain it.
 
 Every change is recorded in the contract's history.
+
+The security terms and the funder-required clauses (see [Funder-required clauses on contracts](27-funding-and-grants.md#funder-required-clauses-on-contracts)) are kept by one clause-checklist engine; what was recorded before it arrived was moved across when the application was upgraded.
 
 ## The security-terms matrix
 
@@ -246,7 +252,7 @@ A vendor assessment is a set of security questions that you work through for a v
 5. You can select **Close and carry on later** at any time; the tab then shows **Continue assessment**. **Discard draft** throws the draft away.
 6. When every question is answered, set **Assessed on** and select **Complete assessment**.
 
-If **Save as an evidence item** is checked (it is, unless you cannot add evidence), a **Questionnaire** evidence item is added for the vendor with the score and the number of gaps. **Evidence expires on** is optional: use it for when the vendor should be assessed again, so the expiry reminders prompt you.
+If **Save as an evidence item** is checked (it is, unless you cannot add evidence), a **Questionnaire** evidence item is added for the vendor with the score and the number of gaps. **Evidence expires on** is optional. Completing an assessment also works out the vendor's **Next assessment due** from its criticality, and the vendor's owner is reminded before then (see [Reassessment on a cadence](34-vendor-risk-lifecycle.md#reassessment-on-a-cadence)).
 
 ### The vendor answers through a link
 

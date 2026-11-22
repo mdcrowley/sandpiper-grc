@@ -105,7 +105,7 @@ export function DashboardsPage() {
             {others.length > 0 && <><h2 className="rp-h2">Built by people here</h2><ul className="rp-dash-grid">{others.map(card)}</ul></>}
           </>
         )}
-      <Modal open={creating} title="New dashboard" onClose={close} size="sm"
+      <Modal open={creating} title="New dashboard" onClose={close} size="sm" dirty={creating && Boolean(name.trim() || custom.dirty)}
         footer={<><Button onClick={close}>Cancel</Button><Button variant="primary" loading={busy} onClick={create}>Create and add widgets</Button></>}>
         <form className="form" onSubmit={(e) => { e.preventDefault(); void create(); }}>
           <div ref={nameRef}>

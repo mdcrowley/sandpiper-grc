@@ -37,6 +37,10 @@ The **Details** card holds the facts above; select **Edit** to change them. The 
 
 Where safety management is in use, a **Safety events** tab lists the safety events recorded against the vehicle.
 
+### Vehicle condition
+
+Where asset condition is in use, a **Condition** tab shows the vehicle's **Asset class**, its latest **Condition** and when it was assessed, the **End of useful life** (marked **Past useful life** once it has passed), its **Odometer** and the day it was read, and its **Replacement project**, with every condition assessment, newest first. Select **Edit condition details** to choose the class, enter the odometer or name the replacement project, and **Record assessment** to rate the vehicle. The end of useful life counts from **In service since** (or the **Model year**) and the class's years, or the day the vehicle reaches the class's miles at the rate it has run so far, whichever comes first. Retired vehicles are left out of the condition figures. The vehicle list can show the class, condition, end of useful life and odometer as columns, and filter by them. See [Asset condition](31-asset-condition.md).
+
 ### Install equipment
 
 1. Open the vehicle and its **Equipment** tab.
@@ -110,4 +114,4 @@ When the application is set up, the person installing it can load your own vehic
 
 - Vehicle blocks and daily assignments of vehicles to services.
 - Individual vehicles on the relationship map: they are drawn as groups by depot and mode. Open a group's vehicle list to see each one.
-- Vehicle mileage, inspections and maintenance work orders; these belong in a fleet maintenance system.
+- Mileage logs, inspections and maintenance work orders; these belong in a fleet maintenance system. Only the latest odometer reading is kept, for the useful life.

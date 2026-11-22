@@ -1,6 +1,6 @@
 // Search-as-you-type pickers for users and records, built on the Mantine Combobox.
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { CloseButton, Combobox, Loader, ScrollArea, TextInput, useCombobox } from '@mantine/core';
+import { CloseButton, Combobox, Loader, TextInput, useCombobox } from '@mantine/core';
 import { IconSearch } from '@tabler/icons-react';
 import { api, qs } from './api';
 import { useDebounced } from './hooks';
@@ -129,18 +129,18 @@ function AsyncCombobox({ value, display, onChange, load, kind, placeholder = 'Ty
         />
       </Combobox.Target>
       <Combobox.Dropdown>
-        <Combobox.Options aria-label={field.label}>
-          <ScrollArea.Autosize mah={260} type="auto">
-            {failed && <Combobox.Empty>The list could not be loaded</Combobox.Empty>}
-            {!failed && options === null && <Combobox.Empty>Searching…</Combobox.Empty>}
-            {!failed && options?.length === 0 && <Combobox.Empty>No matches</Combobox.Empty>}
-            {!failed && options?.map((o) => (
-              <Combobox.Option key={o.id} value={o.id} active={o.id === value} className="rc-pick-option">
-                {o.ref && <span className="rc-ref">{o.ref}</span>}
-                <span className="rc-pick-label">{o.label}</span>
-              </Combobox.Option>
-            ))}
-          </ScrollArea.Autosize>
+        {/* The list box scrolls itself: a combobox popup needs no focus of its own (the arrow keys move through it from
+            the input), whereas a scroll box inside the list would be a region keyboard users could not reach. */}
+        <Combobox.Options aria-label={field.label} className="rc-pick-list">
+          {failed && <Combobox.Empty>The list could not be loaded</Combobox.Empty>}
+          {!failed && options === null && <Combobox.Empty>Searching…</Combobox.Empty>}
+          {!failed && options?.length === 0 && <Combobox.Empty>No matches</Combobox.Empty>}
+          {!failed && options?.map((o) => (
+            <Combobox.Option key={o.id} value={o.id} active={o.id === value} className="rc-pick-option">
+              {o.ref && <span className="rc-ref">{o.ref}</span>}
+              <span className="rc-pick-label">{o.label}</span>
+            </Combobox.Option>
+          ))}
         </Combobox.Options>
       </Combobox.Dropdown>
     </Combobox>

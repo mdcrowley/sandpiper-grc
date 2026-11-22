@@ -214,6 +214,8 @@ To turn a finding into work for someone, select **Create follow-up action** on i
 
 If the action tracker is not switched on, findings are still recorded, and a note on the **Findings** tab says that follow-up actions cannot be created.
 
+An exercise that tested a business continuity or emergency plan can be linked to it from the plan's **Exercises** tab (relation "exercised by"); the plan then shows the date it was last exercised. See [Business continuity](30-business-continuity.md#exercises).
+
 ### Exercise calendar
 
 Open **Exercise calendar** in the **Cybersecurity** group.

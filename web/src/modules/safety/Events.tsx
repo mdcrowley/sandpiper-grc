@@ -109,7 +109,7 @@ function Hazards({ eventId }: { eventId: string }) {
             </table>
           </div>
         )}
-      <Modal open={adding} title="Link a hazard" size="sm" onClose={() => setAdding(false)}
+      <Modal open={adding} title="Link a hazard" size="sm" onClose={() => setAdding(false)} dirty={!!pick}
         footer={<><Button onClick={() => setAdding(false)}>Cancel</Button><Button variant="primary" loading={busy} disabled={!pick} onClick={add}>Link</Button></>}>
         <RecordPicker label="Hazard" type="hazard" required value={pick} onChange={(id) => setPick(id)} />
       </Modal>

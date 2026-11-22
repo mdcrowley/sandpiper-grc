@@ -65,7 +65,8 @@ export function MoveDialog({ request, onClose, onMoved }: { request: MoveRequest
 
   const open = conflicts?.filter((c) => !c.acknowledged) ?? [];
   return (
-    <Modal open={request !== null} title={change ? `Move ${change.ref}` : 'Move change'} size="md" onClose={onClose}>
+    <Modal open={request !== null} title={change ? `Move ${change.ref}` : 'Move change'} size="md" onClose={onClose}
+      dirty={request !== null && (start !== request.start || end !== request.end)}>
       {change && (
         <div className="form">
           <p className="chg-move-title"><strong>{change.title}</strong></p>

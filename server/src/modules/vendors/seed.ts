@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { CURRENCY } from '../../core/config.ts';
 import type { ModuleContext, Row, SeedOptions } from '../../core/module.ts';
+import { seedLifecycle } from './seed-lifecycle.ts';
 import { classifyClauseText, saveClauseCheck } from './clauses.ts';
 import { addDays, localDate } from './dates.ts';
 
@@ -243,7 +244,7 @@ async function seedClause(
 ) {
   if (!clauseText) return;
   const existing = await ctx.db.one<Row>(
-    'select clause_text from contract_clause_checks where contract_id = $1 and clause_key = $2', [contract.id, key],
+    `select clause_text from clause_checks where set_key = 'security_terms' and scope_type = 'contract' and scope_id = $1 and sub_key = '' and clause_key = $2`, [contract.id, key],
   );
   if (existing && existing.clause_text === clauseText) return;
   const { changed } = await saveClauseCheck(ctx, null, contract, key, {
@@ -510,5 +511,6 @@ export async function seedVendors(ctx: ModuleContext, opts: SeedOptions): Promis
   if (stats.contacts) parts.push(`${stats.contacts} contacts`);
   if (stats.actions) parts.push(`${stats.actions} actions`);
   if (stats.systemsLinked) parts.push(`${stats.systemsLinked} systems linked`);
+  if (opts.profile === 'dev') parts.push(...await seedLifecycle(ctx));
   return parts.join('; ');
 }

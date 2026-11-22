@@ -199,6 +199,34 @@ export const ROUTE_HELP: RouteHelp[] = [
   { prefix: '/regulatory-changes', page: '06-risks-actions-obligations', section: 'regulatory-changes' },
   { prefix: '/kris', page: '06-risks-actions-obligations', section: 'key-risk-indicators' },
   { prefix: '/risks/appetite', page: '06-risks-actions-obligations', section: 'risk-appetite' },
+
+  // Business continuity
+  { prefix: '/continuity', page: '30-business-continuity', section: 'overview' },
+
+  // Asset condition
+  { prefix: '/condition', exact: true, page: '31-asset-condition', section: 'the-dashboard' },
+  { prefix: '/condition/classes', page: '31-asset-condition', section: 'asset-classes' },
+  { prefix: '/condition/assessments', page: '31-asset-condition', section: 'condition-assessments' },
+  { prefix: '/condition/aging', page: '31-asset-condition', section: 'the-aging-list' },
+
+  // OT security
+  { prefix: '/ot', page: '32-ot-security', section: 'the-ot-overview' },
+  { prefix: '/ot/zones', page: '32-ot-security', section: 'security-zones' },
+  { prefix: '/ot/conduits', page: '32-ot-security', section: 'conduits' },
+
+  // Legal holds, records requests and privacy
+  { prefix: '/admin/legal-holds', page: '33-legal-holds' },
+  { prefix: '/admin/legal-holds', exact: true, page: '33-legal-holds', section: 'place-a-hold' },
+  { prefix: '/records-requests', exact: true, page: '37-records-requests-and-privacy', section: 'requests' },
+  { prefix: '/records-requests', page: '37-records-requests-and-privacy', section: 'clock' },
+  { prefix: '/privacy', exact: true, page: '37-records-requests-and-privacy', section: 'privacy-coverage' },
+  { prefix: '/privacy/assessments', page: '37-records-requests-and-privacy', section: 'privacy-impact-assessments' },
+
+  // Integrations
+  { prefix: '/admin/provisioning', page: '35-user-provisioning-and-log-forwarding', section: 'user-provisioning' },
+  { prefix: '/admin/log-forwarding', page: '35-user-provisioning-and-log-forwarding', section: 'log-forwarding' },
+  { prefix: '/account/calendar-feeds', page: '36-calendar-feeds-work-trackers-and-evidence-links', section: 'calendar-feeds' },
+  { prefix: '/admin/calendar-and-work-trackers', page: '36-calendar-feeds-work-trackers-and-evidence-links' },
 ];
 
 /** The guide entry for an address, or undefined when nothing covers it. */

@@ -1,6 +1,6 @@
 # E26 Control library and control testing (wave 10)
 
-**Status:** in progress (10 of 11 issues done)
+**Status:** done (11 of 11 issues done)
 
 ## Goal
 
@@ -27,7 +27,7 @@ Keep one library of controls, say which risks, hazards, framework outcomes, obli
 | E26-08 | Catalog import template | done | P3 |
 | E26-09 | Dashboard and metrics | done | P2 |
 | E26-10 | Sample data and guide | done | P2 |
-| E26-11 | Controls panel on the covered records' pages | open | P3 |
+| E26-11 | Controls panel on the covered records' pages | done | P3 |
 
 ---
 
@@ -161,10 +161,14 @@ Users need invented sample controls and a guide page.
 
 ### E26-11 Controls panel on the covered records' pages
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 A risk or hazard owner wants to see, on the risk or hazard itself, which controls it relies on and how they rate, without opening the control library. Found in wave 10: the panel (`web/src/modules/controls/ControlsPanel.tsx`, `GET /api/controls/covering`) is built, but the host pages belong to other modules.
 
 **Acceptance criteria**
 
-- [ ] The risk, hazard, framework outcome, obligation and policy pages load `ControlsPanel` with `import.meta.glob`, so a build without the control library shows nothing
+- [x] The risk, hazard, framework outcome, obligation and policy pages load `ControlsPanel` with `import.meta.glob`, so a build without the control library shows nothing; the panel shows nothing while the controls area is off or without `controls.view`
+- [x] OT security zones (`ot_zone`, wave 11) can be covered too (contract C7); the OT zone page hosts the panel itself
+- [x] A browser check opens each host page with the panel
+
+**Implemented in:** `web/src/modules/risks/RiskDetail.tsx`, `risks/Obligations.tsx`, `safety/Hazards.tsx`, `frameworks/OutcomeDetail.tsx`, `policies/PolicyPage.tsx`; `server/src/modules/controls/shared.ts` (`COVER_TYPES`); tests `controls/coverage-ot.test.ts`, browser suite `tools/e2e/suites/20-followups.mjs`; `docs/user/26-controls-and-testing.md` (Where controls show)

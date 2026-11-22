@@ -60,13 +60,18 @@ export async function sweepClocks(
     const clock = clockOf(t, t.discovered_at, now, fraction);
     const level = clock.state === 'red' ? 'red' : clock.state === 'amber' && !t.alerted_amber_at ? 'amber' : null;
     if (!level) continue;
-    // Stamp first, so a failure further on cannot repeat the alert every minute.
-    await ctx.db.query(
+    // Claim before sending (E22-42): one statement stamps the alert only if no other sweep has, so
+    // two sweeps running at once (the minute job and a change to the incident) send it once, and a
+    // failure further on cannot repeat it every minute.
+    const claimed = await ctx.db.query(
       level === 'red'
-        ? `update notification_tasks set alerted_red_at = $2, alerted_amber_at = coalesce(alerted_amber_at, $2) where id = $1`
-        : `update notification_tasks set alerted_amber_at = $2 where id = $1`,
+        ? `update notification_tasks set alerted_red_at = $2, alerted_amber_at = coalesce(alerted_amber_at, $2)
+           where id = $1 and alerted_red_at is null returning id`
+        : `update notification_tasks set alerted_amber_at = $2
+           where id = $1 and alerted_amber_at is null and alerted_red_at is null returning id`,
       [t.id, now.toISOString()],
     );
+    if (!claimed.length) continue;
     const due = stamp(t.due_at);
     const kind = t.required ? 'required' : 'recommended';
     const text = level === 'red'

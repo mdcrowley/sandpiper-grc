@@ -327,15 +327,38 @@ export function registerRelations(ctx: ModuleContext) {
 
   // ---------- relationship graph ----------
 
+  /**
+   * OT on the map (E33-04): the security zones `user` may see, by id, while the OT area is on and its
+   * module loaded; null otherwise, and then nodes carry no OT attributes at all.
+   */
+  async function otZones(user: SessionUser | null): Promise<Map<string, string> | null> {
+    const zoneDef = ctx.resources.get('ot_zone');
+    if (!zoneDef || !ctx.resources.get('system')?.fields.ot_system) return null;
+    const zones = ctx.can(user, 'systems.view')
+      ? await db.query<Row>(`select id, name from ot_zones where deleted_at is null and ${ctx.resources.visibleWhere('ot_zone', user)}`)
+      : [];
+    return new Map(zones.map((z) => [z.id as string, z.name as string]));
+  }
+
+  /** `ot: 'true'` for OT records, and `zone` and `zone_name` when the record is in a zone the caller may see; nothing otherwise. */
+  function otAttrs(zones: Map<string, string> | null, ot: unknown, zoneId: unknown): Record<string, string> {
+    const out: Record<string, string> = {};
+    if (!zones) return out;
+    if (ot === true) out.ot = 'true';
+    if (typeof zoneId === 'string' && zones.has(zoneId)) { out.zone = zoneId; out.zone_name = zones.get(zoneId)!; }
+    return out;
+  }
+
   async function buildGraph(user: SessionUser | null): Promise<{ nodes: GraphNode[]; edges: GraphEdge[] }> {
     const nodes = new Map<string, GraphNode>();
     const edges: GraphEdge[] = [];
     const systems = await db.query<Row>(
-      'select id, ref, name, system_group, vendor_name, vendor_id, criticality_tier, hosting_type, status from systems where deleted_at is null order by name',
+      'select id, ref, name, system_group, vendor_name, vendor_id, criticality_tier, hosting_type, status, ot_system, zone_id from systems where deleted_at is null order by name',
     );
+    const zoneOf = await otZones(user);
     for (const s of systems) {
       nodes.set(s.id, { id: s.id, type: 'system', label: s.name, group: s.system_group || 'Ungrouped', route: `/systems/${s.id}`, ref: s.ref,
-        attrs: { criticality: s.criticality_tier ?? null, hosting: s.hosting_type ?? null, status: s.status ?? null },
+        attrs: { criticality: s.criticality_tier ?? null, hosting: s.hosting_type ?? null, status: s.status ?? null, ...otAttrs(zoneOf, s.ot_system, s.zone_id) },
       });
     }
 
@@ -396,12 +419,13 @@ export function registerRelations(ctx: ModuleContext) {
     if (ctx.can(user, 'assets.view')) {
       // Only assets linked to a system appear, so the map stays readable with thousands of assets.
       const rows = await db.query<Row>(
-        `select id, tag, name, system_id, site_id from assets
+        `select id, tag, name, system_id, site_id, ot_asset, zone_id from assets
          where deleted_at is null and system_id is not null and coalesce(status, '') <> 'disposed' order by tag`,
       );
       for (const r of rows) {
         if (!nodes.has(r.system_id)) continue;
-        nodes.set(r.id, { id: r.id, type: 'asset', label: r.name, group: 'Assets', route: `/assets/${r.id}`, ref: r.tag });
+        const ot = otAttrs(zoneOf, r.ot_asset, r.zone_id);
+        nodes.set(r.id, { id: r.id, type: 'asset', label: r.name, group: 'Assets', route: `/assets/${r.id}`, ref: r.tag, ...(Object.keys(ot).length ? { attrs: ot } : {}) });
         edges.push({ from: r.system_id, to: r.id, kind: 'asset', label: 'runs on' });
         if (r.site_id && nodes.get(r.site_id)?.type === 'site') edges.push({ from: r.id, to: r.site_id, kind: 'location', label: 'located at' });
       }

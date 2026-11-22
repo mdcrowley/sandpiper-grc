@@ -23,7 +23,9 @@ export function TemplatesAdmin() {
   const [removing, setRemoving] = useState<Template | null>(null);
 
   const set = (patch: Partial<Form>) => setForm((f) => (f ? { ...f, ...patch } : f));
-  const begin = (t?: Template) => { setForm(t ? { ...t } : blank()); setFields({}); setFormError(''); };
+  // What the dialog opened with, so closing it after a change asks first.
+  const [start, setStart] = useState<Form | null>(null);
+  const begin = (t?: Template) => { const first = t ? { ...t } : blank(); setForm(first); setStart(first); setFields({}); setFormError(''); };
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -102,7 +104,7 @@ export function TemplatesAdmin() {
         )}
       <p className="muted chg-card-foot">The usage counts show how often each template is raised, so a template that is being used for work it was not approved for can be spotted.</p>
 
-      <Modal open={form !== null} title={form?.id ? 'Edit template' : 'Add template'} onClose={() => setForm(null)} size="lg">
+      <Modal open={form !== null} title={form?.id ? 'Edit template' : 'Add template'} onClose={() => setForm(null)} size="lg" dirty={form !== null && JSON.stringify(form) !== JSON.stringify(start)}>
         {form && (
           <form className="form" onSubmit={save} noValidate>
             <div className="form-grid">

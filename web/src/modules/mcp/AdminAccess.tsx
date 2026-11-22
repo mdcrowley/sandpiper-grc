@@ -178,7 +178,7 @@ function AddConnectorDialog({ open, onClose, onAdded }: { open: boolean; onClose
     );
   }
   return (
-    <Modal open={open} title="Add a connector" onClose={close}>
+    <Modal open={open} title="Add a connector" onClose={close} dirty={Boolean(name.trim() || uris.trim() || confidential)}>
       <form className="form" onSubmit={submit} noValidate>
         {formError && <p className="form-error" role="alert">{formError}</p>}
         <TextField label="Name" required maxLength={100} value={name} onChange={setName} error={errors.name} hint="Shown to people on the consent screen, for example “Team assistant”." />

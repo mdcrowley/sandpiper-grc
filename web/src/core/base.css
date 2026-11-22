@@ -49,6 +49,8 @@ body {
 .mantine-Checkbox-root { --checkbox-icon-color: var(--brand-contrast) !important; }
 .mantine-Radio-root { --radio-icon-color: var(--brand-contrast) !important; }
 .mantine-Pagination-root { --pagination-active-color: var(--brand-contrast) !important; }
+/* The highlighted option of every select, picker and autocomplete list: Mantine draws it in white on the brand color. */
+[role="option"][data-combobox-selected] { color: var(--brand-contrast); }
 .ui-label { margin-bottom: 4px; font-size: var(--fs-sm); font-weight: 600; }
 .ui-btn-ghost { --button-color: var(--text); --ai-color: var(--text); }
 .ui-btn-ghost:hover { --button-hover: var(--surface-2); --ai-hover: var(--surface-2); }

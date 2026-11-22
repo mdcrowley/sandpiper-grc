@@ -216,6 +216,8 @@ function FieldDialog({ field, recordType, types, recordTypes, nextPosition, onCl
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
+  const draft = JSON.stringify([label, key, type, source, options, list, to, required, section, help, position, active]);
+  const [start] = useState(draft);
   const shownKey = keyTouched ? key : slug(label);
   const clearError = (k: string) => setErrors(({ [k]: _gone, ...rest }) => rest);
   const optionLines = options.split('\n').map((s) => s.trim()).filter(Boolean);
@@ -264,7 +266,7 @@ function FieldDialog({ field, recordType, types, recordTypes, nextPosition, onCl
   };
 
   return (
-    <Modal open title={field ? `Edit "${field.label}"` : `Add a field to ${recordType.plural.toLowerCase()}`} onClose={onClose}>
+    <Modal open title={field ? `Edit "${field.label}"` : `Add a field to ${recordType.plural.toLowerCase()}`} onClose={onClose} dirty={draft !== start}>
       <form className="form" onSubmit={submit} noValidate>
         {formError && <p className="form-error" role="alert">{formError}</p>}
         <div className="form-grid">

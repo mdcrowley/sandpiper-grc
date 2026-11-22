@@ -98,7 +98,7 @@ describe('defaults reproduce the behavior before E14-31', () => {
     }
     expect(meta.test_parcel.lifecycle).toMatchObject({ field: 'status', managed: false });
     const managed = t.core.resources.registry.all().filter((d) => lifecycleManaged(d)).map((d) => d.type);
-    for (const type of managed) expect(['change', 'policy']).toContain(type);
+    for (const type of managed) expect(['change', 'policy', 'emergency_activation', 'legal_hold', 'privacy_assessment']).toContain(type);
     if (t.core.resources.registry.get('project')) expect(lifecycleField(t.core.resources.registry.get('project')!)).toBe('status');
     // Notes describe real types only.
     for (const type of Object.keys(APPLICATION_RULES)) {

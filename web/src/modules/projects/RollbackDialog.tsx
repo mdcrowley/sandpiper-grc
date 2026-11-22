@@ -41,7 +41,7 @@ export function RollbackDialog({ open, projectId, data, onClose, onDone }: Props
   }
 
   return (
-    <Modal open={open} title={`Move back to ${to}`} onClose={onClose} size="sm">
+    <Modal open={open} title={`Move back to ${to}`} onClose={onClose} size="sm" dirty={Boolean(reason.trim())}>
       <form className="form" onSubmit={submit} noValidate>
         <Text size="sm">
           The project returns from <strong>{from}</strong> to <strong>{to}</strong> and the <strong>{target.gate_name}</strong> gate

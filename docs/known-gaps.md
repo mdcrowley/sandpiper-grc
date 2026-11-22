@@ -5,37 +5,45 @@ What the prototype does not do yet. Update with every change. The roadmap
 
 ## Not built
 
-Planned for wave 11 (E31 to E36): business continuity and emergency management, asset condition
-and state of good repair, OT and rail-systems cybersecurity, legal hold with records and
-personal-data requests and privacy assessments, the vendor risk lifecycle, and integrations
-(user provisioning, audit log forwarding, calendar feeds). Their permission keys (`continuity`,
-`legal`, `records`, `privacy`), feature switches and default roles (Continuity manager, Records and
-privacy officer, Asset manager) exist already with nothing behind them, and so do the legal-hold
-checks in every delete, removal and anonymizing path (`core/holds.ts`, holding nothing until legal
-holds are built) and the calendar source registry (`core/calendar.ts`).
+Every part planned through wave 11 is built; the open roadmap issues finish or prove parts that
+exist (see "Built but incomplete" and "Verification status" below).
 
 Not planned: drug and alcohol test results, hours-of-service and fatigue records, maintenance
-work orders, which belong in specialist systems, and redaction of document content, which belongs
-in a document tool (E25-13, E29-11, E32-06, E34-09).
+work orders and inspection schedules, which belong in specialist systems, and redaction of document
+content, which belongs in a document tool (E25-13, E29-11, E32-06, E34-09).
 
 ## Built but incomplete
 
+- **Accessibility**: tables that scroll sideways and hold no links are reachable with the keyboard only where they use the shared `TableWrap` (E22-48).
 - **Wave 10 parts** (corrective action plans, audits and inspections, controls, funding, committees,
   the staff roster, obligations and enterprise risk):
-  - `actions.closure_evidence_sources` has no settings screen yet; set it through the settings API.
   - The person asked for audit evidence answers in text only (attaching files needs `audits.edit`);
     taking inspection photos needs `audits.edit` and the attachments module.
-  - The controls panel is not yet on the pages of the records a control covers (E26-11); coverage
-    cannot be imported from a spreadsheet, and controls have no per-control test steps.
-  - Funding: sub-recipient monitoring, and one clause checklist shared by funder clauses and contract
-    security terms (E27-11); drawdowns, budgets and spending by award are left to the finance system.
+  - Coverage cannot be imported from a spreadsheet, and controls have no per-control test steps.
+  - Funding: drawdowns, budgets and spending by award are left to the finance system.
   - A meeting decision can be applied only to approvals declared as an approval kind, not to
-    workflows an administrator defined with no kind; typed names of committee members are not
-    anonymized at the end of the retention period; meetings send no calendar invitations (E36).
+    workflows an administrator defined with no kind; meetings send no calendar invitations by
+    email; members subscribe through a calendar feed (E36-03).
   - Departments are not a record type, so person and position exports show the department's id;
     kiosk lockouts after wrong employee numbers are kept per server process.
   - Key risk indicators are monthly only; regulatory changes are entered by hand (no outside feed).
-  - The new parts have no AI assistant (MCP) summary tools yet.
+- **Wave 11 parts** (business continuity, asset condition, OT security, legal holds, records
+  requests and privacy, the vendor risk lifecycle and integrations):
+  - Business continuity: impact analyses are signed off directly by a holder of
+    `continuity.approve`, not through an approval workflow (E31-10). Call trees are printed and
+    called by hand; nothing pages or messages people.
+  - Asset condition: one useful-life benchmark per class (changing it recomputes every member);
+    condition history is listed, not charted.
+  - OT security: no network scanning or device discovery; the starter structure file's mappings are
+    not loaded automatically; the zones-below-target figure keeps no history; a saved map picture
+    shows no OT badge.
+  - Records requests: working days skip weekends only, not public holidays.
+  - Vendor risk lifecycle: exclusion-list checks are recorded by hand (no outside service is
+    called); finishing an offboarding item does not remove accounts by itself.
+  - Integrations: SCIM bulk requests and sorting are not supported, and attributes the application
+    does not keep are ignored; a log forwarder sends to one collector. Calendar feeds are read-only.
+    The work-tracker bridge has no ready-made connections for particular products and brings back only
+    the status.
 - **Approval workflows and lifecycles**: project gates use a workflow only once an administrator
   names one on the gate template; while no disposal workflow is active, a disposal request is
   decided once by anyone who may approve disposals. The `change.approval_decided` webhook event
@@ -48,9 +56,7 @@ in a document tool (E25-13, E29-11, E32-06, E34-09).
   theme.
 - **Sign-in**: single sign-on supports OpenID Connect, SAML 2.0 and a directory (LDAP).
   Directory sign-in has been tried against a stand-in directory, not a real Active
-  Directory. The per-address limit on single sign-on routes is checked before an attempt and
-  recorded after it, so attempts sent at the same moment can exceed it; the per-account and
-  per-user-name limits count every attempt. The Change password dialog revokes API tokens and
+  Directory. The Change password dialog revokes API tokens and
   assistant connections unless the person checks the box to keep them.
 - **Second factor**: a new installation requires it for the roles that expect one
   (Administrator and Security lead) unless setup explicitly asks for a reminder only. An
@@ -90,9 +96,7 @@ in a document tool (E25-13, E29-11, E32-06, E34-09).
 - **Hosting**: with a least-privilege database account, adding a custom field is queued
   for the database owner, and a new text custom field is searched only after the owner's
   next `migrate` step. JSON API responses are not compressed by the application (a risk with
-  session-bound answers); a reverse proxy may compress them. Web assets are compressed and cached.
-  Webhook addresses are stored in clear in the `webhooks` table (administrators only); audit
-  entries show only their host and a fingerprint. The user services run on GitHub's Linux and macOS machines; a restart of the machine and the
+  session-bound answers); a reverse proxy may compress them. Web assets are compressed and cached. The user services run on GitHub's Linux and macOS machines; a restart of the machine and the
   system examples in `deploy/` are not yet proven on real machines (E16-42).
 - **Performance**: the embedded database is for evaluation. A PostgreSQL server meets the
   targets in the load test, but only with the server on the same machine and everyone
@@ -100,9 +104,6 @@ in a document tool (E25-13, E29-11, E32-06, E34-09).
   different roles is still to do (E16-41).
 - **Vendors**: the contract import fills structured dates only where the text is
   unambiguous; the "Complete the dates" queue lists the rest.
-- **Unsaved changes**: forms built on the shared record form, the New ticket dialog and the
-  full-page forms ask before discarding a draft; about 60 hand-written dialogs that hold their own
-  state do not yet (E22-14).
 
 ## Verification status
 

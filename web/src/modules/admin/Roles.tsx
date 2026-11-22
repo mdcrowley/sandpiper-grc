@@ -150,7 +150,7 @@ function NewRoleDialog({ open, onClose, onCreated }: { open: boolean; onClose: (
   };
 
   return (
-    <Modal open={open} title="New role" size="sm" onClose={onClose}>
+    <Modal open={open} title="New role" size="sm" onClose={onClose} dirty={Boolean(name.trim() || description.trim())}>
       <form className="form" onSubmit={submit} noValidate>
         <TextField label="Name" required autoFocus maxLength={60} value={name} onChange={setName} error={errors.name} />
         <TextArea label="Description" rows={3} value={description} onChange={setDescription} hint="Who holds this role and what it is for." />

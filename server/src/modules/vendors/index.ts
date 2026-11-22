@@ -2,18 +2,33 @@ import type { FastifyRequest } from 'fastify';
 import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
 import { ensureDefaultQuestionSet, latestAssessment, registerAssessments } from './assessments.ts';
-import { CLAUSE_STATUSES, contractChecklist, DEFAULT_CLAUSES, saveClauseCheck, worstStatus } from './clauses.ts';
+import { ANONYMIZED_TEXT, onAnonymize } from '../../core/retention.ts';
+import { CLAUSE_STATUSES, contractChecklist, DEFAULT_CLAUSES, registerSecurityTerms, saveClauseCheck, worstStatus } from './clauses.ts';
 import { addDays, daysBetween, localDate, noticeDate } from './dates.ts';
 import {
   CLOSED_CONTRACT_STATUSES, DEFAULT_EVIDENCE_REMINDER_DAYS, DEFAULT_REMINDER_DAYS, EVIDENCE_REMINDER_SETTING,
   evidenceThresholds, parseThresholds, REMINDER_SETTING, reminderThresholds, runContractReminders, runEvidenceReminders,
 } from './reminders.ts';
+import { ensureIssueLists, registerIssues } from './issues.ts';
+import {
+  activationBlock, cadence, ensureLifecycleLists, nextDue, recomputeAll, registerLifecycle, runLifecycleReminders,
+} from './lifecycle.ts';
+import { endedStatuses, ensureOffboardingLists, registerOffboarding, startEndedContracts, startForContract } from './offboarding.ts';
 import { seedVendors } from './seed.ts';
 
 export { runContractReminders, runEvidenceReminders } from './reminders.ts';
 
+/** The daily lifecycle work (job `vendors.lifecycle`). */
+export async function runLifecycle(ctx: ModuleContext, now: Date = new Date()) {
+  const recomputed = await recomputeAll(ctx);
+  const reminders = await runLifecycleReminders(ctx, now);
+  const offboardings = await startEndedContracts(ctx, now);
+  return { recomputed, ...reminders, offboardings };
+}
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const HOUR = 60 * 60 * 1000;
+const DAY = 24 * HOUR;
 
 const text = (v: unknown): string | null => {
   if (v === null || v === undefined) return null;
@@ -59,8 +74,9 @@ const mod: ModuleDef = {
       { value: 'draft', label: 'Draft', color: 'gray', sort: 10 },
       { value: 'active', label: 'Active', color: 'green', sort: 20 },
       { value: 'not_on_file', label: 'Not on file', color: 'red', sort: 30 },
-      { value: 'expired', label: 'Expired', color: 'amber', sort: 40 },
-      { value: 'terminated', label: 'Ended', color: 'gray', sort: 50 },
+      // meta.ended: the contract is over, which starts its offboarding (E35-04).
+      { value: 'expired', label: 'Expired', color: 'amber', sort: 40, meta: { ended: true } },
+      { value: 'terminated', label: 'Ended', color: 'gray', sort: 50, meta: { ended: true } },
     ], { module: 'contracts' });
     await ctx.lookups.ensure('contract_clause', DEFAULT_CLAUSES, { module: 'contracts' });
     await ctx.lookups.ensure('clause_status', CLAUSE_STATUSES, { module: 'contracts' });
@@ -78,6 +94,10 @@ const mod: ModuleDef = {
       await ctx.settings.set(EVIDENCE_REMINDER_SETTING, DEFAULT_EVIDENCE_REMINDER_DAYS);
     }
     await ensureDefaultQuestionSet(ctx);
+    // The vendor risk lifecycle (E35): exclusion lists, issues, offboarding, reassessment months.
+    await ensureLifecycleLists(ctx);
+    await ensureIssueLists(ctx);
+    await ensureOffboardingLists(ctx);
   },
 
   async register(ctx) {
@@ -111,17 +131,28 @@ const mod: ModuleDef = {
         incident_contact_email: { label: 'Incident contact email', type: 'text' },
         incident_contact_phone: { label: 'Incident contact phone', type: 'text' },
         notes: { label: 'Notes', type: 'longtext' },
+        owner_id: { label: 'Vendor owner', type: 'user' },
+        // The lifecycle (E35): worked out by the application.
+        last_assessed_on: { label: 'Last assessed on', type: 'date', readOnly: true },
+        next_assessment_due: { label: 'Next assessment due', type: 'date', readOnly: true },
+        last_exclusion_check_on: { label: 'Last exclusion-list check', type: 'date', readOnly: true },
       },
       hooks: {
         beforeCreate: async (_req, data) => {
           if (await vendorNameTaken(data.name)) {
             ctx.fail(400, 'validation', 'Check the highlighted fields.', { name: 'A vendor with this name already exists.' });
           }
+          data.next_assessment_due = nextDue((await cadence(ctx)).get(data.criticality) ?? null, data.last_assessed_on ?? null, localDate());
           return data;
         },
         beforeUpdate: async (_req, existing, patch) => {
           if (patch.name !== undefined && await vendorNameTaken(patch.name, existing.id)) {
             ctx.fail(400, 'validation', 'Check the highlighted fields.', { name: 'A vendor with this name already exists.' });
+          }
+          // A new criticality brings a new cadence (E35-01).
+          if (patch.criticality !== undefined && patch.criticality !== existing.criticality && patch.next_assessment_due === undefined) {
+            const added = existing.created_at ? localDate(new Date(existing.created_at)) : localDate();
+            patch.next_assessment_due = nextDue((await cadence(ctx)).get(patch.criticality) ?? null, existing.last_assessed_on ?? null, added);
           }
           return patch;
         },
@@ -184,25 +215,40 @@ const mod: ModuleDef = {
         import_key: { label: 'Import key', type: 'text', readOnly: true },
       },
       hooks: {
-        beforeCreate: async (_req, data) => {
+        beforeCreate: async (req, data) => {
           if (!(await ctx.resources.find('vendor', data.vendor_id))) {
             ctx.fail(400, 'validation', 'Check the highlighted fields.', { vendor_id: 'Vendor not found.' });
           }
           checkContractNumbers(data);
+          await checkActivation(req, data.vendor_id, (data.status ?? 'active') === 'active');
           data.notice_date = noticeDate(data.end_date, data.notice_days);
           return data;
         },
-        beforeUpdate: async (_req, existing, patch) => {
+        beforeUpdate: async (req, existing, patch) => {
           if (patch.vendor_id && patch.vendor_id !== existing.vendor_id && !(await ctx.resources.find('vendor', patch.vendor_id))) {
             ctx.fail(400, 'validation', 'Check the highlighted fields.', { vendor_id: 'Vendor not found.' });
           }
           const merged = { ...existing, ...patch };
           checkContractNumbers(merged);
+          await checkActivation(req, merged.vendor_id, patch.status === 'active' && existing.status !== 'active');
           patch.notice_date = noticeDate(merged.end_date, merged.notice_days);
           return patch;
         },
+        // A contract that moves to an ended status starts the vendor's offboarding (E35-04), once.
+        afterUpdate: async (req, before, after) => {
+          if (after.status === before.status || !ctx.resources.get('vendor_offboarding')) return;
+          if (!(await endedStatuses(ctx)).includes(after.status)) return;
+          await startForContract(ctx, after, after.status === 'terminated' ? 'terminated' : 'contract_ended', req);
+        },
       },
     });
+
+    /** While the setting is on, a person may make a contract active only after an exclusion-list check (E35-02). */
+    async function checkActivation(req: FastifyRequest | null, vendorId: string, activating: boolean) {
+      if (!req || !activating) return; // system work (imports of the register, samples) is not held up
+      const block = await activationBlock(ctx, vendorId);
+      if (block) ctx.fail(400, 'validation', 'Check the highlighted fields.', { status: block });
+    }
 
     // ---------- evidence ----------
 
@@ -365,7 +411,7 @@ const mod: ModuleDef = {
       );
       const clauses = seesContracts
         ? await db.query<Row>(
-          `select k.clause_key, k.status from contract_clause_checks k join contracts c on c.id = k.contract_id
+          `select k.clause_key, k.status from clause_checks k join contracts c on c.id = k.scope_id and k.set_key = 'security_terms' and k.scope_type = 'contract' and k.deleted_at is null
            where c.vendor_id = $1 and c.deleted_at is null`, [vendor.id])
         : [];
       const clauseKeys = (await ctx.lookups.values('contract_clause')).map((c) => c.value);
@@ -420,7 +466,7 @@ const mod: ModuleDef = {
         `select id, vendor_id, notice_date, status from contracts where deleted_at is null`,
       );
       const checks = await db.query<Row>(
-        `select c.vendor_id, k.clause_key, k.status from contract_clause_checks k join contracts c on c.id = k.contract_id
+        `select c.vendor_id, k.clause_key, k.status from clause_checks k join contracts c on c.id = k.scope_id and k.set_key = 'security_terms' and k.scope_type = 'contract' and k.deleted_at is null
          where c.deleted_at is null and (c.status is null or c.status <> 'terminated')`,
       );
       const vendors: Record<string, unknown> = {};
@@ -500,7 +546,7 @@ const mod: ModuleDef = {
       const checks = await db.query<Row>(
         `select c.vendor_id, c.id as contract_id, c.ref as contract_ref, c.title as contract_title,
                 k.clause_key, k.status, k.clause_text, k.note
-         from contract_clause_checks k join contracts c on c.id = k.contract_id
+         from clause_checks k join contracts c on c.id = k.scope_id and k.set_key = 'security_terms' and k.scope_type = 'contract' and k.deleted_at is null
          where c.deleted_at is null and (c.status is null or c.status <> 'terminated')
          order by c.ref`,
       );
@@ -698,10 +744,25 @@ const mod: ModuleDef = {
 
     await registerAssessments(ctx);
 
+    // ---------- the vendor risk lifecycle (E35) ----------
+
+    registerSecurityTerms(ctx);
+    registerLifecycle(ctx);
+    registerIssues(ctx);
+    registerOffboarding(ctx);
+    // Anonymizing a vendor at the end of its retention period also clears its contacts and the people
+    // and notes of its exclusion-list checks.
+    onAnonymize('vendor', async (tx, id) => {
+      await tx.query('update vendor_contacts set name = $2, email = null, phone = null, role = null where vendor_id = $1', [id, ANONYMIZED_TEXT]);
+      await tx.query('update vendor_exclusion_checks set checked_by = null, note = case when note is null then null else $2 end where vendor_id = $1', [id, ANONYMIZED_TEXT]);
+    });
+
     // ---------- reminders, hourly on the job queue (Administration > Background jobs) ----------
 
     await scheduleWork(ctx, 'vendors.contract_reminders', async () => ({ fired: (await runContractReminders(ctx)).length }), { every: HOUR, firstRunInMs: 60_000 });
     await scheduleWork(ctx, 'vendors.evidence_reminders', async () => ({ fired: (await runEvidenceReminders(ctx)).length }), { every: HOUR, firstRunInMs: 70_000 });
+    // Daily: reassessment and exclusion-check reminders, offboardings for contracts whose end date passed.
+    await scheduleWork(ctx, 'vendors.lifecycle', async () => runLifecycle(ctx), { every: DAY, firstRunInMs: 90_000 });
   },
 
   seed: (ctx: ModuleContext, opts) => seedVendors(ctx, opts),

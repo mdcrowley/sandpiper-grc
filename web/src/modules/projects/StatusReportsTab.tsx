@@ -23,15 +23,18 @@ function ReportDialog({ projectId, open, report, onClose, onSaved }: {
   const [busy, setBusy] = useState(false);
   const set = (key: keyof Form) => (value: string) => setForm((f) => ({ ...f, [key]: value }));
 
+  const startForm = (): Form => (report ? {
+    period_end: String(report.period_end).slice(0, 10), overall: report.overall, schedule: report.schedule, budget: report.budget, risk: report.risk,
+    accomplishments: report.accomplishments ?? '', next_steps: report.next_steps ?? '', decisions_needed: report.decisions_needed ?? '',
+  } : { ...BLANK, period_end: todayIso() });
+  const dirty = open && JSON.stringify(form) !== JSON.stringify(startForm());
+
   useEffect(() => {
     if (!open) return;
-    setForm(report ? {
-      period_end: String(report.period_end).slice(0, 10), overall: report.overall, schedule: report.schedule, budget: report.budget, risk: report.risk,
-      accomplishments: report.accomplishments ?? '', next_steps: report.next_steps ?? '', decisions_needed: report.decisions_needed ?? '',
-    } : { ...BLANK, period_end: todayIso() });
+    setForm(startForm());
     setFields({});
     setFormError('');
-  }, [open, report]);
+  }, [open, report]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -57,7 +60,7 @@ function ReportDialog({ projectId, open, report, onClose, onSaved }: {
   }
 
   return (
-    <Modal open={open} title={report ? 'Edit status report' : 'Add status report'} onClose={onClose} size="lg">
+    <Modal open={open} title={report ? 'Edit status report' : 'Add status report'} onClose={onClose} size="lg" dirty={dirty}>
       <form className="form" onSubmit={submit} noValidate>
         <div className="form-grid">
           <DateField label="Period end" required value={form.period_end} onChange={set('period_end')} error={fields.period_end} />

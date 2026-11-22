@@ -41,6 +41,7 @@ export function TicketActions({ rec }: { rec: RecordContext }) {
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [f, setF] = useState<Record<string, any>>({});
+  const [opened, setOpened] = useState<Record<string, any>>({});   // the values the dialog opened with
   const set = (key: string) => (value: unknown) => setF((old) => ({ ...old, [key]: value }));
 
   if (!canEdit) return null;
@@ -72,7 +73,8 @@ export function TicketActions({ rec }: { rec: RecordContext }) {
     }
   }
 
-  const openDialog = (d: Dialog, start: Record<string, unknown>) => { setF(start); setErrors({}); setDialog(d); };
+  const openDialog = (d: Dialog, start: Record<string, unknown>) => { setF(start); setOpened(start); setErrors({}); setDialog(d); };
+  const dirty = dialog !== null && JSON.stringify(f) !== JSON.stringify(opened);
 
   function chooseStatus(value: string | undefined) {
     if (!value) return undefined;
@@ -140,7 +142,7 @@ export function TicketActions({ rec }: { rec: RecordContext }) {
         ]}
       />
 
-      <Modal open={dialog === 'resolve'} title="Resolve ticket" onClose={() => setDialog(null)}
+      <Modal open={dialog === 'resolve'} title="Resolve ticket" onClose={() => setDialog(null)} dirty={dirty}
         footer={footer(() => apply({ status: f.status, resolution_code: f.resolution_code || null, resolution_notes: f.resolution_notes || null }, 'Ticket resolved.'), 'Resolve')}>
         <div className="stack">
           {tasksNote}
@@ -150,7 +152,7 @@ export function TicketActions({ rec }: { rec: RecordContext }) {
         </div>
       </Modal>
 
-      <Modal open={dialog === 'close'} title="Close ticket" onClose={() => setDialog(null)}
+      <Modal open={dialog === 'close'} title="Close ticket" onClose={() => setDialog(null)} dirty={dirty}
         footer={footer(() => apply({ status: f.status, resolution_code: f.resolution_code || null, satisfaction_score: f.score ?? null, satisfaction_comment: f.comment || null }, 'Ticket closed.'), 'Close ticket')}>
         <div className="stack">
           {tasksNote}
@@ -162,7 +164,7 @@ export function TicketActions({ rec }: { rec: RecordContext }) {
         </div>
       </Modal>
 
-      <Modal open={dialog === 'vendor'} title="With vendor" onClose={() => setDialog(null)}
+      <Modal open={dialog === 'vendor'} title="With vendor" onClose={() => setDialog(null)} dirty={dirty}
         footer={footer(() => apply({
           with_vendor: true, vendor_id: f.vendor_id || null, vendor_ref: f.vendor_ref || null,
           vendor_raised_at: f.vendor_raised_at || null, vendor_responded_at: f.vendor_responded_at || null,

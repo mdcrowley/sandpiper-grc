@@ -26,6 +26,11 @@ declare module 'fastify' {
   interface FastifyContextConfig {
     /** With `public`: a server-to-server route that proves itself with a signed token, so no CSRF header is asked for. */
     noCsrf?: boolean;
+    /**
+     * With `public`: the route checks a bearer token of its own (the SCIM provisioning endpoint, E36-01),
+     * so neither a session nor a personal access token is looked at, and no CSRF header is asked for.
+     */
+    ownBearer?: boolean;
   }
 }
 
@@ -468,6 +473,8 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
   app.addHook('onRequest', async (req) => {
     // By path or by matched route (the path is canonical before routing: core/api/versioning.ts).
     if (!isApiRequest(req)) return;
+    // A public route with its own bearer check (E36-01): nobody is signed in there, whatever is sent.
+    if (req.routeOptions?.config?.ownBearer === true && req.routeOptions?.config?.public === true) return;
     const authorization = req.headers.authorization;
     if (authorization !== undefined) {
       // A personal access token (core/tokens.ts). The session cookie is ignored, and no CSRF header

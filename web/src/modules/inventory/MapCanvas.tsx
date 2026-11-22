@@ -215,20 +215,28 @@ export function MapCanvas({ layout, label, selectedId, onSelect, impacted, cente
           </g>
           {layout.nodes.map((n) => {
             const crit = n.type === 'system' ? n.attrs?.criticality : null;
+            // Operational technology (E33-04): a small OT badge beside the name.
+            const ot = n.attrs?.ot === 'true';
             return (
               <g
                 key={n.id} className={nodeClass(n)} transform={`translate(${n.x} ${n.y})`} style={nodeVars(typeInfo(n.type).color)}
                 tabIndex={0} role="button" aria-pressed={n.id === selectedId}
                 // The name starts with the label drawn on the node, so speech users can say what they see.
-                aria-label={`${n.label} (${typeInfo(n.type).label.toLowerCase()})${hot?.has(n.id) ? ', affected' : marked?.has(n.id) ? ', affected by the change' : ''}`}
+                aria-label={`${n.label} (${typeInfo(n.type).label.toLowerCase()}${ot ? ', operational technology' : ''})${hot?.has(n.id) ? ', affected' : marked?.has(n.id) ? ', affected by the change' : ''}`}
                 onClick={(e) => { e.stopPropagation(); if (!wasDrag()) onSelect(n.id === selectedId ? null : n.id); }}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onSelect(n.id === selectedId ? null : n.id); } }}
                 onPointerEnter={() => setHoverId(n.id)} onPointerLeave={() => setHoverId((h) => (h === n.id ? null : h))}
               >
-                <title>{n.ref ? `${n.ref} ` : ''}{n.label}{crit ? ` · ${lookupLabel('criticality_tier', crit)}` : ''}</title>
+                <title>{n.ref ? `${n.ref} ` : ''}{n.label}{crit ? ` · ${lookupLabel('criticality_tier', crit)}` : ''}{ot ? ' · OT' : ''}{n.attrs?.zone_name ? ` · zone ${n.attrs.zone_name}` : ''}</title>
                 <rect width={n.w} height={n.h} rx={8} />
                 <circle cx={13} cy={n.h / 2} r={4} className="inv-node-dot" />
-                <text x={24} y={n.h / 2 + 4.5}>{short(n.label, crit ? 24 : 26)}</text>
+                <text x={24} y={n.h / 2 + 4.5}>{short(n.label, (crit ? 24 : 26) - (ot ? 4 : 0))}</text>
+                {ot && (
+                  <g className="inv-node-ot" transform={`translate(${n.w - (crit ? 46 : 32)} ${n.h / 2 - 8})`} aria-hidden="true">
+                    <rect width={24} height={16} rx={4} style={{ fill: 'var(--c-teal-bg)', stroke: 'var(--c-teal-solid)', strokeWidth: 1 }} />
+                    <text x={12} y={11.5} textAnchor="middle" style={{ fill: 'var(--c-teal-fg)', fontSize: 9.5, fontWeight: 700 }}>OT</text>
+                  </g>
+                )}
                 {crit && <circle cx={n.w - 12} cy={n.h / 2} r={4.5} className="inv-node-crit" style={{ fill: `var(--c-${lookupColor('criticality_tier', crit) ?? 'gray'}-solid)` }} />}
               </g>
             );

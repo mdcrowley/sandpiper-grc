@@ -1,11 +1,17 @@
 // The hazard log: the list, and one hazard scored on the hazard matrix, with its mitigations and events.
-import { useState } from 'react';
+import { lazy, Suspense, useState, type ComponentType } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Card, EditableSummary, EmptyState, errorMessage, ErrorState, formatDateTime, Loading, LookupChip, PageHeader, RecordPage, ResourceList, useAuth, useFetch, useToast,
 } from '../../core';
 import type { RecordContext } from '../../core';
 import { HazardMatrix, RatingChip, SafetyActions, SafetyTabs, useHazardScale } from './shared';
+
+// The controls covering a hazard (E26-11), from the control library when it is part of the build. The
+// panel renders nothing while the controls area is off or without controls.view.
+const controlsLoaders = import.meta.glob<{ ControlsPanel: ComponentType<{ recordType: string; recordId: string }> }>('../controls/ControlsPanel.tsx');
+const loadControls = Object.values(controlsLoaders)[0];
+const ControlsPanel = loadControls ? lazy(() => loadControls().then((m) => ({ default: m.ControlsPanel }))) : null;
 
 export function HazardList() {
   const { scale } = useHazardScale();
@@ -105,6 +111,7 @@ export function HazardDetail() {
           <EditableSummary type="hazard" row={rec.row} onSaved={rec.reload} title="Hazard"
             fields={['title', 'description', 'source', 'consequence', 'existing_controls', 'mode', 'site_id', 'owner_id', 'review_date', 'status', 'notes']} />
           <Scoring {...rec} />
+          {ControlsPanel && <Suspense fallback={null}><ControlsPanel recordType="hazard" recordId={rec.row.id} /></Suspense>}
         </div>
       )}
       tabs={[

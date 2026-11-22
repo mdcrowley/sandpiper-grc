@@ -20,6 +20,12 @@ const planLoaders = import.meta.glob<{ PlanPanel: ComponentType<PlanPanelProps> 
 const loadPlan = Object.values(planLoaders)[0];
 const PlanPanel = loadPlan ? lazy(() => loadPlan().then((m) => ({ default: m.PlanPanel }))) : null;
 
+// The controls covering a policy (E26-11), from the control library when it is part of the build. The
+// panel renders nothing while the controls area is off or without controls.view.
+const controlsLoaders = import.meta.glob<{ ControlsPanel: ComponentType<{ recordType: string; recordId: string }> }>('../controls/ControlsPanel.tsx');
+const loadControls = Object.values(controlsLoaders)[0];
+const ControlsPanel = loadControls ? lazy(() => loadControls().then((m) => ({ default: m.ControlsPanel }))) : null;
+
 interface VersionsState { data: PolicyVersion[] | undefined; error: unknown; reload: () => void }
 
 /** The text readers see: the published version, or for the people writing it, the newest version so far. */
@@ -113,6 +119,7 @@ function Summary({ rec, versions }: { rec: RecordContext; versions: VersionsStat
             fields={['title', 'document_type', 'summary', 'category', 'owner_id', 'approver_name', 'approver_role', 'review_date', 'current_version']}
           />
           <AudienceCard rec={rec} />
+          {ControlsPanel && <Suspense fallback={null}><ControlsPanel recordType="policy" recordId={rec.row.id} /></Suspense>}
         </div>
       </div>
       {/* A plan's element map and reviews take the full width under the text (E28-08, E28-09). */}

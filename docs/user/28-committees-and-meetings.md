@@ -48,6 +48,8 @@ Open **Meetings**, or the committee's **Meetings** tab. Filter by committee, sta
 2. Choose the **Committee**, and enter the **Title**, the **Date and time** and the **Location or call details**.
 3. Select **Create meeting**. It gets a reference such as `MTG-00001`, and the committee's chair and secretary are recorded with it.
 
+Meetings reach members' calendars through a personal calendar feed (see [Calendar feeds](36-calendar-feeds-work-trackers-and-evidence-links.md#calendar-feeds)).
+
 A meeting moves through **Planned**, **Agenda published**, **Held** and **Minutes approved**, shown along the top of its page. Use **Publish agenda**, **Mark as held** and **Cancel meeting** at the top of the page. **Minutes approved** is set only by the chair's approval (see [Minutes](#minutes)).
 
 ### Agenda
@@ -110,6 +112,14 @@ Every hour the application reminds the secretary of a committee (or, when none i
 - **Minutes waiting**: a meeting was held more than **7 days** ago and its minutes have not been submitted for approval. Each meeting is announced once.
 
 An administrator can change the lead time for packs (**Remind secretaries before a meeting's pack is due**, setting `governance.pack_days`) under **Administration > Reminders**. People can switch these notifications off under their notification settings (**Committees and meetings**).
+
+## Figures for AI assistants
+
+An AI assistant you connect ([AI assistants and MCP](21-ai-assistants-and-mcp.md)) can give the committee figures: active committees, meetings coming up in the next 30 and 90 days (and those without a frozen pack), meetings held in the last year and whether they had a quorum, minutes still to write up (and how many are late) or waiting for the chair, and decisions by outcome. These are counts only, the same for everyone who may see committee records: no meeting titles, names or decision wording.
+
+## Retention
+
+When a committee reaches the end of its retention period and is anonymized (**Administration > Retention**), the names typed for members who have neither an account nor a roster record are replaced as well. Members linked to an account or a roster person keep no name of their own on the committee: theirs is read from that record, which has its own retention.
 
 ## Sample data
 

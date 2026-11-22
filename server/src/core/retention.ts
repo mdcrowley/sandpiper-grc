@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { Db } from './db.ts';
 import { fail, UUID_RE } from './errors.ts';
 import { featureState, visibleValues } from './features.ts';
-import { assertNotHeld, heldIdsOf } from './holds.ts';
+import { assertNotHeld, heldIdsOf, holdRefsOf } from './holds.ts';
 import type { FieldDef, ResourceDef, Row } from './module.ts';
 import type { makeResources } from './resource.ts';
 import { requirePerm, type makeAudit, type makeLookups } from './services.ts';
@@ -263,6 +263,8 @@ export function registerRetention({ app, db, audit, lookups, res, requireRecentA
     const q = req.query as Record<string, string>;
     const status = ['pending', 'extended', 'anonymized', 'deleted'].includes(q.status) ? q.status : 'pending';
     const type = q.record_type && res.registry.get(q.record_type) ? q.record_type : null;
+    // held=only: records flagged before a legal hold was placed on them; held=none: the others (E34-02).
+    const held = q.held === 'only' || q.held === 'none' ? q.held : null;
     const pageSize = Math.min(200, Math.max(1, Number(q.pageSize) || 50));
     const page = Math.min(100000, Math.max(1, Math.trunc(Number(q.page)) || 1));
     // This is a drill-down list, so it shows only what the reviewer may see (E14-20): restricted types
@@ -274,7 +276,11 @@ export function registerRetention({ app, db, audit, lookups, res, requireRecentA
     const rowRules = visibleDefs
       .filter((d) => d.restricted === 'flag' && res.visibilitySql(d, req.user, 't') !== 'true')
       .map((d) => `(record_type <> '${d.type}' or not exists (select 1 from ${d.table} t where t.id = retention_reviews.record_id and not (${res.visibilitySql(d, req.user, 't')})))`);
-    const where = `status = $1 and ($2::text is null or record_type = $2) and record_type = any($3::text[])${rowRules.map((r) => ` and ${r}`).join('')}`;
+    const heldSql = `exists (select 1 from legal_hold_records lr join legal_holds lh on lh.id = lr.hold_id
+      where lr.record_type = retention_reviews.record_type and lr.record_id = retention_reviews.record_id and lr.released_at is null
+        and lh.status = 'active' and lh.deleted_at is null)`;
+    const where = `status = $1 and ($2::text is null or record_type = $2) and record_type = any($3::text[])${rowRules.map((r) => ` and ${r}`).join('')}`
+      + (held === 'only' ? ` and ${heldSql}` : held === 'none' ? ` and not ${heldSql}` : '');
     const total = (await db.one<{ c: number }>(`select count(*)::int c from retention_reviews where ${where}`, [status, type, visibleTypes]))!.c;
     const rows = await db.query<Row>(
       `select id, record_type, record_id, record_label, flagged_at, basis_at, status, extended_until, reason, decided_at, decided_by
@@ -285,12 +291,15 @@ export function registerRetention({ app, db, audit, lookups, res, requireRecentA
     for (const t of new Set(rows.map((r) => r.record_type))) {
       const def = res.registry.get(t)!;
       const labels = await res.labelsFor(t, rows.filter((r) => r.record_type === t).map((r) => r.record_id), req.user);
+      // A record flagged before a legal hold was placed on it shows as held, with the hold's reference.
+      const holds = await holdRefsOf(db, t, rows.filter((r) => r.record_type === t).map((r) => r.record_id));
       for (const r of rows.filter((x) => x.record_type === t)) {
         const l = labels.get(r.record_id);
         out.push({
           ...r, typeLabel: def.label, route: r.status === 'deleted' ? null : `${def.route}/${r.record_id}`,
           label: r.status === 'deleted' ? r.record_label : l?.label ?? 'Record no longer exists', ref: l?.ref ?? null,
           decided_by_name: r.decided_by ? names.get(r.decided_by) ?? 'Unknown user' : null,
+          held: holds.has(String(r.record_id)), holds: holds.get(String(r.record_id)) ?? [],
         });
       }
     }
@@ -435,15 +444,21 @@ export function registerRetention({ app, db, audit, lookups, res, requireRecentA
     for (const who of ['created_by', 'updated_by']) if (nullable.get(who)) sets.push(`${who} = null`);
 
     let files: Row[] = [];
+    // Evidence kept as a link to another system (attachments with storage_driver 'link', E36-05) has no stored
+    // bytes: its address and title are blanked instead.
+    let linkColumns = false;
+    const stored = (f: Row) => !f.purged_at && f.storage_driver !== 'link';
     if (await filesTable()) {
       files = await db.query<Row>('select * from attachments where record_type = $1 and record_id = $2', [def.type, id]);
-      if (files.some((f) => !f.purged_at) && !app.hasDecorator('attachmentStores')) {
+      linkColumns = Boolean(await db.one(
+        `select 1 from information_schema.columns where table_schema = current_schema() and table_name = 'attachments' and column_name = 'link_url'`));
+      if (files.some(stored) && !app.hasDecorator('attachmentStores')) {
         fail(409, 'files_unavailable', 'This record has files, and the files part of the application is not running, so their contents cannot be removed.');
       }
     }
     // The stored bytes first: a file whose content cannot be deleted stops the whole change.
     const stores = (app as unknown as { attachmentStores?: { forDriver(d: string): { delete(key: string): Promise<void> } } }).attachmentStores;
-    for (const f of files.filter((x) => !x.purged_at)) {
+    for (const f of files.filter(stored)) {
       try {
         await stores!.forDriver(f.storage_driver).delete(f.storage_key);
       } catch (err) {
@@ -464,6 +479,7 @@ export function registerRetention({ app, db, audit, lookups, res, requireRecentA
           `update attachments set file_name = 'Removed file' || case when extension <> '' then '.' || extension else '' end,
              description = null, uploaded_by_name = null, created_by = null, updated_by = null,
              deleted_at = coalesce(deleted_at, now()), purged_at = coalesce(purged_at, now()), removed_reason = 'anonymized', updated_at = now()
+             ${linkColumns ? ', link_url = null, link_title = null, checked_by = null' : ''}
            where record_type = $1 and record_id = $2`, [def.type, id]);
       }
       if ((await tx.one<{ t: string | null }>(`select to_regclass('public.notifications')::text as t`))?.t) {

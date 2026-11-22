@@ -29,7 +29,8 @@ export const PAGE_AREA: Record<string, string> = {
   'business-continuity': 'continuity',
   'asset-condition': 'condition',
   'ot-security': 'ot',
-  'legal-holds-records-requests-and-privacy': 'records',
+  'records-requests-and-privacy': 'records',
+  'vendor-risk-lifecycle': 'vendors',
 };
 
 /** Whether a guide page's part of the application is on (pages of no particular part always are). */

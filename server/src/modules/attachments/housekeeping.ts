@@ -26,7 +26,7 @@ export async function usage(ctx: ModuleContext): Promise<Usage> {
     `select storage_driver, case when purged_at is not null then 'purged' when deleted_at is not null then 'removed' else 'active' end as state,
             count(*)::int as files, coalesce(sum(size_bytes), 0)::bigint as bytes,
             count(*) filter (where deleted_at is null and scan_status = 'not_scanned')::int as not_scanned
-       from attachments group by 1, 2`,
+       from attachments where storage_driver <> 'link' group by 1, 2`,
   );
   const sum = (state: string) => rows.filter((r) => r.state === state)
     .reduce<{ files: number; bytes: number }>((a, r) => ({ files: a.files + Number(r.files), bytes: a.bytes + Number(r.bytes) }), { files: 0, bytes: 0 });
@@ -134,7 +134,7 @@ export interface IntegrityReport {
 }
 
 export async function checkIntegrity(ctx: ModuleContext): Promise<IntegrityReport> {
-  const rows = await ctx.db.query<Row>('select id, file_name, storage_driver, storage_key, purged_at from attachments');
+  const rows = await ctx.db.query<Row>("select id, file_name, storage_driver, storage_key, purged_at from attachments where storage_driver <> 'link'");
   const report: IntegrityReport = {
     checkedAt: new Date().toISOString(), rows: 0, stored: 0, missing: [], missingCount: 0, unreferenced: [], unreferencedCount: 0, unavailable: [],
   };
@@ -251,7 +251,7 @@ export async function moveFiles(
   await stores(ctx).reload();
   const target = to === 's3' ? stores(ctx).s3() : stores(ctx).local;
   if (!target) throw new Error(`The object store cannot be used: ${stores(ctx).s3Problem() ?? 'it is not configured on the File settings page'}.`);
-  const rows = await ctx.db.query<Row>('select * from attachments where purged_at is null and storage_driver <> $1 order by created_at', [target.driver]);
+  const rows = await ctx.db.query<Row>("select * from attachments where purged_at is null and storage_driver <> $1 and storage_driver <> 'link' order by created_at", [target.driver]);
   const result: MoveResult = { moved: 0, skipped: 0, failed: 0 };
   result.skipped = (await ctx.db.one<{ n: number }>('select count(*)::int as n from attachments where purged_at is null and storage_driver = $1', [target.driver]))?.n ?? 0;
   await progress?.({ ...result, total: rows.length });

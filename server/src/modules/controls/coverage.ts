@@ -5,9 +5,9 @@ import { meanings } from './lists.ts';
 import { COVER_TYPES, COVERS, coverDef, coverDefs, isClosed, recordName, REVIEW_FIELDS, UUID_RE } from './shared.ts';
 
 /**
- * What each control covers (E26-03): risks, hazards, framework outcomes, obligations and policies,
- * kept as generic record links from the control with relation `covers` (contract C7), so they show
- * on both records' Related tabs too.
+ * What each control covers (E26-03): risks, hazards, framework outcomes, obligations, policies and
+ * OT security zones (wave 11), kept as generic record links from the control with relation `covers`
+ * (contract C7), so they show on both records' Related tabs too.
  *
  * Restricted records stay hidden. Every list here is built from the records the caller may see:
  * a covered record whose module the caller cannot view, or that is restricted from them (risks need

@@ -222,7 +222,7 @@ function RenameTagDialog({ tag, recordType, noun, existing, onClose, onDone }: {
   };
 
   return (
-    <Modal open title={`Rename “${tag.tag}”`} size="sm" onClose={onClose}>
+    <Modal open title={`Rename “${tag.tag}”`} size="sm" onClose={onClose} dirty={to !== tag.tag}>
       <form className="form" onSubmit={submit} noValidate>
         <TextField
           label="New name" required autoFocus maxLength={40} value={to} onChange={(v) => { setTo(v); setError(''); }} error={error || undefined}
@@ -384,7 +384,7 @@ function ValueDialog({ list, row, open, nextSort, onClose, onSaved }: {
   };
 
   return (
-    <Modal open={open} title={row ? `Edit “${row.label}”` : `Add a value to ${humanize(list)}`} size="sm" onClose={onClose}>
+    <Modal open={open} title={row ? `Edit “${row.label}”` : `Add a value to ${humanize(list)}`} size="sm" onClose={onClose} dirty={open && (label !== (row?.label ?? '') || color !== toColorName(row?.color))}>
       <form className="form" onSubmit={submit} noValidate>
         {formError && <p className="form-error" role="alert">{formError}</p>}
         <TextField

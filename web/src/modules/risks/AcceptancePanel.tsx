@@ -249,7 +249,8 @@ export function AcceptancePanel({ rec }: { rec: RecordContext }) {
         </div>
       )}
 
-      <Modal open={askOpen} title={standing ? 'Ask to renew the acceptance' : 'Ask for acceptance'} onClose={() => setAskOpen(false)}>
+      <Modal open={askOpen} title={standing ? 'Ask to renew the acceptance' : 'Ask for acceptance'} onClose={() => setAskOpen(false)}
+        dirty={askOpen && JSON.stringify(ask) !== JSON.stringify(ASK_EMPTY)}>
         <form className="form" onSubmit={submitAsk} noValidate>
           <p className="muted" style={{ margin: 0 }}>
             The request goes through the Risk acceptance approval workflow{exec ? ', including an executive approver because of the rating' : ''}.
@@ -267,7 +268,8 @@ export function AcceptancePanel({ rec }: { rec: RecordContext }) {
         </form>
       </Modal>
 
-      <Modal open={open} title={standing ? 'Renew acceptance by hand' : 'Record acceptance by hand'} onClose={() => setOpen(false)}>
+      <Modal open={open} title={standing ? 'Renew acceptance by hand' : 'Record acceptance by hand'} onClose={() => setOpen(false)}
+        dirty={open && JSON.stringify(form) !== JSON.stringify(EMPTY)}>
         <form className="form" onSubmit={submit} noValidate>
           <p className="muted" style={{ margin: 0 }}>{explain}</p>
           <p className="muted" style={{ margin: 0 }}>Record here an acceptance decided outside the application (for example at a committee meeting).{waiting ? ' It also ends the request waiting for approval.' : ''}</p>
@@ -287,7 +289,8 @@ export function AcceptancePanel({ rec }: { rec: RecordContext }) {
         </form>
       </Modal>
 
-      <Modal open={revoking !== null} title="Revoke acceptance" size="sm" onClose={() => setRevoking(null)}>
+      <Modal open={revoking !== null} title="Revoke acceptance" size="sm" onClose={() => setRevoking(null)}
+        dirty={revoking !== null && Boolean(revoke.reason.trim() || revoke.revoked_on)}>
         <form className="form" onSubmit={submitRevoke} noValidate>
           <p className="muted" style={{ margin: 0 }}>
             The acceptance stays on record, marked as revoked. The risk goes back to Open unless an earlier acceptance still stands.

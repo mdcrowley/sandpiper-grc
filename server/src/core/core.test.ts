@@ -236,6 +236,13 @@ describe('permissions and restricted records', () => {
     expect((await agent.get('/api/widgets')).body.total).toBe(adminTotal - 1);
     expect((await agent.get(`/api/widgets/${hidden.body.id}`)).status).toBe(404);
     expect((await agent.patch(`/api/widgets/${hidden.body.id}`, { name: 'x' })).status).toBe(404);
+    // Nor can they link to it (wave 11 review): a ref to a record they cannot see is refused.
+    const linking = await agent.post('/api/widgets', { name: 'Tries to point', parent_id: hidden.body.id });
+    expect(linking.status).toBe(400);
+    expect(linking.body.error.fields.parent_id).toBe('Widget not found.');
+    expect((await agent.patch(`/api/widgets/${open.id}`, { parent_id: hidden.body.id })).status).toBe(400);
+    // A value that does not change is not checked again: the agent can still edit a record that points at it.
+    expect((await agent.patch(`/api/widgets/${pointer.body.id}`, { notes: 'still mine' })).status).toBe(200);
     expect((await agent.get('/api/search?q=zebra')).body).toEqual([]);
     expect((await agent.get('/api/records/lookup?type=widget&q=zebra')).body).toEqual([]);
     expect((await agent.get(`/api/links?record_type=widget&record_id=${open.id}`)).body.every((l: any) => l.recordId !== hidden.body.id)).toBe(true);

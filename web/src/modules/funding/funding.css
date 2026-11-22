@@ -66,3 +66,7 @@
 .fd-area > summary::before { content: '\25B8'; color: var(--text-muted); width: 1em; }
 .fd-area[open] > summary::before { content: '\25BE'; }
 .fd-area > summary::-webkit-details-marker { display: none; }
+
+/* ---- sub-recipients (E35-07) ---- */
+.fund-sub-due { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); margin: 0; padding: var(--s-3) var(--s-4); }
+.table td.fund-wrap { white-space: normal; min-width: 24ch; overflow-wrap: anywhere; }

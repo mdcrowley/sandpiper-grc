@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   api, Button, Card, ConfirmDialog, EmptyState, errorMessage, ErrorState, Loading, LookupSelect, Modal, PageHeader, RecordPage, RecordPicker,
-  ResourceList, StatusChip, TextField, useAuth, useFetch, useToast,
+  ResourceList, StatusChip, TextField, useAuth, useFetch, useToast, useUnsavedChanges,
 } from '../../core';
 import type { ColorName } from '../../core';
 import { SafetyEventsCard } from './SafetyEvents';
@@ -86,11 +86,14 @@ function AddDependency({ open, serviceId, onClose, onDone }: { open: boolean; se
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState('');
   const close = () => { setSystemId(null); setDependency(''); setNotes(''); setErrors({}); setMessage(''); onClose(); };
+  const dirty = !!systemId || !!dependency || !!notes.trim();
+  const unsaved = useUnsavedChanges(open && dirty);
   const submit = async () => {
     if (!systemId) { setErrors({ system_id: 'Choose a system.' }); return; }
     setBusy(true); setErrors({}); setMessage('');
     try {
       await api.post(`/api/services/${serviceId}/systems`, { system_id: systemId, dependency: dependency || undefined, notes: notes || undefined });
+      unsaved.release();
       setSystemId(null); setDependency(''); setNotes('');
       onDone();
     } catch (err) {
@@ -99,8 +102,8 @@ function AddDependency({ open, serviceId, onClose, onDone }: { open: boolean; se
     } finally { setBusy(false); }
   };
   return (
-    <Modal open={open} title="Add a system this service depends on" onClose={close}
-      footer={<><Button onClick={close}>Cancel</Button><Button variant="primary" loading={busy} onClick={submit}>Add system</Button></>}>
+    <Modal open={open} title="Add a system this service depends on" onClose={close} dirty={open && dirty}
+      footer={<><Button onClick={unsaved.guard(close)}>Cancel</Button><Button variant="primary" loading={busy} onClick={submit}>Add system</Button></>}>
       <div className="form">
         {message && <div className="form-error" role="alert">{message}</div>}
         <RecordPicker label="System" type="system" required value={systemId} onChange={(id) => setSystemId(id)} error={errors.system_id} />

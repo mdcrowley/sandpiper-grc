@@ -21,7 +21,7 @@ const baseModuleLabel = (key: string) => MODULE_LABELS[key] ?? humanize(key);
  * What this installation checks (E18-44): the server lists every `<area>.<action>` that some route
  * or record type checks (core/permission-use.ts). A combination nothing checks is grayed out and
  * cannot be newly checked, since granting it would do nothing; one already granted can still be
- * unticked. An area with nothing checked at all carries the "not yet used" hint.
+ * unchecked. An area with nothing checked at all carries the "not yet used" hint.
  */
 const NOT_CHECKED = 'Nothing in this installation checks this permission, so granting it would have no effect.';
 

@@ -2,7 +2,7 @@
 // skeletons) are Mantine components; purely presentational ones render the documented helper
 // classes (`card`, `chip chip-<color>` ...) so a component and its CSS class are one thing.
 import {
-  useEffect, useState,
+  useEffect, useRef, useState,
   type ButtonHTMLAttributes, type ReactNode,
 } from 'react';
 import { ActionIcon, Button as MButton, Skeleton, Tabs as MTabs, Tooltip } from '@mantine/core';
@@ -167,6 +167,32 @@ export function Card({ title, actions, children, flush, className, id, padding =
       )}
       <div className={bare ? 'card-flush' : 'card-body'}>{children}</div>
     </section>
+  );
+}
+
+/**
+ * The scroll box around a table (`.table-wrap`). When the table is wider than the box, the box joins the tab order as a
+ * named region, so keyboard users can scroll it even when the table holds no link or button of its own.
+ */
+export function TableWrap({ label, className, children }: { label: string; className?: string; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [scrolls, setScrolls] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const check = () => setScrolls(el.scrollWidth > el.clientWidth + 1);
+    check();
+    if (typeof ResizeObserver === 'undefined') return;
+    const watch = new ResizeObserver(check);
+    watch.observe(el);
+    if (el.firstElementChild) watch.observe(el.firstElementChild);
+    return () => watch.disconnect();
+  }, []);
+  return (
+    <div ref={ref} className={cx('table-wrap', className)} role={scrolls ? 'region' : undefined}
+      aria-label={scrolls ? label : undefined} tabIndex={scrolls ? 0 : undefined}>
+      {children}
+    </div>
   );
 }
 

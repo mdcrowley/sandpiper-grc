@@ -2,7 +2,7 @@ import { Suspense, lazy, useState } from 'react';
 import type { ComponentType, FormEvent } from 'react';
 import {
   ApiError, Button, Card, ConfirmDialog, DateField, EmptyState, ErrorState, IconButton, Loading, Modal, StatusChip,
-  TextArea, TextField, api, errorMessage, formatDate, useFetch, useToast,
+  TextArea, TextField, api, errorMessage, formatDate, useFetch, useToast, useUnsavedChanges,
 } from '../../core';
 import type { Row } from '../../core';
 import type { Evidence } from './types';
@@ -31,6 +31,9 @@ function EvidenceForm({ outcomeId, item, onDone, onCancel }: { outcomeId: string
     title: item.title, description: item.description ?? '', location: item.location ?? '',
     collected_on: item.collected_on ?? '', expires_on: item.expires_on ?? '',
   } : BLANK);
+  const [start] = useState(form);
+  // Tells the enclosing dialog, so closing it after a change asks first.
+  useUnsavedChanges(JSON.stringify(form) !== JSON.stringify(start));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const set = (k: keyof typeof BLANK) => (v: string) => setForm((f) => ({ ...f, [k]: v }));

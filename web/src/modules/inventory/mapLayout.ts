@@ -30,7 +30,8 @@ export function pruneEdges(nodes: GraphNode[], edges: GraphEdge[]): GraphEdge[] 
   return edges.filter((e) => ids.has(e.from) && ids.has(e.to));
 }
 
-export type GroupBy = 'group' | 'criticality' | 'hosting';
+/** 'zone': OT security zones (E33-04), offered while the OT area is on; the zone id is in attrs.zone. */
+export type GroupBy = 'group' | 'criticality' | 'hosting' | 'zone';
 export interface GroupInfo { label: string; order: number }
 
 export interface PlacedNode extends GraphNode { x: number; y: number; w: number; h: number; degree: number }

@@ -56,7 +56,10 @@
 .rc-field-mono textarea { font-family: var(--rc-mono); font-size: 0.8125rem; }
 .rc-prefix { font-size: var(--mantine-font-size-xs); font-weight: 600; color: var(--rc-muted); }
 .rc-num-input { font-variant-numeric: tabular-nums; }
+.rc-pick-list { max-height: 260px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 .rc-pick-option { display: flex; align-items: baseline; gap: 10px; }
+/* On the highlighted option (drawn on the brand color) the reference takes the option's own text color. */
+.rc-pick-option[data-combobox-selected] .rc-ref { color: inherit; }
 .rc-pick-label { min-width: 0; overflow-wrap: anywhere; }
 .rc-filter-dates { display: grid; grid-template-columns: 1fr 1fr; gap: var(--mantine-spacing-xs); }
 

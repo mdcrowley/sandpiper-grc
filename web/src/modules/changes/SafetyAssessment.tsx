@@ -84,6 +84,7 @@ export function SafetyAssessment({ row, canEdit, onChanged }: { row: Row; canEdi
           )}
       </Card>
       <Modal open={!!mode} size="sm" title={mode === 'link' ? 'Link a hazard' : 'Create a hazard from this change'} onClose={() => setMode(null)}
+        dirty={mode === 'link' ? Boolean(pick) : mode === 'new' && Boolean(title.trim() || consequence.trim())}
         footer={<><Button onClick={() => setMode(null)}>Cancel</Button><Button variant="primary" loading={busy} disabled={mode === 'link' ? !pick : !title.trim()} onClick={save}>{mode === 'link' ? 'Link' : 'Create and link'}</Button></>}>
         {mode === 'link'
           ? <RecordPicker label="Hazard" type="hazard" required value={pick} onChange={(id) => setPick(id)} error={err} />

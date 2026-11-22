@@ -103,7 +103,9 @@ async function wizard(page, stamp, extra) {
       const v = (e) => e.getClientRects().length && !e.disabled;
       const buttons = [...document.querySelectorAll('main button')].filter(v);
       const text = (b) => b.innerText.replace(/\s+/g, ' ').trim();
-      const b = buttons.find((x) => /^(Next|Continue)\b/.test(text(x)))
+      // "Next", "Next: preview" or "Continue": not a field or column whose name starts with the word
+      // (the report builder's field list offers "Next assessment due", "Next review" ...).
+      const b = buttons.find((x) => /^(Next|Continue)(:|$)/.test(text(x)))
         ?? buttons.reverse().find((x) => /^(Create|Save|Submit|Declare|Log|Raise|Record|Finish)\b/.test(text(x)));
       if (!b) return null;
       b.id ||= `e2e-next-${Math.random().toString(36).slice(2)}`;

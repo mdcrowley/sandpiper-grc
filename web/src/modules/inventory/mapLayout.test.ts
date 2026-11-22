@@ -56,6 +56,15 @@ function expectNoOverlap(layout: Layout) {
 }
 
 describe('relationship map layout', () => {
+  it('draws a box per OT security zone when arranged by zone (E33-04), with unzoned systems in their own box', () => {
+    const data = estate(9, ['Operations'], { vendors: 0, sites: 0, data: 0, assets: 0, services: 0 });
+    data.nodes.filter((n) => n.type === 'system').forEach((n, i) => { n.attrs = { ...n.attrs, ...(i % 3 === 2 ? {} : { ot: 'true', zone: i % 3 ? 'zone-b' : 'zone-a' }) }; });
+    const names: Record<string, string> = { 'zone-a': 'Train control zone', 'zone-b': 'Station systems zone' };
+    const layout = computeLayout(data.nodes, data.edges, 'zone', (key) => (key ? { label: names[key], order: 0 } : { label: 'No security zone', order: 9999 }));
+    expect(layout.groups.map((g) => [g.label, g.count])).toEqual([['Station systems zone', 3], ['Train control zone', 3], ['No security zone', 3]]);
+    expectNoOverlap(layout);
+  });
+
   it('places every node once, inside the drawing', () => {
     const data = estate(24, ['Operations', 'Finance', 'Customer', 'Corporate']);
     const layout = layoutOf(data);

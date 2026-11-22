@@ -4,12 +4,15 @@ import {
   api, Button, Card, EmptyState, ErrorState, errorMessage, formatDate, Icon, IconButton, Loading, LookupChip, RecordPage, relativeTime,
   useAuth, useFetch, useMeta, UserPicker, useToast,
 } from '../../core';
-import type { RecordContext, Row } from '../../core';
+import type { RecordContext, RecordTab, Row } from '../../core';
 import { ActionStatus } from './ActionStatus';
 import { ExtensionDialog } from './ExtensionDialog';
 import { VerifyDialog } from './VerifyDialog';
 import './caps.css';
 import { DueChip } from './scales';
+
+// The Work tracker tab (E36-06), from the feeds module when it is part of the build.
+const useTrackerTab = Object.values(import.meta.glob<{ useTrackerTab: (type: string) => RecordTab | null }>('../feeds/TrackerLinkPanel.tsx', { eager: true }))[0]?.useTrackerTab ?? (() => null);
 
 interface Shares { restricted: boolean; shares: { user_id: string; name: string; shared_by: string | null; created_at: string }[] }
 
@@ -185,6 +188,7 @@ function ExtensionsPanel({ rec }: { rec: RecordContext }) {
 export function ActionDetail() {
   const { resources } = useMeta();
   const { can } = useAuth();
+  const trackerTab = useTrackerTab('action');
   const source = (row: Row) => {
     const target = row.source_type ? resources[row.source_type] : undefined;
     const plan = row.cap_id ? <> · Part of <Link to={`/caps/${row.cap_id}`}>{row._display?.cap_id ?? 'a corrective action plan'}</Link></> : null;
@@ -238,6 +242,7 @@ export function ActionDetail() {
         ...(can('security.view') ? [{ key: 'sharing', label: 'Sharing', content: (rec: RecordContext) => (rec.row.restricted
           ? <SharingPanel rec={rec} />
           : <Card title="Sharing"><p className="muted">This action is not restricted: everyone who can see the action tracker can see it, so there is nothing to share.</p></Card>) }] : []),
+        ...(trackerTab ? [trackerTab] : []),
       ]}
     />
   );

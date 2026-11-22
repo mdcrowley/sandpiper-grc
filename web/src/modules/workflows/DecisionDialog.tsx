@@ -46,6 +46,7 @@ export function DecisionDialog({ target, onClose, onDone }: { target: DecisionTa
       size="sm"
       title={approving ? `Approve: ${target.what}` : `Reject: ${target.what}`}
       onClose={onClose}
+      dirty={!!comment}
       footer={(
         <>
           <Button variant="ghost" onClick={onClose}>Cancel</Button>

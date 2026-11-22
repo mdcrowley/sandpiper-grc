@@ -255,7 +255,7 @@ Press `?` (when you are not typing in a box) to see the keyboard shortcuts, or c
 
 Shortcuts made of single letters do nothing while you are typing in a box or while a dialog is open.
 
-In a dialog, `Esc` first closes a list that is open in a field (a choice list or a record picker), and the next `Esc` closes the dialog. If you have typed something that is not saved yet, the dialog asks before throwing it away: `Tab` to **Discard** and press `Enter`, or choose **Cancel** to go back to it. In a record picker, type a few letters, move through the matches with the `Down` and `Up` arrows and press `Enter` to choose one.
+In a dialog, `Esc` first closes a list that is open in a field (a choice list or a record picker), and the next `Esc` closes the dialog. If you have typed or picked something that is not saved yet, the dialog asks before throwing it away: `Tab` to **Discard** and press `Enter`, or choose **Keep editing** to go back to it. In a record picker, type a few letters, move through the matches with the `Down` and `Up` arrows and press `Enter` to choose one.
 
 ### Theme toggle
 
@@ -380,6 +380,8 @@ Each record is changed separately, exactly as if you had edited it by hand, so e
 ### Leaving a page with unsaved changes
 
 While a form holds changes that are not saved (a record you are editing, a new record, a dialog such as **New ticket**, or a page such as **New change**, **Declare incident** or **New project request**), the application asks **Discard your unsaved changes?** before it takes you anywhere else: a link in the sidebar, the **Create** menu, search, or the browser's **Back** button. Choose **Keep editing** to stay, or **Discard changes** to go. Closing or reloading the browser tab asks too, in the browser's own words. Switching tabs within a record page does not ask, as it keeps you on the page.
+
+A dialog that holds a draft (something typed or picked) asks **Discard this draft?** before it closes with `Esc`, its **×** or a click outside it. Its own **Cancel** button closes it without asking, since that is a deliberate choice. A dialog you have not changed closes at once.
 
 ### Using a list with the keyboard
 

@@ -1,6 +1,6 @@
 # E23 Corrective action plans and verification (wave 10)
 
-**Status:** in progress (11 of 12 issues done)
+**Status:** done (12 of 12 issues done)
 
 ## Goal
 
@@ -28,7 +28,7 @@ Group the actions that answer one finding, event, failed test or deficiency into
 | E23-09 | CAP metrics | done | P2 |
 | E23-10 | Sample data | done | P3 |
 | E23-11 | Guide page and route descriptions | done | P2 |
-| E23-12 | Settings screen for closure-evidence sources | open | P3 |
+| E23-12 | Settings screen for closure-evidence sources | done | P3 |
 
 ---
 
@@ -88,7 +88,7 @@ An administrator wants actions from some sources (for example audits) to need ev
 - [x] Setting `actions.closure_evidence_sources` (default none)
 - [x] An action from such a source closes only with an evidence file or closure evidence text
 
-**Implemented in:** `risks/actions-resource.ts` (`checkClosureEvidence`, setting `actions.closure_evidence_sources`); tests `risks/cap.test.ts`. The setting has no screen of its own yet: an administrator sets it through the settings API.
+**Implemented in:** `risks/actions-resource.ts` (`checkClosureEvidence`, setting `actions.closure_evidence_sources`); tests `risks/cap.test.ts`. The setting is chosen under Administration > Settings > Actions (E23-12).
 
 ### E23-05 Due-date extension requests with approval history
 
@@ -187,10 +187,13 @@ Users need a guide page for corrective action plans, and integrators need every 
 
 ### E23-12 Settings screen for closure-evidence sources
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
 An administrator wants to choose, on a screen, the action sources whose actions need evidence before they close (`actions.closure_evidence_sources`). Stretch for wave 11.
 
 **Acceptance criteria**
 
-- [ ] A row under Administration > Settings: a multi-select of action sources
+- [x] A row under Administration > Settings (group **Actions**): a check box for each action source (values of switched-off areas left out), saved with the other settings and audited
+- [x] The row shows only when the server offers the setting (`actions.closure_evidence_sources` in `admin/settings.ts`)
+
+**Implemented in:** `web/src/modules/admin/Settings.tsx`, `server/src/modules/admin/settings.ts`; test `web/src/modules/admin/Settings.component.test.ts`; `docs/user/24-corrective-action-plans.md`, `docs/user/09-administration.md`

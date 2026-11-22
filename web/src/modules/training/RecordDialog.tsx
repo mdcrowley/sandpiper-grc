@@ -41,6 +41,7 @@ export function RecordDialog({ courseId, courseTitle, open, preset, onClose, onD
   }, [open]);
 
   const fixed = preset && preset.length > 0;
+  const dirty = open && (users.length > 0 || !!others || !completed || completedOn !== todayInZone() || !!dueOn || score !== null || !!result || !!note);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -78,7 +79,7 @@ export function RecordDialog({ courseId, courseTitle, open, preset, onClose, onD
   }
 
   return (
-    <Modal open={open} title={fixed ? 'Record completion' : 'Record training'} onClose={onClose} size="md">
+    <Modal open={open} title={fixed ? 'Record completion' : 'Record training'} onClose={onClose} size="md" dirty={dirty}>
       <form className="form" onSubmit={submit} noValidate>
         <p className="muted">{courseTitle}</p>
         {message && <div className="form-error" role="alert">{message}</div>}

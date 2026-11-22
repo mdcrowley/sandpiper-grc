@@ -190,7 +190,7 @@ function NewUserDialog({ open, roles, rolesError, onRetryRoles, onClose, onCreat
   }
 
   return (
-    <Modal open={open} title="New user" onClose={close}>
+    <Modal open={open} title="New user" onClose={close} dirty={Object.values(form).some((v) => v.trim() !== '') || picked.length > 0}>
       <form className="form" onSubmit={submit} noValidate>
         {formError && <p className="form-error" role="alert">{formError}</p>}
         <div className="form-grid">

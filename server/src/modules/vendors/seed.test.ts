@@ -231,13 +231,13 @@ describe('dev seed', () => {
     await seed(t.ctx, { profile: 'dev', seedDir: join(seedDir, 'does-not-exist') });
     expect((await count('vendors')) - vendorsBefore).toBe(6);
     const evidence = await count('evidence_items');
-    const checks = await count('contract_clause_checks');
+    const checks = await count('clause_checks');
     expect(evidence).toBeGreaterThan(4);
     expect((await t.api.get('/api/vendors/evidence-expiring?days=90')).body.rows.length).toBeGreaterThan(2);
     expect((await t.api.get('/api/contracts/renewals')).body.contracts.length).toBeGreaterThan(5);
     await seed(t.ctx, { profile: 'dev', seedDir: join(seedDir, 'does-not-exist') });
     expect((await count('vendors')) - vendorsBefore).toBe(6);
     expect(await count('evidence_items')).toBe(evidence);
-    expect(await count('contract_clause_checks')).toBe(checks);
+    expect(await count('clause_checks')).toBe(checks);
   });
 });

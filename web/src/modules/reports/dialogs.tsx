@@ -39,6 +39,7 @@ export function ShareDialog({ open, onClose, path, item, what, onSaved }: {
   }
   return (
     <Modal open={open} title={`Share this ${what}`} onClose={onClose} size="sm"
+      dirty={open && (sharing !== item.sharing || JSON.stringify(roles) !== JSON.stringify(item.shared_roles ?? []))}
       footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" loading={busy} onClick={save}>Save sharing</Button></>}>
       <ShareFields what={what} sharing={sharing} roles={roles} onChange={(s, r) => { setSharing(s); setRoles(r); }} />
     </Modal>
@@ -62,6 +63,8 @@ export function ScheduleDialog({ open, onClose, target, existing, onSaved }: {
   const [people, setPeople] = useState<{ id: string; label: string }[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  // What the form held when it opened, to tell whether anything was changed since.
+  const [start, setStart] = useState('');
   const { user } = useAuth();
   const isDash = (existing?.target_type ?? target?.type) === 'dashboard';
   // An administrator's custom fields on report schedules (E18-45), starting again each time the dialog opens.
@@ -70,14 +73,17 @@ export function ScheduleDialog({ open, onClose, target, existing, onSaved }: {
   useEffect(() => {
     if (!open) return;
     setErrors({});
-    if (existing) {
-      setF({ ...existing });
-      setPeople(((existing.recipient_users as string[]) ?? []).map((id) => ({ id, label: id === user?.id ? user.displayName : 'A chosen person' })));
-    } else {
-      setF({ name: target ? `${target.name}: weekly` : '', cadence: 'weekly', weekday: 1, month_day: 1, hour: 7, format: 'html', email: 'link', recipient_roles: [], active: true });
-      setPeople(user ? [{ id: user.id, label: `${user.displayName} (me)` }] : []);
-    }
+    const first: Row = existing
+      ? { ...existing }
+      : { name: target ? `${target.name}: weekly` : '', cadence: 'weekly', weekday: 1, month_day: 1, hour: 7, format: 'html', email: 'link', recipient_roles: [], active: true };
+    const firstPeople = existing
+      ? ((existing.recipient_users as string[]) ?? []).map((id) => ({ id, label: id === user?.id ? user.displayName : 'A chosen person' }))
+      : user ? [{ id: user.id, label: `${user.displayName} (me)` }] : [];
+    setF(first);
+    setPeople(firstPeople);
+    setStart(JSON.stringify({ f: first, people: firstPeople.map((p) => p.id) }));
   }, [open, existing, target, user]);
+  const dirty = open && start !== '' && (custom.dirty || JSON.stringify({ f, people: people.map((p) => p.id) }) !== start);
 
   const set = (patch: Row) => setF((prev) => ({ ...prev, ...patch }));
   async function save() {
@@ -106,7 +112,7 @@ export function ScheduleDialog({ open, onClose, target, existing, onSaved }: {
   }
 
   return (
-    <Modal open={open} title={existing ? 'Edit schedule' : `Schedule this ${isDash ? 'dashboard' : 'report'}`} onClose={onClose}
+    <Modal open={open} title={existing ? 'Edit schedule' : `Schedule this ${isDash ? 'dashboard' : 'report'}`} onClose={onClose} dirty={dirty}
       footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" loading={busy} onClick={save}>{existing ? 'Save changes' : 'Schedule'}</Button></>}>
       <form className="form" onSubmit={(e) => { e.preventDefault(); void save(); }}>
         <p className="notice">Each person receives a notification in the application with a link to a copy frozen at that moment. Figures are the same for everyone; lists of records show each person only what their own role allows.</p>
@@ -201,7 +207,7 @@ export function AddToDashboardDialog({ open, onClose, report }: { open: boolean;
   }
 
   return (
-    <Modal open={open} title="Add to a dashboard" onClose={onClose} size="sm"
+    <Modal open={open} title="Add to a dashboard" onClose={onClose} size="sm" dirty={open && Boolean(choice || name.trim() || custom.dirty)}
       footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" loading={busy} onClick={add}>Add to dashboard</Button></>}>
       <form className="form" onSubmit={(e) => { e.preventDefault(); void add(); }}>
         {mine.length > 0 && (

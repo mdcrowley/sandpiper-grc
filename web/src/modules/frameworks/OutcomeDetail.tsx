@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import type { CSSProperties } from 'react';
+import { lazy, Suspense, useState } from 'react';
+import type { ComponentType, CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Badge, Button, Card, Icon, LookupChip, Modal, RecordPage, ResourceForm, errorMessage, formatDate, toColorName, todayInZone, useFetch,
@@ -14,6 +14,12 @@ import { OutcomeTimeline } from './OutcomeTimeline';
 import { OwnerAvatar } from './StatusBar';
 import type { ScaleValue } from './types';
 import { frameworkTitle, statusVars } from './types';
+
+// The controls covering an outcome (E26-11), from the control library when it is part of the build. The
+// panel renders nothing while the controls area is off or without controls.view.
+const controlsLoaders = import.meta.glob<{ ControlsPanel: ComponentType<{ recordType: string; recordId: string }> }>('../controls/ControlsPanel.tsx');
+const loadControls = Object.values(controlsLoaders)[0];
+const ControlsPanel = loadControls ? lazy(() => loadControls().then((m) => ({ default: m.ControlsPanel }))) : null;
 
 interface OutcomeContext {
   framework: { id: string; name: string; version: string | null } | null;
@@ -127,6 +133,7 @@ function Summary({ rec }: { rec: RecordContext }) {
             <div><dt>Priority outcome</dt><dd>{row.priority ? <span className="fw-priority"><Icon name="star" size={14} />Yes</span> : 'No'}</dd></div>
           </dl>
         </Card>
+        {ControlsPanel && <Suspense fallback={null}><ControlsPanel recordType="framework_outcome" recordId={row.id} /></Suspense>}
       </div>
 
       <aside className="fw-outcome-side">

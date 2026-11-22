@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { RingProgress, SegmentedControl } from '@mantine/core';
 import {
   api, ApiError, Badge, Button, Card, Checkbox, ConfirmDialog, DateField, EmptyState, ErrorState, errorMessage, formatDate,
-  Loading, Modal, StatusChip, TextArea, TextField, todayInZone, useAuth, useFetch, useToast,
+  Loading, Modal, StatusChip, TextArea, TextField, todayInZone, useAuth, useFetch, useToast, useUnsavedChanges,
 } from '../../core';
 import type { ColorName } from '../../core';
 import { ResponseLinkPanel } from './ResponseLink';
@@ -227,6 +227,7 @@ function AssessmentForm({ id, onClose, onCompleted }: { id: string; onClose: () 
 
 function NoteBox({ label, value, onSave }: { label: string; value: string; onSave: (v: string) => void }) {
   const [v, setV] = useState(value);
+  useUnsavedChanges(v !== value); // saved when the box loses focus; until then closing asks first (E22-14)
   return (
     <div className="vnd-assess-note" onBlur={() => onSave(v)}>
       <TextField label={label} hideLabel placeholder="What is missing, or what they said" value={v} onChange={setV} />
@@ -236,6 +237,7 @@ function NoteBox({ label, value, onSave }: { label: string; value: string; onSav
 
 function NotesBox({ value, onSave }: { value: string; onSave: (v: string) => void }) {
   const [v, setV] = useState(value);
+  useUnsavedChanges(v !== value); // saved when the box loses focus; until then closing asks first (E22-14)
   return (
     <div onBlur={() => onSave(v)}>
       <TextArea label="Overall notes" rows={2} placeholder="Who answered, and anything that does not fit a question" value={v} onChange={setV} />

@@ -45,6 +45,15 @@ const column = (
 export const SEALED_KINDS: SealedKind[] = [
   column('totp', 'authenticator keys', 'users', 'id', 'totp_secret', (id) => `totp:${id}`),
   column('webhook', 'webhook signing secrets', 'webhooks', 'id', 'secret', (id) => `webhook:${id}`),
+  // E22-45: webhook addresses (many carry the receiver's own secret).
+  column('webhook_url', 'webhook addresses', 'webhooks', 'id', 'url_sealed', (id) => `webhook-url:${id}`),
+  // E36-02: audit-log forwarders' addresses and secrets (integrations module).
+  column('audit_forwarder_url', 'audit-log forwarding addresses', 'audit_forwarders', 'id', 'url_sealed', (id) => `audit-forwarder-url:${id}`),
+  column('audit_forwarder_secret', 'audit-log forwarding secrets', 'audit_forwarders', 'id', 'secret_sealed', (id) => `audit-forwarder:${id}`),
+  // E36-06: the work-tracker bridge's address and its outbound and inbound secrets (feeds module).
+  column('ticket_connector_url', 'work-tracker connection addresses', 'ticket_connectors', 'id', 'url_sealed', (id) => `ticket-connector-url:${id}`),
+  column('ticket_connector_secret', 'work-tracker connection signing secrets', 'ticket_connectors', 'id', 'secret_sealed', (id) => `ticket-connector-secret:${id}`),
+  column('ticket_connector_inbound', 'work-tracker connection inbound secrets', 'ticket_connectors', 'id', 'inbound_secret_sealed', (id) => `ticket-connector-inbound:${id}`),
   // Client secrets (OpenID Connect), this application's SAML keys and directory (LDAP) service account passwords (E02-26).
   column('idp', 'sign-in provider secrets (client secrets, SAML keys, directory service account passwords)', 'identity_providers', 'id', 'secret', (id) => `idp:${id}`),
   column('sso_flow', 'single sign-on requests in progress', 'identity_flows', 'state_hash', 'remember', (id) => `sso:${id}`, 'expires_at > now()'),
@@ -129,6 +138,7 @@ export async function resealStoredSecrets(db: Queryable, box: SecretBox, opts: {
     if (!(await tableExists(db, kind.table))) continue;
     if (kind.key === 'sso_session' && !(await columnExists(db, 'identity_sessions', 'id_token_sealed'))) continue;
     if (kind.key === 'sso_post' && !(await columnExists(db, 'identity_flows', 'posted'))) continue;
+    if (kind.key === 'webhook_url' && !(await columnExists(db, 'webhooks', 'url_sealed'))) continue;
     const count: ResealCount = { key: kind.key, label: kind.label, total: 0, current: 0, changed: 0, unreadable: 0 };
     for (const v of await kind.list(db)) {
       count.total += 1;

@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ApiError, Button, EmptyState, ErrorState, IconButton, Loading, Modal, TextField, api, errorMessage, useFetch, useLookup, useToast,
+  useUnsavedChanges,
 } from '../../core';
 import type { Row } from '../../core';
 import type { Mapping } from './types';
@@ -11,6 +12,8 @@ function EditMapping({ base, mapping, onDone, onCancel }: { base: string; mappin
   const toast = useToast();
   const [name, setName] = useState(mapping.framework_name);
   const [reference, setReference] = useState(mapping.reference);
+  // Tells the enclosing dialog, so closing it after a change asks first.
+  useUnsavedChanges(name !== mapping.framework_name || reference !== mapping.reference);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
 

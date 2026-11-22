@@ -164,7 +164,7 @@ function AddKeyDialog({ withConfirm, onClose, onAdded }: {
   };
 
   return (
-    <Modal open size="sm" title="Add a passkey or security key" onClose={onClose}>
+    <Modal open size="sm" title="Add a passkey or security key" onClose={onClose} dirty={name.trim() !== ''}>
       <form className="form" onSubmit={submit} noValidate>
         {formError && <p className="form-error" role="alert"><Icon name="alert-circle" size={16} /><span>{formError}</span></p>}
         <TextField
@@ -205,7 +205,7 @@ function RenameDialog({ passkey, onClose, onDone }: { passkey: Passkey; onClose:
     }
   };
   return (
-    <Modal open size="sm" title="Rename key" onClose={onClose}>
+    <Modal open size="sm" title="Rename key" onClose={onClose} dirty={name !== passkey.name}>
       <form className="form" onSubmit={submit} noValidate>
         <TextField label="Name" required autoFocus maxLength={60} value={name} error={error || undefined} onChange={(v) => { setName(v); setError(''); }} />
         <div className="form-actions">

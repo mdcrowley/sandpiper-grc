@@ -397,9 +397,30 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
     if (Object.keys(problems).length) fail(400, 'validation', 'Check the highlighted fields.', problems);
   }
 
+  /**
+   * A person may link only to records they can see (wave 11 review): a ref field naming a record the
+   * caller cannot see (restricted, a row rule, removed) or that does not exist is refused, the same way. Values that
+   * do not change on an update are not checked again, and system work is exempt.
+   */
+  async function checkRefsVisible(def: ResourceDef, data: Row, req: FastifyRequest | null, existing?: Row): Promise<void> {
+    if (!req?.user) return;
+    const fields: Record<string, string> = {};
+    for (const [name, f] of Object.entries(def.fields)) {
+      if (f.type !== 'ref' || !f.to || !(name in data)) continue;
+      const v = data[name];
+      if (v === null || v === undefined || v === '' || (existing && existing[name] === v)) continue;
+      const target = registry.get(f.to);
+      if (!target) continue;
+      // Hidden and missing answer alike, so the refusal does not tell that a hidden record exists.
+      if (!(await find(f.to, String(v), req.user))) fields[name] = `${target.label} not found.`;
+    }
+    if (Object.keys(fields).length) fail(400, 'validation', 'Check the highlighted fields.', fields);
+  }
+
   async function create(type: string, input: Row, req: FastifyRequest | null = null, opts: CreateOptions = {}): Promise<Row> {
     const def = need(type);
     let data = await validate(def, input, 'create', !req, opts.skipCustomRequired === true);
+    await checkRefsVisible(def, data, req);
     await checkLifecycle(def, null, data, req);
     // Hooks see built-in fields only; custom values are stored beside them afterwards.
     const customValues = takeCustom(data);
@@ -428,6 +449,7 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
     const def = need(type);
     const existing = (await find(type, id, req?.user)) ?? fail(404, 'not_found', `${def.label} not found.`);
     let patch = await validate(def, input, 'update', !req);
+    await checkRefsVisible(def, patch, req, existing);
     await checkLifecycle(def, existing, patch, req);
     // A move that waits for an approval workflow (E14-37): the rest is saved, the status stays, and
     // the workflow starts; its approval makes the move later.

@@ -112,7 +112,7 @@ function PickDialog({ title, type, label, post, field, onClose }: {
     }
   }
   return (
-    <Modal open title={title} onClose={() => onClose(false)} size="sm"
+    <Modal open title={title} onClose={() => onClose(false)} size="sm" dirty={Boolean(id)}
       footer={<><Button onClick={() => onClose(false)}>Cancel</Button><Button variant="primary" loading={busy} onClick={submit}>Add</Button></>}>
       <RecordPicker label={label} type={type} value={id} onChange={(v) => { setId(v); setError(''); }} error={error} required />
     </Modal>
@@ -135,6 +135,8 @@ function IntegrationDialog({ systemId, existing, onClose }: { systemId: string; 
   const [direction, setDirection] = useState<string>(existing ? DIRECTION_OF_FLOW[existing.flow] ?? 'one_way' : 'one_way');
   const [method, setMethod] = useState<string>(existing?.method ?? '');
   const [notes, setNotes] = useState<string>(existing?.notes ?? '');
+  const draft = JSON.stringify([other, direction, method, notes]);
+  const [start] = useState(draft);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
 
@@ -157,7 +159,7 @@ function IntegrationDialog({ systemId, existing, onClose }: { systemId: string; 
     }
   }
   return (
-    <Modal open title={existing ? `Edit the integration with ${existing.other_name}` : 'Add integration'} onClose={() => onClose(false)}
+    <Modal open title={existing ? `Edit the integration with ${existing.other_name}` : 'Add integration'} onClose={() => onClose(false)} dirty={draft !== start}
       footer={<><Button onClick={() => onClose(false)}>Cancel</Button><Button variant="primary" loading={busy} onClick={submit}>{existing ? 'Save changes' : 'Add integration'}</Button></>}>
       <form className="form" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
         {errors._form && <p className="form-error" role="alert">{errors._form}</p>}

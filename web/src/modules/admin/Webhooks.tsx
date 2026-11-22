@@ -14,7 +14,12 @@ import { Switch } from './Switch';
 interface Webhook {
   id: string;
   name: string;
-  url: string;
+  /** The address is kept encrypted (E22-45): only its scheme and host, and a fingerprint, are listed. */
+  url_display: string;
+  url_host: string | null;
+  host_allowed: boolean;
+  /** Body format (E36-04): plain_json, chat_text or chat_card. */
+  preset: string;
   events: string[];
   active: boolean;
   include_restricted: boolean;
@@ -42,6 +47,7 @@ interface WebhooksResponse {
   recordTypes: RecordTypeRef[];
   actions: string[];
   otherEvents?: OtherEvent[];
+  presets?: string[];
 }
 interface Delivery {
   id: string;
@@ -81,6 +87,11 @@ function hostAllowed(raw: string, allowList: string[]): boolean {
   });
 }
 const hostOf = (raw: string) => { try { return new URL(raw).host; } catch { return raw; } };
+const PRESETS = [
+  { value: 'plain_json', label: 'Full event as JSON (for systems you build)' },
+  { value: 'chat_text', label: 'Chat message: one line of text' },
+  { value: 'chat_card', label: 'Chat card: title, text, link and facts' },
+];
 
 function eventLabel(event: string, types: RecordTypeRef[], other: OtherEvent[] = []): string {
   if (event === '*') return 'Every change and every other event';
@@ -120,7 +131,7 @@ export function WebhooksPage() {
 
   const test = (w: Webhook) => act(`test-${w.id}`, async () => {
     const d = await api.post<Delivery>(`/api/admin/webhooks/${w.id}/test`);
-    if (d.status === 'delivered') toast.success(`Test delivered to ${hostOf(w.url)}${d.response_status ? ` (the receiver answered ${d.response_status})` : ''}.`);
+    if (d.status === 'delivered') toast.success(`Test delivered to ${hostOf(w.url_host ?? '')}${d.response_status ? ` (the receiver answered ${d.response_status})` : ''}.`);
     else if (d.status === 'blocked') toast.error(`Test not sent: ${d.last_error ?? 'blocked'}`);
     else toast.error(`Test not delivered: ${d.last_error ?? 'no answer'} It will be retried; see Deliveries.`);
     reload();
@@ -176,15 +187,16 @@ export function WebhooksPage() {
                     </thead>
                     <tbody>
                       {data.webhooks.map((w) => {
-                        const allowed = hostAllowed(w.url, data.allowedHosts);
+                        const allowed = w.host_allowed;
                         return (
                           <tr key={w.id}>
                             <td className="adm-wrap">
                               <button type="button" className="adm-link-button" onClick={() => setEditing(w)}>{w.name}</button>
-                              <div className="muted adm-small adm-break">{w.url}</div>
+                              <div className="muted adm-small adm-break">{w.url_display}</div>
                               <span className="row adm-chips adm-chip-line">
-                                {!allowed && <StatusChip color="amber" label="Host not allowed" title={`${hostOf(w.url)} is not in the allowed hosts list, so nothing is sent.`} />}
+                                {!allowed && <StatusChip color="amber" label="Host not allowed" title={`${hostOf(w.url_host ?? '')} is not in the allowed hosts list, so nothing is sent.`} />}
                                 {w.include_restricted && <StatusChip color="purple" label="Includes restricted records" />}
+                                {w.preset !== 'plain_json' && <StatusChip color="blue" label={w.preset === 'chat_card' ? 'Chat card' : 'Chat text'} />}
                               </span>
                             </td>
                             <td className="adm-wrap">
@@ -253,7 +265,7 @@ export function WebhooksPage() {
       />
       <ConfirmDialog
         open={removing !== null} danger busy={busy === 'remove'} title="Remove this webhook?" confirmLabel="Remove webhook"
-        message={<p>Nothing more is sent to <strong>{removing ? hostOf(removing.url) : ''}</strong> for <strong>{removing?.name}</strong>, and deliveries still waiting are canceled. Its delivery log is kept for the audit trail. To pause it instead, switch it off.</p>}
+        message={<p>Nothing more is sent to <strong>{removing ? hostOf(removing.url_host ?? '') : ''}</strong> for <strong>{removing?.name}</strong>, and deliveries still waiting are canceled. Its delivery log is kept for the audit trail. To pause it instead, switch it off.</p>}
         onConfirm={() => void remove()} onCancel={() => setRemoving(null)}
       />
       {log && <DeliveriesDrawer hook={log} data={data} onClose={() => { setLog(null); reload(); }} />}
@@ -293,6 +305,8 @@ function HowItWorks({ retry }: { retry: number[] }) {
         <li><Icon name="bell" size={16} /> <span>Other events (a backup that failed, and the rest of the list in the webhook form) carry the event's own details and, where there is one, the record it is about. Events of a part of the application that is switched off are not sent.</span></li>
         <li><Icon name="key" size={16} /> <span>Every delivery is signed with the webhook's secret: <code>X-GRC-Signature</code> holds <code>sha256=</code> and the HMAC-SHA256 of <code>X-GRC-Timestamp</code>, a full stop and the body. The receiver should check it and refuse old timestamps.</span></li>
         <li><Icon name="refresh" size={16} /> <span>A delivery that fails (no answer within 10 seconds, or an answer other than 2xx) is tried again after {joinAnd(retry.map(minutesText))}, then marked failed. Redirects are never followed. A failed or blocked delivery can be sent again from <strong>Deliveries</strong>.</span></li>
+        <li><Icon name="message" size={16} /> <span>A webhook may send a chat format instead of the full event: one line of text, or a card with a title, link and facts. Chat formats carry a summary and the names of changed fields, never their values, and are signed the same way.</span></li>
+        <li><Icon name="eye" size={16} /> <span>Addresses are kept encrypted, because many receivers put their own secret in them. The list shows the host and a fingerprint; <strong>Show current address</strong> in the form shows the whole address after your password.</span></li>
         <li><Icon name="lock" size={16} /> <span>Restricted records (of a restricted record type, or flagged restricted) are left out unless someone holding <code>security.view</code> switches on <strong>Include restricted records</strong>, and they stop again if that person loses it.</span></li>
       </ul>
     </Card>
@@ -305,7 +319,10 @@ function WebhookDialog({ hook, data, onClose, onSaved }: {
   const auth = useAuth();
   const mayRestrict = auth.can('security.view');
   const [name, setName] = useState(hook?.name ?? '');
-  const [url, setUrl] = useState(hook?.url ?? 'https://');
+  // The stored address is never sent to the browser (E22-45): empty in an edit means "keep it".
+  const [url, setUrl] = useState(hook ? '' : 'https://');
+  const [preset, setPreset] = useState(hook?.preset ?? 'plain_json');
+  const [revealing, setRevealing] = useState(false);
   const [all, setAll] = useState(hook ? hook.events.includes('*') : false);
   const [events, setEvents] = useState<string[]>(hook ? hook.events.filter((e) => e !== '*') : []);
   const [active, setActive] = useState(hook?.active ?? true);
@@ -337,18 +354,35 @@ function WebhookDialog({ hook, data, onClose, onSaved }: {
     clearError('events');
   };
   const allowed = /^https?:\/\/./.test(url) ? hostAllowed(url, data.allowedHosts) : true;
+  const startEvents = hook ? hook.events.filter((e) => e !== '*') : [];
+  const dirty = name !== (hook?.name ?? '') || url !== (hook ? '' : 'https://') || preset !== (hook?.preset ?? 'plain_json')
+    || all !== (hook ? hook.events.includes('*') : false) || events.join() !== startEvents.join() || active !== (hook?.active ?? true)
+    || restricted !== (hook?.include_restricted ?? false) || secret !== '';
+  const reveal = async () => {
+    if (!hook) return;
+    setRevealing(true);
+    try {
+      const res = await adminApi.post<{ url: string }>(`/api/admin/webhooks/${hook.id}/reveal`);
+      setUrl(res.url);
+    } catch (err) {
+      setFormError(errorMessage(err));
+    } finally {
+      setRevealing(false);
+    }
+  };
   const clearError = (k: string) => setErrors(({ [k]: _gone, ...rest }) => rest);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     const found: Record<string, string> = {};
     if (!name.trim()) found.name = 'Enter a name.';
-    if (!/^https?:\/\/[^\s/]+/.test(url.trim())) found.url = 'Enter an http or https address.';
+    if (!(hook && !url.trim()) && !/^https?:\/\/[^\s/]+/.test(url.trim())) found.url = 'Enter an http or https address.';
     if (!all && events.length === 0) found.events = 'Choose at least one event, or check every change.';
     setErrors(found);
     setFormError('');
     if (Object.keys(found).length) return;
-    const body: Record<string, unknown> = { name: name.trim(), url: url.trim(), events: all ? ['*'] : events, active, includeRestricted: restricted };
+    const body: Record<string, unknown> = { name: name.trim(), events: all ? ['*'] : events, active, includeRestricted: restricted, preset };
+    if (url.trim()) body.url = url.trim();
     if (!hook && secret) body.secret = secret;
     setBusy(true);
     try {
@@ -369,13 +403,23 @@ function WebhookDialog({ hook, data, onClose, onSaved }: {
   };
 
   return (
-    <Modal open title={hook ? `Edit "${hook.name}"` : 'Add a webhook'} onClose={onClose}>
+    <Modal open title={hook ? `Edit "${hook.name}"` : 'Add a webhook'} onClose={onClose} dirty={dirty}>
       <form className="form" onSubmit={submit} noValidate>
         {formError && <p className="form-error" role="alert">{formError}</p>}
         <TextField label="Name" required maxLength={80} value={name} onChange={(v) => { setName(v); clearError('name'); }} error={errors.name} hint="For example the system it feeds." />
         <TextField
           label="Address" required type="url" maxLength={500} value={url} onChange={(v) => { setUrl(v); clearError('url'); }} error={errors.url}
-          hint="The full https address the receiving system gave you. No user name or password in it."
+          hint={hook
+            ? `Kept encrypted and not shown (${hook.url_display}). Leave empty to keep it, or type a new address.`
+            : 'The full https address the receiving system gave you. No user name or password in it. It is kept encrypted.'}
+        />
+        {hook && !url && (
+          <div><Button size="sm" icon="eye" loading={revealing} onClick={() => void reveal()}>Show current address</Button></div>
+        )}
+        <Select
+          label="Format" value={preset} onChange={setPreset} error={errors.preset}
+          options={PRESETS.filter((p) => !data.presets || data.presets.includes(p.value))}
+          hint="Chat formats suit a chat channel's incoming webhook; they carry a summary only."
         />
         {!allowed && !errors.url && (
           <Notice tone="caution">

@@ -201,7 +201,7 @@ export function CalendarSettings({ canEdit }: { canEdit: boolean }) {
       {current
         ? <Editor calendar={current} usedBy={usedBy} canEdit={canEdit} onChanged={reload} onRetired={() => { reload(); policies.reload(); }} />
         : <EmptyState icon="calendar" title="No calendars" message="Add a calendar to say when the clock runs." />}
-      <Modal open={adding} title="New calendar" size="sm" onClose={() => setAdding(false)}
+      <Modal open={adding} title="New calendar" size="sm" onClose={() => setAdding(false)} dirty={!!name || always}
         footer={<><Button onClick={() => setAdding(false)}>Cancel</Button><Button variant="primary" loading={busy} disabled={!name.trim()} onClick={create}>Add calendar</Button></>}>
         <div className="stack">
           <TextField label="Name" required autoFocus value={name} onChange={setName} error={nameError || undefined} placeholder="For example Out-of-hours rota" />

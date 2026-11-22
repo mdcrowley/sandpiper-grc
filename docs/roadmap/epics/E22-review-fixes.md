@@ -1,6 +1,6 @@
 # E22 Review fixes (wave 9)
 
-**Status:** in progress (40 of 45 issues done)
+**Status:** in progress (47 of 48 issues done)
 
 ## Goal
 
@@ -30,7 +30,7 @@ performance. Finding IDs (SA-, AZ-, SP-, BS-, BW-, DOC-, OP-) are those of the r
 | E22-11 | Webhook addresses are kept out of the audit log | done | P2 |
 | E22-12 | Scheduled reports are sent once | done | P2 |
 | E22-13 | Approval workflow safeguards | done | P1 |
-| E22-14 | Unsaved-changes guard in the remaining hand-written dialogs | open | P3 |
+| E22-14 | Unsaved-changes guard in the remaining hand-written dialogs | done | P3 |
 | E22-15 | A different person for each approval step | done | P1 |
 | E22-16 | Gate decisions by hand are an administrator override | done | P1 |
 | E22-17 | Shared actions follow the lifecycle rules | done | P2 |
@@ -58,10 +58,13 @@ performance. Finding IDs (SA-, AZ-, SP-, BS-, BW-, DOC-, OP-) are those of the r
 | E22-39 | Display and validation fixes | done | P2 |
 | E22-40 | American spelling on screens and in sample data | done | P3 |
 | E22-41 | Documentation matches the application | done | P2 |
-| E22-42 | Incident clock alerts are claimed before sending | open | P3 |
-| E22-43 | The single sign-on per-address limit counts simultaneous attempts | open | P3 |
-| E22-44 | Exports without secrets leave out token and session tables | open | P3 |
-| E22-45 | Webhook addresses encrypted at rest | open | P3 |
+| E22-42 | Incident clock alerts are claimed before sending | done | P3 |
+| E22-43 | The single sign-on per-address limit counts simultaneous attempts | done | P3 |
+| E22-44 | Exports without secrets leave out token and session tables | done | P3 |
+| E22-45 | Webhook addresses encrypted at rest | done | P3 |
+| E22-46 | A reference field never names a record the person cannot see | done | P2 |
+| E22-47 | Picker highlight contrast and keyboard-reachable scrolling tables | done | P2 |
+| E22-48 | Every sideways-scrolling table reachable by keyboard | open | P3 |
 
 ---
 
@@ -236,13 +239,17 @@ Deleting a record left its workflow running (BS-1); approvers who lost the permi
 
 ### E22-14 Unsaved-changes guard in the remaining hand-written dialogs
 
-**Status:** open · **Priority:** P3 · **Type:** improvement
+**Status:** done · **Priority:** P3 · **Type:** improvement
 
 About 60 dialogs that hold their own state do not yet pass `dirty` to `Modal`, so closing them discards a draft without asking.
 
 **Acceptance criteria**
 
-- [ ] Each dialog with typed input passes `dirty`
+- [x] Each dialog with typed input passes `dirty` (true while the draft differs from what the dialog opened with), or its form calls `useUnsavedChanges`, so Escape, × and a click outside ask "Discard this draft?" first. Wave 11 went through the 161 dialogs found without `dirty`: each owner fixed those in its own files, the follow-ups work the rest (about 115 in the shared modules)
+- [x] Left alone on purpose: dialogs holding a `ResourceForm` (it already tells the dialog), dialogs with no input (confirmations, secrets or links shown once, read-only lists and drawers, keyboard help), and the three dialogs that ask only for a password (second factor, recovery codes, linking a directory account)
+- [x] One component test per kind: a form dialog (`admin/Departments.component.test.ts`) and a picker dialog (`changes/SafetyAssessment.component.test.ts`); a browser check (`tools/e2e/suites/20-followups.mjs`)
+
+**Implemented in:** the hand-written dialogs of each module under `web/src/modules`; tests named above
 
 ### E22-15 A different person for each approval step
 
@@ -588,40 +595,84 @@ The docs review found false or outdated statements in the guides and API referen
 
 ### E22-42 Incident clock alerts are claimed before sending
 
-**Status:** open · **Priority:** P3 · **Type:** bug
+**Status:** done · **Priority:** P3 · **Type:** bug
 
 The security incident clock alert is stamped after it is sent, like the reminders fixed in E22-18, so overlapping runs could send it twice.
 
 **Acceptance criteria**
 
-- [ ] The alert is claimed in one statement before sending
+- [x] The alert is claimed in one statement before sending (`update notification_tasks ... where id = $1 and alerted_red_at is null returning id`, and the amber one only while neither is set); a sweep that loses the claim sends nothing
+- [x] Test with overlapping sweeps: each alert is logged, audited and sent once
+
+**Implemented in:** `server/src/modules/secincidents/alerts.ts` (`sweepClocks`); test `secincidents/alerts-claim.test.ts`
 
 ### E22-43 The single sign-on per-address limit counts simultaneous attempts
 
-**Status:** open · **Priority:** P3 · **Type:** bug
+**Status:** done · **Priority:** P3 · **Type:** bug
 
 The per-address bucket on single sign-on routes is checked before an attempt and recorded after it.
 
 **Acceptance criteria**
 
-- [ ] Use `take()` like the local sign-in
+- [x] Use `take()` like the local sign-in: every public single sign-on route (directory sign-in, passkey step, start, callback, SAML response, single logout, back-channel sign-out) claims the shared per-address slot before the attempt and gives it back when the attempt ends (a failure is recorded once); test `admin/sso-limit.test.ts` with 30 simultaneous attempts
 
 ### E22-44 Exports without secrets leave out token and session tables
 
-**Status:** open · **Priority:** P3 · **Type:** improvement
+**Status:** done · **Priority:** P3 · **Type:** improvement
 
 An export made with `-NoSecrets` still holds API token, assistant sign-in and session hashes.
 
 **Acceptance criteria**
 
-- [ ] Those tables are left out or emptied
+- [x] Those tables are left out or emptied (`SECRET_TABLES`: sessions, links, passkeys, single sign-on flows and sessions, logout tokens, assistant sign-in codes and tokens) or their secret blanked where rows are referenced (`SECRET_COLUMNS`: API token, provisioning token, calendar feed and vendor link hashes become unusable values; assistant client secrets; the work-tracker bridge's sealed address and secrets, switched off)
+- [x] `ops/export-secrets.test.ts` fails on any new `*_hash` or `token*` column not listed
 
 ### E22-45 Webhook addresses encrypted at rest
 
-**Status:** open · **Priority:** P3 · **Type:** improvement
+**Status:** done · **Priority:** P3 · **Type:** improvement
 
 Webhook addresses are stored in clear (administrators only).
 
 **Acceptance criteria**
 
-- [ ] Stored with the secret box like other secrets
+- [x] Stored with the secret box like other secrets (`url_sealed`, context `webhook-url:<id>`, core migration 027); addresses already stored are sealed at start-up and resealed on a key change; the list shows host and fingerprint; the full address only after a password confirmation (`POST /api/admin/webhooks/:id/reveal`, audited)
+
+### E22-46 A reference field never names a record the person cannot see
+
+**Status:** done · **Priority:** P2 · **Type:** bug
+
+Found while building OT security in wave 11: core checked that a reference field named an existing
+record, but not one the caller may see, so a person could link a record to a restricted or hidden
+one by its id. Modules had to check this in their own hooks.
+
+**Acceptance criteria**
+
+- [x] Core refuses a ref field naming a record the caller cannot see (restricted, a row rule, removed) with the same validation answer as an unknown one; a value left unchanged on an update is not checked again, and system work is exempt
+- [x] Test: an ordinary agent cannot point a record at a restricted one
+
+**Implemented in:** `server/src/core/resource.ts` (`checkRefsVisible`); test `core/core.test.ts` ("keeps restricted records invisible to an ordinary agent everywhere")
+
+### E22-47 Picker highlight contrast and keyboard-reachable scrolling tables
+
+**Status:** done · **Priority:** P2 · **Type:** bug
+
+The accessibility audit found low contrast on the highlighted option of the shared picker in dark mode, its reference text on the highlight in both themes, and scrolling areas keyboard users could not reach (the picker list, and wide tables on the controls dashboard, asset classes and impact analyses).
+
+**Acceptance criteria**
+
+- [x] The highlighted option uses the brand text color; reference text follows it
+- [x] The picker list scrolls itself (exempt as a combobox list)
+- [x] `TableWrap` makes a table that is wider than its box a named region reachable with Tab
+- [x] The audit of every wave 10 and 11 page, light and dark, 1440 and 820, has no serious or critical finding
+
+**Implemented in:** `web/src/core/pickers.tsx`, `base.css`, `records.css`, `ui.tsx` (`TableWrap`), `controls/Dashboard.tsx`, `condition/Classes.tsx`, `continuity/Bia.tsx`
+
+### E22-48 Every sideways-scrolling table reachable by keyboard
+
+**Status:** open · **Priority:** P3 · **Type:** improvement
+
+About 128 files still use a plain `div.table-wrap`. A table with no links that scrolls sideways cannot be reached with the keyboard.
+
+**Acceptance criteria**
+
+- [ ] Tables use `TableWrap`

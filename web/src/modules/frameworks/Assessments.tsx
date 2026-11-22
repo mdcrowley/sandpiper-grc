@@ -3,7 +3,7 @@ import type { FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ApiError, Button, Card, DateField, EmptyState, ErrorState, Loading, Modal, PageHeader, Select, Stat, TextArea, TextField,
-  api, errorMessage, formatDate, todayInZone, useAuth, useCustomFieldInputs, useFetch, useToast,
+  api, errorMessage, formatDate, todayInZone, useAuth, useCustomFieldInputs, useFetch, useToast, useUnsavedChanges,
 } from '../../core';
 import { useFrameworkChoice } from './Board';
 import { rememberFramework } from './boardState';
@@ -22,6 +22,8 @@ function TakeSnapshot({ frameworkId, onDone, onCancel }: { frameworkId: string; 
   const [busy, setBusy] = useState(false);
   // The administrator's custom fields on snapshots (E18-34), under the built-in ones.
   const custom = useCustomFieldInputs('assessment_snapshot', { flat: true });
+  // Tells the enclosing dialog, so closing it with something typed asks first.
+  useUnsavedChanges(Boolean(name.trim() || date || notes.trim()) || custom.dirty);
 
   async function submit(e: FormEvent) {
     e.preventDefault();

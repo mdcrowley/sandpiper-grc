@@ -3,7 +3,7 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import {
   api, ApiError, Button, Card, Checkbox, ConfirmDialog, EmptyState, ErrorState, errorMessage, IconButton, Loading, Modal,
-  StatusChip, TextArea, TextField, useAuth, useFetch, useToast,
+  StatusChip, TextArea, TextField, useAuth, useFetch, useToast, useUnsavedChanges,
 } from '../../core';
 
 interface Participant { id: string; name: string; role: string | null; attended: boolean }
@@ -14,6 +14,7 @@ function AddForm({ exerciseId, onDone, onCancel }: { exerciseId: string; onDone:
   const [role, setRole] = useState('');
   const [attended, setAttended] = useState(true);
   const [error, setError] = useState<string | undefined>();
+  useUnsavedChanges(!!names || !!role || !attended);   // tells the enclosing dialog
   const [saving, setSaving] = useState(false);
 
   async function submit(e: FormEvent) {

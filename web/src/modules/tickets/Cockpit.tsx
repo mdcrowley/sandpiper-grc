@@ -225,6 +225,7 @@ export function Cockpit({ rec }: { rec: RecordContext }) {
       {row.breach_reason && <p className="notice notice-warn sd-cockpit-note"><span><strong>Breach reason:</strong> {row.breach_reason}</span></p>}
 
       <Modal open={asking} title="Why was the target missed?" onClose={() => setAsking(false)} size="sm"
+        dirty={asking && reason !== (row.breach_reason ?? '')}
         footer={<><Button onClick={() => setAsking(false)}>Cancel</Button><Button variant="primary" loading={busy} onClick={() => patch({ breach_reason: reason.trim() || null }, 'Breach reason recorded.')}>Save</Button></>}>
         <TextArea label="Breach reason" value={reason} onChange={setReason} rows={4} hint="A sentence is enough. It appears in service desk reports." />
       </Modal>

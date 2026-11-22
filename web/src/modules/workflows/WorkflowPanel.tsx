@@ -295,6 +295,7 @@ export function WorkflowPanel({ recordType, recordId, version, onChange }: Workf
         size="sm"
         title={`Request approval: ${starting?.name ?? ''}`}
         onClose={() => setStarting(null)}
+        dirty={!!note}
         footer={(
           <>
             <Button variant="ghost" onClick={() => setStarting(null)}>Cancel</Button>
@@ -310,6 +311,7 @@ export function WorkflowPanel({ recordType, recordId, version, onChange }: Workf
         size="sm"
         title={`Reassign: ${reassigning?.name ?? ''}`}
         onClose={() => setReassigning(null)}
+        dirty={Boolean(reassigning) && (!!to || from !== (reassigning?.approvers[0]?.id ?? ''))}
         footer={(
           <>
             <Button variant="ghost" onClick={() => setReassigning(null)}>Cancel</Button>

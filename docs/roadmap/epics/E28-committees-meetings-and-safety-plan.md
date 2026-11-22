@@ -1,6 +1,6 @@
 # E28 Committees, meetings and the safety plan (wave 10)
 
-**Status:** in progress (11 of 12 issues done)
+**Status:** done (12 of 12 issues done)
 
 ## Goal
 
@@ -12,6 +12,7 @@ Run committees and their meetings in the application (members by side, quorum, a
 - The safety plan is a policy whose document type is `plan` (contract C6); its panel lives in the policies module folder.
 - Joint labor-management committees are supported without naming any law that requires them.
 - Issues marked "stretch" in the wave 10 plan carry priority P3; an unfinished one stays open for wave 11.
+- Meetings send no calendar invitations by email; members, chairs and secretaries subscribe to them with a personal calendar feed (E36-03, source `governance.meetings`).
 
 ## Issues
 
@@ -28,7 +29,7 @@ Run committees and their meetings in the application (members by side, quorum, a
 | E28-09 | Annual multi-party plan review | done | P2 |
 | E28-10 | Reminders | done | P2 |
 | E28-11 | Sample data and guide | done | P2 |
-| E28-12 | Committee member names anonymized | open | P2 |
+| E28-12 | Committee member names anonymized | done | P2 |
 
 ---
 
@@ -187,10 +188,13 @@ Users need invented committees, meetings and a sample safety plan, and a guide p
 
 ### E28-12 Committee member names anonymized
 
-**Status:** open · **Priority:** P2 · **Type:** feature
+**Status:** done · **Priority:** P2 · **Type:** feature
 
 A records officer wants typed committee member names removed when a committee is anonymized at the end of retention.
 
 **Acceptance criteria**
 
-- [ ] `onAnonymize('committee')` clears typed member names (members with no user or person); the field is marked personal
+- [x] `onAnonymize('committee')` clears typed member names (members with no user or person), in the same transaction as the committee; the column is documented as personal data (`committee_members.name` is a child-table column, not a record field, so it has no `personal` flag to set)
+- [x] Members linked to an account or roster person keep no name of their own and are left alone; other committees are untouched
+
+**Implemented in:** `server/src/modules/governance/index.ts`; test `governance/summary.test.ts`; `docs/user/28-committees-and-meetings.md` (Retention)

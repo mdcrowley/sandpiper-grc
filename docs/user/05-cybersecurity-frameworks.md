@@ -305,6 +305,10 @@ Loading the file for a framework that is already loaded updates names and wordin
 
 **Download as a file** saves the chosen framework in the same format, which is a good starting point for writing a file of your own.
 
+### Starter structure for an OT control catalog
+
+While **OT and rail-systems security** is on, **Add framework from a file** also offers **Download the OT starter structure**: a reference file for an operational technology control catalog with seven functions under general headings, two categories each and placeholder outcomes that read "Fill from your licensed copy". It holds no standard's text. Fill it from your own licensed copy of the standard you follow, rename its key, name and codes, and load it as above. Its `mappings` block suggests related NIST CSF 2.0 outcomes for each placeholder; it is a guide only and is not loaded. See [OT security](32-ot-security.md#starter-structure-for-an-ot-control-catalog).
+
 ### Checking the official wording
 
 For NIST CSF 2.0, **Check official wording** (needs **Edit**) compares the outcome text and the function and category names and descriptions with the wording supplied with this version of the application, which has been checked against the published framework. It lists every difference; **Update** brings them in line. Only the wording changes: statuses, owners, targets, evidence, mappings and your own plain-language descriptions are not touched, and no outcome is added or removed. Use it after an upgrade on an installation that loaded the framework with an earlier version. The change is recorded in the framework's history.

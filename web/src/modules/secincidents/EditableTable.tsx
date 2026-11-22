@@ -74,6 +74,7 @@ export function EditableTable({
   const { data, error, reload } = useFetch<any[]>(url);
   const [editing, setEditing] = useState<any | null>(null);   // row being edited, or {} for a new one
   const [values, setValues] = useState<Record<string, any>>({});
+  const [opened, setOpened] = useState<Record<string, any>>({});   // the values the dialog opened with
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [removing, setRemoving] = useState<any | null>(null);
@@ -88,6 +89,7 @@ export function EditableTable({
     const start: Record<string, any> = {};
     for (const c of columns) start[c.field] = row ? row[c.field] : c.initial ?? (c.type === 'boolean' ? false : c.type === 'number' ? null : '');
     setValues(start);
+    setOpened(start);
     setErrors({});
     setEditing(row ?? {});
   }
@@ -179,7 +181,8 @@ export function EditableTable({
           </div>
         )}
 
-      <Modal open={!!editing} title={editing?.id ? `Edit ${lower}` : `Add ${lower}`} onClose={() => setEditing(null)}>
+      <Modal open={!!editing} title={editing?.id ? `Edit ${lower}` : `Add ${lower}`} onClose={() => setEditing(null)}
+        dirty={!!editing && JSON.stringify(values) !== JSON.stringify(opened)}>
         <form className="form" onSubmit={submit} noValidate>
           <div className="form-grid">
             {formColumns.map((c) => {

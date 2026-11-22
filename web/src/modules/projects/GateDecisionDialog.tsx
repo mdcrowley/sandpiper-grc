@@ -38,6 +38,10 @@ export function GateDecisionDialog({ open, projectId, gate, onClose, onDecided }
     setReference(''); setNotes(''); setFields({}); setFormError('');
   }, [open, gate.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const dirty = open && (
+    decision !== (blocked ? 'deferred' : 'approved') || Boolean(approverName.trim()) || approverRole !== (gate.approvers_for_tier[0] ?? '')
+    || decidedOn !== todayIso() || Boolean(reference.trim()) || Boolean(notes.trim())
+  );
   const approvalBlocked = decision === 'approved' && blocked;
   const statusBlocked = gate.blockers.some((b) => b.kind === 'status');
 
@@ -67,7 +71,7 @@ export function GateDecisionDialog({ open, projectId, gate, onClose, onDecided }
   }
 
   return (
-    <Modal open={open} title={`Record decision: ${gate.name}`} onClose={onClose} size="md">
+    <Modal open={open} title={`Record decision: ${gate.name}`} onClose={onClose} size="md" dirty={dirty}>
       <form className="form" onSubmit={submit} noValidate>
         <Text size="sm" c="dimmed">
           Approvals are given outside the application. Record who decided, when, and where the approval is filed.

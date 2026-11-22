@@ -64,7 +64,8 @@ function FollowUpActions({ row, canEdit }: { row: Row; canEdit: boolean }) {
             </table>
           </div>
         )}
-      <Modal open={open} title="Raise a follow-up action" onClose={() => setOpen(false)} size="sm">
+      <Modal open={open} title="Raise a follow-up action" onClose={() => setOpen(false)} size="sm"
+        dirty={open && Boolean(draft.title.trim() || draft.owner_id || draft.due_on)}>
         <form className="form" onSubmit={add} noValidate>
           <TextField label="Title" required value={draft.title} onChange={(title) => setDraft({ ...draft, title })} error={titleError} />
           <UserPicker label="Owner" value={draft.owner_id} display={draft.owner_label} onChange={(id, o) => setDraft({ ...draft, owner_id: id, owner_label: o?.label })} />

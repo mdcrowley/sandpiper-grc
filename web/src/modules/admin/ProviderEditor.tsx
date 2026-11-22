@@ -84,6 +84,11 @@ export function ProviderEditor({ provider, data, onClose, onSaved }: {
   const [busy, setBusy] = useState(false);
   const [testing, setTesting] = useState(false);
   const [tested, setTested] = useState<TestResult | null>(null);
+  // Everything that is saved, so closing with changes asks first (the test lookup is not part of it).
+  const draft = JSON.stringify([type, name, key, enabled, isDefault, issuer, clientId, secret, tokenAuth, scopes, algorithms, extra, emailClaim, trustEmail,
+    nameClaim, mappingEnabled, groupsClaim, mappings, jitEnabled, domains, providerMfa, mfaAmr, mfaAcr, groupsFromUserinfo, endSession, backchannelLogout,
+    idpLogout, ld, s, renewKey]);
+  const [start] = useState(draft);
   const err = (k: string) => errors[k] || errors[`config.${k}`] || undefined;
   const roleOptions = data.roles.map((r) => ({ value: r.key, label: `${r.name}${r.enabled ? '' : ' (switched off)'}` }));
 
@@ -210,7 +215,7 @@ export function ProviderEditor({ provider, data, onClose, onSaved }: {
   );
 
   return (
-    <Drawer open size="lg" title={provider ? `Edit ${provider.name}` : 'Add a sign-in provider'} onClose={onClose}>
+    <Drawer open size="lg" title={provider ? `Edit ${provider.name}` : 'Add a sign-in provider'} onClose={onClose} dirty={draft !== start}>
       <form className="form adm-provider-form" onSubmit={submit} noValidate>
         {formError && <p className="form-error" role="alert">{formError}</p>}
         {!provider && (

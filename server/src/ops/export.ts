@@ -43,12 +43,55 @@ export const exportTuning = { pageRows: 1000, importBatchRows: 500, importBatchC
 /** The most characters of one table held in memory at once by the last export and import (OP-03 test). */
 export const exportStats = { peakHeldChars: 0, peakImportBatchChars: 0 };
 
-/** Tables whose rows are left out of an export made without secrets. */
-export const SECRET_TABLES = ['sessions', 'one_time_tokens', 'password_history', 'webauthn_credentials', 'webauthn_challenges'];
-/** Columns blanked in an export made without secrets: table -> column -> replacement. */
+/**
+ * Tables whose rows are left out of an export made without secrets (E22-44): sessions, sign-in links,
+ * passkeys, single sign-on flows and their sessions, and short-lived assistant sign-in codes and
+ * tokens. Nothing else refers to their rows. A table not present in an installation is skipped.
+ */
+export const SECRET_TABLES = [
+  'sessions', 'one_time_tokens', 'password_history', 'webauthn_credentials', 'webauthn_challenges',
+  'identity_flows', 'identity_sessions', 'identity_logout_tokens',
+  'mcp_oauth_codes', 'mcp_oauth_tokens',
+];
+
+/** A token hash replaced by a value no token can hash to (still unique, so the row loads). */
+const unusable = (row: Record<string, unknown>) => `redacted:${String(row.id ?? '')}`;
+
+/**
+ * Columns blanked in an export made without secrets: table -> column -> replacement, or a function of
+ * the row for a column that must stay unique (E22-44). Used where other rows refer to the table's rows
+ * (API tokens by the call log and audit events, links by vendor assessments), so the rows are kept and
+ * only the secret goes. An imported row then holds no working token.
+ */
 export const SECRET_COLUMNS: Record<string, Record<string, unknown>> = {
   users: { password_hash: null, totp_secret: null, totp_enabled: false, recovery_codes: [] },
+  api_tokens: { token_hash: unusable },
+  mcp_oauth_clients: { secret_hash: null },
+  vendor_assessment_links: { token_hash: unusable },
+  scim_tokens: { token_hash: unusable },
+  calendar_feeds: { token_hash: unusable },
+  // The work-tracker bridge (feeds module): its address and both secrets are sealed; a copy without secrets
+  // keeps the connector switched off and empty, to be entered again.
+  ticket_connectors: { url_sealed: '', secret_sealed: '', inbound_secret_sealed: '', active: false },
 };
+
+/**
+ * Columns named like secrets (`*_hash`, `token*`) that are not: which token was used or what it is
+ * called, never the token. export-secrets.test.ts fails on any other column named like that which is
+ * neither here, nor blanked, nor in a table left out.
+ */
+export const NOT_SECRET_COLUMNS = [
+  'audit_events.token_id', 'audit_events.token_name', 'mcp_calls.token_id', 'mcp_calls.token_name', 'mcp_token_tools.token_id',
+];
+
+/** A row with the secret columns of its table replaced. */
+function blankRow(row: Record<string, unknown>, blank: Record<string, unknown>): Record<string, unknown> {
+  const out = { ...row };
+  for (const [col, v] of Object.entries(blank)) {
+    if (col in out) out[col] = typeof v === 'function' ? (v as (r: Record<string, unknown>) => unknown)(row) : v;
+  }
+  return out;
+}
 
 export interface ExportedTable {
   name: string;
@@ -201,7 +244,7 @@ async function drainSnapshot(q: Queryable, snap: Snapshot, outDir: string, inclu
           );
         }
         if (got.length) {
-          const text = got.map(({ j }) => `${blank ? JSON.stringify({ ...JSON.parse(j), ...blank }) : j}\n`).join('');
+          const text = got.map(({ j }) => `${blank ? JSON.stringify(blankRow(JSON.parse(j), blank)) : j}\n`).join('');
           exportStats.peakHeldChars = Math.max(exportStats.peakHeldChars, text.length);
           hash.update(text, 'utf8');
           await fh.write(text, null, 'utf8');

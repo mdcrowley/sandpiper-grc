@@ -147,13 +147,20 @@ export function validateDescriptive(ctx: ModuleContext, input: Row, existing?: R
 
 /** An attachment as the API returns it. The storage key never leaves the server. */
 export function present(row: Row): Row {
+  const link = row.storage_driver === 'link';
   return {
     id: row.id,
     record_type: row.record_type,
     record_id: row.record_id,
     file_name: row.file_name,
     extension: row.extension,
-    type_group: typeGroup(row.extension),
+    type_group: link ? 'link' : typeGroup(row.extension),
+    // Evidence by link (E36-05): an address kept elsewhere, never fetched by the server.
+    is_link: link,
+    link_url: link ? row.link_url ?? null : null,
+    link_title: link ? row.link_title ?? null : null,
+    last_checked_on: link ? row.last_checked_on ?? null : null,
+    checked_by_name: link ? row.checked_by_name ?? null : null,
     content_type: row.content_type,
     size_bytes: row.size_bytes,
     sha256: row.sha256,

@@ -14,6 +14,7 @@ export function EscalationSettings({ canEdit }: { canEdit: boolean }) {
   const toast = useToast();
   const { data, error, reload } = useFetch<RulesResult>('/api/tickets/escalation-rules');
   const [draft, setDraft] = useState<RuleDraft | null>(null);
+  const [opened, setOpened] = useState<RuleDraft | null>(null);   // the draft the dialog opened with
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [removing, setRemoving] = useState<EscalationRule | null>(null);
@@ -22,10 +23,11 @@ export function EscalationSettings({ canEdit }: { canEdit: boolean }) {
   if (!data) return <Loading lines={4} label="Loading the escalation rules" />;
   const conditionLabel = (value: string) => data.conditions.find((c) => c.value === value)?.label ?? value;
   const blank: RuleDraft = { name: '', condition: 'unassigned', h: 1, m: 0, to: 'group', to_user_id: null, to_group: '', enabled: true };
+  const begin = (d: RuleDraft) => { setDraft(d); setOpened(d); };
   const edit = (r: EscalationRule) => {
     const t = splitMinutes(r.wait_minutes);
     setErrors({});
-    setDraft({ id: r.id, name: r.name, condition: r.condition, h: t.h, m: t.m, to: r.to_user_id ? 'user' : 'group', to_user_id: r.to_user_id, to_user_name: r.to_user_name ?? undefined, to_group: r.to_group ?? '', enabled: r.enabled });
+    begin({ id: r.id, name: r.name, condition: r.condition, h: t.h, m: t.m, to: r.to_user_id ? 'user' : 'group', to_user_id: r.to_user_id, to_user_name: r.to_user_name ?? undefined, to_group: r.to_group ?? '', enabled: r.enabled });
   };
 
   async function save() {
@@ -77,11 +79,11 @@ export function EscalationSettings({ canEdit }: { canEdit: boolean }) {
 
   return (
     <Card title="Escalation rules" flush={data.rules.length > 0}
-      actions={canEdit ? <Button size="sm" icon="plus" onClick={() => { setErrors({}); setDraft(blank); }}>New rule</Button> : undefined}>
+      actions={canEdit ? <Button size="sm" icon="plus" onClick={() => { setErrors({}); begin(blank); }}>New rule</Button> : undefined}>
       {data.rules.length === 0 ? (
         <EmptyState icon="arrow-up" title="No escalation rules"
           message="A rule tells a named person or group when an open ticket has waited too long. The wait is counted in the ticket’s working calendar, and each rule fires once for each ticket."
-          action={canEdit ? <Button variant="primary" icon="plus" onClick={() => { setErrors({}); setDraft(blank); }}>New rule</Button> : undefined} />
+          action={canEdit ? <Button variant="primary" icon="plus" onClick={() => { setErrors({}); begin(blank); }}>New rule</Button> : undefined} />
       ) : (
         <div className="table-wrap">
           <table className="table sd-table">
@@ -112,6 +114,7 @@ export function EscalationSettings({ canEdit }: { canEdit: boolean }) {
       )}
 
       <Modal open={draft !== null} title={draft?.id ? 'Edit escalation rule' : 'New escalation rule'} onClose={() => setDraft(null)}
+        dirty={draft !== null && JSON.stringify(draft) !== JSON.stringify(opened)}
         footer={<><Button onClick={() => setDraft(null)}>Cancel</Button><Button variant="primary" loading={busy} onClick={save}>{draft?.id ? 'Save rule' : 'Add rule'}</Button></>}>
         {draft && (
           <div className="stack">

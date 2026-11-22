@@ -49,6 +49,14 @@ The user guide is in [`user/`](user/) and is also shown inside the application u
 27. [Funding and grants](user/27-funding-and-grants.md)
 28. [Committees and meetings](user/28-committees-and-meetings.md)
 29. [People and qualifications](user/29-people-and-qualifications.md)
+30. [Business continuity](user/30-business-continuity.md)
+31. [Asset condition](user/31-asset-condition.md)
+32. [OT security](user/32-ot-security.md)
+33. [Legal holds](user/33-legal-holds.md)
+34. [Vendor risk lifecycle](user/34-vendor-risk-lifecycle.md)
+35. [User provisioning and log forwarding](user/35-user-provisioning-and-log-forwarding.md)
+36. [Calendar feeds, work trackers and evidence links](user/36-calendar-feeds-work-trackers-and-evidence-links.md)
+37. [Records requests and privacy](user/37-records-requests-and-privacy.md)
 
 ## For people who integrate with it
 

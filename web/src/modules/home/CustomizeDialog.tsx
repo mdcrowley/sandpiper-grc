@@ -83,6 +83,7 @@ export function CustomizeDialog({ open, widgets, order, hidden, onSave, onClose 
       open={open}
       title="Customize the overview"
       onClose={onClose}
+      dirty={open && changed}
       footer={(
         <div className="home-cz-foot">
           <Button variant="ghost" icon="refresh" onClick={reset} disabled={isDefault}>Reset to default</Button>

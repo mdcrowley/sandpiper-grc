@@ -28,6 +28,7 @@ export function ReviewDialog({ risk, onClose, onDone }: {
   const toast = useToast();
   const [note, setNote] = useState('');
   const [next, setNext] = useState('');
+  const [suggested, setSuggested] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState('');
   const [saving, setSaving] = useState(false);
@@ -37,7 +38,9 @@ export function ReviewDialog({ risk, onClose, onDone }: {
     // Suggest the same gap as last time (between the last review and the date it set), else 90 days.
     const gap = risk.last_reviewed_on && risk.review_on ? (daysUntil(risk.review_on) ?? 0) - (daysUntil(risk.last_reviewed_on) ?? 0) : 90;
     setNote('');
-    setNext(addDays(todayInZone(), gap >= 7 && gap <= 1100 ? gap : 90));
+    const first = addDays(todayInZone(), gap >= 7 && gap <= 1100 ? gap : 90);
+    setNext(first);
+    setSuggested(first);
     setErrors({});
     setMessage('');
   }, [risk]);
@@ -62,7 +65,7 @@ export function ReviewDialog({ risk, onClose, onDone }: {
   };
 
   return (
-    <Modal open={risk !== null} title="Complete review" size="sm" onClose={onClose}>
+    <Modal open={risk !== null} title="Complete review" size="sm" onClose={onClose} dirty={risk !== null && (Boolean(note.trim()) || next !== suggested)}>
       <form className="form" onSubmit={submit} noValidate>
         <p className="muted" style={{ margin: 0 }}>
           {risk?.ref ? <><span className="ref">{risk.ref}</span> {risk.title}. </> : null}

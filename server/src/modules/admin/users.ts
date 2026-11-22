@@ -25,6 +25,57 @@ const USER_SELECT = `
   from users u left join departments d on d.id = u.department_id and d.deleted_at is null
   where u.deleted_at is null`;
 
+/** Whether an account may be used now: present, not removed, and active (C10; calendar feeds, provisioning). */
+export async function isActiveUser(db: Queryable, id: string): Promise<boolean> {
+  if (!UUID_RE.test(String(id ?? ''))) return false;
+  return Boolean(await db.one(`select 1 from users where id = $1 and deleted_at is null and status = 'active'`, [id]));
+}
+
+export interface DeactivateResult { username: string; sessions: number; tokens: number; connections: number; feeds: number; alreadyDisabled: boolean }
+
+/**
+ * Takes an account out of use (wave 11 C10, E36-01): disables it, ends its sessions, cancels its
+ * unused set-up and reset links, and revokes its personal access tokens and AI assistant (MCP OAuth)
+ * connections. One audit event. Refuses (409 `last_admin`) when it would leave no active administrator.
+ * Never deletes anything: the account, its roles and its history stay, and enabling it again restores
+ * the account only (tokens and connections stay revoked).
+ *
+ * `by` is the request whose actor the audit event names (an administrator, or provisioning), or null
+ * for the system; `reason` goes in the audit summary.
+ */
+export async function deactivateUser(
+  ctx: Pick<ModuleContext, 'db' | 'audit' | 'fail'>, userId: string, opts: { reason: string; by: FastifyRequest | null },
+): Promise<DeactivateResult> {
+  const { db } = ctx;
+  const u = UUID_RE.test(String(userId ?? '')) ? await db.one<{ username: string; status: string }>(
+    'select username, status from users where id = $1 and deleted_at is null', [userId]) : undefined;
+  if (!u) return ctx.fail(404, 'not_found', 'User not found.');
+  const byId = opts.by?.user?.id ?? null;
+  const result = await db.tx(async (tx) => {
+    await tx.query(`update users set status = 'disabled', updated_at = now(), updated_by = $2 where id = $1`, [userId, byId]);
+    const sessions = await tx.query('delete from sessions where user_id = $1 returning 1', [userId]);
+    await tx.query('update one_time_tokens set used_at = now() where user_id = $1 and used_at is null', [userId]);
+    if ((await administratorIds(tx)).length === 0) {
+      ctx.fail(409, 'last_admin', 'That would leave no active administrator, so this account stays active. Give another person the administrator role first.');
+    }
+    const revoked = await revokeProgramAccess(tx, userId, byId, opts.reason);
+    // Calendar feeds (feeds module, when loaded) answer 404 for a disabled account anyway; revoked too,
+    // so enabling the account again does not bring them back.
+    let feeds = 0;
+    if ((await tx.one<{ t: string | null }>(`select to_regclass('public.calendar_feeds')::text as t`))?.t) {
+      feeds = (await tx.query('update calendar_feeds set revoked_at = now() where user_id = $1 and revoked_at is null returning 1', [userId])).length;
+    }
+    return { sessions: sessions.length, feeds, ...revoked };
+  });
+  const out = { username: u.username, alreadyDisabled: u.status === 'disabled', ...result };
+  await ctx.audit(opts.by, {
+    action: 'user.deactivate', recordType: 'user', recordId: userId,
+    summary: `User ${u.username} deactivated (${opts.reason.slice(0, 160)}); ${result.sessions} session(s) ended${revokedSummary(result)}${result.feeds ? `; ${result.feeds} calendar feed(s) revoked` : ''}`,
+    before: { status: u.status }, after: { status: 'disabled' },
+  });
+  return out;
+}
+
 const USERNAME_RE = /^[A-Za-z0-9._-]{3,64}$/;
 const EMAIL_RE = /^[^@\s]+@[^@\s]+$/;
 export const LINK_HOURS = 24;

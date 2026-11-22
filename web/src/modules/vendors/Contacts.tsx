@@ -3,7 +3,7 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import {
   api, ApiError, Badge, Button, Card, Checkbox, ConfirmDialog, EmptyState, ErrorState, errorMessage, IconButton, Loading,
-  Modal, TextField, useAuth, useFetch, useToast,
+  Modal, TextField, useAuth, useFetch, useToast, useUnsavedChanges,
 } from '../../core';
 
 interface Contact {
@@ -27,6 +27,10 @@ function ContactForm({ vendorId, contact, onDone, onCancel }: {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const initial = contact
+    ? { name: contact.name, role: contact.role ?? '', email: contact.email ?? '', phone: contact.phone ?? '', is_incident_contact: contact.is_incident_contact }
+    : BLANK;
+  const unsaved = useUnsavedChanges(JSON.stringify(v) !== JSON.stringify(initial)); // E22-14: closing asks before discarding
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -41,6 +45,7 @@ function ContactForm({ vendorId, contact, onDone, onCancel }: {
     try {
       if (contact) await api.patch(`/api/vendors/${vendorId}/contacts/${contact.id}`, v);
       else await api.post(`/api/vendors/${vendorId}/contacts`, v);
+      unsaved.release();
       toast.success(contact ? 'Contact saved.' : 'Contact added.');
       onDone();
     } catch (err) {
@@ -68,7 +73,7 @@ function ContactForm({ vendorId, contact, onDone, onCancel }: {
         </div>
       </div>
       <div className="form-actions">
-        <Button onClick={onCancel}>Cancel</Button>
+        <Button onClick={unsaved.guard(onCancel)}>Cancel</Button>
         <Button type="submit" variant="primary" loading={saving}>{contact ? 'Save changes' : 'Add contact'}</Button>
       </div>
     </form>

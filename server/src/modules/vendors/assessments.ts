@@ -5,6 +5,7 @@ import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { displayDate, localDate } from './dates.ts';
 import { registerEvidenceExpiry } from './evidenceExpiry.ts';
+import { recomputeVendor } from './lifecycle.ts';
 import { registerResponseLinks } from './responseLinks.ts';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -318,6 +319,8 @@ export async function registerAssessments(ctx: ModuleContext) {
          completed_at = now(), completed_by = $5, updated_at = now(), updated_by = $5 where id = $1`,
       [a.id, assessedOn, score, evidenceId, req.user!.id],
     );
+    // The next assessment date follows from this one and the vendor's criticality (E35-01).
+    await recomputeVendor(ctx, vendor.id);
     await ctx.audit(req, {
       action: 'vendor.assessment_complete', recordType: 'vendor', recordId: vendor.id,
       summary: `Assessment completed for ${vendor.name}: score ${score ?? 'not scored'}${score === null ? '' : ' out of 100'}, ${gaps.length} gap${gaps.length === 1 ? '' : 's'}`,

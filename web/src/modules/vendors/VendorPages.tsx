@@ -9,6 +9,7 @@ import type { IconName, ListResult, Row } from '../../core';
 import { AssessmentTab, ScoreRing, scoreColor, scoreWord } from './Assessment';
 import { Checklist } from './Checklist';
 import { Contacts } from './Contacts';
+import { LifecycleTab } from './Lifecycle';
 import { AddEvidence } from './EvidenceForm';
 import {
   ActionsTab, CoverageMeter, ExpiryChip, NoticeChip, contractName, daysPhrase, daysUntil, ifWeDoNothing, noticeTone,
@@ -44,13 +45,14 @@ export function VendorList() {
           },
         ] : []),
         'services',
+        { field: 'owner_id', hidden: true }, { field: 'next_assessment_due', hidden: true }, { field: 'last_exclusion_check_on', hidden: true },
         { field: 'remote_access_method', hidden: true }, { field: 'incident_contact_name', hidden: true },
         { field: 'incident_contact_phone', hidden: true }, { field: 'updated_at', hidden: true },
       ]}
-      filters={['criticality', 'status']}
-      bulkFields={['criticality', 'status']}
+      filters={['criticality', 'status', 'owner_id', 'next_assessment_due']}
+      bulkFields={['criticality', 'status', 'owner_id']}
       createFields={[
-        'name', 'services', 'criticality', 'status', 'remote_access_method',
+        'name', 'services', 'criticality', 'status', 'owner_id', 'remote_access_method',
         'incident_contact_name', 'incident_contact_phone', 'incident_contact_email', 'notes',
       ]}
       actions={(
@@ -345,11 +347,11 @@ export function VendorDetail() {
           <EditableSummary
             type="vendor" row={row} onSaved={() => { reload(); changed(); }}
             fields={[
-              'name', 'services', 'criticality', 'status', 'remote_access_method',
+              'name', 'services', 'criticality', 'status', 'owner_id', 'remote_access_method',
               'incident_contact_name', 'incident_contact_phone', 'incident_contact_email', 'notes',
             ]}
             sections={[
-              { title: 'About the vendor', fields: ['name', 'services', 'criticality', 'status', 'remote_access_method'] },
+              { title: 'About the vendor', fields: ['name', 'services', 'criticality', 'status', 'owner_id', 'remote_access_method'] },
               {
                 title: 'Incident contact', description: 'The main person to reach when something goes wrong. Add others on the Contacts tab.',
                 fields: ['incident_contact_name', 'incident_contact_phone', 'incident_contact_email'],
@@ -364,6 +366,7 @@ export function VendorDetail() {
         { key: 'terms', label: 'Security terms', content: ({ row }) => <TermsTab vendorId={row.id} onChanged={changed} /> },
         { key: 'evidence', label: 'Evidence', content: ({ row }) => <EvidenceTab vendorId={row.id} onChanged={changed} /> },
         { key: 'assessment', label: 'Assessment', content: ({ row }) => <AssessmentTab vendorId={row.id} onChanged={changed} /> },
+        { key: 'lifecycle', label: 'Lifecycle', content: ({ row }) => <LifecycleTab row={row} onChanged={changed} /> },
         { key: 'contacts', label: 'Contacts', content: ({ row }) => <Contacts vendorId={row.id} onChanged={changed} /> },
         { key: 'systems', label: 'Systems supplied', content: ({ row }) => <SystemsTab vendorId={row.id} /> },
         ...(actions ? [{ key: 'actions', label: 'Actions', content: ({ row }: { row: Row }) => <ActionsTab sourceType="vendor" sourceId={row.id} /> }] : []),

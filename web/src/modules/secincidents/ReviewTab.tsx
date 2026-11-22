@@ -127,7 +127,7 @@ export function ReviewTab({ rec, lifecycle, onSaved }: { rec: RecordContext; lif
           onSaved={() => { setArranging(false); toast.success('Review plan saved.'); rec.reload(); onSaved(); }} />
       </Modal>
 
-      <Modal open={skipping} title="No review needed" onClose={() => setSkipping(false)} size="sm">
+      <Modal open={skipping} title="No review needed" onClose={() => setSkipping(false)} size="sm" dirty={!!reason}>
         <form className="form" onSubmit={skip} noValidate>
           <TextArea label="Why no review is needed" required value={reason} onChange={setReason} error={reasonError} rows={3}
             hint="For example: a false alarm with no impact. The reason is written to the incident log as a decision" />

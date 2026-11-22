@@ -89,6 +89,9 @@
 }
 .att-name:hover { text-decoration: underline; }
 .att-name:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 2px; }
+/* A link to a document kept elsewhere (E36-05): an anchor that looks like the file names, with an "opens elsewhere" mark. */
+.att-link { display: inline-flex; align-items: center; gap: var(--s-1); text-decoration: none; }
+.att-link svg { flex: none; color: var(--text-muted); }
 .att-description { margin: 0; overflow-wrap: anywhere; }
 /* A dot sits before every item, in its left padding; the first item on each line starts at the
    clipped edge, so a wrapped line never begins with a stray dot. */

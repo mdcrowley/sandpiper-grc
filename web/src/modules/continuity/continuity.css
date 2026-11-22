@@ -1,0 +1,51 @@
+/* Business continuity and emergency management. */
+.bc-pad { padding: var(--space-4, 1rem); }
+.bc-small { font-size: 0.875rem; }
+.bc-h { font-size: 1rem; margin: 1rem 0 0.25rem; }
+.bc-between { justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; }
+.bc-grid { display: grid; gap: var(--space-4, 1rem); grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr)); align-items: start; }
+.bc-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.75rem; }
+.bc-list li { display: flex; flex-wrap: wrap; gap: 0.25rem 0.75rem; align-items: baseline; justify-content: space-between; overflow-wrap: anywhere; }
+.bc-list-meta { display: inline-flex; flex-wrap: wrap; gap: 0.25rem; align-items: center; }
+.bc-actions { display: flex; gap: 0.25rem; justify-content: flex-end; flex-wrap: wrap; }
+.bc-add-row { display: flex; gap: 0.75rem; align-items: flex-end; flex-wrap: wrap; }
+.bc-add-row > :first-child { flex: 1 1 16rem; min-width: 0; }
+.bc-inline-check .mantine-Checkbox-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.bc-warn { color: var(--warning-text, var(--text)); font-weight: 600; }
+.bc-bad { color: var(--danger-text, var(--danger, currentColor)); font-weight: 600; }
+.bc-finding { margin: 0.25rem 0; }
+
+/* Gap report cards: a colored edge shows how serious the finding is. */
+.bc-gap { border-inline-start: 4px solid var(--border); }
+.bc-gap-red { border-inline-start-color: var(--danger, #c92a2a); }
+.bc-gap-amber { border-inline-start-color: var(--warning, #e8590c); }
+.bc-gap-head { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; align-items: center; margin-bottom: 0.5rem; }
+
+/* Impact grid: the rating tints its cell. */
+.bc-grid-table td { min-width: 8.5rem; }
+.bc-level-4 { background: color-mix(in srgb, var(--warning, #e8590c) 14%, transparent); }
+.bc-level-5 { background: color-mix(in srgb, var(--danger, #c92a2a) 16%, transparent); }
+
+/* Call tree: indentation shows who calls whom. */
+.bc-tree { list-style: none; margin: 0; padding: 0; }
+.bc-tree-node { display: flex; gap: 1rem; align-items: flex-start; justify-content: space-between; padding-block: 0.6rem; padding-inline-end: 1rem; border-top: 1px solid var(--border); }
+.bc-tree-node:first-child { border-top: 0; }
+.bc-tree-main { min-width: 0; overflow-wrap: anywhere; position: relative; }
+.bc-tree-phones { font-size: 0.875rem; }
+@media (max-width: 640px) {
+  .bc-tree-node { flex-direction: column; }
+  .bc-actions { justify-content: flex-start; }
+}
+
+.bc-checklist { list-style: none; margin: 0; padding: 0; }
+.bc-checklist li { display: flex; gap: 0.5rem 1rem; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 0.5rem 1rem; border-top: 1px solid var(--border); }
+.bc-checklist li:first-child { border-top: 0; }
+
+/* Activation log. */
+.bc-composer { display: grid; gap: 0.5rem; padding: 1rem; border: 1px solid var(--border); border-radius: var(--radius, 8px); background: var(--surface, transparent); }
+.bc-log { list-style: none; margin: 0; padding: 0; }
+.bc-log li { display: grid; grid-template-columns: minmax(9rem, 11rem) 1fr; gap: 0.75rem; padding: 0.6rem 1rem; border-top: 1px solid var(--border); }
+.bc-log li:first-child { border-top: 0; }
+.bc-log time { color: var(--text-muted); font-size: 0.875rem; font-variant-numeric: tabular-nums; }
+.bc-log-entry { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 640px) { .bc-log li { grid-template-columns: 1fr; gap: 0.25rem; } }

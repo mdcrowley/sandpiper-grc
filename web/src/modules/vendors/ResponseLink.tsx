@@ -184,7 +184,10 @@ export function ResponseLinkPanel({ assessmentId, questions, answers, onAccepted
 
       <HeldFiles assessmentId={assessmentId} files={held} editable={editable} onChange={reload} />
 
-      <Modal open={creating} title={emailed ? 'Link sent' : made ? 'Link ready' : 'Create a link for the vendor'} size="md" onClose={() => setCreating(false)}>
+      <Modal
+        open={creating} title={emailed ? 'Link sent' : made ? 'Link ready' : 'Create a link for the vendor'} size="md" onClose={() => setCreating(false)}
+        dirty={!made && !emailed && (recipient.trim() !== '' || email.trim() !== '')}
+      >
         {emailed ? (
           <div className="form">
             <p>A new link is on its way to <strong>{emailed}</strong>. Nobody else sees it: if it is lost, send a new one (the old one then stops working).</p>

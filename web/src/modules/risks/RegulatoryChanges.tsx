@@ -65,6 +65,8 @@ function ObligationDialog({ change, onClose, onDone }: { change: Record<string, 
   const [type, setType] = useState('law');
   const [frequency, setFrequency] = useState('');
   const [due, setDue] = useState<string>(change.effective_on ? String(change.effective_on).slice(0, 10) : '');
+  const [start] = useState(() => JSON.stringify([title, type, frequency, due]));
+  const dirty = JSON.stringify([title, type, frequency, due]) !== start;
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState('');
   const [saving, setSaving] = useState(false);
@@ -88,7 +90,7 @@ function ObligationDialog({ change, onClose, onDone }: { change: Record<string, 
   };
 
   return (
-    <Modal open title="Make an obligation" size="md" onClose={onClose}>
+    <Modal open title="Make an obligation" size="md" onClose={onClose} dirty={dirty}>
       <form className="form" onSubmit={submit} noValidate>
         <p className="muted" style={{ margin: 0 }}>The new obligation takes its source, requirement and owner from this change, and is listed under its affected records.</p>
         {message && <p role="alert" className="form-error">{message}</p>}
@@ -113,6 +115,7 @@ function AffectDialog({ changeId, onClose, onDone }: { changeId: string; onClose
   const { can } = useAuth();
   const types = AFFECTABLE.filter((t) => resources[t] && can(`${resources[t].module}.view`));
   const [type, setType] = useState(types[0] ?? '');
+  const [firstType] = useState(type);
   const [id, setId] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [saving, setSaving] = useState(false);
@@ -133,7 +136,7 @@ function AffectDialog({ changeId, onClose, onDone }: { changeId: string; onClose
   };
 
   return (
-    <Modal open title="Add an affected record" size="md" onClose={onClose}>
+    <Modal open title="Add an affected record" size="md" onClose={onClose} dirty={Boolean(id) || type !== firstType}>
       <form className="form" onSubmit={submit} noValidate>
         {message && <p role="alert" className="form-error">{message}</p>}
         <Select label="Kind of record" required value={type} options={types.map((t) => ({ value: t, label: resources[t].label }))} onChange={(v) => { setType(v || ''); setId(null); }} />

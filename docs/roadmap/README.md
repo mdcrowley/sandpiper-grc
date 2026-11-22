@@ -155,27 +155,28 @@ status `done`; issues in progress, open or blocked are counted in the total only
 | [E18](epics/E18-quality-and-known-defects.md) | Quality and known defects | done | 59 / 59 |
 | [E19](epics/E19-fleet-and-services.md) | Fleet and services | done | 14 / 14 |
 | [E20](epics/E20-safety-management.md) | Safety management | done | 15 / 15 |
-| [E21](epics/E21-mcp-server.md) | MCP server (AI assistant access) | in progress | 23 / 24 |
-| [E22](epics/E22-review-fixes.md) | Review fixes (wave 9) | in progress | 40 / 45 |
-| [E23](epics/E23-corrective-action-plans.md) | Corrective action plans and verification | in progress | 11 / 12 |
+| [E21](epics/E21-mcp-server.md) | MCP server (AI assistant access) | done | 24 / 24 |
+| [E22](epics/E22-review-fixes.md) | Review fixes (wave 9) | in progress | 47 / 48 |
+| [E23](epics/E23-corrective-action-plans.md) | Corrective action plans and verification | done | 12 / 12 |
 | [E24](epics/E24-audits-and-inspections.md) | Audits and inspections | done | 13 / 13 |
 | [E25](epics/E25-safety-reporting-investigation-and-targets.md) | Safety reporting, investigation and performance targets | done | 15 / 15 |
-| [E26](epics/E26-control-library-and-testing.md) | Control library and control testing | in progress | 10 / 11 |
-| [E27](epics/E27-funding-and-grant-compliance.md) | Funding and grant compliance | in progress | 10 / 11 |
-| [E28](epics/E28-committees-meetings-and-safety-plan.md) | Committees, meetings and the safety plan | in progress | 11 / 12 |
+| [E26](epics/E26-control-library-and-testing.md) | Control library and control testing | done | 11 / 11 |
+| [E27](epics/E27-funding-and-grant-compliance.md) | Funding and grant compliance | done | 11 / 11 |
+| [E28](epics/E28-committees-meetings-and-safety-plan.md) | Committees, meetings and the safety plan | done | 12 / 12 |
 | [E29](epics/E29-staff-roster-qualifications-and-acknowledgments.md) | Staff roster, qualifications and frontline acknowledgments | done | 12 / 12 |
 | [E30](epics/E30-obligations-regulatory-change-and-enterprise-risk.md) | Obligations, regulatory change and enterprise risk | done | 9 / 9 |
-| [E31](epics/E31-business-continuity.md) | Business continuity and emergency management | open | 0 / 9 |
-| [E32](epics/E32-asset-condition-and-state-of-good-repair.md) | Asset condition and state of good repair | in progress | 1 / 9 |
-| [E33](epics/E33-ot-and-rail-systems-cybersecurity.md) | OT and rail-systems cybersecurity | open | 0 / 6 |
-| [E34](epics/E34-legal-hold-records-requests-and-privacy.md) | Legal hold, records requests and privacy | in progress | 1 / 9 |
-| [E35](epics/E35-vendor-risk-lifecycle.md) | Vendor risk lifecycle | open | 0 / 7 |
-| [E36](epics/E36-integrations.md) | Integrations | open | 0 / 8 |
-| | **Total** | | **643 / 708** |
+| [E31](epics/E31-business-continuity.md) | Business continuity and emergency management | in progress | 9 / 10 |
+| [E32](epics/E32-asset-condition-and-state-of-good-repair.md) | Asset condition and state of good repair | done | 9 / 9 |
+| [E33](epics/E33-ot-and-rail-systems-cybersecurity.md) | OT and rail-systems cybersecurity | done | 6 / 6 |
+| [E34](epics/E34-legal-hold-records-requests-and-privacy.md) | Legal hold, records requests and privacy | done | 9 / 9 |
+| [E35](epics/E35-vendor-risk-lifecycle.md) | Vendor risk lifecycle | done | 7 / 7 |
+| [E36](epics/E36-integrations.md) | Integrations | done | 8 / 8 |
+| | **Total** | | **701 / 712** |
 
-Of the 65 issues not done, 6 are in progress and 59 are open or blocked. E23 to E30 were built in wave 10 and
-E31 to E36 are planned for wave 11 (the product gaps of the November 2026 review). Their done issues
-are "Not planned" entries (E25-13, E29-11, E32-06, E34-09): features recorded so that nobody builds them.
+Of the 11 issues not done, 6 are in progress and 5 are open or blocked. E23 to E30 were built in wave 10 and
+E31 to E36 in wave 11 (the product gaps of the November 2026 review); E31-10 is left open. Some of their
+done issues are "Not planned" entries (E25-13, E29-11, E32-06, E34-09): features recorded so that nobody
+builds them.
 
 ## Next up
 
@@ -189,9 +190,10 @@ with real data, then those that close the main known gaps.
 | 3 | [E16-40](epics/E16-hosting-operations-and-hardening.md) Independent security review or penetration test | Before the application holds sensitive records |
 | 4 | [E16-15](epics/E16-hosting-operations-and-hardening.md) A screen-reader walkthrough | The automated audit is clean; no one has used the application with a screen reader |
 | 5 | [E16-41](epics/E16-hosting-operations-and-hardening.md) Load test with the database on its own machine | The PostgreSQL figures so far come from a server on the same laptop |
-| 6 | [E17-08](epics/E17-documentation.md) User guide | The approval workflow, lifecycle and Organization pages changed in wave 8 and need a review against the application |
+| 6 | [E17-08](epics/E17-documentation.md) User guide | The pages changed or added in waves 8 to 11 need a review against the application |
 | 7 | [E17-11](epics/E17-documentation.md) Operations runbook | Restore has been tried by the tests only; try it by hand once |
 | 8 | [E16-42](epics/E16-hosting-operations-and-hardening.md) User services across a restart, and the system examples | Proven on GitHub's runners; a restart and the deploy/ examples need a real machine |
+| 9 | [E31-10](epics/E31-business-continuity.md) Impact analysis sign-off through an approval workflow | Impact analyses are the one continuity sign-off outside the approval workflows |
 
 ## Known gaps coverage
 
@@ -202,8 +204,7 @@ Keep this table in step with that file.
 
 | Gap | Issues |
 |---|---|
-| Wave 11 parts: continuity, asset condition, OT security, legal hold and privacy, vendor lifecycle, integrations | E31 to E36 |
-| Not planned: drug and alcohol test results, hours of service and fatigue, maintenance work orders | E25-13, E29-11, E32-06 (done as "Not planned") |
+| Not planned: drug and alcohol test results, hours of service and fatigue, maintenance work orders and inspection schedules, redaction of document content | E25-13, E29-11, E32-06, E34-09 (done as "Not planned") |
 
 ### Built but incomplete
 
@@ -217,16 +218,16 @@ Keep this table in step with that file.
 | Backups cover the embedded database only; scheduled backups not proven on a real installation | E16-08 |
 | The embedded database pauses briefly while a server backup takes its snapshot | E22-28 (done; the limit is recorded there) |
 | Directory sign-in tried against a stand-in directory, not a real Active Directory | E02-26 (done; recorded there) |
-| Single sign-on per-address limit checked before and recorded after an attempt | E22-43 |
 | An existing installation keeps its second-factor setting | E02-05, E02-17 (done) |
 | Default role changes reach an existing database only when applied | E18-21 (done) |
 | PDF fonts and bidirectional embedding characters; exports stop at 50,000 rows; PDF column limit; CSV code pages | E12-16, E22-22, E22-24 (done; the limits are recorded there) |
 | The portal does not ask ticket custom fields | E15-14 (done) |
 | JSON API responses are not compressed by the application | E22-32 (done; the limit is recorded there) |
-| Webhook addresses stored in clear | E22-45 |
-| Hand-written dialogs without the unsaved-changes guard | E22-14 |
 | Contract import dates | E06-15 (done) |
-| Wave 10 parts: closure evidence setting without a screen, evidence answers in text, controls panel on covered records, sub-recipient monitoring, meeting decisions and kind-less workflows, departments not a record type, monthly-only KRIs, no MCP tools | E26-11, E27-11 (open); E23, E24, E28, E29, E30 (done; the limits are recorded there) |
+| Sideways-scrolling tables without TableWrap are not reachable by keyboard | E22-48 |
+| Wave 10 parts: evidence answers in text, no coverage import or per-control test steps, finance left to the finance system, meeting decisions and kind-less workflows, no emailed calendar invitations, departments not a record type, monthly-only KRIs | E23, E24, E26, E27, E28, E29, E30 (done; the limits are recorded there), E36-03 |
+| Wave 11: impact analyses signed off outside the approval workflows | E31-10 |
+| Wave 11 parts: printed call trees; one useful-life benchmark per class; no OT network scanning, starter mappings not loaded, no history for zones below target, no OT badge in a saved map picture; working days skip weekends only; exclusion checks and offboarding by hand; no SCIM bulk or sorting, one collector per forwarder, read-only feeds, no product-specific work-tracker connections | E31, E32, E33, E34, E35, E36 (done; the limits are recorded there) |
 | The If-Match lock and the Overview cache are per process | E13-12, E16-38 (done; the limits are recorded there) |
 | Least-privilege account queues custom fields for the owner; user services not proven across a restart or for the system examples | E16-37 (done; recorded there), E16-42 |
 | Load test with the database on its own machine and people in different roles | E16-41 |

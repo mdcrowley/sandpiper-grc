@@ -175,6 +175,24 @@ reference (`TKT-00012`).
 | `system_impact` (`system`: id, reference or name) | can see `system` | `GET /api/systems/:id/impact`: downstream systems with depth and criticality, and the sites, data categories, assets, vehicles and services affected (each only where visible). Reports progress |
 | `my_approvals` | always (answers "not available" without the workflows module) | `GET /api/workflows/approvals`: the approval steps waiting for your decision, soonest due first, each with its `step_id` |
 | `search_audit_log` (`request_id?`, `text?`, `action?`, `record_type?`, `record_id?`, `from?`, `to?`, `limit?` ≤ 100) | `audit.view` | `GET /api/audit`: who, when, action, summary, token and request id, newest first; at least one filter; before and after values left out. Events about records the person may not see stay hidden. Assistant tokens carry `audit.view` when their owner holds it |
+| `audit_summary` | can see `audit_engagement` | `GET /api/audits/summary`: audits by status, the audit universe due and overdue, open and late findings by rating, inspections due, overdue, missed and failed, evidence requests |
+| `controls_summary` | can see `control` | `GET /api/controls/summary`: controls in use by state (effective, partly effective, ineffective, untested), tests due, overdue and waiting for review, results over twelve months, coverage counts by record type |
+| `cap_summary` | `actions.view` and can see `cap` | `GET /api/caps/summary`: corrective action plans open, overdue, waiting for approval and being verified, actions waiting for verification, by status and by source |
+| `funding_summary` | can see `funding_award` | `GET /api/funding/summary`: awards by status with open amounts, reports and close-outs overdue or due within 30 days, review deficiencies, certification progress |
+| `governance_summary` | can see `meeting` | `GET /api/governance/summary`: active committees, meetings in the next 30 and 90 days (and those without a frozen pack), meetings held and quorum, minutes to write up or waiting for approval, decisions by outcome |
+| `qualifications_summary` | can see `person` or `course` | `GET /api/people/summary` and `GET /api/training/summary` (each where the caller may): the roster by status, training complete, due and overdue by course and department, the overdue trend. No person is named |
+| `continuity_summary` | can see `business_process` | `GET /api/continuity/summary`: business processes and those with a recovery gap, plans overdue for review or not approved, emergency activations under way |
+| `asset_condition_summary` | can see `asset_class` | `GET /api/condition/summary`: per asset class, how many are past their useful life against the yearly target, and the share in poor condition |
+| `ot_summary` | can see `ot_zone` | `GET /api/ot/summary`: OT systems, zones below their target level, conduits with remote access, systems that cannot be patched |
+| `records_requests_summary` | can see `records_request` | `GET /api/records/summary`: requests open, due soon and overdue, by kind; active legal holds only for callers with `legal.view`. Counts only, never who asked |
+| `vendor_lifecycle_summary` | can see `vendor` | `GET /api/vendors/lifecycle-summary`: reassessments and exclusion checks overdue, open vendor issues, offboardings under way |
+
+The program summary tools (`audit_summary` to `vendor_lifecycle_summary`, `server/src/modules/mcp/tools-programs.ts`)
+read their area's summary route with the caller's token, so permissions, restricted records and switched-off
+areas apply exactly as in the web application. They pass on figures only: no titles, names or
+requester details, even where a dashboard route also lists records. A tool whose area is switched off
+is not offered to anyone; a route that does not answer for the caller (not built in this version, or
+a permission the token lacks) gives a "not available" answer instead of an error.
 
 ### Progress notifications
 

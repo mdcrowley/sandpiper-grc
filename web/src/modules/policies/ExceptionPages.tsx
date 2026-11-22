@@ -122,6 +122,7 @@ function ExceptionActions({ rec }: { rec: RecordContext }) {
   const [step, setStep] = useState<Step>(null);
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({ expires_on: '', approver_name: '', approver_role: '', approved_on: '' });
+  const [start, setStart] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const canApprove = can('exceptions.approve');
   const canEdit = can('exceptions.edit');
@@ -133,7 +134,9 @@ function ExceptionActions({ rec }: { rec: RecordContext }) {
   const open = (next: Step) => {
     setErrors({});
     if (next === 'approve') {
-      setForm({ expires_on: row.expires_on ?? '', approver_name: row.approver_name ?? '', approver_role: row.approver_role ?? '', approved_on: isoDay() });
+      const start = { expires_on: row.expires_on ?? '', approver_name: row.approver_name ?? '', approver_role: row.approver_role ?? '', approved_on: isoDay() };
+      setForm(start);
+      setStart(JSON.stringify(start));
     }
     setStep(next);
   };
@@ -165,6 +168,7 @@ function ExceptionActions({ rec }: { rec: RecordContext }) {
 
       <Modal
         open={step === 'approve'} title="Approve this exception" onClose={() => setStep(null)} size="sm"
+        dirty={step === 'approve' && JSON.stringify(form) !== start}
         footer={<><Button onClick={() => setStep(null)}>Cancel</Button><Button variant="primary" loading={busy} onClick={approve}>Approve exception</Button></>}
       >
         <div className="stack">

@@ -31,6 +31,7 @@ export function ViewsMenu({ filters, onApply }: { filters: BoardFilters; onApply
   const [naming, setNaming] = useState(false);
   const [managing, setManaging] = useState(false);
   const [name, setName] = useState('');
+  const [startName, setStartName] = useState(''); // the name the Save dialog opened with
   const [share, setShare] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -108,14 +109,14 @@ export function ViewsMenu({ filters, onApply }: { filters: BoardFilters; onApply
       label: `${v.name} (shared${v.mine ? '' : ` by ${v.createdBy?.label ?? 'someone'}`})`,
       icon: v.query === current ? 'check' as const : 'users' as const, separated: i === 0, onSelect: () => onApply(v.query),
     })),
-    { label: 'Save current view…', icon: 'plus', separated: true, disabled: current === '', onSelect: () => { setError(''); setShare(false); setName(activeMine?.name ?? ''); setNaming(true); } },
+    { label: 'Save current view…', icon: 'plus', separated: true, disabled: current === '', onSelect: () => { setError(''); setShare(false); setName(activeMine?.name ?? ''); setStartName(activeMine?.name ?? ''); setNaming(true); } },
     { label: 'Manage views…', icon: 'settings', disabled: own.length + sharedViews.length === 0, onSelect: () => setManaging(true) },
   ];
 
   return (
     <>
       <Menu label={activeName ?? 'Views'} icon="eye" size="sm" items={items} align="end" />
-      <Modal open={naming} title="Save current view" size="sm" onClose={() => setNaming(false)}>
+      <Modal open={naming} title="Save current view" size="sm" onClose={() => setNaming(false)} dirty={naming && (name !== startName || share)}>
         <form className="form" onSubmit={save} noValidate>
           <TextField label="Name" required autoFocus value={name} onChange={setName} error={error}
             hint={share ? 'A shared view needs a name no other shared view of the outcomes uses.' : 'Your views follow you to any browser. A view of yours with the same name is replaced.'} />

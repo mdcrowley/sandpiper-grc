@@ -28,6 +28,7 @@ export function PeopleTab({ eventId, onChanged }: { eventId: string; onChanged: 
   const injuries = useLookup('safety_injury_severity');
   const [editing, setEditing] = useState<Person | 'new' | null>(null);
   const [form, setForm] = useState(BLANK_PERSON);
+  const [start, setStart] = useState(BLANK_PERSON);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [removing, setRemoving] = useState<Person | null>(null);
@@ -36,7 +37,8 @@ export function PeopleTab({ eventId, onChanged }: { eventId: string; onChanged: 
 
   const open = (p: Person | 'new') => {
     setErrors({});
-    setForm(p === 'new' ? BLANK_PERSON : { role: p.role, name: p.name ?? '', injury_severity: p.injury_severity ?? '', transported: p.transported, fatality: p.fatality, notes: p.notes ?? '' });
+    const initial = p === 'new' ? BLANK_PERSON : { role: p.role, name: p.name ?? '', injury_severity: p.injury_severity ?? '', transported: p.transported, fatality: p.fatality, notes: p.notes ?? '' };
+    setForm(initial); setStart(initial);
     setEditing(p);
   };
   const save = async () => {
@@ -93,6 +95,7 @@ export function PeopleTab({ eventId, onChanged }: { eventId: string; onChanged: 
           </div>
         )}
       <Modal open={!!editing} title={editing === 'new' ? 'Add a person involved' : 'Edit person involved'} onClose={() => setEditing(null)}
+        dirty={JSON.stringify(form) !== JSON.stringify(start)}
         footer={<><Button onClick={() => setEditing(null)}>Cancel</Button><Button variant="primary" loading={busy} onClick={save}>Save</Button></>}>
         <div className="form">
           <div className="form-grid">
@@ -173,7 +176,7 @@ function TimelineCard({ eventId }: { eventId: string }) {
             meta: e.by_id ? e.by_name : `Recorded by the application${e.by_name ? ` (${e.by_name})` : ''}`,
           }))} />
       )}
-      <Modal open={adding} title="Add a timeline entry" onClose={() => setAdding(false)}
+      <Modal open={adding} title="Add a timeline entry" onClose={() => setAdding(false)} dirty={!!entry}
         footer={<><Button onClick={() => setAdding(false)}>Cancel</Button><Button variant="primary" loading={busy} onClick={add}>Add</Button></>}>
         <div className="form">
           <DateTimeField label="When" required value={at} onChange={setAt} error={errors.at} />
@@ -184,6 +187,8 @@ function TimelineCard({ eventId }: { eventId: string }) {
   );
 }
 
+const BLANK_STATEMENT = { statement_type: 'witness', given_by: '', given_on: '', text: '' };
+
 function Statements({ eventId }: { eventId: string }) {
   const { can } = useAuth();
   const toast = useToast();
@@ -191,7 +196,7 @@ function Statements({ eventId }: { eventId: string }) {
   const types = useLookup('safety_statement_type');
   const { data, error, reload } = useFetch<Statement[]>(allowed ? `/api/safety-events/${eventId}/statements` : null);
   const [adding, setAdding] = useState(false);
-  const [f, setF] = useState({ statement_type: 'witness', given_by: '', given_on: '', text: '' });
+  const [f, setF] = useState(BLANK_STATEMENT);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   if (!allowed) return <Card title="Statements"><NeedsSecurity what="Statements" /></Card>;
@@ -205,7 +210,7 @@ function Statements({ eventId }: { eventId: string }) {
     } finally { setBusy(false); }
   };
   return (
-    <Card title="Statements" actions={can('safety.edit') && <Button size="sm" icon="plus" onClick={() => { setErrors({}); setF({ statement_type: 'witness', given_by: '', given_on: '', text: '' }); setAdding(true); }}>Add a statement</Button>}>
+    <Card title="Statements" actions={can('safety.edit') && <Button size="sm" icon="plus" onClick={() => { setErrors({}); setF(BLANK_STATEMENT); setAdding(true); }}>Add a statement</Button>}>
       {error ? <ErrorState error={error} onRetry={reload} /> : !data ? <Loading lines={3} />
         : data.length === 0 ? <p className="muted">No statements recorded. Keep signed copies as files on the event; they are restricted with it.</p>
         : (
@@ -219,6 +224,7 @@ function Statements({ eventId }: { eventId: string }) {
           </ul>
         )}
       <Modal open={adding} title="Add a statement" size="lg" onClose={() => setAdding(false)}
+        dirty={JSON.stringify(f) !== JSON.stringify(BLANK_STATEMENT)}
         footer={<><Button onClick={() => setAdding(false)}>Cancel</Button><Button variant="primary" loading={busy} onClick={add}>Add</Button></>}>
         <div className="form">
           <div className="form-grid">
@@ -274,10 +280,12 @@ export function ReportingTab({ eventId }: { eventId: string }) {
   const { data, error, reload } = useFetch<ClocksResult>(`/api/safety-events/${eventId}/clocks`);
   const [recording, setRecording] = useState<{ clock: Clock; mode: 'done' | 'not_required' } | null>(null);
   const [f, setF] = useState({ notified_who: '', notified_how: '', notified_at: '', reference_received: '', note: '' });
+  const [start, setStart] = useState(f);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const open = (clock: Clock, mode: 'done' | 'not_required') => {
-    setErrors({}); setF({ notified_who: '', notified_how: '', notified_at: new Date().toISOString(), reference_received: '', note: '' }); setRecording({ clock, mode });
+    const initial = { notified_who: '', notified_how: '', notified_at: new Date().toISOString(), reference_received: '', note: '' };
+    setErrors({}); setF(initial); setStart(initial); setRecording({ clock, mode });
   };
   const save = async () => {
     if (!recording) return;
@@ -332,6 +340,7 @@ export function ReportingTab({ eventId }: { eventId: string }) {
         )}
       </Card>
       <Modal open={!!recording} title={recording ? `${recording.mode === 'done' ? 'Record notification' : 'Not required'}: ${recording.clock.party}` : ''} onClose={() => setRecording(null)}
+        dirty={JSON.stringify(f) !== JSON.stringify(start)}
         footer={<><Button onClick={() => setRecording(null)}>Cancel</Button><Button variant="primary" loading={busy} onClick={save}>Save</Button></>}>
         {recording?.mode === 'done' ? (
           <div className="form">

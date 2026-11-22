@@ -83,6 +83,7 @@ function AgendaDialog({ meetingId, item, onClose, onSaved }: { meetingId: string
   const toast = useToast();
   const types = useRecordTypes();
   const [form, setForm] = useState({ title: item?.title ?? '', presenter: item?.presenter ?? '', notes: item?.notes ?? '', record_type: item?.record_type ?? '', record_id: item?.record_id ?? null as string | null });
+  const [start] = useState(form);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const set = (p: Partial<typeof form>) => setForm((f) => ({ ...f, ...p }));
@@ -101,7 +102,7 @@ function AgendaDialog({ meetingId, item, onClose, onSaved }: { meetingId: string
     finally { setBusy(false); }
   };
   return (
-    <Modal open title={item ? 'Change agenda item' : 'Add an agenda item'} onClose={onClose}
+    <Modal open title={item ? 'Change agenda item' : 'Add an agenda item'} onClose={onClose} dirty={JSON.stringify(form) !== JSON.stringify(start)}
       footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" loading={busy} onClick={save}>{item ? 'Save' : 'Add'}</Button></>}>
       <div className="form-grid">
         <TextField className="form-cell-wide" label="Title" required value={form.title} error={errors.title} onChange={(v) => set({ title: v })} />
@@ -290,6 +291,7 @@ function DecisionDialog({ meeting, onClose, onSaved }: { meeting: Row; onClose: 
   const types = useRecordTypes();
   const agenda = useFetch<AgendaItem[]>(`/api/meetings/${meeting.id}/agenda`);
   const [form, setForm] = useState({ title: '', outcome: 'approved', notes: '', agenda_item_id: '', record_type: '', record_id: null as string | null });
+  const [start] = useState(form);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const set = (p: Partial<typeof form>) => setForm((f) => ({ ...f, ...p }));
@@ -310,7 +312,7 @@ function DecisionDialog({ meeting, onClose, onSaved }: { meeting: Row; onClose: 
     finally { setBusy(false); }
   };
   return (
-    <Modal open title="Record a decision" onClose={onClose}
+    <Modal open title="Record a decision" onClose={onClose} dirty={JSON.stringify(form) !== JSON.stringify(start)}
       footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" loading={busy} onClick={save}>Record</Button></>}>
       <div className="form-grid">
         <Select className="form-cell-wide" label="Agenda item" value={form.agenda_item_id} onChange={pickItem}

@@ -264,7 +264,7 @@ export function ScaleEditor() {
         <Button variant="primary" loading={saving} disabled={!dirty || unset || Boolean(preview?.level_in_use)} onClick={save}>Save scale</Button>
       </div>
 
-      <Modal open={adding} title="Add scale" size="sm" onClose={() => setAdding(false)}>
+      <Modal open={adding} title="Add scale" size="sm" onClose={() => setAdding(false)} dirty={adding && Boolean(fresh.name.trim() || fresh.key.trim())}>
         <form className="form" onSubmit={(e) => { e.preventDefault(); void create(); }}>
           <p className="muted" style={{ margin: 0 }}>
             The new scale starts as a copy of “{original.name}” as it is on screen now. Edit it afterwards, then point a risk category at it.

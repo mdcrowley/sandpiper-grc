@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState, type ComponentType } from 'react';
 import {
   Button, Card, DefinitionList, ErrorState, formatDate, Loading, LookupChip, Modal, RecordPage, ResourceForm, useFetch, useToast,
 } from '../../core';
@@ -10,6 +10,12 @@ import { ReviewPanel } from './ReviewPanel';
 import { ScoringPanel } from './ScoringPanel';
 import { RiskKris } from './KriPages';
 import { AppetiteBadge, DueChip, RatingChip, useScales, type Scale } from './scales';
+
+// The controls covering a risk (E26-11), from the control library when it is part of the build. The
+// panel renders nothing while the controls area is off or without controls.view.
+const controlsLoaders = import.meta.glob<{ ControlsPanel: ComponentType<{ recordType: string; recordId: string }> }>('../controls/ControlsPanel.tsx');
+const loadControls = Object.values(controlsLoaders)[0];
+const ControlsPanel = loadControls ? lazy(() => loadControls().then((m) => ({ default: m.ControlsPanel }))) : null;
 
 /** E30-08: the enterprise risk this one rolls up under, or the risks that roll up under it. */
 function RelatedRisks({ row }: { row: Row }) {
@@ -105,6 +111,8 @@ function RiskStory({ rec, scale }: { rec: RecordContext; scale: Scale | undefine
         ]} />
         <ActionsPanel sourceType="risk" sourceId={row.id} source="risk" />
       </Card>
+
+      {ControlsPanel && <Suspense fallback={null}><ControlsPanel recordType="risk" recordId={row.id} /></Suspense>}
 
       {/* The approval rule depends on the rating: fetch it again whenever the scores change. */}
       <AcceptancePanel key={`${row.inherent_rating ?? ''}-${row.residual_rating ?? ''}-${row.scale_key}`} rec={rec} />

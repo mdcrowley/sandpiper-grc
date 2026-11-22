@@ -195,6 +195,21 @@ Windows task:   none (the server takes its own daily backups: Administration > B
   whether its last run succeeded.
 - `npm run cli -- status --json` prints the same facts as JSON for a monitoring script.
 
+## Integrations at run time
+
+These run inside the server as background jobs (Administration > Background jobs); each is off
+until an administrator switches its connection on.
+
+| Job | When | What it does |
+|---|---|---|
+| `integrations.audit_forward` | Every minute (its own lane, `integrations`) | Sends new audit events to each active log forwarder, in batches of up to 500; backs off when the collector cannot be reached |
+| `integrations.housekeeping` | Daily | Removes forwarders' delivery log rows older than `retention.audit_forward_log_days` (30) |
+| `feeds.tracker_push` | Every minute, and at once when a record is sent | Sends queued records to the outside work tracker |
+| `attachments.evidence_reminders` | Daily | Evidence expiry reminders, and reminders to check linked documents (`attachments.link_check_days`) |
+
+Audit events already forwarded are not recalled at the end of a retention period or when a
+record is anonymized: agree the collector's own retention with whoever runs it.
+
 ## Health check
 
 ```powershell
@@ -767,13 +782,15 @@ them. Protect it like a backup, or use `-Encrypt`. `-NoSecrets` leaves the rows 
 `one_time_tokens`, `password_history`, `webauthn_credentials` and `webauthn_challenges`
 (passkeys) out and blanks `password_hash`, `totp_secret`,
 `totp_enabled` and `recovery_codes` on every user; the manifest marks those tables as
-redacted. Use `-NoSecrets` for handing data to someone for analysis. It is not a way to
-move a working installation: after importing it nobody has a password, and there is no
-reset command. It still holds other tables as stored: the hashes of API tokens
-(`api_tokens`) and of AI-assistant sign-ins (`mcp_oauth_tokens`, `mcp_oauth_codes`,
-`mcp_oauth_grants`), single sign-on session records (`identity_sessions`,
-`identity_logout_tokens`), and the sign-in provider, webhook and mail secrets, encrypted
-with the secret key. Treat it as confidential too.
+redacted. It also leaves out or empties the other token and session tables (sign-in links,
+single sign-on flows and sessions, logout tokens, assistant sign-in codes and tokens) and
+blanks the secrets of rows that others refer to: API token, provisioning token, calendar feed
+and vendor link hashes become unusable values, assistant client secrets are emptied, and
+work-tracker connections lose their sealed address and secrets and are switched off. Use
+`-NoSecrets` for handing data to someone for analysis. It is not a way to move a working
+installation: after importing it nobody has a password, and there is no reset command. It still
+holds the sign-in provider, webhook, forwarder and mail secrets, encrypted with the secret key.
+Treat it as confidential too.
 
 An export does not contain the secret key (`secret.key` or `GRC_SECRET_KEY`): the
 second-factor secrets in a full export are encrypted, and the installation that imports

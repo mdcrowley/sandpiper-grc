@@ -23,6 +23,7 @@ export function PolicyActions({ rec, versions, onChanged }: Props) {
   const [step, setStep] = useState<Step>(null);
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({ approved_by_name: '', approved_on: '', effective_on: '' });
+  const [start, setStart] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const audience = useFetch<{ count: number; ack_days: number }>(step === 'publish' ? `/api/policies/${row.id}/audience` : null);
 
@@ -35,7 +36,11 @@ export function PolicyActions({ rec, versions, onChanged }: Props) {
   const base = `/api/policies/${row.id}`;
   const open = (next: Step) => {
     setErrors({});
-    if (next === 'approve') setForm({ approved_by_name: row.approver_name ?? '', approved_on: isoDay(), effective_on: '' });
+    if (next === 'approve') {
+      const first = { approved_by_name: row.approver_name ?? '', approved_on: isoDay(), effective_on: '' };
+      setForm(first);
+      setStart(JSON.stringify(first));
+    }
     setStep(next);
   };
 
@@ -91,6 +96,7 @@ export function PolicyActions({ rec, versions, onChanged }: Props) {
 
       <Modal
         open={step === 'approve'} title={`Approve version ${latest?.version}`} onClose={() => setStep(null)} size="sm"
+        dirty={step === 'approve' && JSON.stringify(form) !== start}
         footer={(
           <>
             <Button onClick={() => setStep(null)}>Cancel</Button>

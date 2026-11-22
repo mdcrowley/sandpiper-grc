@@ -78,7 +78,8 @@ export function RiskCard({ row, save, canEdit, onSaved }: RecordContext & { onSa
         )}
 
       {q && (
-        <Modal open={open} title="Risk assessment" onClose={() => setOpen(false)} size="lg">
+        <Modal open={open} title="Risk assessment" onClose={() => setOpen(false)} size="lg"
+          dirty={open && (JSON.stringify(answers) !== JSON.stringify(saved) || override !== String(row.risk_override ?? '') || reason !== String(row.risk_override_reason ?? ''))}>
           <form className="form" onSubmit={submit} noValidate>
             <RiskQuestions questionnaire={q} answers={answers} onChange={setAnswers} />
             <RiskResult preview={computeRisk(answers, q)} total={q.questions.length} />

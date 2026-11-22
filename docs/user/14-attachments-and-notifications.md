@@ -27,6 +27,25 @@ The number beside the **Attachments** tab's name is how many files the record ho
 
 The line under the box tells you the largest file allowed and which types are accepted. Your administrator sets both; a new installation allows 25 MB for each file.
 
+### Link a document instead of attaching it
+
+When a document lives in your organization's document store, you can link it rather than upload a copy, so the record always points at the current version.
+
+1. Open the record and select the **Attachments** (or **Evidence files**) tab.
+2. Select **Add link**.
+3. Enter the **Address**: the full web address of the document, starting with `https://` (or `http://`), up to 1,000 characters. Use a link that does not expire. An address with a user name or password in it is refused; people sign in to the document store themselves.
+4. Optionally give a **Title** (left empty, the last part of the address is used) and a **Description**.
+5. Check **This link is evidence** if it is evidence, and set the dates as for an evidence file.
+6. Select **Add link**.
+
+A link is listed with the files, with a link icon, a **Link** badge and the site it points to. Selecting its name opens the document in a new tab; nothing is downloaded. The application never opens the address itself: it does not check that the document exists, read it or make a copy, and the document store sees nothing of the page you came from. Who can see and change a link follows the record, as for files.
+
+A link has a date it was **last checked**: when someone confirmed the document is still there and current. Adding a link counts as checking it. The chip beside it shows **Checked today**, **Checked** and the date, or, once 90 days have passed (your administrator can change the period under **Administration > Reminders**), an orange **Check due** chip. To record a check, open the document, make sure it is still the right one, then select the check-mark button on the link's row. The record's owner (or whoever added the link, on a record with no owner) gets a **Reminders** notification once when a link becomes due for a check; recording a check starts the period again.
+
+To change a link's address or title, select the pencil button. Removing a link removes it from the record only; the document stays where it is. A link on a record under a legal hold cannot be removed, like a file. When a record is anonymized at the end of its retention period, its links' addresses and titles are removed with its files.
+
+The record's history shows each link added, changed, checked and removed. It keeps the site of the address and a short fingerprint of it, never the whole address, because sharing addresses often carry their own secret.
+
 ### When a file is refused
 
 A file that cannot be accepted is listed in a red box under the upload area with the reason. Nothing is stored. Select the cross to dismiss the message.
@@ -466,6 +485,7 @@ Each job runs once even if more than one copy of the server is using the same da
 - Signing in to Gmail with a person's own account (a refresh token): the Gmail API is used with a service account only, so a personal Gmail account must use SMTP with an app password.
 - Malware scanners other than ClamAV, or scanning through an outside service.
 - Viewing a file inside the application. Files are downloaded and opened on your computer.
+- Checking a linked document automatically: the application never opens a link's address, so a person confirms that it is still current.
 - Renaming a file, replacing its content while keeping its history, or keeping several versions of one file.
 - Restoring a backup from the **Backups** page: it is a command for the person running the server.
 - Searching inside the content of attached files.

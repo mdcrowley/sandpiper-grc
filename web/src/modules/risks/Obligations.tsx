@@ -15,6 +15,12 @@ const loaders = import.meta.glob<{ AttachmentsPanel: ComponentType<{ recordType:
 const load = Object.values(loaders)[0];
 const AttachmentsPanel = load ? lazy(() => load().then((m) => ({ default: m.AttachmentsPanel }))) : null;
 
+// The controls covering an obligation (E26-11), from the control library when it is part of the build.
+// The panel renders nothing while the controls area is off or without controls.view.
+const controlsLoaders = import.meta.glob<{ ControlsPanel: ComponentType<{ recordType: string; recordId: string }> }>('../controls/ControlsPanel.tsx');
+const loadControls = Object.values(controlsLoaders)[0];
+const ControlsPanel = loadControls ? lazy(() => loadControls().then((m) => ({ default: m.ControlsPanel }))) : null;
+
 const addDays = (ymd: string, n: number) => new Date(Date.parse(`${ymd}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 
 /** One entry of an obligation's "Applies to": a name, or a record of another type. */
@@ -173,6 +179,9 @@ function AttestDialog({ obligationId, period, suggested, onClose, onDone }: {
     setErrors({});
     setMessage('');
   }, [period, suggested]);
+  const dirty = start !== (period?.period_start ?? suggested?.period_start ?? '') || end !== (period?.period_end ?? suggested?.period_end ?? '')
+    || dueOn !== (period?.due_on ?? suggested?.due_on ?? '') || status !== (period?.status ?? 'met')
+    || note !== (period?.note ?? '') || evidence !== (period?.evidence ?? '');
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -194,7 +203,7 @@ function AttestDialog({ obligationId, period, suggested, onClose, onDone }: {
   };
 
   return (
-    <Modal open title={period ? 'Attest period' : 'Add and attest a period'} size="md" onClose={onClose}>
+    <Modal open title={period ? 'Attest period' : 'Add and attest a period'} size="md" onClose={onClose} dirty={dirty}>
       <form className="form" onSubmit={submit} noValidate>
         {message && <p role="alert" className="form-error">{message}</p>}
         {period ? (
@@ -319,7 +328,13 @@ export function ObligationDetail() {
       )}
       summaryFields={['title', 'source', 'type', 'frequency', 'requirement', 'status', 'owner_id', 'how_met', 'evidence', 'next_due_on']}
       tabs={[
-        { key: 'periods', label: 'Periods', content: (rec) => <div className="stack"><PeriodsPanel rec={rec} /><AppliesToCard rec={rec} /></div> },
+        { key: 'periods', label: 'Periods', content: (rec) => (
+          <div className="stack">
+            <PeriodsPanel rec={rec} />
+            <AppliesToCard rec={rec} />
+            {ControlsPanel && <Suspense fallback={null}><ControlsPanel recordType="obligation" recordId={rec.row.id} /></Suspense>}
+          </div>
+        ) },
         ...(AttachmentsPanel ? [{
           key: 'attachments', label: 'Evidence',
           content: ({ row }: RecordContext) => (

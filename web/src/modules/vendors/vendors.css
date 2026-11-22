@@ -350,3 +350,18 @@ a.vnd-cell:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px;
 @media (max-width: 640px) {
   .vnd-link-list li > .vnd-link-actions { grid-column: 1; grid-row: auto; }
 }
+
+/* ---- vendor risk lifecycle (E35) ---- */
+.vnd-lc-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr); gap: var(--s-4); align-items: start; }
+@media (max-width: 1100px) { .vnd-lc-grid { grid-template-columns: 1fr; } }
+.vnd-lc-grid .vnd-about { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.vnd-lc-due { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-3); margin: 0; padding: var(--s-3) var(--s-4); }
+.vnd-lc-fieldset { border: 1px solid var(--border); border-radius: var(--radius); padding: var(--s-3) var(--s-4); margin: 0; min-width: 0; }
+.vnd-lc-fieldset legend { font-weight: 600; padding: 0 var(--s-1); }
+.vnd-ob-items { margin: 0; padding: 0; list-style: none; }
+.vnd-ob-item { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: var(--s-3); padding: var(--s-3) var(--s-4); }
+.vnd-ob-item + .vnd-ob-item { border-top: 1px solid var(--border); }
+.vnd-ob-text { display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.vnd-ob-note { font-size: var(--fs-sm); }
+@media (max-width: 600px) { .vnd-ob-item { grid-template-columns: minmax(0, 1fr) auto; } .vnd-ob-item > :last-child { grid-column: 1 / -1; justify-self: start; } }
+.table td.vnd-wrap { white-space: normal; min-width: 20ch; overflow-wrap: anywhere; }

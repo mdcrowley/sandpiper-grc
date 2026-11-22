@@ -19,6 +19,7 @@ function MapEditor({ policyId, elements, onClose, onSaved }: { policyId: string;
   const toast = useToast();
   const options = useLookup('plan_element').map((v) => ({ value: v.value, label: v.label }));
   const [rows, setRows] = useState<Element[]>(elements.map((e) => ({ ...e })));
+  const [start] = useState(() => JSON.stringify(rows));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const set = (i: number, p: Partial<Element>) => setRows((r) => r.map((x, j) => (j === i ? { ...x, ...p } : x)));
@@ -32,7 +33,7 @@ function MapEditor({ policyId, elements, onClose, onSaved }: { policyId: string;
     finally { setBusy(false); }
   };
   return (
-    <Modal open title="Edit the element map" size="lg" onClose={onClose}
+    <Modal open title="Edit the element map" size="lg" onClose={onClose} dirty={JSON.stringify(rows) !== start}
       footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" loading={busy} onClick={save}>Save</Button></>}>
       <div className="pl-rows">
         {rows.length === 0 && <p className="muted">No entries yet. Add one for each place the plan covers an element.</p>}

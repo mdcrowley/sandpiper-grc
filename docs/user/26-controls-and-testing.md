@@ -42,11 +42,24 @@ A control's **Design rating** and **Operating rating** cannot be typed in: they 
 
 ## What a control covers
 
-The **Coverage** tab of a control lists the records it covers: risks, hazards, framework outcomes, obligations and policies. To add one, choose the **Kind of record**, search for the **Record** and select **Add coverage**. Select **×** beside a record to stop covering it; neither record is otherwise changed.
+The **Coverage** tab of a control lists the records it covers: risks, hazards, framework outcomes, obligations, policies and OT security zones ([OT security](32-ot-security.md)). To add one, choose the **Kind of record**, search for the **Record** and select **Add coverage**. Select **×** beside a record to stop covering it; neither record is otherwise changed.
 
 Coverage is a link between the two records, so it also shows on the covered record's **Related** tab, as **covers**.
 
-Only records you may see are listed or offered. Risks are restricted records: someone without security access does not see the risks a control covers, cannot add or remove them, and does not find them in the coverage view; the control's history never names them either (adding or removing coverage of a restricted record is recorded in that record's own history). A kind of record whose area is switched off, or that your role cannot open, is not offered.
+Only records you may see are listed or offered. Risks, and OT zones marked restricted, are restricted records: someone without security access does not see the risks a control covers, cannot add or remove them, and does not find them in the coverage view; the control's history never names them either (adding or removing coverage of a restricted record is recorded in that record's own history). A kind of record whose area is switched off, or that your role cannot open, is not offered.
+
+### Where controls show
+
+The controls covering a record are also listed on that record's own page, in a **Controls** card with each control's last result, its state (the same states as the coverage view below) and its next test date; the card's heading shows the weakest state:
+
+- a **risk**: on its main page, under the treatment plan;
+- a **hazard**: on its main page, under the scoring;
+- a **framework outcome**: on its main page, under "Where we are going";
+- an **obligation**: on its **Periods** tab, under "Applies to";
+- a **policy**: on its **Policy** tab, beside the text, under who must acknowledge it;
+- an **OT security zone**: on its page ([OT security](32-ot-security.md)).
+
+The card shows only to people who may see controls, and not at all while the control library is switched off. It lists only controls; to add or remove coverage, open the control's **Coverage** tab.
 
 ## Testing a control
 
@@ -110,6 +123,5 @@ The `dev` seed profile loads twenty invented controls (marked "Invented sample c
 
 ## Not available yet
 
-- A panel on each covered record's own page listing the controls that cover it (the panel exists; adding it to the risk, hazard, outcome, obligation and policy pages is planned).
 - Importing coverage from a spreadsheet.
 - Test steps or checklists per control, and sampling from a population automatically.

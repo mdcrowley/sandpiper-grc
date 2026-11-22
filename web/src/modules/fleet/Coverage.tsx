@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   api, Button, Card, Checkbox, EmptyState, errorMessage, ErrorState, Icon, Loading, Modal, PageHeader, RecordPicker, Select, Stat,
-  StatusChip, Switch, useAuth, useFetch, useLookup, useToast,
+  StatusChip, Switch, useAuth, useFetch, useLookup, useToast, useUnsavedChanges,
 } from '../../core';
 import type { ColorName } from '../../core';
 import { FleetTabs } from './shared';
@@ -120,17 +120,21 @@ function RequirementsDialog({ open, onClose, onSaved }: { open: boolean; onClose
   const [draft, setDraft] = useState<Record<string, string[]>>({});
   const [busy, setBusy] = useState(false);
   useEffect(() => { if (data) setDraft(data); }, [data]);
+  // Unsaved when any mode's checked kinds differ from what was loaded (E22-14).
+  const norm = (m: Record<string, string[]>) => JSON.stringify(Object.keys(m).sort().map((k) => [k, [...m[k]].sort()]).filter(([, v]) => v.length));
+  const dirty = open && !!data && norm(draft) !== norm(data);
+  const unsaved = useUnsavedChanges(dirty);
   const toggle = (mode: string, type: string, on: boolean) =>
     setDraft((d) => ({ ...d, [mode]: on ? [...(d[mode] ?? []), type] : (d[mode] ?? []).filter((t) => t !== type) }));
   const save = async () => {
     setBusy(true);
-    try { await api.put('/api/fleet/requirements', draft); toast.success('Required equipment saved.'); onSaved(); }
+    try { await api.put('/api/fleet/requirements', draft); unsaved.release(); toast.success('Required equipment saved.'); onSaved(); }
     catch (err) { toast.error(errorMessage(err)); }
     finally { setBusy(false); }
   };
   return (
-    <Modal open={open} title="Required equipment" size="lg" onClose={onClose}
-      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" loading={busy} onClick={save}>Save</Button></>}>
+    <Modal open={open} title="Required equipment" size="lg" onClose={onClose} dirty={dirty}
+      footer={<><Button onClick={unsaved.guard(onClose)}>Cancel</Button><Button variant="primary" loading={busy} onClick={save}>Save</Button></>}>
       {!data ? <Loading lines={6} /> : (
         <div className="stack">
           <p className="muted">Check the kinds of equipment each mode of vehicle should carry. Coverage counts equipment as working when its asset status is In use.</p>

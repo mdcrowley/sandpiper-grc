@@ -4,7 +4,7 @@ import type { FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import {
   api, ApiError, Button, Card, ConfirmDialog, DateField, EmptyState, ErrorState, errorMessage, formatDate, IconButton, Loading,
-  LookupChip, LookupSelect, Modal, StatusChip, TextArea, TextField, toColorName, UserPicker, useAuth, useFetch, useToast,
+  LookupChip, LookupSelect, Modal, StatusChip, TextArea, TextField, toColorName, UserPicker, useAuth, useFetch, useToast, useUnsavedChanges,
 } from '../../core';
 
 interface Finding {
@@ -18,6 +18,8 @@ function FindingForm({ exerciseId, finding, onDone, onCancel }: { exerciseId: st
   const [text, setText] = useState(finding?.finding ?? '');
   const [severity, setSeverity] = useState(finding?.severity ?? 'medium');
   const [recommendation, setRecommendation] = useState(finding?.recommendation ?? '');
+  // Tells the enclosing dialog while the finding differs from what it opened with.
+  useUnsavedChanges(text !== (finding?.finding ?? '') || severity !== (finding?.severity ?? 'medium') || recommendation !== (finding?.recommendation ?? ''));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -59,9 +61,11 @@ function FindingForm({ exerciseId, finding, onDone, onCancel }: { exerciseId: st
 function ActionForm({ exerciseId, finding, onDone, onCancel }: { exerciseId: string; finding: Finding; onDone: () => void; onCancel: () => void }) {
   const toast = useToast();
   const first = finding.finding.split(/\r?\n/)[0];
-  const [title, setTitle] = useState(first.length > 140 ? `${first.slice(0, 137)}...` : first);
+  const [startTitle] = useState(first.length > 140 ? `${first.slice(0, 137)}...` : first);
+  const [title, setTitle] = useState(startTitle);
   const [ownerId, setOwnerId] = useState<string | null>(null);
   const [dueOn, setDueOn] = useState('');
+  useUnsavedChanges(title !== startTitle || !!ownerId || !!dueOn);   // tells the enclosing dialog
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);

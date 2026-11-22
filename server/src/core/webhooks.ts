@@ -3,6 +3,7 @@ import { lookup as dnsLookup, type LookupAddress } from 'node:dns';
 import { request as httpRequest, type IncomingMessage, type RequestOptions } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { BlockList, isIP } from 'node:net';
+import { rootCertificates } from 'node:tls';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { inTrial, type Db } from './db.ts';
 import { fail, UUID_RE } from './errors.ts';
@@ -152,6 +153,41 @@ export function addressRefusal(host: string, address: string, port: string, allo
 }
 
 /**
+ * A name lookup for a connection that checks every address the host resolves to (E13-08): a name
+ * with one public and one private address is refused too, unless that exact address is allowed.
+ * The connection then goes to the addresses that were checked: nothing is resolved twice. Used by
+ * every outbound connection (webhooks, the text-message webhook, audit-log forwarding E36-02).
+ */
+export function checkedLookup(port: string, allowList: unknown): NonNullable<RequestOptions['lookup']> {
+  return ((hostname: string, options: { all?: boolean; family?: number } | undefined, callback: (...args: unknown[]) => void) => {
+    dnsLookup(hostname, { all: true, family: options?.family ?? 0 }, (err, addresses: LookupAddress[]) => {
+      if (err) { callback(err); return; }
+      if (!addresses.length) { callback(new Error(`Host ${hostname} has no address.`)); return; }
+      for (const a of addresses) {
+        const refusal = addressRefusal(hostname, a.address, port, allowList);
+        if (refusal) { callback(new AddressBlockedError(refusal)); return; }
+      }
+      if (options?.all) callback(null, addresses);
+      else callback(null, addresses[0].address, addresses[0].family);
+    });
+  }) as unknown as NonNullable<RequestOptions['lookup']>;
+}
+
+/** The refusal for a literal address that may not be reached (no lookup is made for one), or null. */
+export function literalRefusal(hostname: string, port: string, allowList: unknown): AddressBlockedError | null {
+  const host = bare(hostname);
+  if (!isIP(host)) return null;
+  const refusal = addressRefusal(host, host, port, allowList);
+  return refusal ? new AddressBlockedError(refusal) : null;
+}
+
+export interface OutboundOptions {
+  timeoutMs?: number;
+  /** An extra certificate authority (PEM) trusted for this connection besides the usual ones (a private log collector). */
+  ca?: string | null;
+}
+
+/**
  * Posts one webhook body. The host name is resolved here, at connection time, and every address it
  * resolves to is checked (a name with one public and one private address is refused too). The
  * connection then goes to the addresses that were checked: nothing is resolved twice.
@@ -159,30 +195,30 @@ export function addressRefusal(host: string, address: string, port: string, allo
 export function postWebhook(
   url: URL, body: string, headers: Record<string, string>, allowList: unknown, timeoutMs = TIMEOUT_MS,
 ): Promise<{ status: number }> {
+  return postOutbound(url, body, headers, allowList, { timeoutMs });
+}
+
+/**
+ * The SSRF-safe client behind every outbound HTTP post (postWebhook, audit-log forwarding): the
+ * checks of postWebhook, certificates always verified on https (with `ca` trusted as well when
+ * given), redirects never followed, the whole exchange limited to `timeoutMs`.
+ */
+export function postOutbound(
+  url: URL, body: string, headers: Record<string, string>, allowList: unknown, opts: OutboundOptions = {},
+): Promise<{ status: number }> {
+  const timeoutMs = opts.timeoutMs ?? TIMEOUT_MS;
   return new Promise((resolve, reject) => {
     const port = url.port || (url.protocol === 'https:' ? '443' : '80');
-    const host = bare(url.hostname);
-    if (isIP(host)) {
-      // A literal address is connected to as it is (the lookup below is not called for it).
-      const refusal = addressRefusal(host, host, port, allowList);
-      if (refusal) { reject(new AddressBlockedError(refusal)); return; }
-    }
-    const lookup = ((hostname: string, options: { all?: boolean; family?: number } | undefined, callback: (...args: unknown[]) => void) => {
-      dnsLookup(hostname, { all: true, family: options?.family ?? 0 }, (err, addresses: LookupAddress[]) => {
-        if (err) { callback(err); return; }
-        if (!addresses.length) { callback(new Error(`Host ${hostname} has no address.`)); return; }
-        for (const a of addresses) {
-          const refusal = addressRefusal(hostname, a.address, port, allowList);
-          if (refusal) { callback(new AddressBlockedError(refusal)); return; }
-        }
-        if (options?.all) callback(null, addresses);
-        else callback(null, addresses[0].address, addresses[0].family);
-      });
-    }) as unknown as RequestOptions['lookup'];
+    // A literal address is connected to as it is (the lookup below is not called for it).
+    const blocked = literalRefusal(url.hostname, port, allowList);
+    if (blocked) { reject(blocked); return; }
+    const lookup = checkedLookup(port, allowList);
     const timeout = () => Object.assign(new Error('timeout'), { name: 'TimeoutError' });
-    const send = url.protocol === 'https:' ? httpsRequest : httpRequest;
+    const https = url.protocol === 'https:';
+    const send = https ? httpsRequest : httpRequest;
     const req = send(url, {
       method: 'POST', lookup, timeout: timeoutMs,
+      ...(https ? { rejectUnauthorized: true, ...(opts.ca ? { ca: [...rootCertificates, opts.ca] } : {}) } : {}),
       headers: { ...headers, 'content-length': String(Buffer.byteLength(body)) },
     }, (res: IncomingMessage) => {
       res.resume(); // drain; the answer's body is not kept
@@ -197,6 +233,80 @@ export function postWebhook(
     req.on('close', () => clearTimeout(timer));
     req.end(body);
   });
+}
+
+// ---------- addresses kept encrypted (E22-45) and body presets (E36-04) ----------
+
+/** The context a webhook address is sealed with (core/secretbox.ts): bound to its row. */
+export const webhookUrlContext = (id: string) => `webhook-url:${id}`;
+
+/** First 12 hex characters of the SHA-256 of an address: shows whether it changed, never what it is. */
+export const urlFingerprint = (raw: string) => createHash('sha256').update(raw).digest('hex').slice(0, 12);
+
+/** Scheme, host and port of an address (`https://hooks.example.test`), or '' when it is not one. */
+export function urlOrigin(raw: string): string {
+  try { const u = new URL(raw); return `${u.protocol}//${u.host}`; } catch { return ''; }
+}
+
+/**
+ * A webhook's address in the clear, for sending or for an administrator who confirmed their password.
+ * A row written before E22-45 (or changed outside the application) still has `url`; otherwise the
+ * sealed copy is opened. Throws when the sealed copy cannot be read with the current secret key.
+ */
+export function openWebhookUrl(box: SecretBox, row: { id: string; url?: unknown; url_sealed?: unknown }): string {
+  if (typeof row.url === 'string' && row.url) return row.url;
+  if (typeof row.url_sealed === 'string' && row.url_sealed) return box.decrypt(row.url_sealed, webhookUrlContext(row.id));
+  return '';
+}
+
+/** How a webhook's address is shown: scheme, host and fingerprint, as in the audit log. */
+export function webhookUrlDisplay(row: { url_host?: unknown; url_fingerprint?: unknown }): string {
+  return row.url_host ? `${String(row.url_host)}/…${REDACTED_MARK}${String(row.url_fingerprint ?? '')})` : '';
+}
+
+/**
+ * Body formats a webhook may send (E36-04). Generic shapes only, named after no product:
+ *  - `plain_json`: the whole event as JSON (the default, documented in docs/api.md);
+ *  - `chat_text`: `{ "text": "<one line>" }`, the shape most chat tools' incoming webhooks accept;
+ *  - `chat_card`: `{ "title", "text", "link", "facts": [{ "name", "value" }] }`, for a receiver or relay that draws a card.
+ * The chat formats carry a one-line summary and the names of changed fields, never field values.
+ * Every format is signed the same way (X-GRC-Signature over the body actually sent).
+ */
+export const WEBHOOK_PRESETS = ['plain_json', 'chat_text', 'chat_card'] as const;
+export type WebhookPreset = typeof WEBHOOK_PRESETS[number];
+
+const ACTION_WORDS: Record<string, string> = { create: 'added', update: 'changed', delete: 'deleted' };
+
+/** The body one delivery sends, built from its stored payload by the webhook's preset. */
+export function presetBody(preset: unknown, deliveryId: string, payload: Row, publicUrl = ''): string {
+  if (preset !== 'chat_text' && preset !== 'chat_card') return JSON.stringify({ id: deliveryId, ...payload });
+  const event = String(payload.event ?? 'event');
+  const record = (payload.record ?? null) as Row | null;
+  const actor = (payload.actor ?? null) as Row | null;
+  const def = EVENT_DEFS.get(event);
+  const [, action] = event.split('.');
+  let title: string;
+  if (payload.redacted === true) title = String(payload.reason ?? 'The content of this delivery was removed.');
+  else if (event === 'webhook.test') title = String(payload.message ?? 'Test delivery.');
+  else if (def) title = def.label;
+  else title = `${String(event.split('.')[0]).replace(/_/g, ' ')} ${ACTION_WORDS[action] ?? action}`;
+  title = (title.charAt(0).toUpperCase() + title.slice(1)).replace(/[.\s]+$/, '');
+  const what = record ? [record.ref, record.label && record.label !== record.ref ? `"${String(record.label)}"` : null].filter(Boolean).join(' ') : '';
+  const by = actor?.name ? ` by ${String(actor.name)}` : '';
+  const base = publicUrl.replace(/\/+$/, '');
+  const link = base && record?.route ? `${base}${String(record.route)}` : null;
+  const changes = (payload.changes ?? null) as Row | null;
+  const changed = changes ? Object.keys((changes.after ?? {}) as Row).filter((k) => k !== 'updated_at') : [];
+  const text = `${title}${what ? `: ${what}` : ''}${by}.${changed.length ? ` Changed: ${changed.slice(0, 10).join(', ')}${changed.length > 10 ? ', …' : ''}.` : ''}`;
+  if (preset === 'chat_text') return JSON.stringify({ text: link ? `${text} ${link}` : text });
+  const facts = [
+    { name: 'Event', value: event },
+    ...(record?.ref ? [{ name: 'Reference', value: String(record.ref) }] : []),
+    ...(actor?.name ? [{ name: 'By', value: String(actor.name) }] : []),
+    ...(changed.length ? [{ name: 'Changed', value: changed.slice(0, 10).join(', ') }] : []),
+    { name: 'When', value: String(payload.occurredAt ?? '') },
+  ];
+  return JSON.stringify({ title, text, link, facts });
 }
 
 const matches = (events: string[], type: string, action: string) =>
@@ -360,6 +470,30 @@ export function registerWebhooks({ app, db, audit, settings, res, box, loadUser,
   const seal = (id: string, secret: string) => box().encrypt(secret, `webhook:${id}`);
   const open = (id: string, sealed: string) => box().decrypt(sealed, `webhook:${id}`);
 
+  /** Stores an address sealed (E22-45): `url` is blanked; host and fingerprint are kept for display. */
+  async function storeUrl(id: string, url: string): Promise<void> {
+    await db.query('update webhooks set url = \'\', url_sealed = $2, url_host = $3, url_fingerprint = $4 where id = $1',
+      [id, box().encrypt(url, webhookUrlContext(id)), urlOrigin(url), urlFingerprint(url)]);
+  }
+  /** The address in the clear, or '' when it cannot be read with the current key. */
+  const clearUrl = (row: Row): string => { try { return openWebhookUrl(box(), row as { id: string }); } catch { return ''; } };
+
+  /**
+   * Seals the addresses still kept in the clear (written before E22-45, or restored from an older
+   * export). Runs at start-up; a key change later reseals them with the rest (secretkey-reseal.ts).
+   */
+  async function sealClearUrls(): Promise<number> {
+    if (!(await db.one<{ c: string | null }>(
+      `select column_name as c from information_schema.columns where table_schema = 'public' and table_name = 'webhooks' and column_name = 'url_sealed'`))) return 0;
+    const rows = await db.query<{ id: string; url: string }>(`select id, url from webhooks where url <> ''`);
+    for (const r of rows) await storeUrl(r.id, r.url);
+    if (rows.length) {
+      await audit(null, { action: 'webhook.addresses_sealed', recordType: 'webhook', summary: `${rows.length} webhook address(es) encrypted with the secret key` });
+    }
+    return rows.length;
+  }
+  app.addHook('onReady', async () => { await sealClearUrls(); });
+
   // ---------- queueing ----------
 
   async function enqueue(hook: Row, event: string, payload: Row, recordType?: string, recordId?: string): Promise<string> {
@@ -507,11 +641,19 @@ export function registerWebhooks({ app, db, audit, settings, res, box, loadUser,
 
     if (!(await enabled())) { await finish('blocked', { error: 'Outbound connections are switched off (integrations.outbound_enabled).' }); return; }
     if (!d.active || d.deleted_at) { await finish('blocked', { error: 'The webhook is switched off or was removed.' }); return; }
+    let raw: string;
+    try {
+      raw = openWebhookUrl(box(), { id: d.webhook_id, url: d.url, url_sealed: d.url_sealed });
+    } catch {
+      await finish('blocked', { error: 'The webhook address cannot be read with the current secret key. Enter the address again.' });
+      return;
+    }
     let url: URL;
-    try { url = new URL(d.url); } catch { await finish('blocked', { error: 'The webhook address is not a valid URL.' }); return; }
+    try { url = new URL(raw); } catch { await finish('blocked', { error: 'The webhook address is not a valid URL.' }); return; }
     if (!hostAllowed(url, await allowList())) { await finish('blocked', { error: `Host ${url.host} is not on the allow-list (integrations.allowed_hosts).` }); return; }
 
-    const body = JSON.stringify({ id: d.id, ...(d.payload as Row) });
+    // The preset (E36-04) decides the body; the signature covers whatever is sent.
+    const body = presetBody(d.preset, d.id, d.payload as Row, String(await settings.get('auth.public_url', '') ?? ''));
     const timestamp = String(Math.floor(Date.now() / 1000));
     let code: number | null = null;
     let error: string | null = null;
@@ -550,7 +692,7 @@ export function registerWebhooks({ app, db, audit, settings, res, box, loadUser,
     running = true;
     try {
       const due = await db.query<Row>(
-        `select d.*, w.url, w.secret, w.active, w.deleted_at from webhook_deliveries d join webhooks w on w.id = d.webhook_id
+        `select d.*, w.url, w.url_sealed, w.preset, w.secret, w.active, w.deleted_at from webhook_deliveries d join webhooks w on w.id = d.webhook_id
          where d.status = 'pending' and d.next_attempt_at <= now() order by d.created_at limit $1`, [limit]);
       for (const d of due) await attempt(d);
       return due.length;
@@ -565,7 +707,13 @@ export function registerWebhooks({ app, db, audit, settings, res, box, loadUser,
 
   // ---------- administration ----------
 
-  const publicHook = ({ secret, ...h }: Row) => h;
+  // Never the secret, and never the address itself (E22-45): its host, a fingerprint, and whether the
+  // host is allowed. The full address needs a password confirmation (POST /api/admin/webhooks/:id/reveal).
+  const publicHook = ({ secret: _s, url: _u, url_sealed: _us, ...h }: Row, allowed: unknown = []) => {
+    let hostOk = false;
+    try { hostOk = Boolean(h.url_host) && hostAllowed(new URL(String(h.url_host)), allowed); } catch { /* not an address */ }
+    return { ...h, url_display: webhookUrlDisplay(h), host_allowed: hostOk };
+  };
   const LIST = `
     select w.*, (select count(*)::int from webhook_deliveries d where d.webhook_id = w.id and d.status = 'pending') as pending,
       (select count(*)::int from webhook_deliveries d where d.webhook_id = w.id and d.status in ('failed', 'blocked') and d.created_at > now() - interval '7 days') as failed_recently,
@@ -609,11 +757,16 @@ export function registerWebhooks({ app, db, audit, settings, res, box, loadUser,
     }
     if (b.active !== undefined) out.active = b.active === true;
     if (b.includeRestricted !== undefined) out.include_restricted = b.includeRestricted === true;
+    if (b.preset !== undefined) {
+      out.preset = String(b.preset);
+      if (!(WEBHOOK_PRESETS as readonly string[]).includes(out.preset)) fields.preset = 'Choose plain JSON, chat text or chat card.';
+    }
     return { out, fields };
   }
 
   app.get('/api/admin/webhooks', admin, async () => ({
-    webhooks: (await db.query<Row>(`${LIST} order by lower(w.name)`)).map(publicHook),
+    webhooks: await listPublic(),
+    presets: WEBHOOK_PRESETS,
     outboundEnabled: await enabled(),
     allowedHosts: await allowList(),
     retryMinutes: RETRY_MINUTES,
@@ -622,6 +775,12 @@ export function registerWebhooks({ app, db, audit, settings, res, box, loadUser,
     // Other events (E13-19), without those of a switched-off area.
     otherEvents: await offeredEvents(),
   }));
+
+  async function listPublic(id?: string) {
+    const allowed = await allowList();
+    const rows = id ? await db.query<Row>(`${LIST} and w.id = $1`, [id]) : await db.query<Row>(`${LIST} order by lower(w.name)`);
+    return rows.map((h) => publicHook(h, allowed));
+  }
 
   async function offeredEvents() {
     const on = (await featureState(db)).on;
@@ -639,51 +798,60 @@ export function registerWebhooks({ app, db, audit, settings, res, box, loadUser,
     if (Object.keys(fields).length) invalid(fields);
     await requireRecentAuth(req, 'adding a webhook');
     const row = (await db.one<Row>(
-      `insert into webhooks (name, url, secret, events, active, include_restricted, created_by, updated_by)
-       values ($1,$2,'',$3::jsonb,$4,$5,$6,$6) returning id`,
-      [out.name, out.url, JSON.stringify(out.events), out.active ?? true, out.include_restricted ?? false, req.user!.id]))!;
+      `insert into webhooks (name, url, secret, events, active, include_restricted, preset, created_by, updated_by)
+       values ($1,'','',$2::jsonb,$3,$4,$5,$6,$6) returning id`,
+      [out.name, JSON.stringify(out.events), out.active ?? true, out.include_restricted ?? false, out.preset ?? 'plain_json', req.user!.id]))!;
     await db.query('update webhooks set secret = $2 where id = $1', [row.id, seal(row.id, secret)]);
+    await storeUrl(row.id, out.url);
     await audit(req, {
       action: 'webhook.create', recordType: 'webhook', recordId: row.id,
       summary: `Webhook "${out.name}" added for ${new URL(out.url).host}${out.include_restricted ? ' (includes restricted records)' : ''}`,
-      after: { name: out.name, url: redactWebhookUrl(out.url), events: out.events, active: out.active ?? true, include_restricted: out.include_restricted ?? false },
+      after: { name: out.name, url: redactWebhookUrl(out.url), events: out.events, active: out.active ?? true, include_restricted: out.include_restricted ?? false, preset: out.preset ?? 'plain_json' },
     });
     reply.code(201);
     // The secret is shown now and never again.
-    return { ...publicHook((await db.one<Row>(`${LIST} and w.id = $1`, [row.id]))!), secret };
+    return { ...(await listPublic(row.id))[0], secret };
   });
 
   app.patch('/api/admin/webhooks/:id', admin, async (req) => {
     const before = await one(req);
+    const beforeUrl = clearUrl(before);
     const { out, fields } = clean((req.body ?? {}) as Row, before);
+    // An empty address in a change keeps the one stored (the screen does not hold it: E22-45).
+    if (out.url === '' && (req.body as Row)?.url !== undefined) { delete out.url; delete fields.url; }
+    const urlChanged = out.url !== undefined && out.url !== beforeUrl;
     if (out.include_restricted && !before.include_restricted && !can(req.user, 'security.view')) {
       fields.includeRestricted = 'Only a person who holds security.view can include restricted records.';
     }
     // Pointing a webhook that sends restricted records somewhere else is the same choice again.
-    if (out.url !== undefined && out.url !== before.url && (out.include_restricted ?? before.include_restricted) && !can(req.user, 'security.view')) {
+    if (urlChanged && (out.include_restricted ?? before.include_restricted) && !can(req.user, 'security.view')) {
       fields.url = 'This webhook includes restricted records: only a person who holds security.view can change its address.';
     }
     if (Object.keys(fields).length) invalid(fields);
-    if ((out.url !== undefined && out.url !== before.url) || (out.include_restricted && !before.include_restricted)) {
+    if (urlChanged || (out.include_restricted && !before.include_restricted)) {
       await requireRecentAuth(req, 'changing where a webhook sends, or what it may include');
     }
     const next = { ...before, ...out };
     await db.query(
-      `update webhooks set name = $2, url = $3, events = $4::jsonb, active = $5, include_restricted = $6, updated_at = now(), updated_by = $7,
-         created_by = case when $8 then $7 else created_by end where id = $1`,
+      `update webhooks set name = $2, events = $3::jsonb, active = $4, include_restricted = $5, preset = $8, updated_at = now(), updated_by = $6,
+         created_by = case when $7 then $6 else created_by end where id = $1`,
       // The person who opts in to restricted records becomes the one whose security.view is checked.
-      [before.id, next.name, next.url, JSON.stringify(next.events), next.active, next.include_restricted, req.user!.id,
-        Boolean(out.include_restricted && !before.include_restricted)]);
-    const pick = (h: Row) => ({ name: h.name, url: redactWebhookUrl(h.url), events: h.events, active: h.active, include_restricted: h.include_restricted });
-    await audit(req, { action: 'webhook.update', recordType: 'webhook', recordId: before.id, summary: `Webhook "${next.name}" changed`, before: pick(before), after: pick(next) });
-    return publicHook((await db.one<Row>(`${LIST} and w.id = $1`, [before.id]))!);
+      [before.id, next.name, JSON.stringify(next.events), next.active, next.include_restricted, req.user!.id,
+        Boolean(out.include_restricted && !before.include_restricted), next.preset ?? 'plain_json']);
+    if (urlChanged) await storeUrl(before.id, out.url);
+    const pick = (h: Row, url: string) => ({ name: h.name, url: redactWebhookUrl(url), events: h.events, active: h.active, include_restricted: h.include_restricted, preset: h.preset ?? 'plain_json' });
+    await audit(req, {
+      action: 'webhook.update', recordType: 'webhook', recordId: before.id, summary: `Webhook "${next.name}" changed`,
+      before: pick(before, beforeUrl), after: pick(next, urlChanged ? out.url : beforeUrl),
+    });
+    return (await listPublic(before.id))[0];
   });
 
   app.delete('/api/admin/webhooks/:id', admin, async (req) => {
     const before = await one(req);
     await db.query('update webhooks set deleted_at = now(), active = false, updated_by = $2 where id = $1', [before.id, req.user!.id]);
     await db.query(`update webhook_deliveries set status = 'blocked', last_error = 'The webhook was removed.' where webhook_id = $1 and status = 'pending'`, [before.id]);
-    await audit(req, { action: 'webhook.delete', recordType: 'webhook', recordId: before.id, summary: `Webhook "${before.name}" removed`, before: { name: before.name, url: redactWebhookUrl(before.url) } });
+    await audit(req, { action: 'webhook.delete', recordType: 'webhook', recordId: before.id, summary: `Webhook "${before.name}" removed`, before: { name: before.name, url: redactWebhookUrl(clearUrl(before)) || webhookUrlDisplay(before) } });
     return { ok: true };
   });
 
@@ -734,5 +902,5 @@ export function registerWebhooks({ app, db, audit, settings, res, box, loadUser,
     return db.one('select id, event, status, attempts, response_status, last_error, delivered_at, next_attempt_at from webhook_deliveries where id = $1', [id]);
   });
 
-  return { processDue, enqueue };
+  return { processDue, enqueue, sealClearUrls };
 }

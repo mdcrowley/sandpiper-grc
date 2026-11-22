@@ -52,7 +52,8 @@ function MilestoneDialog({ projectId, open, milestone, onClose, onSaved }: {
   }
 
   return (
-    <Modal open={open} title={milestone ? 'Edit milestone' : 'Add milestone'} onClose={onClose} size="sm">
+    <Modal open={open} title={milestone ? 'Edit milestone' : 'Add milestone'} onClose={onClose} size="sm"
+      dirty={open && (name !== (milestone?.name ?? '') || dueOn !== (milestone?.due_on ?? '') || doneOn !== (milestone?.done_on ?? ''))}>
       <form className="form" onSubmit={submit} noValidate>
         <TextField label="Name" required value={name} onChange={setName} error={fields.name} autoFocus />
         <DateField label="Due date" required value={dueOn} onChange={setDueOn} error={fields.due_on} />

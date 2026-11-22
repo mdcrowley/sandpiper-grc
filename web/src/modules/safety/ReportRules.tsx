@@ -46,13 +46,15 @@ export function ReportRules() {
   const { data, error, reload } = useFetch<RulesResult>('/api/safety/report-rules');
   const [editing, setEditing] = useState<Rule | 'new' | null>(null);
   const [f, setF] = useState(BLANK);
+  const [start, setStart] = useState(BLANK);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [removing, setRemoving] = useState<Rule | null>(null);
   const mayAdmin = can('safety.administer');
   const open = (r: Rule | 'new') => {
     setErrors({});
-    setF(r === 'new' ? BLANK : { name: r.name, party: r.party, deadline_hours: Number(r.deadline_hours), required: r.required, guidance: r.guidance ?? '', active: r.active, sort: r.sort, conditions: r.conditions });
+    const initial = r === 'new' ? BLANK : { name: r.name, party: r.party, deadline_hours: Number(r.deadline_hours), required: r.required, guidance: r.guidance ?? '', active: r.active, sort: r.sort, conditions: r.conditions };
+    setF(initial); setStart(initial);
     setEditing(r);
   };
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }));
@@ -113,6 +115,7 @@ export function ReportRules() {
           </Card>
         )}
       <Modal open={!!editing} size="lg" title={editing === 'new' ? 'New reporting rule' : 'Edit reporting rule'} onClose={() => setEditing(null)}
+        dirty={JSON.stringify(f) !== JSON.stringify(start)}
         footer={<><Button onClick={() => setEditing(null)}>Cancel</Button><Button variant="primary" loading={busy} onClick={save}>Save</Button></>}>
         {data && (
           <div className="form">

@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  Button, Card, Chart, chartColor, EmptyState, ErrorState, formatDate, Loading, PageHeader, Stat, useAuth, useFetch,
+  Button, Card, Chart, chartColor, EmptyState, ErrorState, formatDate, Loading, PageHeader, Stat, TableWrap, useAuth, useFetch,
 } from '../../core';
 import type { ChartOption, ColorName } from '../../core';
 import { ControlsTabs, STATE_INFO } from './shared';
@@ -113,7 +113,7 @@ export function ControlsDashboard() {
         </Card>
         <Card title="What the controls cover" actions={<Link className="btn btn-ghost btn-sm" to="/controls/coverage">Coverage view</Link>} flush>
           {s.coverage.length === 0 ? <EmptyState icon="shield" title="Nothing to show" message="None of the kinds of record a control can cover are open to you." /> : (
-            <div className="table-wrap">
+            <TableWrap label="Records covered by controls, by kind">
               <table className="table">
                 <caption className="sr-only">Records covered by controls, by kind</caption>
                 <thead><tr><th scope="col">Kind</th><th scope="col" className="num">Covered</th><th scope="col" className="num">Relying on an ineffective control</th></tr></thead>
@@ -127,7 +127,7 @@ export function ControlsDashboard() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableWrap>
           )}
         </Card>
       </div>

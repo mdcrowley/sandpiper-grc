@@ -7,6 +7,7 @@ import {
 } from '../../core';
 import type { Row } from '../../core';
 import { Checklist } from './Checklist';
+import { StartOffboarding } from './Offboardings';
 import { AddEvidence } from './EvidenceForm';
 import {
   ActionsTab, ExpiryChip, NoticeChip, daysUntil, ifWeDoNothing, noticeTone, useActionsAvailable,
@@ -207,7 +208,12 @@ export function ContractDetail() {
           {row._display?.owner_id ? ` · Owner: ${row._display.owner_id}` : ' · No owner'}
         </>
       )}
-      actions={() => <Link className="btn btn-secondary" to="/contracts/renewals">Renewal calendar</Link>}
+      actions={({ row }) => (
+        <>
+          <StartOffboarding contract={row} />
+          <Link className="btn btn-secondary" to="/contracts/renewals">Renewal calendar</Link>
+        </>
+      )}
       banner={({ row }) => <NoticeHero row={row} />}
       summary={({ row, reload, save, canEdit }) => (
         <div className="vnd-contract-cols">

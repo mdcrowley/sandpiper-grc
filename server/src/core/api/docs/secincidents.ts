@@ -148,7 +148,7 @@ export const DOCS: RouteDoc[] = [
     body: '{ phase: string "A value of the incident_checklist_phase list.", step: string }', response: CHECK_ITEM, status: 201,
   }),
   route('PATCH', '/api/security-incidents/:id/checklist/:itemId', 'Tick or untick a checklist step', {
-    tag: T, permission: EDIT, description: `${ON_INCIDENT} Records who ticked it and when. Audited.`,
+    tag: T, permission: EDIT, description: `${ON_INCIDENT} Records who checked it and when. Audited.`,
     body: '{ done: boolean }', response: CHECK_ITEM,
   }),
 

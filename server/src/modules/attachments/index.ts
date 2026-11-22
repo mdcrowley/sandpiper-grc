@@ -19,6 +19,8 @@ import { clamdScanner } from './clamd.ts';
 import { clamdConfig, readScanner } from './config.ts';
 import { runEvidenceFileReminders } from './evidenceReminders.ts';
 import { dailyHousekeeping } from './housekeeping.ts';
+import { linkCheckDays, runLinkCheckReminders } from './linkReminders.ts';
+import { auditAddress, isLink, linkChange, registerLinkRoutes } from './links.ts';
 import { insertAttachment, prepareFile, receiveFile, sandboxDownload, sendStoredFile, type Refusal } from './intake.ts';
 import { makeScannerRegistry } from './scanner.ts';
 import {
@@ -63,7 +65,12 @@ const mod: ModuleDef = {
     }, { every: DAY, firstRunInMs: 120_000, leaseSeconds: 1800 });
 
     // Daily: evidence files about to expire remind their record's owner (E14-18, evidenceReminders.ts).
-    await scheduleWork(ctx, 'attachments.evidence_reminders', () => runEvidenceFileReminders(ctx), { every: DAY, firstRunInMs: 140_000 });
+    // Links not checked for a while (setting attachments.link_check_days) remind the same owner (E36-05).
+    await scheduleWork(ctx, 'attachments.evidence_reminders', async () => {
+      const files = await runEvidenceFileReminders(ctx);
+      const links = await runLinkCheckReminders(ctx);
+      return { ...files, links };
+    }, { every: DAY, firstRunInMs: 140_000 });
 
     // ---------- who may see and change the files of a record ----------
 
@@ -137,11 +144,12 @@ const mod: ModuleDef = {
       const { record_type, record_id } = req.query as Record<string, string>;
       const parent = await needParent(req, record_type, record_id, 'view');
       const rows = await db.query<Row>(
-        `select * from attachments where record_type = $1 and record_id = $2 and deleted_at is null
-         order by created_at desc, id`,
+        `select a.*, u.display_name as checked_by_name from attachments a left join users u on u.id = a.checked_by
+         where a.record_type = $1 and a.record_id = $2 and a.deleted_at is null
+         order by a.created_at desc, a.id`,
         [record_type, record_id],
       );
-      return { rows: rows.map(present), canEdit: mayEdit(req, parent), today: todayInZone() };
+      return { rows: rows.map(present), canEdit: mayEdit(req, parent), today: todayInZone(), linkCheckDays: await linkCheckDays(ctx) };
     });
 
     // ---------- evidence about to expire, across every record the caller may see ----------
@@ -238,6 +246,8 @@ const mod: ModuleDef = {
       onSend: sandboxDownload,
     }, async (req, reply) => {
       const { att, parent } = await needAttachment(req, 'view');
+      // A link has nothing stored here: its address is in the list (E36-05).
+      if (isLink(att)) ctx.fail(409, 'is_link', 'This is a link to a document kept elsewhere. Open its address instead.');
       const problem = async (code: string, message: string, reason: string): Promise<never> => {
         await ctx.audit(req, {
           action: 'attachment.integrity_failure', recordType: parent.def.type, recordId: parent.row.id,
@@ -259,26 +269,33 @@ const mod: ModuleDef = {
     app.patch('/api/attachments/:id', async (req) => {
       const { att, parent } = await needAttachment(req, 'edit');
       const next = validateDescriptive(ctx, (req.body ?? {}) as Row, att);
+      // A link's address and title can be changed too (E36-05); an uploaded file's name cannot.
+      const link = isLink(att) ? linkChange(ctx, att, (req.body ?? {}) as Row) : {};
       const before: Row = {};
       const after: Row = {};
       for (const k of ['kind', 'description', 'collected_on', 'expires_on'] as const) {
         if ((att[k] ?? null) !== next[k]) { before[k] = att[k] ?? null; after[k] = next[k]; }
       }
+      if (link.link_url) { before.link = auditAddress(att.link_url); after.link = auditAddress(link.link_url); }
+      if (link.link_title) { before.title = att.link_title; after.title = link.link_title; }
       if (!Object.keys(after).length) return present(att);
       const row = (await db.one<Row>(
         `update attachments set kind = $2, description = $3, collected_on = $4, expires_on = $5,
+           link_url = coalesce($7, link_url), link_title = coalesce($8, link_title), file_name = coalesce($8, file_name),
            updated_at = now(), updated_by = $6 where id = $1 returning *`,
-        [att.id, next.kind, next.description, next.collected_on, next.expires_on, req.user!.id],
+        [att.id, next.kind, next.description, next.collected_on, next.expires_on, req.user!.id, link.link_url ?? null, link.link_title ?? null],
       ))!;
       await ctx.audit(req, {
         action: 'attachment.update', recordType: parent.def.type, recordId: parent.row.id,
-        summary: `File details changed: ${att.file_name}`, before: { attachment_id: att.id, ...before }, after,
+        summary: `${isLink(att) ? 'Link' : 'File'} details changed: ${att.file_name}`, before: { attachment_id: att.id, ...before }, after,
       });
       return present(row);
     });
 
     // Soft delete: the row is marked and the stored bytes are kept for the purge period
     // (File settings), during which an administrator can put the file back.
+    registerLinkRoutes(ctx, { needParent, needAttachment });
+
     app.delete('/api/attachments/:id', async (req) => {
       const { att, parent } = await needAttachment(req, 'edit');
       // The files of a record under a legal hold stay (wave 11 C1).
@@ -286,7 +303,7 @@ const mod: ModuleDef = {
       await db.query(`update attachments set deleted_at = now(), removed_reason = 'removed', updated_at = now(), updated_by = $2 where id = $1`, [att.id, req.user!.id]);
       await ctx.audit(req, {
         action: 'attachment.delete', recordType: parent.def.type, recordId: parent.row.id,
-        summary: `File removed: ${att.file_name}`,
+        summary: `${isLink(att) ? 'Link' : 'File'} removed: ${att.file_name}`,
         before: { attachment_id: att.id, file_name: att.file_name, size_bytes: att.size_bytes, sha256: att.sha256, kind: att.kind },
       });
       return { ok: true };

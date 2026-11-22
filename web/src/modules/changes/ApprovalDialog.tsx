@@ -35,14 +35,24 @@ export function ApprovalDialog({ open, changeId, approvals, mode, onClose, onRec
   const [fields, setFields] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
+  // What the dialog opened with, so closing it after a change asks first.
+  const draft = JSON.stringify([decision, name, role, decidedOn, reference, notes]);
+  const [start, setStart] = useState(draft);
 
   useEffect(() => {
     if (!open) return;
     const taken = approvals.decisions.filter((d) => d.current && d.decision === 'approved').map((d) => d.approver_role);
-    setDecision(mode === 'rejected' ? 'rejected' : 'approved');
-    setName(user?.displayName ?? '');
-    setRole(approvals.approver_roles.find((r) => !taken.includes(r)) ?? '');
-    setDecidedOn(todayInZone()); setReference(''); setNotes(''); setFields({}); setFormError('');
+    const first = {
+      decision: mode === 'rejected' ? 'rejected' : 'approved',
+      name: user?.displayName ?? '',
+      role: approvals.approver_roles.find((r) => !taken.includes(r)) ?? '',
+      decidedOn: todayInZone(),
+    };
+    setDecision(first.decision);
+    setName(first.name);
+    setRole(first.role);
+    setDecidedOn(first.decidedOn); setReference(''); setNotes(''); setFields({}); setFormError('');
+    setStart(JSON.stringify([first.decision, first.name, first.role, first.decidedOn, '', '']));
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function submit(e: React.FormEvent) {
@@ -74,7 +84,7 @@ export function ApprovalDialog({ open, changeId, approvals, mode, onClose, onRec
   const title = byHand ? 'Record a decision given outside the application' : decision === 'approved' ? 'Approve this change' : 'Reject this change';
   const count = `This change needs ${approvals.required} ${approvals.required === 1 ? 'approval' : 'approvals'} and has ${approvals.received}.`;
   return (
-    <Modal open={open} title={title} onClose={onClose} size="md">
+    <Modal open={open} title={title} onClose={onClose} size="md" dirty={open && draft !== start}>
       <form className="form" onSubmit={submit} noValidate>
         <p className="muted">
           {byHand

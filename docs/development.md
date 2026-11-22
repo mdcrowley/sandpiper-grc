@@ -226,12 +226,27 @@ Read them in code with `ctx.settings.get(key, fallback)`, using the same fallbac
 | `tokens.rate_per_minute` | `600` | Requests a minute per token |
 | `integrations.outbound_enabled` | `false` | Allows webhook deliveries at all |
 | `integrations.allowed_hosts` | `[]` | Hosts webhooks may reach (`host`, `host:port`, `*.domain`) |
+| `integrations.scim_enabled` | `false` | User provisioning (SCIM 2.0) answers at all (Administration > User provisioning) |
+| `integrations.scim_link_provider` | `''` | The sign-in provider whose external ids provisioned accounts are linked to |
+| `feeds.calendar_enabled` | `false` | Calendar feeds answer at all (Administration > Calendar and work trackers; password confirmation to switch on) |
+| `attachments.link_check_days` | `90` | Days after which a linked document is due for a check |
+| `actions.closure_evidence_sources` | `[]` | Action sources whose actions need an attachment or closure evidence text before they are finished (Administration > Settings > Actions) |
+| `continuity.bia_every_months` | `12` | Months between business impact analyses of a process |
+| `vendors.reassessment_reminder_days` | `30` | Days before a vendor's reassessment or exclusion-list check that its owner is reminded |
+| `vendors.exclusion_check_months` | `12` | Months after which a vendor's exclusion-list check is due again |
+| `vendors.exclusion_check_before_contract` | `false` | A match, or no check within `vendors.exclusion_check_months`, stops the vendor's contracts from becoming active |
+| `funding.subrecipient_reminder_days` | `30` | Days before sub-recipient monitoring is due that the monitor is reminded |
+| `records.request_due_days` | `{ "*": 20 }` | Days to answer a records request, by request kind (`*` is every kind not named); no jurisdiction's deadline is built in |
+| `records.business_days` | `false` | Count working days (Monday to Friday) instead of calendar days |
+| `records.clock_amber_fraction` | `0.25` | A request's clock turns amber when this fraction of the time to answer remains |
+| `privacy.review_reminder_days` | `30` | Days before an approved privacy impact assessment's review that its owner is reminded |
 | `safety.clock_amber_fraction` | `0.25` | A safety notification clock turns amber when this fraction of its window remains |
 | `funding.certification_month` | `12` | Month in which next year's certification drafts are copied forward |
 | `retention.audit_months` | `84` | Audit log retention, recorded for the retention schedule (nothing deletes audit events) |
 | `retention.webhook_delivery_days` | `30` | Finished webhook deliveries are removed after this many days (pending ones never); delivered ones lose their content at once |
 | `retention.mail_log_days` | `180` | Outgoing message log (`mail_log`) rows that are no longer queued or retrying are removed after this many days |
 | `retention.mail_inbound_log_days` | `180` | Incoming email log (`mail_inbound_log`) rows are removed after this many days |
+| `retention.audit_forward_log_days` | `30` | An audit-log forwarder's delivery log (`audit_forward_log`) is kept this many days; events already forwarded are not recalled |
 
 Changing an `auth.*`, `tokens.*` or `integrations.*` setting needs a recent password
 confirmation.
@@ -367,7 +382,10 @@ export default mod;
 `ctx` (`ModuleContext`, see `core/module.ts`):
 
 - `ctx.app` - the Fastify instance. `req.user` is the signed-in user (all `/api` routes
-  require a session or a token unless registered with `config: { public: true }`).
+  require a session or a token unless registered with `config: { public: true }`; a public
+  route that checks a bearer token of its own, such as the SCIM provisioning endpoint, adds
+  `ownBearer: true`, so neither a session nor a personal access token is looked at and no
+  CSRF header is asked for).
   `req.apiToken` is `{ id, name }` when the request was made with a personal access token,
   otherwise `null`.
 - `ctx.db.query<T>(sql, params) => T[]`, `ctx.db.one<T>(sql, params) => T | undefined`,
@@ -672,9 +690,8 @@ Module keys (fixed, `MODULE_KEYS` in `server/src/modules/admin/shared.ts`): `tic
 `exceptions`, `obligations`, `exercises`, `actions`, `projects`, `dashboards`, `reports`,
 `audit`, `admin`, `portal`, `fleet`, `safety`, `audits`, `controls`, `funding`, `governance`,
 `people`, `continuity`, `legal`, `records`, `privacy`. A new key is added there and here. The last four
-belong to the wave 11 parts (roadmap E31 and E34: business continuity, legal holds, records requests,
-privacy assessments); until those modules land nothing checks them, so the role editor shows them
-grayed out. Asset condition shares `assets`, `sites` and `fleet`, and OT security shares `systems`.
+belong to the wave 11 parts (business continuity, legal holds, records requests, privacy
+assessments). Asset condition shares `assets`, `sites` and `fleet`, and OT security shares `systems`.
 
 Default roles (`server/src/core/services.ts`): Administrator, Agent, Security lead,
 Project manager, Safety manager, Compliance officer, Audit lead, Training coordinator, Continuity
@@ -747,9 +764,9 @@ A new module that is optional adds itself to `AREAS` (and to `MODULE_AREA` on th
 with `ctx.resources.get(type)` and permission checks as usual, and it follows the switch.
 Inventory, actions, notifications, attachments, administration, home and help are not
 areas: they are always on. Neither are legal holds (permission `legal`, module folder `holds`): a
-hold must never lapse because a part was switched off. The wave 11 areas `continuity`, `condition`,
-`ot` and `records` are declared ahead of their modules; `condition` and `ot` share the inventory and
-fleet permissions, so they hide their record types and fields by name (`types`, `fields`).
+hold must never lapse because a part was switched off. Of the wave 11 areas, `condition` and `ot` share
+the inventory and fleet permissions, so they hide their record types and fields by name (`types`,
+`fields`).
 
 ### Tests
 
@@ -848,7 +865,11 @@ metrics the caller may read (one about a record type needs view on its module) a
 The wave 10 plan's keys: `actions.overdue`, `actions.caps_overdue`,
 `actions.awaiting_verification`, `audits.inspections_on_time_pct`, `audits.findings_overdue`,
 `training.compliance_pct`, `training.certifications_expired`, `controls.tests_overdue`,
-`controls.ineffective` and `safety.hazard_reviews_on_time_pct`.
+`controls.ineffective` and `safety.hazard_reviews_on_time_pct`. Wave 11 adds
+`continuity.processes_with_gap` (current month only), `continuity.plans_review_overdue`,
+`condition.past_useful_life_pct`, `condition.poor_condition_pct`, `condition.assessments_due`,
+`ot.zones_below_target` (current state, no history), `records.requests_overdue`,
+`vendors.reassessments_overdue` and `vendors.open_issues`.
 
 ### Legal holds (hook points)
 
@@ -861,7 +882,21 @@ files, whatever is switched off. `core/holds.ts` offers `holdsOn(db, type, id)` 
 remove, and the retention sweep (held records are not flagged; the sweep answers `held`); the
 attachments module calls them on file removal and skips held records' files in its purge, and
 merging duplicate vulnerabilities refuses a held one. Any new path that deletes, purges or
-anonymizes a record calls `assertNotHeld` first. Until legal holds are built (E34) nothing is held.
+anonymizes a record calls `assertNotHeld` first. Holds live in core tables (migration 025:
+`legal_holds`, `legal_hold_records`, `legal_hold_queries`); an active hold is itself held; `holdRefsOf`
+serves review lists; the generic `GET {path}/:id` carries `_holds` for `legal.view` holders. The
+`holds` module (always on) owns the `legal_hold` record type, its screens and the saved queries.
+
+### Clause checklists (shared engine)
+
+`core/clauses.ts` (E35-05, E27-11) checks a lookup list of clauses, the organization's own, against
+one record (today a contract), optionally per sub-key (the funding award a funder-required clause
+belongs to). A module defines a set in `register` with `defineClauseSet(ctx.app, { key, label, list,
+statusList, scopeType, subKey?, permission, auditAction, describe })`, then reads and writes through
+`getChecklist(ctx, setKey, scopeId, subKey?)` and `saveChecklist(...)`; `checksOf` returns the stored
+checks for reports. Each check keeps a status from the set's status list, the clause text as found
+and a note, in the core table `clause_checks` (migration 026). The sets today are `security_terms`
+(vendors) and `funder_clauses` (funding). Routes keep their own shapes and permission checks.
 
 ### Calendar sources (shared registry)
 
@@ -928,8 +963,10 @@ kind (table `workflow_kind_installs`): it uses `h.define`, `h.adopt`, `h.usersWi
 example "no work before approval") in its callbacks. Stand-ins: table `workflow_standins`; steps
 carry `principals` and `standins`; decisions carry `on_behalf_of`. Change approval, catalog
 requests, asset disposal, risk acceptance, project gates, corrective action plans and their due-date
-extensions, audit reports, funding certifications, meeting minutes, annual plan reviews and safety
-performance targets (`safety_targets`) are approval kinds. A committee decision may be applied through
+extensions, audit reports, funding certifications, meeting minutes, annual plan reviews, safety
+performance targets (`safety_targets`), continuity plans, asset condition targets, legal hold
+releases (`legal_hold_release`), privacy impact assessments and vendor offboarding sign-off
+(`vendor_offboarding`) are approval kinds. A committee decision may be applied through
 `decide` with `opts.userId` set to the chair (E28-06), only when the chair may decide the current step.
 
 A step may have `branches` (2 to 5 units run side by side; step rows carry `branch` and
@@ -991,7 +1028,7 @@ has filter, sort, saved view and export; every record shows its history.
 | `tickets` | `ticket` → tickets, `problem` → problems, `knowledge_article` → knowledge_articles, `catalog_item` → catalog_items |
 | `inventory` | `system` → systems, `asset` → assets, `site` → sites, `data_category` → data_categories |
 | `changes` | `change` → changes |
-| `vendors` | `vendor` → vendors, `contract` → contracts, `evidence_item` → evidence_items |
+| `vendors` | `vendor` → vendors, `contract` → contracts, `evidence_item` → evidence_items, `vendor_issue` → vendor_issues, `vendor_offboarding` → vendor_offboardings (child tables vendor_exclusion_checks, vendor_offboarding_items) |
 | `frameworks` | `framework` → frameworks, `framework_outcome` → framework_outcomes, `assessment_snapshot` → assessment_snapshots |
 | `risks` | `risk` → risks (restricted), `action` → actions (flag, inherited), `cap` → caps (flag, inherited), `obligation` → obligations, `regulatory_change` → regulatory_changes, `kri` → key_risk_indicators (restricted) |
 | `secincidents` | `security_incident` → security_incidents (restricted), `notification_task` → notification_tasks |
@@ -1000,14 +1037,21 @@ has filter, sort, saved view and export; every record shows its history.
 | `people` | `person` → people, `position` → positions (always on, not a feature area) |
 | `audits` | `audit_area` → audit_areas, `audit_engagement` → audits (flag), `checklist_template` → checklist_templates, `inspection_schedule` → inspection_schedules, `inspection` → inspections, `audit_finding` → audit_findings (flag, inherited from its audit), `audit_request` → audit_requests (flag, inherited). The type is `audit_engagement` because `audit` would clash with the audit log (`GET /api/audit`, `audit.export`) |
 | `controls` | `control` → controls, `control_test` → control_tests (child table `control_test_samples`) |
-| `funding` | `funding_award` → funding_awards, `funding_certification` → funding_certifications, `compliance_review` → compliance_reviews, `review_deficiency` → review_deficiencies |
+| `funding` | `funding_award` → funding_awards, `funding_certification` → funding_certifications, `compliance_review` → compliance_reviews, `review_deficiency` → review_deficiencies, `subrecipient` → subrecipients (child table subrecipient_monitoring) |
 | `governance` | `committee` → committees, `meeting` → meetings, `meeting_decision` → meeting_decisions (flag, inherited from the record decided) |
+| `continuity` | `business_process` → business_processes, `bia` → bia_assessments, `continuity_plan` → continuity_plans, `emergency_activation` → emergency_activations; tables process_dependencies (source of the `depends_on` links), continuity_plan_processes, call_tree_nodes, continuity_checklist_items, activation_log_entries, activation_roles, activation_checklist (no record type) |
+| `condition` | `asset_class` → asset_classes, `condition_assessment` → condition_assessments (row rule: a vehicle's needs fleet.view, a site's sites.view); tables condition_targets, condition_reminders |
+| `ot` | `ot_zone` → ot_zones (flag), `ot_conduit` → ot_conduits (flag, set from its two zones) |
+| `holds` | `legal_hold` → legal_holds (core tables, migration 025; always on) |
+| `records` | `records_request` → records_requests (row rule: personal-data kinds need privacy.view; child table records_request_items), `privacy_assessment` → privacy_assessments |
 | `vulnerabilities` | `vulnerability` → vulnerability_records (restricted) |
 | `projects` | `project` → projects |
 | `fleet` | `vehicle` → vehicles, `service` → services |
 | `safety` | `hazard` → hazards, `safety_event` → safety_events (flag), `safety_indicator` → safety_indicators; tables safety_event_people, safety_event_timeline, safety_event_statements, safety_report_rules, safety_notifications, safety_indicator_values, safety_indicator_targets (no record type) |
 | `reports` | `report_definition` → report_definitions, `dashboard` → dashboards, `report_schedule` → report_schedules, `report_pack` → report_packs |
-| `attachments` | no record type: files on any record (table `attachments`; `AttachmentsPanel`; stored in `<data>/files`) |
+| `attachments` | no record type: files on any record (table `attachments`; `AttachmentsPanel`; stored in `<data>/files`), and links to documents kept elsewhere (`storage_driver = 'link'`, never fetched) |
+| `feeds` | no record type: calendar feeds (calendar_feeds), calendar sources of earlier modules (sources.ts), work-tracker bridge (tables ticket_connectors, external_ticket_links) |
+| `integrations` | no record type: user provisioning over SCIM 2.0 (scim_tokens, scim_group_roles, scim_group_members, scim_role_grants, user_external_ids), audit-log forwarding (audit_forwarders, audit_forward_log) and sealed webhook addresses (always on) |
 | `portal` | no record type: the self-service portal's settings and pages (portal requests are tickets, scoped to their requester) |
 | `mcp` | no record type: the `/mcp` endpoint for AI assistants and its settings |
 | `notifications` | no record type: in-app notifications (tables `notifications`, `notification_preferences`; `app.notify(...)`, `NotificationBell`) |
@@ -1029,13 +1073,20 @@ report_schedule, report_pack → `reports`; dashboard → `dashboards`; vehicle,
 `obligations`; kri → `risks`; certification → `training`; person, position → `people`; audit_area,
 audit_engagement, checklist_template, inspection_schedule, inspection, audit_finding, audit_request →
 `audits`; control, control_test → `controls`; funding_award, funding_certification, compliance_review,
-review_deficiency → `funding`; committee, meeting, meeting_decision → `governance`.
+review_deficiency, subrecipient → `funding`; committee, meeting, meeting_decision → `governance`;
+vendor_issue, vendor_offboarding → `vendors`; business_process, bia, continuity_plan,
+emergency_activation → `continuity`; asset_class, condition_assessment → `assets`; ot_zone,
+ot_conduit → `systems`; legal_hold → `legal`; records_request → `records`; privacy_assessment →
+`privacy`.
+
+Core refuses a ref field that names a record the caller cannot see (`checkRefsVisible` in
+core/resource.ts); unchanged values are not checked again and system work is exempt.
 
 A module's own tables that hold personal details about a record register `onAnonymize(type, hook)`
-(`core/retention.ts`); anonymizing the record runs the hook in the same transaction.
+(`core/retention.ts`); anonymizing the record runs the hook in the same transaction. Governance registers one for
+`committee`: typed names of members with no account or roster person (`committee_members.name`).
 
-Not yet built: approval workflows that branch or run steps side by side (they are ordered steps). See [Known gaps](known-gaps.md) and the
-[roadmap](roadmap/README.md).
+See [Known gaps](known-gaps.md) and the [roadmap](roadmap/README.md) for what is not built.
 
 ## Known gaps
 

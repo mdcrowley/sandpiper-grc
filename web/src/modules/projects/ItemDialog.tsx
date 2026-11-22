@@ -46,6 +46,11 @@ export function ItemDialog({ projectId, open, item, defaultKind, onClose, onSave
   }, [open, item, defaultKind]);
 
   const isRisk = kind === 'risk';
+  const dirty = open && (
+    kind !== (item?.kind ?? defaultKind) || title !== (item?.title ?? '') || detail !== (item?.detail ?? '')
+    || ownerId !== (item?.owner_id ?? null) || status !== (item?.status ?? 'open') || dueOn !== (item?.due_on ?? '')
+    || likelihood !== (item?.likelihood ?? null) || impact !== (item?.impact ?? null)
+  );
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -78,7 +83,7 @@ export function ItemDialog({ projectId, open, item, defaultKind, onClose, onSave
   }
 
   return (
-    <Modal open={open} title={item ? 'Edit item' : 'Add item'} onClose={onClose} size="md">
+    <Modal open={open} title={item ? 'Edit item' : 'Add item'} onClose={onClose} size="md" dirty={dirty}>
       <form className="form" onSubmit={submit} noValidate>
         <div className="form-grid">
           <LookupSelect label="Kind" required list="project_item_kind" value={kind} onChange={setKind} error={fields.kind} />

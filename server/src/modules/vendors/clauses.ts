@@ -1,4 +1,5 @@
 import type { FastifyRequest } from 'fastify';
+import { clauseSet, defineClauseSet, getChecklist, saveChecklist, type ChecklistRow } from '../../core/clauses.ts';
 import type { LookupValue, ModuleContext, Row } from '../../core/module.ts';
 
 /** Clauses of the contract security addendum. Stored as the `contract_clause` lookup list. */
@@ -62,78 +63,31 @@ export interface ClauseInput {
   note?: string | null;
 }
 
-const clean = (v: unknown): string | null => {
-  if (v === null || v === undefined) return null;
-  const s = String(v).trim();
-  return s === '' ? null : s;
-};
+/** The set key of the contract security terms in the clause-checklist engine (contract C4). */
+export const SECURITY_TERMS = 'security_terms';
 
-/** Creates or updates one checklist row and audits the change against the contract. */
+/** Puts the security terms on the shared clause-checklist engine. Called from the module's `register`. */
+export function registerSecurityTerms(ctx: ModuleContext): void {
+  if (clauseSet(ctx.app, SECURITY_TERMS)) return;
+  defineClauseSet(ctx.app, {
+    key: SECURITY_TERMS, label: 'Security terms', list: 'contract_clause', statusList: 'clause_status', scopeType: 'contract',
+    permission: 'contracts.view', auditAction: 'contract.clause_check',
+    describe: ({ clause, status, scope }) =>
+      `Security term "${clause}" ${status ? `marked ${status}` : 'updated'} on ${scope?.ref ?? scope?.title ?? 'a contract'}`,
+  });
+}
+
+/** Creates or updates one checklist row through the engine, which audits the change against the contract. */
 export async function saveClauseCheck(
   ctx: ModuleContext, req: FastifyRequest | null, contract: Row, clauseKey: string, input: ClauseInput,
-): Promise<{ row: Row; changed: boolean }> {
+): Promise<{ changed: boolean }> {
   const clauses = await ctx.lookups.values('contract_clause');
-  const clause = clauses.find((c) => c.value === clauseKey);
-  if (!clause) ctx.fail(404, 'unknown_clause', `Unknown clause "${clauseKey}".`);
-  const existing = await ctx.db.one<Row>(
-    'select * from contract_clause_checks where contract_id = $1 and clause_key = $2', [contract.id, clauseKey],
-  );
-  const next: Row = {
-    status: existing?.status ?? null, clause_text: existing?.clause_text ?? null, note: existing?.note ?? null,
-  };
-  if (input.status !== undefined) {
-    const s = clean(input.status);
-    const allowed = (await ctx.lookups.values('clause_status')).map((v) => v.value);
-    if (s !== null && !allowed.includes(s)) {
-      ctx.fail(400, 'validation', 'Check the highlighted fields.', { status: `Status: "${s}" is not an allowed value.` });
-    }
-    next.status = s;
-  }
-  if (input.clause_text !== undefined) next.clause_text = clean(input.clause_text);
-  if (input.note !== undefined) next.note = clean(input.note);
-
-  const before: Row = {};
-  const after: Row = {};
-  for (const k of ['status', 'clause_text', 'note']) {
-    if ((existing?.[k] ?? null) !== next[k]) { before[k] = existing?.[k] ?? null; after[k] = next[k]; }
-  }
-  if (existing && !Object.keys(after).length) return { row: existing, changed: false };
-
-  const userId = req?.user?.id ?? null;
-  const row = (await ctx.db.one<Row>(
-    `insert into contract_clause_checks (contract_id, clause_key, status, clause_text, note, created_by, updated_by)
-     values ($1,$2,$3,$4,$5,$6,$6)
-     on conflict (contract_id, clause_key) do update
-       set status = excluded.status, clause_text = excluded.clause_text, note = excluded.note,
-           updated_at = now(), updated_by = excluded.updated_by
-     returning *`,
-    [contract.id, clauseKey, next.status, next.clause_text, next.note, userId],
-  ))!;
-  if (Object.keys(after).length) {
-    await ctx.audit(req, {
-      action: 'contract.clause_check', recordType: 'contract', recordId: contract.id,
-      summary: `Security term "${clause!.label}" ${next.status ? `marked ${next.status}` : 'updated'} on ${contract.ref ?? contract.title}`,
-      before: { clause: clauseKey, ...before }, after: { clause: clauseKey, ...after },
-    });
-  }
-  return { row, changed: true };
+  if (!clauses.some((c) => c.value === clauseKey)) ctx.fail(404, 'unknown_clause', `Unknown clause "${clauseKey}".`);
+  const { changed } = await saveChecklist(ctx, SECURITY_TERMS, contract.id, '', [{ clause_key: clauseKey, ...input }], req);
+  return { changed: changed > 0 };
 }
 
 /** A contract's full checklist: one entry per clause in the list, assessed or not. */
-export async function contractChecklist(ctx: ModuleContext, contractId: string): Promise<Row[]> {
-  const clauses = await ctx.lookups.values('contract_clause');
-  const rows = await ctx.db.query<Row>('select * from contract_clause_checks where contract_id = $1', [contractId]);
-  const byKey = new Map(rows.map((r) => [r.clause_key, r]));
-  return clauses.map((c) => {
-    const r = byKey.get(c.value);
-    return {
-      clause_key: c.value,
-      label: c.label,
-      description: (c.meta as Record<string, unknown> | undefined)?.description ?? null,
-      status: r?.status ?? null,
-      clause_text: r?.clause_text ?? null,
-      note: r?.note ?? null,
-      updated_at: r?.updated_at ?? null,
-    };
-  });
+export async function contractChecklist(ctx: ModuleContext, contractId: string): Promise<ChecklistRow[]> {
+  return getChecklist(ctx, SECURITY_TERMS, contractId);
 }

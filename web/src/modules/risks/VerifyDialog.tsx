@@ -33,7 +33,7 @@ export function VerifyDialog({ action, open, onClose, onSaved }: { action: Row; 
   };
 
   return (
-    <Modal open={open} title="Record verification" onClose={onClose}>
+    <Modal open={open} title="Record verification" onClose={onClose} dirty={open && Boolean(form.method || form.result || form.note.trim())}>
       <form className="form" onSubmit={submit} noValidate>
         <p className="muted" style={{ margin: 0 }}>
           Check that the action fixed the problem. An effective result finishes the action; a result that was not effective reopens it

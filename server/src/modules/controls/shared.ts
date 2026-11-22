@@ -5,7 +5,7 @@ import type { ModuleContext, ResourceDef, Row } from '../../core/module.ts';
  * The record types a control may cover (contract C7, relation `covers`), in the order the screens
  * list them. A type whose module is not loaded, or whose area is switched off, is simply left out.
  */
-export const COVER_TYPES = ['risk', 'hazard', 'framework_outcome', 'obligation', 'policy'] as const;
+export const COVER_TYPES = ['risk', 'hazard', 'framework_outcome', 'obligation', 'policy', 'ot_zone'] as const;
 export const COVERS = 'covers';
 
 /** The types a failed test flags for review, with the field holding their next review date. */

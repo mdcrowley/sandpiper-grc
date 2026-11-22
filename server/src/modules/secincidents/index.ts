@@ -129,7 +129,7 @@ export function makeService(ctx: ModuleContext): IncidentService & {
     ))!;
   }
 
-  /** Copies the scenario's checklist onto the incident (once per scenario). Unticked steps of a previous scenario are removed. */
+  /** Copies the scenario's checklist onto the incident (once per scenario). Unchecked steps of a previous scenario are removed. */
   async function applyChecklist(incident: Row, req: Req): Promise<number> {
     if (!incident.scenario) return 0;
     const dropped = await db.query<Row>(
@@ -141,7 +141,7 @@ export function makeService(ctx: ModuleContext): IncidentService & {
     if (dropped.length) {
       await ctx.audit(req, {
         action: 'security_incident.checklist_cleared', recordType: 'security_incident', recordId: incident.id,
-        summary: `${dropped.length} unticked checklist step(s) of the previous scenario removed`,
+        summary: `${dropped.length} unchecked checklist step(s) of the previous scenario removed`,
       });
     }
     const has = await db.one(
@@ -898,7 +898,7 @@ const mod: ModuleDef = {
       await ctx.audit(req, {
         action: b.done ? 'security_incident.checklist_tick' : 'security_incident.checklist_untick',
         recordType: 'security_incident', recordId: incident.id,
-        summary: `Checklist step ${b.done ? 'ticked' : 'unticked'} (${before.phase}): ${before.step}`,
+        summary: `Checklist step ${b.done ? 'checked' : 'unchecked'} (${before.phase}): ${before.step}`,
         before: { done: before.done }, after: { done: row.done },
       });
       return row;

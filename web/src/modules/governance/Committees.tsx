@@ -37,6 +37,7 @@ function MemberDialog({ committeeId, member, onClose, onSaved }: { committeeId: 
     user_id: member?.user_id ?? null as string | null, person_id: member?.person_id ?? null as string | null, name: member?.name ?? '',
     side: member?.side ?? '', role: member?.role ?? 'member', voting: member?.voting ?? true, from_on: member?.from_on ?? '', to_on: member?.to_on ?? '',
   });
+  const [start] = useState(form);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const set = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }));
@@ -54,7 +55,7 @@ function MemberDialog({ committeeId, member, onClose, onSaved }: { committeeId: 
     } finally { setBusy(false); }
   };
   return (
-    <Modal open title={member ? 'Change member' : 'Add a member'} onClose={onClose}
+    <Modal open title={member ? 'Change member' : 'Add a member'} onClose={onClose} dirty={JSON.stringify(form) !== JSON.stringify(start)}
       footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" loading={busy} onClick={save}>{member ? 'Save' : 'Add'}</Button></>}>
       <div className="form-grid">
         <UserPicker label="Account" value={form.user_id} display={member?.user_name ?? undefined} error={errors.user_id}

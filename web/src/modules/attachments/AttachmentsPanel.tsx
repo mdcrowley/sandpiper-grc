@@ -12,7 +12,8 @@ import {
   IconButton, Loading, ProgressBar, qs, relativeTime, StatusChip, api, useFetch, useToast,
 } from '../../core';
 import { AttachmentEditDialog } from './AttachmentEditDialog';
-import { downloadAttachment, expiryState, FileTypeIcon, formatBytes, formatLimit, type Attachment, type FileConfig } from './shared';
+import { LinkDialog } from './LinkDialog';
+import { downloadAttachment, expiryState, FileTypeIcon, formatBytes, formatLimit, linkCheckState, type Attachment, type FileConfig } from './shared';
 import { refusalFor, uploadFile } from './upload';
 import './attachments.css';
 
@@ -30,7 +31,7 @@ export interface AttachmentsPanelProps {
 /** Fired on `window` after the files of a record change; `detail` is `{ recordType, recordId }`. */
 export const ATTACHMENTS_CHANGED = 'grc:attachments-changed';
 
-interface ListResponse { rows: Attachment[]; canEdit: boolean; today: string }
+interface ListResponse { rows: Attachment[]; canEdit: boolean; today: string; linkCheckDays?: number }
 
 interface QueueItem {
   key: number;
@@ -56,6 +57,7 @@ export function AttachmentsPanel({ recordType, recordId, evidence = false, onCha
   const [editing, setEditing] = useState<Attachment | null>(null);
   const [removing, setRemoving] = useState<Attachment | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [linking, setLinking] = useState(false);
 
   const today = list.data?.today ?? '';
   const canEdit = list.data?.canEdit ?? false;
@@ -130,12 +132,25 @@ export function AttachmentsPanel({ recordType, recordId, evidence = false, onCha
     }
   };
 
+  const markChecked = async (att: Attachment) => {
+    setBusy(att.id);
+    try {
+      await api.post(`/api/attachments/${att.id}/checked`);
+      toast.success('Recorded as checked today.');
+      reload();
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const remove = async () => {
     if (!removing) return;
     setBusy(removing.id);
     try {
       await api.del(`/api/attachments/${removing.id}`);
-      toast.success('File removed.');
+      toast.success(removing.is_link ? 'Link removed.' : 'File removed.');
       reload();
     } catch (err) {
       toast.error(errorMessage(err));
@@ -165,6 +180,7 @@ export function AttachmentsPanel({ recordType, recordId, evidence = false, onCha
               {over ? 'Drop the files to attach them' : <>Drag files here, or <span className="sr-only">use the button to</span></>}
             </p>
             {!over && <Button icon="plus" onClick={() => input.current?.click()}>Choose files</Button>}
+            {!over && <Button icon="link" onClick={() => setLinking(true)}>Add link</Button>}
             <input
               ref={input}
               type="file"
@@ -228,34 +244,51 @@ export function AttachmentsPanel({ recordType, recordId, evidence = false, onCha
         <EmptyState
           icon="file-text"
           title={evidence ? 'No evidence files yet' : 'No files attached'}
-          message={canEdit ? 'Drag a file onto the box above, or choose one from your computer.' : 'Files attached to this record will be listed here.'}
+          message={canEdit ? 'Drag a file onto the box above, choose one from your computer, or add a link to a document kept elsewhere.' : 'Files and links attached to this record will be listed here.'}
         />
       ) : (
         <ul className="att-list" aria-label="Attached files">
           {list.data.rows.map((att) => {
             const expiry = att.kind === 'evidence' ? expiryState(att.expires_on, today) : null;
+            const check = att.is_link ? linkCheckState(att.last_checked_on, today, list.data?.linkCheckDays ?? 90) : null;
+            const host = att.is_link && att.link_url ? hostOf(att.link_url) : '';
             return (
               <li key={att.id} className="att-item">
                 <FileTypeIcon group={att.type_group} />
                 <div className="att-main">
-                  <button type="button" className="att-name" onClick={() => void download(att)} title={`Download ${att.file_name}`}>
-                    {att.file_name}
-                  </button>
+                  {att.is_link && att.link_url ? (
+                    // Opened in a new tab with no referrer: the document store sees nothing of this page.
+                    <a className="att-name att-link" href={att.link_url} target="_blank" rel="noopener noreferrer" title={`Open ${att.file_name} (${host}) in a new tab`}>
+                      {att.file_name}
+                      <Icon name="external" size={14} />
+                    </a>
+                  ) : (
+                    <button type="button" className="att-name" onClick={() => void download(att)} title={`Download ${att.file_name}`}>
+                      {att.file_name}
+                    </button>
+                  )}
                   {att.description && <p className="att-description">{att.description}</p>}
                   <p className="att-meta">
-                    <span>{formatBytes(att.size_bytes)}</span>
+                    {att.is_link ? <span>Link to {host}</span> : <span>{formatBytes(att.size_bytes)}</span>}
                     <span>{att.uploaded_by_name ?? 'Unknown user'}</span>
                     <time dateTime={att.uploaded_at} title={relativeTime(att.uploaded_at)}>{formatDate(att.uploaded_at)}</time>
                     {att.kind === 'evidence' && att.collected_on && <span>Collected {formatDate(att.collected_on)}</span>}
+                    {att.is_link && att.checked_by_name && att.last_checked_on && <span>Checked by {att.checked_by_name}</span>}
                   </p>
                 </div>
                 <div className="att-chips">
+                  {att.is_link && <Badge color="blue">Link</Badge>}
                   {att.kind === 'evidence' && <Badge color="teal">Evidence</Badge>}
+                  {check && <StatusChip color={check.color} label={check.label} />}
                   {expiry && <StatusChip color={expiry.color} label={expiry.label} />}
                   {att.kind === 'evidence' && !att.expires_on && <StatusChip color="gray" label="No expiry date" />}
                 </div>
                 <div className="att-actions">
-                  <IconButton icon="download" label={`Download ${att.file_name}`} disabled={busy === att.id} onClick={() => void download(att)} />
+                  {att.is_link ? (
+                    canEdit && <IconButton icon="check" label={`Mark ${att.file_name} as checked today`} disabled={busy === att.id} onClick={() => void markChecked(att)} />
+                  ) : (
+                    <IconButton icon="download" label={`Download ${att.file_name}`} disabled={busy === att.id} onClick={() => void download(att)} />
+                  )}
                   {canEdit && <IconButton icon="edit" label={`Edit details of ${att.file_name}`} onClick={() => setEditing(att)} />}
                   {canEdit && <IconButton icon="trash" label={`Remove ${att.file_name}`} onClick={() => setRemoving(att)} />}
                 </div>
@@ -273,11 +306,20 @@ export function AttachmentsPanel({ recordType, recordId, evidence = false, onCha
           onSaved={() => { setEditing(null); reload(); }}
         />
       )}
+      {linking && (
+        <LinkDialog
+          recordType={recordType} recordId={recordId} evidence={asEvidence} today={today}
+          onClose={() => setLinking(false)}
+          onSaved={() => { setLinking(false); reload(); }}
+        />
+      )}
       <ConfirmDialog
         open={removing !== null}
-        title="Remove file"
-        message={`Remove "${removing?.file_name}" from this record? People will no longer be able to download it. The removal is kept in the record's history.`}
-        confirmLabel="Remove file"
+        title={removing?.is_link ? 'Remove link' : 'Remove file'}
+        message={removing?.is_link
+          ? `Remove the link "${removing?.file_name}" from this record? The document itself stays where it is. The removal is kept in the record's history.`
+          : `Remove "${removing?.file_name}" from this record? People will no longer be able to download it. The removal is kept in the record's history.`}
+        confirmLabel={removing?.is_link ? 'Remove link' : 'Remove file'}
         danger
         busy={busy !== null && busy === removing?.id}
         onConfirm={() => void remove()}
@@ -285,4 +327,9 @@ export function AttachmentsPanel({ recordType, recordId, evidence = false, onCha
       />
     </div>
   );
+}
+
+/** The host of a link's address, shown beside it so people see where it goes. */
+function hostOf(url: string): string {
+  try { return new URL(url).host; } catch { return 'another site'; }
 }

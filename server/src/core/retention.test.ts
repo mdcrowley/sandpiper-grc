@@ -168,3 +168,15 @@ describe('anonymizing at the end of the retention period', () => {
     expect((await t.core.retention.sweep()).byType.visit).toBeUndefined();
   });
 });
+
+describe('evidence links (E36-05)', () => {
+  it('anonymizing blanks a link\'s address, title and checker, and deletes no stored bytes', async () => {
+    const visit = (await t.api.post('/api/visits', { title: 'Linked visit', visitor_name: 'Lee Example' })).body.id;
+    const link = await t.api.post('/api/attachments/link', { record_type: 'visit', record_id: visit, url: 'https://docs.example.test/lee-statement', title: 'Statement by Lee Example' });
+    expect(link.status, JSON.stringify(link.body)).toBe(201);
+    await t.db.query('update attachments set checked_by = $2, last_checked_on = current_date where id = $1', [link.body.id, adminId]);
+    await t.core.retention.anonymize(t.core.resources.registry.get('visit')!, visit);
+    const row = await t.db.one<any>('select link_url, link_title, checked_by, storage_driver, removed_reason from attachments where id = $1', [link.body.id]);
+    expect(row).toMatchObject({ link_url: null, link_title: null, checked_by: null, storage_driver: 'link', removed_reason: 'anonymized' });
+  });
+});

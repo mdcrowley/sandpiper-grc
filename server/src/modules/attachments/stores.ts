@@ -32,6 +32,19 @@ declare module 'fastify' {
   }
 }
 
+/** The storage driver of an evidence link (E36-05): a row with an address and no stored bytes. */
+export const LINK_DRIVER = 'link';
+
+/** A store that holds nothing: a link is never read, and removing or purging one deletes nothing. */
+const linkStore: FileStorage = {
+  driver: LINK_DRIVER,
+  put: async () => { throw new Error('A link has no stored content.'); },
+  get: async () => { throw new Error('A link has no stored content.'); },
+  delete: async () => undefined,
+  stat: async () => null,
+  list: async () => [],
+};
+
 export function makeStores(ctx: ModuleContext): Stores {
   const local = openStorage(dataDirFor(ctx));
   let remote: (FileStorage & { client: S3Client }) | null = null;
@@ -44,6 +57,7 @@ export function makeStores(ctx: ModuleContext): Stores {
     s3Problem: () => problem,
     forDriver(driver) {
       if (driver === local.driver) return local;
+      if (driver === LINK_DRIVER) return linkStore;
       if (driver === 's3') {
         if (!remote) throw new Error(`Files in the object store cannot be reached: ${problem ?? 'it is not configured'}.`);
         return remote;

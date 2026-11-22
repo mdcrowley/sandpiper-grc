@@ -1,0 +1,671 @@
+{
+  "key": "ot-control-catalog",
+  "name": "OT control catalog (starter structure)",
+  "version": "starter",
+  "description": "A starting structure for an operational technology control catalog. It holds no standard's text: rename the key, the name and the codes to match your licensed copy, replace each placeholder with the requirement from that copy, delete what you do not use, then load the file under Frameworks and structure. The mappings block suggests outcomes of the shipped framework each placeholder relates to; enter the ones you keep as \"Also satisfies\" on the outcome.",
+  "functions": [
+    {
+      "code": "F1",
+      "name": "Identification and authentication control",
+      "color": "blue",
+      "description": "Fill from your licensed copy: the requirements your licensed copy groups under this heading.",
+      "categories": [
+        {
+          "code": "F1.A",
+          "name": "People and accounts",
+          "description": "Fill from your licensed copy",
+          "outcomes": [
+            {
+              "code": "F1.A-01",
+              "text": "Fill from your licensed copy (placeholder F1.A-01)"
+            },
+            {
+              "code": "F1.A-02",
+              "text": "Fill from your licensed copy (placeholder F1.A-02)"
+            },
+            {
+              "code": "F1.A-03",
+              "text": "Fill from your licensed copy (placeholder F1.A-03)"
+            }
+          ]
+        },
+        {
+          "code": "F1.B",
+          "name": "Devices and software",
+          "description": "Fill from your licensed copy",
+          "outcomes": [
+            {
+              "code": "F1.B-01",
+              "text": "Fill from your licensed copy (placeholder F1.B-01)"
+            },
+            {
+              "code": "F1.B-02",
+              "text": "Fill from your licensed copy (placeholder F1.B-02)"
+            },
+            {
+              "code": "F1.B-03",
+              "text": "Fill from your licensed copy (placeholder F1.B-03)"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "F2",
+      "name": "Use control",
+      "color": "purple",
+      "description": "Fill from your licensed copy: the requirements your licensed copy groups under this heading.",
+      "categories": [
+        {
+          "code": "F2.A",
+          "name": "Permissions and roles",
+          "description": "Fill from your licensed copy",
+          "outcomes": [
+            {
+              "code": "F2.A-01",
+              "text": "Fill from your licensed copy (placeholder F2.A-01)"
+            },
+            {
+              "code": "F2.A-02",
+              "text": "Fill from your licensed copy (placeholder F2.A-02)"
+            },
+            {
+              "code": "F2.A-03",
+              "text": "Fill from your licensed copy (placeholder F2.A-03)"
+            }
+          ]
+        },
+        {
+          "code": "F2.B",
+          "name": "Sessions and remote use",
+          "description": "Fill from your licensed copy",
+          "outcomes": [
+            {
+              "code": "F2.B-01",
+              "text": "Fill from your licensed copy (placeholder F2.B-01)"
+            },
+            {
+              "code": "F2.B-02",
+              "text": "Fill from your licensed copy (placeholder F2.B-02)"
+            },
+            {
+              "code": "F2.B-03",
+              "text": "Fill from your licensed copy (placeholder F2.B-03)"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "F3",
+      "name": "System integrity",
+      "color": "teal",
+      "description": "Fill from your licensed copy: the requirements your licensed copy groups under this heading.",
+      "categories": [
+        {
+          "code": "F3.A",
+          "name": "Software and firmware integrity",
+          "description": "Fill from your licensed copy",
+          "outcomes": [
+            {
+              "code": "F3.A-01",
+              "text": "Fill from your licensed copy (placeholder F3.A-01)"
+            },
+            {
+              "code": "F3.A-02",
+              "text": "Fill from your licensed copy (placeholder F3.A-02)"
+            },
+            {
+              "code": "F3.A-03",
+              "text": "Fill from your licensed copy (placeholder F3.A-03)"
+            }
+          ]
+        },
+        {
+          "code": "F3.B",
+          "name": "Malicious code and change detection",
+          "description": "Fill from your licensed copy",
+          "outcomes": [
+            {
+              "code": "F3.B-01",
+              "text": "Fill from your licensed copy (placeholder F3.B-01)"
+            },
+            {
+              "code": "F3.B-02",
+              "text": "Fill from your licensed copy (placeholder F3.B-02)"
+            },
+            {
+              "code": "F3.B-03",
+              "text": "Fill from your licensed copy (placeholder F3.B-03)"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "F4",
+      "name": "Data confidentiality",
+      "color": "green",
+      "description": "Fill from your licensed copy: the requirements your licensed copy groups under this heading.",
+      "categories": [
+        {
+          "code": "F4.A",
+          "name": "Data at rest",
+          "description": "Fill from your licensed copy",
+          "outcomes": [
+            {
+              "code": "F4.A-01",
+              "text": "Fill from your licensed copy (placeholder F4.A-01)"
+            },
+            {
+              "code": "F4.A-02",
+              "text": "Fill from your licensed copy (placeholder F4.A-02)"
+            },
+            {
+              "code": "F4.A-03",
+              "text": "Fill from your licensed copy (placeholder F4.A-03)"
+            }
+          ]
+        },
+        {
+          "code": "F4.B",
+          "name": "Data in transit",
+          "description": "Fill from your licensed copy",
+          "outcomes": [
+            {
+              "code": "F4.B-01",
+              "text": "Fill from your licensed copy (placeholder F4.B-01)"
+            },
+            {
+              "code": "F4.B-02",
+              "text": "Fill from your licensed copy (placeholder F4.B-02)"
+            },
+            {
+              "code": "F4.B-03",
+              "text": "Fill from your licensed copy (placeholder F4.B-03)"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "F5",
+      "name": "Restricted data flow",
+      "color": "amber",
+      "description": "Fill from your licensed copy: the requirements your licensed copy groups under this heading.",
+      "categories": [
+        {
+          "code": "F5.A",
+          "name": "Zones and conduits",
+          "description": "Fill from your licensed copy",
+          "outcomes": [
+            {
+              "code": "F5.A-01",
+              "text": "Fill from your licensed copy (placeholder F5.A-01)"
+            },
+            {
+              "code": "F5.A-02",
+              "text": "Fill from your licensed copy (placeholder F5.A-02)"
+            },
+            {
+              "code": "F5.A-03",
+              "text": "Fill from your licensed copy (placeholder F5.A-03)"
+            }
+          ]
+        },
+        {
+          "code": "F5.B",
+          "name": "Boundary protection",
+          "description": "Fill from your licensed copy",
+          "outcomes": [
+            {
+              "code": "F5.B-01",
+              "text": "Fill from your licensed copy (placeholder F5.B-01)"
+            },
+            {
+              "code": "F5.B-02",
+              "text": "Fill from your licensed copy (placeholder F5.B-02)"
+            },
+            {
+              "code": "F5.B-03",
+              "text": "Fill from your licensed copy (placeholder F5.B-03)"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "F6",
+      "name": "Timely response to events",
+      "color": "orange",
+      "description": "Fill from your licensed copy: the requirements your licensed copy groups under this heading.",
+      "categories": [
+        {
+          "code": "F6.A",
+          "name": "Monitoring and logging",
+          "description": "Fill from your licensed copy",
+          "outcomes": [
+            {
+              "code": "F6.A-01",
+              "text": "Fill from your licensed copy (placeholder F6.A-01)"
+            },
+            {
+              "code": "F6.A-02",
+              "text": "Fill from your licensed copy (placeholder F6.A-02)"
+            },
+            {
+              "code": "F6.A-03",
+              "text": "Fill from your licensed copy (placeholder F6.A-03)"
+            }
+          ]
+        },
+        {
+          "code": "F6.B",
+          "name": "Reporting and response",
+          "description": "Fill from your licensed copy",
+          "outcomes": [
+            {
+              "code": "F6.B-01",
+              "text": "Fill from your licensed copy (placeholder F6.B-01)"
+            },
+            {
+              "code": "F6.B-02",
+              "text": "Fill from your licensed copy (placeholder F6.B-02)"
+            },
+            {
+              "code": "F6.B-03",
+              "text": "Fill from your licensed copy (placeholder F6.B-03)"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "F7",
+      "name": "Resource availability",
+      "color": "red",
+      "description": "Fill from your licensed copy: the requirements your licensed copy groups under this heading.",
+      "categories": [
+        {
+          "code": "F7.A",
+          "name": "Capacity and resilience",
+          "description": "Fill from your licensed copy",
+          "outcomes": [
+            {
+              "code": "F7.A-01",
+              "text": "Fill from your licensed copy (placeholder F7.A-01)"
+            },
+            {
+              "code": "F7.A-02",
+              "text": "Fill from your licensed copy (placeholder F7.A-02)"
+            },
+            {
+              "code": "F7.A-03",
+              "text": "Fill from your licensed copy (placeholder F7.A-03)"
+            }
+          ]
+        },
+        {
+          "code": "F7.B",
+          "name": "Backup and recovery",
+          "description": "Fill from your licensed copy",
+          "outcomes": [
+            {
+              "code": "F7.B-01",
+              "text": "Fill from your licensed copy (placeholder F7.B-01)"
+            },
+            {
+              "code": "F7.B-02",
+              "text": "Fill from your licensed copy (placeholder F7.B-02)"
+            },
+            {
+              "code": "F7.B-03",
+              "text": "Fill from your licensed copy (placeholder F7.B-03)"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "mappings": [
+    {
+      "outcome": "F1.A-01",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "PR.AA-01",
+        "PR.AA-02",
+        "PR.AA-03"
+      ]
+    },
+    {
+      "outcome": "F1.A-02",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "PR.AA-01",
+        "PR.AA-02",
+        "PR.AA-03"
+      ]
+    },
+    {
+      "outcome": "F1.A-03",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "PR.AA-01",
+        "PR.AA-02",
+        "PR.AA-03"
+      ]
+    },
+    {
+      "outcome": "F1.B-01",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "PR.AA-01",
+        "PR.AA-03",
+        "ID.AM-01"
+      ]
+    },
+    {
+      "outcome": "F1.B-02",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "PR.AA-01",
+        "PR.AA-03",
+        "ID.AM-01"
+      ]
+    },
+    {
+      "outcome": "F1.B-03",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "PR.AA-01",
+        "PR.AA-03",
+        "ID.AM-01"
+      ]
+    },
+    {
+      "outcome": "F2.A-01",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "PR.AA-05"
+      ]
+    },
+    {
+      "outcome": "F2.A-02",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "PR.AA-05"
+      ]
+    },
+    {
+      "outcome": "F2.A-03",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "PR.AA-05"
+      ]
+    },
+    {
+      "outcome": "F2.B-01",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "PR.AA-05",
+        "PR.IR-01"
+      ]
+    },
+    {
+      "outcome": "F2.B-02",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "PR.AA-05",
+        "PR.IR-01"
+      ]
+    },
+    {
+      "outcome": "F2.B-03",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "PR.AA-05",
+        "PR.IR-01"
+      ]
+    },
+    {
+      "outcome": "F3.A-01",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "PR.PS-01",
+        "PR.PS-02",
+        "PR.DS-10"
+      ]
+    },
+    {
+      "outcome": "F3.A-02",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "PR.PS-01",
+        "PR.PS-02",
+        "PR.DS-10"
+      ]
+    },
+    {
+      "outcome": "F3.A-03",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "PR.PS-01",
+        "PR.PS-02",
+        "PR.DS-10"
+      ]
+    },
+    {
+      "outcome": "F3.B-01",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "DE.CM-09",
+        "PR.PS-05"
+      ]
+    },
+    {
+      "outcome": "F3.B-02",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "DE.CM-09",
+        "PR.PS-05"
+      ]
+    },
+    {
+      "outcome": "F3.B-03",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "DE.CM-09",
+        "PR.PS-05"
+      ]
+    },
+    {
+      "outcome": "F4.A-01",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "PR.DS-01"
+      ]
+    },
+    {
+      "outcome": "F4.A-02",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "PR.DS-01"
+      ]
+    },
+    {
+      "outcome": "F4.A-03",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "PR.DS-01"
+      ]
+    },
+    {
+      "outcome": "F4.B-01",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "PR.DS-02"
+      ]
+    },
+    {
+      "outcome": "F4.B-02",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "PR.DS-02"
+      ]
+    },
+    {
+      "outcome": "F4.B-03",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "PR.DS-02"
+      ]
+    },
+    {
+      "outcome": "F5.A-01",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "PR.IR-01",
+        "ID.AM-03"
+      ]
+    },
+    {
+      "outcome": "F5.A-02",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "PR.IR-01",
+        "ID.AM-03"
+      ]
+    },
+    {
+      "outcome": "F5.A-03",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "PR.IR-01",
+        "ID.AM-03"
+      ]
+    },
+    {
+      "outcome": "F5.B-01",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "PR.IR-01",
+        "DE.CM-01"
+      ]
+    },
+    {
+      "outcome": "F5.B-02",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "PR.IR-01",
+        "DE.CM-01"
+      ]
+    },
+    {
+      "outcome": "F5.B-03",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "PR.IR-01",
+        "DE.CM-01"
+      ]
+    },
+    {
+      "outcome": "F6.A-01",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "DE.CM-01",
+        "DE.CM-09",
+        "PR.PS-04"
+      ]
+    },
+    {
+      "outcome": "F6.A-02",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "DE.CM-01",
+        "DE.CM-09",
+        "PR.PS-04"
+      ]
+    },
+    {
+      "outcome": "F6.A-03",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "DE.CM-01",
+        "DE.CM-09",
+        "PR.PS-04"
+      ]
+    },
+    {
+      "outcome": "F6.B-01",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "RS.MA-01",
+        "RS.CO-02"
+      ]
+    },
+    {
+      "outcome": "F6.B-02",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "RS.MA-01",
+        "RS.CO-02"
+      ]
+    },
+    {
+      "outcome": "F6.B-03",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "RS.MA-01",
+        "RS.CO-02"
+      ]
+    },
+    {
+      "outcome": "F7.A-01",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "PR.IR-03",
+        "PR.IR-04"
+      ]
+    },
+    {
+      "outcome": "F7.A-02",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "PR.IR-03",
+        "PR.IR-04"
+      ]
+    },
+    {
+      "outcome": "F7.A-03",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "PR.IR-03",
+        "PR.IR-04"
+      ]
+    },
+    {
+      "outcome": "F7.B-01",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "PR.DS-11",
+        "RC.RP-01"
+      ]
+    },
+    {
+      "outcome": "F7.B-02",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "PR.DS-11",
+        "RC.RP-01"
+      ]
+    },
+    {
+      "outcome": "F7.B-03",
+      "framework": "nist-csf-2.0",
+      "outcomes": [
+        "PR.DS-11",
+        "RC.RP-01"
+      ]
+    }
+  ]
+}

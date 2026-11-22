@@ -215,7 +215,8 @@ function SourcesDialog({ token, path, yourAddress, onClose, onSaved }: {
 }) {
   const toast = useToast();
   // Mounted afresh for each token (`key`), so the box starts from that token's list.
-  const [text, setText] = useState((token?.allowed_sources ?? []).join('\n'));
+  const [start] = useState((token?.allowed_sources ?? []).join('\n'));
+  const [text, setText] = useState(start);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -238,7 +239,7 @@ function SourcesDialog({ token, path, yourAddress, onClose, onSaved }: {
   };
 
   return (
-    <Modal open={token !== null} title={`Allowed addresses of "${token?.name ?? ''}"`} onClose={onClose}>
+    <Modal open={token !== null} title={`Allowed addresses of "${token?.name ?? ''}"`} onClose={onClose} dirty={text !== start}>
       <form className="form" onSubmit={save} noValidate>
         <TextArea
           label="Allowed source addresses" rows={4} value={text} onChange={(v) => { setText(v); setError(''); }} error={error}
@@ -335,7 +336,7 @@ function NewTokenDialog({ open, data, onClose, onCreated }: { open: boolean; dat
   }
 
   return (
-    <Modal open={open} title="New API token" onClose={close}>
+    <Modal open={open} title="New API token" onClose={close} dirty={Boolean(name.trim() || scopes.length || days !== firstDays || sources.trim())}>
       <form className="form" onSubmit={submit} noValidate>
         {formError && <p className="form-error" role="alert">{formError}</p>}
         <TextField

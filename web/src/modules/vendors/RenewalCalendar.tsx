@@ -6,7 +6,7 @@ import { Link } from 'react-router-dom';
 import { Tooltip } from '@mantine/core';
 import {
   api, ApiError, Button, Card, cx, EmptyState, ErrorState, errorMessage, formatCurrency, formatDate, Loading, Modal,
-  PageHeader, Stat, StatusChip, TextField, toColorName, useFetch, useToast,
+  PageHeader, Stat, StatusChip, TextField, toColorName, useFetch, useToast, useUnsavedChanges,
 } from '../../core';
 import type { ColorName } from '../../core';
 import { ReminderDots } from './ContractPages';
@@ -102,6 +102,8 @@ function ReminderSettings({ onClose, onSaved }: { onClose: () => void; onSaved: 
   const [evidence, setEvidence] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  // E22-14: once a box has been typed in, closing asks before discarding.
+  const unsaved = useUnsavedChanges((contract !== null && contract !== data?.contract_days.join(', ')) || (evidence !== null && evidence !== data?.evidence_days.join(', ')));
   if (error) return <ErrorState error={error} onRetry={reload} />;
   if (!data) return <Loading lines={3} label="Loading reminder settings" />;
   const contractText = contract ?? data.contract_days.join(', ');
@@ -113,6 +115,7 @@ function ReminderSettings({ onClose, onSaved }: { onClose: () => void; onSaved: 
     setErrors({});
     try {
       await api.patch('/api/contracts/reminder-settings', { contract_days: parseDays(contractText), evidence_days: parseDays(evidenceText) });
+      unsaved.release();
       toast.success('Reminder days saved.');
       onSaved();
     } catch (err) {
@@ -138,7 +141,7 @@ function ReminderSettings({ onClose, onSaved }: { onClose: () => void; onSaved: 
         hint="Sent to everyone who may edit vendors, and the owner of the contract the evidence belongs to." inputMode="numeric"
       />
       <div className="form-actions">
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={unsaved.guard(onClose)}>Cancel</Button>
         <Button type="submit" variant="primary" loading={busy}>Save reminder days</Button>
       </div>
     </form>

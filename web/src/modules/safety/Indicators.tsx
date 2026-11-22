@@ -169,16 +169,18 @@ export function IndicatorDialog({ open, initial, onClose, onSaved }: { open: boo
   const blank = { name: '', description: '', event_types: [] as string[], severities: [] as string[], modes: [] as string[], measure: 'count', metric_key: '', exposure: 'vehicle_miles', per_units: 100000 as number | null, target: null as number | null, target_direction: 'at_most', active: true };
   const { data: metrics } = useFetch<{ metrics: Metric[] }>(open ? '/api/metrics' : null);
   const [f, setF] = useState(blank);
+  const [start, setStart] = useState(blank);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (open) {
       setErrors({});
-      setF(initial ? {
+      const opened = initial ? {
         name: initial.name ?? '', description: initial.description ?? '', event_types: initial.event_types ?? [], severities: initial.severities ?? [], modes: initial.modes ?? [],
         measure: initial.measure ?? 'count', metric_key: initial.metric_key ?? '', exposure: initial.exposure ?? 'vehicle_miles', per_units: initial.per_units === null ? null : Number(initial.per_units ?? 100000),
         target: initial.target === null || initial.target === undefined ? null : Number(initial.target), target_direction: initial.target_direction ?? 'at_most', active: initial.active !== false,
-      } : blank);
+      } : blank;
+      setF(opened); setStart(opened);
     }
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }));
@@ -202,6 +204,7 @@ export function IndicatorDialog({ open, initial, onClose, onSaved }: { open: boo
   };
   return (
     <Modal open={open} title={initial ? 'Edit indicator' : 'New indicator'} size="lg" onClose={onClose}
+      dirty={JSON.stringify(f) !== JSON.stringify(start)}
       footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" loading={busy} onClick={save}>{initial ? 'Save changes' : 'Add indicator'}</Button></>}>
       <div className="form">
         <div className="form-grid">
@@ -254,9 +257,10 @@ export function ExposurePage() {
   const [editing, setEditing] = useState<string | null>(null);
   const toast = useToast();
   const [draft, setDraft] = useState<Record<string, number | null>>({});
+  const [opened, setOpened] = useState<Record<string, number | null>>({});
   const [busy, setBusy] = useState(false);
   const rowFor = (p: string) => data?.rows.find((r) => r.period === p && r.mode === mode);
-  const start = (p: string) => { const r = rowFor(p); setDraft(Object.fromEntries(FIELDS.map(([k]) => [k, r?.[k] ?? null]))); setEditing(p); };
+  const start = (p: string) => { const r = rowFor(p); const values = Object.fromEntries(FIELDS.map(([k]) => [k, r?.[k] ?? null])); setDraft(values); setOpened(values); setEditing(p); };
   const save = async () => {
     if (!editing) return;
     setBusy(true);
@@ -296,6 +300,7 @@ export function ExposurePage() {
       </Card>
       {data && data.rows.length === 0 && <EmptyState icon="chart" title="No exposure entered yet" message="Enter each month's figures so that rate indicators can be worked out." />}
       <Modal open={!!editing} size="sm" title={`Exposure for ${editing ? monthLabel(editing) : ''}${mode ? ` (${modes.find((m) => m.value === mode)?.label})` : ''}`} onClose={() => setEditing(null)}
+        dirty={JSON.stringify(draft) !== JSON.stringify(opened)}
         footer={<><Button onClick={() => setEditing(null)}>Cancel</Button><Button variant="primary" loading={busy} onClick={save}>Save</Button></>}>
         <div className="form">
           {FIELDS.map(([k, l]) => <NumberField key={k} label={l} value={draft[k] ?? null} min={0} thousands onChange={(v) => setDraft((d) => ({ ...d, [k]: v }))} />)}

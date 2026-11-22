@@ -1,6 +1,6 @@
 # E27 Funding and grant compliance (wave 10)
 
-**Status:** in progress (10 of 11 issues done)
+**Status:** done (11 of 11 issues done)
 
 ## Goal
 
@@ -27,7 +27,7 @@ Track funding awards and what they pay for, the reporting they require, yearly c
 | E27-08 | Funder-required contract clauses | done | P3 |
 | E27-09 | Dashboard | done | P2 |
 | E27-10 | Sample data and guide | done | P2 |
-| E27-11 | Sub-recipient monitoring and one clause-checklist engine | open | P3 |
+| E27-11 | Sub-recipient monitoring and one clause-checklist engine | done | P3 |
 
 ---
 
@@ -168,11 +168,13 @@ Users need invented awards, a certification and a review, and a guide page.
 
 ### E27-11 Sub-recipient monitoring and one clause-checklist engine
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** done · **Priority:** P3 · **Type:** feature
 
-A grants manager who passes funding on wants to monitor sub-recipients, and the security terms and funder clause checklists should share one engine. Planned for wave 11 (E35).
+A grants manager who passes funding on wants to monitor sub-recipients, and the security terms and funder clause checklists should share one engine. Delivered in wave 11 with E35-05 and E35-07.
 
 **Acceptance criteria**
 
-- [ ] Sub-recipient records with monitoring checks
-- [ ] Security terms and funder clauses use one generic clause checklist
+- [x] Sub-recipient records with monitoring checks (E35-07)
+- [x] Security terms and funder clauses use one generic clause checklist (E35-05)
+
+**Implemented in:** `server/src/core/clauses.ts`, `core/migrations/026_clause_checks.sql`; `server/src/modules/funding/subrecipients.ts`, `funding/clauses.ts`, `funding/migrations/002_subrecipients_and_clause_engine.sql`; `web/src/modules/funding/Subrecipients.tsx`

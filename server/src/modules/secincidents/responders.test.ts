@@ -86,8 +86,9 @@ describe('alerts by email and text message', () => {
     await run();
     expect((await securityMail()).length).toBe(4);
     const audits = await t.db.query<any>(`select summary from audit_events where action = 'security_incident.alert_sent' and record_id = $1`, [incident.id]);
-    expect(audits.map((a) => a.summary)).toEqual([
-      expect.stringMatching(/declared.*1 by email, 1 by text message/), expect.stringMatching(/clock red.*1 by email, 1 by text message/),
+    // The two alerts may be written in either order.
+    expect(audits.map((a) => a.summary).sort()).toEqual([
+      expect.stringMatching(/clock red.*1 by email, 1 by text message/), expect.stringMatching(/declared.*1 by email, 1 by text message/),
     ]);
   });
 

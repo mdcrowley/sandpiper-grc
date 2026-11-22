@@ -47,6 +47,8 @@ export function CheckOutDialog({ asset, onClose }: DialogProps) {
   const [location, setLocation] = useState<string>(asset.location ?? '');
   const [due, setDue] = useState('');
   const [notes, setNotes] = useState('');
+  const draft = JSON.stringify([who, userId, name, department, location, due, notes]);
+  const [start] = useState(draft);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
 
@@ -71,7 +73,7 @@ export function CheckOutDialog({ asset, onClose }: DialogProps) {
   }
 
   return (
-    <Modal open title={`Check out ${asset.tag ?? asset.name}`} onClose={() => onClose(false)}
+    <Modal open title={`Check out ${asset.tag ?? asset.name}`} onClose={() => onClose(false)} dirty={draft !== start}
       footer={<><Button onClick={() => onClose(false)}>Cancel</Button><Button variant="primary" loading={busy} onClick={submit}>Check out</Button></>}>
       <form className="form" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
         {errors._form && <p className="form-error" role="alert">{errors._form}</p>}
@@ -99,6 +101,7 @@ export function CheckInDialog({ asset, onClose }: DialogProps) {
   const options = CHECK_IN.filter((o) => !blockedTo(o.value));
   const [status, setStatus] = useState(options[0]?.value ?? '');
   const [notes, setNotes] = useState('');
+  const [startStatus] = useState(status);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
 
@@ -115,7 +118,7 @@ export function CheckInDialog({ asset, onClose }: DialogProps) {
     }
   }
   return (
-    <Modal open title={`Check in ${asset.tag ?? asset.name}`} onClose={() => onClose(false)} size="sm"
+    <Modal open title={`Check in ${asset.tag ?? asset.name}`} onClose={() => onClose(false)} size="sm" dirty={status !== startStatus || notes.trim() !== ''}
       footer={<><Button onClick={() => onClose(false)}>Cancel</Button><Button variant="primary" loading={busy} disabled={!status} onClick={submit}>Check in</Button></>}>
       <form className="form" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
         {errors._form && <p className="form-error" role="alert">{errors._form}</p>}
@@ -139,6 +142,8 @@ export function WhereDialog({ asset, onClose }: DialogProps) {
   const [department, setDepartment] = useState<string>(asset.department ?? '');
   const [site, setSite] = useState<string | null>(asset.site_id ?? null);
   const [location, setLocation] = useState<string>(asset.location ?? '');
+  const draft = JSON.stringify([owner, department, site, location]);
+  const [start] = useState(draft);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
 
@@ -161,7 +166,7 @@ export function WhereDialog({ asset, onClose }: DialogProps) {
     }
   }
   return (
-    <Modal open title="Owner and place" onClose={() => onClose(false)}
+    <Modal open title="Owner and place" onClose={() => onClose(false)} dirty={draft !== start}
       footer={<><Button onClick={() => onClose(false)}>Cancel</Button><Button variant="primary" loading={busy} onClick={submit}>Save changes</Button></>}>
       <form className="form" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
         {errors._form && <p className="form-error" role="alert">{errors._form}</p>}
@@ -198,6 +203,8 @@ export function DisposeDialog({ asset, onClose }: DialogProps) {
   const [ref, setRef] = useState<string>(asset.disposal_approval_ref ?? '');
   const [method, setMethod] = useState<string>(asset.disposal_method ?? '');
   const [disposedOn, setDisposedOn] = useState(todayIso());
+  const draft = JSON.stringify([path, reason, by, on, ref, method, disposedOn]);
+  const [start] = useState(draft);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const asking = !approved && !pending && (routedOnly || path === 'ask');
@@ -238,7 +245,7 @@ export function DisposeDialog({ asset, onClose }: DialogProps) {
   }
 
   return (
-    <Modal open title={`Dispose of ${asset.tag ?? asset.name}`} onClose={() => onClose(false)}
+    <Modal open title={`Dispose of ${asset.tag ?? asset.name}`} onClose={() => onClose(false)} dirty={draft !== start}
       footer={(
         <>
           <Button onClick={() => onClose(false)}>{pending ? 'Close' : 'Cancel'}</Button>
@@ -337,7 +344,7 @@ export function DecideDialog({ request, label, decision, onClose }: {
     }
   }
   return (
-    <Modal open size="sm" title={`${approve ? 'Approve' : 'Refuse'} the disposal of ${label}`} onClose={() => onClose(false)}
+    <Modal open size="sm" title={`${approve ? 'Approve' : 'Refuse'} the disposal of ${label}`} onClose={() => onClose(false)} dirty={comment.trim() !== ''}
       footer={(
         <>
           <Button onClick={() => onClose(false)}>Cancel</Button>

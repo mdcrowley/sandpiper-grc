@@ -37,6 +37,7 @@ export function ChangeActions({ row, reload, canEdit, onOpenTab }: Props) {
   const outcomes = useMemo(() => completionOutcomes(outcomeValues), [outcomeValues]);
   const [notes, setNotes] = useState('');
   const [actualEnd, setActualEnd] = useState('');
+  const [openedEnd, setOpenedEnd] = useState(''); // the actual end the Complete dialog opened with
   const [reason, setReason] = useState('');
   const [fields, setFields] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState('');
@@ -68,7 +69,7 @@ export function ChangeActions({ row, reload, canEdit, onOpenTab }: Props) {
   }
 
   const start = (to: string) => {
-    if (to === 'completed') { setOutcome(''); setNotes(String(row.outcome_notes ?? '')); setActualEnd(new Date().toISOString()); setFields({}); setFormError(''); setDialog('complete'); }
+    if (to === 'completed') { setOutcome(''); setNotes(String(row.outcome_notes ?? '')); const now = new Date().toISOString(); setActualEnd(now); setOpenedEnd(now); setFields({}); setFormError(''); setDialog('complete'); }
     else if (to === 'cancelled') { setReason(''); setFormError(''); setDialog('cancel'); }
     else void move(to);
   };
@@ -103,7 +104,8 @@ export function ChangeActions({ row, reload, canEdit, onOpenTab }: Props) {
       <ApprovalDialog open={dialog === 'approve' || dialog === 'reject'} mode={dialog === 'reject' ? 'rejected' : 'approved'}
         changeId={row.id} approvals={approvals} onClose={() => setDialog('')} onRecorded={refresh} />
 
-      <Modal open={dialog === 'complete'} title="Complete this change" onClose={() => setDialog('')} size="md">
+      <Modal open={dialog === 'complete'} title="Complete this change" onClose={() => setDialog('')} size="md"
+        dirty={dialog === 'complete' && (outcome !== '' || notes !== String(row.outcome_notes ?? '') || actualEnd !== openedEnd)}>
         <form className="form" noValidate onSubmit={(e) => { e.preventDefault(); void move('completed', { outcome, outcome_notes: notes, actual_end: actualEnd || undefined }, true); }}>
           <LookupSelect label="Outcome" required list="change_outcome" only={outcomes} value={outcome} onChange={setOutcome} error={fields.outcome} />
           {['failed', 'backed_out'].includes(outcome) && (
@@ -119,7 +121,7 @@ export function ChangeActions({ row, reload, canEdit, onOpenTab }: Props) {
         </form>
       </Modal>
 
-      <Modal open={dialog === 'cancel'} title="Cancel this change" onClose={() => setDialog('')} size="sm">
+      <Modal open={dialog === 'cancel'} title="Cancel this change" onClose={() => setDialog('')} size="sm" dirty={dialog === 'cancel' && reason.trim() !== ''}>
         <form className="form" noValidate onSubmit={(e) => { e.preventDefault(); void move('cancelled', { reason }, true); }}>
           <p className="muted">A canceled change stays in the register but can no longer be edited or reopened.</p>
           <TextArea label="Reason" value={reason} onChange={setReason} rows={3} />

@@ -28,7 +28,8 @@ beforeAll(async () => {
   sys.beta = await make('/api/systems', { name: 'Beta', system_group: 'Ops', vendor_name: 'Vendor One', mfa_status: 'enforced', rto_hours: 4 });
   sys.gamma = await make('/api/systems', { name: 'Gamma', system_group: 'Finance', vendor_name: 'Not known', business_owner_id: owner });
   sys.delta = await make('/api/systems', { name: 'Delta', system_group: 'Finance', vendor_name: 'Vendor Two', mfa_status: 'optional' });
-  sys.epsilon = await make('/api/systems', { name: 'Epsilon', vendor_id: '11111111-2222-4333-8444-555555555555', vendor_name: 'Vendor Three', status: 'retired' });
+  const vendorThree = await make('/api/vendors', { name: 'Vendor Three' });
+  sys.epsilon = await make('/api/systems', { name: 'Epsilon', vendor_id: vendorThree.id, vendor_name: 'Vendor Three', status: 'retired' });
 
   asset.server = await make('/api/assets', { name: 'Alpha server', status: 'in_use', system_id: sys.alpha.id, site_id: site.north.id, support_end: day(-10), assigned_to_name: 'Ops team', cost: 500 });
   asset.switch = await make('/api/assets', { name: 'Gamma switch', status: 'in_use', system_id: sys.gamma.id, site_id: site.north.id, warranty_end: day(30), cost: 250, funder_interest: true });
@@ -139,7 +140,7 @@ describe('relationship graph', () => {
     const vendors = nodes.filter((n: any) => n.type === 'vendor');
     expect(vendors.map((v: any) => v.label).sort()).toEqual(['Vendor One', 'Vendor Three', 'Vendor Two']);
     expect(byLabel('Vendor One').id).toBe('vendor:vendor one');
-    expect(byLabel('Vendor Three').id).toBe('11111111-2222-4333-8444-555555555555');
+    expect(byLabel('Vendor Three').id).toBe(sys.epsilon.vendor_id);
     expect(edges.filter((e: any) => e.kind === 'vendor' && e.to === 'vendor:vendor one')).toHaveLength(2);
 
     expect(edges).toContainEqual({ from: sys.alpha.id, to: sys.beta.id, kind: 'integration', direction: 'one_way', label: 'API' });

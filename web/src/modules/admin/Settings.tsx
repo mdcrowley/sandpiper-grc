@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { SegmentedControl } from '@mantine/core';
 import {
-  ApiError, Button, Card, ErrorState, errorMessage, Loading, NumberField, PageHeader, TextArea, TextField, useAuth, useFetch, useToast,
+  ApiError, Button, Card, Checkbox, ErrorState, errorMessage, Loading, NumberField, PageHeader, TextArea, TextField, useAuth, useFetch, useLookup, useToast,
 } from '../../core';
 import { Notice } from './common';
 import { DepartmentsCard } from './Departments';
@@ -30,6 +30,7 @@ interface Values {
   'retention.webhook_delivery_days': number | null;
   'retention.mail_log_days': number | null;
   'retention.mail_inbound_log_days': number | null;
+  'actions.closure_evidence_sources': string[];
 }
 interface SettingsResponse { values: Values; featureKeys: string[] }
 
@@ -65,6 +66,7 @@ const GROUPS: { id: string; title: string; needs?: keyof Values }[] = [
   { id: 'tokens', title: 'API tokens', needs: 'tokens.max_days' },
   { id: 'integrations', title: 'Outbound connections', needs: 'integrations.outbound_enabled' },
   { id: 'retention', title: 'Retention', needs: 'retention.audit_months' },
+  { id: 'actions', title: 'Actions', needs: 'actions.closure_evidence_sources' },
   { id: 'features', title: 'Features' },
   { id: 'files', title: 'Files' },
   { id: 'departments', title: 'Departments' },
@@ -104,6 +106,8 @@ export function SettingsPage() {
   const { data, error, reload } = useFetch<SettingsResponse>('/api/admin/settings');
   // Whether this administrator has a second factor: the server refuses "Required" without one.
   const mine = useFetch<{ totpEnabled: boolean }>('/api/auth/security');
+  // The action sources an administrator may require closure evidence for (E23-12); values of switched-off areas are left out.
+  const actionSources = useLookup('action_source');
   const [form, setForm] = useState<Values | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState('');
@@ -124,7 +128,8 @@ export function SettingsPage() {
   };
   const has = (k: keyof Values) => k in data.values;
   // Allowed hosts are typed one to a line: blank lines and spacing are not changes.
-  const comparable = (k: keyof Values, v: unknown) => (k === 'integrations.allowed_hosts' ? cleanHosts(v) : v);
+  const comparable = (k: keyof Values, v: unknown) => (k === 'integrations.allowed_hosts' ? cleanHosts(v)
+    : k === 'actions.closure_evidence_sources' ? [...(Array.isArray(v) ? v : [])].sort() : v);
   const isChanged = (k: keyof Values) => JSON.stringify(comparable(k, form[k])) !== JSON.stringify(comparable(k, data.values[k]));
   const changedKeys = (Object.keys(form) as (keyof Values)[]).filter(isChanged);
   const number = (key: keyof Values, label: string, hint?: string) => (
@@ -156,7 +161,7 @@ export function SettingsPage() {
     setBusy(true);
     try {
       await adminApi.patch('/api/admin/settings', Object.fromEntries(changedKeys.map((k) => [
-        k, k === 'integrations.allowed_hosts' ? cleanHosts(form[k]) : form[k],
+        k, k === 'integrations.allowed_hosts' || k === 'actions.closure_evidence_sources' ? comparable(k, form[k]) : form[k],
       ])));
       toast.success('Settings saved.');
       reload();
@@ -326,6 +331,30 @@ export function SettingsPage() {
                     {number('retention.mail_inbound_log_days', 'Incoming email log retention in days', 'Days, from 7 to 3650.')}
                   </Setting>
                 )}
+              </Card>
+            </Group>
+          )}
+
+          {has('actions.closure_evidence_sources') && (
+            <Group id="actions" title="Actions" text="Rules for actions in the action tracker and in corrective action plans.">
+              <Card>
+                <Setting
+                  title="Evidence needed before closing" error={errors['actions.closure_evidence_sources']} changed={isChanged('actions.closure_evidence_sources')}
+                  text="Actions raised from the sources checked here can be marked done only when they have an attachment or some closure evidence text. None are checked at first."
+                >
+                  <fieldset className="stack" aria-label="Sources whose actions need closure evidence">
+                    {actionSources.length === 0 && <span className="muted">No action sources are set up.</span>}
+                    {actionSources.map((s) => {
+                      const chosen = form['actions.closure_evidence_sources'] ?? [];
+                      return (
+                        <Checkbox
+                          key={s.value} label={s.label} checked={chosen.includes(s.value)}
+                          onChange={(on) => set('actions.closure_evidence_sources', on ? [...chosen, s.value] : chosen.filter((v) => v !== s.value))}
+                        />
+                      );
+                    })}
+                  </fieldset>
+                </Setting>
               </Card>
             </Group>
           )}

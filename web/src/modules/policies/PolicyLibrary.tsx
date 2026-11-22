@@ -33,7 +33,7 @@ function ReminderSettings({ onClose }: { onClose: () => void }) {
     }
   };
   return (
-    <Modal open title="Acknowledgment reminders" onClose={onClose} size="sm"
+    <Modal open title="Acknowledgment reminders" onClose={onClose} size="sm" dirty={value !== null && value !== (data?.reminder_interval_days ?? null)}
       footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" loading={busy} disabled={days === null} onClick={() => void save()}>Save</Button></>}>
       <div className="stack">
         <p className="muted">

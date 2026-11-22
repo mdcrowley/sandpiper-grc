@@ -64,7 +64,7 @@ export function ConflictsPanel({ row }: { row: Row }) {
         </div>
       )}
 
-      <Modal open={open} title="Acknowledge and override" onClose={() => setOpen(false)} size="md">
+      <Modal open={open} title="Acknowledge and override" onClose={() => setOpen(false)} size="md" dirty={open && reason.trim() !== ''}>
         <form className="form" onSubmit={acknowledge} noValidate>
           <p className="muted">
             You are recording that the {unacknowledged.length === 1 ? 'conflict below is' : 'conflicts below are'} known and that the change may go ahead anyway.

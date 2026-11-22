@@ -121,6 +121,46 @@ export const REMINDER_SETTINGS: ReminderSettingDef[] = [
     label: 'Certification expiry reminders',
     description: 'Days before a certification expires that the person and their supervisor are reminded; each step goes out once, and once more when it has expired.',
   },
+  {
+    key: 'condition.assessment_reminder_days', group: 'Asset condition', requires: 'condition_assessment', kind: 'number', unit: 'days', min: 0, max: 365, default: 30,
+    label: 'Remind before a condition assessment is due',
+    description: 'The owner of an asset class (or everyone who may edit assets) gets one reminder per class listing how many of the items in it are due for their next condition assessment within this many days or overdue.',
+  },
+  {
+    key: 'condition.assessment_every_months', group: 'Asset condition', requires: 'condition_assessment', kind: 'number', min: 1, max: 240, default: 24,
+    label: 'Months between condition assessments',
+    description: 'How often an item with an asset class is assessed when its class does not set its own interval.',
+  },
+  {
+    key: 'continuity.plan_review_reminder_days', group: 'Business continuity', requires: 'continuity_plan', kind: 'number', unit: 'days', min: 0, max: 365, default: 30,
+    label: 'Remind plan owners before a plan review is due',
+    description: 'A continuity plan’s owner is told once when its review date is this close, and once more when the date has passed.',
+  },
+  {
+    key: 'continuity.bia_reminder_days', group: 'Business continuity', requires: 'business_process', kind: 'number', unit: 'days', min: 0, max: 365, default: 30,
+    label: 'Remind process owners before an impact analysis is due',
+    description: 'A business process’s owner is told once when its next business impact analysis is this close.',
+  },
+  {
+    key: 'privacy.review_reminder_days', group: 'Privacy', requires: 'privacy_assessment', kind: 'number', unit: 'days', min: 0, max: 365, default: 30,
+    label: 'Remind assessment owners before a privacy review',
+    description: 'The owner of an approved privacy impact assessment is told once when its next review comes within this many days.',
+  },
+  {
+    key: 'vendors.reassessment_reminder_days', group: 'Vendors and contracts', requires: 'vendor', kind: 'number', unit: 'days', min: 0, max: 365, default: 30,
+    label: 'Remind vendor owners before a reassessment or exclusion-list check is due',
+    description: 'A vendor’s owner is reminded once for each due date, this many days before it.',
+  },
+  {
+    key: 'funding.subrecipient_reminder_days', group: 'Funding', requires: 'subrecipient', kind: 'number', unit: 'days', min: 0, max: 365, default: 30,
+    label: 'Remind before sub-recipient monitoring is due',
+    description: 'The person who monitors a sub-recipient is reminded once for each due date, this many days before it.',
+  },
+  {
+    key: 'attachments.link_check_days', group: 'Files', kind: 'number', unit: 'days', min: 1, max: 3650, default: 90,
+    label: 'Remind record owners to check linked documents',
+    description: 'A link to a document kept elsewhere is due for a check this many days after it was last checked; the record’s owner is told once when it becomes due.',
+  },
 ];
 
 const isInt = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v);

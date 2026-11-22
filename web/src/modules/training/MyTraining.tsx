@@ -17,7 +17,8 @@ function CompleteDialog({ courseId, courses, onClose, onDone }: {
 }) {
   const toast = useToast();
   const [course, setCourse] = useState(courseId ?? '');
-  const [date, setDate] = useState(todayInZone());
+  const [startDate] = useState(todayInZone);
+  const [date, setDate] = useState(startDate);
   const [note, setNote] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -41,6 +42,7 @@ function CompleteDialog({ courseId, courses, onClose, onDone }: {
   };
   return (
     <Modal open title="Mark training complete" onClose={onClose} size="md"
+      dirty={course !== (courseId ?? '') || date !== startDate || !!note}
       footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" icon="check" loading={busy} onClick={() => void save()}>Mark complete</Button></>}>
       <div className="stack trn-mine">
         <p className="muted">Only for courses that allow it. Your note is kept with the record, and the course owner can see it.</p>

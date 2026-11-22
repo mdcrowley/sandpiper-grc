@@ -16,6 +16,7 @@ This page is for administrators. It explains how to add people and give them acc
 | **Users** | Add people, give them roles, issue sign-in links | [Users](#users) |
 | **Roles** | Roles and their permissions | [Roles and permissions](#roles-and-permissions) |
 | **Sign-in providers** | Single sign-on and the break-glass account | [Sign-in providers](#sign-in-providers-single-sign-on) |
+| **User provisioning** | Let your identity provider create and switch off accounts | [User provisioning](35-user-provisioning-and-log-forwarding.md#user-provisioning) |
 | **Lists** | The choices in drop-down lists, and tags | [Lists](#lists) |
 | **Organization** | The organization's names, address, contacts, logo and colors | [Organization](#organization) |
 | **Settings** | Passwords, second factor, sessions, tokens, outbound connections | [Settings](#settings) |
@@ -24,11 +25,14 @@ This page is for administrators. It explains how to add people and give them acc
 | **Lifecycles** | Allowed status changes and the fields each status needs | [Lifecycles](23-lifecycles.md) |
 | **Retention** | How long records are kept | [Retention](#retention) |
 | **API tokens** | Everyone's API tokens | [API tokens](#api-tokens) |
+| **Legal holds** | Keep records for a matter so they cannot be deleted or anonymized | [Legal holds](33-legal-holds.md) |
 | **Approval workflows** | Who approves what, step by step | [Approval workflows](22-approval-workflows.md) |
 | **AI assistant access** | Whether AI assistants may connect | [AI assistants and MCP](21-ai-assistants-and-mcp.md) |
 | **Email** | Outgoing email, templates, delivery log, text messages | [Email settings](14-attachments-and-notifications.md#email-settings) |
 | **Reminders** | How far ahead reminders go out | [Reminders](14-attachments-and-notifications.md#reminders) |
 | **Webhooks** | Tell other systems about changes | [Webhooks](#webhooks) |
+| **Calendar and work trackers** | Calendar feeds and connections to an outside work-tracking tool | [Calendar feeds, work trackers and evidence links](36-calendar-feeds-work-trackers-and-evidence-links.md#set-up-a-connection) |
+| **Log forwarding** | Send the audit log to a security monitoring system | [Log forwarding](35-user-provisioning-and-log-forwarding.md#log-forwarding) |
 | **Background jobs** | Work the application does by itself | [Background jobs](14-attachments-and-notifications.md#background-jobs) |
 | **Audit log** | Who did what, and when | [The audit log](#the-audit-log) |
 | **Risk scales** | The likelihood and impact scales for risks | [Editing the risk scales](06-risks-actions-obligations.md#editing-the-risk-scales) |
@@ -196,7 +200,7 @@ The list shows each role's **Access** (for example "12 permissions in 5 areas", 
 
 The Compliance officer, Audit lead and Training coordinator roles come with the audits, controls, funding, committees and staff roster parts. On an installation set up before these roles existed, the three new roles appear by themselves; the new permissions of the roles you already have are offered under [Applying default permissions after an upgrade](#applying-default-permissions-after-an-upgrade).
 
-The Continuity manager, Records and privacy officer and Asset manager roles, and the permissions for business continuity, legal holds, records requests and privacy assessments, are ready ahead of the parts they are for, which are still being built. Until then those permissions are grayed out on a role's page, because nothing uses them yet. The three roles appear by themselves on an existing installation, and the new permissions of your existing roles are offered in the same way.
+The Continuity manager, Records and privacy officer and Asset manager roles come with the business continuity, legal holds, records requests and privacy, and asset condition parts. The three roles appear by themselves on an existing installation, and the new permissions of your existing roles are offered in the same way.
 
 ### Applying default permissions after an upgrade
 
@@ -557,7 +561,7 @@ So a pale brand color is made darker for the light theme, and a dark one lighter
 
 ## Settings
 
-Open **Administration > Settings**. The settings are in groups: **Identity**, **Security**, **Sessions**, **API tokens**, **Outbound connections**, **Retention**, **Features**, **Files** and **Departments**. The links at the side of the page (at the top on a narrow screen) jump to each group.
+Open **Administration > Settings**. The settings are in groups: **Identity**, **Security**, **Sessions**, **API tokens**, **Outbound connections**, **Retention**, **Actions**, **Features**, **Files** and **Departments**. The links at the side of the page (at the top on a narrow screen) jump to each group.
 
 Each setting has its name and an explanation on the left and its control on the right. Make your changes, then select **Save settings** at the top right, or **Undo changes** to discard them. A setting you have altered is marked **Changed**, and the number of unsaved changes is shown beside the buttons. Every change is recorded in the audit log with the old and new value.
 
@@ -618,8 +622,13 @@ Changing these asks you to confirm your password.
 | **Webhook delivery log** | 30 | 1 to 3650 days | How long finished webhook deliveries (delivered, failed or blocked) stay in a webhook's **Deliveries** list. Older ones are removed by the daily check; deliveries still waiting are always kept. What a delivery sent is removed as soon as it is delivered: the list keeps its date, event and status only. |
 | **Outgoing message log** | 180 | 7 to 3650 days | How long the email and text-message **Delivery log** (recipients and subjects) is kept. Messages still waiting or due to be tried again are kept. |
 | **Incoming email log** | 180 | 7 to 3650 days | How long the log of emails received by the service desk mailbox (senders and subjects) is kept. Shown only while **Service desk** is switched on. A reply to an email older than this still finds its ticket when it quotes the ticket reference. |
+| **Audit-log forwarding log** | 30 | 1 to 3650 days | How long a forwarder's delivery log is kept (also set on Log forwarding). Events already forwarded are not recalled. |
 
-The three logs are removed once a day by the same daily check as retention reviews, and the audit log notes how many rows went. They are logs, not records, so nothing waits for a decision.
+The logs are removed once a day by the same daily check as retention reviews, and the audit log notes how many rows went. They are logs, not records, so nothing waits for a decision.
+
+### Actions
+
+**Evidence needed before closing**: check the action sources (for example **Audit** or **Inspection**) whose actions can be marked done only with an attachment or some **Closure evidence** text. None are checked at first. Sources of switched-off areas are not listed. See [Corrective action plans](24-corrective-action-plans.md#closure-evidence).
 
 ### Features (settings)
 
@@ -678,7 +687,7 @@ Each part has a switch, a line saying what it covers, whether it is **On** or **
 | **OT and rail-systems security** | Operational technology on systems and assets, security zones and conduits with their target and achieved levels | On |
 | **Records requests and privacy** | Requests for records and personal data with their deadlines, responsive records and exemptions, and privacy impact assessments. Legal holds stay on | On |
 
-The last four parts are listed ahead of their pages, which are still being built: switching them off or on changes nothing you can see yet. Legal holds are not a part that can be switched off: a hold must never lapse because a part of the application was switched off.
+[Legal holds](33-legal-holds.md) are not a part that can be switched off: a hold must never lapse because a part of the application was switched off.
 
 **AI assistant access** is listed too, with its state, but it keeps its own page: select the link to open **Administration > AI assistant access**. **Inventory** (systems, assets, sites, data categories and the relationship map), the **action tracker**, **notifications**, **files**, **administration**, the **Overview** and **Help** are always on.
 
@@ -789,8 +798,10 @@ The **Review** tab lists the records past their period. **Show** switches betwee
 For each record waiting for a decision:
 
 - **Keep longer**: choose **For a number of months** or **Until a date**, give a **Reason** and select **Keep longer**. The record leaves the list and is flagged again once that date has passed.
-- **Anonymize…** (when the period allows it): give a **Reason**, check **I understand that the personal details will be removed permanently** and select **Anonymize**. You are asked to confirm your identity if you have not done so recently. Anonymizing **cannot be undone**. It replaces the record's personal fields (the people on it, names, email addresses, phone numbers and long text that may hold personal details) with "Removed at the end of the retention period" or empties them, empties the people who created and last changed it, replaces the text and author of each of its comments, deletes the contents of its files and renames them "Removed file", replaces the titles of notifications about it, and removes its watchers. Search no longer finds the removed details. The record itself, its reference, status, dates, numbers, tags, links and the number of its comments and files stay, so counts and charts stay the same for everyone; only a chart grouped by a person or a long-text field shows the record under no value. A person field that the record type requires cannot be emptied and is kept; the audit entry names it. The audit log is not changed: its earlier entries for the record, shown on the record's **History** tab, still hold the earlier values. Webhook deliveries already made or waiting for the record lose what they carried: those still waiting are not sent (they show as **Blocked**, and cannot be sent again). The review moves to **Anonymized**, with your reason.
+- **Anonymize…** (when the period allows it): give a **Reason**, check **I understand that the personal details will be removed permanently** and select **Anonymize**. You are asked to confirm your identity if you have not done so recently. Anonymizing **cannot be undone**. It replaces the record's personal fields (the people on it, names, email addresses, phone numbers and long text that may hold personal details) with "Removed at the end of the retention period" or empties them, empties the people who created and last changed it, replaces the text and author of each of its comments, deletes the contents of its files and renames them "Removed file", replaces the titles of notifications about it, and removes its watchers; an evidence link's address, title and who checked it are cleared. Search no longer finds the removed details. The record itself, its reference, status, dates, numbers, tags, links and the number of its comments and files stay, so counts and charts stay the same for everyone; only a chart grouped by a person or a long-text field shows the record under no value. A person field that the record type requires cannot be emptied and is kept; the audit entry names it. The audit log is not changed: its earlier entries for the record, shown on the record's **History** tab, still hold the earlier values. Webhook deliveries already made or waiting for the record lose what they carried: those still waiting are not sent (they show as **Blocked**, and cannot be sent again). The review moves to **Anonymized**, with your reason.
 - **Remove…** (when the period allows it): give a **Reason**, check **I understand that this record will be deleted permanently** and select **Remove for good**. You are asked for your password if you have not given it recently. The record, its comments, tags and links are deleted and cannot be brought back. A record with files attached cannot be removed until its files are. The audit log keeps the record's history and a note of the removal with your reason. Webhook deliveries made or waiting for the record lose what they carried, as for anonymizing. Anonymizing and removing are sent to webhooks (see "Other events" under [Webhooks](#webhooks)), with no personal values from before the change.
+
+A record under a legal hold is never flagged while held. One flagged before the hold was placed shows a **Held** chip with the hold's reference: it can be kept longer but not anonymized or removed. Filter with **Legal hold**. See [Legal holds](33-legal-holds.md).
 
 ## API tokens
 
@@ -817,10 +828,11 @@ A webhook tells another system, straight away, when records are added, changed o
 ### Adding a webhook
 
 1. Select **Add webhook**.
-2. Enter a **Name** and the **Address** the receiving system gave you (an `https` address with no user name or password in it).
-3. Under **Events**, check **Every change to every record type, and every other event**, or choose the record types and changes (added, changed, deleted or any change) under **Record changes** and check the events you want under **Other events**.
-4. Check **Include restricted records** only if the receiver should get security incidents, risks and records flagged restricted. Only someone holding **View** on **Security incidents and restricted records** can switch this on, and those records stop being sent if that person loses it.
-5. Leave **Secret** empty to have a strong one made for you, and select **Add webhook**.
+2. Enter a **Name** and the **Address** the receiving system gave you (an `https` address with no user name or password in it). The address is kept encrypted; the list shows its host and a fingerprint. In **Edit**, leave it empty to keep it, or select **Show current address** (asks for your password; audited).
+3. Choose a **Format**: the full event as JSON, a chat message (one line), or a chat card (title, text, link and facts). Chat formats carry a summary and the names of changed fields, never values, and are signed the same way.
+4. Under **Events**, check **Every change to every record type, and every other event**, or choose the record types and changes (added, changed, deleted or any change) under **Record changes** and check the events you want under **Other events**.
+5. Check **Include restricted records** only if the receiver should get security incidents, risks and records flagged restricted. Only someone holding **View** on **Security incidents and restricted records** can switch this on, and those records stop being sent if that person loses it.
+6. Leave **Secret** empty to have a strong one made for you, and select **Add webhook**.
 
 The **signing secret** is then shown once. Select **Copy secret** and give it to whoever runs the receiving system; it cannot be shown again, only replaced.
 

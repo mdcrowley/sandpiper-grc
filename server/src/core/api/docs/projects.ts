@@ -194,13 +194,13 @@ export const DOCS: RouteDoc[] = [
   }),
   route('POST', '/api/projects/:id/gates/:gateId/request-approval', 'Ask for a gate decision through its approval workflow', {
     tag: T, permission: 'projects.edit',
-    description: 'Starts the approval workflow the gate\'s template names (E11-25), on the current gate of an active project once every checklist item is ticked and every required document is received or waived (409 `gate_blocked`, `not_current_gate`, `gate_closed`, `no_workflow`, `already_running`). Its approval is recorded as a gate decision and moves the project to the next stage; a rejection is recorded with the reason and the gate stays open. Follow it with GET /api/workflows/records/project/:id. Audited.',
+    description: 'Starts the approval workflow the gate\'s template names (E11-25), on the current gate of an active project once every checklist item is checked and every required document is received or waived (409 `gate_blocked`, `not_current_gate`, `gate_closed`, `no_workflow`, `already_running`). Its approval is recorded as a gate decision and moves the project to the next stage; a rejection is recorded with the reason and the gate stays open. Follow it with GET /api/workflows/records/project/:id. Audited.',
     body: '{ note?: string }',
     response: '{ instance_id: uuid, workflow: string, status: string }',
   }),
   route('POST', '/api/projects/:id/gates/:gateId/decide', 'Record a gate decision', {
     tag: T, permission: 'projects.approve',
-    description: `Only on the current gate of an active project (409 \`not_current_gate\`, \`project_not_active\`, \`gate_closed\`). Approval needs every checklist item ticked and every required document received or waived (400 \`gate_blocked\`), and moves the project to the next stage (completed after the last gate). ${AUDITED}`,
+    description: `Only on the current gate of an active project (409 \`not_current_gate\`, \`project_not_active\`, \`gate_closed\`). Approval needs every checklist item checked and every required document received or waived (400 \`gate_blocked\`), and moves the project to the next stage (completed after the last gate). ${AUDITED}`,
     body: `{ decision: 'approved' | 'rejected' | 'deferred', approver_name: string, approver_role?: string,
       decided_on?: date "Not in the future; default today", reference?: string, notes?: string }`,
     response: `{ project: @project, gate: ${GATE} }`,

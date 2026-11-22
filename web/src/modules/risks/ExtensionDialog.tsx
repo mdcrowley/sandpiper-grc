@@ -30,7 +30,7 @@ export function ExtensionDialog({ action, open, onClose, onSaved }: { action: Ro
   };
 
   return (
-    <Modal open={open} title="Ask for more time" onClose={onClose}>
+    <Modal open={open} title="Ask for more time" onClose={onClose} dirty={open && Boolean(form.new_due_on || form.reason.trim())}>
       <form className="form" onSubmit={submit} noValidate>
         <p className="muted" style={{ margin: 0 }}>
           {action.due_on ? `The action is due ${formatDate(action.due_on)}. ` : ''}

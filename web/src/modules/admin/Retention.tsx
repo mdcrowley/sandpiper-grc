@@ -44,6 +44,9 @@ interface Review {
   route: string | null;
   label: string;
   ref: string | null;
+  /** Under an active legal hold (flagged before the hold was placed): nothing can be anonymized or removed. */
+  held?: boolean;
+  holds?: string[];
 }
 interface ReviewPage { rows: Review[]; total: number; page: number; pageSize: number }
 
@@ -53,6 +56,10 @@ const REVIEW_STATUS = [
   { value: 'extended', label: 'Kept longer' },
   { value: 'anonymized', label: 'Anonymized' },
   { value: 'deleted', label: 'Removed for good' },
+];
+const HELD_OPTIONS = [
+  { value: 'only', label: 'Held only' },
+  { value: 'none', label: 'Not held' },
 ];
 const PAGE_SIZE = 25;
 const DISPOSAL_OPTIONS: { value: Disposal; label: string; hint: string }[] = [
@@ -266,12 +273,13 @@ function ReviewList({ data, onDecided }: { data: RetentionResponse; onDecided: (
   const toast = useToast();
   const [status, setStatus] = useState('pending');
   const [type, setType] = useState('');
+  const [held, setHeld] = useState('');
   const [page, setPage] = useState(1);
   const [keeping, setKeeping] = useState<Review | null>(null);
   const [removing, setRemoving] = useState<Review | null>(null);
   const [anonymizing, setAnonymizing] = useState<Review | null>(null);
   const { data: list, error, reload, loading } = useFetch<ReviewPage>(
-    `/api/admin/retention/reviews${qs({ status, record_type: type, page, pageSize: PAGE_SIZE })}`, { keepPrevious: true },
+    `/api/admin/retention/reviews${qs({ status, record_type: type, held, page, pageSize: PAGE_SIZE })}`, { keepPrevious: true },
   );
   const pages = list ? Math.max(1, Math.ceil(list.total / PAGE_SIZE)) : 1;
   const policyOf = (t: string) => data.types.find((p) => p.type === t);
@@ -285,6 +293,7 @@ function ReviewList({ data, onDecided }: { data: RetentionResponse; onDecided: (
           label="Record type" placeholder="Every record type" searchable value={type} onChange={(v) => { setType(v); setPage(1); }}
           options={data.types.map((t) => ({ value: t.type, label: t.plural }))}
         />
+        <Select label="Legal hold" placeholder="Held or not" value={held} onChange={(v) => { setHeld(v); setPage(1); }} options={HELD_OPTIONS} />
       </div>
       <Card flush>
         {error ? <ErrorState error={error} onRetry={reload} />
@@ -320,6 +329,9 @@ function ReviewList({ data, onDecided }: { data: RetentionResponse; onDecided: (
                         <tr key={r.id}>
                           <td className="adm-wrap">
                             {r.route ? <Link to={r.route}>{r.ref ? <span className="ref">{r.ref}</span> : null} {r.label}</Link> : <span>{r.label}</span>}
+                            {r.held && (
+                              <div><StatusChip color="red" size="sm" label={`Held: ${(r.holds ?? []).join(', ') || 'legal hold'}`} title="Under a legal hold: it can be kept longer, but not anonymized or removed until the hold is released." /></div>
+                            )}
                             <div className="muted adm-small">
                               {r.typeLabel}
                               {r.basis_at && ` · ${p?.basis === 'created_at' ? 'created' : 'last changed'} ${formatDate(r.basis_at)}`}
@@ -332,10 +344,10 @@ function ReviewList({ data, onDecided }: { data: RetentionResponse; onDecided: (
                               <td className="adm-row-actions">
                                 <span className="row adm-row-buttons">
                                   <Button size="sm" aria-label={`Keep ${r.label} longer`} onClick={() => setKeeping(r)}>Keep longer</Button>
-                                  {p && p.disposal !== 'keep' && (
+                                  {p && p.disposal !== 'keep' && !r.held && (
                                     <Button size="sm" aria-label={`Anonymize ${r.label}`} onClick={() => setAnonymizing(r)}>Anonymize…</Button>
                                   )}
-                                  {(!p || p.disposal === 'delete') && (
+                                  {(!p || p.disposal === 'delete') && !r.held && (
                                     <Button size="sm" variant="danger" aria-label={`Remove ${r.label} for good`} onClick={() => setRemoving(r)}>Remove…</Button>
                                   )}
                                 </span>

@@ -26,6 +26,13 @@ export const FEATURE_KEYS = AREA_KEYS;
 
 /** The settings an administrator may change here, with defaults (matching the core fallbacks) and validation. */
 export const SETTINGS: Record<string, { fallback: unknown; check: Check }> = {
+  // Corrective actions (risks/actions-resource.ts, E23-12): the action sources whose actions need an
+  // attachment or closure evidence text before they are finished. Values not in the list are ignored.
+  'actions.closure_evidence_sources': {
+    fallback: [],
+    check: (v) => (Array.isArray(v) && v.length <= 100 && v.every((s) => typeof s === 'string' && /^[a-z0-9_]{1,60}$/.test(s))
+      ? { value: [...new Set(v as string[])].sort() } : 'Choose action sources from the list.'),
+  },
   'app.name': {
     fallback: DEFAULT_APP_NAME,
     check: (v) => (typeof v === 'string' && v.trim().length >= 1 && v.trim().length <= 60
@@ -90,6 +97,9 @@ export const SETTINGS: Record<string, { fallback: unknown; check: Check }> = {
   'retention.audit_months': { fallback: 84, check: int(12, 1200, 'Audit log retention in months') },
   // How long the delivery logs are kept, in days; the daily retention sweep removes older rows (OP-08).
   ...Object.fromEntries(Object.entries(LOG_RETENTION).map(([key, r]) => [key, { fallback: r.fallback, check: int(r.min, r.max, LOG_RETENTION_LABELS[key as LogRetentionKey]) }])),
+  // Audit-log forwarding (E36-02, integrations module): its delivery log is removed after this many days.
+  // The forwarded events themselves are in the receiving system and are not recalled.
+  'retention.audit_forward_log_days': { fallback: 30, check: int(1, 3650, 'Audit-log forwarding log retention in days') },
 };
 
 /** Security settings (sign-in, API tokens, outbound connections): changing one needs a recent password confirmation. */

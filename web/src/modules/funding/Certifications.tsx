@@ -229,7 +229,7 @@ function Actions({ row, canEdit, reload, save }: RecordContext) {
       {can('funding.create') && <Button loading={busy && !asking} onClick={copy}>Copy to next year</Button>}
       {canEdit && row.status === 'signed' && <Button loading={busy} onClick={submitted}>Mark as submitted</Button>}
       {canEdit && row.status === 'draft' && <Button variant="primary" onClick={() => setAsking(true)}>Send for signing</Button>}
-      <Modal open={asking} title="Send for signing" size="sm" onClose={() => setAsking(false)}
+      <Modal open={asking} title="Send for signing" size="sm" onClose={() => setAsking(false)} dirty={asking && note.trim() !== ''}
         footer={<><Button onClick={() => setAsking(false)}>Cancel</Button><Button variant="primary" loading={busy} onClick={sign}>Send</Button></>}>
         <div className="stack">
           <p>{row._display?.signer_id ?? 'The authorized official'} is asked to sign. Every applicable item must be confirmed first.</p>

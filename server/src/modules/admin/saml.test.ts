@@ -344,7 +344,7 @@ describe('SAML sign-in (E02-10)', () => {
     const meta = (await t.app.inject({ method: 'GET', url: `/api/auth/sso/${KEY}/metadata` })).body;
     expect(meta).toContain('use="encryption"');
     expect(meta).toContain('aes256-gcm');
-    expect(meta).not.toContain('cbc');
+    expect(meta).not.toMatch(/xmlenc[^"]*#aes\d+-cbc/); // not a bare 'cbc': the random certificate may contain those letters
     const spCert = (await t.db.one<{ config: any }>('select config from identity_providers where id = $1', [providerId]))!.config.spCert;
     idp.user = { nameId: 'robin-nameid', attributes: {} };
     expect((await samlSignIn({ encryptFor: spCert })).location).toBe('/');

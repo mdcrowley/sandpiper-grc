@@ -100,6 +100,7 @@ export function AddEvidence({ vendorId, contractId, watchNew, onCreated }: {
       <Button variant="primary" icon="plus" onClick={start}>New evidence item</Button>
       <Modal
         open={open} size={created ? 'lg' : 'md'} title={created ? 'Attach the document' : 'New evidence item'} onClose={finish}
+        dirty={!created && JSON.stringify(v) !== JSON.stringify({ ...BLANK, vendor_id: vendorId ?? '', contract_id: contractId ?? '' })}
         footer={created ? <Button variant="primary" onClick={finish}>Done</Button> : undefined}
       >
         {open && created && (

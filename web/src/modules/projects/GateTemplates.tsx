@@ -25,6 +25,9 @@ function GateEditor({ gate, workflows, onClose, onSaved }: { gate: GateDefinitio
   );
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const snapshot = () => JSON.stringify({ workflowId, name, checklist, documents, wantsChange, approvers });
+  const [start] = useState(snapshot);
+  const dirty = snapshot() !== start;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -51,7 +54,7 @@ function GateEditor({ gate, workflows, onClose, onSaved }: { gate: GateDefinitio
   }
 
   return (
-    <Modal open title={`Edit gate: ${gate.name}`} onClose={onClose} size="lg">
+    <Modal open title={`Edit gate: ${gate.name}`} onClose={onClose} size="lg" dirty={dirty}>
       <form className="form" onSubmit={submit} noValidate>
         <p className="muted">
           Changes apply to gates opened from now on. Gates already open on a project keep the checklist they started with.

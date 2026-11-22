@@ -88,6 +88,7 @@ With a **read only** connection it can:
 - list the kinds of record you can see and their fields, search everything you can see, list and filter records, read a record with its comments, related records and history;
 - summarize **your work** (tickets assigned to you, your actions, changes waiting for your approval, policies to acknowledge, unread notifications) and **what is overdue**;
 - show the **risk heat map**, **framework progress**, **security incident clocks** (notification deadlines), **contracts nearing their notice date**, **vulnerabilities**, **service desk metrics**, **fleet equipment gaps** and the **safety summary**, where you may see them and those parts of the application are in use;
+- give the **figures** of the program areas, where you may see them and those parts are switched on: **audits and inspections**, **controls**, **corrective action plans**, **funding**, **committees and meetings**, **qualifications** (the roster and training), **business continuity**, **asset condition**, **OT security**, **records requests** and the **vendor lifecycle**. These answers are counts and percentages only: they never name a person, a requester or a record, and they are the same figures you see on the dashboards;
 - list the **approvals waiting for your decision** ([Approval workflows](22-approval-workflows.md));
 - run a **saved report** you can open;
 - say **what is affected if a system fails**: the systems that depend on it, and the sites, data, assets, vehicles and services involved, where you may see them;

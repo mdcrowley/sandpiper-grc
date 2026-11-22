@@ -35,6 +35,8 @@ invented.
 - [Idempotency](#idempotency)
 - [Optimistic concurrency](#optimistic-concurrency)
 - [Restricted records](#restricted-records)
+- [User provisioning (SCIM 2.0)](#user-provisioning-scim-20)
+- [Calendar feeds and the work-tracker bridge](#calendar-feeds-and-the-work-tracker-bridge)
 - [Examples of common integrations](#examples-of-common-integrations)
 
 ## Authentication: personal access tokens
@@ -292,6 +294,14 @@ on restricted records, and replacing its secret need a recent password confirmat
 cannot be done with a token; listing, other changes, testing, reading and retrying deliveries,
 and removing can (a token with `admin.administer`).
 
+Addresses are kept encrypted: `GET /api/v1/admin/webhooks` answers `url_display`, `url_host`,
+`url_fingerprint` and `host_allowed`, never `url`, and an empty `url` in a `PATCH` keeps the
+address. `POST /api/admin/webhooks/:id/reveal` shows it after a password confirmation (audited).
+A webhook's `preset` chooses the body: the full event (the default), `chat_text` (`{ "text": "…" }`)
+or `chat_card` (`{ "title", "text", "link", "facts": [{ "name", "value" }] }`). Chat bodies carry a
+summary and the names of changed fields, never values, and are signed the same way; `presets` in the
+list answer names the choices.
+
 A record change is sent as `<type>.create`, `<type>.update` or `<type>.delete`:
 
 ```json
@@ -448,6 +458,45 @@ raised on them) are visible only to people who hold `security.view`, and so only
 such people that include that scope. Without it, they are absent from lists, counts, stats,
 search, links and exports, and answer `404` by id. An integration that must see them needs a
 token with `security.view` from someone who holds it; keep such tokens especially well.
+
+## User provisioning (SCIM 2.0)
+
+An identity provider creates, changes and deactivates accounts through SCIM 2.0 at
+`/api/scim/v2` (also `/api/v1/scim/v2`), once an administrator switches provisioning on and
+makes a provisioning token (see
+[User provisioning](user/35-user-provisioning-and-log-forwarding.md#user-provisioning)).
+
+- Authenticate with `Authorization: Bearer grc_scim_…`; sessions and personal access tokens are
+  not accepted there, and no CSRF header is needed. Bodies are `application/scim+json`.
+- `Users` and `Groups` support create, read, replace, patch and delete (a user's delete or
+  `active: false` deactivates; nothing is removed). `ServiceProviderConfig`, `ResourceTypes` and
+  `Schemas` describe what is supported.
+- Filters: users by `userName`, `externalId`, `emails.value` or `id`; groups by `displayName`,
+  `externalId` or `id` (`eq`). `count` is at most 200; `excludedAttributes=members` leaves a
+  group's members out. Bulk requests and sorting are not supported.
+- Errors use the SCIM error shape (`schemas`, `status`, `scimType`, `detail`). Deactivating the
+  last active administrator is refused with `409` and no `scimType`; a duplicate user name is
+  `409` with `scimType: "uniqueness"`.
+
+## Calendar feeds and the work-tracker bridge
+
+Two public routes take no session or token; each proves itself another way (see
+[Calendar feeds, work trackers and evidence links](user/36-calendar-feeds-work-trackers-and-evidence-links.md)):
+
+- `GET /api/calendar/<secret>.ics`: a person's calendar feed, read as that person each time.
+  It answers `404` while feeds are switched off or the address is revoked.
+- `POST /api/integrations/tracker/:connectorId/status`: an outside work tracker's status update,
+  signed with HMAC-SHA256 over `<timestamp>.<body>` (`X-GRC-Timestamp`, `X-GRC-Signature`),
+  refused when more than five minutes off or replayed. The format is in the guide's
+  [For the people setting up the tool](user/36-calendar-feeds-work-trackers-and-evidence-links.md#for-the-people-setting-up-the-tool).
+
+The connections themselves are managed under `/api/admin/tracker-connectors` (administrators), and a
+record is sent with `POST /api/tracker/send`. The kinds of record offered (`kinds` in the connection
+list) leave out those of a switched-off part of the application, and the route descriptions name no
+kind of record, so the API reference stays free of switched-off parts.
+
+Exclusion-list checks of vendors never call an outside service; they are recorded by hand
+against lists the organization names.
 
 ## Examples of common integrations
 

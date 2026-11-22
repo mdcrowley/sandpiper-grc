@@ -1,4 +1,5 @@
 import type { ModuleContext, ModuleDef } from '../../core/module.ts';
+import { ANONYMIZED_TEXT, onAnonymize } from '../../core/retention.ts';
 import { registerCommittees } from './committees.ts';
 import { registerDecisions } from './decisions.ts';
 import { registerMeetings } from './meetings.ts';
@@ -88,6 +89,12 @@ async function register(ctx: ModuleContext) {
   registerDecisions(ctx);
   await registerGovernanceReminders(ctx);
   registerGovernanceSummary(ctx);
+  // E28-12: anonymizing a committee at the end of retention also clears the names typed for members
+  // with no account or roster person (`committee_members.name` is personal data). The names of the
+  // other members are read from their account or roster record, which retention covers on its own.
+  onAnonymize('committee', (tx, id) => tx.query(
+    `update committee_members set name = $2, created_by = null, updated_by = null, updated_at = now()
+     where committee_id = $1 and user_id is null and person_id is null and name is not null returning 1`, [id, ANONYMIZED_TEXT]));
 }
 
 const mod: ModuleDef = {

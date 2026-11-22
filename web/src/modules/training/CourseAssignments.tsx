@@ -3,7 +3,7 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import {
   api, ApiError, Badge, Button, Card, ConfirmDialog, EmptyState, ErrorState, errorMessage, formatDate, IconButton, Loading, Modal,
-  Select, UserPicker, useAuth, useFetch, useToast,
+  Select, UserPicker, useAuth, useFetch, useToast, useUnsavedChanges,
 } from '../../core';
 import type { Audiences } from './shared';
 
@@ -22,6 +22,7 @@ function RuleForm({ courseId, onDone, onCancel }: { courseId: string; onDone: ()
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  useUnsavedChanges(type !== 'everyone' || !!target || !!userId);   // tells the enclosing dialog
 
   async function submit(e: FormEvent) {
     e.preventDefault();

@@ -9,6 +9,7 @@ const SECTIONS = [
   { key: 'certifications', label: 'Certifications', path: '/funding/certifications' },
   { key: 'reviews', label: 'Compliance reviews', path: '/funding/reviews' },
   { key: 'deficiencies', label: 'Deficiencies', path: '/funding/deficiencies' },
+  { key: 'subrecipients', label: 'Sub-recipients', path: '/funding/subrecipients' },
   { key: 'areas', label: 'Review areas', path: '/funding/review-areas' },
 ] as const;
 

@@ -54,6 +54,11 @@ const DESCRIPTIONS: Record<string, string> = {
   certification: 'Certifications people hold and when they expire.',
   regulatory_change: 'New or changed laws, rules, standards and funding terms, with their impact and status.',
   kri: 'Key risk indicators with their latest monthly value and level (restricted).',
+  ot_zone: 'Every OT security zone: its site, owner, criticality and target and achieved security levels. Restricted zones need security access.',
+  ot_conduit: 'Every conduit between two OT security zones: protocols, protections, remote access and security levels. A conduit touching a restricted zone is restricted.',
+  vendor_issue: 'Problems with vendors, tracked to resolution.',
+  vendor_offboarding: 'Checklists for taking back access, assets and data when a vendor leaves.',
+  subrecipient: 'Organizations that receive part of an award, and when each is next monitored.',
 };
 
 export interface CatalogField {

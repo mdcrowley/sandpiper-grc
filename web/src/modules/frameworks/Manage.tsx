@@ -1,11 +1,11 @@
 // Frameworks and their structure: add a framework from a reference file, download one as a
 // file, and add, rename, recolor, reorder and remove functions and categories.
 import { useEffect, useRef, useState } from 'react';
-import type { CSSProperties } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ApiError, Button, Card, ConfirmDialog, EmptyState, ErrorState, HistoryPanel, IconButton, Loading, Modal, PageHeader, Select,
-  TextArea, TextField, api, errorMessage, useAuth, useFetch, useToast,
+  TextArea, TextField, api, errorMessage, useAuth, useFetch, useToast, useUnsavedChanges,
 } from '../../core';
 import type { ColorName } from '../../core';
 import { useFrameworkChoice } from './Board';
@@ -13,6 +13,9 @@ import { rememberFramework } from './boardState';
 import { RefreshTextDialog, SHIPPED_KEY } from './RefreshText';
 import type { ImportResult, Structure, StructureCategory, StructureFunction } from './types';
 import { frameworkTitle } from './types';
+
+// The OT starter structure link (E33-03) belongs to the OT module, found by file name so frameworks builds without it.
+const StarterLinks = Object.values(import.meta.glob<{ StarterLink: () => ReactNode }>('../ot/StarterLink.tsx', { eager: true })).map((m) => m.StarterLink);
 
 const COLORS: ColorName[] = ['purple', 'blue', 'teal', 'green', 'amber', 'orange', 'red', 'gray'];
 const COLOR_OPTIONS = COLORS.map((c) => ({ value: c, label: c[0].toUpperCase() + c.slice(1), color: c }));
@@ -37,6 +40,8 @@ function ImportDialog({ onDone, onCancel }: { onDone: (result: ImportResult) => 
   const [problems, setProblems] = useState<string[]>([]);
   const [preview, setPreview] = useState<ImportResult | null>(null);
   const [busy, setBusy] = useState(false);
+  // A chosen file tells the enclosing dialog, so closing it asks first.
+  useUnsavedChanges(Boolean(fileName));
 
   async function choose(picked: File | undefined) {
     if (!picked) return;
@@ -81,6 +86,7 @@ function ImportDialog({ onDone, onCancel }: { onDone: (result: ImportResult) => 
         A reference file is a JSON file that lists a framework’s functions, categories and outcomes. The format is described in Help,
         under “Cybersecurity frameworks and assessments”. To start from an example, use “Download as a file” on a framework that is already loaded.
       </p>
+      {StarterLinks.map((Starter, i) => <Starter key={i} />)}
       <div className="row">
         <Button icon="upload" onClick={() => input.current?.click()} loading={busy && !file}>Choose a file</Button>
         <span className="muted">{fileName || 'No file chosen'}</span>

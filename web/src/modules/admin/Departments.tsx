@@ -72,7 +72,7 @@ export function DepartmentsCard() {
             </table>
           </div>
         )}
-      <Modal open={editing !== null} title={editing === 'new' ? 'Add department' : 'Rename department'} size="sm" onClose={() => setEditing(null)}>
+      <Modal open={editing !== null} title={editing === 'new' ? 'Add department' : 'Rename department'} size="sm" onClose={() => setEditing(null)} dirty={editing !== null && name !== (editing === 'new' ? '' : editing.name)}>
         <form className="form" onSubmit={submit} noValidate>
           <TextField label="Name" required autoFocus maxLength={80} value={name} onChange={setName} error={nameError || undefined} />
           <div className="form-actions">

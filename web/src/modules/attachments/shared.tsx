@@ -1,6 +1,6 @@
 // Types and small helpers shared by the attachments panel and pages.
 import {
-  IconFile, IconFileDescription, IconFileSpreadsheet, IconFileText, IconFileTypePdf, IconFileZip, IconMail, IconPhoto,
+  IconFile, IconFileDescription, IconFileSpreadsheet, IconFileText, IconFileTypePdf, IconFileZip, IconLink, IconMail, IconPhoto,
   IconPresentation,
 } from '@tabler/icons-react';
 import type { ComponentType } from 'react';
@@ -21,10 +21,17 @@ export interface Attachment {
   description: string | null;
   collected_on: string | null;
   expires_on: string | null;
-  scan_status: 'not_scanned' | 'clean';
+  scan_status: 'not_scanned' | 'clean' | 'not_applicable';
   scan_engine: string | null;
   uploaded_by_name: string | null;
   uploaded_at: string;
+  /** Evidence by link (E36-05): an address of a document kept elsewhere instead of a stored copy. */
+  is_link?: boolean;
+  link_url?: string | null;
+  link_title?: string | null;
+  /** When someone last confirmed the linked document is still there and current (links only). */
+  last_checked_on?: string | null;
+  checked_by_name?: string | null;
   /** Only on the upload response: the scanner could not check the file and it was accepted anyway. */
   scan_warning?: string;
 }
@@ -65,6 +72,7 @@ const GROUPS: Record<string, { glyph: Glyph; color: ColorName; label: string }> 
   archive: { glyph: IconFileZip, color: 'amber', label: 'Archive' },
   mail: { glyph: IconMail, color: 'teal', label: 'Email message' },
   file: { glyph: IconFile, color: 'gray', label: 'File' },
+  link: { glyph: IconLink, color: 'blue', label: 'Link to a document kept elsewhere' },
 };
 
 /** A tinted tile with an icon for the kind of file. The file name beside it carries the meaning. */
@@ -93,8 +101,23 @@ export function expiryState(expiresOn: string | null, today: string): { color: C
   return { color: 'green', label: `Expires ${formatDate(expiresOn)}` };
 }
 
-/** Fetches the file and hands it to the browser as a download. Rejects with the server's error. */
-export async function downloadAttachment(att: Pick<Attachment, 'id' | 'file_name'>): Promise<void> {
+/** Color and wording for when a link was last checked: due once `days` have passed since. */
+export function linkCheckState(lastCheckedOn: string | null | undefined, today: string, days: number): { color: ColorName; label: string; due: boolean } {
+  if (!lastCheckedOn) return { color: 'amber', label: 'Never checked', due: true };
+  const since = daysBetween(lastCheckedOn, today);
+  if (since >= days) return { color: 'orange', label: `Check due: last checked ${formatDate(lastCheckedOn)}`, due: true };
+  return { color: 'green', label: since === 0 ? 'Checked today' : `Checked ${formatDate(lastCheckedOn)}`, due: false };
+}
+
+/**
+ * Fetches the file and hands it to the browser as a download. Rejects with the server's error.
+ * A link (E36-05) opens its address in a new tab instead, with no referrer.
+ */
+export async function downloadAttachment(att: Pick<Attachment, 'id' | 'file_name'> & Partial<Pick<Attachment, 'is_link' | 'link_url'>>): Promise<void> {
+  if (att.is_link) {
+    if (att.link_url && /^https?:\/\//i.test(att.link_url)) window.open(att.link_url, '_blank', 'noopener,noreferrer');
+    return;
+  }
   const blob = await api.blob(`/api/attachments/${att.id}/download`);
   const href = URL.createObjectURL(blob);
   const a = document.createElement('a');

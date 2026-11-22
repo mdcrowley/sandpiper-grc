@@ -78,7 +78,7 @@ The verifier (or, when none is named, the plan's responsible person; otherwise e
 
 ## Closure evidence
 
-An administrator can require evidence before actions from some sources are finished, for example every action from an audit. Actions from those sources can then be marked done only when they have an attachment or some **Closure evidence** text. The sources are kept in the setting `actions.closure_evidence_sources` (none by default).
+An administrator can require evidence before actions from some sources are finished, for example every action from an audit. Actions from those sources can then be marked done only when they have an attachment or some **Closure evidence** text. An administrator checks those sources under **Administration > Settings > Actions** (**Evidence needed before closing**; none are checked at first). The choice is kept in the setting `actions.closure_evidence_sources` and every change is recorded in the audit log.
 
 ## Asking for more time
 

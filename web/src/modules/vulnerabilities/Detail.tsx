@@ -6,7 +6,7 @@ import {
   Badge, Button, Countdown, EditableSummary, errorMessage, formatDate, Icon, KeyValue, Menu, RecordPage, useFetch, useLookup, useToast,
 } from '../../core';
 import { canMoveTo, editableLifecycle } from '../../core/lifecycleMenus';
-import type { RecordContext, Row } from '../../core';
+import type { RecordContext, RecordTab, Row } from '../../core';
 import { AcceptRiskDialog, AssignDialog, FalsePositiveDialog, FixedDialog } from './Dialogs';
 import { ActionsTab, hostOf, portOf, SeverityChip, useActionsAvailable, useAvailableFields } from './shared';
 import type { Policy } from './shared';
@@ -167,8 +167,12 @@ function Remediation({ row, reload }: RecordContext) {
   );
 }
 
+// The Work tracker tab (E36-06), from the feeds module when it is part of the build.
+const useTrackerTab = Object.values(import.meta.glob<{ useTrackerTab: (type: string) => RecordTab | null }>('../feeds/TrackerLinkPanel.tsx', { eager: true }))[0]?.useTrackerTab ?? (() => null);
+
 export function VulnerabilityDetail() {
   const actions = useActionsAvailable();
+  const trackerTab = useTrackerTab('vulnerability');
   return (
     <RecordPage
       type="vulnerability"
@@ -185,6 +189,7 @@ export function VulnerabilityDetail() {
       tabs={[
         { key: 'remediation', label: 'Remediation', content: (rec) => <Remediation {...rec} /> },
         ...(actions ? [{ key: 'actions', label: 'Actions', content: ({ row }: RecordContext) => <ActionsTab sourceId={row.id} /> }] : []),
+        ...(trackerTab ? [trackerTab] : []),
       ]}
     />
   );

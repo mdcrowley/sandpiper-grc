@@ -43,6 +43,8 @@ const GROUP_BY: { value: GroupBy; label: string; list?: string; none: string }[]
   { value: 'group', label: 'Group', none: 'Ungrouped' },
   { value: 'criticality', label: 'Criticality', list: 'criticality_tier', none: 'No criticality recorded' },
   { value: 'hosting', label: 'Hosting', list: 'hosting_type', none: 'No hosting recorded' },
+  // OT security zones (E33-04): offered only when the map carries zones, that is while the OT area is on.
+  { value: 'zone', label: 'Zone', none: 'No security zone' },
 ];
 
 /** The same relationships as a searchable table, for keyboard and screen-reader use. */
@@ -156,6 +158,9 @@ export function MapExplorer({ data, label, title, initialId = null, toolbar, com
   const narrow = useMediaQuery('(max-width: 1100px)');
   const aspect = narrow ? 0.95 : full ? 1.9 : compact ? 1.6 : 1.35;
 
+  // Security zones the person may see, by id (E33-04); none while the OT area is off.
+  const zoneNames = useMemo(() => new Map(data.nodes.filter((n) => n.attrs?.zone).map((n) => [n.attrs!.zone!, n.attrs!.zone_name ?? 'Zone'])), [data]);
+  const groupChoices = GROUP_BY.filter((g) => g.value !== 'zone' || zoneNames.size > 0);
   const groups = useMemo(
     () => [...new Set(data.nodes.filter((n) => n.type === 'system').map((n) => n.group))].sort(),
     [data],
@@ -177,10 +182,11 @@ export function MapExplorer({ data, label, title, initialId = null, toolbar, com
     const list = groupBy === 'criticality' ? tiers : groupBy === 'hosting' ? hosting : [];
     return computeLayout(view.nodes, view.edges, groupBy, (key) => {
       if (!key || (groupBy === 'group' && key === 'Ungrouped')) return { label: def.none, order: 9999 };
+      if (groupBy === 'zone') return { label: zoneNames.get(key) ?? def.none, order: 0 };
       const at = list.findIndex((v) => v.value === key);
       return { label: def.list ? lookupLabel(def.list, key) : key, order: at < 0 ? 0 : at };
     }, aspect);
-  }, [view, groupBy, tiers, hosting, aspect]);
+  }, [view, groupBy, tiers, hosting, aspect, zoneNames]);
 
   const selected = view.nodes.find((n) => n.id === selectedId) ?? null;
   const select = (id: string | null) => {
@@ -216,7 +222,7 @@ export function MapExplorer({ data, label, title, initialId = null, toolbar, com
         <div className="inv-map-field">
           <span className="inv-map-field-label" id="inv-groupby">Arrange systems by</span>
           <SegmentedControl size="xs" aria-labelledby="inv-groupby" value={groupBy} onChange={(v) => setGroupBy(v as GroupBy)}
-            data={GROUP_BY.map((g) => ({ value: g.value, label: g.label }))} />
+            data={groupChoices.map((g) => ({ value: g.value, label: g.label }))} />
         </div>
         {!compact && groups.length > 1 && (
           <div className="inv-map-group">

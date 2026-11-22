@@ -15,9 +15,16 @@ regulator, and nothing in it is specific to one organization.
 - **Service desk**: incidents and requests with service-level clocks, problems, a knowledge
   base, a service catalog, email to ticket and a self-service portal for staff
 - **Inventory, fleet and services**: systems, assets, sites and data categories with a
-  relationship map; vehicles and on-vehicle equipment; "what is affected" when a system fails
+  relationship map; vehicles and on-vehicle equipment; "what is affected" when a system fails;
+  asset condition and state of good repair (useful life, condition assessments, yearly targets);
+  OT and rail-systems security zones and conduits
 - **Change enablement**: risk-scored changes, approvals, a change calendar with blackout periods
-- **Vendors and contracts**: security-terms checklist, evidence with expiry, assessments, renewals
+- **Vendors and contracts**: security-terms checklist, evidence with expiry, assessments, renewals,
+  reassessment on a cadence, exclusion-list checks, vendor issues and offboarding
+- **Business continuity**: business processes, impact analyses, continuity and emergency plans
+  with call trees, a recovery gap report and emergency activations
+- **Legal holds, records requests and privacy**: holds that stop deletion and anonymizing
+  everywhere, records and personal-data requests against a deadline, privacy impact assessments
 - **Risk, safety and compliance**: risk register and heat map, a safety hazard log and safety
   events, NIST CSF 2.0 outcomes, obligations, policies, training and vulnerabilities
 - **Security incidents**: a restricted workspace with notification clocks you configure
@@ -30,9 +37,11 @@ regulator, and nothing in it is specific to one organization.
   exports to Excel, CSV and PDF
 - **Sign-in and security**: single sign-on (OpenID Connect, SAML 2.0 or a directory over LDAP), passkeys, second factor,
   roles, restricted records and a full audit log
-- **Integrations**: a REST API with an OpenAPI description, webhooks, and AI assistant
-  access over MCP (Claude Desktop, Claude Code and other MCP clients, by token or OAuth),
-  all off until switched on
+- **Integrations**: a REST API with an OpenAPI description, webhooks (also as chat messages),
+  user provisioning over SCIM 2.0, audit-log forwarding, personal calendar feeds, a two-way
+  bridge to an outside work-tracking tool, evidence links to documents kept elsewhere, and AI
+  assistant access over MCP (Claude Desktop, Claude Code and other MCP clients, by token or
+  OAuth), all off until switched on
 - **Your organization**: name, address, contacts, logo and brand colors (kept readable in
   light and dark) on screens, emails and PDFs
 - **Use only what you need**: switch optional areas (for example fleet or safety) off under

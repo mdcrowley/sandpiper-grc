@@ -1,5 +1,5 @@
 // Funding and grant compliance: dashboard, awards, yearly certifications, compliance reviews,
-// deficiencies and the review areas loaded from a file.
+// deficiencies, the review areas loaded from a file, and sub-recipients with their monitoring.
 import type { ModuleDef } from '../../core';
 import { AwardDetail, AwardList } from './Awards';
 import { CertificationDetail, CertificationList } from './Certifications';
@@ -8,9 +8,7 @@ import { DeficiencyDetail, DeficiencyList } from './Deficiencies';
 import { ReviewAreas } from './ReviewAreas';
 import { ReviewDetail, ReviewList } from './Reviews';
 import './funding.css';
-// Wave 11 step 0: the sub-recipient pages are stubs that render nothing yet, so their import and route
-// entries are commented out. The owner uncomments them once the pages render:
-// TODO(VENDORLC agent, E35-07): import { SubrecipientDetail, SubrecipientList } from './Subrecipients';
+import { SubrecipientDetail, SubrecipientList } from './Subrecipients';
 
 const view = 'funding.view';
 
@@ -30,12 +28,13 @@ const mod: ModuleDef = {
     { path: '/funding/deficiencies', element: <DeficiencyList />, permission: view },
     { path: '/funding/deficiencies/:id', element: <DeficiencyDetail />, permission: view },
     { path: '/funding/review-areas', element: <ReviewAreas />, permission: view },
-    // TODO(VENDORLC agent, E35-07): { path: '/funding/subrecipients', element: <SubrecipientList />, permission: view },
-    // TODO(VENDORLC agent, E35-07): { path: '/funding/subrecipients/:id', element: <SubrecipientDetail />, permission: view },
+    { path: '/funding/subrecipients', element: <SubrecipientList />, permission: view },
+    { path: '/funding/subrecipients/:id', element: <SubrecipientDetail />, permission: view },
   ],
   create: [
     { label: 'Funding award', path: '/funding/awards?new=1', permission: 'funding.create', icon: 'chart' },
     { label: 'Compliance review', path: '/funding/reviews?new=1', permission: 'funding.create', icon: 'check' },
+    { label: 'Sub-recipient', path: '/funding/subrecipients?new=1', permission: 'funding.create', icon: 'users' },
   ],
 };
 export default mod;

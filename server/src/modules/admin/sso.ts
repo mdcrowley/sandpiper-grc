@@ -73,6 +73,23 @@ export function registerSso(ctx: ModuleContext) {
   const confirmFailures = makeDbLimiter(db, 'confirm', 8, 5 * 60_000); // by user, shared with POST /api/auth/confirm
   const GENERIC = 'Sign-in failed. Check your details, or wait a few minutes and try again.';
 
+  /**
+   * E22-43: the per-address sign-in bucket (shared with the local password sign-in) is claimed before
+   * the attempt, like the local sign-in (wave 9, SA-3), so attempts sent at the same moment all count.
+   * The claim is given back when the attempt ends: a failure has by then been recorded on its own
+   * (auditFailure), so each failure counts once and a success counts nothing.
+   */
+  function limited<T>(
+    refuse: (req: FastifyRequest, reply: FastifyReply) => T | Promise<T>,
+    handler: (req: FastifyRequest, reply: FastifyReply) => Promise<T>,
+  ) {
+    return async (req: FastifyRequest, reply: FastifyReply): Promise<T> => {
+      const slot = await signinLimiter(db).take(clientIp(req));
+      if (!slot.ok) return refuse(req, reply);
+      try { return await handler(req, reply); } finally { await slot.release(); }
+    };
+  }
+
   /** Progressive lockout of a local account, as for a wrong local password (from the 5th failure, 1 minute doubling to 15). */
   async function countAccountFailure(req: FastifyRequest, userId: string) {
     const row = await db.one<{ failed_attempts: number }>('update users set failed_attempts = failed_attempts + 1 where id = $1 returning failed_attempts', [userId]);
@@ -138,9 +155,11 @@ export function registerSso(ctx: ModuleContext) {
     Boolean(await db.one('select 1 from webauthn_credentials where user_id = $1 and revoked_at is null limit 1', [userId]).catch(() => undefined));
   const given = (v: unknown) => v !== undefined && v !== null && v !== '';
 
-  app.post('/api/auth/sso/:key/login', { config: { public: true } }, async (req, reply) => {
+  app.post('/api/auth/sso/:key/login', { config: { public: true } }, limited((_req, reply) => {
     reply.header('cache-control', 'no-store');
-    if (await signinLimiter(db).blocked(clientIp(req))) ctx.fail(429, 'rate_limited', GENERIC);
+    return ctx.fail(429, 'rate_limited', GENERIC);
+  }, async (req, reply) => {
+    reply.header('cache-control', 'no-store');
     const p = await directoryProvider(req);
     const identity = await checkDirectory(req, p, 'Sign-in');
     const b = body(req);
@@ -187,16 +206,18 @@ export function registerSso(ctx: ModuleContext) {
     if (out.code === 'link') return { ok: false, link: true };
     if (out.code === 'no_account') return ctx.fail(403, 'no_account', 'Your directory sign-in worked, but there is no account here for you. Ask an administrator to add you.');
     return ctx.fail(401, 'invalid_credentials', GENERIC);
-  });
+  }));
 
   /**
    * E02-29: the passkey step after a directory password. Checks the directory user name and password
    * again (so a key list is never handed out for a name alone), then answers the options for the
    * linked person's keys, to pass to navigator.credentials.get and send back to the sign-in as `webauthn`.
    */
-  app.post('/api/auth/sso/:key/passkey-options', { config: { public: true } }, async (req, reply) => {
+  app.post('/api/auth/sso/:key/passkey-options', { config: { public: true } }, limited((_req, reply) => {
     reply.header('cache-control', 'no-store');
-    if (await signinLimiter(db).blocked(clientIp(req))) ctx.fail(429, 'rate_limited', GENERIC);
+    return ctx.fail(429, 'rate_limited', GENERIC);
+  }, async (req, reply) => {
+    reply.header('cache-control', 'no-store');
     const p = await directoryProvider(req);
     const identity = await checkDirectory(req, p, 'Sign-in');
     const linked = await db.one<{ user_id: string }>(
@@ -208,7 +229,7 @@ export function registerSso(ctx: ModuleContext) {
       ctx.fail(401, 'invalid_credentials', GENERIC);
     }
     return passkeyLoginOptions(webauthnDeps, req, linked!.user_id);
-  });
+  }));
 
   // ---------- a directory on Account security (E02-29) ----------
 
@@ -328,8 +349,9 @@ export function registerSso(ctx: ModuleContext) {
     };
   });
 
-  app.post('/api/auth/sso/:key/start', { config: { public: true } }, async (req, reply) => {
-    if (await signinLimiter(db).blocked(clientIp(req))) ctx.fail(429, 'rate_limited', 'Too many failed sign-ins from this address. Wait a few minutes and try again.');
+  app.post('/api/auth/sso/:key/start', { config: { public: true } }, limited(
+    () => ctx.fail(429, 'rate_limited', 'Too many failed sign-ins from this address. Wait a few minutes and try again.'),
+    async (req, reply) => {
     const p = await enabledProvider(req);
     try {
       return { redirectUrl: await beginFlow(deps, req, reply, p, 'signin') };
@@ -337,10 +359,12 @@ export function registerSso(ctx: ModuleContext) {
       await auditFailure(deps, req, p, err instanceof IdentityError ? err.reason : 'could not start');
       return ctx.fail(502, 'provider_unavailable', `${p.name} cannot be reached just now. Try again, or ask an administrator.`);
     }
-  });
+  }));
 
   /** Where the provider sends the browser back. Always answers with a redirect into the application. */
-  app.get('/api/auth/sso/:key/callback', { config: { public: true } }, async (req, reply) => {
+  app.get('/api/auth/sso/:key/callback', { config: { public: true } }, limited(
+    (_req, reply) => reply.header('cache-control', 'no-store').redirect('/?sso=failed', 302),
+    async (req, reply) => {
     const q = req.query as Record<string, string>;
     const go = (path: string) => reply.header('cache-control', 'no-store').redirect(path, 302);
     const p = await providerByKey(db, String((req.params as Record<string, string>).key ?? ''));
@@ -407,7 +431,7 @@ export function registerSso(ctx: ModuleContext) {
     req.user = await loadUser(db, flow.userId!); // the person who started it, for the audit event
     await linkIdentity(deps, req, { userId: flow.userId!, provider: p, identity, method: 'self' });
     return go(`${back}${sep}sso=linked`);
-  });
+  }));
 
   // ---------- a sign-in that matched an account by email: link it with the password ----------
 
@@ -543,9 +567,10 @@ export function registerSso(ctx: ModuleContext) {
     scoped.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string', bodyLimit }, (_req, raw, done) => {
       try { done(null, Object.fromEntries(new URLSearchParams(String(raw)))); } catch (err) { done(err as Error, undefined); }
     });
-    scoped.post('/api/auth/sso/:key/acs', { config: { public: true, noCsrf: true }, bodyLimit }, async (req, reply) => {
+    scoped.post('/api/auth/sso/:key/acs', { config: { public: true, noCsrf: true }, bodyLimit }, limited(
+      (_req, reply) => reply.header('cache-control', 'no-store').redirect('/?sso=failed', 303),
+      async (req, reply) => {
       const go = (path: string) => reply.header('cache-control', 'no-store').redirect(path, 303);
-      if (await signinLimiter(db).blocked(clientIp(req))) return go('/?sso=failed');
       const p = await providerByKey(db, String((req.params as Record<string, string>).key ?? ''));
       if (!p || !p.enabled || p.type !== 'saml') {
         await auditFailure(deps, req, p, 'SAML response for a provider that is unknown, switched off or not SAML');
@@ -565,7 +590,7 @@ export function registerSso(ctx: ModuleContext) {
         return go('/?sso=failed');
       }
       return go(`${callbackPath(p.key)}?state=${encodeURIComponent(String(relay))}`);
-    });
+    }));
   });
 
   /** This application's service-provider metadata for one SAML provider, to give to the identity provider. */
@@ -600,7 +625,20 @@ export function registerSso(ctx: ModuleContext) {
     // sends these to every application at once, so it is not counted as a failure).
     if (!p.enabled || p.config.idpLogout !== true) return go('/');
     const ip = clientIp(req);
-    if (await signinLimiter(db).blocked(ip)) return go('/');
+    // E22-43: claimed before the attempt, given back once it ends (a failure is recorded by auditFailure).
+    const slot = await signinLimiter(db).take(ip);
+    if (!slot.ok) return go('/');
+    try {
+      return await idpLogoutChecked(req, reply, p, binding, rawQuery, form, go, ip);
+    } finally {
+      await slot.release();
+    }
+  }
+
+  async function idpLogoutChecked(
+    req: FastifyRequest, reply: FastifyReply, p: ProviderRecord, binding: 'redirect' | 'post', rawQuery: string,
+    form: Record<string, unknown>, go: (url: string) => FastifyReply, ip: string,
+  ) {
     let base: string;
     try { base = await publicBase(deps, req); } catch { return go('/'); }
     const callbackUrl = `${base}${callbackPath(p.key)}`;
@@ -656,10 +694,11 @@ export function registerSso(ctx: ModuleContext) {
     scoped.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string', bodyLimit: 32 * 1024 }, (_req, raw, done) => {
       try { done(null, Object.fromEntries(new URLSearchParams(String(raw)))); } catch (err) { done(err as Error, undefined); }
     });
-    scoped.post('/api/auth/sso/:key/backchannel-logout', { config: { public: true, noCsrf: true } }, async (req, reply) => {
+    scoped.post('/api/auth/sso/:key/backchannel-logout', { config: { public: true, noCsrf: true } }, limited(
+      (_req, reply) => reply.header('cache-control', 'no-store').code(429).send({ error: 'rate_limited' }),
+      async (req, reply) => {
       reply.header('cache-control', 'no-store');
       const ip = clientIp(req);
-      if (await signinLimiter(db).blocked(ip)) return reply.code(429).send({ error: 'rate_limited' });
       const p = await providerByKey(db, String((req.params as Record<string, string>).key ?? ''));
       if (!p || !p.enabled || p.type !== 'oidc' || p.config.backchannelLogout !== true) return reply.code(404).send({ error: 'not_found' });
       const token = (req.body as Record<string, unknown> | undefined)?.logout_token;
@@ -693,7 +732,7 @@ export function registerSso(ctx: ModuleContext) {
         summary: `${p.name} signed ${ended.length} session(s) out from ${ip}${claims.sub && !linked ? ' (the subject is not linked to an account here)' : ''}`,
       });
       return reply.code(200).send({ ok: true });
-    });
+    }));
   });
 
   app.get('/api/auth/sso/session', async (req) => {

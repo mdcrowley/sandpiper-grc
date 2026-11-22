@@ -187,7 +187,8 @@ function NewConnectionDialog({ open, status, onClose, onCreated }: { open: boole
     );
   }
   return (
-    <Modal open={open} title="Connect an AI assistant" onClose={close}>
+    <Modal open={open} title="Connect an AI assistant" onClose={close}
+      dirty={Boolean(name.trim() || access !== 'read' || days !== String(Math.min(90, status.maxDays)) || tools.length || sources.trim())}>
       <form className="form" onSubmit={submit} noValidate>
         {formError && <p className="form-error" role="alert">{formError}</p>}
         <TextField label="Name" required maxLength={80} value={name} onChange={(v) => { setName(v); setErrors({}); }} error={errors.name}
@@ -243,6 +244,7 @@ function ToolsDialog({ target, tools, onClose, onSaved }: { target: { id: string
   return (
     <Modal
       open={target !== null} title={`Tools for "${target?.name ?? ''}"`} onClose={close}
+      dirty={value !== null && JSON.stringify(value) !== JSON.stringify(target?.tools ?? [])}
       footer={<><Button onClick={close}>Cancel</Button><Button variant="primary" loading={busy} onClick={() => void save()}>Save tools</Button></>}
     >
       <ToolsField tools={tools} value={current} onChange={setValue} error={error} />

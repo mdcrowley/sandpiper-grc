@@ -13,8 +13,10 @@ interface DialogProps {
 }
 
 /** Shared frame: runs the save, shows the server's field messages, closes on success. */
-function ActionDialog({ title, submitLabel, done, patch, valid = true, onClose, save, children }: {
+function ActionDialog({ title, submitLabel, done, patch, valid = true, dirty = false, onClose, save, children }: {
   title: string; submitLabel: string; done: string; patch: () => Record<string, unknown>; valid?: boolean;
+  /** True while the fields differ from what the dialog opened with: closing asks first. */
+  dirty?: boolean;
   onClose: () => void; save: DialogProps['save']; children: (errors: Record<string, string>) => ReactNode;
 }) {
   const toast = useToast();
@@ -37,7 +39,7 @@ function ActionDialog({ title, submitLabel, done, patch, valid = true, onClose, 
     }
   };
   return (
-    <Modal open title={title} onClose={onClose}>
+    <Modal open title={title} onClose={onClose} dirty={dirty}>
       <form className="form" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
         {error && <p className="form-error" role="alert">{error}</p>}
         {children(fields)}
@@ -53,7 +55,8 @@ function ActionDialog({ title, submitLabel, done, patch, valid = true, onClose, 
 export function AssignDialog({ row, save, onClose }: DialogProps) {
   const [owner, setOwner] = useState<string | null>(row.owner_id ?? null);
   return (
-    <ActionDialog title="Assign finding" submitLabel="Assign" done="Owner saved." save={save} onClose={onClose} patch={() => ({ owner_id: owner })}>
+    <ActionDialog title="Assign finding" submitLabel="Assign" done="Owner saved." save={save} onClose={onClose} patch={() => ({ owner_id: owner })}
+      dirty={owner !== (row.owner_id ?? null)}>
       {(errors) => (
         <UserPicker label="Owner" value={owner} display={row._display?.owner_id} onChange={(id) => setOwner(id)} error={errors.owner_id}
           hint="The person responsible for getting this fixed. Leave empty to unassign." />
@@ -63,11 +66,13 @@ export function AssignDialog({ row, save, onClose }: DialogProps) {
 }
 
 export function FixedDialog({ row, save, onClose }: DialogProps) {
-  const [fixedOn, setFixedOn] = useState(todayInZone());
+  const [startFixedOn] = useState(todayInZone);
+  const [fixedOn, setFixedOn] = useState(startFixedOn);
   const [notes, setNotes] = useState<string>(row.remediation_notes ?? '');
   return (
     <ActionDialog title="Mark as fixed" submitLabel="Mark fixed" done="Finding marked fixed." save={save} onClose={onClose} valid={!!fixedOn}
-      patch={() => ({ status: 'fixed', fixed_on: fixedOn, remediation_notes: notes })}>
+      patch={() => ({ status: 'fixed', fixed_on: fixedOn, remediation_notes: notes })}
+      dirty={fixedOn !== startFixedOn || notes !== (row.remediation_notes ?? '')}>
       {(errors) => (
         <>
           <DateField label="Fixed on" required value={fixedOn} onChange={setFixedOn} min={row.first_seen ?? undefined} max={todayInZone()} error={errors.fixed_on} />
@@ -87,7 +92,8 @@ export function AcceptRiskDialog({ row, save, onClose }: DialogProps) {
   const valid = !!exception || (why.trim() !== '' && !!approver);
   return (
     <ActionDialog title="Accept the risk" submitLabel="Accept risk" done="Risk acceptance recorded." save={save} onClose={onClose} valid={valid}
-      patch={() => ({ status: 'risk_accepted', exception_id: exception, acceptance_justification: why, acceptance_approver_id: approver })}>
+      patch={() => ({ status: 'risk_accepted', exception_id: exception, acceptance_justification: why, acceptance_approver_id: approver })}
+      dirty={exception !== (row.exception_id ?? null) || why !== (row.acceptance_justification ?? '') || approver !== (row.acceptance_approver_id ?? null)}>
       {(errors) => (
         <>
           <p className="muted">
@@ -115,7 +121,8 @@ export function FalsePositiveDialog({ row, save, onClose }: DialogProps) {
   const [reason, setReason] = useState<string>(row.false_positive_reason ?? '');
   return (
     <ActionDialog title="Mark as a false positive" submitLabel="Mark false positive" done="Finding marked as a false positive." save={save} onClose={onClose}
-      valid={reason.trim() !== ''} patch={() => ({ status: 'false_positive', false_positive_reason: reason })}>
+      valid={reason.trim() !== ''} patch={() => ({ status: 'false_positive', false_positive_reason: reason })}
+      dirty={reason !== (row.false_positive_reason ?? '')}>
       {(errors) => (
         <TextArea label="Reason" required value={reason} onChange={setReason} rows={4} error={errors.false_positive_reason}
           hint="Say how you know the finding does not apply, so the next person does not have to check again." />

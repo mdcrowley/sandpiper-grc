@@ -5,7 +5,7 @@ import type { FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import {
   api, ApiError, Badge, Button, Card, Checkbox, ConfirmDialog, EmptyState, ErrorState, errorMessage, IconButton, Loading, LookupChip,
-  LookupSelect, Modal, NumberField, Select, useAuth, useFetch, useToast,
+  LookupSelect, Modal, NumberField, Select, useAuth, useFetch, useToast, useUnsavedChanges,
 } from '../../core';
 
 interface Requirement {
@@ -21,6 +21,7 @@ function AddForm({ positionId, onDone, onCancel }: { positionId: string; onDone:
   const [type, setType] = useState('');
   const [mandatory, setMandatory] = useState(true);
   const [grace, setGrace] = useState<number | null>(0);
+  useUnsavedChanges(kind !== 'certification' || !!courseId || !!type || !mandatory || grace !== 0);   // tells the enclosing dialog
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState('');
   const [saving, setSaving] = useState(false);

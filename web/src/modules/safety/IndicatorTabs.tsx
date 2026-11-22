@@ -20,6 +20,8 @@ export function ValuesTab({ indicatorId, periods, onSaved }: { indicatorId: stri
   const [note, setNote] = useState('');
   const [err, setErr] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
+  const prior = editing ? data?.find((x) => x.period === editing) : undefined;
+  const dirty = !!editing && (value !== (prior?.value ?? null) || note !== (prior?.note ?? ''));
   const start = (p: string) => { const v = data?.find((x) => x.period === p); setValue(v?.value ?? null); setNote(v?.note ?? ''); setErr(undefined); setEditing(p); };
   const save = async () => {
     if (!editing) return;
@@ -55,7 +57,7 @@ export function ValuesTab({ indicatorId, periods, onSaved }: { indicatorId: stri
           </table>
         </div>
       )}
-      <Modal open={!!editing} size="sm" title={`Value for ${editing ? monthLabel(editing) : ''}`} onClose={() => setEditing(null)}
+      <Modal open={!!editing} size="sm" title={`Value for ${editing ? monthLabel(editing) : ''}`} onClose={() => setEditing(null)} dirty={dirty}
         footer={<><Button onClick={() => setEditing(null)}>Cancel</Button><Button variant="primary" loading={busy} onClick={save}>Save</Button></>}>
         <div className="form">
           <NumberField label="Value" min={0} thousands value={value} onChange={setValue} error={err} hint="Leave empty to remove the month's value." />
@@ -77,6 +79,7 @@ const STATUS: Record<string, { label: string; color: ColorName }> = {
   approved: { label: 'Approved', color: 'green' }, rejected: { label: 'Rejected', color: 'red' },
 };
 const dirText = (d: string) => (d === 'at_least' ? 'At least' : 'At most');
+const BLANK_DECISION = { decision: 'approved', approved_by_name: '', approved_on: '', approval_ref: '' };
 
 export function TargetsTab({ indicatorId, defaultDirection, onChanged }: { indicatorId: string; defaultDirection: string; onChanged: () => void }) {
   const { can } = useAuth();
@@ -85,15 +88,17 @@ export function TargetsTab({ indicatorId, defaultDirection, onChanged }: { indic
   const thisYear = new Date().getFullYear();
   const [editing, setEditing] = useState<Target | 'new' | null>(null);
   const [f, setF] = useState({ year: thisYear as number | null, target: null as number | null, direction: defaultDirection, note: '' });
+  const [start, setStart] = useState(f);
   const [deciding, setDeciding] = useState<Target | null>(null);
-  const [d, setD] = useState({ decision: 'approved', approved_by_name: '', approved_on: '', approval_ref: '' });
+  const [d, setD] = useState(BLANK_DECISION);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const done = (msg: string) => { toast.success(msg); reload(); onChanged(); };
   const fail = (e: unknown) => { if (e instanceof ApiError && e.fields) setErrors(e.fields); else toast.error(errorMessage(e)); };
   const open = (t: Target | 'new') => {
     setErrors({});
-    setF(t === 'new' ? { year: thisYear, target: null, direction: defaultDirection, note: '' } : { year: t.year, target: t.target, direction: t.direction, note: t.note ?? '' });
+    const initial = t === 'new' ? { year: thisYear, target: null, direction: defaultDirection, note: '' } : { year: t.year, target: t.target, direction: t.direction, note: t.note ?? '' };
+    setF(initial); setStart(initial);
     setEditing(t);
   };
   const save = async () => {
@@ -137,7 +142,7 @@ export function TargetsTab({ indicatorId, defaultDirection, onChanged }: { indic
                     <td className="sf-actions">
                       {can('safety.edit') && t.status !== 'pending_approval' && <Button size="sm" variant="ghost" onClick={() => open(t)}>Edit</Button>}
                       {can('safety.edit') && data.approval_available && !data.running && ['proposed', 'rejected'].includes(t.status) && <Button size="sm" loading={busy} onClick={() => ask(t)}>Ask for approval</Button>}
-                      {can('safety.approve') && t.status !== 'approved' && <Button size="sm" variant="ghost" onClick={() => { setErrors({}); setD({ decision: 'approved', approved_by_name: '', approved_on: '', approval_ref: '' }); setDeciding(t); }}>Record a decision</Button>}
+                      {can('safety.approve') && t.status !== 'approved' && <Button size="sm" variant="ghost" onClick={() => { setErrors({}); setD(BLANK_DECISION); setDeciding(t); }}>Record a decision</Button>}
                     </td>
                   </tr>
                 );
@@ -147,6 +152,7 @@ export function TargetsTab({ indicatorId, defaultDirection, onChanged }: { indic
         </div>
       )}
       <Modal open={!!editing} size="sm" title={editing === 'new' ? 'Add a yearly target' : `Target for ${editing ? (editing as Target).year : ''}`} onClose={() => setEditing(null)}
+        dirty={JSON.stringify(f) !== JSON.stringify(start)}
         footer={<><Button onClick={() => setEditing(null)}>Cancel</Button><Button variant="primary" loading={busy} onClick={save}>Save</Button></>}>
         <div className="form">
           {editing === 'new' && <NumberField label="Year" required min={2000} max={2100} value={f.year} onChange={(v) => setF((x) => ({ ...x, year: v }))} error={errors.year} />}
@@ -158,6 +164,7 @@ export function TargetsTab({ indicatorId, defaultDirection, onChanged }: { indic
         </div>
       </Modal>
       <Modal open={!!deciding} title={`Record a decision on the ${deciding?.year ?? ''} target`} onClose={() => setDeciding(null)}
+        dirty={JSON.stringify(d) !== JSON.stringify(BLANK_DECISION)}
         footer={<><Button onClick={() => setDeciding(null)}>Cancel</Button><Button variant="primary" loading={busy} onClick={decide}>Record</Button></>}>
         <div className="form">
           <Select label="Decision" required value={d.decision} onChange={(v) => setD((x) => ({ ...x, decision: v || 'approved' }))} options={[{ value: 'approved', label: 'Approved' }, { value: 'rejected', label: 'Rejected' }]} />

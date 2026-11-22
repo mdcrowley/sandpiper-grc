@@ -29,15 +29,18 @@ export function RecordNotificationDialog({ clock, onClose, onSaved }: { clock: C
   const [how, setHow] = useState('');
   const [when, setWhen] = useState('');
   const [reference, setReference] = useState('');
+  const [start, setStart] = useState({ who: '', how: '', when: '', reference: '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!clock) return;
-    setWho(clock.notified_who ?? '');
-    setHow(clock.notified_how ?? '');
-    setWhen(clock.notified_at ?? new Date().toISOString());
-    setReference(clock.reference_received ?? '');
+    const initial = { who: clock.notified_who ?? '', how: clock.notified_how ?? '', when: clock.notified_at ?? new Date().toISOString(), reference: clock.reference_received ?? '' };
+    setWho(initial.who);
+    setHow(initial.how);
+    setWhen(initial.when);
+    setReference(initial.reference);
+    setStart(initial);
     setErrors({});
   }, [clock]);
 
@@ -67,8 +70,9 @@ export function RecordNotificationDialog({ clock, onClose, onSaved }: { clock: C
   }
 
   const correcting = clock?.status === 'done';
+  const dirty = who !== start.who || how !== start.how || when !== start.when || reference !== start.reference;
   return (
-    <Modal open={!!clock} title={clock ? `${correcting ? 'Correct record' : 'Record notification'}: ${clock.party}` : 'Record notification'} onClose={onClose}>
+    <Modal open={!!clock} title={clock ? `${correcting ? 'Correct record' : 'Record notification'}: ${clock.party}` : 'Record notification'} onClose={onClose} dirty={!!clock && dirty}>
       {clock && (
         <form className="form" onSubmit={submit} noValidate>
           <div className="si-dialog-facts">
@@ -129,7 +133,7 @@ export function NotRequiredDialog({ clock, onClose, onSaved }: { clock: Clock | 
   }
 
   return (
-    <Modal open={!!clock} title={clock ? `Not required: ${clock.party}` : 'Not required'} onClose={onClose} size="sm">
+    <Modal open={!!clock} title={clock ? `Not required: ${clock.party}` : 'Not required'} onClose={onClose} size="sm" dirty={!!clock && !!reason}>
       <form className="form" onSubmit={submit} noValidate>
         <TextArea label="Reason" required value={reason} onChange={setReason} error={error} rows={3}
           hint="The reason is written to the incident log as a decision" />

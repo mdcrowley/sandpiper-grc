@@ -128,6 +128,7 @@ export const AREAS: Area[] = [
     key: 'fleet', label: 'Fleet and services', defaultOn: true,
     description: 'Vehicles, the services (routes and lines) they run, and which systems each depends on.',
     permissions: ['fleet'], modules: ['fleet'], jobs: ['fleet.'],
+    lookupValues: { condition_target_type: ['vehicle'] },
   },
   {
     key: 'safety', label: 'Safety management', defaultOn: true,
@@ -178,10 +179,11 @@ export const AREAS: Area[] = [
     permissions: [], types: ['asset_class', 'condition_assessment'], modules: ['condition'], jobs: ['condition.'],
     lookupValues: { action_source: ['condition'] },
     fields: {
-      asset: ['asset_class_id', 'condition_rating', 'condition_assessed_on', 'useful_life_end', 'replacement_project_id'],
-      vehicle: ['asset_class_id', 'condition_rating', 'condition_assessed_on', 'useful_life_end', 'replacement_project_id', 'odometer_miles'],
-      site: ['asset_class_id', 'condition_rating', 'condition_assessed_on', 'useful_life_end', 'replacement_project_id', 'site_kind', 'built_year'],
+      asset: ['asset_class_id', 'condition_rating', 'condition_assessed_on', 'useful_life_end', 'replacement_project_id', 'in_service_date'],
+      vehicle: ['asset_class_id', 'condition_rating', 'condition_assessed_on', 'useful_life_end', 'replacement_project_id', 'odometer_miles', 'odometer_read_on'],
+      site: ['asset_class_id', 'condition_rating', 'condition_assessed_on', 'useful_life_end', 'replacement_project_id', 'site_kind', 'built_year', 'in_use'],
     },
+    lists: ['site_kind'],
   },
   {
     key: 'ot', label: 'OT and rail-systems security', defaultOn: true,
@@ -193,6 +195,7 @@ export const AREAS: Area[] = [
       system: ['ot_system', 'control_level', 'safety_related', 'vendor_remote_access', 'remote_access_path', 'patchability', 'field_location', 'zone_id'],
       asset: ['ot_asset', 'control_level', 'safety_related', 'firmware_version', 'zone_id'],
     },
+    lists: ['ot_control_level', 'vendor_remote_access', 'ot_patchability'],
   },
   {
     key: 'records', label: 'Records requests and privacy', defaultOn: true,

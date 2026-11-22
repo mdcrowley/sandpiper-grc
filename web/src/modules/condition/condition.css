@@ -1,0 +1,12 @@
+/* Asset condition (E32). Tokens only, so both themes work. */
+
+.cnd-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: var(--s-4); align-items: start; }
+.cnd-subhead { font-size: var(--fs-md); font-weight: 600; margin: 0; }
+.cnd-life { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }
+.cnd-hint { font-size: var(--fs-sm); margin: 0; }
+.cnd-over { color: var(--danger-text); font-weight: 600; }
+
+/* Filters above the aging list and the target form: fields side by side, the button at the bottom. */
+.cnd-bar { display: flex; flex-wrap: wrap; gap: var(--s-3); align-items: flex-end; }
+.cnd-bar > * { flex: 1 1 12rem; min-width: 0; }
+.cnd-bar > button, .cnd-bar > .cnd-fixed { flex: 0 0 auto; }

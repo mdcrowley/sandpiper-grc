@@ -1,0 +1,9 @@
+/* Legal holds. */
+.lh-pad { padding: var(--space-4, 1rem); margin: 0; }
+.lh-wrap { overflow-wrap: anywhere; min-width: 12rem; }
+.lh-actions { display: flex; gap: 0.25rem; justify-content: flex-end; flex-wrap: wrap; white-space: nowrap; }
+.lh-list { list-style: none; margin: 0; padding: 0.5rem 1rem 1rem; display: grid; gap: 0.35rem; overflow-wrap: anywhere; }
+.lh-filter { align-items: end; }
+@media (max-width: 640px) {
+  .lh-actions { justify-content: flex-start; }
+}

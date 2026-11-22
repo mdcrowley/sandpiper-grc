@@ -171,7 +171,12 @@ action is added to this table and to its module's tests in the same change.
 | Administration | Change a sign-in, API-token or outbound-connection setting (keys starting `auth.`, `tokens.`, `integrations.`) | Ask | Sign-in rules and ways out of the application |
 | Administration | Sign-in providers: add, change, remove; a person's sign-in limits, link permits, unlinking, break-glass designation | Ask | Who can sign in, and how |
 | Administration | Switch parts of the application on or off (Features) | Ask | Changes what everyone can use |
-| Administration | Webhooks: add, change the address or switch on "include restricted records", replace the secret | Ask | Sends data out; a secret |
+| Administration | Webhooks: add, change the address or switch on "include restricted records", replace the secret, show the current address | Ask | Sends data out; a secret |
+| Administration | User provisioning: switch it on, choose the linked provider, make a token, change a token's addresses, map a group to roles | Ask | Lets another system create accounts and give roles |
+| Administration | Log forwarding: add a forwarder, change where it sends (kind, host, port, address, secret, certificate authority) or switch it on | Ask | Sends the audit log out |
+| Administration | Calendar feeds: switch them on; work-tracker bridge: add a connection, change its address, send restricted records, switch it on, replace its secrets | Ask | Opens a way out of the application; secrets |
+| Administration | Revoke a provisioning token, a calendar feed or a work-tracker connection; switch provisioning, forwarding or feeds off | Don't ask | Only narrows access |
+| Legal holds and records | Place a hold, add records, save a query; release a hold; log and work a records request; privacy impact assessments | Don't ask | Work on records by people holding the permission, audited; a hold only stops deletion |
 | Administration | Anonymize a record, or remove it for good, from the retention review | Ask | Cannot be undone |
 | Administration | Change a retention period or what its review may do | Don't ask | Nothing is changed until the review, which asks |
 | Administration | Disable a user, unlock an account, end sessions, rename a user or move department | Don't ask | Takes access away or changes nothing about access |
@@ -295,8 +300,14 @@ the receiver's own secret in its path or query (chat incoming webhooks, automati
 platforms), so the audit log records only its scheme and host and a short fingerprint of the
 whole address (`https://chat.example.test/… (sha256:…)`), which still shows that it changed.
 Entries written before this was done are shown the same way when the log is read or
-exported; the log itself is append-only. The address itself is kept in clear in the
-`webhooks` table, readable only by administrators: the application must send to it.
+exported; the log itself is append-only. The address itself is kept encrypted with the secret
+key (`url_sealed`, E22-45) and resealed on a key change; the list shows its host and
+fingerprint, and the full address is shown only after a password confirmation (audited).
+
+A webhook can send the full event as JSON or, for a chat tool, a one-line message
+(`chat_text`: `{ text }`) or a card (`chat_card`: `{ title, text, link, facts }`). The chat
+formats carry a summary and the names of changed fields, never their values, and are signed the
+same way.
 
 ### Retention and the one hard delete
 
@@ -320,6 +331,11 @@ allows it (`disposal`: keep, anonymize or delete), and is audited (`retention.an
 without the removed values). **The audit log is append-only and is not changed**: it keeps
 who changed what, by design, including earlier values in its before-and-after entries, and
 its own period (`retention.audit_months`) is recorded, not enforced.
+
+**Legal holds** (`core/holds.ts`, E34) are enforced in core for every caller, whatever is
+switched off: a held record cannot be deleted, removed for good, anonymized or lose its files,
+and the refusal names the hold's reference, never its matter. The daily check does not flag a
+held record. An active hold is itself held.
 
 ### Cross-site request forgery (CSRF)
 
@@ -392,6 +408,15 @@ added to responses sent over HTTPS (see "Network exposure").
   source if its own restriction changes, and is repaired for existing rows at every
   start. A person cannot raise an action on, or move one to, a record they cannot see.
   Safety events flagged as holding personal information are restricted the same way.
+- **References to records you cannot see.** Core refuses a reference field that names a
+  record the caller cannot see (`checkRefsVisible` in `core/resource.ts`), so a record cannot
+  be linked to a restricted or hidden one by guessing its id; a value left unchanged is not
+  checked again, and system work is exempt.
+- **OT security zones** can be restricted; a restricted zone needs `security.view`, a
+  conduit is restricted whenever either of its zones is, and only `security.view` holders
+  change a zone's restriction.
+- **Requests about personal data** (records requests of a personal-data kind) need
+  `privacy.view` as well as `records.view`.
 - **Hand-written queries** that return records use `ctx.resources.visibleWhere(type, user)`
   to get the same condition as the generated routes. Queries that return figures do not
   (see below).
@@ -875,6 +900,43 @@ separate, tamper-evident copy.
 - **Audited.** Each change names the token, and each write tool adds an `mcp.write` event
   that reads "... via MCP (tool ...) with API token ..." in the record's History. Every
   call is logged without its arguments or results and kept for 90 days.
+- **Summary tools** return figures only, read as the token's user; a switched-off area's
+  tools are never offered.
+
+### User provisioning and audit-log forwarding
+
+`server/src/modules/integrations/`; details in
+[User provisioning and log forwarding](user/35-user-provisioning-and-log-forwarding.md)
+
+- **Off by default.** The SCIM endpoint (`/api/scim/v2`) answers only while
+  `integrations.scim_enabled` is on. It takes only its own bearer tokens (`grc_scim_…`),
+  never a session or a personal access token; tokens are stored as SHA-256, compared in
+  constant time, revocable and limited to the addresses an administrator lists. Every
+  refusal gets the same answer and is audited; refused addresses are rate limited.
+- **What it may not do.** Provisioning never gives a role that can administer, never sees
+  or changes the break-glass account, never deactivates the last active administrator, and
+  never removes a role given by hand. Deactivating an account ends its sessions, set-up and
+  reset links, API tokens, assistant connections and calendar feeds.
+- **Forwarding** sends the audit log to a syslog collector (over TLS with the certificate
+  verified, or plain TCP for a collector on a trusted network) or an HTTPS address, only to
+  allowed hosts, with values that look like secrets removed.
+  Forwarded events cannot be recalled.
+- **Sealed.** Webhook and forwarder addresses and secrets are encrypted with the secret key
+  and resealed on a key change.
+- **Exports without secrets** (`-NoSecrets`) leave out or blank every token, session and
+  sign-in secret (`SECRET_TABLES`, `SECRET_COLUMNS`), and a test fails on a new secret column
+  not listed.
+
+### Calendar feeds, work-tracker bridge and evidence links
+
+`server/src/modules/feeds/`; details in
+[Calendar feeds, work trackers and evidence links](user/36-calendar-feeds-work-trackers-and-evidence-links.md)
+
+Calendar feed addresses carry a 32-byte secret stored only as SHA-256; feeds are off by
+default, re-checked as their person on every read, and rate limited. The work-tracker bridge sends
+only to allowed hosts through the webhook address checks; status updates are HMAC-signed with a
+5-minute window and replay protection. A kind of record whose area is switched off is not
+accepted, sent or moved by a status update. Evidence links are never fetched by the server.
 
 ### Vendor response links
 
@@ -915,6 +977,9 @@ them over. Link tokens in paths are masked in the server log, and pages send
   decrypted only to send it; it is not in the answer to staff, the delivery log or the audit
   log. At most 5 emails a day per assessment. The one reminder before expiry does not carry the
   link.
+
+Exclusion-list checks never call an outside service; they are recorded by hand against lists the
+organization names.
 
 ### Files: malware scanning, storage and purge
 
@@ -978,8 +1043,8 @@ put the prototype on a network or to hold sensitive real records in it.
 **Platform**
 
 - The data folder holds the database and files in the clear, including password hashes.
-  The application encrypts only its stored secrets (authenticator keys, webhook, provider
-  and mail-server secrets) and, on request, backups and exports.
+  The application encrypts only its stored secrets (authenticator keys, webhook and
+  forwarder addresses and secrets, provider and mail-server secrets) and, on request, backups and exports.
 - `backup` and `restore` cover the embedded database only; a PostgreSQL server is backed
   up with its own tools. Files in the object store are not in backups.
 - No alerting. The server log (JSON lines, one per request with its request id) rotates by

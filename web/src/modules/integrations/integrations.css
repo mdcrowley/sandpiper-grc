@@ -1,0 +1,13 @@
+/* Integrations: User provisioning and Log forwarding (wave 11). Built on the admin styles (admin.css);
+   only what those lack is here. Colors come from the design tokens, so both themes follow. */
+.int-activity { display: grid; gap: var(--s-2); margin: 0 0 var(--s-3); padding: 0; list-style: none; }
+.int-activity li { display: grid; grid-template-columns: minmax(7em, auto) 1fr auto; gap: var(--s-3); align-items: baseline; font-size: var(--fs-sm); }
+.int-dest { font-family: var(--font-mono, ui-monospace, monospace); font-size: var(--fs-sm); overflow-wrap: anywhere; }
+.int-grid { display: grid; gap: var(--s-3); grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.int-log { display: grid; gap: var(--s-2); margin: 0; padding: 0; list-style: none; }
+.int-log li { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-3); align-items: center; padding: var(--s-2) 0; border-bottom: 1px solid var(--border); font-size: var(--fs-sm); }
+.int-retention { display: flex; flex-wrap: wrap; gap: var(--s-3); align-items: flex-end; }
+.int-retention > :first-child { flex: 0 1 220px; }
+@media (max-width: 900px) {
+  .int-activity li { grid-template-columns: 1fr; gap: var(--s-1); }
+}

@@ -139,6 +139,7 @@ function SourceCard({ rec, values }: { rec: RecordContext; values: Values | null
 function ValueDialog({ kri, onClose, onDone }: { kri: Row; onClose: () => void; onDone: () => void }) {
   const toast = useToast();
   const [period, setPeriod] = useState(todayInZone().slice(0, 7));
+  const [firstPeriod] = useState(period);
   const [value, setValue] = useState<number | null>(null);
   const [note, setNote] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -163,7 +164,7 @@ function ValueDialog({ kri, onClose, onDone }: { kri: Row; onClose: () => void; 
   };
 
   return (
-    <Modal open title="Enter a value" size="sm" onClose={onClose}>
+    <Modal open title="Enter a value" size="sm" onClose={onClose} dirty={value !== null || Boolean(note.trim()) || period !== firstPeriod}>
       <form className="form" onSubmit={submit} noValidate>
         {message && <p role="alert" className="form-error">{message}</p>}
         <TextField label="Month" required value={period} onChange={setPeriod} error={errors.period} hint="YYYY-MM. Entering a month again corrects it." inputMode="numeric" maxLength={7} />
