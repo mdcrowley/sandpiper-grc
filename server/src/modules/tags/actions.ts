@@ -267,7 +267,7 @@ export async function registerActionRoutes(ctx: ModuleContext): Promise<void> {
   });
   ctx.describeRoute({
     method: 'PUT', path: '/api/asset-tags/photo', tag: 'Asset tags',
-    summary: 'Mark one picture attached to an asset, vehicle, site or system as its photo on the tag card (or clear it)',
+    summary: 'Mark one picture attached to a tagged record as its photo on the tag card (or clear it)',
     description: 'Needs edit permission on the record. Audited as tag.photo.',
     body: '{ recordType, recordId, attachmentId: an image attachment of that record, or null to clear }',
     response: '{ photo: { attachmentId, url, description } | null }',

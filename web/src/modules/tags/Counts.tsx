@@ -257,7 +257,7 @@ function Items({ rec, items, reload }: { rec: RecordContext; items: ReturnType<t
                     <td>{i.foundAt ? <span title={formatDateTime(i.foundAt)}>{relativeTime(i.foundAt)}{i.foundByName ? ` by ${i.foundByName}` : ''}</span> : '—'}</td>
                     <td>{i.resolution ? RESOLUTION_LABEL[i.resolution] : '—'}</td>
                     {open && counting && (
-                      <td>{i.state === 'pending' && i.route && <Button size="sm" variant="ghost" loading={busy === i.id} onClick={() => markFound(i)} aria-label={`Mark ${i.label} found`}>Mark found</Button>}</td>
+                      <td>{i.state === 'pending' && i.route && <Button size="sm" variant="ghost" loading={busy === i.id} onClick={() => markFound(i)} aria-label={`Mark found: ${i.label}`}>Mark found</Button>}</td>
                     )}
                   </tr>
                 );

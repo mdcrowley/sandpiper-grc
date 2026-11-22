@@ -51,7 +51,7 @@ export function TagSettingsPage() {
               <Switch
                 label="Allow several tags on one record" checked={draft.severalPerRecord} onChange={(v) => set('severalPerRecord', v)} disabled={!manage}
                 error={errors.severalPerRecord}
-                hint="For example a long vehicle with a tag at each end. Off: a record carries one tag, and a new one replaces it."
+                hint="For example a large item with a tag at each end. Off: a record carries one tag, and a new one replaces it."
               />
               <Switch
                 label="Keep a log of tag lookups" checked={draft.logLookups} onChange={(v) => set('logLookups', v)} disabled={!manage}

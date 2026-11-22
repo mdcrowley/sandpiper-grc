@@ -25,11 +25,18 @@ const mainHas = (text) => new Function(`return (document.querySelector('main')?.
 /** No sideways scrolling of the page (the tag card works from 390 px up). */
 const noSideScroll = () => document.documentElement.scrollWidth <= window.innerWidth + 1;
 
+/**
+ * A new tag value that fits the sample tag format (`TA-` and six digits) but lies outside the sample
+ * stock (TA-100000 to TA-100999): typed values must match a format once one exists.
+ */
+let made = 0;
+const newTag = () => `TA-9${String((Math.floor(Date.now() / 1000) * 7 + made++ * 131) % 100000).padStart(5, "0")}`;
+
 /** A sample asset with a tag value, made fresh for the test so its card is predictable. */
 async function freshAsset(t, label) {
   const api = t.api();
   const site = (await api.must('GET', '/api/sites?pageSize=1')).rows[0];
-  const tag = `E2E-${Date.now().toString(36).toUpperCase()}`;
+  const tag = newTag();
   const asset = await api.must('POST', '/api/assets', { name: `E2E ${label} tablet`, tag, serial: `SN-${tag}`, site_id: site?.id ?? null, location: 'Dispatch desk 1' });
   return { asset, tag, site };
 }
@@ -227,8 +234,8 @@ const countTest = (theme, width) => ({
     const { setup } = await t.step('a fresh site with two tagged assets', async () => {
       const stamp = Date.now().toString(36).toUpperCase();
       const site = await api.must('POST', '/api/sites', { name: `E2E count site ${stamp}` });
-      const a = await api.must('POST', '/api/assets', { name: `E2E counted radio ${stamp}`, tag: `E2E-C1-${stamp}`, site_id: site.id, status: 'in_use' });
-      const b = await api.must('POST', '/api/assets', { name: `E2E missing radio ${stamp}`, tag: `E2E-C2-${stamp}`, site_id: site.id, status: 'in_use' });
+      const a = await api.must('POST', '/api/assets', { name: `E2E counted radio ${stamp}`, tag: newTag(), site_id: site.id, status: 'in_use' });
+      const b = await api.must('POST', '/api/assets', { name: `E2E missing radio ${stamp}`, tag: newTag(), site_id: site.id, status: 'in_use' });
       return { setup: { site, a, b, stamp } };
     });
     const count = await t.step('start a count for the site', () => api.must('POST', '/api/inventory-counts/start', { site_id: setup.site.id }));
