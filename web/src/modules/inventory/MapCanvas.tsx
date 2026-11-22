@@ -217,7 +217,7 @@ export function MapCanvas({ layout, label, selectedId, onSelect, impacted, cente
             const crit = n.type === 'system' ? n.attrs?.criticality : null;
             // Operational technology (E33-04): a small OT badge beside the name.
             const ot = n.attrs?.ot === 'true';
-            return (
+            const node = (
               <g
                 key={n.id} className={nodeClass(n)} transform={`translate(${n.x} ${n.y})`} style={nodeVars(typeInfo(n.type).color)}
                 tabIndex={0} role="button" aria-pressed={n.id === selectedId}
@@ -231,15 +231,21 @@ export function MapCanvas({ layout, label, selectedId, onSelect, impacted, cente
                 <rect width={n.w} height={n.h} rx={8} />
                 <circle cx={13} cy={n.h / 2} r={4} className="inv-node-dot" />
                 <text x={24} y={n.h / 2 + 4.5}>{short(n.label, (crit ? 24 : 26) - (ot ? 4 : 0))}</text>
-                {ot && (
-                  <g className="inv-node-ot" transform={`translate(${n.w - (crit ? 46 : 32)} ${n.h / 2 - 8})`} aria-hidden="true">
-                    <rect width={24} height={16} rx={4} style={{ fill: 'var(--c-teal-bg)', stroke: 'var(--c-teal-solid)', strokeWidth: 1 }} />
-                    <text x={12} y={11.5} textAnchor="middle" style={{ fill: 'var(--c-teal-fg)', fontSize: 9.5, fontWeight: 700 }}>OT</text>
-                  </g>
-                )}
                 {crit && <circle cx={n.w - 12} cy={n.h / 2} r={4.5} className="inv-node-crit" style={{ fill: `var(--c-${lookupColor('criticality_tier', crit) ?? 'gray'}-solid)` }} />}
               </g>
             );
+            // The OT badge is drawn over the node, outside it: text inside the node would have to be
+            // part of its accessible name, which says "operational technology" in words instead.
+            const badge = ot && (
+              <g
+                key={`${n.id}-ot`} className="inv-node-ot" aria-hidden="true" style={{ pointerEvents: 'none' }}
+                transform={`translate(${n.x + n.w - (crit ? 46 : 32)} ${n.y + n.h / 2 - 8})`}
+              >
+                <rect width={24} height={16} rx={4} style={{ fill: 'var(--c-teal-bg)', stroke: 'var(--c-teal-solid)', strokeWidth: 1 }} />
+                <text x={12} y={11.5} textAnchor="middle" style={{ fill: 'var(--c-teal-fg)', fontSize: 9.5, fontWeight: 700 }}>OT</text>
+              </g>
+            );
+            return badge ? [node, badge] : node;
           })}
         </g>
       </svg>

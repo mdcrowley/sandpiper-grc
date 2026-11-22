@@ -209,5 +209,7 @@ describe('map helpers', () => {
     expect(shortLabel('Short name')).toBe('Short name');
     expect(shortLabel('Computer-aided dispatch and vehicle location', 22)).toBe('Computer-aided…');
     expect(shortLabel('Averyveryverylongsinglewordname', 12)).toBe('Averyveryve…');
+    // A word boundary early in the label still wins over a word cut in half.
+    expect(shortLabel('Signaling supervisory system (sample)', 20)).toBe('Signaling…');
   });
 });

@@ -240,12 +240,13 @@ export function neighborhood(id: string, edges: GraphEdge[]): { ids: Set<string>
 }
 
 /**
- * Shortens a label to n characters, at a word boundary where one is near, so the words drawn on a
- * node are whole words of its accessible name (speech users say what they see).
+ * Shortens a label to n characters, always at a word boundary when there is one, so the words drawn
+ * on a node are whole words of its accessible name (speech users say what they see; a word cut in
+ * half fails the label-in-name check). Only a single long word is cut inside the word.
  */
 export function shortLabel(s: string, n = 22): string {
   if (s.length <= n) return s;
   const cut = s.slice(0, n - 1);
   const space = cut.lastIndexOf(' ');
-  return `${space >= n / 2 ? cut.slice(0, space) : cut}…`;
+  return `${space > 0 ? cut.slice(0, space) : cut}…`;
 }
