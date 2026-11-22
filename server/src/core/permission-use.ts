@@ -34,6 +34,7 @@ export const HOOK_CHECKS: Record<string, string[]> = {
   exceptions: ['approve'], // policies/exceptions.ts: approving an exception, and changing an approved one
   actions: ['approve'], // risks/actions-resource.ts: due date of an action in an approved corrective action plan; risks/caps.ts: recording a verification
   audits: ['approve'], // audits/report.ts: approvers of the audit_report approval kind
+  tags: ['count'], // tags/counts.ts: starting an inventory count (beforeCreate of inventory_count)
 };
 
 /** The actions every generated record-type route set checks. */

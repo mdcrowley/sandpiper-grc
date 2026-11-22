@@ -1,0 +1,6112 @@
+{
+ "version": 1,
+ "generatedBy": "mobile/test/tag-photos/generate.mjs",
+ "scenarios": {
+  "none": {
+   "label": "No tag formats configured",
+   "formats": [],
+   "decoys": {
+    "004527": "asset:decoy-1",
+    "TA-118343": "asset:decoy-2"
+   }
+  },
+  "bought": {
+   "label": "Bought tags: 6 digits with a mod 10 check digit",
+   "formats": [
+    {
+     "name": "bought",
+     "pattern": null,
+     "prefix": "",
+     "lengthMin": 6,
+     "lengthMax": 6,
+     "checkCharacter": "mod10",
+     "carrier": "any",
+     "extractPattern": null,
+     "recordTypes": [],
+     "active": true,
+     "id": "bought",
+     "characters": "digits"
+    }
+   ],
+   "decoys": {}
+  },
+  "printed": {
+   "label": "Printed tags: TA- and 6 digits, no check character",
+   "formats": [
+    {
+     "name": "printed",
+     "pattern": null,
+     "prefix": "TA-",
+     "lengthMin": 6,
+     "lengthMax": 6,
+     "checkCharacter": "none",
+     "carrier": "any",
+     "extractPattern": null,
+     "recordTypes": [],
+     "active": true,
+     "id": "printed",
+     "characters": "digits"
+    }
+   ],
+   "decoys": {
+    "TA-113342": "asset:decoy-3",
+    "TA-118312": "asset:decoy-4"
+   }
+  },
+  "alnum": {
+   "label": "Letters and digits: 6 characters with a mod 36 check character",
+   "formats": [
+    {
+     "name": "alnum",
+     "pattern": null,
+     "prefix": "",
+     "lengthMin": 6,
+     "lengthMax": 6,
+     "checkCharacter": "mod36",
+     "carrier": "any",
+     "extractPattern": null,
+     "recordTypes": [],
+     "active": true,
+     "id": "alnum",
+     "characters": "alphanumeric"
+    }
+   ],
+   "decoys": {}
+  },
+  "extract": {
+   "label": "Codes holding more than the value: the value after ID",
+   "formats": [
+    {
+     "name": "extract",
+     "pattern": null,
+     "prefix": "",
+     "lengthMin": 6,
+     "lengthMax": 6,
+     "checkCharacter": "none",
+     "carrier": "code",
+     "extractPattern": "ID[:=]([A-Z0-9]+)",
+     "recordTypes": [],
+     "active": true,
+     "id": "extract",
+     "characters": "alphanumeric"
+    }
+   ],
+   "decoys": {}
+  }
+ },
+ "photos": [
+  {
+   "id": "code-qr",
+   "file": "images/code-qr.png",
+   "scenario": "none",
+   "description": "qr-code, clean",
+   "effects": [],
+   "codeTypes": [
+    "qr-code"
+   ],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "TA-118342"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "qr-code",
+       "content": "TA-118342",
+       "box": {
+        "x": 246,
+        "y": 132,
+        "width": 150,
+        "height": 150
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 110,
+        "width": 319,
+        "height": 12
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "qr-code",
+       "content": "TA-118342",
+       "box": {
+        "x": 246,
+        "y": 132,
+        "width": 150,
+        "height": 150
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 110,
+        "width": 319,
+        "height": 12
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "qr-code",
+       "content": "TA-118342",
+       "box": {
+        "x": 246,
+        "y": 132,
+        "width": 150,
+        "height": 150
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 110,
+        "width": 319,
+        "height": 12
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [
+     {
+      "type": "qr-code",
+      "content": "TA-118342",
+      "box": {
+       "x": 246,
+       "y": 132,
+       "width": 150,
+       "height": 150
+      }
+     }
+    ],
+    "lines": [
+     {
+      "text": "PROPERTY OF THE AUTHORITY",
+      "box": {
+       "x": 161,
+       "y": 110,
+       "width": 319,
+       "height": 12
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "code-datamatrix",
+   "file": "images/code-datamatrix.png",
+   "scenario": "none",
+   "description": "data-matrix, clean",
+   "effects": [],
+   "codeTypes": [
+    "data-matrix"
+   ],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "K7Q2M9"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "data-matrix",
+       "content": "K7Q2M9",
+       "box": {
+        "x": 273,
+        "y": 159,
+        "width": 96,
+        "height": 96
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 137,
+        "width": 319,
+        "height": 12
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "data-matrix",
+       "content": "K7Q2M9",
+       "box": {
+        "x": 273,
+        "y": 159,
+        "width": 96,
+        "height": 96
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 137,
+        "width": 319,
+        "height": 12
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "data-matrix",
+       "content": "K7Q2M9",
+       "box": {
+        "x": 273,
+        "y": 159,
+        "width": 96,
+        "height": 96
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 137,
+        "width": 319,
+        "height": 12
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [
+     {
+      "type": "data-matrix",
+      "content": "K7Q2M9",
+      "box": {
+       "x": 273,
+       "y": 159,
+       "width": 96,
+       "height": 96
+      }
+     }
+    ],
+    "lines": [
+     {
+      "text": "PROPERTY OF THE AUTHORITY",
+      "box": {
+       "x": 161,
+       "y": 137,
+       "width": 319,
+       "height": 12
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "code-pdf417",
+   "file": "images/code-pdf417.png",
+   "scenario": "none",
+   "description": "pdf-417, clean",
+   "effects": [],
+   "codeTypes": [
+    "pdf-417"
+   ],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "SB-004512"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "pdf-417",
+       "content": "SB-004512",
+       "box": {
+        "x": 210,
+        "y": 178,
+        "width": 222,
+        "height": 58
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 156,
+        "width": 319,
+        "height": 12
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "pdf-417",
+       "content": "SB-004512",
+       "box": {
+        "x": 210,
+        "y": 178,
+        "width": 222,
+        "height": 58
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 156,
+        "width": 319,
+        "height": 12
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "pdf-417",
+       "content": "SB-004512",
+       "box": {
+        "x": 210,
+        "y": 178,
+        "width": 222,
+        "height": 58
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 156,
+        "width": 319,
+        "height": 12
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [
+     {
+      "type": "pdf-417",
+      "content": "SB-004512",
+      "box": {
+       "x": 210,
+       "y": 178,
+       "width": 222,
+       "height": 58
+      }
+     }
+    ],
+    "lines": [
+     {
+      "text": "PROPERTY OF THE AUTHORITY",
+      "box": {
+       "x": 161,
+       "y": 156,
+       "width": 319,
+       "height": 12
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "code-aztec",
+   "file": "images/code-aztec.png",
+   "scenario": "none",
+   "description": "aztec, clean",
+   "effects": [],
+   "codeTypes": [
+    "aztec"
+   ],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "TA-200117"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "aztec",
+       "content": "TA-200117",
+       "box": {
+        "x": 252,
+        "y": 138,
+        "width": 138,
+        "height": 138
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 116,
+        "width": 319,
+        "height": 12
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "aztec",
+       "content": "TA-200117",
+       "box": {
+        "x": 252,
+        "y": 138,
+        "width": 138,
+        "height": 138
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 116,
+        "width": 319,
+        "height": 12
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "aztec",
+       "content": "TA-200117",
+       "box": {
+        "x": 252,
+        "y": 138,
+        "width": 138,
+        "height": 138
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 116,
+        "width": 319,
+        "height": 12
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [
+     {
+      "type": "aztec",
+      "content": "TA-200117",
+      "box": {
+       "x": 252,
+       "y": 138,
+       "width": 138,
+       "height": 138
+      }
+     }
+    ],
+    "lines": [
+     {
+      "text": "PROPERTY OF THE AUTHORITY",
+      "box": {
+       "x": 161,
+       "y": 116,
+       "width": 319,
+       "height": 12
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "code-code128",
+   "file": "images/code-code128.png",
+   "scenario": "none",
+   "description": "code-128, clean",
+   "effects": [],
+   "codeTypes": [
+    "code-128"
+   ],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "004521"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "code-128",
+       "content": "004521",
+       "box": {
+        "x": 189,
+        "y": 144,
+        "width": 264,
+        "height": 127
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 122,
+        "width": 319,
+        "height": 12
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "code-128",
+       "content": "004521",
+       "box": {
+        "x": 189,
+        "y": 144,
+        "width": 264,
+        "height": 127
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 122,
+        "width": 319,
+        "height": 12
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "code-128",
+       "content": "004521",
+       "box": {
+        "x": 189,
+        "y": 144,
+        "width": 264,
+        "height": 127
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 122,
+        "width": 319,
+        "height": 12
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [
+     {
+      "type": "code-128",
+      "content": "004521",
+      "box": {
+       "x": 189,
+       "y": 144,
+       "width": 264,
+       "height": 127
+      }
+     }
+    ],
+    "lines": [
+     {
+      "text": "PROPERTY OF THE AUTHORITY",
+      "box": {
+       "x": 161,
+       "y": 122,
+       "width": 319,
+       "height": 12
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "code-code39",
+   "file": "images/code-code39.png",
+   "scenario": "none",
+   "description": "code-39, clean",
+   "effects": [],
+   "codeTypes": [
+    "code-39"
+   ],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "TA-118350"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "code-39",
+       "content": "TA-118350",
+       "box": {
+        "x": 27,
+        "y": 144,
+        "width": 586,
+        "height": 127
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 122,
+        "width": 319,
+        "height": 12
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "code-39",
+       "content": "TA-118350",
+       "box": {
+        "x": 27,
+        "y": 144,
+        "width": 586,
+        "height": 127
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 122,
+        "width": 319,
+        "height": 12
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "code-39",
+       "content": "TA-118350",
+       "box": {
+        "x": 27,
+        "y": 144,
+        "width": 586,
+        "height": 127
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 122,
+        "width": 319,
+        "height": 12
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [
+     {
+      "type": "code-39",
+      "content": "TA-118350",
+      "box": {
+       "x": 27,
+       "y": 144,
+       "width": 586,
+       "height": 127
+      }
+     }
+    ],
+    "lines": [
+     {
+      "text": "PROPERTY OF THE AUTHORITY",
+      "box": {
+       "x": 161,
+       "y": 122,
+       "width": 319,
+       "height": 12
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "code-code93",
+   "file": "images/code-code93.png",
+   "scenario": "none",
+   "description": "code-93, clean",
+   "effects": [],
+   "codeTypes": [
+    "code-93"
+   ],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "K7Q2M8"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "code-93",
+       "content": "K7Q2M8",
+       "box": {
+        "x": 153,
+        "y": 144,
+        "width": 334,
+        "height": 127
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 122,
+        "width": 319,
+        "height": 12
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "code-93",
+       "content": "K7Q2M8",
+       "box": {
+        "x": 153,
+        "y": 144,
+        "width": 334,
+        "height": 127
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 122,
+        "width": 319,
+        "height": 12
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "code-93",
+       "content": "K7Q2M8",
+       "box": {
+        "x": 153,
+        "y": 144,
+        "width": 334,
+        "height": 127
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 122,
+        "width": 319,
+        "height": 12
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [
+     {
+      "type": "code-93",
+      "content": "K7Q2M8",
+      "box": {
+       "x": 153,
+       "y": 144,
+       "width": 334,
+       "height": 127
+      }
+     }
+    ],
+    "lines": [
+     {
+      "text": "PROPERTY OF THE AUTHORITY",
+      "box": {
+       "x": 161,
+       "y": 122,
+       "width": 319,
+       "height": 12
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "code-ean8",
+   "file": "images/code-ean8.png",
+   "scenario": "none",
+   "description": "ean-8, clean",
+   "effects": [],
+   "codeTypes": [
+    "ean-8"
+   ],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "96385074"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "ean-8",
+       "content": "96385074",
+       "box": {
+        "x": 190,
+        "y": 144,
+        "width": 262,
+        "height": 127
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 122,
+        "width": 319,
+        "height": 12
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "ean-8",
+       "content": "96385074",
+       "box": {
+        "x": 190,
+        "y": 144,
+        "width": 262,
+        "height": 127
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 122,
+        "width": 319,
+        "height": 12
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "ean-8",
+       "content": "96385074",
+       "box": {
+        "x": 190,
+        "y": 144,
+        "width": 262,
+        "height": 127
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 122,
+        "width": 319,
+        "height": 12
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [
+     {
+      "type": "ean-8",
+      "content": "96385074",
+      "box": {
+       "x": 190,
+       "y": 144,
+       "width": 262,
+       "height": 127
+      }
+     }
+    ],
+    "lines": [
+     {
+      "text": "PROPERTY OF THE AUTHORITY",
+      "box": {
+       "x": 161,
+       "y": 122,
+       "width": 319,
+       "height": 12
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "code-ean13",
+   "file": "images/code-ean13.png",
+   "scenario": "none",
+   "description": "ean-13, clean",
+   "effects": [],
+   "codeTypes": [
+    "ean-13"
+   ],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "4000000045212"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "ean-13",
+       "content": "4000000045212",
+       "box": {
+        "x": 147,
+        "y": 144,
+        "width": 346,
+        "height": 127
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 122,
+        "width": 319,
+        "height": 12
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "ean-13",
+       "content": "4000000045212",
+       "box": {
+        "x": 147,
+        "y": 144,
+        "width": 346,
+        "height": 127
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 122,
+        "width": 319,
+        "height": 12
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "ean-13",
+       "content": "4000000045212",
+       "box": {
+        "x": 147,
+        "y": 144,
+        "width": 346,
+        "height": 127
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 122,
+        "width": 319,
+        "height": 12
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [
+     {
+      "type": "ean-13",
+      "content": "4000000045212",
+      "box": {
+       "x": 147,
+       "y": 144,
+       "width": 346,
+       "height": 127
+      }
+     }
+    ],
+    "lines": [
+     {
+      "text": "PROPERTY OF THE AUTHORITY",
+      "box": {
+       "x": 161,
+       "y": 122,
+       "width": 319,
+       "height": 12
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "code-upca",
+   "file": "images/code-upca.png",
+   "scenario": "none",
+   "description": "upc-a, clean",
+   "effects": [],
+   "codeTypes": [
+    "upc-a"
+   ],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "036000291452"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "upc-a",
+       "content": "036000291452",
+       "box": {
+        "x": 147,
+        "y": 144,
+        "width": 346,
+        "height": 127
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 122,
+        "width": 319,
+        "height": 12
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "upc-a",
+       "content": "036000291452",
+       "box": {
+        "x": 147,
+        "y": 144,
+        "width": 346,
+        "height": 127
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 122,
+        "width": 319,
+        "height": 12
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "upc-a",
+       "content": "036000291452",
+       "box": {
+        "x": 147,
+        "y": 144,
+        "width": 346,
+        "height": 127
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 122,
+        "width": 319,
+        "height": 12
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [
+     {
+      "type": "upc-a",
+      "content": "036000291452",
+      "box": {
+       "x": 147,
+       "y": 144,
+       "width": 346,
+       "height": 127
+      }
+     }
+    ],
+    "lines": [
+     {
+      "text": "PROPERTY OF THE AUTHORITY",
+      "box": {
+       "x": 161,
+       "y": 122,
+       "width": 319,
+       "height": 12
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "code-upce",
+   "file": "images/code-upce.png",
+   "scenario": "none",
+   "description": "upc-e, clean",
+   "effects": [],
+   "codeTypes": [
+    "upc-e"
+   ],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "01234565"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "upc-e",
+       "content": "01234565",
+       "box": {
+        "x": 214,
+        "y": 144,
+        "width": 214,
+        "height": 127
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 122,
+        "width": 319,
+        "height": 12
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "upc-e",
+       "content": "01234565",
+       "box": {
+        "x": 214,
+        "y": 144,
+        "width": 214,
+        "height": 127
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 122,
+        "width": 319,
+        "height": 12
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "upc-e",
+       "content": "01234565",
+       "box": {
+        "x": 214,
+        "y": 144,
+        "width": 214,
+        "height": 127
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 122,
+        "width": 319,
+        "height": 12
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [
+     {
+      "type": "upc-e",
+      "content": "01234565",
+      "box": {
+       "x": 214,
+       "y": 144,
+       "width": 214,
+       "height": 127
+      }
+     }
+    ],
+    "lines": [
+     {
+      "text": "PROPERTY OF THE AUTHORITY",
+      "box": {
+       "x": 161,
+       "y": 122,
+       "width": 319,
+       "height": 12
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "code-itf",
+   "file": "images/code-itf.png",
+   "scenario": "none",
+   "description": "itf, clean",
+   "effects": [],
+   "codeTypes": [
+    "itf"
+   ],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "00452200"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "itf",
+       "content": "00452200",
+       "box": {
+        "x": 169,
+        "y": 144,
+        "width": 304,
+        "height": 127
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 122,
+        "width": 319,
+        "height": 12
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "itf",
+       "content": "00452200",
+       "box": {
+        "x": 169,
+        "y": 144,
+        "width": 304,
+        "height": 127
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 122,
+        "width": 319,
+        "height": 12
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "itf",
+       "content": "00452200",
+       "box": {
+        "x": 169,
+        "y": 144,
+        "width": 304,
+        "height": 127
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 122,
+        "width": 319,
+        "height": 12
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [
+     {
+      "type": "itf",
+      "content": "00452200",
+      "box": {
+       "x": 169,
+       "y": 144,
+       "width": 304,
+       "height": 127
+      }
+     }
+    ],
+    "lines": [
+     {
+      "text": "PROPERTY OF THE AUTHORITY",
+      "box": {
+       "x": 161,
+       "y": 122,
+       "width": 319,
+       "height": 12
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "code-codabar",
+   "file": "images/code-codabar.png",
+   "scenario": "none",
+   "description": "codabar, clean",
+   "effects": [],
+   "codeTypes": [
+    "codabar"
+   ],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "004523"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "codabar",
+       "content": "A004523A",
+       "box": {
+        "x": 141,
+        "y": 144,
+        "width": 358,
+        "height": 127
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 122,
+        "width": 319,
+        "height": 12
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "codabar",
+       "content": "A004523A",
+       "box": {
+        "x": 141,
+        "y": 144,
+        "width": 358,
+        "height": 127
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 122,
+        "width": 319,
+        "height": 12
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "codabar",
+       "content": "A004523A",
+       "box": {
+        "x": 141,
+        "y": 144,
+        "width": 358,
+        "height": 127
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 122,
+        "width": 319,
+        "height": 12
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [
+     {
+      "type": "codabar",
+      "content": "A004523A",
+      "box": {
+       "x": 141,
+       "y": 144,
+       "width": 358,
+       "height": 127
+      }
+     }
+    ],
+    "lines": [
+     {
+      "text": "PROPERTY OF THE AUTHORITY",
+      "box": {
+       "x": 161,
+       "y": 122,
+       "width": 319,
+       "height": 12
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "code-qr-rotated",
+   "file": "images/code-qr-rotated.png",
+   "scenario": "none",
+   "description": "QR code, rotated 15 degrees",
+   "effects": [
+    "rotate"
+   ],
+   "codeTypes": [
+    "qr-code"
+   ],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "TA-118344"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "qr-code",
+       "content": "TA-118344",
+       "box": {
+        "x": 245,
+        "y": 121,
+        "width": 150,
+        "height": 150
+       }
+      }
+     ],
+     "lines": []
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "qr-code",
+       "content": "TA-118344",
+       "box": {
+        "x": 245,
+        "y": 121,
+        "width": 150,
+        "height": 150
+       }
+      }
+     ],
+     "lines": []
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "qr-code",
+       "content": "TA-118344",
+       "box": {
+        "x": 245,
+        "y": 121,
+        "width": 150,
+        "height": 150
+       }
+      }
+     ],
+     "lines": []
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [
+     {
+      "type": "qr-code",
+      "content": "TA-118344",
+      "box": {
+       "x": 245,
+       "y": 121,
+       "width": 150,
+       "height": 150
+      }
+     }
+    ],
+    "lines": []
+   }
+  },
+  {
+   "id": "code-128-blur",
+   "file": "images/code-128-blur.png",
+   "scenario": "none",
+   "description": "Code 128, slightly blurred",
+   "effects": [
+    "blur"
+   ],
+   "codeTypes": [
+    "code-128"
+   ],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "004524"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": []
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "code-128",
+       "content": "004524",
+       "box": {
+        "x": 188,
+        "y": 133,
+        "width": 264,
+        "height": 127
+       }
+      }
+     ],
+     "lines": []
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "code-128",
+       "content": "004524",
+       "box": {
+        "x": 188,
+        "y": 133,
+        "width": 264,
+        "height": 127
+       }
+      }
+     ],
+     "lines": []
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [
+     {
+      "type": "code-128",
+      "content": "004524",
+      "box": {
+       "x": 188,
+       "y": 133,
+       "width": 264,
+       "height": 127
+      }
+     }
+    ],
+    "lines": []
+   }
+  },
+  {
+   "id": "code-dm-faint",
+   "file": "images/code-dm-faint.png",
+   "scenario": "none",
+   "description": "Data Matrix, low contrast",
+   "effects": [
+    "contrast"
+   ],
+   "codeTypes": [
+    "data-matrix"
+   ],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "K7Q2N4"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "data-matrix",
+       "content": "K7Q2N4",
+       "box": {
+        "x": 272,
+        "y": 148,
+        "width": 96,
+        "height": 96
+       }
+      }
+     ],
+     "lines": []
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "data-matrix",
+       "content": "K7Q2N4",
+       "box": {
+        "x": 272,
+        "y": 148,
+        "width": 96,
+        "height": 96
+       }
+      }
+     ],
+     "lines": []
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "data-matrix",
+       "content": "K7Q2N4",
+       "box": {
+        "x": 272,
+        "y": 148,
+        "width": 96,
+        "height": 96
+       }
+      }
+     ],
+     "lines": []
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [
+     {
+      "type": "data-matrix",
+      "content": "K7Q2N4",
+      "box": {
+       "x": 272,
+       "y": 148,
+       "width": 96,
+       "height": 96
+      }
+     }
+    ],
+    "lines": []
+   }
+  },
+  {
+   "id": "code-ean13-glare",
+   "file": "images/code-ean13-glare.png",
+   "scenario": "none",
+   "description": "EAN-13 under glare: the live view misses it, the still picture reads it",
+   "effects": [
+    "glare"
+   ],
+   "codeTypes": [
+    "ean-13"
+   ],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "4000000045380"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": []
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": []
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": []
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [
+     {
+      "type": "ean-13",
+      "content": "4000000045380",
+      "box": {
+       "x": 147,
+       "y": 133,
+       "width": 346,
+       "height": 127
+      }
+     }
+    ],
+    "lines": []
+   }
+  },
+  {
+   "id": "code-aztec-rotated-faint",
+   "file": "images/code-aztec-rotated-faint.png",
+   "scenario": "none",
+   "description": "Aztec, rotated 30 degrees and faint",
+   "effects": [
+    "rotate",
+    "contrast"
+   ],
+   "codeTypes": [
+    "aztec"
+   ],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "SB-004513"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "aztec",
+       "content": "SB-004513",
+       "box": {
+        "x": 251,
+        "y": 127,
+        "width": 138,
+        "height": 138
+       }
+      }
+     ],
+     "lines": []
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "aztec",
+       "content": "SB-004513",
+       "box": {
+        "x": 251,
+        "y": 127,
+        "width": 138,
+        "height": 138
+       }
+      }
+     ],
+     "lines": []
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "aztec",
+       "content": "SB-004513",
+       "box": {
+        "x": 251,
+        "y": 127,
+        "width": 138,
+        "height": 138
+       }
+      }
+     ],
+     "lines": []
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [
+     {
+      "type": "aztec",
+      "content": "SB-004513",
+      "box": {
+       "x": 251,
+       "y": 127,
+       "width": 138,
+       "height": 138
+      }
+     }
+    ],
+    "lines": []
+   }
+  },
+  {
+   "id": "code-pdf417-blur",
+   "file": "images/code-pdf417-blur.png",
+   "scenario": "none",
+   "description": "PDF417, blurred",
+   "effects": [
+    "blur"
+   ],
+   "codeTypes": [
+    "pdf-417"
+   ],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "SB-004514"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": []
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": []
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "pdf-417",
+       "content": "SB-004514",
+       "box": {
+        "x": 209,
+        "y": 167,
+        "width": 222,
+        "height": 58
+       }
+      }
+     ],
+     "lines": []
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [
+     {
+      "type": "pdf-417",
+      "content": "SB-004514",
+      "box": {
+       "x": 209,
+       "y": 167,
+       "width": 222,
+       "height": 58
+      }
+     }
+    ],
+    "lines": []
+   }
+  },
+  {
+   "id": "code-heavy-blur",
+   "file": "images/code-heavy-blur.png",
+   "scenario": "none",
+   "description": "Code 128, heavily blurred: nothing can be read (a correct \"couldn't find\")",
+   "effects": [
+    "blur"
+   ],
+   "codeTypes": [
+    "code-128"
+   ],
+   "expect": {
+    "kind": "none"
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": []
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": []
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": []
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [],
+    "lines": []
+   }
+  },
+  {
+   "id": "bought-clean",
+   "file": "images/bought-clean.png",
+   "scenario": "bought",
+   "description": "Printed digits, clean",
+   "effects": [],
+   "codeTypes": [],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "045211"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 175,
+        "width": 319,
+        "height": 12
+       }
+      },
+      {
+       "text": "045211",
+       "box": {
+        "x": 241,
+        "y": 197,
+        "width": 159,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 175,
+        "width": 319,
+        "height": 12
+       }
+      },
+      {
+       "text": "045211",
+       "box": {
+        "x": 241,
+        "y": 197,
+        "width": 159,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 175,
+        "width": 319,
+        "height": 12
+       }
+      },
+      {
+       "text": "045211",
+       "box": {
+        "x": 241,
+        "y": 197,
+        "width": 159,
+        "height": 28
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [],
+    "lines": [
+     {
+      "text": "PROPERTY OF THE AUTHORITY",
+      "box": {
+       "x": 161,
+       "y": 175,
+       "width": 319,
+       "height": 12
+      }
+     },
+     {
+      "text": "045211",
+      "box": {
+       "x": 241,
+       "y": 197,
+       "width": 159,
+       "height": 28
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "bought-rotated",
+   "file": "images/bought-rotated.png",
+   "scenario": "bought",
+   "description": "Printed digits, rotated 8 degrees",
+   "effects": [
+    "rotate"
+   ],
+   "codeTypes": [],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "045229"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 175,
+        "width": 319,
+        "height": 12
+       }
+      },
+      {
+       "text": "045229",
+       "box": {
+        "x": 239,
+        "y": 197,
+        "width": 164,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 175,
+        "width": 319,
+        "height": 12
+       }
+      },
+      {
+       "text": "045229",
+       "box": {
+        "x": 239,
+        "y": 197,
+        "width": 164,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 175,
+        "width": 319,
+        "height": 12
+       }
+      },
+      {
+       "text": "045229",
+       "box": {
+        "x": 239,
+        "y": 197,
+        "width": 164,
+        "height": 28
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [],
+    "lines": [
+     {
+      "text": "PROPERTY OF THE AUTHORITY",
+      "box": {
+       "x": 161,
+       "y": 175,
+       "width": 319,
+       "height": 12
+      }
+     },
+     {
+      "text": "045229",
+      "box": {
+       "x": 239,
+       "y": 197,
+       "width": 164,
+       "height": 28
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "bought-blur",
+   "file": "images/bought-blur.png",
+   "scenario": "bought",
+   "description": "Printed digits, blurred: the frames disagree at first",
+   "effects": [
+    "blur"
+   ],
+   "codeTypes": [],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "100073"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "100013",
+       "box": {
+        "x": 239,
+        "y": 186,
+        "width": 162,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "100073",
+       "box": {
+        "x": 239,
+        "y": 186,
+        "width": 162,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "100073",
+       "box": {
+        "x": 239,
+        "y": 186,
+        "width": 162,
+        "height": 28
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [],
+    "lines": [
+     {
+      "text": "100073",
+      "box": {
+       "x": 239,
+       "y": 186,
+       "width": 162,
+       "height": 28
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "bought-glare",
+   "file": "images/bought-glare.png",
+   "scenario": "bought",
+   "description": "Printed digits under glare: part of the number in one frame",
+   "effects": [
+    "glare"
+   ],
+   "codeTypes": [],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "100081"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "0081",
+       "box": {
+        "x": 242,
+        "y": 186,
+        "width": 157,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "100081",
+       "box": {
+        "x": 242,
+        "y": 186,
+        "width": 157,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "100081",
+       "box": {
+        "x": 242,
+        "y": 186,
+        "width": 157,
+        "height": 28
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [],
+    "lines": [
+     {
+      "text": "100081",
+      "box": {
+       "x": 242,
+       "y": 186,
+       "width": 157,
+       "height": 28
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "bought-faint-lookalikes",
+   "file": "images/bought-faint-lookalikes.png",
+   "scenario": "bought",
+   "description": "Faint digits read with O for 0 and I for 1",
+   "effects": [
+    "contrast"
+   ],
+   "codeTypes": [],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "300111"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "3OOIII",
+       "box": {
+        "x": 241,
+        "y": 186,
+        "width": 159,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "3OOIII",
+       "box": {
+        "x": 241,
+        "y": 186,
+        "width": 159,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "3OOIII",
+       "box": {
+        "x": 241,
+        "y": 186,
+        "width": 159,
+        "height": 28
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [],
+    "lines": [
+     {
+      "text": "3OOIII",
+      "box": {
+       "x": 241,
+       "y": 186,
+       "width": 159,
+       "height": 28
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "bought-spaced",
+   "file": "images/bought-spaced.png",
+   "scenario": "bought",
+   "description": "Digits printed in two groups",
+   "effects": [],
+   "codeTypes": [],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "234567"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "234 567",
+       "box": {
+        "x": 224,
+        "y": 186,
+        "width": 192,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "234 567",
+       "box": {
+        "x": 224,
+        "y": 186,
+        "width": 192,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "234 567",
+       "box": {
+        "x": 224,
+        "y": 186,
+        "width": 192,
+        "height": 28
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [],
+    "lines": [
+     {
+      "text": "234 567",
+      "box": {
+       "x": 224,
+       "y": 186,
+       "width": 192,
+       "height": 28
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "bought-misread-still",
+   "file": "images/bought-misread-still.png",
+   "scenario": "bought",
+   "description": "A digit misread the same way in every frame (check digit fails); the still picture reads it",
+   "effects": [
+    "blur",
+    "noise"
+   ],
+   "codeTypes": [],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "300129"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "300729",
+       "box": {
+        "x": 238,
+        "y": 186,
+        "width": 164,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "300729",
+       "box": {
+        "x": 238,
+        "y": 186,
+        "width": 164,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "300729",
+       "box": {
+        "x": 238,
+        "y": 186,
+        "width": 164,
+        "height": 28
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [],
+    "lines": [
+     {
+      "text": "300129",
+      "box": {
+       "x": 238,
+       "y": 186,
+       "width": 164,
+       "height": 28
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "bought-label-words",
+   "file": "images/bought-label-words.png",
+   "scenario": "bought",
+   "description": "Digits among other printed words",
+   "effects": [],
+   "codeTypes": [],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "488106"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "DO NOT REMOVE",
+       "box": {
+        "x": 240,
+        "y": 175,
+        "width": 162,
+        "height": 12
+       }
+      },
+      {
+       "text": "ASSET NO 488106",
+       "box": {
+        "x": 107,
+        "y": 197,
+        "width": 427,
+        "height": 29
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "DO NOT REMOVE",
+       "box": {
+        "x": 240,
+        "y": 175,
+        "width": 162,
+        "height": 12
+       }
+      },
+      {
+       "text": "ASSET NO 488106",
+       "box": {
+        "x": 107,
+        "y": 197,
+        "width": 427,
+        "height": 29
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "DO NOT REMOVE",
+       "box": {
+        "x": 240,
+        "y": 175,
+        "width": 162,
+        "height": 12
+       }
+      },
+      {
+       "text": "ASSET NO 488106",
+       "box": {
+        "x": 107,
+        "y": 197,
+        "width": 427,
+        "height": 29
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [],
+    "lines": [
+     {
+      "text": "DO NOT REMOVE",
+      "box": {
+       "x": 240,
+       "y": 175,
+       "width": 162,
+       "height": 12
+      }
+     },
+     {
+      "text": "ASSET NO 488106",
+      "box": {
+       "x": 107,
+       "y": 197,
+       "width": 427,
+       "height": 29
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "bought-in-stock",
+   "file": "images/bought-in-stock.png",
+   "scenario": "bought",
+   "description": "A bought tag not attached yet (in stock)",
+   "effects": [],
+   "codeTypes": [],
+   "expect": {
+    "kind": "stock",
+    "values": [
+     "500017"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 175,
+        "width": 319,
+        "height": 12
+       }
+      },
+      {
+       "text": "500017",
+       "box": {
+        "x": 239,
+        "y": 197,
+        "width": 163,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 175,
+        "width": 319,
+        "height": 12
+       }
+      },
+      {
+       "text": "500017",
+       "box": {
+        "x": 239,
+        "y": 197,
+        "width": 163,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 175,
+        "width": 319,
+        "height": 12
+       }
+      },
+      {
+       "text": "500017",
+       "box": {
+        "x": 239,
+        "y": 197,
+        "width": 163,
+        "height": 28
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [],
+    "lines": [
+     {
+      "text": "PROPERTY OF THE AUTHORITY",
+      "box": {
+       "x": 161,
+       "y": 175,
+       "width": 319,
+       "height": 12
+      }
+     },
+     {
+      "text": "500017",
+      "box": {
+       "x": 239,
+       "y": 197,
+       "width": 163,
+       "height": 28
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "bought-unknown",
+   "file": "images/bought-unknown.png",
+   "scenario": "bought",
+   "description": "A number matching the format that nobody registered (a correct \"couldn't find\")",
+   "effects": [],
+   "codeTypes": [],
+   "expect": {
+    "kind": "none"
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "777771",
+       "box": {
+        "x": 242,
+        "y": 186,
+        "width": 157,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "777771",
+       "box": {
+        "x": 242,
+        "y": 186,
+        "width": 157,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "777771",
+       "box": {
+        "x": 242,
+        "y": 186,
+        "width": 157,
+        "height": 28
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [],
+    "lines": [
+     {
+      "text": "777771",
+      "box": {
+       "x": 242,
+       "y": 186,
+       "width": 157,
+       "height": 28
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "alnum-clean",
+   "file": "images/alnum-clean.png",
+   "scenario": "alnum",
+   "description": "Letters and digits, clean",
+   "effects": [],
+   "codeTypes": [],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "K7Q2MG"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 175,
+        "width": 319,
+        "height": 12
+       }
+      },
+      {
+       "text": "K7Q2MG",
+       "box": {
+        "x": 240,
+        "y": 197,
+        "width": 162,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 175,
+        "width": 319,
+        "height": 12
+       }
+      },
+      {
+       "text": "K7Q2MG",
+       "box": {
+        "x": 240,
+        "y": 197,
+        "width": 162,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 175,
+        "width": 319,
+        "height": 12
+       }
+      },
+      {
+       "text": "K7Q2MG",
+       "box": {
+        "x": 240,
+        "y": 197,
+        "width": 162,
+        "height": 28
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [],
+    "lines": [
+     {
+      "text": "PROPERTY OF THE AUTHORITY",
+      "box": {
+       "x": 161,
+       "y": 175,
+       "width": 319,
+       "height": 12
+      }
+     },
+     {
+      "text": "K7Q2MG",
+      "box": {
+       "x": 240,
+       "y": 197,
+       "width": 162,
+       "height": 28
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "alnum-rotated",
+   "file": "images/alnum-rotated.png",
+   "scenario": "alnum",
+   "description": "Letters and digits, rotated 12 degrees",
+   "effects": [
+    "rotate"
+   ],
+   "codeTypes": [],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "H4X9PF"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "H4X9PF",
+       "box": {
+        "x": 240,
+        "y": 186,
+        "width": 161,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "H4X9PF",
+       "box": {
+        "x": 240,
+        "y": 186,
+        "width": 161,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "H4X9PF",
+       "box": {
+        "x": 240,
+        "y": 186,
+        "width": 161,
+        "height": 28
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [],
+    "lines": [
+     {
+      "text": "H4X9PF",
+      "box": {
+       "x": 240,
+       "y": 186,
+       "width": 161,
+       "height": 28
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "alnum-blur",
+   "file": "images/alnum-blur.png",
+   "scenario": "alnum",
+   "description": "Letters and digits, blurred",
+   "effects": [
+    "blur"
+   ],
+   "codeTypes": [],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "R2D2KN"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": []
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "R2D2KN",
+       "box": {
+        "x": 240,
+        "y": 186,
+        "width": 161,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "R2D2KN",
+       "box": {
+        "x": 240,
+        "y": 186,
+        "width": 161,
+        "height": 28
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [],
+    "lines": [
+     {
+      "text": "R2D2KN",
+      "box": {
+       "x": 240,
+       "y": 186,
+       "width": 161,
+       "height": 28
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "alnum-ambiguous",
+   "file": "images/alnum-ambiguous.png",
+   "scenario": "alnum",
+   "description": "Ambiguous characters (B/8, S/5, O/0) read the other way: variants go to the server",
+   "effects": [
+    "contrast"
+   ],
+   "codeTypes": [],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "B8S5OW"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "88550W",
+       "box": {
+        "x": 238,
+        "y": 186,
+        "width": 164,
+        "height": 29
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "88550W",
+       "box": {
+        "x": 238,
+        "y": 186,
+        "width": 164,
+        "height": 29
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "88550W",
+       "box": {
+        "x": 238,
+        "y": 186,
+        "width": 164,
+        "height": 29
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [],
+    "lines": [
+     {
+      "text": "88550W",
+      "box": {
+       "x": 238,
+       "y": 186,
+       "width": 164,
+       "height": 29
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "alnum-faint",
+   "file": "images/alnum-faint.png",
+   "scenario": "alnum",
+   "description": "Letters and digits, faint and noisy",
+   "effects": [
+    "contrast",
+    "noise"
+   ],
+   "codeTypes": [],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "Z9W3TE"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "Z9W3TE",
+       "box": {
+        "x": 240,
+        "y": 186,
+        "width": 161,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "Z9W3TE",
+       "box": {
+        "x": 240,
+        "y": 186,
+        "width": 161,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "Z9W3TE",
+       "box": {
+        "x": 240,
+        "y": 186,
+        "width": 161,
+        "height": 28
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [],
+    "lines": [
+     {
+      "text": "Z9W3TE",
+      "box": {
+       "x": 240,
+       "y": 186,
+       "width": 161,
+       "height": 28
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "printed-clean",
+   "file": "images/printed-clean.png",
+   "scenario": "printed",
+   "description": "TA- and digits, clean (confirmed by the person)",
+   "effects": [],
+   "codeTypes": [],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "TA-118342"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 175,
+        "width": 319,
+        "height": 12
+       }
+      },
+      {
+       "text": "TA-118342",
+       "box": {
+        "x": 195,
+        "y": 197,
+        "width": 252,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 175,
+        "width": 319,
+        "height": 12
+       }
+      },
+      {
+       "text": "TA-118342",
+       "box": {
+        "x": 195,
+        "y": 197,
+        "width": 252,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 175,
+        "width": 319,
+        "height": 12
+       }
+      },
+      {
+       "text": "TA-118342",
+       "box": {
+        "x": 195,
+        "y": 197,
+        "width": 252,
+        "height": 28
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [],
+    "lines": [
+     {
+      "text": "PROPERTY OF THE AUTHORITY",
+      "box": {
+       "x": 161,
+       "y": 175,
+       "width": 319,
+       "height": 12
+      }
+     },
+     {
+      "text": "TA-118342",
+      "box": {
+       "x": 195,
+       "y": 197,
+       "width": 252,
+       "height": 28
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "printed-spaced",
+   "file": "images/printed-spaced.png",
+   "scenario": "printed",
+   "description": "TA- and digits in two groups",
+   "effects": [],
+   "codeTypes": [],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "TA-118351"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "TA-118 351",
+       "box": {
+        "x": 182,
+        "y": 186,
+        "width": 277,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "TA-118 351",
+       "box": {
+        "x": 182,
+        "y": 186,
+        "width": 277,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "TA-118 351",
+       "box": {
+        "x": 182,
+        "y": 186,
+        "width": 277,
+        "height": 28
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [],
+    "lines": [
+     {
+      "text": "TA-118 351",
+      "box": {
+       "x": 182,
+       "y": 186,
+       "width": 277,
+       "height": 28
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "printed-decoy",
+   "file": "images/printed-decoy.png",
+   "scenario": "printed",
+   "description": "An 8 read as a 3 in every frame gives another tag's number: only offered, never opened; the still picture reads it",
+   "effects": [
+    "blur"
+   ],
+   "codeTypes": [],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "TA-118342"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "TA-113342",
+       "box": {
+        "x": 194,
+        "y": 186,
+        "width": 252,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "TA-113342",
+       "box": {
+        "x": 194,
+        "y": 186,
+        "width": 252,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "TA-113342",
+       "box": {
+        "x": 194,
+        "y": 186,
+        "width": 252,
+        "height": 28
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [],
+    "lines": [
+     {
+      "text": "TA-118342",
+      "box": {
+       "x": 194,
+       "y": 186,
+       "width": 252,
+       "height": 28
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "printed-lookalikes",
+   "file": "images/printed-lookalikes.png",
+   "scenario": "printed",
+   "description": "Faint: O read for 0",
+   "effects": [
+    "contrast"
+   ],
+   "codeTypes": [],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "TA-100200"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "TA-1OO2OO",
+       "box": {
+        "x": 194,
+        "y": 186,
+        "width": 252,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "TA-1OO2OO",
+       "box": {
+        "x": 194,
+        "y": 186,
+        "width": 252,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "TA-1OO2OO",
+       "box": {
+        "x": 194,
+        "y": 186,
+        "width": 252,
+        "height": 28
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [],
+    "lines": [
+     {
+      "text": "TA-1OO2OO",
+      "box": {
+       "x": 194,
+       "y": 186,
+       "width": 252,
+       "height": 28
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "extract-qr-address",
+   "file": "images/extract-qr-address.png",
+   "scenario": "extract",
+   "description": "QR code holding a web address with the value in it",
+   "effects": [],
+   "codeTypes": [
+    "qr-code"
+   ],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "K7Q2P1"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "qr-code",
+       "content": "https://labels.example.org/t?ID=K7Q2P1&lot=4",
+       "box": {
+        "x": 209,
+        "y": 85,
+        "width": 222,
+        "height": 222
+       }
+      }
+     ],
+     "lines": []
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "qr-code",
+       "content": "https://labels.example.org/t?ID=K7Q2P1&lot=4",
+       "box": {
+        "x": 209,
+        "y": 85,
+        "width": 222,
+        "height": 222
+       }
+      }
+     ],
+     "lines": []
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "qr-code",
+       "content": "https://labels.example.org/t?ID=K7Q2P1&lot=4",
+       "box": {
+        "x": 209,
+        "y": 85,
+        "width": 222,
+        "height": 222
+       }
+      }
+     ],
+     "lines": []
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [
+     {
+      "type": "qr-code",
+      "content": "https://labels.example.org/t?ID=K7Q2P1&lot=4",
+      "box": {
+       "x": 209,
+       "y": 85,
+       "width": 222,
+       "height": 222
+      }
+     }
+    ],
+    "lines": []
+   }
+  },
+  {
+   "id": "extract-dm-fields",
+   "file": "images/extract-dm-fields.png",
+   "scenario": "extract",
+   "description": "Data Matrix holding several fields",
+   "effects": [
+    "rotate"
+   ],
+   "codeTypes": [
+    "data-matrix"
+   ],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "H4X9Q2"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "data-matrix",
+       "content": "SUP:12|ID:H4X9Q2|LOT:7",
+       "box": {
+        "x": 248,
+        "y": 124,
+        "width": 144,
+        "height": 144
+       }
+      }
+     ],
+     "lines": []
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "data-matrix",
+       "content": "SUP:12|ID:H4X9Q2|LOT:7",
+       "box": {
+        "x": 248,
+        "y": 124,
+        "width": 144,
+        "height": 144
+       }
+      }
+     ],
+     "lines": []
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "data-matrix",
+       "content": "SUP:12|ID:H4X9Q2|LOT:7",
+       "box": {
+        "x": 248,
+        "y": 124,
+        "width": 144,
+        "height": 144
+       }
+      }
+     ],
+     "lines": []
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [
+     {
+      "type": "data-matrix",
+      "content": "SUP:12|ID:H4X9Q2|LOT:7",
+      "box": {
+       "x": 248,
+       "y": 124,
+       "width": 144,
+       "height": 144
+      }
+     }
+    ],
+    "lines": []
+   }
+  },
+  {
+   "id": "extract-128-plain",
+   "file": "images/extract-128-plain.png",
+   "scenario": "extract",
+   "description": "Code 128 holding just the value",
+   "effects": [],
+   "codeTypes": [
+    "code-128"
+   ],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "R2D2K9"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "code-128",
+       "content": "R2D2K9",
+       "box": {
+        "x": 139,
+        "y": 133,
+        "width": 363,
+        "height": 127
+       }
+      }
+     ],
+     "lines": []
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "code-128",
+       "content": "R2D2K9",
+       "box": {
+        "x": 139,
+        "y": 133,
+        "width": 363,
+        "height": 127
+       }
+      }
+     ],
+     "lines": []
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "code-128",
+       "content": "R2D2K9",
+       "box": {
+        "x": 139,
+        "y": 133,
+        "width": 363,
+        "height": 127
+       }
+      }
+     ],
+     "lines": []
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [
+     {
+      "type": "code-128",
+      "content": "R2D2K9",
+      "box": {
+       "x": 139,
+       "y": 133,
+       "width": 363,
+       "height": 127
+      }
+     }
+    ],
+    "lines": []
+   }
+  },
+  {
+   "id": "both-agree",
+   "file": "images/both-agree.png",
+   "scenario": "bought",
+   "description": "Code 128 and printed digits that agree",
+   "effects": [],
+   "codeTypes": [
+    "code-128"
+   ],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "610014"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "code-128",
+       "content": "610014",
+       "box": {
+        "x": 188,
+        "y": 119,
+        "width": 264,
+        "height": 127
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "610014",
+       "box": {
+        "x": 238,
+        "y": 254,
+        "width": 165,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "code-128",
+       "content": "610014",
+       "box": {
+        "x": 188,
+        "y": 119,
+        "width": 264,
+        "height": 127
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "610014",
+       "box": {
+        "x": 238,
+        "y": 254,
+        "width": 165,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "code-128",
+       "content": "610014",
+       "box": {
+        "x": 188,
+        "y": 119,
+        "width": 264,
+        "height": 127
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "610014",
+       "box": {
+        "x": 238,
+        "y": 254,
+        "width": 165,
+        "height": 28
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [
+     {
+      "type": "code-128",
+      "content": "610014",
+      "box": {
+       "x": 188,
+       "y": 119,
+       "width": 264,
+       "height": 127
+      }
+     }
+    ],
+    "lines": [
+     {
+      "text": "610014",
+      "box": {
+       "x": 238,
+       "y": 254,
+       "width": 165,
+       "height": 28
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "both-text-misread",
+   "file": "images/both-text-misread.png",
+   "scenario": "none",
+   "description": "Code and text disagree (text misread): the code wins",
+   "effects": [
+    "blur"
+   ],
+   "codeTypes": [
+    "code-128"
+   ],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "004520"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "code-128",
+       "content": "004520",
+       "box": {
+        "x": 188,
+        "y": 119,
+        "width": 264,
+        "height": 127
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "004527",
+       "box": {
+        "x": 238,
+        "y": 254,
+        "width": 164,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "code-128",
+       "content": "004520",
+       "box": {
+        "x": 188,
+        "y": 119,
+        "width": 264,
+        "height": 127
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "004527",
+       "box": {
+        "x": 238,
+        "y": 254,
+        "width": 164,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "code-128",
+       "content": "004520",
+       "box": {
+        "x": 188,
+        "y": 119,
+        "width": 264,
+        "height": 127
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "004527",
+       "box": {
+        "x": 238,
+        "y": 254,
+        "width": 164,
+        "height": 28
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [
+     {
+      "type": "code-128",
+      "content": "004520",
+      "box": {
+       "x": 188,
+       "y": 119,
+       "width": 264,
+       "height": 127
+      }
+     }
+    ],
+    "lines": [
+     {
+      "text": "004527",
+      "box": {
+       "x": 238,
+       "y": 254,
+       "width": 164,
+       "height": 28
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "both-code-lost",
+   "file": "images/both-code-lost.png",
+   "scenario": "bought",
+   "description": "Code too blurred to decode, digits readable",
+   "effects": [
+    "blur"
+   ],
+   "codeTypes": [
+    "code-128"
+   ],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "610022"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "610022",
+       "box": {
+        "x": 238,
+        "y": 254,
+        "width": 164,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "610022",
+       "box": {
+        "x": 238,
+        "y": 254,
+        "width": 164,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "610022",
+       "box": {
+        "x": 238,
+        "y": 254,
+        "width": 164,
+        "height": 28
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [],
+    "lines": [
+     {
+      "text": "610022",
+      "box": {
+       "x": 238,
+       "y": 254,
+       "width": 164,
+       "height": 28
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "both-qr-and-text",
+   "file": "images/both-qr-and-text.png",
+   "scenario": "none",
+   "description": "QR code with the value printed beside it",
+   "effects": [],
+   "codeTypes": [
+    "qr-code"
+   ],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "TA-118355"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "qr-code",
+       "content": "TA-118355",
+       "box": {
+        "x": 246,
+        "y": 118,
+        "width": 150,
+        "height": 150
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 96,
+        "width": 319,
+        "height": 12
+       }
+      },
+      {
+       "text": "TA-118355",
+       "box": {
+        "x": 195,
+        "y": 276,
+        "width": 251,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "qr-code",
+       "content": "TA-118355",
+       "box": {
+        "x": 246,
+        "y": 118,
+        "width": 150,
+        "height": 150
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 96,
+        "width": 319,
+        "height": 12
+       }
+      },
+      {
+       "text": "TA-118355",
+       "box": {
+        "x": 195,
+        "y": 276,
+        "width": 251,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "qr-code",
+       "content": "TA-118355",
+       "box": {
+        "x": 246,
+        "y": 118,
+        "width": 150,
+        "height": 150
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 96,
+        "width": 319,
+        "height": 12
+       }
+      },
+      {
+       "text": "TA-118355",
+       "box": {
+        "x": 195,
+        "y": 276,
+        "width": 251,
+        "height": 28
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [
+     {
+      "type": "qr-code",
+      "content": "TA-118355",
+      "box": {
+       "x": 246,
+       "y": 118,
+       "width": 150,
+       "height": 150
+      }
+     }
+    ],
+    "lines": [
+     {
+      "text": "PROPERTY OF THE AUTHORITY",
+      "box": {
+       "x": 161,
+       "y": 96,
+       "width": 319,
+       "height": 12
+      }
+     },
+     {
+      "text": "TA-118355",
+      "box": {
+       "x": 195,
+       "y": 276,
+       "width": 251,
+       "height": 28
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "both-rotated-glare",
+   "file": "images/both-rotated-glare.png",
+   "scenario": "alnum",
+   "description": "Data Matrix and text, rotated with glare",
+   "effects": [
+    "rotate",
+    "glare"
+   ],
+   "codeTypes": [
+    "data-matrix"
+   ],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "K7Q2NE"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "data-matrix",
+       "content": "K7Q2NE",
+       "box": {
+        "x": 272,
+        "y": 134,
+        "width": 96,
+        "height": 96
+       }
+      }
+     ],
+     "lines": []
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "data-matrix",
+       "content": "K7Q2NE",
+       "box": {
+        "x": 272,
+        "y": 134,
+        "width": 96,
+        "height": 96
+       }
+      }
+     ],
+     "lines": []
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "data-matrix",
+       "content": "K7Q2NE",
+       "box": {
+        "x": 272,
+        "y": 134,
+        "width": 96,
+        "height": 96
+       }
+      }
+     ],
+     "lines": []
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [
+     {
+      "type": "data-matrix",
+      "content": "K7Q2NE",
+      "box": {
+       "x": 272,
+       "y": 134,
+       "width": 96,
+       "height": 96
+      }
+     }
+    ],
+    "lines": []
+   }
+  },
+  {
+   "id": "plain-digits",
+   "file": "images/plain-digits.png",
+   "scenario": "none",
+   "description": "Printed digits, no format (confirmed by the person)",
+   "effects": [],
+   "codeTypes": [],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "004530"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 175,
+        "width": 319,
+        "height": 12
+       }
+      },
+      {
+       "text": "004530",
+       "box": {
+        "x": 239,
+        "y": 197,
+        "width": 164,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 175,
+        "width": 319,
+        "height": 12
+       }
+      },
+      {
+       "text": "004530",
+       "box": {
+        "x": 239,
+        "y": 197,
+        "width": 164,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 175,
+        "width": 319,
+        "height": 12
+       }
+      },
+      {
+       "text": "004530",
+       "box": {
+        "x": 239,
+        "y": 197,
+        "width": 164,
+        "height": 28
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [],
+    "lines": [
+     {
+      "text": "PROPERTY OF THE AUTHORITY",
+      "box": {
+       "x": 161,
+       "y": 175,
+       "width": 319,
+       "height": 12
+      }
+     },
+     {
+      "text": "004530",
+      "box": {
+       "x": 239,
+       "y": 197,
+       "width": 164,
+       "height": 28
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "plain-letters-digits",
+   "file": "images/plain-letters-digits.png",
+   "scenario": "none",
+   "description": "Printed letters and digits, no format",
+   "effects": [
+    "rotate"
+   ],
+   "codeTypes": [],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "SB-004516"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "SB-004516",
+       "box": {
+        "x": 195,
+        "y": 186,
+        "width": 251,
+        "height": 29
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "SB-004516",
+       "box": {
+        "x": 195,
+        "y": 186,
+        "width": 251,
+        "height": 29
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "SB-004516",
+       "box": {
+        "x": 195,
+        "y": 186,
+        "width": 251,
+        "height": 29
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [],
+    "lines": [
+     {
+      "text": "SB-004516",
+      "box": {
+       "x": 195,
+       "y": 186,
+       "width": 251,
+       "height": 29
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "plain-misread-decoy",
+   "file": "images/plain-misread-decoy.png",
+   "scenario": "none",
+   "description": "No format, 1 read as 7 everywhere, matching another tag: only offered; the still picture reads it",
+   "effects": [
+    "blur"
+   ],
+   "codeTypes": [],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "004521"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "004527",
+       "box": {
+        "x": 241,
+        "y": 186,
+        "width": 158,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "004527",
+       "box": {
+        "x": 241,
+        "y": 186,
+        "width": 158,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "004527",
+       "box": {
+        "x": 241,
+        "y": 186,
+        "width": 158,
+        "height": 28
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [],
+    "lines": [
+     {
+      "text": "004521",
+      "box": {
+       "x": 241,
+       "y": 186,
+       "width": 158,
+       "height": 28
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "plain-label-only",
+   "file": "images/plain-label-only.png",
+   "scenario": "none",
+   "description": "A label with words and no number (a correct \"couldn't find\")",
+   "effects": [],
+   "codeTypes": [],
+   "expect": {
+    "kind": "none"
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 175,
+        "width": 319,
+        "height": 12
+       }
+      },
+      {
+       "text": "DO NOT REMOVE",
+       "box": {
+        "x": 137,
+        "y": 197,
+        "width": 366,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 175,
+        "width": 319,
+        "height": 12
+       }
+      },
+      {
+       "text": "DO NOT REMOVE",
+       "box": {
+        "x": 137,
+        "y": 197,
+        "width": 366,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "PROPERTY OF THE AUTHORITY",
+       "box": {
+        "x": 161,
+        "y": 175,
+        "width": 319,
+        "height": 12
+       }
+      },
+      {
+       "text": "DO NOT REMOVE",
+       "box": {
+        "x": 137,
+        "y": 197,
+        "width": 366,
+        "height": 28
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [],
+    "lines": [
+     {
+      "text": "PROPERTY OF THE AUTHORITY",
+      "box": {
+       "x": 161,
+       "y": 175,
+       "width": 319,
+       "height": 12
+      }
+     },
+     {
+      "text": "DO NOT REMOVE",
+      "box": {
+       "x": 137,
+       "y": 197,
+       "width": 366,
+       "height": 28
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "plain-faint",
+   "file": "images/plain-faint.png",
+   "scenario": "none",
+   "description": "Faint printed digits, no format",
+   "effects": [
+    "contrast",
+    "noise"
+   ],
+   "codeTypes": [],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "004531"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "004531",
+       "box": {
+        "x": 241,
+        "y": 186,
+        "width": 158,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "004531",
+       "box": {
+        "x": 241,
+        "y": 186,
+        "width": 158,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "004531",
+       "box": {
+        "x": 241,
+        "y": 186,
+        "width": 158,
+        "height": 28
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [],
+    "lines": [
+     {
+      "text": "004531",
+      "box": {
+       "x": 241,
+       "y": 186,
+       "width": 158,
+       "height": 28
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "shelf-codes",
+   "file": "images/shelf-codes.png",
+   "scenario": "none",
+   "description": "Three coded tags on a shelf",
+   "effects": [],
+   "codeTypes": [
+    "code-128",
+    "qr-code",
+    "data-matrix"
+   ],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "004601",
+     "TA-118401",
+     "K7Q4M1"
+    ]
+   },
+   "live": [
+    {
+     "width": 1200,
+     "height": 400,
+     "codes": [
+      {
+       "type": "code-128",
+       "content": "004601",
+       "box": {
+        "x": 68,
+        "y": 133,
+        "width": 264,
+        "height": 127
+       }
+      },
+      {
+       "type": "qr-code",
+       "content": "TA-118401",
+       "box": {
+        "x": 525,
+        "y": 121,
+        "width": 150,
+        "height": 150
+       }
+      },
+      {
+       "type": "data-matrix",
+       "content": "K7Q4M1",
+       "box": {
+        "x": 952,
+        "y": 148,
+        "width": 96,
+        "height": 96
+       }
+      }
+     ],
+     "lines": []
+    },
+    {
+     "width": 1200,
+     "height": 400,
+     "codes": [
+      {
+       "type": "code-128",
+       "content": "004601",
+       "box": {
+        "x": 68,
+        "y": 133,
+        "width": 264,
+        "height": 127
+       }
+      },
+      {
+       "type": "qr-code",
+       "content": "TA-118401",
+       "box": {
+        "x": 525,
+        "y": 121,
+        "width": 150,
+        "height": 150
+       }
+      },
+      {
+       "type": "data-matrix",
+       "content": "K7Q4M1",
+       "box": {
+        "x": 952,
+        "y": 148,
+        "width": 96,
+        "height": 96
+       }
+      }
+     ],
+     "lines": []
+    },
+    {
+     "width": 1200,
+     "height": 400,
+     "codes": [
+      {
+       "type": "code-128",
+       "content": "004601",
+       "box": {
+        "x": 68,
+        "y": 133,
+        "width": 264,
+        "height": 127
+       }
+      },
+      {
+       "type": "qr-code",
+       "content": "TA-118401",
+       "box": {
+        "x": 525,
+        "y": 121,
+        "width": 150,
+        "height": 150
+       }
+      },
+      {
+       "type": "data-matrix",
+       "content": "K7Q4M1",
+       "box": {
+        "x": 952,
+        "y": 148,
+        "width": 96,
+        "height": 96
+       }
+      }
+     ],
+     "lines": []
+    }
+   ],
+   "still": {
+    "width": 1200,
+    "height": 400,
+    "still": true,
+    "codes": [
+     {
+      "type": "code-128",
+      "content": "004601",
+      "box": {
+       "x": 68,
+       "y": 133,
+       "width": 264,
+       "height": 127
+      }
+     },
+     {
+      "type": "qr-code",
+      "content": "TA-118401",
+      "box": {
+       "x": 525,
+       "y": 121,
+       "width": 150,
+       "height": 150
+      }
+     },
+     {
+      "type": "data-matrix",
+      "content": "K7Q4M1",
+      "box": {
+       "x": 952,
+       "y": 148,
+       "width": 96,
+       "height": 96
+      }
+     }
+    ],
+    "lines": []
+   }
+  },
+  {
+   "id": "shelf-bought-text",
+   "file": "images/shelf-bought-text.png",
+   "scenario": "bought",
+   "description": "Three printed bought tags on a shelf",
+   "effects": [
+    "rotate"
+   ],
+   "codeTypes": [],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "700013",
+     "700021",
+     "700039"
+    ]
+   },
+   "live": [
+    {
+     "width": 1200,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "700013",
+       "box": {
+        "x": 119,
+        "y": 186,
+        "width": 163,
+        "height": 28
+       }
+      },
+      {
+       "text": "700021",
+       "box": {
+        "x": 522,
+        "y": 186,
+        "width": 157,
+        "height": 28
+       }
+      },
+      {
+       "text": "700039",
+       "box": {
+        "x": 919,
+        "y": 186,
+        "width": 163,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 1200,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "700013",
+       "box": {
+        "x": 119,
+        "y": 186,
+        "width": 163,
+        "height": 28
+       }
+      },
+      {
+       "text": "700021",
+       "box": {
+        "x": 522,
+        "y": 186,
+        "width": 157,
+        "height": 28
+       }
+      },
+      {
+       "text": "700039",
+       "box": {
+        "x": 919,
+        "y": 186,
+        "width": 163,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 1200,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "700013",
+       "box": {
+        "x": 119,
+        "y": 186,
+        "width": 163,
+        "height": 28
+       }
+      },
+      {
+       "text": "700021",
+       "box": {
+        "x": 522,
+        "y": 186,
+        "width": 157,
+        "height": 28
+       }
+      },
+      {
+       "text": "700039",
+       "box": {
+        "x": 919,
+        "y": 186,
+        "width": 163,
+        "height": 28
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 1200,
+    "height": 400,
+    "still": true,
+    "codes": [],
+    "lines": [
+     {
+      "text": "700013",
+      "box": {
+       "x": 119,
+       "y": 186,
+       "width": 163,
+       "height": 28
+      }
+     },
+     {
+      "text": "700021",
+      "box": {
+       "x": 522,
+       "y": 186,
+       "width": 157,
+       "height": 28
+      }
+     },
+     {
+      "text": "700039",
+      "box": {
+       "x": 919,
+       "y": 186,
+       "width": 163,
+       "height": 28
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "shelf-mixed",
+   "file": "images/shelf-mixed.png",
+   "scenario": "bought",
+   "description": "A coded tag and a printed tag side by side",
+   "effects": [],
+   "codeTypes": [
+    "code-128"
+   ],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "700047",
+     "700054"
+    ]
+   },
+   "live": [
+    {
+     "width": 800,
+     "height": 400,
+     "codes": [
+      {
+       "type": "code-128",
+       "content": "700047",
+       "box": {
+        "x": 68,
+        "y": 133,
+        "width": 264,
+        "height": 127
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "700054",
+       "box": {
+        "x": 519,
+        "y": 186,
+        "width": 162,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 800,
+     "height": 400,
+     "codes": [
+      {
+       "type": "code-128",
+       "content": "700047",
+       "box": {
+        "x": 68,
+        "y": 133,
+        "width": 264,
+        "height": 127
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "700054",
+       "box": {
+        "x": 519,
+        "y": 186,
+        "width": 162,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 800,
+     "height": 400,
+     "codes": [
+      {
+       "type": "code-128",
+       "content": "700047",
+       "box": {
+        "x": 68,
+        "y": 133,
+        "width": 264,
+        "height": 127
+       }
+      }
+     ],
+     "lines": [
+      {
+       "text": "700054",
+       "box": {
+        "x": 519,
+        "y": 186,
+        "width": 162,
+        "height": 28
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 800,
+    "height": 400,
+    "still": true,
+    "codes": [
+     {
+      "type": "code-128",
+      "content": "700047",
+      "box": {
+       "x": 68,
+       "y": 133,
+       "width": 264,
+       "height": 127
+      }
+     }
+    ],
+    "lines": [
+     {
+      "text": "700054",
+      "box": {
+       "x": 519,
+       "y": 186,
+       "width": 162,
+       "height": 28
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "shelf-with-stock",
+   "file": "images/shelf-with-stock.png",
+   "scenario": "bought",
+   "description": "An attached tag next to one still in stock",
+   "effects": [],
+   "codeTypes": [],
+   "expect": {
+    "kind": "record",
+    "values": [
+     "700062"
+    ],
+    "stock": [
+     "500025"
+    ]
+   },
+   "live": [
+    {
+     "width": 800,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "700062",
+       "box": {
+        "x": 119,
+        "y": 186,
+        "width": 162,
+        "height": 28
+       }
+      },
+      {
+       "text": "500025",
+       "box": {
+        "x": 520,
+        "y": 186,
+        "width": 161,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 800,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "700062",
+       "box": {
+        "x": 119,
+        "y": 186,
+        "width": 162,
+        "height": 28
+       }
+      },
+      {
+       "text": "500025",
+       "box": {
+        "x": 520,
+        "y": 186,
+        "width": 161,
+        "height": 28
+       }
+      }
+     ]
+    },
+    {
+     "width": 800,
+     "height": 400,
+     "codes": [],
+     "lines": [
+      {
+       "text": "700062",
+       "box": {
+        "x": 119,
+        "y": 186,
+        "width": 162,
+        "height": 28
+       }
+      },
+      {
+       "text": "500025",
+       "box": {
+        "x": 520,
+        "y": 186,
+        "width": 161,
+        "height": 28
+       }
+      }
+     ]
+    }
+   ],
+   "still": {
+    "width": 800,
+    "height": 400,
+    "still": true,
+    "codes": [],
+    "lines": [
+     {
+      "text": "700062",
+      "box": {
+       "x": 119,
+       "y": 186,
+       "width": 162,
+       "height": 28
+      }
+     },
+     {
+      "text": "500025",
+      "box": {
+       "x": 520,
+       "y": 186,
+       "width": 161,
+       "height": 28
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "code-unknown",
+   "file": "images/code-unknown.png",
+   "scenario": "none",
+   "description": "A code whose value is not registered (a correct \"couldn't find\")",
+   "effects": [],
+   "codeTypes": [
+    "code-128"
+   ],
+   "expect": {
+    "kind": "none"
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "code-128",
+       "content": "009001",
+       "box": {
+        "x": 188,
+        "y": 133,
+        "width": 264,
+        "height": 127
+       }
+      }
+     ],
+     "lines": []
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "code-128",
+       "content": "009001",
+       "box": {
+        "x": 188,
+        "y": 133,
+        "width": 264,
+        "height": 127
+       }
+      }
+     ],
+     "lines": []
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "code-128",
+       "content": "009001",
+       "box": {
+        "x": 188,
+        "y": 133,
+        "width": 264,
+        "height": 127
+       }
+      }
+     ],
+     "lines": []
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [
+     {
+      "type": "code-128",
+      "content": "009001",
+      "box": {
+       "x": 188,
+       "y": 133,
+       "width": 264,
+       "height": 127
+      }
+     }
+    ],
+    "lines": []
+   }
+  },
+  {
+   "id": "code-in-stock",
+   "file": "images/code-in-stock.png",
+   "scenario": "none",
+   "description": "A coded tag in stock, not attached",
+   "effects": [],
+   "codeTypes": [
+    "code-128"
+   ],
+   "expect": {
+    "kind": "stock",
+    "values": [
+     "008001"
+    ]
+   },
+   "live": [
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "code-128",
+       "content": "008001",
+       "box": {
+        "x": 188,
+        "y": 133,
+        "width": 264,
+        "height": 127
+       }
+      }
+     ],
+     "lines": []
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "code-128",
+       "content": "008001",
+       "box": {
+        "x": 188,
+        "y": 133,
+        "width": 264,
+        "height": 127
+       }
+      }
+     ],
+     "lines": []
+    },
+    {
+     "width": 640,
+     "height": 400,
+     "codes": [
+      {
+       "type": "code-128",
+       "content": "008001",
+       "box": {
+        "x": 188,
+        "y": 133,
+        "width": 264,
+        "height": 127
+       }
+      }
+     ],
+     "lines": []
+    }
+   ],
+   "still": {
+    "width": 640,
+    "height": 400,
+    "still": true,
+    "codes": [
+     {
+      "type": "code-128",
+      "content": "008001",
+      "box": {
+       "x": 188,
+       "y": 133,
+       "width": 264,
+       "height": 127
+      }
+     }
+    ],
+    "lines": []
+   }
+  }
+ ]
+}

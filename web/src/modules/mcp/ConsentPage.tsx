@@ -2,7 +2,7 @@
 // The connector sends the person here; signed in, they see who is asking and choose what it may
 // do. The server checks the request (POST /api/mcp/oauth/authorize) and, on a decision, answers
 // where the browser goes next: the connector's registered address with a code or an error.
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { api, Button, Card, ErrorState, errorMessage, formatDate, Loading, PageHeader, Select, useAuth } from '../../core';
 import { Notice } from '../admin/common';
 import { withReauth } from '../admin/reauth';
@@ -35,7 +35,17 @@ function leaveFor(url: string) {
   }
 }
 
+// The mobile app's sign-in (wave 13, E38-02) uses this same address; its page lives in the mobile module.
+const MOBILE_CLIENT_ID = 'com.sandpipergrc';
+const MobileSignIn = lazy(() => import('../mobile/SignIn').then((m) => ({ default: m.MobileSignInPage })));
+
 export function ConsentPage() {
+  const fromApp = useMemo(() => new URLSearchParams(window.location.search).get('client_id') === MOBILE_CLIENT_ID, []);
+  if (fromApp) return <Suspense fallback={<Loading lines={4} label="Checking the request" />}><MobileSignIn /></Suspense>;
+  return <AssistantConsentPage />;
+}
+
+function AssistantConsentPage() {
   const { user } = useAuth();
   const params = useMemo(() => {
     const q = new URLSearchParams(window.location.search);

@@ -7,6 +7,7 @@
 !vite.config.ts
 !web/
 !server/
+!shared/
 !docs/user/
 !deploy/healthcheck.mjs
 !deploy/grc
@@ -16,6 +17,7 @@ server/src/**/*.test.ts
 server/src/test/
 web/src/**/*.test.ts
 web/src/**/*.test.tsx
+shared/**/*.test.ts
 **/*.pem
 **/*.key
 **/*.pfx

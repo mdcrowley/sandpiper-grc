@@ -227,6 +227,21 @@ export const ROUTE_HELP: RouteHelp[] = [
   { prefix: '/admin/log-forwarding', page: '35-user-provisioning-and-log-forwarding', section: 'log-forwarding' },
   { prefix: '/account/calendar-feeds', page: '36-calendar-feeds-work-trackers-and-evidence-links', section: 'calendar-feeds' },
   { prefix: '/admin/calendar-and-work-trackers', page: '36-calendar-feeds-work-trackers-and-evidence-links' },
+
+  // Asset tags
+  { prefix: '/inventory-counts', exact: true, page: '38-asset-tags', section: 'inventory-counts' },
+  { prefix: '/inventory-counts/report', page: '38-asset-tags', section: 'the-count-report' },
+  { prefix: '/inventory-counts/', page: '38-asset-tags', section: 'counting' },
+  { prefix: '/admin/asset-tags', exact: true, page: '38-asset-tags', section: 'tag-formats' },
+  { prefix: '/admin/asset-tags/stock', page: '38-asset-tags', section: 'tag-stock' },
+  { prefix: '/admin/asset-tags/series', page: '38-asset-tags', section: 'printing-your-own-tags' },
+  { prefix: '/admin/asset-tags/print', page: '38-asset-tags', section: 'printing-your-own-tags' },
+  { prefix: '/admin/asset-tags/settings', page: '38-asset-tags', section: 'settings' },
+  { prefix: '/asset-tags/find', page: '38-asset-tags', section: 'finding-a-tag-on-the-web' },
+
+  // Mobile app
+  { prefix: '/account/devices', page: '39-mobile-app', section: 'devices-and-lost-phones' },
+  { prefix: '/admin/mobile-app', page: '39-mobile-app', section: 'for-administrators' },
 ];
 
 /** The guide entry for an address, or undefined when nothing covers it. */

@@ -1,0 +1,27 @@
+/* Inventory counts (E37-09). Tokens only, so both themes work. */
+
+.cnt-hint { font-size: var(--fs-sm); margin: 0; }
+.cnt-pad { padding: var(--s-3) var(--s-4); }
+
+/* Filters and the decision buttons: side by side, wrapping on narrow screens. */
+.cnt-bar { display: flex; flex-wrap: wrap; gap: var(--s-3); align-items: flex-end; justify-content: space-between; }
+.cnt-bar > :first-child { flex: 0 1 16rem; min-width: 0; }
+.cnt-decide, .cnt-raise { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; }
+
+.cnt-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); gap: var(--s-3); }
+
+/* The Tag number box: the field grows, the button sits beside it at the bottom. */
+.cnt-box { display: flex; flex-wrap: wrap; gap: var(--s-3); align-items: flex-start; }
+.cnt-box-field { flex: 1 1 16rem; min-width: 0; }
+.cnt-box > button { margin-top: 1.6rem; }
+.cnt-last { min-height: 1.75rem; margin-top: var(--s-3); display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; }
+.cnt-recent { margin: var(--s-2) 0 0; padding-left: var(--s-4); font-size: var(--fs-sm); }
+
+.cnt-kinds { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-4); }
+.cnt-kinds > legend { font-weight: 600; font-size: var(--fs-sm); margin-bottom: var(--s-2); padding: 0; }
+.cnt-kinds > p { flex-basis: 100%; }
+.cnt-check .mantine-Checkbox-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.cnt-cover { min-width: 11rem; }
+.cnt-cover > * { display: inline-block; vertical-align: middle; }
+.cnt-cover-bar { width: calc(100% - 3.5rem); }
+.cnt-cover-pct { width: 3rem; text-align: right; font-variant-numeric: tabular-nums; }

@@ -56,8 +56,9 @@ acceptance criteria; this document holds the design those issues share. When an 
   earlier values when a tag is replaced.
 - **The camera decides what the tag carries.** The app reads every barcode and 2D code in view (QR,
   Data Matrix, PDF417, Aztec, Code 128, Code 39, Code 93, EAN, UPC, ITF, Codabar) and the printed text,
-  on the phone. A decoded code is exact and is used as is; printed text is read with text recognition
-  and checked against the organization's tag formats, because text recognition can misread.
+  on the phone. A decoded code with a check character is exact; Code 39, Codabar and ITF need a second
+  reading. Printed text is read with text recognition and checked against the organization's tag
+  formats, because text recognition can misread.
 - **Tag formats and tag stock** (both optional) tell the application what a valid value looks like
   (prefix, letters and digits, length, optional check digit, or a pattern) and which values or ranges
   the organization has bought or printed. They make reading printed text reliable and let the app tell
@@ -80,7 +81,8 @@ acceptance criteria; this document holds the design those issues share. When an 
 
 Assets (including vehicle equipment), vehicles, sites (stations, depots, rooms, cabinets) and systems
 (for example a rack or a signal cabinet that stands for a system). The list is a registry, like the
-calendar sources (`core/tags.ts`, `defineTaggable(app, { type, label, … })`), so a module adds its own
+calendar sources (`core/asset-tags.ts`, `defineTaggable(app, { type, field, identifiers, … })`; `core/tags.ts` holds the
+free-text labels any record can carry, a different thing), so a module adds its own
 type without core changes. A type in a switched-off area is not taggable, and its tag numbers answer
 as if unknown, except to administrators, who are told the area is off.
 
@@ -89,9 +91,12 @@ as if unknown, except to administrators, who are told the area is off.
 - A tag value is the string the tag carries, up to 200 characters: digits (`004521`), letters and
   digits (`TA-118342`, `K7Q2M9`), or whatever a barcode or 2D code holds. On screen it is called the
   **Tag number** because that is what people call it, even when it has letters.
-- **How it is compared:** case, spaces and dashes are ignored for values read from text or typed; a
-  value decoded from a barcode or 2D code is compared exactly after trimming, unless its format says
-  otherwise. Leading zeros count where the format says so.
+- **How it is compared:** one comparison form for every source (text, typed, handheld scanner or a
+  decoded code): the value is trimmed, made uppercase, and spaces, dashes, underscores and invisible
+  control characters are removed (`valueKey` in `shared/tag-format.ts`, used by the server, the web
+  and the app alike). So `ta-118 342` and a code holding `TA_118342` are the same tag, and two values
+  that differ only in those ways cannot both be in use. Leading zeros always count (`004521` is not
+  `4521`).
 - **Codes that hold more than the value:** some bought tags encode extra content (a supplier prefix, a
   record of several fields, even a web address from the label maker). A format can say which part is
   the value (a pattern with one marked part); otherwise the whole decoded content is the value. The
@@ -167,7 +172,7 @@ For organizations that print rather than buy:
     their dimensions, and custom (rows, columns, margins, gaps), with "Start at label" for partly
     used sheets and an alignment test page;
   - **roll layouts** for label printers: one label per page at the label's exact size;
-  - optionally a thermal-printer format (ZPL) for label printers that cannot print a PDF at size.
+  - a thermal-printer format (ZPL) for label printers, with the same fields and sizes as the PDF.
 - **Legibility for reading by camera:** a plain sans-serif typeface with distinct `0`/`O` and `1`/`I`,
   minimum text height (default 5 mm), high contrast, no text over the logo. The guide gives the same
   advice for choosing bought tags.
@@ -186,8 +191,8 @@ For organizations that print rather than buy:
 
 ### 4.2 Resolving a number
 
-`GET /api/tags/lookup?value=<text>` (and `?values=` with up to 10 candidates and how each was read,
-for the app's camera) answers, for each candidate:
+`GET /api/asset-tags/lookup?value=<text>` (and `POST /api/asset-tags/lookup` with up to 10 candidates and how
+each was read, for the app's camera) answers, for each candidate:
 
 1. A **current** tag number → that record.
 2. A **replaced** number → the record, with "This tag was replaced by <new number>".
@@ -266,7 +271,7 @@ anonymization. The phone's location is never recorded.
 |---|---|---|
 | Framework | React Native with Expo (MIT), TypeScript | One code base for iPhone and Android, the same language and React knowledge as the web application, open source |
 | Camera | `react-native-vision-camera` (MIT) with frame processors | Live preview, still pictures, torch, and on-device processing of each frame |
-| Reading text | iOS: the built-in Vision text recognition. Android: on-device text recognition with the model bundled in the app (§9, decision 2) | Fast and accurate on printed numbers; nothing sent over the network |
+| Reading text | Google ML Kit on-device text recognition on both platforms, model bundled in the app (§9, decision 2), through `react-native-vision-camera-ocr-plus`; translation and other scripts switched off | Fast and accurate on printed numbers; images never leave the phone (ML Kit usage reporting is switched off in the build, see §5.8) |
 | Reading codes | The platform's on-device code reading through the camera library: QR, Data Matrix, PDF417, Aztec, Code 128, Code 39, Code 93, EAN-8, EAN-13, UPC-A, UPC-E, ITF and Codabar | Bought tags carry any of these; the platform readers are fast and exact |
 | Where | `mobile/` in this repository, its own `package.json`; the shared API client in `packages/api-client` generated from `GET /api/openapi.json` | Server and app change together and are tested together |
 | Builds | Local builds with Xcode and Android Studio after `expo prebuild`, and in GitHub Actions (Android on Linux, iPhone on macOS runners); no paid build service | No paid services |
@@ -276,7 +281,8 @@ anonymization. The phone's location is never recorded.
 ### 5.2 Connecting to a server and signing in
 
 1. **Connect:** the first screen asks for the server address (typed; it is remembered). The app checks
-   `GET /api/version` for compatibility (§5.9) and refuses plain HTTP except for development builds.
+   `GET /api/mobile/hello` (public, answers only while the Mobile app area is on) for compatibility (§5.9)
+   and refuses plain HTTP except for development builds.
 2. **Sign in:** the app opens the phone's browser sign-in sheet (ASWebAuthenticationSession on iOS,
    Custom Tabs on Android) at the server's `/oauth/authorize` with PKCE. Everything the person normally
    uses works there: password, second factor, passkey, single sign-on, the break-glass rules. The
@@ -328,14 +334,20 @@ everything at once and works out what the tag carries.
 
 1. The camera preview runs code reading (every symbology in §5.1) and text recognition on the phone,
    a few times a second.
-2. **Codes first.** A decoded barcode or 2D code is exact. The app applies the format's extraction
-   pattern if one matches (§3.2), otherwise takes the whole content. A code is enough on its own.
+2. **Codes first.** A decoded code that carries a check character (QR, Data Matrix, PDF417, Aztec,
+   Code 128, Code 93, EAN, UPC) is exact. Code 39, Codabar and ITF have none, and the reader can drop or
+   misread a character (measured: a small Code 39 `TA-118350` read as `TA-18350`), so one of these counts
+   only after two matching frames, matching printed text on the tag, or, from a still picture, the
+   person's confirmation. The app applies the format's extraction pattern if one matches (§3.2),
+   otherwise takes the whole content.
 3. **Printed text next.** Each line of text read is normalized (case, spaces, dashes) and compared with
    the organization's tag formats, including the check character. For formats that are digits only,
    the usual look-alikes are corrected inside the digit part (`O`→`0`, `I`/`l`→`1`, `S`→`5`, `B`→`8`);
    for letters-and-digits formats they are not, and ambiguous characters are resolved against the
-   server instead (step 5). Text must be read the same way in two consecutive frames before it counts.
-   Without any format, text is offered only for the person to confirm, never acted on by itself.
+   server instead (step 5). Text must be read the same way in two consecutive frames before it counts
+   (a still picture counts at once). Text that matches a format without a check character, and any text
+   when no format exists, is offered only for the person to confirm, never acted on by itself; with no
+   format, only text containing a digit is offered. Codabar start and stop characters are removed.
 4. **When a tag has both,** a code and text that agree confirm each other; when they disagree, the code
    wins and the text is ignored. Each candidate is outlined on screen, with how it was read.
 5. The app asks the server about the candidates (§4.2; up to 10 at once, with look-alike variants of
@@ -343,15 +355,16 @@ everything at once and works out what the tag carries.
    from (in counting mode, all of them are added). A value in stock but not attached → offers Attach.
    Nothing matching → "Couldn't find this tag" with what was read shown for correction, and the
    keyboard.
-5. The shutter takes a still picture for hard cases (glare, curved surfaces, small tags); the picture
-   is read the same way and then discarded, unless the person attaches it to the record.
-6. Offline, numbers are looked up in the offline package (§5.6).
+6. The shutter takes a still picture for hard cases (glare, curved surfaces, small tags); the picture
+   is turned upright (camera pictures are stored sideways with an orientation flag the readers ignore),
+   read the same way and then discarded, unless the person attaches it to the record.
+7. Offline, numbers are looked up in the offline package (§5.6).
 
 Accuracy is measured with a test set of tag photos kept in the repository: every code type in §5.1,
 plain digits, letters and digits, tags with both, dirty, scratched, curved, angled and in low light. The
 target is the right record or a correct "couldn't find" on at least 98% of them, and never a wrong
-record: codes are exact, and text is acted on only when a format and its check character (or the
-person) confirm it.
+record: codes with a check character are exact, codes without one need a second reading, and text is
+acted on only when a format and its check character (or the person) confirm it.
 
 ### 5.6 Offline work
 
@@ -401,8 +414,9 @@ assessments**, **inventory counts**, **reports** (problems and hazards) and **ph
 
 ### 5.9 Versions and compatibility
 
-The server reports its version and the range of app versions it supports (`GET /api/version` gains
-`mobile: { minVersion, recommendedVersion }`). The app refuses to connect to a server too old for it,
+The server reports the range of app versions it supports: before signing in through the public
+`GET /api/mobile/hello` (which does not reveal the server's own version), and to signed-in people in
+`GET /api/version` (`mobile: { minVersion, recommendedVersion }` while the Mobile app area is on). The app refuses to connect to a server too old for it,
 and tells the person to update the app when it is older than the server allows.
 
 ### 5.10 Installing the apps (beta)
@@ -435,12 +449,13 @@ For now the apps are not in the App Store or Google Play:
 
 | Endpoint | Purpose |
 |---|---|
-| `GET /api/tags/lookup?value=` or `?values=` | Tag card for a value, or for up to 10 candidates read by the camera (§4.2, §4.3) |
-| `GET/POST/PATCH /api/tags/formats`, `/api/tags/ranges`, `/api/tags/series` | Formats, stock and series |
-| `POST /api/tags/attach`, `/replace`, `/end` | Tag life cycle on a record |
-| `POST /api/tags/print` | PDF (or ZPL) of new numbers from a series or of existing numbers, with layout and start position |
+| `GET /api/asset-tags/lookup?value=`, `POST /api/asset-tags/lookup` | Tag card for a value, or for up to 10 candidates read by the camera (§4.2, §4.3). The base is `/api/asset-tags` because `/api/tags` holds the free-text labels of any record |
+| `GET/POST/PATCH /api/asset-tags/formats`, `/api/asset-tags/ranges`, `/api/asset-tags/series` | Formats, stock and series |
+| `POST /api/asset-tags/attach`, `/replace`, `/end` | Tag life cycle on a record |
+| `POST /api/asset-tags/print` | PDF (or ZPL) of new numbers from a series or of existing numbers, with layout and start position |
 | `GET/POST /api/inventory-counts`, `POST /api/inventory-counts/:id/found`, `/finish` | Inventory counts |
 | `GET /api/me/devices`, `DELETE /api/me/devices/:id` (and administrator equivalents) | Device sessions |
+| `GET /api/mobile/hello` | Before signing in (public): the app versions accepted and the OAuth endpoints |
 | `GET /api/mobile/home` | My work in one call |
 | `GET /api/mobile/settings` | Tag formats and app settings for the signed-in person |
 | `GET /api/mobile/package`, `POST /api/mobile/sync` | Offline packages and the outbox |
@@ -468,15 +483,17 @@ record. Default roles: administrators and asset managers all three; agents and m
   Android phone, in daylight, indoors and in low light (recorded in the roadmap like the other
   real-machine checks).
 
-## 9. Decisions needed
+## 9. Decisions
 
-| # | Decision | Recommendation |
+Decided by the project owner in November 2026:
+
+| # | Question | Decision |
 |---|---|---|
-| 1 | Who holds the Apple Developer Program membership used for TestFlight (a yearly fee), and the Android signing key? | The project owner; both are needed before the first beta |
-| 2 | Android text recognition: Google's on-device recognizer with the model bundled in the app (free, works offline, sends nothing, but not open source) or Tesseract (open source, slower and less accurate on photos)? | The bundled on-device recognizer, with Tesseract as a build option for organizations that require open source only |
-| 3 | What your tags look like today (or the ones you plan to buy): printed digits, letters and digits, a barcode, a QR or Data Matrix code; prefix, length, check character? A few sample photos would become the first test set | Ship with no format (codes accepted as they are, text confirmed by the person) and let administrators add formats; add yours to the test set |
-| 4 | App name and identifiers (bundle ID, package name) | A neutral name such as "Sandpiper GRC" and identifiers under a domain the project controls |
-| 5 | Is a thermal-printer format (ZPL) needed in the first tags release, or is PDF enough? | PDF first; ZPL when someone's printer needs it |
+| 1 | Apple Developer Program membership for TestFlight, and the Android signing key | The project owner holds both. Not needed to build: CI makes unsigned builds until the first beta is signed |
+| 2 | Android text recognition | The platform's built-in on-device recognizer (Google's, model bundled in the app; works offline, sends nothing) |
+| 3 | What the organization's tags look like | Not known yet: nothing is assumed. Tag formats are configuration (Administration > Asset tags), none supplied by default; codes are accepted as they are and text is confirmed by the person until a format exists |
+| 4 | App name and identifiers | **Sandpiper GRC**; bundle ID and Android package `com.sandpipergrc`; redirect scheme `com.sandpipergrc:/oauth` |
+| 5 | Printing formats | Both PDF (sheet and roll layouts) and a thermal-printer format (ZPL) in the first tags release |
 
 ## 10. Delivery plan
 

@@ -1,9 +1,10 @@
 // Sites: list and record, with the systems that serve the site and the assets held there.
 import { Link } from 'react-router-dom';
 import { Card, EditableSummary, EmptyState, ErrorState, Loading, LookupChip, RecordPage, ResourceList, TableWrap, useAuth, useFetch, useResource } from '../../core';
-import { ExtensionSections } from './Extensions';
+import { ExtensionSections, ListExtensionActions, useBulkExtensions } from './Extensions';
 
 export function SiteList() {
+  const bulkActions = useBulkExtensions('site');
   return (
     <ResourceList
       type="site"
@@ -11,6 +12,8 @@ export function SiteList() {
       columns={['name', 'address', 'function', 'third_parties', { field: 'network_links', hidden: true }, { field: 'power_protection', hidden: true }, { field: 'physical_security', hidden: true }, { field: 'updated_at', hidden: true }]}
       filters={[]}
       createFields={['name', 'address', 'function', 'power_protection', 'physical_security', 'third_parties', 'network_links']}
+      actions={<ListExtensionActions recordType="site" />}
+      bulkActions={bulkActions}
     />
   );
 }

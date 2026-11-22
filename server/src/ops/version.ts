@@ -1,6 +1,8 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { databaseUrl } from '../core/db.ts';
+import { databaseUrl, type Queryable } from '../core/db.ts';
+import { featureState } from '../core/features.ts';
+import { MOBILE_COMPAT, type MobileCompat } from '../../../shared/mobile-api.ts';
 import type { ModuleContext } from '../core/module.ts';
 import { appVersion, repoRoot } from './files.ts';
 
@@ -15,6 +17,8 @@ export interface VersionInfo {
   node?: string;
   database?: 'embedded' | 'server';
   startedAt?: string;
+  /** While the Mobile app area is on: the app versions this server works with (E38-13, spec §5.9). */
+  mobile?: MobileCompat;
 }
 
 /** The commit of a git checkout without running git: .git/HEAD, then the branch file or packed-refs. */
@@ -54,8 +58,12 @@ export function versionInfo(admin: boolean): VersionInfo {
  * `GET /api/version` (signed in; administrators also see the Node.js version, the kind of
  * database and when the server started). Registered by core next to the health check.
  */
-export function registerVersion(ctx: Pick<ModuleContext, 'app' | 'can' | 'describeRoute'>): void {
-  ctx.app.get('/api/version', async (req) => versionInfo(!!req.user && ctx.can(req.user, 'admin.administer')));
+export function registerVersion(ctx: Pick<ModuleContext, 'app' | 'can' | 'describeRoute'>, db?: Queryable): void {
+  ctx.app.get('/api/version', async (req) => {
+    const info = versionInfo(!!req.user && ctx.can(req.user, 'admin.administer'));
+    if (db && (await featureState(db)).on.mobile) info.mobile = { ...MOBILE_COMPAT };
+    return info;
+  });
   ctx.describeRoute({
     method: 'GET',
     path: '/api/version',
@@ -70,6 +78,7 @@ export function registerVersion(ctx: Pick<ModuleContext, 'app' | 'can' | 'descri
         node: { type: 'string' },
         database: { type: 'string', enum: ['embedded', 'server'] },
         startedAt: { type: 'string', format: 'date-time' },
+        mobile: { type: 'object', description: 'While the Mobile app area is on: the app versions this server works with.', properties: { minVersion: { type: 'string' }, recommendedVersion: { type: 'string' } } },
       },
     },
   });

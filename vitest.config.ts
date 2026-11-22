@@ -2,7 +2,8 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    include: ['server/src/**/*.test.ts', 'web/src/**/*.test.ts'],
+    // shared/: code used by the server, the web application and the mobile app (mobile/ has its own Jest tests).
+    include: ['server/src/**/*.test.ts', 'web/src/**/*.test.ts', 'shared/**/*.test.ts'],
     environment: 'node',
     // Fixed so date arithmetic in tests does not depend on the machine running them.
     env: { GRC_TIMEZONE: 'America/New_York' },

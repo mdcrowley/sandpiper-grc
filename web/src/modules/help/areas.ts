@@ -31,6 +31,9 @@ export const PAGE_AREA: Record<string, string> = {
   'ot-security': 'ot',
   'records-requests-and-privacy': 'records',
   'vendor-risk-lifecycle': 'vendors',
+  // Wave 13 guide pages (38 and 39), named ahead of the pages.
+  'asset-tags': 'tags',
+  'mobile-app': 'mobile',
 };
 
 /** Whether a guide page's part of the application is on (pages of no particular part always are). */

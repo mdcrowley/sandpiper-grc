@@ -1,0 +1,9 @@
+{
+  "name": "@sandpiper-grc/api-client",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "TypeScript types of the Sandpiper GRC API the mobile app uses, generated from the server's OpenAPI description (generate.ts). No dependencies; imported by relative path.",
+  "type": "module",
+  "main": "src/index.ts"
+}

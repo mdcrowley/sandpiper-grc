@@ -23,13 +23,26 @@ export const MODULE_KEYS = [
   'actions', 'projects', 'dashboards', 'reports', 'audit', 'admin', 'portal', 'fleet', 'safety',
   'audits', 'controls', 'funding', 'governance', 'people',
   'continuity', 'legal', 'records', 'privacy',
+  'tags',
 ];
-export const ACTIONS = ['view', 'create', 'edit', 'delete', 'approve', 'administer', 'export'];
+/** The actions every permission module offers. */
+export const BASE_ACTIONS = ['view', 'create', 'edit', 'delete', 'approve', 'administer', 'export'];
+/**
+ * Actions only some permission modules offer (wave 13): asset tags have `tags.manage` (formats,
+ * stock, printing, attach, replace, end) and `tags.count` (inventory counts). The role editor shows
+ * these only in the rows of the modules listed here.
+ */
+export const MODULE_ACTIONS: Record<string, string[]> = { tags: ['manage', 'count'] };
+/** Every action of the vocabulary: the base ones, then the module-specific ones. */
+export const ACTIONS = [...BASE_ACTIONS, ...new Set(Object.values(MODULE_ACTIONS).flat())];
+
+/** The actions one permission module offers. */
+export const actionsOf = (mod: string): string[] => [...BASE_ACTIONS, ...(MODULE_ACTIONS[mod] ?? [])];
 
 export function isValidGrant(grant: string): boolean {
   if (grant === '*') return true;
   const [mod, action, ...rest] = grant.split('.');
-  return rest.length === 0 && MODULE_KEYS.includes(mod) && (action === '*' || ACTIONS.includes(action));
+  return rest.length === 0 && MODULE_KEYS.includes(mod) && (action === '*' || actionsOf(mod).includes(action));
 }
 
 /** The id from the route, or a 404 when it is not a UUID. */

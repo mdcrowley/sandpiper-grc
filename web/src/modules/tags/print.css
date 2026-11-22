@@ -1,0 +1,24 @@
+/* Administration > Asset tags > Print tags (E37-08). */
+.tag-print {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 380px);
+  gap: var(--s-4);
+  align-items: start;
+}
+.tag-print-form { display: flex; flex-direction: column; gap: var(--s-4); }
+.tag-print-side { position: sticky; top: var(--s-4); }
+.tag-print-row { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-3); }
+.tag-print-label {
+  display: block;
+  width: 100%;
+  max-height: 260px;
+  height: auto;
+  /* A picture of white label stock: the same in both themes. */
+  background: #fff;
+  border-radius: 4px;
+}
+.tag-print-facts { margin: 0; }
+@media (max-width: 900px) {
+  .tag-print { grid-template-columns: minmax(0, 1fr); }
+  .tag-print-side { position: static; order: -1; }
+}

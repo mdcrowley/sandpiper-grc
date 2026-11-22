@@ -181,7 +181,7 @@ A role is a named set of permissions. People get access only through the roles t
 | Role | Intended for | Starts |
 |---|---|---|
 | **Administrator** | Configuration, users and roles. Holds every permission. | On |
-| **Agent** | Service desk and inventory work: tickets, knowledge, inventory, changes (including approving them and change settings), fleet and actions, with read access to most other areas. | On |
+| **Agent** | Service desk and inventory work: tickets, knowledge, inventory, changes (including approving them and change settings), fleet and actions, finding asset tags and counting inventory, with read access to most other areas. | On |
 | **Security lead** | Risks, frameworks, security incidents (and every restricted record), vulnerabilities, policies, training, vendors and contracts, the audit log, dashboards and reports, and the same service desk, inventory and change rights as an agent, with read access to projects, fleet and safety. Also controls and their testing, with read access to audits, committees, the staff roster, business continuity and privacy assessments. | On |
 | **Project manager** | Projects, gates, status reports and actions. | On |
 | **Safety manager** | Safety team: hazard log, safety events, investigations and indicators, audits and inspections, with the action tracker and read access to fleet, systems, sites, committees, the staff roster and business continuity. | On |
@@ -190,7 +190,7 @@ A role is a named set of permissions. People get access only through the roles t
 | **Training coordinator** | Training, the staff roster and qualifications, with read access to policies. | On |
 | **Continuity manager** | Business continuity and emergency management: business processes, impact analyses, plans and activations, with the action tracker and read access to systems, sites, assets, fleet, vendors, the staff roster, exercises, dashboards and reports. | On |
 | **Records and privacy officer** | Legal holds, requests for records and personal data, and privacy impact assessments, with the action tracker and read access to data categories, systems and reports. | On |
-| **Asset manager** | Assets, sites and vehicles, their condition and replacement, with the action tracker and read access to projects, funding, dashboards and reports. | On |
+| **Asset manager** | Assets, sites and vehicles, their tags, inventory counts, condition and replacement, with the action tracker and read access to projects, funding, dashboards and reports. | On |
 | **Approver** | People who approve changes, service requests, asset decisions and project gates. It does not include risks: a risk acceptance is recorded by someone who can see the risk, naming the approver. | Off |
 | **Executive viewer** | Read-only dashboards, projects, framework outcomes, committees and business continuity. | Off |
 | **Auditor** | Read-only access to chosen areas, with export of framework evidence, audits and controls, and read access to business continuity, privacy assessments and legal holds. | Off |
@@ -201,6 +201,8 @@ The list shows each role's **Access** (for example "12 permissions in 5 areas", 
 The Compliance officer, Audit lead and Training coordinator roles come with the audits, controls, funding, committees and staff roster parts. On an installation set up before these roles existed, the three new roles appear by themselves; the new permissions of the roles you already have are offered under [Applying default permissions after an upgrade](#applying-default-permissions-after-an-upgrade).
 
 The Continuity manager, Records and privacy officer and Asset manager roles come with the business continuity, legal holds, records requests and privacy, and asset condition parts. The three roles appear by themselves on an existing installation, and the new permissions of your existing roles are offered in the same way.
+
+Asset tags add the permission area **Asset tags** with three permissions: **View** (tag history and stock), **Manage** (formats, stock, printing, attaching, replacing and ending tags) and **Count** (inventory counts). Asset managers get all three and agents get **View** and **Count**; on an existing installation they are offered under [Applying default permissions after an upgrade](#applying-default-permissions-after-an-upgrade). Finding a record by its tag needs no permission beyond seeing the record.
 
 ### Applying default permissions after an upgrade
 
@@ -252,7 +254,7 @@ The **Members** card lists who holds the role. To give a role to someone, or tak
 
 The **Administrator** role holds every permission (stored as a single star), so every box is checked and cannot be changed.
 
-The server tells the page which permissions something in this installation actually checks. A box for an action nothing checks (for example **Approve** on **Knowledge base**, or **Create** on **Audit log**) is grayed out and cannot be checked, because granting it would have no effect; if a role already holds such a permission, the box can still be unchecked. An area where nothing is checked at all (for example one whose part of the application is not installed) carries a small **not yet used** label. **All** still grants every action in the area, including any a later version starts to check. **View** on **Dashboards and overview** decides who sees the dashboards on the overview page.
+The server tells the page which permissions something in this installation actually checks. A box for an action nothing checks (for example **Approve** on **Knowledge base**, or **Create** on **Audit log**) is grayed out and cannot be checked, because granting it would have no effect; if a role already holds such a permission, the box can still be unchecked. An area where nothing is checked at all (for example one whose part of the application is not installed) carries a small **not yet used** label. **All** still grants every action in the area, including any a later version starts to check. **Manage** and **Count** are actions of the **Asset tags** area only, so the other areas have no box in those columns. **View** on **Dashboards and overview** decides who sees the dashboards on the overview page.
 
 ### Restricted records
 
@@ -686,6 +688,8 @@ Each part has a switch, a line saying what it covers, whether it is **On** or **
 | **Asset condition and state of good repair** | Asset classes and useful life, condition assessments of assets, vehicles and sites, and the state-of-good-repair dashboard and targets | On |
 | **OT and rail-systems security** | Operational technology on systems and assets, security zones and conduits with their target and achieved levels | On |
 | **Records requests and privacy** | Requests for records and personal data with their deadlines, responsive records and exemptions, and privacy impact assessments. Legal holds stay on | On |
+| **Asset tags** | Tag numbers on assets, vehicles, sites and systems (printed digits, letters, barcodes or 2D codes), tag formats and stock, printing your own tags, finding a record by its tag, and inventory counts. While it is off, the **Tag number** of vehicles, sites and systems is hidden; an asset's **Tag** stays, because it is also the asset's reference | On |
+| **Mobile app** | The Sandpiper GRC app for iPhone and Android: sign-in through the phone's browser, My work, reading asset tags with the camera, reporting problems with photos, and the list of signed-in devices. Switching it off signs out every device | Off |
 
 [Legal holds](33-legal-holds.md) are not a part that can be switched off: a hold must never lapse because a part of the application was switched off.
 

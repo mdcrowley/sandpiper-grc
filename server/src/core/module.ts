@@ -37,6 +37,8 @@ export interface FieldDef {
   type: FieldType;
   required?: boolean;
   readOnly?: boolean;
+  /** The mobile app (E38-07) offers this field on its phone edit form (spec §5.4). */
+  mobileEditable?: boolean;
   /** Lookup list key, for type 'lookup'. */
   list?: string;
   /** Target record type, for type 'ref'. */

@@ -1,7 +1,7 @@
 // E20-13: report a safety event from the portal, in plain words, and follow the reports I made.
 // The safety team receives it as a safety event with the status "Reported" and triages it.
 import { useEffect, useState, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   api, ApiError, Button, Checkbox, DateTimeField, errorMessage, ErrorState, Icon, Loading, NumberField, relativeTime, TextArea, TextField,
   useFetch, useToast,
@@ -41,11 +41,13 @@ export function MySafetyReports({ compact = false, refresh = 0 }: { compact?: bo
 export function SafetyReport() {
   const toast = useToast();
   const { data: options, error, reload } = useFetch<Options>('/api/portal/safety/options');
+  // An asset tag's card (E37-06) opens this form with ?where= filled in.
+  const [params] = useSearchParams();
   const [title, setTitle] = useState('');
   const [when, setWhen] = useState(() => new Date().toISOString());
   const [kind, setKind] = useState('');
   const [harm, setHarm] = useState('');
-  const [where, setWhere] = useState('');
+  const [where, setWhere] = useState(params.get('where') ?? '');
   const [description, setDescription] = useState('');
   const [actions, setActions] = useState('');
   const [injuries, setInjuries] = useState<number | null>(null);

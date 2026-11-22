@@ -75,7 +75,7 @@ export function registerHazards(ctx: ModuleContext) {
       description: { label: 'Description', type: 'longtext' },
       source: { label: 'Source', type: 'lookup', list: 'hazard_source' },
       consequence: { label: 'Possible consequence', type: 'longtext' },
-      existing_controls: { label: 'Existing controls', type: 'longtext' },
+      existing_controls: { label: 'Existing controls', type: 'longtext', mobileEditable: true },
       mode: { label: 'Mode', type: 'lookup', list: 'vehicle_mode' },
       site_id: { label: 'Site', type: 'ref', to: 'site' },
       likelihood: { label: 'Likelihood', type: 'number' },

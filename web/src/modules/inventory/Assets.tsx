@@ -10,11 +10,12 @@ import type { Row } from '../../core';
 import { CheckInDialog, CheckOutDialog, DisposeDialog, useAssetMoveBlocked } from './AssetDialogs';
 import type { DisposalRequest } from './AssetDialogs';
 import { AssignmentTab, DisposalTab, LifecycleBand, RequestCard, WhereCard } from './AssetLifecycle';
-import { ExtensionSections } from './Extensions';
+import { ExtensionSections, ListExtensionActions, useBulkExtensions } from './Extensions';
 import { funderFields, RelatedWork, useFunder } from './shared';
 
 export function AssetList() {
   const funder = useFunder();
+  const bulkActions = useBulkExtensions('asset');
   return (
     <ResourceList
       type="asset"
@@ -36,7 +37,8 @@ export function AssetList() {
       bulkFields={['status', 'asset_type', 'site_id', 'owner_id', 'system_id', 'funding_source', 'warranty_end', 'support_end']}
       createFields={funderFields(['name', 'asset_type', 'status', 'make', 'model', 'serial', 'site_id', 'location', 'purchase_date', 'cost', 'funding_source', 'funder_interest', 'funder_interest_pct', 'warranty_end', 'support_end'], funder.on)}
       // Import is the list's own (the generic import wizard, E13-21).
-      actions={<Link className="btn btn-secondary" to="/assets/disposals">Disposal approvals</Link>}
+      actions={<><ListExtensionActions recordType="asset" /><Link className="btn btn-secondary" to="/assets/disposals">Disposal approvals</Link></>}
+      bulkActions={bulkActions}
     />
   );
 }

@@ -1,0 +1,28 @@
+/* Asset tags (wave 13, E37). Prefix tg-. Owner: TAGS-CORE (other tags pages may add their own rules
+   in files of their own). */
+
+.tg-tabs ul { display: flex; flex-wrap: wrap; gap: var(--s-1, 4px); margin: 0; padding: 0; list-style: none; border-bottom: 1px solid var(--border); }
+.tg-tab {
+  display: inline-block; padding: 8px 14px; color: var(--text-muted); text-decoration: none; font-weight: 600;
+  border-bottom: 3px solid transparent; margin-bottom: -1px; border-radius: 6px 6px 0 0;
+}
+.tg-tab:hover { color: var(--text); background: var(--surface-hover); }
+.tg-tab.is-current { color: var(--link); border-bottom-color: var(--brand); }
+.tg-tab:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.tg-value { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; font-weight: 600; letter-spacing: 0.02em; overflow-wrap: anywhere; }
+.tg-actions { text-align: right; white-space: nowrap; }
+.tg-try { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto; gap: var(--s-3, 12px); align-items: end; }
+.tg-try-results { list-style: none; margin: var(--s-3, 12px) 0 0; padding: 0; display: grid; gap: var(--s-2, 8px); }
+.tg-try-results li { display: flex; gap: var(--s-2, 8px); align-items: flex-start; }
+.tg-counts { display: flex; flex-wrap: wrap; gap: 4px; }
+.tg-panel-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-2, 8px); }
+.tg-panel-item { display: flex; flex-wrap: wrap; gap: var(--s-2, 8px) var(--s-3, 12px); align-items: center; justify-content: space-between; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.tg-panel-item .tg-value { font-size: 1.1rem; }
+.tg-panel-meta { color: var(--text-muted); font-size: 0.875rem; }
+.tg-toolbar { display: flex; flex-wrap: wrap; gap: var(--s-3, 12px); align-items: end; }
+.tg-toolbar > * { min-width: 0; }
+
+@media (max-width: 900px) {
+  .tg-try { grid-template-columns: minmax(0, 1fr); }
+}

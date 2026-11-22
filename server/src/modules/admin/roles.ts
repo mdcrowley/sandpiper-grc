@@ -1,7 +1,7 @@
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { defaultGrantDifferences, syncDefaultGrants } from '../../core/services.ts';
-import { ACTIONS, adminRoute, body, guardAdministrators, idParam, invalid, isValidGrant, MODULE_KEYS, sensitive } from './shared.ts';
+import { ACTIONS, adminRoute, MODULE_ACTIONS, body, guardAdministrators, idParam, invalid, isValidGrant, MODULE_KEYS, sensitive } from './shared.ts';
 
 const ROLE_SELECT = `
   select r.id, r.key, r.name, r.description, r.enabled, r.requires_mfa, r.created_at, r.updated_at,
@@ -48,6 +48,8 @@ export function registerRoles(ctx: ModuleContext) {
     roles: await db.query(`${ROLE_SELECT} order by r.name`),
     modules: MODULE_KEYS,
     actions: ACTIONS,
+    // Actions only some modules offer (tags.manage, tags.count); the others are offered by every module.
+    moduleActions: MODULE_ACTIONS,
   }));
 
   adminRoute(ctx, 'GET', '/api/admin/roles/:id', async (req) => {

@@ -188,7 +188,7 @@ export async function buildApp(opts: BuildOptions) {
   const recentAuth = (req: FastifyRequest, what: string) => requireRecentAuth({ db, audit, settings }, req, what);
   const watchers = registerTagsAndWatchers({ app, db, audit, lookups, res });
   registerCoreRoutes({ app, db, audit, lookups, res, custom, gate, notifyWatchers: watchers.notifyWatchers });
-  registerVersion({ app, can, describeRoute: openapi.describe });
+  registerVersion({ app, can, describeRoute: openapi.describe }, db);
   registerCustomFieldRoutes({ app, db, audit, res, custom });
   registerPreferences(app, db);
   const webhooks = registerWebhooks({ app, db, audit, settings, res, box: () => secretBox(db), loadUser, requireRecentAuth: recentAuth });

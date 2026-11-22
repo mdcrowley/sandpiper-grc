@@ -33,13 +33,20 @@ const DISPOSAL_RANK: Record<Disposal, number> = { keep: 0, anonymize: 1, delete:
 export const ANONYMIZED_TEXT = 'Removed at the end of the retention period';
 
 type AnonymizeHook = (tx: { query: (sql: string, params?: unknown[]) => Promise<unknown[]> }, id: string) => Promise<unknown>;
-const anonymizeHooks = new Map<string, AnonymizeHook>();
+/** Hooks per record type, keyed by their owner, so several modules can each clean up the same type. */
+const anonymizeHooks = new Map<string, Map<string, AnonymizeHook>>();
 /**
  * A module whose own tables hold personal details about a record (a safety event's people
  * involved and statements) registers here; anonymizing that record runs the hook in the same
- * transaction (E25-15).
+ * transaction (E25-15). `owner` names who registered it: registering again with the same owner
+ * replaces that hook (modules register at every start), and hooks of different owners for the same
+ * type all run, in the order they were first registered.
  */
-export function onAnonymize(type: string, hook: AnonymizeHook): void { anonymizeHooks.set(type, hook); }
+export function onAnonymize(type: string, hook: AnonymizeHook, owner = 'default'): void {
+  const hooks = anonymizeHooks.get(type) ?? new Map<string, AnonymizeHook>();
+  hooks.set(owner, hook);
+  anonymizeHooks.set(type, hooks);
+}
 const UNDECIDED = ['pending', 'extended'];
 
 /** Text fields named like these hold a person's contact details or name. */
@@ -473,7 +480,7 @@ export function registerRetention({ app, db, audit, lookups, res, requireRecentA
         [def.type, id, ANONYMIZED_TEXT])).length;
       await tx.query('delete from record_watchers where record_type = $1 and record_id = $2', [def.type, id]);
       await scrubDeliveries(tx, def.type, id);
-      await anonymizeHooks.get(def.type)?.(tx as never, id);
+      for (const hook of anonymizeHooks.get(def.type)?.values() ?? []) await hook(tx as never, id);
       if (files.length) {
         await tx.query(
           `update attachments set file_name = 'Removed file' || case when extension <> '' then '.' || extension else '' end,

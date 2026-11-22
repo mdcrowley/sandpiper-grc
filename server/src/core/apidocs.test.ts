@@ -10,7 +10,7 @@ let paths: Record<string, Record<string, unknown>>;
 
 beforeAll(async () => {
   t = await testApp();
-  await t.api.patch('/api/admin/features', { features: { portal: true } });
+  await t.api.patch('/api/admin/features', { features: { portal: true, mobile: true } });
   paths = ((await t.core.openapi.build(null)) as { paths: typeof paths }).paths;
 });
 afterAll(async () => { await t.close(); });

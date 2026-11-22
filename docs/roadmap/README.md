@@ -171,12 +171,12 @@ status `done`; issues in progress, open or blocked are counted in the total only
 | [E34](epics/E34-legal-hold-records-requests-and-privacy.md) | Legal hold, records requests and privacy | done | 9 / 9 |
 | [E35](epics/E35-vendor-risk-lifecycle.md) | Vendor risk lifecycle | done | 7 / 7 |
 | [E36](epics/E36-integrations.md) | Integrations | done | 8 / 8 |
-| [E37](epics/E37-asset-tags.md) | Asset tags: values, printing and lookup | open | 0 / 10 |
-| [E38](epics/E38-mobile-apps.md) | Mobile apps for iPhone and Android | open | 0 / 15 |
-| | **Total** | | **703 / 738** |
+| [E37](epics/E37-asset-tags.md) | Asset tags: values, printing and lookup | in progress | 9 / 10 |
+| [E38](epics/E38-mobile-apps.md) | Mobile apps for iPhone and Android | in progress | 4 / 15 |
+| | **Total** | | **716 / 738** |
 
-Of the 35 issues not done, 6 are in progress and 29 are open or blocked. 25 of them are the new epics E37
-(asset tags) and E38 (mobile apps), specified in [the asset tags and mobile apps specification](specs/asset-tags-and-mobile-apps.md);
+Of the 22 issues not done, 12 are in progress and 10 are open or blocked. 12 of them are in the new epics E37
+(asset tags) and E38 (mobile apps), specified in [the asset tags and mobile apps specification](specs/asset-tags-and-mobile-apps.md) and built in wave 13 except for offline work, push notifications, signed releases and checks on real phones;
 of the other 10, all but E16-43 need a person or a real machine. E23 to E30 were built in wave 10 and
 E31 to E36 in wave 11 (the product gaps of the November 2026 review); E31-10, the last of them, was built in wave 12. Some of their
 done issues are "Not planned" entries (E25-13, E29-11, E32-06, E34-09): features recorded so that nobody
@@ -197,8 +197,8 @@ with real data, then those that close the main known gaps.
 | 6 | [E17-08](epics/E17-documentation.md) User guide | The pages changed or added in waves 8 to 11 need a review against the application |
 | 7 | [E17-11](epics/E17-documentation.md) Operations runbook | Restore has been tried by the tests only; try it by hand once |
 | 8 | [E16-42](epics/E16-hosting-operations-and-hardening.md) User services across a restart, and the system examples | Proven on GitHub's runners; a restart and the deploy/ examples need a real machine |
-| 9 | [E37](epics/E37-asset-tags.md) Asset tags: values, printing and lookup (wave 13) | Track which tag (number, letters, barcode or QR code) is on which asset; find it by typing or a handheld scanner; the app's camera reading builds on it ([specification](specs/asset-tags-and-mobile-apps.md)) |
-| 10 | [E38](epics/E38-mobile-apps.md) Mobile apps for iPhone and Android (waves 14 to 16) | Field work, reading any tag with the camera, offline inspections; beta through TestFlight and direct Android install (specification §9) |
+| 9 | [E37-08](epics/E37-asset-tags.md) Asset tags: reading on a real phone | Built in wave 13; the camera reading needs a check on a real phone before release ([specification](specs/asset-tags-and-mobile-apps.md)) |
+| 10 | [E38](epics/E38-mobile-apps.md) Mobile apps: offline work, push notifications and the beta (wave 14 on) | The online app was built in wave 13; offline inspections, counts and reports (E38-10 to E38-12), push (E38-14), the Maestro flows, and TestFlight and signed Android releases once the maintainer's accounts are set up |
 
 ## Known gaps coverage
 

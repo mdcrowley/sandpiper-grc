@@ -138,7 +138,8 @@ So that an unattended, signed-in browser cannot be used to change who can do wha
 a way in from outside or to destroy data, the actions marked "Ask" in the table below need
 the password to have been proved **in the same session within the last 10 minutes**
 (setting `auth.reauth_minutes`, 1 to 60). An API token never carries a confirmation, so a
-token can never do them.
+token can never do them (the mobile app's tokens after a fresh `prompt=login` sign-in do, for the
+same window: see "Mobile app sign-in and devices").
 
 Signing in counts as proof. After that the server answers `403 reauth_required`; the
 screens then ask for the password in place (`POST /api/auth/confirm`) and
@@ -190,6 +191,8 @@ action is added to this table and to its module's tests in the same change.
 | Files | Remove a file type, change the size limit, rescan, restore a removed file, check stored files, back up now | Don't ask | Narrows, or changes nothing about access |
 | AI assistants | AI assistant access settings; make an assistant token; approve a connector sign-in; add a connector | Ask | Lets a program act for you |
 | AI assistants | Limit an assistant's tools, revoke a connection, remove a connector | Don't ask | Only narrows access |
+| Mobile app | Sign in the app on a phone; change the Mobile app settings | Ask | Makes a credential; sign-in rules |
+| Mobile app | Sign a phone out (yours, or anyone's as administrator) | Don't ask | Only narrows access |
 | Service desk | Email-to-ticket settings (mailbox password) and a new mail relay key | Ask | Secrets, and a way in from outside |
 | Service desk | Switch the self-service portal on or off (portal settings) | Ask | The same feature switch as Administration > Features |
 | Service desk | Portal title, welcome line, banner, reopen window, who may ask for a colleague, safety reports from the portal; service levels, calendars, priority matrix, escalation rules, catalog | Don't ask | Service configuration, audited and reversible |
@@ -294,7 +297,12 @@ is anonymized or removed at the end of its retention period, every delivery abou
 content and those still waiting are blocked and cannot be sent again, so the removed text
 does not live on in the queue, in backups or in exports. The outgoing and incoming mail logs
 are pruned the same way (`retention.mail_log_days`, `retention.mail_inbound_log_days`,
-default 180). Every change to a webhook is audited; the delivery log is its own record of
+default 180). The asset tag lookup log (who looked up which tag, when and how; never a location) is
+kept `retention.tag_lookups_days` (default 90), can be switched off with `tags.log_lookups`, and
+loses a record's entries when that record is anonymized or removed. A printed asset tag's code holds
+only its value: values that look like a web or email address are refused for codes (they can still
+print as text), and ZPL field data is sent through `^FH` hex escapes, so a tag value cannot inject
+printer commands. Every change to a webhook is audited; the delivery log is its own record of
 what was sent (its date, event and status). A webhook address often holds
 the receiver's own secret in its path or query (chat incoming webhooks, automation
 platforms), so the audit log records only its scheme and host and a short fingerprint of the
@@ -905,6 +913,49 @@ separate, tamper-evident copy.
   call is logged without its arguments or results and kept for 90 days.
 - **Summary tools** return figures only, read as the token's user; a switched-off area's
   tools are never offered.
+
+### Mobile app sign-in and devices
+
+`server/src/modules/mobile/`, `server/src/modules/mcp/oauth.ts`
+
+- **Off by default** (Mobile app area). While off, the app's OAuth client does not exist
+  (`/oauth/token` and `/oauth/revoke` answer `switched_off`), its `/api/mobile` routes answer 404, its
+  tokens are refused, and every device signed in before the switch stays signed out when it is
+  switched on again.
+- **Built-in public client** `com.sandpipergrc`: the only redirect is `com.sandpipergrc:/oauth`; PKCE
+  (S256) and a state are required. A wrong client or redirect is refused on the page and never sent
+  back. Approving a sign-in needs a recent password and second-factor confirmation, like making any
+  credential.
+- **Tokens**: access tokens last 15 minutes (`mobile.access_minutes`, 5 to 60) and act as the person on
+  `/api`, with the same permissions, restrictions and audit as the web (audit events name the device).
+  Refresh tokens lapse after 30 days unused (`mobile.refresh_days`) and rotate on every use. Every token
+  request must repeat the installation id the app made. A used refresh token presented again, a code
+  used twice, or a refresh token sent from another installation signs the device out and is audited.
+  A refresh repeated within 30 seconds whose first answer was never used (its answer was lost) is
+  answered once more and the unused tokens are replaced (audited as a retry); presenting a replaced
+  token later counts as reuse. Codes, tokens and installation ids are stored as SHA-256 only and
+  compared in constant time. Failed token requests count toward 30 per 5 minutes per address. App
+  tokens cannot reach sign-in, account security, token management or `/mcp`. The audit log names these
+  events `mobile.sign_in`, `mobile.sign_in_declined`, `mobile.consent`, `mobile.sign_out`,
+  `mobile.device_revoke`, `mobile.refresh_retry`, `mobile.refresh_reuse`, `mobile.code_reuse`,
+  `mobile.installation_mismatch` and `mobile.settings`.
+- **Devices**: people sign their phones out on Account > Devices, administrators on the user page.
+  Deactivation, user provisioning and a password change or reset sign out every device at once
+  (`revokeProgramAccess`). A device whose account was disabled after it signed in stays signed out
+  when the account is enabled again.
+- **Sensitive actions**: the app signs in again in the browser with `prompt=login`. Its tokens then
+  carry the time of that proof, which `requireRecentAuth` accepts for `auth.reauth_minutes`. Rotation
+  never extends it, and personal access tokens never carry it.
+- **Exports** without secrets leave out the app's codes and tokens and blank installation ids, so
+  phones sign in again after such a restore.
+- **What the app sends elsewhere**: nothing of the organization's data. Tags and text are read on the
+  phone by Google ML Kit with its models bundled; images never leave the phone unless the person
+  attaches one to a record. ML Kit can report usage statistics (never images) through Google's data
+  transport: the Android build removes those components (`mobile/plugins/withoutDataTransport.js`;
+  verified in the merged manifest, none left, and at run time on an emulator, where ML Kit's attempt
+  to send found no transport and nothing left the phone). The iPhone build has no documented switch and has not
+  been measured yet, so until then it may send ML Kit usage statistics. The app has no analytics or
+  crash-reporting library, and Expo telemetry is off in builds (`EXPO_NO_TELEMETRY`).
 
 ### User provisioning and audit-log forwarding
 

@@ -1,0 +1,14 @@
+[
+  "/api/auth/state",
+  "/api/version",
+  "/api/mobile/**",
+  "/api/me/devices/**",
+  "/api/notifications",
+  "/api/notifications/unread-count",
+  "/api/notifications/read-all",
+  "/api/notifications/{id}/read",
+  "/api/asset-tags/lookup",
+  "/api/attachments",
+  "/api/attachments/upload",
+  "/api/search"
+]

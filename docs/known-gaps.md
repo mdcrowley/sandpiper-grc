@@ -96,6 +96,22 @@ content, which belongs in a document tool (E25-13, E29-11, E32-06, E34-09).
   `RateLimit` headers and `mcp.rate_per_minute` count in memory: a restart resets the current
   minute, and with several application processes each counts on its own. Run one process, or
   allow for this, until E16-43.
+- **Mobile app (server)**: a refresh is repeated safely once within 30 seconds if its first answer
+  was never used; two refreshes of the same token at the same moment get one answer, and the other is
+  refused. Within `auth.reauth_minutes` of a `prompt=login` sign-in, the phone may perform any
+  sensitive action the person may, like a freshly confirmed browser.
+- **Asset tags**: an inventory count's area restricts it to records with a location (assets); counts
+  have no offline mode until E38-12.
+- **Mobile app (testing)**: the automated end-to-end flows (Maestro) are not built yet; the app was
+  checked by hand on an Android emulator. iPhone builds run only on the macOS leg of continuous
+  integration and have not been run on a device; whether ML Kit sends usage statistics on iPhone has
+  not been measured (see `docs/security.md`). The app's open-source licenses list includes packages
+  used only at build time.
+- **Mobile app (reports)**: a photo whose upload failed is sent again whole (no partial resume); until
+  the server honors `Idempotency-Key` (E38-10), a report can be created twice if the connection drops
+  during its creation and the person taps **Send again**, and a photo twice if its answer was lost.
+  Portal users report from a tag card only, not from scratch, and photos on a portal safety report may
+  be refused.
 - **Hosting**: with a least-privilege database account, adding a custom field is queued
   for the database owner, and a new text custom field is searched only after the owner's
   next `migrate` step. JSON API responses are not compressed by the application (a risk with

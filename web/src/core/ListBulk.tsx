@@ -1,6 +1,6 @@
 // Bulk actions of a ResourceList: the bar shown while rows are selected, the bulk edit dialog
 // (one PATCH per row, with a progress summary) and CSV export of the selected rows.
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { Alert, Button, Checkbox, Group, List, Progress, Stack, Text } from '@mantine/core';
 import { IconDownload, IconPencil, IconX } from '@tabler/icons-react';
 import { api, errorMessage, type Row } from './api';
@@ -63,15 +63,18 @@ export interface BulkBarProps {
   onEdit: () => void;
   onExport: () => void;
   onClear: () => void;
+  /** Extra buttons (ResourceList's `bulkActions`), before Clear selection. */
+  extra?: ReactNode;
 }
 
-export function BulkBar({ count, noun, canEdit, canExport, onEdit, onExport, onClear }: BulkBarProps) {
+export function BulkBar({ count, noun, canEdit, canExport, onEdit, onExport, onClear, extra }: BulkBarProps) {
   return (
     <div className="rc-bulk" role="region" aria-label="Bulk actions">
       <Text size="sm" fw={600} role="status">{count} {noun} selected</Text>
       <Group gap="xs">
         {canEdit && <Button size="xs" leftSection={<IconPencil size={14} aria-hidden="true" />} onClick={onEdit}>Edit selected…</Button>}
         {canExport && <Button size="xs" variant="default" leftSection={<IconDownload size={14} aria-hidden="true" />} onClick={onExport}>Export selected</Button>}
+        {extra}
         <Button size="xs" variant="subtle" leftSection={<IconX size={14} aria-hidden="true" />} onClick={onClear}>Clear selection</Button>
       </Group>
     </div>

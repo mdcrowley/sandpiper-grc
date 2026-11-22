@@ -42,6 +42,12 @@ const app = await startInstance({ dir: scratch, log, roles: false });
 const browser = await launchBrowser({ profileDir: join(scratch, 'profile') });
 const page = await browser.newPage({ base: app.base });
 await page.setSession(app.admin.token);
+// Every optional area on, so pages of areas that start switched off (the portal, the mobile app) are audited too.
+{
+  const api = app.api();
+  const { areas } = await api.must('GET', '/api/admin/features');
+  await api.must('PATCH', '/api/admin/features', { features: Object.fromEntries(areas.map((a) => [a.key, true])) });
+}
 
 const { visit, skipped, resources } = await concreteRoutes(page, app.api());
 let targets = visit.map((v) => ({ path: v.path, pattern: v.pattern }));

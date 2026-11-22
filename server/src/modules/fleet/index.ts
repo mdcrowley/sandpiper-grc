@@ -1,6 +1,7 @@
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
 import { registerEquipment } from './equipment.ts';
 import { CONDITION_VEHICLE_FIELDS, ensureFleetConditionLists } from './fields-condition.ts';
+import { registerFleetTaggables, VEHICLE_TAG_FIELDS } from './fields-tags.ts';
 import { seedFleet } from './seed.ts';
 import { registerServices } from './services.ts';
 import { isRetired } from './shared.ts';
@@ -80,6 +81,7 @@ async function register(ctx: ModuleContext) {
       funder_interest_pct: { label: 'Funder interest (%)', type: 'number' },
       notes: { label: 'Notes', type: 'longtext' },
       ...CONDITION_VEHICLE_FIELDS,
+      ...VEHICLE_TAG_FIELDS,
     },
     hooks: {
       beforeCreate: async (_req, data) => { await checkVehicle(ctx, data, data, null); return data; },
@@ -110,6 +112,7 @@ async function register(ctx: ModuleContext) {
 
   registerEquipment(ctx);
   registerServices(ctx);
+  registerFleetTaggables(ctx);
 }
 
 /** Unique fleet number, a sensible year and percentage, and no retiring a vehicle that still carries equipment. */

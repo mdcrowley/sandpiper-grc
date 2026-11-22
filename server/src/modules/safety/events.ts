@@ -108,7 +108,7 @@ export function registerEvents(ctx: ModuleContext, reporting: Reporting) {
       service_id: { label: 'Route or service', type: 'ref', to: 'service' },
       location_detail: { label: 'Location', type: 'text' },
       description: { label: 'What happened', type: 'longtext' },
-      immediate_actions: { label: 'Immediate actions', type: 'longtext' },
+      immediate_actions: { label: 'Immediate actions', type: 'longtext', mobileEditable: true },
       injuries: { label: 'People injured', type: 'number' },
       fatalities: { label: 'Fatalities', type: 'number' },
       people_transported: { label: 'People taken for medical treatment', type: 'number' },

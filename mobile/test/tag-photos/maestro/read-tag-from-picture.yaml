@@ -1,0 +1,27 @@
+# Maestro flow (E38-05): read a tag from a test picture and open its tag card.
+# Before the flow: a scratch server with the sample data and an asset whose tag is TA-118342, the app
+# signed in on the Android emulator, and the test picture in the emulator's gallery:
+#   adb push mobile/test/tag-photos/images/code-qr.png /sdcard/Pictures/code-qr.png
+#   adb shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file:///sdcard/Pictures/code-qr.png
+# Run: maestro test mobile/test/tag-photos/maestro/read-tag-from-picture.yaml
+appId: com.sandpipergrc
+---
+- launchApp
+- tapOn: "Tag"
+- tapOn: "Choose a picture"
+# The system photo picker: the newest picture comes first.
+- tapOn:
+    index: 0
+    id: ".*photo.*|.*thumbnail.*|.*image.*"
+    optional: true
+- tapOn:
+    text: "code-qr.*"
+    optional: true
+- extendedWaitUntil:
+    visible: "Tag number"
+    timeout: 15000
+- assertVisible: "TA-118342"
+- assertVisible: "Open full record"
+- back
+# The camera screen again, fresh.
+- assertVisible: "Point the camera at a tag.*"

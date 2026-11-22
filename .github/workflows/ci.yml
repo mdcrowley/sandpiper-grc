@@ -580,3 +580,105 @@ jobs:
           path: |
             tools/e2e/out
             tools/a11y/out
+
+  mobile:
+    # The mobile app (mobile/, E38-01): on Linux the API client freshness check, the typecheck, Jest
+    # and an Android release build (an unsigned APK, kept as an artifact: sign it with the release key
+    # kept outside the repository, docs/mobile.md); on macOS an unsigned iPhone build for the simulator
+    # and for devices. No paid build service, no signing secrets, nothing sent anywhere (telemetry off).
+    name: Mobile app (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: android
+            os: ubuntu-latest
+          - platform: ios
+            os: macos-latest
+    env:
+      EXPO_NO_TELEMETRY: '1'
+      CI: '1'
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: tools/node-version.txt
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            mobile/package-lock.json
+
+      - name: Install the server's packages (for the API client check)
+        if: matrix.platform == 'android'
+        run: npm ci --no-audit --no-fund
+
+      - name: API client is up to date with the server's OpenAPI description
+        # Fails when packages/api-client/src/schema.ts would change: run
+        # `npx tsx packages/api-client/generate.ts` and commit the result.
+        if: matrix.platform == 'android'
+        run: npx tsx packages/api-client/generate.ts --check
+
+      - name: Install the app's packages
+        working-directory: mobile
+        run: npm ci --no-audit --no-fund
+
+      - name: Type check
+        if: matrix.platform == 'android'
+        working-directory: mobile
+        run: npm run typecheck
+
+      - name: Tests (Jest, React Native Testing Library)
+        if: matrix.platform == 'android'
+        working-directory: mobile
+        run: npm test -- --ci
+
+      - name: Set up Java 17
+        if: matrix.platform == 'android'
+        uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Generate the native project
+        working-directory: mobile
+        run: npx expo prebuild --platform ${{ matrix.platform }} --no-install
+
+      - name: Android release build (unsigned APK)
+        if: matrix.platform == 'android'
+        working-directory: mobile/android
+        run: ./gradlew assembleRelease --no-daemon --console=plain
+
+      - name: Keep the unsigned APK
+        if: matrix.platform == 'android'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sandpiper-grc-android-unsigned
+          path: mobile/android/app/build/outputs/apk/release/app-release-unsigned.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Install the iPhone project's pods
+        if: matrix.platform == 'ios'
+        working-directory: mobile/ios
+        run: pod install
+
+      - name: iPhone build for the simulator (unsigned)
+        if: matrix.platform == 'ios'
+        working-directory: mobile/ios
+        run: >
+          xcodebuild -workspace SandpiperGRC.xcworkspace -scheme SandpiperGRC -configuration Release
+          -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build
+          CODE_SIGNING_ALLOWED=NO build
+
+      - name: iPhone build for devices (unsigned)
+        if: matrix.platform == 'ios'
+        working-directory: mobile/ios
+        run: >
+          xcodebuild -workspace SandpiperGRC.xcworkspace -scheme SandpiperGRC -configuration Release
+          -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build
+          CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' build

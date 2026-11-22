@@ -215,6 +215,9 @@ arrive.
 
 ## OAuth for remote connectors
 
+The same OAuth server also serves the mobile app's built-in client (client kind `mobile`,
+`server/src/modules/mobile/`); `mcp.oauth_enabled` and the connector settings below do not govern it.
+
 Remote connectors (for example Claude's custom connectors, or Claude Code without a token) do not
 take a pasted token: they follow the [MCP authorization
 specification](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization).

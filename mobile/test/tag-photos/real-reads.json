@@ -1,0 +1,1320 @@
+{
+ "recordedOn": "2026-11-22",
+ "device": "Android emulator (sdk_gphone64_x86_64, API 36), ML Kit, still pictures",
+ "reads": {
+  "alnum-ambiguous": {
+   "width": 640,
+   "height": 400,
+   "codes": [],
+   "lines": [
+    {
+     "text": "B8S50W",
+     "box": {
+      "x": 238,
+      "y": 186,
+      "width": 164,
+      "height": 29
+     }
+    }
+   ],
+   "still": true
+  },
+  "alnum-blur": {
+   "width": 640,
+   "height": 400,
+   "codes": [],
+   "lines": [
+    {
+     "text": "R2D2KN",
+     "box": {
+      "x": 239,
+      "y": 183,
+      "width": 162,
+      "height": 32
+     }
+    }
+   ],
+   "still": true
+  },
+  "alnum-clean": {
+   "width": 640,
+   "height": 400,
+   "codes": [],
+   "lines": [
+    {
+     "text": "PROPERTY 0F THE AUTHORITY",
+     "box": {
+      "x": 161,
+      "y": 175,
+      "width": 319,
+      "height": 12
+     }
+    },
+    {
+     "text": "K7Q2MG",
+     "box": {
+      "x": 240,
+      "y": 197,
+      "width": 162,
+      "height": 28
+     }
+    }
+   ],
+   "still": true
+  },
+  "alnum-faint": {
+   "width": 640,
+   "height": 400,
+   "codes": [],
+   "lines": [
+    {
+     "text": "Z9W3TE",
+     "box": {
+      "x": 240,
+      "y": 186,
+      "width": 162,
+      "height": 28
+     }
+    }
+   ],
+   "still": true
+  },
+  "alnum-rotated": {
+   "width": 640,
+   "height": 400,
+   "codes": [],
+   "lines": [
+    {
+     "text": "H4X9 PF",
+     "box": {
+      "x": 245,
+      "y": 161,
+      "width": 167,
+      "height": 71
+     }
+    }
+   ],
+   "still": true
+  },
+  "both-agree": {
+   "width": 640,
+   "height": 400,
+   "codes": [
+    {
+     "type": "code-128",
+     "content": "610014",
+     "box": {
+      "x": 210,
+      "y": 122,
+      "width": 217,
+      "height": 128
+     }
+    }
+   ],
+   "lines": [
+    {
+     "text": "61001 4",
+     "box": {
+      "x": 251,
+      "y": 245,
+      "width": 149,
+      "height": 40
+     }
+    }
+   ],
+   "still": true
+  },
+  "both-code-lost": {
+   "width": 640,
+   "height": 400,
+   "codes": [
+    {
+     "type": "code-128",
+     "content": "610022",
+     "box": {
+      "x": 212,
+      "y": 122,
+      "width": 215,
+      "height": 126
+     }
+    }
+   ],
+   "lines": [
+    {
+     "text": "610022",
+     "box": {
+      "x": 238,
+      "y": 252,
+      "width": 164,
+      "height": 32
+     }
+    }
+   ],
+   "still": true
+  },
+  "both-qr-and-text": {
+   "width": 640,
+   "height": 400,
+   "codes": [
+    {
+     "type": "qr-code",
+     "content": "TA-118355",
+     "box": {
+      "x": 257,
+      "y": 129,
+      "width": 127,
+      "height": 127
+     }
+    }
+   ],
+   "lines": [
+    {
+     "text": "PROPERTY OF THE AUTHORITY",
+     "box": {
+      "x": 161,
+      "y": 96,
+      "width": 319,
+      "height": 12
+     }
+    },
+    {
+     "text": "TA-118355",
+     "box": {
+      "x": 195,
+      "y": 276,
+      "width": 251,
+      "height": 28
+     }
+    }
+   ],
+   "still": true
+  },
+  "both-rotated-glare": {
+   "width": 640,
+   "height": 400,
+   "codes": [
+    {
+     "type": "data-matrix",
+     "content": "K7Q2NE",
+     "box": {
+      "x": 268,
+      "y": 139,
+      "width": 89,
+      "height": 88
+     }
+    }
+   ],
+   "lines": [
+    {
+     "text": "K7Q2NE",
+     "box": {
+      "x": 256,
+      "y": 206,
+      "width": 161,
+      "height": 84
+     }
+    }
+   ],
+   "still": true
+  },
+  "both-text-misread": {
+   "width": 640,
+   "height": 400,
+   "codes": [
+    {
+     "type": "code-128",
+     "content": "004520",
+     "box": {
+      "x": 212,
+      "y": 120,
+      "width": 217,
+      "height": 130
+     }
+    }
+   ],
+   "lines": [
+    {
+     "text": "004520",
+     "box": {
+      "x": 238,
+      "y": 254,
+      "width": 164,
+      "height": 28
+     }
+    }
+   ],
+   "still": true
+  },
+  "bought-blur": {
+   "width": 640,
+   "height": 400,
+   "codes": [],
+   "lines": [
+    {
+     "text": "100073",
+     "box": {
+      "x": 239,
+      "y": 185,
+      "width": 163,
+      "height": 30
+     }
+    }
+   ],
+   "still": true
+  },
+  "bought-clean": {
+   "width": 640,
+   "height": 400,
+   "codes": [],
+   "lines": [
+    {
+     "text": "PROPERTY OF THE AUTHORITY",
+     "box": {
+      "x": 161,
+      "y": 175,
+      "width": 319,
+      "height": 12
+     }
+    },
+    {
+     "text": "0452 11",
+     "box": {
+      "x": 258,
+      "y": 195,
+      "width": 158,
+      "height": 34
+     }
+    }
+   ],
+   "still": true
+  },
+  "bought-faint-lookalikes": {
+   "width": 640,
+   "height": 400,
+   "codes": [],
+   "lines": [
+    {
+     "text": "300111",
+     "box": {
+      "x": 241,
+      "y": 186,
+      "width": 159,
+      "height": 28
+     }
+    }
+   ],
+   "still": true
+  },
+  "bought-glare": {
+   "width": 640,
+   "height": 400,
+   "codes": [],
+   "lines": [
+    {
+     "text": "100081",
+     "box": {
+      "x": 242,
+      "y": 183,
+      "width": 155,
+      "height": 32
+     }
+    }
+   ],
+   "still": true
+  },
+  "bought-in-stock": {
+   "width": 640,
+   "height": 400,
+   "codes": [],
+   "lines": [
+    {
+     "text": "PROPERTY OF THE AUTHORITY",
+     "box": {
+      "x": 161,
+      "y": 175,
+      "width": 319,
+      "height": 12
+     }
+    },
+    {
+     "text": "500017",
+     "box": {
+      "x": 240,
+      "y": 197,
+      "width": 162,
+      "height": 28
+     }
+    }
+   ],
+   "still": true
+  },
+  "bought-label-words": {
+   "width": 640,
+   "height": 400,
+   "codes": [],
+   "lines": [
+    {
+     "text": "DO NOT REMOVE",
+     "box": {
+      "x": 240,
+      "y": 175,
+      "width": 162,
+      "height": 12
+     }
+    },
+    {
+     "text": "ASSET NO 488106",
+     "box": {
+      "x": 107,
+      "y": 197,
+      "width": 427,
+      "height": 29
+     }
+    }
+   ],
+   "still": true
+  },
+  "bought-misread-still": {
+   "width": 640,
+   "height": 400,
+   "codes": [],
+   "lines": [
+    {
+     "text": "300129",
+     "box": {
+      "x": 238,
+      "y": 185,
+      "width": 164,
+      "height": 30
+     }
+    }
+   ],
+   "still": true
+  },
+  "bought-rotated": {
+   "width": 640,
+   "height": 400,
+   "codes": [],
+   "lines": [
+    {
+     "text": "PROPERTY OF THE AUTHORITY",
+     "box": {
+      "x": 163,
+      "y": 151,
+      "width": 317,
+      "height": 58
+     }
+    },
+    {
+     "text": "045229",
+     "box": {
+      "x": 235,
+      "y": 186,
+      "width": 166,
+      "height": 51
+     }
+    }
+   ],
+   "still": true
+  },
+  "bought-spaced": {
+   "width": 640,
+   "height": 400,
+   "codes": [],
+   "lines": [
+    {
+     "text": "234 567",
+     "box": {
+      "x": 224,
+      "y": 186,
+      "width": 192,
+      "height": 28
+     }
+    }
+   ],
+   "still": true
+  },
+  "bought-unknown": {
+   "width": 640,
+   "height": 400,
+   "codes": [],
+   "lines": [
+    {
+     "text": "777771",
+     "box": {
+      "x": 242,
+      "y": 186,
+      "width": 157,
+      "height": 28
+     }
+    }
+   ],
+   "still": true
+  },
+  "code-128-blur": {
+   "width": 640,
+   "height": 400,
+   "codes": [
+    {
+     "type": "code-128",
+     "content": "004524",
+     "box": {
+      "x": 215,
+      "y": 133,
+      "width": 210,
+      "height": 125
+     }
+    }
+   ],
+   "lines": [],
+   "still": true
+  },
+  "code-aztec-rotated-faint": {
+   "width": 640,
+   "height": 400,
+   "codes": [
+    {
+     "type": "aztec",
+     "content": "SB-004513",
+     "box": {
+      "x": 246,
+      "y": 116,
+      "width": 158,
+      "height": 158
+     }
+    }
+   ],
+   "lines": [],
+   "still": true
+  },
+  "code-aztec": {
+   "width": 640,
+   "height": 400,
+   "codes": [
+    {
+     "type": "aztec",
+     "content": "TA-200117",
+     "box": {
+      "x": 260,
+      "y": 149,
+      "width": 122,
+      "height": 117
+     }
+    }
+   ],
+   "lines": [
+    {
+     "text": "PROPERTY 0F THE AUTHORITY",
+     "box": {
+      "x": 161,
+      "y": 116,
+      "width": 319,
+      "height": 12
+     }
+    }
+   ],
+   "still": true
+  },
+  "code-codabar": {
+   "width": 640,
+   "height": 400,
+   "codes": [
+    {
+     "type": "codabar",
+     "content": "A004523A",
+     "box": {
+      "x": 170,
+      "y": 155,
+      "width": 298,
+      "height": 103
+     }
+    }
+   ],
+   "lines": [
+    {
+     "text": "PROPERTY 0F THE AUTHORITY",
+     "box": {
+      "x": 161,
+      "y": 122,
+      "width": 319,
+      "height": 12
+     }
+    }
+   ],
+   "still": true
+  },
+  "code-code128": {
+   "width": 640,
+   "height": 400,
+   "codes": [
+    {
+     "type": "code-128",
+     "content": "004521",
+     "box": {
+      "x": 219,
+      "y": 141,
+      "width": 210,
+      "height": 129
+     }
+    }
+   ],
+   "lines": [
+    {
+     "text": "PROPERTY 0F THE AUTHORITY",
+     "box": {
+      "x": 161,
+      "y": 122,
+      "width": 319,
+      "height": 12
+     }
+    }
+   ],
+   "still": true
+  },
+  "code-code39": {
+   "width": 640,
+   "height": 400,
+   "codes": [
+    {
+     "type": "code-39",
+     "content": "TA-118350",
+     "box": {
+      "x": 55,
+      "y": 142,
+      "width": 533,
+      "height": 128
+     }
+    }
+   ],
+   "lines": [
+    {
+     "text": "PROPERTY OF THE AUTHORITY",
+     "box": {
+      "x": 161,
+      "y": 122,
+      "width": 319,
+      "height": 12
+     }
+    }
+   ],
+   "still": true
+  },
+  "code-code93": {
+   "width": 640,
+   "height": 400,
+   "codes": [
+    {
+     "type": "code-93",
+     "content": "K7Q2M8",
+     "box": {
+      "x": 182,
+      "y": 156,
+      "width": 270,
+      "height": 101
+     }
+    }
+   ],
+   "lines": [
+    {
+     "text": "PROPERTY OF THE AUTHORITY",
+     "box": {
+      "x": 161,
+      "y": 122,
+      "width": 319,
+      "height": 12
+     }
+    }
+   ],
+   "still": true
+  },
+  "code-datamatrix": {
+   "width": 640,
+   "height": 400,
+   "codes": [
+    {
+     "type": "data-matrix",
+     "content": "K7Q2M9",
+     "box": {
+      "x": 285,
+      "y": 172,
+      "width": 70,
+      "height": 69
+     }
+    }
+   ],
+   "lines": [
+    {
+     "text": "PROPERTY OF THE AUTHORITY",
+     "box": {
+      "x": 161,
+      "y": 137,
+      "width": 319,
+      "height": 12
+     }
+    }
+   ],
+   "still": true
+  },
+  "code-dm-faint": {
+   "width": 640,
+   "height": 400,
+   "codes": [
+    {
+     "type": "data-matrix",
+     "content": "K7Q2N4",
+     "box": {
+      "x": 284,
+      "y": 160,
+      "width": 70,
+      "height": 69
+     }
+    }
+   ],
+   "lines": [],
+   "still": true
+  },
+  "code-ean13-glare": {
+   "width": 640,
+   "height": 400,
+   "codes": [
+    {
+     "type": "ean-13",
+     "content": "4000000045380",
+     "box": {
+      "x": 171,
+      "y": 130,
+      "width": 294,
+      "height": 131
+     }
+    }
+   ],
+   "lines": [],
+   "still": true
+  },
+  "code-ean13": {
+   "width": 640,
+   "height": 400,
+   "codes": [
+    {
+     "type": "ean-13",
+     "content": "4000000045212",
+     "box": {
+      "x": 171,
+      "y": 140,
+      "width": 294,
+      "height": 130
+     }
+    }
+   ],
+   "lines": [
+    {
+     "text": "PROPERTY OF THE AUTHORITY",
+     "box": {
+      "x": 161,
+      "y": 122,
+      "width": 319,
+      "height": 12
+     }
+    }
+   ],
+   "still": true
+  },
+  "code-ean8": {
+   "width": 640,
+   "height": 400,
+   "codes": [
+    {
+     "type": "ean-8",
+     "content": "96385074",
+     "box": {
+      "x": 219,
+      "y": 144,
+      "width": 206,
+      "height": 124
+     }
+    }
+   ],
+   "lines": [
+    {
+     "text": "PROPERTY OF THE AUTHORITY",
+     "box": {
+      "x": 161,
+      "y": 122,
+      "width": 319,
+      "height": 12
+     }
+    }
+   ],
+   "still": true
+  },
+  "code-heavy-blur": {
+   "width": 640,
+   "height": 400,
+   "codes": [],
+   "lines": [],
+   "still": true
+  },
+  "code-in-stock": {
+   "width": 640,
+   "height": 400,
+   "codes": [
+    {
+     "type": "code-128",
+     "content": "008001",
+     "box": {
+      "x": 214,
+      "y": 135,
+      "width": 211,
+      "height": 118
+     }
+    }
+   ],
+   "lines": [],
+   "still": true
+  },
+  "code-itf": {
+   "width": 640,
+   "height": 400,
+   "codes": [
+    {
+     "type": "itf",
+     "content": "00452200",
+     "box": {
+      "x": 191,
+      "y": 137,
+      "width": 257,
+      "height": 138
+     }
+    }
+   ],
+   "lines": [
+    {
+     "text": "PROPERTY 0F THE AUTHORITY",
+     "box": {
+      "x": 161,
+      "y": 122,
+      "width": 319,
+      "height": 12
+     }
+    }
+   ],
+   "still": true
+  },
+  "code-pdf417-blur": {
+   "width": 640,
+   "height": 400,
+   "codes": [],
+   "lines": [],
+   "still": true
+  },
+  "code-pdf417": {
+   "width": 640,
+   "height": 400,
+   "codes": [
+    {
+     "type": "pdf-417",
+     "content": "SB-004512",
+     "box": {
+      "x": 217,
+      "y": 185,
+      "width": 207,
+      "height": 42
+     }
+    }
+   ],
+   "lines": [
+    {
+     "text": "PROPERTY OF THE AUTHORITY",
+     "box": {
+      "x": 161,
+      "y": 156,
+      "width": 319,
+      "height": 12
+     }
+    }
+   ],
+   "still": true
+  },
+  "code-qr-rotated": {
+   "width": 640,
+   "height": 400,
+   "codes": [
+    {
+     "type": "qr-code",
+     "content": "TA-118344",
+     "box": {
+      "x": 243,
+      "y": 118,
+      "width": 155,
+      "height": 153
+     }
+    }
+   ],
+   "lines": [],
+   "still": true
+  },
+  "code-qr": {
+   "width": 640,
+   "height": 400,
+   "codes": [
+    {
+     "type": "qr-code",
+     "content": "TA-118342",
+     "box": {
+      "x": 258,
+      "y": 143,
+      "width": 126,
+      "height": 127
+     }
+    }
+   ],
+   "lines": [
+    {
+     "text": "PROPERTY OF THE AUTHORITY",
+     "box": {
+      "x": 161,
+      "y": 110,
+      "width": 317,
+      "height": 12
+     }
+    }
+   ],
+   "still": true
+  },
+  "code-unknown": {
+   "width": 640,
+   "height": 400,
+   "codes": [
+    {
+     "type": "code-128",
+     "content": "009001",
+     "box": {
+      "x": 212,
+      "y": 135,
+      "width": 210,
+      "height": 118
+     }
+    }
+   ],
+   "lines": [],
+   "still": true
+  },
+  "code-upca": {
+   "width": 640,
+   "height": 400,
+   "codes": [
+    {
+     "type": "upc-a",
+     "content": "036000291452",
+     "box": {
+      "x": 178,
+      "y": 142,
+      "width": 287,
+      "height": 128
+     }
+    }
+   ],
+   "lines": [
+    {
+     "text": "PROPERTY 0F THE AUTHORITY",
+     "box": {
+      "x": 161,
+      "y": 122,
+      "width": 319,
+      "height": 12
+     }
+    }
+   ],
+   "still": true
+  },
+  "code-upce": {
+   "width": 640,
+   "height": 400,
+   "codes": [
+    {
+     "type": "upc-e",
+     "content": "01234565",
+     "box": {
+      "x": 241,
+      "y": 146,
+      "width": 160,
+      "height": 119
+     }
+    }
+   ],
+   "lines": [
+    {
+     "text": "PROPERTY OF THE AUTHORITY",
+     "box": {
+      "x": 161,
+      "y": 122,
+      "width": 319,
+      "height": 12
+     }
+    }
+   ],
+   "still": true
+  },
+  "extract-128-plain": {
+   "width": 640,
+   "height": 400,
+   "codes": [
+    {
+     "type": "code-128",
+     "content": "R2D2K9",
+     "box": {
+      "x": 165,
+      "y": 132,
+      "width": 312,
+      "height": 130
+     }
+    }
+   ],
+   "lines": [],
+   "still": true
+  },
+  "extract-dm-fields": {
+   "width": 640,
+   "height": 400,
+   "codes": [
+    {
+     "type": "data-matrix",
+     "content": "SUP:12|ID:H4X9Q2|LOT:7",
+     "box": {
+      "x": 252,
+      "y": 126,
+      "width": 136,
+      "height": 137
+     }
+    }
+   ],
+   "lines": [],
+   "still": true
+  },
+  "extract-qr-address": {
+   "width": 640,
+   "height": 400,
+   "codes": [
+    {
+     "type": "qr-code",
+     "content": "https://labels.example.org/t?ID=K7Q2P1&lot=4",
+     "box": {
+      "x": 220,
+      "y": 96,
+      "width": 199,
+      "height": 199
+     }
+    }
+   ],
+   "lines": [],
+   "still": true
+  },
+  "plain-digits": {
+   "width": 640,
+   "height": 400,
+   "codes": [],
+   "lines": [
+    {
+     "text": "PROPERTY OF THE AUTHORITY",
+     "box": {
+      "x": 161,
+      "y": 175,
+      "width": 319,
+      "height": 12
+     }
+    },
+    {
+     "text": "004530",
+     "box": {
+      "x": 239,
+      "y": 197,
+      "width": 164,
+      "height": 28
+     }
+    }
+   ],
+   "still": true
+  },
+  "plain-faint": {
+   "width": 640,
+   "height": 400,
+   "codes": [],
+   "lines": [
+    {
+     "text": "004531",
+     "box": {
+      "x": 242,
+      "y": 186,
+      "width": 158,
+      "height": 28
+     }
+    }
+   ],
+   "still": true
+  },
+  "plain-label-only": {
+   "width": 640,
+   "height": 400,
+   "codes": [],
+   "lines": [
+    {
+     "text": "PROPERTY OF THE AUTHORITY",
+     "box": {
+      "x": 161,
+      "y": 175,
+      "width": 319,
+      "height": 12
+     }
+    },
+    {
+     "text": "DO NOT REMOVE",
+     "box": {
+      "x": 137,
+      "y": 197,
+      "width": 366,
+      "height": 28
+     }
+    }
+   ],
+   "still": true
+  },
+  "plain-letters-digits": {
+   "width": 640,
+   "height": 400,
+   "codes": [],
+   "lines": [
+    {
+     "text": "SB-004516",
+     "box": {
+      "x": 194,
+      "y": 174,
+      "width": 253,
+      "height": 50
+     }
+    }
+   ],
+   "still": true
+  },
+  "plain-misread-decoy": {
+   "width": 640,
+   "height": 400,
+   "codes": [],
+   "lines": [
+    {
+     "text": "004521",
+     "box": {
+      "x": 240,
+      "y": 185,
+      "width": 161,
+      "height": 30
+     }
+    }
+   ],
+   "still": true
+  },
+  "printed-clean": {
+   "width": 640,
+   "height": 400,
+   "codes": [],
+   "lines": [
+    {
+     "text": "PROPERTY OF THE AUTHORITY",
+     "box": {
+      "x": 161,
+      "y": 175,
+      "width": 319,
+      "height": 12
+     }
+    },
+    {
+     "text": "TA-118342",
+     "box": {
+      "x": 195,
+      "y": 197,
+      "width": 251,
+      "height": 28
+     }
+    }
+   ],
+   "still": true
+  },
+  "printed-decoy": {
+   "width": 640,
+   "height": 400,
+   "codes": [],
+   "lines": [
+    {
+     "text": "TA-118342",
+     "box": {
+      "x": 194,
+      "y": 185,
+      "width": 253,
+      "height": 30
+     }
+    }
+   ],
+   "still": true
+  },
+  "printed-lookalikes": {
+   "width": 640,
+   "height": 400,
+   "codes": [],
+   "lines": [
+    {
+     "text": "TA-100200",
+     "box": {
+      "x": 194,
+      "y": 186,
+      "width": 252,
+      "height": 28
+     }
+    }
+   ],
+   "still": true
+  },
+  "printed-spaced": {
+   "width": 640,
+   "height": 400,
+   "codes": [],
+   "lines": [
+    {
+     "text": "TA-118 351",
+     "box": {
+      "x": 182,
+      "y": 186,
+      "width": 277,
+      "height": 28
+     }
+    }
+   ],
+   "still": true
+  },
+  "shelf-bought-text": {
+   "width": 1200,
+   "height": 400,
+   "codes": [],
+   "lines": [
+    {
+     "text": "700013",
+     "box": {
+      "x": 118,
+      "y": 160,
+      "width": 164,
+      "height": 36
+     }
+    },
+    {
+     "text": "|700021",
+     "box": {
+      "x": 506,
+      "y": 174,
+      "width": 181,
+      "height": 50
+     }
+    },
+    {
+     "text": "700039",
+     "box": {
+      "x": 917,
+      "y": 202,
+      "width": 164,
+      "height": 36
+     }
+    }
+   ],
+   "still": true
+  },
+  "shelf-codes": {
+   "width": 1200,
+   "height": 400,
+   "codes": [
+    {
+     "type": "qr-code",
+     "content": "TA-118401",
+     "box": {
+      "x": 536,
+      "y": 132,
+      "width": 127,
+      "height": 127
+     }
+    },
+    {
+     "type": "data-matrix",
+     "content": "K7Q4M1",
+     "box": {
+      "x": 964,
+      "y": 160,
+      "width": 70,
+      "height": 69
+     }
+    },
+    {
+     "type": "code-128",
+     "content": "004601",
+     "box": {
+      "x": 92,
+      "y": 131,
+      "width": 212,
+      "height": 133
+     }
+    }
+   ],
+   "lines": [],
+   "still": true
+  },
+  "shelf-mixed": {
+   "width": 800,
+   "height": 400,
+   "codes": [
+    {
+     "type": "code-128",
+     "content": "700047",
+     "box": {
+      "x": 89,
+      "y": 129,
+      "width": 216,
+      "height": 132
+     }
+    }
+   ],
+   "lines": [
+    {
+     "text": "700054",
+     "box": {
+      "x": 519,
+      "y": 186,
+      "width": 162,
+      "height": 28
+     }
+    }
+   ],
+   "still": true
+  },
+  "shelf-with-stock": {
+   "width": 800,
+   "height": 400,
+   "codes": [],
+   "lines": [
+    {
+     "text": "700062",
+     "box": {
+      "x": 119,
+      "y": 186,
+      "width": 162,
+      "height": 28
+     }
+    },
+    {
+     "text": "500025",
+     "box": {
+      "x": 520,
+      "y": 186,
+      "width": 161,
+      "height": 28
+     }
+    }
+   ],
+   "still": true
+  }
+ }
+}

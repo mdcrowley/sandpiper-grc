@@ -88,13 +88,18 @@ export interface ResourceListProps {
    * tags (a Tags column and filter). Default true.
    */
   extras?: boolean;
+  /**
+   * Extra buttons in the bulk bar while rows are selected (wave 13: print the tags of the selected
+   * records). Given the selected rows and a function that clears the selection.
+   */
+  bulkActions?: (rows: Row[], clear: () => void) => ReactNode;
 }
 
 const PAGE_SIZES = [10, 25, 50, 100];
 
 export function ResourceList({
   type, columns: givenColumns, baseFilter, title, actions, onRowClick, createFields, createInitial, onCreated,
-  pageSize: defaultPageSize = 25, bulkFields, urlState, defaultSort, extras = true, filters: givenFilters = [],
+  pageSize: defaultPageSize = 25, bulkFields, urlState, defaultSort, extras = true, filters: givenFilters = [], bulkActions,
 }: ResourceListProps) {
   const resource = useResource(type);
   const { can, user } = useAuth();
@@ -512,6 +517,7 @@ export function ResourceList({
           canExport={canExport}
           onEdit={() => setBulkEditing(true)}
           onExport={exportSelected}
+          extra={bulkActions?.([...selected.values()], () => setSelected(new Map()))}
           onClear={() => setSelected(new Map())}
         />
       )}

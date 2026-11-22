@@ -23,3 +23,15 @@ secret.key
 *.secret.key*
 *.pem
 *.pfx
+
+# The mobile app (mobile/): Expo's local state, the native projects `expo prebuild` makes, the
+# generated type file, and signing material, which is kept outside the repository.
+mobile/.expo/
+mobile/ios/
+mobile/android/
+mobile/expo-env.d.ts
+mobile/*.jks
+mobile/*.keystore
+mobile/*.p8
+mobile/*.p12
+mobile/*.mobileprovision

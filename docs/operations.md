@@ -206,6 +206,7 @@ until an administrator switches its connection on.
 | `integrations.housekeeping` | Daily | Removes forwarders' delivery log rows older than `retention.audit_forward_log_days` (30) |
 | `feeds.tracker_push` | Every minute, and at once when a record is sent | Sends queued records to the outside work tracker |
 | `attachments.evidence_reminders` | Daily | Evidence expiry reminders, and reminders to check linked documents (`attachments.link_check_days`) |
+| `tags.lookup_housekeeping` | Daily | Removes asset tag lookups (the "Last seen" log) older than `retention.tag_lookups_days` (90); runs only while Asset tags is on |
 
 Audit events already forwarded are not recalled at the end of a retention period or when a
 record is anonymized: agree the collector's own retention with whoever runs it.
@@ -923,6 +924,9 @@ To move to a newer Node.js patch release within the same major version, stop the
 and run `powershell -ExecutionPolicy Bypass -File .\tools\install-node.ps1 -Force`
 (`./tools/install-node.sh --force` on macOS and Linux). A container gets it with the next
 image.
+
+The mobile app is released separately; its release checklist, and how a server tells the app which
+versions it accepts, are in [Mobile app](mobile.md#release-checklist).
 
 ### Upgrading a server or container installation
 

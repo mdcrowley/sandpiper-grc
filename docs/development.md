@@ -248,6 +248,8 @@ Read them in code with `ctx.settings.get(key, fallback)`, using the same fallbac
 | `retention.mail_log_days` | `180` | Outgoing message log (`mail_log`) rows that are no longer queued or retrying are removed after this many days |
 | `retention.mail_inbound_log_days` | `180` | Incoming email log (`mail_inbound_log`) rows are removed after this many days |
 | `retention.audit_forward_log_days` | `30` | An audit-log forwarder's delivery log (`audit_forward_log`) is kept this many days; events already forwarded are not recalled |
+| `retention.tag_lookups_days` | `90` | Asset tag lookups (the "Last seen" log, `tag_lookups`) are removed after this many days by the daily job `tags.lookup_housekeeping` |
+| `tags.log_lookups` | `true` | Keep the asset tag lookup log |
 
 Changing an `auth.*`, `tokens.*` or `integrations.*` setting needs a recent password
 confirmation.
@@ -333,6 +335,11 @@ server/src/ops/               operations commands: backup, restore, export, impo
 server/src/test/helpers.ts    testApp() - in-memory app with a signed-in admin
 web/src/core/                 shell, design system, generic list/detail/form, api client (see web/src/core/README.md)
 web/src/modules/<key>/        one folder per module: index.tsx (+ pages)
+shared/                       code the server, the web and the mobile app share: tag values and formats
+                              (tag-format.ts), API shapes (asset-tags-api.ts, mobile-api.ts); no imports
+                              beyond shared/, tested by the root vitest
+mobile/                       the iPhone and Android app (Expo, React Native): its own package.json and
+                              lockfile, not part of the root install, typecheck or tests (see below)
 tools/                        install-node.ps1, browse.mjs, contrast.mjs, code-snapshot.mjs
 tools/e2e/                    browser test runner and suites (npm run test:e2e)
 tools/a11y/                   accessibility audit (npm run test:a11y)
@@ -692,9 +699,12 @@ Module keys (fixed, `MODULE_KEYS` in `server/src/modules/admin/shared.ts`): `tic
 `frameworks`, `risks`, `security`, `vulnerabilities`, `policies`, `training`,
 `exceptions`, `obligations`, `exercises`, `actions`, `projects`, `dashboards`, `reports`,
 `audit`, `admin`, `portal`, `fleet`, `safety`, `audits`, `controls`, `funding`, `governance`,
-`people`, `continuity`, `legal`, `records`, `privacy`. A new key is added there and here. The last four
+`people`, `continuity`, `legal`, `records`, `privacy`, `tags`. A new key is added there and here. The last four
 belong to the wave 11 parts (business continuity, legal holds, records requests, privacy
 assessments). Asset condition shares `assets`, `sites` and `fleet`, and OT security shares `systems`.
+A module may also offer actions of its own (`MODULE_ACTIONS` in the same file): asset tags have
+`tags.manage` and `tags.count` besides `tags.view`; the role editor shows those columns only in that
+module's row, and `isValidGrant` accepts them only there.
 
 Default roles (`server/src/core/services.ts`): Administrator, Agent, Security lead,
 Project manager, Safety manager, Compliance officer, Audit lead, Training coordinator, Continuity
@@ -769,7 +779,9 @@ Inventory, actions, notifications, attachments, administration, home and help ar
 areas: they are always on. Neither are legal holds (permission `legal`, module folder `holds`): a
 hold must never lapse because a part was switched off. Of the wave 11 areas, `condition` and `ot` share
 the inventory and fleet permissions, so they hide their record types and fields by name (`types`,
-`fields`).
+`fields`). Wave 13 adds `tags` (Asset tags, on by default; it also hides the `tag_number` field of
+vehicles, sites and systems) and `mobile` (Mobile app, off by default; no permission module: its module
+folder `mobile` and the OAuth client kind `mobile`).
 
 ### Tests
 
@@ -811,7 +823,7 @@ The test commands:
   instance running, and `E2E_BASE` points the tests at it; `E2E_BROWSER` picks the
   browser and `E2E_PORT` the port.
 - `npm run test:a11y`: the accessibility audit. It runs axe-core (WCAG 2.1 A and AA) on
-  every route, in light and dark at 1440 and 820 pixels wide (`--quick`: light at 1440
+  every route, with every optional area switched on (the portal and the mobile app start off), in light and dark at 1440 and 820 pixels wide (`--quick`: light at 1440
   only; `--routes /a,/b`; `--no-fail`), and writes `tools/a11y/out/report.md`. It fails
   on any serious or critical finding that is not listed, with its roadmap issue, in
   `tools/a11y/known.json`; remove an entry once its issue is fixed (the report lists stale
@@ -921,6 +933,41 @@ switched on, permission held), sorted by key. A source is a list, not a figure: 
 what that person may see (`visibleWhere(type, user)` in every query) and is involved in, between
 `from` and `to` (`YYYY-MM-DD`). Keys are `<module>.<name>` and unique.
 
+### Taggable types (shared registry)
+
+`core/asset-tags.ts` (wave 13, E37-01) lists the record types that can carry an asset tag value, so the
+`tags` module never needs another module's code. A module registers its types in `register`:
+
+```ts
+import { defineTaggable } from '../../core/asset-tags.ts';
+defineTaggable(ctx.app, {
+  type: 'vehicle', field: 'tag_number',            // the text field holding the record's current value
+  identifiers: [{ field: 'fleet_number', label: 'Fleet number' }],   // other exact identifiers for lookup
+  siteField: 'depot_id', statusField: 'status', facts: ['mode'], quickFields: ['status', 'depot_id'],
+});
+```
+
+`taggables(app, ctx.resources)` lists the types in use (loaded and switched on); `allTaggables(app)` lists
+every one (retention, holds). Inventory registers assets (`tag`), sites and systems
+(`inventory/fields-tags.ts`) and fleet registers vehicles (`fleet/fields-tags.ts`). The values are
+unique across every taggable type: `tag_assignments` (modules/tags) is the source of truth, with a
+unique index on the comparison form `value_key` of active values (`valueKey` in `shared/tag-format.ts`),
+and the record's field is a copy of its primary active value. The API base is `/api/asset-tags`:
+`/api/tags` is the free-text labels any record can carry (`core/tags.ts`), a different thing.
+Inventory counts expect the records of taggable types with a `siteField`; systems (no site) are not
+counted. Several modules may clean up the same taggable type when it is anonymized: `onAnonymize(type,
+hook, owner)` keeps one hook per owner and runs them all (`core/retention.ts`). The tags module wraps
+each taggable type's `beforeCreate` and `beforeUpdate` once the app is ready, so every way of writing a
+tag value (forms, imports, bulk edits, the app, the tag routes) claims, replaces or ends it through one
+code path; a module that keeps per-record rows for taggable types anonymizes them with
+`onTaggableAnonymize` (`modules/tags/store.ts`). Existing values are claimed at start-up and by the
+daily job `tags.reconcile`; a value found on two records is logged and never moved.
+
+Printing tags (`modules/tags/print*.ts`) plans each label once (`print-label.ts`, in millimeters) and
+draws that plan as a PDF (PDFKit) or as ZPL for thermal printers; codes (Code 128, QR, Data Matrix)
+come from **bwip-js** (MIT, pure JavaScript, the only barcode dependency, server only). Label PDFs
+carry no page header or footer (`printBranding` is used only for the logo inside the label).
+
 ### Inventory extensions
 
 Optional modules add fields and panels to inventory records without editing inventory. Server: the
@@ -930,7 +977,29 @@ field maps in `inventory/fields-ot.ts`, `fields-condition.ts` and `fields-privac
 one owner. Web: a module ships `web/src/modules/<module>/InventoryPanel.tsx` exporting
 `panels: InventoryPanelDef[]` (`{ key, label, area?, appliesTo, Panel }`, `inventory/Extensions.tsx`);
 a panel is an extra tab on a system and an extra section under the summary of an asset, site or data
-category, and is left out while its area is off.
+category, and is left out while its area is off. Since wave 13 a panel may also apply to `vehicle` (an
+extra tab on the vehicle page). Lists take extensions the same way: `<module>/ListActions.tsx` exporting
+`listActions` (controls beside the buttons of the asset, site, system and vehicle lists, such as the
+"Find by tag number" box) and `<module>/BulkActions.tsx` exporting `bulkActions` (buttons in the bulk bar
+while rows are selected; ResourceList's `bulkActions` prop). An administrator's user page takes cards
+from `<module>/UserCard.tsx` (`userCards`, `admin/UserExtensions.tsx`), and the global search takes
+entries from `<module>/PaletteProvider.ts` (`paletteProvider`, `core/CommandPalette.tsx`), each left out
+while its area is off.
+
+### Shared code and the mobile app
+
+`shared/` holds plain TypeScript the server, the web application and the app import by relative path
+with the `.ts` extension (the web and app tsconfigs allow it; the container image copies `shared/`).
+Its files import nothing outside `shared/`. `mobile/` is an Expo app with its own `package.json` and
+lockfile: `cd mobile; npm ci; npm run typecheck; npm test` (Jest with React Native Testing Library). The
+root install, typecheck, tests and container never include it. Native builds run in GitHub Actions
+(the `mobile` job: Android on Linux, iPhone on macOS, unsigned), and locally for Android after
+`tools/install-android-tools.ps1` (or `.sh`) installs a portable JDK 17 and Android SDK into `.tools/`;
+`docs/mobile.md` covers building, signing and "Running the app against a local server". The app's
+typed API client is `packages/api-client`, generated from the server's OpenAPI description for the
+paths listed in its `include.json`: `npx tsx packages/api-client/generate.ts` (add `--check` to verify
+it is up to date, as CI does); add a path to `include.json` to type a new API for the app. Builds and
+dev servers run with `EXPO_NO_TELEMETRY=1`.
 
 ### Approval workflows (shared engine)
 
@@ -1057,6 +1126,8 @@ has filter, sort, saved view and export; every record shows its history.
 | `vulnerabilities` | `vulnerability` → vulnerability_records (restricted) |
 | `projects` | `project` → projects |
 | `fleet` | `vehicle` → vehicles, `service` → services |
+| `tags` | `inventory_count` → inventory_counts (child table inventory_count_items); tables tag_formats, tag_series, tag_ranges, tag_range_values, tag_stock_marks, tag_assignments, tag_lookups, tag_label_layouts, tag_verifications (no record type) |
+| `mobile` | no record type: the mobile app's devices, My work and settings (wave 13, area `mobile`) |
 | `safety` | `hazard` → hazards, `safety_event` → safety_events (flag), `safety_indicator` → safety_indicators; tables safety_event_people, safety_event_timeline, safety_event_statements, safety_report_rules, safety_notifications, safety_indicator_values, safety_indicator_targets (no record type) |
 | `reports` | `report_definition` → report_definitions, `dashboard` → dashboards, `report_schedule` → report_schedules, `report_pack` → report_packs |
 | `attachments` | no record type: files on any record (table `attachments`; `AttachmentsPanel`; stored in `<data>/files`), and links to documents kept elsewhere (`storage_driver = 'link'`, never fetched) |
@@ -1087,7 +1158,7 @@ review_deficiency, subrecipient → `funding`; committee, meeting, meeting_decis
 vendor_issue, vendor_offboarding → `vendors`; business_process, bia, continuity_plan,
 emergency_activation → `continuity`; asset_class, condition_assessment → `assets`; ot_zone,
 ot_conduit → `systems`; legal_hold → `legal`; records_request → `records`; privacy_assessment →
-`privacy`.
+`privacy`; inventory_count → `tags`.
 
 Core refuses a ref field that names a record the caller cannot see (`checkRefsVisible` in
 core/resource.ts); unchanged values are not checked again and system work is exempt.

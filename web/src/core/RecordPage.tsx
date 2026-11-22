@@ -226,6 +226,15 @@ export function RecordPage({
     window.addEventListener('grc:attachments-changed', onChanged);
     return () => window.removeEventListener('grc:attachments-changed', onChanged);
   }, [type, id, reloadFiles]);
+  // A panel that changes the record itself (the Tags panel sets its Tag number) asks for the summary to reload.
+  useEffect(() => {
+    const onChanged = (e: Event) => {
+      const detail = (e as CustomEvent<{ recordType?: string; recordId?: string }>).detail;
+      if (detail?.recordType === type && detail.recordId === id) reload();
+    };
+    window.addEventListener('grc:record-changed', onChanged);
+    return () => window.removeEventListener('grc:record-changed', onChanged);
+  }, [type, id, reload]);
   // No attachments service on this server (module not loaded): leave the tab out.
   const filesMissing = files.error instanceof ApiError && files.error.status === 404;
 

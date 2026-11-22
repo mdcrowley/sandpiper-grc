@@ -16,7 +16,7 @@ import { clientIp, cookieSecure } from './request.ts';
 import { loadSecretBox, type SecretBox } from './secretbox.ts';
 import { resealStoredSecrets, retiredKeyAdvice } from './secretkey-reseal.ts';
 import type { makeAudit, makeSettings } from './services.ts';
-import { registerTokens, revokeProgramAccess, revokedSummary } from './tokens.ts';
+import { registerTokens, revokeProgramAccess, revokedSummary, tokenConfirmedAt } from './tokens.ts';
 import { matchTotpStep } from './totp.ts';
 // Passkeys and security keys, and the new-installation second-factor default (E02-08, E02-17).
 import { applySetupSecondFactor, hasActivePasskey, passkeySecondFactor, registerWebAuthn } from './webauthn/index.ts';
@@ -318,7 +318,8 @@ export async function mfaStatusForSession(
 
 /**
  * Sensitive administrative actions need the password to have been proved in this session within
- * the last `auth.reauth_minutes` (default 10): at sign-in, or since through POST /api/auth/confirm.
+ * the last `auth.reauth_minutes` (default 10): at sign-in, or since through POST /api/auth/confirm,
+ * or a bearer token's recent sign-in claim of the same age (the mobile app after `prompt=login`).
  * A refusal is audited and answers 403 `reauth_required`, which the web app turns into a prompt.
  */
 export async function requireRecentAuth(deps: Deps, req: FastifyRequest, what: string): Promise<void> {
@@ -328,6 +329,10 @@ export async function requireRecentAuth(deps: Deps, req: FastifyRequest, what: s
     [req.sessionHash, minutes],
   );
   if (fresh) return;
+  // A bearer token issued after a fresh sign-in (the mobile app's prompt=login, core/tokens.ts
+  // `confirmedAt`) counts for the same window from that sign-in; rotating the token never moves it.
+  const claimed = tokenConfirmedAt(req);
+  if (claimed !== null && claimed > Date.now() - minutes * 60_000 && claimed <= Date.now() + 60_000) return;
   await deps.audit(req, {
     action: 'reauth.required', recordType: 'user', recordId: req.user?.id,
     summary: `Refused until the password is confirmed again: ${what}`,

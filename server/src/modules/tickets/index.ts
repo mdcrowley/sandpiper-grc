@@ -310,7 +310,7 @@ const mod: ModuleDef = {
         assignment_group: { label: 'Assignment group', type: 'lookup', list: 'assignment_group' },
         assignee_id: { label: 'Assignee', type: 'user' },
         status: { label: 'Status', type: 'lookup', list: 'ticket_status', default: 'new', required: true },
-        resolution_code: { label: 'Resolution code', type: 'lookup', list: 'resolution_code' },
+        resolution_code: { label: 'Resolution code', type: 'lookup', list: 'resolution_code', mobileEditable: true },
         resolution_notes: { label: 'Resolution notes', type: 'longtext' },
         channel: { label: 'Channel', type: 'lookup', list: 'ticket_channel', default: 'agent' },
         with_vendor: { label: 'With vendor', type: 'boolean', default: false },

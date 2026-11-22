@@ -210,7 +210,7 @@ export function ReportProblem() {
   const [params] = useSearchParams();
   const [title, setTitle] = useState(params.get('what') ?? '');
   const [details, setDetails] = useState('');
-  const [where, setWhere] = useState('');
+  const [where, setWhere] = useState(params.get('where') ?? '');
   const [affects, setAffects] = useState('');
   const [urgent, setUrgent] = useState('');
   const [files, setFiles] = useState<File[]>([]);

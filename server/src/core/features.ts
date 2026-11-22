@@ -204,6 +204,23 @@ export const AREAS: Area[] = [
     lookupValues: { action_source: ['records', 'privacy'], notification_kind: ['records'] },
     fields: { data_category: ['personal_data', 'personal_data_kinds'] },
   },
+  // Wave 13 (E37, E38). Asset tags have their own permission module (`tags`, module folder `tags`);
+  // the Tag number field of vehicles, sites and systems is theirs. The asset's own `tag` field is the
+  // asset's reference and stays. The mobile app has no permission module: it is the module folder
+  // `mobile` (devices, My work, settings) and the OAuth client kind `mobile` (modules/mcp/oauth.ts),
+  // which answers as unknown while the area is off.
+  {
+    key: 'tags', label: 'Asset tags', defaultOn: true,
+    description: 'Tag numbers on assets, vehicles, sites and systems (printed digits, letters, barcodes or 2D codes), tag formats and stock, printing your own tags, finding a record by its tag, and inventory counts.',
+    permissions: ['tags'], types: ['inventory_count'], modules: ['tags'], jobs: ['tags.'],
+    fields: { vehicle: ['tag_number'], site: ['tag_number'], system: ['tag_number'] },
+    lookupValues: { action_source: ['inventory_count'], asset_status: ['missing'], vehicle_status: ['missing'] },
+  },
+  {
+    key: 'mobile', label: 'Mobile app', defaultOn: false,
+    description: 'The Sandpiper GRC app for iPhone and Android: sign-in through the phone\'s browser, My work, reading asset tags with the camera, reporting problems with photos, and the list of signed-in devices. Switching it off signs out every device.',
+    permissions: [], modules: ['mobile'], jobs: ['mobile.'],
+  },
 ];
 
 export const AREA_KEYS = AREAS.map((a) => a.key);

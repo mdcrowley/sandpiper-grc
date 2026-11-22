@@ -66,7 +66,7 @@ const DOCS: [RouteDoc['method'], string, string, Extra?][] = [
   ['POST', '/api/admin/users/:id/end-sessions', 'End all of a user\'s sessions', { tag: 'Users', permission: A }],
   ['POST', '/api/admin/users/:id/reset-mfa', 'Remove a user\'s second factor and recovery codes', { tag: 'Users', permission: A, description: CONFIRM }],
 
-  ['GET', '/api/admin/roles', 'Roles with their grants, and the permission vocabulary', { tag: 'Roles', permission: A }],
+  ['GET', '/api/admin/roles', 'Roles with their grants, and the permission vocabulary', { tag: 'Roles', permission: A, response: '{ roles, modules: [string], actions: [string], moduleActions: { <module>: [action] } } (moduleActions: actions only those modules offer, such as tags.manage)' }],
   ['GET', '/api/admin/roles/:id', 'One role with its members', { tag: 'Roles', permission: A }],
   ['POST', '/api/admin/roles', 'Create a role', { tag: 'Roles', permission: A, description: CONFIRM, body: '{ name, description?, grants: ["tickets.view", "assets.*"], requiresMfa? }' }],
   ['PATCH', '/api/admin/roles/:id', 'Change a role', { tag: 'Roles', permission: A, description: 'Changing grants, the second-factor flag or whether the role is on needs a recent password confirmation.', body: '{ name?, description?, grants?, requiresMfa?, enabled? }' }],

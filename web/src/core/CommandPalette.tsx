@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { qs } from './api';
 import { useDebounced, useFetch } from './hooks';
 import { Icon, type IconName } from './Icon';
+import { useAuth } from './auth';
 import { recordHref } from './meta';
 import { cx } from './ui';
 
@@ -43,6 +44,22 @@ interface Entry {
   run: () => void;
 }
 
+/**
+ * Entries an optional module offers for what is typed (wave 13): a module ships
+ * `web/src/modules/<module>/PaletteProvider.ts` exporting `paletteProvider`. Its entries come first, in their
+ * own section, and are left out while its area is off or without its permission. `entries` must be quick
+ * and must not fetch: it runs on every key press (the asset tags provider offers "Find tag number <text>").
+ */
+export interface PaletteEntry { key: string; label: string; path: string; icon?: IconName; hint?: string; section?: string }
+export interface PaletteProvider {
+  key: string;
+  area?: string;
+  permission?: string;
+  entries: (text: string) => PaletteEntry[];
+}
+const PROVIDERS: PaletteProvider[] = Object.values(import.meta.glob<{ paletteProvider?: PaletteProvider }>('../modules/*/PaletteProvider.ts', { eager: true }))
+  .map((m) => m.paletteProvider).filter((p): p is PaletteProvider => Boolean(p));
+
 const MAX_RECENT = 6;
 
 function readRecent(key: string): string[] {
@@ -65,6 +82,7 @@ export interface CommandPaletteProps {
 
 export function CommandPalette({ opened, onClose, pages, create, userId }: CommandPaletteProps) {
   const navigate = useNavigate();
+  const { areaOn, can } = useAuth();
   const listId = useId();
   const listRef = useRef<HTMLDivElement>(null);
   const recentKey = `grc.search.recent.${userId}`;
@@ -105,6 +123,10 @@ export function CommandPalette({ opened, onClose, pages, create, userId }: Comma
       return out;
     }
 
+    PROVIDERS.filter((p) => (!p.area || areaOn(p.area)) && (!p.permission || can(p.permission)))
+      .flatMap((p) => p.entries(typed).slice(0, 3).map((e) => ({ ...e, key: `${p.key}-${e.key}` })))
+      .forEach((e) => out.push({ key: `provider-${e.key}`, section: e.section ?? 'Find', icon: e.icon ?? 'search', label: e.label, hint: e.hint, run: go(e.path, true) }));
+
     pages
       .filter((p) => p.label.toLowerCase().includes(needle) || (p.group ?? '').toLowerCase().includes(needle))
       .sort((a, b) => Number(b.label.toLowerCase().startsWith(needle)) - Number(a.label.toLowerCase().startsWith(needle)))
@@ -128,7 +150,7 @@ export function CommandPalette({ opened, onClose, pages, create, userId }: Comma
       run: go(recordHref(h.route, h.id), true),
     })));
     return out;
-  }, [typed, q, data, recent, pages, create, recentKey, navigate, onClose]);
+  }, [typed, q, data, recent, pages, create, recentKey, navigate, onClose, areaOn, can]);
 
   useEffect(() => setActive(0), [typed, data]);
   useEffect(() => {

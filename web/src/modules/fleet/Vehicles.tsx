@@ -7,6 +7,7 @@ import { Loading, PageHeader, RecordPage, ResourceList, useAuth, useResource } f
 import { EquipmentPanel } from './Equipment';
 import { SafetyEventsCard } from './SafetyEvents';
 import { FleetTabs } from './shared';
+import { ListExtensionActions, useBulkExtensions, useExtensionTabs } from '../inventory/Extensions';
 
 const year = (row: Record<string, unknown>) => (row.model_year ? String(row.model_year) : '—');
 
@@ -20,6 +21,7 @@ const CONDITION_COLUMNS = ['asset_class_id', 'condition_rating', 'useful_life_en
 
 export function VehicleList() {
   const resource = useResource('vehicle');
+  const bulkActions = useBulkExtensions('vehicle');
   // Columns of the condition area only while the server offers their fields (it hides them while the area is off).
   const condition = CONDITION_COLUMNS.filter((f) => resource?.fields[f]).map((field) => ({ field, hidden: true }));
   return (
@@ -35,6 +37,8 @@ export function VehicleList() {
         filters={['mode', 'status', 'depot_id', 'funding_source', 'funder_interest', 'in_service_date',
           ...['asset_class_id', 'condition_rating', 'useful_life_end'].filter((f) => resource?.fields[f])]}
         createFields={['fleet_number', 'mode', 'status', 'depot_id', 'make', 'model', 'model_year', 'registration', 'in_service_date', 'capacity', 'funding_source', 'funder_interest', 'funder_interest_pct', 'notes']}
+        actions={<ListExtensionActions recordType="vehicle" />}
+        bulkActions={bulkActions}
       />
     </div>
   );
@@ -43,6 +47,8 @@ export function VehicleList() {
 export function VehicleDetail() {
   const { can, areaOn } = useAuth();
   const condition = LazySection && areaOn('condition') && can('assets.view');
+  // Panels of optional modules (wave 13: the Tags panel), each an extra tab.
+  const extensionTabs = useExtensionTabs('vehicle');
   return (
     <RecordPage
       type="vehicle"
@@ -54,6 +60,7 @@ export function VehicleDetail() {
           key: 'condition', label: 'Condition',
           content: ({ row }: { row: { id: string } }) => <Suspense fallback={<Loading lines={3} />}><LazySection recordType="vehicle" recordId={row.id} /></Suspense>,
         }] : []),
+        ...extensionTabs,
         ...(can('safety.view') ? [{ key: 'safety', label: 'Safety events', content: ({ row }: { row: { id: string } }) => <SafetyEventsCard url={`/api/vehicles/${row.id}/safety-events`} /> }] : []),
       ]}
     />

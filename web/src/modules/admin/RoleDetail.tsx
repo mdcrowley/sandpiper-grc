@@ -13,7 +13,7 @@ import { Switch } from './Switch';
 const MODULE_LABELS: Record<string, string> = {
   knowledge: 'Knowledge base', data: 'Data categories', changes: 'Change enablement', security: 'Security incidents and restricted records',
   frameworks: 'Frameworks and assessments', audit: 'Audit log', admin: 'Administration', portal: 'Self-service portal',
-  dashboards: 'Dashboards and overview', exceptions: 'Policy exceptions',
+  dashboards: 'Dashboards and overview', exceptions: 'Policy exceptions', tags: 'Asset tags',
 };
 const baseModuleLabel = (key: string) => MODULE_LABELS[key] ?? humanize(key);
 
@@ -55,11 +55,15 @@ export function RoleDetailPage() {
 
   const modules = vocab.data?.modules ?? [];
   const actions = vocab.data?.actions ?? [];
-  const unusedAreas = new Set(checked ? modules.filter((m) => !actions.some((a) => checked.has(`${m}.${a}`))) : []);
-  const uncheckedCells = checked ? modules.reduce((n, m) => n + actions.filter((a) => !checked.has(`${m}.${a}`)).length, 0) : 0;
+  // Actions only some modules offer (tags.manage, tags.count): shown only in those modules' rows.
+  const moduleActions = vocab.data?.moduleActions ?? {};
+  const special = new Set(Object.values(moduleActions).flat());
+  const actionsFor = (m: string) => actions.filter((a) => !special.has(a) || (moduleActions[m] ?? []).includes(a));
+  const unusedAreas = new Set(checked ? modules.filter((m) => !actionsFor(m).some((a) => checked.has(`${m}.${a}`))) : []);
+  const uncheckedCells = checked ? modules.reduce((n, m) => n + actionsFor(m).filter((a) => !checked.has(`${m}.${a}`)).length, 0) : 0;
   const extras = useMemo(
-    () => [...grants].filter((g) => g !== '*' && !(modules.includes(g.split('.')[0]) && (g.endsWith('.*') || actions.includes(g.split('.')[1])))),
-    [grants, modules, actions],
+    () => [...grants].filter((g) => g !== '*' && !(modules.includes(g.split('.')[0]) && (g.endsWith('.*') || actionsFor(g.split('.')[0]).includes(g.split('.')[1])))),
+    [grants, modules, actions, moduleActions], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   if (error) return error instanceof ApiError && error.status === 404 ? <NotFound /> : <ErrorState error={error} onRetry={reload} />;
@@ -69,7 +73,7 @@ export function RoleDetailPage() {
   const isAdmin = role.key === 'administrator';
   const everything = grants.has('*');
   const has = (m: string, a: string) => everything || grants.has(`${m}.*`) || grants.has(`${m}.${a}`);
-  const countFor = (m: string) => actions.filter((a) => has(m, a)).length;
+  const countFor = (m: string) => actionsFor(m).filter((a) => has(m, a)).length;
   const dirty = form.name !== role.name || form.description !== (role.description ?? '') || form.requiresMfa !== role.requires_mfa
     || form.enabled !== role.enabled || [...grants].sort().join() !== [...role.grants].sort().join();
 
@@ -77,7 +81,7 @@ export function RoleDetailPage() {
     const next = new Set(old);
     if (next.has(`${m}.*`)) {
       next.delete(`${m}.*`);
-      for (const other of actions) if (other !== a) next.add(`${m}.${other}`);
+      for (const other of actionsFor(m)) if (other !== a) next.add(`${m}.${other}`);
     } else if (next.has(`${m}.${a}`)) next.delete(`${m}.${a}`);
     else next.add(`${m}.${a}`);
     return next;
@@ -85,7 +89,7 @@ export function RoleDetailPage() {
   const toggleAll = (m: string) => setGrants((old) => {
     const next = new Set(old);
     const on = next.has(`${m}.*`);
-    for (const a of actions) next.delete(`${m}.${a}`);
+    for (const a of actionsFor(m)) next.delete(`${m}.${a}`);
     if (on) next.delete(`${m}.*`); else next.add(`${m}.*`);
     return next;
   });
@@ -231,6 +235,8 @@ export function RoleDetailPage() {
                           </label>
                         </td>
                         {actions.map((a) => {
+                          // An action this module does not offer (tags.manage in another row) has no box.
+                          if (!actionsFor(m).includes(a)) return <td key={a} />;
                           const live = off || isChecked(m, a);
                           const held = has(m, a);
                           return (

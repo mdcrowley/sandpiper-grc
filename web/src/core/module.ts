@@ -26,6 +26,8 @@ export const MODULE_AREA: Record<string, string> = {
   audits: 'audits', controls: 'controls', funding: 'funding', governance: 'governance',
   // Wave 11. Legal holds (holds), integrations and feeds are not areas: they are always on.
   continuity: 'continuity', condition: 'condition', ot: 'ot', records: 'records',
+  // Wave 13: asset tags, and the mobile app's pages on the web (Account > Devices).
+  tags: 'tags', mobile: 'mobile',
 };
 
 /** Whether a web module's area is on (always true for a module that is not part of an area). */

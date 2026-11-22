@@ -24,6 +24,8 @@ COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY vite.config.ts ./
 COPY web ./web
+# Code shared by the server, the web application and the mobile app (tag values, API shapes).
+COPY shared ./shared
 # The Help pages are bundled from the user guide.
 COPY docs/user ./docs/user
 RUN npm run build
@@ -62,6 +64,7 @@ WORKDIR /app
 COPY package.json ./
 COPY --from=deps /app/node_modules ./node_modules
 COPY server ./server
+COPY shared ./shared
 COPY --from=web /app/dist/web ./dist/web
 COPY deploy/healthcheck.mjs ./deploy/healthcheck.mjs
 # `grc <command>`: the operations commands (status, seed, backup, restore, export-all, ...).

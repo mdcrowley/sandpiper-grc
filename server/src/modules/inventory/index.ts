@@ -3,6 +3,7 @@ import { registerDisposalRequests, ROUTED_ONLY } from './disposal.ts';
 import { CONDITION_ASSET_FIELDS, CONDITION_SITE_FIELDS, ensureConditionLists } from './fields-condition.ts';
 import { ensureOtLists, OT_ASSET_FIELDS, OT_SYSTEM_FIELDS } from './fields-ot.ts';
 import { ensurePrivacyLists, PRIVACY_DATA_CATEGORY_FIELDS } from './fields-privacy.ts';
+import { registerInventoryTaggables, TAG_NUMBER_FIELDS } from './fields-tags.ts';
 import { registerImport } from './importer.ts';
 import { registerReminders } from './reminders.ts';
 import { disposalProblem, funderRuleOn, registerLifecycle, today } from './lifecycle.ts';
@@ -134,6 +135,7 @@ async function register(ctx: ModuleContext) {
       to_confirm: { label: 'To confirm', type: 'longtext' },
       notes: { label: 'Notes', type: 'longtext' },
       ...CONDITION_SITE_FIELDS,
+      ...TAG_NUMBER_FIELDS,
     },
   });
 
@@ -193,6 +195,7 @@ async function register(ctx: ModuleContext) {
       to_confirm: { label: 'To confirm', type: 'longtext' },
       notes: { label: 'Notes', type: 'longtext' },
       ...OT_SYSTEM_FIELDS,
+      ...TAG_NUMBER_FIELDS,
     },
     hooks: {
       beforeCreate: (_req, data) => checkSystem(ctx, data, data),
@@ -266,6 +269,7 @@ async function register(ctx: ModuleContext) {
   await registerReminders(ctx);
   registerReports(ctx);
   registerImport(ctx);
+  registerInventoryTaggables(ctx);
 }
 
 function checkSystem(ctx: ModuleContext, merged: Row, patch: Row): Row {

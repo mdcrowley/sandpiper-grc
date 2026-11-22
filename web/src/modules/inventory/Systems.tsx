@@ -2,13 +2,14 @@
 import { useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { LookupChip, RecordPage, ResourceList, useAuth, useFetch, useResource } from '../../core';
-import { useExtensionTabs } from './Extensions';
+import { ListExtensionActions, useBulkExtensions, useExtensionTabs } from './Extensions';
 import { RelatedWork } from './shared';
 import { factChecks, FactSheet, FactStrip } from './SystemFacts';
 import { SystemMapTab } from './SystemMap';
 import { DataHeldTab, IntegrationsTab, SitesServed, SystemAssetsTab } from './SystemTabs';
 
 export function SystemList() {
+  const bulkActions = useBulkExtensions('system');
   return (
     <ResourceList
       type="system"
@@ -24,7 +25,8 @@ export function SystemList() {
       filters={['status', 'criticality_tier', 'hosting_type', 'mfa_status', 'business_owner_id', 'technical_owner_id', 'vendor_id']}
       bulkFields={['status', 'criticality_tier', 'hosting_type', 'mfa_status', 'business_owner_id', 'technical_owner_id']}
       createFields={['name', 'function', 'system_group', 'status', 'criticality_tier', 'hosting_type', 'business_owner_id', 'technical_owner_id', 'vendor_name']}
-      actions={<Link className="btn btn-secondary" to="/systems/map">Relationship map</Link>}
+      actions={<><ListExtensionActions recordType="system" /><Link className="btn btn-secondary" to="/systems/map">Relationship map</Link></>}
+      bulkActions={bulkActions}
       defaultSort={{ field: 'name', dir: 'asc' }}
       pageSize={50}
     />

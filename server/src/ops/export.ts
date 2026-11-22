@@ -51,7 +51,7 @@ export const exportStats = { peakHeldChars: 0, peakImportBatchChars: 0 };
 export const SECRET_TABLES = [
   'sessions', 'one_time_tokens', 'password_history', 'webauthn_credentials', 'webauthn_challenges',
   'identity_flows', 'identity_sessions', 'identity_logout_tokens',
-  'mcp_oauth_codes', 'mcp_oauth_tokens',
+  'mcp_oauth_codes', 'mcp_oauth_tokens', 'mobile_codes', 'mobile_tokens',
 ];
 
 /** A token hash replaced by a value no token can hash to (still unique, so the row loads). */
@@ -67,6 +67,7 @@ export const SECRET_COLUMNS: Record<string, Record<string, unknown>> = {
   users: { password_hash: null, totp_secret: null, totp_enabled: false, recovery_codes: [] },
   api_tokens: { token_hash: unusable },
   mcp_oauth_clients: { secret_hash: null },
+  mobile_devices: { installation_hash: unusable },
   vendor_assessment_links: { token_hash: unusable },
   scim_tokens: { token_hash: unusable },
   calendar_feeds: { token_hash: unusable },

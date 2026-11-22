@@ -123,7 +123,7 @@ export function registerActionResource(ctx: ModuleContext, extras: ActionExtras)
       priority: { label: 'Priority', type: 'lookup', list: 'action_priority', default: 'medium' },
       owner_id: { label: 'Owner', type: 'user' },
       due_on: { label: 'Due', type: 'date' },
-      completed_on: { label: 'Completed', type: 'date' },
+      completed_on: { label: 'Completed', type: 'date', mobileEditable: true },
       // No fixed default: prepareAction files a new action under its source record's kind, else "other".
       source: { label: 'Source', type: 'lookup', list: 'action_source' },
       source_type: { label: 'Source record type', type: 'text' },

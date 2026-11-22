@@ -43,7 +43,7 @@ export function tokenBlocked(url: string): boolean {
  * factor, so a credential made by someone who had the old password stops working with it.
  * Returns how many of each were revoked; the caller writes the audit event.
  */
-export async function revokeProgramAccess(db: Queryable, userId: string, by: string | null, reason: string): Promise<{ tokens: number; connections: number }> {
+export async function revokeProgramAccess(db: Queryable, userId: string, by: string | null, reason: string): Promise<{ tokens: number; connections: number; devices: number }> {
   const tokens = await db.query(
     'update api_tokens set revoked_at = now(), revoked_by = $2 where user_id = $1 and revoked_at is null and expires_at > now() returning id',
     [userId, by]);
@@ -54,12 +54,22 @@ export async function revokeProgramAccess(db: Queryable, userId: string, by: str
        where user_id = $1 and revoked_at is null and expires_at > now() returning id`,
       [userId, by, reason.slice(0, 200)])).length;
   }
-  return { tokens: tokens.length, connections };
+  // Signed-in installations of the mobile app (modules/mobile, wave 13 E38-02), when that module is installed:
+  // their access and refresh tokens stop working at once (the token lookups require an unrevoked device).
+  let devices = 0;
+  if ((await db.one<{ t: string | null }>(`select to_regclass('public.mobile_devices')::text as t`))?.t) {
+    devices = (await db.query(
+      `update mobile_devices set revoked_at = now(), revoked_by = $2, revoked_reason = $3
+       where user_id = $1 and revoked_at is null returning id`,
+      [userId, by, reason.slice(0, 200)])).length;
+  }
+  return { tokens: tokens.length, connections, devices };
 }
 
-/** "; 2 API token(s) and 1 assistant connection(s) revoked" for an audit summary, or ''. */
-export const revokedSummary = (r: { tokens: number; connections: number }) =>
-  (r.tokens || r.connections ? `; ${r.tokens} API token(s) and ${r.connections} assistant connection(s) revoked` : '');
+/** "; 2 API token(s) and 1 assistant connection(s) revoked; 1 mobile device(s) signed out" for an audit summary, or ''. */
+export const revokedSummary = (r: { tokens: number; connections: number; devices?: number }) =>
+  (r.tokens || r.connections ? `; ${r.tokens} API token(s) and ${r.connections} assistant connection(s) revoked` : '')
+  + (r.devices ? `; ${r.devices} mobile device(s) signed out` : '');
 
 export const tokenHash = (token: string) => createHash('sha256').update(token).digest('hex');
 
@@ -220,6 +230,14 @@ export interface BearerResolution {
   /** Scopes, as for a personal access token (permission scopes and scope families). */
   scopes: string[];
   allowedSources?: string[] | null;
+  /**
+   * A recent sign-in claim (ISO time of a fresh password or second-factor proof) that the credential
+   * carries because its issuer made the person sign in again for it: today only the mobile app's tokens
+   * after a `prompt=login` sign-in (modules/mobile). `requireRecentAuth` accepts it for
+   * `auth.reauth_minutes` from that time, as it accepts a session's confirmation. Personal access tokens
+   * never carry one.
+   */
+  confirmedAt?: string | null;
 }
 /** Answers null for an unknown, expired or revoked token; may throw `fail(...)` to refuse with a reason. */
 export type BearerResolver = (token: string, req: FastifyRequest) => Promise<BearerResolution | null>;
@@ -238,6 +256,9 @@ declare module 'fastify' {
 const requestScopes = new WeakMap<FastifyRequest, string[]>();
 /** The scopes of the token a request was made with (as stored), or undefined for a session. */
 export const tokenScopes = (req: FastifyRequest): string[] | undefined => requestScopes.get(req);
+const requestConfirmed = new WeakMap<FastifyRequest, number>();
+/** The recent sign-in claim (epoch ms) of the bearer token a request was made with, or null (always null for a session or personal access token). */
+export const tokenConfirmedAt = (req: FastifyRequest): number | null => requestConfirmed.get(req) ?? null;
 
 export interface ApiTokenInfo { id: string; name: string }
 
@@ -321,6 +342,11 @@ export function registerTokens(app: FastifyInstance, deps: Deps) {
     req.sessionHash = null;
     req.apiToken = { id: found!.id, name: found!.name };
     requestScopes.set(req, [...found!.scopes]);
+    // Only a module's resolver can give a recent sign-in claim; a personal access token never has one.
+    if (!token.startsWith(TOKEN_PREFIX) && found!.confirmedAt) {
+      const at = Date.parse(found!.confirmedAt);
+      if (Number.isFinite(at)) requestConfirmed.set(req, at);
+    }
   }
 
   // Every change made with a token leaves an event naming the token, whatever the route itself records.

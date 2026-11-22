@@ -10,6 +10,7 @@ import type { AdminUser, AuditEvent, Department, IssuedLink, RolesResponse } fro
 import { adminApi } from './reauth';
 import { AlertContactCard } from './AlertContact';
 import { PasskeysCard } from '../account-keys/PasskeysCard';
+import { UserExtensionCards } from './UserExtensions';
 import { UserSignInCard } from './UserSignIn';
 import { LinkIssued } from './Users';
 
@@ -125,6 +126,7 @@ export function UserDetailPage() {
           </Card>
           <PasskeysCard userId={user.id} />
           <UserSignInCard user={user} onChanged={refresh} />
+          <UserExtensionCards userId={user.id} />
           <Card title="Recent account events" flush>
             {!auth.can('audit.view') ? <EmptyState icon="history" title="You need audit access to see events" />
               : events.error ? <ErrorState error={events.error} onRetry={events.reload} />

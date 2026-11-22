@@ -9,11 +9,12 @@
 // panel is an extra tab; on an asset, site or data category it is an extra section under the summary.
 // The panel checks its own permissions and renders null when the reader may see nothing of it.
 import { useEffect, useState } from 'react';
-import type { ComponentType } from 'react';
+import type { ComponentType, ReactNode } from 'react';
 import { useAuth } from '../../core';
 import type { RecordTab, Row } from '../../core';
 
-export type InventoryRecordType = 'system' | 'asset' | 'site' | 'data_category';
+/** Vehicles (fleet) take panels and list extensions too (wave 13): a vehicle panel is an extra tab. */
+export type InventoryRecordType = 'system' | 'asset' | 'site' | 'data_category' | 'vehicle';
 
 export interface InventoryPanelProps {
   recordType: string;
@@ -76,4 +77,83 @@ export function ExtensionSections({ recordType, row }: { recordType: InventoryRe
       {panels.map((p) => <p.Panel key={p.key} recordType={recordType} recordId={String(row.id)} row={row} />)}
     </>
   );
+}
+
+// ---------- list extensions (wave 13) ----------
+//
+// An optional module adds controls to the inventory and fleet lists without editing them:
+//   `web/src/modules/<module>/ListActions.tsx` exporting `listActions: ListActionDef[]`: shown beside
+//     the list's buttons (the asset tags "Find by tag number" box);
+//   `web/src/modules/<module>/BulkActions.tsx` exporting `bulkActions: BulkActionDef[]`: shown in the
+//     bulk bar while rows are selected (print the tags of the selected records).
+// Each is left out while its area is off, and a bulk action also without its permission.
+
+export interface ListActionProps { recordType: InventoryRecordType }
+
+export interface ListActionDef {
+  key: string;
+  area?: string;
+  permission?: string;
+  appliesTo: InventoryRecordType[];
+  Action: ComponentType<ListActionProps>;
+}
+
+export interface BulkActionProps {
+  recordType: InventoryRecordType;
+  /** The selected rows (as the list loaded them). */
+  rows: Row[];
+  /** Clears the selection (call after the action is done). */
+  clear: () => void;
+}
+
+export interface BulkActionDef {
+  key: string;
+  area?: string;
+  permission?: string;
+  appliesTo: InventoryRecordType[];
+  Action: ComponentType<BulkActionProps>;
+}
+
+const listLoaders = import.meta.glob<{ listActions?: ListActionDef[] }>('../*/ListActions.tsx');
+const bulkLoaders = import.meta.glob<{ bulkActions?: BulkActionDef[] }>('../*/BulkActions.tsx');
+
+function loadAll<T>(loaders: Record<string, () => Promise<Record<string, unknown>>>, name: string): Promise<T[]> {
+  return Promise.all(Object.entries(loaders).map(([file, load]) => load()
+    .then((m) => (m[name] as T[] | undefined) ?? [])
+    .catch((err) => { console.error(`List extension ${file} did not load:`, err); return [] as T[]; })))
+    .then((lists) => lists.flat());
+}
+
+let listAll: Promise<ListActionDef[]> | null = null;
+let bulkAll: Promise<BulkActionDef[]> | null = null;
+
+function useExtensionList<T extends { appliesTo: InventoryRecordType[]; area?: string; permission?: string }>(
+  loaders: Record<string, unknown>, load: () => Promise<T[]>, recordType: InventoryRecordType,
+): T[] {
+  const { areaOn, can } = useAuth();
+  const [items, setItems] = useState<T[]>([]);
+  useEffect(() => {
+    if (!Object.keys(loaders).length) return undefined;
+    let live = true;
+    void load().then((list) => { if (live) setItems(list); });
+    return () => { live = false; };
+  }, [loaders, load]);
+  return items.filter((p) => p.appliesTo.includes(recordType) && (!p.area || areaOn(p.area)) && (!p.permission || can(p.permission)));
+}
+
+const loadListActions = () => (listAll ??= loadAll<ListActionDef>(listLoaders, 'listActions'));
+const loadBulkActions = () => (bulkAll ??= loadAll<BulkActionDef>(bulkLoaders, 'bulkActions'));
+
+/** Extension controls for a list's header (render beside the list's own buttons). */
+export function ListExtensionActions({ recordType }: { recordType: InventoryRecordType }) {
+  const items = useExtensionList(listLoaders, loadListActions, recordType);
+  if (!items.length) return null;
+  return <>{items.map((a) => <a.Action key={a.key} recordType={recordType} />)}</>;
+}
+
+/** Extension buttons for a list's bulk bar: pass the result as ResourceList's `bulkActions`. */
+export function useBulkExtensions(recordType: InventoryRecordType): ((rows: Row[], clear: () => void) => ReactNode) | undefined {
+  const items = useExtensionList(bulkLoaders, loadBulkActions, recordType);
+  if (!items.length) return undefined;
+  return (rows, clear) => <>{items.map((a) => <a.Action key={a.key} recordType={recordType} rows={rows} clear={clear} />)}</>;
 }

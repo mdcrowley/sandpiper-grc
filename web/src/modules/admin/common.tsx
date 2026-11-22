@@ -43,7 +43,7 @@ export interface Role {
   users?: { id: string; username: string; display_name: string; status: string }[];
 }
 
-export interface RolesResponse { roles: Role[]; modules: string[]; actions: string[] }
+export interface RolesResponse { roles: Role[]; modules: string[]; actions: string[]; /** Actions only some modules offer (wave 13: tags.manage, tags.count). */ moduleActions?: Record<string, string[]> }
 export interface Department { id: string; name: string; members: number }
 export interface IssuedLink { link: string; expiresAt: string; purpose?: string; /** Set when the link was also emailed to the person. */ emailedTo?: string | null }
 

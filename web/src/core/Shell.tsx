@@ -373,6 +373,10 @@ export function Shell({ children }: { children: ReactNode }) {
                   <MMenu.Item className="ui-menu-item" component={Link} to="/notifications" leftSection={<Icon name="bell" size={16} />}>Notifications</MMenu.Item>
                 )}
                 <MMenu.Item className="ui-menu-item" component={Link} to="/account/security" leftSection={<Icon name="shield" size={16} />}>Account security</MMenu.Item>
+                {/* The mobile app's signed-in devices (wave 13, web/src/modules/mobile), only while that area is on. */}
+                {areaOn('mobile') && (
+                  <MMenu.Item className="ui-menu-item" component={Link} to="/account/devices" leftSection={<Icon name="key" size={16} />}>Devices</MMenu.Item>
+                )}
                 <MMenu.Item className="ui-menu-item" leftSection={<Icon name="lock" size={16} />} onClick={() => setChangingPassword(true)}>Change password</MMenu.Item>
                 <MMenu.Item className="ui-menu-item" component={Link} to="/help" leftSection={<Icon name="help" size={16} />}>Help</MMenu.Item>
                 <MMenu.Item className="ui-menu-item" leftSection={<Icon name="key" size={16} />} rightSection={<kbd className="kbd" aria-hidden="true">?</kbd>} onClick={() => setShortcutsOpen(true)}>Keyboard shortcuts</MMenu.Item>

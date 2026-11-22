@@ -37,6 +37,7 @@ invented.
 - [Restricted records](#restricted-records)
 - [User provisioning (SCIM 2.0)](#user-provisioning-scim-20)
 - [Calendar feeds and the work-tracker bridge](#calendar-feeds-and-the-work-tracker-bridge)
+- [Asset tags and inventory counts](#asset-tags-and-inventory-counts)
 - [Examples of common integrations](#examples-of-common-integrations)
 
 ## Authentication: personal access tokens
@@ -497,6 +498,50 @@ kind of record, so the API reference stays free of switched-off parts.
 
 Exclusion-list checks of vendors never call an outside service; they are recorded by hand
 against lists the organization names.
+
+## Asset tags and inventory counts
+
+The asset-tag routes are under `/api/asset-tags` (`/api/tags` is a different thing: the free-text
+labels any record can carry). Request and response shapes are in
+[`shared/asset-tags-api.ts`](../shared/asset-tags-api.ts); the guide page is
+[Asset tags](user/38-asset-tags.md). All of them answer `404 switched_off` while the Asset tags area
+is off.
+
+- **Lookup:** `GET /api/asset-tags/lookup?value=<text>&source=typed|handheld` for one value, or
+  `POST /api/asset-tags/lookup` with `{ candidates: [{ value, source }] }` (1 to 10; the app's
+  camera sends what it read, `source` `code` or `text`). Each result has an `outcome`
+  (`current`, `replaced`, `in_stock`, `unknown_format`, `identifier`, `misread`, `nothing`), a
+  message and the tag cards with the actions the caller may take. Unknown values, records the caller
+  may not see and records in a switched-off area answer `nothing` alike. Values are compared by
+  their comparison form (`valueKey` in `shared/tag-format.ts`): case, spaces, dashes and underscores
+  do not matter, leading zeros do.
+- **Formats, stock, series:** `/api/asset-tags/formats` (and `POST .../formats/try`),
+  `/api/asset-tags/ranges` (409 `overlap`), `/api/asset-tags/stock/mark`, `/api/asset-tags/series`
+  (`tags.view` to read, `tags.manage` to change).
+- **On a record:** `GET /api/asset-tags/record?type=&id=`, `POST /api/asset-tags/attach`,
+  `/replace`, `/end` (`tags.manage` and edit on the record; 409 `in_use`, `on_hold`,
+  `one_per_record`). `GET /api/asset-tags/last-seen?type=&id=` gives the newest logged lookup, or
+  `null` unless the caller may edit the record; it never holds a location.
+- **Printing:** `POST /api/asset-tags/print` gives a PDF or ZPL (`tags.manage`, at most
+  `tags.print_limit` labels, audit-logged).
+- **Inventory counts** are the record type `inventory_count` at `/api/inventory-counts` (the
+  generated routes, `tags.view` to read). Starting, counting and finishing need `tags.count`:
+  - `POST /api/inventory-counts/start` `{ site_id, area?, record_types?, title?, notes? }` creates a
+    count and fixes its expected list (the generated `POST` does the same but also needs
+    `tags.create`); `GET /api/inventory-counts/countable` lists the kinds a count can cover.
+  - `GET /api/inventory-counts/:id/items?state=&expected=` lists what is expected and found, with
+    totals (records the caller may not see are listed without their name).
+  - `POST /api/inventory-counts/:id/found` `{ value, source }` or `{ recordType, recordId }` answers
+    `found`, `already_found`, `unexpected` or `not_found`. Finding twice is harmless, and several
+    people (or phones) may count at once.
+  - `POST /api/inventory-counts/:id/finish` marks what was not found missing and returns the
+    summary; `POST /api/inventory-counts/:id/cancel` closes an open count without that.
+  - `POST /api/inventory-counts/:id/resolve` `{ itemIds, resolution: moved | marked_missing | left }`
+    after finishing (record changes go through the normal update and need edit permission).
+  - `POST /api/inventory-counts/:id/raise` `{ kind: ticket | action, title?, ownerId? }` turns the
+    discrepancy summary into a ticket or an action.
+  - `GET /api/inventory-counts/report?days=&site=` gives counts by status, coverage by site (the
+    same for everyone) and the records not verified within `days`.
 
 ## Examples of common integrations
 

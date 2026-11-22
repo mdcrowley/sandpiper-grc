@@ -20,6 +20,11 @@
 // accepted only at /mcp: the core resolves them only for requests this module makes in-process,
 // which carry a per-process secret header (INTERNAL_HEADER). Secrets are stored as SHA-256 only and
 // never written to logs.
+//
+// Client kinds (wave 13, E38-02): everything above is the `assistant` kind. The `mobile` kind (the
+// application's own app, client_id com.sandpipergrc) is defined by modules/mobile through
+// defineOAuthClientKind; /oauth/token and /oauth/revoke hand its requests over before any assistant
+// rule (including mcp.oauth_enabled) applies. Its sign-in screen is served by that module.
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { requireRecentAuth } from '../../core/auth.ts';
@@ -150,6 +155,57 @@ type Checked =
  */
 export interface OAuthDeps {
   scopesFor(perms: string[], access: 'read' | 'write'): string[];
+}
+
+// ---------- client kinds (wave 13, E38-02) ----------
+//
+// The authorization server serves two kinds of client: `assistant` (the AI-assistant connectors
+// above: registered, approved and governed by mcp.oauth_enabled) and `mobile` (the application's own
+// app, built in, governed by the Mobile app area). A kind other than `assistant` is defined by its
+// module (modules/mobile) with `defineOAuthClientKind`; the token and revocation endpoints hand a
+// request whose client_id that kind owns to it, before any assistant rule applies, so the assistant
+// switches never govern it and an assistant client can never reach it. Requests for any other
+// client_id behave exactly as before.
+
+export type OAuthClientKindKey = 'assistant' | 'mobile';
+
+/** What the endpoints lend a client kind: the shared failure limiter and the OAuth answer formats. */
+export interface OAuthKindHelpers {
+  /** Failed token and revocation requests by source address (30 in 5 minutes, shared with connectors). */
+  failures: ReturnType<typeof makeDbLimiter>;
+  /** `{ error, error_description }` with `cache-control: no-store`. */
+  error(reply: FastifyReply, status: number, error: string, description: string, headers?: Record<string, string>): FastifyReply;
+  /** The issuer address (auth.public_url or as requested). */
+  base(req: FastifyRequest): Promise<string>;
+}
+
+export interface OAuthClientKind {
+  key: Exclude<OAuthClientKindKey, 'assistant'>;
+  /** Whether this kind owns a client_id (compared exactly). */
+  owns(clientId: string): boolean;
+  /** The token endpoint for this kind (form body already parsed to strings). */
+  token(req: FastifyRequest, reply: FastifyReply, body: Record<string, string>, h: OAuthKindHelpers): Promise<unknown>;
+  /** The revocation endpoint for this kind (RFC 7009: answers 200 for unknown tokens). */
+  revoke(req: FastifyRequest, reply: FastifyReply, body: Record<string, string>, h: OAuthKindHelpers): Promise<unknown>;
+}
+
+const clientKinds = new WeakMap<FastifyInstance, OAuthClientKind[]>();
+
+/** Adds a client kind (in a module's register()). Throws on a second definition of the same key. */
+export function defineOAuthClientKind(app: FastifyInstance, kind: OAuthClientKind): void {
+  const list = clientKinds.get(app) ?? [];
+  if (list.some((k) => k.key === kind.key)) throw new Error(`OAuth client kind "${kind.key}" is defined twice`);
+  clientKinds.set(app, [...list, kind]);
+}
+
+/** The kind of client a client_id belongs to: a defined kind that owns it, otherwise `assistant`. */
+export function clientKindOf(app: FastifyInstance, clientId: unknown): OAuthClientKindKey {
+  return kindFor(app, clientId)?.key ?? 'assistant';
+}
+
+function kindFor(app: FastifyInstance, clientId: unknown): OAuthClientKind | undefined {
+  if (typeof clientId !== 'string' || !clientId) return undefined;
+  return (clientKinds.get(app) ?? []).find((k) => k.owns(clientId));
 }
 
 export function registerOAuth(ctx: ModuleContext, deps: OAuthDeps) {
@@ -355,8 +411,15 @@ export function registerOAuth(ctx: ModuleContext, deps: OAuthDeps) {
       scope.options(url, async (_req, reply) => { cors(reply); return reply.code(204).send(); });
     }
 
+    const helpers: OAuthKindHelpers = { failures, error: oauthError, base: (req) => oauthBase(ctx, req) };
+    /** Another kind of client (a public client: its id is in the body, never in a Basic header). */
+    const otherKind = (req: FastifyRequest) =>
+      (/^Basic\s/i.test(String(req.headers.authorization ?? '')) ? undefined : kindFor(app, bodyOf(req).client_id));
+
     scope.post('/oauth/token', async (req, reply) => {
       cors(reply);
+      const kind = otherKind(req);
+      if (kind) return kind.token(req, reply, bodyOf(req), helpers);
       const on = await available(req);
       if (!on) return notHere(reply);
       void sweep();
@@ -457,6 +520,8 @@ export function registerOAuth(ctx: ModuleContext, deps: OAuthDeps) {
 
     scope.post('/oauth/revoke', async (req, reply) => {
       cors(reply);
+      const kind = otherKind(req);
+      if (kind) return kind.revoke(req, reply, bodyOf(req), helpers);
       const on = await available(req);
       if (!on) return notHere(reply);
       const body = bodyOf(req);

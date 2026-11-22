@@ -1,0 +1,179 @@
+# The mobile app
+
+The **Sandpiper GRC** app for iPhone and Android is for work away from a desk: see what is waiting for
+you, point the camera at an asset tag to act on the thing it is stuck to, report a problem or a hazard
+with photos, look up and update records, decide approvals, acknowledge policies and read your
+notifications. Administration, report building and framework work stay on the web.
+
+The app signs you in to your organization's own Sandpiper GRC server, with the same account,
+permissions and rules as the web. It sends nothing to anyone else: no analytics, crash reports or
+advertising.
+
+The app works only when an administrator has switched **Mobile app** on under **Administration >
+Features** (see [Administration](09-administration.md#features)). It is off by default; switching it off
+signs out every phone.
+
+## Install the app
+
+The app is in a test (beta) phase and is not in the App Store or Google Play yet. Your administrator
+tells you which way your organization uses.
+
+- **iPhone (iOS 16 or later):** install Apple's **TestFlight** app, then open the invitation you were
+  sent by email or the public link, and tap **Install**. A test build stops working after 90 days; a
+  newer one appears in TestFlight before then, so keep TestFlight's automatic updates on.
+- **Android (Android 10 or later):** download the app file (`.apk`) from the link your administrator
+  gives you. Your phone asks you to allow your browser or file manager to **install unknown apps**:
+  allow it for this install. Your organization's device management may install the app for you
+  instead.
+
+## Connect to your server and sign in
+
+1. Open the app. Type your **Server address**, for example `grc.example.org` (your administrator can
+   tell you what it is), and tap **Continue**. The app remembers it.
+2. The app checks the server. It says so if the address is wrong, if the server cannot be reached, if
+   the mobile app is not switched on there, or if the app or the server needs updating first. The app
+   always uses a secure (HTTPS) connection.
+3. Tap **Sign in**. Your organization's sign-in page opens in the phone's browser: sign in as you do on
+   the web, with your password and second factor, a passkey or your organization's single sign-on,
+   then choose **Sign in** to let the app on this phone act as you. You are asked for your password
+   (and second factor) if you have not given it in the last few minutes.
+4. The window closes and the app opens **My work**.
+
+The app never sees your password. What it keeps to stay signed in is held in the phone's secure
+storage (the iPhone Keychain or the Android Keystore), and it stays signed in until you sign out, the
+phone is signed out from the web, or it has not been used for a time your administrator sets (30 days
+unless changed).
+
+**Sensitive actions.** When the app needs you to confirm who you are (for example an approval that asks
+for your password), it opens the same page with **Confirm it is you**; after you confirm, it carries on
+with what you were doing. The confirmation lasts a few minutes, the same as on the web.
+
+## Unlock with Face ID or a fingerprint
+
+Under **Account**, turn on **Unlock with Face ID or fingerprint** to have the app ask for Face ID, your
+fingerprint or your phone's passcode when it opens and after it has been in the background for a few
+minutes. Your organization may require it; the switch is then on and cannot be turned off. The phone
+must have a passcode, Face ID or a fingerprint set up. While the app is locked, **Sign out instead**
+signs you out.
+
+## The tabs
+
+The app has five tabs along the bottom: **My work**, **Tag**, **Report**, **Search** and **Account**.
+
+### My work
+
+My work shows what is waiting for you: tickets assigned to you, your actions, approvals, inspections and
+condition assessments due, policies to acknowledge and training due. Each section shows how many are
+waiting and the first few. Tap an item to open it; "Show all on the web" opens the full list in your
+browser. The screen refreshes when you open it and when you come back to the app; pull down or tap
+**Refresh** to refresh it yourself. The number on the My work tab is everything waiting at the last
+refresh. Areas your administrator has switched off do not appear.
+
+### Search
+
+Type at least two characters to search everything you may see: names, references, comments and file
+names. Results open in the app, or on the web for kinds of record the app does not show. With the box
+empty, Search lists the records you opened recently (restricted records are never listed). **Clear
+recent** empties the list, and signing out clears it too.
+
+### Records
+
+A record shows its summary, its key fields and the tabs Details, Activity, Comments and Files. You can
+add a comment; to add or open files, use **Open on the web**. If you may edit the record, **Edit** shows
+the fields you can change on the phone (for example status, assignee, location, condition, notes and
+tag number). If someone else saved the record while you were editing, the app shows your value and the
+saved value for each field and lets you choose which to keep. If a change needs fields the phone does
+not show (a status that needs a resolution code, say), the app asks you to **Finish on the web**. While
+a restricted record is open, screenshots are blocked on Android and the iPhone app switcher shows a
+blank screen.
+
+### Approvals and policies
+
+**Approvals** lists the approvals waiting for you; **Acknowledgments** lists the policies you have been
+asked to acknowledge. Open an approval to see what is being approved, then **Approve**, or **Reject**
+with a reason (a reason is needed to reject, and the person who asked sees it). The same rules apply as
+on the web: for example, you cannot decide two steps of the same request when the workflow forbids it,
+and the app shows the server's explanation. When an approval asks you to sign in again, the app opens
+the sign-in page; after you sign in, it sends your decision. Open a policy to read the version you were
+asked about, then tap **Acknowledge**.
+
+### Tag
+
+Point the camera at an asset tag. The app reads barcodes, 2D codes and the printed number at the same
+time, on the phone, and outlines each tag it reads with how it was read (for example "QR code:
+TA-118342"). One tag opens its tag card; several tags in view are listed to choose from. A number read
+only as printed text is shown for you to check first: tap it if it matches the tag. A Code 39, Codabar or
+ITF barcode, which has no check character, counts once it is read twice; hold the phone steady. Use the torch in
+poor light, **Take a picture** for small, shiny or curved tags, **Choose a picture** for one already
+taken, or **Type a number**. Pictures stay on the phone and are deleted unless you attach one to the
+record from its card. The card shows what the thing is, where it is, who has it and recent activity,
+and only the actions you may take: report a problem or hazard, quick updates, add a photo or note,
+count it, replace the tag, or open the full record. A tag in stock offers **Attach this tag**. See
+[Asset tags](38-asset-tags.md) for tags themselves. The Tag tab is hidden while **Asset tags** is
+switched off.
+
+### Report
+
+**Report a problem** raises a ticket; **Report a hazard or close call** raises a safety report. Started
+from a tag card, the record is linked for you. Add a title, what happened, the site and where exactly,
+and up to 10 photos, which are made smaller to fit your organization's limit. Reports are sent from the
+phone even if the connection drops: what is still sending is listed on the Report tab. If the
+connection was lost while a report was being sent, the app cannot tell whether it arrived, so check My
+work or the web before you tap **Send again**. The Report tab is shown only when you may report a
+problem or a hazard.
+
+## Notifications
+
+Open **Account > Notifications** to see your in-app notifications, newest first: the same list as the
+bell on the web. Unread ones are marked; opening one marks it read on the web too, and opens its record
+when it is about one. **Unread only** shows just the unread ones, **Mark all read** marks them all read,
+and pulling down refreshes the list. A notification about a record you can no longer open says so,
+without its details. The app does not send notifications to your phone's lock screen yet; email
+notifications continue as before.
+
+## Account
+
+**Account** shows who you are signed in as and to which server, with:
+
+- **Notifications** (with the number unread) and **Devices**.
+- **Unlock with Face ID or fingerprint** (above).
+- **About**: the app's version and **Open-source licenses**, the packages the app is built with. If your
+  server recommends a newer version of the app, it says so here.
+- **Sign out**.
+
+## Devices and lost phones
+
+**Account > Devices** in the app, and **Devices** in your user menu on the web, list every phone signed
+in with your account: its name, iPhone or Android, the app's version, when it signed in and when it was
+last used. **Sign out** next to a phone stops it at once; the app on that phone removes what it kept the
+next time it connects. On the web, phones signed out in the last 30 days stay listed with the reason.
+If you lose a phone, sign it out straight away and tell your administrator, who can sign out your
+phones too. When your account is disabled or deactivated, every phone is signed out.
+
+## Signing out
+
+Tap **Account > Sign out** and confirm. The phone is signed out on the server and the app removes
+everything it kept on the phone except the server address. If the app has work it has not sent yet,
+it warns you first. The app also signs out by itself, and removes its data, when the server no longer
+accepts it: the phone was signed out from Devices, your account was deactivated, the mobile app was
+switched off, or it was not used for too long. Sign in again to continue.
+
+## For administrators
+
+Switch the app on under **Administration > Features > Mobile app**, then set it up under
+**Administration > Mobile app**:
+
+| Setting | Range | Default | What it does |
+|---|---|---|---|
+| Access token life | 5 to 60 minutes | 15 | How long the app's short-lived access lasts before it is renewed in the background |
+| Stay signed in without use | 1 to 90 days | 30 | A phone not used for this long must sign in again |
+| Require Face ID, a fingerprint or the passcode | on or off | Off | Everyone must unlock the app; the person cannot turn it off under Account |
+| Ask again after (minutes in the background) | 0 to 240 | 5 | How long the app may stay in the background before it asks again |
+| Keep offline work | 1 to 30 days | 7 | How long work downloaded for use without signal is kept (once offline work exists) |
+
+Saving asks for your password; new lifetimes apply to tokens issued afterward. Each person's page under
+**Administration > Users** has a **Mobile app devices** card to sign one phone or all phones out.
+Disabling or deactivating an account (also through user provisioning) signs out every phone, and they
+stay signed out if the account is enabled again; so does switching the Mobile app off under
+**Features**. The app asks your server which app versions it accepts, so an old app is asked to update
+rather than misbehave.

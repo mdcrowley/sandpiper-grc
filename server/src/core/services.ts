@@ -43,6 +43,8 @@ export const DEFAULT_ROLES: {
       'tickets.*', 'knowledge.*', 'assets.*', 'systems.*', 'sites.*', 'data.*', 'changes.*', 'actions.*',
       'vendors.view', 'contracts.view', 'frameworks.view', 'policies.view', 'obligations.view',
       'training.view', 'projects.view', 'dashboards.view', 'reports.view', 'fleet.*',
+      // Wave 13: find tags, see their history and count inventory (spec §7).
+      'tags.view', 'tags.count',
     ],
   },
   {
@@ -109,8 +111,8 @@ export const DEFAULT_ROLES: {
   },
   {
     key: 'asset_manager', name: 'Asset manager', enabled: true, requiresMfa: false,
-    description: 'Assets, sites and vehicles, their condition and replacement.',
-    grants: ['assets.*', 'sites.*', 'fleet.*', 'projects.view', 'funding.view', 'actions.*', 'reports.view', 'dashboards.view'],
+    description: 'Assets, sites and vehicles, their tags, inventory counts, condition and replacement.',
+    grants: ['assets.*', 'sites.*', 'fleet.*', 'projects.view', 'funding.view', 'actions.*', 'reports.view', 'dashboards.view', 'tags.*'],
   },
   {
     key: 'approver', name: 'Approver', enabled: false, requiresMfa: false,
@@ -151,6 +153,7 @@ export const DEFAULT_ROLES: {
  */
 export const EARLIER_ROLE_DESCRIPTIONS: Record<string, string[]> = {
   agent: ['IT staff: tickets, assets and changes.'],
+  asset_manager: ['Assets, sites and vehicles, their condition and replacement.'],
   security_lead: ['Security staff: risks, controls, security incidents, vendors, policies.'],
   approver: ['Managers and executives: approve changes, access requests, project gates and risk acceptance.'],
   requester: ['Any employee: submit and track own requests through the portal.'],

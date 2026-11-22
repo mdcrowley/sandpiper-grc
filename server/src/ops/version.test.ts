@@ -49,6 +49,13 @@ describe('installed version (E16-19)', () => {
 
       const doc = await t.api.get('/api/openapi.json');
       expect(doc.body.paths['/api/v1/version'] ?? doc.body.paths['/api/version']).toBeTruthy();
+
+      // The mobile app's version range (wave 13, spec §5.9) only while the Mobile app area is on.
+      expect(admin.body.mobile).toBeUndefined();
+      expect((await t.api.patch('/api/admin/features', { features: { mobile: true } })).status).toBe(200);
+      expect((await agent.get('/api/version')).body.mobile).toEqual({ minVersion: expect.any(String), recommendedVersion: expect.any(String) });
+      expect((await t.api.patch('/api/admin/features', { features: { mobile: false } })).status).toBe(200);
+      expect((await agent.get('/api/version')).body.mobile).toBeUndefined();
     } finally {
       await t.close();
     }
