@@ -12,6 +12,10 @@ updates:
     labels:
       - dependencies
     groups:
+      # PGlite (production) and its test bridge pglite-socket (development) pin each other's exact
+      # versions, so they must move in one pull request; this group comes first and takes them.
+      pglite:
+        patterns: ['@electric-sql/*']
       production:
         dependency-type: production
         update-types: [minor, patch]

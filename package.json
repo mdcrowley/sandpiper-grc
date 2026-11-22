@@ -18,7 +18,7 @@
     "test:a11y": "node tools/a11y/audit.mjs"
   },
   "dependencies": {
-    "@electric-sql/pglite": "^0.5.16",
+    "@electric-sql/pglite": "^0.5.17",
     "@fastify/cookie": "^11.1.5",
     "@fastify/static": "^10.1.11",
     "@mantine/core": "^9.8.1",
@@ -46,7 +46,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@electric-sql/pglite-socket": "^0.2.19",
+    "@electric-sql/pglite-socket": "^0.2.20",
     "@types/node": "^26.6.6",
     "@types/nodemailer": "^8.0.2",
     "@types/pdfkit": "^0.17.7",
