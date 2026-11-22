@@ -149,10 +149,12 @@ describe('passkey sign-in step (SA-4, SA-6)', () => {
     const locked = await median(() => login('timing_locked', 'a wrong password here', freshIp()));
     const unknown = await median(() => login('timing_nobody', 'a wrong password here', freshIp()));
     const options = await median(() => send('POST', '/api/auth/webauthn/login/options', { body: { username: 'timing_nobody', password: 'x' }, ip: freshIp() }));
-    // Before the fix a locked account answered about seven times faster, and the passkey step skipped the hash.
-    expect(locked).toBeGreaterThan(wrong * 0.5);
-    expect(unknown).toBeGreaterThan(wrong * 0.5);
-    expect(options).toBeGreaterThan(wrong * 0.5);
+    // Before the fix a locked account answered about seven times faster (a ratio near 0.14), and the
+    // passkey step skipped the hash. A wrong password also writes the failed attempt, and shared CI
+    // runners are noisy (Windows has measured 0.42), so the bar sits at 0.3: well above the bug.
+    expect(locked).toBeGreaterThan(wrong * 0.3);
+    expect(unknown).toBeGreaterThan(wrong * 0.3);
+    expect(options).toBeGreaterThan(wrong * 0.3);
   });
 });
 
