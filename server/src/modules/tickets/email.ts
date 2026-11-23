@@ -14,7 +14,9 @@
 // address belongs to one, otherwise an outside requester (name and address), or nothing, as the
 // administrator chooses; a domain list can limit who may write. A message with a ticket reference
 // in the subject ("[TKT-00042]") or in its threading headers adds a public comment instead, when
-// it comes from the requester, the affected person or an agent. Files go through the same checks
+// it comes from the requester or the affected person. The sender address (From) is not verified,
+// so an email never acts as an agent (W17-2): a reply from an agent's address is logged and
+// ignored, and agents answer in the application. Files go through the same checks
 // as any upload. The application's own messages, auto-replies, bounces, mailing lists and senders
 // writing too often are never turned into tickets. Every message is logged.
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
@@ -229,13 +231,23 @@ export function makeEmailIntake(ctx: ModuleContext, notify: TicketNotify) {
     // A reply to a ticket we know.
     const ticket = await threadOf(m);
     if (ticket) {
-      const onTicket = (user && (user.id === ticket.requester_id || user.id === ticket.affected_user_id || ctx.can(user, 'tickets.edit')))
+      // W17-2: the From address of an email is not verified, so an email reply never acts as an
+      // agent (agents answer in the application): only the requester or the affected person may add
+      // to a ticket by email, and the comment says it came by email.
+      const onTicket = (user && (user.id === ticket.requester_id || user.id === ticket.affected_user_id))
         || String(ticket.requester_email ?? '').toLowerCase() === from.address;
-      if (!onTicket) return log(base, { outcome: 'ignored', reason: `The sender is not the requester of ${ticket.ref}`, ticket_id: ticket.id });
+      if (!onTicket) {
+        const agent = user && ctx.can(user, 'tickets.edit');
+        return log(base, {
+          outcome: 'ignored', ticket_id: ticket.id,
+          reason: agent ? `Email replies never act as an agent (the sender address is not verified): answer ${ticket.ref} in the application`
+            : `The sender is not the requester of ${ticket.ref}`,
+        });
+      }
       const body = stripQuoted(m.text).slice(0, 10000) || '(no text: files only)';
       await db.query(
         `insert into comments (record_type, record_id, body, internal, author_id, author_name) values ('ticket', $1, $2, false, $3, $4)`,
-        [ticket.id, body, user?.id ?? null, user ? user.displayName : `${name} (by email)`]);
+        [ticket.id, body, user?.id ?? null, `${user ? user.displayName : name} (by email)`.slice(0, 200)]);
       await ctx.audit(null, { action: 'comment.add', recordType: 'ticket', recordId: ticket.id, summary: `Reply by email from ${from.address} added as a public comment` });
       const files = await storeFiles(m, ticket, { userId: user?.id ?? null, name });
       const status = (await ctx.lookups.values('ticket_status')).find((x) => x.value === ticket.status);

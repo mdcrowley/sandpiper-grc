@@ -17,10 +17,11 @@ export const DEFAULT_EVERY_MONTHS = 24;
 
 interface ClassRow { id: string; ref: string; name: string; category: string | null; applies_to: TargetType; poor_rating_at: number; assessment_every_months: number | null; owner_id: string | null; active: boolean }
 
+/** The classes of the kinds of record that are loaded and switched on (no vehicle classes while fleet is off: E18-64). */
 export async function classes(ctx: ModuleContext, activeOnly = true): Promise<ClassRow[]> {
   return ctx.db.query<ClassRow>(
     `select id, ref, name, category, applies_to, poor_rating_at, assessment_every_months, owner_id, active from asset_classes
-     where deleted_at is null ${activeOnly ? 'and active' : ''} order by lower(name)`);
+     where deleted_at is null ${activeOnly ? 'and active' : ''} and applies_to = any($1::text[]) order by lower(name)`, [loadedTargets(ctx)]);
 }
 
 /** The number behind each rating (`meta.score`, else the value itself). */

@@ -85,7 +85,9 @@
 
 /* ---------- roles: the permission matrix ---------- */
 
-.adm-role-cell { min-width: 260px; }
+.adm-role-cell { min-width: 220px; }
+/* Columns that give way on a narrow screen (the Roles table at 820 px keeps its switches in view). */
+@media (max-width: 1100px) { .adm-col-wide { display: none; } }
 .adm-role-cell .muted { font-size: var(--fs-sm); max-width: 70ch; }
 .adm-members { max-height: 320px; overflow-y: auto; }
 .adm-members thead th { position: sticky; top: 0; z-index: 1; }
@@ -229,9 +231,12 @@
 .adm-codes-left-n { font-size: var(--fs-2xl); font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
 .adm-codes-low { border-color: color-mix(in srgb, var(--c-amber-solid) 40%, transparent); background: var(--c-amber-bg); color: var(--c-amber-fg); }
 
-@media (max-width: 800px) {
+/* The list picker goes above the values below 1000 px, so the values table keeps its columns (E18-64). */
+@media (max-width: 1000px) {
   .adm-lists { grid-template-columns: minmax(0, 1fr); }
   .adm-list-nav { max-height: 240px; }
+}
+@media (max-width: 800px) {
   .adm-codes { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 1100px) {

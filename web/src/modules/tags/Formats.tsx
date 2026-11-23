@@ -105,7 +105,7 @@ export function FormatsPage() {
       <PageHeader
         title="Asset tags"
         subtitle="What your organization's tags look like. Formats are optional; they let the app trust printed text it reads and refuse misreads."
-        actions={manage ? <Button variant="primary" icon="plus" onClick={() => open('new')}>Add format</Button> : undefined}
+        actions={manage ? <Button variant="primary" icon="plus" onClick={() => open('new')}>New format</Button> : undefined}
       />
       <AssetTagsTabs />
       <Card title="Tag formats" flush>
@@ -115,7 +115,7 @@ export function FormatsPage() {
             <EmptyState
               icon="tag" title="No tag formats"
               message="Without a format, a barcode or 2D code is accepted as it is, and printed text read by the app is used only once the person confirms it."
-              action={manage ? <Button icon="plus" onClick={() => open('new')}>Add format</Button> : undefined}
+              action={manage ? <Button icon="plus" onClick={() => open('new')}>New format</Button> : undefined}
             />
           ) : (
             <TableWrap label="Tag formats">

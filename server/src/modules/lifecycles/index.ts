@@ -4,6 +4,7 @@
 // (core/lifecycle.ts, checked by core/resource.ts); this module only offers the administrators'
 // routes. It is always on (not a feature area); types of switched-off areas are not listed.
 import type { FastifyRequest } from 'fastify';
+import { featureState, rolesShown } from '../../core/features.ts';
 import { APPLICATION_RULES, lifecycleField, lifecycleManaged, NEW, type LifecycleRules, type LifecycleWho } from '../../core/lifecycle.ts';
 import type { ModuleContext, ModuleDef, ResourceDef, Row } from '../../core/module.ts';
 
@@ -60,7 +61,8 @@ export function registerLifecycleRoutes(ctx: ModuleContext) {
     const statuses = await statusesOf(def, field);
     const values = new Set(statuses.map((s) => s.value));
     const by = rules.updatedBy ? await db.one<{ display_name: string }>('select display_name from users where id = $1', [rules.updatedBy]) : undefined;
-    const roles = await db.query<{ key: string; name: string; enabled: boolean }>('select key, name, enabled from roles order by name');
+    // Roles of switched-off areas are not offered (E18-64).
+    const roles = rolesShown(await featureState(db), await db.query<{ key: string; name: string; enabled: boolean }>('select key, name, enabled from roles order by name'));
     return {
       type: def.type, label: def.label, plural: def.plural, route: def.route,
       field, fieldLabel: def.fields[field].label, list: def.fields[field].list,

@@ -35,6 +35,11 @@ regulator, and nothing in it is specific to one organization.
   approval, set per record type
 - **Projects and reporting**: portfolio and stage gates, dashboards, a report builder,
   exports to Excel, CSV and PDF
+- **Asset tags and the mobile app**: tag numbers, barcodes and QR or Data Matrix codes on assets,
+  vehicles, sites and systems, printed labels and inventory counts; an iPhone and Android app (beta)
+  that reads tags with the camera, reports problems and hazards with photos, runs inspections,
+  condition assessments and counts offline, decides approvals and sends push notifications (off
+  until switched on)
 - **Sign-in and security**: single sign-on (OpenID Connect, SAML 2.0 or a directory over LDAP), passkeys, second factor,
   roles, restricted records and a full audit log
 - **Integrations**: a REST API with an OpenAPI description, webhooks (also as chat messages),
@@ -74,6 +79,7 @@ account. Load invented sample data for a bus and light-rail operator with `seed 
 - [Operations](docs/operations.md): backup, restore, export, upgrade, troubleshooting
 - [User guide](docs/user/01-getting-started.md), also in the application under **Help**
 - [REST API](docs/api.md) and [AI assistant access (MCP)](docs/mcp.md)
+- [Mobile app](docs/mobile.md): building, signing and distributing the iPhone and Android app
 - [Security](docs/security.md), [Known gaps](docs/known-gaps.md) and [Accessibility](docs/accessibility.md)
 - [Contributing](CONTRIBUTING.md) and the [developer guide](docs/development.md)
 - [Roadmap](docs/roadmap/README.md) and the [documentation index](docs/README.md)

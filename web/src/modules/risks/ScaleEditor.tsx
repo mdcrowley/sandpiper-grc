@@ -4,7 +4,8 @@ import {
   api, ApiError, Button, Card, COLOR_NAMES, ErrorState, errorMessage, IconButton, Loading, Modal, NumberField, PageHeader, Select, TableWrap, TextArea, TextField,
   useDebounced, useLookup, useToast,
 } from '../../core';
-import { useScales, type Scale, type ScaleLevel, type ScaleRating } from './scales';
+import { RiskTabs } from './RiskTabs';
+import { useOfferedScales, type Scale, type ScaleLevel, type ScaleRating } from './scales';
 
 interface Preview { total: number | null; rerated: number | null; level_in_use: boolean | null }
 type LevelList = 'likelihood_levels' | 'impact_levels';
@@ -60,7 +61,7 @@ function LevelsTable({ title, hint, levels, error, onChange }: {
  */
 export function ScaleEditor() {
   const toast = useToast();
-  const { data: scales, error, reload } = useScales();
+  const { data: scales, error, reload } = useOfferedScales();
   const summaryLevels = useLookup('risk_summary_level');
   const [key, setKey] = useState('');
   const [draft, setDraft] = useState<Scale | null>(null);
@@ -144,8 +145,9 @@ export function ScaleEditor() {
         title="Risk scales"
         subtitle="The scales risks are scored on. A risk's category decides which scale it uses (Administration > Lists > risk_category)."
         breadcrumbs={[{ label: 'Risk register', to: '/risks' }, { label: 'Risk scales' }]}
-        actions={<Button icon="plus" onClick={() => { setFields({}); setAdding(true); }}>Add scale</Button>}
+        actions={<Button icon="plus" onClick={() => { setFields({}); setAdding(true); }}>New scale</Button>}
       />
+      <RiskTabs active="scales" />
       {scales.length <= 4
         ? <SegmentedControl aria-label="Scale to edit" value={original.key} data={scales.map((s) => ({ value: s.key, label: s.name }))} onChange={setKey} className="rk-scale-pick" />
         : <Select label="Scale to edit" required value={original.key} options={scales.map((s) => ({ value: s.key, label: s.name }))} onChange={setKey} />}
@@ -264,7 +266,7 @@ export function ScaleEditor() {
         <Button variant="primary" loading={saving} disabled={!dirty || unset || Boolean(preview?.level_in_use)} onClick={save}>Save scale</Button>
       </div>
 
-      <Modal open={adding} title="Add scale" size="sm" onClose={() => setAdding(false)} dirty={adding && Boolean(fresh.name.trim() || fresh.key.trim())}>
+      <Modal open={adding} title="New scale" size="sm" onClose={() => setAdding(false)} dirty={adding && Boolean(fresh.name.trim() || fresh.key.trim())}>
         <form className="form" onSubmit={(e) => { e.preventDefault(); void create(); }}>
           <p className="muted" style={{ margin: 0 }}>
             The new scale starts as a copy of “{original.name}” as it is on screen now. Edit it afterwards, then point a risk category at it.
@@ -272,7 +274,7 @@ export function ScaleEditor() {
           <TextField label="Name" required value={fresh.name} error={fields.name} onChange={(v) => setFresh((f) => ({ name: v, key: f.key && f.key !== keyFrom(f.name) ? f.key : keyFrom(v) }))} />
           <TextField label="Key" required value={fresh.key} error={fields.key} hint="Lower-case letters, numbers and underscores. It cannot be changed later." onChange={(v) => setFresh((f) => ({ ...f, key: v }))} />
           <div className="form-actions">
-            <Button variant="primary" type="submit" disabled={!fresh.name.trim() || !fresh.key.trim()}>Add scale</Button>
+            <Button variant="primary" type="submit" disabled={!fresh.name.trim() || !fresh.key.trim()}>Create scale</Button>
             <Button onClick={() => setAdding(false)}>Cancel</Button>
           </div>
         </form>

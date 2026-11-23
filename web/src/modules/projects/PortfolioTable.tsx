@@ -10,7 +10,7 @@ export function PortfolioTable() {
         'ref',
         'name',
         'tier',
-        'stage',
+        { field: 'stage', priority: 1 },
         'status',
         { field: 'rag_overall', label: 'Overall', sortable: true, render: (row) => <RagWithTrend value={row.rag_overall} trend={row.rag_trend} /> },
         { field: 'priority_score', label: 'Score', sortable: true, render: (row) => (row.priority_score === null || row.priority_score === undefined ? '—' : <span className="num">{row.priority_score}</span>) },

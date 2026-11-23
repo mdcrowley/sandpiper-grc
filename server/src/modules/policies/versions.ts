@@ -1,5 +1,6 @@
 // Policy versions and the policy life cycle: write, send for review, approve, publish, retire.
 import type { FastifyRequest } from 'fastify';
+import { featureState, rolesShown } from '../../core/features.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { audienceUserIds, publishVersion, syncPolicyStatus } from './acknowledgments.ts';
 import { isDate, localDate } from './dates.ts';
@@ -59,7 +60,8 @@ export function registerVersionRoutes(ctx: ModuleContext) {
   });
 
   ctx.app.get('/api/policies/audience-options', { preHandler: ctx.requirePerm('policies.view') }, async () => ({
-    roles: await db.query<Row>('select key, name, enabled from roles order by name'),
+    // Roles of switched-off areas are not offered (E18-64).
+    roles: rolesShown(await featureState(db), await db.query<Row & { key: string }>('select key, name, enabled from roles order by name')),
     departments: await db.query<Row>('select id, name from departments where deleted_at is null order by lower(name)'),
     // Positions of the roster (people module, E29-09), for roster audiences; empty without it.
     positions: ctx.resources.get('position')

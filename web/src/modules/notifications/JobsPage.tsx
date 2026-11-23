@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
-  api, Button, Card, Drawer, EmptyState, ErrorState, errorMessage, formatDateTime, KeyValue, Loading, PageHeader, qs, relativeTime,
+  api, ApiError, Button, Card, Drawer, EmptyState, ErrorState, errorMessage, formatDateTime, KeyValue, Loading, PageHeader, qs, relativeTime,
   Select, Stat, StatusChip, TableWrap, useFetch, useToast,
 } from '../../core';
 import type { ColorName } from '../../core';
@@ -61,7 +61,9 @@ function JobDrawer({ id, onClose, onChanged }: { id: string; onClose: () => void
       reload();
       onChanged();
     } catch (err) {
+      // 409 already_queued: "A newer run of this job is waiting or running." Show that newer run in the list.
       toast.error(errorMessage(err));
+      if (err instanceof ApiError && err.code === 'already_queued') onChanged();
     } finally {
       setBusy(false);
     }

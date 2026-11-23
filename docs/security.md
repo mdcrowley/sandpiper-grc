@@ -70,8 +70,9 @@ See [Installation](installation.md#server-installation) for setting these up.
   the browser in use gets a new one. Wrong current passwords count with the password
   confirmation's limit and are audited (`password.change_refused`).
 - **Programs lose access with the password.** Changing a password, redeeming a reset link and an
-  administrator's second-factor reset also revoke the person's personal access tokens and AI
-  assistant (MCP OAuth) connections, and the audit event says how many, so a credential made by
+  administrator's second-factor reset also revoke the person's personal access tokens, AI
+  assistant (MCP OAuth) connections, signed-in mobile app installations and calendar feeds, and the
+  audit event says how many, so a credential made by
   someone who had the old password or factor stops working. (`POST /api/auth/change-password`
   accepts `keepProgramAccess: true` to keep them.)
 - **New users and resets** use a one-time link: random token, only its SHA-256 hash stored,
@@ -182,7 +183,7 @@ action is added to this table and to its module's tests in the same change.
 | Administration | Change a retention period or what its review may do | Don't ask | Nothing is changed until the review, which asks |
 | Administration | Disable a user, unlock an account, end sessions, rename a user or move department | Don't ask | Takes access away or changes nothing about access |
 | Administration | Departments, configurable lists, custom fields (retiring keeps the values), tag renames, email templates, background jobs, non-security settings | Don't ask | Ordinary configuration, audited and reversible |
-| Your account | Create a personal access token; add or remove a passkey; new recovery codes; link or unlink a sign-in provider | Ask | Credentials for your account |
+| Your account | Create a personal access token; make a calendar feed or replace its address; add or remove a passkey; new recovery codes; link or unlink a sign-in provider | Ask | Credentials for your account |
 | Your account | End your own sessions, read and change your preferences | Don't ask | Only narrows access, or affects only you |
 | Notifications and email | Change the mail server or mail provider (including its password, client secret, certificate or service account key) | Ask | A secret, and a way out of the application |
 | Notifications and email | Reminder settings, email digest runs, your own notification preferences | Don't ask | Timing only; audited |
@@ -392,8 +393,9 @@ added to responses sent over HTTPS (see "Network exposure").
 - Typed amounts may carry any currency symbol, the configured currency code and thousands
   separators; nothing else is stripped.
 - Unexpected errors are logged on the server and returned as a generic message.
-- CSV exports of records and of the audit log prefix cells that begin with `=`, `+`, `-`,
-  `@`, tab or carriage return, to stop spreadsheet formula injection.
+- CSV exports prefix a cell with an apostrophe when its first non-space character is `=`, `+`,
+  `-`, `@` or their full-width forms, or when it starts with a tab or line break, to stop
+  spreadsheet formula injection (one check for every CSV export, `core/export/csv.ts`).
 
 ### Authorization and restricted records
 
@@ -490,7 +492,10 @@ What still protects details in a figure:
   record reads, search, pickers and labels, history, comments, links, tags, watchers, files,
   fact sheets, exports, the report builder, dashboard widgets and the MCP tools all follow it,
   however the path is spelled (`/api/v1` included). Saved reports and dashboards are personal
-  items rather than records, so their figures follow the viewer's sharing rule too.
+  items rather than records, so their figures follow the viewer's sharing rule too. The figures
+  cache (`GRC_FIGURES_CACHE_SECONDS`) keeps an answer per set of permissions, and per person for
+  figures about the caller's own records, a type whose row rule filters figures (saved reports,
+  dashboards, schedules, packs), a grouping by a link to such a type, or a custom field.
 - **Labels of referenced records** are shown only to people who hold view on the
   referenced record's module; others see "Restricted".
 - **Audit search.** Events about restricted record types, and about individual records
@@ -671,7 +676,11 @@ separate, tamper-evident copy.
 - **Off until switched on.** A provider that is not switched on is never contacted. The only
   other outbound call is **Test connection**, made when an administrator selects it. Calls go
   over `https` only (plain `http` only to the loopback address), never follow redirects, time
-  out after 10 seconds and are size-limited.
+  out after 10 seconds and are size-limited. Every address a provider's host name resolves to is
+  checked when the connection is made, as for webhooks: a private, loopback, link-local or reserved
+  address is refused unless that exact address (or `address:port`) is on the allowed hosts
+  (`integrations.allowed_hosts`). A provider on this computer or the inside network is allowed by
+  listing its address there. Directories (LDAP) are not fenced.
 - **The flow.** Authorization code with PKCE (S256), a random `state` bound to the browser by a
   short-lived `HttpOnly`, `SameSite=Lax` cookie (needed because the provider sends the browser
   back cross-site) and single-use in the database, and a `nonce` checked in the ID token. The
@@ -1026,7 +1035,7 @@ the server and the push services.
 | A network that reads or changes traffic | HTTPS only in release builds. Android trusts only system certificate authorities and allows no plain HTTP (an explicit network security config). The iPhone app uses the system trust store. No certificate pinning (each organization has its own certificates). | A certificate authority installed as a system authority, for example by device management, is trusted. |
 | Local data read from a lost phone | The operating system's storage encryption. Optional or required unlock (on every cold start and after the idle time). Content under the lock cover is hidden from screen readers. The offline package expires (`mobile.offline_days`). | iPhone files use the default protection (readable after the first unlock since restart). Expiry follows the phone's clock and is enforced while the app runs. The unlock cannot be asked on a phone with no passcode. |
 | Local data copied off the phone | Android: `allowBackup` false, and backup and data extraction rules exclude every storage domain (cloud backup and device-to-device transfer). iPhone: the offline folders are excluded from iCloud and computer backups, and Keychain items are "this device only". | None known (the iPhone exclusion still needs checking on a device). |
-| Data left after a sign-out or revocation | Signing out, a refused refresh (device signed out on the web, account deactivated, area off) and package expiry wipe the database, photos, drafts and cache. A signed-out start finishes any interrupted wipe. A new sign-in starts from an empty phone. A new iPhone installation clears earlier Keychain items. | A phone that never comes online keeps its data until the package expires (the outbox and drafts do not expire). |
+| Data left after a sign-out or revocation | Signing out and a refused refresh (device signed out on the web, account deactivated, area off) wipe the database, photos, drafts and cache; package expiry deletes the offline package. A signed-out start finishes any interrupted wipe. A new sign-in starts from an empty phone. A new iPhone installation clears earlier Keychain items. | A phone that never comes online keeps its data until the package expires (the outbox and drafts do not expire). |
 | An app token used for more than the person may do | It acts as the person through the normal routes (permissions, restrictions, audit). It cannot reach sign-in, account security, tokens, `/mcp`, or approve another sign-in. Sensitive actions need a fresh `prompt=login`. | As much as the person can do. |
 | Another person's outbox answer returned | Answers are kept per person and item id, and the same id with different content is refused. Photos named by answers must come from this person's own outbox. | None known. |
 | Too much load from one phone | 600 requests a minute per token (shared by every process), counting in-process calls. 50 items per batch. Photos read at most up to the attachment limit, refused early from `Content-Length`, at most 2 at a time per phone. Failed token requests: 30 per 5 minutes per address. | Building a package is costly but limited by the token rate. |
@@ -1045,10 +1054,13 @@ the server and the push services.
   never a session or a personal access token; tokens are stored as SHA-256, compared in
   constant time, revocable and limited to the addresses an administrator lists. Every
   refusal gets the same answer and is audited; refused addresses are rate limited.
-- **What it may not do.** Provisioning never gives a role that can administer, never sees
-  or changes the break-glass account, never deactivates the last active administrator, and
+- **What it may not do.** Provisioning never gives a role that can administer, never changes
+  the email address or active state of an account holding any `admin.*` or `*` permission
+  (switched-off roles included; 403 `mutability`, audited `scim.refused`), never gives such an
+  account a provider link permit, never sees or changes the break-glass account, never deactivates the last active administrator, and
   never removes a role given by hand. Deactivating an account ends its sessions, set-up and
-  reset links, API tokens, assistant connections and calendar feeds.
+  reset links, API tokens, assistant connections and calendar feeds. A changed email address is
+  told to the old address, whether provisioning or an administrator changed it.
 - **Forwarding** sends the audit log to a syslog collector (over TLS with the certificate
   verified, or plain TCP for a collector on a trusted network) or an HTTPS address, only to
   allowed hosts, with values that look like secrets removed.
@@ -1059,15 +1071,35 @@ the server and the push services.
   sign-in secret (`SECRET_TABLES`, `SECRET_COLUMNS`), and a test fails on a new secret column
   not listed.
 
+### Inbound email
+
+Email to ticket does not verify the sender (no SPF, DKIM or DMARC check): the From address picks the
+requester, and anyone can send mail that claims to come from anyone. An email therefore never acts as
+an agent: a reply is added only for the requester or the affected person, always marked "(by
+email)", and an agent answers in the application. The same holds for POP3, Microsoft Graph, the
+Gmail API and the relay.
+
+### Application address
+
+Without `auth.public_url`, addresses handed to other programs (the MCP OAuth issuer and resource,
+MCP tool links, calendar feed addresses, the work-tracker callback, mobile sign-in endpoints) are
+taken from the Host header only when it names this computer (`localhost`, `127.x`, `[::1]`). On an
+installation other computers reach, set the application address: until then the OAuth metadata
+answers 404, making a calendar feed answers 409 `public_url_required`, and links are relative.
+
 ### Calendar feeds, work-tracker bridge and evidence links
 
 `server/src/modules/feeds/`; details in
 [Calendar feeds, work trackers and evidence links](user/36-calendar-feeds-work-trackers-and-evidence-links.md)
 
 Calendar feed addresses carry a 32-byte secret stored only as SHA-256; feeds are off by
-default, re-checked as their person on every read, and rate limited. The work-tracker bridge sends
-only to allowed hosts through the webhook address checks; status updates are HMAC-signed with a
-5-minute window and replay protection. A kind of record whose area is switched off is not
+default, re-checked as their person on every read, and rate limited. Making a feed or replacing its
+address needs a recent password confirmation; a password change or reset, a second-factor reset or
+deactivation revokes the person's feeds. Feed addresses are masked in the server log. The
+work-tracker bridge sends only to allowed hosts through the webhook address checks; status updates
+are HMAC-signed with a 5-minute window; every accepted signature is remembered for 10 minutes, and a
+connection with 10,000 inside that time takes no more until older ones age out (nothing is
+forgotten early). A kind of record whose area is switched off is not
 accepted, sent or moved by a status update. Evidence links are never fetched by the server.
 
 ### Vendor response links
@@ -1161,9 +1193,7 @@ put the prototype on a network or to hold sensitive real records in it.
   browser, not yet with hardware keys over real HTTPS.
 - SAML sign-in must start here (identity-provider-initiated sign-in is refused). A SAML
   sign-out started at the identity provider is acted on only when switched on, and answered with
-  the HTTP-Redirect binding only. After a directory (LDAP) password, a passkey cannot yet be the
-  second factor (a recovery code can), and a directory is linked at sign-in, not from Account
-  security (E02-29).
+  the HTTP-Redirect binding only.
   An OpenID Connect or SAML sign-in does not ask for this application's own second factor; it counts as one only
   when the provider is trusted for multi-factor sign-in and its token shows it. There is no
   front-channel logout. Groups by reference are read from userinfo or a JSON source only: a
@@ -1180,7 +1210,9 @@ put the prototype on a network or to hold sensitive real records in it.
 - `backup` and `restore` cover the embedded database only; a PostgreSQL server is backed
   up with its own tools. Files in the object store are not in backups.
 - No alerting. The server log (JSON lines, one per request with its request id) rotates by
-  size; secrets in messages, query strings and link tokens in paths are masked.
+  size; secrets in messages, query strings, link tokens and calendar feed addresses in paths, and
+  the application's own tokens (`grc_pat_`, `grc_cal_`, `grc_scim_`, `grc_relay_` and the others)
+  are masked.
 - Audit events are kept indefinitely and are not anonymized with a record
   (`retention.audit_months` is recorded, not enforced): the audit log keeps earlier values
   of a record's personal fields.
@@ -1206,7 +1238,7 @@ put the prototype on a network or to hold sensitive real records in it.
 - No independent security review or penetration test (E16-40). Load tests have been run
   ([Operations](operations.md#performance-and-load-testing)).
 - Continuous integration runs a dependency audit (`audit-deps`, from `npm audit`), which fails the build only
-  on a vulnerability that has a fix available.
+  on a high or critical vulnerability that has a fix available.
 - The build's supply chain is pinned (SP-08): every GitHub Action in `.github/workflows/ci.yml`
   is named by its full commit SHA with the version in a comment, and the Node.js and
   PostgreSQL base images (`Dockerfile`, `compose.postgres.yaml`, the CI database service) by
@@ -1214,8 +1246,8 @@ put the prototype on a network or to hold sensitive real records in it.
   proposes updates to both each week (`.github/dependabot.yml`), and CI checks that the base
   image's Node.js major version matches `tools/node-version.txt`.
 - An automated accessibility audit (axe-core, `npm run test:a11y`) runs in continuous
-  integration and fails the build on a new violation; there has been no screen-reader
-  walkthrough (E16-15).
+  integration and fails the build on a new violation; the main journeys have been run with NVDA
+  by a script, but no screen reader user has walked through the application (E16-15).
 - Non-administrator roles are exercised in the browser by the end-to-end suite
   (`npm run test:e2e`, every default role on every page), as well as by API tests.
 

@@ -109,7 +109,7 @@ export function AuditLogPage() {
           <TextField className="adm-toolbar-grow" label="Search" type="search" placeholder="Summary, person or action" leftSection={<Icon name="search" size={16} />} value={q} onChange={first(setQ)} />
           <TextField label="Action" placeholder="For example signin.failure" value={action} onChange={first(setAction)} />
           <Select label="Record type" placeholder="Any type" options={typeOptions} value={recordType} onChange={(v) => { setRecordType(v); setRecordId(''); setPage(1); }} />
-          <TextField label="Request id" placeholder="From an X-Request-Id header" value={requestId} onChange={first(setRequestId)} />
+          <TextField label="Request id" hint="From an X-Request-Id header." value={requestId} onChange={first(setRequestId)} />
           <UserPicker label="Done by" placeholder="Anyone" value={actor?.id ?? null} display={actor?.label}
             onChange={(id, option) => { setActor(id ? { id, label: option?.label ?? '' } : null); setPage(1); }} />
           <DateField label="From" value={from} max={to || undefined} onChange={first(setFrom)} />

@@ -26,7 +26,9 @@ import { customFieldNames, recordHref, useResource } from './meta';
 import { TagChips } from './tags';
 import { ConfirmDialog, Modal, useToast } from './overlay';
 import { ResourceForm } from './ResourceForm';
-import { EmptyState, ErrorState, PageHeader } from './ui';
+import { EmptyState, ErrorState, PageHeader, usePageActionsSlot } from './ui';
+import type { ColumnPriority } from './fit';
+import { createPortal } from 'react-dom';
 import './records.css';
 
 // The import wizard's code loads the first time someone opens it.
@@ -46,6 +48,13 @@ export type ColumnDef =
       align?: 'left' | 'right';
       /** Start hidden; the user can turn the column on in the column chooser. */
       hidden?: boolean;
+      /**
+       * Which columns give way first when the table is wider than the page (E18-63): 1 always shows,
+       * then 3 and after it 2 are left out, the rightmost first. Default 1 for the first column, the
+       * reference, the title and `status`, and 2 for the rest. A left-out column can still be checked
+       * in the column chooser, which keeps it on.
+       */
+      priority?: ColumnPriority;
     };
 
 export interface ResourceListProps {
@@ -96,6 +105,7 @@ export interface ResourceListProps {
 }
 
 const PAGE_SIZES = [10, 25, 50, 100];
+const sameFields = (a: string[], b: string[]) => a.length === b.length && a.every((f) => b.includes(f));
 
 export function ResourceList({
   type, columns: givenColumns, baseFilter, title, actions, onRowClick, createFields, createInitial, onCreated,
@@ -124,6 +134,10 @@ export function ResourceList({
   const [hidden, setHidden] = usePref<string[] | null>(`${prefKey}.cols.${type}`, null);
   // Columns the list adds by itself (custom fields, tags) start hidden; this remembers which ones the person turned on.
   const [shownExtras, setShownExtras] = usePref<string[]>(`${prefKey}.cols.${type}.extras`, []);
+  // Columns the person checked in the chooser stay on however narrow the page (E18-63).
+  const [pinned, setPinned] = usePref<string[]>(`${prefKey}.cols.${type}.pinned`, []);
+  const [squeezed, setSqueezed] = useState<string[]>([]);
+  const headerSlot = usePageActionsSlot();
   const custom = extras ? customFieldNames(resource) : [];
   const authored = givenColumns.map((c) => (typeof c === 'string' ? c : c.field));
   const extraColumns: ColumnDef[] = extras && resource
@@ -223,11 +237,12 @@ export function ResourceList({
   const cols = useMemo<ListColumn[]>(() => {
     if (!resource) return [];
     // A column with its own rendering stays; a plain field the record type does not have is left out (E18-48).
-    return columns.filter((c) => typeof c !== 'string' && c.render ? true : knownFields(resource, [typeof c === 'string' ? c : c.field]).length > 0).map((c) => {
-      const def = typeof c === 'string' ? { field: c } : c;
+    return columns.filter((c) => typeof c !== 'string' && c.render ? true : knownFields(resource, [typeof c === 'string' ? c : c.field]).length > 0).map((c, index) => {
+      const def: Exclude<ColumnDef, string> = typeof c === 'string' ? { field: c } : c;
       const meta = fieldMeta(resource, def.field);
       const known = def.field in resource.fields || ['created_at', 'updated_at'].includes(def.field);
       const numeric = !def.render && ['number', 'currency'].includes(meta.type);
+      const essential = index === 0 || [resource.titleField, resource.refField, 'status'].includes(def.field);
       return {
         field: def.field,
         label: def.label ?? meta.label,
@@ -236,6 +251,7 @@ export function ResourceList({
         align: def.align ?? (numeric ? 'right' : 'left'),
         known,
         startHidden: Boolean(def.hidden),
+        priority: def.priority ?? (essential ? 1 : 2),
       };
     });
   }, [columns, resource]);
@@ -250,12 +266,21 @@ export function ResourceList({
     ...(hidden ?? cols.filter((c) => c.startHidden && !extraSet.has(c.field)).map((c) => c.field)).filter((f) => !extraSet.has(f)),
     ...extraKeys.filter((f) => !shownExtras.includes(f)),
   ];
+  // The chooser shows a column left out for width as off; checking it turns it on for good (pinned),
+  // and unticking any column unpins it.
+  const offInChooser = [...hiddenNow, ...squeezed.filter((f) => !hiddenNow.includes(f))];
   const chooseHidden = (next: string[]) => {
-    setHidden(next.filter((f) => !extraSet.has(f)));
-    setShownExtras(extraKeys.filter((f) => !next.includes(f)));
+    const turnedOn = offInChooser.filter((f) => !next.includes(f));
+    const hiddenNext = next.filter((f) => !squeezed.includes(f) || hiddenNow.includes(f));
+    setHidden(hiddenNext.filter((f) => !extraSet.has(f)));
+    setShownExtras(extraKeys.filter((f) => !hiddenNext.includes(f)));
+    const pins = [...pinned.filter((f) => !next.includes(f)), ...turnedOn.filter((f) => !pinned.includes(f))];
+    if (!sameFields(pins, pinned)) setPinned(pins);
   };
   const shownCols = cols.filter((c) => !hiddenNow.includes(c.field));
-  const visible = shownCols.length > 0 ? shownCols : cols.slice(0, 1);
+  const visible = (shownCols.length > 0 ? shownCols : cols.slice(0, 1))
+    .map((c) => (pinned.includes(c.field) && c.priority !== 1 ? { ...c, priority: 1 as const } : c));
+  const onScreen = visible.filter((c) => !squeezed.includes(c.field));
 
   const bulkList = (bulkFields ?? [...cols.map((c) => c.field), ...filters].filter((f) => ['lookup', 'user'].includes(fieldMeta(resource, f).type)))
     .filter((f, i, all) => all.indexOf(f) === i && f in resource.fields && !resource.fields[f].readOnly && BULK_TYPES.includes(resource.fields[f].type));
@@ -386,6 +411,8 @@ export function ResourceList({
     </Button>
   );
   const headerActions = <>{actions}{newButton}</>;
+  // A list that is the page but draws no header of its own puts New in the page's header (E18-63).
+  const portalNew = !title && isPage ? headerSlot : null;
 
   const first = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const last = Math.min(total, page * pageSize);
@@ -476,9 +503,10 @@ export function ResourceList({
           </Menu>
           <ColumnChooser
             columns={cols}
-            hidden={hiddenNow}
+            hidden={offInChooser}
             onChange={chooseHidden}
-            onReset={() => { setHidden(null); setShownExtras([]); }}
+            onReset={() => { setHidden(null); setShownExtras([]); setPinned([]); }}
+            squeezed={squeezed}
           />
           <Tooltip label={density === 'compact' ? 'Comfortable rows' : 'Compact rows'}>
             <ActionIcon
@@ -503,7 +531,8 @@ export function ResourceList({
               </Button>
             </Tooltip>
           )}
-          {!title && headerActions}
+          {!title && actions}
+          {!title && newButton && (portalNew ? createPortal(newButton, portalNew) : newButton)}
         </div>
       </div>
 
@@ -525,7 +554,7 @@ export function ResourceList({
       {error && !data ? (
         <div className="rc-panel"><ErrorState title={`${resource.plural} could not be loaded`} error={error} onRetry={reload} /></div>
       ) : !data ? (
-        <TableSkeleton columns={visible} density={density} label={`Loading ${plural}`} selectable={selectable} />
+        <TableSkeleton columns={onScreen} density={density} label={`Loading ${plural}`} selectable={selectable} />
       ) : data.rows.length === 0 ? (
         <div className="rc-panel" aria-busy={loading}>
           {filtered ? (
@@ -557,6 +586,7 @@ export function ResourceList({
             selectable={selectable}
             selected={selected}
             onSelect={setSelected}
+            onSqueeze={setSqueezed}
           />
           <div className="rc-foot">
             <Text size="sm" c="dimmed" role="status">

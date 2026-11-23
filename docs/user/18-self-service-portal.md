@@ -20,6 +20,8 @@ At the top of every portal page:
 
 ## Home
 
+**Ask for something** is shown once the service desk offers at least one request in the portal (a catalog item with **Show in the self-service portal**). The footer suggests reporting something urgent through **Report a safety concern** when the portal takes safety reports, otherwise through **Report a problem**.
+
 - **Service status banner**: when the service desk has posted a message (for example "Real-time bus arrival screens are down at the central station; we are working on it."), it is shown first, colored by how serious it is: **Service update**, **Service warning**, **Service problem** or **Service restored**.
 - **What do you need help with?**: type a few words. Help articles that match appear below as you type; select one to read it. **Report "…" as a problem** starts a report with your words filled in.
 - **Report a problem**: something is broken or not working.
@@ -77,7 +79,7 @@ A supervisor can raise a request for one of their team, for example for an opera
 
 Select **Report a safety concern** on the home page. If someone is in danger now, call the emergency services and follow your local safety procedure first, then report it here. Fill in:
 
-- **What happened, in a few words?** (required) and **When did it happen?** (required; it starts at now).
+- **What happened, in a few words?** (required) and **When did it happen?** (required; it starts at now). The time is your organization's local time, named under the field (for example "Local time (Eastern Standard Time).").
 - **What kind of event was it?** (required): for example **Collision**, **Near miss**, **Slip, trip or fall** or **Unsafe condition**.
 - **How bad was it?** (required): **Nobody was hurt and nothing was damaged**, **A minor injury or minor damage**, **Someone needed first aid or treatment**, or **A serious injury or major damage**. Your best guess is fine: the safety team checks it.
 - **Where?**: site, station, stop, depot, or vehicle or route number.

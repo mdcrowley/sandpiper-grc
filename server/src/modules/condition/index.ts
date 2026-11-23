@@ -4,7 +4,7 @@ import { dayInZone } from '../../core/timezone.ts';
 import { registerFigures } from './dashboard.ts';
 import { registerReminders } from './reminders.ts';
 import { seedCondition } from './seed.ts';
-import { followTargets, isTarget, recompute, refreshRating, TARGETS } from './service.ts';
+import { followTargets, isTarget, recompute, refreshRating, TARGET_TYPES, TARGETS } from './service.ts';
 import { registerTargets } from './targets.ts';
 
 /**
@@ -91,6 +91,15 @@ async function register(ctx: ModuleContext) {
     ref: { field: 'ref', prefix: 'ACL-' },
     searchable: ['name', 'description'],
     defaultSort: { field: 'name', dir: 'asc' },
+    // A class that rates a kind of record that is switched off (vehicles while fleet is off) is not
+    // shown anywhere: lists, search, links, pickers (E18-64). The same for everyone, so figures match.
+    rowRule: {
+      where: (_user, col) => {
+        const off = TARGET_TYPES.filter((t) => !ctx.resources.get(t));
+        return off.length ? `${col('applies_to')} not in (${off.map((t) => `'${t}'`).join(', ')})` : 'true';
+      },
+      figures: 'filter',
+    },
     fields: {
       ref: { label: 'Reference', type: 'text', readOnly: true },
       name: { label: 'Name', type: 'text', required: true },

@@ -1,6 +1,7 @@
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
-import { defaultGrantDifferences, syncDefaultGrants } from '../../core/services.ts';
+import { featureState, ownedOff, permissionOff, SWITCHED_OFF, type FeatureState } from '../../core/features.ts';
+import { defaultGrantDifferences, roleDescription, syncDefaultGrants } from '../../core/services.ts';
 import { ACTIONS, adminRoute, MODULE_ACTIONS, body, guardAdministrators, idParam, invalid, isValidGrant, MODULE_KEYS, sensitive } from './shared.ts';
 
 const ROLE_SELECT = `
@@ -9,14 +10,26 @@ const ROLE_SELECT = `
     (select count(*)::int from user_roles ur join users u on u.id = ur.user_id and u.deleted_at is null where ur.role_id = r.id) as members
   from roles r`;
 
+/**
+ * A role as shown (E18-64): a default role of a switched-off area (`owns.role` in core/features.ts) is
+ * not shown at all, and an unedited default description is worded for the areas that are on.
+ */
+export function shownRole<T extends Row>(row: T, s: FeatureState): T | null {
+  if (ownedOff(s, 'role', row.key)) return null;
+  return { ...row, description: roleDescription(row.key, row.description, (a) => s.on[a] !== false) };
+}
+
 export function registerRoles(ctx: ModuleContext) {
   const { db } = ctx;
 
+  /** The stored role (for changes). A role of a switched-off area answers as switched off. */
   const getRole = async (id: string) => {
     const row = await db.one<Row>(`${ROLE_SELECT} where r.id = $1`, [id]);
     if (!row) ctx.fail(404, 'not_found', 'Role not found.');
+    if (ownedOff(await featureState(db), 'role', row!.key)) ctx.fail(404, 'switched_off', SWITCHED_OFF);
     return row!;
   };
+  const showRole = async (row: Row) => shownRole(row, await featureState(db))!;
 
   /** Validates the fields present in `b`. Grants already held by the role are kept even if no longer in the vocabulary. */
   function clean(b: Row, existing?: Row) {
@@ -45,7 +58,10 @@ export function registerRoles(ctx: ModuleContext) {
   }
 
   adminRoute(ctx, 'GET', '/api/admin/roles', async () => ({
-    roles: await db.query(`${ROLE_SELECT} order by r.name`),
+    roles: await (async () => {
+      const s = await featureState(db);
+      return (await db.query<Row>(`${ROLE_SELECT} order by r.name`)).map((r) => shownRole(r, s)).filter(Boolean);
+    })(),
     modules: MODULE_KEYS,
     actions: ACTIONS,
     // Actions only some modules offer (tags.manage, tags.count); the others are offered by every module.
@@ -59,7 +75,7 @@ export function registerRoles(ctx: ModuleContext) {
        join users u on u.id = ur.user_id and u.deleted_at is null where ur.role_id = $1 order by lower(u.display_name)`,
       [role.id],
     );
-    return { ...role, users };
+    return { ...(await showRole(role)), users };
   });
 
   adminRoute(ctx, 'POST', '/api/admin/roles', async (req, reply) => {
@@ -93,6 +109,9 @@ export function registerRoles(ctx: ModuleContext) {
 
   async function updateRole(req: FastifyRequest, id: string, b: Row) {
     const before = await getRole(id);
+    // The page shows an unedited default description worded for the areas that are on; saving it
+    // back unchanged keeps the stored default (which names every area), so nothing is lost.
+    if (b.description !== undefined && b.description === (await showRole(before)).description) b = { ...b, description: undefined };
     const { out, fields } = clean(b, before);
     if (before.key === 'administrator') {
       if (out.grants && !out.grants.includes('*')) fields.grants = 'The Administrator role always holds every permission (*).';
@@ -141,7 +160,7 @@ export function registerRoles(ctx: ModuleContext) {
         before: { enabled: before.enabled }, after: { enabled: after.enabled },
       });
     }
-    return after;
+    return showRole(after);
   }
 
   // ---------- default grants ----------
@@ -150,7 +169,13 @@ export function registerRoles(ctx: ModuleContext) {
   // grant removed by an administrator after a sync is not offered again.
 
   adminRoute(ctx, 'GET', '/api/admin/roles/default-grants', async () => {
-    const roles = (await defaultGrantDifferences(db)).filter((d) => d.missing.length || d.description !== null);
+    // Roles and grants of switched-off areas are not offered here; applying still adds them, quietly.
+    const s = await featureState(db);
+    const on = (a: string) => s.on[a] !== false;
+    const roles = (await defaultGrantDifferences(db))
+      .filter((d) => !ownedOff(s, 'role', d.key))
+      .map((d) => ({ ...d, missing: d.missing.filter((g) => !permissionOff(s, g)), description: d.description === null ? null : roleDescription(d.key, d.description, on) }))
+      .filter((d) => d.missing.length || d.description !== null);
     return { roles, pending: roles.reduce((n, d) => n + d.missing.length, 0) };
   });
 

@@ -25,6 +25,8 @@
   padding: var(--s-5) var(--s-5) var(--content-pad-bottom) calc(var(--app-shell-navbar-offset, 0rem) + var(--s-5));
   position: relative; /* keeps absolutely positioned helpers (sr-only) inside the scrolling region */
   overflow-y: auto;
+  /* Room for the scroll bar is always kept, so the page does not shift sideways between short and long pages. */
+  scrollbar-gutter: stable;
   scroll-padding-top: var(--s-4);
 }
 .content > * { max-width: 1400px; margin-inline: auto; }

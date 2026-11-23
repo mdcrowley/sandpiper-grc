@@ -68,23 +68,29 @@ const SECRET_KEY = /pass(word|phrase)?|secret|token|authorization|cookie|csrf|to
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Path segments that are themselves secrets: the token of a link sent to someone outside. */
 const SECRET_SEGMENT_AFTER = /(\/(?:api\/(?:v\d+\/)?)?vendor-response\/)[^/?#\s"']+/gi;
+/** A calendar feed's secret address, `/api/calendar/grc_cal_....ics` (W17-3b: the `.ics` ending kept it from the length rule). */
+const CALENDAR_FEED = /(\/api\/(?:v\d+\/)?calendar\/)[^/?#\s"']+/gi;
 
 /**
- * A path or URL without its secrets: the segment after /vendor-response/ (API and web page), any
- * other segment of 32 or more letters, digits, "-" or "_" that is not a record id (a UUID), and
- * the values of a query string.
+ * A path or URL without its secrets: the segment after /vendor-response/ (API and web page) or
+ * /api/calendar/, any other segment of 32 or more letters, digits, "-" or "_" that is not a record
+ * id (a UUID), also when a file ending such as ".ics" follows it, and the values of a query string.
  */
 export function redactPath(text: string): string {
   return text
     .replace(SECRET_SEGMENT_AFTER, '$1***')
-    .replace(/(\/)([A-Za-z0-9_-]{32,})(?=[/?#\s"'),]|$)/g, (m, slash: string, seg: string) => (UUID.test(seg) ? m : `${slash}***`))
+    .replace(CALENDAR_FEED, '$1***')
+    .replace(/(\/)([A-Za-z0-9_-]{32,})(?=[/?#\s"'),.]|$)/g, (m, slash: string, seg: string) => (UUID.test(seg) ? m : `${slash}***`))
     .replace(/([?&][^=\s&#?/]+=)[^&\s#"']*/g, '$1***');
 }
 
-/** Replaces secrets inside free text: paths (above), bearer and personal access tokens, URL passwords, key=value pairs. */
+/**
+ * Replaces secrets inside free text: paths (above), bearer tokens and the application's own tokens
+ * (personal access, session, calendar feed, provisioning, mail relay), URL passwords, key=value pairs.
+ */
 export function redactText(text: string): string {
   return redactPath(text)
-    .replace(/grc_(pat|ses|sid)_[A-Za-z0-9_-]+/g, 'grc_$1_***')
+    .replace(/grc_(pat|ses|sid|cal|scim|relay)_[A-Za-z0-9_-]+/g, 'grc_$1_***')
     .replace(/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi, '$1 ***')
     .replace(/(\b[a-z][a-z0-9+.-]*:\/\/[^\s:/@]+:)[^\s@/]+@/gi, '$1***@')
     .replace(/\b((?:pass(?:word|phrase)?|secret|token|api[-_]?key|code|otp)["']?\s*[=:]\s*["']?)[^\s"'&,;}]+/gi, '$1***');

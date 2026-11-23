@@ -1,11 +1,13 @@
 import { randomToken, sha256 } from '../../core/auth.ts';
 import { revokeAllPasskeys } from '../../core/webauthn/index.ts';
 import { revokedSummary, revokeProgramAccess } from '../../core/tokens.ts';
+import { notifyEmailChange } from '../../core/identity/accounts.ts';
 import { pageOf } from '../../core/api/conventions.ts';
 import type { Queryable } from '../../core/db.ts';
 import { UUID_RE } from '../../core/errors.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import type { FastifyRequest } from 'fastify';
+import { featureState, ownedOff } from '../../core/features.ts';
 import { adminRoute, administratorIds, body, guardAdministrators, idParam, invalid, sensitive } from './shared.ts';
 
 // Never selects password_hash, totp_secret or recovery_codes.
@@ -58,19 +60,15 @@ export async function deactivateUser(
     if ((await administratorIds(tx)).length === 0) {
       ctx.fail(409, 'last_admin', 'That would leave no active administrator, so this account stays active. Give another person the administrator role first.');
     }
+    // Also revokes calendar feeds (they answer 404 for a disabled account anyway; revoked so that
+    // enabling the account again does not bring them back).
     const revoked = await revokeProgramAccess(tx, userId, byId, opts.reason);
-    // Calendar feeds (feeds module, when loaded) answer 404 for a disabled account anyway; revoked too,
-    // so enabling the account again does not bring them back.
-    let feeds = 0;
-    if ((await tx.one<{ t: string | null }>(`select to_regclass('public.calendar_feeds')::text as t`))?.t) {
-      feeds = (await tx.query('update calendar_feeds set revoked_at = now() where user_id = $1 and revoked_at is null returning 1', [userId])).length;
-    }
-    return { sessions: sessions.length, feeds, ...revoked };
+    return { sessions: sessions.length, ...revoked };
   });
   const out = { username: u.username, alreadyDisabled: u.status === 'disabled', ...result };
   await ctx.audit(opts.by, {
     action: 'user.deactivate', recordType: 'user', recordId: userId,
-    summary: `User ${u.username} deactivated (${opts.reason.slice(0, 160)}); ${result.sessions} session(s) ended${revokedSummary(result)}${result.feeds ? `; ${result.feeds} calendar feed(s) revoked` : ''}`,
+    summary: `User ${u.username} deactivated (${opts.reason.slice(0, 160)}); ${result.sessions} session(s) ended${revokedSummary(result)}`,
     before: { status: u.status }, after: { status: 'disabled' },
   });
   return out;
@@ -88,6 +86,15 @@ export function registerUsers(ctx: ModuleContext) {
     if (!row) ctx.fail(404, 'not_found', 'User not found.');
     return row!;
   };
+  /**
+   * A person as shown (E18-64): a role of a switched-off area (`owns.role`, core/features.ts) is left
+   * out of their roles. They keep it; it applies again once the area is switched on.
+   */
+  const shown = async (u: Row) => {
+    const s = await featureState(db);
+    return { ...u, roles: (u.roles as { key: string }[]).filter((r) => !ownedOff(s, 'role', r.key)) };
+  };
+  const shownUser = async (id: string) => shown(await getUser(id));
 
   /** Checks the editable profile fields that are present in `b`; returns cleaned values. */
   async function cleanProfile(b: Row, existingId?: string) {
@@ -128,6 +135,8 @@ export function registerUsers(ctx: ModuleContext) {
       return [];
     }
     const wanted = [...new Set(keys as string[])];
+    // A role of a switched-off area is not offered on the pages, but a key sent through the API is still
+    // a role: it is kept, and applies once the area is switched on.
     const rows = await db.query<{ id: string; key: string }>('select id, key from roles where key = any($1::text[])', [wanted]);
     if (rows.length !== wanted.length) fields.roles = 'Choose roles from the list.';
     return rows;
@@ -167,10 +176,10 @@ export function registerUsers(ctx: ModuleContext) {
     const rows = await db.query(
       `${USER_SELECT}${w} order by lower(u.display_name), u.id limit ${pageSize} offset ${(page - 1) * pageSize}`, params,
     );
-    return { rows, total, page, pageSize };
+    return { rows: await Promise.all(rows.map((r) => shown(r))), total, page, pageSize };
   });
 
-  adminRoute(ctx, 'GET', '/api/admin/users/:id', async (req) => getUser(idParam(req, 'User')));
+  adminRoute(ctx, 'GET', '/api/admin/users/:id', async (req) => shownUser(idParam(req, 'User')));
 
   // ---------- create ----------
 
@@ -199,7 +208,7 @@ export function registerUsers(ctx: ModuleContext) {
       after: { username: out.username, email: out.email, display_name: out.display_name, department_id: out.department_id ?? null, roles: roles.map((r) => r.key).sort() },
     });
     reply.code(201);
-    return { user: await getUser(id), setupLink: link.link, expiresAt: link.expiresAt };
+    return { user: await shownUser(id), setupLink: link.link, expiresAt: link.expiresAt };
   });
 
   // ---------- update (profile, status, roles) ----------
@@ -208,7 +217,13 @@ export function registerUsers(ctx: ModuleContext) {
     const before = await getUser(id);
     const { out, fields } = await cleanProfile(b, id);
     let roles: { id: string; key: string }[] | null = null;
-    if (b.roles !== undefined) roles = await roleIds(b.roles, fields);
+    if (b.roles !== undefined) {
+      roles = await roleIds(b.roles, fields);
+      // Roles of switched-off areas are not shown, so they are not in the list sent: the person keeps them.
+      const s = await featureState(db);
+      const keep = (before.roles as { key: string }[]).map((r) => r.key).filter((k) => ownedOff(s, 'role', k) && !roles!.some((r) => r.key === k));
+      if (keep.length) roles.push(...await db.query<{ id: string; key: string }>('select id, key from roles where key = any($1::text[])', [keep]));
+    }
     let status: string | undefined;
     if (b.status !== undefined) {
       if (b.status !== 'active' && b.status !== 'disabled') fields.status = 'Status must be active or disabled.';
@@ -276,7 +291,9 @@ export function registerUsers(ctx: ModuleContext) {
         after: Object.fromEntries(changed.map((k) => [k, pa[k]])),
       });
     }
-    return after;
+    // W17-0: the old address is told, as for a change by provisioning (password-reset links now go to the new one).
+    if (changed.includes('email')) await notifyEmailChange(ctx.app, { username: String(after.username), oldEmail: String(pb.email ?? ''), newEmail: String(pa.email ?? ''), by: req.user!.displayName || req.user!.username });
+    return shown(after);
   }
 
   adminRoute(ctx, 'PATCH', '/api/admin/users/:id', async (req) => updateUser(req, idParam(req, 'User'), body(req)));
@@ -310,7 +327,7 @@ export function registerUsers(ctx: ModuleContext) {
       action: 'user.unlock', recordType: 'user', recordId: u.id,
       summary: `Account ${u.username} unlocked (${u.failed_attempts} failed attempts cleared)`,
     });
-    return getUser(u.id);
+    return shownUser(u.id);
   });
 
   adminRoute(ctx, 'POST', '/api/admin/users/:id/end-sessions', async (req) => {
@@ -341,6 +358,6 @@ export function registerUsers(ctx: ModuleContext) {
       summary: `Second factor of ${u.username} reset by an administrator${keys ? ` (${keys} passkey(s) removed)` : ''}${revokedSummary(revoked)}`,
       before: { totp_enabled: u.totp_enabled }, after: { totp_enabled: false },
     });
-    return getUser(u.id);
+    return shownUser(u.id);
   });
 }

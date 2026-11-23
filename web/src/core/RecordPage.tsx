@@ -176,7 +176,11 @@ export interface RecordPageProps {
   subtitle?: (row: Row) => ReactNode;
   /** Header chip. Defaults to the `status` field when it is a lookup. */
   status?: (row: Row) => ReactNode;
-  /** Header buttons. */
+  /**
+   * Header buttons. They are drawn in one order on every record page: a primary button (core
+   * `Button variant="primary"`) first, then the others as given, then PDF and Watch, and an icon-only
+   * "⋯" `Menu` last, wherever it is given.
+   */
   actions?: (rec: RecordContext) => ReactNode;
   /** Shown between header and summary: the place for a Stepper or Countdowns. */
   banner?: (rec: RecordContext) => ReactNode;
@@ -314,6 +318,7 @@ export function RecordPage({
         status={chip}
         actions={<>{actions?.(rec)}<RecordPdfButton resource={resource} id={id} label={reference ?? heading} />{watch && <WatchButton recordType={type} recordId={id} />}</>}
         breadcrumbs={breadcrumbs ?? [{ label: resource.plural, to: resource.route }, { label: reference ?? heading }]}
+        primaryFirst
       />
       {tags && <RecordTags recordType={type} recordId={id} canEdit={rec.canEdit} />}
       {HoldBanner && Array.isArray(row._holds) && row._holds.length > 0 && <Suspense fallback={null}><HoldBanner row={row} /></Suspense>}

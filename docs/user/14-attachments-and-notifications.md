@@ -475,7 +475,7 @@ Change the values you need and select **Save changes**; **Undo changes** puts ba
 
 - The tiles count jobs that are **Waiting**, **Running**, **Failed, will retry**, **Gave up** and **Done**. Finished jobs are kept for 30 days (two days for the regular runs of a schedule, some of which run every minute) and jobs that gave up for 90.
 - **Schedules** lists the regular work, how often it runs, when it last ran and when it runs next. **Run now** runs one straight away.
-- **Recent jobs** lists jobs newest first; choose a **Status** to narrow it. Select a job to see its details, its last error and its result. For a job that failed or gave up, **Try again now** runs it again at once, with its attempts counted from nothing.
+- **Recent jobs** lists jobs newest first; choose a **Status** to narrow it. Select a job to see its details, its last error and its result. For a job that failed or gave up, **Try again now** runs it again at once, with its attempts counted from nothing. If a newer run of the same job (for example the schedule's next run) is already waiting or running, **Try again now** says so and leaves the old job as it is.
 
 Each job runs once even if more than one copy of the server is using the same database. If the server stops in the middle of a job, the job is picked up again a few minutes after the server starts.
 

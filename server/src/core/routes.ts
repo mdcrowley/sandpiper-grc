@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { guardFormula } from './export/csv.ts';
 import { pageOf, registerApiStore } from './api/conventions.ts';
 import { capExportRows, EXPORT_ROW_LIMIT, TRUNCATED_HEADER } from './export/list.ts';
 import type { Db } from './db.ts';
@@ -305,7 +306,7 @@ export function registerCoreRoutes({ app, db, audit, lookups, res, custom, gate,
       const rows = redact(found);
       const esc = (v: unknown) => {
         let s = v === null || v === undefined ? '' : v instanceof Date ? v.toISOString() : typeof v === 'object' ? JSON.stringify(v) : String(v);
-        if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`; // stop spreadsheet formula injection
+        s = guardFormula(s); // stop spreadsheet formula injection (core/export/csv.ts, W17-5)
         return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
       };
       await audit(req, { action: 'audit.export', summary: `Exported ${rows.length} audit events to CSV${truncated ? ` (the newest ${EXPORT_ROW_LIMIT.toLocaleString('en-US')}: the export limit)` : ''}` });
@@ -391,7 +392,10 @@ export function registerCoreRoutes({ app, db, audit, lookups, res, custom, gate,
 /**
  * The Overview's figure routes, and whether a figure depends on who asks beyond their permissions
  * (`person`: it holds the caller's own counts, such as "mine"). A record type's `/stats` route is a
- * figure too; it depends on the person only when a filter names "me".
+ * figure too; it depends on the person when a filter names "me", and always for a type whose row
+ * rule filters figures by person (`rowRule.figures === 'filter'`: saved reports, dashboards,
+ * schedules and packs are the owner's, or shared with roles) or when grouped by a link to such a
+ * type or by a custom field (W17-1; see `statsScope`).
  */
 export const FIGURE_ROUTES: Record<string, 'viewer' | 'person'> = {
   '/api/tickets/metrics': 'viewer',
@@ -409,6 +413,21 @@ export function figuresCacheMs(): number {
   if (raw === undefined || raw.trim() === '') return process.env.VITEST ? 0 : 10_000;
   const n = Number(raw);
   return Number.isFinite(n) && n > 0 ? Math.min(n, 300) * 1000 : 0;
+}
+
+/**
+ * Whether a type's `/stats` answer depends on the person beyond their permissions (W17-1): when the
+ * type's row rule filters figures by person, when the grouping field links to such a type (its
+ * labels are read as the caller), or when the grouping is a custom field (it may be such a link,
+ * and custom fields are not known when the routes are built). A masking row rule depends only on
+ * permissions, which are in every key.
+ */
+export function statsScope(def: ResourceDef, group: string | null, personal: (type: string | undefined) => boolean): 'viewer' | 'person' {
+  if (def.rowRule?.figures === 'filter') return 'person';
+  if (!group) return 'viewer';
+  const f = Object.prototype.hasOwnProperty.call(def.fields, group) ? def.fields[group] : undefined;
+  if (!f) return 'person';
+  return f.type === 'ref' && personal(f.to) ? 'person' : 'viewer';
 }
 
 interface Kept { generation: number; at: number; body: string; type: string }
@@ -431,22 +450,24 @@ export function registerFiguresCache(app: FastifyInstance, db: Db, res: ReturnTy
   const kept = new Map<string, Kept>();
   const pending = new Map<string, Pending>();
   const mine = new WeakMap<FastifyRequest, Pending>();
-  let statsRoutes = new Set<string>();
-  app.addHook('onReady', async () => { statsRoutes = new Set(res.registry.all().map((d) => `${d.path}/stats`)); });
+  let statsRoutes = new Map<string, ResourceDef>();
+  app.addHook('onReady', async () => { statsRoutes = new Map(res.registry.all().map((d) => [`${d.path}/stats`, d])); });
+  const personal = (type: string | undefined) => res.registry.get(type ?? '')?.rowRule?.figures === 'filter';
 
   const keyOf = (req: FastifyRequest): string | null => {
     if (req.method !== 'GET' || !req.user) return null;
     const route = req.routeOptions?.url ?? '';
     const query = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
     let scope = FIGURE_ROUTES[route];
-    if (!scope && statsRoutes.has(route)) {
+    const def = statsRoutes.get(route);
+    if (!scope && def) {
       let plain: string;
       try {
         plain = decodeURIComponent(query.slice(1).replace(/\+/g, ' '));
       } catch {
         return null; // a malformed query is not kept: the route answers it
       }
-      scope = /(^|[=,])\s*me\s*(,|&|$)/.test(plain) ? 'person' : 'viewer';
+      scope = /(^|[=,])\s*me\s*(,|&|$)/.test(plain) ? 'person' : statsScope(def, new URLSearchParams(query).get('group'), personal);
     }
     if (!scope) return null;
     const u = req.user;

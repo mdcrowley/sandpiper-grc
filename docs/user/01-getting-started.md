@@ -131,7 +131,7 @@ The menu on the left is divided into groups. You see only the items your role al
 |---|---|
 | (top) | **Overview**, **My actions**, **Approvals**, **Notifications**, **Self-service portal** |
 | Service desk | **Tickets**, **Service desk dashboard**, **Service catalog**, **Problems**, **Knowledge base** |
-| Inventory | **Systems**, **Relationship map**, **Assets**, **Disposal approvals**, **Sites**, **Asset condition**, **Data categories**, **Vehicles**, **Services**, **Equipment coverage**, **What is affected**, **Inventory reports** |
+| Inventory | **Systems**, **Relationship map**, **Assets**, **Disposal approvals**, **Sites**, **Asset condition**, **Inventory counts**, **Data categories**, **Vehicles**, **Services**, **Equipment coverage**, **What is affected**, **Inventory reports** |
 | Change | **Changes**, **Change calendar**, **New change**, **Change settings** |
 | Vendors | **Vendors**, **Security terms matrix**, **Contracts**, **Renewal calendar**, **Evidence**, **Expiring evidence**, **Reassessments due**, **Vendor issues**, **Vendor offboarding** |
 | Cybersecurity | **Framework outcomes**, **Assessments**, **Risk register**, **Risk reviews**, **Key risk indicators**, **Security incidents**, **Notification deadlines**, **Rules and checklists**, **Offline incident kit**, **Vulnerabilities**, **Vulnerability dashboard**, **OT security**, **Security zones**, **Action tracker**, **Obligations**, **Regulatory changes**, **Policies**, **My acknowledgments**, **Acknowledgment kiosk**, **Exceptions**, **Training overview**, **Courses**, **My training**, **Exercises**, **Exercise calendar** |
@@ -226,7 +226,7 @@ Search looks in titles, references and text, and also in comments and the names 
 
 ### Create button
 
-The **Create** button at the top right lists everything you are allowed to create, in alphabetical order, for example **Ticket**, **Asset**, **Contract** or **Risk**. Choosing an item opens the form for a new record of that kind. The same choices are in the search panel.
+The **Create** button at the top right lists everything you are allowed to create, grouped under the same headings as the navigation (for example **Service desk**, **Inventory**, **Change**), A to Z within each group, each with its icon. Choosing an item opens the form for a new record of that kind. The same choices are in the search panel.
 
 ### Notifications bell
 
@@ -286,7 +286,7 @@ Dates are written as "Nov 18, 2026", numbers as "1,234.5" and amounts in the org
 
 Tickets, assets, vendors, risks and most other records are shown in lists that all behave the same way. Above the table is a toolbar: the **Search** box and the **Filters** button on the left; the views button, the column chooser, the row-height button, **Import** and **Export** on the right (each only when your role allows it).
 
-The table scrolls inside its own frame. The column headings stay in place while you scroll down, and a wide table scrolls sideways inside the frame rather than moving the whole page.
+The page scrolls down; the table never has a scroll bar of its own for that. When the window is narrow, less important columns are left out so the rest fit; they are still in the column chooser, marked **Hidden to fit this width**, and checking one keeps it on however narrow the window. If the columns that are always shown are still too wide, the table scrolls sideways, and the edge with more to see fades out. When the table fits, its column headings stay in view as you scroll down.
 
 ### Search
 
@@ -351,6 +351,7 @@ Views saved before they were kept with your account were stored in the browser a
 
 - Select the **Choose columns** button (three upright bars) and clear the columns you do not need. **Reset** brings back the usual columns.
 - Select the **Compact rows** button beside it to fit more rows on the screen. Select it again for the roomier rows.
+- A column you check stays on even on a narrow window; clear it again to let it give way. **Reset** also forgets these choices.
 
 Both choices, and the number of rows per page, are remembered with your account, so they follow you to another browser.
 
@@ -383,7 +384,7 @@ Each record is changed separately, exactly as if you had edited it by hand, so e
 ### Opening and creating records
 
 - Select a row, or the reference or title in it, to open the record.
-- Select the **New** button above the list (for example **New problem**) to create a record. Fill in the form and select the **Create** button at the bottom. Fields marked with a red asterisk must be filled in. If something is missing or not allowed, the message appears under that field and the cursor moves to it. The new record then opens.
+- Select the **New** button at the top right of the page (for example **New problem**) to create a record. Fill in the form and select the **Create** button at the bottom. Fields marked with a red asterisk must be filled in. If something is missing or not allowed, the message appears under that field and the cursor moves to it. The new record then opens.
 - If you select **Cancel** or close the form after typing something, you are asked whether to discard what you entered.
 
 ### Leaving a page with unsaved changes
@@ -428,7 +429,9 @@ In forms:
 
 ### Tabs
 
-The lower part of the page is divided into tabs. Most records have **Activity**, **Attachments**, **Related** and **History**; many have more, such as **Contracts** on a vendor. A number beside a tab's name is a count: comments on **Activity**, files on **Attachments**, linked records on **Related**.
+The buttons at the top of a record are always in the same order: the main next step first, then the other actions, **PDF** and **Watch**, with the **⋯** menu (more actions) last.
+
+The lower part of the page is divided into tabs. Most records have **Activity**, **Attachments**, **Related** and **History**; many have more, such as **Contracts** on a vendor. A number beside a tab's name is a count: comments on **Activity**, files on **Attachments**, linked records on **Related**. If the tabs do not all fit across the window, the last ones move into a **More** menu at the end of the row; choose one there to open it. The tab you are on is always shown in the row.
 
 The tab you are looking at is part of the page address, so a bookmark or a link sent to a colleague opens the same tab.
 

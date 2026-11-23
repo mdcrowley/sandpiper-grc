@@ -234,7 +234,15 @@ a.stat:hover .stat-go, a.stat:focus-visible .stat-go { opacity: 1; }
 /* ---------- Tabs ---------- */
 
 .tabs { display: grid; gap: var(--s-4); min-width: 0; }
-.ui-tablist { flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
+/* Tabs that do not fit go into the More menu at the end of the strip (core/ui.tsx Tabs), so the strip never scrolls. */
+.ui-tabbar { display: flex; align-items: stretch; min-width: 0; }
+.ui-tablist { flex: 1 1 auto; min-width: 0; flex-wrap: nowrap; overflow: hidden; }
+.ui-tabs-more {
+  flex: none; align-self: stretch; height: auto; border-radius: 0; font-weight: 600; color: var(--text-muted);
+  box-shadow: inset 0 -1px 0 var(--tab-border-color, var(--border));
+}
+.ui-tabs-more:hover { color: var(--text); }
+.ui-tabs-more[aria-expanded="true"] { color: var(--text); }
 .ui-tab { flex: none; font-weight: 600; color: var(--text-muted); }
 .ui-tab:hover, .ui-tab[data-active] { color: var(--text); }
 .ui-tab[data-active] { border-color: var(--brand); }
@@ -395,6 +403,14 @@ button.step-body:hover .step-label { text-decoration: underline; }
 .page-title { font-size: var(--fs-2xl); font-weight: 650; line-height: 1.25; letter-spacing: -0.015em; overflow-wrap: anywhere; }
 .page-ref { margin-inline-end: var(--s-3); font: 400 var(--fs-lg) var(--font-mono); letter-spacing: 0; color: var(--text-muted); }
 .page-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }
+.page-actions:not(:has(> :not(.page-actions-slot:empty))) { display: none; }
+/* Slots that order the header buttons (core/ui.tsx HeaderSlot): no box of their own. */
+.page-actions-slot { display: contents; }
+/* A header button never looks like plain text: quiet (ghost) buttons get the secondary button's border. */
+.page-actions .ui-btn-ghost:not(.ui-icon-btn), .page-actions .mantine-Button-root[data-variant="subtle"]:not(.ui-tabs-more) {
+  --button-bd: 1px solid var(--border-control, var(--border));
+  border: 1px solid var(--border-control, var(--border));
+}
 .page-subtitle { max-width: 80ch; color: var(--text-muted); }
 
 /* ---------- Definition list ---------- */
@@ -526,6 +542,9 @@ button.step-body:hover .step-label { text-decoration: underline; }
 
 .ui-menu { min-width: 208px; max-width: min(340px, 90vw); max-height: min(70vh, 560px); overflow-y: auto; border-color: var(--border); }
 .ui-menu-item { min-height: 34px; font-size: var(--fs-md); }
+/* Group headings in a long menu (the Create menu): a quiet heading with a little room above. */
+.ui-menu-group { padding-top: var(--s-2); font-weight: 650; color: var(--text-muted); }
+.ui-menu-group:first-child { padding-top: 4px; }
 a.ui-menu-item { text-decoration: none; }
 /* Hand-written menu markup */
 .menu { position: relative; display: inline-flex; }
@@ -681,6 +700,19 @@ a.ui-menu-item { text-decoration: none; }
   background: var(--surface);
   scrollbar-width: thin;
 }
+/* A table that scrolls sideways fades out at the edge with more to see (data-scroll-start/end, set by
+   watchScrollEdges in core/ui.tsx), so a cut-off column reads as "more this way" (E18-63). The outer
+   pixel stays solid, so the box's border is kept. */
+.table-wrap, .rc-table-wrap { --fade-start: #000; --fade-end: #000; }
+.table-wrap[data-scroll-start], .rc-table-wrap[data-scroll-start] { --fade-start: rgb(0 0 0 / 0.12); }
+.table-wrap[data-scroll-end], .rc-table-wrap[data-scroll-end] { --fade-end: rgb(0 0 0 / 0.12); }
+.table-wrap:is([data-scroll-start], [data-scroll-end]), .rc-table-wrap:is([data-scroll-start], [data-scroll-end]) {
+  mask-image: linear-gradient(to right,
+    #000 0 1px, var(--fade-start) 1px, #000 3rem, #000 calc(100% - 3rem), var(--fade-end) calc(100% - 1px), #000 calc(100% - 1px));
+}
+
+/* Number boxes are no wider than their numbers need (16rem at most), not the whole row; the label and hint keep the full width. */
+.mantine-NumberInput-wrapper { max-width: 16rem; }
 .table { width: 100%; }
 .table th, .table td { padding: 10px 14px; text-align: start; vertical-align: middle; }
 .table th.num, .table td.num { text-align: end; }

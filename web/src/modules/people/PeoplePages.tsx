@@ -3,7 +3,7 @@
 import { lazy, Suspense, useState } from 'react';
 import type { ComponentType } from 'react';
 import {
-  Button, Card, EditableSummary, errorMessage, Loading, LookupChip, RecordPage, ResourceList, Select, Stat, useAuth, useFetch, useToast,
+  Button, Card, EditableSummary, errorMessage, Loading, LookupChip, PageHeader, RecordPage, ResourceList, Select, Stat, useAuth, useFetch, useToast,
   type RecordContext,
 } from '../../core';
 
@@ -37,6 +37,8 @@ export function PeopleList() {
   const n = (s: string) => summary.data?.byStatus.find((x) => x.status === s)?.n ?? 0;
   return (
     <div className="stack">
+      {/* Title and New first, then the figures, as on every other page (E18-64); the list puts New in this header. */}
+      <PageHeader title="People" />
       {summary.data && (
         <div className="grid-stats">
           <Stat label="Active" icon="users" color="green" value={n('active')} to="/people?f.status=active" />
@@ -47,7 +49,6 @@ export function PeopleList() {
       )}
       <ResourceList
         type="person"
-        title="People"
         columns={[
           'ref', 'full_name', 'employee_number', 'position_id',
           { field: 'department_id', label: 'Department', render: (row) => depts.name(row.department_id) || <span className="muted">None</span> },

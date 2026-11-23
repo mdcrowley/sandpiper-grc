@@ -173,7 +173,7 @@ export function PortfolioPage() {
       {error ? <ErrorState title="The portfolio could not be loaded" error={error} onRetry={reload} /> : !data ? <Loading lines={4} label="Loading the portfolio" /> : (
         <>
           {data.wipWarning && (
-            <Alert color="red" variant="light" title="Work-in-progress limit exceeded" icon={<Icon name="alert" />}>
+            <Alert role="status" color="red" variant="light" title="Work-in-progress limit exceeded" icon={<Icon name="alert" />}>
               {data.wipWarning}
             </Alert>
           )}

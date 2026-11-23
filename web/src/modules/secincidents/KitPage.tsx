@@ -42,7 +42,7 @@ export function KitPage() {
   const header = (
     <div className="si-no-print">
       <PageHeader title="Offline incident kit"
-        subtitle="Print this and keep copies where they can be reached if the network and this system are down. What you see below is how it prints"
+        subtitle="Print this and keep copies where they can be reached if the network and this system are down. What you see below is how it prints."
         breadcrumbs={[{ label: 'Security incidents', to: '/security-incidents' }, { label: 'Offline incident kit' }]}
         actions={(
           <>

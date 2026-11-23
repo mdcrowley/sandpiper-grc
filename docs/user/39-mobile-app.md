@@ -220,7 +220,7 @@ says your organization has not set up push for this kind of phone, ask your admi
 **Android phones without Google services** use UnifiedPush: install a UnifiedPush distributor app (your
 administrator tells you which one and which push server it should use), then switch **Tell me on this
 phone** on under **Account**. If you have more than one distributor app, the phone asks which to use.
-**Account > Push app** shows the one in use; tap it to choose another. If no distributor app is
+**Account > Push notifications > Push app** shows the one in use; tap it to choose another. If no distributor app is
 installed, the app says so. If a push cannot be delivered because the push service is busy or
 unreachable, the server tries again for about two hours; the push then says how many notifications are
 unread at that time.
@@ -287,11 +287,11 @@ Switch the app on under **Administration > Features > Mobile app**, then set it 
 
 | Setting | Range | Default | What it does |
 |---|---|---|---|
-| Access token life | 5 to 60 minutes | 15 | How long the app's short-lived access lasts before it is renewed in the background |
-| Stay signed in without use | 1 to 90 days | 30 | A phone not used for this long must sign in again |
-| Require Face ID, a fingerprint or the passcode | on or off | Off | Everyone must unlock the app; the person cannot turn it off under Account |
-| Ask again after (minutes in the background) | 0 to 240 | 5 | How long the app may stay in the background before it asks again |
-| Keep offline work | 1 to 30 days | 7 | How long a phone keeps its offline package (My work, the report forms' choices, inspections with their checklists, condition assessments due, open inventory counts) before deleting it. Work saved on the phone and not yet sent is never deleted by this |
+| Access token life in minutes | 5 to 60 minutes | 15 | How long the app's short-lived access lasts before it is renewed in the background |
+| Days a phone stays signed in without use | 1 to 90 days | 30 | A phone not used for this long must sign in again |
+| Require unlock to open the app | on or off | Off | Everyone must unlock the app; the person cannot turn it off under Account |
+| Minutes before unlocking again | 0 to 240 | 5 | How long the app may stay in the background before it asks again |
+| Days offline work is kept | 1 to 30 days | 7 | How long a phone keeps its offline package (My work, the report forms' choices, inspections with their checklists, condition assessments due, open inventory counts) before deleting it. Work saved on the phone and not yet sent is never deleted by this |
 
 Saving asks for your password; new lifetimes apply to tokens issued afterward. Each person's page under
 **Administration > Users** has a **Mobile app devices** card to sign one phone or all phones out.

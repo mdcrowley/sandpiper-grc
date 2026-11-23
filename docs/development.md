@@ -462,7 +462,10 @@ Services other modules may offer are Fastify decorators; check before use:
   Administration > Reminders.
 - `app.jobs` (`core/jobs`): the table-backed job queue. `app.jobs.register(type, handler,
   opts?)` in `register()`, then `await app.jobs.enqueue(type, payload?, { key?, runAt?,
-  delayMs?, maxAttempts? })` (a second job with the same `key` while one waits is skipped)
+  delayMs?, maxAttempts?, rerunIfRunning? })` (a second job with the same `key` while one waits is
+  skipped; with `rerunIfRunning: true`, a job with that key that is already running is asked to run
+  once more after it finishes (`jobs.rerun`), for hook-queued work that reads its list when it starts,
+  such as push delivery and tracker sends)
   and `app.jobs.schedule(name, { type, every })` for recurring work. For a module's
   recurring work use `await scheduleWork(ctx, '<module>.<work>', () => run(), { every,
   firstRunInMs? })` (`core/jobs`), never `setInterval`: it registers the handler and a
@@ -1089,6 +1092,18 @@ Every data table goes in `<TableWrap label="…">` (from core), never a hand-wri
 the label names the scroll region (usually the table's caption), and the region becomes a Tab stop
 only when it scrolls, so keyboard users can reach every column (E22-48). `web/src/core/tableWrap.test.ts`
 enforces this; a file that cannot use it goes on that test's list of exceptions with a reason.
+
+List columns have a priority (`columns={[..., { field: 'owner_id', priority: 3 }]}`): 1 always shows;
+when the table is wider than the page, priority 3 and then 2 columns are left out, the rightmost
+first. The default is 1 for the first column, the reference, the title and `status`, and 2 for the
+rest. Mark a column 1 only when the list makes no sense without it. The person can check a left-out
+column in the column chooser to keep it on. Lists never scroll down inside themselves. `Tabs` puts
+tabs that do not fit into a **More** menu; never wrap them or make the strip scroll. In a
+`PageHeader`, give the primary action as a core `Button variant="primary"` (it comes first on record
+pages) and the overflow as an icon-only `Menu` or one labeled "More" or "More actions" (always
+last). A list that is the page but has no title of its own puts its New button in the page header.
+Use `Notice` (not a bare Mantine `Alert`, whose role is `alert`) for messages; only `tone="error"`
+is announced as urgent. Number boxes are at most 16rem wide.
 
 Forms register unsaved changes with `useUnsavedChanges(dirty)` (`core/unsaved.tsx`): leaving the page
 asks first, dialogs ask before closing, and a session that ends mid-edit keeps the draft. Call

@@ -208,12 +208,12 @@ The ratings mean:
 
 ### Where the ratings show
 
-The ratings of the report with the latest period end become the project's current ratings. They appear as chips at the top of the project page and in the portfolio. A project with no reports shows "No report".
+The ratings of the report with the latest period end become the project's current ratings. They appear as chips at the top of the project page and in the portfolio. A project with no reports shows "No report". The first chip at the top of a project names its stage, for example **Stage: Plan**. The spend against budget is shown in full ("$46,200 of $48,000"); the portfolio's tiles and chart use short amounts ("$46.2K").
 
 Beside the overall rating an arrow shows the direction of travel, found by comparing the overall rating of the latest report with the one before it:
 
 - up arrow: improving since the last report;
-- level line: no change since the last report;
+- right arrow: no change since the last report;
 - down arrow: worse than the last report.
 
 ### The trend chart and the reports timeline

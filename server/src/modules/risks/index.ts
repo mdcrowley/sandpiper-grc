@@ -1,4 +1,5 @@
 import type { FastifyRequest } from 'fastify';
+import { featureState, ownedOff, SWITCHED_OFF } from '../../core/features.ts';
 import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
 import { registerAcceptanceWorkflow } from './acceptance.ts';
@@ -105,6 +106,12 @@ const mod: ModuleDef = {
 
     // Risks are restricted: hand-written routes need security.view as well as the risks permission.
     const riskPre = (action: string) => [ctx.requirePerm(`risks.${action}`), ctx.requirePerm('security.view')];
+    /**
+     * Whether a scale is offered: one that belongs to a switched-off area (`owns.risk_scale`, the safety
+     * hazard matrix while safety is off) is not offered for new risks, the heat map or the scales page
+     * (E18-64). Risks already scored on it keep it, and it can still be read by its key.
+     */
+    const scaleOffered = async (key: string) => !ownedOff(await featureState(ctx.db), 'risk_scale', key);
 
     // ------------------------------------------------------------------ risks
 
@@ -115,7 +122,8 @@ const mod: ModuleDef = {
         const categoryChanged = !existing || (data.category !== undefined && data.category !== existing.category);
         if (categoryChanged || !merged.scale_key) {
           const category = (await ctx.lookups.values('risk_category')).find((v) => v.value === merged.category);
-          merged.scale_key = (category?.meta?.scale as string | undefined) ?? existing?.scale_key ?? DEFAULT_SCALE;
+          const own = category?.meta?.scale as string | undefined;
+          merged.scale_key = (own && await scaleOffered(own) ? own : undefined) ?? existing?.scale_key ?? DEFAULT_SCALE;
         } else {
           merged.scale_key = existing!.scale_key;
         }
@@ -207,7 +215,11 @@ const mod: ModuleDef = {
 
     // ---- scales (data, editable by risks.administer)
 
-    ctx.app.get('/api/risks/scales', { preHandler: ctx.requirePerm('risks.view') }, async () => scales.all());
+    // `offered: false` marks a scale of a switched-off area: kept for the risks scored on it, offered nowhere.
+    ctx.app.get('/api/risks/scales', { preHandler: ctx.requirePerm('risks.view') }, async () => {
+      const s = await featureState(ctx.db);
+      return (await scales.all()).map((x) => ({ ...x, offered: !ownedOff(s, 'risk_scale', x.key) }));
+    });
 
     ctx.app.get('/api/risks/scales/:key', { preHandler: ctx.requirePerm('risks.view') }, async (req) =>
       (await scales.get((req.params as any).key)) ?? ctx.fail(404, 'not_found', 'Scale not found.'));
@@ -294,6 +306,7 @@ const mod: ModuleDef = {
     ctx.app.get('/api/risks/heatmap', { preHandler: riskPre('view') }, async (req) => {
       const q = req.query as Record<string, string>;
       const scale = (await scales.get(q.scale ?? DEFAULT_SCALE)) ?? ctx.fail(404, 'not_found', 'Scale not found.');
+      if (!(await scaleOffered(scale.key))) ctx.fail(404, 'switched_off', SWITCHED_OFF);
       const basis = q.basis === 'inherent' ? 'inherent' : 'residual';
       const closed = q.include_closed === 'true' ? [] : await statusesWith('risk_status', 'closed');
       const allClosed = await statusesWith('risk_status', 'closed');
@@ -354,6 +367,8 @@ const mod: ModuleDef = {
 
     ctx.app.get('/api/risks/summary', { preHandler: riskPre('view') }, async () => {
       const all = await scales.all();
+      const st = await featureState(ctx.db);
+      const offered = all.filter((s) => !ownedOff(st, 'risk_scale', s.key));
       const closed = await statusesWith('risk_status', 'closed');
       const levels = await ctx.lookups.values('risk_summary_level');
       const counts = await ctx.db.query<{ scale_key: string; summary_level: string | null; count: number }>(
@@ -379,11 +394,11 @@ const mod: ModuleDef = {
         [closed, await statusesWith('risk_status', 'needs_review')]))!;
       return {
         ...watch,
-        scales: all.map((s) => ({ key: s.key, name: s.name })),
+        scales: offered.map((s) => ({ key: s.key, name: s.name })),
         levels: levels.map((lv) => ({
           value: lv.value, label: lv.label, color: lv.color ?? 'gray',
           count: sum(counts.filter((c) => c.summary_level === lv.value)),
-          by_scale: Object.fromEntries(all.map((s) => [s.key, sum(counts.filter((c) => c.summary_level === lv.value && c.scale_key === s.key))])),
+          by_scale: Object.fromEntries(offered.map((s) => [s.key, sum(counts.filter((c) => c.summary_level === lv.value && c.scale_key === s.key))])),
         })),
         unscored: sum(counts.filter((c) => c.summary_level === null)),
         total: sum(counts),

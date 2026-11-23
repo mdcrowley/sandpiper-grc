@@ -53,7 +53,7 @@ When a **Serious** or **Major or fatal** event is recorded, or an event is raise
 
 The event page shows the progress (**Reported**, **Under investigation**, **Corrective actions**, **Closed**) and four cards: **What happened**, **Harm and damage** (**People injured**, **Fatalities**, **People taken for medical treatment**, **Estimated damage**, **Vehicle or station evacuated**), **Where** and **Investigation** (**Investigator**, **Investigation due**, **Root cause category**, **Root cause**, **Findings**, **Closed on**, **Notes**). Select **Edit** on a card to change it. A reportable event shows which bodies must be notified above the cards.
 
-The buttons at the top move the event on: **Start investigation**, **Corrective actions raised**, **Close event** and, on a closed event, **Reopen**.
+The buttons at the top move the event on: **Start investigation**, **Corrective actions raised**, **Close event** and, on a closed event, **Reopen**. The button for the next step is the main one: **Start investigation** on a reported event, **Corrective actions raised** during an investigation, **Close event** once actions are raised.
 
 An event can be closed only when its **Root cause** is recorded and every corrective action is finished or canceled. **Closed on** is filled in for you, and cleared if the event is reopened.
 
@@ -187,4 +187,3 @@ The `dev` sample profile loads an invented year of safety records: twelve hazard
 ## Not available yet
 
 - Drug and alcohol test results are not recorded, on purpose: they belong in a specialist system with its own privacy rules. Only **Post-event testing required** (yes or no) is kept.
-- Anonymizing an event at the end of its retention period does not yet reach its people involved, statements and timeline (roadmap E34).

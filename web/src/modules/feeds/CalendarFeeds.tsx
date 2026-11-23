@@ -1,10 +1,12 @@
 // /account/calendar-feeds: a person's own calendar feeds (E36-03). Each feed has a secret address to
 // subscribe to from a calendar program; it is shown once, when the feed is made or its address is
 // replaced. The kinds of date offered are those the person may use now (core/calendar.ts on the server).
+// Making a feed or replacing its address asks for the password when it was not confirmed in the last
+// few minutes (withReauth), as making an API token does.
 import { useState, type FormEvent } from 'react';
 import {
   api, ApiError, Badge, Button, Card, Checkbox, ConfirmDialog, EmptyState, ErrorState, errorMessage, formatDate, Loading, Modal,
-  PageHeader, relativeTime, Select, TextField, useAuth, useFetch, useToast,
+  PageHeader, relativeTime, Select, TextField, useAuth, useFetch, useToast, withReauth,
 } from '../../core';
 import { CopyBox } from '../admin/common';
 import './feeds.css';
@@ -34,7 +36,7 @@ export function CalendarFeedsPage() {
     if (!rotating) return;
     setBusy(true);
     try {
-      setShown(await api.post<Made>(`/api/me/calendar-feeds/${rotating.id}/rotate`));
+      setShown(await withReauth(() => api.post<Made>(`/api/me/calendar-feeds/${rotating.id}/rotate`)));
       toast.success('New address made. The old one has stopped working.');
       mine.reload();
     } catch (err) {
@@ -178,7 +180,7 @@ function FeedDialog({ feed, sources, onClose, onSaved }: { feed: Feed | null; so
         toast.success('Feed changed. Its address stays the same.');
         onSaved(null);
       } else {
-        onSaved(await api.post<Made>('/api/me/calendar-feeds', body));
+        onSaved(await withReauth(() => api.post<Made>('/api/me/calendar-feeds', body)));
       }
     } catch (err) {
       if (err instanceof ApiError && Object.keys(err.fields).length) setErrors(err.fields);

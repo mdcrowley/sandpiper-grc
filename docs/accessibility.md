@@ -165,10 +165,20 @@ rescue's quicker move to the heading) were also made after the last run. What NV
   alternative, and the risk heat map and framework board say each cell's rating in words.
 - Light and dark themes follow the operating system, and either can be chosen. Motion is
   reduced when the operating system asks for it.
-- Pages work at 820 pixels wide and when zoomed to 200 percent without scrolling sideways;
-  wide tables scroll inside their own frame. A frame that scrolls is a named region in the tab
-  order, so the keyboard can scroll it even when the table holds no link or button (the shared
-  `TableWrap`; a unit test, `web/src/core/tableWrap.test.ts`, keeps every table on it).
+- Pages work at 820 pixels wide and when zoomed to 200 percent without scrolling sideways. Lists
+  leave out lower-priority columns as the window narrows (still offered in the column chooser,
+  marked "Hidden to fit this width"), so a list scrolls sideways only when its essential columns
+  alone are too wide. A table that does scroll sideways fades at the edge that has more, and its
+  frame is a named region in the tab order, so the keyboard can scroll it even when the table holds
+  no link or button (the shared `TableWrap`; `web/src/core/tableWrap.test.ts` keeps every table on
+  it). Lists never scroll down inside their own frame; the page does.
+- Tab strips never scroll: tabs that do not fit go into a **More** menu after the tab list (outside
+  the `tablist`, so the ARIA tabs pattern is unchanged). The active tab always stays in the strip,
+  and a tab chosen from More receives focus.
+- Header buttons are in one order on every page (primary first on record pages, the "⋯" menu
+  last). They are moved in the page itself, not with CSS, so the Tab order is the visual order.
+- Messages use `role="alert"` only for errors; information, success and warnings use
+  `role="status"` (the shared `Notice`) (E18-63).
 
 ## Known limitations
 

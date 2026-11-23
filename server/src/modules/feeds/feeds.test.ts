@@ -45,7 +45,7 @@ describe('calendar feeds', () => {
     expect(mine.body.sources.map((s: any) => s.key)).toContain('actions.due');
     expect((await agent.post('/api/me/calendar-feeds', { name: 'Work', sources: ['actions.due'] })).body.error.code).toBe('feeds_off');
     expect((await agent.put('/api/admin/feeds/settings', { calendarEnabled: true })).status).toBe(403);
-    await t.db.query('update sessions set confirmed_at = null');
+    await t.db.query(`update sessions set confirmed_at = null where user_id = (select id from users where username = 'admin')`);
     expect((await t.api.put('/api/admin/feeds/settings', { calendarEnabled: true })).body.error.code).toBe('reauth_required');
     expect((await t.api.post('/api/auth/confirm', { password: ADMIN.password })).status).toBe(200);
     expect((await t.api.put('/api/admin/feeds/settings', { calendarEnabled: true })).body.calendarEnabled).toBe(true);
@@ -185,6 +185,58 @@ describe('calendar feeds', () => {
       await t.db.query(`delete from rate_limit_hits where bucket = 'calendar_feed'`);
     }
     expect((await fetchFeed(pathOf(feed.address))).statusCode).toBe(200);
+  });
+
+  it('asks for a recent password confirmation to make a feed or replace its address (W17-3)', async () => {
+    const person = await t.as('agent');
+    const feed = (await person.post('/api/me/calendar-feeds', { name: 'Fresh sign-in', sources: ['actions.due'] })).body;
+    expect(feed.address).toBeTruthy();
+    await t.db.query('update sessions set confirmed_at = null where user_id = $1', [person.userId]);
+    const refused = await person.post('/api/me/calendar-feeds', { name: 'Unattended browser', sources: ['actions.due'] });
+    expect([refused.status, refused.body.error.code]).toEqual([403, 'reauth_required']);
+    expect((await person.post(`/api/me/calendar-feeds/${feed.id}/rotate`)).body.error.code).toBe('reauth_required');
+    // Renaming and revoking only narrow, and need no confirmation.
+    expect((await person.patch(`/api/me/calendar-feeds/${feed.id}`, { name: 'Renamed' })).status).toBe(200);
+    expect((await person.del(`/api/me/calendar-feeds/${feed.id}`)).status).toBe(200);
+  });
+
+  it('are revoked when the person changes their password, audited (W17-3)', async () => {
+    const { setPassword } = await import('../../core/auth.ts');
+    const person = await t.as('agent');
+    await setPassword({ db: t.db } as never, person.userId, 'a long sample passphrase 4');
+    const feed = (await person.post('/api/me/calendar-feeds', { name: 'Before the change', sources: ['actions.due'] })).body;
+    expect((await fetchFeed(pathOf(feed.address))).statusCode).toBe(200);
+    const changed = await person.post('/api/auth/change-password', { currentPassword: 'a long sample passphrase 4', newPassword: 'another sample passphrase 5' });
+    expect(changed.status).toBe(200);
+    expect(changed.body.revoked.feeds).toBe(1);
+    expect((await fetchFeed(pathOf(feed.address))).statusCode).toBe(404);
+    const ev = await t.db.one<{ summary: string }>(`select summary from audit_events where action = 'password.change' and record_id = $1`, [person.userId]);
+    expect(ev?.summary).toContain('1 calendar feed(s) revoked');
+    const { revokeProgramAccess } = await import('../../core/tokens.ts');
+    // A second-factor reset or a reset link goes through the same call.
+    await t.db.query(`insert into calendar_feeds (user_id, name, token_hash) values ($1, 'After', $2)`, [person.userId, 'f'.repeat(64)]);
+    expect((await revokeProgramAccess(t.db, person.userId, null, 'second factor reset')).feeds).toBe(1);
+  });
+
+  it('never makes a feed address from a Host header that is not this machine (W17-7)', async () => {
+    const { createSession, SESSION_COOKIE } = await import('../../core/auth.ts');
+    const person = await t.as('agent');
+    const cookie = `${SESSION_COOKIE}=${await createSession(t.db, person.userId)}`;
+    const make = (host: string) => t.app.inject({
+      method: 'POST', url: '/api/me/calendar-feeds', headers: { host, cookie, 'x-grc-csrf': '1' },
+      payload: { name: `From ${host}`, sources: ['actions.due'] },
+    });
+    const refused = await make('evil.example');
+    expect(refused.statusCode).toBe(409);
+    expect(refused.json().error.code).toBe('public_url_required');
+    expect((await t.db.query('select 1 from calendar_feeds where user_id = $1', [person.userId])).length).toBe(0);
+    expect(new URL((await make('localhost:8080')).json().address).host).toBe('localhost:8080');
+    await t.db.query(`insert into settings (key, value) values ('auth.public_url', '"https://grc.example.org"') on conflict (key) do update set value = excluded.value`);
+    try {
+      expect((await make('evil.example')).json().address).toMatch(/^https:\/\/grc\.example\.org\/api\/calendar\/grc_cal_/);
+    } finally {
+      await t.db.query(`delete from settings where key = 'auth.public_url'`);
+    }
   });
 
   it('registers the existing modules\' sources by permission', async () => {

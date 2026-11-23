@@ -169,10 +169,11 @@ describe('accounts', () => {
     expect((await t.db.one<Row>('select status from users where id = $1', [res.body.id]))!.status).toBe('disabled');
   });
 
-  it('refuses to deactivate the last administrator, and never sees the break-glass account', async () => {
+  it('refuses to deactivate an administrator (W17-0), and never sees the break-glass account', async () => {
     const admin = (await t.db.one<{ id: string }>(`select id from users where username = 'admin'`))!;
     const refused = await scim('PATCH', `${B}/Users/${admin.id}`, { Operations: [{ op: 'replace', path: 'active', value: false }] });
-    expect(refused.status).toBe(409);
+    expect(refused.status).toBe(403);
+    expect(refused.body.scimType).toBe('mutability');
     expect(refused.body.schemas).toEqual(['urn:ietf:params:scim:api:messages:2.0:Error']);
     expect((await t.db.one<Row>('select status from users where id = $1', [admin.id]))!.status).toBe('active');
 
@@ -182,6 +183,90 @@ describe('accounts', () => {
     expect((await scim('DELETE', `${B}/Users/${bg.id}`)).status).toBe(404);
     const all = await scim('GET', `${B}/Users?count=200`);
     expect(all.body.Resources.some((u: Row) => u.id === bg.id)).toBe(false);
+  });
+});
+
+describe('accounts that can administer (W17-0)', () => {
+  const PATCH = 'urn:ietf:params:scim:api:messages:2.0:PatchOp';
+  let providerId = '';
+  const adminRole = async () => (await t.db.one<{ id: string }>(`select id from roles where key = 'administrator'`))!.id;
+  const permit = async (id: string) => (await t.db.one<Row>('select permit_provider_id from identity_user_settings where user_id = $1', [id]))?.permit_provider_id ?? null;
+  const enableMail = () => t.db.query('update mail_config set enabled = true where id = 1');
+
+  beforeAll(async () => {
+    providerId = (await t.db.one<{ id: string }>(`insert into identity_providers (key, type, name, config) values ('scim-idp', 'oidc', 'Sample directory', '{}'::jsonb) returning id`))!.id;
+    await t.db.query("insert into settings (key, value) values ('integrations.scim_link_provider', $1::jsonb) on conflict (key) do update set value = excluded.value", [JSON.stringify(providerId)]);
+    await clearLimits();
+  });
+  afterAll(async () => {
+    await t.db.query("delete from settings where key = 'integrations.scim_link_provider'");
+    await t.db.query('update mail_config set enabled = false where id = 1');
+  });
+
+  it('never changes the email address of an administrator, and audits the refusal', async () => {
+    const admin = (await t.db.one<Row>(`select id, email from users where username = 'admin'`))!;
+    const res = await scim('PATCH', `${B}/Users/${admin.id}`, { schemas: [PATCH], Operations: [{ op: 'replace', path: 'emails[type eq "work"].value', value: 'someone.else@example.test' }] });
+    expect(res.status).toBe(403);
+    expect(res.body.scimType).toBe('mutability');
+    expect((await t.db.one<Row>('select email from users where id = $1', [admin.id]))!.email).toBe(admin.email);
+    expect((await t.db.one<Row>(`select summary from audit_events where action = 'scim.refused' and record_id = $1 order by id desc limit 1`, [admin.id]))!.summary).toMatch(/email address/);
+    // The same address again (an identity provider's ordinary PUT) and a display name are fine.
+    const put = await scim('PUT', `${B}/Users/${admin.id}`, { userName: 'admin', displayName: 'Administrator (sample)', emails: [{ value: admin.email, primary: true }] });
+    expect(put.status).toBe(200);
+  });
+
+  it('neither deactivates nor enables again an account that can administer, so no link permit is given', async () => {
+    // A second administrator, made by provisioning and given the role by hand.
+    const made = await scim('POST', `${B}/Users`, user('second.admin@example.test'));
+    const id = made.body.id;
+    await t.db.query('delete from identity_user_settings where user_id = $1', [id]);
+    await t.db.query('insert into user_roles (user_id, role_id) values ($1, $2)', [id, await adminRole()]);
+    expect((await scim('DELETE', `${B}/Users/${id}`)).status).toBe(403);
+    expect((await t.db.one<Row>('select status from users where id = $1', [id]))!.status).toBe('active');
+    // The reviewed chain: deactivated earlier (before the role was given), then active with a new address.
+    await t.db.query('delete from user_roles where user_id = $1', [id]);
+    expect((await scim('DELETE', `${B}/Users/${id}`)).status).toBe(204);
+    await t.db.query('insert into user_roles (user_id, role_id) values ($1, $2)', [id, await adminRole()]);
+    await t.db.query('delete from identity_user_settings where user_id = $1', [id]);
+    const back = await scim('PATCH', `${B}/Users/${id}`, { schemas: [PATCH], Operations: [{ op: 'replace', value: { active: true, emails: [{ value: 'mallory@example.test', primary: true }] } }] });
+    expect(back.status).toBe(403);
+    const onlyActive = await scim('PATCH', `${B}/Users/${id}`, { schemas: [PATCH], Operations: [{ op: 'replace', path: 'active', value: true }] });
+    expect(onlyActive.status).toBe(403);
+    expect((await t.db.one<Row>('select status, email from users where id = $1', [id]))).toEqual({ status: 'disabled', email: 'second.admin@example.test' });
+    expect(await permit(id)).toBeNull();
+  });
+
+  it('a role switched off still counts, and so does any admin.* grant', async () => {
+    const made = await scim('POST', `${B}/Users`, user('partial.admin@example.test'));
+    const role = (await t.db.one<{ id: string }>(`insert into roles (key, name, enabled) values ('saml-refresher', 'SAML refresher (sample)', false) returning id`))!.id;
+    await t.db.query(`insert into role_permissions (role_id, permission) values ($1, 'admin.saml_metadata_refresh')`, [role]);
+    await t.db.query('insert into user_roles (user_id, role_id) values ($1, $2)', [made.body.id, role]);
+    const res = await scim('PATCH', `${B}/Users/${made.body.id}`, { schemas: [PATCH], Operations: [{ op: 'replace', path: 'emails', value: 'x.partial@example.test' }] });
+    expect(res.status).toBe(403);
+  });
+
+  it('an ordinary account: the email changes and the old address is told; enabling again gives the permit', async () => {
+    await enableMail();
+    const made = await scim('POST', `${B}/Users`, user('plain.person@example.test'));
+    const id = made.body.id;
+    expect(await permit(id)).toBe(providerId);
+    const res = await scim('PATCH', `${B}/Users/${id}`, { schemas: [PATCH], Operations: [{ op: 'replace', path: 'emails', value: 'plain.new@example.test' }] });
+    expect(res.status).toBe(200);
+    expect(res.body.emails[0].value).toBe('plain.new@example.test');
+    const notice = await t.db.one<Row>(`select subject from mail_log where lower(to_address) = 'plain.person@example.test' order by created_at desc limit 1`);
+    expect(notice?.subject).toMatch(/email address of your account was changed/);
+    expect((await scim('DELETE', `${B}/Users/${id}`)).status).toBe(204);
+    await t.db.query('delete from identity_user_settings where user_id = $1', [id]);
+    expect((await scim('PATCH', `${B}/Users/${id}`, { Operations: [{ op: 'replace', path: 'active', value: true }] })).body.active).toBe(true);
+    expect(await permit(id)).toBe(providerId);
+  });
+
+  it('the web application tells the old address too when an administrator changes it', async () => {
+    await enableMail();
+    const made = await scim('POST', `${B}/Users`, user('web.change@example.test'));
+    const res = await t.api.patch(`/api/admin/users/${made.body.id}`, { email: 'web.changed@example.test' });
+    expect(res.status).toBe(200);
+    expect(await t.db.one(`select 1 from mail_log where lower(to_address) = 'web.change@example.test'`)).toBeTruthy();
   });
 });
 
@@ -226,6 +311,22 @@ describe('groups and roles', () => {
     expect((await scim('GET', `${B}/Groups/${g.body.id}`)).status).toBe(404);
     const audit = await t.db.query<Row>(`select action, actor_name from audit_events where action like 'scim.group%' order by id`);
     expect(audit.map((r) => r.action)).toEqual(expect.arrayContaining(['scim.group_create', 'scim.group_members', 'scim.group_roles', 'scim.group_update', 'scim.group_delete']));
+  });
+
+  it('does not offer or show a role of a switched-off area, and keeps it mapped when the group is saved (E18-64)', async () => {
+    const g = await scim('POST', `${B}/Groups`, { schemas: ['urn:ietf:params:scim:schemas:core:2.0:Group'], displayName: 'Yard safety (sample)', members: [] });
+    expect((await t.api.put(`/api/admin/scim/groups/${g.body.id}/roles`, { roleKeys: ['agent', 'safety_manager'] })).status).toBe(200);
+    await t.api.patch('/api/admin/features', { features: { safety: false } });
+    try {
+      const listed = (await t.api.get('/api/admin/scim/groups')).body;
+      expect(listed.roles.map((r: Row) => r.key)).not.toContain('safety_manager');
+      expect(listed.groups.find((x: Row) => x.id === g.body.id).role_keys).toEqual(['agent']);
+      expect((await t.api.put(`/api/admin/scim/groups/${g.body.id}/roles`, { roleKeys: ['agent'] })).status).toBe(200);
+      const stored = await t.db.one<{ role_keys: string[] }>('select role_keys from scim_group_roles where id = $1', [g.body.id]);
+      expect([...stored!.role_keys].sort()).toEqual(['agent', 'safety_manager']);
+    } finally {
+      await t.api.patch('/api/admin/features', { features: { safety: true } });
+    }
   });
 
   it('lists recent provisioning activity for administrators', async () => {

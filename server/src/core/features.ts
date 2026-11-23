@@ -23,6 +23,8 @@ import type { FieldDef, ResourceDef, ResourceRegistry, Row } from './module.ts';
  *    notification kind "Service-level targets"), left out of every list offered while it is off;
  *  - `fields`: fields of record types that stay on that are about it (a system's vendor name).
  *    Fields that refer to a switched-off record type (`ref` to it) are hidden without being listed.
+ *  - `owns`: rows of shared set-up that belong to it, by kind (`role`: default roles such as the
+ *    Safety manager; `risk_scale`: the safety hazard matrix). Read with `ownedOff(state, kind, key)`.
  * A list owned by a switched-off area, or used only by its record types, is hidden as a whole.
  * Inventory, the action tracker, notifications, attachments, administration, the Overview and Help
  * are not areas: they are always on.
@@ -41,6 +43,12 @@ export interface Area {
   fields?: Record<string, string[]>;
   /** Configurable lists of this area that it does not own by permission module (public ones). */
   lists?: string[];
+  /**
+   * Rows of shared set-up that belong to this area, by kind: `{ role: ['safety_manager'],
+   * risk_scale: ['hazard_4x5'] }`. While it is off they are left out of everything offered (the
+   * Roles page, a person's roles, the AI assistant roles, the risk scales); rows and grants are kept.
+   */
+  owns?: Record<string, string[]>;
   /** Areas that must be on for this one to be on. */
   requires?: string[];
   /** On when an administrator has never set it. */
@@ -61,7 +69,7 @@ export const AREAS: Area[] = [
     // settings included) answer "switched off", and its settings tab, menu entry and guide page are hidden.
     // A Requester role keeps its grants, which apply again once the portal is switched on.
     permissions: ['portal'], modules: ['portal'], jobs: ['portal.'],
-    fields: { catalog_item: ['portal'] },
+    fields: { catalog_item: ['portal'] }, owns: { role: ['requester'] },
   },
   {
     key: 'changes', label: 'Change enablement', defaultOn: true,
@@ -104,7 +112,7 @@ export const AREAS: Area[] = [
     key: 'training', label: 'Training and exercises', defaultOn: true,
     description: 'Training courses, assignments and exercises.',
     permissions: ['training', 'exercises'], modules: ['training'], jobs: ['training.'],
-    lookupValues: { action_source: ['training', 'exercise'] }, lists: ['training_result'],
+    lookupValues: { action_source: ['training', 'exercise'] }, lists: ['training_result'], owns: { role: ['training_coordinator'] },
   },
   {
     key: 'vulnerabilities', label: 'Vulnerabilities', defaultOn: true,
@@ -116,7 +124,7 @@ export const AREAS: Area[] = [
     key: 'projects', label: 'Projects', defaultOn: true,
     description: 'Projects, the portfolio and project reminders.',
     permissions: ['projects'], modules: ['projects'], jobs: ['projects.'],
-    lookupValues: { action_source: ['project'] },
+    lookupValues: { action_source: ['project'] }, owns: { role: ['project_manager'] },
   },
   {
     key: 'reports', label: 'Dashboards and reports', defaultOn: true,
@@ -136,6 +144,7 @@ export const AREAS: Area[] = [
     permissions: ['safety'], modules: ['safety'], jobs: ['safety.'],
     lookupValues: { notification_kind: ['safety'], action_source: ['safety'] },
     fields: { change: ['safety_impact'], position: ['safety_sensitive'] },
+    owns: { role: ['safety_manager'], risk_scale: ['hazard_4x5'] },
   },
   // Wave 10 (E24, E26, E27, E28). Declared ahead of their modules: a permission module, module folder,
   // job prefix or list value that does not exist yet is simply not there to hide.
@@ -170,7 +179,7 @@ export const AREAS: Area[] = [
     key: 'continuity', label: 'Business continuity and emergency management', defaultOn: true,
     description: 'Business processes and their impact analyses, continuity and emergency plans with call trees, the gap report and emergency activations.',
     permissions: ['continuity'], modules: ['continuity'], jobs: ['continuity.'],
-    lookupValues: { action_source: ['continuity'], notification_kind: ['continuity'] },
+    lookupValues: { action_source: ['continuity'], notification_kind: ['continuity'] }, owns: { role: ['continuity_manager'] },
   },
   {
     key: 'condition', label: 'Asset condition and state of good repair', defaultOn: true,
@@ -218,7 +227,7 @@ export const AREAS: Area[] = [
   },
   {
     key: 'mobile', label: 'Mobile app', defaultOn: false,
-    description: 'The Sandpiper GRC app for iPhone and Android: sign-in through the phone\'s browser, My work, reading asset tags with the camera, reporting problems with photos, and the list of signed-in devices. Switching it off signs out every device.',
+    description: 'The Sandpiper GRC app for iPhone and Android: sign-in through the phone\'s browser, My work, reading asset tags with the camera, reporting problems with photos, inspections, condition assessments and counts that work offline, push notifications, and the list of signed-in devices. Switching it off signs out every device.',
     permissions: [], modules: ['mobile', 'push'], jobs: ['mobile.', 'push.'],
   },
 ];
@@ -367,6 +376,8 @@ export interface FeatureState {
   offLookupValues: Map<string, Set<string>>;
   /** Fields hidden by area (besides those referring to a switched-off type), by record type. */
   offFields: Map<string, Set<string>>;
+  /** Rows of shared set-up that belong to an off area (`owns`), by kind. */
+  offOwned: Map<string, Set<string>>;
   /** Options within areas (E18-28): whether each is on and its name. */
   options: Record<string, OptionState>;
 }
@@ -393,6 +404,7 @@ export function stateFrom(on: Record<string, boolean>, options: Record<string, O
     offJobs: off.flatMap((a) => a.jobs),
     offLookupValues: collect(off.map((a) => a.lookupValues ?? {})),
     offFields: collect(off.map((a) => a.fields ?? {})),
+    offOwned: collect(off.map((a) => a.owns ?? {})),
   };
 }
 
@@ -438,6 +450,17 @@ export const permissionOff = (state: FeatureState, perm: string) => state.offPer
 
 /** Whether a record type belongs to a switched-off area. */
 export const typeOff = (state: FeatureState, def: ResourceDef) => state.offPermissions.has(def.module) || state.offTypes.has(def.type);
+
+/** Whether a row of shared set-up (`owns`: a default role, a risk scale) belongs to a switched-off area. */
+export const ownedOff = (state: FeatureState, kind: string, key: string | null | undefined): boolean =>
+  Boolean(key && state.offOwned.get(kind)?.has(key));
+
+/**
+ * A list of roles to offer (a role picker, a role filter) without the default roles of switched-off
+ * areas (E18-64). Stored choices that name one are kept; only what is offered and shown changes.
+ */
+export const rolesShown = <T extends { key: string }>(state: FeatureState, rows: T[]): T[] =>
+  rows.filter((r) => !ownedOff(state, 'role', r.key));
 
 /** Whether an option within an area is on (an option of a switched-off area counts as off). */
 export function optionOn(state: FeatureState, key: string): boolean {

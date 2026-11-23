@@ -18,11 +18,11 @@
 // - Inbound: `POST /api/integrations/tracker/:connectorId/status` (public) carries
 //   `{ link_id | external_id, external_url?, status }`, signed with the connector's inbound secret over
 //   the timestamp and the raw body. A stale timestamp (over 5 minutes), a bad signature, a copy already
-//   accepted (the last 1,000 per connector are remembered), an unknown or switched-off connector: all get
+//   accepted (every one is remembered for 10 minutes; a connection with 10,000 inside that time takes no more until older ones age out), an unknown or switched-off connector: all get
 //   the same 401. The outside status is kept on the link; when the connector's status map names one of
 //   ours, the record moves to it as system work, after the type's lifecycle check for the person who
 //   sent it (a move that would wait for approval, or that they may no longer make, is not made).
-import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import type { FastifyRequest } from 'fastify';
 import { loadUser, secretBox } from '../../core/auth.ts';
 import { UUID_RE } from '../../core/errors.ts';
@@ -34,6 +34,7 @@ import { clientIp } from '../../core/request.ts';
 import { hostAllowed, postWebhook, signWebhook } from '../../core/webhooks.ts';
 import { sensitive } from '../admin/shared.ts';
 import { appBase } from './calendar.ts';
+import { rememberSignature } from './replay.ts';
 
 /** The kinds of record the bridge can carry; those of a switched-off area are left out where used. */
 export const TRACKER_TYPES = ['action', 'vulnerability'] as const;
@@ -41,7 +42,6 @@ const URL_CONTEXT = (id: string) => `ticket-connector-url:${id}`;
 const SECRET_CONTEXT = (id: string) => `ticket-connector-secret:${id}`;
 const INBOUND_CONTEXT = (id: string) => `ticket-connector-inbound:${id}`;
 const WINDOW_MS = 5 * 60_000;
-const KEEP_SIGNATURES = 1000;
 const MAX_ATTEMPTS = 5;
 
 const json = <T>(v: unknown, fallback: T): T => {
@@ -285,7 +285,8 @@ export async function registerTracker(ctx: ModuleContext) {
     const link = await db.one<Row>(
       `insert into external_ticket_links (connector_id, record_type, record_id, push_requested_at, created_by) values ($1, $2, $3, now(), $4)
        on conflict (connector_id, record_type, record_id) do nothing returning *`, [connector.id, def.type, row.id, userId]);
-    if (link && app.jobs) await app.jobs.enqueue('feeds.tracker_push', {}, { key: 'feeds.tracker_push' });
+    // A send already running may have read its list before this link: it runs once more (W17 review).
+    if (link && app.jobs) await app.jobs.enqueue('feeds.tracker_push', {}, { key: 'feeds.tracker_push', rerunIfRunning: true });
     return link ?? null;
   }
 
@@ -410,13 +411,9 @@ export async function registerTracker(ctx: ModuleContext) {
       const a = Buffer.from(given);
       const b = Buffer.from(expected);
       if (a.length !== b.length || !timingSafeEqual(a, b)) return refuse();
-      // A copy of a request already accepted is refused (remembered by its signature).
-      const fresh = await db.one('insert into ticket_inbound_signatures (connector_id, signature) values ($1, $2) on conflict do nothing returning signature',
-        [connector.id, createHmac('sha256', 'seen').update(given).digest('hex')]);
-      if (!fresh) return refuse();
-      await db.query(
-        `delete from ticket_inbound_signatures where connector_id = $1 and signature not in (
-           select signature from ticket_inbound_signatures where connector_id = $1 order by seen_at desc limit ${KEEP_SIGNATURES})`, [connector.id]);
+      // A copy of a request accepted inside the window is refused; the memory is bounded but never
+      // evicts within the window (W17-8).
+      if ((await rememberSignature(db, connector.id, given)) !== 'fresh') return refuse();
       await db.query('update ticket_connectors set last_inbound_at = now() where id = $1', [connector.id]);
       return applyStatus(connector, (req.body ?? {}) as Row);
     });
@@ -425,7 +422,7 @@ export async function registerTracker(ctx: ModuleContext) {
     method: 'POST', path: '/api/integrations/tracker/:connectorId/status', summary: 'A work tracker reports the status of an item made from a record', tag: 'Work trackers', public: true,
     body: '{ link_id | external_id, external_url?, status } (JSON), with headers X-GRC-Timestamp (Unix seconds) and X-GRC-Signature: sha256=<HMAC-SHA256 of "<timestamp>.<raw body>" with the inbound secret>',
     response: '{ ok, link_id, external_status, applied: our status | null, reason: null | not_mapped | unchanged | lifecycle | needs_approval | sender_cannot_edit | unknown_status | record_gone }',
-    description: 'No session. 401 not_verified, always the same, for an unknown or switched-off connection, a timestamp more than 5 minutes off, a bad signature or a copy of a request already accepted. 429 past 300 requests a minute from one address. The outside status is kept; the record moves only to a status the connection\'s status map names, as the record type\'s lifecycle allows for the person who sent it.',
+    description: 'No session. 401 not_verified, always the same, for an unknown or switched-off connection, a timestamp more than 5 minutes off, a bad signature, a copy of a request already accepted, or more than 10,000 accepted updates on one connection within 10 minutes. 429 past 300 requests a minute from one address. The outside status is kept; the record moves only to a status the connection\'s status map names, as the record type\'s lifecycle allows for the person who sent it.',
   });
 
   async function applyStatus(connector: Row, b: Row) {

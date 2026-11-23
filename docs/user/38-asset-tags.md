@@ -39,7 +39,7 @@ Other identifiers stay as they are (serial number, fleet number, registration, a
 
 ## Tag formats
 
-Open **Administration > Asset tags**; its tabs are **Formats**, **Stock**, **Series**, **Print tags** and **Settings**. On **Formats**, select **Add format** to describe one. Tag formats are optional, and none is supplied: they matter most for printed text read by the app's camera, which can misread a character. A format says:
+Open **Administration > Asset tags**; its tabs are **Formats**, **Stock**, **Series**, **Print tags** and **Settings**. On **Formats**, select **New format** to describe one. Tag formats are optional, and none is supplied: they matter most for printed text read by the app's camera, which can misread a character. A format says:
 
 | Setting | Example |
 |---|---|
@@ -156,7 +156,7 @@ Select **Start a count** (or **Create > Inventory count**; needs `tags.count`), 
 3. Optionally choose **What to count**: assets, sites, vehicles. Choose none to count every kind kept at a site.
 4. Optionally give a **Title**; by default it is the site, the area and today's date.
 
-When the count starts, the **expected list** is fixed: every record registered at the site (assets whose site is it, vehicles whose depot or garage is it, and the site itself), except retired and disposed ones. What is added to the site afterwards is not expected by this count, and what a count covers cannot be changed later: start a new count instead. Systems have no site, so they are not counted.
+When the count starts, the **expected list** is fixed: every record registered at the site (assets whose site is it, vehicles whose depot or garage is it, and the site itself), except retired and disposed ones. What is added to the site afterward is not expected by this count, and what a count covers cannot be changed later: start a new count instead. Systems have no site, so they are not counted.
 
 ### Counting
 

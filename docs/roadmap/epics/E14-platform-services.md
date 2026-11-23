@@ -1,4 +1,4 @@
-# E14 Platform services not yet built
+# E14 Platform services
 
 **Status:** done (39 of 39 issues done)
 full-text search built; custom fields, tags and watchers built with their screens; retention

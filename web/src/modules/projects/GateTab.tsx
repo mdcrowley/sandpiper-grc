@@ -135,17 +135,17 @@ export function GateTab({ projectId, version, onChanged }: { projectId: string; 
       </Group>
 
       {gate.is_current && (gate.blockers.length > 0 ? (
-        <Alert color="amber" variant="light" icon={<Icon name="lock" />} title={`Approval is blocked: ${blockerSummary(gate)}`}>
+        <Alert role="status" color="amber" variant="light" icon={<Icon name="lock" />} title={`Approval is blocked: ${blockerSummary(gate)}`}>
           {gate.blockers.length <= 3 && <BlockerList blockers={gate.blockers} />}
           <Text size="sm" mt={gate.blockers.length <= 3 ? 'xs' : 0}>{blockerAdvice(gate)} The project stays in {stageLabel(gate.from_stage)} until then.</Text>
         </Alert>
       ) : gate.approval.running ? (
-        <Alert color="blue" variant="light" icon={<Icon name="clock" />} title="Waiting for approval">
+        <Alert role="status" color="blue" variant="light" icon={<Icon name="clock" />} title="Waiting for approval">
           Approval was asked for through "{gate.approval.workflow_name ?? 'the approval workflow'}". The approval panel at the top of the page shows who
           it is waiting for. Once approved, the project moves to {stageLabel(gate.to_stage)}. An administrator can instead record a decision by hand, with a reason; that stops the request.
         </Alert>
       ) : (
-        <Alert color="green" variant="light" icon={<Icon name="check-circle" />} title="Ready for a decision">
+        <Alert role="status" color="green" variant="light" icon={<Icon name="check-circle" />} title="Ready for a decision">
           Every checklist item is checked and the required documents are in place.{' '}
           {gate.approval.workflow_id
             ? <>Ask for approval through "{gate.approval.workflow_name}" to move the project to {stageLabel(gate.to_stage)}. Only an administrator can record a decision by hand, with a reason.</>
@@ -153,7 +153,7 @@ export function GateTab({ projectId, version, onChanged }: { projectId: string; 
         </Alert>
       ))}
       {!gate.is_current && open && (
-        <Alert color="gray" variant="light" icon={<Icon name="info" />}>
+        <Alert role="status" color="gray" variant="light" icon={<Icon name="info" />}>
           This gate is not the project's current gate. It comes into play when the project reaches {stageLabel(gate.from_stage)} again.
         </Alert>
       )}

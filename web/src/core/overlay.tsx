@@ -4,7 +4,7 @@ import { Button as MButton, ActionIcon, Drawer as MDrawer, Menu as MMenu, Modal 
 import { notifications } from '@mantine/notifications';
 import { Link } from 'react-router-dom';
 import { Icon, type IconName } from './Icon';
-import { Button, BUTTON_LOOK, cx, type ButtonVariant } from './ui';
+import { Button, BUTTON_LOOK, cx, HeaderSlot, type ButtonVariant } from './ui';
 import { SheetGuard, useSheetGuard, type DiscardPrompt } from './unsaved';
 
 /* ---------- Modal and Drawer ---------- */
@@ -177,6 +177,8 @@ export interface MenuItem {
   disabled?: boolean;
   /** Draw a divider above this item. */
   separated?: boolean;
+  /** A heading drawn above this item when it differs from the previous item's (the Create menu's groups). */
+  group?: string;
 }
 
 export interface MenuProps {
@@ -191,10 +193,16 @@ export interface MenuProps {
   align?: 'start' | 'end';
 }
 
-/** A button that opens a dropdown menu (arrow keys, Home/End, Escape; items with `to` are real links). */
+/**
+ * A button that opens a dropdown menu (arrow keys, Home/End, Escape; items with `to` are real links).
+ * An icon-only "⋯" (More actions) menu in a page header is always drawn last among its buttons.
+ */
 export function Menu({ label, icon, iconOnly, variant = 'secondary', size, items, align = 'start' }: MenuProps) {
   const small = size === 'sm';
+  // The page's overflow menu: an icon-only "⋯" menu, or one labeled "More" or "More actions".
+  const overflow = (Boolean(iconOnly) && (icon ?? 'more') === 'more') || /^more( actions)?$/i.test(label);
   return (
+    <HeaderSlot place={overflow ? 'last' : undefined}>
     <MMenu position={align === 'end' ? 'bottom-end' : 'bottom-start'} offset={6} aria-label={label}>
       <MMenu.Target>
         {iconOnly ? (
@@ -228,6 +236,7 @@ export function Menu({ label, icon, iconOnly, variant = 'secondary', size, items
           return (
             <Fragment key={`${i}-${item.label}`}>
               {item.separated && i > 0 && <MMenu.Divider />}
+              {item.group && item.group !== items[i - 1]?.group && <MMenu.Label className="ui-menu-group">{item.group}</MMenu.Label>}
               {item.to && !item.disabled
                 ? <MMenu.Item {...shared} component={Link} to={item.to}>{item.label}</MMenu.Item>
                 : <MMenu.Item {...shared}>{item.label}</MMenu.Item>}
@@ -236,6 +245,7 @@ export function Menu({ label, icon, iconOnly, variant = 'secondary', size, items
         })}
       </MMenu.Dropdown>
     </MMenu>
+    </HeaderSlot>
   );
 }
 

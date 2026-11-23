@@ -194,8 +194,10 @@ export function PushAdminPage() {
                   ? <Badge color="green">Server key made</Badge>
                   : <Badge color="gray">The server's key is made when UnifiedPush is first switched on</Badge>}
                 {view.config.unifiedpush.vapidPublicKey ? (
-                  <Button variant="ghost" size="sm" onClick={() => void newVapid()} loading={busy === 'vapid'} disabled={busy !== null && busy !== 'vapid'}>Make a new key</Button>
+                  // A new key reloads the settings from the server, so unsaved edits would be lost (W17 review).
+                  <Button variant="ghost" size="sm" onClick={() => void newVapid()} loading={busy === 'vapid'} disabled={dirty || (busy !== null && busy !== 'vapid')}>Make a new key</Button>
                 ) : null}
+                {view.config.unifiedpush.vapidPublicKey && dirty ? <span className="muted">Save your changes before making a new key.</span> : null}
               </div>
               <Delivery stats={view.stats} provider="unifiedpush" />
             </div>

@@ -1,6 +1,6 @@
 # E21 MCP server (AI assistant access)
 
-**Status:** done (24 of 24 issues done)
+**Status:** done (25 of 25 issues done)
 
 ## Goal
 
@@ -48,6 +48,7 @@ rights than they have.
 | E21-22 | "What is affected if this system fails" tool | done | P2 |
 | E21-23 | Audit log search tool (by request id) | done | P3 |
 | E21-24 | Summary tools for the wave 10 and 11 parts | done | P2 |
+| E21-25 | Not planned for now: `private_key_jwt` connectors and sign-in through the stdio bridge | done | P3 |
 
 ---
 
@@ -372,3 +373,11 @@ An assistant user wants figures from audits, controls, corrective action plans, 
 - [x] New `GET /api/governance/summary` (committees, meetings coming up and held, minutes waiting, decisions by outcome; figures only, the same for everyone)
 
 **Implemented in:** `server/src/modules/mcp/tools-programs.ts`, `governance/summary.ts`; tests `mcp/tools-programs.test.ts` (stand-in routes for the wave 11 parts), `governance/summary.test.ts`; `docs/mcp.md`, `docs/user/21-ai-assistants-and-mcp.md`, `docs/user/28-committees-and-meetings.md`
+
+### E21-25 Not planned for now: `private_key_jwt` connectors and sign-in through the stdio bridge
+
+**Status:** done · **Priority:** P3 · **Type:** feature
+
+Not planned for now: connectors that authenticate with `private_key_jwt` from a client metadata document, and signing in through the stdio bridge (it uses a personal access token). No assistant client in use needs either; reopen as a new issue when one does.
+
+**Implemented in:** nothing to build; recorded so that the gap in `docs/mcp.md` maps to an issue

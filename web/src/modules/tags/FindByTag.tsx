@@ -70,12 +70,13 @@ export function TagFindForm({ initial = '', autoFocus, compact, onFind, label = 
   };
   return (
     <form className={cx('tag-find', compact && 'tag-find-compact')} role="search" aria-label={label} onSubmit={submit} noValidate>
-      <label htmlFor={id} className={compact ? 'sr-only' : 'field-label'}>{label}</label>
+      {/* The page's heading already says "Find by tag number": the box itself is the tag number (E18-64). */}
+      <label htmlFor={id} className={compact ? 'sr-only' : 'field-label'}>{compact ? label : 'Tag number'}</label>
       <div className="tag-find-row">
         <input
           id={id} className="input tag-find-input" value={value} autoFocus={autoFocus} autoComplete="off" spellCheck={false}
           autoCapitalize="characters" enterKeyHint="search" maxLength={2000}
-          placeholder={compact ? 'Tag number' : 'Type a tag number or scan a tag'}
+          placeholder={compact ? 'Tag number' : undefined}
           aria-invalid={error ? true : undefined} aria-describedby={error ? `${id}-err` : undefined}
           onKeyDown={timing.onKeyDown}
           onChange={(e) => { setValue(e.currentTarget.value); if (error) setError(''); }}

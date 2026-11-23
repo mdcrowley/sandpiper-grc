@@ -26,6 +26,8 @@ export interface MapCanvasProps {
 
 interface View { k: number; x: number; y: number }
 const MIN_K = 0.15;
+/** The smallest zoom the map opens at: node labels at about 11 px or more (E18-64). "Fit the whole map" may go below it. */
+const READABLE_K = 0.88;
 const MAX_K = 2.5;
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
@@ -58,13 +60,18 @@ export function MapCanvas({ layout, label, selectedId, onSelect, impacted, cente
   const viewRef = useRef(view);
   viewRef.current = view;
 
-  const fit = useCallback(() => {
+  /**
+   * Fits the map to the frame. The map opens no smaller than READABLE_K, from its top-left corner, so its
+   * labels can be read (drag or use the arrow keys to see the rest); `whole` fits everything, however small.
+   */
+  const fit = useCallback((whole = false) => {
     if (!width || !height) return;
     // 56px on the right is kept clear for the zoom buttons.
-    const k = clamp(Math.min((width - 88) / layout.width, (height - 32) / layout.height), MIN_K, 1.15);
+    const all = clamp(Math.min((width - 88) / layout.width, (height - 32) / layout.height), MIN_K, 1.15);
+    const k = whole ? all : Math.max(all, Math.min(READABLE_K, 1.15));
     setView({ k, x: Math.max(16, (width - 56 - layout.width * k) / 2), y: Math.max(16, (height - layout.height * k) / 2) });
   }, [width, height, layout.width, layout.height]);
-  useEffect(fit, [fit]);
+  useEffect(() => { fit(); }, [fit]);
 
   const zoomAt = useCallback((px: number, py: number, factor: number) => {
     setView((v) => {
@@ -124,7 +131,7 @@ export function MapCanvas({ layout, label, selectedId, onSelect, impacted, cente
     const pan = 60;
     if (e.key === '+' || e.key === '=') zoomAt(width / 2, height / 2, 1.25);
     else if (e.key === '-') zoomAt(width / 2, height / 2, 0.8);
-    else if (e.key === '0') fit();
+    else if (e.key === '0') fit(true);
     else if (e.key === 'ArrowLeft') setView((v) => ({ ...v, x: v.x + pan }));
     else if (e.key === 'ArrowRight') setView((v) => ({ ...v, x: v.x - pan }));
     else if (e.key === 'ArrowUp') setView((v) => ({ ...v, y: v.y + pan }));
@@ -230,7 +237,7 @@ export function MapCanvas({ layout, label, selectedId, onSelect, impacted, cente
                 <title>{n.ref ? `${n.ref} ` : ''}{n.label}{crit ? ` · ${lookupLabel('criticality_tier', crit)}` : ''}{ot ? ' · OT' : ''}{n.attrs?.zone_name ? ` · zone ${n.attrs.zone_name}` : ''}</title>
                 <rect width={n.w} height={n.h} rx={8} />
                 <circle cx={13} cy={n.h / 2} r={4} className="inv-node-dot" />
-                <text x={24} y={n.h / 2 + 4.5}>{short(n.label, (crit ? 24 : 26) - (ot ? 4 : 0))}</text>
+                <text x={24} y={n.h / 2 + 4.5}>{short(n.label, (crit ? 28 : 30) - (ot ? 4 : 0))}</text>
                 {crit && <circle cx={n.w - 12} cy={n.h / 2} r={4.5} className="inv-node-crit" style={{ fill: `var(--c-${lookupColor('criticality_tier', crit) ?? 'gray'}-solid)` }} />}
               </g>
             );
@@ -253,7 +260,7 @@ export function MapCanvas({ layout, label, selectedId, onSelect, impacted, cente
         <ActionIcon.Group orientation="vertical">
           <Tooltip label="Zoom in" position="left"><ActionIcon variant="default" size="lg" aria-label="Zoom in" onClick={() => zoomAt(width / 2, height / 2, 1.3)}><IconPlus size={18} /></ActionIcon></Tooltip>
           <Tooltip label="Zoom out" position="left"><ActionIcon variant="default" size="lg" aria-label="Zoom out" onClick={() => zoomAt(width / 2, height / 2, 1 / 1.3)}><IconMinus size={18} /></ActionIcon></Tooltip>
-          <Tooltip label="Fit the whole map" position="left"><ActionIcon variant="default" size="lg" aria-label="Fit the whole map" onClick={fit}><IconFocusCentered size={18} /></ActionIcon></Tooltip>
+          <Tooltip label="Fit the whole map" position="left"><ActionIcon variant="default" size="lg" aria-label="Fit the whole map" onClick={() => fit(true)}><IconFocusCentered size={18} /></ActionIcon></Tooltip>
           <Tooltip label={full ? 'Leave full screen' : 'Full screen'} position="left">
             <ActionIcon variant="default" size="lg" aria-label={full ? 'Leave full screen' : 'Full screen'} onClick={onToggleFull}>
               {full ? <IconArrowsMinimize size={18} /> : <IconArrowsMaximize size={18} />}

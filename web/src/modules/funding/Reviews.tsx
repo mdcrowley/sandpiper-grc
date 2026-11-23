@@ -105,8 +105,9 @@ function AreaEditor({ reviewId, area, editable, onSaved, onDeficiency }: {
         hint="Where the evidence is kept; attach files on the review's Attachments tab." />
       {editable && (
         <div className="form-actions">
-          <Button onClick={() => onDeficiency(area)}>Record a deficiency</Button>
-          <Button variant="primary" loading={busy} disabled={!dirty} onClick={save}>Save area</Button>
+          {/* Named with their area: every area has the pair, and one may sit in a closed panel (E18-64). */}
+          <Button aria-label={`Record a deficiency: ${area.title}`} onClick={() => onDeficiency(area)}>Record a deficiency</Button>
+          <Button variant="primary" aria-label={`Save area: ${area.title}`} loading={busy} disabled={!dirty} onClick={save}>Save area</Button>
         </div>
       )}
     </div>

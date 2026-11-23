@@ -255,6 +255,9 @@ function RenameTagDialog({ tag, recordType, noun, existing, onClose, onDone }: {
   );
 }
 
+/** One empty array for lists without settings: a new one each render would reset the value dialog's draft. */
+const NO_SETTINGS: ListSetting[] = [];
+
 function ListValues({ list, usage, onChanged }: { list: string; usage: Usage[]; onChanged: () => void }) {
   const toast = useToast();
   const meta = useMeta();
@@ -266,7 +269,7 @@ function ListValues({ list, usage, onChanged }: { list: string; usage: Usage[]; 
   const [announce, setAnnounce] = useState('');
   useEffect(() => { setMoved(null); }, [data]);
   const rows = moved ?? data;
-  const settings = LIST_SETTINGS[list] ?? [];
+  const settings = LIST_SETTINGS[list] ?? NO_SETTINGS;
   const columns = settings.filter((s) => s.column !== false);
   const title = listTitle(list, usage);
 

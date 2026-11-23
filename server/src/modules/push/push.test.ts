@@ -310,6 +310,23 @@ describe('with the Mobile app on', () => {
     await readAll(me);
   });
 
+  it('asks a delivery that is already running to run once more for a notification that arrives meanwhile (W17 review)', async () => {
+    await t.db.query(`delete from jobs where type = 'push.deliver'`);
+    await tick();
+    await notify(me);
+    const [queued] = await t.db.query<{ id: string }>(`select id from jobs where type = 'push.deliver' and status = 'queued'`);
+    expect(queued).toBeTruthy();
+    // That delivery has been claimed by a process and has already read who is due.
+    await t.db.query(`update jobs set status = 'running', locked_by = 'elsewhere:1', locked_until = now() + interval '5 minutes' where id = $1`, [queued.id]);
+    await tick();
+    await notify(me, 'approval', 'Change CHG-00008 waits for your approval');
+    // Before the fix the second notification was skipped and waited for the five-minute sweep.
+    const rows = await t.db.query<{ id: string; status: string; rerun: boolean }>(`select id, status, rerun from jobs where type = 'push.deliver'`);
+    expect(rows).toEqual([{ id: queued.id, status: 'running', rerun: true }]);
+    await t.db.query(`delete from jobs where type = 'push.deliver'`);
+    await readAll(me);
+  });
+
   it('follows each person\'s choices: muted and email-only kinds are not pushed', async () => {
     await t.db.query(
       `insert into notification_preferences (user_id, muted_kinds, channels) values ($1, '["watch"]', '{"watch":"none","due":"email"}')

@@ -10,6 +10,10 @@
 //  - accounts are created with no local password (single sign-on only), never removed (DELETE and
 //    `active: false` deactivate: deactivateUser), and the break-glass account is never seen;
 //  - groups grant roles only through an administrator's mapping, and never a role that administers;
+//  - an account that can administer (or the break-glass account) never has its email address or
+//    active state changed, nor gets a provider link permit, by provisioning (W17-0): together they
+//    would let the token holder take the account over; an administrator does that by hand;
+//  - a changed email address is told to the old address;
 //  - every change is audited as "Provisioning (<token name>)".
 import { timingSafeEqual } from 'node:crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
@@ -19,6 +23,7 @@ import type { ModuleContext, Row } from '../../core/module.ts';
 import { makeDbLimiter } from '../../core/ratelimit.ts';
 import { clientIp } from '../../core/request.ts';
 import { sourceAllowed, tokenHash } from '../../core/tokens.ts';
+import { isAdminCapable, notifyEmailChange } from '../../core/identity/accounts.ts';
 import { deactivateUser } from '../admin/users.ts';
 import { provisioningRequest, roleChangeText, syncProvisionedRoles } from './shared.ts';
 
@@ -206,6 +211,7 @@ export function registerScim(ctx: ModuleContext) {
 
   /** With a provider chosen on the provisioning screen: the account may link that provider at its next sign-in. */
   async function permitLink(q: Queryable, userId: string) {
+    if (await isAdminCapable(q, userId)) return; // never a way in to an account that can administer (W17-0)
     const providerId = String(await ctx.settings.get('integrations.scim_link_provider', '') ?? '');
     if (!UUID.test(providerId)) return;
     if (!(await q.one('select 1 from identity_providers where id = $1 and deleted_at is null', [providerId]))) return;
@@ -246,12 +252,29 @@ export function registerScim(ctx: ModuleContext) {
     }
   }
 
+  /** Would `active` change the account? (Enabling applies only to an account provisioning disabled itself.) */
+  const activeChanges = (user: Row, active: boolean | undefined) =>
+    active !== undefined && (active ? user.status === 'disabled' && Boolean(user.scim_deactivated) : user.status !== 'disabled');
+
+  /** Refuses (403, audited) to change `what` of an account that can administer or is the break-glass account (W17-0). */
+  async function guardAdminCapable(caller: Caller, user: Row, what: string | null) {
+    if (!what || !(await isAdminCapable(db, user.id))) return;
+    await ctx.audit(caller.req, {
+      action: 'scim.refused', recordType: 'user', recordId: user.id,
+      summary: `Provisioning (${caller.name}) may not change the ${what} of ${user.username}, who can administer`,
+    });
+    scimFail(403, 'This account can administer the application, so provisioning may not change its email address or active state. An administrator does that under Administration > Users.', 'mutability');
+  }
+
   async function updateUser(caller: Caller, user: Row, f: ReturnType<typeof userFields>): Promise<void> {
     await assertUnique(db, f, user.id);
+    const emailChanges = f.email !== undefined && f.email.toLowerCase() !== String(user.email).toLowerCase();
+    // W17-0: checked before anything is written, so a refused request changes nothing.
+    await guardAdminCapable(caller, user, emailChanges ? 'email address' : activeChanges(user, f.active) ? 'active state' : null);
     const sets: string[] = [];
     const params: unknown[] = [user.id];
     const changed: string[] = [];
-    if (f.email !== undefined && f.email.toLowerCase() !== String(user.email).toLowerCase()) { params.push(f.email); sets.push(`email = $${params.length}`); changed.push('email'); }
+    if (emailChanges) { params.push(f.email); sets.push(`email = $${params.length}`); changed.push('email'); }
     if (f.displayName !== undefined && f.displayName !== user.display_name) { params.push(f.displayName); sets.push(`display_name = $${params.length}`); changed.push('display name'); }
     if (sets.length) await db.query(`update users set ${sets.join(', ')}, updated_at = now() where id = $1`, params);
     const nameChanged = f.userName !== undefined && f.userName !== (user.user_name ?? user.username);
@@ -266,6 +289,7 @@ export function registerScim(ctx: ModuleContext) {
         after: Object.fromEntries(changed.filter((c) => c === 'email' || c === 'display name').map((c) => [c, c === 'email' ? f.email : f.displayName])),
       });
     }
+    if (emailChanges) await notifyEmailChange(app, { username: String(user.username), oldEmail: String(user.email ?? ''), newEmail: f.email!, by: `provisioning (${caller.name})` });
     if (f.active !== undefined) await applyActive(caller, user, f.active);
   }
 
@@ -361,6 +385,7 @@ export function registerScim(ctx: ModuleContext) {
   app.delete(`${SCIM_BASE}/Users/:id`, { config: { public: true, ownBearer: true } }, handle(async (req, _reply, caller) => {
     const user = await findUser(idOf(req));
     // Never removed: the account is deactivated, and keeps its history.
+    await guardAdminCapable(caller, user, activeChanges(user, false) ? 'active state' : null);
     await applyActive(caller, user, false);
     return undefined;
   }));
@@ -634,8 +659,8 @@ function describeScimRoutes(ctx: ModuleContext) {
   d('GET', '/Users/:id', 'One account (SCIM)', { response: 'User' });
   d('POST', '/Users', 'Create an account (SCIM)', { body: '{ schemas, userName, externalId?, name?, displayName?, emails: [{ value, primary }], active? }', response: '201 User', more: 'The account has no local password and no roles; 409 `uniqueness` when the userName, email or externalId is taken.' });
   d('PUT', '/Users/:id', 'Replace an account (SCIM)', { body: 'User', response: 'User', more: '`active: false` deactivates (sessions, tokens and assistant connections end).' });
-  d('PATCH', '/Users/:id', 'Change an account (SCIM)', { body: '{ schemas: [PatchOp], Operations: [{ op: add|replace|remove, path?, value }] }', response: 'User', more: 'Paths: active, userName, displayName, name.*, emails, externalId. `active: false` deactivates; `active: true` enables only an account provisioning disabled. 409 `last_admin` when it would leave no administrator.' });
-  d('DELETE', '/Users/:id', 'Deactivate an account (SCIM)', { response: '204', more: 'Never deletes: the account is disabled, its sessions end and its tokens and assistant connections are revoked.' });
+  d('PATCH', '/Users/:id', 'Change an account (SCIM)', { body: '{ schemas: [PatchOp], Operations: [{ op: add|replace|remove, path?, value }] }', response: 'User', more: 'Paths: active, userName, displayName, name.*, emails, externalId. `active: false` deactivates; `active: true` enables only an account provisioning disabled. 409 `last_admin` when it would leave no administrator. 403 `mutability` when it would change the email address or active state of an account that can administer (an administrator does that by hand). A changed email address is told to the old address.' });
+  d('DELETE', '/Users/:id', 'Deactivate an account (SCIM)', { response: '204', more: 'Never deletes: the account is disabled, its sessions end and its tokens, assistant connections and calendar feeds are revoked. 403 `mutability` for an account that can administer.' });
   d('GET', '/Groups', 'List groups (SCIM)', { query: { ...pageQuery, excludedAttributes: '`members` leaves the members out.' }, response: '{ schemas, totalResults, startIndex, itemsPerPage, Resources: [Group] }', more: 'Filters: displayName, externalId, id.' });
   d('GET', '/Groups/:id', 'One group (SCIM)', { response: 'Group' });
   d('POST', '/Groups', 'Create a group (SCIM)', { body: '{ schemas, displayName, externalId?, members?: [{ value }] }', response: '201 Group', more: 'A group grants no role until an administrator maps it to roles.' });

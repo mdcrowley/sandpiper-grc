@@ -42,8 +42,9 @@ const mod: ModuleDef = {
           if (!ids.length || !(await pushPossible(ctx))) return;
           const any = await db.one('select 1 from push_registrations where user_id = any($1::uuid[]) limit 1', [ids]);
           if (!any) return;
-          // One waiting job at a time (same key): it delivers to everyone who is due.
-          await jobs.enqueue('push.deliver', {}, { key: 'push.deliver', delayMs: DELIVER_DELAY_MS });
+          // One waiting job at a time (same key): it delivers to everyone who is due. A delivery
+          // already running may have read who is due before this notification, so it runs once more.
+          await jobs.enqueue('push.deliver', {}, { key: 'push.deliver', delayMs: DELIVER_DELAY_MS, rerunIfRunning: true });
         } catch (err) {
           console.error('[push] could not queue a delivery:', err);
         }

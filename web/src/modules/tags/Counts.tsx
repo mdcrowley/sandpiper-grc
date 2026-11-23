@@ -323,7 +323,7 @@ function CountHeaderActions({ rec, onChanged }: { rec: RecordContext; onChanged:
   };
   return (
     <>
-      <Button variant="ghost" onClick={() => setAsk('cancel')}>Cancel the count</Button>
+      <Button variant="secondary" onClick={() => setAsk('cancel')}>Cancel the count</Button>
       <Button variant="primary" icon="check" onClick={() => setAsk('finish')}>Finish</Button>
       <ConfirmDialog
         open={ask !== null}

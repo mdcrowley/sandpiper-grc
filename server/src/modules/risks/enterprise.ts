@@ -1,4 +1,5 @@
 import type { FastifyRequest } from 'fastify';
+import { featureState, ownedOff } from '../../core/features.ts';
 import { scheduleWork } from '../../core/jobs/index.ts';
 import { metricsAvailable, monthStartOf } from '../../core/metrics.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
@@ -145,6 +146,7 @@ function registerAppetite(ctx: ModuleContext, scales: Scales, enterprise: Enterp
     const categories = await ctx.lookups.values('risk_category');
     const map = await enterprise.appetite();
     const all = await scales.all();
+    const st = await featureState(ctx.db);
     const counts = await ctx.db.query<{ category: string; open: number; breaches: number }>(
       `select category, count(*)::int as open, count(*) filter (where appetite_breach)::int as breaches from risks
        where deleted_at is null and not (coalesce(status, '') = any($1::text[])) group by 1`,
@@ -156,7 +158,8 @@ function registerAppetite(ctx: ModuleContext, scales: Scales, enterprise: Enterp
         const n = counts.find((x) => x.category === c.value);
         return {
           category: c.value, label: c.label, color: c.color ?? 'gray',
-          scale_key: scale?.key ?? null, scale_name: scale?.name ?? null,
+          // A scale of a switched-off area (the safety hazard matrix) is not named (E18-64).
+          scale_key: scale?.key ?? null, scale_name: scale && !ownedOff(st, 'risk_scale', scale.key) ? scale.name : null,
           ratings: (scale?.ratings ?? []).map((r) => ({ key: r.key, label: r.label, color: r.color, sort: r.sort })),
           statement: a?.statement ?? null, max_rating: a?.max_rating ?? null, max_score: a?.max_score ?? null,
           approved_on: a?.approved_on ?? null, approved_by_name: a?.approved_by_name ?? null, reference: a?.reference ?? null,

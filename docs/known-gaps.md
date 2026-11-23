@@ -5,7 +5,7 @@ What the prototype does not do yet. Update with every change. The roadmap
 
 ## Not built
 
-Every part planned through wave 11 is built; the open roadmap issues finish or prove parts that
+Every part planned through wave 16 is built; the open roadmap issues finish or prove parts that
 exist (see "Built but incomplete" and "Verification status" below).
 
 Not planned: drug and alcohol test results, hours-of-service and fatigue records, maintenance
@@ -152,6 +152,10 @@ content, which belongs in a document tool (E25-13, E29-11, E32-06, E34-09).
   to 3.7 s. Under bursts of writes, a request that waits more than `GRC_DATABASE_CONNECT_TIMEOUT` (10 s)
   for one of the `GRC_DATABASE_POOL_MAX` (10) connections fails with "Something went wrong" (30 of
   about 82,000 while seeding scale 4).
+- **Interface**: sample data is marked two ways ("[Sample]" at the start of most names, "(sample)" at
+  the end in the later parts), the relationship map's lines can run over group headings, and a few
+  hand-written tables (asset condition, privacy, assessments, audits, the Overview widget) scroll
+  sideways at 820 pixels instead of leaving out columns (E18-65).
 - **Vendors**: the contract import fills structured dates only where the text is
   unambiguous; the "Complete the dates" queue lists the rest.
 
@@ -160,7 +164,7 @@ content, which belongs in a document tool (E25-13, E29-11, E32-06, E34-09).
 - The full unit test suite (server and web) passes on Windows, and again with the clock
   on UTC; `.\grc.ps1 ci` runs it both ways, with the typecheck, a production build and the
   dependency audit (skipped without a network).
-- The browser suite (`npm run test:e2e`, 102 tests in 10 suites) covers every route as an
+- The browser suite (`npm run test:e2e`, 145 tests in 21 suites) covers every route as an
   administrator in the light theme at 1440px and the dark theme at 820px, every default
   role, the create and edit form of every record type, the hand-written dialogs (submitted
   empty, then filled in), keyboard-only use module by module, list features, and every page

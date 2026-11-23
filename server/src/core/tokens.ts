@@ -38,12 +38,13 @@ export function tokenBlocked(url: string): boolean {
 
 /**
  * Revokes every credential a person has handed to programs (wave 9, SA-8): their personal access
- * tokens and, when the AI assistant module is installed, their assistant (MCP OAuth) connections.
+ * tokens and, when those modules are installed, their assistant (MCP OAuth) connections, signed-in
+ * mobile app installations and calendar feeds.
  * Called when their password is changed or reset, and when an administrator resets their second
  * factor, so a credential made by someone who had the old password stops working with it.
  * Returns how many of each were revoked; the caller writes the audit event.
  */
-export async function revokeProgramAccess(db: Queryable, userId: string, by: string | null, reason: string): Promise<{ tokens: number; connections: number; devices: number }> {
+export async function revokeProgramAccess(db: Queryable, userId: string, by: string | null, reason: string): Promise<{ tokens: number; connections: number; devices: number; feeds: number }> {
   const tokens = await db.query(
     'update api_tokens set revoked_at = now(), revoked_by = $2 where user_id = $1 and revoked_at is null and expires_at > now() returning id',
     [userId, by]);
@@ -63,13 +64,23 @@ export async function revokeProgramAccess(db: Queryable, userId: string, by: str
        where user_id = $1 and revoked_at is null returning id`,
       [userId, by, reason.slice(0, 200)])).length;
   }
-  return { tokens: tokens.length, connections, devices };
+  // Calendar feeds (modules/feeds, E36-03), when that module is installed (W17-3): a feed address is a
+  // credential that shows the person's dated work, so one made by someone who had the old password
+  // must not outlive it either.
+  let feeds = 0;
+  if ((await db.one<{ t: string | null }>(`select to_regclass('public.calendar_feeds')::text as t`))?.t) {
+    feeds = (await db.query(
+      'update calendar_feeds set revoked_at = now(), revoked_by = $2 where user_id = $1 and revoked_at is null returning id',
+      [userId, by])).length;
+  }
+  return { tokens: tokens.length, connections, devices, feeds };
 }
 
-/** "; 2 API token(s) and 1 assistant connection(s) revoked; 1 mobile device(s) signed out" for an audit summary, or ''. */
-export const revokedSummary = (r: { tokens: number; connections: number; devices?: number }) =>
+/** "; 2 API token(s) and 1 assistant connection(s) revoked; 1 mobile device(s) signed out; 1 calendar feed(s) revoked" for an audit summary, or ''. */
+export const revokedSummary = (r: { tokens: number; connections: number; devices?: number; feeds?: number }) =>
   (r.tokens || r.connections ? `; ${r.tokens} API token(s) and ${r.connections} assistant connection(s) revoked` : '')
-  + (r.devices ? `; ${r.devices} mobile device(s) signed out` : '');
+  + (r.devices ? `; ${r.devices} mobile device(s) signed out` : '')
+  + (r.feeds ? `; ${r.feeds} calendar feed(s) revoked` : '');
 
 export const tokenHash = (token: string) => createHash('sha256').update(token).digest('hex');
 

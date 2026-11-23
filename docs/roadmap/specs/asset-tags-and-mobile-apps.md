@@ -380,7 +380,7 @@ assessments**, **inventory counts**, **reports** (problems and hazards) and **ph
   package is "not available offline".
 - **When back online**, an outbox sends each item once, in order: every item carries a client-made UUID
   and an `Idempotency-Key`, so a retry never creates a duplicate. Photos upload in parts and resume. A
-  rejected item (the inspection was cancelled, the record was deleted, permission was removed) stays in
+  rejected item (the inspection was canceled, the record was deleted, permission was removed) stays in
   "Needs attention" with the server's reason; nothing is dropped silently.
 - **Signing out or being signed out** wipes the database and photos after warning about unsent work.
 - Server side: `GET /api/mobile/package`, `POST /api/mobile/sync` (a batch of outbox items, each answered

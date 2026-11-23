@@ -4,6 +4,7 @@ import { SegmentedControl } from '@mantine/core';
 import { Badge, Button, Card, EmptyState, ErrorState, formatDate, Loading, LookupChip, PageHeader, Stat, TableWrap, useAuth, useFetch } from '../../core';
 import type { Row } from '../../core';
 import { ReviewDialog } from './ReviewPanel';
+import { RiskTabs } from './RiskTabs';
 import { RatedChip, RatingChip, useScales } from './scales';
 
 const days = (n: number) => `${n} ${n === 1 ? 'day' : 'days'}`;
@@ -32,6 +33,7 @@ export function RiskReviews() {
         breadcrumbs={[{ label: 'Risk register', to: '/risks' }, { label: 'Risk reviews' }]}
         actions={<SegmentedControl size="xs" aria-label="Look ahead" value={ahead} data={WINDOWS} onChange={setAhead} />}
       />
+      <RiskTabs active="reviews" />
       <div className="grid-stats">
         <Stat label="Acceptances expired" value={expired} color={expired > 0 ? 'red' : 'green'} icon="alert" hint="The risk needs review" />
         <Stat label="Acceptances expiring" value={acc.length - expired} color={acc.length - expired > 0 ? 'amber' : 'green'} icon="clock" hint={`Within ${ahead} days`} />

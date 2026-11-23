@@ -3,11 +3,11 @@
 import { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  AgendaList, Button, Card, Chart, chartColor, EmptyState, ErrorState, formatCurrency, formatDate, Loading, LookupChip, PageHeader,
+  AgendaList, Button, Card, Chart, chartColor, EmptyState, ErrorState, formatDate, Loading, LookupChip, PageHeader,
   ProgressBar, Stat, useAuth, useFetch,
 } from '../../core';
 import type { ChartOption, ColorName } from '../../core';
-import { FundingTabs, ofText } from './shared';
+import { FundingTabs, ofText, wholeCurrency } from './shared';
 
 interface Summary {
   today: string;
@@ -54,7 +54,7 @@ export function FundingDashboard() {
     <div className="stack">
       {header}
       <div className="grid-stats">
-        <Stat label="Open awards" value={s.awards.open} icon="chart" hint={`${formatCurrency(s.awards.open_amount)} awarded`} to="/funding/awards?f.status=applied,awarded,active" />
+        <Stat label="Open awards" value={s.awards.open} icon="chart" hint={`${wholeCurrency(s.awards.open_amount)} awarded`} to="/funding/awards?f.status=applied,awarded,active" />
         <Stat label="Reports due" value={s.reports.due_soon + s.reports.overdue} icon="calendar" color={s.reports.overdue ? 'red' : undefined}
           hint={s.reports.overdue ? `${s.reports.overdue} overdue` : 'Within 30 days, none overdue'} />
         <Stat label="Open deficiencies" value={s.deficiencies.open} icon="alert" color={s.deficiencies.overdue ? 'red' : s.deficiencies.open ? 'amber' : undefined}

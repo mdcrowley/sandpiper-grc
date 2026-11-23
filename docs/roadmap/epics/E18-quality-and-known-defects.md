@@ -1,6 +1,6 @@
 # E18 Quality and known defects
 
-**Status:** done (60 of 60 issues done)
+**Status:** in progress (64 of 65 issues done)
 
 ## Goal
 
@@ -81,6 +81,11 @@ has never been checked, so nobody relies on something untested.
 | E18-58 | The one-time link dialog said nothing was emailed when it was | done | P3 |
 | E18-59 | Small errors in help text, compose.yaml and a command-line message | done | P3 |
 | E18-60 | Wave 14 guide check and screen reader findings | done | P2 |
+| E18-61 | Wave 17 security review findings | done | P1 |
+| E18-62 | Wave 17 correctness review findings | done | P2 |
+| E18-63 | Wave 17 interface review: layout | done | P2 |
+| E18-64 | Wave 17 interface review: pages and switched-off areas | done | P2 |
+| E18-65 | Hand-written tables, the Create menu filter and the remaining interface items | open | P3 |
 
 ---
 
@@ -1265,3 +1270,111 @@ and its pages, `web/src/modules/tags/Counts.tsx`, the menu orders of twenty modu
 `server/src/modules/admin/list-labels.test.ts`, `features-hidden.test.ts`, `feeds/feeds.test.ts`,
 `notifications/reminder-settings.test.ts`, `policies/person-acks.test.ts`, `web/src/core/navOrder.test.ts`,
 `web/src/modules/admin/Lists.component.test.ts`, `web/src/modules/portal/portalTitle.component.test.ts`.
+
+### E18-61 Wave 17 security review findings
+
+**Status:** done · **Priority:** P1 · **Type:** security
+
+The wave 17 internal security review found: a SCIM token could change an administrator's email and deactivate and re-enable one with a link permit (account takeover); the figures cache gave one person's private reports, dashboards, schedules and packs to another with the same permissions; email to ticket let a forged From post a public comment as an agent; calendar feeds needed no password confirmation and survived a password change; feed secrets reached the server log; the audit report PDF named a plan without the reader's permissions; the CSV guard looked only at the first character; sign-in provider calls were not fenced against private addresses; without `auth.public_url` the Host header became the MCP OAuth issuer and the feed base; the tracker replay memory could be evicted. It does not replace the independent review (E16-40).
+
+**Acceptance criteria**
+
+- [x] SCIM never changes the email or active state of an account holding `*` or `admin.*` (switched-off roles included) or the break-glass account (403 `mutability`, audited `scim.refused`), and never gives it a link permit
+- [x] Any email change (provisioning or administrator) is mailed to the old address
+- [x] `/stats` answers are kept per person for a type whose row rule filters figures, a grouping by a link to such a type, or a custom field (`statsScope`)
+- [x] An email reply never acts as an agent; email comments are marked "(by email)"; the same for POP3, Graph, Gmail and the relay
+- [x] `revokeProgramAccess` revokes calendar feeds and counts them; making a feed or replacing its address needs a recent confirmation; the feeds page prompts
+- [x] Feed addresses and `grc_cal_`, `grc_scim_`, `grc_relay_` tokens are masked in the log
+- [x] The audit report PDF prints a plan's title only for a reader with view on its module who can see it ("Restricted" otherwise)
+- [x] One CSV formula guard (`core/export/csv.ts`) for every CSV export, looking past leading white space and catching full-width = + - @
+- [x] OIDC and SAML provider calls check every resolved address; a private address only when listed exactly in `integrations.allowed_hosts`
+- [x] Without `auth.public_url`, the Host header is used only when it names this computer; otherwise OAuth metadata is 404 and feed creation 409 `public_url_required`
+- [x] Tracker replay memory keeps every signature for the whole window and refuses when full (`feeds/replay.ts`), used by `feeds/tracker.ts`
+
+**Implemented in:** `server/src/modules/integrations/scim.ts`, `server/src/core/identity/accounts.ts`, `base.ts`, `http.ts`, `service.ts`, `server/src/core/routes.ts`, `server/src/core/tokens.ts`, `server/src/core/export/csv.ts`, `server/src/ops/logging.ts`, `server/src/modules/tickets/email.ts`, `server/src/modules/feeds/calendar.ts`, `replay.ts`, `tracker.ts`, `server/src/modules/audits/report.ts`, `server/src/modules/mcp/oauth.ts`, `http.ts`, `server/src/modules/admin/users.ts`, `web/src/modules/feeds/CalendarFeeds.tsx`; tests `integrations/scim.test.ts`, `core/figures-cache-personal.test.ts`, `tickets/email.test.ts`, `feeds/feeds.test.ts`, `feeds/replay.test.ts`, `ops/logging.test.ts`, `audits/audits.test.ts`, `core/export/csv.test.ts`, `core/identity/http.test.ts`, `core/identity/base.test.ts`, `mcp/oauth.test.ts`.
+
+### E18-62 Wave 17 correctness review findings
+
+**Status:** done · **Priority:** P2 · **Type:** bug
+
+Found by the wave 17 code-correctness review of waves 14 to 16 and the core services. Each finding's
+proof test is now a regression test. The PostgreSQL ordering of the rerun flag (finish versus a
+concurrent enqueue) is argued from row locking and tested in sequence through the wire-protocol test
+driver; it has not been raced against a real multi-process PostgreSQL server.
+
+**Acceptance criteria**
+
+- [x] Retrying a dead job while a newer job with the same key is queued, failed or running answers 409 `already_queued` ("A newer run of this job is waiting or running.") instead of 500; a duplicate-key error between the check and the update gives the same answer; Background jobs shows the message and reloads the list
+- [x] The kiosk claims each attempt before comparing the employee number (`makeDbLimiter.take()`), so parallel guesses compare at most five numbers in the window; over the limit answers 429; a right number clears the count
+- [x] `jobs.enqueue(type, payload, { key, rerunIfRunning: true })` asks a running job with that key to run once more after it finishes (`jobs.rerun`, migration `core.jobs/002_jobs_rerun.sql`) instead of skipping; the flag is cleared when the job is claimed; `push.deliver` and `feeds.tracker_push` use it, so a notification or send arriving during a run is not left for the sweep
+- [x] Administration > Push notifications: **Make a new key** is disabled while there are unsaved edits, with a note saying to save first
+
+**Implemented in:** `server/src/core/jobs/index.ts`, `queue.ts`, `migrations/002_jobs_rerun.sql`,
+`server/src/modules/policies/personAcks.ts`, `server/src/modules/push/index.ts`,
+`server/src/modules/feeds/tracker.ts`, `web/src/modules/notifications/JobsPage.tsx`,
+`web/src/modules/push/PushAdmin.tsx`; tests `server/src/core/jobs/jobs.test.ts`,
+`server/src/modules/policies/person-acks.test.ts`, `server/src/modules/push/push.test.ts`,
+`server/src/modules/feeds/tracker.test.ts`, `web/src/modules/push/PushAdmin.component.test.ts`.
+
+### E18-63 Wave 17 interface review: layout
+
+**Status:** done · **Priority:** P2 · **Type:** bug
+
+The wave 17 interface review found lists cut off with no cue, tab bars cut off at 820, header buttons in different orders, and a flat Create menu. These are fixed in shared web code (`web/src/core`). Proven in the browser suites, the accessibility audit and by screenshots at 1440, 820 and 390; not yet checked with a real screen reader. What is left is E18-65.
+
+**Acceptance criteria**
+
+- [x] List columns have a priority (1 always shown; 3 then 2 give way, rightmost first). Left-out columns stay in the column chooser ("Hidden to fit this width"); checking one keeps it on per person. Default lists fit at 1440 without sideways scrolling
+- [x] A table that scrolls sideways fades at the edge with more; lists have no inner vertical scroll (one scroll bar); a list that fits keeps its headings in view as the page scrolls. Long titles are cut at 20rem with the full text as a tooltip
+- [x] Key columns marked priority 1 where the defaults were too wide (conduit zones, ticket priority, risk residual, project stage)
+- [x] Tab strips put tabs that do not fit into a keyboard-usable **More** menu; the active tab always shows; ARIA tabs pattern kept; no scroll bar
+- [x] Header buttons in one order: primary first on record pages, then the others, PDF, Watch, with the "⋯" / More menu last; the Tab order matches the visual order
+- [x] Quiet buttons in a page header are bordered, not plain text
+- [x] A list that is the page puts **New …** in the page header, not alone at the end of the toolbar
+- [x] Create menu grouped under navigation group headings, A to Z within each, with an icon on every entry
+- [x] Shared `Notice`: only errors use `role="alert"`; non-error Mantine alerts in projects and security incidents use `role="status"`
+- [x] `scrollbar-gutter: stable` on the main scroll area; number boxes at most 16rem wide
+- [x] Tests: `web/src/core/fit.test.ts`, `createMenu.test.ts`, `LayoutFit.component.test.ts`; e2e 01-smoke, 05-keyboard, 06-lists and 08-keyboard-modules pass; a11y audit on a sample of routes clean
+
+**Implemented in:** `web/src/core/ui.tsx`, `overlay.tsx`, `ListTable.tsx`, `ResourceList.tsx`, `RecordPage.tsx`, `Shell.tsx`, `fit.ts`, `createMenu.ts`, `base.css`, `records.css`, `shell.css`, `README.md`; column priorities in `ot/Conduits.tsx`, `tickets/TicketList.tsx`, `risks/RiskRegister.tsx`, `projects/PortfolioTable.tsx`; status roles in `projects/GateTab.tsx`, `IntakeForm.tsx`, `PortfolioPage.tsx`, `ProjectDetail.tsx`, `secincidents/KitCopies.tsx`.
+
+### E18-64 Wave 17 interface review: pages and switched-off areas
+
+**Status:** done · **Priority:** P2 · **Type:** bug
+
+The wave 17 interface review found switched-off areas still shown: roles of an off area were listed and switchable (Safety manager) under Roles and AI assistant access, role descriptions named vehicles and grant compliance with Fleet and Funding off, the heat map and Risk scales offered the safety hazard matrix, asset condition listed vehicle classes, and the portal footer named safety. It also found page faults: an empty portal with the sample data, a project stage chip reading "Close" beside a stray dash, a risk register without tabs or New risk, People tiles above the title, tiny relationship map labels, Roles switches and Lists values cut at 820 px (and an empty settings array made on every render), the wrong main button on a just-reported safety event, raw permission keys, "Open Organization", "Add format", a raw time zone id, mixed money formats, small heat-map labels, cut placeholders and two unnamed buttons on a compliance review. What is left is E18-65.
+
+**Acceptance criteria**
+
+- [x] An area declares the shared set-up it owns (`owns` in `core/features.ts`: `role`, `risk_scale`); `ownedOff` and `rolesShown` read it
+- [x] A role of an off area is not on Roles, a person's roles, AI assistant access, provisioning's group mapping or any role picker (providers, change rules, lifecycles, policies, reports, training, workflows); its routes answer `switched_off`; people, groups and settings keep it
+- [x] An unedited default role description names only the areas that are on (`describe`, `roleDescription`); saving it unchanged keeps the stored default
+- [x] The safety hazard matrix is not offered while safety is off (heat map, scales, summary, appetite); new risks fall back to the default scale; scored risks keep it
+- [x] Asset classes that rate an off record type are hidden (lists and the condition dashboard)
+- [x] The portal footer names safety only while safety reporting is on
+- [x] `features-hidden.test.ts`, `integrations/scim.test.ts` and the 09-features-off suite (roles not treated as data, no hazard matrix exemption, funding terms, a portal, fleet, safety and funding tour) check all of the above
+- [x] The dev seed offers three catalog items in the portal; "Ask for something" is hidden while the catalog is empty
+- [x] Project stage chip "Stage: …"; the no-change trend is an arrow
+- [x] Risk register, reviews, report, scales and appetite share a tab strip; New risk in the header; "Across every scale"; heat-map labels 12 px
+- [x] People: title before the tiles; relationship map opens at a readable zoom with wider nodes
+- [x] Roles switches stay in view at 820 px; Lists stacks below 1000 px; stable empty settings array
+- [x] Next-step primary button on safety events; secondary "Cancel the count"
+- [x] Permission wording, Pages and Size, "Open organization", "New format", "New scale", friendly time zone name, tag field label and placeholder, hints instead of long placeholders
+- [x] Money: full amounts without cents on whole amounts in records, tables and sentences; compact only in tiles, cards and charts
+- [x] Compliance review area buttons named with their area
+
+**Implemented in:** `server/src/core/features.ts`, `server/src/core/services.ts`, `server/src/modules/admin/{roles,users,providers}.ts`, `server/src/modules/integrations/scim-admin.ts`, `server/src/modules/mcp/index.ts`, `server/src/modules/risks/{index,enterprise}.ts`, `server/src/modules/condition/{index,dashboard}.ts`, `server/src/modules/tickets/seed.ts`, the role pickers listed above, `web/src/modules/{risks,admin,portal,projects,people,inventory,safety,tags,secincidents,funding}`, `tools/e2e/suites/09-features-off.mjs`.
+
+### E18-65 Hand-written tables, the Create menu filter and the remaining interface items
+
+**Status:** open · **Priority:** P3 · **Type:** debt
+
+Left over from E18-63. The hand-written tables (asset condition, privacy, assessments, audits, the Overview widget) still scroll sideways at 820, now with the edge fade, rather than leaving out lower-priority columns. The Create menu has no filter box, and some entries are verbs rather than nouns ("Plan activation"). Left over from E18-64: sample data is marked two ways ("[Sample]" first, or "(sample)" last; renaming needs a one-off rename of existing data because the seeds find records by name), charts sit small in tall cards, the relationship map's lines can run over group headings, the core `formatCurrency` still shows cents on whole amounts (pages use a local helper) and a date field's time zone hint shows the raw id.
+
+**Acceptance criteria**
+
+- [ ] The hand-written tables use column priorities (or the shared list) and fit at 820
+- [ ] The Create menu has a filter box; every entry names a kind of record
+- [ ] Sample data marked one way in every seed
+- [ ] Charts top-aligned in tall cards (core `ChartImpl`); map lines routed behind group headings
+- [ ] Core `formatCurrency` without cents on whole amounts; friendly time zone name in date field hints

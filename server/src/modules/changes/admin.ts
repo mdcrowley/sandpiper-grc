@@ -1,4 +1,5 @@
 import { UUID_RE } from '../../core/errors.ts';
+import { featureState, rolesShown } from '../../core/features.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { todayInZone } from '../../core/timezone.ts';
 import { SETTING_QUESTIONNAIRE, SETTING_RULES, type Base, type Req } from './base.ts';
@@ -222,7 +223,8 @@ export function makeAdmin(ctx: ModuleContext, base: Base, approval: ChangeApprov
       // The change approval workflows a rule may name (Administration > Approval workflows).
       workflows: approvalEngine(ctx.app) ? await approvalEngine(ctx.app)!.definitions(KIND) : [],
       // For the rules editor: the roles that can be chosen and the names of the people already named.
-      roles: await db.query<{ key: string; name: string }>('select key, name from roles where enabled order by name'),
+      // Roles of switched-off areas are not offered (E18-64).
+      roles: rolesShown(await featureState(db), await db.query<{ key: string; name: string }>('select key, name from roles where enabled order by name')),
       user_names: Object.fromEntries((named.length
         ? await db.query<{ id: string; display_name: string }>('select id, display_name from users where id = any($1::uuid[])', [named])
         : []).map((u) => [u.id, u.display_name])),

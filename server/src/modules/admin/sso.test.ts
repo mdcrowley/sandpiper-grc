@@ -25,6 +25,9 @@ const PASSWORD = 'quiet river stone lantern';
 beforeAll(async () => {
   t = await testApp({ extraModules: [notifyStandIn] });
   idp = await startFakeProvider();
+  // The fake provider listens on this machine: a loopback address is reached only when listed exactly (W17-6).
+  await t.db.query(`insert into settings (key, value) values ('integrations.allowed_hosts', '["127.0.0.1"]'::jsonb)
+    on conflict (key) do update set value = excluded.value`);
 });
 afterAll(async () => { await t.close(); await idp.close(); });
 beforeEach(async () => {

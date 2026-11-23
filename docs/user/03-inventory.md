@@ -94,7 +94,7 @@ The map draws systems, the integrations between them, and the vendors, sites, da
 
 ### Move around
 
-- Drag to move. Scroll, or use the **Zoom in** and **Zoom out** buttons, to zoom. **Fit the whole map** shows everything again.
+- The map opens at a size where names can be read, from its top-left corner. Drag to move. Scroll, or use the **Zoom in** and **Zoom out** buttons, to zoom. **Fit the whole map** shows everything at once, however small.
 - **Full screen** gives the map the whole window; select **Leave full screen** or press Escape to return.
 - With the keyboard: Tab to the map, then the arrow keys move it, plus and minus zoom, and zero fits. Tab again to reach each record and press Enter to select it.
 - When the map is zoomed far out, the names of groups and lanes grow so the shape of the estate stays readable. Zoom in to read record names.

@@ -181,6 +181,8 @@ export function PortalHome() {
   usePortalTitle(config.title);
   const first = (user?.displayName ?? '').split(/\s+/)[0];
   const shown = (items ?? []).slice(0, 6);
+  // "Ask for something" leads to the catalog: not offered while nothing is in it (E18-64).
+  const offersItems = !items || items.length > 0;
   return (
     <div className="pt-home">
       <ServiceBanner />
@@ -189,15 +191,17 @@ export function PortalHome() {
         {config.intro && <p className="pt-intro">{config.intro}</p>}
         <Search />
         {config.can_create && (
-          <div className={`pt-actions${config.has.safety ? ' pt-actions-3' : ''}`}>
+          <div className={`pt-actions${config.has.safety && offersItems ? ' pt-actions-3' : ''}`}>
             <Link to="/portal/report" className="pt-action pt-action-primary">
               <Icon name="alert" size={26} />
               <span><strong>Report a problem</strong><span>Something is broken or not working</span></span>
             </Link>
-            <Link to="/portal/catalog" className="pt-action">
-              <Icon name="plus" size={26} />
-              <span><strong>Ask for something</strong><span>Access, equipment, a new starter</span></span>
-            </Link>
+            {offersItems && (
+              <Link to="/portal/catalog" className="pt-action">
+                <Icon name="plus" size={26} />
+                <span><strong>Ask for something</strong><span>Access, equipment, a new starter</span></span>
+              </Link>
+            )}
             {config.has.safety && (
               <Link to="/portal/safety" className="pt-action pt-action-safety">
                 <Icon name="shield" size={26} />

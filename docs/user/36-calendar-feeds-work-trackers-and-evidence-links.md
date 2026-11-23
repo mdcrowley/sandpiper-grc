@@ -28,7 +28,9 @@ Open **Calendar feeds** from the menu under your name (top right). The entry is 
 
    Other parts of the application, such as business continuity, records requests, vendor reassessments and asset condition, add their own kinds when they are switched on.
 4. Choose **What each date shows**: **Titles** (what each date is about, for example "Action due: ACT-00042 Renew the depot certificate") or **Busy only** (only the kind of date, for example "My actions due", never what it is about). Busy only suits a calendar other people can see.
-5. Select **Make feed**.
+5. Select **Make feed**. If you have not confirmed your password in the last few minutes, you are asked for it, as when making an API token.
+
+On an installation other computers reach, an administrator must first set the **Application address** (Administration > Sign-in providers); until then making a feed says so.
 
 The feed's address is shown once, under **Your feed's address**. Select **Copy address**, then in your calendar program add a calendar from an address (it may be called "subscribe", "from URL" or "from internet") and paste it. The address is not shown again: if you lose it, make a new address (below).
 
@@ -40,13 +42,14 @@ A feed shows dates from 90 days ago to 365 days ahead. Each date links to its re
 - A restricted record (such as a risk or an action raised on one) appears only if you may see restricted records, and then as **Restricted record** unless the feed shows **Titles**.
 - When an administrator switches a part of the application off under **Administration > Features**, its dates leave every feed until it is switched back on.
 - If your account is disabled, your feeds stop answering at once.
+- Changing or resetting your password, or an administrator resetting your second factor, revokes all your feeds: make new ones afterward.
 
 ### Edit, replace or revoke a feed
 
 On **Calendar feeds**, each feed shows the kinds of date it holds, whether it shows titles, when it was made and when a calendar program last read it.
 
 - **Edit** renames the feed or changes what it shows. Its address stays the same.
-- **New address** makes a new secret address and stops the old one at once. Use it if the address may have been seen by someone else. Add the new address to your calendar program.
+- **New address** makes a new secret address and stops the old one at once. Use it if the address may have been seen by someone else. Add the new address to your calendar program. It also asks for your password if you have not confirmed it in the last few minutes.
 - **Revoke** stops the feed for good.
 
 Anyone who has the address sees what the feed shows, so keep it to yourself as you would a password. You can have up to 10 feeds.

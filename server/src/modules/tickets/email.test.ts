@@ -129,6 +129,20 @@ describe('reading the mailbox', () => {
     expect((await t.api.get(`/api/tickets/${ticketId}`)).body.status).toBe('in_progress');
   });
 
+  it('never lets an email act as an agent: the From address is not verified (W17-2)', async () => {
+    const agentEmail = (await t.db.one<{ email: string }>('select email from users where id = $1', [agent.userId]))!.email;
+    box.add(msg({ From: `Agent <${agentEmail}>`, Subject: `Re: [${ref}] printer`, 'Message-ID': '<spoof1@attacker.example.net>' },
+      'Please send your password to verify@attacker.example.net to continue.'));
+    expect((await check()).body).toMatchObject({ fetched: 1, commented: 0, ignored: 1 });
+    const comments = (await t.api.get(`/api/comments?record_type=ticket&record_id=${ticketId}`)).body;
+    const list = Array.isArray(comments) ? comments : comments.rows;
+    expect(list.some((c: any) => String(c.body).includes('send your password'))).toBe(false);
+    const row = (await t.api.get('/api/tickets/email/log?outcome=ignored')).body.rows[0];
+    expect(row.reason).toMatch(/never act as an agent/);
+    // The requester's own reply says it came by email.
+    expect(list.find((c: any) => c.body.startsWith('It works')).author_name).toMatch(/\(by email\)$/);
+  });
+
   it('emails an agent’s public reply to the requester', async () => {
     const before = sink.messages.length;
     expect((await agent.post('/api/comments', { record_type: 'ticket', record_id: ticketId, body: 'Glad it works. Closing soon.', internal: false })).status).toBe(201);

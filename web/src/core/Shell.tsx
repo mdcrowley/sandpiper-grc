@@ -11,6 +11,7 @@ import { Icon, type IconName } from './Icon';
 import { Logo, Wordmark } from './Logo';
 import { moduleOn, modules, navAllowed, NAV_GROUPS, preloadRoute, type NavGroup, type NavItem } from './module';
 import { Menu } from './overlay';
+import { createEntries } from './createMenu';
 import { formatDate } from './format';
 import { ShortcutsDialog } from './Shortcuts';
 import { useRouteFocus } from './routeFocus';
@@ -218,11 +219,13 @@ export function Shell({ children }: { children: ReactNode }) {
     };
   }, [can, areaOn, location.pathname]);
 
-  const createItems = useMemo(() => modules
-    .filter((m) => moduleOn(m.key, areaOn))
-    .flatMap((m) => m.create ?? [])
-    .filter((item) => can(item.permission))
-    .sort((a, b) => a.label.localeCompare(b.label)), [can, areaOn]);
+  // The Create menu is grouped like the navigation, A to Z within a group, and every entry has an
+  // icon: its own, or that of the navigation page it opens (E18-63).
+  const createItems = useMemo(() => createEntries(
+    modules.filter((m) => moduleOn(m.key, areaOn)),
+    nav.groups.flatMap((g) => g.items),
+    NAV_GROUPS,
+  ).filter((item) => can(item.permission)), [can, areaOn, nav.groups]);
 
   const closedRef = useRef(closed);
   closedRef.current = closed;
@@ -343,7 +346,7 @@ export function Shell({ children }: { children: ReactNode }) {
             )}
             {createItems.length > 0 && (
               <Menu label="Create" icon="plus" variant="primary" align="end" iconOnly={small}
-                items={createItems.map((item) => ({ label: item.label, icon: item.icon, to: item.path }))} />
+                items={createItems.map((item) => ({ label: item.label, icon: item.icon, to: item.path, group: item.group }))} />
             )}
             {hasNotifications && NotificationBell && (
               <Suspense fallback={<span className="topbar-slot" aria-hidden="true" />}>

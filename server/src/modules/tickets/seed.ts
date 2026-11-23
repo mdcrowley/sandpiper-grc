@@ -112,7 +112,33 @@ export async function seedSamples(ctx: ModuleContext, sla: { sweep(now?: Date): 
         { key: 'in_service', label: 'Is the vehicle still in service?', type: 'yes_no' },
       ],
       tasks: ['Book the vehicle in with the depot workshop', 'Test or swap the unit', 'Confirm the equipment works before the next run'],
+      portal: true,
     });
+    // Two everyday requests, so the self-service portal has something to offer once it is switched on (E18-64).
+    await ctx.resources.create('catalog_item', {
+      name: '[Sample] New laptop or desktop', category: 'equipment', active: true, portal: true,
+      description: 'Ask for a computer for a new starter, or to replace one that is old or broken.',
+      defaults: { type: 'request', category: 'hardware', title: 'New computer: ', impact: 'individual', urgency: 'medium', assignment_group: 'service_desk' },
+      questions: [
+        { key: 'for_whom', label: 'Who is it for?', type: 'text', required: true },
+        { key: 'kind', label: 'Kind of computer', type: 'choice', required: true, options: ['Laptop', 'Desktop'] },
+        { key: 'needed_by', label: 'Needed by', type: 'date' },
+      ],
+      tasks: ['Prepare and set up the computer', 'Hand it over and collect the old one'],
+    });
+    await ctx.resources.create('catalog_item', {
+      name: '[Sample] Access to a shared folder', category: 'access', active: true, portal: true,
+      description: 'Ask for access to a shared drive or folder. The folder owner is asked to agree.',
+      defaults: { type: 'request', category: 'access', title: 'Folder access: ', impact: 'individual', urgency: 'low', assignment_group: 'service_desk' },
+      questions: [
+        { key: 'folder', label: 'Folder or drive', type: 'text', required: true, hint: 'The path or name as you see it.' },
+        { key: 'access', label: 'Access needed', type: 'choice', required: true, options: ['Read only', 'Read and change'] },
+      ],
+      tasks: ['Confirm with the folder owner', 'Grant the access'],
+    });
+    // The portal field is hidden while the portal is switched off (core/features.ts), and then a write
+    // to it is ignored; the dev seed marks the sample items itself so they are ready when it is switched on.
+    await db.query(`update catalog_items set portal = true where name like '[Sample]%' and deleted_at is null`);
   }
 
   // ----- tickets -----

@@ -31,7 +31,7 @@ section numbers below refer to it.
 | E37-05 | Find by tag on the web, typed or with a handheld scanner | done | P1 |
 | E37-06 | Actions from a tag: report a problem, quick updates, photos | done | P1 |
 | E37-07 | Attach, replace and end tags | done | P1 |
-| E37-08 | Print your own tags | built (real-phone check open) | P2 |
+| E37-08 | Print your own tags | in progress | P2 |
 | E37-09 | Inventory counts | done | P2 |
 | E37-10 | Lookup history, guide page and sample data | done | P2 |
 
@@ -212,7 +212,7 @@ are attached beside the one shown in the record's field; ending that one moves t
 
 ### E37-08 Print your own tags
 
-**Status:** built; open only for the real-phone reading check before release · **Priority:** P2 · **Type:** feature
+**Status:** in progress (built; open only for the real-phone reading check before release) · **Priority:** P2 · **Type:** feature
 
 An organization that prints its own tags wants new values from a series, or reprints of existing ones,
 on its label stock.

@@ -5,6 +5,7 @@
 // person looking at them (see spec.ts and query.ts), never the author's.
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { UUID_RE } from '../../core/errors.ts';
+import { featureState, rolesShown } from '../../core/features.ts';
 import { ensureJobs } from '../../core/jobs/index.ts';
 import { printBranding, publicBranding } from '../../core/organization.ts';
 import type { ModuleDef, Row, SessionUser } from '../../core/module.ts';
@@ -116,8 +117,9 @@ const mod: ModuleDef = {
 
     app.get('/api/reports/catalog', { preHandler: viewer }, async (req) => ({ types: await catalog(ctx, req.user) }));
 
+    // Roles of switched-off areas are not offered (E18-64).
     app.get('/api/reports/roles', { preHandler: viewer }, async () =>
-      db.query('select key, name from roles where enabled order by name'));
+      rolesShown(await featureState(db), await db.query<{ key: string; name: string }>('select key, name from roles where enabled order by name')));
 
     /** Values offered by the dashboard "department" filter: what is recorded on records the caller may view. */
     app.get('/api/reports/departments', { preHandler: viewer }, async (req) => {

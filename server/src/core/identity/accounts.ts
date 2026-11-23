@@ -171,3 +171,49 @@ export async function syncMappedRoles(
   }
   return { added: added.map((r) => r.key), removed: removed.map((r) => r.key) };
 }
+
+/** Permissions that can administer the application: an account holding one is never changed by provisioning (W17-0). */
+export const ADMIN_CAPABLE_SQL = `(rp.permission = '*' or rp.permission like 'admin.%')`;
+
+/**
+ * True when the account holds a permission that can administer (through any role, switched on or
+ * not: a role switched off can be switched on again) or is the break-glass account. Provisioning may
+ * not change such an account's email address, active state or provider link permit.
+ */
+export async function isAdminCapable(db: Queryable, userId: string): Promise<boolean> {
+  return Boolean(await db.one(
+    `select 1 where exists (select 1 from user_roles ur join role_permissions rp on rp.role_id = ur.role_id
+                              where ur.user_id = $1 and ${ADMIN_CAPABLE_SQL})
+        or exists (select 1 from identity_user_settings s where s.user_id = $1 and s.break_glass)`, [userId]));
+}
+
+interface MailApp { hasDecorator?: (name: string) => boolean; sendMail?: (input: { to?: string | string[]; subject?: string; text?: string; purpose?: string; link?: string }) => Promise<unknown> }
+
+/**
+ * Tells the person at their old address that the account's email address changed (W17-0): password
+ * reset links now go to the new address, so a change they did not ask for must reach them. Sends
+ * nothing while email is switched off. Never throws.
+ */
+export async function notifyEmailChange(app: MailApp, change: { username: string; oldEmail: string | null | undefined; newEmail: string; by: string }): Promise<void> {
+  const old = String(change.oldEmail ?? '').trim();
+  if (!old || old.toLowerCase() === change.newEmail.trim().toLowerCase()) return;
+  if (!app.hasDecorator?.('sendMail') || typeof app.sendMail !== 'function') return;
+  try {
+    await app.sendMail({
+      to: old, purpose: 'security', link: '/account',
+      subject: 'The email address of your account was changed',
+      text: `The email address of the account ${change.username} was changed from this address to ${maskEmail(change.newEmail)} by ${change.by} `
+        + `at ${new Date().toISOString()}. Password-reset links now go to the new address. If you did not expect this, `
+        + 'tell your administrator at once.',
+    });
+  } catch (err) {
+    console.error('[identity] email change notice failed:', err);
+  }
+}
+
+/** "m****@example.test": enough for the person to recognize it, not a full address for whoever reads the old mailbox. */
+export function maskEmail(email: string): string {
+  const [local, domain] = email.split('@');
+  if (!domain) return '****';
+  return `${local.slice(0, 1)}****@${domain}`;
+}

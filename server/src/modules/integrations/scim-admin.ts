@@ -7,6 +7,7 @@ import type { FastifyRequest } from 'fastify';
 import { checkSources, tokenHash } from '../../core/tokens.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { UUID_RE } from '../../core/errors.ts';
+import { featureState, ownedOff, rolesShown } from '../../core/features.ts';
 import { sensitive } from '../admin/shared.ts';
 import { adminRoleIds, roleChangeText, syncProvisionedRoles } from './shared.ts';
 import { SCIM_BASE, SCIM_TOKEN_PREFIX } from './scim.ts';
@@ -137,10 +138,15 @@ export function registerScimAdmin(ctx: ModuleContext) {
     u.display_name as mapped_by_name, (select count(*)::int from scim_group_members m where m.group_id = g.id) as members
     from scim_group_roles g left join users u on u.id = g.mapped_by`;
 
-  app.get('/api/admin/scim/groups', admin, async () => ({
-    groups: await db.query(`${GROUP_SELECT} order by lower(g.display_name)`),
-    roles: await mappableRoles(),
-  }));
+  // Roles of a switched-off area are not offered or shown, but a group keeps them (W17, E18-64).
+  app.get('/api/admin/scim/groups', admin, async () => {
+    const state = await featureState(db);
+    const groups = await db.query<Row>(`${GROUP_SELECT} order by lower(g.display_name)`);
+    return {
+      groups: groups.map((g) => ({ ...g, role_keys: (g.role_keys as string[]).filter((k) => !ownedOff(state, 'role', k)) })),
+      roles: rolesShown(state, await mappableRoles()),
+    };
+  });
   d('GET', '/api/admin/scim/groups', 'Groups provisioning has sent, with the roles each is mapped to', {
     response: '{ groups: [{ id, display_name, external_id, role_keys, members, mapped_at, mapped_by_name }], roles: [{ key, name, enabled, administers }] }',
   });
@@ -158,6 +164,10 @@ export function registerScimAdmin(ctx: ModuleContext) {
     const adminRoles = wanted.filter((k) => roles.find((r) => r.key === k)?.administers);
     if (adminRoles.length) invalid({ roleKeys: `Provisioning never gives a role that can administer (${adminRoles.join(', ')}). Give it by hand under Users.` });
     const before = [...(g!.role_keys as string[])].sort();
+    // A hidden role (its area is off) stays mapped: the form could not show it.
+    const state = await featureState(db);
+    for (const k of before) if (ownedOff(state, 'role', k) && !wanted.includes(k)) wanted.push(k);
+    wanted.sort();
     if (JSON.stringify(before) === JSON.stringify(wanted)) return db.one(`${GROUP_SELECT} where g.id = $1`, [id]);
     await sensitive(ctx, req, `mapping the group "${g!.display_name}" to roles`);
     const changes: { userId: string; text: string }[] = [];

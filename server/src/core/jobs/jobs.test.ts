@@ -132,6 +132,68 @@ describe('job queue', () => {
     expect((await t.app.jobs.enqueue('test.keyed', {}, { key: 'same' })).queued).toBe(true);
   });
 
+  it('answers 409 already_queued when a dead job is retried while a newer run of its key waits (W17 review)', async () => {
+    t.app.jobs.register('test.keyfail', async () => { throw new Error('Service down'); }, { maxAttempts: 1 });
+    const a = await t.app.jobs.enqueue('test.keyfail', {}, { key: 'schedule:test.keyfail' });
+    await t.app.jobs.runNow(a.id!);
+    expect((await job(a.id!)).status).toBe('dead');
+    // The next run of the same key fails too and waits for its back-off.
+    const b = await t.app.jobs.enqueue('test.keyfail', {}, { key: 'schedule:test.keyfail', maxAttempts: 3 });
+    await t.app.jobs.runNow(b.id!);
+    expect((await job(b.id!)).status).toBe('failed');
+    // Before the fix: 500 (duplicate key value violates unique constraint "jobs_dedupe_ix").
+    const res = await t.api.post(`/api/admin/jobs/${a.id}/retry`);
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatchObject({ code: 'already_queued', message: 'A newer run of this job is waiting or running.' });
+    expect((await job(a.id!)).status).toBe('dead');
+    // Once the newer run is over, the dead one can be tried again.
+    await t.db.query(`update jobs set status = 'dead', finished_at = now() where id = $1`, [b.id]);
+    t.app.jobs.register('test.keyfail', async () => 'fine', { maxAttempts: 1 });
+    expect((await t.api.post(`/api/admin/jobs/${a.id}/retry`)).body).toMatchObject({ status: 'done', result: 'fine' });
+  });
+
+  it('rerunIfRunning asks a running job of the key to run once more, instead of skipping (W17 review)', async () => {
+    const items: string[] = [];
+    const sent: string[][] = [];
+    let during: unknown;
+    t.app.jobs.register('test.rerun', async () => {
+      const due = [...items]; // read when the run starts, like push delivery
+      if (!sent.length) {
+        // Something arrives while this run is working.
+        items.push('late');
+        during = await t.app.jobs.enqueue('test.rerun', {}, { key: 'rerun', rerunIfRunning: true });
+      }
+      sent.push(due);
+      return due.length;
+    });
+    items.push('first');
+    const a = await t.app.jobs.enqueue('test.rerun', { n: 1 }, { key: 'rerun', rerunIfRunning: true });
+    await t.app.jobs.runNow(a.id!);
+    expect(during).toEqual({ id: null, queued: false, rerun: true });
+    expect(sent).toEqual([['first']]);
+    // The finished run queued its follow-up, with the same key and payload.
+    const next = await t.db.query<any>(`select id, status, payload, rerun from jobs where type = 'test.rerun' and id <> $1`, [a.id]);
+    expect(next).toEqual([expect.objectContaining({ status: 'queued', payload: { n: 1 }, rerun: false })]);
+    expect((await job(a.id!)).status).toBe('done');
+    await t.app.jobs.runDue({ types: ['test.rerun'] });
+    expect(sent).toEqual([['first'], ['first', 'late']]);
+    // No further run: the follow-up was not asked to run again.
+    expect((await t.db.query(`select 1 from jobs where type = 'test.rerun' and status <> 'done'`)).length).toBe(0);
+
+    // A waiting job of the key reads the current state when it runs: nothing more is queued.
+    const w = await t.app.jobs.enqueue('test.rerun', {}, { key: 'rerun', delayMs: 60_000 });
+    expect(await t.app.jobs.enqueue('test.rerun', {}, { key: 'rerun', rerunIfRunning: true })).toEqual({ id: null, queued: false });
+    expect((await job(w.id!)).rerun).toBe(false);
+    // Without the option, an enqueue while the key runs is skipped as before.
+    await t.db.query(`update jobs set status = 'running', locked_by = 'other:1', locked_until = now() + interval '5 minutes' where id = $1`, [w.id]);
+    expect(await t.app.jobs.enqueue('test.rerun', {}, { key: 'rerun' })).toEqual({ id: null, queued: false });
+    expect((await job(w.id!)).rerun).toBe(false);
+    // A run taken over after its lease ran out starts afresh: the claim clears the flag, no extra run follows.
+    await t.db.query(`update jobs set rerun = true, locked_until = now() - interval '1 second' where id = $1`, [w.id]);
+    await t.app.jobs.runDue({ types: ['test.rerun'] });
+    expect(await job(w.id!)).toMatchObject({ status: 'done', rerun: false });
+  });
+
   it('takes over a job whose process stopped (lease expired), and not one still leased', async () => {
     let calls = 0;
     t.app.jobs.register('test.lease', async () => { calls += 1; return 'recovered'; });

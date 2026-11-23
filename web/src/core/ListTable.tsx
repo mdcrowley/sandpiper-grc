@@ -1,12 +1,14 @@
 // The table of a ResourceList: sticky sortable header, row selection, keyboard navigation,
 // plus its loading skeleton and the column chooser.
-import { useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ActionIcon, Button, Checkbox, Group, Popover, Skeleton, Stack, Table, Text, Tooltip, UnstyledButton } from '@mantine/core';
 import { IconArrowDown, IconArrowUp, IconColumns3, IconSelector } from '@tabler/icons-react';
 import type { Row } from './api';
 import { FieldValue } from './FieldValue';
+import { fitColumns, type ColumnPriority } from './fit';
 import { recordHref, type ResourceMeta } from './meta';
+import { watchScrollEdges } from './ui';
 
 export interface ListColumn {
   field: string;
@@ -17,6 +19,8 @@ export interface ListColumn {
   /** A real field of the record type (not a render-only column). */
   known: boolean;
   startHidden: boolean;
+  /** 1 always shows; 2 and then 3 give way when the table is wider than the page (E18-63). */
+  priority: ColumnPriority;
 }
 
 export type Density = 'comfortable' | 'compact';
@@ -30,9 +34,11 @@ export interface ColumnChooserProps {
   hidden: string[];
   onChange: (hidden: string[]) => void;
   onReset: () => void;
+  /** Columns left out because the table is too wide for the page; checking one shows it anyway. */
+  squeezed?: string[];
 }
 
-export function ColumnChooser({ columns, hidden, onChange, onReset }: ColumnChooserProps) {
+export function ColumnChooser({ columns, hidden, onChange, onReset, squeezed = [] }: ColumnChooserProps) {
   const [opened, setOpened] = useState(false);
   const shown = columns.filter((c) => !hidden.includes(c.field)).length;
   return (
@@ -55,6 +61,7 @@ export function ColumnChooser({ columns, hidden, onChange, onReset }: ColumnChoo
                   key={c.field}
                   size="sm"
                   label={c.label}
+                  description={squeezed.includes(c.field) ? 'Hidden to fit this width' : undefined}
                   checked={on}
                   disabled={on && shown <= 1}
                   onChange={() => onChange(on ? [...hidden, c.field] : hidden.filter((f) => f !== c.field))}
@@ -122,13 +129,74 @@ export interface ListTableProps {
   selectable: boolean;
   selected: Map<string, Row>;
   onSelect: (next: Map<string, Row>) => void;
+  /** Told which columns were left out to fit the width (for the column chooser). */
+  onSqueeze?: (fields: string[]) => void;
+}
+
+const sameList = (a: string[], b: string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
+
+/**
+ * Leaves out lower-priority columns while the table is wider than its box (E18-63). Each column's
+ * natural width is measured (the table laid out at max-content for a moment, before paint) and
+ * remembered at its largest, so columns do not come and go as pages of rows change.
+ */
+function useColumnFit(columns: ListColumn[], deps: unknown[], onSqueeze?: (fields: string[]) => void) {
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const tableRef = useRef<HTMLTableElement | null>(null);
+  const widths = useRef<Record<string, number>>({});
+  const [squeezed, setSqueezed] = useState<string[]>([]);
+  const columnsRef = useRef(columns);
+  columnsRef.current = columns;
+
+  const fit = useRef(() => {});
+  fit.current = () => {
+    const wrap = wrapRef.current;
+    const table = tableRef.current;
+    if (!wrap || !table) return;
+    const before = table.style.width;
+    table.style.width = 'max-content';
+    let fixed = 0;
+    for (const th of Array.from(table.querySelectorAll<HTMLElement>('thead th'))) {
+      const w = th.getBoundingClientRect().width;
+      const field = th.dataset.field;
+      if (!field) fixed += w;
+      else if (w > (widths.current[field] ?? 0)) widths.current[field] = w;
+    }
+    table.style.width = before;
+    const measured = columnsRef.current.map((c) => ({ field: c.field, priority: c.priority, width: widths.current[c.field] ?? 0 }));
+    const next = fitColumns(measured, wrap.clientWidth, fixed);
+    // When what is left fits, the box does not scroll at all, so the column headings stay in view
+    // as the page scrolls down (CSS: .rc-table-wrap[data-fits]).
+    const left = measured.filter((c) => !next.includes(c.field)).reduce((sum, c) => sum + c.width, fixed);
+    wrap.toggleAttribute('data-fits', left <= wrap.clientWidth + 1);
+    setSqueezed((prev) => (sameList(prev, next) ? prev : next));
+  };
+
+  useLayoutEffect(() => fit.current(), deps); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return undefined;
+    const stop = watchScrollEdges(wrap);
+    // The box changes with the window; the table changes when cells fill in later (figures loaded
+    // after the rows). Either way the fit is worked out again; it settles because widths only grow.
+    const watch = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => fit.current());
+    watch?.observe(wrap);
+    if (tableRef.current) watch?.observe(tableRef.current);
+    return () => { stop(); watch?.disconnect(); };
+  }, []);
+  useEffect(() => onSqueeze?.(squeezed), [squeezed, onSqueeze]);
+
+  return { wrapRef, tableRef, squeezed };
 }
 
 export function ListTable({
-  resource, caption, columns, rows, busy, density, sort, dir, onSort, onOpen, linkTitles, selectable, selected, onSelect,
+  resource, caption, columns: chosen, rows, busy, density, sort, dir, onSort, onOpen, linkTitles, selectable, selected, onSelect, onSqueeze,
 }: ListTableProps) {
   const [active, setActive] = useState(0);
   const current = Math.min(active, rows.length - 1);
+  const chosenKey = chosen.map((c) => `${c.field}:${c.priority}`).join('|');
+  const { wrapRef, tableRef, squeezed } = useColumnFit(chosen, [chosenKey, rows, density, selectable], onSqueeze);
+  const columns = squeezed.length > 0 ? chosen.filter((c) => !squeezed.includes(c.field)) : chosen;
 
   const onPage = rows.filter((r) => selected.has(r.id)).length;
   const toggle = (row: Row) => {
@@ -172,8 +240,9 @@ export function ListTable({
   const titleLink = (field: string) => linkTitles && (field === resource.titleField || field === resource.refField);
 
   return (
-    <div className="rc-table-wrap" aria-busy={busy} data-busy={busy || undefined} tabIndex={-1}>
+    <div className="rc-table-wrap" ref={wrapRef} aria-busy={busy} data-busy={busy || undefined} tabIndex={-1}>
       <Table
+        ref={tableRef}
         className="rc-table"
         verticalSpacing={spacing(density)}
         horizontalSpacing="md"
@@ -202,6 +271,7 @@ export function ListTable({
               return (
                 <Table.Th
                   key={c.field}
+                  data-field={c.field}
                   scope="col"
                   className={`rc-th${c.align === 'right' ? ' rc-right' : ''}`}
                   aria-sort={sorted ? (dir === 'asc' ? 'ascending' : 'descending') : undefined}

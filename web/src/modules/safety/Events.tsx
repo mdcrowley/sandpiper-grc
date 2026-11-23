@@ -51,11 +51,15 @@ function Actions({ row, save, canEdit }: RecordContext) {
     catch (err) { toast.error(errorMessage(err)); }
     finally { setBusy(false); }
   };
+  // The next step is the primary button (E18-64): a just-reported event is investigated, not closed.
+  const investigate = row.status === 'reported' && may('investigating');
+  const raise = row.status === 'investigating' && may('actions_open');
+  const look = (next: boolean) => (next ? 'primary' : 'secondary');
   return (
     <>
-      {row.status === 'reported' && may('investigating') && <Button loading={busy} onClick={() => move('investigating', 'Investigation started.')}>Start investigation</Button>}
-      {row.status === 'investigating' && may('actions_open') && <Button loading={busy} onClick={() => move('actions_open', 'Waiting on corrective actions.')}>Corrective actions raised</Button>}
-      {row.status !== 'closed' && may('closed') && <Button variant="primary" loading={busy} onClick={() => move('closed', 'Event closed.')}>Close event</Button>}
+      {investigate && <Button variant="primary" loading={busy} onClick={() => move('investigating', 'Investigation started.')}>Start investigation</Button>}
+      {raise && <Button variant="primary" loading={busy} onClick={() => move('actions_open', 'Waiting on corrective actions.')}>Corrective actions raised</Button>}
+      {row.status !== 'closed' && may('closed') && <Button variant={look(!investigate && !raise)} loading={busy} onClick={() => move('closed', 'Event closed.')}>Close event</Button>}
       {row.status === 'closed' && may('investigating') && <Button loading={busy} onClick={() => move('investigating', 'Event reopened.')}>Reopen</Button>}
     </>
   );

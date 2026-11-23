@@ -10,6 +10,7 @@ import { clientIp, cookieSecure, isHttps } from '../request.ts';
 import { isBreakGlass, resolveSignIn, syncMappedRoles, type Audit } from './accounts.ts';
 import { providerMfaSatisfied } from './config.ts';
 import { addSignInPolicy, afterSignIn, checkSignIn } from './hooks.ts';
+import { setProviderAllowList } from './http.ts';
 import { ldapDriver } from './ldap.ts';
 import { endSessionUrl, oidcDriver } from './oidc.ts';
 import { samlDriver, samlLogoutUrl } from './saml.ts';
@@ -290,6 +291,8 @@ export async function localSignInOn(deps: Pick<IdentityDeps, 'settings'>): Promi
 
 /** Registers the rules core sign-in asks about, and what happens after each sign-in. */
 export function registerSignInPolicy(deps: IdentityDeps): void {
+  // Calls to providers reach a private address only when it is listed exactly (W17-6, http.ts).
+  setProviderAllowList(() => deps.settings.get<unknown>('integrations.allowed_hosts', []));
   addSignInPolicy(deps.app, {
     async check({ userId, method }) {
       const s = await deps.db.one<{ break_glass: boolean; allowed_methods: string[] | null }>(

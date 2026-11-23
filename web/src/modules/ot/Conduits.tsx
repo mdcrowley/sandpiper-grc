@@ -14,7 +14,7 @@ export function ConduitList() {
       <ResourceList
         type="ot_conduit"
         urlState
-        columns={['ref', 'name', 'from_zone_id', 'to_zone_id', 'remote_access', 'target_level', 'achieved_level', { field: 'protocols', hidden: true }, { field: 'restricted', hidden: true }]}
+        columns={['ref', 'name', { field: 'from_zone_id', priority: 1 }, { field: 'to_zone_id', priority: 1 }, 'remote_access', 'target_level', 'achieved_level', { field: 'protocols', hidden: true }, { field: 'restricted', hidden: true }]}
         filters={['remote_access', 'from_zone_id', 'to_zone_id', 'target_level', 'achieved_level']}
         createFields={FIELDS.filter((f) => f !== 'notes')}
       />

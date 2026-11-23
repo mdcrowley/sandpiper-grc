@@ -31,7 +31,7 @@ function Status({ data }: { data: KitCopiesState }) {
   const latest = data.copies[0];
   if (!latest) {
     return (
-      <Alert color="blue" variant="light" icon={<Icon name="info" size={18} />} title="No PDF copy yet">
+      <Alert role="status" color="blue" variant="light" icon={<Icon name="info" size={18} />} title="No PDF copy yet">
         A first copy is made within {data.check_minutes} minutes{data.can_export ? ', or make one now' : ''}.
       </Alert>
     );
@@ -45,7 +45,7 @@ function Status({ data }: { data: KitCopiesState }) {
     );
   }
   return (
-    <Alert color="green" variant="light" icon={<Icon name="check-circle" size={18} />} title="The latest PDF copy matches the kit">
+    <Alert role="status" color="green" variant="light" icon={<Icon name="check-circle" size={18} />} title="The latest PDF copy matches the kit">
       Paper copies printed since {formatDateTime(data.current_since ?? latest.created_at)} are up to date; older ones are not.
     </Alert>
   );
@@ -94,7 +94,7 @@ function Schedule({ data, onSaved }: { data: KitCopiesState; onSaved: (next: Kit
       </div>
       <MultiSelect label="Email each automatic copy to" options={options} value={people} onChange={setPeople} error={errors.recipients} />
       <Text size="xs" c="dimmed">
-        Only active people with security.view and security.export can be chosen; anyone who loses them is skipped when the email is sent.
+        Only active people who may view and export security incidents can be chosen; anyone who loses either permission is skipped when the email is sent.
         The PDF is attached, so the kit can be reached when this application cannot. Changing who receives it asks you to confirm your identity.
         {!data.mail_on && ' Email is switched off: nothing is sent until an administrator sets it up.'}
       </Text>
@@ -146,7 +146,7 @@ export function KitCopies() {
             <table className="table">
               <caption className="sr-only">Stored PDF copies of the kit, newest first</caption>
               <thead>
-                <tr><th scope="col">Made</th><th scope="col">Why</th><th scope="col">Pages</th><th scope="col">Email</th><th scope="col"><span className="sr-only">Download</span></th></tr>
+                <tr><th scope="col">Made</th><th scope="col">Why</th><th scope="col" className="num">Pages</th><th scope="col" className="num">Size</th><th scope="col">Email</th><th scope="col"><span className="sr-only">Download</span></th></tr>
               </thead>
               <tbody>
                 {shown.copies.map((c, i) => (
@@ -157,7 +157,8 @@ export function KitCopies() {
                       {!c.current && <span className="chip chip-gray si-kit-chip">Out of date</span>}
                     </td>
                     <td>{c.reason_label}{c.produced_by_name ? `, by ${c.produced_by_name}` : ''}</td>
-                    <td className="si-kit-nowrap">{c.pages} · {size(c.size_bytes)}</td>
+                    <td className="num">{c.pages}</td>
+                    <td className="num si-kit-nowrap">{size(c.size_bytes)}</td>
                     <td className="si-kit-delivery">{c.delivery ?? '—'}</td>
                     <td>
                       {shown.can_export && (

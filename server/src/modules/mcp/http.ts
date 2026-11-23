@@ -2,7 +2,8 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { ModuleContext } from '../../core/module.ts';
 import { countRequest } from '../../core/ratelimit.ts';
-import { clientIp, isHttps } from '../../core/request.ts';
+import { configuredBase, loopbackBase } from '../../core/identity/base.ts';
+import { clientIp } from '../../core/request.ts';
 import { makeCaller } from './caller.ts';
 import { buildServer } from './server.ts';
 import type { registerOAuth } from './oauth.ts';
@@ -31,10 +32,12 @@ function rpcError(reply: FastifyReply, status: number, message: string, code = -
   return reply.code(status).type('application/json').send(JSON.stringify({ jsonrpc: '2.0', error: { code, message }, id: null }));
 }
 
+/**
+ * The address tool answers link to (W17-7): `auth.public_url`, else the request's Host only when it
+ * names this machine; otherwise '' (links are then relative), never an address taken from a Host header.
+ */
 export async function baseUrl(ctx: ModuleContext, req: FastifyRequest): Promise<string> {
-  const configured = String(await ctx.settings.get<unknown>('auth.public_url', '') ?? '').replace(/\/+$/, '');
-  if (configured) return configured;
-  return `${isHttps(req) ? 'https' : 'http'}://${req.headers.host ?? '127.0.0.1'}`;
+  return (await configuredBase(ctx.settings)) || loopbackBase(req) || '';
 }
 
 /** Whether a POST body asks for progress notifications (a tools/call with _meta.progressToken), E21-20. */

@@ -13,7 +13,7 @@ prototype. Start with the [project README](../README.md) for a one-page introduc
 | [Operations](operations.md) | Every `grc.ps1` command, data and logs, backup (scheduled and encrypted) and restore, upgrading and automatic rollback, health check, troubleshooting |
 | [Security](security.md) | What protects the application today, what is not yet built, how to report a vulnerability |
 | [AI assistant access (MCP)](mcp.md) | The MCP endpoint, tokens and scopes, settings, tools, connecting Claude Desktop, Claude Code and other clients, and the security model |
-| [Mobile app](mobile.md) | Building the iPhone and Android app, signing, TestFlight and direct Android installs, running it against a local server, the tag photo test set |
+| [Mobile app](mobile.md) | Building the iPhone and Android app, signing, TestFlight and direct Android installs, running it against a local server, offline work, push notifications, end-to-end flows, accessibility rules, the tag photo test set |
 | [Accessibility statement](accessibility.md) | How far the application meets WCAG 2.1 AA, what has been checked and the known limitations |
 | [Known gaps](known-gaps.md) | The full list of what the prototype does not do. Read it before relying on the application |
 

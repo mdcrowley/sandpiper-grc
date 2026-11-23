@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { Badge, Button, Card, EmptyState, ErrorState, formatDate, Icon, Loading, PageHeader, Stat, TableWrap, useAuth, useFetch } from '../../core';
 import type { ColorName } from '../../core';
 import type { AppetiteData } from './Appetite';
+import { RiskTabs } from './RiskTabs';
 import { RatedChip } from './scales';
 
 interface ReportRisk {
@@ -169,6 +170,7 @@ export function RiskReport() {
         breadcrumbs={[{ label: 'Risk register', to: '/risks' }, { label: 'Risk report' }]}
         actions={<Button variant="primary" icon="download" onClick={() => window.print()}>Print or save as PDF</Button>}
       />
+      <div className="no-print"><RiskTabs active="report" /></div>
 
       {data.total === 0 ? <Card><EmptyState icon="shield" title="No open risks" message="There is nothing to report until a risk is added to the register." /></Card> : (
         <>

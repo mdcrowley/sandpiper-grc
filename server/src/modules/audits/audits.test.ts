@@ -301,6 +301,23 @@ describe('audits, evidence requests and report approval', () => {
     expect((await pm.get(`/api/audits/${auditId}/report.pdf`)).status).toBe(403);
     expect(await t.db.one(`select 1 as x from audit_events where action = 'audit_engagement.report_pdf' and record_id = $1`, [auditId])).toEqual({ x: 1 });
   });
+
+  it('names a finding\'s corrective action plan only to a reader who may see it (W17-4)', async () => {
+    const { pdfText } = await import('../../core/export/testing.ts');
+    const plan = (await t.db.one<{ id: string }>(`insert into t_caps (ref, title) values ('CAP-09001', 'Invented plan title for the label check') returning id`))!.id;
+    await t.db.query('update audit_findings set cap_id = $1 where id = $2', [plan, findingId]);
+    const { createSession, SESSION_COOKIE } = await import('../../core/auth.ts');
+    const pdf = async (c: Client) => {
+      const token = await createSession(t.db, c.userId);
+      const res = await t.app.inject({ method: 'GET', url: `/api/audits/${auditId}/report.pdf`, headers: { cookie: `${SESSION_COOKIE}=${token}` } });
+      expect(res.statusCode).toBe(200);
+      return pdfText(res.rawPayload);
+    };
+    expect(await pdf(lead)).toContain('Invented plan title for the label check');
+    const asAuditor = await pdf(auditor); // audits.export, but no actions.view
+    expect(asAuditor).not.toContain('Invented plan title');
+    expect(asAuditor).toContain('Restricted');
+  });
 });
 
 describe('dashboard and metrics', () => {

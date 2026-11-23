@@ -5,6 +5,7 @@ import {
   TextArea, TextField, useAuth, useFetch, useToast, useUnsavedChanges,
 } from '../../core';
 import type { ColorName } from '../../core';
+import { RiskTabs } from './RiskTabs';
 
 // Risk appetite by category (E30-06), under Administration beside Risk scales. Each category states
 // how much risk the organization accepts and the highest residual rating it tolerates; a risk above
@@ -39,11 +40,13 @@ export function Appetite() {
   const unsaved = useUnsavedChanges(dirty);
 
   const header = (
-    <PageHeader
-      title="Risk appetite"
-      subtitle="How much risk the organization is willing to accept in each category. Risks rated above the appetite are flagged in the register, on the heat map and in the risk report."
-      actions={<Link className="btn btn-secondary" to="/risks/scales">Risk scales</Link>}
-    />
+    <>
+      <PageHeader
+        title="Risk appetite"
+        subtitle="How much risk the organization is willing to accept in each category. Risks rated above the appetite are flagged in the register, on the heat map and in the risk report."
+      />
+      <RiskTabs active="appetite" />
+    </>
   );
   if (!allowed) {
     return <div className="stack">{header}<EmptyState icon="lock" title="Restricted" message="Risks are restricted records: setting the appetite needs access to security records as well." /></div>;

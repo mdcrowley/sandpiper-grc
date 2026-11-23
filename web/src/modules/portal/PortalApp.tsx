@@ -135,9 +135,14 @@ export function PortalApp() {
       <a href="#pt-main" className="pt-skip">Skip to content</a>
       <Header config={config?.enabled && config.allowed ? config : null} />
       <main id="pt-main" className="pt-main" ref={mainRef}>{body}</main>
-      <footer className="pt-footer muted">
-        Something urgent for safety? Follow your local safety procedure first, then report it here.
-      </footer>
+      {/* Safety wording only while safety reporting is on: a switched-off area is named nowhere (E18-64). */}
+      {config?.enabled && config.allowed && (
+        <footer className="pt-footer muted">
+          {config.has.safety
+            ? <>Something urgent for safety? Follow your local safety procedure first, then <Link to="/portal/safety">report it here</Link>.</>
+            : <>Something urgent? Follow your local procedure first, then <Link to="/portal/report">report a problem here</Link>.</>}
+        </footer>
+      )}
     </div>
   );
 }

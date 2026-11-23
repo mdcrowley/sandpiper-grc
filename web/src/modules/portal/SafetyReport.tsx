@@ -4,7 +4,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   api, ApiError, Button, Checkbox, DateTimeField, errorMessage, ErrorState, Icon, Loading, NumberField, relativeTime, TextArea, TextField,
-  useFetch, useToast,
+  timeZone, useFetch, useToast,
 } from '../../core';
 import { ChoiceCards } from './RequestForm';
 import { Section, useFocusFirstProblem, usePortalTitle, type Choice } from './parts';
@@ -36,6 +36,16 @@ export function MySafetyReports({ compact = false, refresh = 0 }: { compact?: bo
       ) : <p className="muted pt-none">You have not reported anything yet.</p>}
     </Section>
   );
+}
+
+/** The organization's time zone by its everyday name ("Eastern Standard Time"), not its identifier (E18-64). */
+function zoneHint(): string {
+  try {
+    const name = new Intl.DateTimeFormat('en-US', { timeZone: timeZone(), timeZoneName: 'long' }).formatToParts(new Date()).find((p) => p.type === 'timeZoneName')?.value;
+    return `Local time${name ? ` (${name})` : ''}.`;
+  } catch {
+    return 'Local time.';
+  }
 }
 
 export function SafetyReport() {
@@ -110,8 +120,8 @@ export function SafetyReport() {
       <form className="pt-form" onSubmit={onSubmit} noValidate>
         {formError && <p className="pt-form-error" role="alert" tabIndex={-1}>{formError}</p>}
         <TextField label="What happened, in a few words?" required size="md" maxLength={200} value={title} onChange={setTitle} error={errors.title}
-          placeholder="For example: passenger fell on the platform steps" />
-        <DateTimeField label="When did it happen?" required size="md" value={when} onChange={setWhen} error={errors.occurred_at} />
+          hint="For example: passenger fell on the platform steps." />
+        <DateTimeField label="When did it happen?" required size="md" value={when} onChange={setWhen} error={errors.occurred_at} hint={zoneHint()} />
         <ChoiceCards name="event_type" label="What kind of event was it?" required options={options.types} value={kind} onChange={setKind} error={errors.event_type} />
         <ChoiceCards name="harm" label="How bad was it?" required options={options.harm} value={harm} onChange={setHarm} error={errors.harm}
           hint="Your best guess is fine: the safety team checks it." />

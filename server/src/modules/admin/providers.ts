@@ -1,6 +1,7 @@
 // Administration > Sign-in providers, and the sign-in parts of a user's page: linked identities,
 // provider limits, "may link at next sign-in" permits and the break-glass account.
 import type { FastifyRequest } from 'fastify';
+import { featureState, rolesShown } from '../../core/features.ts';
 import type { Row } from '../../core/module.ts';
 import type { ModuleContext } from '../../core/module.ts';
 import {
@@ -100,7 +101,8 @@ export function registerProviders(ctx: ModuleContext) {
       localSignIn: (await ctx.settings.get('auth.local_signin', true)) !== false,
       localOffBlockers: await localOffBlockers(ctx),
       breakGlass: bg ?? null,
-      roles: await db.query('select key, name, enabled from roles order by name'),
+      // Roles of switched-off areas are not offered (E18-64).
+      roles: rolesShown(await featureState(db), await db.query<{ key: string; name: string; enabled: boolean }>('select key, name, enabled from roles order by name')),
     };
   });
 

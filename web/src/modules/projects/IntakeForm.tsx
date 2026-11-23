@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Alert, Group, Pill, Progress, Stack, Stepper as Steps, Text } from '@mantine/core';
 import {
-  api, ApiError, Button, Card, Checkbox, DateField, EmptyState, errorMessage, ErrorState, formatCurrency, formatDate, Icon, Loading,
+  api, ApiError, Button, Card, Checkbox, DateField, EmptyState, errorMessage, ErrorState, formatDate, Icon, Loading,
   NumberField, PageHeader, RecordPicker, Select, StatusChip, TextArea, TextField, toColorName, useCustomFieldInputs, useFetch, useToast, useUnsavedChanges,
 } from '../../core';
-import { currencySymbol } from './bits';
+import { currencySymbol, wholeCurrency } from './bits';
 import type { Intake, MyRequest } from './types';
 
 const BLANK = {
@@ -17,9 +17,9 @@ const BLANK = {
 function likelyTier(budget: number | null, touches: boolean, t: Intake['tiers']): { label: string; why: string } {
   if (touches) return { label: 'Tier 1', why: 'it touches payment, personal data or operational systems' };
   const b = budget ?? 0;
-  if (b > t.tier1Above) return { label: 'Tier 1', why: `the budget is over ${formatCurrency(t.tier1Above)}` };
-  if (b >= t.tier3Below) return { label: 'Tier 2', why: `the budget is between ${formatCurrency(t.tier3Below)} and ${formatCurrency(t.tier1Above)}` };
-  return { label: 'Tier 3', why: `the budget is under ${formatCurrency(t.tier3Below)}` };
+  if (b > t.tier1Above) return { label: 'Tier 1', why: `the budget is over ${wholeCurrency(t.tier1Above)}` };
+  if (b >= t.tier3Below) return { label: 'Tier 2', why: `the budget is between ${wholeCurrency(t.tier3Below)} and ${wholeCurrency(t.tier1Above)}` };
+  return { label: 'Tier 3', why: `the budget is under ${wholeCurrency(t.tier3Below)}` };
 }
 
 function Requests({ rows, canOpen }: { rows: MyRequest[]; canOpen: boolean }) {
@@ -119,7 +119,7 @@ export function IntakeForm() {
           ) : (
             <form className="form" onSubmit={submit} noValidate>
               {sent && (
-                <Alert color="green" variant="light" icon={<Icon name="check-circle" />} title={`Request ${sent.ref} submitted`} withCloseButton onClose={() => setSent(null)}>
+                <Alert role="status" color="green" variant="light" icon={<Icon name="check-circle" />} title={`Request ${sent.ref} submitted`} withCloseButton onClose={() => setSent(null)}>
                   "{sent.name}" has joined the portfolio as an idea. Follow it under Your requests.
                 </Alert>
               )}
@@ -166,7 +166,7 @@ export function IntakeForm() {
 
               {custom.inputs}
 
-              <Alert color="blue" variant="light" icon={<Icon name="info" />} title={`This looks like ${tier.label}`}>
+              <Alert role="status" color="blue" variant="light" icon={<Icon name="info" />} title={`This looks like ${tier.label}`}>
                 Because {tier.why}. The tier decides who approves each gate; it is worked out again whenever the project is saved.
               </Alert>
 
@@ -189,9 +189,9 @@ export function IntakeForm() {
           </Card>
           <Card title="How the tier is set">
             <ul className="prj-plainlist">
-              <li><strong>Tier 3:</strong> budget under {formatCurrency(data.tiers.tier3Below)}.</li>
-              <li><strong>Tier 2:</strong> budget from {formatCurrency(data.tiers.tier3Below)} to {formatCurrency(data.tiers.tier1Above)}.</li>
-              <li><strong>Tier 1:</strong> budget over {formatCurrency(data.tiers.tier1Above)}, or anything that touches payment, personal data or operational systems.</li>
+              <li><strong>Tier 3:</strong> budget under {wholeCurrency(data.tiers.tier3Below)}.</li>
+              <li><strong>Tier 2:</strong> budget from {wholeCurrency(data.tiers.tier3Below)} to {wholeCurrency(data.tiers.tier1Above)}.</li>
+              <li><strong>Tier 1:</strong> budget over {wholeCurrency(data.tiers.tier1Above)}, or anything that touches payment, personal data or operational systems.</li>
             </ul>
           </Card>
           <Card title="Your requests">

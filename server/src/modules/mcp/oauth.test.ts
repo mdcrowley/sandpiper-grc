@@ -409,3 +409,22 @@ describe('failure paths', () => {
     await t.db.query(`delete from rate_limit_hits where bucket = 'mcp_oauth'`);
   });
 });
+
+describe('the issuer address (W17-7)', () => {
+  it('never takes the issuer from a Host header that is not this machine', async () => {
+    await settings({ oauthEnabled: true });
+    const meta = (host: string) => t.app.inject({ method: 'GET', url: '/.well-known/oauth-authorization-server', headers: { host } });
+    const kept = await t.ctx.settings.get<string>('auth.public_url', '');
+    await t.ctx.settings.set('auth.public_url', '');
+    try {
+      expect((await meta('evil.example')).statusCode).toBe(404);
+      const local = await meta('localhost:8080');
+      expect(local.statusCode).toBe(200);
+      expect(local.json().issuer).toBe('http://localhost:8080');
+      await t.ctx.settings.set('auth.public_url', 'https://grc.example.org');
+      expect((await meta('evil.example')).json().issuer).toBe('https://grc.example.org');
+    } finally {
+      await t.ctx.settings.set('auth.public_url', kept);
+    }
+  });
+});

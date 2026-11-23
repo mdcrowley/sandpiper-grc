@@ -232,12 +232,15 @@ export function registerPersonAcks(ctx: ModuleContext): void {
     needRoster();
     const id = String(personId ?? '');
     if (!UUID.test(id)) invalid({ person_id: 'Choose your name.' });
-    if (await failures.blocked(id)) ctx.fail(429, 'too_many_tries', 'Too many wrong employee numbers. Ask your supervisor.');
+    // The attempt is claimed before the number is compared (take(), not blocked() then hit()), so a
+    // burst of parallel guesses cannot all be compared before the first failures are recorded.
+    const attempt = await failures.take(id);
+    if (!attempt.ok) ctx.fail(429, 'too_many_tries', 'Too many wrong employee numbers. Ask your supervisor.');
     const person = await db.one<Row>(
       `select id, ref, full_name, preferred_name, employee_number from people where id = $1 and deleted_at is null and status = 'active'`, [id]);
     const typed = String(number ?? '').trim();
     if (!person || !person.employee_number || !typed || String(person.employee_number).toLowerCase() !== typed.toLowerCase()) {
-      await failures.hit(id);
+      // The claimed attempt stays recorded as a failure.
       const locked = await failures.blocked(id);
       await ctx.audit(req, {
         action: 'policy.kiosk_mismatch', recordType: 'person', recordId: id,

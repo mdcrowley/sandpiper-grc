@@ -485,8 +485,8 @@ built; see [Known gaps](known-gaps.md).
   @node-saml/node-saml library, with hardening of our own in core/identity/samlxml.ts),
   directory (LDAP) sign-in over TLS (a small client of our own in core/identity/ldapclient.ts),
   sign-outs started at a SAML identity provider, account linking and a break-glass
-  administrator are built. Still to do: a passkey second factor after a directory password
-  and linking a directory from Account security (E02-29).
+  administrator are built, as are a passkey second factor after a directory password and
+  linking a directory from Account security (E02-29).
 - **More than one process.** The job queue already works across processes, and so do the
   per-token request counts (`tokens.rate_per_minute`, the `RateLimit` headers and
   `mcp.rate_per_minute`, kept per clock minute in the database since E16-43). Still to do:

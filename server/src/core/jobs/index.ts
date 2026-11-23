@@ -155,11 +155,23 @@ export async function ensureJobs(ctx: ModuleContext): Promise<JobQueue> {
   // A failed or dead job goes back in the queue with its attempts counted from nothing.
   app.post('/api/admin/jobs/:id/retry', admin, async (req) => {
     const before = await oneJob((req.params as Row).id);
-    const row = await db.one<Row>(
-      `update jobs set status = 'queued', attempts = 0, run_at = now(), finished_at = null
-       where id = $1 and status in ('failed', 'dead') returning id, type`,
-      [before.id],
-    );
+    // A dead job of a key (a schedule, push delivery) may have a newer run waiting or running: the
+    // key allows one at a time (jobs_dedupe_ix), so this one cannot go back in the queue (W17 review).
+    const newer = () => ctx.fail(409, 'already_queued', 'A newer run of this job is waiting or running.');
+    if (before.status === 'dead' && before.dedupe_key
+      && await db.one(`select 1 from jobs where dedupe_key = $1 and id <> $2 and status in ('queued', 'failed', 'running')`, [before.dedupe_key, before.id])) newer();
+    let row: Row | undefined;
+    try {
+      row = await db.one<Row>(
+        `update jobs set status = 'queued', attempts = 0, run_at = now(), finished_at = null
+         where id = $1 and status in ('failed', 'dead') returning id, type`,
+        [before.id],
+      );
+    } catch (err) {
+      // A newer run was queued between the check and the update.
+      if ((err as { code?: string }).code === '23505' || /jobs_dedupe_ix|duplicate key/i.test(String((err as Error)?.message ?? ''))) newer();
+      throw err;
+    }
     if (!row) ctx.fail(409, 'not_retryable', 'Only a failed or dead job can be tried again.');
     await ctx.audit(req, { action: 'job.retry', recordType: 'job', recordId: before.id, summary: `Background job ${before.type} queued again (was ${before.status})` });
     return (await jobs.runNow(before.id)) ?? before;

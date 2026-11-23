@@ -53,7 +53,7 @@ export function MobileAdminPage() {
             <Switch label="Require unlock to open the app" checked={form.requireUnlock} onChange={(on) => set('requireUnlock', on)}
               hint="Face ID, a fingerprint or the phone's passcode before the app opens. When off, each person may still choose it in the app." />
             {num('unlockAfterMinutes', 'Minutes before unlocking again', 'After this long in the background the app asks to be unlocked again (0 = every time).')}
-            {num('offlineDays', 'Days offline work is kept', 'A phone deletes its offline package (My work, the report forms\' choices, upcoming inspections) after this many days. Work saved on the phone and not yet sent is kept.')}
+            {num('offlineDays', 'Days offline work is kept', 'A phone deletes its offline package (My work, the report forms\' choices, inspections, condition assessments due and open counts) after this many days. Work saved on the phone and not yet sent is kept.')}
             <div className="form-actions">
               <Button variant="primary" disabled={!changed} loading={busy} onClick={() => void save()}>Save</Button>
             </div>

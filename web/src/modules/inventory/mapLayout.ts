@@ -44,7 +44,7 @@ export interface Layout {
   width: number; height: number;
 }
 
-export const NODE_W = 198;
+export const NODE_W = 226; // room for about 30 characters at 12.5 px (E18-64)
 export const NODE_H = 30;
 const GAP_X = 10;
 const GAP_Y = 8;

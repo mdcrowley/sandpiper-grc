@@ -1,4 +1,5 @@
 import type { FastifyRequest } from 'fastify';
+import { featureState, rolesShown } from '../../core/features.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { isDate, localDate, text, UUID } from './dates.ts';
 import { failingResults, loadUsers, recordsCte, resolvePerson, rosterOn, saveTraining } from './people.ts';
@@ -51,7 +52,8 @@ export function registerRecords(ctx: ModuleContext) {
   // ---------- who can be assigned ----------
 
   app.get('/api/training/audiences', view, async () => ({
-    roles: await db.query('select id, name from roles where enabled order by lower(name)'),
+    // Roles of switched-off areas are not offered (E18-64).
+    roles: rolesShown(await featureState(db), await db.query<{ id: string; key: string; name: string }>('select id, key, name from roles where enabled order by lower(name)')).map(({ id, name }) => ({ id, name })),
     positions: roster ? await db.query('select id, name from positions where deleted_at is null and active order by lower(name)') : [],
     departments: await db.query('select id, name from departments where deleted_at is null order by lower(name)'),
     department_names: (await db.query<{ name: string }>(

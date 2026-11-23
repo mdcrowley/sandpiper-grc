@@ -205,7 +205,7 @@ export function SettingsPage() {
           <Group id="identity" title="Identity" text="What the application calls itself.">
             <Card>
               <Setting title="Name, logo and colors" text={<>The application name, the organization's name, address and contacts, its logo and its colors are set in one place, under <Link to="/admin/organization">Organization</Link>.</>}>
-                <Link className="btn btn-secondary" to="/admin/organization">Open Organization</Link>
+                <Link className="btn btn-secondary" to="/admin/organization">Open organization</Link>
               </Setting>
               <Setting
                 title="Pilot mode" error={errors.pilot_mode} changed={isChanged('pilot_mode')}

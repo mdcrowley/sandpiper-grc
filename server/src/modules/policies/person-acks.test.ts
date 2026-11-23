@@ -119,6 +119,25 @@ describe('roster acknowledgments', () => {
     expect((await author.get(`/api/policies/kiosk/pending?person_id=${people.R3}&employee_number=R3`)).status).toBe(200);
   });
 
+  it('a burst of parallel wrong numbers is still stopped after five (W17 review)', async () => {
+    const id = (await t.api.post('/api/people', { full_name: 'Dee Example', employee_number: 'R7' })).body.id;
+    // Bursts of wrong guesses at once. Before the fix every guess was compared ({"403":40}), so a
+    // right number hidden among them got through; now at most five are compared in the window and
+    // the rest are refused unseen (each attempt is claimed before the number is compared).
+    const compared = async (n: number, from: number) => {
+      const res = await Promise.all(Array.from({ length: n }, (_, i) => author.get(`/api/policies/kiosk/pending?person_id=${id}&employee_number=X${from + i}`)));
+      expect(res.every((r) => r.status === 403 || r.status === 429)).toBe(true);
+      return res.filter((r) => r.status === 403).length;
+    };
+    let wrong = await compared(40, 0);
+    for (let burst = 1; burst <= 4; burst++) wrong += await compared(5, burst * 100);
+    for (let i = 0; i < 6; i++) wrong += await compared(1, 900 + i);
+    expect(wrong).toBe(5);
+    expect((await author.get(`/api/policies/kiosk/pending?person_id=${id}&employee_number=R7`)).status).toBe(429);
+    const kept = await t.db.one<{ c: number }>(`select count(*)::int as c from rate_limit_hits where bucket = 'kiosk' and key = $1`, [id]);
+    expect(kept!.c).toBe(5);
+  });
+
   it('a new version closes the roster requests not answered and asks again', async () => {
     const pub = await publish(policyId, 'Second issue.');
     expect(pub.body.roster_requested).toBe(2);

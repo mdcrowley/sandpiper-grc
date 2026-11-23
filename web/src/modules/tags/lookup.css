@@ -4,6 +4,11 @@
 .tag-find-row { display: flex; gap: var(--s-2); align-items: center; }
 .tag-find-row > button { flex: 0 0 auto; }
 .tag-find-input { flex: 1 1 auto; min-width: 0; font-family: var(--font-mono); letter-spacing: 0.02em; }
+/* Placeholders read like every other field's (E18-64); the typed value stays monospaced. */
+.tag-find-input::placeholder { font-family: var(--font); letter-spacing: normal; }
+/* The heading focused for screen readers after a lookup: a quiet ring, not a heavy box. */
+.tag-card-title:focus { outline: none; }
+.tag-card-title:focus-visible { outline: 1px dashed var(--border-strong); outline-offset: 4px; border-radius: var(--radius-sm); }
 .tag-find-compact { flex-direction: row; align-items: center; }
 .tag-find-compact .tag-find-input { width: 11rem; flex: 0 1 11rem; }
 .tag-find-compact .field-error { margin: 0; }

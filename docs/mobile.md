@@ -207,7 +207,7 @@ notifications, part of the Mobile app area). No Expo push service and no relay i
 - **Android with UnifiedPush:** for phones without Google services. Each phone runs a UnifiedPush
   distributor connected to a push server (for example one your organization runs). List the push
   servers phones may use (host, host:port or *.domain; a private address must be listed exactly). The
-  server makes its own VAPID key when UnifiedPush is first switched on; "Make a new key" makes phones
+  server makes its own VAPID key when UnifiedPush is first switched on; "Make a new key" (unavailable while the page has unsaved changes) makes phones
   register again. The app's connector is the local Expo module `SandpiperUnifiedPush`
   (`mobile/modules/sandpiper-unifiedpush/`, Kotlin), autolinked from `mobile/modules/`. It wraps
   `org.unifiedpush.android:connector` 3.3.5 (Apache-2.0, pinned exactly in its `android/build.gradle`),

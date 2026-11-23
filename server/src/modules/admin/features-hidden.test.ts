@@ -1,4 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { AREAS } from '../../core/features.ts';
+import { DEFAULT_ROLES } from '../../core/services.ts';
 import { testApp } from '../../test/helpers.ts';
 
 // Feature switches, E14-34: a switched-off area is not shown anywhere except Administration >
@@ -122,5 +124,110 @@ describe('what a switched-off area leaves behind', () => {
     expect(await tools()).toContain('fleet_equipment_gaps');
     expect((await schedules()).some((s) => s.startsWith('vendors.'))).toBe(true);
     expect(await categories()).toContain('contractual');
+  });
+});
+
+// E18-64 (wave 17 interface review): set-up rows that belong to an area (`owns` in core/features.ts),
+// role descriptions, risk scales and asset classes follow the switches too.
+describe('roles, risk scales and asset classes of a switched-off area', () => {
+  const OFF = { fleet: false, safety: false, funding: false };
+  const ON = { fleet: true, safety: true, funding: true };
+  const roles = async () => (await t.api.get('/api/admin/roles')).body.roles as { id: string; key: string; name: string; description: string }[];
+
+  it('words each default description, with every area on, exactly as stored', () => {
+    for (const r of DEFAULT_ROLES) if (r.describe) expect(r.describe(() => true), r.key).toBe(r.description);
+    // Every area off: still a sentence, naming none of them.
+    for (const r of DEFAULT_ROLES) if (r.describe) expect(r.describe(() => false), r.key).toMatch(/^[A-Z][^]*\.$/);
+    // Roles an area owns are default roles.
+    for (const a of AREAS) for (const k of a.owns?.role ?? []) expect(DEFAULT_ROLES.some((r) => r.key === k), k).toBe(true);
+  });
+
+  it("leaves the area's roles out and words the default descriptions for the areas that are on", async () => {
+    const safety = (await roles()).find((r) => r.key === 'safety_manager')!;
+    expect(safety).toBeDefined();
+    expect((await roles()).find((r) => r.key === 'asset_manager')!.description).toMatch(/vehicles/);
+    const person = await t.api.post('/api/admin/users', { username: 'rowan.vale', email: 'rowan.vale@example.org', displayName: 'Rowan Vale', roles: ['safety_manager', 'agent'] });
+    expect(person.status).toBe(201);
+    const userId = person.body.user.id;
+    expect((await t.api.put('/api/mcp/admin/settings', { allowedRoles: ['agent', 'safety_manager'], roleTools: { safety_manager: ['search'] } })).status).toBe(200);
+
+    expect((await setFeatures(OFF)).status).toBe(200);
+    const now = await roles();
+    expect(now.map((r) => r.key)).not.toContain('safety_manager');
+    for (const r of now) expect(`${r.name}: ${r.description}`).not.toMatch(/\b(vehicles?|fleet|safety|hazards?|funding|grants?)\b/i);
+    expect(now.find((r) => r.key === 'asset_manager')!.description).toBe('Assets and sites, their tags, inventory counts, condition and replacement.');
+    expect(now.find((r) => r.key === 'compliance_officer')!.description).toBe('Compliance obligations, controls and committees.');
+    // The role itself answers as switched off and cannot be switched; given through the API, it is kept unseen.
+    expect((await t.api.get(`/api/admin/roles/${safety.id}`)).status).toBe(404);
+    expect((await t.api.post(`/api/admin/roles/${safety.id}/disable`)).status).toBe(404);
+    const kai = await t.api.post('/api/admin/users', { username: 'kai.moss', email: 'kai.moss@example.org', displayName: 'Kai Moss', roles: ['safety_manager'] });
+    expect(kai.status).toBe(201);
+    expect(kai.body.user.roles).toEqual([]);
+    // A person keeps it, unseen, when their other roles change.
+    expect((await t.api.get(`/api/admin/users/${userId}`)).body.roles.map((r: any) => r.key)).toEqual(['agent']);
+    expect((await t.api.patch(`/api/admin/users/${userId}`, { roles: ['agent', 'auditor'] })).status).toBe(200);
+    // AI assistant access: not offered, not shown, kept when saved.
+    const mcp = (await t.api.get('/api/mcp/admin')).body;
+    expect(mcp.roles.map((r: any) => r.key)).not.toContain('safety_manager');
+    expect(mcp.settings.allowedRoles).toEqual(['agent']);
+    expect(mcp.settings.roleTools).toEqual({});
+    expect((await t.api.put('/api/mcp/admin/settings', { allowedRoles: ['agent', 'auditor'], roleTools: {} })).status).toBe(200);
+    // Saving a role with its description as shown keeps the stored default (which names every area).
+    const asset = now.find((r) => r.key === 'asset_manager')!;
+    expect((await t.api.patch(`/api/admin/roles/${asset.id}`, { description: asset.description })).status).toBe(200);
+    // Role pickers elsewhere (a lifecycle's "who may move it", report sharing) leave it out too.
+    expect((await t.api.get('/api/admin/lifecycles/action')).body.roles.map((r: any) => r.key)).not.toContain('safety_manager');
+    expect((await t.api.get('/api/reports/roles')).body.map((r: any) => r.key)).not.toContain('safety_manager');
+    // The default-grants notice names no role or permission of the area.
+    expect(JSON.stringify((await t.api.get('/api/admin/roles/default-grants')).body)).not.toMatch(/safety|fleet|funding/i);
+
+    expect((await setFeatures(ON)).status).toBe(200);
+    expect((await roles()).map((r) => r.key)).toContain('safety_manager');
+    expect((await roles()).find((r) => r.key === 'asset_manager')!.description).toMatch(/vehicles/);
+    expect((await t.api.get(`/api/admin/users/${userId}`)).body.roles.map((r: any) => r.key).sort()).toEqual(['agent', 'auditor', 'safety_manager']);
+    const back = (await t.api.get('/api/mcp/admin')).body.settings;
+    expect(back.allowedRoles).toEqual(['agent', 'auditor', 'safety_manager']);
+    expect(back.roleTools).toEqual({ safety_manager: ['search'] });
+    await t.api.put('/api/mcp/admin/settings', { allowedRoles: null, roleTools: {} });
+  });
+
+  it('does not offer the safety hazard matrix while safety is off, and keeps the risks scored on it', async () => {
+    const offered = async () => (await t.api.get('/api/risks/scales')).body.filter((s: any) => s.offered).map((s: any) => s.key);
+    expect(await offered()).toEqual(expect.arrayContaining(['cyber_5x5', 'hazard_4x5']));
+    const before = await t.api.post('/api/risks', { title: 'Platform edge crowding', category: 'safety' });
+    expect(before.body.scale_key).toBe('hazard_4x5');
+
+    expect((await setFeatures({ safety: false })).status).toBe(200);
+    expect(await offered()).toEqual(['cyber_5x5']);
+    expect((await t.api.get('/api/risks/summary')).body.scales.map((s: any) => s.key)).toEqual(['cyber_5x5']);
+    expect((await t.api.get('/api/risks/heatmap?scale=hazard_4x5')).status).toBe(404);
+    expect((await t.api.get('/api/risks/appetite')).body.categories.map((c: any) => c.scale_name ?? '').join(' ')).not.toMatch(/hazard|safety/i);
+    // A new risk in a category scored on it uses the default scale; the earlier one keeps its scale.
+    expect((await t.api.post('/api/risks', { title: 'Wet stair treads', category: 'safety' })).body.scale_key).toBe('cyber_5x5');
+    expect((await t.api.get(`/api/risks/${before.body.id}`)).body.scale_key).toBe('hazard_4x5');
+    expect((await t.api.get('/api/risks/scales/hazard_4x5')).status).toBe(200);
+
+    expect((await setFeatures({ safety: true })).status).toBe(200);
+    expect(await offered()).toContain('hazard_4x5');
+  });
+
+  it('hides asset classes that rate vehicles while fleet is off', async () => {
+    const bus = await t.api.post('/api/asset-classes', { name: 'Forty-foot coach', applies_to: 'vehicle', useful_life_years: 12 });
+    expect(bus.status).toBe(201);
+    const pump = await t.api.post('/api/asset-classes', { name: 'Sump pump', applies_to: 'asset', useful_life_years: 10 });
+    expect(pump.status).toBe(201);
+    const names = async () => (await t.api.get('/api/asset-classes?pageSize=200')).body.rows.map((r: any) => r.name);
+    const dash = async () => (await t.api.get('/api/condition/dashboard')).body.classes.map((c: any) => c.name);
+    expect(await names()).toEqual(expect.arrayContaining(['Forty-foot coach', 'Sump pump']));
+
+    expect((await setFeatures({ fleet: false })).status).toBe(200);
+    expect(await names()).not.toContain('Forty-foot coach');
+    expect(await names()).toContain('Sump pump');
+    expect(await dash()).not.toContain('Forty-foot coach');
+    expect((await t.api.get(`/api/asset-classes/${bus.body.id}`)).status).toBe(404);
+
+    expect((await setFeatures({ fleet: true })).status).toBe(200);
+    expect(await names()).toContain('Forty-foot coach');
+    expect(await dash()).toContain('Forty-foot coach');
   });
 });

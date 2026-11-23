@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { Alert, Group, Paper, SimpleGrid, Text } from '@mantine/core';
 import {
-  Card, EditableSummary, ErrorState, formatDate, Icon, Loading, LookupChip, Menu, RecordPage, useAuth, useResource,
+  Card, EditableSummary, ErrorState, formatDate, Icon, Loading, LookupChip, lookupColor, lookupLabel, Menu, RecordPage, StatusChip, useAuth, useResource,
 } from '../../core';
 import type { RecordContext } from '../../core';
 import { ActionsPanel } from '../risks/ActionsPanel';
@@ -64,7 +64,7 @@ function Summary({ row }: RecordContext) {
   return (
     <div className="stack">
       {row.tier_override && (
-        <Alert color="blue" variant="light" icon={<Icon name="info" />} title="The tier was set by hand">
+        <Alert role="status" color="blue" variant="light" icon={<Icon name="info" />} title="The tier was set by hand">
           Set to <strong>{row._display?.tier_override ?? row.tier_override}</strong>; the rules give {row._display?.tier_computed ?? row.tier_computed}.
           Reason: {row.tier_override_reason}
         </Alert>
@@ -166,7 +166,8 @@ export function ProjectDetail() {
         type="project"
         status={(row) => (
           <Group gap={6} component="span" display="inline-flex">
-            <LookupChip list="project_stage" value={row.stage} />
+            {/* "Stage: Close" rather than a lone "Close", which reads like a button (E18-64). */}
+            {row.stage && <StatusChip color={lookupColor('project_stage', row.stage)} label={`Stage: ${lookupLabel('project_stage', row.stage)}`} />}
             {row.status !== 'active' && <LookupChip list="project_status" value={row.status} />}
             <TierChip tier={row.tier} />
             <RagWithTrend value={row.rag_overall} trend={row.rag_trend} />

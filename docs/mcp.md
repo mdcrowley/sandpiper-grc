@@ -472,6 +472,5 @@ It has no dependencies and runs on any Node.js 18 or later, including the portab
   says, so an allowed-host list or approval first suits installations that want only known
   connectors. A loopback redirect address cannot prove which program receives the answer; the
   screen warns about it.
-- Not built (see the epic E21): `private_key_jwt` for metadata-document connectors, sign-in
-  through the stdio bridge, and keeping the per-token request counts
-  outside process memory, so that several server processes share them (E16-43).
+- Not planned for now (E21-25): `private_key_jwt` for metadata-document connectors and sign-in
+  through the stdio bridge.

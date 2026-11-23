@@ -4,8 +4,10 @@
 // - Off until an administrator sets `feeds.calendar_enabled`; switching it off makes every feed answer
 //   404 at once (feeds stay listed and come back when it is switched on again).
 // - The address carries a secret of 32 random bytes (`grc_cal_...`); only its SHA-256 is kept, so it is
-//   shown once, when the feed is made or its address is replaced. The person can replace the address
-//   (the old one stops at once) or revoke the feed; an administrator can revoke anyone's.
+//   shown once, when the feed is made or its address is replaced. Making a feed or replacing its address
+//   needs a recent password confirmation, like an API token (W17-3). The person can replace the address
+//   (the old one stops at once) or revoke the feed; an administrator can revoke anyone's. A password
+//   change or reset, or a second-factor reset, revokes the person's feeds (core/tokens.ts revokeProgramAccess).
 // - Answering a feed loads its person afresh: a disabled or deleted account (or a revoked, replaced or
 //   unknown address) gets the same 404, which never says which. Each source comes from the calendar
 //   source registry (core/calendar.ts): its type loaded and switched on, its permission held, and every
@@ -20,7 +22,8 @@ import { calendarSources, type CalendarEvent } from '../../core/calendar.ts';
 import { UUID_RE } from '../../core/errors.ts';
 import type { ModuleContext, Row, SessionUser } from '../../core/module.ts';
 import { makeDbLimiter } from '../../core/ratelimit.ts';
-import { clientIp, isHttps } from '../../core/request.ts';
+import { configuredBase, loopbackBase, trustedBase } from '../../core/identity/base.ts';
+import { clientIp } from '../../core/request.ts';
 import { dayInZone } from '../../core/timezone.ts';
 import { tokenHash } from '../../core/tokens.ts';
 import { sensitive } from '../admin/shared.ts';
@@ -37,14 +40,14 @@ const TOKEN_RE = /^grc_cal_[A-Za-z0-9_-]{43}$/;
 
 export const calendarEnabled = async (ctx: ModuleContext) => (await ctx.settings.get<unknown>(SETTING_CALENDAR_ENABLED, false)) === true;
 
-const HOST_RE = /^[A-Za-z0-9.-]+(:\d{1,5})?$|^\[[0-9a-fA-F:]+\](:\d{1,5})?$/;
-
-/** The application's address as people reach it: setting `auth.public_url`, else the request's own host. */
+/**
+ * The application's address as people reach it (W17-7, core/identity/base.ts): setting `auth.public_url`,
+ * else the request's own host only when it names this machine (a local installation), else '' (links
+ * inside a feed are then relative). A feed address itself is made only with `trustedBase`, which
+ * refuses (409 `public_url_required`) on a reachable installation with no application address.
+ */
 export async function appBase(ctx: ModuleContext, req: FastifyRequest): Promise<string> {
-  const configured = String(await ctx.settings.get<unknown>('auth.public_url', '') ?? '').trim().replace(/\/+$/, '');
-  if (/^https?:\/\/[^\s]+$/.test(configured)) return configured;
-  const host = String(req.headers.host ?? '').trim();
-  return `${isHttps(req) ? 'https' : 'http'}://${HOST_RE.test(host) ? host : '127.0.0.1'}`;
+  return (await configuredBase(ctx.settings)) || loopbackBase(req) || '';
 }
 
 const feedAddress = (base: string, token: string) => `${base}/api/calendar/${token}.ics`;
@@ -201,6 +204,9 @@ export function registerCalendarFeeds(ctx: ModuleContext) {
     const input = checkInput(user, (req.body ?? {}) as Row, false);
     const count = (await db.one<{ n: number }>('select count(*)::int as n from calendar_feeds where user_id = $1 and revoked_at is null', [user.id]))!.n;
     if (count >= MAX_FEEDS_PER_PERSON) ctx.fail(409, 'too_many', `You can have up to ${MAX_FEEDS_PER_PERSON} calendar feeds. Revoke one you no longer use first.`);
+    // W17-3: a feed address is a credential for your account, like an API token: confirm the password first.
+    await sensitive(ctx, req, 'making a calendar feed');
+    const base = await trustedBase(ctx.settings, req); // before anything is stored (W17-7)
     const token = newToken();
     const row = (await db.one<Row>(
       `insert into calendar_feeds (user_id, name, token_hash, sources, detail) values ($1, $2, $3, $4::jsonb, $5) returning *`,
@@ -210,12 +216,12 @@ export function registerCalendarFeeds(ctx: ModuleContext) {
       summary: `Calendar feed made: ${input.name}`, after: { name: input.name, sources: input.sources, detail: input.detail },
     });
     reply.code(201);
-    return { ...present(row), address: feedAddress(await appBase(ctx, req), token) };
+    return { ...present(row), address: feedAddress(base, token) };
   });
   ctx.describeRoute({
     method: 'POST', path: '/api/me/calendar-feeds', summary: 'Make a calendar feed; its address is shown once', tag: 'Calendar feeds',
     body: '{ name, sources: [source key], detail: "titles" | "busy" }', response: 'The feed with `address` (shown only now)',
-    description: '409 feeds_off while an administrator has not switched calendar feeds on; 409 too_many past 10 feeds. Not with an API token.',
+    description: 'Needs a recent password confirmation (403 `reauth_required`). 409 `public_url_required` on an installation other computers reach while no application address (auth.public_url) is set. 409 feeds_off while an administrator has not switched calendar feeds on; 409 too_many past 10 feeds. Not with an API token.',
   });
 
   app.patch('/api/me/calendar-feeds/:id', async (req) => {
@@ -241,14 +247,16 @@ export function registerCalendarFeeds(ctx: ModuleContext) {
     const user = own(req);
     const feed = await ownFeed(req, user);
     if (!(await calendarEnabled(ctx))) ctx.fail(409, 'feeds_off', 'Calendar feeds are switched off. An administrator can switch them on.');
+    await sensitive(ctx, req, 'replacing a calendar feed address');
+    const base = await trustedBase(ctx.settings, req);
     const token = newToken();
     const row = (await db.one<Row>('update calendar_feeds set token_hash = $2, last_used_at = null where id = $1 returning *', [feed.id, tokenHash(token)]))!;
     await ctx.audit(req, { action: 'calendar_feed.rotate', recordType: 'calendar_feed', recordId: feed.id, summary: `Calendar feed address replaced: ${feed.name}` });
-    return { ...present(row), address: feedAddress(await appBase(ctx, req), token) };
+    return { ...present(row), address: feedAddress(base, token) };
   });
   ctx.describeRoute({
     method: 'POST', path: '/api/me/calendar-feeds/:id/rotate', summary: 'Replace a calendar feed\'s address; the old one stops at once', tag: 'Calendar feeds',
-    response: 'The feed with its new `address` (shown only now)',
+    response: 'The feed with its new `address` (shown only now)', description: 'Needs a recent password confirmation (403 `reauth_required`).',
   });
 
   app.delete('/api/me/calendar-feeds/:id', async (req) => {

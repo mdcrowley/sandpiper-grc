@@ -53,6 +53,13 @@ export interface EnqueueOptions {
   backoffSeconds?: number;
   /** At most one waiting or running job per key: a second enqueue with the same key is skipped. */
   key?: string;
+  /**
+   * With `key`: when the job with that key is already running (rather than waiting), ask it to
+   * run once more after it finishes instead of skipping (W17 review). For hook-triggered work that
+   * reads its list when it starts (push delivery, tracker sends), so something added during a run
+   * is not left for the next sweep. The follow-up run has the running job's type, payload and key.
+   */
+  rerunIfRunning?: boolean;
 }
 
 export interface ScheduleOptions {
@@ -112,8 +119,11 @@ export function requestedWait(err: unknown, now = Date.now()): number | null {
 export interface JobQueue {
   /** Registers the handler for a job type. Call it from a module's `register()`. */
   register(type: string, handler: JobHandler, opts?: HandlerOptions): void;
-  /** Queues a job. Never throws for a duplicate `key`: `queued` is then false. */
-  enqueue(type: string, payload?: Row, opts?: EnqueueOptions): Promise<{ id: string | null; queued: boolean }>;
+  /**
+   * Queues a job. Never throws for a duplicate `key`: `queued` is then false, and `rerun` is true
+   * when `rerunIfRunning` asked the running job with that key to run once more.
+   */
+  enqueue(type: string, payload?: Row, opts?: EnqueueOptions): Promise<{ id: string | null; queued: boolean; rerun?: boolean }>;
   /** Creates or updates a recurring schedule (keeps its next run time when it already exists). */
   schedule(name: string, opts: ScheduleOptions): Promise<void>;
   /** Runs every job that is due (and queues due schedules). Returns how many ran. */
@@ -142,11 +152,17 @@ export function makeJobQueue(db: Db): JobQueue {
 
   async function finish(job: Row, outcome: { ok: true; result: unknown } | { ok: false; error: unknown }) {
     if (outcome.ok) {
-      await db.query(
+      // Reads the rerun flag in the same statement: an enqueue that sets it after this update
+      // no longer finds the job running and queues a new job itself.
+      const done = await db.one<Row>(
         `update jobs set status = 'done', result = $2::jsonb, last_error = null, finished_at = now(), locked_by = null, locked_until = null
-         where id = $1 and locked_by = $3`,
+         where id = $1 and locked_by = $3
+         returning rerun, type, payload, max_attempts, backoff_seconds, dedupe_key`,
         [job.id, JSON.stringify(outcome.result ?? null), worker],
       );
+      if (done?.rerun && done.dedupe_key) {
+        await queue.enqueue(done.type, done.payload ?? {}, { key: done.dedupe_key, maxAttempts: done.max_attempts, backoffSeconds: done.backoff_seconds });
+      }
       return;
     }
     const err = outcome.error as Error & { permanent?: boolean; deferred?: boolean };
@@ -177,7 +193,8 @@ export function makeJobQueue(db: Db): JobQueue {
   async function claim(id: string, any = false): Promise<Row | undefined> {
     const types = [...handlers.keys()];
     return db.one<Row>(
-      `update jobs set status = 'running', attempts = attempts + 1, locked_by = $2, started_at = now(),
+      // A fresh run reads the current state, which answers any earlier request to run again.
+      `update jobs set status = 'running', attempts = attempts + 1, locked_by = $2, started_at = now(), rerun = false,
          locked_until = now() + make_interval(secs => $3::int)
        where id = $1 and type = any($4::text[]) and ${any ? `(status in ('queued', 'failed') or (status = 'running' and locked_until < now()))` : due}
        returning *`,
@@ -253,7 +270,7 @@ export function makeJobQueue(db: Db): JobQueue {
     async enqueue(type, payload = {}, opts = {}) {
       const h = handlers.get(type)?.opts;
       const runAt = opts.runAt ? new Date(opts.runAt) : new Date(Date.now() + Math.max(0, opts.delayMs ?? 0));
-      const row = await db.one<{ id: string }>(
+      const insert = () => db.one<{ id: string }>(
         `insert into jobs (type, payload, run_at, max_attempts, backoff_seconds, dedupe_key)
          values ($1, $2::jsonb, $3, $4, $5, $6)
          on conflict (dedupe_key) where dedupe_key is not null and status in ('queued', 'failed', 'running') do nothing
@@ -261,6 +278,18 @@ export function makeJobQueue(db: Db): JobQueue {
         [type, JSON.stringify(payload ?? {}), runAt.toISOString(), opts.maxAttempts ?? h?.maxAttempts ?? 5,
           opts.backoffSeconds ?? h?.backoffSeconds ?? 60, opts.key ?? null],
       );
+      let row = await insert();
+      if (!row && opts.key && opts.rerunIfRunning) {
+        // The key is taken. A waiting (queued or failed) job will read the current state when it
+        // runs; a running one may already have read it, so it is asked to run once more. When it
+        // finished in between (the flag matches nothing and nothing waits), try the insert again.
+        for (let i = 0; i < 3 && !row; i++) {
+          const flagged = await db.one(`update jobs set rerun = true where dedupe_key = $1 and status = 'running' returning id`, [opts.key]);
+          if (flagged) return { id: null, queued: false, rerun: true };
+          if (await db.one(`select 1 from jobs where dedupe_key = $1 and status in ('queued', 'failed')`, [opts.key])) break;
+          row = await insert();
+        }
+      }
       // Not from inside a trial (E13-22): its rows are rolled back, and the job must not run in it.
       if (row && timer && !kick && !inTrial() && runAt.getTime() <= Date.now()) {
         // The poller is running: do not make a new job wait for the next tick.

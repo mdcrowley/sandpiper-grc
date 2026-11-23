@@ -29,6 +29,8 @@ Retired vehicles, disposed assets and sites no longer in use are left out of eve
 
 ## Asset classes
 
+While fleet is off, asset classes that rate vehicles are hidden from **Asset classes**, the dashboard and the aging list, and come back when fleet is switched on.
+
 Open the **Asset classes** tab. Select **New asset class**, or **Create** then **Asset class**:
 
 1. Enter the **Name**, and choose what it **Rates**: **Vehicle**, **Asset** or **Site**. A class rates one kind of record, and cannot change kind while records belong to it.

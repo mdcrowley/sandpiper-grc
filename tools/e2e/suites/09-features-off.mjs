@@ -35,6 +35,9 @@ const TERMS = {
   reports: [/\breport (catalog|builder|packs?|schedules?)\b/i, /\bscheduled reports?\b/i, /\bsaved dashboards?\b/i, /\bdashboards\b/i],
   fleet: [/\bvehicles?\b/i, /\bfleet\b/i],
   safety: [/\bsafety\b/i, /\bhazards?\b/i],
+  // Not "funding" or "funder" alone: a project's or asset's funding source and the inventory's funder
+  // interest option are not the funding area.
+  funding: [/\bgrant (compliance|awards?)\b/i, /\bfunding (awards?|certifications?)\b/i, /\bfunder compliance reviews?\b/i, /\bsub-?recipients?\b/i],
 };
 
 /**
@@ -46,8 +49,6 @@ const ALLOWED = [
   { route: '/admin/features', text: /./, why: 'the feature switches themselves' },
   // History is not rewritten: the audit log and record history keep what happened.
   { route: /^\/admin\/audit/, text: /./, why: 'the audit log records past events as they were' },
-  // Default role names are an administrator's data ("Safety manager", "Project manager", "Security lead").
-  { route: /./, text: /\b(Safety manager|Project manager|Security lead)\b/, why: 'role names are data' },
   // Words that are not about the area: "password policy", "retention policy", "sign-in policy", "content security policy", "notification policy".
   { route: /./, text: /\b(password|retention|sign-in|signin|content security|lockout|session|mfa|second-factor|access|privacy|cookie) polic(y|ies)\b/i, why: 'policies that are settings, not the policy module' },
   { route: /./, text: /\bpolicy\b.*\b(role|token|password|session)\b/i, why: 'a setting policy' },
@@ -60,8 +61,6 @@ const ALLOWED = [
   { route: /^\/security-incidents\/(kit|declare)/, text: /./, why: 'incident playbooks and notification parties are data' },
   // Field labels of types that stay on that happen to be a switched-off type's name.
   { route: /^\/(vendors|vulnerabilities)/, text: /^Services?$/, why: 'a vendor\'s services and a vulnerability\'s network service are their own fields' },
-  // The risk scales are shared: the hazard matrix is a scale a risk may use too.
-  { route: /^\/risks/, text: /\bhazard matrix\b/i, why: 'risk scales are shared data' },
   // The guide page on risks also covers the action tracker, which is always on.
   { route: /^\/help/, text: /^Risks, actions and obligations$/, why: 'the guide page also covers the always-on action tracker' },
 ];
@@ -204,8 +203,8 @@ async function recordData(api, resources, meta, offTypes) {
   }
   // A list value that is the name of a switched-off record type ("Risk" as an action source) is not data.
   for (const values of Object.values(meta.lookups ?? {})) for (const v of values) if (!typeNames.has(v.label)) add(v.label);
-  // Roles are named and described by the organization ("Safety manager", "submit ... through the portal").
-  for (const r of listOf((await api.get('/api/admin/roles')).body)) { add(r.name); add(r.description); }
+  // Roles are not data here (E18-64): a default role of a switched-off area is not shown, and an unedited
+  // default description names only the areas that are on. Both are checked on the pages and below.
   const users = await api.get('/api/admin/users?pageSize=500');
   for (const u of listOf(users.body)) { add(u.displayName ?? u.display_name); add(u.username); add(u.email); }
   return out;
@@ -285,6 +284,20 @@ async function serverLeaks(t, offTypes, offAreas, check) {
         break;
       }
     }
+  }
+  // E18-64: set-up that belongs to an area. Roles (names and descriptions), the risk scales offered and
+  // the asset classes listed: none of them names, or rates, a switched-off part.
+  const named = (where, text) => {
+    for (const a of offAreas) for (const re of TERMS[a] ?? []) if (re.test(text ?? '')) { problems.push(`${where} names ${a}: "${String(text).slice(0, 120)}"`); return; }
+  };
+  for (const r of listOf((await api.get('/api/admin/roles')).body)) { named('/api/admin/roles', r.name); named('/api/admin/roles', r.description); }
+  const mcp = await api.get('/api/mcp/admin');
+  for (const r of mcp.body?.roles ?? []) named('/api/mcp/admin roles', r.name);
+  const scales = await api.get('/api/risks/scales');
+  if (scales.status === 200) for (const s of scales.body.filter((x) => x.offered !== false)) { named('/api/risks/scales', s.name); named('/api/risks/scales', s.description); }
+  const classes = await api.get('/api/asset-classes?pageSize=500');
+  if (classes.status === 200) {
+    for (const c of listOf(classes.body)) if (offTypes.has(c.applies_to)) problems.push(`/api/asset-classes lists "${c.name}", which rates switched-off ${c.applies_to} records`);
   }
   return [...new Set(problems)];
 }
@@ -396,7 +409,7 @@ function tour(name, pickOff) {
 
 export const tests = [
   tour('every area off: nothing of them is shown', (areas) => areas),
-  tour('portal, fleet and safety off: nothing of them is shown', () => ['portal', 'fleet', 'safety']),
+  tour('portal, fleet, safety and funding off: nothing of them is shown', () => ['portal', 'fleet', 'safety', 'funding']),
   {
     // Areas with standard dashboards of their own, while dashboards stay on (BW-04): those dashboards
     // are not listed, and no dashboard that stays shows a tile about them.

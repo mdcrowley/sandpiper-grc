@@ -35,7 +35,7 @@ The **People** tab lists everyone in the position.
 
 ## The roster
 
-Open **People > People**. The tiles count people who are **Active** and **On leave**, how many are **With an account**, and the **Positions**. The list shows each person's reference (`PER-` numbers), name, employee number, position, department and status; more columns (account, supervisor, work site, hire date, source) are in the column chooser.
+Open **People > People**. The title and **New person** come first, then the tiles. They count people who are **Active** and **On leave**, how many are **With an account**, and the **Positions**. The list shows each person's reference (`PER-` numbers), name, employee number, position, department and status; more columns (account, supervisor, work site, hire date, source) are in the column chooser.
 
 ### Add a person
 

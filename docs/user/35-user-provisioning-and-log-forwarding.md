@@ -24,7 +24,7 @@ Until provisioning is switched on, every request is refused, even with a valid t
 ### What provisioning may do
 
 - **Create accounts.** A new account has the name, email address and user name the identity provider sends, **no password here** and **no roles**. It is shown on **Users** like any other account. If the user name is not one the application accepts (for example an email address), a local user name is made from it (`sam.sample@example.org` becomes `sam.sample`); the identity provider keeps using its own.
-- **Change accounts**: the name, email address and user name.
+- **Change accounts**: the name, email address and user name. When the email address changes, the old address is sent a message saying so.
 - **Deactivate accounts.** When someone is switched off or removed at the identity provider, their account here is **disabled at once**: their sessions end, their unused set-up and reset links stop working, and their **API tokens** and **AI assistant connections** are revoked. Nothing is deleted: the account, its roles and its history stay, and the audit log records what was ended.
 - **Enable accounts again**, but only an account provisioning disabled itself. Enabling restores the account only: its tokens and assistant connections stay revoked. An account an administrator disabled stays disabled whatever the identity provider sends.
 - **Send groups and their members.** A group gives **no role** until you map it (below).
@@ -34,6 +34,7 @@ Provisioning never:
 - deactivates the last active administrator (the request is refused);
 - sees or changes the **break-glass account** (see [Administration](09-administration.md#the-break-glass-account));
 - gives a role that can administer (any role holding `admin.administer`, `admin.*` or `*`);
+- changes the email address of, deactivates, or enables again an account that can administer (any role holding an `admin.` permission or `*`), even if that role is switched off. Do that by hand under **Users**. The refusal is recorded in the audit log;
 - removes a role an administrator gave by hand.
 
 ### Groups and roles
@@ -48,7 +49,7 @@ Every member's roles are brought in step at once, and again whenever someone joi
 
 ### Signing in
 
-Accounts made by provisioning have no password here, so people sign in through single sign-on (see [Sign-in providers](09-administration.md#sign-in-providers-single-sign-on)). A sign-in provider matches an account by its verified email address and normally asks for the account's password before linking the two, which a provisioned account does not have. Choose the provider under **Sign-in provider for new accounts**: every account provisioning creates, or enables again, may then link that provider by its email address at its first sign-in, for 30 days. Without one, an administrator allows each link under **Users** as described in [Administration](09-administration.md#passkeys-and-single-sign-on-on-a-persons-page).
+Accounts made by provisioning have no password here, so people sign in through single sign-on (see [Sign-in providers](09-administration.md#sign-in-providers-single-sign-on)). A sign-in provider matches an account by its verified email address and normally asks for the account's password before linking the two, which a provisioned account does not have. Choose the provider under **Sign-in provider for new accounts**: every account provisioning creates, or enables again, may then link that provider by its email address at its first sign-in, for 30 days. Accounts that can administer never get a link permit from provisioning. Without one, an administrator allows each link under **Users** as described in [Administration](09-administration.md#passkeys-and-single-sign-on-on-a-persons-page).
 
 ### Tokens
 

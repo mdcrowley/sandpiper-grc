@@ -12,6 +12,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { FastifyRequest } from 'fastify';
 import { requireRecentAuth } from '../../core/auth.ts';
+import { featureState, ownedOff } from '../../core/features.ts';
 import { UUID_RE } from '../../core/errors.ts';
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
 import { checkSources, issueToken, scopeCovered, tokenScopes } from '../../core/tokens.ts';
@@ -205,9 +206,23 @@ const mod: ModuleDef = {
 
     const adminPre = { preHandler: ctx.requirePerm(ADMIN) };
 
+    /**
+     * Roles of switched-off areas (`owns.role`, core/features.ts) are not shown (E18-64): left out of
+     * the roles offered and of the settings as read. They stay stored, and saving keeps them.
+     */
+    const roleOff = async () => { const s = await featureState(db); return (key: string) => ownedOff(s, 'role', key); };
+    const shownSettings = async (settings: McpSettings): Promise<McpSettings> => {
+      const off = await roleOff();
+      return {
+        ...settings,
+        allowedRoles: settings.allowedRoles ? settings.allowedRoles.filter((k) => !off(k)) : settings.allowedRoles,
+        roleTools: Object.fromEntries(Object.entries(settings.roleTools ?? {}).filter(([k]) => !off(k))),
+      };
+    };
+
     app.get('/api/mcp/admin', adminPre, async (req) => {
       sessionOnly(ctx, req);
-      const settings = await readSettings(ctx);
+      const settings = await shownSettings(await readSettings(ctx));
       const days = Math.min(90, Math.max(1, Number((req.query as Row).days) || 30));
       const usage = await db.query<Row>(
         `select c.token_id, max(c.token_name) as token_name, c.user_id, max(u.display_name) as user_name,
@@ -223,7 +238,8 @@ const mod: ModuleDef = {
          from mcp_calls c left join users u on u.id = c.user_id order by c.at desc, c.id desc limit 50`);
       const tokens = (await db.query<{ n: number }>(
         `select count(*)::int as n from api_tokens where revoked_at is null and expires_at > now() and (scopes ? 'mcp.use' or scopes ? 'mcp.*')`))[0]?.n ?? 0;
-      const roles = await db.query<Row>('select key, name, enabled from roles order by name');
+      const off = await roleOff();
+      const roles = (await db.query<Row>('select key, name, enabled from roles order by name')).filter((r) => !off(r.key));
       return {
         settings, days, activeTokens: tokens, roles,
         tools: installedTools(ctx).map((t) => ({
@@ -280,7 +296,8 @@ const mod: ModuleDef = {
         else if (bad) fields.allowedOrigins = `"${bad}" is not an origin. Write it as scheme, host and port only, e.g. https://tools.example.org.`;
         else next.allowedOrigins = list;
       }
-      const roleKeys = new Set((await db.query<{ key: string }>('select key from roles')).map((r) => r.key));
+      const off = await roleOff();
+      const roleKeys = new Set((await db.query<{ key: string }>('select key from roles')).map((r) => r.key).filter((k) => !off(k)));
       if (b.allowedRoles !== undefined) {
         if (b.allowedRoles === null) next.allowedRoles = null;
         else if (!Array.isArray(b.allowedRoles)) fields.allowedRoles = 'Give a list of roles, or null for everyone.';
@@ -289,7 +306,7 @@ const mod: ModuleDef = {
           const unknown = keys.filter((k) => !roleKeys.has(k));
           if (unknown.length) fields.allowedRoles = `Unknown roles: ${unknown.join(', ')}.`;
           else if (!keys.length) fields.allowedRoles = 'Choose at least one role, or allow everyone.';
-          else next.allowedRoles = keys;
+          else next.allowedRoles = [...new Set([...keys, ...(current.allowedRoles ?? []).filter(off)])].sort();
         }
       }
       if (b.roleTools !== undefined) {
@@ -303,6 +320,7 @@ const mod: ModuleDef = {
             if ('error' in r) { fields.roleTools = `${role}: ${r.error}`; break; }
             if (r.tools) out[role] = r.tools;
           }
+          for (const [role, list] of Object.entries(current.roleTools ?? {})) if (off(role)) out[role] = list;
           if (!fields.roleTools) next.roleTools = out;
         }
       }
@@ -312,7 +330,7 @@ const mod: ModuleDef = {
         await recentAuth(req, 'changing AI assistant access');
         for (const k of changed) await ctx.settings.set(KEYS[k], next[k], req);
       }
-      return readSettings(ctx);
+      return shownSettings(await readSettings(ctx));
     });
     ctx.describeRoute({
       method: 'PUT', path: '/api/mcp/admin/settings', summary: 'Change AI assistant access (needs a recent password confirmation)', permission: ADMIN, tag: 'AI assistants',

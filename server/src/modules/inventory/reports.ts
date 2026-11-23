@@ -1,4 +1,5 @@
 import { featureState, optionName, optionOn } from '../../core/features.ts';
+import { guardFormula } from '../../core/export/csv.ts';
 import type { ModuleContext, Row, SessionUser } from '../../core/module.ts';
 import { todayInZone } from '../../core/timezone.ts';
 
@@ -285,6 +286,6 @@ function daysBetween(from: string | Date | null, to: string | Date | null): numb
 function csvCell(v: unknown): string {
   if (v === null || v === undefined) return '';
   let s = String(v);
-  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`; // stop spreadsheet formula injection
+  s = guardFormula(s); // stop spreadsheet formula injection (core/export/csv.ts, W17-5)
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }

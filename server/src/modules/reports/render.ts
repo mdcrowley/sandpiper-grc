@@ -1,6 +1,7 @@
 // Export renderers: CSV, and a self-contained print-ready HTML document (no scripts, no outside
 // resources) that the browser saves as PDF. Restricted content is watermarked as the core export is.
 import { CURRENCY } from '../../core/config.ts';
+import { guardFormula } from '../../core/export/csv.ts';
 import type { PrintBranding } from '../../core/organization.ts';
 import type { ReportResult, ResultColumn, ResultRow } from './query.ts';
 import { formatStamp } from './query.ts';
@@ -13,7 +14,7 @@ export const esc =(s: unknown) => String(s ?? '').replace(/[&<>"']/g, (ch) => ({
 function csvCell(v: unknown): string {
   if (v === null || v === undefined) return '';
   let s = typeof v === 'object' ? JSON.stringify(v) : String(v);
-  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`; // stop spreadsheet formula injection
+  s = guardFormula(s); // stop spreadsheet formula injection (core/export/csv.ts, W17-5)
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 

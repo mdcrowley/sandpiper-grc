@@ -46,6 +46,20 @@ describe('server logging (E16-16)', () => {
     expect(redactText(`[error] GET /api/vendor-response/${token}?step=2: failed`)).toBe('[error] GET /api/vendor-response/***?step=*** failed');
   });
 
+  it('takes calendar feed addresses and the application\'s other tokens out (W17-3b)', () => {
+    const feed = `grc_cal_${'M'.repeat(20)}-${'q'.repeat(22)}`;
+    expect(redactPath(`/api/calendar/${feed}.ics`)).toBe('/api/calendar/***');
+    expect(redactPath(`/api/v1/calendar/${feed}.ics`)).toBe('/api/v1/calendar/***');
+    expect(JSON.stringify(redact({ path: `/api/calendar/${feed}.ics` }))).not.toContain(feed);
+    // A long opaque segment followed by a file ending is masked too; short names and record ids are kept.
+    expect(redactPath(`/api/other/${'b'.repeat(40)}.pdf`)).toBe('/api/other/***.pdf');
+    expect(redactPath('/assets/index-3f2a9c1d.js')).toBe('/assets/index-3f2a9c1d.js');
+    expect(redactPath('/api/tickets/3f2a9c1d-0b7e-4c55-9a1e-2d4b6f8a0c11.pdf')).toBe('/api/tickets/3f2a9c1d-0b7e-4c55-9a1e-2d4b6f8a0c11.pdf');
+    for (const kind of ['cal', 'scim', 'relay', 'pat']) {
+      expect(redactText(`refused grc_${kind}_AbC123xyz_-9 from 192.0.2.1`)).toBe(`refused grc_${kind}_*** from 192.0.2.1`);
+    }
+  });
+
   it('writes structured lines, honors the level, and rotates by size keeping the previous run', () => {
     const dir = join(scratch, 'rotate');
     writeFileSync(join(scratch, 'placeholder'), '');

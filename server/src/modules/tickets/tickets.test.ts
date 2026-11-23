@@ -396,7 +396,9 @@ describe('sample data', () => {
     expect(await count('parent_ticket_id is not null')).toBe(2);
     expect((await t.db.one<{ n: number }>(`select count(*)::int as n from problems where title like '[Sample]%'`))!.n).toBe(2);
     expect((await t.db.one<{ n: number }>(`select count(*)::int as n from knowledge_articles where title like '[Sample]%'`))!.n).toBe(4);
-    const item = await t.db.one<{ questions: unknown[]; tasks: unknown[] }>(`select questions, tasks from catalog_items where name like '[Sample]%'`);
+    const item = await t.db.one<{ questions: unknown[]; tasks: unknown[] }>(`select questions, tasks from catalog_items where name = '[Sample] Vehicle equipment fault'`);
+    // E18-64: the sample items are offered in the self-service portal, so it is not empty once switched on.
+    expect((await t.db.one<{ n: number }>(`select count(*)::int as n from catalog_items where name like '[Sample]%' and portal`))!.n).toBe(3);
     expect(item?.questions).toHaveLength(4);
     expect(item?.tasks).toHaveLength(3);
 

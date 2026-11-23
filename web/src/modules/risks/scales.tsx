@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Badge, todayInZone, useFetch } from '../../core';
 import type { ColorName } from '../../core';
 
@@ -14,11 +15,23 @@ export interface Scale {
   matrix: Record<string, Record<string, string>>;
   ratings: ScaleRating[];
   acceptance_threshold: string | null;
+  /** False for a scale of a switched-off area (the safety hazard matrix while safety is off): offered nowhere. */
+  offered?: boolean;
 }
 
 /** Risk scales are data held by the server; every risk screen reads them from here. */
 export function useScales() {
   return useFetch<Scale[]>('/api/risks/scales');
+}
+
+/**
+ * The scales that may be chosen (the heat map, the scales page). A scale of a switched-off area is
+ * left out (E18-64); risks already scored on it still find it through `useScales`.
+ */
+export function useOfferedScales() {
+  const res = useScales();
+  const data = useMemo(() => res.data?.filter((s) => s.offered !== false), [res.data]);
+  return { ...res, data };
 }
 
 export function ratingOf(scale: Scale | undefined, key: string | null | undefined): ScaleRating | undefined {

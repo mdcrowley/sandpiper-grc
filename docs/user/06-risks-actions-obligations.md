@@ -32,7 +32,7 @@ Open **Cybersecurity > Risk register**. From top to bottom the page has:
 - the **Heat map** card, with the ranked risks beside it;
 - the list of risks.
 
-The buttons at the top open **Risk reviews**, the **Risk report**, **Risk scales** and **Risk appetite** (administrators of risks only) and **Print**.
+Tabs under the title open **Register**, **Reviews**, **Report** and, for administrators of risks, **Scales** and **Appetite**. **Print** and **New risk** are at the top. The **Critical** and **High** tiles count risks at that common level across every scale.
 
 ### The two scales
 
@@ -81,7 +81,7 @@ The **Heat map** card shows one scale at a time as a grid, with the worst likeli
 
 The controls at the top of the card:
 
-1. **Scale**: choose **Cyber and enterprise risk** or **Safety hazard matrix** (with more than three scales, a drop-down list). The line above the grid names the scale and gives its description.
+1. **Scale**: choose **Cyber and enterprise risk** or **Safety hazard matrix** (with more than three scales, a drop-down list). The line above the grid names the scale and gives its description. A scale that belongs to a part switched off under **Administration > Features** (the safety hazard matrix while safety management is off) is not offered; a new risk in a category scored on it uses the cyber and enterprise scale.
 2. **Residual** or **Inherent**: which score to plot.
 3. **Show movement**: draws an arrow from each risk's inherent cell to its residual cell, so you can see where controls move risks. One arrow is drawn for each pair of cells, however many risks make that move. Risks whose two scores fall in the same cell have no arrow.
 4. **Include closed risks**: closed risks are left out unless you switch this on. In the ranked list they then carry their **Closed** status.

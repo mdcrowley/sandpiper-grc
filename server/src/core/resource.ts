@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { guardFormula } from './export/csv.ts';
 import { CURRENCY } from './config.ts';
 import { inTrial, type Db } from './db.ts';
 import { fail, UUID_RE } from './errors.ts';
@@ -735,7 +736,7 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
   function csvCell(v: unknown): string {
     if (v === null || v === undefined) return '';
     let s = v instanceof Date ? v.toISOString() : typeof v === 'object' ? JSON.stringify(v) : String(v);
-    if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`; // stop spreadsheet formula injection
+    s = guardFormula(s); // stop spreadsheet formula injection (core/export/csv.ts, W17-5)
     return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   }
 

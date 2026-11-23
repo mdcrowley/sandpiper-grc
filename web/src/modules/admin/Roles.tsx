@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   ApiError, Badge, Button, Card, EmptyState, ErrorState, errorMessage, Loading, Modal, PageHeader, StatusChip, TableWrap, TextArea,
-  TextField, useFetch, useToast,
+  TextField, useAuth, useFetch, useToast,
 } from '../../core';
 import { Notice } from './common';
 import type { Role, RolesResponse } from './common';
@@ -22,6 +22,7 @@ export function summarizeGrants(grants: string[]): string {
 export function RolesPage() {
   const navigate = useNavigate();
   const toast = useToast();
+  const { areaOn } = useAuth();
   const { data, error, reload } = useFetch<RolesResponse>('/api/admin/roles');
   const [saving, setSaving] = useState('');
   const [creating, setCreating] = useState(false);
@@ -63,7 +64,7 @@ export function RolesPage() {
       />
       <div className="stack adm-notices">
         <Notice>
-          <strong>Start with a small team.</strong> The Requester, Approver, Executive viewer and Auditor roles are
+          <strong>Start with a small team.</strong> The {areaOn('portal') ? 'Requester, ' : ''}Approver, Executive viewer and Auditor roles are
           switched off until you open the application to those audiences. While a role is off its members keep the role but get none of its permissions;
           switching it on takes effect at once, with no restart. Every switch is recorded in the audit log.
         </Notice>
@@ -92,7 +93,7 @@ export function RolesPage() {
             <TableWrap label="Roles" className="adm-table-frame">
               <table className="table">
                 <thead>
-                  <tr><th scope="col">Role</th><th scope="col">Access</th><th scope="col" className="num">Members</th><th scope="col">Second factor</th><th scope="col">Switched on</th></tr>
+                  <tr><th scope="col">Role</th><th scope="col">Switched on</th><th scope="col">Access</th><th scope="col" className="num">Members</th><th scope="col" className="adm-col-wide">Second factor</th></tr>
                 </thead>
                 <tbody>
                   {data.roles.map((r) => (
@@ -102,15 +103,16 @@ export function RolesPage() {
                         {AUDIENCE_ROLES.includes(r.key) && <Badge color="purple">Audience switch</Badge>}
                         {r.description && <div className="muted">{r.description}</div>}
                       </td>
-                      <td>{summarizeGrants(r.grants)}</td>
-                      <td className="num">{r.members}</td>
-                      <td>{r.requires_mfa ? <StatusChip color="blue" label="Required" /> : <span className="muted">Optional</span>}</td>
+                      {/* The switch sits next to the name, so it stays in view on a narrow screen (E18-64). */}
                       <td onClick={(e) => e.stopPropagation()}>
                         <Switch
                           hideLabel label={`${r.name} switched on`} checked={r.enabled}
                           disabled={saving === r.id || r.key === 'administrator'} onChange={(on) => void toggle(r, on)}
                         />
                       </td>
+                      <td>{summarizeGrants(r.grants)}</td>
+                      <td className="num">{r.members}</td>
+                      <td className="adm-col-wide">{r.requires_mfa ? <StatusChip color="blue" label="Required" /> : <span className="muted">Optional</span>}</td>
                     </tr>
                   ))}
                 </tbody>

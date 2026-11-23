@@ -116,6 +116,19 @@ describe('work-tracker bridge', () => {
     expect(payload.record.title).toBe('Renew the depot certificate');
   });
 
+  it('asks a send that is already running to run once more for a record sent meanwhile (W17 review)', async () => {
+    await t.db.query(`delete from jobs where type = 'feeds.tracker_push' and dedupe_key = 'feeds.tracker_push'`);
+    const running = await t.app.jobs.enqueue('feeds.tracker_push', {}, { key: 'feeds.tracker_push', delayMs: 60_000 });
+    // That run has been claimed by a process and has already read what is waiting.
+    await t.db.query(`update jobs set status = 'running', locked_by = 'elsewhere:1', locked_until = now() + interval '5 minutes' where id = $1`, [running.id]);
+    const another = (await t.api.post('/api/actions', { title: 'Replace the platform display', status: 'open' })).body.id;
+    expect((await t.api.post('/api/tracker/send', { record_type: 'action', record_id: another, connector_id: connector.id })).status).toBe(202);
+    // Before the fix the request was skipped and waited for the next scheduled run.
+    const rows = await t.db.query<any>(`select id, status, rerun from jobs where type = 'feeds.tracker_push' and dedupe_key = 'feeds.tracker_push'`);
+    expect(rows).toEqual([{ id: running.id, status: 'running', rerun: true }]);
+    await t.db.query('delete from jobs where id = $1', [running.id]);
+  });
+
   it('brings a status back only with a valid, fresh, unseen signature; every refusal looks the same', async () => {
     const link = await t.db.one<any>('select id from external_ticket_links where record_id = $1', [actionId]);
     const post = (id: string, body: object, opts: { secret?: string; ts?: number; raw?: string } = {}) => {

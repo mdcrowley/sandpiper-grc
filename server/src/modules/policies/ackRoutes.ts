@@ -1,5 +1,6 @@
 // Acknowledgment routes: a person's own list and acknowledgment, and the tracking view per policy.
 import type { FastifyRequest } from 'fastify';
+import { guardFormula } from '../../core/export/csv.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { ackState, ackTracking } from './acknowledgments.ts';
 import { daysBetween, localDate } from './dates.ts';
@@ -10,7 +11,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 function csvCell(v: unknown): string {
   if (v === null || v === undefined) return '';
   let s = v instanceof Date ? v.toISOString() : String(v);
-  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`; // stop spreadsheet formula injection
+  s = guardFormula(s); // stop spreadsheet formula injection (core/export/csv.ts, W17-5)
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 

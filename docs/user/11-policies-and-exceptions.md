@@ -226,7 +226,7 @@ The kiosk lets staff acknowledge for themselves on a supervisor's device, for ex
 
 1. Sign in as the supervisor and open **Cybersecurity > Acknowledgment kiosk** (or **Open the kiosk** on a policy's **Acknowledgments** tab).
 2. The member of staff types the start of their name and picks it. Only people on the roster with something to acknowledge are listed, with their position.
-3. They enter their **Employee number** and select **Continue**. A wrong number is refused; after five wrong numbers for the same person within 15 minutes the kiosk stops accepting numbers for that person until 15 minutes have passed since the first of them, and each wrong number is recorded in the audit log. A right number clears the count. The count is kept in the database, so restarting the server or using another server process does not reset it.
+3. They enter their **Employee number** and select **Continue**. A wrong number is refused; after five wrong numbers for the same person within 15 minutes the kiosk stops accepting numbers for that person until 15 minutes have passed since the first of them, and each wrong number is recorded in the audit log. Numbers typed at the same moment on several devices count together, so the limit cannot be got round by trying many at once. A right number clears the count. The count is kept in the database, so restarting the server or using another server process does not reset it.
 4. They read each document, check **I have read and understood this document**, and select **Acknowledge**.
 
 The kiosk thanks them and returns to the list for the next person. Each acknowledgment is recorded with the method **Kiosk** and the signed-in supervisor as the person who recorded it. Sign out when you leave the device.

@@ -170,7 +170,7 @@ export function renderMapSvg(layout: Layout, o: MapSvgOptions): { svg: string; w
     out.push(`<title>${xml(`${n.ref ? `${n.ref} ` : ''}${n.label}`)}</title>`);
     out.push(`<rect width="${n.w}" height="${n.h}" rx="8" fill="${c.bg}" stroke="${stroke}" stroke-opacity="${selected || affected ? 1 : 0.5}" stroke-width="${selected ? 2.5 : affected ? 2 : 1}"${affected ? ' stroke-dasharray="5 3"' : ''}/>`);
     out.push(`<circle cx="13" cy="${n.h / 2}" r="4" fill="${c.solid}"/>`);
-    out.push(`<text x="24" y="${n.h / 2 + 4.5}" font-size="12.5" font-weight="550" fill="${c.fg}">${xml(shortLabel(n.label, crit ? 24 : 26))}</text>`);
+    out.push(`<text x="24" y="${n.h / 2 + 4.5}" font-size="12.5" font-weight="550" fill="${c.fg}">${xml(shortLabel(n.label, crit ? 28 : 30))}</text>`);
     if (crit) out.push(`<circle cx="${n.w - 12}" cy="${n.h / 2}" r="4.5" fill="${crit}" stroke="${p.surface}" stroke-width="1.5"/>`);
     out.push('</g>');
   }

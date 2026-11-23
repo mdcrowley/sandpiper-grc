@@ -122,11 +122,13 @@
 .rc-panel { border: 1px solid var(--rc-border); border-radius: var(--rc-radius); background: var(--rc-surface); padding: var(--mantine-spacing-xl) var(--mantine-spacing-md); }
 
 .rc-table-wrap {
-  position: relative; overflow: auto; max-height: 34rem; max-width: 100%;
+  /* Sideways scrolling only: the page scrolls down, so there is one vertical scroll bar (E18-63). */
+  position: relative; overflow-x: auto; overflow-y: hidden; max-width: 100%;
   border: 1px solid var(--rc-border); border-radius: var(--rc-radius); background: var(--rc-surface);
   transition: opacity 120ms ease;
 }
-.rc-list-page .rc-table-wrap { max-height: max(22rem, calc(100dvh - 19.5rem)); }
+/* A table that fits is clipped rather than scrolled: no scroll box, so its sticky headings follow the page. */
+.rc-table-wrap[data-fits] { overflow: clip; }
 .rc-table-wrap[data-busy] { opacity: 0.6; }
 .rc-table-wrap:focus { outline: none; }
 .rc-table-wrap .mantine-Table-table { --table-striped-color: color-mix(in srgb, var(--rc-subtle) 55%, transparent); --table-hover-color: var(--rc-hover); --table-border-color: var(--rc-border); background: transparent; }
@@ -153,7 +155,8 @@
 .rc-row[data-selected], .rc-row[data-selected]:hover { background: var(--rc-accent-soft) !important; }
 .rc-cell-link { color: var(--rc-link); text-decoration: none; }
 .rc-cell-link:hover { text-decoration: underline; }
-.rc-row-title { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; font-weight: 500; color: var(--rc-text); }
+/* A long title is cut with an ellipsis (its full text is the link's tooltip), so one row does not make the column, and the table, wide. */
+.rc-row-title { display: inline-block; max-width: 20rem; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; font-weight: 500; color: var(--rc-text); }
 .rc-row:hover .rc-row-title { color: var(--rc-link); }
 a.rc-ref.rc-cell-link { color: var(--rc-muted); }
 

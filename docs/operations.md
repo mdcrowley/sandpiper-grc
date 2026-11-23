@@ -204,7 +204,7 @@ until an administrator switches its connection on.
 |---|---|---|
 | `integrations.audit_forward` | Every minute (its own lane, `integrations`) | Sends new audit events to each active log forwarder, in batches of up to 500; backs off when the collector cannot be reached |
 | `integrations.housekeeping` | Daily | Removes forwarders' delivery log rows older than `retention.audit_forward_log_days` (30) |
-| `feeds.tracker_push` | Every minute, and at once when a record is sent | Sends queued records to the outside work tracker |
+| `feeds.tracker_push` | Every minute, and at once when a record is sent (a record sent during a run is picked up by one more run straight after it) | Sends queued records to the outside work tracker |
 | `attachments.evidence_reminders` | Daily | Evidence expiry reminders, and reminders to check linked documents (`attachments.link_check_days`) |
 | `tags.lookup_housekeeping` | Daily | Removes asset tag lookups (the "Last seen" log) older than `retention.tag_lookups_days` (90); runs only while Asset tags is on |
 
@@ -583,7 +583,7 @@ administrator rights.
   stop-and-copy of the database files.
 - Continuous integration registers the task on a clean Windows runner, runs it once with
   `Start-ScheduledTask`, checks for the backup labeled `scheduled`, the `exit 0` line in
-  `scheduled-backup.log` and a healthy server afterwards, and removes it (job "Install and run
+  `scheduled-backup.log` and a healthy server afterward, and removes it (job "Install and run
   with grc.ps1").
 
 **macOS and Linux.** `./grc.sh schedule-backup --at 02:30 --prune 14` changes nothing on the
@@ -1076,8 +1076,9 @@ What made the difference:
   (`GRC_FIGURES_CACHE_SECONDS`, default 10, `0` switches it off), and people asking at the same
   moment wait for one computation instead of each running it. A kept answer is shared only by
   callers holding exactly the same permissions (and the same switched-off areas), and, for
-  figures that hold the caller's own counts ("mine", a statistic filtered on "me"), only by
-  the same person with the same permissions; the route's permission check, the feature
+  figures that hold the caller's own counts ("mine", a statistic filtered on "me"), a type
+  whose row rule filters figures (saved reports, dashboards, schedules, packs), a grouping by a
+  link to such a type, or a custom field, only by the same person with the same permissions; the route's permission check, the feature
   switches and the restriction rules decide what is computed, so the figures stay the same
   for everyone who sees them. Any change written through the server empties it at once (a
   write counter on the database handle, which also counts the end of every transaction,

@@ -31,7 +31,8 @@ import { requireRecentAuth } from '../../core/auth.ts';
 import { UUID_RE } from '../../core/errors.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { makeDbLimiter } from '../../core/ratelimit.ts';
-import { clientIp, isHttps } from '../../core/request.ts';
+import { configuredBase, loopbackBase } from '../../core/identity/base.ts';
+import { clientIp } from '../../core/request.ts';
 import { tokenHash } from '../../core/tokens.ts';
 import {
   cacheSeconds, clientHostAllowed, clientIdUrlProblem, fetchClientMetadata, isUrlClientId, MAX_CLIENT_ID_LENGTH, MetadataError, validateClientMetadata as checkMetadataDocument,
@@ -65,11 +66,15 @@ export function sameSecret(a: string, b: string): boolean {
   return x.length === y.length && timingSafeEqual(x, y);
 }
 
-/** The base address used as issuer and resource: `auth.public_url`, or as the request reached us. */
+/**
+ * The base address used as issuer and resource (W17-7): `auth.public_url`, else the request's Host
+ * only when it names this machine (a local installation). Otherwise '' (no usable address), which
+ * `secureBase` refuses: the metadata answers 404 and sign-in 409 `oauth_insecure` until an
+ * administrator sets the application address. A Host header sent by a caller is never the issuer of
+ * an installation other computers can reach.
+ */
 export async function oauthBase(ctx: ModuleContext, req: FastifyRequest): Promise<string> {
-  const configured = String(await ctx.settings.get<unknown>('auth.public_url', '') ?? '').replace(/\/+$/, '');
-  if (configured) return configured;
-  return `${isHttps(req) ? 'https' : 'http'}://${req.headers.host ?? '127.0.0.1'}`;
+  return (await configuredBase(ctx.settings)) || loopbackBase(req) || '';
 }
 
 /** OAuth needs HTTPS, except on this computer (loopback), as the specification requires. */
@@ -697,7 +702,7 @@ export function registerOAuth(ctx: ModuleContext, deps: OAuthDeps) {
     const settings = await readSettings(ctx);
     const issuer = await oauthBase(ctx, req);
     if (!settings.enabled || !settings.oauthEnabled) return { kind: 'stop', status: 409, code: 'oauth_disabled', message: 'Sign-in for remote connectors is switched off here. An administrator can switch it on under Administration > AI assistant access.' };
-    if (!secureBase(issuer)) return { kind: 'stop', status: 409, code: 'oauth_insecure', message: 'Sign-in for remote connectors needs this installation to be reached over HTTPS.' };
+    if (!secureBase(issuer)) return { kind: 'stop', status: 409, code: 'oauth_insecure', message: 'Sign-in for remote connectors needs this installation to be reached over HTTPS, at the application address an administrator sets under Administration > Sign-in providers (auth.public_url).' };
     let client: Row | undefined;
     if (isUrlClientId(p.client_id)) {
       const found = await urlClient(req, String(p.client_id), settings);

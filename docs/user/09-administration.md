@@ -27,7 +27,7 @@ This page is for administrators. It explains how to add people and give them acc
 | **Approval workflows** | Who approves what, step by step | [Approval workflows](22-approval-workflows.md) |
 | **Email** | Outgoing email, templates, delivery log, text messages | [Email settings](14-attachments-and-notifications.md#email-settings) |
 | **Reminders** | How far ahead reminders go out | [Reminders](14-attachments-and-notifications.md#reminders) |
-| **Mobile app** | How long the app stays signed in and whether it must be unlocked (only while the mobile app is switched on) | [The mobile app](39-mobile-app.md#for-administrators) |
+| **Mobile app** | How long the app stays signed in, whether it must be unlocked, and how long a phone keeps its offline work (only while the mobile app is switched on) | [The mobile app](39-mobile-app.md#for-administrators) |
 | **Push notifications** | Your organization's credentials for push notifications to the app on iPhone and Android, and a test push (only while the mobile app is switched on) | [The mobile app](39-mobile-app.md#for-administrators) |
 | **API tokens** | Everyone's API tokens | [API tokens](#api-tokens) |
 | **AI assistant access** | Whether AI assistants may connect | [AI assistants and MCP](21-ai-assistants-and-mcp.md) |
@@ -224,6 +224,7 @@ The last four roles carry an **Audience switch** badge and start switched off. T
 
 - To switch a role on or off, use the switch in the **Switched on** column, or open the role and use **Switched on** there.
 - While a role is off, its members keep the role but get none of its permissions.
+- On a narrow screen the **Switched on** column sits next to the role's name and the **Second factor** column is left out.
 - Switching takes effect at once. Nobody needs to sign in again.
 - Every switch is recorded in the audit log.
 - The **Administrator** role cannot be switched off.
@@ -342,7 +343,7 @@ The list shows each provider's name (with **Default** beside the default one) an
 
 At your identity provider, register this application as a web application (a confidential client) using the **authorization code** flow. Give it the **redirect address** shown on the **Redirect address** card, with the provider's short name in place of `<short name>`, for example `https://grc.example.org/api/auth/sso/staff-directory/callback`. The provider gives you a **client ID** and a **client secret**, and states its **issuer** address.
 
-If people reach the application through an address other than the one your browser uses now (for example behind a reverse proxy), enter it under **Application address** on the **Redirect address** card and select **Save address**. It must be an `https` address with no path, such as `https://grc.example.org`.
+If people reach the application through an address other than the one your browser uses now (for example behind a reverse proxy), enter it under **Application address** on the **Redirect address** card and select **Save address**. It must be an `https` address with no path, such as `https://grc.example.org`. On an installation other computers reach, set it: without it, assistant (MCP) connections, calendar feeds and the work-tracker callback cannot hand out addresses. A provider on this computer or your internal network is reached only when its exact address (for example `10.20.0.5` or `127.0.0.1:8443`) is on **Allowed hosts** under **Settings**.
 
 Settings for common kinds of provider:
 
@@ -710,7 +711,7 @@ Each part has a switch, a line saying what it covers, whether it is **On** or **
 | **OT and rail-systems security** | Operational technology on systems and assets, security zones and conduits with their target and achieved levels | On |
 | **Records requests and privacy** | Requests for records and personal data with their deadlines, responsive records and exemptions, and privacy impact assessments. Legal holds stay on | On |
 | **Asset tags** | Tag numbers on assets, vehicles, sites and systems (printed digits, letters, barcodes or 2D codes), tag formats and stock, printing your own tags, finding a record by its tag, and inventory counts. While it is off, the **Tag number** of vehicles, sites and systems is hidden; an asset's **Tag** stays, because it is also the asset's reference | On |
-| **Mobile app** | The Sandpiper GRC app for iPhone and Android: sign-in through the phone's browser, My work, reading asset tags with the camera, reporting problems with photos, and the list of signed-in devices. Switching it off signs out every device | Off |
+| **Mobile app** | The Sandpiper GRC app for iPhone and Android: sign-in through the phone's browser, My work, reading asset tags with the camera, reporting problems with photos, inspections, condition assessments and counts that work offline, push notifications, and the list of signed-in devices. Switching it off signs out every device | Off |
 
 [Legal holds](33-legal-holds.md) are not a part that can be switched off: a hold must never lapse because a part of the application was switched off.
 
@@ -738,10 +739,11 @@ The part disappears for everyone, administrators and API tokens included. The on
 - its records are left out of search, record links, the relationship map and impact panels (for example the vehicles and services on a system's impact panel and on a security incident's **Affected** tab), the **Overview** widgets, the report catalog and dashboards, imports, exports, custom fields, retention, webhooks, the API reference and the tools offered to AI assistants;
 - its reminders and other background work stop (the **Background jobs** page shows those runs as skipped), and the sample data command does not load its sample records;
 - its permissions are held by nobody and are not listed on a role's page. The checked boxes are kept and work again when the part is switched back on;
+- roles that belong to it are not shown: the **Safety manager** with safety management, the **Project manager** with projects, the **Training coordinator** with training, the **Continuity manager** with business continuity and the **Requester** with the self-service portal. They are left out of the **Roles** page, a person's roles, **AI assistant access**, provisioning's group mapping and every list of roles to choose from (lifecycles, approval rules, report sharing, policy audiences, sign-in provider role mapping). People and groups keep these roles, and saving their other roles does not remove them. A supplied role's description, while you have not edited it, names only the parts that are on (the **Asset manager** reads "Assets and sites, …" while fleet is off). The safety hazard matrix is not offered for new risks, the heat map or **Risk scales** while safety management is off; risks already scored on it keep it. Asset classes that rate vehicles are hidden while fleet is off;
 - its guide pages are left out of **Help** and its search; a guide page opened by a link says the part is switched off;
 - the API answers 404 with the code `switched_off` for its routes.
 
-What stays, because it is your organization's own data rather than the part itself: the names and descriptions of roles (for example **Safety manager**), the names of records that stay (a system called "Fleet Maintenance System"), the incident playbooks and notification parties, the risk scales (the hazard matrix is a scale risks may use too: while **Risks and obligations** is off, hazards are still scored on it and it is changed under **Administration > Hazard matrix**) and the user guide's wording on the pages that stay. Search may still find a record that stays by the text of a field that is hidden (for example a system's vendor name).
+What stays, because it is your organization's own data rather than the part itself: the names and descriptions of roles you created or edited, the names of records that stay (a system called "Fleet Maintenance System"), the incident playbooks and notification parties, the risk scales of the parts that stay (while **Risks and obligations** is off, hazards are still scored on the hazard matrix, which is changed under **Administration > Hazard matrix**) and the user guide's wording on the pages that stay. Search may still find a record that stays by the text of a field that is hidden (for example a system's vendor name).
 
 Nothing is deleted. Switching the part back on restores everything: records, links, history, permissions and reminders.
 

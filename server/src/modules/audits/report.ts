@@ -148,8 +148,15 @@ export function registerReport(ctx: ModuleContext) {
     const answers = await db.query<Row>(
       `select answer, count(*)::int as n from checklist_responses where parent_type = 'audit_engagement' and parent_id = $1 group by answer`, [audit.id]);
     const caps = new Map<string, string>();
-    if (ctx.resources.get('cap')) {
-      for (const f of findings.filter((x) => x.cap_id)) caps.set(f.id, (await ctx.resources.labelFor('cap', f.cap_id)) ?? '');
+    const capDef = ctx.resources.get('cap');
+    if (capDef) {
+      // W17-4: a plan's title is a piece of that record: read as the reader, who must hold view on its
+      // module and be able to see the plan itself; otherwise the report says "Restricted".
+      const mayView = ctx.can(req.user!, `${capDef.module}.view`);
+      for (const f of findings.filter((x) => x.cap_id)) {
+        const seen = mayView && await ctx.resources.find('cap', String(f.cap_id), req.user);
+        caps.set(f.id, seen ? (await ctx.resources.labelFor('cap', String(f.cap_id))) ?? '' : 'Restricted');
+      }
     }
     const appName = String(await ctx.settings.get('app.name', 'Sandpiper GRC'));
     const pdf = new PdfBuilder({

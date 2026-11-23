@@ -133,7 +133,7 @@ export function TicketList() {
         columns={[
           'ref',
           { field: 'title', sortable: true, render: (row) => <TitleCell row={row} /> },
-          { field: 'priority', sortable: true, render: (row) => <LookupChip list="ticket_priority" value={row.priority} /> },
+          { field: 'priority', sortable: true, priority: 1, render: (row) => <LookupChip list="ticket_priority" value={row.priority} /> },
           'status',
           { field: 'resolve_due_at', label: 'Resolution target', sortable: true, render: (row) => <TargetCell row={row} /> },
           { field: 'assignee_id', sortable: true, render: (row) => row._display?.assignee_id ?? <span className="muted">Unassigned</span> },

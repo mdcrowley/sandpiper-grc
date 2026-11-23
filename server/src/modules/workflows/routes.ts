@@ -1,6 +1,7 @@
 // HTTP routes of the approval workflows (E14-06). Administrators define workflows; everyone sees
 // and decides the approvals waiting for them, and sees the workflows on records they may view.
 import type { FastifyRequest } from 'fastify';
+import { featureState, rolesShown } from '../../core/features.ts';
 import { approvalKind, approvalKinds } from '../../core/approval-kinds.ts';
 import { UUID_RE } from '../../core/errors.ts';
 import type { FieldDef, ModuleContext, ResourceDef, Row } from '../../core/module.ts';
@@ -143,7 +144,8 @@ export function registerRoutes(ctx: ModuleContext, svc: Service) {
     const listNames = [...new Set(types.flatMap((t) => t.fields.filter((f) => f.list).map((f) => f.list as string)))];
     const lookups: Record<string, Row[]> = {};
     for (const l of listNames) lookups[l] = (await ctx.lookups.values(l)).map((v) => ({ value: v.value, label: v.label, color: v.color ?? null }));
-    const roles = await db.query<Row>('select key, name, enabled from roles order by name');
+    // Roles of switched-off areas are not offered (E18-64).
+    const roles = rolesShown(await featureState(db), await db.query<Row & { key: string }>('select key, name, enabled from roles order by name'));
     const departments = await db.query<Row>(
       `select d.id, d.name, h.user_id as head_id, u.display_name as head_name
        from departments d left join workflow_department_heads h on h.department_id = d.id left join users u on u.id = h.user_id

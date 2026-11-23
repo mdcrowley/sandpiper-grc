@@ -27,9 +27,25 @@ export function requirePerm(perm: string) {
   };
 }
 
-/** Default roles. Roles marked enabled:false ship switched off until an administrator enables them. */
+/** Joins words as running text: "a, b and c" (empty parts left out). */
+function words(parts: (string | false)[]): string {
+  const p = parts.filter((x): x is string => Boolean(x));
+  return p.length <= 1 ? (p[0] ?? '') : `${p.slice(0, -1).join(', ')} and ${p[p.length - 1]}`;
+}
+const sentence = (s: string) => `${s.charAt(0).toUpperCase()}${s.slice(1)}.`;
+
+/** Whether an optional area (core/features.ts) is on. */
+export type AreaOn = (area: string) => boolean;
+
+/**
+ * Default roles. Roles marked enabled:false ship switched off until an administrator enables them.
+ * A role that belongs to one optional area is declared in that area's `owns.role` (core/features.ts)
+ * and is not shown while the area is off. `describe` words the description for the areas that are
+ * on (E18-64): a switched-off area is named nowhere, and `description` is its text with every area on.
+ */
 export const DEFAULT_ROLES: {
   key: string; name: string; description: string; enabled: boolean; requiresMfa: boolean; grants: string[];
+  describe?: (on: AreaOn) => string;
 }[] = [
   {
     key: 'administrator', name: 'Administrator', enabled: true, requiresMfa: true,
@@ -39,6 +55,7 @@ export const DEFAULT_ROLES: {
   {
     key: 'agent', name: 'Agent', enabled: true, requiresMfa: false,
     description: 'Service desk and inventory work: tickets, assets and changes.',
+    describe: (on) => `${on('tickets') ? 'Service desk and inventory work' : 'Inventory work'}: ${words([on('tickets') && 'tickets', 'assets', on('changes') && 'changes'])}.`,
     grants: [
       'tickets.*', 'knowledge.*', 'assets.*', 'systems.*', 'sites.*', 'data.*', 'changes.*', 'actions.*',
       'vendors.view', 'contracts.view', 'frameworks.view', 'policies.view', 'obligations.view',
@@ -49,7 +66,11 @@ export const DEFAULT_ROLES: {
   },
   {
     key: 'security_lead', name: 'Security lead', enabled: true, requiresMfa: true,
-    description: 'Security work: risks, controls, security incidents, vendors, policies.',
+    description: 'Security work: risks, controls, security incidents, vendors and policies.',
+    describe: (on) => {
+      const w = words([on('risks') && 'risks', on('controls') && 'controls', on('secincidents') && 'security incidents', on('vendors') && 'vendors', on('policies') && 'policies']);
+      return w ? `Security work: ${w}.` : 'Security work: systems, assets and data.';
+    },
     grants: [
       'security.*', 'risks.*', 'frameworks.*', 'vulnerabilities.*', 'policies.*', 'training.*', 'exceptions.*',
       'obligations.*', 'exercises.*', 'vendors.*', 'contracts.*', 'actions.*',
@@ -79,6 +100,10 @@ export const DEFAULT_ROLES: {
   {
     key: 'compliance_officer', name: 'Compliance officer', enabled: true, requiresMfa: false,
     description: 'Compliance obligations, funding and grant compliance, controls and committees.',
+    describe: (on) => {
+      const w = words([on('risks') && 'compliance obligations', on('funding') && 'funding and grant compliance', on('controls') && 'controls', on('governance') && 'committees']);
+      return w ? sentence(w) : 'Compliance work and corrective actions.';
+    },
     grants: [
       'obligations.*', 'funding.*', 'controls.*', 'governance.*', 'audits.view', 'policies.view', 'vendors.view',
       'contracts.view', 'projects.view', 'assets.view', 'fleet.view', 'people.view', 'actions.*', 'reports.view', 'dashboards.view',
@@ -88,11 +113,13 @@ export const DEFAULT_ROLES: {
   {
     key: 'audit_lead', name: 'Audit lead', enabled: true, requiresMfa: false,
     description: 'Internal audits and inspections, control testing and corrective actions.',
+    describe: (on) => sentence(words([on('audits') && 'internal audits and inspections', on('controls') && 'control testing', 'corrective actions'])),
     grants: ['audits.*', 'controls.*', 'actions.*', 'governance.view', 'obligations.view', 'policies.view', 'frameworks.view'],
   },
   {
     key: 'training_coordinator', name: 'Training coordinator', enabled: true, requiresMfa: false,
     description: 'Training, the roster of people and their qualifications.',
+    describe: (on) => (on('training') ? 'Training, the roster of people and their qualifications.' : 'The roster of people and their qualifications.'),
     grants: ['training.*', 'people.*', 'policies.view'],
   },
   // Wave 11: continuity, records and privacy, and asset roles (switched on, like the other working roles).
@@ -107,11 +134,16 @@ export const DEFAULT_ROLES: {
   {
     key: 'records_privacy_officer', name: 'Records and privacy officer', enabled: true, requiresMfa: false,
     description: 'Legal holds, requests for records and personal data, and privacy impact assessments.',
+    describe: (on) => (on('records') ? 'Legal holds, requests for records and personal data, and privacy impact assessments.' : 'Legal holds.'),
     grants: ['legal.*', 'records.*', 'privacy.*', 'data.view', 'systems.view', 'actions.*', 'reports.view'],
   },
   {
     key: 'asset_manager', name: 'Asset manager', enabled: true, requiresMfa: false,
     description: 'Assets, sites and vehicles, their tags, inventory counts, condition and replacement.',
+    describe: (on) => {
+      const their = words([on('tags') && 'tags', on('tags') && 'inventory counts', on('condition') && 'condition', on('condition') && 'replacement']);
+      return `${sentence(words(['assets', 'sites', on('fleet') && 'vehicles'])).slice(0, -1)}${their ? `, their ${their}` : ''}.`;
+    },
     grants: ['assets.*', 'sites.*', 'fleet.*', 'projects.view', 'funding.view', 'actions.*', 'reports.view', 'dashboards.view', 'tags.*'],
   },
   {
@@ -120,6 +152,7 @@ export const DEFAULT_ROLES: {
     // security.view, which would also open every security incident. An acceptance is recorded by
     // someone who can see the risk, naming the approver (see the risks module).
     description: 'Approves changes, service requests, asset decisions and project gates.',
+    describe: (on) => `Approves ${words([on('changes') && 'changes', on('tickets') && 'service requests', 'asset decisions', on('projects') && 'project gates'])}.`,
     grants: [
       'changes.view', 'changes.approve', 'projects.view', 'projects.approve', 'tickets.view', 'tickets.approve',
       'assets.view', 'assets.approve', 'dashboards.view',
@@ -128,6 +161,7 @@ export const DEFAULT_ROLES: {
   {
     key: 'executive_viewer', name: 'Executive viewer', enabled: false, requiresMfa: false,
     description: 'Read-only dashboards and report packs.',
+    describe: (on) => (on('reports') ? 'Read-only dashboards and report packs.' : 'Read-only access to the Overview and its figures.'),
     grants: ['dashboards.view', 'reports.view', 'projects.view', 'frameworks.view', 'governance.view', 'continuity.view'],
   },
   {
@@ -154,10 +188,22 @@ export const DEFAULT_ROLES: {
 export const EARLIER_ROLE_DESCRIPTIONS: Record<string, string[]> = {
   agent: ['IT staff: tickets, assets and changes.'],
   asset_manager: ['Assets, sites and vehicles, their condition and replacement.'],
-  security_lead: ['Security staff: risks, controls, security incidents, vendors, policies.'],
+  security_lead: ['Security staff: risks, controls, security incidents, vendors, policies.', 'Security work: risks, controls, security incidents, vendors, policies.'],
   approver: ['Managers and executives: approve changes, access requests, project gates and risk acceptance.'],
   requester: ['Any employee: submit and track own requests through the portal.'],
 };
+
+/**
+ * The description shown for a role (E18-64): a default role whose description has not been edited is
+ * worded for the areas that are on, so a switched-off area is named nowhere; an edited one is the
+ * administrator's own text and is shown as written.
+ */
+export function roleDescription(key: string, stored: string | null | undefined, on: AreaOn): string | null {
+  const def = DEFAULT_ROLES.find((r) => r.key === key);
+  if (!def?.describe || stored == null) return stored ?? null;
+  const unedited = stored === def.description || (EARLIER_ROLE_DESCRIPTIONS[key] ?? []).includes(stored);
+  return unedited ? def.describe(on) : stored;
+}
 
 /**
  * Creates the default roles that do not exist yet. An existing role is never changed here: an

@@ -6,6 +6,7 @@ import {
 } from '../../core';
 import type { ColorName, Row } from '../../core';
 import { cellKey, HeatMap, type HeatCell, type HeatMapData } from './HeatMap';
+import { RiskTabs } from './RiskTabs';
 import { AppetiteBadge, RatingChip, useScales } from './scales';
 
 interface Summary {
@@ -32,7 +33,9 @@ export function RiskRegister() {
   const summary = useFetch<Summary>('/api/risks/summary');
   const [params, setParams] = useSearchParams();
 
-  const scaleKey = scales?.find((s) => s.key === params.get('scale'))?.key ?? scales?.[0]?.key ?? '';
+  // The heat map offers the scales that may be chosen; a scale of a switched-off area is not one (E18-64).
+  const offered = useMemo(() => scales?.filter((s) => s.offered !== false), [scales]);
+  const scaleKey = offered?.find((s) => s.key === params.get('scale'))?.key ?? offered?.[0]?.key ?? '';
   const basis = params.get('basis') === 'inherent' ? 'inherent' : 'residual';
   const movement = params.get('movement') === '1';
   const closed = params.get('closed') === '1';
@@ -54,8 +57,23 @@ export function RiskRegister() {
   // Drill-down: the list shows exactly the risks counted in the chosen cell.
   const baseFilter = useMemo(() => (chosen ? { id: chosen.risk_ids.join(',') } : undefined), [chosen]);
 
-  if (error) return <><PageHeader title="Risk register" /><ErrorState error={error} onRetry={reload} /></>;
-  if (!scales) return <><PageHeader title="Risk register" /><Loading /></>;
+  const header = (
+    <>
+      <PageHeader
+        title="Risk register"
+        subtitle="Restricted: visible only to people with access to security records."
+        actions={(
+          <>
+            {/* New risk: the list below puts its New button in this header (E18-63). */}
+            <Button icon="download" onClick={() => window.print()}>Print</Button>
+          </>
+        )}
+      />
+      <RiskTabs active="register" />
+    </>
+  );
+  if (error) return <>{header}<ErrorState error={error} onRetry={reload} /></>;
+  if (!scales || !offered) return <>{header}<Loading /></>;
 
   const scaleOf = (row: Row) => scales.find((s) => s.key === row.scale_key);
   const levelName = (levels: { value: number; label: string }[] | undefined, v: number) => levels?.find((l) => l.value === v)?.label ?? String(v);
@@ -66,19 +84,7 @@ export function RiskRegister() {
 
   return (
     <div className="stack rk-register">
-      <PageHeader
-        title="Risk register"
-        subtitle="Restricted: visible only to people with access to security records."
-        actions={(
-          <>
-            <Link className="btn btn-secondary" to="/risks/reviews">Risk reviews</Link>
-            <Link className="btn btn-secondary" to="/risks/report">Risk report</Link>
-            {can('risks.administer') && <Link className="btn btn-secondary" to="/risks/scales">Risk scales</Link>}
-            {can('risks.administer') && <Link className="btn btn-secondary" to="/risks/appetite">Risk appetite</Link>}
-            <Button icon="download" onClick={() => window.print()}>Print</Button>
-          </>
-        )}
-      />
+      {header}
 
       {summary.error ? <ErrorState error={summary.error} onRetry={summary.reload} /> : (
         <div className="grid-stats rk-strip" aria-busy={!s}>
@@ -86,8 +92,8 @@ export function RiskRegister() {
             label="Open risks" value={s?.total ?? '–'} color="blue" icon="alert"
             hint={[s && s.unscored > 0 ? `${s.unscored} not yet scored` : 'All scales', s && (s.above_appetite ?? 0) > 0 ? `${s.above_appetite} above appetite` : null].filter(Boolean).join(' · ')}
           />
-          <Stat label={level('critical')?.label ?? 'Critical'} value={level('critical')?.count ?? '–'} color={(level('critical')?.color ?? 'red') as ColorName} to="/risks?f.summary_level=critical" hint="Common level" />
-          <Stat label={level('high')?.label ?? 'High'} value={level('high')?.count ?? '–'} color={(level('high')?.color ?? 'orange') as ColorName} to="/risks?f.summary_level=high" hint="Common level" />
+          <Stat label={level('critical')?.label ?? 'Critical'} value={level('critical')?.count ?? '–'} color={(level('critical')?.color ?? 'red') as ColorName} to="/risks?f.summary_level=critical" hint="Across every scale" />
+          <Stat label={level('high')?.label ?? 'High'} value={level('high')?.count ?? '–'} color={(level('high')?.color ?? 'orange') as ColorName} to="/risks?f.summary_level=high" hint="Across every scale" />
           <Stat label="Reviews due" value={s?.reviews_due ?? '–'} color={s && s.reviews_due > 0 ? 'amber' : 'green'} icon="calendar" to="/risks/reviews" hint="Review date reached" />
           <Stat
             label="Acceptances to renew" value={s ? s.acceptances_expired + s.acceptances_expiring : '–'}
@@ -102,14 +108,14 @@ export function RiskRegister() {
         className="rk-heat-card"
         actions={(
           <div className="rk-heat-tools">
-            {scales.length <= 3 ? (
+            {offered.length <= 1 ? null : offered.length <= 3 ? (
               <SegmentedControl
                 size="xs" aria-label="Scale" value={scaleKey}
-                data={scales.map((x) => ({ value: x.key, label: x.name.replace(/\s*\(.*\)$/, '') }))}
+                data={offered.map((x) => ({ value: x.key, label: x.name.replace(/\s*\(.*\)$/, '') }))}
                 onChange={(v) => set({ scale: v, cell: null })}
               />
             ) : (
-              <Select hideLabel label="Scale" size="xs" required value={scaleKey} options={scales.map((x) => ({ value: x.key, label: x.name }))} onChange={(v) => set({ scale: v || null, cell: null })} />
+              <Select hideLabel label="Scale" size="xs" required value={scaleKey} options={offered.map((x) => ({ value: x.key, label: x.name }))} onChange={(v) => set({ scale: v || null, cell: null })} />
             )}
             <SegmentedControl
               size="xs" aria-label="Show" value={basis}
@@ -188,7 +194,7 @@ export function RiskRegister() {
           columns={[
             'ref', 'title', 'category',
             { field: 'inherent_score', label: 'Inherent', sortable: true, render: (row) => <RatingChip scale={scaleOf(row)} rating={row.inherent_rating} /> },
-            { field: 'residual_score', label: 'Residual', sortable: true, render: (row) => <RatingChip scale={scaleOf(row)} rating={row.residual_rating} /> },
+            { field: 'residual_score', label: 'Residual', sortable: true, priority: 1, render: (row) => <RatingChip scale={scaleOf(row)} rating={row.residual_rating} /> },
             { field: 'appetite_breach', label: 'Appetite', sortable: true, render: (row) => <AppetiteBadge breach={row.appetite_breach} /> },
             'treatment', 'status', 'owner_id', 'due_on', 'review_on',
             { field: 'parent_id', hidden: true },
