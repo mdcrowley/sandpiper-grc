@@ -288,8 +288,8 @@ sign-in and session code is in `server/src/core/auth.ts`. Details and limits are
   SHA-256 hash is stored. Eight-hour lifetime and a configurable idle time-out
   (`auth.idle_minutes`). People can see and end their own sessions; administrators can end
   anyone's.
-- **Lockout and rate limiting.** Progressive per-account lockout and an in-memory limit
-  per source address on failed sign-ins.
+- **Lockout and rate limiting.** Progressive per-account lockout and a limit
+  per source address on failed sign-ins, kept in the database.
 - **Second factor.** Time-based one-time passwords (TOTP) from an authenticator app, with
   ten single-use recovery codes, or a passkey. Roles can require one; the setting
   `auth.mfa_enforcement` decides whether a missing second factor is a reminder or blocks
@@ -483,8 +483,11 @@ built; see [Known gaps](known-gaps.md).
   sign-outs started at a SAML identity provider, account linking and a break-glass
   administrator are built. Still to do: a passkey second factor after a directory password
   and linking a directory from Account security (E02-29).
-- **More than one process.** The job queue already works across processes. Still to do:
-  move the remaining timers onto it, and move the per-token request count (E16-43), the `If-Match`
-  lock and the webhook worker out of process memory, before running several instances.
+- **More than one process.** The job queue already works across processes, and so do the
+  per-token request counts (`tokens.rate_per_minute`, the `RateLimit` headers and
+  `mcp.rate_per_minute`, kept per clock minute in the database since E16-43). Still to do:
+  move the remaining timers onto it, and move the `If-Match` lock, the policy kiosk's count of
+  wrong employee numbers and the webhook worker out of process memory, before running several
+  instances.
 - **Operations.** Scheduled, verified backups, an upgrade with automatic rollback and
   continuous integration are built. Still to do: log retention and monitoring.

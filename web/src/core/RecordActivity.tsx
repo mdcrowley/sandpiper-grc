@@ -1,5 +1,5 @@
 // Activity of one record: a comment composer and one timeline of comments and changes.
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { Avatar, Badge, Button, SegmentedControl, Text, Textarea } from '@mantine/core';
 import { IconLock, IconMessage, IconWorld } from '@tabler/icons-react';
 import { api, errorMessage, type Row } from './api';
@@ -43,6 +43,7 @@ export function ActivityPanel({ type, id, defaultInternal = true, internalOnly, 
   const [internal, setInternal] = useState(defaultInternal);
   const [posting, setPosting] = useState(false);
   const [show, setShow] = useState<Show>('all');
+  const box = useRef<HTMLTextAreaElement>(null);
   const asInternal = internalOnly || internal;
 
   const post = async (e?: FormEvent) => {
@@ -54,10 +55,14 @@ export function ActivityPanel({ type, id, defaultInternal = true, internalOnly, 
       setBody('');
       comments.reload();
       history.reload();
+      // Said by screen readers (toasts are alerts); the focus goes back to the box for the next one,
+      // rather than staying on the button, which is now unavailable until something is typed (E16-15).
+      toast.success(asInternal ? 'Note added.' : 'Comment added.');
     } catch (err) {
       toast.error(errorMessage(err));
     } finally {
       setPosting(false);
+      box.current?.focus();
     }
   };
 
@@ -74,6 +79,7 @@ export function ActivityPanel({ type, id, defaultInternal = true, internalOnly, 
         <Avatar name={user?.displayName ?? '?'} color="initials" size={32} radius="xl" aria-hidden="true" className="rc-compose-avatar" />
         <div className="rc-compose-main" data-internal={asInternal || undefined}>
           <Textarea
+            ref={box}
             aria-label="Add a comment"
             placeholder={asInternal ? 'Write an internal note…' : 'Write a public comment…'}
             autosize

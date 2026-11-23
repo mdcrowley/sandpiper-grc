@@ -20,7 +20,7 @@ The same rules apply however a record is saved: the forms, bulk edit in a list, 
 
 ## Setting up a lifecycle (administrators)
 
-Open **Administration > Lifecycles**. The left-hand list shows every kind of record with a status, and for each one whether it uses the defaults (**Every change allowed**), has been **Changed**, or is **Set by the application**. Kinds of records in a part of the application that is switched off under Administration > Features are not listed.
+Open **Administration > Lifecycles**. The left-hand list shows every kind of record with a status, and for each one whether it uses the defaults (**Every change allowed**), has been changed (a summary such as "2 not allowed · 1 required · 1 need approval", or **Changed**), or is **Set by the application**. Kinds of records in a part of the application that is switched off under Administration > Features are not listed.
 
 Select a kind of record. The page shows:
 
@@ -67,4 +67,4 @@ Some kinds of records have rules written into the application, for reasons the l
 - **Security incidents**: each status has a stage, which records its time and starts the notification clocks.
 - **Vulnerabilities**, **policy exceptions**, **notification tasks**, **vehicles** and **safety events** have their own conditions for some statuses.
 
-For **changes** and **policies** only the application sets the status (through a change's own steps, and through a policy's versions), so their lifecycle is shown for reference and cannot be edited here. For **projects** the page is about the project's **Status** (Active, On hold and so on); its stage moves only through gate decisions.
+For **changes**, **policies**, **emergency activations**, **inventory counts**, **legal holds** and **privacy impact assessments** only the application sets the status (for example through a change's own steps, a policy's versions, standing an activation down, finishing a count, releasing a hold or approving an assessment), so the list marks them **Set by the application**: their lifecycle is shown for reference and cannot be edited here. For **projects** the page is about the project's **Status** (Active, On hold and so on); its stage moves only through gate decisions.

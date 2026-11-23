@@ -60,6 +60,11 @@ export const SEALED_KINDS: SealedKind[] = [
   column('sso_post', 'SAML responses waiting for their browser', 'identity_flows', 'state_hash', 'posted', (id) => `sso-post:${id}`, 'expires_at > now()'),
   column('sso_session', 'provider sign-out details of open sessions', 'identity_sessions', 'token_hash', 'id_token_sealed', (id) => `sso-session:${id}`),
   column('mail', 'the mail server password', 'mail_config', 'id', 'password_sealed', () => 'mail:smtp'),
+  // E38-14: push notification credentials and the phones' push addresses (push module).
+  column('push_apns', 'the Apple push key', 'push_config', 'id', 'apns_key_sealed', () => 'push:apns-key'),
+  column('push_fcm', 'the Firebase service account key', 'push_config', 'id', 'fcm_key_sealed', () => 'push:fcm-key'),
+  column('push_vapid', 'the UnifiedPush (VAPID) private key', 'push_config', 'id', 'vapid_private_sealed', () => 'push:vapid-key'),
+  column('push_target', 'phones\' push addresses', 'push_registrations', 'id', 'target_sealed', (id) => `push-target:${id}`),
   {
     key: 'mail_providers', label: 'Microsoft Graph and Gmail API credentials, and the text-message webhook secret', table: 'mail_config',
     async list(db) {

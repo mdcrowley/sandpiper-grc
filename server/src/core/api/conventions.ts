@@ -6,6 +6,7 @@ import type { Db } from '../db.ts';
 import { ApiError } from '../errors.ts';
 import { migrate } from '../migrate.ts';
 import type { ResourceDef, Row } from '../module.ts';
+import { tokenRateOf } from '../ratelimit.ts';
 import type { makeResources } from '../resource.ts';
 import type { makeSettings } from '../services.ts';
 import { unversioned } from './versioning.ts';
@@ -26,7 +27,8 @@ import { unversioned } from './versioning.ts';
  * - Paging (E13-15): an answer `{ rows, total, page, pageSize }` carries `Link` (first, prev,
  *   next, last) and `X-Total-Count`.
  * - Rate limits (E13-16): requests made with a token carry `RateLimit-Limit`, `RateLimit-Remaining`,
- *   `RateLimit-Reset` and `RateLimit-Policy`; a 429 also carries `Retry-After`.
+ *   `RateLimit-Reset` and `RateLimit-Policy`; a 429 also carries `Retry-After`. They report the count the
+ *   token check made (core/tokens.ts), which is kept in the database and shared by every process (E16-43).
  * - Errors: an error answer that does not use the envelope `{ error: { code, message } }` gets one.
  */
 
@@ -112,7 +114,6 @@ export function installConventions(app: FastifyInstance) {
   let deps: Deps | null = null;
   let routes: Map<string, { def: ResourceDef; kind: Kind }> | null = null;
   const locks = new Map<string, Promise<void>>();
-  const windows = new Map<string, { minute: number; count: number }>();
 
   app.decorateRequest('idempotencyRow', null);
   app.decorateRequest('recordLock', null);
@@ -235,18 +236,20 @@ export function installConventions(app: FastifyInstance) {
 
   // Rate-limit headers on token requests, and storing an idempotent create's answer.
   app.addHook('onSend', async (req: FastifyRequest, reply: FastifyReply, payload: unknown) => {
-    if (deps && (req.apiToken || (reply.statusCode === 429 && /^Bearer\s/i.test(req.headers.authorization ?? '')))) {
-      const limit = Math.max(1, Number(await deps.settings.get('tokens.rate_per_minute', 600)) || 600);
-      const now = Date.now();
-      const minute = Math.floor(now / 60_000);
-      const reset = Math.max(1, Math.ceil(((minute + 1) * 60_000 - now) / 1000));
-      let used = limit;
-      if (req.apiToken) {
-        const w = windows.get(req.apiToken.id);
-        if (!w || w.minute !== minute) windows.set(req.apiToken.id, { minute, count: 1 });
-        else w.count += 1;
-        used = windows.get(req.apiToken.id)!.count;
-        if (windows.size > 5000) for (const [k, v] of windows) if (v.minute !== minute) windows.delete(k);
+    // The count is the one the token check made (core/tokens.ts, kept in the database and shared by
+    // every server process, E16-43). A 429 for wrong tokens from an address has no count: nothing is left.
+    const rate = tokenRateOf(req);
+    if (deps && (rate || (reply.statusCode === 429 && /^Bearer\s/i.test(req.headers.authorization ?? '')))) {
+      let limit: number;
+      let used: number;
+      let reset: number;
+      if (rate) {
+        ({ limit, count: used, resetSeconds: reset } = rate);
+      } else {
+        limit = Math.max(1, Number(await deps.settings.get('tokens.rate_per_minute', 600)) || 600);
+        used = limit;
+        const now = Date.now();
+        reset = Math.max(1, Math.ceil(((Math.floor(now / 60_000) + 1) * 60_000 - now) / 1000));
       }
       reply.header('ratelimit-limit', String(limit));
       reply.header('ratelimit-remaining', String(Math.max(0, limit - used)));

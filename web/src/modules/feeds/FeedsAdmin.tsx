@@ -176,8 +176,8 @@ function TrackerCard() {
                     </div>
                     <Badge color={c.active ? 'green' : 'gray'}>{c.active ? 'On' : 'Off'}</Badge>
                     <div className="feeds-actions">
-                      <Button size="sm" onClick={() => setEditing(c)}>Edit</Button>
-                      <Button size="sm" onClick={() => setRenewing(c)}>New secrets</Button>
+                      <Button size="sm" aria-label={`Edit ${c.name}`} onClick={() => setEditing(c)}>Edit</Button>
+                      <Button size="sm" aria-label={`New secrets for ${c.name}`} onClick={() => setRenewing(c)}>New secrets</Button>
                       <Button size="sm" variant="danger" onClick={() => setRemoving(c)}>Remove</Button>
                     </div>
                   </li>

@@ -1,0 +1,20 @@
+# Chooses two pictures in the system photo picker (Android 13 and later), then Done.
+appId: com.sandpipergrc
+---
+- scrollUntilVisible:
+    element: "Choose photos"
+- tapOn: "Choose photos"
+- extendedWaitUntil:
+    visible: "Photo taken on.*"
+    timeout: 20000
+- tapOn:
+    text: "Photo taken on.*"
+    index: 0
+- tapOn:
+    text: "Photo taken on.*"
+    index: 1
+- tapOn: "Done"
+# Both are made to fit the server's limit, then listed with a Remove button each.
+- extendedWaitUntil:
+    visible: "Remove photo photo-.*-2.jpg"
+    timeout: 60000

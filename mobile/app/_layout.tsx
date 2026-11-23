@@ -8,6 +8,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useAuthState } from '../src/api/client';
 import { LockScreen } from '../src/auth/LockScreen';
 import { start } from '../src/auth/session';
+import { startPush } from '../src/push';
 import { commonText } from '../src/text/common';
 import { notificationsText } from '../src/text/notifications';
 import { useTheme } from '../src/theme';
@@ -21,6 +22,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     void start();
+    startPush();
   }, []);
 
   const inAuth = segments[0] === '(auth)';

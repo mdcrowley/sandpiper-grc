@@ -14,10 +14,13 @@ This page is for administrators. It explains how to add people and give them acc
 | Screen | What it is for | Described in |
 |---|---|---|
 | **Users** | Add people, give them roles, issue sign-in links | [Users](#users) |
+| **People** | The staff roster, with or without accounts | [People and qualifications](29-people-and-qualifications.md#the-roster) |
+| **Positions** | Positions and what each requires | [People and qualifications](29-people-and-qualifications.md#positions) |
 | **Roles** | Roles and their permissions | [Roles and permissions](#roles-and-permissions) |
 | **Sign-in providers** | Single sign-on and the break-glass account | [Sign-in providers](#sign-in-providers-single-sign-on) |
 | **User provisioning** | Let your identity provider create and switch off accounts | [User provisioning](35-user-provisioning-and-log-forwarding.md#user-provisioning) |
 | **Lists** | The choices in drop-down lists, and tags | [Lists](#lists) |
+| **Asset tags** | Tag formats, tag stock, printing tags and their settings | [Asset tags](38-asset-tags.md#tag-formats) |
 | **Organization** | The organization's names, address, contacts, logo and colors | [Organization](#organization) |
 | **Settings** | Passwords, second factor, sessions, tokens, outbound connections | [Settings](#settings) |
 | **Features** | Switch parts of the application on and off | [Features](#features) |
@@ -29,15 +32,19 @@ This page is for administrators. It explains how to add people and give them acc
 | **Approval workflows** | Who approves what, step by step | [Approval workflows](22-approval-workflows.md) |
 | **AI assistant access** | Whether AI assistants may connect | [AI assistants and MCP](21-ai-assistants-and-mcp.md) |
 | **Email** | Outgoing email, templates, delivery log, text messages | [Email settings](14-attachments-and-notifications.md#email-settings) |
-| **Reminders** | How far ahead reminders go out | [Reminders](14-attachments-and-notifications.md#reminders) |
+| **Mobile app** | How long the app stays signed in and whether it must be unlocked (only while the mobile app is switched on) | [The mobile app](39-mobile-app.md#for-administrators) |
+| **Push notifications** | Your organization's credentials for push notifications to the app on iPhone and Android, and a test push (only while the mobile app is switched on) | [The mobile app](39-mobile-app.md#for-administrators) |
 | **Webhooks** | Tell other systems about changes | [Webhooks](#webhooks) |
 | **Calendar and work trackers** | Calendar feeds and connections to an outside work-tracking tool | [Calendar feeds, work trackers and evidence links](36-calendar-feeds-work-trackers-and-evidence-links.md#set-up-a-connection) |
+| **Reminders** | How far ahead reminders go out | [Reminders](14-attachments-and-notifications.md#reminders) |
 | **Log forwarding** | Send the audit log to a security monitoring system | [Log forwarding](35-user-provisioning-and-log-forwarding.md#log-forwarding) |
 | **Background jobs** | Work the application does by itself | [Background jobs](14-attachments-and-notifications.md#background-jobs) |
 | **Audit log** | Who did what, and when | [The audit log](#the-audit-log) |
 | **Risk scales** | The likelihood and impact scales for risks | [Editing the risk scales](06-risks-actions-obligations.md#editing-the-risk-scales) |
-| **Hazard matrix** | The levels and cell ratings of the safety hazard matrix | [Change the hazard matrix](20-safety-management.md#change-the-hazard-matrix) |
 | **Service desk settings** | Priorities, targets, calendars, escalation, the portal and email to ticket | [Service desk settings](02-service-desk.md#service-desk-settings) |
+| **Hazard matrix** | The levels and cell ratings of the safety hazard matrix | [Change the hazard matrix](20-safety-management.md#change-the-hazard-matrix) |
+| **Risk appetite** | How much risk the organization accepts, by category | [Risk appetite](06-risks-actions-obligations.md#risk-appetite) |
+| **Safety reporting rules** | Which safety events must be reported to whom, and by when | [Safety reporting rules](20-safety-management.md#safety-reporting-rules) |
 | **File settings** | Upload limits, malware scanning, storage, removed files | [File settings](14-attachments-and-notifications.md#file-settings) |
 | **Backups** | Daily backups to a second location | [Backups](14-attachments-and-notifications.md#backups) |
 
@@ -184,7 +191,7 @@ A role is a named set of permissions. People get access only through the roles t
 | **Agent** | Service desk and inventory work: tickets, knowledge, inventory, changes (including approving them and change settings), fleet and actions, finding asset tags and counting inventory, with read access to most other areas. | On |
 | **Security lead** | Risks, frameworks, security incidents (and every restricted record), vulnerabilities, policies, training, vendors and contracts, the audit log, dashboards and reports, and the same service desk, inventory and change rights as an agent, with read access to projects, fleet and safety. Also controls and their testing, with read access to audits, committees, the staff roster, business continuity and privacy assessments. | On |
 | **Project manager** | Projects, gates, status reports and actions. | On |
-| **Safety manager** | Safety team: hazard log, safety events, investigations and indicators, audits and inspections, with the action tracker and read access to fleet, systems, sites, committees, the staff roster and business continuity. | On |
+| **Safety manager** | Safety team: hazard log, safety events, investigations and indicators, audits and inspections, with the action tracker and read access to fleet, systems, sites, committees, the staff roster, business continuity, policies, training, dashboards and reports. | On |
 | **Compliance officer** | Obligations, funding and grant compliance, controls and committees, with the action tracker and read access to audits, policies, vendors, contracts, projects, assets, fleet, the staff roster, dashboards and reports, business continuity, records requests, privacy assessments and legal holds. | On |
 | **Audit lead** | Audits and inspections, controls and their testing, and the action tracker, with read access to committees, obligations, policies and framework outcomes. | On |
 | **Training coordinator** | Training, the staff roster and qualifications, with read access to policies. | On |
@@ -192,7 +199,7 @@ A role is a named set of permissions. People get access only through the roles t
 | **Records and privacy officer** | Legal holds, requests for records and personal data, and privacy impact assessments, with the action tracker and read access to data categories, systems and reports. | On |
 | **Asset manager** | Assets, sites and vehicles, their tags, inventory counts, condition and replacement, with the action tracker and read access to projects, funding, dashboards and reports. | On |
 | **Approver** | People who approve changes, service requests, asset decisions and project gates. It does not include risks: a risk acceptance is recorded by someone who can see the risk, naming the approver. | Off |
-| **Executive viewer** | Read-only dashboards, projects, framework outcomes, committees and business continuity. | Off |
+| **Executive viewer** | Read-only dashboards and reports, projects, framework outcomes, committees and business continuity. | Off |
 | **Auditor** | Read-only access to chosen areas, with export of framework evidence, audits and controls, and read access to business continuity, privacy assessments and legal holds. | Off |
 | **Requester** | Anyone in the organization submitting their own requests. | Off |
 
@@ -605,7 +612,7 @@ Changing these asks you to confirm your password.
 | Setting | Starts at | Allowed | Notes |
 |---|---|---|---|
 | **Longest token life** | 365 | 1 to 3650 days | A new token must expire within this many days. Tokens already made keep their expiry. |
-| **Requests a minute** | 600 | 10 to 6000 | How many requests one token may make in a minute; more are refused until the next minute. |
+| **Requests a minute** | 600 | 10 to 6000 | How many requests one token may make in a minute; more are refused until the next minute. The count is kept in the database, so it holds however many server processes share it. |
 
 ### Outbound connections
 
@@ -827,7 +834,7 @@ When making a token, its owner can fill in **Allowed source addresses** (up to 2
 
 A webhook tells another system, straight away, when records are added, changed or deleted, or when one of the other events listed below happens (a notification clock about to run out, a backup that failed, and so on). Open **Administration > Webhooks**.
 
-**Nothing is sent until outbound connections are switched on.** Under **Settings > Outbound connections**, switch on **Outbound connections** and add the receiving host to **Allowed hosts**. Until then every delivery is recorded as blocked, and the page says so at the top. A webhook whose host is not allowed is marked **Host not allowed**. A receiver on your internal network must be listed by its address as well as its name: a name that leads to a private address is blocked with the reason "... resolves to ..., which is a private, loopback or reserved address".
+**Nothing is sent until outbound connections are switched on.** Under **Settings > Outbound connections**, switch on **Allow outbound connections** and add the receiving host to **Allowed hosts**. Until then every delivery is recorded as blocked, and the page says so at the top. A webhook whose host is not allowed is marked **Host not allowed**. A receiver on your internal network must be listed by its address as well as its name: a name that leads to a private address is blocked with the reason "... resolves to ..., which is a private, loopback or reserved address".
 
 ### Adding a webhook
 

@@ -1,6 +1,6 @@
 // Shared pieces of the portal: its configuration, status pills, the service banner, article
 // suggestions and file sending.
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError, Icon, qs, useDebounced, type IconName } from '../../core';
 
@@ -31,6 +31,26 @@ export interface Article { id: string; ref: string; title: string; excerpt: stri
 
 const ConfigContext = createContext<PortalConfig | null>(null);
 export const ConfigProvider = ConfigContext.Provider;
+/**
+ * After a form is refused: once the messages are on the page, the focus goes to the first field that
+ * needs something (a screen reader then reads it with its message), or else to the form's message.
+ * Runs after the page shows the errors; a timer set while sending ran too early and lost the focus (E16-15).
+ */
+export function useFocusFirstProblem(): () => void {
+  const [tries, setTries] = useState(0);
+  useEffect(() => {
+    if (!tries) return undefined;
+    const frame = requestAnimationFrame(() => {
+      const field = document.querySelector<HTMLElement>(
+        '.pt-form input[aria-invalid="true"], .pt-form textarea[aria-invalid="true"], .pt-form [aria-invalid="true"] input',
+      );
+      (field ?? document.querySelector<HTMLElement>('.pt-form-error'))?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [tries]);
+  return useCallback(() => setTries((n) => n + 1), []);
+}
+
 export function usePortal(): PortalConfig {
   const c = useContext(ConfigContext);
   if (!c) throw new Error('usePortal must be used inside the portal');

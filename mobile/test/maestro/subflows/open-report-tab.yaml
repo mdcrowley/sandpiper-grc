@@ -1,0 +1,12 @@
+# Opens the Report tab (tapped again if the first tap came before the tab bar was ready).
+appId: com.sandpipergrc
+---
+- tapOn: "Report"
+- runFlow:
+    when:
+      notVisible: "Report a problem"
+    commands:
+      - tapOn: "Report"
+- extendedWaitUntil:
+    visible: "Report a problem"
+    timeout: 20000

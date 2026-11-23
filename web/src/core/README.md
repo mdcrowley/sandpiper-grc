@@ -154,6 +154,15 @@ to know what happens to `nav` and `create`:
   top bar that stays until the factor is set up (with the date when a grace period is running). The bell is `NotificationBell` from the
   notifications module: the shell finds it with `import.meta.glob` and loads it lazily, so the core
   has no hard dependency on that module and shows no bell when it is absent.
+- **Focus after a change of page** (`routeFocus.ts`, `useRouteFocus(mainRef)`; the portal layout
+  uses it too). After the path changes, once the page shows its `<h1>` (and no loading skeleton),
+  the focus moves to that heading (`tabindex="-1"`), so a screen reader announces the page. It is
+  left alone on a fresh page load and when the focus is already inside the page content (a field
+  with `autoFocus`) or in a dialog. The same hook rescues the focus when the element that had it is
+  removed or becomes unavailable (a button replaced after its action, a Save button with nothing
+  left to save): back to it once it is usable again after being busy, or else to the heading. A
+  page that wants the focus elsewhere after an action should put it there itself (as the comment
+  box does after "Add note").
 - **Second factor required.** When `/api/auth/state` reports `mfaEnrollmentBlocked` (setting
   `auth.mfa_enforcement` = `required` and the user has no factor), the shell is not drawn at all:
   `EnrollmentGate.tsx` shows only the `/account/security` page with a Sign out button, and no

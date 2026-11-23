@@ -14,7 +14,7 @@ The roster is always on: it is not one of the parts an administrator can switch 
 | `training.view` together with `people.view` | See the qualification matrix, expiring certifications and a person's training |
 | `training.edit` | Set what each position requires |
 
-The **Training coordinator** role holds every people and training permission. **Security lead**, **Safety manager** and **Compliance officer** can see the roster. An administrator can grant the permissions to any other role under **Administration > Roles**.
+The **Training coordinator** role holds every people and training permission. **Security lead**, **Safety manager**, **Compliance officer** and **Continuity manager** can see the roster. An administrator can grant the permissions to any other role under **Administration > Roles**.
 
 Names, employee numbers, email addresses, phone numbers, hire dates, accounts and notes on the roster are personal data. When a person's record reaches the end of its retention period and is anonymized (see [Administration](09-administration.md)), these are removed; their training, certifications and acknowledgments stay as figures but no longer name them.
 
@@ -26,7 +26,7 @@ Open **Administration > Positions**. Each position (`POS-` numbers) has a **Name
 
 On the position's **Requirements** tab (shown to people who can see training), select **Add requirement**:
 
-1. Choose **A certification** and the certification type, or **A course** and the course.
+1. Under **Kind**, choose **A certification** and the **Certification** type, or **A course** and the **Course**.
 2. Leave **Mandatory** checked for something the position cannot do without. Only mandatory requirements decide whether someone is qualified.
 3. Enter **Grace days** if a certification that has just expired, or a repeating course that has just fallen due, should still count for a few days.
 4. Select **Add requirement**.
@@ -35,7 +35,7 @@ The **People** tab lists everyone in the position.
 
 ## The roster
 
-Open **Administration > People**. The tiles count people who are **Active** and **On leave**, how many have an account, and how many positions are in use. The list shows each person's reference (`PER-` numbers), name, employee number, position, department and status; more columns (account, supervisor, work site, hire date, source) are in the column chooser.
+Open **Administration > People**. The tiles count people who are **Active** and **On leave**, how many are **With an account**, and the **Positions**. The list shows each person's reference (`PER-` numbers), name, employee number, position, department and status; more columns (account, supervisor, work site, hire date, source) are in the column chooser.
 
 ### Add a person
 
@@ -83,7 +83,7 @@ Open **Cybersecurity > Qualifications**. The tiles count who is **Qualified** an
 
 ## Certifications
 
-Certifications (`CRT-` numbers) are recorded under **Cybersecurity > Certifications** or from a person's page; see [Training and exercises](12-training-and-exercises.md#qualifications-and-certifications). The certification types (for example **Driver or operator license**, **Medical fitness certificate**, **First aid**, **Track access permit**) are a list an administrator can change under **Administration > Lists** (list **certification_type**), each with how many months it is valid (`validity_months`) and who usually issues it (`issuing_body`).
+Certifications (`CRT-` numbers) are recorded under **Cybersecurity > Certifications** or from a person's page; see [Training and exercises](12-training-and-exercises.md#qualifications-and-certifications). The certification types (for example **Driver or operator license**, **Medical fitness certificate**, **First aid**, **Track access permit**) are a list an administrator can change under **Administration > Lists** (list **Certification type**). The types installed with the application also say how many months each is valid (`validity_months`) and who usually issues it (`issuing_body`); the **Lists** page changes a type's name, color and order, not these two.
 
 Certifications that expire within 90, 60 and 30 days, or have expired, without a renewal are reminded to the person and their supervisor once at each step. **Expiring** on the certifications list shows them all.
 

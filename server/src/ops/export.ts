@@ -52,6 +52,8 @@ export const SECRET_TABLES = [
   'sessions', 'one_time_tokens', 'password_history', 'webauthn_credentials', 'webauthn_challenges',
   'identity_flows', 'identity_sessions', 'identity_logout_tokens',
   'mcp_oauth_codes', 'mcp_oauth_tokens', 'mobile_codes', 'mobile_tokens',
+  // Each phone's push token or endpoint: the phones sign in again after such a restore and register anew.
+  'push_registrations',
 ];
 
 /** A token hash replaced by a value no token can hash to (still unique, so the row loads). */
@@ -74,6 +76,12 @@ export const SECRET_COLUMNS: Record<string, Record<string, unknown>> = {
   // The work-tracker bridge (feeds module): its address and both secrets are sealed; a copy without secrets
   // keeps the connector switched off and empty, to be entered again.
   ticket_connectors: { url_sealed: '', secret_sealed: '', inbound_secret_sealed: '', active: false },
+  // Push credentials (push module): the keys go and every service is switched off, to be set up again.
+  push_config: {
+    apns_enabled: false, apns_key_sealed: null, apns_key_fingerprint: null,
+    fcm_enabled: false, fcm_key_sealed: null, fcm_key_fingerprint: null,
+    unifiedpush_enabled: false, vapid_public_key: null, vapid_private_sealed: null,
+  },
 };
 
 /**

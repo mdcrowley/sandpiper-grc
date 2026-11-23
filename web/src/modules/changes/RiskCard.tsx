@@ -49,7 +49,7 @@ export function RiskCard({ row, save, canEdit, onSaved }: RecordContext & { onSa
 
   const q = data?.questionnaire;
   return (
-    <Card title="Risk" actions={editable && q && <Button size="sm" icon="edit" onClick={begin}>Edit</Button>}>
+    <Card title="Risk" actions={editable && q && <Button size="sm" icon="edit" aria-label="Edit risk" onClick={begin}>Edit</Button>}>
       {error ? <ErrorState title="The questionnaire could not be loaded" error={error} onRetry={reload} />
         : !q ? <Loading lines={3} label="Loading the risk questionnaire" />
         : (

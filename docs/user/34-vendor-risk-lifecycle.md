@@ -43,11 +43,13 @@ Many organizations check, before they contract with a vendor and from time to ti
 On the vendor's **Lifecycle** tab, under **Exclusion-list checks**, select **Record a check** and enter:
 
 - **Checked on** (today unless you checked earlier; never in the future),
-- **List checked**: the list your organization uses. The lists are yours to name under **Administration > Lookups**, in the list **Exclusion lists**; one neutral example, "Government exclusion list (rename to yours)", is there to start with. Rename it, and add one entry for each list you check,
+- **List checked**: the list your organization uses. The lists are yours to name under **Administration > Lists**, in the list **Exclusion list**; one neutral example, "Government exclusion list (rename to yours)", is there to start with. Rename it, and add one entry for each list you check,
 - **Result**: **Clear**, **Possible match** or **Match**,
 - **Search reference**: the reference or result number the list showed,
 - **Note**: needed for a possible match or a match (what was found and what happens next),
-- **Result file**: optionally, a file already on the vendor's **Files** tab that holds the result (a saved search or a screenshot).
+- **Result file**: optionally, a file already on the vendor's **Attachments** tab that holds the result (a saved search or a screenshot); the box shows only when the vendor has files.
+
+Then select **Record the check**.
 
 The checks are kept as history, newest first, and **Last exclusion-list check** on the vendor shows the latest date. A check is **due** every 12 months (a setting); an active vendor that has never been checked is due at once. The owner is reminded as for reassessments. A **possible match** or a **match** notifies the vendor's owner straight away (or everyone who may edit vendors when it has no owner).
 
@@ -57,7 +59,7 @@ With **Need a recent exclusion-list check before a contract becomes active** on,
 
 ## Vendor issues
 
-A vendor issue is a problem with a vendor that you want tracked to the end: a service failure, a security or billing problem, a compliance gap. Open **Vendors > Vendor issues**, or the vendor's **Lifecycle** tab, and select **New vendor issue**. Enter a **Title**, the **Vendor**, optionally the **Contract**, a **Category** (service failure, security, billing, compliance, safety or other), a **Severity**, the **Owner** and **What happened**. **Raised on** is today unless you change it. Each issue gets a reference such as `VIS-00001`.
+A vendor issue is a problem with a vendor that you want tracked to the end: a service failure, a security or billing problem, a compliance gap. Open **Vendors > Vendor issues**, or the vendor's **Lifecycle** tab, and select **New vendor issue**. Enter the **Issue** (its title), the **Vendor**, optionally the **Contract**, a **Category** (service failure, security, billing, compliance, safety or other), a **Severity**, the **Owner** and **What happened**. **Raised on** is today unless you change it. Select **Create vendor issue**. Each issue gets a reference such as `VIS-00001`.
 
 Move the issue through **Open**, **In progress**, **Resolved** and **Closed**. Resolving or closing needs a **Resolution**; **Resolved on** is filled in for you.
 
@@ -83,7 +85,7 @@ The checklist is built from the inventory:
 - **Remote access**: one item for each of those systems when the vendor has a **Remote access method** recorded, or when the system says the vendor has remote access (the OT security fields, when they are installed). A vendor with remote access and no systems gets one item for the vendor.
 - **Assets returned**: one item for each asset with this vendor or contract that is not disposed of.
 - **Data returned or destroyed**: one item for each data category held by those systems.
-- **Other**: the items of your own template, under **Administration > Lookups** in the list **Offboarding checklist items** (as installed: collect badges and keys, change shared passwords the vendor knew, remove the vendor from contact and on-call lists, settle the final invoice).
+- **Other**: the items of your own template, under **Administration > Lists** in the list **Offboarding item template** (as installed: collect badges and keys, change shared passwords the vendor knew, remove the vendor from contact and on-call lists, settle the final invoice).
 
 **Add new items from the inventory** adds items for anything linked since the offboarding started; it never removes items or adds one twice. An item names a record only to people who may see that record.
 

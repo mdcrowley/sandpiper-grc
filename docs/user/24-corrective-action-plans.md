@@ -15,14 +15,14 @@ Open **Governance > Corrective action plans**. The tiles count every plan, the s
 | **Awaiting approval** | Plans submitted and waiting for an approver. |
 | **Actions to verify** | Actions in plans whose work is finished but whose effectiveness has not been checked yet; the hint says how many are past their verification date. |
 
-Select a tile to filter the list. The list has the usual search, filters (**Status**, **Source**, **Responsible**, **Root cause category**, **Due**, **Actions awaiting verification**), sorting, saved views, column options and export. Each row shows how many of the plan's actions are done and how many wait for verification. **Raised on** links to the record the plan came from.
+Select a tile to filter the list. The list has the usual search, filters (**Status**, **Source**, **Responsible**, **Root cause category**, **Due after** and **Due before**, **Tags**), sorting, saved views, column options and export. Each row shows how many of the plan's actions are done and how many wait for verification. **Raised on** links to the record the plan came from.
 
 A plan raised on a restricted record (for example a risk or a security incident) is itself restricted: only people who may see security records see it in the list. It still counts in the tiles. **Actions awaiting verification** at the top opens the action tracker filtered to those actions.
 
 ## Raising a plan
 
 - From a record: modules that find problems show a **Corrective action plans** card on their records (for example audit findings, control tests, funder reviews and safety events). Select **Raise a plan**. The plan is tied to that record and filed under its source.
-- From the register: select **New** and fill in the form. A plan raised here has no source record.
+- From the register: select **New corrective action plan**, fill in the form and select **Create corrective action plan**. A plan raised here has no source record; you can still choose its **Source** (the kind of problem it fixes).
 
 Give the **Title** and the **Problem statement**; the **Root cause**, its **Root cause category**, the **Responsible** person and the **Due** date can follow. A new plan is a **Draft**. Its reference begins `CAP-`.
 
@@ -87,7 +87,7 @@ Once a plan is approved, the due dates of its actions are fixed: only someone wh
 - **Approved**: the action gets the new due date, keeps its **Original due date**, and counts the extension.
 - **Rejected**: the due date stays as it was.
 
-The tab lists every request with its decision, who decided and when. One request at a time can wait for a decision. Extensions can be asked for on any open action, in a plan or not.
+The tab lists every request with its decision, who decided and when. One request at a time can wait for a decision. Extensions can be asked for on any action whose work is not finished (not done, canceled or awaiting verification), in a plan or not, by someone with **Edit** on **Actions**.
 
 ## Figures for indicators
 

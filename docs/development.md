@@ -147,7 +147,7 @@ No admin rights needed. Run `tools\install-node.ps1` (downloads the pinned Node.
 and verifies its checksum), or do it by hand: download the Node.js LTS Windows x64 zip for
 the major version in `tools/node-version.txt` from nodejs.org, check it against the
 published SHASUMS256.txt, and extract it to `.tools\node` (so that `.tools\node\node.exe`
-exists). Then `.\grc.ps1 npm install` and `.\grc.ps1 start`. The first visit shows the
+exists). Then `.\grc.ps1 install` and `.\grc.ps1 start`. The first visit shows the
 setup wizard, which creates the administrator; there is no default account. `.tools/`,
 `node_modules/`, `data/`, `backups/`, `dist/` and `seed/` are never committed.
 
@@ -336,13 +336,14 @@ server/src/test/helpers.ts    testApp() - in-memory app with a signed-in admin
 web/src/core/                 shell, design system, generic list/detail/form, api client (see web/src/core/README.md)
 web/src/modules/<key>/        one folder per module: index.tsx (+ pages)
 shared/                       code the server, the web and the mobile app share: tag values and formats
-                              (tag-format.ts), API shapes (asset-tags-api.ts, mobile-api.ts); no imports
+                              (tag-format.ts), API shapes (asset-tags-api.ts, mobile-api.ts, push-api.ts); no imports
                               beyond shared/, tested by the root vitest
 mobile/                       the iPhone and Android app (Expo, React Native): its own package.json and
                               lockfile, not part of the root install, typecheck or tests (see below)
 tools/                        install-node.ps1, browse.mjs, contrast.mjs, code-snapshot.mjs
 tools/e2e/                    browser test runner and suites (npm run test:e2e)
 tools/a11y/                   accessibility audit (npm run test:a11y)
+tools/sr/                     screen reader journeys (NVDA through Guidepup; manual only)
 tools/mcp-stdio.mjs           bridge for MCP clients that speak only stdio (docs/mcp.md)
 tools/load/                   load test (seeds invented data, measures latency; docs/operations.md)
 deploy/                       container health check, the secrets folder for compose.yaml, and
@@ -447,6 +448,11 @@ export default mod;
 
 Services other modules may offer are Fastify decorators; check before use:
 
+- `app.pushNotify(userIds)` (push module): queues a push delivery to those people's phones; guard with
+  `ctx.app.hasDecorator('pushNotify')`. The notifications service calls it, so modules normally just use
+  `app.notify`. Push credentials are not settings: they live in the `push_config` table (keys
+  encrypted), changed only under Administration > Push notifications (`GET/PUT /api/push/admin/config`,
+  `POST /api/push/admin/vapid`, `POST /api/push/admin/test`, recent password confirmation).
 - `app.notify(...)`: in-app notifications (notifications module;
   `if (ctx.app.hasDecorator('notify')) ...`). For reminders pass `oncePerDay: true` (at
   most once per person, record and kind each organization day) or `once: '<key>'` (at most
@@ -828,6 +834,10 @@ The test commands:
   on any serious or critical finding that is not listed, with its roadmap issue, in
   `tools/a11y/known.json`; remove an entry once its issue is fixed (the report lists stale
   entries). See [Accessibility](accessibility.md).
+- `tools/sr/journeys.mjs` (Windows, manual only, never in CI or `npm test`): the main journeys by
+  keyboard with NVDA listening; `cd tools/sr; npm install; npm run nvda` once, then
+  `node journeys.mjs --only <journey>`. Own `package.json`, outside the root install, typecheck and
+  tests. See [Accessibility](accessibility.md#screen-reader-run).
 
 GitHub Actions runs the typecheck, tests and build on Windows and Linux, the tests through
 the PostgreSQL wire protocol, the container build and smoke test, and the browser suite
@@ -1001,6 +1011,11 @@ paths listed in its `include.json`: `npx tsx packages/api-client/generate.ts` (a
 it is up to date, as CI does); add a path to `include.json` to type a new API for the app. Builds and
 dev servers run with `EXPO_NO_TELEMETRY=1`.
 
+Offline work for the app (E38-10): a new kind of work is a server sync kind (`defineSyncKind`,
+`modules/mobile/sync.ts`), an optional package part (`definePackagePart`, `modules/mobile/package.ts`)
+and an app outbox kind (`mobile/src/offline/kinds.ts`); see [Mobile app](mobile.md#adding-a-kind-of-offline-work).
+End-to-end flows: `mobile/test/maestro/run.sh` (Maestro in `.tools/maestro`, `MAESTRO_CLI_NO_ANALYTICS=1`).
+
 ### Approval workflows (shared engine)
 
 The `workflows` module (E14-06) runs administrator-defined approval workflows on any record
@@ -1127,7 +1142,8 @@ has filter, sort, saved view and export; every record shows its history.
 | `projects` | `project` → projects |
 | `fleet` | `vehicle` → vehicles, `service` → services |
 | `tags` | `inventory_count` → inventory_counts (child table inventory_count_items); tables tag_formats, tag_series, tag_ranges, tag_range_values, tag_stock_marks, tag_assignments, tag_lookups, tag_label_layouts, tag_verifications (no record type) |
-| `mobile` | no record type: the mobile app's devices, My work and settings (wave 13, area `mobile`) |
+| `mobile` | no record type: the mobile app's devices, My work, settings, the offline package and the outbox answers (`mobile_sync_items`) (waves 13 and 14, area `mobile`) |
+| `push` | no record type: push notifications to the mobile app (tables `push_config`, `push_registrations`, `push_cursor`; part of the `mobile` area; `app.pushNotify(userIds)`, called by the notifications service) |
 | `safety` | `hazard` → hazards, `safety_event` → safety_events (flag), `safety_indicator` → safety_indicators; tables safety_event_people, safety_event_timeline, safety_event_statements, safety_report_rules, safety_notifications, safety_indicator_values, safety_indicator_targets (no record type) |
 | `reports` | `report_definition` → report_definitions, `dashboard` → dashboards, `report_schedule` → report_schedules, `report_pack` → report_packs |
 | `attachments` | no record type: files on any record (table `attachments`; `AttachmentsPanel`; stored in `<data>/files`), and links to documents kept elsewhere (`storage_driver = 'link'`, never fetched) |

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ApiError, Button, Card, errorMessage, Select, useToast } from '../../core';
 import type { RecordContext } from '../../core';
 import { MiniMatrix, RatingChip, ratingFor, type Position, type Scale, type ScaleLevel } from './scales';
@@ -31,6 +31,16 @@ export function ScoringPanel({ rec, scale }: { rec: RecordContext; scale: Scale 
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   useEffect(() => { setScores(read(rec.row)); setErrors({}); }, [rec.row]);
+  // The button that was used goes away: the focus goes to the first picker, and back to "Change
+  // scores" when the scores are saved or the change is canceled, rather than to nowhere (E16-15).
+  const wasEditing = useRef(editing);
+  useEffect(() => {
+    if (wasEditing.current === editing) return;
+    wasEditing.current = editing;
+    const card = document.getElementById('risk-assessment');
+    const target = editing ? card?.querySelector<HTMLElement>('.rk-assess input') : card?.querySelector<HTMLElement>('.card-actions button');
+    target?.focus();
+  }, [editing]);
 
   if (!scale) return <Card title="Assessment"><p className="muted">The scale this risk was scored on ({String(rec.row.scale_key)}) no longer exists.</p></Card>;
 
@@ -50,7 +60,11 @@ export function ScoringPanel({ rec, scale }: { rec: RecordContext; scale: Scale 
       }
     }
     setErrors(found);
-    if (Object.keys(found).length) return;
+    if (Object.keys(found).length) {
+      // The message is beside the picker: take the focus there, so a screen reader reads it (E16-15).
+      requestAnimationFrame(() => document.querySelector<HTMLElement>('#risk-assessment input[aria-invalid="true"]')?.focus());
+      return;
+    }
     setSaving(true);
     try {
       await rec.save(Object.fromEntries(FIELDS.filter((f) => scores[f] !== saved[f]).map((f) => [f, scores[f]])));
@@ -105,6 +119,7 @@ export function ScoringPanel({ rec, scale }: { rec: RecordContext; scale: Scale 
 
   return (
     <Card
+      id="risk-assessment"
       title="Assessment"
       actions={rec.canEdit && !editing && <Button size="sm" icon="edit" onClick={() => setEditing(true)}>Change scores</Button>}
     >

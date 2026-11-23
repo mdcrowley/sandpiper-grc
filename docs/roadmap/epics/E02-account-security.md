@@ -434,7 +434,7 @@ machine, so a copied token is useless elsewhere. Found while building E02-12.
 - [x] The address checked is the one the application trusts (`clientIp`: the connection's own, or the entry the trusted proxy appended under `GRC_TRUST_PROXY`; a forwarded header is ignored otherwise) (tested)
 - [x] The list can be changed on a live token, by its owner (`PATCH /api/me/tokens/:id`, **Addresses** on Account security) or an administrator (`PATCH /api/admin/tokens/:id`, **Addresses** on Administration > API tokens), with a recent identity confirmation; an empty list allows any address again; audited as `token.update` with the lists before and after
 - [x] The administrators' token list shows "From any address" for a token without a list
-- [ ] The per-token request count moves out of process memory: not part of this issue, raised as [E16-43](E16-hosting-operations-and-hardening.md) (the count behind `tokens.rate_per_minute` is kept per server process, so a restart resets the current minute and each of several processes counts on its own)
+- [x] The per-token request count moves out of process memory: done in [E16-43](E16-hosting-operations-and-hardening.md) (kept per clock minute in the database, shared by every server process)
 
 **Implemented in:** `server/src/core/tokens.ts` (`checkSources`, `sourceAllowed`, `changeSources`), `server/src/core/migrations/008_token_source_addresses.sql`, route descriptions in `server/src/core/api/docs/tokens.ts`; `web/src/modules/admin/ApiTokens.tsx` (`SourcesDialog`), `web/src/modules/mcp/ConnectCard.tsx`; tests `server/src/core/api/token-sources.test.ts`, browser test "API token: change the allowed source addresses" (`tools/e2e/suites/07-dialogs.mjs`)
 

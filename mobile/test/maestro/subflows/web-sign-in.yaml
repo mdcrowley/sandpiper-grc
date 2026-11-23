@@ -1,0 +1,11 @@
+# The server's sign-in page in the phone's browser: username and password (no second factor).
+appId: com.android.chrome
+---
+- tapOn: "Username"
+- inputText: ${USERNAME}
+- tapOn: "Password"
+- inputText: ${PASSWORD}
+- hideKeyboard
+- tapOn:
+    text: "Sign in"
+    index: -1

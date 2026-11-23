@@ -5,7 +5,7 @@ import type { Db, Queryable } from './db.ts';
 import { fail, UUID_RE } from './errors.ts';
 import type { Row, SessionUser } from './module.ts';
 import { routePattern } from './api/versioning.ts';
-import { makeDbLimiter } from './ratelimit.ts';
+import { countRequest, makeDbLimiter, pruneRequestCounts, setTokenRate } from './ratelimit.ts';
 import { clientIp } from './request.ts';
 import { can, requirePerm, type makeAudit, type makeSettings } from './services.ts';
 
@@ -279,10 +279,16 @@ const LIST_SQL = `
 export function registerTokens(app: FastifyInstance, deps: Deps) {
   const { db, audit, settings } = deps;
   const failures = makeDbLimiter(db, 'token', 20, 5 * 60_000); // wrong tokens, by source address
-  // Requests per token in the current minute. In memory: a restart only resets the minute.
-  const windows = new Map<string, { minute: number; count: number }>();
   const resolvers = new Map<string, BearerResolver>();
   const gates = new Map<string, ScopeGate>();
+
+  // Minutes that have passed are of no use to the per-token counts (E16-43). The job queue is
+  // started by core after this point, so the work is put on it once the application is ready.
+  app.addHook('onReady', async () => {
+    if (!app.hasDecorator('jobs')) return;
+    app.jobs.register('core.request_counts', async () => ({ removed: await pruneRequestCounts(db) }), { maxAttempts: 2 });
+    await app.jobs.schedule('core.request_counts', { type: 'core.request_counts', every: 10 * 60_000, firstRunInMs: 5 * 60_000 });
+  });
 
   app.decorate('registerBearerResolver', (prefix: string, resolver: BearerResolver) => {
     if (!/^grc_[a-z]{2,8}_$/.test(prefix) || prefix === TOKEN_PREFIX) throw new Error(`Bearer prefix "${prefix}" must look like "grc_xyz_" and not be ${TOKEN_PREFIX}`);
@@ -328,12 +334,12 @@ export function registerTokens(app: FastifyInstance, deps: Deps) {
       await audit(req, { action: 'token.refused', recordType: 'api_token', recordId: found!.id, summary: `API token "${found!.name}" refused: used from ${ip}, which is not among its allowed source addresses` });
       fail(403, 'token_source_not_allowed', 'This API token may not be used from this address.');
     }
-    const perMinute = Math.max(1, Number(await settings.get('tokens.rate_per_minute', 600)) || 600);
-    const minute = Math.floor(Date.now() / 60_000);
-    const w = windows.get(found!.id);
-    if (!w || w.minute !== minute) windows.set(found!.id, { minute, count: 1 });
-    else if (++w.count > perMinute) fail(429, 'rate_limited', `This API token is limited to ${perMinute} requests a minute.`);
-    if (windows.size > 5000) for (const [k, v] of windows) if (v.minute !== minute) windows.delete(k);
+    // Requests per token in the current minute, counted in the database so that every server
+    // process on it shares one count (E16-43); the RateLimit headers report this same count.
+    const { setting, ...used } = await countRequest(db, 'token', found!.id, 'tokens.rate_per_minute');
+    const perMinute = Math.max(1, Number(setting ?? 600) || 600);
+    setTokenRate(req, { ...used, limit: perMinute });
+    if (used.count > perMinute) fail(429, 'rate_limited', `This API token is limited to ${perMinute} requests a minute.`);
 
     // The path and the route it matched must both be allowed (they agree once the path is canonical).
     if (tokenBlocked(req.url) || tokenBlocked(routePattern(req))) fail(403, 'token_not_allowed', 'This route cannot be called with an API token. Sign in to use it.');

@@ -57,6 +57,8 @@ Select **Edit condition details** to choose the **Asset class** and the facts th
 - a site's **Year built**, with its **Kind of site** and whether it is still **In use**;
 - the **Replacement project**: the project that will replace it.
 
+Then select **Save changes**.
+
 ### How the end of useful life is worked out
 
 The end of useful life is the date the record counts from plus the class's useful life in years. For a vehicle whose class also has a useful life in miles, the application also works out the day the vehicle reaches those miles at the rate it has run so far (from its odometer and the day the odometer was last changed, shown as **Read on**); the earlier of the two dates wins. It is worked out again whenever the class's benchmark, the dates or the odometer change, and every night. A record whose class needs a date it does not have shows no end of useful life and is not counted as past it. **Recompute useful life** on a class's **Members** tab does it at once.

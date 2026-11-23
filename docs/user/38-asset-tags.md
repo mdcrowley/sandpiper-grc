@@ -19,7 +19,7 @@ Asset tags have three permissions of their own:
 
 - `tags.view`: see tag history, stock, formats and series, inventory counts and their report.
 - `tags.manage`: change formats, stock and series, print tags, and attach, replace and end tags (attaching also needs edit permission on the record).
-- `tags.count`: start inventory counts, count towards them, finish or cancel them and decide what to do with their differences.
+- `tags.count`: start inventory counts, count toward them, finish or cancel them and decide what to do with their differences.
 
 **Looking up a tag needs no permission of its own**: you see the record only if you may see it anyway. The default **Asset manager** role holds all three; the **Agent** role holds `tags.view` and `tags.count`; **Administrators** hold everything. An administrator can grant them to any role under **Administration > Roles**, where the **Asset tags** row has the extra columns **Manage** and **Count** (see [Administration](09-administration.md)).
 
@@ -39,7 +39,7 @@ Other identifiers stay as they are (serial number, fleet number, registration, a
 
 ## Tag formats
 
-Open **Administration > Asset tags**. Tag formats are optional, and none is supplied: they matter most for printed text read by the app's camera, which can misread a character. A format says:
+Open **Administration > Asset tags**; its tabs are **Formats**, **Stock**, **Series**, **Print tags** and **Settings**. On **Formats**, select **Add format** to describe one. Tag formats are optional, and none is supplied: they matter most for printed text read by the app's camera, which can misread a character. A format says:
 
 | Setting | Example |
 |---|---|
@@ -57,7 +57,7 @@ Once any format exists, a value typed on a record or entered with a handheld sca
 
 ## Tag stock
 
-Open **Administration > Asset tags > Stock**. Stock records tags your organization owns but has not stuck on anything yet, so that a tag that is simply not attached yet is told apart from a misread:
+Open **Administration > Asset tags > Stock** and select **Register tags**. Stock records tags your organization owns but has not stuck on anything yet, so that a tag that is simply not attached yet is told apart from a misread:
 
 - **A range of bought tags**: "We received tags 010000 to 010999". Enter the prefix, the number of digits and the first and last number, an optional format, a supplier note and the date received. The range is stored as a range; values are not created one by one.
 - **A list of values** for bought tags that are not sequential, imported from a text or CSV file (one value per line, at most 100,000).
@@ -69,7 +69,7 @@ A range or list that overlaps existing stock, or a value already on a record, is
 
 ## Printing your own tags
 
-Open **Administration > Asset tags > Series** to set up a **series** for tags you print yourself: a name, an optional format, a prefix, the number of digits and the next number. Taking numbers from a series is safe when two people print at once: they never get the same numbers.
+Open **Administration > Asset tags > Series** and select **Add series** to set up a **series** for tags you print yourself: a name, an optional format, a prefix, the number of digits and the next number. Taking numbers from a series is safe when two people print at once: they never get the same numbers.
 
 Open **Administration > Asset tags > Print tags** (needs `tags.manage`):
 
@@ -125,7 +125,7 @@ The tag card shows the record's kind, name, tag number, status, photo, site and 
 - **Edit** and **Quick updates**: change the status, location, assignee or custodian in one step; the change is checked and recorded like any edit.
 - **Add photo** or **Add note**; one image attachment can be marked as the record's photo.
 - **Record condition** and **Start inspection**, when those parts are on.
-- **Count it**, when an inventory count you may count towards expects the record.
+- **Count it**, when an inventory count you may count toward expects the record.
 - **Replace tag**, for people who may manage tags.
 - **Open full record**.
 
@@ -149,7 +149,7 @@ A count checks that what the register says is at a site is really there. Open **
 
 ### Starting a count
 
-Select **Start a count** (or **Create > Inventory count**; needs `tags.count`):
+Select **Start a count** (or **Create > Inventory count**; needs `tags.count`), fill in the form and select **Start the count**:
 
 1. Choose the **Site**.
 2. Optionally enter a **Room or area**: then only records whose **location** contains that text are expected (only assets have a location, so vehicles and the site itself are left out of such a count).
@@ -160,7 +160,7 @@ When the count starts, the **expected list** is fixed: every record registered a
 
 ### Counting
 
-Open the count. While it is open, the **Count** box takes one tag number after another: type it, or scan it with a handheld scanner, and press Enter (the box keeps the focus, so you can scan a shelf in a row). Each answer says what happened:
+Open the count. While it is open, the **Tag number** box in the **Count** card takes one tag number after another: type it, or scan it with a handheld scanner, and press Enter (or select **Found**) (the box keeps the focus, so you can scan a shelf in a row). Each answer says what happened:
 
 - **Found**: the record was expected here.
 - **Unexpected**: the record is registered somewhere else; it is added to the count as unexpected.
@@ -173,7 +173,7 @@ Every record found gets its **last verified** date and place (the count's site),
 
 ### Finishing and the differences
 
-Select **Finish** when you are done: what was not found is marked **missing**, and nobody can count towards the count any more. (**Cancel the count** closes it without marking anything missing; what was found keeps its last verified date.)
+Select **Finish** when you are done: what was not found is marked **missing**, and nobody can count toward the count anymore. (**Cancel the count** closes it without marking anything missing; what was found keeps its last verified date.)
 
 Then, on the **Items** tab, choose items and decide:
 
@@ -203,10 +203,12 @@ The log is kept for 90 days by default, then removed by a daily job; anonymizing
 
 Under **Administration > Asset tags > Settings** (changing them needs `tags.manage`):
 
-- **Several tags per record**: allow more than one active tag on a record (off by default).
-- **Log lookups**: keep the lookup log for "Last seen" (on by default).
-- **Keep lookups for (days)**: `retention.tag_lookups_days`, 90 by default.
-- **Most labels in one print**: `tags.print_limit`, 1,000 by default.
+- **Allow several tags on one record**: more than one active tag on a record (off by default).
+- **Keep a log of tag lookups**: the lookup log behind "Last seen" (on by default).
+- **Days the lookup log is kept**: `retention.tag_lookups_days`, 90 by default.
+- **Most labels one print run makes**: `tags.print_limit`, 1,000 by default.
+
+Select **Save** to keep a change.
 
 ## Switching asset tags off
 

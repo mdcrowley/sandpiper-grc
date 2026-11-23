@@ -18,24 +18,58 @@
     "android": {
       "package": "com.sandpipergrc",
       "allowBackup": false,
-      "permissions": ["android.permission.CAMERA"],
-      "blockedPermissions": ["android.permission.RECORD_AUDIO"]
+      "permissions": [
+        "android.permission.CAMERA"
+      ],
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "plugins": [
       "expo-router",
       "expo-secure-store",
       "expo-web-browser",
-      ["expo-local-authentication", { "faceIDPermission": "Sandpiper GRC uses Face ID to unlock the app when you choose to, or when your organization requires it." }],
-      ["expo-image-picker", {
-        "photosPermission": "Sandpiper GRC lets you attach photos from your library to reports and records.",
-        "cameraPermission": "Sandpiper GRC uses the camera to take photos for reports.",
-        "microphonePermission": false
-      }],
-      ["react-native-vision-camera-ocr-plus", { "disableTranslate": true, "disableNonLatinTextRecognition": true }],
-      ["expo-build-properties", { "android": { "minSdkVersion": 29 } }],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Sandpiper GRC uses Face ID to unlock the app when you choose to, or when your organization requires it."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Sandpiper GRC lets you attach photos from your library to reports and records.",
+          "cameraPermission": "Sandpiper GRC uses the camera to take photos for reports.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "react-native-vision-camera-ocr-plus",
+        {
+          "disableTranslate": true,
+          "disableNonLatinTextRecognition": true
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 29
+          }
+        }
+      ],
       "./plugins/withUnsignedRelease",
       "./plugins/withNativeBuildDir",
-      "./plugins/withoutDataTransport"
+      "./plugins/withoutDataTransport",
+      "expo-sqlite",
+      [
+        "expo-notifications",
+        {
+          "mode": "production",
+          "enableBackgroundRemoteNotifications": false
+        }
+      ],
+      "./plugins/withPushNotifications"
     ]
   }
 }

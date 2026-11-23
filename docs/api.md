@@ -405,7 +405,8 @@ id of the `/mcp` request, and the AI assistant call log shows it.
 ## Rate limits
 
 Each token may make `tokens.rate_per_minute` requests a minute (600 by default; an
-administrator can change it). Answers to token requests say where you stand:
+administrator can change it). The count is kept in the database, so it is the same whichever server
+process answers. Answers to token requests say where you stand:
 
 ```
 RateLimit-Limit: 600
@@ -436,6 +437,10 @@ characters) with `POST` to a record type's path, and send the same key when you 
   with the same key.
 
 Keys belong to the token (or session) that sent them.
+
+The mobile app's outbox (`POST /api/mobile/sync`, `PUT /api/mobile/sync/attachment`) has its own
+per-item idempotency: each item's client-made UUID is kept for 7 days and a repeat is answered from
+memory (see [Mobile app](mobile.md#offline-work)). These routes accept only the app's token.
 
 ## Optimistic concurrency
 

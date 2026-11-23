@@ -154,6 +154,11 @@ The menu has three forms, depending on the width of the window:
 
 With the keyboard, `Tab` reaches the menu; the up and down arrow keys then move from entry to entry, and the left and right arrow keys fold and open a group. **Skip to content** is the first thing `Tab` reaches on every page.
 
+When you open another page from inside the application (a menu entry, a record in a list, a new
+record you have just saved), the keyboard focus moves to the new page's title, so a screen reader
+reads it, and the next `Tab` goes on from the top of the page. On a page that puts you straight into
+a box (the inventory count's **Tag number**, for example) the focus stays in that box.
+
 ### Overview
 
 **Overview** is the home page. Under a greeting with today's date, a line saying how many items are waiting for you, and the line "Governance, risk and compliance for transit organizations", it has two parts: **My work**, which is about you, and **Dashboard**, which is about the organization. Each part is made of boxes called widgets. You only ever see widgets for areas your role can open.

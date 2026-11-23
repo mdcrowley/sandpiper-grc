@@ -10,6 +10,7 @@
 //
 //   node tools/load/run.mjs                          # scale 1, 8 people at once, 15 s per scenario
 //   node tools/load/run.mjs --scale 4 --concurrency 16 --duration 30 --ops
+//   node tools/load/run.mjs --roles 6                # the Overview opened by people in six different roles
 //   node tools/load/run.mjs --base http://127.0.0.1:8080 --user admin --password ...   (a running instance: adds records to it!)
 //
 // Never point it at a real installation: it creates thousands of invented records.
@@ -52,6 +53,9 @@ let base = opt('base', '');
 if (reuse && base) throw new Error('--reuse starts its own instance; leave out --base.');
 const user = opt('user', 'loadtest');
 const password = opt('password', 'load-test-Passw0rd-only');
+// People in different roles for the Overview (E16-41): each set of permissions computes its own
+// figures, so they do not all share the administrator's kept answers. 0 = everyone is the administrator.
+const roleCount = Math.max(0, Number(opt('roles', '0')) || 0);
 
 // Records per type at scale 1. A transit organization of a few hundred staff might have tens of
 // thousands of tickets over some years, a few thousand assets, hundreds of risks and vendors.
@@ -131,11 +135,11 @@ const searchText = () => {
 let cookie = '';
 /** Network failures (no answer at all), counted and reported; a request is tried again once. */
 let networkErrors = 0;
-async function call(method, path, body) {
+async function call(method, path, body, as = cookie) {
   const started = performance.now();
   const send = () => fetch(base + path, {
     method,
-    headers: { 'content-type': 'application/json', 'x-grc-csrf': '1', ...(cookie ? { cookie } : {}) },
+    headers: { 'content-type': 'application/json', 'x-grc-csrf': '1', ...(as ? { cookie: as } : {}) },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   let res;
@@ -227,9 +231,42 @@ async function signIn() {
     cookie = (r.headers.get('set-cookie') ?? '').split(';')[0];
     return;
   }
-  const r = await fetch(`${base}/api/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-grc-csrf': '1' }, body: JSON.stringify({ username: user, password }) });
-  if (!r.ok) throw new Error(`sign-in failed: ${r.status}`);
-  cookie = (r.headers.get('set-cookie') ?? '').split(';')[0];
+  cookie = await signInAs(user);
+}
+
+async function signInAs(username) {
+  const r = await fetch(`${base}/api/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-grc-csrf': '1' }, body: JSON.stringify({ username, password }) });
+  if (!r.ok) throw new Error(`sign-in as ${username} failed: ${r.status} ${(await r.text()).slice(0, 200)}`);
+  const c = (r.headers.get('set-cookie') ?? '').split(';')[0];
+  if (!c) throw new Error(`sign-in as ${username} gave no session (a second factor required?)`);
+  return c;
+}
+
+/** People made for --roles: one per role, as { username, role }. Kept in created.json for --reuse. */
+let people = [];
+
+/**
+ * Makes one person in each of `n` roles that are switched on and need no second factor (the
+ * administrator's role left out), with the test password, and returns them.
+ */
+async function makePeople(n) {
+  const confirm = await call('POST', '/api/auth/confirm', { password });
+  if (confirm.status >= 400) throw new Error(`password confirmation failed: ${confirm.status}`);
+  const roles = ((await call('GET', '/api/admin/roles')).json?.roles ?? [])
+    .filter((r) => r.enabled && !r.requiresMfa && r.key !== 'administrator')
+    .sort((a, b) => String(a.key).localeCompare(String(b.key)));
+  if (roles.length < n) console.log(`  only ${roles.length} roles are switched on without a second factor; using those`);
+  const made = [];
+  for (const role of roles.slice(0, n)) {
+    const username = `load-${role.key.replace(/[^a-z0-9]+/gi, '-')}`.slice(0, 40);
+    const r = await call('POST', '/api/admin/users', { username, email: `${username}@example.test`, displayName: `Load test ${role.name}`, roles: [role.key] });
+    if (r.status !== 201) throw new Error(`creating ${username} failed: ${r.status} ${JSON.stringify(r.json?.error ?? r.json).slice(0, 200)}`);
+    const token = new URL(r.json.setupLink, base).searchParams.get('token');
+    const done = await call('POST', '/api/auth/redeem', { token, password }, '');
+    if (done.status !== 200) throw new Error(`setting the password of ${username} failed: ${done.status} ${JSON.stringify(done.json?.error ?? done.json).slice(0, 200)}`);
+    made.push({ username, role: role.key });
+  }
+  return made;
 }
 
 let meta;
@@ -343,11 +380,11 @@ async function measure(name, once) {
   let firstError = '';
   const until = Date.now() + duration;
   const started = performance.now();
-  await Promise.all(Array.from({ length: concurrency }, async () => {
+  await Promise.all(Array.from({ length: concurrency }, async (_, worker) => {
     while (Date.now() < until) {
       const t0 = performance.now();
       try {
-        const bad = await once();
+        const bad = await once(worker);
         if (bad) { errors++; firstError ||= bad; }
       } catch (err) {
         errors++;
@@ -412,12 +449,24 @@ async function scenarios() {
   const present = [];
   for (const path of overview) if ((await call('GET', path)).status !== 404) present.push(path);
   const parts = Object.fromEntries(present.map((p) => [p, []]));
-  const overviewOnce = async (record) => {
-    const all = await Promise.all(present.map((p) => call('GET', p)));
-    if (record) all.forEach((r, i) => parts[present[i]].push(r.ms));
+  // With --roles, simulated person i is the administrator or one of the people in other roles, in
+  // turn. Each asks only for what their role may see, as the page does (a 403 call is left out).
+  const sessions = [{ as: cookie, paths: present }];
+  for (const p of people) {
+    const as = await signInAs(p.username);
+    const paths = [];
+    for (const path of present) if ((await call('GET', path, undefined, as)).status !== 403) paths.push(path);
+    sessions.push({ as, paths });
+    console.log(`  ${p.role} sees ${paths.length} of the ${present.length} Overview calls`);
+  }
+  const overviewOnce = async (record, worker) => {
+    const { as, paths } = sessions[worker % sessions.length];
+    const all = await Promise.all(paths.map((p) => call('GET', p, undefined, as)));
+    if (record) all.forEach((r, i) => parts[paths[i]].push(r.ms));
     return all.map(ok).find(Boolean) ?? null;
   };
-  await run(`overview dashboard (${present.length} calls together)`, () => overviewOnce(true));
+  const who = people.length ? `, ${sessions.length} roles` : '';
+  await run(`overview dashboard (${present.length} calls together${who})`, (w) => overviewOnce(true, w));
   // The same while someone saves a ticket every second (E16-38): the server keeps the Overview's
   // figures only while nothing is written, so this is what it costs when people are also working.
   const stop = meanwhile(1000, async () => {
@@ -425,7 +474,7 @@ async function scenarios() {
     if (r.status < 400) created.ticket.push(r.json.id);
   });
   try {
-    await run('overview dashboard, a save every second', () => overviewOnce(false));
+    await run(`overview dashboard, a save every second${who}`, (w) => overviewOnce(false, w));
   } finally {
     await stop();
   }
@@ -480,6 +529,7 @@ function markdown(result) {
     `# Load test, ${result.at}`,
     '',
     `Scale ${result.scale}, ${result.concurrency} people at once, ${result.durationSeconds} s per scenario, ${result.database}.`,
+    `Overview opened as: ${result.roles.join(', ')}. GRC_FIGURES_CACHE_SECONDS: ${result.figuresCacheSeconds}.`,
     `Machine: ${result.machine.cpus} x ${result.machine.cpu}, ${result.machine.memoryGb} GB, ${result.machine.platform}, Node.js ${result.machine.node}. Version ${result.version}.`,
     `Requests that got no answer at all (each tried again once): ${result.networkErrors}.${result.startSeconds !== null ? ` The instance started (answered) in ${result.startSeconds} s.` : ''}`,
     '',
@@ -530,6 +580,8 @@ async function main() {
     Object.assign(created, kept.created);
     seeded = kept.seeded;
     scale = kept.scale;
+    people = (kept.people ?? []).slice(0, roleCount);
+    if (people.length < roleCount) console.log(`  the kept folder has ${people.length} people in other roles; seed again with --roles ${roleCount} for more`);
     console.log(`Measuring the records kept in ${reuse} (scale ${kept.scale}).`);
     // A copied folder starts with the planner statistics of when it was kept; the embedded database
     // gathers them again shortly after it starts (core/db.ts). Measure after that, as a long-running
@@ -538,8 +590,12 @@ async function main() {
   } else {
     console.log(`Seeding (scale ${scale})...`);
     seeded = await seedAll();
+    if (roleCount) {
+      people = await makePeople(roleCount);
+      console.log(`  people in other roles: ${people.map((p) => p.role).join(', ')}`);
+    }
     // Kept beside the data, so that --reuse can measure the same records again.
-    if (scratch) writeFileSync(join(scratch, 'created.json'), JSON.stringify({ scale, seeded, created }));
+    if (scratch) writeFileSync(join(scratch, 'created.json'), JSON.stringify({ scale, seeded, created, people }));
   }
   if (seedOnly) {
     console.log('Seeded; nothing measured (--seed-only, usually with --keep).');
@@ -556,6 +612,8 @@ async function main() {
   const result = {
     at: new Date().toISOString(), version: state?.version ?? 'unknown', scale, concurrency, durationSeconds: duration / 1000,
     database: process.env.GRC_DATABASE_URL ? 'PostgreSQL server' : 'embedded database',
+    roles: people.length ? ['administrator', ...people.map((p) => p.role)] : ['administrator'],
+    figuresCacheSeconds: process.env.GRC_FIGURES_CACHE_SECONDS ?? 'default',
     machine: { cpus: cpus().length, cpu: cpus()[0]?.model.trim(), memoryGb: Math.round(totalmem() / 1073741824), platform: `${process.platform}-${process.arch}`, node: process.version },
     startSeconds, seeded, scenarios: rows, operations: opsRows, networkErrors,
   };

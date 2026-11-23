@@ -44,7 +44,7 @@ Open the **Audit universe** tab. Each **audit area** is something that needs aud
 
 ## Audits
 
-Open the **Audits** tab, then **New audit** (or **Create > Audit**). Enter a **Title**, the **Type** (**Internal audit**, **Safety review**, **Compliance pre-review** or **Cybersecurity control audit**), the **Audit area**, the **Plan year**, the **Scope** and **Criteria** (what the audit checks against, such as your own procedure), the **Checklist** to use, the **Lead auditor**, the **Auditee** and the planned dates. Tick **Restricted** for an audit only people who may see restricted records should open. The audit gets a reference such as `AUD-00004`.
+Open the **Audits** tab, then **New audit engagement** (or **Plan an audit** on the plan, or **Create > Audit**). Enter a **Title**, the **Type** (**Internal audit**, **Safety review**, **Compliance pre-review** or **Cybersecurity control audit**), the **Audit area**, the **Plan year**, the **Scope** and **Criteria** (what the audit checks against, such as your own procedure), the **Checklist** to use, the **Lead auditor**, the **Auditee** and the planned dates. Tick **Restricted** for an audit only people who may see restricted records should open, then select **Create audit engagement**. The audit gets a reference such as `AUD-00004`.
 
 An audit moves through **Planned**, **Fieldwork**, **Reporting** and **Closed** (or **Canceled**), shown along the top of its page:
 
@@ -52,9 +52,8 @@ An audit moves through **Planned**, **Fieldwork**, **Reporting** and **Closed** 
 2. **Move to reporting** records the fieldwork end date if none is set.
 3. **Close the audit** opens the **Approval** tab (see [Closing an audit](#closing-an-audit)).
 
-The audit page has these tabs:
+Above the tabs, the **Scope** card holds the audit's details (select **Edit** to change them), and the **Audit team** card is where you add and remove team members. The audit page has these tabs:
 
-- **Scope**: the audit's details, and the **Audit team** card, where you add and remove team members.
 - **Checklist**: the chosen checklist, item by item. Choose **Yes**, **No** or **N/A** for each item and add a note. Each answer is saved as you give it, with who gave it and when. Answers cannot be changed once the audit is closed.
 - **Evidence requests**: what the auditors asked the auditee for (see [Evidence requests](#evidence-requests)).
 - **Findings**: the findings of this audit; **New audit finding** adds one.
@@ -95,7 +94,7 @@ Move checks up and down with the arrows, remove them with the trash button, then
 
 ### Schedules
 
-Open **Safety > Inspections**, then the **Schedules** tab, and **New schedule**. Choose the **Checklist**, what it **Inspects** and the record (for example the site), the **Inspector**, the **First inspection due** and the **Frequency** (**Weekly**, **Monthly**, **Quarterly** or **Yearly**).
+Open **Safety > Inspections**, then the **Schedules** tab, and **New schedule**. Choose the **Checklist**, what it **Inspects** and the record (for example the site), the **Inspector (assigned to each inspection)**, the **First inspection due** and the **Frequency** (**Weekly**, **Monthly**, **Quarterly** or **Yearly**), then select **Create schedule**.
 
 The application works through the schedules every few hours (job `audits.inspections`, under **Administration > Background jobs**):
 

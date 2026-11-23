@@ -90,7 +90,7 @@ export function onWipe(hook: () => Promise<void> | void): () => void {
   return () => wipeHooks.delete(hook);
 }
 
-/** The outbox (wave 15) registers how many items are not sent yet, so signing out can warn first. */
+/** The outbox (src/offline) registers how many items are not sent yet, so signing out can warn first. */
 export function registerUnsentWork(count: () => Promise<number> | number): () => void {
   unsentCounters.add(count);
   return () => unsentCounters.delete(count);
@@ -111,6 +111,8 @@ export async function start(): Promise<void> {
   if (started) return;
   started = true;
   AppState.addEventListener('change', onAppState);
+  // Offline work (E38-10) registers its wipe and unsent count here, before anything can sign out.
+  void import('../offline').then((m) => m.bootOffline(), () => undefined);
   const [server, hello, stored, profile, prefs] = await Promise.all([
     storage.server(), storage.hello(), storage.tokens(), storage.profile(), storage.prefs(),
   ]);

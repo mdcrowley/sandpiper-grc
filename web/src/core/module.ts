@@ -28,6 +28,8 @@ export const MODULE_AREA: Record<string, string> = {
   continuity: 'continuity', condition: 'condition', ot: 'ot', records: 'records',
   // Wave 13: asset tags, and the mobile app's pages on the web (Account > Devices).
   tags: 'tags', mobile: 'mobile',
+  // Wave 14: push notification credentials (Administration > Push notifications) belong to the mobile app.
+  push: 'mobile',
 };
 
 /** Whether a web module's area is on (always true for a module that is not part of an area). */

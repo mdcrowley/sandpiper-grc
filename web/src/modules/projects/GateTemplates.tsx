@@ -137,7 +137,7 @@ export function GateTemplates() {
                     {g.required_documents.some((d) => !d.required) ? `, ${g.required_documents.filter((d) => !d.required).length} optional` : ''}
                   </td>
                   <td>{workflowName(g.approval_workflow_id) ?? 'Recorded by hand'}</td>
-                  <td><Button size="sm" icon="edit" onClick={() => setEditing(g)}>Edit</Button></td>
+                  <td><Button size="sm" icon="edit" aria-label={`Edit ${g.name}`} onClick={() => setEditing(g)}>Edit</Button></td>
                 </tr>
               ))}
             </tbody>

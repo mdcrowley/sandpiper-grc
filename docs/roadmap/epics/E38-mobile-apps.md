@@ -1,6 +1,6 @@
 # E38 Mobile apps for iPhone and Android
 
-**Status:** in progress (4 of 15 issues done)
+**Status:** in progress (9 of 15 issues done)
 
 ## Goal
 
@@ -28,27 +28,27 @@ section numbers below refer to it.
 
 | ID | Title | Status | Priority |
 |---|---|---|---|
-| E38-01 | App foundations: project, API client, CI builds and tests | in progress | P1 |
+| E38-01 | App foundations: project, API client, CI builds and tests | done | P1 |
 | E38-02 | OAuth for mobile clients and device sessions | done | P1 |
-| E38-03 | Connect to a server and sign in | in progress | P1 |
-| E38-04 | My work | in progress | P1 |
+| E38-03 | Connect to a server and sign in | done | P1 |
+| E38-04 | My work | done | P1 |
 | E38-05 | Read a tag with the camera and the tag card | in progress | P1 |
-| E38-06 | Report a problem or a hazard with photos | in progress | P1 |
+| E38-06 | Report a problem or a hazard with photos | done | P1 |
 | E38-07 | Search and record views | done | P2 |
 | E38-08 | Approvals and acknowledgments | done | P2 |
 | E38-09 | Notifications list and app settings | done | P2 |
-| E38-10 | Offline packages, outbox and idempotent sync | open | P1 |
+| E38-10 | Offline packages, outbox and idempotent sync | done | P1 |
 | E38-11 | Inspections and condition assessments offline | open | P1 |
 | E38-12 | Inventory counts and reports offline | open | P2 |
 | E38-13 | Guide, build instructions and beta distribution | in progress | P1 |
-| E38-14 | Push notifications | open | P3 |
+| E38-14 | Push notifications | in progress | P3 |
 | E38-15 | Accessibility and security review of the apps | open | P1 |
 
 ---
 
 ### E38-01 App foundations: project, API client, CI builds and tests
 
-**Status:** in progress (wave 13; Maestro flows remain) · **Priority:** P1 · **Type:** feature
+**Status:** done (waves 13 and 14; the Maestro flows run on the Android emulator, not yet in CI) · **Priority:** P1 · **Type:** feature
 
 A developer wants one app project for both platforms that builds and tests in continuous integration
 without paid services.
@@ -58,7 +58,7 @@ without paid services.
 - [x] `mobile/` Expo project in TypeScript with navigation, theming from the web design tokens (light and dark), and the screens' text in one file per screen (`mobile/src/text/`)
 - [x] `packages/api-client` generated from `GET /api/openapi.json`; a check in CI that it is up to date
 - [x] CI: typecheck, Jest and React Native Testing Library; Android build on Linux and iPhone build on macOS runners (unsigned)
-- [ ] Maestro flows on emulators against a scratch server (not started; the flows were checked by hand on the Android emulator in wave 13)
+- [x] Maestro flows on emulators against a scratch server: `mobile/test/maestro/` (sign-in, report with two photos, airplane mode, sign-out wipe), run by `run.sh` on the Android emulator in wave 14; not yet in CI
 - [x] `docs/development.md` (and `docs/mobile.md`) cover running the app against a local server; no dependency sends data anywhere (Expo telemetry off, Android `--no-metrics`, ML Kit's data transport removed on Android; iPhone not yet measured, see `docs/mobile.md`)
 
 **Implemented in:** `mobile/` (Expo SDK 58: `app.json`, config plugins `mobile/plugins/withUnsignedRelease.js`, `withNativeBuildDir.js`, `withoutDataTransport.js`; `src/theme`, `src/ui`, `src/text`; `scripts/licenses.js`), `packages/api-client/` (`generate.ts`, `include.json`, generated `src/schema.ts`, `src/index.ts`), the `mobile` job in `.github/workflows/ci.yml` (API client check, typecheck, Jest, unsigned Android release APK artifact on Linux, unsigned iPhone simulator and device builds on macOS), `tools/install-android-tools.ps1` and `.sh` (portable JDK 17 and Android SDK, checksums checked, `--no-metrics`), `docs/mobile.md`. Verified: Android debug build with Gradle on Windows, run on the `sandpiper-test` emulator against a scratch server.
@@ -92,7 +92,7 @@ all keep the device signed out when switched or enabled again; codes and tokens 
 
 ### E38-03 Connect to a server and sign in
 
-**Status:** in progress (wave 13; the Maestro flow remains) · **Priority:** P1 · **Type:** feature
+**Status:** done (waves 13 and 14) · **Priority:** P1 · **Type:** feature
 
 A new user wants to point the app at their organization's server and sign in, in under a minute.
 
@@ -102,13 +102,13 @@ A new user wants to point the app at their organization's server and sign in, in
 - [x] Sign-in in the system browser with PKCE; tokens only in the Keychain or Keystore
 - [x] Optional or required biometric or device-credential unlock after idle time
 - [x] Sign-out (and a failed refresh) wipes local data after warning about unsent work (the warning counts what the outbox registers; the outbox arrives with E38-10)
-- [ ] Maestro flow: connect, sign in with a password and second factor, sign out (done by hand on the Android emulator: connect, password and second factor, consent, My work, revocation from the web wiping the app, sign out, device-PIN unlock)
+- [x] Maestro flow: connect, sign in with a password and second factor, sign out (done by hand on the Android emulator: connect, password and second factor, consent, My work, revocation from the web wiping the app, sign out, device-PIN unlock)
 
 **Implemented in:** `mobile/src/auth/` (`server.ts` address and `GET /api/mobile/hello` check, `oauth.ts` PKCE S256, authorization address, redirect, code exchange, refresh, revocation; `session.ts` the session store: one refresh in flight, a newer pair kept when an older refresh is refused, one prompt retry after a network loss, wipe on a refused refresh, `confirmIdentity` with `prompt=login`, `onWipe` and `registerUnsentWork` hooks; `storage.ts` expo-secure-store only; `unlock.ts` and `LockScreen.tsx` with expo-local-authentication), `mobile/src/api/client.ts` (`apiFetch`, `apiUpload`, `useSession`, `confirmIdentity`), `mobile/app/(auth)/connect.tsx`, `mobile/app/_layout.tsx` (routing by session, lock), `mobile/app/+native-intent.tsx` (the sign-in redirect is not a screen). Tests: `mobile/src/auth/*.test.ts`, `mobile/src/api/client.test.ts`.
 
 ### E38-04 My work
 
-**Status:** in progress · **Priority:** P1 · **Type:** feature
+**Status:** done (wave 13) · **Priority:** P1 · **Type:** feature
 
 A field employee wants one screen with everything waiting for them.
 
@@ -147,7 +147,7 @@ stuck to, without choosing between "scan a barcode" and "read a number".
 
 ### E38-06 Report a problem or a hazard with photos
 
-**Status:** in progress (built and unit-tested; offline through the outbox and the Maestro flow are left) · **Priority:** P1 · **Type:** feature
+**Status:** done (wave 14: reports go through the outbox, offline included; the Maestro flows passed on the Android emulator; still to see: a real phone, an iPhone, and the flows in CI) · **Priority:** P1 · **Type:** feature
 
 An operator wants to report a defect or a close call quickly, from a tag or from scratch.
 
@@ -155,10 +155,10 @@ An operator wants to report a defect or a close call quickly, from a tag or from
 
 - [x] Report a problem (ticket) and report a hazard or close call (safety), with the record linked when started from a tag, location picked from sites, and several photos (up to 10; tickets have no site field, so the place is written into the ticket's text)
 - [x] Photos resized on the device to the server's limits; uploads resume (a queue kept on the phone: the record is created once and its id kept, each photo is re-sent whole after a failure or a restart; the server has no partial uploads)
-- [ ] Works offline through the outbox once E38-10 is built (until then a report written without signal waits on the phone and is sent on its own; a connection lost during the create waits for the person to check and choose Send again or Discard, because the server does not yet honor `Idempotency-Key`)
-- [ ] Maestro flow: report with two photos; the ticket appears on the web
+- [x] Works offline through the outbox (wave 14, E38-10): a report and its photos are saved in the outbox and sent once, each with its own id the server remembers for 7 days, so a connection lost during the create or an upload never makes a second record or a second photo; the form's choices come from the offline package without a connection; a refusal waits under Needs attention. The wave 13 queue's unsent reports are moved into the outbox on first start
+- [x] Maestro flow: report with two photos; the ticket appears on the web (`mobile/test/maestro/report-two-photos.yaml`, run by `run.sh`, which then checks on the server that the ticket exists once with both files; passed on the Android emulator in wave 14; not yet run in CI)
 
-**Implemented in:** `mobile/src/camera/report/` (`ReportHomeScreen.tsx`, `ReportFormScreen.tsx`, `build.ts`), `mobile/src/camera/reports.ts` (the queue), `reportQueue.ts` (its files and sign-out wipe), `photos.ts`; routes `mobile/app/(tabs)/report/`; tests `mobile/src/camera/report/report.test.tsx`, `mobile/src/camera/camera.test.ts`
+**Implemented in:** `mobile/src/camera/report/` (`ReportHomeScreen.tsx`, `ReportFormScreen.tsx`, `build.ts`), `mobile/src/camera/reports.ts` (a report as outbox items, and how the Report tab shows them), `reportQueue.ts` (`saveReport`, the wave 13 queue moved into the outbox), `photos.ts`; routes `mobile/app/(tabs)/report/`; tests `mobile/src/camera/report/report.test.tsx`, `mobile/src/camera/camera.test.ts`, `mobile/src/offline/outbox.test.ts`
 
 ### E38-07 Search and record views
 
@@ -205,17 +205,19 @@ A person wants to see their notifications in the app and manage the app's settin
 
 ### E38-10 Offline packages, outbox and idempotent sync
 
-**Status:** open · **Priority:** P1 · **Type:** feature
+**Status:** done (wave 14: built and tested; proven on the Android emulator against a scratch server: a report with two photos written in airplane mode arrived once when the network came back, and with answers lost on purpose and an upload cut half-way it still arrived once with two photos. Left: the Maestro flows in CI, an iPhone, a real phone in a real dead spot, and the independent review) · **Priority:** P1 · **Type:** feature
 
 An inspector wants to work all day without signal and have everything arrive once when back online.
 
 **Acceptance criteria**
 
-- [ ] `GET /api/mobile/package` with the person's upcoming work and the lookup table for it; expiry (default 7 days)
-- [ ] On-device SQLite in protected storage; photos as files; nothing outside the package available offline
-- [ ] Outbox sent in order with client UUIDs and `Idempotency-Key`; `idempotency_keys` kept 7 days on the server; `POST /api/mobile/sync` answers each item separately
-- [ ] Rejected items kept in "Needs attention" with the server's reason; nothing dropped silently
-- [ ] Tests: the same batch sent twice creates nothing twice; a revoked device's sync is refused; Maestro flow in airplane mode
+- [x] `GET /api/mobile/package` with the person's upcoming work and the lookup table for it; expiry (default 7 days, the Mobile app setting "Days offline work is kept"): My work, the report forms' lists, sites, the portal's report choices, attachment limits, tag formats and the tag values of the records the package covers, and the `inspections` part (assigned, due within the package's days; checklists follow with E38-11); read through the application's own routes as the person, so it holds only what they may see
+- [x] On-device SQLite in protected storage (the app's private documents folder: Android internal storage under file-based encryption, `allowBackup: false`; iPhone sandbox under Data Protection); photos as files beside it; wiped on sign-out, on revocation and (the package) on expiry; the report forms fall back to the package without a connection
+- [x] Outbox sent in order with client UUIDs (the UUID is the idempotency key; photos also send it as `Idempotency-Key` where the upload allows, otherwise as `clientId`); answers kept 7 days on the server (table `mobile_sync_items`, mobile module migration 002, not a shared `idempotency_keys` table); `POST /api/mobile/sync` answers each item separately (`done`, `rejected`, `retry`), `PUT /api/mobile/sync/attachment` for photos (the whole file received before anything is done)
+- [x] Rejected items kept in "Needs attention" (Report > Offline work) with the server's reason; nothing dropped silently: only the person sends again (same id), sends as new (after an `uncertain` answer) or discards
+- [x] Tests: the same batch sent twice creates nothing twice; a revoked device's sync is refused; Maestro flow in airplane mode — server and app tests done (`server/src/modules/mobile/sync.test.ts`: the same batch twice, a photo sent twice, a revoked device, per-item answers, a removed permission, order after a `retry`, a stale claim answered `uncertain`, the package's contents, permissions and expiry; `mobile/src/offline/outbox.test.ts`, `screen.test.tsx`: ordering, retry after a lost answer and after a restart, Needs attention, discard, wipe, the package's expiry); Maestro flows `mobile/test/maestro/` (`airplane-mode-sync.yaml`, `report-two-photos.yaml`, `sign-out-wipes.yaml`, `connect-sign-in.yaml`; `run.sh` checks the server afterward) passed on the Android emulator, and `dropproxy.mjs` proved a lost answer and a cut upload arrive once; not yet in CI
+
+**Implemented in:** server `server/src/modules/mobile/sync.ts` (`defineSyncKind`, the built-in kind `record.create`, the attachment route, `callAs`), `package.ts` (`definePackagePart`, the `inspections` part), `migrations/002_offline.sql`; `shared/mobile-api.ts` (`SyncItem`, `SyncAnswer`, `MobilePackage`, `SYNC_KEEP_DAYS`); app `mobile/src/offline/` (`outbox.ts`, `kinds.ts`, `package.ts`, `sqlite.ts`, `transport.ts`, `index.ts`, `OfflineScreen.tsx`), route `mobile/app/(tabs)/report/offline.tsx`, `mobile/src/auth/session.ts` (starts offline work, which registers its wipe); flows `mobile/test/maestro/`. The extension point for E38-11 and E38-12 is described in `docs/mobile.md` ("Adding a kind of offline work").
 
 ### E38-11 Inspections and condition assessments offline
 
@@ -258,15 +260,21 @@ everyone wants to know how to use it.
 
 ### E38-14 Push notifications
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** in progress (wave 14: server, administration page and app registration built and tested against fake push services; not yet proven with real Apple or Google credentials on a real phone, and the app's UnifiedPush connector is not built) · **Priority:** P3 · **Type:** feature
 
 A person wants to be told on the phone when something needs them.
 
 **Acceptance criteria**
 
-- [ ] Push through Apple's and Google's push services with the project's credentials configured on the server (§5.7), or UnifiedPush on Android; content never includes record details, only "you have N new notifications"
-- [ ] Per-person notification choices apply to push as to email
-- [ ] Tests with fake push services; delivery claimed so overlapping runs send once
+- [x] Push through Apple's and Google's push services with the project's credentials configured on the server (§5.7), or UnifiedPush on Android; content never includes record details, only "you have N new notifications" — server side: APNs over HTTP/2 with the organization's .p8 key (token authentication), FCM HTTP v1 with a service account (signed OAuth assertion), UnifiedPush as Web Push (RFC 8030) with RFC 8291 encryption (checked against the RFC's example) and VAPID; no Expo push service and no relay. Credentials are set under Administration > Push notifications, sealed with the secret key (re-sealed on key rotation), never shown back (fingerprint only), changes audited with a recent password confirmation
+- [x] Per-person notification choices apply to push as to email — a push follows the notification list: a kind switched off or chosen for email only is never pushed; notifications of a switched-off area are not pushed; each person switches push on per phone in the app (Account)
+- [x] Tests with fake push services; delivery claimed so overlapping runs send once — fake APNs (HTTP/2), Google token and FCM endpoints and a UnifiedPush server in the test process (`server/src/modules/push/push.test.ts`); a per-person cursor claimed with a conditional upsert
+- [x] Registrations tied to the signed-in phone (`mobile_devices`) and removed at once when it is signed out or revoked (a trigger, and a sweep at every delivery); tokens refused by the service are removed; the Mobile app area off means no push routes, jobs or deliveries
+- [x] App: a switch under Account registers the phone's native token (`getDevicePushTokenAsync`) after sign-in and on every token change; tapping a push opens Notifications; signing out forgets the token on the phone. Firebase is optional at build time (the organization's `google-services.json`); without it Android falls back to UnifiedPush
+- [ ] UnifiedPush connector in the Android app (a native module `SandpiperUnifiedPush` around the UnifiedPush connector library; needs a new Gradle dependency, not added)
+- [ ] Proven end to end with real Apple and Google credentials on a real iPhone and Android phone (and a UnifiedPush distributor); the root layout calls `startPush()`
+
+**Implemented in:** `server/src/modules/push/` (`apns.ts`, `fcm.ts`, `webpush.ts`, `jwt.ts`, `config.ts`, `deliver.ts`, `routes.ts`, `endpoints.ts`, `migrations/001_push.sql`, `push.test.ts`), the hook in `server/src/modules/notifications/service.ts` (`app.pushNotify`), `shared/push-api.ts`, `web/src/modules/push/` (Administration > Push notifications), `mobile/src/push/` (`index.ts`, `registration.ts`, tests), `mobile/app/(tabs)/account/index.tsx`, `mobile/plugins/withPushNotifications.js`, `mobile/app.json` (expo-notifications in production mode); registry lines in `server/src/core/features.ts` (module `push` and jobs `push.` belong to the Mobile app area), `server/src/core/secretkey-reseal.ts` (four sealed kinds) and `web/src/core/module.ts` (`push: 'mobile'`).
 
 ### E38-15 Accessibility and security review of the apps
 

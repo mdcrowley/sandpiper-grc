@@ -73,7 +73,7 @@ const KEYS = {
 const MOD = { Alt: 1, Control: 2, Meta: 4, Shift: 8 };
 
 /** Starts the browser and connects to it. */
-export async function launchBrowser({ profileDir, debugPort = 0, headless = true } = {}) {
+export async function launchBrowser({ profileDir, debugPort = 0, headless = true, extraArgs = [] } = {}) {
   const exe = findBrowser();
   mkdirSync(profileDir, { recursive: true });
   const port = debugPort || 9300 + Math.floor(Math.random() * 600);
@@ -83,6 +83,7 @@ export async function launchBrowser({ profileDir, debugPort = 0, headless = true
     '--force-color-profile=srgb', '--font-render-hinting=none', '--lang=en-US',
   ];
   if (headless) args.unshift('--headless=new');
+  args.push(...extraArgs);
   // CI runners on Linux run as root inside a container-like sandbox.
   if (process.platform === 'linux') args.push('--no-sandbox', '--disable-dev-shm-usage');
   const proc = spawn(exe, [...args, 'about:blank'], { stdio: 'ignore' });
@@ -128,6 +129,7 @@ export async function launchBrowser({ profileDir, debugPort = 0, headless = true
 
   return {
     exe,
+    pid: proc.pid,
     async newPage({ base, width = 1440, height = 900, theme = 'light' } = {}) {
       const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
       const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });

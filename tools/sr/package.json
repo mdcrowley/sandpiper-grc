@@ -1,0 +1,15 @@
+{
+  "name": "sandpiper-grc-screen-reader-run",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "The screen reader journey run (Windows only): NVDA driven through Guidepup. Not part of the root install, typecheck or tests.",
+  "scripts": {
+    "nvda": "guidepup install nvda",
+    "journeys": "node journeys.mjs"
+  },
+  "dependencies": {
+    "@guidepup/guidepup": "0.40.0",
+    "@guidepup/setup": "0.29.3"
+  }
+}

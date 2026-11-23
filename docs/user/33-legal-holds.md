@@ -18,7 +18,7 @@ The matter is shown only to people who may read holds. Anyone else who tries to 
 
 The **Records** tab lists the records under the hold that you may see, with when and how each was added (by hand or by a saved query). The line above the list counts every held record, including the restricted ones you cannot see and those of a part that is switched off.
 
-- **Add a record** places one record under the hold: choose the kind of record, then the record. Only records you can see can be chosen by hand.
+- **Add a record** places one record under the hold: choose the **Kind of record**, then the record, and select **Place under hold**. Only records you can see can be chosen by hand.
 - **Take off** releases one record from the hold. It stays in the hold's history under **Taken off the hold**, and a saved query does not put it back. Adding it again by hand does.
 
 A record that was deleted from its list is still kept while it is held, and is marked **Deleted from lists, kept**.

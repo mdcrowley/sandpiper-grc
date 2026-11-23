@@ -1,6 +1,6 @@
 # Funding and grants
 
-The funding pages help an organization that receives outside funding (grants, capital and operating assistance, and other awards) show that it meets its funders' conditions: the **awards** and what each one paid for, the **reports** each award requires, the **yearly certifications** an authorized official signs, and the **compliance reviews** funders make, with the deficiencies they find and how each is corrected. Open them from **Funding and grants** in the **Governance** group of the navigation. The pages share tabs along the top: **Dashboard**, **Awards**, **Certifications**, **Compliance reviews**, **Deficiencies** and **Review areas**. Lists and record pages work as described in [Getting started](01-getting-started.md).
+The funding pages help an organization that receives outside funding (grants, capital and operating assistance, and other awards) show that it meets its funders' conditions: the **awards** and what each one paid for, the **reports** each award requires, the **yearly certifications** an authorized official signs, and the **compliance reviews** funders make, with the deficiencies they find and how each is corrected. Open them from **Funding and grants** in the **Governance** group of the navigation. The pages share tabs along the top: **Dashboard**, **Awards**, **Certifications**, **Compliance reviews**, **Deficiencies**, **Sub-recipients** and **Review areas**. Lists and record pages work as described in [Getting started](01-getting-started.md).
 
 No funder, funding program, law or review guide is built in. Funders and programs are names you type on each award, the statements you certify are your own, and a funder's review areas are loaded from a file you prepare (see [Review areas from a file](#review-areas-from-a-file)). Everything shipped as an example is invented and labeled as a sample.
 
@@ -26,8 +26,8 @@ Open **Awards**. Filter by status, reporting frequency, award manager, project, 
 
 ### Add an award
 
-1. Select **New funding award**, or **Create** then **Funding award**.
-2. Enter a **Title**, the **Funder** and the **Funding program** as the funder names them, and the funder's **Award number**.
+1. Select **New funding award** (or **New award** on the dashboard), or **Create** then **Funding award**.
+2. Enter the **Award** (its title), the **Funder** and the **Funding program** as the funder names them, and the funder's **Award number**.
 3. Choose the **Status**: **Applied for**, **Awarded**, **Active** or **Closed out**.
 4. Enter the **Period starts** and **Period ends** dates, the **Amount awarded** and the **Local share** (the part your organization pays). Amounts cannot be negative, and the period cannot end before it starts.
 5. Choose the **Project** the award pays for, if there is one, and the **Award manager**.
@@ -146,7 +146,7 @@ A review keeps its own copy of the areas, so loading a newer version of the file
 
 ### Document requests
 
-The **Requests** tab tracks what the funder asked to see. Select **Add a request** and enter what was asked for, the **Review area**, who it is **Assigned to**, the **Due** date and the **Status** (**Open**, **Provided** or **Accepted by the funder**). The person a request is assigned to can **Answer** it (its status and response) even without permission to edit funding records.
+The **Requests** tab tracks what the funder asked to see. Select **Add a request** and enter what was asked for, the **Review area**, who it is **Assigned to**, the **Due** date and the **Status** (**Open**, **Provided** or **Accepted by the funder**), then select **Add**. The person a request is assigned to can **Answer** it (its status and response) even without permission to edit funding records.
 
 ### Deficiencies and corrective action plans
 
@@ -179,7 +179,7 @@ The person monitoring it (or else the award's manager, or else everyone who may 
 
 A funder may require certain clauses in contracts paid for with its money. A contract that is a funded item of an award (see [Funded items](#funded-items)) shows a **Funder clauses** tab (see [The contract record](04-vendors-and-contracts.md#the-contract-record)). For each award that funds it, the tab lists the clauses in your list, each marked **Present**, **Partial**, **Absent**, **Not required** or **Not checked**, with a note of where in the contract it is. A change is saved at once and recorded in the contract's history. The checklist is kept by the same clause-checklist engine as the contract security terms (see [The security-terms checklist](04-vendors-and-contracts.md#the-security-terms-checklist)); checks recorded before were moved across when the application was upgraded.
 
-The clause list is your organization's own: an administrator edits it under **Administration > Lookups**, in the list **Funding clause**. A few neutral examples are there to start with (access to records, record retention, termination, excluded parties, conflict of interest, flow-down to subcontracts, funder acknowledgment).
+The clause list is your organization's own: an administrator edits it under **Administration > Lists**, in the list **Funding clause**. A few neutral examples are there to start with (access to records, record retention, termination, excluded parties, conflict of interest, flow-down to subcontracts, funder acknowledgment).
 
 The tab needs `funding.view` (and `funding.edit` to change it) besides the contract permissions.
 

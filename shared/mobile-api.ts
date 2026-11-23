@@ -222,3 +222,126 @@ export interface MobileSettings {
   user: { id: string; displayName: string; username: string };
   server: { appName: string; timeZone: string };
 }
+
+// ---------- offline work: the package and the outbox (wave 14, E38-10) ----------
+
+/** How long the server remembers each outbox item's answer, so a repeat never creates twice (days). */
+export const SYNC_KEEP_DAYS = 7;
+/** At most this many items in one `POST /api/mobile/sync`. */
+export const SYNC_MAX_ITEMS = 50;
+
+/**
+ * Kinds of outbox item. Each is sent once, in order, with a client-made UUID (`clientId`) that is also
+ * its idempotency key; the server answers each separately. New kinds (inspections, condition
+ * assessments, inventory counts) are added here, in the server's sync kinds (modules/mobile/sync.ts
+ * `defineSyncKind`) and in the app's outbox kinds (mobile/src/offline/kinds.ts); see docs/mobile.md.
+ */
+export type SyncKind = 'record.create' | 'attachment';
+
+/**
+ * `record.create`: creates one record through its normal create route (or the portal's report routes),
+ * so validation, permissions, hooks and audit apply as on the web. Optionally links it to another record.
+ */
+export interface SyncRecordCreate {
+  /** A record type's create path (`/api/tickets`, `/api/safety-events`, ...) or `/api/portal/requests`, `/api/portal/safety-reports`. */
+  path: string;
+  recordType: string;
+  body: Record<string, unknown>;
+  /** A record to link the new one to afterward (POST /api/links); a refused link is a warning, not a refusal. */
+  link?: { type: string; id: string } | null;
+}
+
+/** One item of `POST /api/mobile/sync`. */
+export interface SyncItem {
+  /** A UUID the app made when the work was saved; the same item sent again is answered from memory. */
+  clientId: string;
+  kind: SyncKind | string;
+  payload: unknown;
+}
+
+export interface SyncRequest { items: SyncItem[] }
+
+/**
+ * The answer to one item:
+ * - `done`: the server did it (or did it before: `replayed`); `result` says what was made.
+ * - `rejected`: the server refused it (the reason is in `error`; `fields` per field). The app keeps it in
+ *   "Needs attention"; sending it again needs a change or the person's choice.
+ * - `retry`: not done now (the server was busy, an earlier item must go first, or the connection to
+ *   the record's area failed); the app sends it again later, unchanged.
+ */
+export interface SyncAnswer {
+  clientId: string;
+  status: 'done' | 'rejected' | 'retry';
+  replayed?: boolean;
+  result?: SyncResult;
+  error?: { code: string; message: string; fields?: Record<string, string> };
+}
+
+/** What a `done` item made. */
+export interface SyncResult {
+  recordType?: string;
+  id?: string;
+  ref?: string | null;
+  /** For `record.create` with a link: whether the link was made. */
+  linked?: boolean;
+  /** Something that did not stop the item (for example a refused link). */
+  warning?: string;
+  /** For `attachment`: the new attachment's id and file name. */
+  attachmentId?: string;
+  fileName?: string;
+}
+
+export interface SyncResponse { items: SyncAnswer[] }
+
+/**
+ * `PUT /api/mobile/sync/attachment?clientId=&parent=&name=` (or `record_type=&record_id=` instead of
+ * `parent`), header `Idempotency-Key: <clientId>`, the photo as the body (application/octet-stream).
+ * `parent` is the clientId of a `record.create` item already done. Answers a SyncAnswer with status 200.
+ */
+export interface SyncAttachmentQuery { clientId: string; parent?: string; record_type?: string; record_id?: string; name: string; description?: string }
+
+/** A choice in a list (a lookup value, a site). */
+export interface PackageOption { value: string; label: string; ref?: string | null }
+
+/** A tag value of a record in the package, for looking tags up offline. */
+export interface PackageTag { value: string; valueKey: string; recordType: string; recordId: string; label: string }
+
+/**
+ * `GET /api/mobile/package` (the app's token only): what the person needs to work offline for the next
+ * days. Expires at `expiresAt` (Administration > Mobile app, "Days offline work is kept", default 7);
+ * the app deletes it then, on sign-out and when the device is signed out.
+ */
+export interface MobilePackage {
+  id: string;
+  generatedAt: string;
+  expiresAt: string;
+  user: { id: string; displayName: string };
+  /** My work at the time of download (the same sections as GET /api/mobile/home). */
+  work: MobileHome;
+  /** Lists the app's forms need offline, only those the person may read: `safety_event_type`, `safety_event_severity`. */
+  lookups: Record<string, PackageOption[]>;
+  /** Sites the person may see (for "where"), at most 2000. */
+  sites: PackageOption[];
+  /** The portal's report choices, for people who report through the portal (null without portal.create). */
+  portal: { safetyTypes: PackageOption[]; harm: PackageOption[] } | null;
+  /** The server's attachment limits (null when the person may not read them). */
+  attachments: { maxBytes: number; allowedExtensions: string[] } | null;
+  /** Asset tags (null while the area is off): the formats and the tag values of the records in this package. */
+  tags: { formats: TagFormat[]; values: PackageTag[] } | null;
+  /**
+   * Parts added by later work (inspections with their checklists, condition assessments, inventory
+   * counts): `{ [key]: data }`, each built by a server package part (modules/mobile/package.ts
+   * `definePackagePart`). This wave: `inspections` (assigned to me, due within the package's days).
+   */
+  parts: Record<string, unknown>;
+}
+
+/** The `inspections` part of a package (wave 14: the list; the checklists follow with E38-11). */
+export interface PackageInspection {
+  id: string;
+  ref: string | null;
+  title: string;
+  status: string | null;
+  dueOn: string | null;
+  target: { type: string; id: string; label: string | null } | null;
+}

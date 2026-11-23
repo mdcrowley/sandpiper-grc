@@ -1,5 +1,5 @@
 // Record detail page and its ready-made panels: activity, history, related records, editable summary.
-import { lazy, Suspense, useEffect, useState, type ComponentType, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useId, useRef, useState, type ComponentType, type ReactNode } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { Button } from '@mantine/core';
 import { IconPencil } from '@tabler/icons-react';
@@ -52,6 +52,15 @@ export function EditableSummary({ type, row, fields, onSaved, title = 'Details',
   const toast = useToast();
   // A draft kept when the session ended mid-edit opens the form again, with the draft in it (BW-02).
   const [editing, setEditing] = useState(() => hasDraft(formDraftKey(type, row.id, fields), user?.id));
+  // Saved or canceled: the form and its buttons go away, so the focus goes back to Edit rather than
+  // to nowhere (E16-15). The form puts the focus in its first field itself.
+  const cardId = useId();
+  const wasEditing = useRef(editing);
+  useEffect(() => {
+    if (wasEditing.current === editing) return;
+    wasEditing.current = editing;
+    if (!editing) document.getElementById(cardId)?.querySelector<HTMLElement>('.card-actions button')?.focus();
+  }, [editing, cardId]);
   if (!resource) return <ErrorState title={`Unknown record type "${type}"`} />;
   const canEdit = editable ?? can(`${resource.module}.edit`);
   // The record type's custom fields follow the given ones (the form adds them the same way).
@@ -60,10 +69,11 @@ export function EditableSummary({ type, row, fields, onSaved, title = 'Details',
 
   return (
     <Card
+      id={cardId}
       title={title}
       className="rc-summary"
       actions={canEdit && !editing && (
-        <Button variant="default" size="xs" leftSection={<IconPencil size={14} aria-hidden="true" />} onClick={() => setEditing(true)}>Edit</Button>
+        <Button variant="default" size="xs" leftSection={<IconPencil size={14} aria-hidden="true" />} aria-label={`Edit ${title.toLowerCase()}`} onClick={() => setEditing(true)}>Edit</Button>
       )}
     >
       {editing ? (

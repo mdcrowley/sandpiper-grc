@@ -1,0 +1,27 @@
+# Maestro flow (E38-06, E38-10): report a problem with two photos; it arrives once, with both photos.
+# Before: connect-sign-in.yaml, and two pictures in the emulator's gallery (run.sh pushes them).
+# Run: maestro test -e TITLE="Invented leak 1" mobile/test/maestro/report-two-photos.yaml
+appId: com.sandpipergrc
+name: Report a problem with two photos
+---
+- launchApp
+- runFlow:
+    file: subflows/open-report-tab.yaml
+- tapOn: "Report a problem"
+- extendedWaitUntil:
+    visible: "Title"
+    timeout: 20000
+- tapOn: "Title"
+- inputText: ${TITLE}
+- tapOn: "What is wrong"
+- inputText: "Invented: water on the floor by bay 3."
+- hideKeyboard
+- runFlow:
+    file: subflows/choose-two-photos.yaml
+- scrollUntilVisible:
+    element: "Send"
+- tapOn: "Send"
+# Back on the Report tab: the report is saved on the phone, then arrives with both photos.
+- extendedWaitUntil:
+    visible: "Arrived: .*2 of 2 photos sent.*"
+    timeout: 120000

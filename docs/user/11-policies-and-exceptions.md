@@ -245,7 +245,7 @@ A plan, such as the safety plan, is a policy whose **Document type** is **Plan**
 
 ### Plan elements
 
-**Plan elements** shows each element the plan must cover and where it does: one box per element, listing what covers it, the section of the plan and its owner. An element nothing covers yet is shown with a dashed border and "Not covered in the plan yet". The elements are a list an administrator keeps under **Administration > Lookups** (**Plan element**); it starts with the four generic pillars of safety management: **Safety policy and objectives**, **Safety risk management**, **Safety assurance** and **Safety promotion**.
+**Plan elements** shows each element the plan must cover and where it does: one box per element, listing what covers it, the section of the plan and its owner. An element nothing covers yet is shown with a dashed border and "Not covered in the plan yet". The elements are a list an administrator keeps under **Administration > Lists** (**Plan element**); it starts with the four generic pillars of safety management: **Safety policy and objectives**, **Safety risk management**, **Safety assurance** and **Safety promotion**.
 
 To change the map, someone who may edit policies selects **Edit map**, then for each entry chooses the **Element** and fills in **What covers it**, **Where in the plan** (for example "Section 2.1") and the **Owner**. **Add an entry** adds a row and the bin removes one. **Save** replaces the map; the change is recorded in the policy's history.
 

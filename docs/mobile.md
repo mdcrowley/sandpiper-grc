@@ -19,10 +19,12 @@ always run with `--no-metrics`. No paid build service is needed.
 | `mobile/app/` | Screens (expo-router: every file is a screen). `(auth)/connect.tsx` connect and sign in; `(tabs)/` the five tabs (My work, Tag, Report, Search, Account); `notifications.tsx`; `record/`, `approvals/` |
 | `mobile/src/api/client.ts` | The only way screens reach the server: `apiFetch`, `apiUpload`, `useSession`, `confirmIdentity`, `ApiError` |
 | `mobile/src/auth/` | Connecting (`server.ts`), OAuth with PKCE (`oauth.ts`), tokens and the session (`session.ts`), storage in the Keychain or Keystore (`storage.ts`), the unlock (`unlock.ts`, `LockScreen.tsx`) |
+| `mobile/src/offline/` | Offline work (E38-10): the outbox (`outbox.ts`), kinds of work (`kinds.ts`), the offline package (`package.ts`), SQLite storage (`sqlite.ts`), the server routes (`transport.ts`), the Offline work screen; started by the session (`index.ts` `bootOffline`) |
 | `mobile/src/text/` | The words of each screen, one file per screen |
 | `mobile/src/theme/` | Colors copied from the web's `tokens.css` (light and dark), spacing, type sizes |
 | `mobile/src/ui/` | Shared building blocks (Screen, Button, Field, Banner, Section, Row) |
 | `mobile/plugins/` | Expo config plugins of this project: unsigned Android release builds, the Windows native build folder |
+| `mobile/test/maestro/` | End-to-end flows on the Android emulator (Maestro), `run.sh` and the lost-connection proxy `dropproxy.mjs` (see "End-to-end flows") |
 | `mobile/scripts/licenses.js` | Writes `src/about/licenses.json` (Account > Open-source licenses) from the lockfile: `npm run licenses` |
 | `packages/api-client/` | TypeScript types of the API the app uses, generated from the server's OpenAPI description |
 | `shared/` | Code the server, the web and the app share (tag values and formats, API shapes) |
@@ -78,6 +80,100 @@ view, with rotation, blur, glare and low contrast.
   them and logs `[tag-photo-reads]` lines (`adb logcat -s ReactNativeJS`); save the log and run
   `node mobile/test/tag-photos/import-reads.mjs import <log> "<device and system>"`, which writes
   `real-reads.json`; the harness then also prints the real rate.
+
+## Offline work
+
+Offline work (spec §5.6, E38-10) has three parts. Everything the app keeps for it is in the app's private
+documents folder: one SQLite database (`offline.db`, expo-sqlite) and a folder of files (`offline/`,
+photos). That folder is the app's protected storage: on Android the app's internal storage, encrypted by
+the system's file-based encryption and never backed up (`allowBackup: false`); on iPhone the app's
+sandbox under Data Protection. Signing out, or being signed out (a refused refresh, the device signed out
+on the web, the account deactivated, the area switched off), deletes the database and the folder
+(`wipeOffline`, registered with the session's `onWipe` when the session starts).
+
+- **The outbox** (`src/offline/outbox.ts`). Work is saved first and sent afterward, in the order it was
+  saved. Each item has a UUID made when it was saved (its `clientId`), which is its idempotency key: the
+  server keeps each answer for 7 days (`SYNC_KEEP_DAYS`, table `mobile_sync_items`), so an item sent
+  again after a lost answer, a timeout or the app being closed is answered from memory and never done
+  twice. Items go in batches (`POST /api/mobile/sync`, up to 50, each answered separately: `done`,
+  `rejected` with the server's reason, or `retry`); files go one at a time
+  (`PUT /api/mobile/sync/attachment`, the whole file received before anything is done, so a connection
+  lost during the upload does nothing). An item that depends on another (a photo on its report) waits for
+  it. A `retry`, or no connection, stops the run; it starts again when the app starts, when it comes to
+  the front, when the network comes back (expo-network) and every 30 seconds. A `rejected` item stays
+  under **Report > Offline work** (Needs attention) until the person sends it again or discards it; a
+  server that stopped part-way answers `uncertain`, which can only be sent again as new work (a new id).
+  Fully sent work is kept a day so the person sees it arrived.
+- **The server side** (`server/src/modules/mobile/sync.ts`). Each item is done through the application's
+  own route, in-process, with the person's own token: a report is `POST /api/tickets` (or
+  `/api/safety-events`, or the portal's report routes) exactly as on the web, a photo is
+  `PUT /api/attachments/upload`. Validation, permissions, restrictions, hooks, notifications and audit are
+  the web's, and a refusal comes back with the route's own reason. Only the app's own token may use these
+  routes (`mobile_app_only`), so a signed-out device can send nothing.
+- **The offline package** (`GET /api/mobile/package`, `server/src/modules/mobile/package.ts`; in the app
+  `src/offline/package.ts`). My work, the lists the report forms need, the sites the person may see, the
+  portal's report choices, the attachment limits, the tag formats with the tag values of the records the
+  package covers, and parts (this wave: `inspections`, assigned to the person and due within the
+  package's days). It is read through the application's own routes as the person, so it holds only what
+  they may see. It expires after `mobile.offline_days` (Administration > Mobile app, default 7); the app
+  deletes an expired package, or another person's, when it notices, and downloads a fresh one at most
+  every hour when online. Screens read it through `orOffline(fromServer, fromPackage)`: the server
+  first, the package when the server cannot be reached.
+
+### Adding a kind of offline work
+
+Inspections and condition assessments (E38-11) and inventory counts (E38-12) are new kinds of outbox
+item and new package parts; the outbox, the storage, the wipe and Needs attention need no change.
+
+1. **Server, the work:** `defineSyncKind(app, { key, check, run })` from `modules/mobile/sync.ts`, for
+   example `inspection.complete`. `check(payload)` cleans the payload or returns a message (the item is
+   rejected at once); `run(env, payload)` does the work through `env.call(method, url, body)` (the
+   application's own routes, as the person) and returns the route's answer with a `result` (`recordType`
+   and `id` when it made a record, so a later item can name it: `env.madeBy(clientId)`). Status 2xx is
+   `done`; 401, 408, 429 and 5xx are `retry`; any other refusal is `rejected` with its reason. Add the key
+   to `SyncKind` in `shared/mobile-api.ts`.
+2. **Server, the package:** `definePackagePart(app, { key, build })` from `modules/mobile/package.ts`;
+   `build(env)` returns `{ data, records }`, where `records` are the records the work covers (their tag
+   values join the package's lookup table). Read with `env.call` so only what the person may see is
+   included, and describe the part's shape in `shared/mobile-api.ts`.
+3. **App:** `defineOutboxKind({ kind, send: 'batch' | 'upload', noun })` in `src/offline/kinds.ts`; the
+   screen saves work with `outbox().add([...])` (the items of one piece of work in one call; a photo
+   names the item it belongs to with `dependsOn`) and reads the package with `useOfflinePackage()`.
+4. **Tests:** the server kind as in `server/src/modules/mobile/sync.test.ts` (the same batch twice, a
+   removed permission rejected), the app's screen with a stand-in outbox (`src/offline/screen.test.tsx`).
+
+## Push notifications
+
+The server sends pushes itself, with your organization's own credentials (Administration > Push
+notifications, part of the Mobile app area). No Expo push service and no relay is used. A push says only
+"You have N new notifications"; the app fetches the rest when the person opens it.
+
+- **iPhone (Apple Push Notification service):** in your Apple Developer account, create a key with
+  Apple Push Notifications service (Certificates, Identifiers & Profiles > Keys), and enable Push
+  Notifications for the app identifier `com.sandpipergrc` (or your own bundle id). Enter the key id,
+  team id and bundle id, and load the .p8 file. TestFlight and App Store builds use Apple's production
+  environment; development builds register as `sandbox`. `app.json` sets `expo-notifications` to
+  `mode: production` (the `aps-environment` entitlement).
+- **Android with Firebase Cloud Messaging (optional):** create a Firebase project of your own, add an
+  Android app `com.sandpipergrc`, and download its `google-services.json`. Put it at
+  `mobile/google-services.json` (git-ignored) or set `GRC_GOOGLE_SERVICES_FILE=<path>` before
+  `npx expo prebuild`; `plugins/withPushNotifications.js` then applies Google's services plugin.
+  Without the file the build has no Firebase project: the app cannot get an FCM token and uses
+  UnifiedPush when the server offers it. On the server, load a service account key of the same project
+  (Project settings > Service accounts > Generate new private key). Only its project id, account name
+  and private key are kept, the key encrypted.
+- **Android with UnifiedPush:** for phones without Google services. Each phone runs a UnifiedPush
+  distributor connected to a push server (for example one your organization runs). List the push
+  servers phones may use (host, host:port or *.domain; a private address must be listed exactly). The
+  server makes its own VAPID key when UnifiedPush is first switched on; "Make a new key" makes phones
+  register again. The app's UnifiedPush connector (native module `SandpiperUnifiedPush`) is not built
+  yet.
+- **What the build sends to Google:** Firebase Messaging's automatic token creation and Firebase
+  Analytics are switched off in the manifest. The app asks for a token only after the person switches
+  push on. Google's data transport is removed as for ML Kit. Verified with a Gradle merged manifest: no
+  data-transport component, and no analytics or measurement library in the release classpath.
+- **Test:** on the administration page, "Send a test to my phones" sends a test push to your own
+  registered phones and shows any error.
 
 ## Camera and recognition libraries
 
@@ -260,8 +356,41 @@ commit):
 - **ios** (macOS): `expo prebuild`, `pod install`, and `xcodebuild` Release builds for the simulator
   and for devices, unsigned.
 
-End-to-end flows on emulators (Maestro) are planned (E38-01); until then the app is checked by hand on
-the Android emulator against a scratch server, as above.
+The end-to-end flows below run locally on the Android emulator; they are not yet part of CI.
+
+## End-to-end flows (Maestro)
+
+`mobile/test/maestro/` holds [Maestro](https://maestro.dev) flows (Apache-2.0) for the Android emulator
+against a scratch server: `connect-sign-in.yaml` (connect, sign in with a password in the browser,
+confirm the password when the server asks), `report-two-photos.yaml` (a problem report with two
+photos from the photo picker arrives with both), `airplane-mode-sync.yaml` (a report with two photos
+written in airplane mode waits on the phone, then arrives when the network is back) and
+`sign-out-wipes.yaml` (signing out warns about the unsent report and removes it from the phone).
+`run.sh` runs them in that order on a clean app and then asks the server that each report arrived
+exactly once, with two files, and that the unsent one never did.
+
+1. Install the Maestro command-line tool into `.tools/maestro` (no system-wide install): download
+   `maestro.zip` from the project's GitHub release, check it against the release's
+   `checksums_sha256.txt`, and unzip it there. It needs Java 17 (`.tools/jdk`). Keep its usage reporting
+   off: `MAESTRO_CLI_NO_ANALYTICS=1` (`run.sh` sets it).
+2. Start a scratch server (see [Working on several modules at once](development.md#working-on-several-modules-at-once)),
+   switch **Mobile app** on, and create a person without a second factor.
+3. Build and install the development app and start Metro (see "Running the app against a local
+   server"), with the emulator running. On a Windows emulator `adb reverse` of Metro's default port 8081
+   did not work; start Metro on another port (`npx expo start --port 8250`) and give it as `METRO_PORT`:
+   `run.sh` reverses that port and points the development app at it.
+4. In Git Bash or a Unix shell, with `maestro`, `adb` and `node` on the path:
+
+   ```
+   SERVER=http://10.0.2.2:8150 SERVER_LOCAL=http://127.0.0.1:8150 USERNAME=... PASSWORD=... \
+     METRO_PORT=8250 mobile/test/maestro/run.sh
+   ```
+
+**Lost connections.** `mobile/test/maestro/dropproxy.mjs` is a small proxy (port 8151 to the server on
+8150) that loses answers on purpose: the server does the first outbox batch and the first photo, then
+the connection to the phone is cut before the answer arrives, and the first photo upload is cut
+half-way. Run `node mobile/test/maestro/dropproxy.mjs`, connect the app to `http://10.0.2.2:8151`, run
+`report-two-photos.yaml`, and check that the report arrived once with two files.
 
 ## Versions
 

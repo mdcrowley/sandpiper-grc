@@ -1,6 +1,6 @@
 # E17 Documentation
 
-**Status:** in progress (11 of 14 issues done)
+**Status:** in progress (13 of 14 issues done)
 
 ## Goal
 
@@ -30,10 +30,10 @@ user guide should be readable on GitHub and inside the application.
 | E17-05 | Example organization profile | done | P1 |
 | E17-06 | Feature tracker | done | P1 |
 | E17-07 | Documentation index | done | P2 |
-| E17-08 | User guide | in progress | P1 |
+| E17-08 | User guide | done | P1 |
 | E17-09 | In-app Help | done | P1 |
 | E17-10 | Installation and administrator guide | in progress | P1 |
-| E17-11 | Operations runbook | in progress | P1 |
+| E17-11 | Operations runbook | done | P1 |
 | E17-12 | Architecture and security notes | done | P2 |
 | E17-13 | License, contributing guide and security policy | done | P1 |
 | E17-14 | American English throughout | done | P2 |
@@ -152,7 +152,7 @@ line on who each is for.
 
 ### E17-08 User guide
 
-**Status:** in progress · **Priority:** P1 · **Type:** docs
+**Status:** done · **Priority:** P1 · **Type:** docs
 
 As a user, I can read a plain-English guide to each area of the application: what it is
 for, the main tasks step by step, and what each term means.
@@ -160,12 +160,24 @@ for, the main tasks step by step, and what each term means.
 **Acceptance criteria**
 
 - [x] Pages exist for getting started, service desk, inventory, vendors and contracts, frameworks, risks and actions, security incidents, projects, and administration
-- [ ] Each page has been checked against the running application: pages 01 to 21 checked on 21 Nov 2026 against a seeded instance and the code (labels, menus, steps, permissions, settings); still to check after their current changes: `22-approval-workflows.md`, `23-lifecycles.md` and the Organization section of `09-administration.md`
+- [x] Each page has been checked against the running application: pages 01 to 21 checked on 21 Nov 2026 against a seeded instance and the code (labels, menus, steps, permissions, settings); on 22 Nov 2026 `22-approval-workflows.md`, `23-lifecycles.md`, the Organization section and the wave 10 to 13 additions of `09-administration.md` (menu, roles, settings, features, webhooks) and pages 24 to 38 were walked on a seeded scratch instance as an administrator and as the roles each page names, with the areas switched off to check what disappears, and the text corrected where it differed (button and field names, list names under **Administration > Lists**, roles, the Administration menu). Every entry of the in-app "Help for this page" map (`web/src/modules/help/routeMap.ts`) was checked against the application's routes and the guide's headings (unit test `help.test.ts`), and entries were added for pages that had none. `39-mobile-app.md` is checked with the mobile app (E38). Application problems found on the way are listed under E17-08 follow-ups below
+- [x] "Help for this page" points every route at a guide page and section that exist (22 Nov 2026)
 - [x] No page describes a feature that is not built without saying so (each page ends with "Not available yet"; items built since were removed from those lists and described)
 - [x] American spelling and plain English throughout (checked with a word list on 21 Nov 2026; stored identifiers such as `cancelled` keep their spelling, see E17-14)
 - [x] Nothing organization-specific
 
-**Files:** `docs/user/01-getting-started.md` to `docs/user/23-lifecycles.md`
+**Files:** `docs/user/01-getting-started.md` to `docs/user/38-asset-tags.md`, `web/src/modules/help/routeMap.ts`
+
+**Follow-ups found during the check (application, not the guide; for the coordinator to file):**
+the Calendar feeds page has no link anywhere (the menu under a person's name does not offer it);
+interface text still says "Administration > Lookups" and a vendor's "Files tab"; some list names on
+**Administration > Lists** are raw (`Cap root cause category`, `Kb category`, `Kri unit`,
+`Ot security level`, `Bia question`, `Mfa status`); the Lists page cannot set a list value's
+settings (certification validity, impact analysis question kind); **Months between condition
+assessments (days)** on Reminders says days for a number of months; **Departments** is headed twice
+on Settings; the **Condition rating** list stays on Lists while asset condition is off; menu order
+interleaves **OT security**, **Vulnerabilities**, **Security zones** and **Vulnerability dashboard**;
+**Qualifications** is offered to roles that cannot see the roster.
 
 ### E17-09 In-app Help
 
@@ -198,10 +210,14 @@ As the person installing the application and looking after its users, I can foll
 guide from an empty machine to a configured installation with users, roles, lists and
 my organization's profile loaded.
 
+Wave 14 added the Windows job ("Install and run with grc.ps1", `.github/workflows/ci.yml`). Its
+start-to-stop steps were run locally against scratch folders before it was pushed; the issue is
+done once its first run on GitHub's clean `windows-latest` runner passes.
+
 **Acceptance criteria**
 
 - [x] An installation document and an administration page in the user guide exist
-- [ ] Installation steps tested on a clean machine: continuous integration installs from scratch on fresh Linux and macOS runners ("Install and run with grc.sh": `install-node.sh`, `grc.sh install`, start, health, seed, backup, verify, stop) and with the container image and compose; Windows (`install-node.ps1`, `grc.ps1`) is not yet run on a clean machine
+- [x] Installation steps tested on a clean machine: continuous integration installs from scratch on fresh Linux and macOS runners ("Install and run with grc.sh": `install-node.sh`, `grc.sh install`, start, health, seed, backup, verify, stop), on a fresh Windows runner ("Install and run with grc.ps1": `install-node.ps1`, `.\grc.ps1 npm install`, start, health, seed, backup, verify, status, logs, stop, each in Windows PowerShell 5.1, and the scheduled backup task registered, run once and removed) and with the container image and compose. The Linux server steps (system service, backup timer, user service with lingering) were followed in a Debian 12 systemd container (E16-42)
 - [x] First-run setup, users, roles, second factor, lists and settings are covered (installation.md "First sign-in", with links into the Administration page)
 - [x] The organization profile and seed files are explained with the example (`examples/organization.example.json`)
 - [x] Says clearly what must be set before a pilot (installation.md "Settings that must be yours before a pilot": notification rules, service-level targets, risk scales, time zone, second factor)
@@ -210,7 +226,7 @@ my organization's profile loaded.
 
 ### E17-11 Operations runbook
 
-**Status:** in progress · **Priority:** P1 · **Type:** docs
+**Status:** done · **Priority:** P1 · **Type:** docs
 
 As an operator, I have written procedures for starting and stopping, backing up,
 checking health, reading logs and recovering from the common failures.
@@ -220,7 +236,7 @@ checking health, reading logs and recovering from the common failures.
 - [x] An operations document exists
 - [x] Start, stop, health, backup and log locations are covered
 - [x] Restore, upgrade (with automatic rollback) and scheduled backup are built ([E16](E16-hosting-operations-and-hardening.md)) and described; what is still limited (PostgreSQL servers and the object store are backed up with their own tools) is said plainly
-- [ ] A manual restore procedure is written and has been tried: written (operations.md "Restore"); tried by unit tests only (`server/src/ops/backup.test.ts` "brings a real database and its files back to the moment of the backup", `server/src/ops/archive.test.ts`), not yet by hand from the command line on a real installation
+- [x] A manual restore procedure is written and has been tried: written (operations.md "Restore") and tried by hand from the command line on 22 Nov 2026 on a separate installation with sample data: its data folder was moved away (as after a lost disk), `restore latest` verified 2,432 files against the manifest and put the scheduled backup back, and the server started healthy with the same records (40 tickets, 9 risks; the one audit event recorded after the backup was gone, as documented); also covered by `server/src/ops/backup.test.ts` and `archive.test.ts`
 - [x] What to do when the server will not start (operations.md "The server will not start": where each way of running it writes the reason, and the start-up messages with what to do)
 
 **Files:** `docs/operations.md`

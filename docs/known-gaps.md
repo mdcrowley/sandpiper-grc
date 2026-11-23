@@ -92,35 +92,44 @@ content, which belongs in a document tool (E25-13, E29-11, E32-06, E34-09).
   processes on one database do not share it. The Overview's figures are kept for a few
   seconds per process, so a change saved through another process shows up there after up
   to 10 seconds.
-- **Per-token request limits are per process.** The limit set by `tokens.rate_per_minute`, the
-  `RateLimit` headers and `mcp.rate_per_minute` count in memory: a restart resets the current
-  minute, and with several application processes each counts on its own. Run one process, or
-  allow for this, until E16-43.
 - **Mobile app (server)**: a refresh is repeated safely once within 30 seconds if its first answer
   was never used; two refreshes of the same token at the same moment get one answer, and the other is
   refused. Within `auth.reauth_minutes` of a `prompt=login` sign-in, the phone may perform any
   sensitive action the person may, like a freshly confirmed browser.
 - **Asset tags**: an inventory count's area restricts it to records with a location (assets); counts
   have no offline mode until E38-12.
-- **Mobile app (testing)**: the automated end-to-end flows (Maestro) are not built yet; the app was
-  checked by hand on an Android emulator. iPhone builds run only on the macOS leg of continuous
+- **Mobile app (testing)**: the Maestro flows (`mobile/test/maestro/`) run locally on the Android
+  emulator, not yet in CI. iPhone builds run only on the macOS leg of continuous
   integration and have not been run on a device; whether ML Kit sends usage statistics on iPhone has
   not been measured (see `docs/security.md`). The app's open-source licenses list includes packages
   used only at build time.
-- **Mobile app (reports)**: a photo whose upload failed is sent again whole (no partial resume); until
-  the server honors `Idempotency-Key` (E38-10), a report can be created twice if the connection drops
-  during its creation and the person taps **Send again**, and a photo twice if its answer was lost.
-  Portal users report from a tag card only, not from scratch, and photos on a portal safety report may
-  be refused.
+- **Push notifications (E38-14)**: tested only against fake Apple, Google and UnifiedPush services in
+  the test process, not yet with real credentials on real phones. The Android app has no UnifiedPush
+  connector yet, so without Firebase in the build Android phones get no pushes. A push that fails
+  temporarily is not retried; the next new notification pushes again.
+- **Mobile app (offline)**: a photo whose upload failed is sent again whole (no partial resume), but
+  never attached twice. The portal, safety and attachment routes themselves still ignore
+  `Idempotency-Key` when called directly (the app goes through `/api/mobile/sync`, which keeps each
+  answer for 7 days). Only reports work offline so far; inspections, condition assessments and counts
+  follow (E38-11, E38-12), and tags are not looked up in the offline package yet. A phone signed out
+  from the web loses work it had not sent. Portal users report from a tag card only, not from scratch,
+  and photos on a portal safety report may be refused.
 - **Hosting**: with a least-privilege database account, adding a custom field is queued
   for the database owner, and a new text custom field is searched only after the owner's
   next `migrate` step. JSON API responses are not compressed by the application (a risk with
-  session-bound answers); a reverse proxy may compress them. Web assets are compressed and cached. The user services run on GitHub's Linux and macOS machines; a restart of the machine and the
-  system examples in `deploy/` are not yet proven on real machines (E16-42).
-- **Performance**: the embedded database is for evaluation. A PostgreSQL server meets the
-  targets in the load test, but only with the server on the same machine and everyone
-  signed in as one administrator; a run with the database on its own machine and people in
-  different roles is still to do (E16-41).
+  session-bound answers); a reverse proxy may compress them. Web assets are compressed and cached.
+- **Service restarts on real machines (E16-42)**: the user services run on GitHub's Linux and macOS
+  machines. The Linux system service, its backup timer and a lingering user service were checked
+  across a restart of a systemd container, not of a real machine; macOS (`deploy/launchd/`, the
+  agent after a restart) is unproven.
+- **Performance**: the embedded database is for evaluation. The database on its own machine is not
+  yet measured (E16-41): load figures come from a PostgreSQL container limited to 2 processors and
+  2 GB on the same laptop as the application, with people in different roles. At scale 1 global
+  search (0.8 to 1.1 s) and sometimes the full-text list miss the server targets; at scale 4 the two
+  database processors are saturated and lists, search and the Overview take 0.8 to 4.3 s. Under
+  bursts of writes, a request that waits more than `GRC_DATABASE_CONNECT_TIMEOUT` (10 s) for one of
+  the `GRC_DATABASE_POOL_MAX` (10) connections fails with "Something went wrong" (30 of about 82,000
+  while seeding scale 4).
 - **Vendors**: the contract import fills structured dates only where the text is
   unambiguous; the "Complete the dates" queue lists the rest.
 
@@ -136,8 +145,10 @@ content, which belongs in a document tool (E25-13, E29-11, E32-06, E34-09).
   with all optional parts switched off (and with a mix) showing nothing of them.
 - Accessibility: the automated axe-core audit (`npm run test:a11y`; see
   [Accessibility](accessibility.md)) finds no violations on any page in light and dark at
-  1440 and 820 pixels, and fails the build on a new one. There has been no screen-reader
-  walkthrough (E16-15).
+  1440 and 820 pixels, and fails the build on a new one. The main journeys have
+  been run with NVDA by a script (`tools/sr/journeys.mjs`, a manual check), proving what is announced
+  and that the keyboard is enough; approving a workflow step is not yet proven, and no screen reader
+  user has walked through the application (E16-15).
 - Containers and the PostgreSQL server are proven in continuous integration: the container
   build and smoke test, the test suite through the PostgreSQL wire protocol and on
   PostgreSQL 17.

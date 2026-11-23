@@ -77,7 +77,7 @@ Test-Path .tools\node\node.exe    # must print True
 ### 2. Install the packages and start
 
 ```powershell
-.\grc.ps1 npm install
+.\grc.ps1 install
 .\grc.ps1 start
 ```
 
@@ -85,6 +85,12 @@ The first start builds the web application, creates the `data\` folder and the d
 and prints `Sandpiper GRC is running at http://127.0.0.1:8080`. Open that address. To use
 passkeys on this machine, open `http://localhost:8080` instead (browsers refuse passkeys at
 an IP address).
+
+Continuous integration follows these steps on a clean Windows machine for every change
+(job "Install and run with grc.ps1"): `install-node.ps1`, `.\grc.ps1 install`, then
+`start`, `health`, `seed -Profile dev`, `backup`, `verify-backup`, `status`, `logs` and
+`stop`, each run in Windows PowerShell 5.1, and `schedule-backup`, a run of the scheduled
+task and `unschedule-backup`.
 
 ### If the script is blocked
 
@@ -187,6 +193,11 @@ The server's own log, one line per request, is `/var/lib/sandpiper-grc/data/logs
 
 The unit listens on `127.0.0.1:8080` and trusts a reverse proxy on the same machine; add the
 proxy of [Reverse proxy](#reverse-proxy) in front of it.
+
+These steps, with the backup timer and a user service beside them, were followed as written in
+a Debian 12 container running systemd and checked again after a restart of the container
+([Operations](operations.md#running-as-a-service-on-linux-and-macos)); a restart of a real
+machine has not been tested yet.
 
 ## First sign-in
 

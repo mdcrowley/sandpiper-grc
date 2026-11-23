@@ -1,0 +1,39 @@
+# Maestro flow (E38-10): a report with two photos written in airplane mode waits on the phone, then
+# arrives once, with both photos, when the network is back.
+# Before: connect-sign-in.yaml, two pictures in the gallery (run.sh). After: run.sh checks on the
+# server that exactly one ticket has this title, with two files.
+# Run: maestro test -e TITLE="Invented offline report 1" mobile/test/maestro/airplane-mode-sync.yaml
+appId: com.sandpipergrc
+name: Report in airplane mode, then sync
+---
+- launchApp
+- setAirplaneMode: enabled
+- runFlow:
+    file: subflows/open-report-tab.yaml
+- tapOn: "Report a problem"
+- extendedWaitUntil:
+    visible: "Title"
+    timeout: 20000
+- tapOn: "Title"
+- inputText: ${TITLE}
+- tapOn: "What is wrong"
+- inputText: "Invented: written with no signal in the depot basement."
+- hideKeyboard
+- runFlow:
+    file: subflows/choose-two-photos.yaml
+- scrollUntilVisible:
+    element: "Send"
+- tapOn: "Send"
+# Saved on the phone and waiting: nothing can reach the server.
+- extendedWaitUntil:
+    visible: "${TITLE}, (Waiting for a connection|Saved on this phone).*"
+    timeout: 30000
+- assertNotVisible: "${TITLE}, Arrived.*"
+- tapOn: "Offline work and Needs attention"
+- assertVisible: "WAITING TO SEND"
+- back
+# The network comes back: the outbox sends on its own (network listener, or the 30-second retry).
+- setAirplaneMode: disabled
+- extendedWaitUntil:
+    visible: "${TITLE}, Arrived: .*2 of 2 photos sent.*"
+    timeout: 180000

@@ -20,7 +20,7 @@ Open **Records requests**. The line above the list counts the open requests, tho
 ### Log a request
 
 1. Select **New records request**, or **Create** then **Records request**.
-2. Enter a short **Subject** (shown in lists; leave the requester's name out of it), and choose the **Kind**: **Records request**, **Personal-data access**, **Personal-data correction**, **Personal-data deletion** or **Other**. Administrators can change the kinds under **Administration > Lists**.
+2. Enter a short **Subject** (shown in lists; leave the requester's name out of it), and choose the **Kind**: **Records request**, **Personal-data access**, **Personal-data correction**, **Personal-data deletion** or **Other**. Administrators can change the kinds under **Administration > Lists** (list **Records request kind**).
 3. Enter the day it was **Received on** (today when left empty), the **Requester**, their contact and address, whether their **Identity verified**, **What was asked for**, and the **Owner** who works it.
 4. Select **Create records request**. It gets a reference such as `RRQ-00001`, and its **Due** date is worked out from the deadlines (below).
 
@@ -48,7 +48,7 @@ The request's owner (or, with no owner, everyone who may edit requests) is told 
 
 ### Responsive records
 
-The **Responsive records** tab lists the records that answer the request. **Add a record** chooses the kind of record and the record; only records you can see can be added. For each, record how much was **Disclosed** (**Disclosed in full**, **Disclosed in part** or **Withheld**), any **Exemption** (your own list under **Administration > Lists**; the examples are personal privacy, security-sensitive, legal advice, ongoing investigation and commercial confidence) and a **Note**. **Change** and **Remove** edit the list. The record's own **Related** tab shows the request as "responsive to".
+The **Responsive records** tab lists the records that answer the request. **Add a record** chooses the kind of record and the record; only records you can see can be added. For each, record how much was **Disclosed** (**Disclosed in full**, **Disclosed in part** or **Withheld**), any **Exemption** (your own list **Records exemption** under **Administration > Lists**; the examples are personal privacy, security-sensitive, legal advice, ongoing investigation and commercial confidence) and a **Note**. **Change** and **Remove** edit the list. The record's own **Related** tab shows the request as "responsive to".
 
 Documents themselves are not redacted here: record the exemption on the record and redact the copy you release in your document tool.
 
@@ -70,9 +70,9 @@ To mark a data category as personal data, open it under **Inventory > Data categ
 
 Open **Privacy assessments** for the list, or the **Privacy** tab of a system.
 
-1. Select **New privacy impact assessment**, enter a **Title**, choose the **System** and the **Owner**, and how often to **Review every (months)** (24 unless you change it).
+1. Select **New privacy impact assessment**, enter a **Title**, choose the **System** and the **Owner**, and how often to **Review every (months)** (24 unless you change it), then select **Create privacy impact assessment**.
 2. On the assessment's page, describe the **Purpose of the processing**, the **Legal basis (as recorded)**, **Necessity and proportionality**, **Retention**, **Sharing and transfers**, the **Risks to people** and the **Mitigations**, and rate the **Residual risk**.
-3. On **Questions**, answer the screening questions (your own list, **Privacy questions**, under **Administration > Lists**).
+3. On **Questions**, answer the screening questions (your own list, **Privacy question**, under **Administration > Lists**), then select **Save answers**.
 4. On **Data categories**, check the system's categories the assessment covers.
 5. On **Approval**, select **Submit for approval**. The assessment needs its system, purpose, risks and residual risk.
 

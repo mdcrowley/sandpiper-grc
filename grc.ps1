@@ -168,6 +168,7 @@ function Show-Usage {
   Write-Host @'
 Usage: .\grc.ps1 <command>
 
+  install                             npm install with the portable Node.js (run tools\install-node.ps1 first)
   start | stop | restart | health     run the server on http://127.0.0.1:8080
   status                              version, port, process, data size, last backup, pending migrations
   logs [-Lines n] [-Follow] [-Level warn]   show the end of the server log (data\logs\grc.log)
@@ -557,6 +558,8 @@ switch ($Command) {
     if ($script:backupName) { Write-Host "The data as it was before the upgrade is in backup $($script:backupName)." }
   }
 
+  'install' { Invoke-Native npm.cmd install --no-fund --no-audit; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; Write-Host 'Packages installed.' }
   'npm' { & npm.cmd @Rest; exit $LASTEXITCODE }
-  default { Show-Usage }
+  { $_ -in 'help', '-h', '--help', '/?' } { Show-Usage }
+  default { Show-Usage; Write-Host "Unknown command: $Command" -ForegroundColor Red; exit 1 }
 }

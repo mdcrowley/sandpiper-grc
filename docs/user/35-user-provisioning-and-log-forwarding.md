@@ -67,7 +67,7 @@ Every change provisioning makes is in the audit log, with **Provisioning (token 
 
 Open **Administration > Log forwarding**. A forwarder sends every audit event, in order, to one collector (a security information and event management system, or a log server in front of one).
 
-**Nothing is sent until outbound connections are switched on.** Under **Settings > Outbound connections**, switch on **Outbound connections** and add the collector's host and port to **Allowed hosts** (for example `logs.example.org:6514`). A collector on your internal network must be listed by its address as well, as for webhooks. New forwarders start **switched off**.
+**Nothing is sent until outbound connections are switched on.** Under **Settings > Outbound connections**, switch on **Allow outbound connections** and add the collector's host and port to **Allowed hosts** (for example `logs.example.org:6514`). A collector on your internal network must be listed by its address as well, as for webhooks. New forwarders start **switched off**.
 
 ### Adding a forwarder
 

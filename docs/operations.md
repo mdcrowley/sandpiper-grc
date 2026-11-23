@@ -67,7 +67,7 @@ otherwise the `node` on `PATH`, and refuses a major version other than the one i
 | Windows | macOS and Linux |
 |---|---|
 | `powershell -ExecutionPolicy Bypass -File .\tools\install-node.ps1` | `./tools/install-node.sh` |
-| `.\grc.ps1 npm install` | `./grc.sh install` (also fetches Node.js when no suitable one is found) |
+| `.\grc.ps1 install` | `./grc.sh install` (also fetches Node.js when no suitable one is found) |
 | `.\grc.ps1 start`, `stop`, `restart`, `health`, `status` | `./grc.sh start`, `stop`, `restart`, `health`, `status` |
 | `.\grc.ps1 logs -Lines 100 -Follow -Level warn`, `version`, `audit-deps` | `./grc.sh logs --lines 100 --follow --level warn`, `version`, `audit-deps` |
 | (a Windows service is not provided) | `./grc.sh service install`, `remove`, `status`, `print`: run the server as a systemd (Linux) or launchd (macOS) user service ([Running as a service](#running-as-a-service-on-linux-and-macos)) |
@@ -333,7 +333,31 @@ runner (launchd): `service install` and the health check, `./grc.sh restart` (a 
 through the service manager), `backup` and `status` under the service, a crash (the server
 process is killed and the service manager starts it again), `./grc.sh stop` (not restarted)
 and `service remove` (E16-35). A restart of the machine, and the system examples in `deploy/`,
-are not part of that run (E16-42). On a Linux machine with no sign-in session of your own (a
+are not part of that run (E16-42).
+
+**Checked across a restart (E16-42, 2026-11-22), in a stand-in for a Linux server.** A
+container built from the official `debian:12` image with Debian's own `systemd` package as
+process 1 (2 processors, 3 GB) was set up exactly as [Installation, "Linux"](installation.md#linux)
+says, with both ways installed at once: the system service from `deploy/systemd/` (the
+application in `/opt/sandpiper-grc` owned by root, `install-node.sh`, `grc.sh install` and
+`build` as root, the `sandpiper` system account, `/etc/sandpiper-grc/env`, the two units and
+the timer copied and enabled) and, for an ordinary account, `loginctl enable-linger` and
+`./grc.sh service install` on another port. The container was then restarted and nobody
+signed in. Afterwards: no sign-in session existed (`loginctl list-sessions` was empty), the
+account was `lingering`, and its user service was active and answered its health check; the
+system service was active and healthy and the backup timer was waiting for 02:30.
+`systemctl start sandpiper-grc-backup.service` stopped the service, took a verified backup
+labeled `scheduled` into `/var/lib/sandpiper-grc/backups`, wrote `scheduled-backup.log` and
+started the service again (a new process, healthy); with a drop-in moving the timer to the next
+minute the timer itself ran the backup service, which finished with `success` and left the
+server healthy; `grc.sh verify-backup` and `grc.sh status` as the `sandpiper` account, and
+`grc.sh logs` through `sudo -u sandpiper`, worked as the comments in the unit say. Nothing in
+`deploy/systemd/` or these steps needed changing. What this does **not** prove: a container
+restart is not a restart of a machine (the kernel, firmware, disks and network coming up are
+not exercised), and macOS (`deploy/launchd/`, and the launchd agent at sign-in after a
+restart) has not been run on a real Mac beyond the user agent in continuous integration.
+
+On a Linux machine with no sign-in session of your own (a
 server reached only over SSH, for example), run `loginctl enable-linger <you>` before
 `service install`, or use the system examples above.
 
@@ -557,6 +581,10 @@ administrator rights.
   last backup. The server's own backups ([above](#backups-taken-by-the-server)) do alert
   administrators, and need nobody signed in; the task remains useful for a full
   stop-and-copy of the database files.
+- Continuous integration registers the task on a clean Windows runner, runs it once with
+  `Start-ScheduledTask`, checks for the backup labeled `scheduled`, the `exit 0` line in
+  `scheduled-backup.log` and a healthy server afterwards, and removes it (job "Install and run
+  with grc.ps1").
 
 **macOS and Linux.** `./grc.sh schedule-backup --at 02:30 --prune 14` changes nothing on the
 system: it prints, with this folder's paths and the `GRC_*` settings in force written in,
@@ -1086,6 +1114,72 @@ ten minutes on the embedded database (130 tickets a second) and about twelve on 
 server (105 a second, `--seed-concurrency 16`, sharing the laptop); a start of the scale-4
 installation on the server answered in 2.6 s.
 
+**The database with its own limited share of the machine, and people in different roles
+(E16-41, 2026-11-22).** The aim of E16-41 is a database on its own machine. That was not
+available, so this is the nearest stand-in on one laptop, and it is **not** a separate machine:
+PostgreSQL 17 ran in a container limited to **2 processors and 2 GB of memory** (`--cpus 2
+--memory 2g`, default PostgreSQL settings) as the "database machine"; the application ran as
+its own process outside the container (the load tool's throw-away instance, reaching the
+database over TCP) and the load generator as a third process. All three shared the same 14-core
+laptop, which five other development sessions kept busy (about half its processors in use
+at a moment it was checked between runs), and the application and load generator were not limited. Records were
+seeded once per scale (with `--roles 6`) and each column measured a copy of the same records
+(`--reuse`), 8 people at once, 15 seconds per scenario. "7 roles" means the simulated people
+opened the Overview in turn as the administrator and as six people each holding one other role
+(service desk agent, asset manager, audit lead, compliance officer, continuity manager, project
+manager), each asking only for the Overview calls their role may see (4 to 9 of the 12), so the
+kept figures are computed once per set of permissions (`tools/load/run.mjs --roles`). 95th
+percentile, and 50th in brackets, in milliseconds:
+
+| Scenario | Scale 1, administrator | Scale 1, 7 roles | Scale 1, 7 roles, cache off | (again) | Scale 4, administrator | Scale 4, 7 roles | Scale 4, 7 roles, cache off |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Ticket list, first page | 94 (63) | 138 (68) | 110 (79) | 157 (86) | 747 (486) | 345 (272) | 679 (408) |
+| Ticket list, random page, sorted | 213 (134) | 285 (182) | 381 (223) | 386 (274) | 1,826 (795) | 795 (590) | 1,460 (896) |
+| Ticket list, filtered by status | 72 (56) | 94 (61) | 74 (61) | 131 (73) | 117 (86) | 152 (91) | 107 (85) |
+| Ticket list, full-text query | 371 (203) | 288 (113) | 312 (123) | 506 (305) | 1,684 (478) | 1,709 (500) | 4,342 (914) |
+| Ticket statistics by status | 10 (8) | 9 (7) | 79 (37) | 94 (72) | 21 (12) | 21 (11) | 175 (100) |
+| First page of any list | 68 (50) | 90 (53) | 1,154 (180) | 65 (41) | 235 (86) | 138 (57) | 204 (68) |
+| Global search | 799 (501) | 1,101 (417) | 3,682 (981) | 886 (565) | 1,916 (573) | 2,111 (657) | 2,004 (602) |
+| One record | 45 (33) | 51 (32) | 230 (74) | 41 (31) | 58 (34) | 46 (36) | 45 (35) |
+| Overview dashboard (all its calls) | 356 (187) | 268 (106) | 725 (520) | 778 (470) | 3,496 (263) | 1,176 (157) | 2,098 (1,092) |
+| Overview, a ticket saved every second meanwhile | 420 (169) | 421 (100) | 770 (520) | 756 (403) | 3,692 (1,742) | 1,799 (719) | 2,367 (1,234) |
+| Save: create a ticket | 203 (111) | 105 (94) | 160 (108) | 124 (97) | 208 (133) | 148 (116) | 176 (122) |
+| Save: update a ticket | 96 (72) | 75 (63) | 180 (80) | 117 (72) | 92 (75) | 163 (85) | 129 (91) |
+
+Every run completed with no errors and no request left unanswered. What they show:
+
+- **At scale 1 the two-processor database holds the pilot targets for lists, one record,
+  saves and the Overview**, also with seven sets of permissions (Overview 268 ms; 421 ms with a
+  save every second). Global search (0.8 to 1.1 s) and, in some runs, the full-text list query
+  (288 to 506 ms) do not meet the server targets of 500 and 300 ms. On an unlimited container
+  they did (197 and 105 ms, above): those two are what a small database machine feels first.
+- **The cache matters more with roles than without.** With it off, seven roles took the
+  Overview from 268 to about 750 ms at scale 1 and from 1.2 to 2.1 s at scale 4; ticket
+  statistics went from 9 to about 90 ms. With it on, seven roles cost no more than one at scale
+  1: each set of permissions computes once and then shares its kept answers. The first
+  cache-off run at scale 1 also met a busy moment of the laptop (first page of any list 1.2 s,
+  global search 3.7 s, where the repeat gave 65 ms and 0.9 s); read the repeat.
+- **At scale 4 (about 82,000 records) two processors are not enough** for these 8 people:
+  the container sat at its limit of 200 % for about half of the samples taken every few
+  seconds (`docker stats`), sorted and full-text ticket lists took 0.8 to 4.3 s, global search
+  about 2 s and the Overview 1.2 to 3.7 s. Saves, filtered lists and single records stayed
+  fast. A pilot at that volume needs more processors for the database than two, or the
+  slow statements tuned further; the unlimited container (above) met all but one target.
+- **Seeding scale 4 met a full connection pool.** With 16 records created at once on this
+  database, 30 of about 82,000 requests failed with a server error, logged as "timeout exceeded
+  when trying to connect": a request waits at most `GRC_DATABASE_CONNECT_TIMEOUT` (10 s) for
+  one of the pool's `GRC_DATABASE_POOL_MAX` (10) connections, and the busy database did not
+  free one in time. People see "Something went wrong" and can try again; nothing half-written
+  is kept. On a small database machine expect this under bursts of writes, and raise the pool
+  or the timeout, or give the database more processors. None of the measured runs had it.
+- Starting the application against the scale-4 database took 8 to 31 s (the slowest while
+  the laptop was busiest); ticket creation while seeding ran at about 28 a second at scale 4
+  (105 a second on the unlimited container) and about 78 at scale 1.
+
+Still to do for E16-41: the same runs with the database on its own machine (or a managed
+PostgreSQL service) and the application and load generator on others, so that the network
+between them is real and nothing else shares the processors.
+
 **Earlier results (E16-36).** All on the same 14-core laptop (31 GB, Windows 11), the load generator on the
 same machine, 8 people at once, 15 seconds per scenario, version 0.1.0. Scale 0.5 is about
 10,500 records (5,000 tickets, 1,500 assets, 1,000 actions, 750 changes, 750
@@ -1193,11 +1287,11 @@ starts took a few seconds and logged no statement over 40 ms. Fixed in E16-39 (*
 - The earlier results drew words from a list of about a hundred, so every word was in
   roughly a fifth of all records. The current ones use a Zipf vocabulary of about 500 words
   (a few words in thousands of records, most in a handful), closer to real text.
-- Every simulated person signs in as the same administrator, so they all share one kept
-  answer for each Overview figure. People holding different roles each get their own (one
-  computation per set of permissions), which costs more than measured here; the run with the
-  cache off (above) is the upper bound.
-- Scale 4 on a PostgreSQL server on its own machine has not been measured (E16-41).
+- In the E16-36 and E16-38 results every simulated person signs in as the same administrator,
+  so they all share one kept answer for each Overview figure. The E16-41 runs (above) add people
+  in seven different roles, and runs with the cache off.
+- The database has not yet run on a machine of its own (E16-41): the nearest so far is a
+  container limited to 2 processors and 2 GB on the same laptop (above).
 
 ## Emergency access (break-glass)
 
@@ -1333,7 +1427,7 @@ was moved or the `GRC_*` settings changed, run `.\grc.ps1 schedule-backup` again
 .\grc.ps1 typecheck
 ```
 
-If packages are missing or damaged, delete `node_modules\` and run `.\grc.ps1 npm install`.
+If packages are missing or damaged, delete `node_modules\` and run `.\grc.ps1 install`.
 
 ### A page shows "Something went wrong"
 

@@ -116,11 +116,43 @@ switched off.
 
 **Report a problem** raises a ticket; **Report a hazard or close call** raises a safety report. Started
 from a tag card, the record is linked for you. Add a title, what happened, the site and where exactly,
-and up to 10 photos, which are made smaller to fit your organization's limit. Reports are sent from the
-phone even if the connection drops: what is still sending is listed on the Report tab. If the
-connection was lost while a report was being sent, the app cannot tell whether it arrived, so check My
-work or the web before you tap **Send again**. The Report tab is shown only when you may report a
-problem or a hazard.
+and up to 10 photos, which are made smaller to fit your organization's limit. Tap **Send**: the report
+is saved on the phone first and sent from there, so you can report with no signal at all (see
+[Offline work](#offline-work)). The Report tab lists the reports saved on this phone: waiting for a
+connection, being sent, **Arrived** with the new record's reference (for example TKT-00042) and how many
+photos arrived, or **Needs attention**. **Dismiss** removes an arrived report from the list (it stays on
+the server). The Report tab is shown only when you may report a problem or a hazard.
+
+## Offline work
+
+You can keep working where there is no signal, in a tunnel, a depot basement or out on the line.
+
+- **Reports work offline.** Write the report and add photos as usual and tap **Send**. The report is
+  saved on the phone and sent on its own as soon as there is a connection: when the signal comes back,
+  when you open the app, and every half minute while it is open. **Send now** on the Report tab tries at
+  once.
+- **Each report arrives once.** Every report and every photo carries its own identifier, which the
+  server remembers for 7 days. If the connection drops while something is being sent, or the app is
+  closed half-way, it is simply sent again and the server recognizes it, so nothing arrives twice. You
+  never need to check before sending again.
+- **What the forms need is kept on the phone.** While you have a connection the app downloads an
+  **offline package**: My work, the choices the report forms offer (event types, severities, the sites
+  you may see) and your upcoming inspections. Without a connection the forms use it. The package is
+  kept for a number of days set by your administrator (7 unless changed) and then deleted; the app
+  downloads a fresh one, at most every hour, whenever it has a connection.
+- **Needs attention.** If the server does not accept something (you no longer have permission, a field
+  is not accepted, the record it was about was deleted), it stays on the phone under **Report > Offline
+  work** with the server's reason. Nothing is thrown away by itself. Fix what the reason says (on the
+  web if needed) and tap **Send again**, or **Discard** it. Photos of a report that needs attention wait
+  for it. In the rare case that the server stopped while saving something, it says it cannot be sure
+  whether it was saved: check on the web, then **Send as new** or **Discard**.
+- **Offline work** (on the Report tab) shows what is waiting to be sent, what needs attention, and the
+  offline package: when it was downloaded and when it will be deleted. **Download now** fetches a fresh
+  one.
+
+Everything kept for offline work is stored in the app's own protected storage on the phone, never in
+your photo library or shared files, and is deleted when you sign out, when the phone is signed out, or
+(the package) when it expires. Signing out warns you first if something has not been sent.
 
 ## Notifications
 
@@ -128,14 +160,24 @@ Open **Account > Notifications** to see your in-app notifications, newest first:
 bell on the web. Unread ones are marked; opening one marks it read on the web too, and opens its record
 when it is about one. **Unread only** shows just the unread ones, **Mark all read** marks them all read,
 and pulling down refreshes the list. A notification about a record you can no longer open says so,
-without its details. The app does not send notifications to your phone's lock screen yet; email
+without its details. To be told on your phone's lock screen, switch on push notifications (below); email
 notifications continue as before.
+
+## Push notifications
+
+Under **Account > Push notifications**, switch on **Tell me on this phone**. The first time, the phone
+asks whether the app may show notifications. From then on, the phone shows "You have N new
+notifications" when something new reaches your notification list. The push never says what the
+notifications are about; tap it to open **Notifications**. Pushes follow your notification choices:
+kinds you switched off, or chose to receive by email only, are not pushed. Switching the switch off, or
+signing the phone out (here or under Devices on the web), stops pushes to that phone. If the switch
+says your organization has not set up push for this kind of phone, ask your administrator.
 
 ## Account
 
 **Account** shows who you are signed in as and to which server, with:
 
-- **Notifications** (with the number unread) and **Devices**.
+- **Notifications** (with the number unread), **Push notifications** and **Devices**.
 - **Unlock with Face ID or fingerprint** (above).
 - **About**: the app's version and **Open-source licenses**, the packages the app is built with. If your
   server recommends a newer version of the app, it says so here.
@@ -156,7 +198,9 @@ Tap **Account > Sign out** and confirm. The phone is signed out on the server an
 everything it kept on the phone except the server address. If the app has work it has not sent yet,
 it warns you first. The app also signs out by itself, and removes its data, when the server no longer
 accepts it: the phone was signed out from Devices, your account was deactivated, the mobile app was
-switched off, or it was not used for too long. Sign in again to continue.
+switched off, or it was not used for too long. Work saved on the phone and not yet sent is removed
+then too, so let the app send it (Report > Offline work) before a phone is signed out from the web. Sign
+in again to continue.
 
 ## For administrators
 
@@ -169,7 +213,7 @@ Switch the app on under **Administration > Features > Mobile app**, then set it 
 | Stay signed in without use | 1 to 90 days | 30 | A phone not used for this long must sign in again |
 | Require Face ID, a fingerprint or the passcode | on or off | Off | Everyone must unlock the app; the person cannot turn it off under Account |
 | Ask again after (minutes in the background) | 0 to 240 | 5 | How long the app may stay in the background before it asks again |
-| Keep offline work | 1 to 30 days | 7 | How long work downloaded for use without signal is kept (once offline work exists) |
+| Keep offline work | 1 to 30 days | 7 | How long a phone keeps its offline package (My work, the report forms' choices, upcoming inspections) before deleting it. Work saved on the phone and not yet sent is never deleted by this |
 
 Saving asks for your password; new lifetimes apply to tokens issued afterward. Each person's page under
 **Administration > Users** has a **Mobile app devices** card to sign one phone or all phones out.
@@ -177,3 +221,9 @@ Disabling or deactivating an account (also through user provisioning) signs out 
 stay signed out if the account is enabled again; so does switching the Mobile app off under
 **Features**. The app asks your server which app versions it accepts, so an old app is asked to update
 rather than misbehave.
+
+**Administration > Push notifications** (shown while the Mobile app is on) holds your organization's
+credentials for Apple's push service (iPhone), Firebase Cloud Messaging and UnifiedPush (Android). Keys
+are stored encrypted and never shown again, only their fingerprint. Saving asks for your password again
+and is recorded in the audit log. The page shows how many phones use each service and the last delivery
+problem, and can send a test push to your own phones. Switching the Mobile app off stops all pushes.

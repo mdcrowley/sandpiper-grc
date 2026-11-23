@@ -1,7 +1,9 @@
 // Report a problem (a ticket) or a hazard or close call (a safety event) with photos (spec §5.3,
 // E38-06): /report/new?kind=problem|hazard, or ?start=<id> from a tag card's action (the record is
 // linked through the server's prefill). Photos are made to fit the server's limits on the phone; the
-// report goes into the phone's queue, which sends it and resumes photo uploads after a lost connection.
+// report is saved in the outbox (E38-10), which sends it and its photos once, also after a lost
+// connection or when written with no signal at all. Without a connection the form's choices (types,
+// severities, sites, limits) come from the offline package.
 import { useEffect, useState } from 'react';
 import { Image, Pressable, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -15,7 +17,8 @@ import { lookupOptions, recordOptions, type Option } from '../../tags/calls';
 import * as handoff from '../../tags/handoff';
 import { attachmentLimits, fitPhoto, photoName, PhotoError } from '../photos';
 import { discardPicture } from '../still';
-import { reportQueue } from '../reportQueue';
+import { packageList, packageSites, orOffline } from '../../offline';
+import { saveReport } from '../reportQueue';
 import { buildReport, initialAnswers, isPortal, pickDefault, PORTAL_AFFECTS, PORTAL_URGENCY } from './build';
 
 export const TEXT = {
@@ -66,21 +69,24 @@ export default function ReportFormScreen() {
     if (kind !== 'hazard') return;
     if (portal) {
       // The portal's own choices, in plain words.
-      apiFetch<{ types: { value: string; label: string }[]; harm: { value: string; label: string }[] }>('/api/portal/safety/options').then((o) => {
+      orOffline(
+        () => apiFetch<{ types: { value: string; label: string }[]; harm: { value: string; label: string }[] }>('/api/portal/safety/options'),
+        (p) => (p.portal ? { types: p.portal.safetyTypes, harm: p.portal.harm } : null),
+      ).then((o) => {
         const t = o.types.map((x) => ({ id: x.value, label: x.label }));
         setTypes(t); setEventType((v) => v ?? pickDefault(t.map((x) => x.id), ['unsafe_condition', 'near_miss']));
         setHarms(o.harm.map((x) => ({ id: x.value, label: x.label }))); setHarm((v) => v ?? o.harm[0]?.value ?? null);
       }, () => {});
       return;
     }
-    lookupOptions('safety_event_type').then((o) => { setTypes(o); setEventType((v) => v ?? pickDefault(o.map((x) => x.id), ['unsafe_condition', 'near_miss'])); }, () => {});
-    lookupOptions('safety_event_severity').then((o) => { setSeverities(o); setSeverity((v) => v ?? pickDefault(o.map((x) => x.id), ['no_harm'])); }, () => {});
+    orOffline(() => lookupOptions('safety_event_type'), (p) => nonEmpty(packageList(p, 'safety_event_type'))).then((o) => { setTypes(o); setEventType((v) => v ?? pickDefault(o.map((x) => x.id), ['unsafe_condition', 'near_miss'])); }, () => {});
+    orOffline(() => lookupOptions('safety_event_severity'), (p) => nonEmpty(packageList(p, 'safety_event_severity'))).then((o) => { setSeverities(o); setSeverity((v) => v ?? pickDefault(o.map((x) => x.id), ['no_harm'])); }, () => {});
   }, [kind, portal]);
 
   useEffect(() => {
     if (!choosingSite) return;
     let live = true;
-    const t = setTimeout(() => recordOptions('site', siteQ).then((o) => { if (live) setSites(o); }, () => { if (live) setSites([]); }), 250);
+    const t = setTimeout(() => orOffline(() => recordOptions('site', siteQ), (p) => packageSites(p, siteQ)).then((o) => { if (live) setSites(o); }, () => { if (live) setSites([]); }), 250);
     return () => { live = false; clearTimeout(t); };
   }, [choosingSite, siteQ]);
 
@@ -91,7 +97,7 @@ export default function ReportFormScreen() {
   const addPhotos = async (assets: ImagePicker.ImagePickerAsset[]) => {
     setBusy(TEXT.preparing); setError(null);
     try {
-      const limits = await attachmentLimits();
+      const limits = await orOffline(() => attachmentLimits(), (p) => p.attachments);
       const out: { uri: string; name: string }[] = [];
       for (const a of assets.slice(0, MAX_PHOTOS - photos.length)) {
         const fitted = await fitPhoto(a.uri, { width: a.width, height: a.height }, limits);
@@ -120,12 +126,10 @@ export default function ReportFormScreen() {
     setBusy(TEXT.send); setError(null);
     try {
       const req = buildReport(kind, { title, description: text, site, locationDetail: detail, eventType, severity, occurredAt: new Date().toISOString(), affects, howUrgent, harm }, start);
-      const q = reportQueue();
-      await q.add({ id: Crypto.randomUUID(), kind, path: req.path, recordType: req.recordType, body: req.body, link: req.link, title: title.trim() }, photos);
+      await saveReport({ kind, path: req.path, recordType: req.recordType, body: req.body, link: req.link, title: title.trim() }, photos, Crypto.randomUUID());
       for (const p of photos) discardPicture(p.uri);
       photosRef.current = [];
       setPhotos([]);
-      void q.process();
       handoff.release(params.start);
       router.dismissTo('/report');
     } catch (e) {
@@ -206,6 +210,9 @@ export default function ReportFormScreen() {
     </Screen>
   );
 }
+
+/** null for an empty list, so the offline package is asked only when it has the list. */
+const nonEmpty = <T,>(list: T[]): T[] | null => (list.length ? list : null);
 
 /** A ref that always holds the latest value (for clean-up on close). */
 function useRefSync<T>(value: T): { current: T } {

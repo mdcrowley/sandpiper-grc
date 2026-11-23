@@ -33,6 +33,9 @@ describe('code snapshots for upgrade rollback', () => {
       'docs/notes.md': 'operator notes',
       'data/pg/PG_VERSION': '17', // data: never saved or touched
       'node_modules/x/index.js': 'package',
+      'packages/api-client/node_modules/y/index.js': 'nested package', // installed packages at any depth: never saved
+      'mobile/app.json': '{}', // the mobile app is built on its own: never saved
+      'mobile/node_modules/z/index.js': 'app package',
       '.git/HEAD': 'ref',
       [`deep/${'d'.repeat(80)}/${'e'.repeat(80)}/file.txt`]: 'long path',
     });

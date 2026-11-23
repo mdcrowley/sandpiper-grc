@@ -251,8 +251,14 @@ For scripts and other tools that call the API without a browser.
   ranges (IPv4, IPv6, CIDR). A request from anywhere else answers 403
   `token_source_not_allowed` and writes a `token.refused` audit event.
 
-Limits: a token cannot be narrowed to particular records, and the per-token request count
-is kept in memory (a restart resets the current minute, and each of several server processes counts on its own: E16-43).
+- **Requests a minute** (`tokens.rate_per_minute`, E16-43). Each token's requests are counted per
+  clock minute in the database (table `request_counts`, `core/ratelimit.ts`), with one statement per
+  request that also reads the limit, so every server process on the database shares one count and a
+  restart does not reset it. The `RateLimit` headers report that same count, and the AI assistant
+  limit (`mcp.rate_per_minute`) is counted the same way. Minutes that have passed are removed by the
+  background job `core.request_counts` (every 10 minutes).
+
+Limits: a token cannot be narrowed to particular records.
 
 ### Outbound webhooks
 
@@ -947,7 +953,17 @@ separate, tamper-evident copy.
   carry the time of that proof, which `requireRecentAuth` accepts for `auth.reauth_minutes`. Rotation
   never extends it, and personal access tokens never carry it.
 - **Exports** without secrets leave out the app's codes and tokens and blank installation ids, so
-  phones sign in again after such a restore.
+  phones sign in again after such a restore; they also leave out push registrations and blank the push
+  credentials, switching push off until an administrator enters them again.
+- **Offline work** (E38-10): the app keeps its offline package and outbox in one SQLite database and a
+  folder of photos in its private documents folder (Android internal storage under file-based
+  encryption, never backed up; iPhone sandbox under Data Protection), deleted on sign-out, when the
+  device is signed out and (the package) on expiry (`mobile.offline_days`). The package is read
+  through the application's own routes as the person, so it holds only what they may see.
+  `/api/mobile/sync`, `/api/mobile/sync/attachment` and `/api/mobile/package` accept only the app's own
+  token. Each outbox item is done through the normal route as the person, with its checks and audit;
+  answers are kept 7 days per person and item id (`mobile_sync_items`), and the same id with different
+  content is refused.
 - **What the app sends elsewhere**: nothing of the organization's data. Tags and text are read on the
   phone by Google ML Kit with its models bundled; images never leave the phone unless the person
   attaches one to a record. ML Kit can report usage statistics (never images) through Google's data
@@ -956,6 +972,21 @@ separate, tamper-evident copy.
   to send found no transport and nothing left the phone). The iPhone build has no documented switch and has not
   been measured yet, so until then it may send ML Kit usage statistics. The app has no analytics or
   crash-reporting library, and Expo telemetry is off in builds (`EXPO_NO_TELEMETRY`).
+
+### Push notifications
+
+`server/src/modules/push/` (E38-14). Pushes go straight from the server to Apple (APNs, token
+authentication with the organization's .p8 key), Google (FCM HTTP v1, service-account assertion) or
+a UnifiedPush server on the administrator's list. The service addresses are fixed in code. UnifiedPush
+endpoints are checked like webhooks: listed hosts only, every resolved address checked, private
+addresses only when listed exactly, no redirects. Content is only "You have N new notifications",
+never a title, reference or record, so a push reveals nothing on a lock screen or to the push
+service; UnifiedPush messages are encrypted for the phone (RFC 8291). Credentials and each phone's
+token or endpoint are stored encrypted with the secret key, re-encrypted on key rotation, and never
+returned by the API. Settings changes need a recent password confirmation and are audited without
+keys. Registrations are tied to the signed-in device and deleted when it is signed out or revoked (a
+database trigger, and a sweep at each delivery). The Android build switches off Firebase's automatic
+token creation and analytics, and removes Google's data transport.
 
 ### User provisioning and audit-log forwarding
 

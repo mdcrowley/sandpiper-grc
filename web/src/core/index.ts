@@ -5,6 +5,7 @@ export * from './meta';
 export * from './module';
 export * from './format';
 export * from './hooks';
+export { noteSignedIn, useRouteFocus } from './routeFocus';
 export * from './theme';
 export * from './Icon';
 export * from './ui';

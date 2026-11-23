@@ -1,0 +1,52 @@
+# Maestro flow (E38-03): connect to a server and sign in with a password.
+# Before: a scratch server with the Mobile app switched on and a person without a second factor
+# (see docs/mobile.md, "End-to-end flows (Maestro)"); the development app installed on the emulator.
+# Run: maestro test -e SERVER=http://10.0.2.2:8150 -e USERNAME=... -e PASSWORD=... mobile/test/maestro/connect-sign-in.yaml
+appId: com.sandpipergrc
+name: Connect and sign in
+---
+# The app starts with no stored state (run.sh clears it and points the development app at Metro).
+- launchApp
+- extendedWaitUntil:
+    visible: "Connect to your server"
+    timeout: 60000
+- tapOn: "Server address"
+- eraseText: 80
+- inputText: ${SERVER}
+- hideKeyboard
+- tapOn: "Continue"
+- extendedWaitUntil:
+    visible: "Sign in"
+    timeout: 20000
+- tapOn:
+    text: "Sign in"
+    index: 0
+# The phone's browser: a fresh emulator's Chrome shows its welcome screen first.
+- runFlow:
+    file: subflows/chrome-welcome.yaml
+# The browser may still be signed in to the server from before: then only the app's page shows.
+- extendedWaitUntil:
+    visible: "Username|Sign in to the .* app on .*"
+    timeout: 30000
+- runFlow:
+    when:
+      visible: "Username"
+    file: subflows/web-sign-in.yaml
+# The app's consent page: "Sign in to the Sandpiper GRC app on ...?"
+- extendedWaitUntil:
+    visible: "Sign in to the .* app on .*"
+    timeout: 30000
+- tapOn:
+    text: "Sign in"
+    index: -1
+# Without a recent password confirmation the server asks for it first.
+- extendedWaitUntil:
+    visible: "My work|Confirm it is you"
+    timeout: 60000
+- runFlow:
+    when:
+      visible: "Confirm it is you"
+    file: subflows/confirm-password.yaml
+- extendedWaitUntil:
+    visible: "My work"
+    timeout: 60000

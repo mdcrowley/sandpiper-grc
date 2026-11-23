@@ -1,10 +1,10 @@
 // The portal's own layout: a light header with the way home, "My requests" and the person's menu,
 // and one centered column. No agent navigation. App.tsx renders this for every /portal address.
-import { lazy, Suspense, useEffect, useState, type ComponentType } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, type ComponentType } from 'react';
 import { Link, NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import { ActionIcon, Menu as MMenu, UnstyledButton } from '@mantine/core';
 import {
-  ChangePasswordDialog, ErrorState, Icon, Loading, modules, NotFound, useAuth, useFetch, useTheme,
+  ChangePasswordDialog, ErrorState, Icon, Loading, modules, NotFound, useAuth, useFetch, useRouteFocus, useTheme,
 } from '../../core';
 import { Logo } from '../../core/Logo';
 import { ConfigProvider, type PortalConfig } from './parts';
@@ -97,6 +97,9 @@ export function PortalApp() {
   const { pathname } = useLocation();
   // Each page starts at the top, as a phone user expects.
   useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
+  // ...and its heading takes the focus, so a screen reader says where it is (E16-15).
+  const mainRef = useRef<HTMLElement>(null);
+  useRouteFocus(mainRef);
   useEffect(() => { document.documentElement.classList.add('pt-doc'); return () => document.documentElement.classList.remove('pt-doc'); }, []);
 
   let body;
@@ -125,7 +128,7 @@ export function PortalApp() {
     <div className="pt-app">
       <a href="#pt-main" className="pt-skip">Skip to content</a>
       <Header config={config?.enabled && config.allowed ? config : null} />
-      <main id="pt-main" className="pt-main">{body}</main>
+      <main id="pt-main" className="pt-main" ref={mainRef}>{body}</main>
       <footer className="pt-footer muted">
         Something urgent for safety? Follow your local safety procedure first, then report it here.
       </footer>

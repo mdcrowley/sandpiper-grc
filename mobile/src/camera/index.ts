@@ -4,9 +4,9 @@
 //   recognition with its model bundled; translation and other scripts switched off in app.json).
 // - still.ts: the same reading on a still picture; geometry.ts: boxes from the picture to the screen.
 // - photos.ts: photos fitted to the server's attachment limits and uploaded to a record.
-// - reports.ts, reportQueue.ts: the report queue that survives lost connections; report/: the Report tab.
+// - reports.ts, reportQueue.ts: reports saved in the outbox (src/offline), sent once; report/: the Report tab.
 // Nothing here sends a picture anywhere except an upload the person asked for.
 export { TagCamera, type TagCameraHandle } from './TagCamera';
 export { readStill, discardPicture } from './still';
 export { attachmentLimits, fitPhoto, uploadPhoto } from './photos';
-export { reportQueue, useReportQueue } from './reportQueue';
+export { saveReport, useReports } from './reportQueue';

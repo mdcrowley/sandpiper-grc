@@ -150,8 +150,8 @@ status `done`; issues in progress, open or blocked are counted in the total only
 | [E13](epics/E13-imports-api-integrations.md) | Imports, API and integrations | done | 23 / 23 |
 | [E14](epics/E14-platform-services.md) | Platform services | done | 39 / 39 |
 | [E15](epics/E15-self-service-portal.md) | Self-service portal | done | 14 / 14 |
-| [E16](epics/E16-hosting-operations-and-hardening.md) | Hosting, operations and hardening | in progress | 33 / 39 |
-| [E17](epics/E17-documentation.md) | Documentation | in progress | 11 / 14 |
+| [E16](epics/E16-hosting-operations-and-hardening.md) | Hosting, operations and hardening | in progress | 35 / 39 |
+| [E17](epics/E17-documentation.md) | Documentation | in progress | 13 / 14 |
 | [E18](epics/E18-quality-and-known-defects.md) | Quality and known defects | done | 59 / 59 |
 | [E19](epics/E19-fleet-and-services.md) | Fleet and services | done | 14 / 14 |
 | [E20](epics/E20-safety-management.md) | Safety management | done | 15 / 15 |
@@ -172,15 +172,18 @@ status `done`; issues in progress, open or blocked are counted in the total only
 | [E35](epics/E35-vendor-risk-lifecycle.md) | Vendor risk lifecycle | done | 7 / 7 |
 | [E36](epics/E36-integrations.md) | Integrations | done | 8 / 8 |
 | [E37](epics/E37-asset-tags.md) | Asset tags: values, printing and lookup | in progress | 9 / 10 |
-| [E38](epics/E38-mobile-apps.md) | Mobile apps for iPhone and Android | in progress | 4 / 15 |
-| | **Total** | | **716 / 738** |
+| [E38](epics/E38-mobile-apps.md) | Mobile apps for iPhone and Android | in progress | 9 / 15 |
+| | **Total** | | **725 / 738** |
 
-Of the 22 issues not done, 12 are in progress and 10 are open or blocked. 12 of them are in the new epics E37
-(asset tags) and E38 (mobile apps), specified in [the asset tags and mobile apps specification](specs/asset-tags-and-mobile-apps.md) and built in wave 13 except for offline work, push notifications, signed releases and checks on real phones;
-of the other 10, all but E16-43 need a person or a real machine. E23 to E30 were built in wave 10 and
-E31 to E36 in wave 11 (the product gaps of the November 2026 review); E31-10, the last of them, was built in wave 12. Some of their
-done issues are "Not planned" entries (E25-13, E29-11, E32-06, E34-09): features recorded so that nobody
-builds them.
+Of the 13 issues not done, 8 are in progress and 5 are open. 7 of them are in the epics E37 (asset
+tags) and E38 (mobile apps), specified in [the asset tags and mobile apps specification](specs/asset-tags-and-mobile-apps.md):
+the online app was built in wave 13 and offline reports, push notifications and the Maestro flows in
+wave 14; offline inspections, condition assessments and counts (E38-11, E38-12) and the apps' review
+(E38-15) remain, and checks on real phones and signed releases need a person. Of the other 6, E17-10
+waits for its first run on GitHub and the rest need a person or a real machine (E02-08, E16-15, E16-40,
+E16-41, E16-42). E23 to E30 were built in wave 10 and E31 to E36 in wave 11 (the product gaps of the
+November 2026 review); E31-10, the last of them, was built in wave 12. Some of their done issues are
+"Not planned" entries (E25-13, E29-11, E32-06, E34-09): features recorded so that nobody builds them.
 
 ## Next up
 
@@ -189,16 +192,16 @@ with real data, then those that close the main known gaps.
 
 | # | Issue | Why now |
 |---|---|---|
-| 1 | [E02-08](epics/E02-account-security.md) Passkeys and security keys | Checked with a virtual authenticator only; test hardware keys over real HTTPS before relying on them |
-| 2 | [E16-08](epics/E16-hosting-operations-and-hardening.md) Scheduled backups | Backups are built; a scheduled, off-machine run needs proving on a real installation |
-| 3 | [E16-40](epics/E16-hosting-operations-and-hardening.md) Independent security review or penetration test | Before the application holds sensitive records |
-| 4 | [E16-15](epics/E16-hosting-operations-and-hardening.md) A screen-reader walkthrough | The automated audit is clean; no one has used the application with a screen reader |
-| 5 | [E16-41](epics/E16-hosting-operations-and-hardening.md) Load test with the database on its own machine | The PostgreSQL figures so far come from a server on the same laptop |
-| 6 | [E17-08](epics/E17-documentation.md) User guide | The pages changed or added in waves 8 to 11 need a review against the application |
-| 7 | [E17-11](epics/E17-documentation.md) Operations runbook | Restore has been tried by the tests only; try it by hand once |
-| 8 | [E16-42](epics/E16-hosting-operations-and-hardening.md) User services across a restart, and the system examples | Proven on GitHub's runners; a restart and the deploy/ examples need a real machine |
-| 9 | [E37-08](epics/E37-asset-tags.md) Asset tags: reading on a real phone | Built in wave 13; the camera reading needs a check on a real phone before release ([specification](specs/asset-tags-and-mobile-apps.md)) |
-| 10 | [E38](epics/E38-mobile-apps.md) Mobile apps: offline work, push notifications and the beta (wave 14 on) | The online app was built in wave 13; offline inspections, counts and reports (E38-10 to E38-12), push (E38-14), the Maestro flows, and TestFlight and signed Android releases once the maintainer's accounts are set up |
+| 1 | [E38-11](epics/E38-mobile-apps.md), [E38-12](epics/E38-mobile-apps.md) Inspections, condition assessments and counts offline | Built on the wave 14 outbox (wave 15) |
+| 2 | [E38-15](epics/E38-mobile-apps.md) Accessibility and security review of the apps | Before the beta |
+| 3 | [E16-40](epics/E16-hosting-operations-and-hardening.md) Independent security review or penetration test | Before the application holds sensitive records; an internal review does not replace it |
+| 4 | [E02-08](epics/E02-account-security.md) Passkeys and security keys | Checked with a virtual authenticator only; test hardware keys over real HTTPS before relying on them |
+| 5 | [E37-08](epics/E37-asset-tags.md), [E38-05](epics/E38-mobile-apps.md) Reading tags on real phones | The camera reading is proven on an emulator; check a printed sheet on real iPhones and Android phones |
+| 6 | [E38-13](epics/E38-mobile-apps.md), [E38-14](epics/E38-mobile-apps.md) Signed releases and push with real credentials | Needs the maintainer's Apple and Google accounts |
+| 7 | [E16-15](epics/E16-hosting-operations-and-hardening.md) A walkthrough by a screen reader user | NVDA has been run through the main journeys by a script; no screen reader user has used the application |
+| 8 | [E16-41](epics/E16-hosting-operations-and-hardening.md) Load test with the database on its own machine | Measured with the database in a limited container on the same laptop |
+| 9 | [E16-42](epics/E16-hosting-operations-and-hardening.md) Services across a restart of a real machine, and macOS | Proven across a restart of a systemd container |
+| 10 | [E17-10](epics/E17-documentation.md) Installation on a clean Windows machine | The new CI job proves it once it passes on GitHub |
 
 ## Known gaps coverage
 
@@ -232,7 +235,6 @@ Keep this table in step with that file.
 | Wave 10 parts: evidence answers in text, no coverage import or per-control test steps, finance left to the finance system, meeting decisions and kind-less workflows, no emailed calendar invitations, departments not a record type, monthly-only KRIs | E23, E24, E26, E27, E28, E29, E30 (done; the limits are recorded there), E36-03 |
 | Wave 11 parts: printed call trees; one useful-life benchmark per class; no OT network scanning, starter mappings not loaded, no history for zones below target, no OT badge in a saved map picture; working days skip weekends only; exclusion checks and offboarding by hand; no SCIM bulk or sorting, one collector per forwarder, read-only feeds, no product-specific work-tracker connections | E31, E32, E33, E34, E35, E36 (done; the limits are recorded there) |
 | The If-Match lock and the Overview cache are per process | E13-12, E16-38 (done; the limits are recorded there) |
-| Per-token request limits counted separately by each server process | E16-43 |
 | Help page tables always take a Tab stop and have a generic name | E22-48 (done; the limit is recorded there) |
 | Least-privilege account queues custom fields for the owner; user services not proven across a restart or for the system examples | E16-37 (done; recorded there), E16-42 |
 | Load test with the database on its own machine and people in different roles | E16-41 |
@@ -241,6 +243,6 @@ Keep this table in step with that file.
 
 | Gap | Issues |
 |---|---|
-| No screen-reader walkthrough | E16-15 |
+| No walkthrough by a screen reader user | E16-15 |
 | Email providers, SAML, directory sign-in, MCP OAuth and HTTPS webhooks tested against stand-ins only | E14-25, E02-10, E21-16, E13-08 (done; recorded there) |
 | No independent security review or penetration test | E16-40 |

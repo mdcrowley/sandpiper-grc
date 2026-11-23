@@ -2,7 +2,8 @@ name: CI
 
 # Type check, tests and a production build of the web application, on every push and
 # pull request; the tests again through the PostgreSQL server driver; installation on macOS
-# and Linux with tools/install-node.sh and grc.sh; the container image, built and started,
+# and Linux with tools/install-node.sh and grc.sh, and on Windows with tools/install-node.ps1 and
+# grc.ps1; the container image, built and started,
 # and compose.yaml run with both databases; the browser suite. On pushes to main and on
 # version tags, once the checks pass, the image is published to ghcr.io for amd64 and arm64, with a
 # software bill of materials and signed build provenance. The dependency audit fails only on a
@@ -307,6 +308,114 @@ jobs:
         if: failure()
         run: ./grc.sh logs --lines 200 || true
 
+  # Windows installation as a person would do it (E17-10), on a clean runner: the pinned Node.js
+  # fetched by tools/install-node.ps1, then grc.ps1 for everything, in Windows PowerShell 5.1
+  # (powershell.exe, which every Windows has) rather than the runner's PowerShell 7. Each command
+  # runs as its own powershell.exe -File process, as typed in a window, so its exit code counts.
+  windows-install:
+    name: Install and run with grc.ps1 (windows-latest)
+    runs-on: windows-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: powershell
+    env:
+      GRC_SEED_DIR: ${{ github.workspace }}\no-seed-folder
+      GRC_DATA_DIR: ${{ github.workspace }}\..\grc-data
+      GRC_BACKUP_DIR: ${{ github.workspace }}\..\grc-backups
+      GRC_PORT: '8171'
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Nothing is installed yet
+        run: |
+          if (Test-Path .tools\node\node.exe) { throw '.tools\node is already there' }
+          if (Test-Path node_modules) { throw 'node_modules is already there' }
+          # grc.ps1 refuses to run until the portable Node.js is in place.
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\grc.ps1 health
+          if ($LASTEXITCODE -eq 0) { throw 'grc.ps1 ran without .tools\node' }
+          exit 0
+
+      - name: Fetch the pinned Node.js into .tools\node (checksum verified)
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\install-node.ps1
+          if ($LASTEXITCODE -ne 0) { throw "install-node.ps1 failed ($LASTEXITCODE)" }
+          $want = (Get-Content tools\node-version.txt -TotalCount 1).Trim()
+          $have = & .\.tools\node\node.exe --version
+          if ($have -notlike "v$want.*") { throw "expected Node.js $want, found $have" }
+          # A second run changes nothing.
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\install-node.ps1
+          if ($LASTEXITCODE -ne 0) { throw "install-node.ps1 (second run) failed ($LASTEXITCODE)" }
+
+      - name: Install packages (installation.md, Windows step 2)
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\grc.ps1 install
+          if ($LASTEXITCODE -ne 0) { throw "grc.ps1 install failed ($LASTEXITCODE)" }
+
+      - name: Start, health, sample data, backup, stop
+        run: |
+          function grc { powershell -NoProfile -ExecutionPolicy Bypass -File .\grc.ps1 @args; if ($LASTEXITCODE -ne 0) { throw "grc.ps1 $args failed ($LASTEXITCODE)" } }
+          grc start
+          grc health
+          if (-not (Test-Path "$env:GRC_DATA_DIR\grc.pid")) { throw 'no grc.pid in GRC_DATA_DIR' }
+          grc seed -Profile dev
+          grc health
+          grc backup -Prune 2
+          grc verify-backup
+          grc backups
+          grc status
+          grc version
+          grc logs -Lines 20
+          if ((Get-Item "$env:GRC_DATA_DIR\logs\grc.log").Length -eq 0) { throw 'the server log is empty' }
+          grc stop
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\grc.ps1 health
+          if ($LASTEXITCODE -eq 0) { throw 'still answering after stop' }
+          exit 0
+
+      - name: Daily backup as a Windows scheduled task (schedule, run once, remove)
+        # The per-user task needs no administrator rights. It is run once by hand here rather than
+        # waiting for its time; it must leave a backup labeled "scheduled" and a line in its log.
+        timeout-minutes: 8
+        run: |
+          function grc { powershell -NoProfile -ExecutionPolicy Bypass -File .\grc.ps1 @args; if ($LASTEXITCODE -ne 0) { throw "grc.ps1 $args failed ($LASTEXITCODE)" } }
+          grc start
+          grc schedule-backup -At 03:00 -Prune 3
+          $task = Get-ScheduledTask | Where-Object { $_.TaskName -like 'Sandpiper GRC backup (*' }
+          if (-not $task) { throw 'the scheduled task was not created' }
+          $task.Actions | Format-List Execute, Arguments, WorkingDirectory
+          if ($task.Actions[0].Arguments -notlike "*GRC_DATA_DIR*") { throw 'the task does not carry GRC_DATA_DIR' }
+          grc status
+          $log = Join-Path $env:GRC_BACKUP_DIR 'scheduled-backup.log'
+          Start-ScheduledTask -TaskName $task.TaskName
+          foreach ($i in 1..150) { if ((Test-Path $log) -and (Get-Item $log).Length -gt 0) { break }; Start-Sleep -Seconds 2 }
+          Get-ScheduledTaskInfo -TaskName $task.TaskName | Format-List LastRunTime, LastTaskResult
+          if (-not (Test-Path $log)) { throw 'the scheduled task did not run (no scheduled-backup.log)' }
+          Get-Content $log
+          if (-not (Select-String -Path $log -Pattern '  exit 0  ' -Quiet)) { throw 'the scheduled backup failed' }
+          $scheduled = Get-ChildItem $env:GRC_BACKUP_DIR -Directory | Where-Object { (Test-Path "$($_.FullName)\manifest.json") -and ((Get-Content "$($_.FullName)\manifest.json" -Raw) -match '"scheduled"') }
+          if (-not $scheduled) { throw 'no backup labeled scheduled' }
+          # The task stops the server for the backup and starts it again.
+          foreach ($i in 1..60) { powershell -NoProfile -ExecutionPolicy Bypass -File .\grc.ps1 health | Out-Null; if ($LASTEXITCODE -eq 0) { break }; Start-Sleep -Seconds 1 }
+          grc health
+          grc unschedule-backup
+          if (Get-ScheduledTask | Where-Object { $_.TaskName -like 'Sandpiper GRC backup (*' }) { throw 'the task is still there' }
+          grc stop
+
+      - name: Remove the scheduled task and stop the server after a failure
+        if: failure()
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\grc.ps1 unschedule-backup
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\grc.ps1 stop
+          exit 0
+
+      - name: Server logs
+        if: failure()
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\grc.ps1 logs -Lines 200
+          if (Test-Path "$env:GRC_DATA_DIR\server.log.err") { Get-Content "$env:GRC_DATA_DIR\server.log.err" -Tail 50 }
+          exit 0
+
   # Builds the container image and proves it starts and answers its health check (E16-06), then
   # runs compose.yaml as the quick start describes, with the embedded database and with PostgreSQL.
   container:
@@ -346,9 +455,9 @@ jobs:
           set -eu
           # /app holds exactly these; anything else (data, seed files, notes, tools) is a leak.
           top=$(docker run --rm --entrypoint sh sandpiper-grc:ci -c 'ls -A /app' | tr '\n' ' ')
-          [ "$top" = "deploy dist node_modules package.json server " ] || { echo "Unexpected /app contents: $top"; exit 1; }
+          [ "$top" = "deploy dist node_modules package.json server shared " ] || { echo "Unexpected /app contents: $top"; exit 1; }
           found=$(docker run --rm --entrypoint sh sandpiper-grc:ci -c '
-            find /app/server -name "*.test.ts" 2>/dev/null
+            find /app/server /app/shared -name "*.test.ts" 2>/dev/null
             find /var/lib/sandpiper /var/lib/sandpiper-key -mindepth 1 2>/dev/null
             find /app -path /app/node_modules -prune -o \( -name "*.pem" -o -name "*.key" -o -name ".env*" \) -print 2>/dev/null
           ' || true)
@@ -625,7 +734,12 @@ jobs:
 
       - name: Install the app's packages
         working-directory: mobile
-        run: npm ci --no-audit --no-fund
+        # The registry sometimes drops a connection on the macOS runners: retry, then try the whole install once more.
+        env:
+          npm_config_fetch_retries: '5'
+          npm_config_fetch_retry_mintimeout: '20000'
+          npm_config_fetch_retry_maxtimeout: '120000'
+        run: npm ci --no-audit --no-fund || npm ci --no-audit --no-fund
 
       - name: Type check
         if: matrix.platform == 'android'

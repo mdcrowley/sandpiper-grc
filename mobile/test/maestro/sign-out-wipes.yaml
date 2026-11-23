@@ -1,0 +1,42 @@
+# Maestro flow (E38-03, E38-10): signing out with unsent work warns first, then wipes the phone's data.
+# Before: connect-sign-in.yaml. The flow saves a report in airplane mode (so it cannot be sent), signs
+# out, signs in again (SERVER, USERNAME, PASSWORD) and checks the report is gone from the phone.
+# Run: maestro test -e TITLE=... -e SERVER=... -e USERNAME=... -e PASSWORD=... mobile/test/maestro/sign-out-wipes.yaml
+appId: com.sandpipergrc
+name: Sign out warns about unsent work and wipes it
+---
+- launchApp
+- setAirplaneMode: enabled
+- runFlow:
+    file: subflows/open-report-tab.yaml
+- tapOn: "Report a problem"
+- extendedWaitUntil:
+    visible: "Title"
+    timeout: 20000
+- tapOn: "Title"
+- inputText: ${TITLE}
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Send"
+- tapOn: "Send"
+- extendedWaitUntil:
+    visible: "${TITLE}, Waiting for a connection.*"
+    timeout: 30000
+- tapOn: "Account"
+- scrollUntilVisible:
+    element: "Sign out"
+- tapOn: "Sign out"
+# The warning counts the unsent work.
+- assertVisible: "1 item has not been sent yet and will be lost.*"
+- tapOn:
+    text: "SIGN OUT|Sign out"
+    index: -1
+- setAirplaneMode: disabled
+- extendedWaitUntil:
+    visible: "Connect to your server"
+    timeout: 30000
+- runFlow:
+    file: connect-sign-in.yaml
+- runFlow:
+    file: subflows/open-report-tab.yaml
+- assertNotVisible: "${TITLE}.*"

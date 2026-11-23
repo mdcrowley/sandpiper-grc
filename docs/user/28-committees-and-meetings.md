@@ -32,7 +32,7 @@ To add a member, select **Add a member** and give any of:
 - a **Roster person**, for someone on the staff roster without an account (see [People and qualifications](29-people-and-qualifications.md)); this box is shown when the roster is part of your installation;
 - a **Name**, for anyone else (for example an independent board member).
 
-The name of an account or roster person is read from them, so it stays up to date. Then choose the **Side** and the **Role** (**Chair**, **Member** or **Alternate**), whether the member **Votes** (only voting members count toward the quorum), and the term (**Member from** and **Member until**). Someone whose term has ended stays on the list, marked **Not in office**, and no longer counts toward the quorum of later meetings. **Remove** takes a member off the committee; past attendance keeps their name.
+The name of an account or roster person is read from them, so it stays up to date. Then choose the **Side** and the **Role** (**Chair**, **Member** or **Alternate**), whether the member **Votes** (only voting members count toward the quorum), and the term (**Member from** and **Member until**). Someone whose term has ended stays on the list, marked **Not in office**, and no longer counts toward the quorum of later meetings. **Change** edits a member (for example to end their term), and **Remove** takes a member off the committee; past attendance keeps their name.
 
 ### Meetings and approvals waiting for the chair
 

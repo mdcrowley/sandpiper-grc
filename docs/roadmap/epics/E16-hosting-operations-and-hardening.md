@@ -1,6 +1,6 @@
 # E16 Hosting, operations and hardening
 
-**Status:** in progress (33 of 39 issues done)
+**Status:** in progress (35 of 39 issues done)
 
 ## Goal
 
@@ -38,7 +38,7 @@ and usable by everyone.
 | E16-05 | Run on a PostgreSQL server | done | P1 |
 | E16-06 | Container images | done | P2 |
 | E16-07 | HTTPS | done | P1 |
-| E16-08 | Scheduled backups | in progress | P1 |
+| E16-08 | Scheduled backups | done | P1 |
 | E16-09 | Restore command | done | P1 |
 | E16-10 | Upgrade command | done | P2 |
 | E16-11 | Export-all and import-all commands | done | P3 |
@@ -67,9 +67,9 @@ and usable by everyone.
 | E16-38 | Embedded database under load: Overview and global search, and scale 4 | done | P3 |
 | E16-39 | Start-up work within the time limit at volume | done | P3 |
 | E16-40 | Independent security review or penetration test | open | P2 |
-| E16-41 | Load test with the database server on its own machine | open | P3 |
-| E16-42 | User services across a restart of the machine, and the system examples, on real machines | open | P3 |
-| E16-43 | Per-token request counts shared by every server process | open | P3 |
+| E16-41 | Load test with the database server on its own machine | in progress | P3 |
+| E16-42 | User services across a restart of the machine, and the system examples, on real machines | in progress | P3 |
+| E16-43 | Per-token request counts shared by every server process | done | P3 |
 
 ---
 
@@ -227,7 +227,7 @@ refused at start.
 
 ### E16-08 Scheduled backups
 
-**Status:** in progress · **Priority:** P1 · **Type:** feature
+**Status:** done · **Priority:** P1 · **Type:** feature
 
 As an operator, backups are taken every day without anyone remembering to, and old ones
 are pruned.
@@ -249,7 +249,7 @@ minutes>`, wait, check `status` and `backups\scheduled-backup.log`, then
 - [x] The settings in force (`GRC_*`) are written into the task, so it backs up the right folder
 - [x] Each run adds a line with its result to `backups\scheduled-backup.log`, and `status` shows the task, its next run and its last result
 - [x] The server is restarted after the backup even when the run is unattended
-- [ ] Registration, a scheduled run and removal confirmed on a real machine
+- [x] Registration, a scheduled run and removal confirmed on a real machine: on Windows 11 on 22 Nov 2026 (`schedule-backup -At <in two minutes> -Prune 3` on a separate installation; Task Scheduler ran it on time, it stopped the server, took a verified backup, started the server again and logged `exit 0`; `status` showed the task, its next run and the successful last run; `unschedule-backup` removed it). On macOS and Linux `schedule-backup` only prints the lines to add (cron, systemd timer, launchd); the systemd timer is covered by E16-42
 - [x] A failed backup is reported to someone (the server's own daily backups, E16-17)
 - [x] Backups can be written to a second location (E16-17)
 - [x] An administration page shows the last successful backup (E16-17)
@@ -384,12 +384,18 @@ load testing".
 **Status:** in progress · **Priority:** P2 · **Type:** feature
 
 As a user who relies on a keyboard, a screen reader or high contrast, I can use every
-screen. No accessibility audit has been done.
+screen.
+
+Status in short: every automated part is done. The main journeys have been completed with a real
+screen reader (NVDA) driven by a script, by keyboard only, which proves what is announced, where
+the focus goes and that the keyboard is enough; it does not replace a walkthrough by a screen
+reader user, which still needs a person.
 
 **Acceptance criteria**
 
 - [x] Every screen is checked with an automated accessibility tool; failures are fixed or listed (axe-core, WCAG 2.1 A and AA, every route plus each New dialog and the search window, light and dark at 1440 and 820; the last findings, E18-39, are fixed and the 19 Nov 2026 run found no violation)
-- [ ] The main journeys are completed with a screen reader
+- [x] The main journeys are completed with a screen reader, by an automated run (22 Nov 2026): `tools/sr/journeys.mjs` drives Edge by keyboard only with NVDA 2026.3 (portable, through Guidepup; nothing installed, no registry change) listening, as an administrator and as a service desk agent: sign-in with a second factor, a portal request, working a ticket, creating and scoring a risk, a safety event, the tag card, an inventory count, approving a workflow step, reading a dashboard (NVDA's heading and graphic keys) and changing a setting. Nine journeys completed; approving a workflow step is not proven (no step was waiting for the run's account; the journey now makes one but has not been re-run). It is a manual check, never part of the tests or CI; what NVDA said and where the focus went are in [Accessibility](../../accessibility.md#screen-reader-run). Fixed from it: focus and announcement on every change of page, focus kept when a button goes away or is busy, "Note added" and the comment box, the portal's choice groups and refused fields, risk scoring focus, ambiguous "Edit" buttons
+- [ ] A screen reader user walks through the same journeys (NVDA or JAWS on Windows, VoiceOver on a Mac or iPhone) and their findings are raised; needs a person, not a script
 - [x] Color contrast is checked in both themes (axe on every screen, and `tools/contrast.mjs` on the tokens)
 - [x] Charts have a text alternative (each chart is labeled and ECharts writes a plain-English summary of its series and values)
 - [x] Findings are raised as issues under [E18](E18-quality-and-known-defects.md) (E18-37 to E18-39; keyboard findings in E18-06)
@@ -401,7 +407,10 @@ screen. No accessibility audit has been done.
 
 **Implemented in:** `tools/a11y/audit.mjs` (`npm run test:a11y`; report in
 `tools/a11y/out/report.md`, git-ignored), `tools/a11y/known.json`, shared browser code in
-`tools/e2e/lib/`. Statement: [`docs/accessibility.md`](../../accessibility.md).
+`tools/e2e/lib/`. Screen reader run: `tools/sr/` (its own `package.json`, not part of the root
+install, typecheck or tests; transcript in `tools/sr/out/`, git-ignored); focus after a change of
+page and focus rescue in `web/src/core/routeFocus.ts`. Statement:
+[`docs/accessibility.md`](../../accessibility.md).
 
 ### E16-16 Server logging and log rotation
 
@@ -881,34 +890,62 @@ one before it relies on the application for sensitive records.
 
 ### E16-41 Load test with the database server on its own machine
 
-**Status:** open · **Priority:** P3 · **Type:** improvement
+**Status:** in progress · **Priority:** P3 · **Type:** improvement
 
 Split from E16-38. Every PostgreSQL figure so far came from a server in a container on the
 same laptop as the application and the load generator, so they shared its processors. A
 pilot runs the database on its own machine (or a managed service).
 
+**Wave 14 (2026-11-22), a stand-in on one laptop.** PostgreSQL 17 in a container limited to 2
+processors and 2 GB as the "database machine", the application as its own process and the load
+generator as a third, at scale 1 and 4, with the Overview opened by people in seven roles
+(`run.mjs --roles 6`, new) and with `GRC_FIGURES_CACHE_SECONDS=0`. At scale 1 lists, saves and
+the Overview meet the server targets with seven roles (Overview 268 ms at the 95th percentile);
+global search (0.8 to 1.1 s) and sometimes the full-text list do not. At scale 4 two processors
+were saturated about half the time and sorted and full-text lists, global search and the
+Overview took 0.8 to 4.3 s. With the cache off the Overview roughly tripled at scale 1. Seeding
+scale 4 with 16 writers at once had 30 of about 82,000 requests fail on the pool's 10-second
+wait for a connection. Table and reading: `docs/operations.md`, "Performance and load testing".
+**Still needed:** a database on a separate machine (or a managed service) with the application
+and the load generator on others; that needs the machines, which a development laptop is not.
+
 **Acceptance criteria**
 
-- [ ] `tools/load/run.mjs` at scale 1 and 4 with the database on a separate machine (or a managed PostgreSQL service), the application and the load generator on others
-- [ ] People with different roles in the Overview scenario (each set of permissions computes its own figures), and a run with `GRC_FIGURES_CACHE_SECONDS=0`
-- [ ] Results recorded in `docs/operations.md` beside the others
+- [ ] `tools/load/run.mjs` at scale 1 and 4 with the database on a separate machine (or a managed PostgreSQL service), the application and the load generator on others (done with the database in a container limited to 2 processors and 2 GB on the same laptop; a separate machine still to do)
+- [x] People with different roles in the Overview scenario (each set of permissions computes its own figures), and a run with `GRC_FIGURES_CACHE_SECONDS=0` (`--roles n` in `tools/load/run.mjs`)
+- [x] Results recorded in `docs/operations.md` beside the others (for the stand-in; the separate-machine figures go beside them when measured)
+
+**Implemented in:** `tools/load/run.mjs` (`--roles`), `tools/load/README.md`; `docs/operations.md`
 
 ### E16-42 User services across a restart of the machine, and the system examples, on real machines
 
-**Status:** open · **Priority:** P3 · **Type:** feature
+**Status:** in progress · **Priority:** P3 · **Type:** feature
 
 Split from E16-35, which proves the user services on GitHub's runners. A hosted runner cannot be
 restarted, and the system examples need their own account and folders.
 
+**Linux, in a stand-in (2026-11-22).** A container from the official `debian:12` image with
+Debian's `systemd` as process 1 was set up as `docs/installation.md` "Linux" says, with the
+system service from `deploy/systemd/` and its backup timer, and an ordinary account with
+`loginctl enable-linger` and `./grc.sh service install`; then the container was restarted and
+nobody signed in. Both services came back and answered their health checks with no sign-in
+session; the backup service, started by hand and by its timer (moved to the next minute by a
+drop-in), stopped the server, took a verified backup labeled `scheduled` and started it again.
+Nothing in `deploy/systemd/` or the documented steps needed changing. Details:
+`docs/operations.md`, "Running as a service on Linux and macOS". **Still needed:** a real
+Linux machine (a container restart does not boot a kernel, firmware or disks), and everything on
+macOS (`deploy/launchd/` and the agent at sign-in after a restart). Those need a person with the
+machines.
+
 **Acceptance criteria**
 
-- [ ] On a Linux machine: the user service with `loginctl enable-linger` starts after a restart of the machine with nobody signed in
+- [ ] On a Linux machine: the user service with `loginctl enable-linger` starts after a restart of the machine with nobody signed in (shown in a systemd container across a container restart; a real machine still to do)
 - [ ] On macOS: the launchd agent starts at sign-in after a restart
-- [ ] The system examples `deploy/systemd/` and `deploy/launchd/` (with their daily backups) installed and run as documented
+- [ ] The system examples `deploy/systemd/` and `deploy/launchd/` (with their daily backups) installed and run as documented (`deploy/systemd/` with its timer: done in the stand-in above; `deploy/launchd/`: not yet)
 
 ### E16-43 Per-token request counts shared by every server process
 
-**Status:** open · **Priority:** P3 · **Type:** debt
+**Status:** done · **Priority:** P3 · **Type:** debt
 
 As an operator running more than one application process against one PostgreSQL server, an
 API token's request limit holds across all of them. Found while checking E02-18: the counts
@@ -922,9 +959,36 @@ it under "More than one process" in `docs/architecture.md`, are not part of this
 
 **Acceptance criteria**
 
-- [ ] The per-token counts are kept where every process sees them (the database, as
-  `core/ratelimit.ts` does, or another shared store), without a database write slowing every
-  token request noticeably (measured with `tools/load/run.mjs`)
-- [ ] The limit, the `RateLimit` headers and the MCP limit read the same count
-- [ ] A test with two application instances on one database shows the limit holding across them
-- [ ] `docs/security.md`, `docs/mcp.md` and `docs/architecture.md` no longer call the count per process
+- [x] The per-token counts are kept where every process sees them: table `request_counts`
+  (core migration 028, unlogged: the counts are worth nothing after a crash), one row per bucket,
+  token and clock minute of the database's clock, counted with one upsert per request
+  (`countRequest` in `core/ratelimit.ts`). The same statement reads `tokens.rate_per_minute`,
+  which was a query of its own before, so a token request makes no more round trips to the
+  database than it did. Measured with a benchmark of 2,000 calls on the embedded database (not
+  with `tools/load/run.mjs`, whose scenarios sign in with sessions and use no tokens): the
+  statement takes about 0.7 to 1.1 ms against 0.2 to 0.4 ms for the settings read it replaces,
+  so a token request costs roughly half a millisecond more, against 4 to 7 ms for the whole request
+- [x] Passed minutes are removed by the recurring job `core.request_counts` (every 10 minutes,
+  registered by `core/tokens.ts` once the application is ready)
+- [x] The limit, the `RateLimit` headers and the MCP limit read the same count: the token check
+  keeps the count it made on the request (`setTokenRate`/`tokenRateOf`) and the headers report
+  it, so they no longer count a second time; a 429 from the limit reports `Remaining: 0` and
+  `Retry-After` equal to `Reset`. The MCP limit counts `/mcp` requests in bucket `mcp` the same
+  way, and its 429 now gives the seconds left in the minute as `Retry-After` (was always 60)
+- [x] A test with two application instances on one database shows the limit holding across them
+  (`server/src/core/request-counts.test.ts`: two `buildApp` instances on one database over the
+  PostgreSQL wire protocol, a PGlite behind a socket, or a fresh database on the server named by
+  `GRC_TEST_DATABASE_URL` on the PostgreSQL 17 leg; the token limit, the headers and the MCP limit)
+- [x] `docs/security.md`, `docs/mcp.md` and `docs/architecture.md` no longer call the count per process
+- Looked at the other counters named beside it: wrong-token attempts by address (`core/tokens.ts`)
+  and failed mobile and connector token requests (`modules/mcp/oauth.ts`, used by
+  `modules/mobile/signin.ts`) were already kept in the database (`makeDbLimiter`). Still per
+  process: the policy kiosk's count of wrong employee numbers (`modules/policies/personAcks.ts`)
+  and the `If-Match` lock (`core/api/conventions.ts`), which holds a record's check and write
+  together in one process and needs a database lock held across the whole request to move
+
+**Implemented in:** `server/src/core/ratelimit.ts` (`countRequest`, `pruneRequestCounts`,
+`setTokenRate`, `tokenRateOf`), `server/src/core/migrations/028_request_counts.sql`,
+`server/src/core/tokens.ts`, `server/src/core/api/conventions.ts`,
+`server/src/modules/mcp/http.ts`; tests `server/src/core/request-counts.test.ts`,
+`server/src/core/jobs/core-start.test.ts`

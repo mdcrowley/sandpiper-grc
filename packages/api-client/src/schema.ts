@@ -171,12 +171,39 @@ export interface paths {
       response: unknown;
     };
   };
+  "/api/mobile/package": {
+    /** Your offline package for the mobile app: My work, the choices the app's forms need, tag values of the records it covers, and your upcoming inspections. */
+    get: {
+      path: never;
+      query: never;
+      body: never;
+      response: unknown;
+    };
+  };
   "/api/mobile/settings": {
     /** What the mobile app needs to work for you: tag formats, unlock rules, areas switched on, your permissions. */
     get: {
       path: never;
       query: never;
       body: never;
+      response: unknown;
+    };
+  };
+  "/api/mobile/sync": {
+    /** The mobile app's outbox: work saved on the phone, done in order, each item at most once. */
+    post: {
+      path: never;
+      query: never;
+      body: unknown;
+      response: unknown;
+    };
+  };
+  "/api/mobile/sync/attachment": {
+    /** A photo from the mobile app's outbox, attached at most once to a record (or to the record an earlier outbox item made). */
+    put: {
+      path: never;
+      query: { clientId?: string; parent?: string; record_type?: string; record_id?: string; name?: string; description?: string };
+      body: unknown;
       response: unknown;
     };
   };

@@ -7,6 +7,7 @@ import { Icon } from './Icon';
 import { Wordmark } from './Logo';
 import { Modal, useToast } from './overlay';
 import { Checkbox } from './fields';
+import { noteSignedIn } from './routeFocus';
 import { sessionEndedNotice } from './session';
 import { Button, ProgressBar } from './ui';
 // Passkeys (E02-08) live in the account-keys module; these pieces are embedded in the sign-in and setup pages.
@@ -301,6 +302,7 @@ export function LoginPage() {
       }
       await api.post('/api/auth/login', { username: username.trim(), password, ...(needsCode ? (keyOnly ? { recoveryCode: totp.trim() } : { totp: totp.trim() }) : {}) });
       if (pending?.pending) await finishLink();
+      noteSignedIn();
       await refresh();
     } catch (err) {
       const code = err instanceof ApiError ? err.code : '';
@@ -308,6 +310,7 @@ export function LoginPage() {
         // After a directory password, the person's passkey is the second step (E02-29); a recovery code also works.
         try {
           await signInWithKeyAfterPassword(username.trim(), password, directory.key);
+          noteSignedIn();
           await refresh();
         } catch (keyErr) {
           setKeyOnly(true);

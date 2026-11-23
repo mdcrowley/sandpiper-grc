@@ -327,8 +327,8 @@ As an integrator, I call a documented, versioned path that will not change under
 **Status:** done · **Priority:** P3 · **Type:** improvement
 
 - [x] Token requests carry `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset` and
-  `RateLimit-Policy`; a 429 carries `Retry-After`. The count mirrors the token limiter in
-  `core/tokens.ts` (same clock-minute window)
+  `RateLimit-Policy`; a 429 carries `Retry-After`. The headers report the count the token check made
+  (`core/tokens.ts`), kept in the database since E16-43
 
 ### E13-17 API reference page and integration guide
 

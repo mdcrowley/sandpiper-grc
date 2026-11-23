@@ -13,6 +13,7 @@ import { moduleOn, modules, NAV_GROUPS, preloadRoute, type NavGroup, type NavIte
 import { Menu } from './overlay';
 import { formatDate } from './format';
 import { ShortcutsDialog } from './Shortcuts';
+import { useRouteFocus } from './routeFocus';
 import { useTheme } from './theme';
 import { cx } from './ui';
 
@@ -197,6 +198,8 @@ export function Shell({ children }: { children: ReactNode }) {
   // "Help for this page": the Help module maps the address to the matching section of the guide.
   const helpHere = location.pathname.startsWith('/help') ? '/help' : `/help?for=${encodeURIComponent(location.pathname)}`;
   const mainRef = useRef<HTMLElement>(null);
+  // After a change of page, the focus goes to the new page's heading (screen reader run, E16-15).
+  useRouteFocus(mainRef);
   const rail = !small && (medium || collapsed);
 
   const nav = useMemo<NavData & { pages: PaletteLink[] }>(() => {

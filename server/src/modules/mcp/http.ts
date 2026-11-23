@@ -1,6 +1,7 @@
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { ModuleContext } from '../../core/module.ts';
+import { countRequest } from '../../core/ratelimit.ts';
 import { clientIp, isHttps } from '../../core/request.ts';
 import { makeCaller } from './caller.ts';
 import { buildServer } from './server.ts';
@@ -19,11 +20,10 @@ import { makeToolContext, type Session } from './toolkit.ts';
  *    page cannot drive this endpoint. The token is checked by the core, exactly as for /api, through
  *    GET /api/mcp/session (in-process), which also refuses a token without the mcp scope or while
  *    AI assistant access is off.
- * 3. A per-token request limit (setting mcp.rate_per_minute) on top of the core's token limit.
+ * 3. A per-token request limit (setting mcp.rate_per_minute) on top of the core's token limit, counted in
+ *    the database (core/ratelimit.ts) so that every server process on it shares one count (E16-43).
  * 4. Each tool then calls the /api routes in-process with the same token.
  */
-
-const windows = new Map<string, { minute: number; count: number }>();
 
 function rpcError(reply: FastifyReply, status: number, message: string, code = -32001, headers: Record<string, string> = {}) {
   for (const [k, v] of Object.entries(headers)) reply.header(k, v);
@@ -73,13 +73,10 @@ export function registerEndpoint(ctx: ModuleContext, oauth: OAuth, log: (session
     }
     const { settings, ...session } = who.json() as Session & { settings: McpSettings };
 
-    const minute = Math.floor(Date.now() / 60_000);
-    const w = windows.get(session.token.id);
-    if (!w || w.minute !== minute) windows.set(session.token.id, { minute, count: 1 });
-    else if (++w.count > settings.ratePerMinute) {
-      return rpcError(reply, 429, `This token may make ${settings.ratePerMinute} AI assistant requests a minute. Wait a moment and try again.`, -32001, { 'retry-after': '60' });
+    const used = await countRequest(ctx.db, 'mcp', session.token.id);
+    if (used.count > settings.ratePerMinute) {
+      return rpcError(reply, 429, `This token may make ${settings.ratePerMinute} AI assistant requests a minute. Wait a moment and try again.`, -32001, { 'retry-after': String(used.resetSeconds) });
     }
-    if (windows.size > 5000) for (const [k, v] of windows) if (v.minute !== minute) windows.delete(k);
 
     if (req.method !== 'POST') {
       return rpcError(reply, 405, 'This server keeps no sessions and sends nothing unasked: use POST.', -32000, { allow: 'POST' });

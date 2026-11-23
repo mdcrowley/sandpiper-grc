@@ -9,7 +9,7 @@
 //   node code-snapshot.mjs apply   <app folder> <new code folder> put a new release in place
 //   node code-snapshot.mjs version <app folder | snapshot.tar>   the version recorded in package.json
 //
-// "Code" is everything in the application folder except data, backups, installed packages,
+// "Code" is everything in the application folder except data, backups, installed packages, the mobile app,
 // the portable Node.js, build output, private seed files and version-control metadata. On
 // restore and apply, files that are not in the incoming code are deleted from server/src and
 // web/src only (so a migration or module added by the new version is gone again); nothing
@@ -20,7 +20,9 @@ import { dirname, join, relative, resolve, sep } from 'node:path';
 
 // Top-level folders whose names start with a dot (version control, the portable Node.js, editor and
 // tool settings) are left out too.
-const EXCLUDE = new Set(['node_modules', 'data', 'backups', 'dist', 'seed', 'coverage']);
+// The mobile app (mobile/) is built on its own and is not part of the server's code. Installed packages
+// (node_modules) are left out at any depth.
+const EXCLUDE = new Set(['node_modules', 'data', 'backups', 'dist', 'seed', 'coverage', 'mobile']);
 const PRUNE_UNDER = ['server/src/', 'web/src/'];
 const BLOCK = 512;
 
@@ -36,6 +38,7 @@ function codeFiles(root, extraExclude = []) {
   const walk = (dir, rel) => {
     for (const e of readdirSync(dir, { withFileTypes: true })) {
       if (!rel && (EXCLUDE.has(e.name) || (e.isDirectory() && e.name.startsWith('.')))) continue;
+      if (e.isDirectory() && e.name === 'node_modules') continue;
       const abs = join(dir, e.name);
       if (skip.has(resolve(abs))) continue;
       const r = rel ? `${rel}/${e.name}` : e.name;

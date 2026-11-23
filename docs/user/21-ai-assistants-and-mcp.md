@@ -14,7 +14,7 @@ AI assistant access is **off** until an administrator switches it on.
 2. Turn on **AI assistant access (MCP)**. You are asked for your password if you have not given it in the last few minutes.
 3. Leave **Write access for AI assistants** off unless people need assistants to create or change records. While it is off, every assistant can only read, whatever its token allows.
 4. Under **Tools**, clear any tool you do not want assistants to use, then select **Save tools**. **Allow all** checks them all again.
-5. **Requests a minute per token** limits how fast one assistant can call (120 to start with). Select **Save limit** after changing it.
+5. **Requests a minute per token** limits how fast one assistant can call (120 to start with); the count is kept in the database, so it holds however many server processes share it. Select **Save limit** after changing it.
 
 **Who may connect an assistant**: leave it at **Everyone who holds a permission**, or choose **Only people in chosen roles** and pick the **Roles**, then select **Save who may connect**. It applies at once: assistants of people outside those roles are refused on their next request, and those people can no longer make assistant tokens or approve connectors.
 

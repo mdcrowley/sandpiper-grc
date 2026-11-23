@@ -1,0 +1,13 @@
+# A fresh emulator's Chrome asks about an account and notifications once: go past both.
+appId: com.android.chrome
+---
+- runFlow:
+    when:
+      visible: "Use without an account"
+    commands:
+      - tapOn: "Use without an account"
+- runFlow:
+    when:
+      visible: "No thanks"
+    commands:
+      - tapOn: "No thanks"

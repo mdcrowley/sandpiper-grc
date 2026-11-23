@@ -5,7 +5,6 @@ import { buildReport, initialAnswers, pickDefault, type ReportAnswers } from './
 import ReportFormScreen, { TEXT as FORM } from './ReportFormScreen';
 import ReportHomeScreen, { TEXT as HOME } from './ReportHomeScreen';
 import * as handoff from '../../tags/handoff';
-import type { QueuedReport } from '../reports';
 import { params, picker, router, server } from '../../tags/tests/mocks';
 
 jest.mock('../../api/client', () => require('../../tags/tests/mocks').clientMock());
@@ -20,12 +19,17 @@ jest.mock('../photos', () => ({
   photoName: (_d: Date, n: number) => `photo-${n}.jpg`,
   PhotoError: class extends Error {},
 }));
-jest.mock('../reportQueue', () => {
-  const { ReportQueue: Q } = jest.requireActual('../reports');
-  const store = { saved: [] as unknown[], async load() { return []; }, async save(r: unknown[]) { store.saved = r; }, async keep(id: string, _u: string, n: string) { return `q/${id}/${n}`; }, async drop() {}, async wipe() {} };
-  const transport = { reachable: async () => false, create: jest.fn(), upload: jest.fn() };
-  const q = new Q(store, transport);
-  return { reportQueue: () => q, useReportQueue: () => [], __store: store };
+jest.mock('../reportQueue', () => ({ saveReport: jest.fn(async () => {}), useReports: jest.fn(() => []), migrateLegacyQueue: jest.fn(async () => 0) }));
+// The offline package stands in when the server cannot be reached (E38-10).
+const mockOfflinePkg: { current: Record<string, unknown> | null } = { current: null };
+jest.mock('../../offline', () => {
+  const real = jest.requireActual('../../offline/package');
+  return {
+    packageList: real.packageList, packageSites: real.packageSites, sendNow: jest.fn(), outbox: () => ({ prune: jest.fn() }),
+    orOffline: async (fromServer: () => Promise<unknown>, fromPackage: (p: unknown) => unknown) => {
+      try { return await fromServer(); } catch (e) { const v = mockOfflinePkg.current ? fromPackage(mockOfflinePkg.current) : null; if (v) return v; throw e; }
+    },
+  };
 });
 
 jest.setTimeout(20_000);
@@ -99,11 +103,12 @@ describe('report form', () => {
     await waitFor(() => expect(screen.getByLabelText(`${FORM.removePhoto} photo-1.jpg`)).toBeTruthy());
     await fireEvent.press(screen.getByLabelText(FORM.send));
     await waitFor(() => expect(router.dismissTo).toHaveBeenCalledWith('/report'));
-    const { __store } = jest.requireMock('../reportQueue') as { __store: { saved: QueuedReport[] } };
-    expect(__store.saved[0]).toMatchObject({
-      id: 'c0ffee00-0000-4000-8000-000000000001', kind: 'problem', path: '/api/tickets', recordType: 'ticket',
-      body: { title: 'Leaking pump' }, photos: [{ file: 'q/c0ffee00-0000-4000-8000-000000000001/photo-1.jpg', state: 'pending' }],
-    });
+    const { saveReport } = jest.requireMock('../reportQueue') as { saveReport: jest.Mock };
+    expect(saveReport).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'problem', path: '/api/tickets', recordType: 'ticket', body: expect.objectContaining({ title: 'Leaking pump' }), title: 'Leaking pump' }),
+      [{ uri: 'file:///cache/p1.jpg.fitted.jpg', name: 'photo-1.jpg' }],
+      'c0ffee00-0000-4000-8000-000000000001',
+    );
   });
 
   it('a hazard offers the configured types and severities', async () => {
@@ -111,6 +116,21 @@ describe('report form', () => {
     await render(<ReportFormScreen />);
     expect(await screen.findByText('Near miss')).toBeTruthy();
     expect(screen.getByText('No injury or damage')).toBeTruthy();
+  });
+
+  it('without a connection, offers the choices from the offline package', async () => {
+    params.current = { kind: 'hazard' };
+    server.routes = {};
+    mockOfflinePkg.current = {
+      lookups: { safety_event_type: [{ value: 'near_miss', label: 'Near miss (offline)' }], safety_event_severity: [{ value: 'no_harm', label: 'No harm (offline)' }] },
+      sites: [{ value: 's1', label: 'North depot', ref: 'SITE-1' }],
+    };
+    await render(<ReportFormScreen />);
+    expect(await screen.findByText('Near miss (offline)')).toBeTruthy();
+    expect(screen.getByText('No harm (offline)')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText(FORM.noSite));
+    expect(await screen.findByText('North depot')).toBeTruthy();
+    mockOfflinePkg.current = null;
   });
 
   it('is not offered without the permission or the area', async () => {
@@ -145,5 +165,22 @@ describe('Report tab', () => {
     await render(<ReportHomeScreen />);
     expect(screen.getByText(HOME.none)).toBeTruthy();
   });
-});
 
+  it('shows each report saved on the phone: waiting, arrived, or needing attention with the server reason', async () => {
+    const { useReports } = jest.requireMock('../reportQueue') as { useReports: jest.Mock };
+    const base = { kind: 'problem', photos: 2, photosSent: 0, warning: null, savedAt: '2026-11-22T10:00:00Z', ref: null, error: null };
+    useReports.mockReturnValue([
+      { ...base, group: 'g1', title: 'Leaking pump', state: 'waiting' },
+      { ...base, group: 'g2', title: 'Broken door', state: 'done', ref: 'TKT-00042', photosSent: 2 },
+      { ...base, group: 'g3', title: 'Loose rail', state: 'attention', error: { code: 'forbidden', message: 'You do not have permission to do that.' } },
+    ]);
+    await render(<ReportHomeScreen />);
+    expect(screen.getByText(/Saved on this phone. It is sent on its own/)).toBeTruthy();
+    expect(screen.getByText(/Arrived: TKT-00042. 2 of 2 photos sent/)).toBeTruthy();
+    expect(screen.getByText(/Needs attention: You do not have permission/)).toBeTruthy();
+    expect(screen.getByText(HOME.attention(1))).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText(HOME.open));
+    expect(router.push).toHaveBeenCalledWith('/report/offline');
+    useReports.mockReturnValue([]);
+  });
+});

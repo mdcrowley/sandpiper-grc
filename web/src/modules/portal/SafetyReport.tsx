@@ -7,7 +7,7 @@ import {
   useFetch, useToast,
 } from '../../core';
 import { ChoiceCards } from './RequestForm';
-import { Section, type Choice } from './parts';
+import { Section, useFocusFirstProblem, type Choice } from './parts';
 
 interface Options { types: Choice[]; harm: Choice[] }
 interface MyReport { id: string; ref: string; title: string; occurred_at: string; reported_at: string; status: { key: string; label: string; tone: string } }
@@ -54,6 +54,7 @@ export function SafetyReport() {
   const [personal, setPersonal] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState('');
+  const focusProblem = useFocusFirstProblem();
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState<{ ref: string } | null>(null);
   const [tick, setTick] = useState(0);
@@ -80,7 +81,7 @@ export function SafetyReport() {
     } catch (err) {
       if (err instanceof ApiError && err.fields) setErrors(err.fields);
       setFormError(errorMessage(err));
-      setTimeout(() => document.querySelector<HTMLElement>('[aria-invalid="true"], .pt-form-error')?.focus?.(), 0);
+      focusProblem();
     } finally {
       setBusy(false);
     }

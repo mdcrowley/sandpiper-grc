@@ -21,6 +21,7 @@ export const ROUTE_HELP: RouteHelp[] = [
   // Service desk
   { prefix: '/tickets', page: '02-service-desk', section: 'tickets' },
   { prefix: '/tickets/dashboard', page: '02-service-desk', section: 'service-desk-dashboard' },
+  { prefix: '/tickets/settings', page: '02-service-desk', section: 'service-desk-settings' },
   { prefix: '/problems', page: '02-service-desk', section: 'problems-and-known-errors' },
   { prefix: '/knowledge', page: '02-service-desk', section: 'knowledge-base' },
   { prefix: '/catalog', page: '02-service-desk', section: 'catalog' },
@@ -31,6 +32,7 @@ export const ROUTE_HELP: RouteHelp[] = [
   { prefix: '/systems/map', page: '03-inventory', section: 'the-relationship-map' },
   { prefix: '/assets', page: '03-inventory', section: 'assets' },
   { prefix: '/assets/import', page: '03-inventory', section: 'importing-assets-from-csv' },
+  { prefix: '/assets/disposals', page: '03-inventory', section: 'dispose-of-an-asset' },
   { prefix: '/sites', page: '03-inventory', section: 'sites' },
   { prefix: '/data-categories', page: '03-inventory', section: 'data-categories' },
   { prefix: '/inventory', page: '03-inventory' },
@@ -47,22 +49,33 @@ export const ROUTE_HELP: RouteHelp[] = [
   { prefix: '/vendors', exact: true, page: '04-vendors-and-contracts', section: 'vendors' },
   { prefix: '/vendors', page: '04-vendors-and-contracts', section: 'the-vendor-profile' },
   { prefix: '/vendors/terms', page: '04-vendors-and-contracts', section: 'the-security-terms-matrix' },
+  { prefix: '/vendors/questions', page: '04-vendors-and-contracts', section: 'the-questions' },
+  { prefix: '/vendors/reassessments', page: '34-vendor-risk-lifecycle', section: 'reassessments-due' },
+  { prefix: '/vendors/issues', page: '34-vendor-risk-lifecycle', section: 'vendor-issues' },
+  { prefix: '/vendors/offboardings', page: '34-vendor-risk-lifecycle', section: 'offboarding' },
   { prefix: '/contracts', exact: true, page: '04-vendors-and-contracts', section: 'contracts' },
   { prefix: '/contracts', page: '04-vendors-and-contracts', section: 'the-contract-record' },
   { prefix: '/contracts/renewals', page: '04-vendors-and-contracts', section: 'the-renewal-calendar-and-reminders' },
+  { prefix: '/contracts/dates', page: '04-vendors-and-contracts', section: 'complete-the-dates' },
   { prefix: '/evidence', page: '04-vendors-and-contracts', section: 'evidence-and-expiry' },
   { prefix: '/evidence/expiring', page: '04-vendors-and-contracts', section: 'expiry' },
 
   // Cybersecurity
   { prefix: '/frameworks', page: '05-cybersecurity-frameworks', section: 'the-outcomes-board' },
   { prefix: '/frameworks/settings', page: '05-cybersecurity-frameworks', section: 'framework-settings' },
+  { prefix: '/frameworks/coverage', page: '05-cybersecurity-frameworks', section: 'coverage-of-other-frameworks' },
+  { prefix: '/frameworks/manage', page: '05-cybersecurity-frameworks', section: 'frameworks-and-structure' },
   { prefix: '/frameworks/outcomes', exact: true, page: '05-cybersecurity-frameworks', section: 'table-view' },
   { prefix: '/frameworks/outcomes', page: '05-cybersecurity-frameworks', section: 'working-on-one-outcome' },
   { prefix: '/assessments', page: '05-cybersecurity-frameworks', section: 'assessments' },
   { prefix: '/risks', exact: true, page: '06-risks-actions-obligations', section: 'the-risk-register' },
   { prefix: '/risks', page: '06-risks-actions-obligations', section: 'scoring-a-risk' },
+  { prefix: '/risks/reviews', page: '06-risks-actions-obligations', section: 'risk-reviews' },
+  { prefix: '/risks/report', page: '06-risks-actions-obligations', section: 'the-risk-report' },
+  { prefix: '/risks/scales', page: '06-risks-actions-obligations', section: 'editing-the-risk-scales' },
   { prefix: '/actions', exact: true, page: '06-risks-actions-obligations', section: 'the-action-tracker' },
   { prefix: '/actions', page: '06-risks-actions-obligations', section: 'what-an-action-holds' },
+  { prefix: '/actions/mine', page: '06-risks-actions-obligations', section: 'my-actions' },
   { prefix: '/obligations', page: '06-risks-actions-obligations', section: 'the-obligations-register' },
   { prefix: '/security-incidents', exact: true, page: '07-security-incidents' },
   { prefix: '/security-incidents', page: '07-security-incidents', section: 'the-incident-workspace' },
@@ -99,7 +112,6 @@ export const ROUTE_HELP: RouteHelp[] = [
   { prefix: '/reports', page: '15-dashboards-and-reports', section: 'reports' },
   { prefix: '/reports/new', page: '15-dashboards-and-reports', section: 'build-a-report' },
   { prefix: '/reports/packs', page: '15-dashboards-and-reports', section: 'report-packs' },
-  { prefix: '/report-packs', page: '15-dashboards-and-reports', section: 'report-packs' },
   { prefix: '/reports/schedules', page: '15-dashboards-and-reports', section: 'scheduled-delivery' },
   { prefix: '/reports/snapshots', page: '15-dashboards-and-reports', section: 'scheduled-delivery' },
   { prefix: '/dashboards', exact: true, page: '15-dashboards-and-reports', section: 'dashboards' },
@@ -114,6 +126,8 @@ export const ROUTE_HELP: RouteHelp[] = [
   { prefix: '/approvals', page: '22-approval-workflows', section: 'approvals-waiting-for-you' },
   { prefix: '/admin/reminders', page: '14-attachments-and-notifications', section: 'reminders' },
   { prefix: '/admin/lists', page: '09-administration', section: 'lists' },
+  { prefix: '/admin/organization', page: '09-administration', section: 'organization' },
+  { prefix: '/admin/features', page: '09-administration', section: 'features' },
   { prefix: '/admin/lifecycles', page: '23-lifecycles', section: 'setting-up-a-lifecycle-administrators' },
   { prefix: '/admin/settings', page: '09-administration', section: 'settings' },
   { prefix: '/admin/audit', page: '09-administration', section: 'the-audit-log' },
@@ -151,6 +165,7 @@ export const ROUTE_HELP: RouteHelp[] = [
   { prefix: '/safety/indicators', page: '20-safety-management', section: 'safety-performance-indicators' },
   { prefix: '/safety/exposure', page: '20-safety-management', section: 'exposure' },
   { prefix: '/safety/reporting-rules', page: '20-safety-management', section: 'safety-reporting-rules' },
+  { prefix: '/safety/matrix', page: '20-safety-management', section: 'change-the-hazard-matrix' },
 
   // Corrective action plans
   { prefix: '/caps', exact: true, page: '24-corrective-action-plans', section: 'the-register' },
@@ -182,6 +197,7 @@ export const ROUTE_HELP: RouteHelp[] = [
   { prefix: '/funding/reviews', page: '27-funding-and-grants', section: 'compliance-reviews' },
   { prefix: '/funding/deficiencies', page: '27-funding-and-grants', section: 'deficiencies-and-corrective-action-plans' },
   { prefix: '/funding/review-areas', page: '27-funding-and-grants', section: 'review-areas-from-a-file' },
+  { prefix: '/funding/subrecipients', page: '27-funding-and-grants', section: 'sub-recipients' },
 
   // Committees and meetings
   { prefix: '/governance/committees', page: '28-committees-and-meetings', section: 'committees' },
@@ -202,6 +218,11 @@ export const ROUTE_HELP: RouteHelp[] = [
 
   // Business continuity
   { prefix: '/continuity', page: '30-business-continuity', section: 'overview' },
+  { prefix: '/continuity/processes', page: '30-business-continuity', section: 'business-processes' },
+  { prefix: '/continuity/impact-analyses', page: '30-business-continuity', section: 'impact-analysis' },
+  { prefix: '/continuity/gaps', page: '30-business-continuity', section: 'gap-report' },
+  { prefix: '/continuity/plans', page: '30-business-continuity', section: 'plans' },
+  { prefix: '/continuity/activations', page: '30-business-continuity', section: 'emergency-activations' },
 
   // Asset condition
   { prefix: '/condition', exact: true, page: '31-asset-condition', section: 'the-dashboard' },
@@ -231,7 +252,7 @@ export const ROUTE_HELP: RouteHelp[] = [
   // Asset tags
   { prefix: '/inventory-counts', exact: true, page: '38-asset-tags', section: 'inventory-counts' },
   { prefix: '/inventory-counts/report', page: '38-asset-tags', section: 'the-count-report' },
-  { prefix: '/inventory-counts/', page: '38-asset-tags', section: 'counting' },
+  { prefix: '/inventory-counts', page: '38-asset-tags', section: 'counting' },
   { prefix: '/admin/asset-tags', exact: true, page: '38-asset-tags', section: 'tag-formats' },
   { prefix: '/admin/asset-tags/stock', page: '38-asset-tags', section: 'tag-stock' },
   { prefix: '/admin/asset-tags/series', page: '38-asset-tags', section: 'printing-your-own-tags' },
@@ -242,6 +263,7 @@ export const ROUTE_HELP: RouteHelp[] = [
   // Mobile app
   { prefix: '/account/devices', page: '39-mobile-app', section: 'devices-and-lost-phones' },
   { prefix: '/admin/mobile-app', page: '39-mobile-app', section: 'for-administrators' },
+  { prefix: '/admin/push', page: '39-mobile-app', section: 'push-notifications' },
 ];
 
 /** The guide entry for an address, or undefined when nothing covers it. */

@@ -219,7 +219,7 @@ export const AREAS: Area[] = [
   {
     key: 'mobile', label: 'Mobile app', defaultOn: false,
     description: 'The Sandpiper GRC app for iPhone and Android: sign-in through the phone\'s browser, My work, reading asset tags with the camera, reporting problems with photos, and the list of signed-in devices. Switching it off signs out every device.',
-    permissions: [], modules: ['mobile'], jobs: ['mobile.'],
+    permissions: [], modules: ['mobile', 'push'], jobs: ['mobile.', 'push.'],
   },
 ];
 

@@ -12,20 +12,25 @@ import {
   api, ApiError, Button, DateField, errorMessage, ErrorState, Icon, Loading, qs, TextArea, TextField, useDebounced, useFetch, useToast,
 } from '../../core';
 import { itemIcon } from './Home';
-import { FilePicker, sendFile, Suggestions, usePortal, useSuggestions, type CatalogItem, type Choice } from './parts';
+import { FilePicker, sendFile, Suggestions, useFocusFirstProblem, usePortal, useSuggestions, type CatalogItem, type Choice } from './parts';
 
 /** Big tappable choices (radio buttons drawn as cards). */
 export function ChoiceCards({ name, label, options, value, onChange, error, required, hint }: {
   name: string; label: string; options: Choice[]; value: string; onChange: (v: string) => void; error?: string; required?: boolean; hint?: string;
 }) {
   return (
-    <fieldset className="pt-choices" aria-invalid={error ? true : undefined} aria-describedby={error ? `${name}-err` : undefined}>
-      <legend>{label}{required && <span className="pt-req-mark" aria-hidden="true"> *</span>}</legend>
+    // A radio group that is required as a whole: `required` on each radio button made the browser report
+    // them as invalid before anything was chosen, and screen readers said so on every one (E16-15).
+    <fieldset
+      className="pt-choices" role="radiogroup" aria-labelledby={`${name}-legend`} aria-required={required || undefined}
+      aria-invalid={error ? true : undefined} aria-describedby={error ? `${name}-err` : undefined}
+    >
+      <legend id={`${name}-legend`}>{label}{required && <span className="pt-req-mark" aria-hidden="true"> *</span>}</legend>
       {hint && <p className="pt-hint">{hint}</p>}
       <div className="pt-choice-grid">
         {options.map((o) => (
           <label key={o.value} className={`pt-choice ${value === o.value ? 'is-on' : ''}`}>
-            <input type="radio" name={name} value={o.value} checked={value === o.value} onChange={() => onChange(o.value)} required={required} />
+            <input type="radio" name={name} value={o.value} checked={value === o.value} onChange={() => onChange(o.value)} />
             <span>{o.label}</span>
           </label>
         ))}
@@ -110,6 +115,7 @@ function useSubmit() {
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState('');
+  const focusProblem = useFocusFirstProblem();
   async function submit(body: Record<string, unknown>, files: File[]) {
     setBusy(true);
     setErrors({});
@@ -126,7 +132,7 @@ function useSubmit() {
     } catch (err) {
       if (err instanceof ApiError && err.fields) setErrors(err.fields);
       setFormError(errorMessage(err));
-      setTimeout(() => document.querySelector<HTMLElement>('[aria-invalid="true"], .pt-form-error')?.focus?.(), 0);
+      focusProblem();
     } finally {
       setBusy(false);
     }

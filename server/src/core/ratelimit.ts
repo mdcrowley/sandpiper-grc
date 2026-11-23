@@ -53,3 +53,57 @@ export function makeDbLimiter(db: Queryable, bucket: string, max: number, window
 }
 
 export type Limiter = ReturnType<typeof makeDbLimiter>;
+
+/** Requests a key has made in the current clock minute, and seconds until that minute ends. */
+export interface RequestCount {
+  count: number;
+  resetSeconds: number;
+  /** The stored value of the setting named in the call (undefined when it is not stored). */
+  setting?: unknown;
+}
+
+/**
+ * Counts one request for `key` in the current minute (E16-43) and returns the count so far, with
+ * this request. Kept in table request_counts, so every server process on the database counts
+ * together: one upsert per request, and the minute is the database's, so processes whose clocks
+ * differ still agree. Used for `tokens.rate_per_minute` (bucket `token`, the same count the
+ * RateLimit headers report) and `mcp.rate_per_minute` (bucket `mcp`).
+ *
+ * `settingKey` reads that setting in the same statement (the limit, which the caller would
+ * otherwise read with a query of its own), so counting adds no round trip to the database.
+ */
+export async function countRequest(db: Queryable, bucket: string, key: string, settingKey?: string): Promise<RequestCount> {
+  const row = await db.one<{ hits: number; reset: number; setting: unknown }>(
+    `with c as (
+       insert into request_counts as c (bucket, key, minute) values ($1, $2, floor(extract(epoch from now()) / 60)::bigint)
+       on conflict (bucket, key, minute) do update set hits = c.hits + 1
+       returning c.hits, c.minute)
+     select c.hits, ceil((c.minute + 1) * 60 - extract(epoch from now()))::int as reset,
+            (select s.value from settings s where s.key = $3::text) as setting
+     from c`,
+    [bucket, String(key).slice(0, 200), settingKey ?? null],
+  );
+  return { count: row?.hits ?? 1, resetSeconds: Math.min(60, Math.max(1, row?.reset ?? 60)), setting: row?.setting ?? undefined };
+}
+
+/** Removes the counts of minutes that have passed (the recurring job `core.request_counts`). */
+export async function pruneRequestCounts(db: Queryable): Promise<number> {
+  return (await db.query('delete from request_counts where minute < floor(extract(epoch from now()) / 60)::bigint returning 1')).length;
+}
+
+/** A token request's limit and count (set by the token check in core/tokens.ts), for the RateLimit headers. */
+export interface TokenRate extends RequestCount {
+  limit: number;
+}
+
+const tokenRates = new WeakMap<object, TokenRate>();
+
+/** Records the token count a request was checked against, so its answer reports the same count. */
+export function setTokenRate(req: object, rate: TokenRate): void {
+  tokenRates.set(req, rate);
+}
+
+/** The token count a request was checked against, if it was made with a token. */
+export function tokenRateOf(req: object): TokenRate | undefined {
+  return tokenRates.get(req);
+}

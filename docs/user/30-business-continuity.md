@@ -32,7 +32,7 @@ The **Impact analysis** tab lists the process's analyses. **Start an impact anal
 
 On the analysis's **Impacts** tab, rate how badly an outage of **1 hour**, **4 hours**, **1 day**, **3 days** and **1 week** hurts in each area: **Operations**, **Harm to people** (injury or risk to the life and health of staff, riders or the public), **Financial**, **Reputation** and **Legal or regulatory**, from **1 - minimal** to **5 - severe**. Ratings of 4 and 5 are shaded. The line under the grid suggests a tolerable downtime: the first outage length rated 4 or more in any area. Then set the **Maximum tolerable downtime**, **Recovery time target** and **Recovery point target**, answer the **Questions**, and select **Save**. Leaving the page with unsaved changes asks first.
 
-The questions are the organization's own: an administrator changes them under **Administration > Lists** (list "bia_question"). Each value's `kind` in its settings says how it is answered: `yes_no`, `number` or `text`.
+The questions are the organization's own: an administrator changes them under **Administration > Lists** (list **Bia question**). Each installed question has a `kind` that says how it is answered: `yes_no`, `number` or `text`. The **Lists** page does not set a kind, so a question added there is answered with text.
 
 When the analysis is ready (it needs the maximum tolerable downtime), select **Submit for sign-off**. Signing it off locks the analysis, copies its downtime and targets onto the process, makes **Last impact analysis** today and **Next impact analysis due** a year later (the setting `continuity.bia_every_months`, 12 unless changed). Start a new analysis for the next review.
 
@@ -43,7 +43,7 @@ Who signs it off:
 
 Setting a submitted analysis back to **Draft** by hand also cancels a waiting request.
 
-### Plans
+### Plans that cover the process
 
 The **Plans** tab lists the plans that cover the process.
 

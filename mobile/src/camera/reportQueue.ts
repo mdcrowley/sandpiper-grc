@@ -1,99 +1,53 @@
-// The phone's report queue (./reports.ts) with its files in the app's private documents folder, the
-// server as transport, and the hooks that wipe it on sign-out and count it for the sign-out warning.
-import { useEffect, useState } from 'react';
-import { AppState } from 'react-native';
+// Reports go through the outbox (E38-06, E38-10): saving a report, the Report tab's view of what is
+// on its way, and moving reports left by the wave 13 report queue (reports/queue.json) into the outbox.
 import { Directory, File, Paths } from 'expo-file-system';
-import { ApiError, apiFetch } from '../api/client';
-import { onWipe, registerUnsentWork } from '../auth/session';
-import { uploadPhoto } from './photos';
-import { ReportQueue, type QueuedReport, type ReportStore, type ReportTransport } from './reports';
+import { outbox, sendNow, useOutbox } from '../offline';
+import { reportItems, reportViews, type ReportToSave, type ReportView } from './reports';
 
-const folder = () => new Directory(Paths.document, 'reports');
-const queueFile = () => new File(folder(), 'queue.json');
-
-export const fileStore: ReportStore = {
-  async load() {
-    try {
-      const f = queueFile();
-      if (!f.exists) return [];
-      const parsed = JSON.parse(await f.text()) as QueuedReport[];
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  },
-  async save(reports) {
-    const dir = folder();
-    if (!dir.exists) dir.create({ intermediates: true, idempotent: true });
-    const f = queueFile();
-    if (!f.exists) f.create();
-    await f.write(JSON.stringify(reports));
-  },
-  async keep(reportId, uri, name) {
-    const dir = new Directory(folder(), reportId);
-    if (!dir.exists) dir.create({ intermediates: true, idempotent: true });
-    const target = new File(dir, name);
-    await new File(uri).copy(target);
-    return target.uri;
-  },
-  async drop(reportId) {
-    const dir = new Directory(folder(), reportId);
-    if (dir.exists) dir.delete();
-  },
-  async wipe() {
-    const dir = folder();
-    if (dir.exists) dir.delete();
-  },
-};
-
-export const serverTransport: ReportTransport = {
-  async reachable() {
-    try {
-      await apiFetch('/api/version');
-      return true;
-    } catch {
-      return false;
-    }
-  },
-  async create(path, body, idempotencyKey) {
-    const row = await apiFetch<{ id: string; ref?: string | null }>(path, { method: 'POST', body, idempotencyKey });
-    return { id: row.id, ref: row.ref ?? null };
-  },
-  async upload(recordType, recordId, file, name) {
-    // A photo that is no longer on the phone cannot be sent again: it is listed as not accepted.
-    if (!new File(file).exists) throw new ApiError(410, 'file_missing', 'This photo is no longer on the phone.');
-    await uploadPhoto(recordType, recordId, file, name);
-  },
-  async link(fromType, fromId, to) {
-    await apiFetch('/api/links', { method: 'POST', body: { from_type: fromType, from_id: fromId, to_type: to.type, to_id: to.id } });
-  },
-};
-
-let queue: ReportQueue | null = null;
-
-/** The one queue of the app (created on first use, with its sign-out hooks). */
-export function reportQueue(): ReportQueue {
-  if (!queue) {
-    const q = new ReportQueue(fileStore, serverTransport);
-    onWipe(() => q.wipe());
-    registerUnsentWork(() => q.unsent());
-    queue = q;
-  }
-  return queue;
+/** Saves a report and its (already fitted) photos in the outbox, then starts sending. */
+export async function saveReport(report: ReportToSave, photos: { uri: string; name: string }[], id?: string): Promise<void> {
+  await outbox().add(reportItems(report, photos, id));
+  sendNow();
 }
 
-const RETRY_MS = 30_000;
+/** The reports in the outbox, for the Report tab. */
+export function useReports(): ReportView[] {
+  return reportViews(useOutbox());
+}
 
-/** The queue's reports for a screen; keeps sending while the app is open and something waits. */
-export function useReportQueue(): QueuedReport[] {
-  const [reports, setReports] = useState<QueuedReport[]>([]);
-  useEffect(() => {
-    const q = reportQueue();
-    const off = q.subscribe(setReports);
-    void q.process();
-    const timer = setInterval(() => void q.process(), RETRY_MS);
-    const app = AppState.addEventListener('change', (s) => { if (s === 'active') void q.process(); });
-    return () => { off(); clearInterval(timer); app.remove(); };
-  }, []);
-  return reports;
+// ---------- the wave 13 report queue ----------
+
+interface LegacyReport {
+  id: string; kind: 'problem' | 'hazard'; path: string; recordType: string; body: Record<string, unknown>; title: string;
+  link?: { type: string; id: string } | null; created: { id: string; ref: string | null } | null; state: string;
+  photos: { file: string; name: string; state: string }[];
+}
+
+/**
+ * Moves reports the wave 13 queue did not finish into the outbox, with their ids (the server answers
+ * a repeat from memory from now on), and removes the old folder. A report already made keeps its
+ * record: only its photos are moved, addressed to that record.
+ */
+export async function migrateLegacyQueue(): Promise<number> {
+  const dir = new Directory(Paths.document, 'reports');
+  if (!dir.exists) return 0;
+  let moved = 0;
+  const f = new File(dir, 'queue.json');
+  const old = f.exists ? (JSON.parse(await f.text()) as LegacyReport[]) : [];
+  for (const r of Array.isArray(old) ? old : []) {
+    const photos = r.photos.filter((p) => p.state === 'pending' && new File(p.file).exists).map((p) => ({ uri: p.file, name: p.name }));
+    if (r.created) {
+      if (!photos.length) continue;
+      await outbox().add(photos.map((p, n) => ({
+        kind: 'attachment', label: `Photo ${n + 1} of ${r.title}`, file: p,
+        payload: { name: p.name, recordType: r.recordType, recordId: r.created!.id },
+      })));
+    } else if (r.state !== 'done') {
+      await outbox().add(reportItems({ kind: r.kind, path: r.path, recordType: r.recordType, body: r.body, title: r.title, link: r.link ?? null }, photos, r.id));
+    }
+    moved++;
+  }
+  // Only once everything is in the outbox (a failure leaves the old queue for the next start).
+  dir.delete();
+  return moved;
 }

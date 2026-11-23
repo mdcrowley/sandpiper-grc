@@ -346,7 +346,7 @@ export function TagCardView({ card, onChanged }: { card: TagCard; onChanged: () 
       <header className="tag-card-head">
         <div className="tag-card-id">
           <span className="tag-card-type"><Icon name={card.recordType === 'vehicle' ? 'bus' : card.recordType === 'site' ? 'map-pin' : card.recordType === 'system' ? 'server' : 'box'} size={16} />{card.typeLabel}</span>
-          <h2 id={`tag-card-${card.recordId}`} className="tag-card-title"><Link to={card.route}>{heading}</Link></h2>
+          <h2 id={`tag-card-${card.recordId}`} className="tag-card-title" tabIndex={-1}><Link to={card.route}>{heading}</Link></h2>
           {card.tagValue && <TagValue value={card.tagValue} />}
         </div>
         {card.photo && <img className="tag-card-photo" src={card.photo.url} alt={card.photo.description || `Photo of ${card.title}`} />}
@@ -418,6 +418,10 @@ const TONE: Record<string, string> = { replaced: 'notice-warn', misread: 'notice
 
 function ResultView({ result, source, onChanged }: { result: LookupResult; source: FindSource; onChanged: () => void }) {
   const [attaching, setAttaching] = useState<string | null>(null);
+  // One record found from a typed number: focus its heading, so a screen reader says what was found. A
+  // handheld scanner's value leaves the focus in the box, ready for the next tag.
+  const only = source === 'typed' && result.outcome !== 'nothing' && result.cards.length === 1 ? `tag-card-${result.cards[0].recordId}` : null;
+  useEffect(() => { if (only) document.getElementById(only)?.focus(); }, [only]);
   if (result.outcome === 'nothing') {
     return (
       <div className="stack">

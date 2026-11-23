@@ -17,6 +17,8 @@
 // When email is on and chosen, a message is queued at once, or the notification waits for the
 // person's daily summary (email.ts); a restricted record is never described in an email.
 // `oncePerDay` skips anyone who already received this kind for this record today.
+// What reaches a person's list is also pushed to their phone when they turned that on in the app
+// (`app.pushNotify`, modules/push): only "You have N new notifications", never the title.
 // The call never throws: a failure is logged and reported as nothing sent.
 import { UUID_RE } from '../../core/errors.ts';
 import type { ModuleContext, ResourceDef, Row, SessionUser } from '../../core/module.ts';
@@ -180,6 +182,7 @@ export function makeNotify(ctx: ModuleContext) {
     }
 
     let sent = 0;
+    const listed: string[] = [];
     for (const user of targets) {
       const pref = prefs.get(user.id);
       const channel = channelFor(pref, kind);
@@ -201,6 +204,7 @@ export function makeNotify(ctx: ModuleContext) {
         `insert into notifications (user_id, kind, title, body, route, record_type, record_id, in_app, email_state) values ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
         [user.id, kind, title, body, route, def?.type ?? null, recordId, inApp, emailState],
       );
+      if (inApp) listed.push(user.id);
       if (emailState === 'queued') {
         kindLabel ??= (await ctx.lookups.values('notification_kind')).find((k) => k.value === kind)?.label ?? 'Other';
         // What the recipient may see is checked again when the message is sent; a restricted
@@ -220,6 +224,9 @@ export function makeNotify(ctx: ModuleContext) {
         summary: `Notification (${kind}) sent to ${sent} ${sent === 1 ? 'person' : 'people'}`,
       });
     }
+    // Push to the phone (E38-14, modules/push) follows the list: what reaches the person's list (the
+    // bell) is pushed as "You have N new notifications"; a muted or email-only kind is not.
+    if (listed.length && ctx.app.hasDecorator('pushNotify')) await ctx.app.pushNotify(listed);
     return { sent, skipped: targets.length - sent };
   }
 

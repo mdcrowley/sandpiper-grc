@@ -50,8 +50,8 @@ function Decide({ item, onDone }: { item: Pending; onDone: () => void }) {
       <div className="pt-approval-buttons">
         {!rejecting ? (
           <>
-            <Button variant="primary" icon="check" loading={busy} onClick={() => void decide('approved')}>Approve</Button>
-            <Button variant="secondary" icon="x" disabled={busy} onClick={() => setRejecting(true)}>Reject</Button>
+            <Button variant="primary" icon="check" loading={busy} aria-label={`Approve ${item.kind === 'change' ? 'change' : 'request'} ${item.ref}`} onClick={() => void decide('approved')}>Approve</Button>
+            <Button variant="secondary" icon="x" disabled={busy} aria-label={`Reject ${item.kind === 'change' ? 'change' : 'request'} ${item.ref}`} onClick={() => setRejecting(true)}>Reject</Button>
           </>
         ) : (
           <>

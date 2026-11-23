@@ -52,7 +52,8 @@ the scope **`mcp.use`** (or `mcp.*`), or an OAuth access token from a connector 
    while access is off (`mcp_disabled`), and the tokens of people outside the roles allowed to
    connect (`mcp_not_allowed`).
 4. **Per-token limit** of requests to `/mcp`: setting `mcp.rate_per_minute` (default 120; `429`
-   with `Retry-After`).
+   with `Retry-After`, the seconds left in the minute). Like `tokens.rate_per_minute`, it is counted
+   per clock minute in the database, so every server process on it shares one count.
 5. **Tools run as the token.** Every tool calls the application's own `/api` routes in-process
    (`app.inject`) with the same bearer token and the same `X-Request-Id`. Permissions are those
    the token's scopes and the owner's grants have in common, worked out on every call;

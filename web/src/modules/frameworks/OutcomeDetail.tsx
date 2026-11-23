@@ -112,7 +112,7 @@ function Summary({ rec }: { rec: RecordContext }) {
 
         <Card
           title="Where we are going"
-          actions={rec.canEdit && <Button size="sm" icon="edit" onClick={() => setEditing(true)}>Edit</Button>}
+          actions={rec.canEdit && <Button size="sm" icon="edit" aria-label="Edit where we are going" onClick={() => setEditing(true)}>Edit</Button>}
         >
           <div className="fw-panes">
             <Pane label="Target" empty="No target yet. Describe what “done” looks like.">{row.target}</Pane>

@@ -18,7 +18,7 @@ function Description({ rec }: { rec: RecordContext }) {
   const toast = useToast();
   const [editing, setEditing] = useState(false);
   return (
-    <Card title="Description" actions={canEdit && !editing ? <Button size="sm" icon="edit" onClick={() => setEditing(true)}>Edit</Button> : undefined}>
+    <Card title="Description" actions={canEdit && !editing ? <Button size="sm" icon="edit" aria-label="Edit description" onClick={() => setEditing(true)}>Edit</Button> : undefined}>
       {editing ? (
         <ResourceForm type="ticket" id={row.id} initial={row} fields={['title', 'description']} onCancel={() => setEditing(false)}
           onSaved={() => { setEditing(false); toast.success('Changes saved.'); reload(); }} />
