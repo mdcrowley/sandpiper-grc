@@ -17,8 +17,8 @@ const mod: ModuleDef = {
     { group: 'Safety', label: 'Safety events', path: '/safety/events', icon: 'alert', permission: view, order: 96 },
     { group: 'Safety', label: 'Hazard log', path: '/safety/hazards', icon: 'shield', permission: view, order: 97 },
     { group: 'Safety', label: 'Safety indicators', path: '/safety/indicators', icon: 'target', permission: view, order: 98 },
-    { group: 'Administration', label: 'Hazard matrix', path: '/safety/matrix', icon: 'target', permission: 'safety.administer', order: 61 },
-    { group: 'Administration', label: 'Safety reporting rules', path: '/safety/reporting-rules', icon: 'clock', permission: 'safety.administer', order: 62 },
+    { group: 'Administration', label: 'Hazard matrix', path: '/safety/matrix', icon: 'target', permission: 'safety.administer', order: 63 },
+    { group: 'Administration', label: 'Safety reporting rules', path: '/safety/reporting-rules', icon: 'clock', permission: 'safety.administer', order: 64 },
   ],
   routes: [
     { path: '/safety', element: <SafetyDashboard />, permission: view },

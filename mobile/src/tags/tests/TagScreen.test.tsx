@@ -14,6 +14,9 @@ jest.mock('react-native-vision-camera', () => require('./mocks').visionCameraMoc
 jest.mock('../../camera/TagCamera', () => require('./mocks').tagCameraMock());
 jest.mock('../../camera/still', () => require('./mocks').stillMock());
 jest.mock('expo-image-picker', () => require('./mocks').pickerMock());
+// The offline package (wave 15): looked up when the server cannot be reached.
+const mockOffline: { pkg: unknown } = { pkg: null };
+jest.mock('../../offline', () => ({ offlinePackage: () => ({ current: async () => mockOffline.pkg }) }));
 
 jest.setTimeout(20_000);
 
@@ -42,6 +45,7 @@ const feed = async (f: FrameReads) => { await act(async () => { camera.onReads!(
 const lookups = () => server.calls.filter((c) => c.path === '/api/asset-tags/lookup');
 
 beforeEach(() => {
+  mockOffline.pkg = null;
   server.reset();
   clearTagSettings();
   jest.clearAllMocks();
@@ -115,6 +119,39 @@ describe('Tag screen', () => {
     await waitFor(() => expect(camera.onReads).toBeTruthy());
     await feed(frame({ codes: [{ type: 'code-128', content: '009001' }] }));
     expect(await screen.findByText(/Nothing found for 009001/)).toBeTruthy();
+  });
+
+  it('without a connection, looks values up in the offline package, and says when one is not there', async () => {
+    const { FakeApiError } = require('./mocks');
+    server.routes['POST /api/asset-tags/lookup'] = () => { throw new FakeApiError(0, 'offline', 'No connection.'); };
+    mockOffline.pkg = { tags: { formats: [], values: [{ value: 'TA-118342', valueKey: 'TA118342', recordType: 'asset', recordId: 'a1', label: 'Ticket machine 4' }] } };
+    await render(<TagScreen />);
+    await waitFor(() => expect(camera.onReads).toBeTruthy());
+    await feed(frame({ codes: [{ type: 'qr-code', content: 'TA-118342' }] }));
+    await waitFor(() => expect(router.push).toHaveBeenCalledWith(expect.stringMatching(/^\/tag\/card\?answer=/)));
+    await feed(frame({ codes: [{ type: 'code-128', content: '009001' }] }));
+    expect(await screen.findByText(/009001 is not available offline/)).toBeTruthy();
+  });
+
+  it('works without the camera gesture or sight: the torch says on or off, typing a number opens a box (E38-15)', async () => {
+    await render(<TagScreen />);
+    const torch = await screen.findByRole('togglebutton', { name: TEXT.torchOff });
+    expect(torch.props.accessibilityState).toMatchObject({ checked: false });
+    await fireEvent.press(torch);
+    expect(screen.getByRole('togglebutton', { name: TEXT.torchOn }).props.accessibilityState).toMatchObject({ checked: true });
+    const keyboard = screen.getByRole('button', { name: TEXT.keyboard });
+    expect(keyboard.props.accessibilityState).toMatchObject({ expanded: false });
+    await fireEvent.press(keyboard);
+    expect(screen.getByRole('button', { name: TEXT.keyboard }).props.accessibilityState).toMatchObject({ expanded: true });
+    expect(screen.getByLabelText(TEXT.typedLabel)).toBeTruthy();
+    // Pressed again, the box closes and the camera comes back (it folds away while a number is typed).
+    await fireEvent.press(screen.getByRole('button', { name: TEXT.keyboard }));
+    expect(screen.queryByLabelText(TEXT.typedLabel)).toBeNull();
+    // Every control is a button of at least 48 points.
+    for (const name of [TEXT.shutter, TEXT.library, TEXT.keyboard]) {
+      const style = screen.getByRole('button', { name }).props.style;
+      expect((Array.isArray(style) ? Object.assign({}, ...style.flat()) : style).minHeight).toBeGreaterThanOrEqual(48);
+    }
   });
 
   it('shows nothing of itself while asset tags are off', async () => {

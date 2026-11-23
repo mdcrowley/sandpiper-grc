@@ -52,3 +52,9 @@ export const dark: ColorTokens = {
 export const space = { 1: 4, 2: 8, 3: 12, 4: 16, 5: 24, 6: 32, 7: 48 } as const;
 export const radius = { sm: 6, md: 8, lg: 12 } as const;
 export const fontSize = { xs: 12, sm: 13, md: 14, lg: 16, xl: 20, xxl: 26, xxxl: 32 } as const;
+
+/**
+ * Size of the titles in the screens' top bars. Given explicitly so that, on Android, the title grows
+ * with the phone's text size like all other text (left to the default, it stayed the same at 200%).
+ */
+export const HEADER_TITLE_SIZE = 20;

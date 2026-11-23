@@ -94,7 +94,8 @@ const harvest = (page, { record = false, prose = false } = {}) => page.fn((recor
     .filter((e) => e.tagName === 'OPTION' || vis(e)).map((e) => norm(e.innerText || e.textContent || e.getAttribute('aria-label'))).filter((t) => t && t.length < 60);
   hidden.forEach((e, i) => { e.style.display = was[i]; });
   groupHeads.forEach((e, i) => { e.style.display = ghWas[i]; });
-  const attrs = [...document.querySelectorAll('[aria-label], [title], [placeholder]')].filter((e) => vis(e) && !e.matches('nav[aria-label="Main"] ul'))
+  // A row button's name carries its row's record ("Edit: <statement>", wave 15): record data, like the row itself.
+  const attrs = [...document.querySelectorAll('[aria-label], [title], [placeholder]')].filter((e) => vis(e) && !e.matches('nav[aria-label="Main"] ul') && !hidden.some((h) => h.contains(e)))
     .flatMap((e) => ['aria-label', 'title', 'placeholder'].map((a) => norm(e.getAttribute(a)))).filter(Boolean);
   const links = [...document.querySelectorAll('a[href]')].filter(vis).map((a) => {
     try { const u = new URL(a.href); return u.origin === location.origin ? { path: u.pathname, search: u.search, text: norm(a.innerText || a.getAttribute('aria-label')).slice(0, 60) } : null; } catch { return null; }

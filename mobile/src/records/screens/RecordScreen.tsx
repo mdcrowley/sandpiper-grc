@@ -5,6 +5,7 @@
 import { Stack } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
+import { useFocusOn, type TextRef } from '../../ui/a11y';
 import { useSession } from '../../api/client';
 import { space, useTheme } from '../../theme';
 import { fetchRecord, type LoadedRecord } from '../api';
@@ -47,6 +48,9 @@ export default function RecordScreen({ type, id }: { type: string; id: string })
   const [tab, setTab] = useState<Tab>('details');
   const [editing, setEditing] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  // When the edit form closes (saved or canceled), the screen reader's focus goes back to the title.
+  const [closed, setClosed] = useState(0);
+  const titleRef = useFocusOn<TextRef>(closed, { initial: false });
 
   const row = record.data?.row ?? null;
   const restricted = Boolean(meta && row && isRestricted(meta, row));
@@ -108,7 +112,7 @@ export default function RecordScreen({ type, id }: { type: string; id: string })
       {header}
       <View style={styles.head}>
         <Body muted>{[meta.label, ref].filter(Boolean).join(' · ')}</Body>
-        <Heading level={1}>{title}</Heading>
+        <Heading ref={titleRef} level={1}>{title}</Heading>
         {restricted ? <Notice kind="info">{TEXT.restricted}</Notice> : null}
         <View style={styles.chips}>
           {summary.filter((s) => s.f?.type === 'lookup').map((s) => <Chip key={s.n} label={`${s.f!.label}: ${s.v}`} color={colorOf(s.n)} />)}
@@ -123,11 +127,12 @@ export default function RecordScreen({ type, id }: { type: string; id: string })
           meta={meta}
           lookups={lookups}
           loaded={record.data}
-          onCancel={() => setEditing(false)}
+          onCancel={() => { setEditing(false); setClosed((n) => n + 1); }}
           onOpenWeb={openWeb}
           onSaved={(next, msg) => {
             record.setData(next);
             setEditing(false);
+            setClosed((n) => n + 1);
             setNote(msg ?? TEXT.saved);
           }}
         />

@@ -72,14 +72,14 @@ export default function AttachScreen() {
       {error ? <Banner kind="error">{error}</Banner> : null}
       <Section title={TEXT.kind}>
         {types.map((t, i) => (
-          <Row key={t.type} label={t.label} value={t.type === type ? '✓' : null} onPress={() => { setType(t.type); setChosen(null); }} last={i === types.length - 1} />
+          <Row key={t.type} label={t.label} selected={t.type === type} onPress={() => { setType(t.type); setChosen(null); }} last={i === types.length - 1} />
         ))}
       </Section>
       <Field label={TEXT.search} value={q} onChangeText={setQ} autoCorrect={false} />
       <Section title={TEXT.find}>
         {options && !options.length ? <Row label={TEXT.none} last /> : null}
         {(options ?? []).map((o, i) => (
-          <Row key={o.id} label={o.label} detail={o.ref ?? null} value={chosen?.id === o.id ? '✓' : null} onPress={() => setChosen(o)} last={i === (options?.length ?? 0) - 1} />
+          <Row key={o.id} label={o.label} detail={o.ref ?? null} selected={chosen?.id === o.id} onPress={() => setChosen(o)} last={i === (options?.length ?? 0) - 1} />
         ))}
       </Section>
       <View style={{ gap: space[2] }}>

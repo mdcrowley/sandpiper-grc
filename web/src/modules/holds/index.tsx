@@ -8,7 +8,7 @@ const view = 'legal.view';
 const mod: ModuleDef = {
   key: 'holds',
   nav: [
-    { group: 'Administration', label: 'Legal holds', path: '/admin/legal-holds', icon: 'lock', permission: view, order: 45 },
+    { group: 'Administration', label: 'Legal holds', path: '/admin/legal-holds', icon: 'lock', permission: view, order: 56 },
   ],
   routes: [
     { path: '/admin/legal-holds', element: <HoldList />, permission: view },

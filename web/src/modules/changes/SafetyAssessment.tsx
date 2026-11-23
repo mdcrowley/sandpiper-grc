@@ -75,7 +75,7 @@ export function SafetyAssessment({ row, canEdit, onChanged }: { row: Row; canEdi
                     <tr key={h.id}>
                       <td><Link className="row-title" to={`/safety/hazards/${h.id}`}><span className="ref">{h.ref}</span> {h.title}</Link></td>
                       <td>{h.rating ? <StatusChip color="gray" label={h.rating} /> : <span className="muted">Not scored</span>}</td>
-                      <td className="chg-actions-cell">{mayLink && <Button size="sm" variant="ghost" onClick={() => unlink(h.id)}>Unlink</Button>}</td>
+                      <td className="chg-actions-cell">{mayLink && <Button size="sm" variant="ghost" aria-label={`Unlink: ${h.ref} ${h.title}`} onClick={() => unlink(h.id)}>Unlink</Button>}</td>
                     </tr>
                   ))}
                 </tbody>

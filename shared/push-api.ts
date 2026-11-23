@@ -94,6 +94,8 @@ export interface PushConfigView {
 export interface PushStats {
   registrations: Record<PushProvider, number>;
   failing: Record<PushProvider, number>;
+  /** Phones whose last push failed for a while only (service unreachable, busy or 5xx) and waits to be tried again. */
+  retrying: Record<PushProvider, number>;
   lastError: Record<PushProvider, { message: string; at: string } | null>;
   lastSentAt: string | null;
 }

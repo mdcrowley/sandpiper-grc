@@ -102,7 +102,7 @@ function Hazards({ eventId }: { eventId: string }) {
                     <td><Link className="row-title" to={`/safety/hazards/${h.id}`}><span className="ref">{h.ref}</span> {h.title}</Link></td>
                     <td><RatingChip scale={scale} rating={h.rating} /></td>
                     <td><RatingChip scale={scale} rating={h.residual_rating} /></td>
-                    <td className="sf-actions">{can('safety.edit') && <Button size="sm" variant="ghost" onClick={() => setRemoving(h)}>Remove</Button>}</td>
+                    <td className="sf-actions">{can('safety.edit') && <Button size="sm" variant="ghost" aria-label={`Remove: ${h.ref} ${h.title}`} onClick={() => setRemoving(h)}>Remove</Button>}</td>
                   </tr>
                 ))}
               </tbody>

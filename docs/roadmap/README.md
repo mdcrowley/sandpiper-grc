@@ -151,8 +151,8 @@ status `done`; issues in progress, open or blocked are counted in the total only
 | [E14](epics/E14-platform-services.md) | Platform services | done | 39 / 39 |
 | [E15](epics/E15-self-service-portal.md) | Self-service portal | done | 14 / 14 |
 | [E16](epics/E16-hosting-operations-and-hardening.md) | Hosting, operations and hardening | in progress | 35 / 39 |
-| [E17](epics/E17-documentation.md) | Documentation | in progress | 13 / 14 |
-| [E18](epics/E18-quality-and-known-defects.md) | Quality and known defects | done | 59 / 59 |
+| [E17](epics/E17-documentation.md) | Documentation | done | 14 / 14 |
+| [E18](epics/E18-quality-and-known-defects.md) | Quality and known defects | done | 60 / 60 |
 | [E19](epics/E19-fleet-and-services.md) | Fleet and services | done | 14 / 14 |
 | [E20](epics/E20-safety-management.md) | Safety management | done | 15 / 15 |
 | [E21](epics/E21-mcp-server.md) | MCP server (AI assistant access) | done | 24 / 24 |
@@ -172,16 +172,16 @@ status `done`; issues in progress, open or blocked are counted in the total only
 | [E35](epics/E35-vendor-risk-lifecycle.md) | Vendor risk lifecycle | done | 7 / 7 |
 | [E36](epics/E36-integrations.md) | Integrations | done | 8 / 8 |
 | [E37](epics/E37-asset-tags.md) | Asset tags: values, printing and lookup | in progress | 9 / 10 |
-| [E38](epics/E38-mobile-apps.md) | Mobile apps for iPhone and Android | in progress | 9 / 15 |
-| | **Total** | | **725 / 738** |
+| [E38](epics/E38-mobile-apps.md) | Mobile apps for iPhone and Android | in progress | 11 / 15 |
+| | **Total** | | **729 / 739** |
 
-Of the 13 issues not done, 8 are in progress and 5 are open. 7 of them are in the epics E37 (asset
-tags) and E38 (mobile apps), specified in [the asset tags and mobile apps specification](specs/asset-tags-and-mobile-apps.md):
-the online app was built in wave 13 and offline reports, push notifications and the Maestro flows in
-wave 14; offline inspections, condition assessments and counts (E38-11, E38-12) and the apps' review
-(E38-15) remain, and checks on real phones and signed releases need a person. Of the other 6, E17-10
-waits for its first run on GitHub and the rest need a person or a real machine (E02-08, E16-15, E16-40,
-E16-41, E16-42). E23 to E30 were built in wave 10 and E31 to E36 in wave 11 (the product gaps of the
+Of the 10 issues not done, 5 are in the epics E37 (asset tags) and E38 (mobile apps), specified in
+[the asset tags and mobile apps specification](specs/asset-tags-and-mobile-apps.md): the online app
+was built in wave 13, offline reports, push notifications and the Maestro flows in wave 14, and
+offline inspections, condition assessments and counts (E38-11, E38-12) and the Android UnifiedPush
+connector in wave 15, and the apps' internal accessibility and security review (E38-15) in wave 16; checks on real phones and signed
+releases need a person. The other 5 need a person or a real machine (E02-08, E16-15, E16-40, E16-41,
+E16-42). E23 to E30 were built in wave 10 and E31 to E36 in wave 11 (the product gaps of the
 November 2026 review); E31-10, the last of them, was built in wave 12. Some of their done issues are
 "Not planned" entries (E25-13, E29-11, E32-06, E34-09): features recorded so that nobody builds them.
 
@@ -192,16 +192,14 @@ with real data, then those that close the main known gaps.
 
 | # | Issue | Why now |
 |---|---|---|
-| 1 | [E38-11](epics/E38-mobile-apps.md), [E38-12](epics/E38-mobile-apps.md) Inspections, condition assessments and counts offline | Built on the wave 14 outbox (wave 15) |
-| 2 | [E38-15](epics/E38-mobile-apps.md) Accessibility and security review of the apps | Before the beta |
-| 3 | [E16-40](epics/E16-hosting-operations-and-hardening.md) Independent security review or penetration test | Before the application holds sensitive records; an internal review does not replace it |
-| 4 | [E02-08](epics/E02-account-security.md) Passkeys and security keys | Checked with a virtual authenticator only; test hardware keys over real HTTPS before relying on them |
-| 5 | [E37-08](epics/E37-asset-tags.md), [E38-05](epics/E38-mobile-apps.md) Reading tags on real phones | The camera reading is proven on an emulator; check a printed sheet on real iPhones and Android phones |
-| 6 | [E38-13](epics/E38-mobile-apps.md), [E38-14](epics/E38-mobile-apps.md) Signed releases and push with real credentials | Needs the maintainer's Apple and Google accounts |
-| 7 | [E16-15](epics/E16-hosting-operations-and-hardening.md) A walkthrough by a screen reader user | NVDA has been run through the main journeys by a script; no screen reader user has used the application |
-| 8 | [E16-41](epics/E16-hosting-operations-and-hardening.md) Load test with the database on its own machine | Measured with the database in a limited container on the same laptop |
-| 9 | [E16-42](epics/E16-hosting-operations-and-hardening.md) Services across a restart of a real machine, and macOS | Proven across a restart of a systemd container |
-| 10 | [E17-10](epics/E17-documentation.md) Installation on a clean Windows machine | The new CI job proves it once it passes on GitHub |
+| 1 | [E38-15](epics/E38-mobile-apps.md) VoiceOver and TalkBack users on the apps; iPhone checks of the security fixes | The internal accessibility and security reviews are done (wave 16); a person with an iPhone and a screen reader user remain |
+| 2 | [E16-40](epics/E16-hosting-operations-and-hardening.md) Independent security review or penetration test | Before the application holds sensitive records; an internal review does not replace it |
+| 3 | [E02-08](epics/E02-account-security.md) Passkeys and security keys | Checked with a virtual authenticator only; test hardware keys over real HTTPS before relying on them |
+| 4 | [E37-08](epics/E37-asset-tags.md), [E38-05](epics/E38-mobile-apps.md) Reading tags on real phones | The camera reading is proven on an emulator; check a printed sheet on real iPhones and Android phones |
+| 5 | [E38-13](epics/E38-mobile-apps.md), [E38-14](epics/E38-mobile-apps.md) Signed releases and push with real credentials | Needs the maintainer's Apple and Google accounts |
+| 6 | [E16-15](epics/E16-hosting-operations-and-hardening.md) A walkthrough by a screen reader user | NVDA has been run through the main journeys by a script; no screen reader user has used the application |
+| 7 | [E16-41](epics/E16-hosting-operations-and-hardening.md) Load test with the database on its own machine | Measured with the database in a limited container on the same laptop; search and the full-text list tuned for it (wave 15) |
+| 8 | [E16-42](epics/E16-hosting-operations-and-hardening.md) Services across a restart of a real machine, and macOS | Proven across a restart of a systemd container |
 
 ## Known gaps coverage
 

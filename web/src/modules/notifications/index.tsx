@@ -15,9 +15,9 @@ const mod: ModuleDef = {
   key: 'notifications',
   nav: [
     { group: 'Home', label: 'Notifications', path: '/notifications', icon: 'message', order: 50 },
-    { group: 'Administration', label: 'Email', path: '/admin/email', icon: 'message', permission: ADMIN, order: 47 },
-    { group: 'Administration', label: 'Background jobs', path: '/admin/jobs', icon: 'refresh', permission: ADMIN, order: 49 },
-    { group: 'Administration', label: 'Reminders', path: '/admin/reminders', icon: 'clock', permission: ADMIN, order: 48 },
+    { group: 'Administration', label: 'Email', path: '/admin/email', icon: 'message', permission: ADMIN, order: 45 },
+    { group: 'Administration', label: 'Background jobs', path: '/admin/jobs', icon: 'refresh', permission: ADMIN, order: 54 },
+    { group: 'Administration', label: 'Reminders', path: '/admin/reminders', icon: 'clock', permission: ADMIN, order: 46 },
   ],
   routes: [
     { path: '/notifications', element: <NotificationsPage /> },

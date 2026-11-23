@@ -362,3 +362,6 @@
 .adm-color-preview figcaption { padding: var(--s-1) var(--s-3) var(--s-2); font-size: var(--fs-xs); }
 .adm-color-checks summary { cursor: pointer; font-weight: 600; }
 .adm-color-checks .table-wrap { margin-top: var(--s-2); overflow-x: auto; }
+/* Long values (a business impact analysis question) wrap instead of widening the table or the dialog. */
+.adm-values .chip, .adm-preview .chip { white-space: normal; border-radius: 12px; }
+.adm-values td:nth-child(2) { min-width: 16rem; }

@@ -1,6 +1,6 @@
 # E18 Quality and known defects
 
-**Status:** done (59 of 59 issues done)
+**Status:** done (60 of 60 issues done)
 
 ## Goal
 
@@ -80,6 +80,7 @@ has never been checked, so nobody relies on something untested.
 | E18-57 | A person whose second factor is a passkey showed as "Not set up" | done | P2 |
 | E18-58 | The one-time link dialog said nothing was emailed when it was | done | P3 |
 | E18-59 | Small errors in help text, compose.yaml and a command-line message | done | P3 |
+| E18-60 | Wave 14 guide check and screen reader findings | done | P2 |
 
 ---
 
@@ -1222,3 +1223,45 @@ in `docs/` opened "Page not found".
 - [x] Help links to the other documents open them on GitHub
 
 **Implemented in:** `grc.ps1`, `compose.yaml`, `server/src/cli.ts`, `web/src/modules/help/HelpPage.tsx`.
+
+### E18-60 Wave 14 guide check and screen reader findings
+
+**Status:** done · **Priority:** P2 · **Type:** bug
+
+Found by the wave 14 user guide check and screen reader run: Calendar feeds could be reached only by
+typing its address; several screens said "Administration > Lookups" (it is **Lists**) and "Files
+tab" (it is **Attachments**); **Lists** named lists by their keys ("Kb category", "Ot security
+level") and could not change a certification type's validity or a business impact analysis
+question's kind, so a new question was always answered as text; a reminder in months was labeled
+in days; Settings showed the Departments heading twice; the **Condition rating** list stayed on
+**Lists** with asset condition switched off; menu entries with the same order number interleaved
+(OT security and vulnerabilities); **Qualifications** was offered to people who cannot open it and
+sat under Cybersecurity; an inventory count first said "Counting: asset."; the organization page
+said the brand color fills the header and two banners named a switch "Outbound connections";
+row buttons were announced only as "Edit" or "Remove"; portal pages were announced by the
+application name alone; and the policy kiosk counted wrong employee numbers in process memory.
+
+**Acceptance criteria**
+
+- [x] The menu under a person's name offers **Calendar feeds** while calendar feeds are switched on (`GET /api/me/calendar-feeds/enabled`)
+- [x] No screen says "Lookups" or "Files tab" for the vendor's **Attachments** tab
+- [x] Every list the application ships has a name (`web/src/modules/admin/listLabels.ts`); a test fails for a list without one, and the panel is sorted by name
+- [x] Lists that keep a setting on each value declare it (certification type, business impact analysis and privacy questions, policy document type, funding clause, contract security term); **Lists** shows it as a column and edits it in the value's dialog, keeping the value's other stored settings
+- [x] **Time between condition assessments** is in months; a test checks each reminder setting's unit
+- [x] The Departments group has one heading; its button reads **Add department**
+- [x] A list offered only by fields an off area hides (the condition rating on assets, vehicles and sites) leaves **Lists**, `/api/meta` and `/api/lookups` (core `listOff`)
+- [x] No two menu entries of a group share an order number (`web/src/core/navOrder.test.ts`); a **People** group holds People, Positions, Qualifications and Certifications; a menu entry may need several permissions (`NavItem.permissions`), and **Qualifications** needs training and people view
+- [x] An inventory count names the record types it counts from the start
+- [x] The organization page says the brand color tints the sidebar; the Webhooks and Log forwarding banners name **Allow outbound connections**
+- [x] Repeated row buttons are named "<visible text>: <row>", for example "Edit: Ben Example" (safety event people, indicator targets, reporting rules, milestones, funding certifications and about twenty other tables)
+- [x] Every portal page sets the browser tab's title ("My requests · Help and requests · Sandpiper GRC"), kept when the branding arrives
+- [x] The kiosk counts wrong employee numbers in the database (`makeDbLimiter`, bucket `kiosk`): five within 15 minutes stop it for that person, a right number clears the count, and a restart or a second process does not reset it
+
+**Implemented in:** `web/src/core/Shell.tsx`, `web/src/core/module.ts`, `web/src/modules/admin/Lists.tsx`,
+`listLabels.ts`, `Departments.tsx`, `Organization.tsx`, `Webhooks.tsx`, `web/src/modules/portal/parts.tsx` (`usePortalTitle`)
+and its pages, `web/src/modules/tags/Counts.tsx`, the menu orders of twenty modules,
+`server/src/modules/feeds/calendar.ts`, `server/src/modules/notifications/reminder-settings.ts`,
+`server/src/modules/policies/personAcks.ts`, `server/src/core/features.ts` (`listOff`); tests
+`server/src/modules/admin/list-labels.test.ts`, `features-hidden.test.ts`, `feeds/feeds.test.ts`,
+`notifications/reminder-settings.test.ts`, `policies/person-acks.test.ts`, `web/src/core/navOrder.test.ts`,
+`web/src/modules/admin/Lists.component.test.ts`, `web/src/modules/portal/portalTitle.component.test.ts`.

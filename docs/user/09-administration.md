@@ -14,8 +14,6 @@ This page is for administrators. It explains how to add people and give them acc
 | Screen | What it is for | Described in |
 |---|---|---|
 | **Users** | Add people, give them roles, issue sign-in links | [Users](#users) |
-| **People** | The staff roster, with or without accounts | [People and qualifications](29-people-and-qualifications.md#the-roster) |
-| **Positions** | Positions and what each requires | [People and qualifications](29-people-and-qualifications.md#positions) |
 | **Roles** | Roles and their permissions | [Roles and permissions](#roles-and-permissions) |
 | **Sign-in providers** | Single sign-on and the break-glass account | [Sign-in providers](#sign-in-providers-single-sign-on) |
 | **User provisioning** | Let your identity provider create and switch off accounts | [User provisioning](35-user-provisioning-and-log-forwarding.md#user-provisioning) |
@@ -26,29 +24,29 @@ This page is for administrators. It explains how to add people and give them acc
 | **Features** | Switch parts of the application on and off | [Features](#features) |
 | **Custom fields** | Your own fields on records | [Custom fields](#custom-fields) |
 | **Lifecycles** | Allowed status changes and the fields each status needs | [Lifecycles](23-lifecycles.md) |
-| **Retention** | How long records are kept | [Retention](#retention) |
-| **API tokens** | Everyone's API tokens | [API tokens](#api-tokens) |
-| **Legal holds** | Keep records for a matter so they cannot be deleted or anonymized | [Legal holds](33-legal-holds.md) |
 | **Approval workflows** | Who approves what, step by step | [Approval workflows](22-approval-workflows.md) |
-| **AI assistant access** | Whether AI assistants may connect | [AI assistants and MCP](21-ai-assistants-and-mcp.md) |
 | **Email** | Outgoing email, templates, delivery log, text messages | [Email settings](14-attachments-and-notifications.md#email-settings) |
+| **Reminders** | How far ahead reminders go out | [Reminders](14-attachments-and-notifications.md#reminders) |
 | **Mobile app** | How long the app stays signed in and whether it must be unlocked (only while the mobile app is switched on) | [The mobile app](39-mobile-app.md#for-administrators) |
 | **Push notifications** | Your organization's credentials for push notifications to the app on iPhone and Android, and a test push (only while the mobile app is switched on) | [The mobile app](39-mobile-app.md#for-administrators) |
+| **API tokens** | Everyone's API tokens | [API tokens](#api-tokens) |
+| **AI assistant access** | Whether AI assistants may connect | [AI assistants and MCP](21-ai-assistants-and-mcp.md) |
 | **Webhooks** | Tell other systems about changes | [Webhooks](#webhooks) |
-| **Calendar and work trackers** | Calendar feeds and connections to an outside work-tracking tool | [Calendar feeds, work trackers and evidence links](36-calendar-feeds-work-trackers-and-evidence-links.md#set-up-a-connection) |
-| **Reminders** | How far ahead reminders go out | [Reminders](14-attachments-and-notifications.md#reminders) |
 | **Log forwarding** | Send the audit log to a security monitoring system | [Log forwarding](35-user-provisioning-and-log-forwarding.md#log-forwarding) |
+| **Calendar and work trackers** | Calendar feeds and connections to an outside work-tracking tool | [Calendar feeds, work trackers and evidence links](36-calendar-feeds-work-trackers-and-evidence-links.md#set-up-a-connection) |
 | **Background jobs** | Work the application does by itself | [Background jobs](14-attachments-and-notifications.md#background-jobs) |
+| **Retention** | How long records are kept | [Retention](#retention) |
+| **Legal holds** | Keep records for a matter so they cannot be deleted or anonymized | [Legal holds](33-legal-holds.md) |
 | **Audit log** | Who did what, and when | [The audit log](#the-audit-log) |
-| **Risk scales** | The likelihood and impact scales for risks | [Editing the risk scales](06-risks-actions-obligations.md#editing-the-risk-scales) |
 | **Service desk settings** | Priorities, targets, calendars, escalation, the portal and email to ticket | [Service desk settings](02-service-desk.md#service-desk-settings) |
-| **Hazard matrix** | The levels and cell ratings of the safety hazard matrix | [Change the hazard matrix](20-safety-management.md#change-the-hazard-matrix) |
+| **Risk scales** | The likelihood and impact scales for risks | [Editing the risk scales](06-risks-actions-obligations.md#editing-the-risk-scales) |
 | **Risk appetite** | How much risk the organization accepts, by category | [Risk appetite](06-risks-actions-obligations.md#risk-appetite) |
+| **Hazard matrix** | The levels and cell ratings of the safety hazard matrix | [Change the hazard matrix](20-safety-management.md#change-the-hazard-matrix) |
 | **Safety reporting rules** | Which safety events must be reported to whom, and by when | [Safety reporting rules](20-safety-management.md#safety-reporting-rules) |
 | **File settings** | Upload limits, malware scanning, storage, removed files | [File settings](14-attachments-and-notifications.md#file-settings) |
 | **Backups** | Daily backups to a second location | [Backups](14-attachments-and-notifications.md#backups) |
 
-A screen that belongs to a part switched off under **Features** is not shown.
+A screen that belongs to a part switched off under **Features** is not shown. The staff roster (**People** and **Positions**) is in the **People** group of the menu, with **Qualifications** and **Certifications**; see [People and qualifications](29-people-and-qualifications.md).
 
 The first administrator is created by the setup wizard the first time the application is opened. There is no default account.
 
@@ -464,7 +462,7 @@ Every sign-in through a provider (`signin.success`, naming the provider, and say
 
 Lists are the choices offered in drop-downs across the application: statuses, priorities, categories and so on. You can add to them and rename them without any change to the software. Open **Administration > Lists**.
 
-The left-hand panel names every list with the number of values in it and, in small print, the record types that use it. Type in **Find a list** to narrow the panel by list name or record type. Select a list to see its values in the order they are offered, with **Shown as**, **Stored value** and **State** (In use or Retired).
+The left-hand panel names every list (by its name, such as **Knowledge article category** or **OT security level**) with the number of values in it and, in small print, the record types that use it. Type in **Find a list** to narrow the panel by list name or record type. Select a list to see its values in the order they are offered, with **Shown as**, **Stored value** and **State** (In use or Retired), and a column for each setting the list keeps on its values (see [Settings of a value](#settings-of-a-value)). The list's stored key (for example `kb_category`) is shown in small print beside the **Used by** line.
 
 Above the values, a **Used by** line names each record type and field that offers the list, for example "Ticket (Status)". A list that no record field offers directly says so; it is usually used by a page of its own.
 
@@ -475,6 +473,7 @@ To say which status changes are allowed, which fields a status needs and who may
 1. Select the list, for example **Risk category**.
 2. Select **Add value**.
 3. In **Shown as**, type the text people will see. The stored value is made from it and shown underneath.
+   If the list keeps settings on its values (below), fill them in too: for example, how a new business impact analysis question is answered.
 4. Choose a **Color** by selecting one of the eight swatches: Gray, Blue, Teal, Green, Amber, Orange, Red or Purple. With the keyboard, the arrow keys move between them. The **Preview** shows how the value will look as a chip.
 5. Select **Add value**.
 
@@ -484,6 +483,21 @@ The new value is available in the relevant drop-downs at once.
 
 - Select **Edit** on a value to change the text or the color. The stored value never changes, so renaming is safe: existing records simply show the new text.
 - Select **Move up** or **Move down** in the **Order** column to change the order in which values are offered. The value moves one place and the new order is saved at once; there is nothing to drag and no separate save.
+
+### Settings of a value
+
+A few lists keep a setting on each value as well as its name and color. The settings are shown as columns of the list (a long description only in the dialog) and changed in the **Add value** and **Edit** dialogs:
+
+| List | Setting | What it does |
+|---|---|---|
+| **Certification type** | **Valid for (months)**, **Usually issued by** | The expiry date of a new certification is its issue date plus the months; the issuer is filled in when none is given. Leave the months empty for a type that does not expire. See [People and qualifications](29-people-and-qualifications.md). |
+| **Business impact analysis question** | **Answered as**: Yes or no, A number, or Text | How the question is answered in an impact analysis. See [Business continuity](30-business-continuity.md). |
+| **Privacy impact assessment question** | **Answered as**: Yes or no, or Text | How the question is answered in a privacy impact assessment. |
+| **Policy document type** | **Review every (months)** | The review cycle of documents of this type. |
+| **Funding clause** | **What the clause requires** | Shown beside the clause on a contract's funder clause checklist. |
+| **Contract security term** | **What the term requires** | Shown beside the term on a contract's security terms checklist. |
+
+Other lists keep no settings you can change here.
 
 ### Retiring a value
 
@@ -620,7 +634,7 @@ Changing these asks you to confirm your password.
 
 | Setting | Starts at | Notes |
 |---|---|---|
-| **Outbound connections** | Off | While off, nothing leaves the application: webhook deliveries are recorded as blocked and never sent. The same switch and host list also govern fetching SAML metadata and the text-message webhook. |
+| **Allow outbound connections** | Off | While off, nothing leaves the application: webhook deliveries are recorded as blocked and never sent. The same switch and host list also govern fetching SAML metadata and the text-message webhook. |
 | **Allowed hosts** | Empty | The only hosts a delivery may go to, one to a line: a host name (`receiver.example.org`), a host and port (`receiver.example.org:8443`) or every host under a domain (`*.example.org`). Up to 50. Anything else is blocked. A host name that turns out to point at a private or internal network address (such as `10.x.x.x`, `192.168.x.x` or this machine) is blocked too, unless that exact address is also listed (`10.0.0.5` or `10.0.0.5:8443`). |
 
 ### Retention (settings)
@@ -659,7 +673,7 @@ The same settings are on **Administration > File settings**. If file attachments
 
 The **Departments** group holds the list used to group people.
 
-- Select **Add**, enter a name and select **Save**.
+- Select **Add department**, enter a name and select **Save**.
 - Select **Rename** to change a name.
 - Select **Remove** to delete a department. The people in it are left without a department.
 
@@ -718,7 +732,7 @@ The part disappears for everyone, administrators and API tokens included. The on
 
 - its menu entries, **Create** entries and pages go; an old link to one of its pages says "This part of the application is switched off";
 - the fields of other records that refer to it go: with **Vendors and contracts** off, a system's and an asset's **Vendor** and **Contract** (and a system's **Vendor (as recorded)**, **Agreement on file**, its fact-sheet card and the vendors lane of the relationship map); with the portal off, a catalog item's **Show in the self-service portal**, the portal tab of the service desk settings and the portal notes and shared files on tickets. The values are kept;
-- its choices leave the drop-down lists of the parts that stay (an action's **Source** loses **Risk**, **Project**, **Safety** and so on), and its own lists leave **Administration > Lists**;
+- its choices leave the drop-down lists of the parts that stay (an action's **Source** loses **Risk**, **Project**, **Safety** and so on), and its own lists leave **Administration > Lists**, including a list offered only by fields it adds to other records (for example **Condition rating** while asset condition is off);
 - its notification kinds leave everyone's **Preferences**, and notifications about its records or pages are not shown or counted (they come back when it is switched on);
 - its AI assistant tools, background jobs and schedules, reminders, its retention category (**Contracts and suppliers** with vendors), its API routes in the **API reference**, and its permissions on a role's page and in the permissions a new API token may carry, are left out. With **Security incidents** off, the text-message alerts (the **Alerts by text message** card and the **Text messages** tab of **Email**) go too, since only incidents send them; with **Dashboards and reports** off, the **Overview**'s figures are headed **At a glance**;
 - its records are left out of search, record links, the relationship map and impact panels (for example the vehicles and services on a system's impact panel and on a security incident's **Affected** tab), the **Overview** widgets, the report catalog and dashboards, imports, exports, custom fields, retention, webhooks, the API reference and the tools offered to AI assistants;

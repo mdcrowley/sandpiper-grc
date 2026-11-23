@@ -84,17 +84,18 @@ export function FieldInput({ name, field, value, valueLabel, options = [], error
   }
 }
 
-function Radio({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+/** A choice of a list (a radio button), or with `choose` a search result to pick (a button: it has no on or off). */
+function Radio({ label, selected, onPress, choose = false }: { label: string; selected: boolean; onPress: () => void; choose?: boolean }) {
   const { colors } = useTheme();
   return (
     <Pressable
-      accessibilityRole="radio"
+      accessibilityRole={choose ? 'button' : 'radio'}
       accessibilityLabel={label}
-      accessibilityState={{ checked: selected }}
+      accessibilityState={choose ? undefined : { checked: selected }}
       onPress={onPress}
       style={[styles.radio, { borderColor: selected ? colors.brand : colors.borderControl, backgroundColor: selected ? colors.brandSoft : colors.surface }]}
     >
-      <View style={[styles.dot, { borderColor: selected ? colors.brand : colors.borderStrong }]}>
+      <View style={[styles.dot, choose && styles.hidden, { borderColor: selected ? colors.brand : colors.borderStrong }]}>
         {selected ? <View style={[styles.dotInner, { backgroundColor: colors.brand }]} /> : null}
       </View>
       <Text style={{ color: colors.text, fontSize: fontSize.md, flexShrink: 1 }}>{label}</Text>
@@ -149,7 +150,7 @@ function PickerField({ label, valueLabel, required, find, error, onChange }: {
           <TextField label={FIELD_TEXT.searchPeople(label)} hint={FIELD_TEXT.searchHint} value={q} onChangeText={setQ} autoFocus autoCorrect={false} />
           {found && found.length === 0 ? <Body muted>{FIELD_TEXT.noMatches}</Body> : null}
           {(found ?? []).map((o) => (
-            <Radio key={o.id} label={[o.ref, o.label].filter(Boolean).join(' ')} selected={false}
+            <Radio key={o.id} choose label={[o.ref, o.label].filter(Boolean).join(' ')} selected={false}
               onPress={() => { onChange(o.id, o.label); setOpen(false); setQ(''); }} />
           ))}
           <Button label={FIELD_TEXT.cancel} kind="link" onPress={() => { setOpen(false); setQ(''); }} />
@@ -168,4 +169,5 @@ const styles = StyleSheet.create({
   },
   dot: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   dotInner: { width: 10, height: 10, borderRadius: 5 },
+  hidden: { display: 'none' },
 });

@@ -6,6 +6,7 @@ import type { KeyObject } from 'node:crypto';
 import { PUSH_COLLAPSE_KEY, PUSH_ROUTE, type ApnsEnvironment } from '../../../../shared/push-api.ts';
 import { pushEndpoints } from './endpoints.ts';
 import { signJwt } from './jwt.ts';
+import { parseRetryAfter, temporaryStatus } from './retry.ts';
 import type { PushMessage, SendOutcome } from './types.ts';
 
 export interface ApnsCredentials { keyId: string; teamId: string; bundleId: string; key: KeyObject; fingerprint: string }
@@ -58,7 +59,7 @@ export function apnsClient(c: ApnsCredentials) {
   async function send(token: string, env: ApnsEnvironment, m: PushMessage): Promise<SendOutcome> {
     if (!APNS_TOKEN_RE.test(token)) return { ok: false, gone: true, message: 'Not an Apple device token.' };
     const timeoutMs = pushEndpoints().timeoutMs;
-    const answer = await new Promise<{ status: number; body: string }>((resolve, reject) => {
+    const answer = await new Promise<{ status: number; body: string; retryAfter?: unknown }>((resolve, reject) => {
       let req;
       try {
         req = sessionFor(env).request({
@@ -78,17 +79,18 @@ export function apnsClient(c: ApnsCredentials) {
       }
       let status = 0;
       let body = '';
+      let retryAfter: unknown;
       req.setEncoding('utf8');
-      req.on('response', (h) => { status = Number(h[constants.HTTP2_HEADER_STATUS] ?? 0); });
+      req.on('response', (h) => { status = Number(h[constants.HTTP2_HEADER_STATUS] ?? 0); retryAfter = h['retry-after']; });
       req.on('data', (d: string) => { if (body.length < 4000) body += d; });
-      req.on('end', () => resolve({ status, body }));
+      req.on('end', () => resolve({ status, body, retryAfter }));
       req.on('error', reject);
       req.setTimeout(timeoutMs, () => {
         req.close(constants.NGHTTP2_CANCEL);
         reject(new Error('Apple\'s push service did not answer in time.'));
       });
       req.end(apnsPayload(m));
-    }).catch((err: Error) => ({ status: 0, body: err.message }));
+    }).catch((err: Error) => ({ status: 0, body: err.message, retryAfter: undefined }));
 
     if (answer.status === 200) return { ok: true };
     let reason = '';
@@ -97,13 +99,20 @@ export function apnsClient(c: ApnsCredentials) {
     } catch {
       reason = '';
     }
-    if (answer.status === 0) return { ok: false, gone: false, message: `Apple's push service could not be reached: ${answer.body.slice(0, 200)}` };
+    // Not reached, or no answer in time: tried again later.
+    if (answer.status === 0) return { ok: false, gone: false, temporary: true, message: `Apple's push service could not be reached: ${answer.body.slice(0, 200)}` };
     if (answer.status === 410 || GONE.has(reason)) return { ok: false, gone: true, message: `Apple no longer accepts this phone's token (${reason || answer.status}).` };
     if (answer.status === 403 || SETTINGS.has(reason)) {
       forgetToken(c);
       return { ok: false, gone: false, settings: true, message: `Apple refused the push settings (${reason || answer.status}): check the key, key id, team id and bundle id.` };
     }
-    return { ok: false, gone: false, message: `Apple's push service answered ${answer.status}${reason ? ` (${reason})` : ''}.` };
+    const message = `Apple's push service answered ${answer.status}${reason ? ` (${reason})` : ''}.`;
+    // 429 TooManyRequests is about this one device token; 500 and 503 (ServiceUnavailable, Shutdown)
+    // are about the service, so the rest of the run leaves Apple alone too.
+    if (temporaryStatus(answer.status)) {
+      return { ok: false, gone: false, temporary: true, retryAfterSeconds: parseRetryAfter(answer.retryAfter), pauseService: answer.status >= 500, message };
+    }
+    return { ok: false, gone: false, message };
   }
 
   function close() {

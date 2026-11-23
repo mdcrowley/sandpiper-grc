@@ -1,7 +1,8 @@
 // Read a policy I have been asked to acknowledge, and acknowledge it.
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError, Button, errorMessage, ErrorState, formatDate, formatDateTime, Icon, Loading, useFetch, useToast } from '../../core';
+import { usePortalTitle } from './parts';
 
 interface Ack {
   id: string; policy_title: string; policy_ref: string; version: number; effective_on: string | null; due_on: string;
@@ -14,7 +15,7 @@ export function PolicyPage() {
   const toast = useToast();
   const { data: a, error, reload } = useFetch<Ack>(`/api/policies/acknowledgments/${ackId}`);
   const [busy, setBusy] = useState(false);
-  useEffect(() => { if (a) document.title = a.policy_title; }, [a]);
+  usePortalTitle(a ? a.policy_title : error ? 'Nothing to acknowledge here' : null);
 
   async function acknowledge() {
     setBusy(true);

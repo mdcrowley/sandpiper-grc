@@ -124,7 +124,7 @@ export function InspectionDetail() {
       type="inspection"
       actions={({ row }) => (row.status === 'complete' ? null
         : <Link className="btn btn-primary" to={`/inspections/${row.id}/run`}>{row.status === 'in_progress' ? 'Continue the checklist' : 'Start the checklist'}</Link>)}
-      summaryFields={['title', 'template_id', 'schedule_id', 'target_label', 'inspector_id', 'due_on', 'performed_on', 'status', 'result', 'score_pct', 'notes']}
+      summaryFields={['title', 'template_id', 'schedule_id', 'target_label', 'inspector_id', 'due_on', 'performed_on', 'status', 'result', 'score_pct', 'signed_by_name', 'signed_at', 'notes']}
       tabs={[
         { key: 'answers', label: 'Checklist', content: (rec) => <Answers {...rec} /> },
         {

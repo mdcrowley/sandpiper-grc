@@ -6,10 +6,10 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from './auth';
 import { BreakGlassBanner, ChangePasswordDialog } from './AuthPages';
 import { CommandPalette, type PaletteLink } from './CommandPalette';
-import { useMediaQuery } from './hooks';
+import { useFetch, useMediaQuery } from './hooks';
 import { Icon, type IconName } from './Icon';
 import { Logo, Wordmark } from './Logo';
-import { moduleOn, modules, NAV_GROUPS, preloadRoute, type NavGroup, type NavItem } from './module';
+import { moduleOn, modules, navAllowed, NAV_GROUPS, preloadRoute, type NavGroup, type NavItem } from './module';
 import { Menu } from './overlay';
 import { formatDate } from './format';
 import { ShortcutsDialog } from './Shortcuts';
@@ -19,7 +19,7 @@ import { cx } from './ui';
 
 const GROUP_ICON: Record<NavGroup, IconName> = {
   Home: 'home', 'Service desk': 'ticket', Inventory: 'server', Change: 'refresh', Vendors: 'building',
-  Cybersecurity: 'shield', Safety: 'alert', Governance: 'scale', Projects: 'folder', Reports: 'chart', Administration: 'settings', Help: 'help',
+  Cybersecurity: 'shield', Safety: 'alert', Governance: 'scale', People: 'users', Projects: 'folder', Reports: 'chart', Administration: 'settings', Help: 'help',
 };
 
 // The notification bell belongs to the notifications module. It is looked up rather than imported, so the
@@ -29,6 +29,8 @@ const loadBell = Object.values(bellFiles)[0];
 const NotificationBell = loadBell ? lazy(() => loadBell().then((m) => ({ default: m.NotificationBell }))) : null;
 const hasNotifications = NotificationBell !== null && modules.some((m) => m.key === 'notifications');
 const hasHelp = modules.some((m) => m.key === 'help');
+// Calendar feeds (web/src/modules/feeds) are a page of the person's own, offered in the account menu while an administrator has them on.
+const hasFeeds = modules.some((m) => m.key === 'feeds');
 
 /** Start fetching a page's code when the pointer or focus reaches its link. */
 const preload = (path: string) => ({ onMouseEnter: () => preloadRoute(path), onFocus: () => preloadRoute(path) });
@@ -182,6 +184,7 @@ function initials(name: string): string {
 
 export function Shell({ children }: { children: ReactNode }) {
   const { user, appName, pilot, mfaEnrollmentRequired, mfaGraceEndsAt, can, areaOn, logout } = useAuth();
+  const feeds = useFetch<{ enabled: boolean }>(hasFeeds && user ? '/api/me/calendar-feeds/enabled' : null);
   const navigate = useNavigate();
   const { theme, toggle } = useTheme();
   const location = useLocation();
@@ -204,7 +207,7 @@ export function Shell({ children }: { children: ReactNode }) {
 
   const nav = useMemo<NavData & { pages: PaletteLink[] }>(() => {
     // Modules of a switched-off area (Administration > Features) contribute nothing.
-    const items = modules.filter((m) => moduleOn(m.key, areaOn)).flatMap((m) => m.nav ?? []).filter((item) => can(item.permission));
+    const items = modules.filter((m) => moduleOn(m.key, areaOn)).flatMap((m) => m.nav ?? []).filter((item) => navAllowed(item, can));
     const groups = NAV_GROUPS
       .map((group) => ({ group, items: items.filter((i) => i.group === group).sort((a, b) => (a.order ?? 100) - (b.order ?? 100)) }))
       .filter((g) => g.items.length > 0);
@@ -379,6 +382,9 @@ export function Shell({ children }: { children: ReactNode }) {
                 {/* The mobile app's signed-in devices (wave 13, web/src/modules/mobile), only while that area is on. */}
                 {areaOn('mobile') && (
                   <MMenu.Item className="ui-menu-item" component={Link} to="/account/devices" leftSection={<Icon name="key" size={16} />}>Devices</MMenu.Item>
+                )}
+                {feeds.data?.enabled && (
+                  <MMenu.Item className="ui-menu-item" component={Link} to="/account/calendar-feeds" leftSection={<Icon name="calendar" size={16} />}>Calendar feeds</MMenu.Item>
                 )}
                 <MMenu.Item className="ui-menu-item" leftSection={<Icon name="lock" size={16} />} onClick={() => setChangingPassword(true)}>Change password</MMenu.Item>
                 <MMenu.Item className="ui-menu-item" component={Link} to="/help" leftSection={<Icon name="help" size={16} />}>Help</MMenu.Item>

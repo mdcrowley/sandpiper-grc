@@ -106,8 +106,17 @@ describe('roster acknowledgments', () => {
   });
 
   it('stops after too many wrong numbers', async () => {
-    for (let i = 0; i < 5; i++) await author.get(`/api/policies/kiosk/pending?person_id=${people.R3}&employee_number=X${i}`);
+    for (let i = 0; i < 4; i++) expect((await author.get(`/api/policies/kiosk/pending?person_id=${people.R3}&employee_number=X${i}`)).status).toBe(403);
+    // A right number clears the count.
+    expect((await author.get(`/api/policies/kiosk/pending?person_id=${people.R3}&employee_number=R3`)).status).toBe(200);
+    for (let i = 0; i < 5; i++) expect((await author.get(`/api/policies/kiosk/pending?person_id=${people.R3}&employee_number=X${i}`)).status).toBe(403);
     expect((await author.get(`/api/policies/kiosk/pending?person_id=${people.R3}&employee_number=R3`)).status).toBe(429);
+    // Counted in the database, so every server process (and a restart) sees the same count.
+    const kept = await t.db.one<{ c: number }>(`select count(*)::int as c from rate_limit_hits where bucket = 'kiosk' and key = $1`, [people.R3]);
+    expect(kept!.c).toBe(5);
+    // Fifteen minutes after the wrong numbers, the kiosk tries again.
+    await t.db.query(`update rate_limit_hits set at = at - interval '16 minutes' where bucket = 'kiosk' and key = $1`, [people.R3]);
+    expect((await author.get(`/api/policies/kiosk/pending?person_id=${people.R3}&employee_number=R3`)).status).toBe(200);
   });
 
   it('a new version closes the roster requests not answered and asks again', async () => {

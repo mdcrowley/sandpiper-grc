@@ -140,9 +140,9 @@ export function TargetsTab({ indicatorId, defaultDirection, onChanged }: { indic
                     <td><StatusChip color={st.color} label={st.label} /></td>
                     <td>{t.approved_by_name ? `${t.approved_by_name}${t.approved_on ? `, ${formatDate(t.approved_on)}` : ''}${t.approval_ref ? ` (${t.approval_ref})` : ''}` : <span className="muted">—</span>}</td>
                     <td className="sf-actions">
-                      {can('safety.edit') && t.status !== 'pending_approval' && <Button size="sm" variant="ghost" onClick={() => open(t)}>Edit</Button>}
-                      {can('safety.edit') && data.approval_available && !data.running && ['proposed', 'rejected'].includes(t.status) && <Button size="sm" loading={busy} onClick={() => ask(t)}>Ask for approval</Button>}
-                      {can('safety.approve') && t.status !== 'approved' && <Button size="sm" variant="ghost" onClick={() => { setErrors({}); setD(BLANK_DECISION); setDeciding(t); }}>Record a decision</Button>}
+                      {can('safety.edit') && t.status !== 'pending_approval' && <Button size="sm" variant="ghost" aria-label={`Edit: target for ${t.year}`} onClick={() => open(t)}>Edit</Button>}
+                      {can('safety.edit') && data.approval_available && !data.running && ['proposed', 'rejected'].includes(t.status) && <Button size="sm" aria-label={`Ask for approval: target for ${t.year}`} loading={busy} onClick={() => ask(t)}>Ask for approval</Button>}
+                      {can('safety.approve') && t.status !== 'approved' && <Button size="sm" variant="ghost" aria-label={`Record a decision: target for ${t.year}`} onClick={() => { setErrors({}); setD(BLANK_DECISION); setDeciding(t); }}>Record a decision</Button>}
                     </td>
                   </tr>
                 );

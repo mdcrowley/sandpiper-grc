@@ -6,8 +6,13 @@ import { UUID_RE } from '../../core/errors.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { dayInZone } from '../../core/timezone.ts';
 import { addDays } from './dates.ts';
+import {
+  CHECKLIST_ANSWERS, completionProblem, findingRatingOf, liveItems, scoreChecklist, SIGNATURE_NAME_MAX, type AnswerOf,
+} from '../../../../shared/inspection-rules.ts';
 
-export const ANSWERS = ['yes', 'no', 'na'] as const;
+export const ANSWERS = CHECKLIST_ANSWERS;
+/** Inspection statuses that end it without a result: answers and completion are refused (a missed one may still be done late). */
+export const CANCELED_STATUSES = ['canceled', 'cancelled'];
 const MAX_ITEMS = 300;
 /** Days a finding raised by an inspection gives for the response. */
 export const FINDING_RESPONSE_DAYS = 30;
@@ -21,19 +26,15 @@ export interface ChecklistItem {
 
 const text = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 
+/** The rules' view of stored answers (shared/inspection-rules.ts, which the mobile app's runner uses too). */
+export const answerOfMap = (answers: Map<string, Row>): AnswerOf => (id) => {
+  const a = answers.get(id);
+  return a ? { answer: a.answer, photos: Array.isArray(a.attachment_ids) ? a.attachment_ids.length : 0 } : undefined;
+};
+
 /** Result and score from the answers: any critical item not met fails; any other item not met gives findings. */
 export function scoreOf(items: ChecklistItem[], answers: Map<string, Row>): { result: string; score_pct: number | null; failed: ChecklistItem[] } {
-  let yes = 0;
-  let no = 0;
-  const failed: ChecklistItem[] = [];
-  for (const i of items) {
-    const a = answers.get(i.id)?.answer;
-    if (a === 'yes') yes += 1;
-    if (a === 'no') { no += 1; failed.push(i); }
-  }
-  const score_pct = yes + no ? Math.round((yes / (yes + no)) * 1000) / 10 : null;
-  const result = failed.some((i) => i.critical) ? 'fail' : failed.length ? 'pass_with_findings' : 'pass';
-  return { result, score_pct, failed };
+  return scoreChecklist(items, answerOfMap(answers));
 }
 
 export function registerChecklists(ctx: ModuleContext) {
@@ -248,6 +249,7 @@ export function registerChecklists(ctx: ModuleContext) {
   app.put('/api/inspections/:id/responses', edit, async (req) => {
     const ins = await need('inspection', req, 'Inspection');
     if (ins.status === 'complete') ctx.fail(409, 'inspection_complete', 'The inspection is complete, so its answers cannot be changed.');
+    if (CANCELED_STATUSES.includes(String(ins.status))) ctx.fail(409, 'inspection_canceled', 'The inspection was canceled, so it cannot be carried out.');
     const saved = await saveAnswers('inspection', ins, ins.template_id, (req.body ?? {}) as Row, req);
     if (ins.status !== 'in_progress' || !ins.inspector_id) {
       await ctx.resources.update('inspection', ins.id, { status: 'in_progress', ...(ins.inspector_id ? {} : { inspector_id: req.user!.id }) }, null);
@@ -257,7 +259,7 @@ export function registerChecklists(ctx: ModuleContext) {
   ctx.describeRoute({
     method: 'PUT', path: '/api/inspections/:id/responses', tag: 'Audits', permission: 'audits.edit',
     summary: 'Save answers on an inspection as they are given; the inspection becomes In progress',
-    description: 'A missed inspection can still be carried out late. 409 `inspection_complete` once completed.',
+    description: 'A missed inspection can still be carried out late. 409 `inspection_complete` once completed, 409 `inspection_canceled` when canceled.',
     body: '{ responses: [{ item_id, answer: "yes" | "no" | "na" | null, note?, attachment_ids? }] } or one { item_id, answer, note?, attachment_ids? }',
     response: '{ saved }',
   });
@@ -265,25 +267,40 @@ export function registerChecklists(ctx: ModuleContext) {
   app.post('/api/inspections/:id/complete', edit, async (req) => {
     const ins = await need('inspection', req, 'Inspection');
     if (ins.status === 'complete') ctx.fail(409, 'inspection_complete', 'The inspection is already complete.');
+    if (CANCELED_STATUSES.includes(String(ins.status))) ctx.fail(409, 'inspection_canceled', 'The inspection was canceled, so it cannot be completed.');
     const body = (req.body ?? {}) as Row;
     const items = await itemsFor(ins.template_id, { type: 'inspection', id: ins.id });
     const answers = await answersFor('inspection', ins.id);
-    const live = items.filter((i) => !i.removed || answers.get(i.id)?.answer);
-    const missing = live.filter((i) => !answers.get(i.id)?.answer);
-    if (missing.length) ctx.fail(400, 'incomplete', `Answer every item first: ${missing.length} still open.`, { items: missing.map((i) => i.prompt).slice(0, 5).join('; ') });
-    const noPhoto = live.filter((i) => i.photo_required && answers.get(i.id)?.answer !== 'na' && !(answers.get(i.id)?.attachment_ids ?? []).length);
-    if (noPhoto.length) ctx.fail(400, 'photo_required', `Add a photo to every item that needs one: ${noPhoto.map((i) => i.prompt).slice(0, 3).join('; ')}.`);
-    const { result, score_pct, failed } = scoreOf(live, answers);
+    // The rules are shared with the mobile app's runner (shared/inspection-rules.ts).
+    const answerOf = answerOfMap(answers);
+    const problem = completionProblem(items, answerOf);
+    if (problem) ctx.fail(400, problem.code, problem.message, problem.fields);
+    const live = liveItems(items, answerOf);
+    // The signature of completion (optional; the mobile app asks for it): the signer's name, and their
+    // drawn signature already attached to this inspection.
+    const signedBy = text(body.signed_by_name, SIGNATURE_NAME_MAX) || null;
+    let signatureId: string | null = null;
+    if (body.signature_attachment_id !== undefined && body.signature_attachment_id !== null && body.signature_attachment_id !== '') {
+      signatureId = String(body.signature_attachment_id);
+      attachmentsTable ??= Boolean(await db.one(`select 1 from information_schema.tables where table_name = 'attachments' limit 1`));
+      const found = UUID_RE.test(signatureId) && attachmentsTable
+        ? await db.one(`select 1 from attachments where id = $1 and record_type = 'inspection' and record_id = $2 and deleted_at is null`, [signatureId, ins.id])
+        : undefined;
+      if (!found) invalid({ signature_attachment_id: 'Attach the signature to this inspection first.' });
+      if (!signedBy) invalid({ signed_by_name: 'Give the name of the person signing.' });
+    }
+    const { result, score_pct, failed } = scoreChecklist(live, answerOf);
     const today = dayInZone();
     const updated = await ctx.resources.update('inspection', ins.id, {
       status: 'complete', result, score_pct, performed_on: today,
       ...(ins.inspector_id ? {} : { inspector_id: req.user!.id }),
       ...(typeof body.notes === 'string' && body.notes.trim() ? { notes: body.notes.trim().slice(0, 4000) } : {}),
+      ...(signedBy ? { signed_by_name: signedBy, signed_at: new Date().toISOString() } : {}),
     }, null);
     await ctx.audit(req, {
       action: 'inspection.complete', recordType: 'inspection', recordId: ins.id,
-      summary: `Inspection ${ins.ref} completed: ${result.replace(/_/g, ' ')}${score_pct === null ? '' : ` (${score_pct}%)`}`,
-      after: { result, score_pct, performed_on: today },
+      summary: `Inspection ${ins.ref} completed: ${result.replace(/_/g, ' ')}${score_pct === null ? '' : ` (${score_pct}%)`}${signedBy ? `, signed by ${signedBy}` : ''}`,
+      after: { result, score_pct, performed_on: today, ...(signedBy ? { signed_by_name: signedBy, signature_attachment_id: signatureId } : {}) },
     });
     // Each item not met becomes a finding, unless the inspector chose otherwise.
     const findings: Row[] = [];
@@ -292,7 +309,7 @@ export function registerChecklists(ctx: ModuleContext) {
         const a = answers.get(i.id)!;
         findings.push(await ctx.resources.create('audit_finding', {
           title: i.prompt.slice(0, 200), source_type: 'inspection', source_id: ins.id,
-          rating: i.critical ? 'major_nonconformity' : 'minor_nonconformity', criteria: i.prompt,
+          rating: findingRatingOf(i), criteria: i.prompt,
           condition: a.note || `Not met at inspection ${ins.ref}${ins.target_label ? ` of ${ins.target_label}` : ''}.`,
           response_due: addDays(today, FINDING_RESPONSE_DAYS), response_owner_id: ins.inspector_id ?? req.user!.id,
         }, req));
@@ -304,8 +321,8 @@ export function registerChecklists(ctx: ModuleContext) {
   ctx.describeRoute({
     method: 'POST', path: '/api/inspections/:id/complete', tag: 'Audits', permission: 'audits.edit',
     summary: 'Complete an inspection: works out the result and score, and raises a finding for each item not met',
-    description: 'Every item must be answered, and items that need a photo must have one unless not applicable. Result: Fail when a critical item is not met, Pass with findings when another item is not met, otherwise Pass. Score: items met out of items answered yes or no.',
-    body: '{ raise_findings?: boolean (default true), notes?: string }', response: '{ inspection, findings: [{ id, ref, title, rating }] }',
+    description: 'Every item must be answered, and items that need a photo must have one unless not applicable. Result: Fail when a critical item is not met, Pass with findings when another item is not met, otherwise Pass. Score: items met out of items answered yes or no. The rules are in shared/inspection-rules.ts, which the mobile app uses too. A signature of completion is optional: `signed_by_name`, with `signature_attachment_id` naming a drawing already attached to the inspection. 409 `inspection_canceled` when the inspection was canceled.',
+    body: '{ raise_findings?: boolean (default true), notes?: string, signed_by_name?: string, signature_attachment_id?: string }', response: '{ inspection, findings: [{ id, ref, title, rating }] }',
   });
 
   return { itemsFor, answersFor };

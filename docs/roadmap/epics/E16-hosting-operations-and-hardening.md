@@ -909,13 +909,38 @@ wait for a connection. Table and reading: `docs/operations.md`, "Performance and
 **Still needed:** a database on a separate machine (or a managed service) with the application
 and the load generator on others; that needs the machines, which a development laptop is not.
 
+**Wave 15 (2026-11-23), search on the small database.** The statements behind global search and
+the full-text list were read with `EXPLAIN ANALYZE` on the same stand-in at scale 1 and 4. Causes:
+every search read the whole search index, because a part-of-a-word match was written `body ILIKE`,
+which lowercases every row's text and which the planner expects to match far more rows than it
+does, so the trigram index was not used even for a rare word (150 ms at scale 4 for a word in 2,000
+records); global search kept one shared list of matches and read it again for each of some sixty
+record types; a search of several words read every record table in full; and the full-text list
+read the whole ticket table (for its exact-reference condition) and looked each matching index row
+up again to rank it. Now migration 029 keeps a lowercased copy of the text (`search_index.body_lc`,
+generated) with the trigram index on it, matched with `LIKE` (the same rows); global search groups
+the matches into one row per type, counts them first so the database joins large types to their
+tables in one pass, and finds several words through the index too; the full-text list joins the
+matching index rows (ranked once each) to the records. Results, order, totals, restriction and
+row rules are unchanged (`server/src/core/search-results.test.ts` compares them with the earlier
+statements for both kinds of person). At the 95th percentile, scale 1: full-text list 240 to 266
+ms before, 122 to 135 after; global search 588 to 727 before, 310 to 395 after (both server targets
+now met). Scale 4: full-text list 1.2 to 1.4 s before, 0.41 after; global search 2.0 s before, 0.8
+to 0.9 s after (still over the targets on two processors). Embedded database at scale 0.5: 0.35 to
+0.42 s and 0.84 to 0.86 s before, 0.18 to 0.19 s and 0.36 to 0.38 s after. Figures:
+`docs/operations.md`, "Search on the two-processor database".
+
 **Acceptance criteria**
 
+- [x] Global search and the full-text list read with `EXPLAIN ANALYZE` on the two-processor stand-in at scale 1 and 4 and tuned, results unchanged, the embedded database not slower (wave 15)
 - [ ] `tools/load/run.mjs` at scale 1 and 4 with the database on a separate machine (or a managed PostgreSQL service), the application and the load generator on others (done with the database in a container limited to 2 processors and 2 GB on the same laptop; a separate machine still to do)
 - [x] People with different roles in the Overview scenario (each set of permissions computes its own figures), and a run with `GRC_FIGURES_CACHE_SECONDS=0` (`--roles n` in `tools/load/run.mjs`)
 - [x] Results recorded in `docs/operations.md` beside the others (for the stand-in; the separate-machine figures go beside them when measured)
 
-**Implemented in:** `tools/load/run.mjs` (`--roles`), `tools/load/README.md`; `docs/operations.md`
+**Implemented in:** `tools/load/run.mjs` (`--roles`), `tools/load/README.md`; `docs/operations.md`;
+wave 15: `server/src/core/search-global.ts` (global search, moved out of `core/routes.ts`),
+`server/src/core/resource.ts` (full-text list), `server/src/core/search.ts` (`bodyLike`),
+`server/src/core/migrations/029_search_lowercase.sql`, `server/src/core/search-results.test.ts`
 
 ### E16-42 User services across a restart of the machine, and the system examples, on real machines
 
@@ -983,8 +1008,7 @@ it under "More than one process" in `docs/architecture.md`, are not part of this
 - Looked at the other counters named beside it: wrong-token attempts by address (`core/tokens.ts`)
   and failed mobile and connector token requests (`modules/mcp/oauth.ts`, used by
   `modules/mobile/signin.ts`) were already kept in the database (`makeDbLimiter`). Still per
-  process: the policy kiosk's count of wrong employee numbers (`modules/policies/personAcks.ts`)
-  and the `If-Match` lock (`core/api/conventions.ts`), which holds a record's check and write
+  process (the policy kiosk's count moved to the database in E18-60): the `If-Match` lock (`core/api/conventions.ts`), which holds a record's check and write
   together in one process and needs a database lock held across the whole request to move
 
 **Implemented in:** `server/src/core/ratelimit.ts` (`countRequest`, `pruneRequestCounts`,

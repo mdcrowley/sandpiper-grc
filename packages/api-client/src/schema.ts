@@ -172,7 +172,7 @@ export interface paths {
     };
   };
   "/api/mobile/package": {
-    /** Your offline package for the mobile app: My work, the choices the app's forms need, tag values of the records it covers, and your upcoming inspections. */
+    /** Your offline package for the mobile app: My work, the choices the app's forms need, tag values of the records it covers, your upcoming inspections with their checklists, condition assessments due and open inventory counts. */
     get: {
       path: never;
       query: never;

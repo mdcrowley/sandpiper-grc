@@ -14,14 +14,14 @@ import './training.css';
 const mod: ModuleDef = {
   key: 'training',
   nav: [
-    { group: 'Cybersecurity', label: 'Training overview', path: '/training', icon: 'graduation', permission: 'training.view', order: 80 },
-    { group: 'Cybersecurity', label: 'Courses', path: '/training/courses', icon: 'book', permission: 'training.view', order: 81 },
-    { group: 'Cybersecurity', label: 'My training', path: '/training/mine', icon: 'user', order: 82 },
-    // Qualifications of the roster (E29): the matrix needs people.view as well (checked on the page).
-    { group: 'Cybersecurity', label: 'Qualifications', path: '/training/qualifications', icon: 'check-square', permission: 'training.view', order: 83 },
-    { group: 'Cybersecurity', label: 'Certifications', path: '/training/certifications', icon: 'star', permission: 'training.view', order: 84 },
-    { group: 'Cybersecurity', label: 'Exercises', path: '/exercises', icon: 'clipboard', permission: 'exercises.view', order: 85 },
-    { group: 'Cybersecurity', label: 'Exercise calendar', path: '/exercises/calendar', icon: 'calendar', permission: 'exercises.view', order: 86 },
+    { group: 'Cybersecurity', label: 'Training overview', path: '/training', icon: 'graduation', permission: 'training.view', order: 85 },
+    { group: 'Cybersecurity', label: 'Courses', path: '/training/courses', icon: 'book', permission: 'training.view', order: 86 },
+    { group: 'Cybersecurity', label: 'My training', path: '/training/mine', icon: 'user', order: 87 },
+    // Qualifications of the roster (E29) are about people: the matrix needs people.view as well as training.view.
+    { group: 'People', label: 'Qualifications', path: '/training/qualifications', icon: 'check-square', permission: 'training.view', permissions: ['people.view'], order: 30 },
+    { group: 'People', label: 'Certifications', path: '/training/certifications', icon: 'star', permission: 'training.view', order: 40 },
+    { group: 'Cybersecurity', label: 'Exercises', path: '/exercises', icon: 'clipboard', permission: 'exercises.view', order: 88 },
+    { group: 'Cybersecurity', label: 'Exercise calendar', path: '/exercises/calendar', icon: 'calendar', permission: 'exercises.view', order: 89 },
   ],
   routes: [
     { path: '/training', element: <TrainingOverview />, permission: 'training.view' },

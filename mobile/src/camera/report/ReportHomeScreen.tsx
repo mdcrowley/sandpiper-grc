@@ -22,6 +22,8 @@ export const TEXT = {
   attention: (n: number) => `${n} ${n === 1 ? 'report needs' : 'reports need'} your attention`,
   open: 'Open offline work',
   offlineWork: 'Offline work and Needs attention',
+  fieldWork: 'Inspections, condition and counts',
+  fieldWorkHint: 'Field work that also works without signal: your inspections, condition assessments due and inventory counts.',
   sendNow: 'Send now',
   dismiss: 'Dismiss',
 };
@@ -42,6 +44,10 @@ export default function ReportHomeScreen() {
   const canProblem = session.areaOn('tickets') && session.can('tickets.create');
   const canHazard = session.areaOn('safety') && session.can('safety.create');
   const attention = reports.filter((r) => r.state === 'attention').length;
+  // Field work (wave 15, E38-11 and E38-12).
+  const canFieldWork = (session.areaOn('audits') && session.can('audits.view'))
+    || (session.areaOn('condition') && session.can('assets.create'))
+    || (session.areaOn('tags') && session.can('tags.count'));
 
   useEffect(() => { void migrateLegacyQueue().then((n) => { if (n) sendNow(); }, () => undefined); }, []);
 
@@ -67,6 +73,12 @@ export default function ReportHomeScreen() {
         </View>
       ) : null}
       {!canProblem && !canHazard ? <Banner>{TEXT.none}</Banner> : <Body muted>{TEXT.offlineHint}</Body>}
+      {canFieldWork ? (
+        <View style={{ gap: space[1] }}>
+          <Button label={TEXT.fieldWork} kind="secondary" onPress={() => router.push('/fieldwork')} />
+          <Body muted>{TEXT.fieldWorkHint}</Body>
+        </View>
+      ) : null}
 
       {reports.length ? (
         <Section title={TEXT.onPhone}>

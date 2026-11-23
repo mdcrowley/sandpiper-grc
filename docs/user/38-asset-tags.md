@@ -167,7 +167,7 @@ Open the count. While it is open, the **Tag number** box in the **Count** card t
 - **Already found**: someone (perhaps you) counted it already. Finding twice is harmless.
 - **Not found**: nothing you may see carries that number, or it is a kind of record the count does not cover.
 
-A number is matched like a lookup: its current tag, an earlier (replaced) tag, or another identifier such as a serial number. On the **Items** tab, **Mark found** counts a record whose tag cannot be read. Several people can count the same count at once, on the web and in the app (whose camera has a counting mode that adds each new tag it reads); the page refreshes every few seconds. The bar and the tiles show **Expected**, **Found**, **Still to find**, **Missing** and **Unexpected**.
+A number is matched like a lookup: its current tag, an earlier (replaced) tag, or another identifier such as a serial number. On the **Items** tab, **Mark found** counts a record whose tag cannot be read. Several people can count the same count at once, on the web and in the app (whose camera has a counting mode that adds each new tag it reads, and which counts with no signal too: finds are kept on the phone and sent once when there is a connection; see [The mobile app](39-mobile-app.md#field-work-inspections-condition-and-counts)); the page refreshes every few seconds. The bar and the tiles show **Expected**, **Found**, **Still to find**, **Missing** and **Unexpected**.
 
 Every record found gets its **last verified** date and place (the count's site), shown in its Tags panel.
 

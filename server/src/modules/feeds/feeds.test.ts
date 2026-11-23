@@ -40,6 +40,8 @@ describe('calendar feeds', () => {
   it('are off until an administrator switches them on, with a password confirmation', async () => {
     const mine = await agent.get('/api/me/calendar-feeds');
     expect(mine.body.enabled).toBe(false);
+    // The menu under the person's name reads this to offer the page only while feeds are on.
+    expect((await agent.get('/api/me/calendar-feeds/enabled')).body).toEqual({ enabled: false });
     expect(mine.body.sources.map((s: any) => s.key)).toContain('actions.due');
     expect((await agent.post('/api/me/calendar-feeds', { name: 'Work', sources: ['actions.due'] })).body.error.code).toBe('feeds_off');
     expect((await agent.put('/api/admin/feeds/settings', { calendarEnabled: true })).status).toBe(403);
@@ -47,6 +49,7 @@ describe('calendar feeds', () => {
     expect((await t.api.put('/api/admin/feeds/settings', { calendarEnabled: true })).body.error.code).toBe('reauth_required');
     expect((await t.api.post('/api/auth/confirm', { password: ADMIN.password })).status).toBe(200);
     expect((await t.api.put('/api/admin/feeds/settings', { calendarEnabled: true })).body.calendarEnabled).toBe(true);
+    expect((await agent.get('/api/me/calendar-feeds/enabled')).body).toEqual({ enabled: true });
   });
 
   it('offers only the sources the person may use, and refuses others', async () => {

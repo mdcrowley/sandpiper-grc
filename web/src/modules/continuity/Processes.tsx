@@ -88,7 +88,7 @@ function Dependencies({ process }: { process: Row }) {
                       ? <Checkbox label={`${d.label ?? 'Dependency'} is critical`} checked={d.critical} disabled={busy} onChange={() => void toggle(d)} className="bc-inline-check" />
                       : d.critical ? 'Yes' : 'No'}</td>
                     <td>{d.notes ?? <span className="muted">None</span>}</td>
-                    {canEdit && <td className="bc-actions"><Button size="sm" variant="ghost" onClick={() => setRemoving(d)}>Remove</Button></td>}
+                    {canEdit && <td className="bc-actions"><Button size="sm" variant="ghost" aria-label={`Remove: ${d.label ?? 'dependency'}`} onClick={() => setRemoving(d)}>Remove</Button></td>}
                   </tr>
                 ))}
               </tbody>

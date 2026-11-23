@@ -2,18 +2,32 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   api, ApiError, Button, Card, COLOR_NAMES, EmptyState, ErrorState, errorMessage, humanize, Icon, IconButton, Loading, Modal,
-  PageHeader, Select, StatusChip, TableWrap, Tabs, TagChips, TextField, toColorName, useFetch, useMeta, useToast,
+  NumberField, PageHeader, Select, StatusChip, TableWrap, Tabs, TagChips, TextField, toColorName, useFetch, useMeta, useToast,
 } from '../../core';
 import type { ColorName, ResourceMeta } from '../../core';
+import { LIST_LABELS, LIST_SETTINGS, type ListSetting } from './listLabels';
 
 interface ListSummary { list_key: string; count: number }
-interface LookupRow { id: string; list_key: string; value: string; label: string; color: ColorName; sort: number; active: boolean }
+interface LookupRow { id: string; list_key: string; value: string; label: string; color: ColorName; sort: number; active: boolean; meta?: Record<string, unknown> | null }
 interface Usage { type: string; typeLabel: string; fieldLabel: string; custom?: boolean }
 
-/** A list made for a custom field is named after that field; the others after their key. */
+/**
+ * A list made for a custom field is named after that field; the application's own lists have a name
+ * in LIST_LABELS; a list an installation added itself is named after its key.
+ */
 const listTitle = (list: string, usage: Usage[] | undefined) => {
   const own = list.startsWith('cf_') ? usage?.find((u) => u.custom) : undefined;
-  return own ? `${own.fieldLabel} (custom field)` : humanize(list);
+  return own ? `${own.fieldLabel} (custom field)` : LIST_LABELS[list] ?? humanize(list);
+};
+
+/** A per-value setting as shown in the table ("24", "Yes or no"), or a dash. */
+const settingText = (s: ListSetting, meta: Record<string, unknown> | null | undefined) => {
+  const raw = meta?.[s.key];
+  if (s.kind === 'choice') {
+    const v = raw === undefined || raw === null || raw === '' ? s.fallback : String(raw);
+    return s.options?.find((o) => o.value === v)?.label ?? v ?? '—';
+  }
+  return raw === undefined || raw === null || raw === '' ? '—' : String(raw);
 };
 
 const slug = (label: string) => label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
@@ -77,9 +91,11 @@ function ListsTab() {
   const usage = useMemo(() => usageByList(resources), [resources]);
   const [params, setParams] = useSearchParams();
   const [find, setFind] = useState('');
-  const selected = params.get('list') ?? lists.data?.[0]?.list_key ?? '';
+  // By name, as people read them (the server answers in key order).
+  const sorted = useMemo(() => [...(lists.data ?? [])].sort((x, y) => listTitle(x.list_key, usage[x.list_key]).localeCompare(listTitle(y.list_key, usage[y.list_key]))), [lists.data, usage]);
+  const selected = params.get('list') ?? sorted[0]?.list_key ?? '';
   const needle = find.trim().toLowerCase();
-  const shown = (lists.data ?? []).filter((l) =>
+  const shown = sorted.filter((l) =>
     !needle || l.list_key.includes(needle) || listTitle(l.list_key, usage[l.list_key]).toLowerCase().includes(needle)
     || (usage[l.list_key] ?? []).some((u) => u.typeLabel.toLowerCase().includes(needle)));
 
@@ -250,6 +266,9 @@ function ListValues({ list, usage, onChanged }: { list: string; usage: Usage[]; 
   const [announce, setAnnounce] = useState('');
   useEffect(() => { setMoved(null); }, [data]);
   const rows = moved ?? data;
+  const settings = LIST_SETTINGS[list] ?? [];
+  const columns = settings.filter((s) => s.column !== false);
+  const title = listTitle(list, usage);
 
   const changed = () => { reload(); onChanged(); void meta.reload(); };
   const attempt = async (work: () => Promise<unknown>, done: string) => {
@@ -283,7 +302,7 @@ function ListValues({ list, usage, onChanged }: { list: string; usage: Usage[]; 
 
   return (
     <Card
-      title={listTitle(list, usage)} flush
+      title={title} flush
       actions={<Button size="sm" variant="primary" icon="plus" onClick={() => setEditing('new')}>Add value</Button>}
     >
       <div className="card-body adm-usage">
@@ -304,9 +323,15 @@ function ListValues({ list, usage, onChanged }: { list: string; usage: Usage[]; 
         : !rows ? <div className="card-body"><Loading lines={5} label="Loading values" /></div>
         : rows.length === 0 ? <EmptyState icon="clipboard" title="This list has no values" message="Add the first value." action={<Button variant="primary" icon="plus" onClick={() => setEditing('new')}>Add value</Button>} />
         : (
-          <TableWrap label={listTitle(list, usage)} className="adm-table-frame" aria-busy={busy}>
+          <TableWrap label={title} className="adm-table-frame" aria-busy={busy}>
             <table className="table adm-values">
-              <thead><tr><th scope="col">Order</th><th scope="col">Shown as</th><th scope="col">Stored value</th><th scope="col">State</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
+              <thead>
+                <tr>
+                  <th scope="col">Order</th><th scope="col">Shown as</th><th scope="col">Stored value</th>
+                  {columns.map((s) => <th key={s.key} scope="col">{s.label}</th>)}
+                  <th scope="col">State</th><th scope="col"><span className="sr-only">Actions</span></th>
+                </tr>
+              </thead>
               <tbody>
                 {rows.map((r, i) => (
                   <tr key={r.id} className={r.active ? undefined : 'adm-retired'}>
@@ -319,6 +344,7 @@ function ListValues({ list, usage, onChanged }: { list: string; usage: Usage[]; 
                     </td>
                     <td><StatusChip color={toColorName(r.color)} label={r.label} /></td>
                     <td><code>{r.value}</code></td>
+                    {columns.map((s) => <td key={s.key} className={s.kind === 'number' ? 'num' : undefined}>{settingText(s, r.meta)}</td>)}
                     <td>{r.active ? 'In use' : <span className="muted">Retired</span>}</td>
                     <td className="adm-row-actions">
                       <Button size="sm" variant="ghost" icon="edit" aria-label={`Edit ${r.label}`} onClick={() => setEditing(r)}>Edit</Button>
@@ -337,7 +363,7 @@ function ListValues({ list, usage, onChanged }: { list: string; usage: Usage[]; 
         Values are offered in this order. They are retired, never deleted, so existing records keep their meaning; a retired value can no longer be chosen.
       </p>
       <ValueDialog
-        list={list} row={editing === 'new' ? null : editing} open={editing !== null}
+        list={list} title={title} settings={settings} row={editing === 'new' ? null : editing} open={editing !== null}
         nextSort={((rows?.reduce((m, r) => Math.max(m, r.sort), 0) ?? 0)) + 10}
         onClose={() => setEditing(null)} onSaved={() => { setEditing(null); changed(); }}
       />
@@ -345,33 +371,71 @@ function ListValues({ list, usage, onChanged }: { list: string; usage: Usage[]; 
   );
 }
 
-function ValueDialog({ list, row, open, nextSort, onClose, onSaved }: {
-  list: string; row: LookupRow | null; open: boolean; nextSort: number; onClose: () => void; onSaved: () => void;
+/** The dialog's text for each setting, from a value's meta (a choice falls back to its default). */
+const settingDraft = (settings: ListSetting[], meta: Record<string, unknown> | null | undefined) =>
+  Object.fromEntries(settings.map((s) => {
+    const raw = meta?.[s.key];
+    const text = raw === undefined || raw === null ? '' : String(raw);
+    return [s.key, s.kind === 'choice' && !text ? s.fallback ?? '' : text];
+  }));
+
+function ValueDialog({ list, title, settings, row, open, nextSort, onClose, onSaved }: {
+  list: string; title: string; settings: ListSetting[]; row: LookupRow | null; open: boolean; nextSort: number; onClose: () => void; onSaved: () => void;
 }) {
   const toast = useToast();
   const [label, setLabel] = useState('');
   const [color, setColor] = useState<ColorName>('gray');
+  const [extra, setExtra] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
+  const initial = useMemo(() => settingDraft(settings, row?.meta), [settings, row]);
   useEffect(() => {
     if (!open) return;
     setLabel(row?.label ?? '');
     setColor(toColorName(row?.color));
+    setExtra(initial);
     setErrors({});
     setFormError('');
-  }, [open, row]);
+  }, [open, row, initial]);
   const value = row?.value ?? slug(label);
+  const setOne = (key: string, v: string) => { setExtra((d) => ({ ...d, [key]: v })); setErrors((e) => ({ ...e, [`meta.${key}`]: '' })); };
+
+  /** The value's meta with the declared settings applied; other keys the application keeps there are left alone. */
+  const metaOf = (): { meta: Record<string, unknown>; problems: Record<string, string> } => {
+    const meta: Record<string, unknown> = { ...(row?.meta ?? {}) };
+    const problems: Record<string, string> = {};
+    for (const s of settings) {
+      const text = (extra[s.key] ?? '').trim();
+      if (!text) {
+        if (s.required) problems[`meta.${s.key}`] = `Choose ${s.label.toLowerCase()}.`;
+        delete meta[s.key];
+        continue;
+      }
+      if (s.kind === 'number') {
+        const n = Number(text);
+        if (!Number.isInteger(n) || (s.min !== undefined && n < s.min) || (s.max !== undefined && n > s.max)) {
+          problems[`meta.${s.key}`] = `Give a whole number from ${s.min ?? 0} to ${s.max ?? 9999}.`;
+          continue;
+        }
+        meta[s.key] = n;
+      } else meta[s.key] = text;
+    }
+    return { meta, problems };
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!label.trim()) { setErrors({ label: 'Enter the text people will see.' }); return; }
-    if (!row && !value) { setErrors({ label: 'Use at least one letter or number.' }); return; }
+    const { meta, problems } = metaOf();
+    if (!label.trim()) problems.label = 'Enter the text people will see.';
+    else if (!row && !value) problems.label = 'Use at least one letter or number.';
+    if (Object.keys(problems).length) { setErrors(problems); return; }
     setBusy(true);
     setFormError('');
+    const withMeta = settings.length ? { meta } : {};
     try {
-      if (row) await api.patch(`/api/lookups/${row.id}`, { label: label.trim(), color });
-      else await api.post('/api/lookups', { list_key: list, value, label: label.trim(), color, sort: nextSort });
+      if (row) await api.patch(`/api/lookups/${row.id}`, { label: label.trim(), color, ...withMeta });
+      else await api.post('/api/lookups', { list_key: list, value, label: label.trim(), color, sort: nextSort, ...withMeta });
       toast.success(row ? 'Value saved.' : 'Value added.');
       onSaved();
     } catch (err) {
@@ -383,14 +447,31 @@ function ValueDialog({ list, row, open, nextSort, onClose, onSaved }: {
     }
   };
 
+  const dirty = open && (label !== (row?.label ?? '') || color !== toColorName(row?.color) || settings.some((s) => (extra[s.key] ?? '') !== (initial[s.key] ?? '')));
   return (
-    <Modal open={open} title={row ? `Edit “${row.label}”` : `Add a value to ${humanize(list)}`} size="sm" onClose={onClose} dirty={open && (label !== (row?.label ?? '') || color !== toColorName(row?.color))}>
+    <Modal open={open} title={row ? `Edit “${row.label}”` : `Add a value to ${title}`} size="sm" onClose={onClose} dirty={dirty}>
       <form className="form" onSubmit={submit} noValidate>
         {formError && <p className="form-error" role="alert">{formError}</p>}
         <TextField
           label="Shown as" required autoFocus maxLength={80} value={label} onChange={setLabel} error={errors.label || undefined}
           hint={value ? `Stored as “${value}”. The stored value never changes, so renaming is safe.` : 'The text people will see.'}
         />
+        {settings.map((s) => {
+          const error = errors[`meta.${s.key}`] || undefined;
+          if (s.kind === 'choice') {
+            return <Select key={s.key} label={s.label} required={s.required} hint={s.hint} error={error} value={extra[s.key] ?? ''} onChange={(v) => setOne(s.key, v ?? '')} options={s.options ?? []} />;
+          }
+          if (s.kind === 'number') {
+            const raw = extra[s.key] ?? '';
+            return (
+              <NumberField
+                key={s.key} label={s.label} hint={s.hint} error={error} min={s.min} max={s.max} step={1}
+                value={raw === '' || Number.isNaN(Number(raw)) ? null : Number(raw)} onChange={(v) => setOne(s.key, v === null ? '' : String(v))}
+              />
+            );
+          }
+          return <TextField key={s.key} label={s.label} hint={s.hint} error={error} maxLength={500} value={extra[s.key] ?? ''} onChange={(v) => setOne(s.key, v)} />;
+        })}
         <ColorPicker value={color} onChange={setColor} />
         {errors.color && <p className="field-error" role="alert">{errors.color}</p>}
         <p className="adm-preview"><span className="muted">Preview</span> <StatusChip color={color} label={label.trim() || 'New value'} /></p>

@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError, Icon, qs, useDebounced, type IconName } from '../../core';
+import { appTitle } from '../../core/branding';
 
 export interface Choice { value: string; label: string }
 export interface PortalConfig {
@@ -31,6 +32,21 @@ export interface Article { id: string; ref: string; title: string; excerpt: stri
 
 const ConfigContext = createContext<PortalConfig | null>(null);
 export const ConfigProvider = ConfigContext.Provider;
+
+/**
+ * The browser tab's title for a portal page: the page, the portal's name and the application name
+ * ("My requests · Help and requests · Sandpiper GRC"), so a screen reader names the page on a fresh
+ * load as it does in the main application (wave 15). The application name stays last, so a change of
+ * branding (core/branding.ts) replaces it in place.
+ */
+export function usePortalTitle(title: string | null | undefined): void {
+  const portal = useContext(ConfigContext)?.title;
+  useEffect(() => {
+    if (!title) return undefined;
+    document.title = [title, portal && portal !== title ? portal : null, appTitle()].filter(Boolean).join(' · ');
+    return () => { document.title = appTitle(); };
+  }, [title, portal]);
+}
 /**
  * After a form is refused: once the messages are on the page, the focus goes to the first field that
  * needs something (a screen reader then reads it with its message), or else to the form's message.

@@ -31,5 +31,16 @@ defineOutboxKind({ kind: 'record.create', send: 'batch', noun: 'Report' });
 /** A photo attached to a record, or to the record an earlier item makes (`payload.parent`). */
 defineOutboxKind({ kind: 'attachment', send: 'upload', noun: 'Photo' });
 
+// Field work (wave 15, E38-11 and E38-12; server: modules/mobile/fieldwork.ts). Photos and the drawn
+// signature of an inspection are `attachment` items saved before it, to the inspection itself.
+/** Answers saved on an inspection without completing it. */
+defineOutboxKind({ kind: 'inspection.answers', send: 'batch', noun: 'Inspection answers' });
+/** An inspection completed on the phone: its answers, then completion with the signature. */
+defineOutboxKind({ kind: 'inspection.complete', send: 'batch', noun: 'Inspection' });
+/** A condition assessment of an asset, vehicle or site (its photos wait for it). */
+defineOutboxKind({ kind: 'condition.assess', send: 'batch', noun: 'Condition assessment' });
+/** One tag counted during an inventory count. */
+defineOutboxKind({ kind: 'count.found', send: 'batch', noun: 'Counted' });
+
 /** Whether an item is sent alone with a file. */
 export const isUpload = (item: Pick<OutboxItem, 'kind'>) => outboxKind(item.kind)?.send === 'upload';

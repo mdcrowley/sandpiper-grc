@@ -602,15 +602,19 @@ export function makeFeatureGate(app: FastifyInstance, db: Queryable) {
     routeOff,
     /**
      * Whether a configurable list belongs to a switched-off area (E14-34): its owning permission
-     * module is off, or record types use it and every one of them is off.
+     * module is off, it is named in an off area's `lists`, or every field that offers it is on an off
+     * record type or is a field an off area hides.
      */
     listOff(list: string, owner: string | null | undefined): boolean {
       const s = known();
       if (!s.off.length) return false;
       if (owner && s.offPermissions.has(owner)) return true;
       if (s.off.some((a) => a.lists?.includes(list))) return true;
-      const users = baseAll().filter((d) => Object.values(original.get(d) ?? d.fields).some((f) => f.type === 'lookup' && f.list === list));
-      return users.length > 0 && users.every((d) => typeOff(s, d));
+      // Every field that offers it is on a switched-off type, or is a field an off area hides
+      // (asset condition's rating on assets, vehicles and sites).
+      const uses = baseAll().flatMap((d) => Object.entries(original.get(d) ?? d.fields)
+        .filter(([, f]) => f.type === 'lookup' && f.list === list).map(([name]) => ({ d, name })));
+      return uses.length > 0 && uses.every(({ d, name }) => typeOff(s, d) || Boolean(s.offFields.get(d.type)?.has(name)));
     },
     /** The module folder that registered a route url, if a module did. */
     moduleOf: (url: string) => routeModules.get(url),

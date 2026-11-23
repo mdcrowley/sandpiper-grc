@@ -391,7 +391,7 @@ export function AssessmentTab({ vendorId, onChanged }: { vendorId: string; onCha
                     <td>{r.gaps}</td>
                     <td>Version {r.version} ({r.total})</td>
                     <td>{r.completed_by_name ?? <span className="muted">—</span>}</td>
-                    <td className="num"><Button size="sm" variant="ghost" onClick={() => setViewing(r)}>View</Button></td>
+                    <td className="num"><Button size="sm" variant="ghost" aria-label={`View: assessment of ${formatDate(r.assessed_on)}`} onClick={() => setViewing(r)}>View</Button></td>
                   </tr>
                 ))}
               </tbody>

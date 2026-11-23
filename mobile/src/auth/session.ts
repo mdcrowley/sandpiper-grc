@@ -111,13 +111,19 @@ export async function start(): Promise<void> {
   if (started) return;
   started = true;
   AppState.addEventListener('change', onAppState);
-  // Offline work (E38-10) registers its wipe and unsent count here, before anything can sign out.
-  void import('../offline').then((m) => m.bootOffline(), () => undefined);
+  // Offline work (E38-10) registers its wipe and unsent count here, before anything can sign out (and
+  // before the leftovers check below).
+  await import('../offline').then((m) => m.bootOffline(), () => undefined);
+  // A new installation on iPhone starts signed out: the Keychain outlives the app (install.ts).
+  await import('./install').then((m) => m.forgetEarlierInstallation(), () => false).catch(() => false);
   const [server, hello, stored, profile, prefs] = await Promise.all([
     storage.server(), storage.hello(), storage.tokens(), storage.profile(), storage.prefs(),
   ]);
   tokens = stored;
   if (!server || !hello || !stored || !profile) {
+    // Signed out, so nothing of an earlier session may be left: a sign-out the app was closed in the
+    // middle of, or one whose clean-up failed, is finished now (offline database, photos, drafts, cache).
+    await runWipeHooks();
     set({ status: 'signed-out', server, prefs });
     return;
   }
@@ -186,6 +192,8 @@ export async function signIn(): Promise<SignInResult> {
   if (!hello) return { ok: false, reason: 'failed', message: 'not_connected' };
   const { result, tokens: t } = await browserSignIn(hello, false);
   if (!result.ok || !t) return result;
+  // A new session never inherits anything kept on the phone (another person's outbox, package or drafts).
+  await runWipeHooks();
   await keepTokens(t);
   try {
     await refreshProfile(true);
@@ -328,16 +336,21 @@ export async function setUnlockPreference(on: boolean): Promise<void> {
 
 // ---------- sign out ----------
 
-async function wipeLocal(reason: SignedOutReason): Promise<void> {
-  tokens = null;
-  await storage.wipe();
+/** Runs every registered wipe (offline work, caches). A hook that fails must not keep the person signed in. */
+async function runWipeHooks(): Promise<void> {
   for (const hook of wipeHooks) {
     try {
       await hook();
     } catch {
-      // A hook that fails must not keep the person signed in.
+      // Finished at the next start (start() wipes whatever a signed-out app still holds).
     }
   }
+}
+
+async function wipeLocal(reason: SignedOutReason): Promise<void> {
+  tokens = null;
+  await storage.wipe();
+  await runWipeHooks();
   set({ ...INITIAL, status: 'signed-out', server: state.server, signedOutReason: reason });
 }
 

@@ -45,7 +45,7 @@ describe('My work', () => {
     expect(screen.getByText(TEXT.notifications(3))).toBeTruthy();
     // 7 tickets but 2 shown: the rest is on the web.
     expect(screen.getByText(TEXT.showAllWeb(7))).toBeTruthy();
-    await waitFor(() => expect(tabOptions).toHaveBeenCalledWith({ tabBarBadge: 10 }));
+    await waitFor(() => expect(tabOptions).toHaveBeenCalledWith({ tabBarBadge: 10, tabBarAccessibilityLabel: `${TEXT.title}, ${TEXT.waiting(10)}` }));
     expect(totalWaiting(home(SECTIONS))).toBe(10);
   });
 
@@ -61,7 +61,7 @@ describe('My work', () => {
     await render(<WorkScreen />);
     expect(await screen.findByText(TEXT.allClear)).toBeTruthy();
     expect(screen.getByText(TEXT.nothing)).toBeTruthy();
-    await waitFor(() => expect(tabOptions).toHaveBeenCalledWith({ tabBarBadge: undefined }));
+    await waitFor(() => expect(tabOptions).toHaveBeenCalledWith({ tabBarBadge: undefined, tabBarAccessibilityLabel: TEXT.title }));
   });
 
   it('opens records in the app, approvals and acknowledgments on their screens, and the rest on the web', async () => {

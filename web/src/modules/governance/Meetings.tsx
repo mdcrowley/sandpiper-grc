@@ -159,8 +159,8 @@ function Agenda({ meeting }: { meeting: Row }) {
                   <div className="gv-actions">
                     <IconButton icon="arrow-up" label={`Move "${a.title}" up`} size="sm" variant="ghost" disabled={i === 0 || busy} onClick={() => move(i, -1)} />
                     <IconButton icon="arrow-down" label={`Move "${a.title}" down`} size="sm" variant="ghost" disabled={i === data.length - 1 || busy} onClick={() => move(i, 1)} />
-                    <Button size="sm" variant="ghost" onClick={() => setEditing(a)}>Change</Button>
-                    <Button size="sm" variant="ghost" onClick={() => setRemoving(a)}>Remove</Button>
+                    <Button size="sm" variant="ghost" aria-label={`Change: ${a.title}`} onClick={() => setEditing(a)}>Change</Button>
+                    <Button size="sm" variant="ghost" aria-label={`Remove: ${a.title}`} onClick={() => setRemoving(a)}>Remove</Button>
                   </div>
                 )}
               </li>

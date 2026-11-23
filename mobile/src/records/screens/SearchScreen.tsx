@@ -2,9 +2,10 @@
 // what they may not), with the records opened recently while the box is empty. Owner: APP-WORK.
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSession } from '../../api/client';
-import { space, useTheme } from '../../theme';
+import { fontSize, space, useTheme } from '../../theme';
+import { useAnnounce } from '../../ui/a11y';
 import { errorText, search } from '../api';
 import { useMeta } from '../hooks';
 import { recordHref, searchTarget } from '../navigate';
@@ -77,6 +78,8 @@ export default function SearchScreen() {
   };
 
   const term = q.trim();
+  const resultsText = term.length >= 2 && hits ? (hits.length ? TEXT.results(hits.length) : TEXT.noResults(term)) : null;
+  useAnnounce(resultsText, { iosOnly: true });
   return (
     <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <TextField
@@ -97,8 +100,9 @@ export default function SearchScreen() {
       {busy && !hits ? <Loading label={TEXT.searching} /> : null}
 
       {term.length >= 2 && hits ? (
-        <View accessibilityLiveRegion="polite">
-          <Body muted>{hits.length ? TEXT.results(hits.length) : TEXT.noResults(term)}</Body>
+        <View>
+          {/* Only the number of results is said when it changes, never the whole list. */}
+          <Text accessibilityLiveRegion="polite" style={{ color: colors.textMuted, fontSize: fontSize.md }}>{resultsText}</Text>
           {hits.map((hit) => (
             <ListRow
               key={`${hit.type}:${hit.id}`}

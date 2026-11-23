@@ -1,9 +1,9 @@
 // Every request I raised (or that was raised for me), open ones first.
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ErrorState, Icon, Loading, qs, useDebounced, useFetch } from '../../core';
 import { RequestList, type RequestRow } from './Home';
-import { usePortal } from './parts';
+import { usePortal, usePortalTitle } from './parts';
 
 const TABS = [
   { key: 'open', label: 'Open' },
@@ -13,11 +13,11 @@ const TABS = [
 
 export function MyRequests() {
   const { can_create } = usePortal();
+  usePortalTitle('My requests');
   const [state, setState] = useState('open');
   const [q, setQ] = useState('');
   const words = useDebounced(q.trim(), 250);
   const { data, error, reload } = useFetch<{ rows: RequestRow[]; open: number; total: number }>(`/api/portal/requests${qs({ state, q: words })}`, { keepPrevious: true });
-  useEffect(() => { document.title = 'My requests'; }, []);
   return (
     <div className="pt-page">
       <nav className="pt-back"><Link to="/portal"><Icon name="chevron-left" size={18} /> Home</Link></nav>

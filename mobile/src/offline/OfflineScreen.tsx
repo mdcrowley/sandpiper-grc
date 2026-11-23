@@ -19,7 +19,8 @@ export const TEXT = {
   downloaded: 'Downloaded',
   keptUntil: 'Deleted from this phone',
   holds: 'Holds',
-  holdsText: (sites: number, inspections: number) => `${sites} site${sites === 1 ? '' : 's'}, ${inspections} inspection${inspections === 1 ? '' : 's'}, your work list`,
+  holdsText: (sites: number, inspections: number, counts: number) =>
+    `${sites} site${sites === 1 ? '' : 's'}, ${inspections} inspection${inspections === 1 ? '' : 's'}, ${counts} open inventory count${counts === 1 ? '' : 's'}, your work list`,
   download: 'Download now',
   downloadFailed: 'The offline package could not be downloaded. Check the connection and try again.',
   attention: 'Needs attention',
@@ -53,7 +54,8 @@ export default function OfflineScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const titleOf = (i: OutboxItem) => {
-    const first = items.find((x) => x.group === i.group && x.kind === 'record.create');
+    // A photo belongs to the report, inspection or assessment of its group.
+    const first = items.find((x) => x.group === i.group && x.kind !== 'attachment');
     const noun = outboxKind(i.kind)?.noun ?? i.kind;
     return first && first !== i ? `${i.label} of ${first.label}` : `${noun}: ${i.label}`;
   };
@@ -72,6 +74,7 @@ export default function OfflineScreen() {
   const again = async (i: OutboxItem) => { await outbox().retry(i.id, { asNew: needsNewId(i) }); sendNow(); };
 
   const inspections = Array.isArray(pkg?.parts.inspections) ? (pkg!.parts.inspections as unknown[]).length : 0;
+  const counts = Array.isArray(pkg?.parts.counts) ? (pkg!.parts.counts as unknown[]).length : 0;
 
   return (
     <Screen>
@@ -84,9 +87,9 @@ export default function OfflineScreen() {
           {rejected.map((i) => (
             <View key={i.id}>
               <Row label={titleOf(i)} detail={reasonOf(i)} />
-              <View style={{ flexDirection: 'row', gap: space[2], padding: space[2] }}>
-                <View style={{ flex: 1 }}><Button label={needsNewId(i) ? TEXT.sendAsNew : TEXT.sendAgain} onPress={() => void again(i)} /></View>
-                <View style={{ flex: 1 }}><Button label={TEXT.discard} kind="secondary" onPress={() => discard(i)} /></View>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[2], padding: space[2] }}>
+                <View style={{ flexGrow: 1 }}><Button label={needsNewId(i) ? TEXT.sendAsNew : TEXT.sendAgain} accessibilityLabel={`${needsNewId(i) ? TEXT.sendAsNew : TEXT.sendAgain}: ${titleOf(i)}`} onPress={() => void again(i)} /></View>
+                <View style={{ flexGrow: 1 }}><Button label={TEXT.discard} accessibilityLabel={`${TEXT.discard}: ${titleOf(i)}`} kind="secondary" onPress={() => discard(i)} /></View>
               </View>
             </View>
           ))}
@@ -109,7 +112,7 @@ export default function OfflineScreen() {
           <>
             <Row label={TEXT.downloaded} value={when(pkg.generatedAt)} />
             <Row label={TEXT.keptUntil} value={when(pkg.expiresAt)} />
-            <Row label={TEXT.holds} detail={TEXT.holdsText(pkg.sites.length, inspections)} last />
+            <Row label={TEXT.holds} detail={TEXT.holdsText(pkg.sites.length, inspections, counts)} last />
           </>
         ) : <Row label={TEXT.noPackage} last />}
       </Section>

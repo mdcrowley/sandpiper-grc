@@ -2,10 +2,14 @@
 // folder of files (photos), both in the app's private documents folder. That folder is the app's own
 // protected storage: on Android the app's internal storage under file-based encryption (and
 // `allowBackup: false`, so it is never copied into a backup), on iPhone the app's sandbox under Data
-// Protection. Nothing is written to shared storage. Signing out (or being signed out) deletes both.
+// Protection. Nothing is written to shared storage, and neither folder goes into a backup (Android's
+// manifest rules; on iPhone both are marked excluded, backup.ts). Signing out (or being signed out)
+// deletes both, and the app's cache folder (pictures the camera and the image tools left there, and
+// downloaded images of records).
 import * as SQLite from 'expo-sqlite';
 import { Directory, File, Paths } from 'expo-file-system';
 import type { MobilePackage } from '../../../shared/mobile-api.ts';
+import { excludeFromBackup } from './backup';
 import type { OutboxItem, OutboxStore, PackageStore } from './types';
 
 export const DB_NAME = 'offline.db';
@@ -23,12 +27,27 @@ let opening: Promise<SQLite.SQLiteDatabase> | null = null;
 function db(): Promise<SQLite.SQLiteDatabase> {
   opening ??= SQLite.openDatabaseAsync(DB_NAME).then(async (d) => {
     await d.execAsync(SCHEMA);
+    keepOutOfBackups();
     return d;
   }).catch((e) => { opening = null; throw e; });
   return opening;
 }
 
 const filesDir = () => new Directory(Paths.document, 'offline');
+/** expo-sqlite's folder (its default database directory). */
+const databaseDir = () => new Directory(Paths.document, 'SQLite');
+
+/** Marks the database's folder and the files folder excluded from backups (iPhone; Android's rules are in the manifest). */
+export function keepOutOfBackups(): void {
+  try {
+    const files = filesDir();
+    if (!files.exists) files.create({ intermediates: true, idempotent: true });
+    excludeFromBackup(databaseDir().uri);
+    excludeFromBackup(files.uri);
+  } catch {
+    // The folders are made again, and marked, the next time the database is opened.
+  }
+}
 
 interface Row {
   id: string; seq: number; kind: string; grp: string; label: string; payload: string; file: string | null; depends_on: string | null;
@@ -105,4 +124,78 @@ export async function wipeOfflineStorage(): Promise<void> {
   try { await SQLite.deleteDatabaseAsync(DB_NAME); } catch { /* never created */ }
   const dir = filesDir();
   if (dir.exists) dir.delete();
+  clearCache();
 }
+
+/**
+ * Empties the app's cache folder: copies the camera and the image tools made of photos, and images of
+ * records downloaded for display. Everything there may be deleted at any time (the system does too).
+ */
+export function clearCache(): void {
+  let entries: (Directory | File)[] = [];
+  try { entries = Paths.cache.list(); } catch { return; }
+  for (const e of entries) {
+    try { e.delete(); } catch { /* in use or already gone: the system clears it later */ }
+  }
+}
+
+// ---------- drafts of field work (wave 15, E38-11 and E38-12) ----------
+// Work in progress that is not ready to send yet (an inspection half answered, the inventory counts
+// joined on this phone): rows of the same `kv` table under `draft:` keys, and photos in
+// `offline/drafts/<folder>`. Deleted with everything else on sign-out.
+
+export interface DraftStore {
+  get<T>(key: string): Promise<T | null>;
+  set(key: string, value: unknown): Promise<void>;
+  remove(key: string): Promise<void>;
+  /** Keys starting with `prefix`. */
+  keys(prefix: string): Promise<string[]>;
+  /** Copies a file (a photo just taken) into the draft's protected folder; answers the copy's uri. */
+  keepFile(folder: string, uri: string, name: string): Promise<string>;
+  dropFile(uri: string): Promise<void>;
+  /** Removes a draft's folder of files. */
+  dropFolder(folder: string): Promise<void>;
+  /** Writes bytes (a drawn signature) as a file in the draft's folder; answers its uri. */
+  writeFile(folder: string, name: string, bytes: Uint8Array): Promise<string>;
+}
+
+const draftDir = (folder: string) => new Directory(filesDir(), 'drafts', folder.replace(/[^A-Za-z0-9_-]/g, '_'));
+const ensureDir = (dir: Directory) => { if (!dir.exists) dir.create({ intermediates: true, idempotent: true }); return dir; };
+
+export const sqliteDrafts: DraftStore = {
+  async get<T>(key: string) {
+    const row = await (await db()).getFirstAsync<{ value: string }>('select value from kv where key = ?', [`draft:${key}`]);
+    return parse<T>(row?.value ?? null);
+  },
+  async set(key, value) {
+    await (await db()).runAsync('insert or replace into kv (key, value) values (?, ?)', [`draft:${key}`, JSON.stringify(value)]);
+  },
+  async remove(key) {
+    await (await db()).runAsync('delete from kv where key = ?', [`draft:${key}`]);
+  },
+  async keys(prefix) {
+    const rows = await (await db()).getAllAsync<{ key: string }>('select key from kv where key like ?', [`draft:${prefix.replace(/[%_]/g, '')}%`]);
+    return rows.map((r) => r.key.slice('draft:'.length));
+  },
+  async keepFile(folder, uri, name) {
+    const target = new File(ensureDir(draftDir(folder)), name);
+    if (target.exists) target.delete();
+    await new File(uri).copy(target);
+    return target.uri;
+  },
+  async dropFile(uri) {
+    const f = new File(uri);
+    if (f.exists) f.delete();
+  },
+  async dropFolder(folder) {
+    const dir = draftDir(folder);
+    if (dir.exists) dir.delete();
+  },
+  async writeFile(folder, name, bytes) {
+    const target = new File(ensureDir(draftDir(folder)), name);
+    if (target.exists) target.delete();
+    target.create();
+    await target.write(bytes);
+    return target.uri;
+  },
+};

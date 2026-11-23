@@ -275,7 +275,7 @@ anonymization. The phone's location is never recorded.
 | Reading codes | The platform's on-device code reading through the camera library: QR, Data Matrix, PDF417, Aztec, Code 128, Code 39, Code 93, EAN-8, EAN-13, UPC-A, UPC-E, ITF and Codabar | Bought tags carry any of these; the platform readers are fast and exact |
 | Where | `mobile/` in this repository, its own `package.json`; the shared API client in `packages/api-client` generated from `GET /api/openapi.json` | Server and app change together and are tested together |
 | Builds | Local builds with Xcode and Android Studio after `expo prebuild`, and in GitHub Actions (Android on Linux, iPhone on macOS runners); no paid build service | No paid services |
-| Minimum versions | iOS 16 and Android 10 (API 29) | Covers the phones in use while keeping current security features |
+| Minimum versions | iOS 16.4 and Android 10 (API 29) (Expo SDK 58 needs iOS 16.4) | Covers the phones in use while keeping current security features |
 | Tests | Jest and React Native Testing Library; Maestro (Apache 2.0) flows on emulators in CI | Open source, scriptable |
 
 ### 5.2 Connecting to a server and signing in

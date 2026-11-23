@@ -104,7 +104,7 @@ export function registerPlans(ctx: ModuleContext): void {
   const invalid = (fields: Record<string, string>): never => ctx.fail(400, 'validation', 'Check the highlighted fields.', fields);
   const engine = () => approvalEngine(app);
 
-  // The element list is the operator's to change (Administration > Lookups); these are its first values.
+  // The element list is the operator's to change (Administration > Lists); these are its first values.
   app.addHook('onReady', async () => {
     await ctx.lookups.ensure('plan_element', DEFAULT_PLAN_ELEMENTS, { module: 'policies' });
     await scheduleWork(ctx, 'policies.plan_reviews', () => runPlanReviewReminders(ctx), { every: HOUR, firstRunInMs: 120_000 });

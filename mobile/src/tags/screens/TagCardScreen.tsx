@@ -12,6 +12,7 @@ import { attachmentLimits, fitPhoto, photoName, uploadPhoto } from '../../camera
 import { discardPicture } from '../../camera/still';
 import { addNote, countFound, openOnWeb, photoSource } from '../calls';
 import * as handoff from '../handoff';
+import { OFFLINE_MATCH } from '../offline';
 import type { TagAction, TagCard } from '../../../../shared/asset-tags-api.ts';
 
 export const TEXT = {
@@ -30,7 +31,7 @@ export const TEXT = {
 };
 
 /** Actions the app does itself; the rest open on the web. */
-const IN_APP = new Set(['open', 'edit', 'quick_update', 'add_photo', 'add_note', 'report_problem', 'report_hazard', 'count', 'replace_tag', 'attach']);
+const IN_APP = new Set(['open', 'edit', 'quick_update', 'add_photo', 'add_note', 'report_problem', 'report_hazard', 'count', 'replace_tag', 'attach', 'record_condition']);
 
 export default function TagCardScreen() {
   const { answer: answerId } = useLocalSearchParams<{ answer?: string }>();
@@ -103,6 +104,10 @@ export default function TagCardScreen() {
       case 'add_note':
         setNote((n) => n ?? '');
         return;
+      case 'record_condition':
+        // A condition assessment on the phone (wave 15, E38-11): saved in the outbox, so it works offline too.
+        router.push(`/fieldwork/condition?${new URLSearchParams({ type: card.recordType, id: card.recordId, label: `${card.typeLabel} ${card.title}`.trim() }).toString()}`);
+        return;
       case 'add_photo':
         void run(TEXT.working, async () => {
           const res = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 1, exif: false });
@@ -129,7 +134,7 @@ export default function TagCardScreen() {
         <Body muted>{card.typeLabel}{card.ref ? ` · ${card.ref}` : ''}</Body>
         <Title>{card.title}</Title>
       </View>
-      {answer.result?.outcome === 'replaced' || answer.result?.outcome === 'identifier' ? <Banner>{answer.message}</Banner> : null}
+      {answer.result?.outcome === 'replaced' || answer.result?.outcome === 'identifier' || answer.result?.matchedBy === OFFLINE_MATCH ? <Banner>{answer.message}</Banner> : null}
       {card.holds.length ? <Banner kind="warning">{`${TEXT.held} (${card.holds.map((h) => h.ref).join(', ')})`}</Banner> : null}
       {message ? <Banner kind={message.kind === 'error' ? 'error' : 'info'}>{message.text}</Banner> : null}
       {photo ? <Image source={photo} accessibilityLabel={card.photo?.description ?? card.title} style={{ width: '100%', aspectRatio: 4 / 3, borderRadius: 8 }} resizeMode="cover" /> : null}

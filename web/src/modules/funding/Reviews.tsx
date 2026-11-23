@@ -248,8 +248,8 @@ function Requests({ row, canEdit }: { row: Row; canEdit: boolean }) {
                       <td>{formatDate(r.due_on)}</td>
                       <td><LookupChip list="review_request_status" value={r.status} /></td>
                       <td className="fd-actions">
-                        {mayAnswer && <Button size="sm" variant="ghost" onClick={() => setEditing(r)}>{canEdit ? 'Edit' : 'Answer'}</Button>}
-                        {canEdit && open && <Button size="sm" variant="ghost" onClick={() => setRemoving(r)}>Remove</Button>}
+                        {mayAnswer && <Button size="sm" variant="ghost" aria-label={`${canEdit ? 'Edit' : 'Answer'}: ${r.request}`} onClick={() => setEditing(r)}>{canEdit ? 'Edit' : 'Answer'}</Button>}
+                        {canEdit && open && <Button size="sm" variant="ghost" aria-label={`Remove: ${r.request}`} onClick={() => setRemoving(r)}>Remove</Button>}
                       </td>
                     </tr>
                   );

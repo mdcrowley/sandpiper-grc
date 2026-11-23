@@ -1,11 +1,11 @@
 // One of my requests: where it is in plain words, what I asked, the conversation with IT
 // (public messages only), files, and - once it is done - rating it or reopening it.
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   api, ApiError, Button, errorMessage, ErrorState, formatDate, formatDateTime, Icon, Loading, relativeTime, TextArea, useFetch, useToast,
 } from '../../core';
-import { FilePicker, formatSize, sendFile, StatusPill, usePortal, type PlainStatus } from './parts';
+import { FilePicker, formatSize, sendFile, StatusPill, usePortal, usePortalTitle, type PlainStatus } from './parts';
 
 interface Detail {
   id: string; ref: string; title: string; description: string | null; status: PlainStatus;
@@ -149,7 +149,7 @@ function Reply({ d, onDone }: { d: Detail; onDone: () => void }) {
 export function RequestDetail() {
   const { id } = useParams();
   const { data: d, error, reload } = useFetch<Detail>(`/api/portal/requests/${id}`);
-  useEffect(() => { if (d) document.title = `${d.ref} ${d.title}`; }, [d]);
+  usePortalTitle(d ? `${d.ref} ${d.title}` : error ? 'Request not found' : null);
   if (error) {
     if (error instanceof ApiError && error.status === 404) {
       return (

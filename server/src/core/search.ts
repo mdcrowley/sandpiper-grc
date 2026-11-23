@@ -72,6 +72,13 @@ export function vectorSql(def: ResourceDef, customKeys: string[], row: string): 
   return parts.join(' || ');
 }
 
+/**
+ * The substring match on the index row `si`: `body ILIKE like`, written as LIKE on the lowercased
+ * copy of the text kept beside it (`body_lc`, migration 029), which matches the same rows without
+ * lowercasing every row on every query, and through the trigram index (E16-41).
+ */
+export const bodyLike = (like: string, si = 'si') => `${si}.body_lc like lower(${like}::text)`;
+
 /** Separates fields in `search_index.body`, so a substring match never spans two of them. */
 export const BODY_SEPARATOR = '';
 

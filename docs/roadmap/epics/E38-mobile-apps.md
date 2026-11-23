@@ -1,6 +1,6 @@
 # E38 Mobile apps for iPhone and Android
 
-**Status:** in progress (9 of 15 issues done)
+**Status:** in progress (11 of 15 issues done)
 
 ## Goal
 
@@ -38,8 +38,8 @@ section numbers below refer to it.
 | E38-08 | Approvals and acknowledgments | done | P2 |
 | E38-09 | Notifications list and app settings | done | P2 |
 | E38-10 | Offline packages, outbox and idempotent sync | done | P1 |
-| E38-11 | Inspections and condition assessments offline | open | P1 |
-| E38-12 | Inventory counts and reports offline | open | P2 |
+| E38-11 | Inspections and condition assessments offline | done | P1 |
+| E38-12 | Inventory counts and reports offline | done | P2 |
 | E38-13 | Guide, build instructions and beta distribution | in progress | P1 |
 | E38-14 | Push notifications | in progress | P3 |
 | E38-15 | Accessibility and security review of the apps | open | P1 |
@@ -221,28 +221,32 @@ An inspector wants to work all day without signal and have everything arrive onc
 
 ### E38-11 Inspections and condition assessments offline
 
-**Status:** open · **Priority:** P1 · **Type:** feature
+**Status:** done (wave 15: built and tested; proven on the Android emulator against a scratch server: an inspection answered, signed with a finger and completed in airplane mode arrived once when the network came back, complete, Pass, signed, with the drawing attached. Left: a real phone in a real dead spot, an iPhone, the live camera for photos on a real phone, and the independent review) · **Priority:** P1 · **Type:** feature
 
 An inspector wants to run checklists and record condition on site with no signal.
 
 **Acceptance criteria**
 
-- [ ] Inspection runner in the app: pass, fail or not applicable per item, notes, photos, findings, signature of completion; the same rules as the web runner (E24-06)
-- [ ] Condition assessments for vehicles, assets and sites (E32-02)
-- [ ] Completed offline and synced; a cancelled inspection or a removed permission goes to "Needs attention"
-- [ ] Maestro flow: complete an inspection offline, sync, see it on the web
+- [x] Inspection runner in the app: pass, fail or not applicable per item, notes, photos, findings, signature of completion; the same rules as the web runner (E24-06) — one item at a time (Pass, Fail, Not applicable, a note, photos taken or chosen), answers kept on the phone as a draft; the completion rules are one shared file (`shared/inspection-rules.ts`) used by the server's complete route and by the app's preview; findings raised per failed item unless switched off; the signature is the signer's typed name (stored on the inspection as **Signed by** and **Signed**, audits migration 002) and an optional finger drawing made into a PNG on the phone and attached to the inspection
+- [x] Condition assessments for vehicles, assets and sites (E32-02) — rating on the organization's scale, method, notes and photos, dated the day it was made in the organization's time zone; from Field work's "due" list or a tag card's **Record condition**
+- [x] Completed offline and synced; a cancelled inspection or a removed permission goes to "Needs attention" — kinds `inspection.answers`, `inspection.complete`, `condition.assess` through the web's own routes as the person; a new inspection status **Canceled** refuses answers and completion (409 `inspection_canceled`); a removed permission is refused with 403; a photo that did not arrive is named (`photo_missing`)
+- [x] Maestro flow: complete an inspection offline, sync, see it on the web — `mobile/test/maestro/inspection-offline.yaml` (with `run-fieldwork.sh`, which then checks on the server that the inspection is complete once, signed, with the drawn signature attached); passed on the Android emulator (the web shows it complete with the signature attached); not yet in CI
+
+**Implemented in:** server `server/src/modules/mobile/fieldwork.ts` (sync kinds and the `inspections` and `condition` package parts), `sync.ts` (`env.attachmentOf`), `package.ts` (the condition lists, the time zone); `server/src/modules/audits/checklists.ts` (shared rules, the canceled refusal, the signature), `index.ts` (status `canceled`), `resources.ts` (`signed_by_name`, `signed_at`), `metrics.ts` (canceled ones left out of "on time"), `migrations/002_inspection_signature.sql`; `shared/inspection-rules.ts`, `shared/mobile-api.ts`; app `mobile/src/inspections/` (`RunScreen.tsx`, `draft.ts`, `signature.ts`, `SignaturePad.tsx`, `ConditionScreen.tsx`, `FieldWorkScreen.tsx`, `common.ts`), `mobile/src/offline/` (kinds, drafts), routes `mobile/app/fieldwork/`, the Report tab's entry and the tag card's **Record condition**. Tests: `server/src/modules/mobile/fieldwork.test.ts`, `server/src/modules/audits/audits.test.ts`, `shared/inspection-rules.test.ts`, `mobile/src/inspections/tests/`.
 
 ### E38-12 Inventory counts and reports offline
 
-**Status:** open · **Priority:** P2 · **Type:** feature
+**Status:** done (wave 15: built and tested; proven on the Android emulator against a scratch server: an open count joined, three tags counted in airplane mode (found and unexpected shown at once), arriving when the network came back and merged on the server. Left: the live camera sweeping a real shelf on a real phone, an iPhone, and the independent review) · **Priority:** P2 · **Type:** feature
 
 An asset manager wants to count a depot with no signal.
 
 **Acceptance criteria**
 
-- [ ] Join an open count; camera in counting mode offline against the package (every tag read in view is added); found and unexpected shown as they happen
-- [ ] Problem and hazard reports offline through the outbox
-- [ ] Synced finds merge with other counters' finds; tests
+- [x] Join an open count; camera in counting mode offline against the package (every tag read in view is added); found and unexpected shown as they happen — the `counts` package part carries the open counts the person may count with their records; counting mode keeps the camera open and counts every reading that may act alone (text needing a check waits for **Count it**; numbers can be typed), each classified at once from the package (found, found before, unexpected, not covered, to be checked) and then replaced by the server's answer; the finds made on the phone are kept as a draft. Tags are also looked up offline from the package on the Tag tab (spec §5.5 step 7): a short card with the offline actions, otherwise "not available offline"
+- [x] Problem and hazard reports offline through the outbox (wave 14, E38-06 and E38-10)
+- [x] Synced finds merge with other counters' finds; tests — kind `count.found` through `POST /api/inventory-counts/:id/found` (one atomic insert-or-update per find); `fieldwork.test.ts` sends finds from two phones (found, already found, unexpected, not found), the same batch again (answered from memory) and a late find after finishing (Needs attention, `not_open`); Maestro flow `count-offline.yaml` (typed numbers; the camera path is covered by the Jest tests), passed on the Android emulator, not yet in CI
+
+**Implemented in:** server `server/src/modules/mobile/fieldwork.ts` (kind `count.found`, the `counts` part); app `mobile/src/counts/` (`CountScreen.tsx`, `match.ts`), `mobile/src/tags/offline.ts` and `screens/TagScreen.tsx` (lookups from the package without a connection), `tags/formats.ts` (formats from the package); route `mobile/app/fieldwork/count/[id].tsx`. Tests: `server/src/modules/mobile/fieldwork.test.ts`, `mobile/src/counts/tests/counts.test.tsx`, `mobile/src/tags/tests/TagScreen.test.tsx`.
 
 ### E38-13 Guide, build instructions and beta distribution
 
@@ -253,14 +257,14 @@ everyone wants to know how to use it.
 
 **Acceptance criteria**
 
-- [ ] User guide page "The mobile app": installing the beta, connecting, signing in, reading tags, each screen, offline work, lost phones — done except offline work (written with E38-10 to E38-12)
+- [x] User guide page "The mobile app": installing the beta, connecting, signing in, reading tags, each screen, offline work, lost phones — offline work written with E38-10 to E38-12 (Field work, offline tag lookups)
 - [x] `docs/mobile.md`: building and signing for both platforms, own name and icon, TestFlight uploads (builds expire after 90 days), the Android signing key kept outside the repository, device-management distribution, push credentials (once E38-14) — push credentials follow with E38-14
 - [ ] CI produces a signed Android APK attached to each release and an iPhone build uploaded to TestFlight by the maintainer; the beta's privacy notes say the publisher collects no data
 - [x] The app's version range in `GET /api/mobile/hello` and `GET /api/version`; release checklist (in `docs/mobile.md`, linked from `docs/operations.md`)
 
 ### E38-14 Push notifications
 
-**Status:** in progress (wave 14: server, administration page and app registration built and tested against fake push services; not yet proven with real Apple or Google credentials on a real phone, and the app's UnifiedPush connector is not built) · **Priority:** P3 · **Type:** feature
+**Status:** in progress (wave 14: server, administration page and app registration built and tested against fake push services; wave 15: the Android app's UnifiedPush connector built (Kotlin unit tests, Jest, linked in a release build) and temporary delivery failures retried with back-off; not yet proven with real Apple or Google credentials or a UnifiedPush distributor on a real phone) · **Priority:** P3 · **Type:** feature
 
 A person wants to be told on the phone when something needs them.
 
@@ -271,19 +275,22 @@ A person wants to be told on the phone when something needs them.
 - [x] Tests with fake push services; delivery claimed so overlapping runs send once — fake APNs (HTTP/2), Google token and FCM endpoints and a UnifiedPush server in the test process (`server/src/modules/push/push.test.ts`); a per-person cursor claimed with a conditional upsert
 - [x] Registrations tied to the signed-in phone (`mobile_devices`) and removed at once when it is signed out or revoked (a trigger, and a sweep at every delivery); tokens refused by the service are removed; the Mobile app area off means no push routes, jobs or deliveries
 - [x] App: a switch under Account registers the phone's native token (`getDevicePushTokenAsync`) after sign-in and on every token change; tapping a push opens Notifications; signing out forgets the token on the phone. Firebase is optional at build time (the organization's `google-services.json`); without it Android falls back to UnifiedPush
-- [ ] UnifiedPush connector in the Android app (a native module `SandpiperUnifiedPush` around the UnifiedPush connector library; needs a new Gradle dependency, not added)
+- [x] UnifiedPush connector in the Android app — wave 15: local Expo module `SandpiperUnifiedPush` (`mobile/modules/sandpiper-unifiedpush/`, Kotlin) around `org.unifiedpush.android:connector` 3.3.5 (Apache-2.0, pinned; brings only the Kotlin standard library and Tink, no Google Play services, Firebase or analytics). It registers with the distributor app the person set as default (or the only one, or the one chosen on the phone's own screen; Account > Push app changes it), hands the endpoint and the RFC 8291 keys (p256dh, auth) to the app, shows decrypted "N new notifications" messages itself (same channel and tag as the other services), opens Notifications on a tap, and registers again when the distributor gives a new address or ends the registration; switching push off or signing out unregisters it. Kotlin unit tests (`PushContentTest`), Jest (`mobile/src/push/unifiedpush.test.ts`), and a release build with the module linked and no Google data-transport or analytics component in the merged manifest
+- [x] Temporary delivery failures retried — wave 15: 5xx, no answer in time, a refused connection and 429 (honoring Retry-After, as seconds or a date) are tried again after 30 s, 2 min, 10 min, 30 min and 1 h, then given up with the reason recorded; a wait over six hours is not waited for; a service that answers busy or unavailable for everyone is left alone for the rest of the run. Each retry is claimed with a conditional update (`push_registrations.retry_at`, migration `002_push_retry.sql`) so it is sent once, carries the count at that moment and is dropped when everything has been read. Permanent rejections are never retried (gone tokens removed, credentials and bad requests recorded). Administration > Push notifications shows pushes waiting to be tried again. Tests with the fake services (`server/src/modules/push/retry.test.ts`)
 - [ ] Proven end to end with real Apple and Google credentials on a real iPhone and Android phone (and a UnifiedPush distributor); the root layout calls `startPush()`
 
-**Implemented in:** `server/src/modules/push/` (`apns.ts`, `fcm.ts`, `webpush.ts`, `jwt.ts`, `config.ts`, `deliver.ts`, `routes.ts`, `endpoints.ts`, `migrations/001_push.sql`, `push.test.ts`), the hook in `server/src/modules/notifications/service.ts` (`app.pushNotify`), `shared/push-api.ts`, `web/src/modules/push/` (Administration > Push notifications), `mobile/src/push/` (`index.ts`, `registration.ts`, tests), `mobile/app/(tabs)/account/index.tsx`, `mobile/plugins/withPushNotifications.js`, `mobile/app.json` (expo-notifications in production mode); registry lines in `server/src/core/features.ts` (module `push` and jobs `push.` belong to the Mobile app area), `server/src/core/secretkey-reseal.ts` (four sealed kinds) and `web/src/core/module.ts` (`push: 'mobile'`).
+**Implemented in:** `server/src/modules/push/` (`apns.ts`, `fcm.ts`, `webpush.ts`, `jwt.ts`, `config.ts`, `deliver.ts`, `retry.ts`, `routes.ts`, `endpoints.ts`, `migrations/001_push.sql`, `migrations/002_push_retry.sql`, `push.test.ts`, `retry.test.ts`), `mobile/modules/sandpiper-unifiedpush/` (the UnifiedPush connector: `SandpiperUnifiedPushModule.kt`, `SandpiperPushService.kt`, `UnifiedPushState.kt`, `Notifier.kt`, `PushContent.kt`, `PushContentTest.kt`), the hook in `server/src/modules/notifications/service.ts` (`app.pushNotify`), `shared/push-api.ts`, `web/src/modules/push/` (Administration > Push notifications), `mobile/src/push/` (`index.ts`, `registration.ts`, tests), `mobile/app/(tabs)/account/index.tsx`, `mobile/plugins/withPushNotifications.js`, `mobile/app.json` (expo-notifications in production mode); registry lines in `server/src/core/features.ts` (module `push` and jobs `push.` belong to the Mobile app area), `server/src/core/secretkey-reseal.ts` (four sealed kinds) and `web/src/core/module.ts` (`push: 'mobile'`).
 
 ### E38-15 Accessibility and security review of the apps
 
-**Status:** open · **Priority:** P1 · **Type:** debt
+**Status:** in progress (wave 16: accessibility review done on the Android emulator, with fixes and tests; VoiceOver and a real TalkBack walkthrough still need a person. Internal security review done and fixes made: iPhone backup exclusion, wipe of leftover data at start and before a new sign-in, iPhone reinstall starts signed out, explicit Android network and backup rules checked in the merged release manifest, cache wiped, photo upload limits; threat model in docs/security.md. Still needed: the iPhone build and a real iPhone to confirm the backup exclusion and reinstall behavior, iPhone ML Kit measurement, and the independent review E16-40) · **Priority:** P1 · **Type:** debt
 
 Everyone wants the apps to be usable with assistive technology and safe to put on work phones.
 
 **Acceptance criteria**
 
-- [ ] VoiceOver and TalkBack walkthrough of every screen; Dynamic Type and font scaling to 200%; no gesture-only action
-- [ ] Security checks of §5.7 tested (no outside data, no user certificate authorities on Android, local data wiped on revocation, offline expiry)
-- [ ] The apps and their endpoints included in the independent review (E16-40); threat model in `docs/security.md`
+- [ ] VoiceOver and TalkBack walkthrough of every screen; Dynamic Type and font scaling to 200%; no gesture-only action. *Done in wave 16 on the Android emulator: every screen at font scale 2.0 in light and dark, accessibility tree read with `uiautomator dump`, Maestro `large-text.yaml`, Jest checks of names, states, announcements, focus, 48-point targets and theme contrast (`mobile/src/ui/tests/a11y.test.tsx`); no gesture-only action remains (typed tag number, typed signature, Refresh, Try again, Load more). Still needed: VoiceOver on an iPhone and a TalkBack user's walkthrough (see `docs/accessibility.md#mobile-app`).*
+- [x] Security checks of §5.7 tested (no outside data, no user certificate authorities on Android, local data wiped on revocation, offline expiry)
+- [ ] The apps and their endpoints included in the independent review (E16-40); threat model in `docs/security.md` (done, wave 16)
+
+**Implemented in:** accessibility (wave 16): `mobile/src/ui/a11y.ts` (`useAnnounce`, `useFocusOn`), `SwitchRow` in `mobile/src/ui/index.tsx`, `mobile/test/maestro/large-text.yaml`, `docs/accessibility.md` "Mobile app". Security (wave 16): `mobile/plugins/withPlatformSecurity.js`, `mobile/modules/sandpiper-storage/`, `mobile/src/offline/backup.ts`, `mobile/src/auth/install.ts`, the wipe in `mobile/src/auth/session.ts` and `mobile/src/offline/sqlite.ts`, photo limits in `server/src/modules/mobile/sync.ts`; tests `server/src/modules/mobile/security.test.ts`, `mobile/src/offline/security.test.ts`, `mobile/src/auth/wipe.test.ts`; threat model in `docs/security.md`.

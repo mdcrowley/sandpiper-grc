@@ -64,7 +64,7 @@ function Dependencies({ serviceId, code }: { serviceId: string; code: string }) 
                     <td>{d.dependency_label ?? '—'}</td>
                     <td>{d.criticality_label ? <StatusChip color={d.criticality_color as ColorName} label={d.criticality_label} /> : '—'}</td>
                     <td>{d.notes ?? '—'}</td>
-                    <td className="fl-actions">{canEdit && <Button size="sm" variant="ghost" onClick={() => setRemoving(d)}>Remove</Button>}</td>
+                    <td className="fl-actions">{canEdit && <Button size="sm" variant="ghost" aria-label={`Remove: ${d.name}`} onClick={() => setRemoving(d)}>Remove</Button>}</td>
                   </tr>
                 ))}
               </tbody>

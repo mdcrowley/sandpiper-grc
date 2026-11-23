@@ -12,7 +12,7 @@ import {
   api, ApiError, Button, DateField, errorMessage, ErrorState, Icon, Loading, qs, TextArea, TextField, useDebounced, useFetch, useToast,
 } from '../../core';
 import { itemIcon } from './Home';
-import { FilePicker, sendFile, Suggestions, useFocusFirstProblem, usePortal, useSuggestions, type CatalogItem, type Choice } from './parts';
+import { FilePicker, sendFile, Suggestions, useFocusFirstProblem, usePortal, usePortalTitle, useSuggestions, type CatalogItem, type Choice } from './parts';
 
 /** Big tappable choices (radio buttons drawn as cards). */
 export function ChoiceCards({ name, label, options, value, onChange, error, required, hint }: {
@@ -95,7 +95,7 @@ const forBody = (w: ForWhomState) => (w.mode === 'other' && w.colleague ? { for_
 const forMissing = (w: ForWhomState) => w.mode === 'other' && !w.colleague;
 
 function Page({ title, intro, icon, children }: { title: string; intro?: ReactNode; icon: Parameters<typeof Icon>[0]['name']; children: ReactNode }) {
-  useEffect(() => { document.title = title; }, [title]);
+  usePortalTitle(title);
   return (
     <div className="pt-page pt-form-page">
       <nav className="pt-back"><Link to="/portal"><Icon name="chevron-left" size={18} /> Home</Link></nav>
@@ -165,6 +165,8 @@ export function RequestForm() {
   const [forErr, setForErr] = useState('');
   const { submit, busy, errors, formError } = useSubmit();
   const articles = useSuggestions(item ? `${item.name} ${details}`.slice(0, 120) : '');
+  // The form's own Page sets the title once it shows; until then, and when the item is not offered, these do.
+  usePortalTitle(items && !item ? 'That request is not offered here' : null);
 
   if (error) return <ErrorState error={error} onRetry={reload} />;
   if (!items) return <Loading lines={6} label="Loading the form" />;

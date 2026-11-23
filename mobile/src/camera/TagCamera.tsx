@@ -6,7 +6,7 @@
 // Nothing is sent anywhere: each frame is read and released; only the plain reads (code contents,
 // lines of text, boxes) reach JavaScript. A still picture is written to the app's cache, read the
 // same way (./still.ts) and deleted by the screen unless the person attaches it to the record.
-import { forwardRef, useCallback, useImperativeHandle, useRef } from 'react';
+import { forwardRef, useCallback, useImperativeHandle, useRef, type ReactNode } from 'react';
 import { Platform, type StyleProp, type ViewStyle } from 'react-native';
 import {
   Camera, useCameraDevice, useFrameOutput, usePhotoOutput, type CameraRef,
@@ -40,10 +40,12 @@ export interface TagCameraProps {
   /** Plain reads of one frame (upright picture coordinates). */
   onReads(reads: FrameReads): void;
   onError?(error: Error): void;
+  /** Shown instead when the phone has no camera the app can use (so the screen is never just black). */
+  noDevice?: ReactNode;
   style?: StyleProp<ViewStyle>;
 }
 
-export const TagCamera = forwardRef<TagCameraHandle, TagCameraProps>(function TagCamera({ active, torch, onReads, onError, style }, ref) {
+export const TagCamera = forwardRef<TagCameraHandle, TagCameraProps>(function TagCamera({ active, torch, onReads, onError, style, noDevice }, ref) {
   const device = useCameraDevice('back');
   const scanner = useBarcodeScanner({ barcodeFormats: READ_CODE_TYPES });
   const { scanText } = useTextRecognition(TEXT_OPTIONS);
@@ -86,7 +88,7 @@ export const TagCamera = forwardRef<TagCameraHandle, TagCameraProps>(function Ta
     },
   }), [photo]);
 
-  if (!device) return null;
+  if (!device) return <>{noDevice ?? null}</>;
   return (
     <Camera
       ref={camera}

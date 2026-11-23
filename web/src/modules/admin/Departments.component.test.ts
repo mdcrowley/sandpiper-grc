@@ -27,13 +27,13 @@ describe('a form dialog asks before discarding a draft (E22-14)', () => {
     });
     await waitFor(() => expect(byText(ui!.container, 'td', 'Rail operations')).not.toBeNull());
 
-    await click(byText(ui.container, 'button', 'Add'));
+    await click(byText(ui.container, 'button', 'Add department'));
     await waitFor(() => expect(dialogOpen()).toBe(true));
     escape();
     await waitFor(() => expect(dialogOpen()).toBe(false));
     expect(prompt()).toBeNull();
 
-    await click(byText(ui.container, 'button', 'Add'));
+    await click(byText(ui.container, 'button', 'Add department'));
     await waitFor(() => expect(dialogOpen()).toBe(true));
     await typeInto(byLabel(page(), 'Name'), 'Paratransit scheduling');
     escape();

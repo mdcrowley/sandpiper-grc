@@ -100,6 +100,7 @@ The application works through the schedules every few hours (job `audits.inspect
 
 - When a schedule's next inspection comes within the reminder lead time, the inspection is created (for example `INS-00042`), assigned to the schedule's inspector, and the schedule's next due date moves on by its frequency. A schedule that has fallen behind catches up at most 24 inspections at a time.
 - An inspection still not done **7 days** after its due date is marked **Missed**. It can still be carried out late.
+- An inspection that is no longer needed can be set to **Canceled**. It cannot then be answered or completed (on the web or from the mobile app), it leaves My work and the app's offline package, and it does not count against **Inspections on time**.
 - The inspector is told once when an inspection comes within the lead time (setting `audits.inspection_reminder_days`, **2** days unless changed under **Administration > Reminders**) and once when it is overdue. An inspection with no inspector goes to everyone who may edit audits.
 
 Someone with `audits.administer` can run the work at once with `POST /api/audits/inspections/run`.
@@ -122,6 +123,8 @@ Completing works out:
 - the **Result**: **Fail** when a critical check is not met, **Pass with findings** when another check is not met, otherwise **Pass**;
 - the **Score**: checks met out of checks answered yes or no;
 - a **finding** for each check not met (a major nonconformity for a critical check, a minor one otherwise), with the note as its condition and a response due in 30 days.
+
+The mobile app runs inspections too, also with no signal (see [The mobile app](39-mobile-app.md#field-work-inspections-condition-and-counts)): the same rules apply, and the server checks them again when the answers arrive. Completing in the app asks for a **signature**: the inspector types their name and may sign with a finger. The inspection then shows **Signed by** and **Signed**, and the drawing is one of its attachments.
 
 A completed inspection cannot be changed. Answering needs `audits.edit`; adding photos also needs the attachments module.
 

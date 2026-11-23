@@ -77,6 +77,8 @@ async function seedDefaults(ctx: ModuleContext) {
     { value: 'in_progress', label: 'In progress', color: 'amber', sort: 20 },
     { value: 'complete', label: 'Complete', color: 'green', sort: 30, meta: { closed: true } },
     { value: 'missed', label: 'Missed', color: 'red', sort: 40, meta: { closed: true } },
+    // Canceled: not carried out and not due any more. Answers and completion are refused (E38-11).
+    { value: 'canceled', label: 'Canceled', color: 'gray', sort: 50, meta: { closed: true } },
   ], own);
   await ctx.lookups.ensure('inspection_result', [
     { value: 'pass', label: 'Pass', color: 'green', sort: 10 },

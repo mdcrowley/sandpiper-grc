@@ -10,17 +10,19 @@ import * as ImagePicker from 'expo-image-picker';
 import { Directory, File, Paths } from 'expo-file-system';
 import { useCameraPermission } from 'react-native-vision-camera';
 import { useSession } from '../../api/client';
-import { Banner, Body, Button, Field, Row, Screen, Section, Title } from '../../ui';
+import { Banner, Body, Button, Field, Row, Screen, Section, Title, useAnnounce } from '../../ui';
 import { fontSize, radius, space, useTheme } from '../../theme';
 import { TagCamera, type TagCameraHandle } from '../../camera/TagCamera';
 import { discardPicture, readStill } from '../../camera/still';
 import { toView, type Size } from '../../camera/geometry';
 import { actsAlone, CODE_TYPE_LABELS, type FrameReads, type Reading } from '../read';
 import { TagReader, type SeenReading } from '../reader';
-import { lookUp, lookUpTyped, type ReadingAnswer } from '../lookup';
+import { lookUp, lookUpTyped, typedReading, type ReadingAnswer } from '../lookup';
 import { decide } from '../decide';
 import { useTagSettings } from '../formats';
 import * as handoff from '../handoff';
+import { offlinePackage } from '../../offline';
+import { offlineAnswers } from '../offline';
 
 export const TEXT = {
   title: 'Tag',
@@ -44,6 +46,12 @@ export const TEXT = {
 };
 
 const LOOKUP_DELAY_MS = 350;
+
+/** No answer from the server at all (no connection, a timeout, the server down): the package may answer. */
+export const unreachable = (e: unknown) => {
+  const status = (e as { status?: unknown })?.status;
+  return typeof status !== 'number' || status === 0 || status === 408 || status >= 500;
+};
 
 function howLabel(r: Reading): string {
   if (r.how === 'text') return TEXT.how.text;
@@ -103,6 +111,19 @@ export default function TagScreen() {
   }, [reset]));
   useEffect(() => () => discardPicture(picture.current), []);
 
+  // Without a connection, values are looked up in the offline package (spec §5.5 step 7).
+  const userId = session.session?.user.id;
+  const answer = useCallback(async (readings: Reading[], online: () => Promise<ReadingAnswer[]>): Promise<ReadingAnswer[]> => {
+    try {
+      return await online();
+    } catch (e) {
+      if (!unreachable(e)) throw e;
+      const p = await offlinePackage().current(userId).catch(() => null);
+      if (!p) throw e;
+      return offlineAnswers(readings, p, session);
+    }
+  }, [userId, session]);
+
   const openAnswer = useCallback((answer: ReadingAnswer, card = 0) => {
     if (opening.current) return;
     opening.current = true;
@@ -129,7 +150,7 @@ export default function TagScreen() {
     if (picking) { finishPick(pending[0].value); return; }
     pending.forEach((r) => asked.current.add(r.key));
     try {
-      const got = await lookUp(pending);
+      const got = await answer(pending, () => lookUp(pending));
       for (const a of got) answersRef.current[a.reading.key] = a;
       setAnswers({ ...answersRef.current });
       showOutcome();
@@ -137,7 +158,7 @@ export default function TagScreen() {
       pending.forEach((r) => asked.current.delete(r.key));
       setMessage((e as Error).message);
     }
-  }, [picking, finishPick, showOutcome]);
+  }, [picking, finishPick, showOutcome, answer]);
 
   const take = useCallback((reads: FrameReads) => {
     const now = Date.now();
@@ -209,7 +230,7 @@ export default function TagScreen() {
     if (picking) { finishPick(r.value); return; }
     setBusy(TEXT.looking);
     try {
-      const [a] = await lookUp([{ ...r, trust: 'exact' }]);
+      const [a] = await answer([r], () => lookUp([{ ...r, trust: 'exact' }]));
       answersRef.current[r.key] = { ...a, reading: r };
       setAnswers({ ...answersRef.current });
       if (a.status === 'record') openAnswer({ ...a, reading: r });
@@ -218,7 +239,7 @@ export default function TagScreen() {
     } finally {
       setBusy(null);
     }
-  }, [picking, finishPick, openAnswer]);
+  }, [picking, finishPick, openAnswer, answer]);
 
   const findTyped = useCallback(async () => {
     const v = typed.trim();
@@ -226,7 +247,7 @@ export default function TagScreen() {
     if (picking) { finishPick(v); return; }
     setBusy(TEXT.looking);
     try {
-      const a = await lookUpTyped(v);
+      const [a] = await answer([typedReading(v)], async () => [await lookUpTyped(v)]);
       answersRef.current[a.reading.key] = a;
       setAnswers({ ...answersRef.current });
       if (a.status === 'record') openAnswer(a);
@@ -235,7 +256,11 @@ export default function TagScreen() {
     } finally {
       setBusy(null);
     }
-  }, [typed, picking, finishPick, openAnswer]);
+  }, [typed, picking, finishPick, openAnswer, answer]);
+
+  // What the camera is doing: in a live region on Android, said on iPhone when it changes.
+  const status = busy ?? message ?? (picking ? TEXT.aimPick : TEXT.aim);
+  useAnnounce(status === TEXT.aim || status === TEXT.aimPick ? null : status, { iosOnly: true });
 
   if (session.status === 'signed-in' && !session.areaOn('tags')) {
     return <Screen><Title>{TEXT.title}</Title><Body muted>{TEXT.off}</Body></Screen>;
@@ -249,9 +274,11 @@ export default function TagScreen() {
 
   return (
     <View style={[styles.fill, { backgroundColor: '#000' }]}>
-      <View style={styles.fill} onLayout={(e: LayoutChangeEvent) => setView({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}>
+      {/* While a number is typed the camera folds away, so the keyboard never hides the box (as in counting). */}
+      <View style={typing ? styles.folded : styles.fill} onLayout={(e: LayoutChangeEvent) => setView({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}>
         {permission.hasPermission ? (
-          <TagCamera ref={camera} style={StyleSheet.absoluteFill} active={focused && appActive && !busy} torch={torch} onReads={take} onError={(e) => setMessage(e.message)} />
+          <TagCamera ref={camera} style={StyleSheet.absoluteFill} active={focused && appActive && !busy && !typing} torch={torch} onReads={take} onError={(e) => setMessage(e.message)}
+            noDevice={<View style={[styles.fill, styles.center, { backgroundColor: colors.bg, padding: space[4] }]}><Body>{TEXT.noDevice}</Body></View>} />
         ) : (
           <View style={[styles.fill, styles.center, { backgroundColor: colors.bg, padding: space[4], gap: space[3] }]}>
             <Body>{TEXT.noCamera}</Body>
@@ -264,23 +291,24 @@ export default function TagScreen() {
         <View pointerEvents="none" style={StyleSheet.absoluteFill} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
           {inView.filter((r) => r.box).map((r) => {
             const b = toView(r.box!, frame, view);
-            const color = actsAlone(r) ? colors.brand : colors.accent;
+            const alone = actsAlone(r);
+            const color = alone ? colors.brand : colors.accent;
             return (
               <View key={r.key} style={[styles.outline, { left: b.x, top: b.y, width: b.width, height: b.height, borderColor: color }]}>
-                <Text numberOfLines={1} style={[styles.outlineLabel, { backgroundColor: color, color: colors.brandContrast }]}>{`${howLabel(r)}: ${r.value}`}</Text>
+                {/* Black on the sand color: white on it is below 4.5:1 in the light theme. */}
+                <Text numberOfLines={1} style={[styles.outlineLabel, { backgroundColor: color, color: alone ? colors.brandContrast : '#000' }]}>{`${howLabel(r)}: ${r.value}`}</Text>
               </View>
             );
           })}
         </View>
       </View>
 
-      <View style={[styles.panel, { backgroundColor: colors.surface }]}>
-        <Text style={{ color: colors.text, fontSize: fontSize.md }} accessibilityLiveRegion="polite">
-          {busy ?? message ?? (picking ? TEXT.aimPick : TEXT.aim)}
-        </Text>
+      <View style={[styles.panel, typing && styles.panelFull, { backgroundColor: colors.surface }]}>
+        <Text style={{ color: colors.text, fontSize: fontSize.md }} accessibilityLiveRegion="polite">{status}</Text>
         {settingsError ? <Banner kind="warning">{TEXT.formatsUnavailable}</Banner> : null}
 
-        <ScrollView style={{ flexGrow: 0 }} contentContainerStyle={{ gap: space[2] }} keyboardShouldPersistTaps="handled">
+        {/* Shrinks (and scrolls) when the text is large, so the controls below always stay on screen. */}
+        <ScrollView style={{ flexGrow: 0, flexShrink: 1 }} contentContainerStyle={{ gap: space[2] }} keyboardShouldPersistTaps="handled">
         {list.length ? (
           <Section title={TEXT.inView}>
             {list.map((r, i) => {
@@ -323,10 +351,10 @@ export default function TagScreen() {
         </ScrollView>
 
         <View style={styles.controls}>
-          <Control label={torch ? TEXT.torchOn : TEXT.torchOff} selected={torch} onPress={() => setTorch((t) => !t)} disabled={!permission.hasPermission} />
+          <Control label={torch ? TEXT.torchOn : TEXT.torchOff} selected={torch} toggle onPress={() => setTorch((t) => !t)} disabled={!permission.hasPermission} />
           <Control label={TEXT.shutter} onPress={() => void shutter()} disabled={!permission.hasPermission || Boolean(busy)} primary />
           <Control label={TEXT.library} onPress={() => void library()} onLongPress={__DEV__ ? () => void readTestFolder() : undefined} disabled={Boolean(busy)} />
-          <Control label={TEXT.keyboard} selected={typing} onPress={startTyping} />
+          <Control label={TEXT.keyboard} selected={typing} expands onPress={typing ? () => setTyping(false) : startTyping} />
           {list.length ? <Control label={TEXT.clear} onPress={reset} /> : null}
         </View>
       </View>
@@ -334,10 +362,13 @@ export default function TagScreen() {
   );
 }
 
-function Control({ label, onPress, onLongPress, selected, disabled, primary }: { label: string; onPress: () => void; onLongPress?: () => void; selected?: boolean; disabled?: boolean; primary?: boolean }) {
+/** A camera control. `toggle` (the torch) is on or off; `expands` (Type a number) opens the number box. */
+function Control({ label, onPress, onLongPress, selected, disabled, primary, toggle, expands }: { label: string; onPress: () => void; onLongPress?: () => void; selected?: boolean; disabled?: boolean; primary?: boolean; toggle?: boolean; expands?: boolean }) {
   const { colors } = useTheme();
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected, disabled }} disabled={disabled} onPress={onPress} onLongPress={onLongPress}
+    <Pressable accessibilityRole={toggle ? 'togglebutton' : 'button'} accessibilityLabel={label}
+      accessibilityState={toggle ? { checked: Boolean(selected), disabled } : expands ? { expanded: Boolean(selected), disabled } : { disabled }}
+      disabled={disabled} onPress={onPress} onLongPress={onLongPress}
       style={({ pressed }) => [styles.control, {
         backgroundColor: primary ? colors.brand : selected ? colors.brandSoft : colors.surface2,
         borderColor: selected ? colors.brand : colors.borderControl, opacity: disabled ? 0.5 : pressed ? 0.85 : 1,
@@ -351,8 +382,12 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   center: { alignItems: 'center', justifyContent: 'center' },
   outline: { position: 'absolute', borderWidth: 3, borderRadius: radius.sm },
-  outlineLabel: { position: 'absolute', top: -24, left: -3, paddingHorizontal: space[1], fontSize: fontSize.xs, fontWeight: '700', borderRadius: radius.sm, overflow: 'hidden', maxWidth: 260 },
-  panel: { padding: space[3], gap: space[2], maxHeight: '55%' },
+  // Just above the outline, however tall the text grows.
+  outlineLabel: { position: 'absolute', bottom: '100%', marginBottom: 2, left: -3, paddingHorizontal: space[1], fontSize: fontSize.xs, fontWeight: '700', borderRadius: radius.sm, overflow: 'hidden', maxWidth: 260 },
+  // Up to 70% of the screen, so at large text sizes the list and the number box still have room (they scroll).
+  panel: { padding: space[3], gap: space[2], maxHeight: '70%' },
+  panelFull: { maxHeight: '100%', flex: 1 },
+  folded: { height: 0, overflow: 'hidden' },
   controls: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
   control: { minHeight: 48, minWidth: 64, flexGrow: 1, borderRadius: radius.md, borderWidth: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space[2] },
 });

@@ -274,6 +274,9 @@ export function registerResources(ctx: ModuleContext) {
       result: { label: 'Result', type: 'lookup', list: 'inspection_result', readOnly: true },
       score_pct: { label: 'Score (%)', type: 'number', readOnly: true },
       notes: { label: 'Notes', type: 'longtext' },
+      // The signature of completion (E38-11): the signer's name and when; the drawing is a file on the inspection.
+      signed_by_name: { label: 'Signed by', type: 'text', readOnly: true, personal: true },
+      signed_at: { label: 'Signed', type: 'datetime', readOnly: true },
     },
     hooks: {
       beforeCreate: (req, data) => inspectionRules(req, null, data),

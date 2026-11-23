@@ -55,7 +55,7 @@ function CoveredProcesses({ plan }: { plan: Row }) {
                   <td><Link className="row-title" to={`/continuity/processes/${p.id}`}><span className="ref">{p.ref}</span> {p.name}</Link></td>
                   <td>{p.criticality ? <LookupChip list="process_criticality" value={p.criticality} /> : <span className="muted">Not set</span>}</td>
                   <td>{hoursText(p.mtd_hours)}</td>
-                  {canEdit && <td className="bc-actions"><Button size="sm" variant="ghost" disabled={busy} onClick={() => void put(data.filter((x) => x.id !== p.id).map((x) => x.id), 'Process removed from the plan.')}>Remove</Button></td>}
+                  {canEdit && <td className="bc-actions"><Button size="sm" variant="ghost" aria-label={`Remove: ${p.name}`} disabled={busy} onClick={() => void put(data.filter((x) => x.id !== p.id).map((x) => x.id), 'Process removed from the plan.')}>Remove</Button></td>}
                 </tr>
               ))}
             </tbody>
@@ -191,9 +191,9 @@ function CallTree({ plan }: { plan: Row }) {
                     <IconButton icon="arrow-down" label={`Move ${n.name ?? 'entry'} down`} size="sm" disabled={busy || i === list.length - 1} onClick={() => move(n, 1)} />
                     <IconButton icon="chevron-left" label={`Move ${n.name ?? 'entry'} up a level`} size="sm" disabled={busy || !n.parent_id} onClick={() => outdent(n)} />
                     <IconButton icon="chevron-right" label={`Place ${n.name ?? 'entry'} under the entry above`} size="sm" disabled={busy || i === 0} onClick={() => indent(n)} />
-                    <Button size="sm" variant="ghost" onClick={() => setEditing({ node: null, parent: n.id })}>Add under</Button>
-                    <Button size="sm" variant="ghost" onClick={() => setEditing({ node: n, parent: n.parent_id })}>Change</Button>
-                    <Button size="sm" variant="ghost" onClick={() => setRemoving(n)}>Remove</Button>
+                    <Button size="sm" variant="ghost" aria-label={`Add under: ${n.name ?? 'entry'}`} onClick={() => setEditing({ node: null, parent: n.id })}>Add under</Button>
+                    <Button size="sm" variant="ghost" aria-label={`Change: ${n.name ?? 'entry'}`} onClick={() => setEditing({ node: n, parent: n.parent_id })}>Change</Button>
+                    <Button size="sm" variant="ghost" aria-label={`Remove: ${n.name ?? 'entry'}`} onClick={() => setRemoving(n)}>Remove</Button>
                   </div>
                 )}
               </li>
@@ -254,7 +254,7 @@ function ChecklistEditor({ planId, saved, canEdit, onSaved }: { planId: string; 
               {list.map((i) => (
                 <li key={`${i.id ?? ''}-${i.item}`}>
                   <span>{i.item}{i.role && <span className="muted"> · {i.role}</span>}</span>
-                  {canEdit && <Button size="sm" variant="ghost" onClick={() => setItems((xs) => xs.filter((x) => x !== i))}>Remove</Button>}
+                  {canEdit && <Button size="sm" variant="ghost" aria-label={`Remove: ${i.item}`} onClick={() => setItems((xs) => xs.filter((x) => x !== i))}>Remove</Button>}
                 </li>
               ))}
             </ul>

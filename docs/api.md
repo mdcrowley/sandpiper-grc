@@ -440,7 +440,9 @@ Keys belong to the token (or session) that sent them.
 
 The mobile app's outbox (`POST /api/mobile/sync`, `PUT /api/mobile/sync/attachment`) has its own
 per-item idempotency: each item's client-made UUID is kept for 7 days and a repeat is answered from
-memory (see [Mobile app](mobile.md#offline-work)). These routes accept only the app's token.
+memory (see [Mobile app](mobile.md#offline-work)). These routes accept only the app's token. A photo
+upload larger than the organization's attachment limit is refused from its `Content-Length` with
+`too_large`, and a phone sending more than 2 photos at once gets `retry` with code `busy`.
 
 ## Optimistic concurrency
 

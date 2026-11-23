@@ -18,7 +18,7 @@ signs out every phone.
 The app is in a test (beta) phase and is not in the App Store or Google Play yet. Your administrator
 tells you which way your organization uses.
 
-- **iPhone (iOS 16 or later):** install Apple's **TestFlight** app, then open the invitation you were
+- **iPhone (iOS 16.4 or later):** install Apple's **TestFlight** app, then open the invitation you were
   sent by email or the public link, and tap **Install**. A test build stops working after 90 days; a
   newer one appears in TestFlight before then, so keep TestFlight's automatic updates on.
 - **Android (Android 10 or later):** download the app file (`.apk`) from the link your administrator
@@ -105,10 +105,11 @@ TA-118342"). One tag opens its tag card; several tags in view are listed to choo
 only as printed text is shown for you to check first: tap it if it matches the tag. A Code 39, Codabar or
 ITF barcode, which has no check character, counts once it is read twice; hold the phone steady. Use the torch in
 poor light, **Take a picture** for small, shiny or curved tags, **Choose a picture** for one already
-taken, or **Type a number**. Pictures stay on the phone and are deleted unless you attach one to the
+taken, or **Type a number** (the camera folds away while you type, so the keyboard never hides the box;
+tap **Type a number** again to bring the camera back). Pictures stay on the phone and are deleted unless you attach one to the
 record from its card. The card shows what the thing is, where it is, who has it and recent activity,
 and only the actions you may take: report a problem or hazard, quick updates, add a photo or note,
-count it, replace the tag, or open the full record. A tag in stock offers **Attach this tag**. See
+count it, record its condition, replace the tag, or open the full record. A tag in stock offers **Attach this tag**. See
 [Asset tags](38-asset-tags.md) for tags themselves. The Tag tab is hidden while **Asset tags** is
 switched off.
 
@@ -123,10 +124,44 @@ connection, being sent, **Arrived** with the new record's reference (for example
 photos arrived, or **Needs attention**. **Dismiss** removes an arrived report from the list (it stays on
 the server). The Report tab is shown only when you may report a problem or a hazard.
 
+### Field work: inspections, condition and counts
+
+**Report > Inspections, condition and counts** opens **Field work**: your inspections, the condition
+assessments due for what you look after, and the open inventory counts you may join. All of it works
+with no signal, from the offline package (download it while you have a connection: the list does it by
+itself, or tap **Download now**).
+
+- **Inspections.** Open one to run its checklist one item at a time, like the web's runner: **Pass**,
+  **Fail** or **Not applicable**, a note (after a fail, what was found) and photos (**Take a photo** or
+  **Choose a photo**). Items marked critical or needing a photo say so. Your answers are kept on the
+  phone as you go, so you can close the app and carry on later; answers already given on the web are
+  shown too. **Send the answers so far** sends them without completing. When every item is answered,
+  **Complete the inspection** shows what the result will be, worked out with the server's own rules: a
+  critical item failed means **Fail**, another item failed means **Pass with findings**, otherwise
+  **Pass**; the score is items passed out of items passed or failed; an item that needs a photo must
+  have one unless it is not applicable. Choose whether a finding is raised for each failed item, add a
+  note, type your name to sign (and, if you like, sign with your finger: the drawing is added to the
+  inspection as a picture), and tap **Complete and send**. The server works the result out again when it
+  arrives, and records who signed. If the inspection was canceled on the web meanwhile, or you no longer
+  have permission, it waits under **Needs attention** with the reason.
+- **Condition assessments.** Choose a record from the list (or **Record condition** on a tag card), pick
+  the condition on your organization's scale, how it was assessed, a note and photos, and tap **Save and
+  send**. It is dated the day you made it, even if it arrives later.
+- **Inventory counts.** Open a count to join it: the camera stays open in counting mode and **every tag
+  it reads is counted**, once, with a vibration, so you can sweep a shelf. Each one shows at once what it
+  is: **Found** (expected here), **Unexpected** (registered somewhere else), **Not covered** by this count,
+  or **Not in the offline package** (the server says what it is when it arrives). A number read only as
+  printed text is listed with **Count it** for you to check first, and you can type a number in **Tag
+  number**. Each find is sent once; when it has arrived, the server's answer replaces the phone's (for
+  example **Already found** when someone else counted it first). Several people can count the same place
+  at once, on phones and on the web: their finds are put together on the server.
+
 ## Offline work
 
 You can keep working where there is no signal, in a tunnel, a depot basement or out on the line.
 
+- **Field work works offline**: inspections, condition assessments and inventory counts (see
+  [Field work](#field-work-inspections-condition-and-counts)).
 - **Reports work offline.** Write the report and add photos as usual and tap **Send**. The report is
   saved on the phone and sent on its own as soon as there is a connection: when the signal comes back,
   when you open the app, and every half minute while it is open. **Send now** on the Report tab tries at
@@ -137,7 +172,9 @@ You can keep working where there is no signal, in a tunnel, a depot basement or 
   never need to check before sending again.
 - **What the forms need is kept on the phone.** While you have a connection the app downloads an
   **offline package**: My work, the choices the report forms offer (event types, severities, the sites
-  you may see) and your upcoming inspections. Without a connection the forms use it. The package is
+  you may see), your inspections due within the package's days with their checklists, the condition
+  assessments due, the open inventory counts you may count, and the tag numbers of the records these
+  cover. Without a connection the forms use it. The package is
   kept for a number of days set by your administrator (7 unless changed) and then deleted; the app
   downloads a fresh one, at most every hour, whenever it has a connection.
 - **Needs attention.** If the server does not accept something (you no longer have permission, a field
@@ -152,14 +189,21 @@ You can keep working where there is no signal, in a tunnel, a depot basement or 
 
 Everything kept for offline work is stored in the app's own protected storage on the phone, never in
 your photo library or shared files, and is deleted when you sign out, when the phone is signed out, or
-(the package) when it expires. Signing out warns you first if something has not been sent.
+(the package) when it expires. Signing out warns you first if something has not been sent, and also
+deletes inspections you started but did not send.
+
+**Looking up tags offline.** Without a connection, the Tag tab looks the tag up in the offline package.
+A record found there opens a short card (marked as found in the offline package) with what you can do
+offline: report a problem or hazard about it, or record its condition. A tag of a record outside the
+package is "not available offline": read it again once there is a connection.
 
 ## Notifications
 
 Open **Account > Notifications** to see your in-app notifications, newest first: the same list as the
 bell on the web. Unread ones are marked; opening one marks it read on the web too, and opens its record
-when it is about one. **Unread only** shows just the unread ones, **Mark all read** marks them all read,
-and pulling down refreshes the list. A notification about a record you can no longer open says so,
+when it is about one. **Unread only** shows just the unread ones, **Mark all read** (at the top of the list) marks them all
+read, and pulling down refreshes the list. **Load more** at the end shows older ones, and **Try again**
+appears when the list could not be loaded. A notification about a record you can no longer open says so,
 without its details. To be told on your phone's lock screen, switch on push notifications (below); email
 notifications continue as before.
 
@@ -172,6 +216,14 @@ notifications are about; tap it to open **Notifications**. Pushes follow your no
 kinds you switched off, or chose to receive by email only, are not pushed. Switching the switch off, or
 signing the phone out (here or under Devices on the web), stops pushes to that phone. If the switch
 says your organization has not set up push for this kind of phone, ask your administrator.
+
+**Android phones without Google services** use UnifiedPush: install a UnifiedPush distributor app (your
+administrator tells you which one and which push server it should use), then switch **Tell me on this
+phone** on under **Account**. If you have more than one distributor app, the phone asks which to use.
+**Account > Push app** shows the one in use; tap it to choose another. If no distributor app is
+installed, the app says so. If a push cannot be delivered because the push service is busy or
+unreachable, the server tries again for about two hours; the push then says how many notifications are
+unread at that time.
 
 ## Account
 
@@ -202,6 +254,32 @@ switched off, or it was not used for too long. Work saved on the phone and not y
 then too, so let the app send it (Report > Offline work) before a phone is signed out from the web. Sign
 in again to continue.
 
+Signing out, or being signed out, removes everything the app kept on the phone, including pictures it
+made. Offline work is never put in a phone backup. If you delete the app and install it again, you sign
+in again.
+
+## Accessibility
+
+The app follows the phone's own settings:
+
+- **Screen readers** (VoiceOver on iPhone, TalkBack on Android). Every button, switch and choice is
+  named by the words it shows, and says its state: a choice is "selected" or "checked", a switch on or
+  off, **Type a number** and the site picker "expanded" or "collapsed". Screen titles and section
+  names are headings. Messages (saved, sent, an error, a field that needs fixing, what the tag camera
+  read, each find while counting) are read out when they appear. When part of a screen is replaced (the
+  record's edit form, the next item of an inspection, completing it), the screen reader moves to its
+  heading.
+- **Large text.** Text grows with the phone's text size up to 200%: lines wrap and screens scroll, and
+  nothing is cut off. The tab names grow up to 1.4 times so that all five still fit.
+- **Dark mode** follows the phone. Text meets the WCAG AA contrast in both themes.
+- **No gesture is needed.** Everything that can be done by a gesture has a button: pulling a list down
+  has **Refresh** (or **Try again**), scrolling to the end of Notifications has **Load more**, the tag
+  camera has **Type a number**, and the finger signature is optional (your typed name is the
+  signature). Switches are whole rows, so the row can be tapped.
+
+What has been checked, and what still needs a person, is in the
+[accessibility statement](../accessibility.md#mobile-app).
+
 ## For administrators
 
 Switch the app on under **Administration > Features > Mobile app**, then set it up under
@@ -213,7 +291,7 @@ Switch the app on under **Administration > Features > Mobile app**, then set it 
 | Stay signed in without use | 1 to 90 days | 30 | A phone not used for this long must sign in again |
 | Require Face ID, a fingerprint or the passcode | on or off | Off | Everyone must unlock the app; the person cannot turn it off under Account |
 | Ask again after (minutes in the background) | 0 to 240 | 5 | How long the app may stay in the background before it asks again |
-| Keep offline work | 1 to 30 days | 7 | How long a phone keeps its offline package (My work, the report forms' choices, upcoming inspections) before deleting it. Work saved on the phone and not yet sent is never deleted by this |
+| Keep offline work | 1 to 30 days | 7 | How long a phone keeps its offline package (My work, the report forms' choices, inspections with their checklists, condition assessments due, open inventory counts) before deleting it. Work saved on the phone and not yet sent is never deleted by this |
 
 Saving asks for your password; new lifetimes apply to tokens issued afterward. Each person's page under
 **Administration > Users** has a **Mobile app devices** card to sign one phone or all phones out.
@@ -226,4 +304,6 @@ rather than misbehave.
 credentials for Apple's push service (iPhone), Firebase Cloud Messaging and UnifiedPush (Android). Keys
 are stored encrypted and never shown again, only their fingerprint. Saving asks for your password again
 and is recorded in the audit log. The page shows how many phones use each service and the last delivery
-problem, and can send a test push to your own phones. Switching the Mobile app off stops all pushes.
+problem, and can send a test push to your own phones. Under each service it shows how many pushes wait
+to be tried again because the service was unreachable or busy; pushes are retried automatically for
+about two hours, or later when the service asks for a longer wait (up to six hours). Switching the Mobile app off stops all pushes.

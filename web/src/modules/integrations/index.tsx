@@ -12,7 +12,7 @@ const mod: ModuleDef = {
   key: 'integrations',
   nav: [
     { group: 'Administration', label: 'User provisioning', path: '/admin/provisioning', icon: 'users', permission: ADMIN, order: 26 },
-    { group: 'Administration', label: 'Log forwarding', path: '/admin/log-forwarding', icon: 'upload', permission: ADMIN, order: 49 },
+    { group: 'Administration', label: 'Log forwarding', path: '/admin/log-forwarding', icon: 'upload', permission: ADMIN, order: 52 },
   ],
   routes: [
     { path: '/admin/provisioning', element: <ProvisioningPage />, permission: ADMIN },

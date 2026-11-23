@@ -1,11 +1,11 @@
 // Portal home: the service banner, search, the two main actions, the catalog, my requests,
 // and whatever else is waiting for me (approvals, policies, training, equipment).
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ErrorState, formatDate, Icon, Loading, relativeTime, useAuth, useFetch, type IconName } from '../../core';
 import { Approvals } from './Approvals';
 import { MySafetyReports } from './SafetyReport';
-import { ServiceBanner, Section, StatusPill, usePortal, useSuggestions, type CatalogItem, type PlainStatus } from './parts';
+import { ServiceBanner, Section, StatusPill, usePortal, usePortalTitle, useSuggestions, type CatalogItem, type PlainStatus } from './parts';
 
 const CAT_ICON: Record<string, IconName> = { people: 'users', access: 'key', equipment: 'box', software: 'file-text', vendors: 'building' };
 export const itemIcon = (item: CatalogItem): IconName => (item.type === 'incident' ? 'alert' : CAT_ICON[item.category ?? ''] ?? 'folder');
@@ -178,7 +178,7 @@ export function PortalHome() {
   const config = usePortal();
   const { user } = useAuth();
   const { data: items, error, reload } = useFetch<CatalogItem[]>('/api/portal/catalog');
-  useEffect(() => { document.title = config.title; }, [config.title]);
+  usePortalTitle(config.title);
   const first = (user?.displayName ?? '').split(/\s+/)[0];
   const shown = (items ?? []).slice(0, 6);
   return (

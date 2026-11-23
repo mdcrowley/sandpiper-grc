@@ -87,7 +87,7 @@ function CalendarCard() {
                         <td>{f.name}<br /><span className="muted">Made {formatDate(f.created_at)}</span></td>
                         <td>{f.detail === 'titles' ? 'Titles' : 'Busy only'}</td>
                         <td>{f.last_used_at ? relativeTime(f.last_used_at) : 'Not read yet'}</td>
-                        <td><Button size="sm" variant="danger" onClick={() => setRevoking(f)}>Revoke</Button></td>
+                        <td><Button size="sm" variant="danger" aria-label={`Revoke: ${f.name} (${f.user_name})`} onClick={() => setRevoking(f)}>Revoke</Button></td>
                       </tr>
                     ))}
                   </tbody>
@@ -176,9 +176,9 @@ function TrackerCard() {
                     </div>
                     <Badge color={c.active ? 'green' : 'gray'}>{c.active ? 'On' : 'Off'}</Badge>
                     <div className="feeds-actions">
-                      <Button size="sm" aria-label={`Edit ${c.name}`} onClick={() => setEditing(c)}>Edit</Button>
-                      <Button size="sm" aria-label={`New secrets for ${c.name}`} onClick={() => setRenewing(c)}>New secrets</Button>
-                      <Button size="sm" variant="danger" onClick={() => setRemoving(c)}>Remove</Button>
+                      <Button size="sm" aria-label={`Edit: ${c.name}`} onClick={() => setEditing(c)}>Edit</Button>
+                      <Button size="sm" aria-label={`New secrets: ${c.name}`} onClick={() => setRenewing(c)}>New secrets</Button>
+                      <Button size="sm" variant="danger" aria-label={`Remove: ${c.name}`} onClick={() => setRemoving(c)}>Remove</Button>
                     </div>
                   </li>
                 ))}

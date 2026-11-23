@@ -2,8 +2,8 @@
 //
 // What a person needs to keep working without signal for the next days: My work, the choices the
 // app's forms offer (lists, sites, the portal's words, the attachment limits), the tag formats and
-// the tag values of the records the package covers, and the parts later work adds (this wave: the
-// inspections assigned to the person and due within the package's days). It expires after
+// the tag values of the records the package covers, and the parts of field work (fieldwork.ts, wave 15:
+// inspections with their checklists, condition assessments due, open inventory counts). It expires after
 // `mobile.offline_days` (Administration > Mobile app, default 7); the app deletes it then.
 //
 // Like My work, every part is read through the application's own routes in-process with the caller's
@@ -11,14 +11,13 @@
 // switched-off area, or one the person may not read, is left out.
 //
 // Extension point: `definePackagePart(app, { key, build })`: a part returns its data and the records it
-// covers (whose tag values join the offline lookup table). E38-11 adds checklists and condition
-// assessments, E38-12 inventory counts; see docs/mobile.md.
+// covers (whose tag values join the offline lookup table); see docs/mobile.md.
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { featureState } from '../../core/features.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { dayInZone } from '../../core/timezone.ts';
-import type { MobileHome, MobilePackage, PackageInspection, PackageOption, PackageTag } from '../../../../shared/mobile-api.ts';
+import type { MobileHome, MobilePackage, PackageOption, PackageTag } from '../../../../shared/mobile-api.ts';
 import { valueKey, type TagFormat } from '../../../../shared/tag-format.ts';
 import { readMobileSettings, viaMobileToken } from './state.ts';
 import type { SyncEnv } from './sync.ts';
@@ -28,7 +27,7 @@ export const MAX_SITES = 2000;
 /** Records whose tag values a package carries at most. */
 export const MAX_TAGGED_RECORDS = 5000;
 /** Lists the app's report forms need. */
-export const PACKAGE_LISTS = ['safety_event_type', 'safety_event_severity'];
+export const PACKAGE_LISTS = ['safety_event_type', 'safety_event_severity', 'condition_rating', 'condition_method'];
 
 type Call = SyncEnv['call'];
 
@@ -98,7 +97,7 @@ export function registerPackage(ctx: ModuleContext, call: (req: import('fastify'
     const portalOptions = await get<{ types: Row[]; harm: Row[] }>('/api/portal/safety/options');
     const limits = await get<{ maxBytes: number; allowedExtensions: string[] }>('/api/attachments/config');
 
-    // Parts (inspections now; checklists, condition assessments and counts later), and the records they cover.
+    // Parts (inspections with checklists, condition assessments due, open counts), and the records they cover.
     const built: Record<string, unknown> = {};
     const records = new Map<string, { type: string; id: string }>();
     for (const sec of work.sections) {
@@ -114,7 +113,7 @@ export function registerPackage(ctx: ModuleContext, call: (req: import('fastify'
 
     // Tag formats and the tag values of those records (only the ones the person may see).
     let tags: MobilePackage['tags'] = null;
-    const settings = await get<{ tags: { formats: TagFormat[] } | null }>('/api/mobile/settings');
+    const settings = await get<{ tags: { formats: TagFormat[] } | null; server?: { timeZone?: string } }>('/api/mobile/settings');
     if (settings?.tags && (await featureState(db)).on.tags) {
       const values: PackageTag[] = [];
       const has = (await db.one<{ t: string | null }>(`select to_regclass('public.tag_assignments')::text as t`))?.t;
@@ -139,6 +138,7 @@ export function registerPackage(ctx: ModuleContext, call: (req: import('fastify'
     return {
       id: randomUUID(), generatedAt: now.toISOString(), expiresAt: expiresAt.toISOString(),
       user: { id: me.id, displayName: me.displayName },
+      timeZone: settings?.server?.timeZone ?? null,
       work, lookups, sites,
       portal: portalOptions ? { safetyTypes: options(portalOptions.types), harm: options(portalOptions.harm) } : null,
       attachments: limits ? { maxBytes: limits.maxBytes, allowedExtensions: limits.allowedExtensions } : null,
@@ -147,33 +147,8 @@ export function registerPackage(ctx: ModuleContext, call: (req: import('fastify'
   });
   ctx.describeRoute({
     method: 'GET', path: '/api/mobile/package', tag: 'Mobile app',
-    summary: 'Your offline package for the mobile app: My work, the choices the app\'s forms need, tag values of the records it covers, and your upcoming inspections',
+    summary: 'Your offline package for the mobile app: My work, the choices the app\'s forms need, tag values of the records it covers, your upcoming inspections with their checklists, condition assessments due and open inventory counts',
     description: 'The app\'s token only (403 `mobile_app_only` otherwise). Read through the application\'s own routes as you, so it holds only what you may see; parts of switched-off areas are left out. Expires after the Mobile app setting "Days offline work is kept" (default 7).',
-    response: 'MobilePackage: { id, generatedAt, expiresAt, user, work, lookups, sites, portal, attachments, tags: { formats, values } | null, parts: { inspections?: [...] } }',
-  });
-
-  // ---------- built-in parts ----------
-
-  // Inspections assigned to me that are not finished and are due by the package's last day (or have no due date).
-  definePackagePart(app, {
-    key: 'inspections',
-    async build(env) {
-      const def = env.ctx.resources.get('inspection');
-      if (!def) return null;
-      const open = (await env.ctx.lookups.values('inspection_status'))
-        .filter((v) => !['completed', 'complete', 'missed', 'cancelled'].includes(v.value) && (v as { meta?: { closed?: boolean } | null }).meta?.closed !== true)
-        .map((v) => v.value);
-      const q = new URLSearchParams({ 'f.inspector_id': env.user.id, sort: 'due_on', dir: 'asc', pageSize: '200' });
-      if (open.length) q.set('f.status', open.join(','));
-      const res = await env.call('GET', `${def.path}?${q}`);
-      if (res.status !== 200) return null;
-      const rows = (res.body.rows as Row[]).filter((r) => !r.due_on || String(r.due_on).slice(0, 10) <= env.until);
-      const data: PackageInspection[] = rows.map((r) => ({
-        id: r.id, ref: r.ref ?? null, title: String(r[def.titleField] ?? r.ref ?? r.id), status: r._display?.status ?? r.status ?? null,
-        dueOn: r.due_on ? String(r.due_on).slice(0, 10) : null,
-        target: r.target_type && r.target_id && r.target_type !== 'none' ? { type: String(r.target_type), id: String(r.target_id), label: r.target_label ?? null } : null,
-      }));
-      return { data, records: data.flatMap((i) => (i.target ? [{ type: i.target.type, id: i.target.id }] : [])) };
-    },
+    response: 'MobilePackage: { id, generatedAt, expiresAt, user, work, lookups, sites, portal, attachments, tags: { formats, values } | null, parts: { inspections?: PackageInspection[], condition?: PackageCondition, counts?: PackageCount[] } }',
   });
 }

@@ -9,6 +9,8 @@
 // - package.ts: GET /api/mobile/package (the offline package; parts added with definePackagePart).
 // - sync.ts: POST /api/mobile/sync and PUT /api/mobile/sync/attachment (the outbox, each item at most
 //   once; kinds added with defineSyncKind). Wave 14, E38-10.
+// - fieldwork.ts: inspections, condition assessments and inventory counts offline: their sync kinds
+//   and package parts. Wave 15, E38-11 and E38-12.
 //
 // While the area is off every /api/mobile route answers 404 `switched_off` (module folder `mobile`),
 // the OAuth client does not exist, tokens are refused, and every device signed in before the switch
@@ -16,6 +18,7 @@
 import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleDef } from '../../core/module.ts';
 import { registerDevices } from './devices.ts';
+import { registerFieldwork } from './fieldwork.ts';
 import { registerHome } from './home.ts';
 import { registerAppSettings } from './settings.ts';
 import { registerPackage } from './package.ts';
@@ -34,6 +37,7 @@ const mod: ModuleDef = {
     registerAppSettings(ctx);
     const sync = registerSync(ctx);
     registerPackage(ctx, (req) => callAs(ctx.app, req));
+    registerFieldwork(ctx);
     // Daily (skipped while the area is off, like every mobile.* job): lapsed codes and tokens go,
     // outbox answers older than 7 days go, and devices that signed in before the area was last
     // switched off are marked signed out.

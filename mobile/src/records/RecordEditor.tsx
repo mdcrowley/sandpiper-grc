@@ -13,6 +13,7 @@ import { editableFields } from './layouts';
 import { ReauthCanceled, withReauth } from './reauth';
 import type { LookupValue, RecordRow, ResourceMeta } from './types';
 import { Body, Button, Card, Heading, MIN_TOUCH, Notice } from './ui';
+import { useFocusOn, type TextRef } from '../ui/a11y';
 
 export const EDIT_TEXT = {
   title: (label: string) => `Edit ${label.toLowerCase()}`,
@@ -59,6 +60,9 @@ export function RecordEditor({ meta, lookups, loaded, onSaved, onCancel, onOpenW
   const [keepMine, setKeepMine] = useState<Record<string, boolean>>({});
 
   const onForm = fields.map(([n]) => n);
+  // The screen reader's focus goes to the form's heading when it opens (the Edit button is gone), and
+  // to the conflict's heading when one is shown.
+  const headingRef = useFocusOn<TextRef>(conflict ? 'conflict' : 'form');
 
   const save = async (base: LoadedRecord, patch: Record<string, unknown>, retried = false): Promise<void> => {
     setBusy(true);
@@ -124,10 +128,10 @@ export function RecordEditor({ meta, lookups, loaded, onSaved, onCancel, onOpenW
   if (conflict) {
     return (
       <View style={styles.form}>
-        <Heading level={2}>{EDIT_TEXT.conflictTitle}</Heading>
+        <Heading ref={headingRef} level={2}>{EDIT_TEXT.conflictTitle}</Heading>
         <Body>{EDIT_TEXT.conflictIntro}</Body>
         {conflict.list.map((c) => (
-          <Card key={c.name} accessibilityLabel={c.label}>
+          <Card key={c.name}>
             <Heading level={3}>{c.label}</Heading>
             <Body>{`${EDIT_TEXT.yours}: ${shown(c.name, c.mine, labels[c.name])}`}</Body>
             <Body>{`${EDIT_TEXT.saved}: ${shown(c.name, c.theirs, conflict.fresh.row._display?.[c.name])}`}</Body>
@@ -136,7 +140,7 @@ export function RecordEditor({ meta, lookups, loaded, onSaved, onCancel, onOpenW
                 <Pressable
                   key={String(mine)}
                   accessibilityRole="radio"
-                  accessibilityLabel={`${c.label}: ${mine ? EDIT_TEXT.keepMine : EDIT_TEXT.useSaved}`}
+                  accessibilityLabel={`${mine ? EDIT_TEXT.keepMine : EDIT_TEXT.useSaved}, ${c.label}`}
                   accessibilityState={{ checked: keepMine[c.name] === mine }}
                   onPress={() => setKeepMine((k) => ({ ...k, [c.name]: mine }))}
                   style={[styles.choice, {
@@ -165,7 +169,7 @@ export function RecordEditor({ meta, lookups, loaded, onSaved, onCancel, onOpenW
 
   return (
     <View style={styles.form}>
-      <Heading level={2}>{EDIT_TEXT.title(meta.label)}</Heading>
+      <Heading ref={headingRef} level={2}>{EDIT_TEXT.title(meta.label)}</Heading>
       {fields.map(([name, field]) => (
         <FieldInput
           key={name}

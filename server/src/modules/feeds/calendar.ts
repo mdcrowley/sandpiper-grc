@@ -185,6 +185,16 @@ export function registerCalendarFeeds(ctx: ModuleContext) {
     response: '{ enabled, sources: [{ key, label }], feeds: [{ id, name, sources, detail, created_at, last_used_at }], maxFeeds, window }',
   });
 
+  // Whether calendar feeds are switched on: the menu under the person's name offers the page only then.
+  app.get('/api/me/calendar-feeds/enabled', async (req) => {
+    own(req);
+    return { enabled: await calendarEnabled(ctx) };
+  });
+  ctx.describeRoute({
+    method: 'GET', path: '/api/me/calendar-feeds/enabled', summary: 'Whether calendar feeds are switched on', tag: 'Calendar feeds',
+    response: '{ enabled }',
+  });
+
   app.post('/api/me/calendar-feeds', async (req, reply) => {
     const user = own(req);
     if (!(await calendarEnabled(ctx))) ctx.fail(409, 'feeds_off', 'Calendar feeds are switched off. An administrator can switch them on.');

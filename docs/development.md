@@ -336,7 +336,7 @@ server/src/test/helpers.ts    testApp() - in-memory app with a signed-in admin
 web/src/core/                 shell, design system, generic list/detail/form, api client (see web/src/core/README.md)
 web/src/modules/<key>/        one folder per module: index.tsx (+ pages)
 shared/                       code the server, the web and the mobile app share: tag values and formats
-                              (tag-format.ts), API shapes (asset-tags-api.ts, mobile-api.ts, push-api.ts); no imports
+                              (tag-format.ts), inspection completion rules (inspection-rules.ts), API shapes (asset-tags-api.ts, mobile-api.ts, push-api.ts); no imports
                               beyond shared/, tested by the root vitest
 mobile/                       the iPhone and Android app (Expo, React Native): its own package.json and
                               lockfile, not part of the root install, typecheck or tests (see below)
@@ -1015,6 +1015,11 @@ Offline work for the app (E38-10): a new kind of work is a server sync kind (`de
 `modules/mobile/sync.ts`), an optional package part (`definePackagePart`, `modules/mobile/package.ts`)
 and an app outbox kind (`mobile/src/offline/kinds.ts`); see [Mobile app](mobile.md#adding-a-kind-of-offline-work).
 End-to-end flows: `mobile/test/maestro/run.sh` (Maestro in `.tools/maestro`, `MAESTRO_CLI_NO_ANALYTICS=1`).
+Field work (wave 15, E38-11, E38-12) is in `modules/mobile/fieldwork.ts` (sync kinds
+`inspection.answers`, `inspection.complete`, `condition.assess`, `count.found`; package parts
+`inspections`, `condition`, `counts`) and the app's `src/inspections/`, `src/counts/` and
+`app/fieldwork/`. The inspection completion rules are `shared/inspection-rules.ts`, used by both the
+audits module and the app. The flows are `mobile/test/maestro/run-fieldwork.sh`.
 
 ### Approval workflows (shared engine)
 
@@ -1109,8 +1114,10 @@ The build reads each module's `key`, `nav`, `create` and route paths at build ti
 keep them literal; the rest of the module is loaded when one of its routes is first opened.
 
 Nav groups, in order (`web/src/core/module.ts`): Home, Service desk, Inventory, Change,
-Vendors, Cybersecurity, Safety, Governance, Projects, Reports, Administration, Help. A group with
-no entry the person may open is not shown.
+Vendors, Cybersecurity, Safety, Governance, People, Projects, Reports, Administration, Help. A group
+with no entry the person may open is not shown. `order` is unique within a group
+(`web/src/core/navOrder.test.ts`); `permissions: [...]` hides an entry unless the user also holds each
+one.
 
 Quality bar: every screen has empty, loading and error states; every list
 has filter, sort, saved view and export; every record shows its history.

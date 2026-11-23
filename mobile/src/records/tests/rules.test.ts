@@ -126,6 +126,9 @@ describe('where things open', () => {
     expect(workItemTarget('approvals', { ...item, type: 'change' }, viewable)).toEqual({ app: '/approvals' });
     expect(workItemTarget('acknowledgments', { ...item, type: 'policy_acknowledgment', id: 'a1' }, viewable)).toEqual({ app: '/approvals/acknowledgment/a1' });
     expect(workItemTarget('training', { ...item, type: 'training_assignment', route: '/training/my' }, viewable)).toEqual({ web: '/training/my' });
+    expect(workItemTarget('inspections', { ...item, type: 'inspection', id: 'i1' }, viewable)).toEqual({ app: '/fieldwork/inspection/i1' });
+    expect(workItemTarget('condition', { ...item, type: 'asset', id: 'a1', label: 'Pump 2' }, viewable))
+      .toEqual({ app: '/fieldwork/condition?type=asset&id=a1&label=Pump+2' });
     expect(searchTarget({ type: 'vendor', id: 'v1', route: '/vendors/v1' }, viewable)).toEqual({ web: '/vendors/v1' });
   });
 });

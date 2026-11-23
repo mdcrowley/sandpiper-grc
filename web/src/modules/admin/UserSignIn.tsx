@@ -85,7 +85,7 @@ export function UserSignInCard({ user, onChanged }: { user: AdminUser; onChanged
                     <div className="muted adm-small">{i.email ?? 'No email'} · {LINK_METHOD[i.link_method] ?? i.link_method} {formatDateTime(i.linked_at)}</div>
                     <div className="muted adm-small">{i.last_used_at ? `Last used ${formatDateTime(i.last_used_at)}` : 'Not used to sign in yet'}</div>
                   </div>
-                  <Button size="sm" variant="danger" onClick={() => setConfirm({
+                  <Button size="sm" variant="danger" aria-label={`Unlink: ${i.provider_name}`} onClick={() => setConfirm({
                     title: `Unlink ${i.provider_name}?`, danger: true, label: 'Unlink',
                     message: `${name} will no longer be able to sign in with ${i.provider_name}, and sessions made through it end. Their account, roles and history are kept. They can link it again later.`,
                     run: async () => { await adminApi.del(`/api/admin/users/${user.id}/identities/${i.id}`); toast.success('Unlinked.'); },

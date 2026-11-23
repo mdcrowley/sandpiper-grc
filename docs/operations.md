@@ -1180,6 +1180,61 @@ Still to do for E16-41: the same runs with the database on its own machine (or a
 PostgreSQL service) and the application and load generator on others, so that the network
 between them is real and nothing else shares the processors.
 
+**Search on the two-processor database (E16-41, wave 15, 2026-11-23).** Global search and the
+full-text list were the two scenarios that missed the server targets above. Their statements were
+read with `EXPLAIN ANALYZE` on the same stand-in (PostgreSQL 17 limited to 2 processors and 2 GB)
+at scale 1 and 4. What made them slow:
+
+- **Every search read the whole search index.** A part-of-a-word match was written
+  `search_index.body ILIKE '%word%'`. In a UTF-8 database ILIKE lowercases the whole text of every
+  row it tests, and the planner expects an ILIKE pattern to match far more rows than it does, so
+  it chose to read every row rather than use the trigram index, even for a word in a few records:
+  about 150 ms at scale 4 for a word in 2,000 of 87,000 rows, against 4 ms through the index.
+- **Global search read one shared list of matches once per record type.** For a common word
+  (in most records) that was some sixty passes over tens of thousands of rows.
+- **A search of several words read every record table in full**, to match the title and
+  reference by substring.
+- **The full-text list read the whole ticket table** (its "exact reference" condition could not
+  use the index) and **looked each matching index row up again to rank it** (9,500 lookups for a
+  common word at scale 1).
+
+What changed (same records, order, ranks and totals, for people who may and may not see
+restricted records; `server/src/core/search-results.test.ts` compares them with the earlier
+statements):
+
+- Migration 029 keeps a lowercased copy of the substring text, `search_index.body_lc` (a generated
+  column), and moves the trigram index to it; the match is `body_lc LIKE lower('%word%')`, which
+  is how PostgreSQL defines ILIKE in a UTF-8 database, so it matches the same rows. Applying it
+  rewrites the search index once: about 10 s at scale 4 on two processors.
+- Global search first counts the matching index rows per type (one pass), leaves out types with
+  none, then finds the matches once more for all types, ranks them, and groups them into one row
+  per type, so each type reads only its own; the counts let the database join a type with
+  thousands of matches to its table in one pass instead of looking each one up. Several words are
+  found through the index too: a record's title and reference are in its substring text, so the
+  candidates are the index rows matching the words or holding the text, checked again on the
+  record. (A type whose title is not one of its substring fields is still read as before.)
+- The full-text list joins the matching index rows, ranked once each, to the records, instead of
+  testing every record.
+
+Before and after on the same records, alternately (before, after, before, after), each run on a
+fresh copy of the seeded database, 8 people at once, 15 seconds per scenario. 95th percentile,
+and 50th in brackets, in milliseconds:
+
+| Scenario | PostgreSQL 1, before | PostgreSQL 1, after | PostgreSQL 4, before | PostgreSQL 4, after | Embedded 0.5, before | Embedded 0.5, after |
+|---|---:|---:|---:|---:|---:|---:|
+| Ticket list, full-text query | 240 (101), 266 (109) | 122 (73), 135 (72) | 1,407 (887), 1,211 (800) | 414 (131), 413 (134) | 421 (311), 347 (253) | 191 (116), 176 (116) |
+| Global search | 588 (295), 727 (302) | 310 (154), 395 (184) | 2,026 (1,010), 2,015 (832) | 809 (406), 879 (410) | 857 (698), 843 (726) | 380 (243), 355 (227) |
+
+Two runs of each version per column. At scale 1 the server targets are now met (full-text list
+within 300 ms, global search within 500 ms); the 99th percentile of global search stayed about 1
+to 1.3 s (the most common words, in nearly every record, which still rank every match). At scale
+4 the full-text list went from about 1.3 s to 0.4 s and global search from 2 s to 0.8 to 0.9 s:
+better, but still over the targets on two processors, because a word in most of 87,000 records
+still means ranking tens of thousands of rows. The embedded database got faster too (it runs the
+same statements). The laptop was quiet for these runs (under half its processors in use when
+checked); an earlier attempt while other work kept it fully busy gave two to five times these
+figures for both versions and is left out.
+
 **Earlier results (E16-36).** All on the same 14-core laptop (31 GB, Windows 11), the load generator on the
 same machine, 8 people at once, 15 seconds per scenario, version 0.1.0. Scale 0.5 is about
 10,500 records (5,000 tickets, 1,500 assets, 1,000 actions, 750 changes, 750
@@ -1244,7 +1299,8 @@ slow statement log (below):
   as one text (`search_index.body`), with a trigram index (`pg_trgm`, migration 009). The
   embedded database loads `pg_trgm` itself; on a PostgreSQL server the migration creates the
   extension where the owner may (it is a trusted extension) and otherwise works without the
-  index.
+  index. (Since migration 029 the index and the match are on a lowercased copy,
+  `search_index.body_lc`: see "Search on the two-processor database" above.)
 - **Global search** reads, for each record type, only that type's matching index rows and
   ranks only those; the record table is then read by id, and only the best few are read in
   full for their snippet. Types are searched four at a time, which a PostgreSQL server

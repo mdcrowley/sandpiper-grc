@@ -48,8 +48,9 @@ export function DepartmentsCard() {
     }
   };
 
+  // The settings page's group heading names it, so the card has no title of its own (wave 15).
   return (
-    <Card title="Departments" flush actions={<Button size="sm" icon="plus" onClick={() => open('new')}>Add</Button>}>
+    <Card flush actions={<Button size="sm" icon="plus" onClick={() => open('new')}>Add department</Button>}>
       {error ? <ErrorState error={error} onRetry={reload} />
         : !data ? <div className="card-body"><Loading lines={3} /></div>
         : data.length === 0 ? <EmptyState icon="building" title="No departments yet" message="Add departments so that people can be grouped." />
@@ -63,8 +64,8 @@ export function DepartmentsCard() {
                     <td>{d.name}</td>
                     <td className="num">{d.members}</td>
                     <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      <Button size="sm" variant="ghost" icon="edit" onClick={() => open(d)}>Rename</Button>
-                      <Button size="sm" variant="ghost" icon="trash" onClick={() => setRemoving(d)}>Remove</Button>
+                      <Button size="sm" variant="ghost" icon="edit" aria-label={`Rename: ${d.name}`} onClick={() => open(d)}>Rename</Button>
+                      <Button size="sm" variant="ghost" icon="trash" aria-label={`Remove: ${d.name}`} onClick={() => setRemoving(d)}>Remove</Button>
                     </td>
                   </tr>
                 ))}

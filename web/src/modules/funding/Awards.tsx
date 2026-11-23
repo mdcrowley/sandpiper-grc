@@ -76,7 +76,7 @@ function FundedItems({ awardId, canEdit }: { awardId: string; canEdit: boolean }
                     <td><Link className="row-title" to={i.route}>{i.ref && <span className="ref">{i.ref}</span>} {i.title}</Link></td>
                     <td>{i.type_label}</td>
                     <td>{formatDate(i.linked_at)}</td>
-                    <td className="fd-actions">{canEdit && <Button size="sm" variant="ghost" onClick={() => setRemoving(i)}>Remove</Button>}</td>
+                    <td className="fd-actions">{canEdit && <Button size="sm" variant="ghost" aria-label={`Remove: ${i.title}`} onClick={() => setRemoving(i)}>Remove</Button>}</td>
                   </tr>
                 ))}
               </tbody>

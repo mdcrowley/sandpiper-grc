@@ -240,15 +240,17 @@ export async function saveChange(db: Db, change: ConfigChange, userId: string | 
 export async function pushStats(db: Db): Promise<PushStats> {
   const empty = () => Object.fromEntries(PUSH_PROVIDERS.map((p) => [p, 0])) as Record<PushProvider, number>;
   const out: PushStats = {
-    registrations: empty(), failing: empty(),
+    registrations: empty(), failing: empty(), retrying: empty(),
     lastError: Object.fromEntries(PUSH_PROVIDERS.map((p) => [p, null])) as PushStats['lastError'], lastSentAt: null,
   };
   for (const r of await db.query<Row>(
-    `select provider, count(*)::int as n, count(*) filter (where failures > 0)::int as failing, max(last_sent_at) as sent
+    `select provider, count(*)::int as n, count(*) filter (where failures > 0)::int as failing,
+       count(*) filter (where retry_at is not null)::int as retrying, max(last_sent_at) as sent
      from push_registrations group by provider`,
   )) {
     out.registrations[r.provider as PushProvider] = r.n;
     out.failing[r.provider as PushProvider] = r.failing;
+    out.retrying[r.provider as PushProvider] = r.retrying;
     if (r.sent && (!out.lastSentAt || new Date(r.sent) > new Date(out.lastSentAt))) out.lastSentAt = new Date(r.sent).toISOString();
   }
   for (const r of await db.query<Row>(

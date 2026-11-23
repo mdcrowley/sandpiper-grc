@@ -84,8 +84,8 @@ export function PeopleTab({ eventId, onChanged }: { eventId: string; onChanged: 
                       <td>{p.transported ? 'Yes' : 'No'}</td>
                       <td>{p.fatality ? <StatusChip color="red" label="Fatality" /> : 'No'}</td>
                       <td className="sf-actions">{mayEdit && <>
-                        <Button size="sm" variant="ghost" onClick={() => open(p)}>Edit</Button>
-                        <Button size="sm" variant="ghost" onClick={() => setRemoving(p)}>Remove</Button>
+                        <Button size="sm" variant="ghost" aria-label={`Edit: ${p.name || labelOf(roles, p.role)}`} onClick={() => open(p)}>Edit</Button>
+                        <Button size="sm" variant="ghost" aria-label={`Remove: ${p.name || labelOf(roles, p.role)}`} onClick={() => setRemoving(p)}>Remove</Button>
                       </>}</td>
                     </tr>
                   );

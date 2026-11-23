@@ -34,13 +34,13 @@ export interface AreaLink { label: string; path: string; group: string }
  * Help are left out: they are not "areas to look at".
  */
 export function areasFor(
-  nav: readonly { group: string; label: string; path: string; permission?: string }[],
+  nav: readonly { group: string; label: string; path: string; permission?: string; permissions?: string[] }[],
   can: (permission: string | undefined) => boolean,
 ): AreaLink[] {
   const skip = new Set(['Home', 'Help']);
   const seen = new Set<string>();
   // Pages that start a new record ("New project request") are for doing, not looking.
   const starts = /(\/new\b|[?&]new=1)/;
-  return nav.filter((n) => !skip.has(n.group) && !starts.test(n.path) && can(n.permission) && !seen.has(n.path) && seen.add(n.path))
+  return nav.filter((n) => !skip.has(n.group) && !starts.test(n.path) && can(n.permission) && (n.permissions ?? []).every((p) => can(p)) && !seen.has(n.path) && seen.add(n.path))
     .map((n) => ({ label: n.label, path: n.path, group: n.group }));
 }

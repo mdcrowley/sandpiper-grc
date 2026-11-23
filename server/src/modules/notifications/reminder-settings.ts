@@ -17,7 +17,7 @@ export interface ReminderSettingDef {
   description: string;
   kind: ReminderSettingKind;
   /** For numbers and steps: the unit shown beside the box. */
-  unit?: 'days' | 'hours' | 'hour of the day';
+  unit?: 'days' | 'months' | 'hours' | 'hour of the day';
   min?: number;
   max?: number;
   default: number | number[] | string[];
@@ -127,8 +127,8 @@ export const REMINDER_SETTINGS: ReminderSettingDef[] = [
     description: 'The owner of an asset class (or everyone who may edit assets) gets one reminder per class listing how many of the items in it are due for their next condition assessment within this many days or overdue.',
   },
   {
-    key: 'condition.assessment_every_months', group: 'Asset condition', requires: 'condition_assessment', kind: 'number', min: 1, max: 240, default: 24,
-    label: 'Months between condition assessments',
+    key: 'condition.assessment_every_months', group: 'Asset condition', requires: 'condition_assessment', kind: 'number', unit: 'months', min: 1, max: 240, default: 24,
+    label: 'Time between condition assessments',
     description: 'How often an item with an asset class is assessed when its class does not set its own interval.',
   },
   {

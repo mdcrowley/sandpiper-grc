@@ -1,14 +1,14 @@
 // Everything that can be asked for in the portal, grouped by category, with a search box.
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ErrorState, Icon, Loading, useFetch } from '../../core';
 import { CatalogTiles } from './Home';
-import type { CatalogItem } from './parts';
+import { usePortalTitle, type CatalogItem } from './parts';
 
 export function CatalogPage() {
   const { data, error, reload } = useFetch<CatalogItem[]>('/api/portal/catalog');
   const [q, setQ] = useState('');
-  useEffect(() => { document.title = 'Ask for something'; }, []);
+  usePortalTitle('Ask for something');
   const groups = useMemo(() => {
     const words = q.trim().toLowerCase();
     const out = new Map<string, CatalogItem[]>();

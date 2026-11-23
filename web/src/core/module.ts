@@ -35,8 +35,12 @@ export const MODULE_AREA: Record<string, string> = {
 /** Whether a web module's area is on (always true for a module that is not part of an area). */
 export const moduleOn = (key: string, areaOn: (area: string) => boolean) => !MODULE_AREA[key] || areaOn(MODULE_AREA[key]);
 
+/** Whether a person may see a navigation entry: its permission and every one of its `permissions`. */
+export const navAllowed = (item: Pick<NavItem, 'permission' | 'permissions'>, can: (permission: string | undefined) => boolean) =>
+  can(item.permission) && (item.permissions ?? []).every((p) => can(p));
+
 export const NAV_GROUPS = [
-  'Home', 'Service desk', 'Inventory', 'Change', 'Vendors', 'Cybersecurity', 'Safety', 'Governance', 'Projects', 'Reports', 'Administration', 'Help',
+  'Home', 'Service desk', 'Inventory', 'Change', 'Vendors', 'Cybersecurity', 'Safety', 'Governance', 'People', 'Projects', 'Reports', 'Administration', 'Help',
 ] as const;
 export type NavGroup = (typeof NAV_GROUPS)[number];
 
@@ -47,7 +51,9 @@ export interface NavItem {
   icon: IconName;
   /** Hidden unless the user holds this permission. */
   permission?: string;
-  /** Position within the group, ascending (default 100). */
+  /** Hidden unless the user also holds each of these (a page that needs two permissions). */
+  permissions?: string[];
+  /** Position within the group, ascending (default 100); unique within its group (navOrder.test.ts). */
   order?: number;
 }
 

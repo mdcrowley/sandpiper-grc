@@ -10,14 +10,19 @@ export const acknowledgmentHref = (ackId: string) => `/approvals/acknowledgment/
 
 /**
  * My work items: approvals open the approval (item type `workflow_step`, id = the step), policy
- * acknowledgments the policy text (type `policy_acknowledgment`, id = the request), record types the
- * app can show their record view, and anything else (training, say) the web page.
+ * acknowledgments the policy text (type `policy_acknowledgment`, id = the request), inspections the
+ * Field work runner, condition assessments due the Field work assessment, record types the app can
+ * show their record view, and anything else (training, say) the web page.
  */
 export function workItemTarget(section: MobileWorkKey, item: MobileWorkItem, viewable: (type: string) => boolean): Target {
   if (item.type === 'workflow_step') return { app: approvalHref(item.id) };
   if (item.type === 'policy_acknowledgment') return { app: acknowledgmentHref(item.id) };
   if (section === 'approvals') return { app: '/approvals' };
   if (section === 'acknowledgments') return { app: '/approvals?show=acknowledgments' };
+  if (section === 'inspections' && item.type === 'inspection') return { app: `/fieldwork/inspection/${encodeURIComponent(item.id)}` };
+  if (section === 'condition') {
+    return { app: `/fieldwork/condition?${new URLSearchParams({ type: item.type, id: item.id, label: item.label }).toString()}` };
+  }
   if (viewable(item.type)) return { app: recordHref(item.type, item.id) };
   return { web: item.route };
 }

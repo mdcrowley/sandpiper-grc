@@ -7,8 +7,8 @@ import './people.css';
 const mod: ModuleDef = {
   key: 'people',
   nav: [
-    { group: 'Administration', label: 'People', path: '/people', icon: 'users', permission: 'people.view', order: 12 },
-    { group: 'Administration', label: 'Positions', path: '/people/positions', icon: 'clipboard', permission: 'people.view', order: 13 },
+    { group: 'People', label: 'People', path: '/people', icon: 'users', permission: 'people.view', order: 10 },
+    { group: 'People', label: 'Positions', path: '/people/positions', icon: 'clipboard', permission: 'people.view', order: 20 },
   ],
   routes: [
     { path: '/people', element: <PeopleList />, permission: 'people.view' },

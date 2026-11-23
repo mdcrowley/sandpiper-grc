@@ -1,6 +1,6 @@
 # E17 Documentation
 
-**Status:** in progress (13 of 14 issues done)
+**Status:** done (14 of 14 issues done)
 
 ## Goal
 
@@ -32,7 +32,7 @@ user guide should be readable on GitHub and inside the application.
 | E17-07 | Documentation index | done | P2 |
 | E17-08 | User guide | done | P1 |
 | E17-09 | In-app Help | done | P1 |
-| E17-10 | Installation and administrator guide | in progress | P1 |
+| E17-10 | Installation and administrator guide | done | P1 |
 | E17-11 | Operations runbook | done | P1 |
 | E17-12 | Architecture and security notes | done | P2 |
 | E17-13 | License, contributing guide and security policy | done | P1 |
@@ -204,7 +204,7 @@ application, with search and links between pages.
 
 ### E17-10 Installation and administrator guide
 
-**Status:** in progress · **Priority:** P1 · **Type:** docs
+**Status:** done (wave 14: the clean Windows install job passed on GitHub on 23 Nov 2026) · **Priority:** P1 · **Type:** docs
 
 As the person installing the application and looking after its users, I can follow one
 guide from an empty machine to a configured installation with users, roles, lists and

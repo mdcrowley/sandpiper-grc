@@ -17,13 +17,17 @@ import type { MobilePackage } from '../../../shared/mobile-api.ts';
 import { authStore, onWipe, registerUnsentWork } from '../auth/session';
 import { Outbox } from './outbox';
 import { PackageCache } from './package';
-import { sqliteOutbox, sqlitePackage, wipeOfflineStorage } from './sqlite';
+import { sqliteDrafts, sqliteOutbox, sqlitePackage, wipeOfflineStorage, type DraftStore } from './sqlite';
 import { fetchPackage, serverTransport } from './transport';
 import type { OutboxItem } from './types';
 
 export { defineOutboxKind } from './kinds';
 export { packageList, packageSites } from './package';
 export type { OutboxItem } from './types';
+export type { DraftStore } from './sqlite';
+
+/** Field work in progress kept on the phone (an inspection half done, the counts joined): wiped with the rest. */
+export const drafts = (): DraftStore => sqliteDrafts;
 
 /** How often the outbox is tried while the app is open. */
 export const TICK_MS = 30_000;

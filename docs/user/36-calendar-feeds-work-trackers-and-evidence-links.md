@@ -6,7 +6,7 @@ Three ways the application works with the tools around it: a **calendar feed** p
 
 A calendar feed is a secret web address that your calendar program reads, without signing in, to show the dated work you are involved in. It is your own: it shows only what you may see in the application at the moment it is read, and only records you own, are assigned to, or sit on (for meetings).
 
-Open **Calendar feeds** by going to the address `/account/calendar-feeds` of the application (for example `https://grc.example.org/account/calendar-feeds`); the page sits under **Account security**. The menu under your name does not link to it yet. If the page says calendar feeds are switched off, an administrator has not switched them on yet (see [Switch calendar feeds on](#switch-calendar-feeds-on)).
+Open **Calendar feeds** from the menu under your name (top right). The entry is there only while an administrator has switched calendar feeds on (see [Switch calendar feeds on](#switch-calendar-feeds-on)); the page's address is `/account/calendar-feeds` (for example `https://grc.example.org/account/calendar-feeds`). If the page says calendar feeds are switched off, an administrator has not switched them on yet (see [Switch calendar feeds on](#switch-calendar-feeds-on)).
 
 ### Make a feed
 

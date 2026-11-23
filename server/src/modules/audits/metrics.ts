@@ -8,13 +8,13 @@ import { addDays, nextMonthStart } from './dates.ts';
 export function registerMetrics(ctx: ModuleContext) {
   defineMetric(ctx.app, {
     key: 'audits.inspections_on_time_pct', label: 'Inspections done on time', unit: 'percent', recordType: 'inspection',
-    description: 'Of the inspections due in the month (those already done, or whose due date has passed), the share completed on or before the due date.',
+    description: 'Of the inspections due in the month (those already done, or whose due date has passed; canceled ones are left out), the share completed on or before the due date.',
     async compute(c, monthStart) {
       const today = dayInZone();
       const r = await c.db.one<Row>(
         `select count(*) filter (where status = 'complete' or due_on < $3::date)::int as due,
                 count(*) filter (where status = 'complete' and performed_on <= due_on)::int as on_time
-         from inspections where deleted_at is null and due_on >= $1::date and due_on < $2::date`,
+         from inspections where deleted_at is null and coalesce(status, '') not in ('canceled', 'cancelled') and due_on >= $1::date and due_on < $2::date`,
         [monthStart, nextMonthStart(monthStart), today]);
       const due = Number(r?.due ?? 0);
       return due ? Math.round((Number(r!.on_time) / due) * 1000) / 10 : null;

@@ -76,7 +76,7 @@ Every document in the library has a **Document type**. Each type has its own rev
 | **Standard** | 36 months |
 | **Plan** | 12 months; plans also have plan elements and an annual review (see [Plans](#plans)) |
 
-An administrator can rename the types, add others and change a cycle under **Administration > Lists** (list **policy_document_type**: the number of months is `review_months` in the value's settings, and a value with `plan` set is a plan).
+An administrator can rename the types, add others and change a cycle under **Administration > Lists** (list **Policy document type**: the number of months is the type's **Review every (months)**, a column of the list changed in the value's **Edit** dialog; see [Settings of a value](09-administration.md#settings-of-a-value)). A value with `plan` set in its stored settings is a plan (the installed **Plan** type is one).
 
 ## The policy page
 
@@ -226,7 +226,7 @@ The kiosk lets staff acknowledge for themselves on a supervisor's device, for ex
 
 1. Sign in as the supervisor and open **Cybersecurity > Acknowledgment kiosk** (or **Open the kiosk** on a policy's **Acknowledgments** tab).
 2. The member of staff types the start of their name and picks it. Only people on the roster with something to acknowledge are listed, with their position.
-3. They enter their **Employee number** and select **Continue**. A wrong number is refused; after five wrong numbers for the same person the kiosk stops accepting numbers for that person for 15 minutes, and each wrong number is recorded in the audit log.
+3. They enter their **Employee number** and select **Continue**. A wrong number is refused; after five wrong numbers for the same person within 15 minutes the kiosk stops accepting numbers for that person until 15 minutes have passed since the first of them, and each wrong number is recorded in the audit log. A right number clears the count. The count is kept in the database, so restarting the server or using another server process does not reset it.
 4. They read each document, check **I have read and understood this document**, and select **Acknowledge**.
 
 The kiosk thanks them and returns to the list for the next person. Each acknowledgment is recorded with the method **Kiosk** and the signed-in supervisor as the person who recorded it. Sign out when you leave the device.

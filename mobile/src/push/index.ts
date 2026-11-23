@@ -7,6 +7,9 @@
 //   (PUT /api/me/push). Expo's push service is never used: no getExpoPushTokenAsync, and the library's
 //   automatic registration with Expo stays off.
 // - Tapping a push opens Notifications. A push carries only "You have N new notifications".
+// - Android without Firebase: UnifiedPush through the native module SandpiperUnifiedPush
+//   (mobile/modules/sandpiper-unifiedpush). The connector shows its pushes itself; a tap, a new endpoint
+//   from the distributor and the end of a registration come back as events.
 // - Signing out (or being signed out) forgets the choice and the token on the phone; the server drops
 //   the registration with the device.
 //
@@ -20,7 +23,7 @@ import { Platform } from 'react-native';
 import { PUSH_ANDROID_CHANNEL, PUSH_ROUTE, type PushRegistrationInput, type PushStatus } from '../../../shared/push-api.ts';
 import { apiFetch } from '../api/client';
 import { authStore, onWipe } from '../auth/session';
-import { opensNotifications, registerPhone, type RegisterResult, type UnifiedPushConnector } from './registration';
+import { opensNotifications, registerPhone, type Distributor, type RegisterResult, type UnifiedPushConnector } from './registration';
 import { pushText } from './text';
 
 const KEY = 'grc.push';
@@ -29,7 +32,8 @@ const OPTIONS: SecureStore.SecureStoreOptions = { keychainAccessible: SecureStor
 export type PushState =
   | { status: 'off' }
   | { status: 'working' }
-  | { status: 'on'; provider: string }
+  /** distributor: the UnifiedPush distributor app in use (UnifiedPush only). */
+  | { status: 'on'; provider: string; distributor?: Distributor | null }
   | { status: 'unavailable' | 'denied' | 'failed'; message?: string };
 
 let state: PushState = { status: 'off' };
@@ -67,9 +71,23 @@ const deps = (token?: string) => ({
   unifiedPush: unifiedPush(),
 });
 
+function currentDistributor(): Distributor | null {
+  try {
+    return unifiedPush()?.currentDistributor?.() ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function show(r: RegisterResult) {
-  if (r.ok) setState({ status: 'on', provider: r.provider });
+  if (r.ok) setState({ status: 'on', provider: r.provider, ...(r.provider === 'unifiedpush' ? { distributor: currentDistributor() } : {}) });
+  else if (r.reason === 'no-distributor') setState({ status: 'unavailable', message: pushText.noDistributor });
   else setState({ status: r.reason, message: r.reason === 'unavailable' ? pushText.unavailable : pushText.failed });
+}
+
+/** Ends the UnifiedPush registration on the phone (the distributor stops; the server forgets it separately). */
+async function unregisterUnifiedPush() {
+  await unifiedPush()?.unregister().catch(() => undefined);
 }
 
 let registering: Promise<RegisterResult> | null = null;
@@ -90,11 +108,30 @@ async function register(token?: string): Promise<RegisterResult> {
   return registering;
 }
 
+/**
+ * Account > Push notifications > Push app: lets the person choose another UnifiedPush distributor app
+ * (the phone's own chooser), then registers again through it.
+ */
+export async function changeDistributor(): Promise<PushState> {
+  const up = unifiedPush();
+  if (!up?.pickDistributor) return state;
+  const chosen = await up.pickDistributor().catch(() => false);
+  if (chosen && (await wanted())) {
+    setState({ status: 'working' });
+    await register();
+  }
+  return state;
+}
+
+/** Whether this phone could use UnifiedPush (an Android build with the connector). */
+export const hasUnifiedPush = () => unifiedPush() !== null;
+
 /** Account > Push notifications. Asks the phone's permission the first time; false when refused. */
 export async function setPushEnabled(on: boolean): Promise<PushState> {
   if (!on) {
     await setWanted(false);
     setState({ status: 'off' });
+    await unregisterUnifiedPush();
     try {
       await apiFetch('/api/me/push', { method: 'DELETE' });
     } catch {
@@ -113,11 +150,30 @@ export async function setPushEnabled(on: boolean): Promise<PushState> {
   return state;
 }
 
+function openIfSignedIn() {
+  if (authStore.get().status !== 'signed-in') return;
+  router.push(PUSH_ROUTE);
+}
+
 function openNotifications(response: Notifications.NotificationResponse | null) {
   if (!response || response.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;
   if (!opensNotifications(response.notification.request.content.data)) return;
-  if (authStore.get().status !== 'signed-in') return;
-  router.push(PUSH_ROUTE);
+  openIfSignedIn();
+}
+
+/** UnifiedPush: taps, a new address from the distributor, and the distributor ending the registration. */
+function startUnifiedPush(up: UnifiedPushConnector) {
+  const again = async () => {
+    if (authStore.get().status === 'signed-in' && (await wanted())) await register();
+  };
+  up.addListener?.('onOpened', () => openIfSignedIn());
+  up.addListener?.('onNewEndpoint', () => void again());
+  up.addListener?.('onUnregistered', () => void again());
+  try {
+    if (up.takeOpened?.()) openIfSignedIn();
+  } catch {
+    // Not opened from a push.
+  }
 }
 
 let started = false;
@@ -142,6 +198,8 @@ export function startPush(): void {
     openNotifications(r);
     if (r) void Notifications.clearLastNotificationResponseAsync().catch(() => undefined);
   }).catch(() => undefined);
+  const up = unifiedPush();
+  if (up) startUnifiedPush(up);
   Notifications.addPushTokenListener((token) => {
     void (async () => {
       if (authStore.get().status === 'signed-in' && (await wanted())) await register(String(token.data));
@@ -152,6 +210,7 @@ export function startPush(): void {
     setState({ status: 'off' });
     await Notifications.setBadgeCountAsync(0).catch(() => false);
     await Notifications.unregisterForNotificationsAsync().catch(() => undefined);
+    await unregisterUnifiedPush();
   });
   // After every sign-in and at start while signed in: register again (the server keeps one per phone).
   let last = authStore.get().status;

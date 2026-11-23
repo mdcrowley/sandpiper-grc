@@ -70,7 +70,7 @@ export function EquipmentPanel({ vehicleId, fleetNumber, retired }: { vehicleId:
                       <td>{i.asset_type_label ?? '—'}</td>
                       <td><StatusChip color={i.asset_status_color as ColorName} label={i.asset_status_label ?? '—'} /></td>
                       <td>{formatDate(i.installed_on)}{i.install_notes && <div className="muted fl-note">{i.install_notes}</div>}</td>
-                      <td className="fl-actions">{canEdit && <Button size="sm" variant="ghost" onClick={() => setRemoving(i)}>Remove</Button>}</td>
+                      <td className="fl-actions">{canEdit && <Button size="sm" variant="ghost" aria-label={`Remove: ${i.asset_name}`} onClick={() => setRemoving(i)}>Remove</Button>}</td>
                     </tr>
                   ))}
                 </tbody>

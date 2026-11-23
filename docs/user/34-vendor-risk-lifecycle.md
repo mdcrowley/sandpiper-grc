@@ -85,7 +85,7 @@ The checklist is built from the inventory:
 - **Remote access**: one item for each of those systems when the vendor has a **Remote access method** recorded, or when the system says the vendor has remote access (the OT security fields, when they are installed). A vendor with remote access and no systems gets one item for the vendor.
 - **Assets returned**: one item for each asset with this vendor or contract that is not disposed of.
 - **Data returned or destroyed**: one item for each data category held by those systems.
-- **Other**: the items of your own template, under **Administration > Lists** in the list **Offboarding item template** (as installed: collect badges and keys, change shared passwords the vendor knew, remove the vendor from contact and on-call lists, settle the final invoice).
+- **Other**: the items of your own template, under **Administration > Lists** in the list **Vendor offboarding checklist** (as installed: collect badges and keys, change shared passwords the vendor knew, remove the vendor from contact and on-call lists, settle the final invoice).
 
 **Add new items from the inventory** adds items for anything linked since the offboarding started; it never removes items or adds one twice. An item names a record only to people who may see that record.
 

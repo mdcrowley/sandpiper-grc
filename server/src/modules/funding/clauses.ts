@@ -8,7 +8,7 @@ import { FUNDED_BY } from './awards.ts';
 /**
  * Funder-required contract clauses (E27-08): for a contract paid for by an award, a checklist of the
  * clauses the funder requires, per award. The clause list (`funding_clause`) is the organization's
- * own, edited under Administration > Lookups; a few neutral examples ship with the application.
+ * own, edited under Administration > Lists; a few neutral examples ship with the application.
  * Stored by the shared clause-checklist engine (core/clauses.ts, contract C4, E35-05 and E27-11) as
  * the set `funder_clauses`, one checklist per award (the sub-key is the award id), beside the
  * contract security terms (set `security_terms`, vendors module).

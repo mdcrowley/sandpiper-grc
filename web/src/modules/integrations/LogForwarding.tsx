@@ -140,7 +140,7 @@ function OutboundNotice({ data }: { data: ForwardersResponse }) {
     return (
       <Notice tone="caution" icon="lock">
         <p><strong>Nothing is sent yet: outbound connections are switched off.</strong> Forwarders can be set up, but they wait until an administrator switches on
-          <strong> Outbound connections</strong> in <Link to="/admin/settings#settings-integrations">Settings</Link> and adds each collector's host (with its port) to <strong>Allowed hosts</strong>.</p>
+          <strong> Allow outbound connections</strong> in <Link to="/admin/settings#settings-integrations">Settings</Link> and adds each collector's host (with its port) to <strong>Allowed hosts</strong>.</p>
       </Notice>
     );
   }

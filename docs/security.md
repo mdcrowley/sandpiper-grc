@@ -963,7 +963,15 @@ separate, tamper-evident copy.
   `/api/mobile/sync`, `/api/mobile/sync/attachment` and `/api/mobile/package` accept only the app's own
   token. Each outbox item is done through the normal route as the person, with its checks and audit;
   answers are kept 7 days per person and item id (`mobile_sync_items`), and the same id with different
-  content is refused.
+  content is refused. Field work (E38-11, E38-12) adds the kinds `inspection.answers`,
+  `inspection.complete`, `condition.assess` and `count.found`, each done through the normal route as
+  the person (`PUT /api/inspections/:id/responses`, `POST /api/inspections/:id/complete`,
+  `POST /api/condition-assessments`, `POST /api/inventory-counts/:id/found`). A photo named by an
+  answer must be one this person's own outbox attached to that same inspection (`mobile_sync_items`).
+  Drafts (inspections in progress, joined counts) live in the same protected SQLite database and are
+  wiped with it. The package's `counts` part needs `tags.count`, and each part is read through the
+  routes as the person. The drawn signature is a PNG made on the phone; the server keeps the typed name
+  and the time.
 - **What the app sends elsewhere**: nothing of the organization's data. Tags and text are read on the
   phone by Google ML Kit with its models bundled; images never leave the phone unless the person
   attaches one to a record. ML Kit can report usage statistics (never images) through Google's data
@@ -986,7 +994,46 @@ token or endpoint are stored encrypted with the secret key, re-encrypted on key 
 returned by the API. Settings changes need a recent password confirmation and are audited without
 keys. Registrations are tied to the signed-in device and deleted when it is signed out or revoked (a
 database trigger, and a sweep at each delivery). The Android build switches off Firebase's automatic
-token creation and analytics, and removes Google's data transport.
+token creation and analytics, and removes Google's data transport. A push that fails for a while only
+is retried with a back-off and a cap (about two hours; a service's Retry-After is honored up to six
+hours). Each retry is claimed with a conditional update so it is sent once, and it carries only the
+current count. Rejected tokens are deleted, never retried. The Android app's UnifiedPush connector
+(`org.unifiedpush.android:connector`, Apache-2.0, pinned) makes the RFC 8291 keys on the phone and
+decrypts messages there. Its push service is not exported. It shows only messages decrypted with the
+phone's keys and in the server's "N new notifications" form, and it adds no Google Play services,
+Firebase or analytics library.
+
+### Mobile app threat model
+
+Internal review (wave 16, E38-15); it does not replace the independent review (E16-40).
+
+**What is protected:** the person's tokens (Keychain, "when unlocked, this device only"; Android Keystore);
+the offline package, outbox, drafts and photos (one SQLite database and one folder in the app's private
+storage); images and photo copies in the app's cache; the organization's records reached through the API.
+
+**Who might attack:** someone who finds or steals a phone, locked or unlocked; another app on the phone; a
+hostile or captive network; a web page or message with a link to the app; a person who has the app on their
+own phone and wants more than they are allowed; and the push services (Apple, Google, a UnifiedPush server).
+
+**Trust boundaries:** the phone and the server (HTTPS only, with the system's certificate checks); the app
+and the system browser during sign-in; the app and other apps (links into the app, shared storage, backups);
+the server and the push services.
+
+| Threat | Mitigation | Residual risk |
+|---|---|---|
+| A stolen token used elsewhere | Access tokens last 15 minutes. Refresh tokens rotate, are bound to the installation id, and a reused one signs the device out. The device can be signed out from the web. | A token taken from an unlocked, compromised phone works until it lapses or the device is signed out. |
+| Sign-in code taken by another app claiming the app's address | PKCE (S256) and a state value. The server only ever sends back to `com.sandpipergrc:/oauth`. Approving needs a recent password confirmation. | The consent page shows the device name the app sends. The `iss` value is not checked (the app talks to one server). |
+| A network that reads or changes traffic | HTTPS only in release builds. Android trusts only system certificate authorities and allows no plain HTTP (an explicit network security config). The iPhone app uses the system trust store. No certificate pinning (each organization has its own certificates). | A certificate authority installed as a system authority, for example by device management, is trusted. |
+| Local data read from a lost phone | The operating system's storage encryption. Optional or required unlock (on every cold start and after the idle time). Content under the lock cover is hidden from screen readers. The offline package expires (`mobile.offline_days`). | iPhone files use the default protection (readable after the first unlock since restart). Expiry follows the phone's clock and is enforced while the app runs. The unlock cannot be asked on a phone with no passcode. |
+| Local data copied off the phone | Android: `allowBackup` false, and backup and data extraction rules exclude every storage domain (cloud backup and device-to-device transfer). iPhone: the offline folders are excluded from iCloud and computer backups, and Keychain items are "this device only". | None known (the iPhone exclusion still needs checking on a device). |
+| Data left after a sign-out or revocation | Signing out, a refused refresh (device signed out on the web, account deactivated, area off) and package expiry wipe the database, photos, drafts and cache. A signed-out start finishes any interrupted wipe. A new sign-in starts from an empty phone. A new iPhone installation clears earlier Keychain items. | A phone that never comes online keeps its data until the package expires (the outbox and drafts do not expire). |
+| An app token used for more than the person may do | It acts as the person through the normal routes (permissions, restrictions, audit). It cannot reach sign-in, account security, tokens, `/mcp`, or approve another sign-in. Sensitive actions need a fresh `prompt=login`. | As much as the person can do. |
+| Another person's outbox answer returned | Answers are kept per person and item id, and the same id with different content is refused. Photos named by answers must come from this person's own outbox. | None known. |
+| Too much load from one phone | 600 requests a minute per token (shared by every process), counting in-process calls. 50 items per batch. Photos read at most up to the attachment limit, refused early from `Content-Length`, at most 2 at a time per phone. Failed token requests: 30 per 5 minutes per address. | Building a package is costly but limited by the token rate. |
+| Push used to leak or to reach internal hosts | Content is only "You have N new notifications". UnifiedPush addresses must be on the administrator's list, every resolved address is checked, redirects are not followed, and messages are encrypted (RFC 8291). Registrations belong to the device and are deleted when it signs out. | Apple and Google see the device token, timing and the configured app name. |
+| A link that opens the app, or a tag or text read by the camera | Links open only app screens, which load their data from the server as the person. The web sheet opens only the signed-in server (server address plus a path). Tag values and recognized text are never used as web addresses. | A link can open a screen with words filled in (for example a condition form's label); nothing is saved without the person. |
+| Screenshots and the app switcher | Restricted records block screenshots (Android) and blank the app-switcher image (iPhone). | Other screens can be captured, and Android's recents thumbnail shows the last screen. |
+| Libraries sending data | No analytics, crash reporting or advertising libraries. Expo telemetry off. ML Kit's data transport removed on Android. Firebase does not start on its own. | iPhone ML Kit usage reporting not measured. ML Kit and Google Play services are proprietary (free of charge). |
 
 ### User provisioning and audit-log forwarding
 

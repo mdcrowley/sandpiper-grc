@@ -316,3 +316,39 @@ describe('dashboard and metrics', () => {
     expect((await pm.get(`/api/metrics?month=${today.slice(0, 7)}`)).body.metrics.map((x: any) => x.key)).not.toContain('audits.findings_overdue');
   });
 });
+
+describe('canceled inspections and the signature of completion (E38-11)', () => {
+  it('refuses answers and completion on a canceled inspection', async () => {
+    const tpl = await makeTemplate(lead, 'inspection', [{ prompt: 'Invented gate latched' }]);
+    const ins = await lead.post('/api/inspections', { template_id: tpl.id, target_type: 'none', due_on: today });
+    expect(ins.status).toBe(201);
+    expect((await lead.patch(`/api/inspections/${ins.body.id}`, { status: 'canceled' })).status).toBe(200);
+    const put = await lead.put(`/api/inspections/${ins.body.id}/responses`, { item_id: tpl.items[0].id, answer: 'yes' });
+    expect(put.status).toBe(409);
+    expect(put.body.error.code).toBe('inspection_canceled');
+    expect((await lead.post(`/api/inspections/${ins.body.id}/complete`, {})).body.error.code).toBe('inspection_canceled');
+  });
+
+  it('records who signed, with a signature that must be a file on the inspection', async () => {
+    const tpl = await makeTemplate(lead, 'inspection', [{ prompt: 'Invented hatch closed' }, { prompt: 'Invented signage present' }]);
+    const ins = await lead.post('/api/inspections', { template_id: tpl.id, target_type: 'none', due_on: today });
+    await lead.put(`/api/inspections/${ins.body.id}/responses`, { responses: tpl.items.map((i) => ({ item_id: i.id, answer: 'yes' })) });
+    const file = await t.db.one<{ id: string }>(
+      `insert into attachments (record_type, record_id, file_name, extension, content_type, size_bytes, sha256, storage_key)
+       values ('inspection', $1, 'signature.png', 'png', 'image/png', 10, 'x', $2) returning id`, [ins.body.id, `sig/${ins.body.id}`]);
+    const other = await t.db.one<{ id: string }>(
+      `insert into attachments (record_type, record_id, file_name, extension, content_type, size_bytes, sha256, storage_key)
+       values ('inspection', gen_random_uuid(), 'other.png', 'png', 'image/png', 10, 'x', $1) returning id`, [`sig/other/${ins.body.id}`]);
+    const wrong = await lead.post(`/api/inspections/${ins.body.id}/complete`, { signed_by_name: 'Test signer', signature_attachment_id: other!.id });
+    expect(wrong.status).toBe(400);
+    expect(wrong.body.error.fields.signature_attachment_id).toBeTruthy();
+    expect((await lead.post(`/api/inspections/${ins.body.id}/complete`, { signature_attachment_id: file!.id })).body.error.fields.signed_by_name).toBeTruthy();
+    const done = await lead.post(`/api/inspections/${ins.body.id}/complete`, { signed_by_name: 'Test signer', signature_attachment_id: file!.id });
+    expect(done.status).toBe(200);
+    expect(done.body.inspection).toMatchObject({ status: 'complete', result: 'pass', signed_by_name: 'Test signer' });
+    expect(done.body.inspection.signed_at).toBeTruthy();
+    const ev = await t.db.one<any>(`select summary, after from audit_events where action = 'inspection.complete' and record_id = $1`, [ins.body.id]);
+    expect(ev.summary).toContain('signed by Test signer');
+    expect(ev.after.signature_attachment_id).toBe(file!.id);
+  });
+});

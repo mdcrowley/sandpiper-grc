@@ -24,8 +24,7 @@ content, which belongs in a document tool (E25-13, E29-11, E32-06, E34-09).
   - A meeting decision can be applied only to approvals declared as an approval kind, not to
     workflows an administrator defined with no kind; meetings send no calendar invitations by
     email; members subscribe through a calendar feed (E36-03).
-  - Departments are not a record type, so person and position exports show the department's id;
-    kiosk lockouts after wrong employee numbers are kept per server process.
+  - Departments are not a record type, so person and position exports show the department's id.
   - Key risk indicators are monthly only; regulatory changes are entered by hand (no outside feed).
 - **Wave 11 parts** (business continuity, asset condition, OT security, legal holds, records
   requests and privacy, the vendor risk lifecycle and integrations):
@@ -96,24 +95,45 @@ content, which belongs in a document tool (E25-13, E29-11, E32-06, E34-09).
   was never used; two refreshes of the same token at the same moment get one answer, and the other is
   refused. Within `auth.reauth_minutes` of a `prompt=login` sign-in, the phone may perform any
   sensitive action the person may, like a freshly confirmed browser.
-- **Asset tags**: an inventory count's area restricts it to records with a location (assets); counts
-  have no offline mode until E38-12.
+- **Asset tags**: an inventory count's area restricts it to records with a location (assets).
 - **Mobile app (testing)**: the Maestro flows (`mobile/test/maestro/`) run locally on the Android
   emulator, not yet in CI. iPhone builds run only on the macOS leg of continuous
   integration and have not been run on a device; whether ML Kit sends usage statistics on iPhone has
   not been measured (see `docs/security.md`). The app's open-source licenses list includes packages
   used only at build time.
-- **Push notifications (E38-14)**: tested only against fake Apple, Google and UnifiedPush services in
-  the test process, not yet with real credentials on real phones. The Android app has no UnifiedPush
-  connector yet, so without Firebase in the build Android phones get no pushes. A push that fails
-  temporarily is not retried; the next new notification pushes again.
+- **Push notifications (E38-14)**: the Android UnifiedPush connector and delivery retries are built
+  and tested with fake services, Kotlin unit tests and a release build. Delivery with real Apple and
+  Google credentials, and with a real UnifiedPush distributor and push server, has not been tried on a
+  phone. A distributor that moves a phone to a new address while the app is closed is picked up only
+  when the app next opens. Account > Open-source licenses lists only npm packages, not native libraries
+  (the UnifiedPush connector, Tink, ML Kit).
 - **Mobile app (offline)**: a photo whose upload failed is sent again whole (no partial resume), but
   never attached twice. The portal, safety and attachment routes themselves still ignore
   `Idempotency-Key` when called directly (the app goes through `/api/mobile/sync`, which keeps each
-  answer for 7 days). Only reports work offline so far; inspections, condition assessments and counts
-  follow (E38-11, E38-12), and tags are not looked up in the offline package yet. A phone signed out
-  from the web loses work it had not sent. Portal users report from a tag card only, not from scratch,
+  answer for 7 days). Reports, inspections (with a signature), condition assessments and inventory
+  counts work offline (E38-10 to E38-12); tags are looked up offline only among the records the package
+  covers (my inspections' targets, condition assessments due, open counts). The web's inspection runner
+  asks for no signature (the inspection page shows who signed in the app). Inspections and counts were
+  proven on the Android emulator only, not on a real phone in a dead spot or an iPhone. A phone signed
+  out from the web loses work it had not sent, including inspections started on it. Portal users report from a tag card only, not from scratch,
   and photos on a portal safety report may be refused.
+- **Mobile app accessibility not yet tried by people (E38-15)**: the app was checked on the Android
+  emulator at 200% text with its accessibility tree and automated tests, but VoiceOver has not been run
+  (it needs an iPhone or a Mac), no TalkBack user has walked through it, and iPhone Dynamic Type at the
+  largest sizes has not been seen on a device. The camera's pinch to zoom and tap to focus have no
+  buttons (autofocus, Take a picture, Choose a picture and Type a number are the alternatives).
+- **Mobile app (security, E38-15)**: offline package expiry follows the phone's clock and is enforced
+  only while the app runs; a phone that stays offline after being signed out on the web keeps its
+  offline data until it next reaches the server (the package until it expires; unsent work and drafts
+  until then). On iPhone, offline files use the default Data Protection class (readable after the
+  first unlock since restart); the exclusion from iCloud and computer backups and the sign-out after a
+  reinstall are built but not yet checked on a real iPhone. The app-switcher image is blanked, and
+  screenshots blocked, only while a restricted record is open; Android's recents thumbnail can show the
+  last screen. The required unlock cannot be enforced on a phone with no passcode. The app's native
+  recognition and push libraries (Google ML Kit, Google Play services and Firebase Messaging) are
+  proprietary, though free of charge. 22 moderate `npm audit` advisories in the app's build and test
+  tools (`glob` and `minimatch` through jest and `@expo/fingerprint`) have no non-breaking fix; none
+  ships in the app.
 - **Hosting**: with a least-privilege database account, adding a custom field is queued
   for the database owner, and a new text custom field is searched only after the owner's
   next `migrate` step. JSON API responses are not compressed by the application (a risk with
@@ -124,12 +144,14 @@ content, which belongs in a document tool (E25-13, E29-11, E32-06, E34-09).
   agent after a restart) is unproven.
 - **Performance**: the embedded database is for evaluation. The database on its own machine is not
   yet measured (E16-41): load figures come from a PostgreSQL container limited to 2 processors and
-  2 GB on the same laptop as the application, with people in different roles. At scale 1 global
-  search (0.8 to 1.1 s) and sometimes the full-text list miss the server targets; at scale 4 the two
-  database processors are saturated and lists, search and the Overview take 0.8 to 4.3 s. Under
-  bursts of writes, a request that waits more than `GRC_DATABASE_CONNECT_TIMEOUT` (10 s) for one of
-  the `GRC_DATABASE_POOL_MAX` (10) connections fails with "Something went wrong" (30 of about 82,000
-  while seeding scale 4).
+  2 GB on the same laptop as the application, with people in different roles. At scale 1 every server
+  target is now met, global search and the full-text list included (95th percentile 310 to 395 ms and
+  122 to 135 ms after the wave 15 tuning); a word in nearly every record still takes global search
+  about 1 to 1.3 s at the 99th percentile. At scale 4 the two database processors are saturated:
+  global search takes 0.8 to 0.9 s and the full-text list 0.4 s, and sorted lists and the Overview 0.8
+  to 3.7 s. Under bursts of writes, a request that waits more than `GRC_DATABASE_CONNECT_TIMEOUT` (10 s)
+  for one of the `GRC_DATABASE_POOL_MAX` (10) connections fails with "Something went wrong" (30 of
+  about 82,000 while seeding scale 4).
 - **Vendors**: the contract import fills structured dates only where the text is
   unambiguous; the "Complete the dates" queue lists the rest.
 

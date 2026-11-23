@@ -162,7 +162,7 @@ Frontline staff want to acknowledge a document on a supervisor's signed-in devic
 - [x] `GET /api/policies/kiosk/pending` and `POST /api/policies/kiosk/acknowledge`
 - [x] No unauthenticated route; every acknowledgment records who recorded it
 
-**Implemented in:** kiosk routes in `policies/personAcks.ts` (`policies.edit`; employee number checked, five wrong numbers lock that person out for 15 minutes, every mismatch audited), `web/src/modules/policies/Kiosk.tsx`
+**Implemented in:** kiosk routes in `policies/personAcks.ts` (`policies.edit`; employee number checked, five wrong numbers within 15 minutes stop it for that person, counted in the database (`makeDbLimiter`, bucket `kiosk`; E18-60), every mismatch audited), `web/src/modules/policies/Kiosk.tsx`
 
 ### E29-11 Not planned: hours-of-service and fatigue records
 

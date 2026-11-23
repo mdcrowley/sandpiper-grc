@@ -170,7 +170,7 @@ export function SamlIdentityProviderFields({ value, set, err, data, provider }: 
             disabled={!data.outboundEnabled}
             hint={data.outboundEnabled
               ? 'Fetched once, now. The host must be on the allowed hosts list (Settings > Integrations).'
-              : 'Outbound connections are switched off (Settings > Integrations), so this application fetches nothing. Download the file yourself and upload it.'} />
+              : 'Outbound connections are switched off (Allow outbound connections, under Settings > Integrations), so this application fetches nothing. Download the file yourself and upload it.'} />
           <Button size="sm" icon="download" disabled={!data.outboundEnabled || !url.trim()} loading={busy === 'url'} onClick={() => void read({ url: url.trim() }, 'url')}>Fetch</Button>
         </div>
         {result && <Notice tone={result.ok ? 'success' : 'danger'} role={result.ok ? 'status' : 'alert'}>{result.text}</Notice>}

@@ -1,0 +1,58 @@
+# Maestro flow (E38-15): the main screens at the phone's largest text (Android font scale 2.0, set by
+# run-large-text.sh) in the dark theme: every control is still on screen or can be scrolled to, by the
+# name it shows, and the inspection's answers do not break their words.
+# Before: the app signed in (connect-sign-in.yaml), and the records of run-fieldwork.sh's set-up.
+appId: com.sandpipergrc
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "My work"
+    timeout: 90000
+- assertVisible: "Refresh"
+- assertVisible: "Notifications.*"
+# Notifications: filter buttons and Mark all read in the list (the top bar keeps its title).
+- tapOn: "Notifications.*"
+- extendedWaitUntil:
+    visible: "Unread only"
+    timeout: 20000
+- assertVisible: "All"
+- back
+# Report: both kinds of report and Field work.
+- runFlow:
+    file: subflows/open-report-tab.yaml
+- assertVisible: "Report a hazard or close call"
+- tapOn: "Report a hazard or close call"
+- extendedWaitUntil:
+    visible: "Title"
+    timeout: 20000
+- scrollUntilVisible:
+    element: "Send"
+- assertVisible: "Choose photos"
+- back
+- runFlow:
+    file: subflows/open-field-work.yaml
+- tapOn: ".*${INSPECTION}.*"
+- extendedWaitUntil:
+    visible: "Item 1 of 2"
+    timeout: 20000
+# The three answers, whole words, each at least 48 dp.
+- assertVisible: "Pass"
+- assertVisible: "Fail"
+- assertVisible: "Not applicable"
+- back
+- back
+# Tag: the camera's controls and typing a number instead of the camera.
+- tapOn: "Tag"
+- extendedWaitUntil:
+    visible: "Type a number"
+    timeout: 20000
+- assertVisible: "Choose a picture"
+- tapOn: "Type a number"
+- assertVisible: "Tag number"
+- assertVisible: "Find"
+# Account: the switches are whole rows.
+- hideKeyboard
+- tapOn: "Account"
+- scrollUntilVisible:
+    element: "Tell me on this phone.*"
+- assertVisible: "Tell me on this phone.*"

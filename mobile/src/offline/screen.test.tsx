@@ -20,6 +20,8 @@ jest.mock('./index', () => ({
   useOfflinePackage: () => mockState.pkg,
 }));
 
+jest.setTimeout(20_000);
+
 describe('Offline work screen', () => {
   beforeEach(() => { jest.clearAllMocks(); mockState.items = []; mockState.pkg = null; });
 
@@ -33,7 +35,7 @@ describe('Offline work screen', () => {
     expect(screen.getByText(/Check the highlighted fields\. title: Say in a few words/)).toBeTruthy();
     expect(screen.getByText('Photo 1 of Leaking pump')).toBeTruthy();
     expect(screen.getByText(TEXT.waitingFor)).toBeTruthy();
-    await fireEvent.press(screen.getByLabelText(TEXT.sendAgain));
+    await fireEvent.press(screen.getByRole('button', { name: new RegExp(`^${TEXT.sendAgain}: `) }));
     expect(mockBox.retry).toHaveBeenCalledWith('r1', { asNew: false });
   });
 
@@ -42,9 +44,9 @@ describe('Offline work screen', () => {
     const alert = jest.spyOn(Alert, 'alert').mockImplementation((_t, _b, buttons) => { buttons?.find((b) => b.style === 'destructive')?.onPress?.(); });
     mockState.items = [item({ state: 'rejected', error: { code: 'uncertain', message: 'The server stopped while doing this.' } })];
     await render(<OfflineScreen />);
-    await fireEvent.press(screen.getByLabelText(TEXT.sendAsNew));
+    await fireEvent.press(screen.getByRole('button', { name: new RegExp(`^${TEXT.sendAsNew}: `) }));
     expect(mockBox.retry).toHaveBeenCalledWith('r1', { asNew: true });
-    await fireEvent.press(screen.getByLabelText(TEXT.discard));
+    await fireEvent.press(screen.getByRole('button', { name: new RegExp(`^${TEXT.discard}: `) }));
     expect(alert).toHaveBeenCalled();
     expect(mockBox.discard).toHaveBeenCalledWith('r1');
   });

@@ -7,7 +7,7 @@ import { pageOf } from './api/conventions.ts';
 import type { CreateOptions, FieldDef, ResourceDef, ResourceRegistry, Row, SessionUser } from './module.ts';
 import { CUSTOM_PREFIX, customFieldDef, customName, type CustomField, type CustomFields } from './customfields.ts';
 import { makeLifecycles, type HeldMove, type Lifecycles } from './lifecycle.ts';
-import { BODY_SEPARATOR, ensureCommentSearch, ensureSearchIndex, maySchemaChange, parseSearch, requestSchemaChange, schemaChangeDone, substringColumns } from './search.ts';
+import { BODY_SEPARATOR, bodyLike, ensureCommentSearch, ensureSearchIndex, maySchemaChange, parseSearch, requestSchemaChange, schemaChangeDone, substringColumns } from './search.ts';
 import { can, type makeAudit, type makeLookups } from './services.ts';
 // Spreadsheet and PDF exports, record fact sheets and the generic import (core/export, core/import).
 import { capExportRows, EXPORT_ROW_LIMIT, exportColumns, sendListExport, truncatedLine, TRUNCATED_HEADER } from './export/list.ts';
@@ -641,6 +641,12 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
     const add = (v: unknown) => { params.push(v); return `$${params.length}`; };
     /** Set when the query is a full-text search: an expression to order the best matches first. */
     let rank: string | null = null;
+    /**
+     * Set when a full-text search can be answered from the search index alone (E16-41): the list's
+     * FROM with the matching index rows joined (and ranked once each), its condition in place of
+     * the search condition, and its rank. See `joinedSearch` below.
+     */
+    let joined: { from: string; at: number; cond: string; rank: string } | null = null;
 
     const search = parseSearch(query.q);
     if (search.text) {
@@ -657,12 +663,29 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
         // The matching index rows are found once, through the index (the vector, and for one word the
         // substring text with its trigram index), and kept in a hash, rather than tested again on
         // every record (E16-36). `body` holds exactly the substring fields (search.ts, bodySql).
-        const inBody = search.single && !search.text.includes(BODY_SEPARATOR) ? ` or si.body ilike ${like}` : '';
+        const inBody = search.single && !search.text.includes(BODY_SEPARATOR) ? ` or ${bodyLike(like)}` : '';
         const matched = `${def.table}.id in (select si.record_id from search_index si where si.record_type = ${type} and (si.vector @@ ${tsq}${inBody}))`;
-        where.push(guard(`(${matched} or ${exact}`
-          + ` or ${search.single ? (inBody ? 'false' : substring) : `${def.titleField}::text ilike ${like}${def.ref ? ` or ${def.ref.field}::text ilike ${like}` : ''}`})`));
-        rank = `(coalesce((select ts_rank(si.vector, ${tsq}) ${entry}), 0) + case when ${exact} then 10 else 0 end`
-          + ` + case when ${def.titleField}::text ilike ${like} then 0.5 else 0 end)`;
+        const textMatch = `${def.titleField}::text ilike ${like}${def.ref ? ` or ${def.ref.field}::text ilike ${like}` : ''}`;
+        const boost = `case when ${exact} then 10 else 0 end + case when ${def.titleField}::text ilike ${like} then 0.5 else 0 end`;
+        where.push(guard(`(${matched} or ${exact} or ${search.single ? (inBody ? 'false' : substring) : textMatch})`));
+        rank = `(coalesce((select ts_rank(si.vector, ${tsq}) ${entry}), 0) + ${boost})`;
+        // The same rows and order from the index alone (E16-41). Everything a record can match by is
+        // in its index row: its words in the vector; its reference, and for one word every substring
+        // field, in the substring text (`body`, search.ts bodySql), and for several words its title
+        // when the title is a substring field. So the candidates are the index rows matching the
+        // words or holding the text, joined to the records by id (no record table is read in full,
+        // and no index row is looked up again per record to rank it), and rechecked with the
+        // condition above: `_search_hit` is the "matched" part of it.
+        if (!search.text.includes(BODY_SEPARATOR) && (search.single || substringColumns(def).includes(def.titleField))) {
+          joined = {
+            from: `${def.table} join (select si.record_id as _search_id, ts_rank(si.vector, ${tsq}) as _search_rank,`
+              + ` ${search.single ? 'true' : `si.vector @@ ${tsq}`} as _search_hit from search_index si`
+              + ` where si.record_type = ${type} and (si.vector @@ ${tsq} or ${bodyLike(like)})) _search on _search._search_id = ${def.table}.id`,
+            at: where.length - 1,
+            cond: guard(`(_search._search_hit or ${exact}${search.single ? '' : ` or ${textMatch}`})`),
+            rank: `(coalesce(_search._search_rank, 0) + ${boost})`,
+          };
+        }
       } else {
         where.push(guard(`(${substring})`));
       }
@@ -702,7 +725,11 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
         fail(400, 'bad_filter', `Unknown filter operator "${op}".`);
       }
     }
-    return { where: where.join(' and '), params, rank, everyone };
+    /** The list statement's FROM, WHERE and rank: with the index rows joined when that can answer the search. */
+    const joinedSearch = joined
+      ? { from: joined.from, where: where.map((w, i) => (i === joined!.at ? joined!.cond : w)).join(' and '), rank: joined.rank }
+      : { from: def.table, where: where.join(' and '), rank };
+    return { where: where.join(' and '), params, rank, everyone, list: joinedSearch };
   }
 
   function csvCell(v: unknown): string {
@@ -731,18 +758,19 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
       authorize(req, def, 'view');
       const query = req.query as Record<string, string>;
       const customDefs = await custom.defs(def.type);
-      const { where, params, rank } = buildWhere(def, query, req.user, customDefs);
+      // A full-text search reads the matching index rows joined to the records (buildWhere, E16-41).
+      const { params, list: { from, where, rank } } = buildWhere(def, query, req.user, customDefs);
       const sortable = query.sort !== undefined && IDENT.test(query.sort)
         && (def.fields[query.sort] ?? STD_FIELDS[query.sort] ?? (customDefs[query.sort]?.multiple ? undefined : customDefs[query.sort]));
       const sortField = sortable ? columnSql(query.sort, sortable, 'typed') : def.defaultSort?.field ?? 'created_at';
       const dir = (query.dir ?? (query.sort ? 'asc' : def.defaultSort?.dir ?? 'desc')) === 'desc' ? 'desc' : 'asc';
       // A full-text search with no sort chosen puts the best matches first.
-      const order = `order by ${rank && !sortable ? `${rank} desc, ` : ''}${sortField} ${dir} nulls last, id`;
+      const order = `order by ${rank && !sortable ? `${rank} desc, ` : ''}${sortField} ${dir} nulls last, ${def.table}.id`;
 
       if (query.format === 'csv') {
         authorize(req, def, 'export');
         // One row more than the limit, to know (and say, OP-10) when the export was cut.
-        const { rows: found, truncated } = capExportRows(await db.query(`select * from ${def.table} where ${where} ${order} limit ${EXPORT_ROW_LIMIT + 1}`, params));
+        const { rows: found, truncated } = capExportRows(await db.query(`select ${def.table}.* from ${from} where ${where} ${order} limit ${EXPORT_ROW_LIMIT + 1}`, params));
         const rows = await decorate(def, found, req.user);
         const exported: Record<string, FieldDef> = Object.fromEntries(exportColumns({ ...def.fields, ...customDefs }, query.columns));
         const names = Object.keys(exported);
@@ -762,7 +790,7 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
       // Spreadsheet (XLSX) and PDF: the same rows, permissions, watermark rule and audit as CSV (core/export/list.ts).
       if (query.format === 'xlsx' || query.format === 'pdf') {
         authorize(req, def, 'export');
-        const { rows: found, truncated } = capExportRows(await db.query(`select * from ${def.table} where ${where} ${order} limit ${EXPORT_ROW_LIMIT + 1}`, params));
+        const { rows: found, truncated } = capExportRows(await db.query(`select ${def.table}.* from ${from} where ${where} ${order} limit ${EXPORT_ROW_LIMIT + 1}`, params));
         const rows = await decorate(def, found, req.user);
         return sendListExport({
           req, reply, db, audit, def, rows, truncated, fields: { ...def.fields, ...customDefs }, query, format: query.format,
@@ -776,11 +804,11 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
       // row to carry it, so only then is it counted on its own.
       const offset = (page - 1) * pageSize;
       const found = await db.query<{ id: string; total: number }>(
-        `select id, count(*) over ()::int as total from ${def.table} where ${where} ${order} limit ${pageSize} offset ${offset}`, params,
+        `select ${def.table}.id, count(*) over ()::int as total from ${from} where ${where} ${order} limit ${pageSize} offset ${offset}`, params,
       );
       const ids = found.map((r) => r.id);
       const total = found.length ? found[0].total
-        : offset === 0 ? 0 : (await db.one<{ c: number }>(`select count(*)::int c from ${def.table} where ${where}`, params))!.c;
+        : offset === 0 ? 0 : (await db.one<{ c: number }>(`select count(*)::int c from ${from} where ${where}`, params))!.c;
       const byId = new Map((ids.length
         ? await db.query<Row>(`select * from ${def.table} where id = any($1::uuid[]) and deleted_at is null and ${visibilitySql(def, req.user)}`, [ids])
         : []).map((r) => [r.id, r]));

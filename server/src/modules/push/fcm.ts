@@ -5,6 +5,7 @@ import type { KeyObject } from 'node:crypto';
 import { PUSH_ANDROID_CHANNEL, PUSH_COLLAPSE_KEY, PUSH_ROUTE } from '../../../../shared/push-api.ts';
 import { pushEndpoints } from './endpoints.ts';
 import { signJwt } from './jwt.ts';
+import { parseRetryAfter, temporaryStatus } from './retry.ts';
 import type { PushMessage, SendOutcome } from './types.ts';
 
 export interface FcmCredentials { projectId: string; clientEmail: string; key: KeyObject; fingerprint: string }
@@ -29,7 +30,10 @@ async function accessToken(c: FcmCredentials): Promise<string> {
   });
   const body = (await res.json().catch(() => ({}))) as { access_token?: string; expires_in?: number; error?: string; error_description?: string };
   if (!res.ok || !body.access_token) {
-    throw Object.assign(new Error(`Google refused the service account (${body.error ?? res.status}${body.error_description ? `: ${body.error_description.slice(0, 200)}` : ''}).`), { settings: res.status === 400 || res.status === 401 || res.status === 403 });
+    const settings = res.status === 400 || res.status === 401 || res.status === 403;
+    throw Object.assign(new Error(`Google ${settings ? 'refused the service account' : 'gave no access token'} (${body.error ?? res.status}${body.error_description ? `: ${body.error_description.slice(0, 200)}` : ''}).`), {
+      settings, temporary: temporaryStatus(res.status), retryAfterSeconds: parseRetryAfter(res.headers.get('retry-after')),
+    });
   }
   accessTokens.set(cacheKey(c), { token: body.access_token, expiresAt: Date.now() + Math.max(60, Number(body.expires_in) || 3600) * 1000 });
   return body.access_token;
@@ -57,7 +61,10 @@ export function fcmClient(c: FcmCredentials) {
     try {
       bearer = await accessToken(c);
     } catch (err) {
-      return { ok: false, gone: false, settings: Boolean((err as { settings?: boolean }).settings), message: (err as Error).message };
+      const e = err as Error & { settings?: boolean; temporary?: boolean; retryAfterSeconds?: number | null };
+      // Google's token service not reached (no `settings` flag), or 429/5xx: every phone waits (one token serves them all).
+      const temporary = e.settings === undefined || Boolean(e.temporary);
+      return { ok: false, gone: false, settings: Boolean(e.settings), temporary, retryAfterSeconds: e.retryAfterSeconds ?? null, pauseService: temporary, message: e.message.slice(0, 300) };
     }
     let res: Response;
     try {
@@ -67,7 +74,7 @@ export function fcmClient(c: FcmCredentials) {
         body: JSON.stringify(fcmBody(token, m)),
       });
     } catch (err) {
-      return { ok: false, gone: false, message: `Firebase Cloud Messaging could not be reached: ${(err as Error).message.slice(0, 200)}` };
+      return { ok: false, gone: false, temporary: true, message: `Firebase Cloud Messaging could not be reached: ${(err as Error).message.slice(0, 200)}` };
     }
     if (res.ok) return { ok: true };
     const body = (await res.json().catch(() => ({}))) as { error?: { status?: string; message?: string; details?: { errorCode?: string }[] } };
@@ -80,7 +87,12 @@ export function fcmClient(c: FcmCredentials) {
       accessTokens.delete(cacheKey(c));
       return { ok: false, gone: false, settings: true, message: `Firebase refused the push settings (${code || res.status}): check the service account and its project.` };
     }
-    return { ok: false, gone: false, message: `Firebase Cloud Messaging answered ${res.status}${code ? ` (${code})` : ''}.` };
+    const text = `Firebase Cloud Messaging answered ${res.status}${code ? ` (${code})` : ''}.`;
+    // 429 (QUOTA_EXCEEDED) and 5xx (UNAVAILABLE, INTERNAL): wait as long as Google says, for every phone.
+    if (temporaryStatus(res.status) || code === 'UNAVAILABLE' || code === 'INTERNAL' || code === 'QUOTA_EXCEEDED') {
+      return { ok: false, gone: false, temporary: true, retryAfterSeconds: parseRetryAfter(res.headers.get('retry-after')), pauseService: true, message: text };
+    }
+    return { ok: false, gone: false, message: text };
   }
   return { send };
 }

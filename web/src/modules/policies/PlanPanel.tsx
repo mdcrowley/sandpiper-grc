@@ -74,7 +74,7 @@ export function PlanPanel({ policy, onChanged }: { policy: Row; onChanged?: () =
   return (
     <div className="stack">
       <Card title="Plan elements" actions={canEdit && <Button size="sm" icon="edit" onClick={() => setEditing(true)}>Edit map</Button>}>
-        {keys.length === 0 ? <EmptyState icon="clipboard" title="No elements defined" message="An administrator lists the plan's elements under Administration > Lookups (plan element)." /> : (
+        {keys.length === 0 ? <EmptyState icon="clipboard" title="No elements defined" message="An administrator lists the plan's elements under Administration > Lists (the list Plan element)." /> : (
           <div className="pl-map">
             {keys.map((k) => {
               const rows = data.elements.filter((e) => e.element_key === k);

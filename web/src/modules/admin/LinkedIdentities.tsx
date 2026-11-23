@@ -173,7 +173,7 @@ export function LinkedIdentitiesCard() {
                       <strong>{i.provider_name}</strong>{!i.enabled && <> <StatusChip color="gray" label="Switched off" size="sm" /></>}
                       <div className="muted adm-small">{i.email ?? 'No email'} · {LINK_METHOD[i.link_method] ?? 'Linked'} {formatDateTime(i.linked_at)}</div>
                     </div>
-                    <Button size="sm" onClick={() => setUnlinking(i)}>Unlink</Button>
+                    <Button size="sm" aria-label={`Unlink: ${i.provider_name}`} onClick={() => setUnlinking(i)}>Unlink</Button>
                   </li>
                 ))}
               </ul>

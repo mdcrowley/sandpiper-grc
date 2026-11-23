@@ -176,10 +176,10 @@ function Checklist({ row, canEdit, reloadRecord }: { row: Row; canEdit: boolean;
                             : <span className="fd-todo">Not confirmed</span>}
                         </td>
                         <td className="fd-actions">
-                          {mayConfirm && !i.confirmed_on && <Button size="sm" variant="primary" loading={busy === i.id} onClick={() => confirm(i, true)}>Confirm</Button>}
-                          {mayConfirm && i.confirmed_on && <Button size="sm" variant="ghost" loading={busy === i.id} onClick={() => confirm(i, false)}>Withdraw</Button>}
-                          {canEdit && draft && <Button size="sm" variant="ghost" onClick={() => setEditing(i)}>Edit</Button>}
-                          {canEdit && draft && <Button size="sm" variant="ghost" onClick={() => setRemoving(i)}>Remove</Button>}
+                          {mayConfirm && !i.confirmed_on && <Button size="sm" variant="primary" aria-label={`Confirm: ${i.statement}`} loading={busy === i.id} onClick={() => confirm(i, true)}>Confirm</Button>}
+                          {mayConfirm && i.confirmed_on && <Button size="sm" variant="ghost" aria-label={`Withdraw: ${i.statement}`} loading={busy === i.id} onClick={() => confirm(i, false)}>Withdraw</Button>}
+                          {canEdit && draft && <Button size="sm" variant="ghost" aria-label={`Edit: ${i.statement}`} onClick={() => setEditing(i)}>Edit</Button>}
+                          {canEdit && draft && <Button size="sm" variant="ghost" aria-label={`Remove: ${i.statement}`} onClick={() => setRemoving(i)}>Remove</Button>}
                         </td>
                       </tr>
                     );

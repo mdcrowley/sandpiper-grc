@@ -8,8 +8,9 @@ export const notificationsText = {
   showAll: 'All',
   unreadLabel: 'Unread',
   unavailable: 'A record you can no longer open',
-  loadFailed: 'Notifications could not be loaded. Pull down to try again.',
-  offline: 'You are offline. Pull down to try again.',
+  loadFailed: 'Notifications could not be loaded. Choose Try again, or pull the list down.',
+  offline: 'You are offline. Choose Try again, or pull the list down.',
+  tryAgain: 'Try again',
   loadMore: 'Load more',
   openHint: 'Opens the record',
 } as const;

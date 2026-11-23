@@ -68,7 +68,7 @@ export function ContractFundingClauses({ contractId }: { contractId: string }) {
           <EmptyState icon="link" title="No award funds this contract"
             message="Record the contract as funded by an award (on the award's Funded items tab) to check the clauses that funder requires." />
         ) : data.clauses.length === 0 ? (
-          <EmptyState icon="clipboard" title="No funder clauses are listed" message="An administrator lists the clauses funders require under Administration > Lookups (the list Funding clause)." />
+          <EmptyState icon="clipboard" title="No funder clauses are listed" message="An administrator lists the clauses funders require under Administration > Lists (the list Funding clause)." />
         ) : (
           <div className="stack">
             {data.awards.map((a) => (

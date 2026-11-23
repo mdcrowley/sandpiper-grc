@@ -1,0 +1,38 @@
+// SandpiperUnifiedPush: the app's UnifiedPush connector on Android (E38-14). A local Expo module
+// (autolinked from mobile/modules/), Android only; iPhones use Apple's push service.
+//
+// It wraps the UnifiedPush connector library (org.unifiedpush.android:connector, Apache-2.0,
+// https://codeberg.org/UnifiedPush/android-connector). Its only other dependencies are the Kotlin
+// standard library and Google's Tink cryptography library (Apache-2.0, for RFC 8291 message
+// decryption on the phone; Tink brings protobuf-java, Gson, jsr305 and error-prone annotations). No
+// Google Play services, Firebase, analytics or network library. The version is pinned exactly; change it
+// only after checking the new version's license and dependencies (docs/mobile.md, "Push notifications").
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.sandpipergrc'
+version = '0.1.0'
+
+def UNIFIEDPUSH_CONNECTOR = '3.3.5'
+
+android {
+  namespace "expo.modules.sandpiperunifiedpush"
+  defaultConfig {
+    versionCode 1
+    versionName '0.1.0'
+    consumerProguardFiles 'consumer-rules.pro'
+  }
+}
+
+dependencies {
+  implementation("org.unifiedpush.android:connector:${UNIFIEDPUSH_CONNECTOR}!!") {
+    // Tink's optional parts for key downloads and its Java security provider are never used.
+    exclude group: 'com.google.http-client'
+    exclude group: 'org.conscrypt'
+  }
+  testImplementation 'junit:junit:4.13.2'
+  // Android's org.json is a stub in local unit tests; the reference implementation stands in.
+  testImplementation 'org.json:json:20250517'
+}

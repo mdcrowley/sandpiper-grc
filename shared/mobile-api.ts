@@ -236,7 +236,7 @@ export const SYNC_MAX_ITEMS = 50;
  * assessments, inventory counts) are added here, in the server's sync kinds (modules/mobile/sync.ts
  * `defineSyncKind`) and in the app's outbox kinds (mobile/src/offline/kinds.ts); see docs/mobile.md.
  */
-export type SyncKind = 'record.create' | 'attachment';
+export type SyncKind = 'record.create' | 'attachment' | 'inspection.answers' | 'inspection.complete' | 'condition.assess' | 'count.found';
 
 /**
  * `record.create`: creates one record through its normal create route (or the portal's report routes),
@@ -289,6 +289,17 @@ export interface SyncResult {
   /** For `attachment`: the new attachment's id and file name. */
   attachmentId?: string;
   fileName?: string;
+  /**
+   * For work whose answer is not a new record: what happened, in the server's words. `inspection.complete`:
+   * the result (pass, pass_with_findings, fail); `count.found`: found, already_found, unexpected or not_found.
+   */
+  outcome?: string;
+  message?: string;
+  /** `inspection.complete`: the score, and the findings raised. */
+  scorePct?: number | null;
+  findings?: { id: string; ref: string | null; title: string }[];
+  /** `count.found`: the record counted (a label the person may see). */
+  label?: string;
 }
 
 export interface SyncResponse { items: SyncAnswer[] }
@@ -316,9 +327,11 @@ export interface MobilePackage {
   generatedAt: string;
   expiresAt: string;
   user: { id: string; displayName: string };
+  /** The organization's time zone (IANA), for dating work done offline (wave 15). */
+  timeZone?: string | null;
   /** My work at the time of download (the same sections as GET /api/mobile/home). */
   work: MobileHome;
-  /** Lists the app's forms need offline, only those the person may read: `safety_event_type`, `safety_event_severity`. */
+  /** Lists the app's forms need offline, only those the person may read: `safety_event_type`, `safety_event_severity`, `condition_rating`, `condition_method`. */
   lookups: Record<string, PackageOption[]>;
   /** Sites the person may see (for "where"), at most 2000. */
   sites: PackageOption[];
@@ -331,17 +344,121 @@ export interface MobilePackage {
   /**
    * Parts added by later work (inspections with their checklists, condition assessments, inventory
    * counts): `{ [key]: data }`, each built by a server package part (modules/mobile/package.ts
-   * `definePackagePart`). This wave: `inspections` (assigned to me, due within the package's days).
+   * `definePackagePart`). Wave 14: `inspections`; wave 15: `inspections` with their checklists (PackageInspection), `condition` (PackageCondition) and `counts` (PackageCount[]).
    */
   parts: Record<string, unknown>;
 }
 
-/** The `inspections` part of a package (wave 14: the list; the checklists follow with E38-11). */
+// ---------- field work offline (wave 15, E38-11 and E38-12) ----------
+
+/** One answer of an inspection's checklist as the phone sends it. */
+export interface SyncChecklistAnswer {
+  itemId: string;
+  /** yes (met), no (not met), na (not applicable), or null to clear. */
+  answer: 'yes' | 'no' | 'na' | null;
+  /** Left out: the note on the server is kept. */
+  note?: string | null;
+  /** Photos taken on the phone for this item: the clientIds of `attachment` items sent before (to this inspection). */
+  photos?: string[];
+}
+
+/**
+ * `inspection.answers`: answers saved on an inspection (PUT /api/inspections/:id/responses), photos
+ * added to those already on the server. `inspection.complete`: the same, then completed
+ * (POST /api/inspections/:id/complete), with the signature of completion.
+ */
+export interface SyncInspectionWork {
+  inspectionId: string;
+  answers: SyncChecklistAnswer[];
+  /** inspection.complete only. Default true: a finding for each item not met. */
+  raiseFindings?: boolean;
+  notes?: string | null;
+  /** inspection.complete only: who signed, and the clientId of the `attachment` item carrying the drawn signature. */
+  signature?: { name: string; photo?: string | null } | null;
+}
+
+/** `condition.assess`: a condition assessment (POST /api/condition-assessments). Photos follow as `attachment` items with `parent`. */
+export interface SyncConditionAssess {
+  targetType: 'asset' | 'vehicle' | 'site';
+  targetId: string;
+  /** The day it was assessed (YYYY-MM-DD, organization time), not the day it arrived. */
+  assessedOn: string;
+  rating: string;
+  method?: string | null;
+  notes?: string | null;
+}
+
+/** `count.found`: one tag read (or record chosen) during an inventory count (POST /api/inventory-counts/:id/found). */
+export interface SyncCountFound {
+  countId: string;
+  /** The value read; or recordType and recordId. */
+  value?: string | null;
+  source?: 'code' | 'text' | 'typed';
+  recordType?: string | null;
+  recordId?: string | null;
+}
+
+/** An item of an inspection's checklist, in the package. */
+export interface PackageChecklistItem {
+  id: string;
+  section: string | null;
+  prompt: string;
+  guidance: string | null;
+  critical: boolean;
+  photo_required: boolean;
+  removed: boolean;
+}
+
+/** An answer already given on the server (on the web, or sent earlier from the phone). */
+export interface PackageChecklistAnswer { answer: 'yes' | 'no' | 'na' | null; note: string | null; photos: number }
+
+/** The `inspections` part of a package: inspections assigned to me, due within the package's days, with their checklists (wave 15). */
 export interface PackageInspection {
   id: string;
   ref: string | null;
   title: string;
   status: string | null;
+  /** The status value (scheduled, in_progress, missed...). */
+  statusValue?: string | null;
   dueOn: string | null;
   target: { type: string; id: string; label: string | null } | null;
+  /** The checklist; null when it could not be read. */
+  checklist?: {
+    template: { id: string; name: string } | null;
+    items: PackageChecklistItem[];
+    responses: Record<string, PackageChecklistAnswer>;
+    /** Whether the person may answer (audits.edit). */
+    canAnswer: boolean;
+  } | null;
+}
+
+/** The `condition` part: condition assessments due for what I look after, up to the package's last day. */
+export interface PackageCondition {
+  due: { type: string; id: string; label: string; dueOn: string | null; overdue: boolean }[];
+}
+
+/** One record of an inventory count, in the package (records the person may not see carry no label or tag value). */
+export interface PackageCountItem {
+  recordType: string;
+  recordId: string;
+  label: string;
+  ref: string | null;
+  tagValue: string | null;
+  expected: boolean;
+  state: 'pending' | 'found' | 'missing';
+}
+
+/** The `counts` part: open inventory counts the person may count (tags.count), with what each expects. */
+export interface PackageCount {
+  id: string;
+  ref: string | null;
+  title: string;
+  site: { id: string; label: string } | null;
+  area: string | null;
+  recordTypes: string[];
+  startedAt: string | null;
+  totals: { expected: number; found: number; unexpected: number; pending: number; missing: number };
+  items: PackageCountItem[];
+  /** True when the count has more records than the package carries. */
+  truncated: boolean;
 }

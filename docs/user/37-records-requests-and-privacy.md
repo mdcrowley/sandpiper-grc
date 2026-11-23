@@ -48,7 +48,7 @@ The request's owner (or, with no owner, everyone who may edit requests) is told 
 
 ### Responsive records
 
-The **Responsive records** tab lists the records that answer the request. **Add a record** chooses the kind of record and the record; only records you can see can be added. For each, record how much was **Disclosed** (**Disclosed in full**, **Disclosed in part** or **Withheld**), any **Exemption** (your own list **Records exemption** under **Administration > Lists**; the examples are personal privacy, security-sensitive, legal advice, ongoing investigation and commercial confidence) and a **Note**. **Change** and **Remove** edit the list. The record's own **Related** tab shows the request as "responsive to".
+The **Responsive records** tab lists the records that answer the request. **Add a record** chooses the kind of record and the record; only records you can see can be added. For each, record how much was **Disclosed** (**Disclosed in full**, **Disclosed in part** or **Withheld**), any **Exemption** (your own list **Records request exemption** under **Administration > Lists**; the examples are personal privacy, security-sensitive, legal advice, ongoing investigation and commercial confidence) and a **Note**. **Change** and **Remove** edit the list. The record's own **Related** tab shows the request as "responsive to".
 
 Documents themselves are not redacted here: record the exemption on the record and redact the copy you release in your document tool.
 
@@ -72,7 +72,7 @@ Open **Privacy assessments** for the list, or the **Privacy** tab of a system.
 
 1. Select **New privacy impact assessment**, enter a **Title**, choose the **System** and the **Owner**, and how often to **Review every (months)** (24 unless you change it), then select **Create privacy impact assessment**.
 2. On the assessment's page, describe the **Purpose of the processing**, the **Legal basis (as recorded)**, **Necessity and proportionality**, **Retention**, **Sharing and transfers**, the **Risks to people** and the **Mitigations**, and rate the **Residual risk**.
-3. On **Questions**, answer the screening questions (your own list, **Privacy question**, under **Administration > Lists**), then select **Save answers**.
+3. On **Questions**, answer the screening questions (your own list, **Privacy impact assessment question**, under **Administration > Lists**), then select **Save answers**.
 4. On **Data categories**, check the system's categories the assessment covers.
 5. On **Approval**, select **Submit for approval**. The assessment needs its system, purpose, risks and residual risk.
 

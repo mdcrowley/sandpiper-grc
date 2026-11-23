@@ -11,7 +11,7 @@ import { start } from '../src/auth/session';
 import { startPush } from '../src/push';
 import { commonText } from '../src/text/common';
 import { notificationsText } from '../src/text/notifications';
-import { useTheme } from '../src/theme';
+import { HEADER_TITLE_SIZE, useTheme } from '../src/theme';
 import { Loading } from '../src/ui';
 
 export default function RootLayout() {
@@ -26,6 +26,7 @@ export default function RootLayout() {
   }, []);
 
   const inAuth = segments[0] === '(auth)';
+  const covered = auth.status === 'loading' || (auth.status === 'signed-in' && auth.locked);
   useEffect(() => {
     if (auth.status === 'loading') return;
     if (auth.status === 'signed-out' && !inAuth) router.replace('/connect');
@@ -36,12 +37,14 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
       <View style={{ flex: 1, backgroundColor: colors.bg }}>
+        {/* While the app is locked or loading, the screens under the cover are hidden from VoiceOver and TalkBack and take no touch, key or Switch Access input. */}
+        <View style={{ flex: 1 }} pointerEvents={covered ? 'none' : 'auto'} importantForAccessibility={covered ? 'no-hide-descendants' : 'auto'} accessibilityElementsHidden={covered}>
         <Stack
           screenOptions={{
             headerShown: false,
             headerStyle: { backgroundColor: colors.surface },
             headerTintColor: colors.brand,
-            headerTitleStyle: { color: colors.text },
+            headerTitleStyle: { color: colors.text, fontSize: HEADER_TITLE_SIZE },
             contentStyle: { backgroundColor: colors.bg },
           }}
         >
@@ -50,6 +53,7 @@ export default function RootLayout() {
           <Stack.Screen name="(auth)" />
           <Stack.Screen name="notifications" options={{ headerShown: true, title: notificationsText.title }} />
         </Stack>
+        </View>
         {auth.status === 'loading' ? <View style={{ position: 'absolute', inset: 0 }}><Loading label={commonText.loading} /></View> : null}
         {auth.status === 'signed-in' && auth.locked ? <LockScreen /> : null}
       </View>

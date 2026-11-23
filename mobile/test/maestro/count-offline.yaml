@@ -1,0 +1,45 @@
+# Maestro flow (E38-12): join an open inventory count, count in airplane mode (found and unexpected
+# shown at once from the offline package), and the finds arrive when the network is back.
+# Before: connect-sign-in.yaml, and an open count expecting two assets, with a third asset elsewhere
+# (run-fieldwork.sh). After: run-fieldwork.sh checks the count's totals on the server.
+# Run: maestro test -e COUNT="CNT-00001" -e TAG1=... -e TAG2=... -e STRAY=... mobile/test/maestro/count-offline.yaml
+appId: com.sandpipergrc
+name: Count offline, then sync
+---
+- launchApp
+- runFlow:
+    file: subflows/open-field-work.yaml
+- scrollUntilVisible:
+    element: "${COUNT} .*"
+    timeout: 60000
+- setAirplaneMode: enabled
+- tapOn: "${COUNT} .*"
+- extendedWaitUntil:
+    visible: "0 of 2 found"
+    timeout: 20000
+- tapOn: "Tag number"
+- inputText: ${TAG1}
+- pressKey: Enter
+- extendedWaitUntil:
+    visible: "1 of 2 found"
+    timeout: 10000
+- tapOn: "Tag number"
+- inputText: ${STRAY}
+- pressKey: Enter
+- extendedWaitUntil:
+    visible: '.*${STRAY} · (Unexpected: registered somewhere else|Not in the offline package: checked when sent) \(waiting to send\).*'
+    timeout: 10000
+- tapOn: "Tag number"
+- inputText: ${TAG2}
+- pressKey: Enter
+- extendedWaitUntil:
+    visible: "2 of 2 found"
+    timeout: 10000
+- assertVisible: '.*${TAG1} · Found \(waiting to send\).*'
+- setAirplaneMode: disabled
+- extendedWaitUntil:
+    visible: '.*${TAG2} · Found \(sent\).*'
+    timeout: 180000
+- extendedWaitUntil:
+    visible: '.*${STRAY} · Unexpected: registered somewhere else \(sent\).*'
+    timeout: 60000

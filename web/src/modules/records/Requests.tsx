@@ -261,8 +261,8 @@ function ResponsiveTab({ request }: { request: Row }) {
                       <td>{r.exemption ? <LookupChip list="records_exemption" value={r.exemption} /> : <span className="muted">None</span>}</td>
                       <td className="rr-wrap">{r.note ?? ''}</td>
                       <td className="rr-actions">
-                        {canEdit && <Button size="sm" variant="ghost" onClick={() => setEditing(r)}>Change</Button>}
-                        {canEdit && <Button size="sm" variant="ghost" onClick={() => setRemoving(r)}>Remove</Button>}
+                        {canEdit && <Button size="sm" variant="ghost" aria-label={`Change: ${r.label}`} onClick={() => setEditing(r)}>Change</Button>}
+                        {canEdit && <Button size="sm" variant="ghost" aria-label={`Remove: ${r.label}`} onClick={() => setRemoving(r)}>Remove</Button>}
                       </td>
                     </tr>
                   ))}

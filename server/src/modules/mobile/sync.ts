@@ -13,8 +13,9 @@
 // with the reason) or `retry` (sent again later, unchanged). Items are done in order: after a `retry`
 // the rest of the batch is not tried, so nothing overtakes the work it depends on.
 //
-// Extension point: a new kind of offline work (inspections, condition assessments, inventory counts)
-// is one `defineSyncKind(app, { key, check, run })` call, plus the app's side (mobile/src/offline/kinds.ts).
+// Extension point: a new kind of offline work is one `defineSyncKind(app, { key, check, run })` call,
+// plus the app's side (mobile/src/offline/kinds.ts). Inspections, condition assessments and inventory
+// counts (wave 15, E38-11 and E38-12) are in fieldwork.ts.
 import { createHash } from 'node:crypto';
 import type { Readable } from 'node:stream';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
@@ -30,6 +31,10 @@ import { viaMobileToken } from './state.ts';
 export const STALE_MS = 10 * 60_000;
 /** Largest photo the attachment route takes into memory (the attachment limit applies first). */
 export const MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024;
+/** Files of one device received at the same time (per server process); the app sends one at a time. */
+export const ATTACHMENT_UPLOADS_PER_DEVICE = 2;
+/** Files being received now, per device (per server process). */
+const uploading = new Map<string, number>();
 /** The portal's report routes (people who report through the self-service portal), and the type each makes. */
 export const PORTAL_PATHS: Record<string, string> = { '/api/portal/requests': 'ticket', '/api/portal/safety-reports': 'safety_event' };
 
@@ -44,6 +49,8 @@ export interface SyncEnv {
   call(method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE', url: string, body?: unknown, headers?: Record<string, string>): Promise<Called>;
   /** The record an earlier item of this person made (by its clientId), or null when it made none or is unknown. */
   madeBy(clientId: string): Promise<{ recordType: string; recordId: string } | null>;
+  /** The file an earlier `attachment` item of this person attached (by its clientId), or null when it has not arrived. */
+  attachmentOf(clientId: string): Promise<{ attachmentId: string; recordType: string; recordId: string } | null>;
 }
 
 /** What a kind's work came to: the route's answer, and (when it succeeded) what was made. */
@@ -127,6 +134,14 @@ export function registerSync(ctx: ModuleContext) {
           `select record_type, record_id from mobile_sync_items where user_id = $1 and client_id = $2 and state = 'done' and record_id is not null`,
           [me.id, clientId.toLowerCase()]);
         return row ? { recordType: row.record_type, recordId: row.record_id } : null;
+      },
+      async attachmentOf(clientId) {
+        if (!UUID_RE.test(clientId)) return null;
+        const row = await db.one<Row>(
+          `select answer, record_type, record_id from mobile_sync_items where user_id = $1 and client_id = $2 and kind = 'attachment' and state = 'done'`,
+          [me.id, clientId.toLowerCase()]);
+        const id = (row?.answer as SyncAnswer | undefined)?.result?.attachmentId;
+        return row && id ? { attachmentId: id, recordType: row.record_type, recordId: row.record_id } : null;
       },
     };
   }
@@ -214,7 +229,7 @@ export function registerSync(ctx: ModuleContext) {
   ctx.describeRoute({
     method: 'POST', path: '/api/mobile/sync', tag: 'Mobile app',
     summary: 'The mobile app\'s outbox: work saved on the phone, done in order, each item at most once',
-    description: `The app's token only (403 \`mobile_app_only\` otherwise). Up to ${SYNC_MAX_ITEMS} items, each with a client-made UUID that is its idempotency key, kept ${SYNC_KEEP_DAYS} days: the same item sent again is answered from memory (\`replayed\`). Each item is done through the application's own route as you, and answered separately: \`done\`, \`rejected\` (with the route's reason) or \`retry\`; after a \`retry\` the rest of the batch is not tried. Kinds: \`record.create\` ({ path, recordType, body, link? }).`,
+    description: `The app's token only (403 \`mobile_app_only\` otherwise). Up to ${SYNC_MAX_ITEMS} items, each with a client-made UUID that is its idempotency key, kept ${SYNC_KEEP_DAYS} days: the same item sent again is answered from memory (\`replayed\`). Each item is done through the application's own route as you, and answered separately: \`done\`, \`rejected\` (with the route's reason) or \`retry\`; after a \`retry\` the rest of the batch is not tried. Kinds: \`record.create\` ({ path, recordType, body, link? }), \`inspection.answers\` and \`inspection.complete\` ({ inspectionId, answers, raiseFindings?, notes?, signature? }), \`condition.assess\` ({ targetType, targetId, assessedOn, rating, method?, notes? }) and \`count.found\` ({ countId, value? or recordType and recordId, source? }).`,
     body: 'SyncRequest: { items: [{ clientId, kind, payload }] }',
     response: 'SyncResponse: { items: [{ clientId, status: done|rejected|retry, replayed?, result?: { recordType, id, ref, linked?, warning? }, error?: { code, message, fields? } }] }',
   });
@@ -237,41 +252,71 @@ export function registerSync(ctx: ModuleContext) {
       const stream = req.body as Readable | undefined;
       if (!stream || typeof stream.pipe !== 'function') ctx.fail(415, 'unsupported_media_type', 'Send the file as the request body with the content type application/octet-stream.');
 
-      // The whole file arrives before anything is done: a connection lost during the upload does nothing.
-      const chunks: Buffer[] = [];
-      let size = 0;
-      for await (const chunk of stream!) {
-        size += (chunk as Buffer).length;
-        if (size > MAX_ATTACHMENT_BYTES) {
-          stream!.resume();
-          return { clientId, status: 'rejected', error: { code: 'too_large', message: 'This file is larger than the app may send.' } } satisfies SyncAnswer;
-        }
-        chunks.push(chunk as Buffer);
+      // At most ATTACHMENT_UPLOADS_PER_DEVICE files of one device are held in memory at a time (the app
+      // sends one at a time); another is answered `retry` without being read into memory.
+      const device = req.apiToken!.id;
+      const running = uploading.get(device) ?? 0;
+      if (running >= ATTACHMENT_UPLOADS_PER_DEVICE) {
+        stream!.resume();
+        return { clientId, status: 'retry', error: { code: 'busy', message: 'Another photo from this phone is being received. It is sent again shortly.' } } satisfies SyncAnswer;
       }
-      const bytes = Buffer.concat(chunks);
-      const target = q.parent ? `parent:${String(q.parent).toLowerCase()}` : `record:${q.record_type}:${String(q.record_id ?? '').toLowerCase()}`;
-      const fingerprint = fingerprintOf('attachment', Buffer.concat([Buffer.from(`${target}\n${name}\n${q.description ?? ''}\n`), bytes]));
-      const env = envFor(req);
-      return once(req, clientId, 'attachment', fingerprint, async () => {
-        let recordType = String(q.record_type ?? '');
-        let recordId = String(q.record_id ?? '');
-        if (q.parent) {
-          const made = await env.madeBy(String(q.parent));
-          if (!made) return { status: 409, body: { error: { code: 'parent_missing', message: 'The report this photo belongs to has not arrived. Send the report first.' } } };
-          recordType = made.recordType; recordId = made.recordId;
+      uploading.set(device, running + 1);
+      try {
+        // Never more than the organization's attachment limit (or MAX_ATTACHMENT_BYTES) is read into memory.
+        const config = await callAs(app, req)('GET', '/api/attachments/config');
+        const configured = Number(config.body?.maxBytes);
+        const limit = config.status === 200 && Number.isFinite(configured) && configured > 0 ? Math.min(configured, MAX_ATTACHMENT_BYTES) : MAX_ATTACHMENT_BYTES;
+        const tooLarge = { clientId, status: 'rejected', error: { code: 'too_large', message: `This file is larger than the ${Math.floor(limit / (1024 * 1024)) || 1} MB this server accepts.` } } satisfies SyncAnswer;
+        const declared = Number(req.headers['content-length']);
+        if (Number.isFinite(declared) && declared > limit) {
+          stream!.resume();
+          return tooLarge;
         }
-        if (!recordType || !UUID_RE.test(recordId)) return { status: 400, body: { error: { code: 'validation', message: 'Say which record the photo belongs to.' } } };
-        const params = new URLSearchParams({ record_type: recordType, record_id: recordId, name });
-        if (q.description) params.set('description', String(q.description));
-        const res = await env.call('PUT', `/api/attachments/upload?${params}`, bytes, { 'content-type': 'application/octet-stream' });
-        return { ...res, result: res.status < 300 ? { recordType, id: recordId, attachmentId: res.body?.id, fileName: res.body?.file_name } : undefined };
-      });
+        // The whole file arrives before anything is done: a connection lost during the upload does nothing.
+        const chunks: Buffer[] = [];
+        let size = 0;
+        for await (const chunk of stream!) {
+          size += (chunk as Buffer).length;
+          if (size > limit) {
+            stream!.resume();
+            return tooLarge;
+          }
+          chunks.push(chunk as Buffer);
+        }
+        const bytes = Buffer.concat(chunks);
+        return await receivedFile(req, clientId, name, q, bytes);
+      } finally {
+        const left = (uploading.get(device) ?? 1) - 1;
+        if (left > 0) uploading.set(device, left);
+        else uploading.delete(device);
+      }
     });
   });
+
+  /** A photo received whole: attached at most once, to the record named or the one an earlier item made. */
+  async function receivedFile(req: FastifyRequest, clientId: string, name: string, q: Record<string, string>, bytes: Buffer): Promise<SyncAnswer> {
+    const target = q.parent ? `parent:${String(q.parent).toLowerCase()}` : `record:${q.record_type}:${String(q.record_id ?? '').toLowerCase()}`;
+    const fingerprint = fingerprintOf('attachment', Buffer.concat([Buffer.from(`${target}\n${name}\n${q.description ?? ''}\n`), bytes]));
+    const env = envFor(req);
+    return once(req, clientId, 'attachment', fingerprint, async () => {
+      let recordType = String(q.record_type ?? '');
+      let recordId = String(q.record_id ?? '');
+      if (q.parent) {
+        const made = await env.madeBy(String(q.parent));
+        if (!made) return { status: 409, body: { error: { code: 'parent_missing', message: 'The report this photo belongs to has not arrived. Send the report first.' } } };
+        recordType = made.recordType; recordId = made.recordId;
+      }
+      if (!recordType || !UUID_RE.test(recordId)) return { status: 400, body: { error: { code: 'validation', message: 'Say which record the photo belongs to.' } } };
+      const params = new URLSearchParams({ record_type: recordType, record_id: recordId, name });
+      if (q.description) params.set('description', String(q.description));
+      const res = await env.call('PUT', `/api/attachments/upload?${params}`, bytes, { 'content-type': 'application/octet-stream' });
+      return { ...res, result: res.status < 300 ? { recordType, id: recordId, attachmentId: res.body?.id, fileName: res.body?.file_name } : undefined };
+    });
+  }
   ctx.describeRoute({
     method: 'PUT', path: '/api/mobile/sync/attachment', tag: 'Mobile app',
     summary: 'A photo from the mobile app\'s outbox, attached at most once to a record (or to the record an earlier outbox item made)',
-    description: `The app's token only. Header \`Idempotency-Key\` and query \`clientId\`: the photo's own UUID, kept ${SYNC_KEEP_DAYS} days. \`parent\` is the clientId of a done \`record.create\` item (or give \`record_type\` and \`record_id\`). The whole file is received before anything is done; it is then attached through PUT /api/attachments/upload as you, with its limits, checks and audit. Answers a SyncAnswer (status 200).`,
+    description: `The app's token only. Header \`Idempotency-Key\` and query \`clientId\`: the photo's own UUID, kept ${SYNC_KEEP_DAYS} days. \`parent\` is the clientId of a done \`record.create\` item (or give \`record_type\` and \`record_id\`). At most the organization's attachment size limit (and 50 MB) is read, refused early from \`Content-Length\` (\`too_large\`), and at most ${ATTACHMENT_UPLOADS_PER_DEVICE} files of one phone are received at once (another answers \`retry\`, code \`busy\`). The whole file is received before anything is done; it is then attached through PUT /api/attachments/upload as you, with its limits, checks and audit. Answers a SyncAnswer (status 200).`,
     query: { clientId: 'The photo\'s UUID', parent: 'clientId of the item that made the record', record_type: 'Or: the record type', record_id: 'and the record id', name: 'File name', description: 'Optional description' },
     body: 'The file (application/octet-stream)',
     response: 'SyncAnswer: { clientId, status, replayed?, result?: { recordType, id, attachmentId, fileName }, error? }',

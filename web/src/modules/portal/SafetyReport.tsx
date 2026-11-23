@@ -7,7 +7,7 @@ import {
   useFetch, useToast,
 } from '../../core';
 import { ChoiceCards } from './RequestForm';
-import { Section, useFocusFirstProblem, type Choice } from './parts';
+import { Section, useFocusFirstProblem, usePortalTitle, type Choice } from './parts';
 
 interface Options { types: Choice[]; harm: Choice[] }
 interface MyReport { id: string; ref: string; title: string; occurred_at: string; reported_at: string; status: { key: string; label: string; tone: string } }
@@ -41,6 +41,7 @@ export function MySafetyReports({ compact = false, refresh = 0 }: { compact?: bo
 export function SafetyReport() {
   const toast = useToast();
   const { data: options, error, reload } = useFetch<Options>('/api/portal/safety/options');
+  usePortalTitle('Report a safety concern');
   // An asset tag's card (E37-06) opens this form with ?where= filled in.
   const [params] = useSearchParams();
   const [title, setTitle] = useState('');
@@ -58,7 +59,6 @@ export function SafetyReport() {
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState<{ ref: string } | null>(null);
   const [tick, setTick] = useState(0);
-  useEffect(() => { document.title = 'Report a safety concern'; }, []);
 
   if (error) return <ErrorState error={error} onRetry={reload} />;
   if (!options) return <Loading lines={6} label="Loading the form" />;

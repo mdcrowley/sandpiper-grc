@@ -109,3 +109,17 @@ With `--reuse`, keep `GRC_DATABASE_URL` pointing at the database that was seeded
 folder holds only the files beside it. A newer version brings that database up to date when
 it starts, so measure the older version first. Seeding goes faster on a server with
 `--seed-concurrency 16`.
+
+To measure two versions, or the same version several times, on exactly the same records,
+keep the seeded database as a template and give each run a fresh copy of it (E16-41):
+
+```
+docker exec grc-load-pg createdb -U grc -T grc_load run1     # a copy; nobody may be connected to grc_load meanwhile
+GRC_DATABASE_URL=postgres://grc:load-test-only@127.0.0.1:55433/run1 node tools/load/run.mjs --reuse <kept folder> ...
+docker exec grc-load-pg dropdb -U grc run1
+```
+
+Alternate the versions (before, after, before, after) and compare medians: other work on
+the same machine moves single runs a lot. A limited container can be given more processors
+while seeding and limited again before measuring (`docker update --cpus 8 grc-load-pg`, then
+`--cpus 2`): seeding scale 4 then takes minutes rather than most of an hour.

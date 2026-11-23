@@ -95,7 +95,7 @@ function CheckForm({ vendorId, onDone, onCancel }: { vendorId: string; onDone: (
     <Modal open title="Record an exclusion-list check" onClose={onCancel} dirty={dirty}>
       <form className="form" onSubmit={submit} noValidate>
         {message && <div className="form-error" role="alert">{message}</div>}
-        <p className="muted">Record a check you made against an exclusion list your organization uses. The lists are yours to name under Administration &gt; Lookups (Exclusion lists).</p>
+        <p className="muted">Record a check you made against an exclusion list your organization uses. The lists are yours to name under Administration &gt; Lists (Exclusion list).</p>
         <div className="form-grid">
           <DateField label="Checked on" required value={v.checked_on} max={todayInZone()} error={errors.checked_on} onChange={(checked_on) => setV({ ...v, checked_on })} />
           <Select label="List checked" required value={v.list_key} error={errors.list_key} options={lists.map((l) => ({ value: l.value, label: l.label }))} onChange={(list_key) => setV({ ...v, list_key })} />
@@ -105,7 +105,7 @@ function CheckForm({ vendorId, onDone, onCancel }: { vendorId: string; onDone: (
         <TextArea label="Note" required={v.result !== '' && v.result !== 'clear'} value={v.note} error={errors.note} onChange={(note) => setV({ ...v, note })} rows={3} />
         {(files.data?.rows.length ?? 0) > 0 && (
           <Select
-            label="Result file" hint="A file on this vendor's Files tab that holds the result (a saved search, a screenshot)."
+            label="Result file" hint="A file on this vendor's Attachments tab that holds the result (a saved search, a screenshot)."
             value={v.attachment_id} error={errors.attachment_id}
             options={[{ value: '', label: 'None' }, ...files.data!.rows.map((f) => ({ value: f.id, label: f.file_name }))]}
             onChange={(attachment_id) => setV({ ...v, attachment_id })}

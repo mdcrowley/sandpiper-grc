@@ -1,26 +1,28 @@
 // Small building blocks of the work, search, record and approval screens: themed (light and dark),
 // at least 44 points to touch, labeled for VoiceOver and TalkBack, and free to grow with the phone's
 // text size (no fixed heights). Owner: APP-WORK.
-import type { ReactNode } from 'react';
+import { forwardRef, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Switch, Text, TextInput, View, type TextInputProps } from 'react-native';
 import { fontSize, radius, space, useTheme, type ChipColor } from '../theme';
+import { plainText, useAnnounce, type TextRef } from '../ui/a11y';
 
-export const MIN_TOUCH = 44;
+/** Least size to touch, in points: 48, which is also Android's 48 dp (iPhone asks for 44). */
+export const MIN_TOUCH = 48;
 
-export function Card({ children, accessibilityLabel }: { children: ReactNode; accessibilityLabel?: string }) {
+export function Card({ children }: { children: ReactNode }) {
   const { colors } = useTheme();
   return (
-    <View accessibilityLabel={accessibilityLabel} style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
       {children}
     </View>
   );
 }
 
-export function Heading({ children, level = 2 }: { children: ReactNode; level?: 1 | 2 | 3 }) {
+export const Heading = forwardRef<TextRef, { children: ReactNode; level?: 1 | 2 | 3 }>(function Heading({ children, level = 2 }, ref) {
   const { colors } = useTheme();
   const size = level === 1 ? fontSize.xxl : level === 2 ? fontSize.xl : fontSize.lg;
-  return <Text accessibilityRole="header" style={{ color: colors.text, fontSize: size, fontWeight: '600' }}>{children}</Text>;
-}
+  return <Text ref={ref} accessibilityRole="header" style={{ color: colors.text, fontSize: size, fontWeight: '600' }}>{children}</Text>;
+});
 
 export function Body({ children, muted, selectable }: { children: ReactNode; muted?: boolean; selectable?: boolean }) {
   const { colors } = useTheme();
@@ -82,13 +84,14 @@ export function FieldRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function Notice({ children, kind = 'error' }: { children: ReactNode; kind?: 'error' | 'info' | 'success' }) {
+/** A message. Errors and successes are said by the screen reader when they appear or change; info only with `announce`. */
+export function Notice({ children, kind = 'error', announce }: { children: ReactNode; kind?: 'error' | 'info' | 'success'; announce?: boolean }) {
   const { colors } = useTheme();
+  useAnnounce(plainText(children), { enabled: announce ?? kind !== 'info' });
   const c = kind === 'error' ? colors.chips.red : kind === 'success' ? colors.chips.green : colors.chips.blue;
   return (
     <View
       accessibilityRole={kind === 'error' ? 'alert' : 'summary'}
-      accessibilityLiveRegion="polite"
       style={[styles.notice, { backgroundColor: c.bg, borderColor: c.solid }]}
     >
       <Text style={{ color: c.fg, fontSize: fontSize.md }}>{children}</Text>
@@ -134,6 +137,7 @@ export function Segmented<K extends string>({ options, value, onChange, label }:
 
 export function TextField({ label, error, hint, ...input }: TextInputProps & { label: string; error?: string | null; hint?: string }) {
   const { colors } = useTheme();
+  useAnnounce(error);
   return (
     <View style={styles.field}>
       <Text style={{ color: colors.text, fontSize: fontSize.md, fontWeight: '600' }}>{label}</Text>
@@ -143,7 +147,7 @@ export function TextField({ label, error, hint, ...input }: TextInputProps & { l
         accessibilityHint={error ?? hint}
         placeholderTextColor={colors.textMuted}
         {...input}
-        style={[styles.input, { color: colors.text, backgroundColor: colors.surface, borderColor: error ? colors.danger : colors.borderControl }, input.multiline && styles.multiline]}
+        style={[styles.input, { color: colors.text, backgroundColor: colors.surface, borderColor: error ? colors.danger : colors.borderStrong }, input.multiline && styles.multiline]}
       />
       {error ? <Text accessibilityRole="alert" style={{ color: colors.dangerText, fontSize: fontSize.sm }}>{error}</Text> : null}
     </View>
@@ -153,10 +157,13 @@ export function TextField({ label, error, hint, ...input }: TextInputProps & { l
 export function SwitchField({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
   const { colors } = useTheme();
   return (
-    <View style={[styles.switchRow]}>
+    // The whole row is the switch (a bare Android Switch is smaller than 48 points to touch).
+    <Pressable accessibilityRole="switch" accessibilityLabel={label} accessibilityState={{ checked: value }} onPress={() => onChange(!value)} style={styles.switchRow}>
       <Text style={{ color: colors.text, fontSize: fontSize.md, fontWeight: '600', flexShrink: 1 }}>{label}</Text>
-      <Switch accessibilityLabel={label} value={value} onValueChange={onChange} trackColor={{ true: colors.brand, false: colors.borderControl }} />
-    </View>
+      <View pointerEvents="none" importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+        <Switch value={value} trackColor={{ true: colors.brand, false: colors.borderStrong }} />
+      </View>
+    </Pressable>
   );
 }
 

@@ -5,9 +5,9 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  api, Button, Card, Checkbox, ConfirmDialog, EmptyState, errorMessage, ErrorState, formatDateTime, Loading, Modal, PageHeader,
+  api, Button, humanize, Card, Checkbox, ConfirmDialog, EmptyState, errorMessage, ErrorState, formatDateTime, Loading, Modal, PageHeader,
   ProgressBar, RecordPage, RecordPicker, relativeTime, ResourceList, Select, Stat, StatusChip, TableWrap, TextField, useAuth,
-  useFetch, useToast,
+  useFetch, useMeta, useToast,
 } from '../../core';
 import type { RecordContext } from '../../core';
 import type { CountFinishResult, CountFoundResult, CountItems, CountItemView } from './api';
@@ -347,10 +347,14 @@ function CountBanner({ rec, items, reload }: { rec: RecordContext; items: Return
   const kinds = useFetch<{ types: Countable[] }>('/api/inventory-counts/countable');
   const totals = items.data?.totals;
   const chosen: string[] = Array.isArray(rec.row.record_types) ? rec.row.record_types : [];
-  const names = chosen.length ? chosen.map((t) => kinds.data?.types.find((k) => k.type === t)?.label ?? t).join(', ') : 'Every kind of record kept at the site';
+  const { resources } = useMeta();
+  // The record type's own name from the metadata while the countable kinds load, never its key (wave 15).
+  const nameOf = (t: string) => kinds.data?.types.find((k) => k.type === t)?.label ?? resources[t]?.plural ?? (kinds.data || kinds.error ? humanize(t) : null);
+  const parts = chosen.map(nameOf);
+  const names = !chosen.length ? 'Every kind of record kept at the site' : parts.every((p) => p !== null) ? parts.join(', ') : null;
   return (
     <div className="stack">
-      <p className="muted cnt-hint">Counting: {names}{rec.row.area ? `, in ${rec.row.area}` : ''}.</p>
+      {names !== null && <p className="muted cnt-hint">Counting: {names}{rec.row.area ? `, in ${rec.row.area}` : ''}.</p>}
       {totals && (
         <>
           <ProgressBar value={totals.found} max={Math.max(totals.expected, 1)} label="Expected records found" valueText={`${totals.found} of ${totals.expected}`} color="green" />

@@ -124,9 +124,9 @@ export function CalendarFeedsPage() {
                     </div>
                     <Badge color={f.detail === 'titles' ? 'blue' : 'gray'}>{f.detail === 'titles' ? 'Titles' : 'Busy only'}</Badge>
                     <div className="feeds-actions">
-                      <Button size="sm" aria-label={`Edit ${f.name}`} onClick={() => setEditing(f)}>Edit</Button>
-                      {data.enabled && <Button size="sm" onClick={() => setRotating(f)}>New address</Button>}
-                      <Button size="sm" variant="danger" onClick={() => setRevoking(f)}>Revoke</Button>
+                      <Button size="sm" aria-label={`Edit: ${f.name}`} onClick={() => setEditing(f)}>Edit</Button>
+                      {data.enabled && <Button size="sm" aria-label={`New address: ${f.name}`} onClick={() => setRotating(f)}>New address</Button>}
+                      <Button size="sm" variant="danger" aria-label={`Revoke: ${f.name}`} onClick={() => setRevoking(f)}>Revoke</Button>
                     </div>
                   </li>
                 ))}

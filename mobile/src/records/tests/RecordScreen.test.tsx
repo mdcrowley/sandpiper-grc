@@ -156,7 +156,7 @@ describe('editing', () => {
     expect(await screen.findByText(EDIT_TEXT.conflictTitle)).toBeTruthy();
     expect(screen.getByText(`${EDIT_TEXT.yours}: In progress`)).toBeTruthy();
     expect(screen.getByText(`${EDIT_TEXT.saved}: Resolved`)).toBeTruthy();
-    expect(screen.getByRole('radio', { name: `Status: ${EDIT_TEXT.keepMine}` }).props.accessibilityState.checked).toBe(true);
+    expect(screen.getByRole('radio', { name: `${EDIT_TEXT.keepMine}, Status` }).props.accessibilityState.checked).toBe(true);
     await fireEvent.press(screen.getByRole('button', { name: EDIT_TEXT.saveChoices }));
     expect(await screen.findByText(TEXT.saved)).toBeTruthy();
     const last = server.calls.filter((c) => c.method === 'PATCH').pop()!;
@@ -173,7 +173,7 @@ describe('editing', () => {
     server.routes['GET /api/tickets/t1'] = sampleTicket({ status: 'resolved', _display: { status: 'Resolved' } });
     await fireEvent.press(screen.getByRole('button', { name: EDIT_TEXT.save }));
     await screen.findByText(EDIT_TEXT.conflictTitle);
-    await fireEvent.press(screen.getByRole('radio', { name: `Status: ${EDIT_TEXT.useSaved}` }));
+    await fireEvent.press(screen.getByRole('radio', { name: `${EDIT_TEXT.useSaved}, Status` }));
     await fireEvent.press(screen.getByRole('button', { name: EDIT_TEXT.saveChoices }));
     expect(await screen.findByText('Status: Resolved')).toBeTruthy();
     expect(server.calls.filter((c) => c.method === 'PATCH')).toHaveLength(1);
@@ -201,7 +201,7 @@ describe('editing', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Change: Assignee' }));
     await fireEvent.changeText(screen.getByLabelText('Search for assignee'), 'Lee');
     await act(async () => { await new Promise((r) => setTimeout(r, 400)); });
-    await fireEvent.press(await screen.findByRole('radio', { name: 'Lee Placeholder' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Lee Placeholder' }));
     await fireEvent.press(screen.getByRole('button', { name: EDIT_TEXT.save }));
     await screen.findByText(TEXT.saved);
     expect(server.calls.find((c) => c.method === 'PATCH')!.body).toEqual({ assignee_id: 'u3' });

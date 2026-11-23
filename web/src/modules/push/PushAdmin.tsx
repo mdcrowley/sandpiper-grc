@@ -47,9 +47,11 @@ function LoadFile({ label, accept, onText }: { label: string; accept: string; on
 function Delivery({ stats, provider }: { stats: PushStats; provider: PushProvider }) {
   const n = stats.registrations[provider];
   const err = stats.lastError[provider];
+  const retrying = stats.retrying?.[provider] ?? 0;
   return (
     <p className="muted">
       {n === 0 ? 'No phone uses it yet.' : `${n} ${n === 1 ? 'phone is' : 'phones are'} registered.`}
+      {retrying > 0 ? ` ${retrying} ${retrying === 1 ? 'push waits' : 'pushes wait'} to be tried again (the service was unreachable or busy).` : null}
       {stats.failing[provider] > 0 && err ? <> Last problem ({formatDateTime(err.at)}): {err.message}</> : null}
     </p>
   );

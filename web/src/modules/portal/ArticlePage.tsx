@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api, ApiError, errorMessage, ErrorState, formatDate, Icon, Loading, useFetch, useToast } from '../../core';
-import { usePortal } from './parts';
+import { usePortal, usePortalTitle } from './parts';
 
 interface ArticleDetail { id: string; ref: string; title: string; body: string | null; updated_at: string; your_vote: boolean | null }
 
@@ -12,7 +12,8 @@ export function ArticlePage() {
   const { can_create } = usePortal();
   const { data: a, error, reload } = useFetch<ArticleDetail>(`/api/portal/knowledge/${id}`);
   const [vote, setVote] = useState<boolean | null>(null);
-  useEffect(() => { if (a) { setVote(a.your_vote); document.title = a.title; } }, [a]);
+  useEffect(() => { if (a) setVote(a.your_vote); }, [a]);
+  usePortalTitle(a ? a.title : error ? 'Article not found' : null);
 
   async function send(helpful: boolean) {
     try {

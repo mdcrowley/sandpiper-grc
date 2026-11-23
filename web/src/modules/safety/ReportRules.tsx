@@ -103,9 +103,9 @@ export function ReportRules() {
                       <td className="num">{formatNumber(r.deadline_hours)} hours</td>
                       <td>{r.active ? <StatusChip color="green" label="On" /> : <StatusChip color="gray" label="Off" />}</td>
                       <td className="sf-actions">{mayAdmin && <>
-                        <Button size="sm" variant="ghost" onClick={() => toggle(r)}>{r.active ? 'Switch off' : 'Switch on'}</Button>
-                        <Button size="sm" variant="ghost" onClick={() => open(r)}>Edit</Button>
-                        <Button size="sm" variant="ghost" onClick={() => setRemoving(r)}>Remove</Button>
+                        <Button size="sm" variant="ghost" aria-label={`${r.active ? 'Switch off' : 'Switch on'}: ${r.name}`} onClick={() => toggle(r)}>{r.active ? 'Switch off' : 'Switch on'}</Button>
+                        <Button size="sm" variant="ghost" aria-label={`Edit: ${r.name}`} onClick={() => open(r)}>Edit</Button>
+                        <Button size="sm" variant="ghost" aria-label={`Remove: ${r.name}`} onClick={() => setRemoving(r)}>Remove</Button>
                       </>}</td>
                     </tr>
                   ))}

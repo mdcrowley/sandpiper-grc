@@ -238,8 +238,8 @@ function Queries({ hold }: { hold: Row }) {
                     <td>{query.matched}</td>
                     <td>{query.last_run_at ? formatDateTime(query.last_run_at) : <span className="muted">Not yet</span>}</td>
                     <td className="lh-actions">
-                      {canEdit && !query.hidden && <Button size="sm" variant="ghost" loading={busy === query.id} onClick={() => run(query)}>Run now</Button>}
-                      {canEdit && !query.hidden && <Button size="sm" variant="ghost" onClick={() => setRemoving(query)}>Remove</Button>}
+                      {canEdit && !query.hidden && <Button size="sm" variant="ghost" aria-label={`Run now: ${query.typeLabel}${query.q ? ` matching ${query.q}` : ''}`} loading={busy === query.id} onClick={() => run(query)}>Run now</Button>}
+                      {canEdit && !query.hidden && <Button size="sm" variant="ghost" aria-label={`Remove: ${query.typeLabel}${query.q ? ` matching ${query.q}` : ''}`} onClick={() => setRemoving(query)}>Remove</Button>}
                     </td>
                   </tr>
                 ))}

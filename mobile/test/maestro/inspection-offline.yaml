@@ -1,0 +1,55 @@
+# Maestro flow (E38-11): an inspection completed in airplane mode, with a drawn signature, is kept on
+# the phone and arrives once when the network is back; the server works out the same result.
+# Before: connect-sign-in.yaml, and an inspection of two items assigned to the person (run-fieldwork.sh
+# makes it). After: run-fieldwork.sh checks on the server that it is complete, signed, with the signature.
+# Run: maestro test -e INSPECTION="INS-00001" mobile/test/maestro/inspection-offline.yaml
+appId: com.sandpipergrc
+name: Complete an inspection offline, then sync
+---
+- launchApp
+- runFlow:
+    file: subflows/open-field-work.yaml
+# The offline package is downloaded while there is a connection.
+- extendedWaitUntil:
+    visible: "${INSPECTION} .*"
+    timeout: 60000
+- setAirplaneMode: enabled
+- tapOn: "${INSPECTION} .*"
+- extendedWaitUntil:
+    visible:
+      id: "answer-yes"
+    timeout: 20000
+- assertVisible: "0 of 2 answered"
+- tapOn:
+    id: "answer-yes"
+- extendedWaitUntil:
+    visible: "Item 2 of 2"
+    timeout: 10000
+- tapOn:
+    id: "answer-yes"
+- scrollUntilVisible:
+    element: "Complete the inspection"
+- tapOn: "Complete the inspection"
+# The server's rules, worked out on the phone.
+- extendedWaitUntil:
+    visible: 'From the answers, the result will be Pass \(score 100%\)\.'
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      id: "signature-pad"
+- swipe:
+    from:
+      id: "signature-pad"
+    direction: RIGHT
+- scrollUntilVisible:
+    element: "Complete and send"
+- tapOn: "Complete and send"
+- extendedWaitUntil:
+    visible: "Completed on this phone"
+    timeout: 20000
+- assertVisible: "Waiting to send.*"
+# The network comes back: the outbox sends on its own.
+- setAirplaneMode: disabled
+- extendedWaitUntil:
+    visible: 'Arrived on the server\. Completed: Pass \(100%\)\.'
+    timeout: 180000

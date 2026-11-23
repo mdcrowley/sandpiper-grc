@@ -7,6 +7,11 @@ export const pushText = {
   unavailable: 'Your organization has not set up push notifications for this kind of phone.',
   denied: 'Notifications are turned off for this app in the phone\'s settings.',
   failed: 'This phone could not be registered for push notifications. Try again later.',
+  noDistributor: 'To get push notifications on this phone, install a UnifiedPush distributor app (ask your administrator which one), then switch this on again.',
+  distributor: 'Push app',
+  distributorDetail: 'The UnifiedPush app that brings pushes to this phone.',
+  distributorChange: 'Choose another UnifiedPush app',
+  distributorUnknown: 'Not chosen yet',
   channelName: 'Notifications',
   channelDescription: 'How many new notifications you have in Sandpiper GRC',
 } as const;

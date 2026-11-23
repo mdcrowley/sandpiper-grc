@@ -19,11 +19,13 @@ always run with `--no-metrics`. No paid build service is needed.
 | `mobile/app/` | Screens (expo-router: every file is a screen). `(auth)/connect.tsx` connect and sign in; `(tabs)/` the five tabs (My work, Tag, Report, Search, Account); `notifications.tsx`; `record/`, `approvals/` |
 | `mobile/src/api/client.ts` | The only way screens reach the server: `apiFetch`, `apiUpload`, `useSession`, `confirmIdentity`, `ApiError` |
 | `mobile/src/auth/` | Connecting (`server.ts`), OAuth with PKCE (`oauth.ts`), tokens and the session (`session.ts`), storage in the Keychain or Keystore (`storage.ts`), the unlock (`unlock.ts`, `LockScreen.tsx`) |
+| `mobile/src/inspections/`, `mobile/src/counts/` | Field work offline (E38-11, E38-12): the inspection runner, signature, condition assessments, the Field work list; counting mode. Routes `app/fieldwork/` |
 | `mobile/src/offline/` | Offline work (E38-10): the outbox (`outbox.ts`), kinds of work (`kinds.ts`), the offline package (`package.ts`), SQLite storage (`sqlite.ts`), the server routes (`transport.ts`), the Offline work screen; started by the session (`index.ts` `bootOffline`) |
 | `mobile/src/text/` | The words of each screen, one file per screen |
 | `mobile/src/theme/` | Colors copied from the web's `tokens.css` (light and dark), spacing, type sizes |
-| `mobile/src/ui/` | Shared building blocks (Screen, Button, Field, Banner, Section, Row) |
-| `mobile/plugins/` | Expo config plugins of this project: unsigned Android release builds, the Windows native build folder |
+| `mobile/src/ui/` | Shared building blocks (Screen, Title, Button, Field, Banner, Section, Row, SwitchRow) and the screen reader helpers (`a11y.ts`: `useAnnounce`, `useFocusOn`); see "Accessibility" |
+| `mobile/plugins/` | Expo config plugins of this project: unsigned Android release builds, the Windows native build folder, the Android network security config and backup rules (withPlatformSecurity.js) |
+| `mobile/modules/sandpiper-storage` | iPhone only: marks the offline folders excluded from backups (called from src/offline/backup.ts) |
 | `mobile/test/maestro/` | End-to-end flows on the Android emulator (Maestro), `run.sh` and the lost-connection proxy `dropproxy.mjs` (see "End-to-end flows") |
 | `mobile/scripts/licenses.js` | Writes `src/about/licenses.json` (Account > Open-source licenses) from the lockfile: `npm run licenses` |
 | `packages/api-client/` | TypeScript types of the API the app uses, generated from the server's OpenAPI description |
@@ -89,7 +91,7 @@ photos). That folder is the app's protected storage: on Android the app's intern
 the system's file-based encryption and never backed up (`allowBackup: false`); on iPhone the app's
 sandbox under Data Protection. Signing out, or being signed out (a refused refresh, the device signed out
 on the web, the account deactivated, the area switched off), deletes the database and the folder
-(`wipeOffline`, registered with the session's `onWipe` when the session starts).
+(`wipeOffline`, registered with the session's `onWipe` when the session starts). On iPhone the database and files folders are excluded from iCloud and computer backups (SandpiperStorage). On Android the manifest's backup and data extraction rules (plugins/withPlatformSecurity.js) exclude every folder, also from device-to-device transfer. A wipe also empties the app's cache folder, and a signed-out start finishes any wipe left half done.
 
 - **The outbox** (`src/offline/outbox.ts`). Work is saved first and sent afterward, in the order it was
   saved. Each item has a UUID made when it was saved (its `clientId`), which is its idempotency key: the
@@ -113,8 +115,8 @@ on the web, the account deactivated, the area switched off), deletes the databas
 - **The offline package** (`GET /api/mobile/package`, `server/src/modules/mobile/package.ts`; in the app
   `src/offline/package.ts`). My work, the lists the report forms need, the sites the person may see, the
   portal's report choices, the attachment limits, the tag formats with the tag values of the records the
-  package covers, and parts (this wave: `inspections`, assigned to the person and due within the
-  package's days). It is read through the application's own routes as the person, so it holds only what
+  package covers, the organization's time zone, and parts (`inspections` with their checklists,
+  `condition`, `counts`; see "Field work"). It is read through the application's own routes as the person, so it holds only what
   they may see. It expires after `mobile.offline_days` (Administration > Mobile app, default 7); the app
   deletes an expired package, or another person's, when it notices, and downloads a fresh one at most
   every hour when online. Screens read it through `orOffline(fromServer, fromPackage)`: the server
@@ -122,8 +124,9 @@ on the web, the account deactivated, the area switched off), deletes the databas
 
 ### Adding a kind of offline work
 
-Inspections and condition assessments (E38-11) and inventory counts (E38-12) are new kinds of outbox
-item and new package parts; the outbox, the storage, the wipe and Needs attention need no change.
+A new kind of work is a new kind of outbox item and a new package part; the outbox, the storage, the wipe
+and Needs attention need no change (wave 15 added inspections, condition assessments and counts this way,
+see "Field work" below).
 
 1. **Server, the work:** `defineSyncKind(app, { key, check, run })` from `modules/mobile/sync.ts`, for
    example `inspection.complete`. `check(payload)` cleans the payload or returns a message (the item is
@@ -141,6 +144,45 @@ item and new package parts; the outbox, the storage, the wipe and Needs attentio
    names the item it belongs to with `dependsOn`) and reads the package with `useOfflinePackage()`.
 4. **Tests:** the server kind as in `server/src/modules/mobile/sync.test.ts` (the same batch twice, a
    removed permission rejected), the app's screen with a stand-in outbox (`src/offline/screen.test.tsx`).
+
+### Field work (wave 15)
+
+Inspections and condition assessments (E38-11) and inventory counts (E38-12) are built on the pieces
+above (server `server/src/modules/mobile/fieldwork.ts`; app `src/inspections/`, `src/counts/`, routes
+`app/fieldwork/`, opened from **Report > Inspections, condition and counts**):
+
+| Work | Outbox items | Server route, as the person | Package part |
+|---|---|---|---|
+| An inspection | one `attachment` per photo and one for the drawn signature (to the inspection), then `inspection.complete` (or `inspection.answers`) naming them by clientId | `PUT /api/inspections/:id/responses`, then `POST /api/inspections/:id/complete` with `signed_by_name` and `signature_attachment_id` | `inspections`: assigned to me, not closed, due by the package's last day, with checklist items and the answers already given (`PackageInspection`) |
+| A condition assessment | `condition.assess`, then its photos (`attachment` with `parent`) | `POST /api/condition-assessments` | `condition`: assessments due for what I look after; the lists `condition_rating` and `condition_method` |
+| A count find | one `count.found` per tag read | `POST /api/inventory-counts/:id/found` | `counts`: open counts I may count (`tags.count`), up to 20, with their records (up to 3000 each) |
+
+- **The same rules.** The completion rules (every item answered, a photo where needed unless not
+  applicable, result, score, findings) are one file, `shared/inspection-rules.ts`, used by the audits
+  module's complete route and by the app's runner, which previews the result. The server checks again.
+- **Drafts.** An inspection half answered, and the finds of a count joined, are kept as drafts in the
+  same SQLite database (`kv` rows under `draft:`, photos under `offline/drafts/`), wiped with everything
+  else. `drafts()` in `src/offline/index.ts`.
+- **Photos before the answers.** An answer names its photos by the clientIds of `attachment` items saved
+  before it in the same group; the server turns them into attachment ids (`env.attachmentOf`) and adds
+  them to the photos already on the server. A photo refused or not yet arrived makes the completion
+  refused with `photo_missing` (Needs attention), never silently dropped.
+- **The signature** is the signer's typed name (kept on the inspection as `signed_by_name` and
+  `signed_at`, audits migration 002) and an optional finger drawing, made into a PNG on the phone
+  without any library (`src/inspections/signature.ts`: 8-bit grayscale, stored deflate blocks) and
+  attached to the inspection; its id is in the completion's audit event.
+- **Refusals** go to Needs attention with the route's reason: a canceled inspection (status `canceled`,
+  409 `inspection_canceled`), a deleted one (404), a removed permission (403 `forbidden`), a count no
+  longer open (409 `not_open`).
+- **Counting** keeps VisionCamera open and counts every reading that may act alone (codes, and text a
+  format and its check character confirm); other text waits for **Count it**. Each value is classified
+  at once from the package (`src/counts/match.ts`: found, found before, unexpected, not covered, unknown)
+  and replaced by the server's answer (`SyncResult.outcome`) when it arrived. Finds from several phones
+  merge on the server (one atomic insert-or-update per find).
+- **Offline tag lookup** (spec §5.5 step 7): when the lookup cannot reach the server (no answer, a
+  timeout, 5xx), the Tag tab looks the values up in the package's `tags.values` (`src/tags/offline.ts`);
+  a record there opens a short card with the offline actions (report a problem or hazard, record
+  condition); other values are "not available offline". The tag formats also come from the package then.
 
 ## Push notifications
 
@@ -166,12 +208,30 @@ notifications, part of the Mobile app area). No Expo push service and no relay i
   distributor connected to a push server (for example one your organization runs). List the push
   servers phones may use (host, host:port or *.domain; a private address must be listed exactly). The
   server makes its own VAPID key when UnifiedPush is first switched on; "Make a new key" makes phones
-  register again. The app's UnifiedPush connector (native module `SandpiperUnifiedPush`) is not built
-  yet.
+  register again. The app's connector is the local Expo module `SandpiperUnifiedPush`
+  (`mobile/modules/sandpiper-unifiedpush/`, Kotlin), autolinked from `mobile/modules/`. It wraps
+  `org.unifiedpush.android:connector` 3.3.5 (Apache-2.0, pinned exactly in its `android/build.gradle`),
+  which brings only the Kotlin standard library and Google's Tink cryptography library (with
+  protobuf-java, Gson, jsr305 and error-prone annotations), and no Google Play services, Firebase or
+  analytics. Check the license and dependency tree before raising the version
+  (`gradlew :sandpiper-unifiedpush:dependencies --configuration releaseRuntimeClasspath`). The
+  connector makes the message keys on the phone and decrypts each message there; the module shows only
+  a message in the server's "N new notifications" form, on the same channel and tag as the other
+  services. Its Kotlin unit tests run with `gradlew :sandpiper-unifiedpush:testDebugUnitTest`. A
+  distributor that gives a new address while the app is closed is picked up when the app next opens
+  (the app registers again at every start).
 - **What the build sends to Google:** Firebase Messaging's automatic token creation and Firebase
   Analytics are switched off in the manifest. The app asks for a token only after the person switches
   push on. Google's data transport is removed as for ML Kit. Verified with a Gradle merged manifest: no
-  data-transport component, and no analytics or measurement library in the release classpath.
+  data-transport component and no analytics library in the release classpath. Firebase Messaging
+  itself brings `firebase-measurement-connector` (an interface library only) and lists Firebase's own
+  data-transport registrar in the manifest.
+- **Retries:** a push that fails for a while only (no answer, a refused connection, 5xx, or 429) is
+  tried again after 30 seconds, 2, 10 and 30 minutes and 1 hour, or after the wait the service asks for
+  (Retry-After, up to 6 hours), then given up with the reason shown on the administration page. A
+  service that answers busy or unavailable is left alone for the rest of that run. Each retry is sent
+  once, says how many notifications are unread at that moment, and is dropped when everything has been
+  read. A token the service no longer knows is removed at once and never retried.
 - **Test:** on the administration page, "Send a test to my phones" sends a test push to your own
   registered phones and shows any error.
 
@@ -260,7 +320,7 @@ plugins by `npx expo prebuild` and are never committed; change `app.json` or a p
 4. In the app, type the server address. The emulator reaches your computer as `10.0.2.2`, so a server
    on port 8146 is `http://10.0.2.2:8146`; a phone uses `adb reverse tcp:8146 tcp:8146` and
    `http://127.0.0.1:8146`. **Plain HTTP works only in development builds**; release builds refuse
-   it, and on Android they trust only the system's certificate authorities, so a test server for a
+   it, and on Android they trust only the system's certificate authorities (an explicit network security config; development builds allow plain HTTP and user authorities), so a test server for a
    release build needs a certificate from a public or system-installed authority.
 
 On iPhone: `export EXPO_NO_TELEMETRY=1; npx expo prebuild --platform ios`, then `npx expo run:ios`
@@ -365,9 +425,18 @@ against a scratch server: `connect-sign-in.yaml` (connect, sign in with a passwo
 confirm the password when the server asks), `report-two-photos.yaml` (a problem report with two
 photos from the photo picker arrives with both), `airplane-mode-sync.yaml` (a report with two photos
 written in airplane mode waits on the phone, then arrives when the network is back) and
-`sign-out-wipes.yaml` (signing out warns about the unsent report and removes it from the phone).
+`sign-out-wipes.yaml` (signing out warns about the unsent report and removes it from the phone); and
+`inspection-offline.yaml` (an inspection completed and signed in airplane mode arrives once) and
+`count-offline.yaml` (counting in airplane mode, found and unexpected shown at once, finds arriving
+when the network is back), run by `run-fieldwork.sh`, which makes the invented records first and then
+checks the server (`fieldwork.mjs`): the inspection complete once, signed, with the signature attached,
+and the count's totals.
 `run.sh` runs them in that order on a clean app and then asks the server that each report arrived
-exactly once, with two files, and that the unsent one never did.
+exactly once, with two files, and that the unsent one never did. `large-text.yaml`, run by
+`run-large-text.sh` (with `INSPECTION` set to an inspection of `run-fieldwork.sh`'s set-up, on an app
+already signed in), goes through My work, Notifications, the report form, an inspection, the Tag tab's
+number box and Account at Android's largest text size (font scale 2.0) in the dark theme, and puts the
+emulator's text size and theme back afterward (see "Accessibility").
 
 1. Install the Maestro command-line tool into `.tools/maestro` (no system-wide install): download
    `maestro.zip` from the project's GitHub release, check it against the release's
@@ -391,6 +460,38 @@ exactly once, with two files, and that the unsent one never did.
 the connection to the phone is cut before the answer arrives, and the first photo upload is cut
 half-way. Run `node mobile/test/maestro/dropproxy.mjs`, connect the app to `http://10.0.2.2:8151`, run
 `report-two-photos.yaml`, and check that the report arrived once with two files.
+
+## Accessibility
+
+The app is checked against WCAG 2.1 AA where it applies to apps (E38-15); what was proven and what still
+needs a person is in the [accessibility statement](accessibility.md#mobile-app). Rules for new screens:
+
+- **Use the shared building blocks** (`src/ui`, `src/records/ui.tsx`). Every control has a role and a
+  name that starts with the words it shows (`accessibilityLabel` may add what it acts on after them:
+  "Discard: Report a leak"); a choice says `selected` or `checked` (`Row selected`, radios), a row that
+  opens a list says `expanded` (`Row expanded`), a switch is a whole `SwitchRow` (a bare Android
+  `Switch` is under 48 dp). A `Row` with a control at the right keeps that control a separate item (an
+  accessible parent would hide it from VoiceOver). Screen titles and section names are headings.
+- **Messages are said.** `Banner` (warning, error) and `Notice` (error, success) call `useAnnounce`,
+  which asks the system to say the text when it appears or changes (`announce` for an info message
+  that reports a status change). Text that already sits in an `accessibilityLiveRegion` (the tag
+  camera's status, counting's finds, the number of search results) uses `useAnnounce(text, { iosOnly:
+  true })`, since VoiceOver has no live regions. Field errors are said and become the field's hint.
+- **Focus after a change.** When part of a screen replaces another (an edit form, the next checklist
+  item), put the heading's ref from `useFocusOn(key)` on the new part's heading. A part of a screen
+  shown in its own mode gets its own `key` on `Screen`, so it opens at its top.
+- **Large text.** No fixed heights on anything holding text, no `numberOfLines` that cuts text off,
+  and no `maxFontSizeMultiplier` except the tab labels (1.4, so five fit). Rows of buttons wrap
+  (`flexWrap`, children `flexGrow: 1`) rather than breaking words. Top-bar titles give `fontSize`
+  (`HEADER_TITLE_SIZE`), which makes Android scale them. Touch targets are at least 48 points.
+- **No gesture only.** Pull to refresh needs a Refresh or Try again button, endless scrolling a Load
+  more button, a camera a typed alternative, the finger signature the typed name.
+- **Colors** from `src/theme` only; text meets 4.5:1 and text-box and switch borders 3:1
+  (`borderStrong`) in light and dark, checked by `src/ui/tests/a11y.test.tsx`.
+- **Check it on the emulator** at `adb shell settings put system font_scale 2.0`, light and dark
+  (`adb shell cmd uimode night yes`), and read the accessibility tree with `adb shell uiautomator dump`
+  (content-desc, checkable, checked, selected, bounds). The emulator image has TalkBack
+  (`com.google.android.marvin.talkback`).
 
 ## Versions
 

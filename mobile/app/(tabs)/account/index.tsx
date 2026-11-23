@@ -3,23 +3,22 @@
 // Push notifications (E38-14): the switch below, src/push (text in src/push/text.ts).
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Switch } from 'react-native';
+import { Alert } from 'react-native';
 import { apiFetch, useAuthState, useSession } from '../../../src/api/client';
 import { appVersion, setUnlockPreference, signOut, unlockAvailable, unsentWorkCount } from '../../../src/auth/session';
-import { setPushEnabled, startPush, usePushState } from '../../../src/push';
+import { changeDistributor, setPushEnabled, startPush, usePushState } from '../../../src/push';
 import { pushText as P } from '../../../src/push/text';
 import { accountText as T } from '../../../src/text/account';
-import { useTheme } from '../../../src/theme';
-import { Banner, Body, Button, Row, Screen, Section } from '../../../src/ui';
+import { Banner, Body, Button, Row, Screen, Section, SwitchRow } from '../../../src/ui';
 
 export default function AccountScreen() {
   const { session } = useSession();
   const auth = useAuthState();
-  const { colors } = useTheme();
   const router = useRouter();
   const [unread, setUnread] = useState<number | null>(null);
   const [canUnlock, setCanUnlock] = useState(true);
   const push = usePushState();
+  const unifiedPush = push.status === 'on' && push.provider === 'unifiedpush';
 
   useFocusEffect(useCallback(() => {
     let live = true;
@@ -66,35 +65,33 @@ export default function AccountScreen() {
       </Section>
 
       <Section title={P.section}>
-        <Row
+        <SwitchRow
           label={P.label}
           detail={push.status === 'on' ? P.detailOn : 'message' in push && push.message ? push.message : P.detailOff}
-          right={(
-            <Switch
-              accessibilityLabel={P.label}
-              value={push.status === 'on' || push.status === 'working'}
-              disabled={push.status === 'working'}
-              onValueChange={(on) => void setPushEnabled(on)}
-              trackColor={{ true: colors.brand, false: colors.borderControl }}
-            />
-          )}
-          last
+          value={push.status === 'on' || push.status === 'working'}
+          disabled={push.status === 'working'}
+          onChange={(on) => void setPushEnabled(on)}
+          last={!unifiedPush}
         />
+        {unifiedPush ? (
+          <Row
+            label={P.distributor}
+            value={push.distributor?.name ?? P.distributorUnknown}
+            detail={P.distributorDetail}
+            accessibilityHint={P.distributorChange}
+            onPress={() => void changeDistributor()}
+            last
+          />
+        ) : null}
       </Section>
 
       <Section title={T.sections.security}>
-        <Row
+        <SwitchRow
           label={T.unlock}
           detail={required ? `${T.unlockRequired} ${T.unlockDetail(afterMinutes)}` : canUnlock ? T.unlockDetail(afterMinutes) : T.unlockUnavailable}
-          right={(
-            <Switch
-              accessibilityLabel={T.unlock}
-              value={required || auth.prefs.unlock}
-              disabled={required || !canUnlock}
-              onValueChange={(on) => void setUnlockPreference(on)}
-              trackColor={{ true: colors.brand, false: colors.borderControl }}
-            />
-          )}
+          value={required || auth.prefs.unlock}
+          disabled={required || !canUnlock}
+          onChange={(on) => void setUnlockPreference(on)}
           last
         />
       </Section>

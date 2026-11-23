@@ -11,7 +11,7 @@ const mod: ModuleDef = {
   key: 'workflows',
   nav: [
     { group: 'Home', label: 'Approvals', path: '/approvals', icon: 'check-square', order: 45 },
-    { group: 'Administration', label: 'Approval workflows', path: '/admin/workflows', icon: 'check-square', permission: ADMIN, order: 46 },
+    { group: 'Administration', label: 'Approval workflows', path: '/admin/workflows', icon: 'check-square', permission: ADMIN, order: 44 },
   ],
   routes: [
     { path: '/approvals', element: <ApprovalsPage /> },

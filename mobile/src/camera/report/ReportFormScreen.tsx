@@ -151,32 +151,32 @@ export default function ReportFormScreen() {
 
       {kind === 'hazard' && types.length ? (
         <Section title={TEXT.type}>
-          {types.map((t, i) => <Row key={t.id} label={t.label} value={eventType === t.id ? '✓' : null} onPress={() => setEventType(t.id)} last={i === types.length - 1} />)}
+          {types.map((t, i) => <Row key={t.id} label={t.label} selected={eventType === t.id} onPress={() => setEventType(t.id)} last={i === types.length - 1} />)}
         </Section>
       ) : null}
       {kind === 'hazard' && severities.length ? (
         <Section title={TEXT.severity}>
-          {severities.map((t, i) => <Row key={t.id} label={t.label} value={severity === t.id ? '✓' : null} onPress={() => setSeverity(t.id)} last={i === severities.length - 1} />)}
+          {severities.map((t, i) => <Row key={t.id} label={t.label} selected={severity === t.id} onPress={() => setSeverity(t.id)} last={i === severities.length - 1} />)}
         </Section>
       ) : null}
       {kind === 'hazard' && portal && harms.length ? (
         <Section title={TEXT.harm}>
-          {harms.map((t, i) => <Row key={t.id} label={t.label} value={harm === t.id ? '✓' : null} onPress={() => setHarm(t.id)} last={i === harms.length - 1} />)}
+          {harms.map((t, i) => <Row key={t.id} label={t.label} selected={harm === t.id} onPress={() => setHarm(t.id)} last={i === harms.length - 1} />)}
         </Section>
       ) : null}
       {kind === 'problem' && portal ? (
         <>
           <Section title={TEXT.affects}>
-            {PORTAL_AFFECTS.map((t, i) => <Row key={t.id} label={t.label} value={affects === t.id ? '✓' : null} onPress={() => setAffects(t.id)} last={i === PORTAL_AFFECTS.length - 1} />)}
+            {PORTAL_AFFECTS.map((t, i) => <Row key={t.id} label={t.label} selected={affects === t.id} onPress={() => setAffects(t.id)} last={i === PORTAL_AFFECTS.length - 1} />)}
           </Section>
           <Section title={TEXT.urgency}>
-            {PORTAL_URGENCY.map((t, i) => <Row key={t.id} label={t.label} value={howUrgent === t.id ? '✓' : null} onPress={() => setHowUrgent(t.id)} last={i === PORTAL_URGENCY.length - 1} />)}
+            {PORTAL_URGENCY.map((t, i) => <Row key={t.id} label={t.label} selected={howUrgent === t.id} onPress={() => setHowUrgent(t.id)} last={i === PORTAL_URGENCY.length - 1} />)}
           </Section>
         </>
       ) : null}
 
       <Section title={TEXT.site}>
-        <Row label={site?.label || TEXT.noSite} onPress={() => setChoosingSite((c) => !c)} last={!choosingSite} accessibilityHint={TEXT.siteSearch} />
+        <Row label={site?.label || TEXT.noSite} accessibilityLabel={`${site?.label || TEXT.noSite}, ${TEXT.site}`} expanded={choosingSite} onPress={() => setChoosingSite((c) => !c)} last={!choosingSite} accessibilityHint={TEXT.siteSearch} />
         {choosingSite ? (
           <View>
             <View style={{ padding: space[2] }}><Field label={TEXT.siteSearch} value={siteQ} onChangeText={setSiteQ} autoCorrect={false} /></View>
@@ -200,9 +200,9 @@ export default function ReportFormScreen() {
         </View>
       </Section>
       {photos.length >= MAX_PHOTOS ? <Body muted>{TEXT.maxPhotos}</Body> : (
-        <View style={{ flexDirection: 'row', gap: space[2] }}>
-          <View style={{ flex: 1 }}><Button label={TEXT.takePhoto} kind="secondary" onPress={() => void takePhoto()} disabled={Boolean(busy)} /></View>
-          <View style={{ flex: 1 }}><Button label={TEXT.choosePhotos} kind="secondary" onPress={() => void choosePhotos()} disabled={Boolean(busy)} /></View>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[2] }}>
+          <View style={{ flexGrow: 1 }}><Button label={TEXT.takePhoto} kind="secondary" onPress={() => void takePhoto()} disabled={Boolean(busy)} /></View>
+          <View style={{ flexGrow: 1 }}><Button label={TEXT.choosePhotos} kind="secondary" onPress={() => void choosePhotos()} disabled={Boolean(busy)} /></View>
         </View>
       )}
       {busy === TEXT.preparing ? <Body muted>{TEXT.preparing}</Body> : null}

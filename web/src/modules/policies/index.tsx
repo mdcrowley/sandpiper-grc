@@ -15,9 +15,9 @@ const mod: ModuleDef = {
   nav: [
     { group: 'Cybersecurity', label: 'Policies', path: '/policies', icon: 'file-text', permission: 'policies.view', order: 80 },
     // No permission: everyone who is asked to acknowledge a policy needs to reach their own list.
-    { group: 'Cybersecurity', label: 'My acknowledgments', path: '/policies/acknowledgments', icon: 'check-square', order: 85 },
-    { group: 'Cybersecurity', label: 'Acknowledgment kiosk', path: '/policies/kiosk', icon: 'check-circle', permission: 'policies.edit', order: 86 },
-    { group: 'Cybersecurity', label: 'Exceptions', path: '/exceptions', icon: 'clock', permission: 'exceptions.view', order: 90 },
+    { group: 'Cybersecurity', label: 'My acknowledgments', path: '/policies/acknowledgments', icon: 'check-square', order: 81 },
+    { group: 'Cybersecurity', label: 'Acknowledgment kiosk', path: '/policies/kiosk', icon: 'check-circle', permission: 'policies.edit', order: 82 },
+    { group: 'Cybersecurity', label: 'Exceptions', path: '/exceptions', icon: 'clock', permission: 'exceptions.view', order: 83 },
   ],
   routes: [
     { path: '/policies', element: <PolicyLibrary />, permission: 'policies.view' },

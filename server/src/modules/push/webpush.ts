@@ -6,10 +6,11 @@
 import { createCipheriv, createDecipheriv, createECDH, hkdfSync, randomBytes, type KeyObject } from 'node:crypto';
 import { request as httpRequest, type IncomingMessage } from 'node:http';
 import { request as httpsRequest } from 'node:https';
-import { checkedLookup, hostAllowed, literalRefusal } from '../../core/webhooks.ts';
+import { AddressBlockedError, checkedLookup, hostAllowed, literalRefusal } from '../../core/webhooks.ts';
 import { PUSH_COLLAPSE_KEY, PUSH_ROUTE } from '../../../../shared/push-api.ts';
 import { pushEndpoints } from './endpoints.ts';
 import { signJwt } from './jwt.ts';
+import { parseRetryAfter, temporaryStatus } from './retry.ts';
 import type { PushMessage, SendOutcome } from './types.ts';
 
 export interface UnifiedPushCredentials {
@@ -111,7 +112,7 @@ export function webPushPayload(m: PushMessage): Buffer {
   return Buffer.from(JSON.stringify({ title: m.title, body: m.body, kind: 'unread', count: m.count, route: PUSH_ROUTE }), 'utf8');
 }
 
-function post(url: URL, body: Buffer, headers: Record<string, string>, allowList: string[], timeoutMs: number): Promise<{ status: number }> {
+function post(url: URL, body: Buffer, headers: Record<string, string>, allowList: string[], timeoutMs: number): Promise<{ status: number; retryAfter?: unknown }> {
   return new Promise((resolve, reject) => {
     const port = url.port || (url.protocol === 'https:' ? '443' : '80');
     const blocked = literalRefusal(url.hostname, port, allowList);
@@ -122,7 +123,7 @@ function post(url: URL, body: Buffer, headers: Record<string, string>, allowList
       headers: { ...headers, 'content-length': String(body.length) },
     }, (res: IncomingMessage) => {
       res.resume();
-      res.on('end', () => resolve({ status: res.statusCode ?? 0 }));
+      res.on('end', () => resolve({ status: res.statusCode ?? 0, retryAfter: res.headers['retry-after'] }));
       res.on('error', reject);
     });
     const timer = setTimeout(() => req.destroy(new Error('The push server did not answer in time.')), timeoutMs);
@@ -141,18 +142,26 @@ export function unifiedPushClient(c: UnifiedPushCredentials) {
     const url = new URL(t.endpoint);
     const body = encryptWebPush(webPushPayload(m), Buffer.from(t.p256dh, 'base64url'), Buffer.from(t.auth, 'base64url'));
     let status: number;
+    let retryAfter: unknown;
     try {
-      ({ status } = await post(url, body, {
+      ({ status, retryAfter } = await post(url, body, {
         'content-type': 'application/octet-stream', 'content-encoding': 'aes128gcm',
         ttl: '86400', urgency: 'high', topic: PUSH_COLLAPSE_KEY,
         authorization: vapidAuthorization(url, c),
       }, c.allowedHosts, pushEndpoints().timeoutMs));
     } catch (err) {
-      return { ok: false, gone: false, message: `The UnifiedPush server could not be reached: ${(err as Error).message.slice(0, 200)}` };
+      // An address this server may not reach stays refused; anything else (no answer, a refused
+      // connection, a name that did not resolve) is tried again later.
+      const blocked = err instanceof AddressBlockedError;
+      return { ok: false, gone: false, temporary: !blocked, message: `The UnifiedPush server could not be reached: ${(err as Error).message.slice(0, 200)}` };
     }
     if (status >= 200 && status < 300) return { ok: true };
     if (status === 404 || status === 410) return { ok: false, gone: true, message: `The UnifiedPush server no longer knows this phone (${status}).` };
     if (status === 401 || status === 403) return { ok: false, gone: false, settings: true, message: `The UnifiedPush server refused this server's key (${status}).` };
+    // 429 and 5xx: wait (as long as the push server says), and leave that push server alone for the rest of the run.
+    if (temporaryStatus(status)) {
+      return { ok: false, gone: false, temporary: true, retryAfterSeconds: parseRetryAfter(retryAfter), pauseService: true, message: `The UnifiedPush server answered ${status}.` };
+    }
     return { ok: false, gone: false, message: `The UnifiedPush server answered ${status}.` };
   }
   return { send };

@@ -126,12 +126,12 @@ export function MilestonesTab({ projectId, onChanged }: { projectId: string; onC
                       {canEdit && (
                         <span className="row" style={{ justifyContent: 'flex-end' }}>
                           {!m.done_on && (
-                            <Button size="sm" icon="check" disabled={busy} onClick={() => act(() => api.patch(`/api/projects/${projectId}/milestones/${m.id}`, { done_on: today }), 'Milestone marked as done.')}>
+                            <Button size="sm" icon="check" aria-label={`Mark done: ${m.name}`} disabled={busy} onClick={() => act(() => api.patch(`/api/projects/${projectId}/milestones/${m.id}`, { done_on: today }), 'Milestone marked as done.')}>
                               Mark done
                             </Button>
                           )}
-                          <Button size="sm" variant="ghost" icon="edit" onClick={() => { setEditing(m); setDialogOpen(true); }}>Edit</Button>
-                          <Button size="sm" variant="ghost" icon="trash" onClick={() => setRemoving(m)}>Delete</Button>
+                          <Button size="sm" variant="ghost" icon="edit" aria-label={`Edit: ${m.name}`} onClick={() => { setEditing(m); setDialogOpen(true); }}>Edit</Button>
+                          <Button size="sm" variant="ghost" icon="trash" aria-label={`Delete: ${m.name}`} onClick={() => setRemoving(m)}>Delete</Button>
                         </span>
                       )}
                     </td>

@@ -194,7 +194,11 @@ permission module, title field, optional auto-number) and provides:
   loads `pg_trgm`, and on a PostgreSQL server the owner must be allowed to create it, or
   part-of-a-word matching works without the index). Lists find their page on ids first and
   take the exact total from the same statement; the embedded database refreshes its
-  planner statistics itself (`GRC_ANALYZE_AFTER_WRITES`).
+  planner statistics itself (`GRC_ANALYZE_AFTER_WRITES`). Since migration 029 the substring match and its
+  trigram index are on `search_index.body_lc`, a generated lowercase copy (`LIKE` on it matches the
+  rows `ILIKE` on `body` does). Global search (`core/search-global.ts`) counts the matching index rows
+  per type, then ranks the matches once for all types and groups them per type; the full-text list
+  joins the matching index rows to the records.
 - **Tags and watchers** (`server/src/core/tags.ts`) on any record, following the record's
   permissions. Tags filter lists (`f.tags=a,b`, `f.tags.all=`, `f.tags.null=`) and travel
   in rows as `_tags`. Watchers are told about comments and status changes through the
@@ -486,8 +490,8 @@ built; see [Known gaps](known-gaps.md).
 - **More than one process.** The job queue already works across processes, and so do the
   per-token request counts (`tokens.rate_per_minute`, the `RateLimit` headers and
   `mcp.rate_per_minute`, kept per clock minute in the database since E16-43). Still to do:
-  move the remaining timers onto it, and move the `If-Match` lock, the policy kiosk's count of
-  wrong employee numbers and the webhook worker out of process memory, before running several
-  instances.
+  move the remaining timers onto it, and move the `If-Match` lock and the webhook worker out of
+  process memory, before running several instances (the policy kiosk's count of wrong employee
+  numbers is kept in the database since E18-60).
 - **Operations.** Scheduled, verified backups, an upgrade with automatic rollback and
   continuous integration are built. Still to do: log retention and monitoring.

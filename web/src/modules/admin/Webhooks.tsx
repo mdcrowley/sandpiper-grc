@@ -279,7 +279,7 @@ function OutboundNotice({ data }: { data: WebhooksResponse }) {
     return (
       <Notice tone="caution" icon="lock">
         <p><strong>Nothing is sent yet: outbound connections are switched off.</strong> Webhooks can be set up, but every delivery is recorded as
-          blocked until an administrator switches on <strong>Outbound connections</strong> in <Link to="/admin/settings#settings-integrations">Settings</Link> and
+          blocked until an administrator switches on <strong>Allow outbound connections</strong> in <Link to="/admin/settings#settings-integrations">Settings</Link> and
           adds each receiving host to <strong>Allowed hosts</strong>.</p>
       </Notice>
     );

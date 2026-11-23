@@ -128,7 +128,7 @@ describe('report form', () => {
     await render(<ReportFormScreen />);
     expect(await screen.findByText('Near miss (offline)')).toBeTruthy();
     expect(screen.getByText('No harm (offline)')).toBeTruthy();
-    await fireEvent.press(screen.getByLabelText(FORM.noSite));
+    await fireEvent.press(screen.getByRole('button', { name: `${FORM.noSite}, ${FORM.site}` }));
     expect(await screen.findByText('North depot')).toBeTruthy();
     mockOfflinePkg.current = null;
   });

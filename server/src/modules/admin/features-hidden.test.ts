@@ -63,6 +63,19 @@ describe('what a switched-off area leaves behind', () => {
     expect((await meta()).lookups.ticket_status).toBeDefined();
   });
 
+  it('hides a list offered only by fields the area hides on types that stay on (asset condition rating)', async () => {
+    const lists = async () => (await t.api.get('/api/lookups')).body.map((r: any) => r.list_key);
+    expect(await lists()).toContain('condition_rating');
+    expect((await setFeatures({ condition: false })).status).toBe(200);
+    expect(await lists()).not.toContain('condition_rating');
+    expect((await meta()).lookups.condition_rating).toBeUndefined();
+    expect((await t.api.get('/api/lookups/condition_rating')).body).toEqual([]);
+    // Lists of the inventory the area does not hide stay.
+    expect(await lists()).toContain('asset_status');
+    expect((await setFeatures({ condition: true })).status).toBe(200);
+    expect(await lists()).toContain('condition_rating');
+  });
+
   it('hides its notification kinds and its notifications, and keeps both', async () => {
     const me = (await t.api.get('/api/auth/state')).body.user.id;
     const vehicle = await t.ctx.resources.create('vehicle', { fleet_number: 'ORCHARD-77', mode: (await t.ctx.lookups.values('vehicle_mode'))[0].value });

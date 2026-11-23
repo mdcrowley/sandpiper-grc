@@ -120,8 +120,8 @@ function Members({ committee }: { committee: Row }) {
                       <td>{m.voting ? 'Yes' : 'No'}</td>
                       <td>{m.from_on || m.to_on ? `${m.from_on ? formatDate(m.from_on) : 'Start'} to ${m.to_on ? formatDate(m.to_on) : 'now'}` : <span className="muted">Open</span>}</td>
                       <td className="gv-actions">
-                        {canEdit && <Button size="sm" variant="ghost" onClick={() => setEditing(m)}>Change</Button>}
-                        {canEdit && <Button size="sm" variant="ghost" onClick={() => setRemoving(m)}>Remove</Button>}
+                        {canEdit && <Button size="sm" variant="ghost" aria-label={`Change: ${m.name}`} onClick={() => setEditing(m)}>Change</Button>}
+                        {canEdit && <Button size="sm" variant="ghost" aria-label={`Remove: ${m.name}`} onClick={() => setRemoving(m)}>Remove</Button>}
                       </td>
                     </tr>
                   ))}

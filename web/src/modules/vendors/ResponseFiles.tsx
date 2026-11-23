@@ -166,7 +166,7 @@ export function HeldFiles({ assessmentId, files, editable, onChange }: {
     setErrors({});
     try {
       await api.post(`${base(taking)}/accept`, { kind, description, expires_on: kind === 'evidence' && expires ? expires : undefined });
-      toast.success(`"${taking.file_name}" is now on the vendor's Files tab.`);
+      toast.success(`"${taking.file_name}" is now on the vendor's Attachments tab.`);
       setTaking(null);
       onChange();
     } catch (err) {

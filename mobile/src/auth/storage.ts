@@ -81,4 +81,11 @@ export const storage = {
   async wipe(): Promise<void> {
     await Promise.all([write(KEY.tokens, null), write(KEY.hello, null), write(KEY.prefs, null), write(KEY.profile, null)]);
   },
+  /**
+   * A new installation (install.ts, iPhone, where the Keychain outlives the app): removes everything,
+   * the installation identifier and the server address too, so the app starts as never used.
+   */
+  async forgetEverything(): Promise<void> {
+    await Promise.all(Object.values(KEY).map((k) => write(k, null)));
+  },
 };

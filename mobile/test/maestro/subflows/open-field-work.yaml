@@ -1,0 +1,14 @@
+# Opens Field work from the Report tab (wave 15). A development build may first load its JavaScript.
+appId: com.sandpipergrc
+---
+- extendedWaitUntil:
+    visible: "Report"
+    timeout: 90000
+- runFlow:
+    file: open-report-tab.yaml
+- scrollUntilVisible:
+    element: "Inspections, condition and counts"
+- tapOn: "Inspections, condition and counts"
+- extendedWaitUntil:
+    visible: "Field work"
+    timeout: 20000

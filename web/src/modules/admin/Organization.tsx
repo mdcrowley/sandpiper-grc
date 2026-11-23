@@ -215,7 +215,7 @@ export function OrganizationPage() {
             </Card>
           </Group>
 
-          <Group id="colors" title="Colors" text="The brand color fills buttons and the header and colors links; the accent marks the current page in the sidebar and highlights. Saved with the rest of the page.">
+          <Group id="colors" title="Colors" text="The brand color fills buttons, colors links and gives the sidebar a deep tone of its hue; the accent marks the current page in the sidebar and highlights. Saved with the rest of the page.">
             <ColorSettings form={form} set={set} errors={errors} isChanged={isChanged} logo={data.branding.logo} appName={form['app.name'] || auth.appName} />
           </Group>
         </div>

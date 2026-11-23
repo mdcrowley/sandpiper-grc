@@ -23,7 +23,6 @@ export const TEXT = {
   nothing: 'Nothing waiting.',
   allClear: 'Nothing is waiting for you.',
   waiting: (n: number) => `${n} waiting`,
-  sectionLabel: (label: string, n: number) => `${label}, ${n} waiting`,
   overdue: 'Overdue',
   due: (when: string) => `Due ${when}`,
   showAllWeb: (n: number) => `Show all ${n} on the web`,
@@ -55,7 +54,11 @@ export default function WorkScreen() {
   const total = totalWaiting(home.data);
   useEffect(() => {
     if (!home.data) return;
-    navigation.getParent?.()?.setOptions?.({ tabBarBadge: total > 0 ? (total > 99 ? '99+' : total) : undefined });
+    // The tab's name starts with its visible label and then says the number (the badge alone was read first).
+    navigation.getParent?.()?.setOptions?.({
+      tabBarBadge: total > 0 ? (total > 99 ? '99+' : total) : undefined,
+      tabBarAccessibilityLabel: total > 0 ? `${TEXT.title}, ${TEXT.waiting(total)}` : TEXT.title,
+    });
   }, [navigation, home.data, total]);
 
   const viewable = (type: string) => Boolean(meta?.resources[type]);
@@ -84,7 +87,7 @@ export default function WorkScreen() {
           <Button label={TEXT.notifications(data.unreadNotifications)} kind="link" onPress={() => router.push('/notifications' as never)} />
           {total === 0 ? <Notice kind="success">{TEXT.allClear}</Notice> : null}
           {data.sections.map((section) => (
-            <Card key={section.key} accessibilityLabel={TEXT.sectionLabel(section.label, section.count)}>
+            <Card key={section.key}>
               <View style={styles.sectionHead}>
                 <Heading level={2}>{section.label}</Heading>
                 <Chip label={TEXT.waiting(section.count)} color={section.count ? 'blue' : 'gray'} />

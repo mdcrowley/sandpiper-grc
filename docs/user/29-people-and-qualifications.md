@@ -20,7 +20,7 @@ Names, employee numbers, email addresses, phone numbers, hire dates, accounts an
 
 ## Positions
 
-Open **Administration > Positions**. Each position (`POS-` numbers) has a **Name** (unique), a **Code**, a **Description**, whether it is **Safety-sensitive** (shown only while safety management is switched on), and whether it is **Active**. On the position's page, choose its **Department** on the **Department** card.
+Open **People > Positions**. Each position (`POS-` numbers) has a **Name** (unique), a **Code**, a **Description**, whether it is **Safety-sensitive** (shown only while safety management is switched on), and whether it is **Active**. On the position's page, choose its **Department** on the **Department** card.
 
 ### What a position requires
 
@@ -35,7 +35,7 @@ The **People** tab lists everyone in the position.
 
 ## The roster
 
-Open **Administration > People**. The tiles count people who are **Active** and **On leave**, how many are **With an account**, and the **Positions**. The list shows each person's reference (`PER-` numbers), name, employee number, position, department and status; more columns (account, supervisor, work site, hire date, source) are in the column chooser.
+Open **People > People**. The tiles count people who are **Active** and **On leave**, how many are **With an account**, and the **Positions**. The list shows each person's reference (`PER-` numbers), name, employee number, position, department and status; more columns (account, supervisor, work site, hire date, source) are in the column chooser.
 
 ### Add a person
 
@@ -79,11 +79,11 @@ Each requirement shows as **In date**, **Expiring** (in date but running out wit
 
 ### The qualification matrix
 
-Open **Cybersecurity > Qualifications**. The tiles count who is **Qualified** and **Not qualified** among the people whose position has requirements, and the certifications that have expired or expire within 90 days. Filter by **Position** or **Department**, and **Show** only people who are not qualified. Each row is a person; each column a requirement, with a dash where their position does not need it. Hover a cell for its date. People whose position has no requirements show **No requirements**.
+Open **People > Qualifications** (shown only to people who may view both training and the roster). The tiles count who is **Qualified** and **Not qualified** among the people whose position has requirements, and the certifications that have expired or expire within 90 days. Filter by **Position** or **Department**, and **Show** only people who are not qualified. Each row is a person; each column a requirement, with a dash where their position does not need it. Hover a cell for its date. People whose position has no requirements show **No requirements**.
 
 ## Certifications
 
-Certifications (`CRT-` numbers) are recorded under **Cybersecurity > Certifications** or from a person's page; see [Training and exercises](12-training-and-exercises.md#qualifications-and-certifications). The certification types (for example **Driver or operator license**, **Medical fitness certificate**, **First aid**, **Track access permit**) are a list an administrator can change under **Administration > Lists** (list **Certification type**). The types installed with the application also say how many months each is valid (`validity_months`) and who usually issues it (`issuing_body`); the **Lists** page changes a type's name, color and order, not these two.
+Certifications (`CRT-` numbers) are recorded under **People > Certifications** or from a person's page; see [Training and exercises](12-training-and-exercises.md#qualifications-and-certifications). The certification types (for example **Driver or operator license**, **Medical fitness certificate**, **First aid**, **Track access permit**) are a list an administrator can change under **Administration > Lists** (list **Certification type**). Each type also says how many months a certification of it is valid (**Valid for (months)**: a new certification's expiry date is worked out from its issue date) and who usually issues it (**Usually issued by**: filled in when no issuer is given). Both are shown as columns on the **Lists** page and changed in the type's **Edit** dialog, with its name and color; leave **Valid for (months)** empty for a type that does not expire.
 
 Certifications that expire within 90, 60 and 30 days, or have expired, without a renewal are reminded to the person and their supervisor once at each step. **Expiring** on the certifications list shows them all.
 

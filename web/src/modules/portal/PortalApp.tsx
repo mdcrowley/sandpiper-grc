@@ -6,6 +6,7 @@ import { ActionIcon, Menu as MMenu, UnstyledButton } from '@mantine/core';
 import {
   ChangePasswordDialog, ErrorState, Icon, Loading, modules, NotFound, useAuth, useFetch, useRouteFocus, useTheme,
 } from '../../core';
+import { appTitle } from '../../core/branding';
 import { Logo } from '../../core/Logo';
 import { ConfigProvider, type PortalConfig } from './parts';
 import { PortalHome } from './Home';
@@ -76,10 +77,15 @@ function Header({ config }: { config: PortalConfig | null }) {
 
 function Off({ config }: { config: PortalConfig }) {
   const { can } = useAuth();
+  const title = config.enabled ? 'The portal is not available to you' : 'The self-service portal is switched off';
+  useEffect(() => {
+    document.title = `${title} · ${appTitle()}`;
+    return () => { document.title = appTitle(); };
+  }, [title]);
   return (
     <div className="pt-empty-page">
       <Icon name="info" size={32} />
-      <h1>{config.enabled ? 'The portal is not available to you' : 'The self-service portal is switched off'}</h1>
+      <h1>{title}</h1>
       <p className="muted">
         {config.enabled
           ? 'Your account does not include the portal. Ask the service desk to give you the Requester role.'

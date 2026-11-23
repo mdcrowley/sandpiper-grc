@@ -57,7 +57,8 @@ export default function QuickUpdateScreen() {
             <Field label={f.label} value={String(values[f.field].value ?? '')} onChangeText={(v) => setValues((s) => ({ ...s, [f.field]: { value: v, display: v } }))} />
           ) : (
             <Section title={f.label}>
-              <Row label={values[f.field].display ?? TEXT.clear} onPress={() => setOpen(open === f.field ? null : f.field)} last={open !== f.field} />
+              <Row label={values[f.field].display ?? TEXT.clear} accessibilityLabel={`${values[f.field].display ?? TEXT.clear}, ${f.label}`} expanded={open === f.field}
+                onPress={() => setOpen(open === f.field ? null : f.field)} last={open !== f.field} />
               {open === f.field ? (
                 <Choices field={f} onChoose={(o) => { setValues((s) => ({ ...s, [f.field]: o ? { value: o.id, display: o.label } : { value: null, display: null } })); setOpen(null); }} />
               ) : null}

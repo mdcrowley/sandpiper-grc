@@ -91,7 +91,7 @@ export default function AcknowledgmentScreen({ ackId }: { ackId: string }) {
               <Body>{a.change_summary}</Body>
             </Card>
           ) : null}
-          <View style={styles.text} accessibilityLabel={TEXT.text}>
+          <View style={styles.text}>
             <Heading level={2}>{TEXT.text}</Heading>
             {blocks.map((b, i) => <Block key={i} block={b} />)}
           </View>

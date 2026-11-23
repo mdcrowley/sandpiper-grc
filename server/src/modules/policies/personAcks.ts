@@ -4,12 +4,17 @@
 // There is no unauthenticated route: every acknowledgment records who recorded it.
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { makeDbLimiter } from '../../core/ratelimit.ts';
 import { addDays, daysBetween, isDate, localDate } from './dates.ts';
 import { renderPolicyMarkdown } from './markdown.ts';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_PEOPLE = 500;
-/** Wrong employee numbers allowed for one person before the kiosk stops trying for a while. */
+/**
+ * Wrong employee numbers for one person within KIOSK_LOCK_MS after which the kiosk stops trying for
+ * them (five within 15 minutes). Counted in the database (rate_limit_hits, bucket `kiosk`), so a
+ * restart or a second server process does not reset them.
+ */
 const KIOSK_TRIES = 5;
 const KIOSK_LOCK_MS = 15 * 60 * 1000;
 
@@ -213,7 +218,7 @@ export function registerPersonAcks(ctx: ModuleContext): void {
   // ---------- the kiosk (a supervisor's signed-in device) ----------
 
   const kiosk = { preHandler: ctx.requirePerm('policies.edit') };
-  const failures = new Map<string, { n: number; until: number }>();
+  const failures = makeDbLimiter(db, 'kiosk', KIOSK_TRIES, KIOSK_LOCK_MS);
   const PENDING = `
     select a.id, a.policy_id, a.version_id, a.due_on, p.ref as policy_ref, p.title as policy_title, p.summary as policy_summary,
            p.document_type, v.version, v.effective_on
@@ -227,21 +232,20 @@ export function registerPersonAcks(ctx: ModuleContext): void {
     needRoster();
     const id = String(personId ?? '');
     if (!UUID.test(id)) invalid({ person_id: 'Choose your name.' });
-    const f = failures.get(id);
-    if (f && f.until > Date.now()) ctx.fail(429, 'too_many_tries', 'Too many wrong employee numbers. Ask your supervisor.');
+    if (await failures.blocked(id)) ctx.fail(429, 'too_many_tries', 'Too many wrong employee numbers. Ask your supervisor.');
     const person = await db.one<Row>(
       `select id, ref, full_name, preferred_name, employee_number from people where id = $1 and deleted_at is null and status = 'active'`, [id]);
     const typed = String(number ?? '').trim();
     if (!person || !person.employee_number || !typed || String(person.employee_number).toLowerCase() !== typed.toLowerCase()) {
-      const n = (f && f.until <= Date.now() && f.n >= KIOSK_TRIES ? 0 : f?.n ?? 0) + 1;
-      failures.set(id, { n, until: n >= KIOSK_TRIES ? Date.now() + KIOSK_LOCK_MS : 0 });
+      await failures.hit(id);
+      const locked = await failures.blocked(id);
       await ctx.audit(req, {
         action: 'policy.kiosk_mismatch', recordType: 'person', recordId: id,
-        summary: `Kiosk: an employee number that does not match was given (attempt ${n})`,
+        summary: `Kiosk: an employee number that does not match was given${locked ? '; the kiosk stops trying for this person for up to 15 minutes' : ''}`,
       });
       ctx.fail(403, 'not_matched', 'That employee number does not match. Try again or ask your supervisor.');
     }
-    failures.delete(id);
+    await failures.clear(id);
     return person!;
   }
 

@@ -144,12 +144,8 @@ rescue's quicker move to the heading) were also made after the last run. What NV
 
 **Still open** (roadmap issues in [E18](roadmap/epics/E18-quality-and-known-defects.md)):
 
-- The tag card page keeps its heading "Find by tag number" when a tag is found, so the found record
-  is only heard on reading on.
-- Some table rows' "Edit" buttons (safety event people, indicator targets, reporting rules,
-  milestones, certifications) are still announced as just "Edit".
-- On a fresh page load of the portal, the page title is read as the application name before the
-  portal sets its own.
+- Nothing found by the screen reader run is still open; approving a workflow step has not been run
+  with NVDA yet.
 
 ## What works
 
@@ -158,6 +154,10 @@ rescue's quicker move to the heading) were also made after the last run. What NV
   on its main heading, so a screen reader says where you are; when a button you used goes away,
   the focus goes back to it or to the heading, never to nowhere.
 - Messages after an action ("Saved", "Note added", errors) are announced by screen readers.
+- Table rows' Edit, Remove and similar buttons name their row ("Edit: <name>"), and every portal page
+  names itself in the browser tab ("My requests · Help and requests · <application>").
+- Finding one record by a typed tag number puts the focus on its tag card's heading; a handheld
+  scanner's value leaves the focus in the box for the next tag.
 - Form controls have labels (visible ones, except search boxes, whose name is given to
   assistive technology); required fields are marked, and a refused form says what is wrong
   beside the field and moves focus to it.
@@ -188,6 +188,70 @@ rescue's quicker move to the heading) were also made after the last run. What NV
 - The automated audit reported no violation on any screen in its last full run (19 November
   2026). Anything it finds later is raised in the roadmap
   ([E18](roadmap/epics/E18-quality-and-known-defects.md)) with the screen and the fix.
+
+## Mobile app
+
+The iPhone and Android app (`mobile/`, [user guide](user/39-mobile-app.md)) was reviewed screen by
+screen in November 2026 (roadmap issue E38-15): the five tabs, records and their edit form, approvals
+and policy acknowledgments, notifications, devices, Offline work, connecting and signing in, the tag
+camera and tag card with its quick update, attach and replace screens, the report forms, and field work
+(the inspection runner with its signature, condition assessments, counting).
+
+**What was checked, and how**
+
+- **On the Android emulator** (Android 16, Google APIs image) with the text size at its largest (font
+  scale 2.0, that is 200%), in the light and the dark theme: every screen above was opened, looked at in
+  screenshots, and its accessibility tree read with `uiautomator dump` (each control's name, whether it
+  is checkable, checked or selected, and its size). The Maestro flow `mobile/test/maestro/large-text.yaml`
+  repeats the main path at that size in the dark theme.
+- **Automated tests** (Jest with React Native Testing Library, part of the app's test run): names start
+  with the visible words, choices and switches report their state, a control beside a row's text stays
+  reachable, messages and field errors are announced, the focus moves after the screen changes, touch
+  targets are at least 48 points, the tag camera can be used by typing a number, the inspection runner
+  marks the chosen answer, and the theme's colors meet the contrast ratios below.
+- **Color contrast** of the app's theme in light and dark: text at least 4.5:1, text-box and switch
+  borders at least 3:1 (`mobile/src/ui/tests/a11y.test.tsx`).
+- **iPhone-only properties** (VoiceOver grouping, `accessibilityViewIsModal`, announcements on iPhone,
+  Dynamic Type) were reviewed in the code only.
+
+**What was found and fixed**
+
+- Rows with a switch or a button at the right were one grouped item, which hid the switch or button from
+  VoiceOver; Android switches were 46 by 35 dp. Switches are now whole rows of at least 48 dp.
+- Tapping a row read only its label, not its value or detail (for example "Notifications" without "6
+  unread"); choices in lists (report type, severity, the kind of record to attach a tag to) did not say
+  which was selected; the site and quick-update pickers did not say whether they were open.
+- Messages and errors were not read out on iPhone, and on Android only some were; the whole list of
+  search results was read again whenever it changed. Messages are now announced once when they appear,
+  and only the number of results is.
+- After **Edit**, **Save**, **Cancel**, an inspection answer, or **Complete the inspection**, the screen
+  reader's focus was left on a control that had gone. It now moves to the new heading.
+- At 200% text: top-bar titles did not grow; the inspection's **Not applicable** broke in the middle of
+  the word; labels beside values broke mid-word ("Downloade d"); the Notifications title was cut short
+  by **Mark all read**; notification text was cut off after a few lines; the keyboard covered the tag
+  camera's number box. Each is fixed.
+- The tab names started with the icon and the badge number ("1, My work"); they now start with the name
+  ("My work, 1 waiting").
+- Notifications could only be refreshed and paged by gestures; **Try again** and **Load more** buttons
+  were added. Its filter buttons were 36 points high, the field work Back button 44.
+- Text-box and switch borders were below 3:1; the tag camera's outline label on the sand color was
+  below 4.5:1 in the light theme. A camera-less phone showed a black Tag screen; it now says to type the
+  number.
+- Under the unlock cover, the screens behind could still be reached by TalkBack, a keyboard or Switch
+  Access; they are now hidden and take no input.
+
+**Not yet done: needs a person**
+
+- **VoiceOver has not been run.** It needs a person with an iPhone (or a Mac with the iOS simulator);
+  the iPhone-specific properties were only reviewed in the code.
+- **No TalkBack user has walked through the app.** TalkBack is installed on the emulator and the
+  accessibility tree was checked, but what TalkBack says, in what order, and how easy the screens are
+  by ear have not been heard and judged by a person who uses it.
+- **iPhone Dynamic Type** at the largest accessibility sizes has not been seen on a device.
+- The camera's pinch to zoom and tap to focus have no buttons; the camera focuses on its own, and
+  **Take a picture**, **Choose a picture** and **Type a number** are the alternatives.
+- The finger signature cannot be drawn without the gesture; it is optional, and the typed name is the
+  signature.
 
 ## Reporting a problem
 
