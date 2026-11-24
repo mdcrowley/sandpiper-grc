@@ -447,10 +447,22 @@ added to responses sent over HTTPS (see "Network exposure").
   links, exports, imports and MCP; a person always sees what they created; another unscoped role
   lifts it; the Administrator role cannot be limited. Figures count every record for everyone and
   are not masked by scope: scope narrows work, it is not confidentiality.
+- **Scope cannot be widened by the scoped (wave 23).** A person whose roles scope any module cannot
+  change the facts their scope is worked out from: a department's or site's manager or parent,
+  merging departments, a roster row linked to their own account (linking it, or its department,
+  work site or status). An administrator (`admin.administer`) or someone with no scoped role makes
+  those changes. Figures stay the same for everyone, but a figure grouped or matched by a detail
+  field (text, long text, JSON, person) puts rows outside the person's scope, and restricted rows,
+  under one "Other records" bucket; the total is unchanged.
 - **User access reviews (E41-02).** Access review decisions need no permission, only being the
   named reviewer of that system (or the campaign owner, for the reviewer's own account); nobody
   decides on their own account, and the items route answers 404 to anyone else without
   `systems.view`.
+- **Published policy translations (wave 23).** Changing or removing the translation of a
+  published policy version needs `policies.approve`. Each acknowledgment given in a translation
+  records a SHA-256 stamp of the translated text read (`translation_sha256`).
+- **Registers (wave 23).** Removing a register removes only grants whose module is exactly its
+  key, and is refused if a record arrives during removal.
 - **My work and the compliance calendar** are lists, not figures: each record is checked with
   `visibleWhere` for the viewer, so restricted and out-of-scope records are left out (E41-03).
 - **Hand-written queries** that return records use `ctx.resources.visibleWhere(type, user)`
@@ -495,6 +507,14 @@ What still protects details in a figure:
   labels it "Restricted" for people who may not see it; the count is the same.
 - **Figure snapshots** (`figure_values`, figures over time, E41-04) hold numbers and list values
   only, worked out as the system; they never hold record words or people.
+- **Saved figures are checked as the person who saves them (wave 23).** A figure is worked out as
+  the system but checked as the person who saves it. The record type must be one they may report
+  on (module view, plus `security.view` for a wholly restricted type). Its filters are compiled
+  with their permissions, so a link into a type they may not report on is refused. Without
+  `security.view` they cannot filter on the words or people (text, long text, JSON, person fields)
+  of a type that has restricted records; blank / not blank is allowed. Who may see a count figure
+  follows the same rule; a metric follows the metrics rule. Figures saved before this check keep
+  being recorded.
 - **A figure about "me"** (a report filtered on "me", the "mine" counts on the action
   tracker) is the viewer's own, not a shared figure, and keeps the list rule.
 - **Lists keep filtering.** A list of records, its total, a drill-down from a figure,
@@ -1165,6 +1185,24 @@ safeguards (address checked at connection time, certificate verified, no redirec
 It never downloads or installs anything. The Windows management scripts never download or run
 anything either.
 
+Folders that already exist (wave 23 review, E42-08): any user may create folders in
+`C:\ProgramData` and directly under `C:\`, so before a new installation, a reinstallation or an
+upgrade uses an existing data or program folder, every item in it must belong to SYSTEM,
+Administrators or TrustedInstaller (in `data`, `backups`, `logs` and `seed` also the service's
+account), and none may be a junction or symbolic link; otherwise the installer stops before copying
+anything (exit code 7) and an upgrade changes nothing. When the check passes, ownership goes to
+Administrators and every permission inside is reset to the inherited ones. The program folder gets
+its own permissions wherever it is (SYSTEM and Administrators full control, Users and the service
+read and run, nothing inherited from a writable parent). Only `GRC_*` settings are read from
+`config\grc.env`, by the service and by every command run as administrator, so `NODE_OPTIONS`,
+`PATH` and the like are ignored. Before `grc-windows.ps1` reads the settings or
+`upgrade\state.json`, or runs `node.exe`, elevated, it checks that only administrators can change
+them; `state.json` must name the installation's own folders, and the installer recovers an
+interrupted upgrade with its own copy of the script, never one in the data folder. The service
+keeps only `SeChangeNotifyPrivilege` and `SeCreateGlobalPrivilege` (no `SeImpersonatePrivilege`).
+`setup.log` is written where the service cannot write, and removing the data folder deletes links
+as links, never what they point to.
+
 ### Calendar feeds, work-tracker bridge and evidence links
 
 `server/src/modules/feeds/`; details in
@@ -1229,7 +1267,9 @@ A confidential safety report (E41-05) keeps the reporter's identity off the safe
 people named under Safety settings (`/api/safety/confidential-viewers`; adding someone needs a
 recent password confirmation) who also hold `safety.view` can see it, and every look is audited.
 It cannot protect what the reporter writes in the report itself, and people who run the server can
-still find the identity in the database, backups and the request log.
+still find the identity in the database, backups and the request log. The closing message to a
+confidential reporter is in-app only (no email, no immediate push job), so the outgoing message log
+never names them.
 
 ### Outside reviewers
 
@@ -1241,6 +1281,14 @@ every 6 hours, and they cannot obtain API, assistant or mobile tokens because th
 through routes they cannot reach. Set-up links go only to the invitee's email, sealed in the queue.
 Inviting needs a recent password confirmation, and access ends at an end date at most 366 days
 ahead or on revoking, which ends the account's sessions.
+
+Reviewer accounts fail closed in core (`core/reviewers.ts`): roles are refused for them in user
+administration, sign-in provider role mapping and SCIM provisioning; every place that loads a
+person (sessions, tokens, `loadUser`, notification and mail recipients) gives them no permission;
+staff pickers never offer them; and while the outsidereviews module is not loaded they cannot sign
+in and their sessions are not accepted. They must set up a second factor at their first sign-in
+(`outsidereviews.require_2fa`, default on), whatever `auth.mfa_enforcement` says. The 6-hourly
+sweep still removes any role found on one.
 
 ### Vendor checks and contractor performance
 
@@ -1258,11 +1306,34 @@ address (60 a minute, 20 wrong links in 15 minutes) and answers one uniform 404;
 does not acknowledge. The link is sealed in queued email like set-up links, is in the clear in a
 text message and therefore in the text delivery log, and is redacted in request logs.
 
+An expired, closed or replaced link (replaced hashes are kept in
+`activation_callout_replaced_links`, left out of exports without secrets) answers the same 404 but
+does not count toward the address's wrong-link limit (20 in 15 minutes). Only malformed links and
+links that match nothing ever sent count, so one shared address (NAT, or a proxy without
+`GRC_TRUST_PROXY`) cannot lock a site out of acknowledging.
+
+### Meeting invitations
+
+Sending a meeting's invitations is limited to 10 sends per meeting per hour (rate-limit bucket
+`meeting_invite`); more answer 429.
+
 ### Text inside attached files and previews
 
-Attached files' text (E41-16) is extracted in a worker thread (memory limit, 30 s, 25 MB, 300,000
-characters) with pdf.js and fflate; no macros, scripts or outside programs run. The text is reached
-only through its record's visibility rules and is deleted when the file is removed. Previews are
+Attached files' text (E41-16) is extracted with pdf.js and fflate (30 s, 25 MB, 300,000
+characters); no macros, scripts or outside programs run. The text is reached
+only through its record's visibility rules and is deleted when the file is removed.
+
+Reading the text of attached files cannot affect the server. Each file is read in a separate Node
+process (`attachments/text-reader.mjs`, started with `child_process.fork` and plain options). That
+process reads in a worker thread with a heap limit, checks its own resident memory every 20 ms and
+ends itself past 768 MB; the server kills it after 30 seconds. Unpacked PDF streams are external
+memory, which a heap limit does not cover, so the process-wide check is what stops a decompression
+bomb. Each attempt is recorded before reading (`attachment_texts.status = 'reading'`, `attempts`).
+A file whose reading was stopped by time, memory or a server crash is tried once more, then marked
+failed and never read again automatically. Files a vendor sent through a response link are not read
+until staff take them over.
+
+Previews are
 served inline only for PNG, JPEG, GIF, WebP, BMP and PDF, under their fixed type, with
 `default-src 'none'; sandbox`. PDFs are drawn on canvases by pdf.js in the page, so PDF scripts
 never run and the application's content security policy is unchanged.

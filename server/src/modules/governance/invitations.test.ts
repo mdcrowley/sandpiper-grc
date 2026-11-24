@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startSmtpSink, type SmtpSink } from '../../core/mail/smtp-sink.ts';
 import { testApp } from '../../test/helpers.ts';
-import { meetingCalendar } from './invitations.ts';
+import { INVITES_PER_HOUR, meetingCalendar } from './invitations.ts';
 
 // E41-17: meeting invitations by email, as an .ics attachment. Invented data only.
 let t: Awaited<ReturnType<typeof testApp>>;
@@ -96,5 +96,24 @@ describe('meeting invitations', () => {
     expect(third.messages[0].body).toContain('METHOD:CANCEL');
     const events = await t.db.query<{ action: string }>(`select action from audit_events where record_id = $1 and action like 'meeting.invitations%' order by id`, [meetingId]);
     expect(events.map((e) => e.action)).toEqual(['meeting.invitations', 'meeting.invitations', 'meeting.invitations_canceled']);
+  });
+
+  it(`sends one meeting's invitation at most ${INVITES_PER_HOUR} times an hour (wave 23 security review, S6)`, async () => {
+    const committee = (await t.api.post('/api/committees', { name: 'Invented audit committee', kind: 'audit' })).body;
+    const lead = await t.as('security_lead');
+    await t.db.query(`update users set email = 'invented.member@example.test' where id = $1`, [lead.userId]);
+    await t.api.post(`/api/committees/${committee.id}/members`, { user_id: lead.userId, side: 'management', role: 'chair' });
+    const busy = (await t.api.post('/api/meetings', { committee_id: committee.id, title: 'Invented audit review', scheduled_at: soon() })).body;
+    const other = (await t.api.post('/api/meetings', { committee_id: committee.id, title: 'Invented audit follow-up', scheduled_at: soon() })).body;
+    const post = (id: string) => t.api.post(`/api/meetings/${id}/invitations`, {});
+    // Nine sends already made in the last hour, as from a loop: the tenth goes, the eleventh does not.
+    await t.db.query(`insert into rate_limit_hits (bucket, key) select 'meeting_invite', $1 from generate_series(1, $2::int)`, [busy.id, INVITES_PER_HOUR - 1]);
+    expect((await post(busy.id)).status).toBe(200);
+    const refused = await post(busy.id);
+    expect(refused.status).toBe(429);
+    expect(refused.body.error).toMatchObject({ code: 'rate_limited', message: expect.stringMatching(/sent 10 times in the last hour/) });
+    // Nothing went out for the refused send, and another meeting is not affected.
+    expect((await t.db.one<{ invite_sequence: number }>('select invite_sequence from meetings where id = $1', [busy.id]))!.invite_sequence).toBe(0);
+    expect((await post(other.id)).status).toBe(200);
   });
 });

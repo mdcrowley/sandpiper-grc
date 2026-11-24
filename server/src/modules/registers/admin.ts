@@ -60,6 +60,8 @@ export async function checkRegister(ctx: ModuleContext, regs: Registers, b: Row,
       if (regs.rows.has(key) || await ctx.db.one('select 1 from register_definitions where key = $1', [key])) fields.key = 'There is already a register with that name.';
       else if (taken) fields.key = taken;
       else if ((await ctx.db.one<{ t: string | null }>('select to_regclass($1)::text as t', [typeOf(key)]))?.t) fields.key = 'That name is used by the database. Choose another.';
+      // Records left behind under this key (W23 F4) would reappear in the new register.
+      else if (await ctx.db.one('select 1 from register_records where register_key = $1 limit 1', [key])) fields.key = 'Records of an earlier register with that name are still stored. Choose another name.';
     }
     out.key = key;
   }
@@ -199,13 +201,26 @@ export function registerAdminRoutes(ctx: ModuleContext, regs: Registers) {
       fail(409, 'owner_needed', 'Removing a register changes the database, which this server\'s database account may not do. Switch it off under Administration > Features instead.');
     }
     const type = typeOf(r.key);
+    // Out of this process first, so no new record arrives through it; then, under a lock that waits
+    // for inserts in flight and holds off new ones (another process, an import), count again: the
+    // count above ran before the password check and could be stale (W23 F4).
+    // A record that slips in once the lock is released lands under a key no register has, and
+    // checkRegister refuses to define a register with that key while such rows are stored.
     regs.deactivate(r.key);
     await db.tx(async (tx) => {
+      await tx.query('lock table register_records in share row exclusive mode');
+      const left = await tx.one<{ n: number }>('select count(*)::int as n from register_records where register_key = $1', [r.key]);
+      if (left?.n) fail(409, 'in_use', 'Records were added to this register while it was being removed. Delete them first, or switch the register off under Administration > Features to keep them.');
       await tx.query('delete from register_definitions where key = $1', [r.key]);
       await tx.query('delete from custom_fields where record_type = $1', [type]);
       await tx.query('delete from lifecycle_rules where record_type = $1', [type]);
-      await tx.query(`delete from role_permissions where permission like $1`, [`${r.key}.%`]);
+      // The first part of the permission, not LIKE: "_" in a key is a LIKE wildcard ("risk_" would match "risks.view").
+      await tx.query(`delete from role_permissions where split_part(permission, '.', 1) = $1`, [r.key]);
       await tx.query(`delete from schema_requests where kind = 'register' and target = $1`, [r.key]);
+    }).catch(async (err) => {
+      // Not removed: the register comes back in this process.
+      await regs.activate(r, true);
+      throw err;
     });
     ctx.app.lifecycles?.invalidate();
     await regs.dropSchema(r.key).catch((err) => console.error(`[registers] ${r.key}: the view could not be removed:`, err));

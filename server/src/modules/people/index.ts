@@ -7,7 +7,7 @@
 // and `status`. Other modules check `ctx.resources.get('person')` before using it.
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
-import { departmentPrepare } from '../../core/scope.ts';
+import { departmentPrepare, mayChangeScopeSources, SCOPE_SOURCE_MESSAGE } from '../../core/scope.ts';
 import { registerDepartments } from './departments.ts';
 import { seedPeople } from './seed.ts';
 
@@ -92,7 +92,27 @@ async function register(ctx: ModuleContext): Promise<void> {
       const pos = await ctx.db.one<{ department_id: string | null }>('select department_id from positions where id = $1 and deleted_at is null', [patch.position_id]);
       if (pos?.department_id) patch.department_id = pos.department_id;
     }
+    refuseOwnScopeChange(req, patch, existing);
     return patch;
+  }
+
+  /**
+   * The roster row linked to a person's own account gives them its department and work site as scope
+   * (core/scope.ts). Someone whose roles are scoped may not link a row to their own account, nor change
+   * the department, work site or status of a row that is (or becomes) theirs: that would widen their
+   * own reach. Taking their own account off a row is allowed.
+   */
+  function refuseOwnScopeChange(req: FastifyRequest | null, patch: Row, existing: Row | null): void {
+    const me = req?.user?.id;
+    if (!me || mayChangeScopeSources(req?.user)) return;
+    const after = { ...(existing ?? {}), ...patch };
+    if (after.user_id !== me) return;
+    const changed = (k: string) => k in patch && String(patch[k] ?? '') !== String(existing?.[k] ?? '');
+    const fields: Record<string, string> = {};
+    for (const k of ['user_id', 'department_id', 'work_site_id', 'status']) {
+      if (existing ? changed(k) : k === 'user_id') fields[k] = SCOPE_SOURCE_MESSAGE;
+    }
+    if (Object.keys(fields).length) invalid(fields);
   }
 
   ctx.defineResource({

@@ -125,7 +125,7 @@ function Invoke-Admin($inst, [string]$action) {
   $argList = "-NoProfile -ExecutionPolicy Bypass -File `"$script`" $action -ServiceName `"$($inst.ServiceName)`""
   try {
     $p = Start-Process powershell.exe -Verb RunAs -ArgumentList $argList -Wait -PassThru
-    if ($p.ExitCode -eq 0) { Write-Host 'Done.' -ForegroundColor Green } else { Write-Host "It did not finish (exit code $($p.ExitCode)). The details are in $(Join-Path $inst.DataRoot 'logs\setup.log')." -ForegroundColor Red }
+    if ($p.ExitCode -eq 0) { Write-Host 'Done.' -ForegroundColor Green } else { Write-Host "It did not finish (exit code $($p.ExitCode)). The details are in $(Join-Path $inst.DataRoot 'setup.log')." -ForegroundColor Red }
     return $p.ExitCode
   } catch {
     Write-Host 'Nothing was done: administrator rights were not given.' -ForegroundColor Yellow

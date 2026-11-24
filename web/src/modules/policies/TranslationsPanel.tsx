@@ -1,7 +1,7 @@
 // Translations of a policy version (E41-07): the version's text in another language, which staff who
 // chose that language read in the portal, on the kiosk and in the app. The version's own text stays
-// the approved original; a translation may be added or corrected after publication, and every change
-// is audited with the text it replaced.
+// the approved original; a translation may be added or corrected after publication (that needs
+// policies.approve, as publishing does), and every change is audited with the text it replaced.
 import { useEffect, useState } from 'react';
 import {
   api, ApiError, Button, Card, ConfirmDialog, EmptyState, ErrorState, errorMessage, formatDateTime, Loading, Modal, Select, TableWrap,
@@ -13,6 +13,8 @@ import { PolicyBody, VersionChip, type PolicyVersion } from './shared';
 interface Translation {
   id: string; language: string; language_name: string; title: string; summary: string | null; change_summary: string | null;
   body: string; body_html: string; updated_at: string; updated_by_name: string | null;
+  /** The stamp of the translated text, which acknowledgments given in it record (W23 F5). */
+  sha256?: string;
 }
 interface Translations { version: number; status: PolicyVersion['status']; original_language: string; rows: Translation[] }
 interface Languages { original: { code: string; name: string }; languages: { code: string; name: string; english: string }[] }
@@ -83,7 +85,9 @@ export function TranslationsPanel({ row, versions }: { row: Row; versions: Polic
   if (!version) return <Card><EmptyState icon="file-text" title="No versions yet" message="Write a version first; then it can be translated." /></Card>;
   if (langs.error || data.error) return <Card title="Translations"><ErrorState error={langs.error ?? data.error} onRetry={() => { langs.reload(); data.reload(); }} /></Card>;
   if (!langs.data || !data.data) return <Card title="Translations"><Loading lines={4} /></Card>;
-  const editable = can('policies.edit') && row.status !== 'retired' && version.status !== 'superseded';
+  // A published version's translation is read by staff at once: changing it needs approval rights (W23 F5).
+  const needsApprover = version.status === 'published' && !can('policies.approve');
+  const editable = can('policies.edit') && row.status !== 'retired' && version.status !== 'superseded' && !needsApprover;
   const byCode = new Map(data.data.rows.map((r) => [r.language, r]));
   const shown = reading ? byCode.get(reading) : undefined;
   const editingLanguage = langs.data.languages.find((l) => l.code === editing);
@@ -119,6 +123,7 @@ export function TranslationsPanel({ row, versions }: { row: Row; versions: Polic
           The text of version {version.version} is the approved original ({langs.data.original.name}). Staff who choose another language in the
           portal, on the kiosk or in the app read its translation when there is one, and their acknowledgment records the language they read.
           {version.status === 'superseded' ? ' This version has been replaced, so its translations are kept as they were.' : ''}
+          {needsApprover && can('policies.edit') && row.status !== 'retired' ? ' This version is published, so only someone who may approve policies can change its translations.' : ''}
         </p>
         <TableWrap label={`Translations of version ${version.version}`} className="pol-tw">
           <table className="table">
@@ -131,7 +136,7 @@ export function TranslationsPanel({ row, versions }: { row: Row; versions: Polic
                   <tr key={l.code}>
                     <td className="pol-rowhead">{l.english} <span className="muted" lang={l.code}>({l.name})</span></td>
                     <td className="pol-wrap" lang={l.code}>{tr ? tr.title : <span className="muted" lang="en">Not translated</span>}</td>
-                    <td>{tr ? `${formatDateTime(tr.updated_at)}${tr.updated_by_name ? ` by ${tr.updated_by_name}` : ''}` : '—'}</td>
+                    <td>{tr ? <>{formatDateTime(tr.updated_at)}{tr.updated_by_name ? ` by ${tr.updated_by_name}` : ''}{tr.sha256 && <span className="muted"> · text {tr.sha256.slice(0, 8)}</span>}</> : '—'}</td>
                     <td>
                       <span className="row">
                         {tr && <Button size="sm" variant="ghost" icon="eye" onClick={() => setReading(reading === l.code ? null : l.code)}>{reading === l.code ? 'Hide' : 'Read'}</Button>}
@@ -162,7 +167,7 @@ export function TranslationsPanel({ row, versions }: { row: Row; versions: Polic
       )}
       <ConfirmDialog
         open={removing !== null} danger busy={busy} title="Remove this translation?"
-        message="People who chose this language will read the original text. Acknowledgments already given in it keep their language, and the removed text stays in the history."
+        message="People who chose this language will read the original text. Acknowledgments already given in it keep their language and the stamp of the text read, and the removed text stays in the history."
         confirmLabel="Remove" onConfirm={() => removing && void remove(removing)} onCancel={() => setRemoving(null)}
       />
     </div>

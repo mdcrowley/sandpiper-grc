@@ -9,8 +9,9 @@
 // The link: a random secret (32 bytes) that only acknowledges this one message for this one person;
 // only its SHA-256 hash is stored, it stops working when the message expires (1 to 168 hours, 72 by
 // default) or the activation is closed, and the public routes are rate limited per address and answer
-// the same "not valid" for an unknown, expired or closed link. In an email the link is sealed in the
-// queued message like an account set-up link. A text message has to carry the link in its text, so
+// the same "not valid" for an unknown, expired or closed link. Only a link that matches nothing ever
+// sent counts toward an address's wrong-link limit (a replaced, expired or closed one does not). In an
+// email the link is sealed in the queued message like an account set-up link. A text message has to carry the link in its text, so
 // the link is also in the delivery log of texts, which only administrators read; it can do nothing but
 // acknowledge. Who is reached: an entry linked to an account gets email at the account's address and
 // texts at the person's alert contacts; an entry linked to a roster person without an account gets
@@ -44,7 +45,8 @@ type Reach = 'email' | 'text' | 'both' | 'none';
 
 export function registerCallouts(ctx: ModuleContext) {
   const { app, db } = ctx;
-  // Public routes: 60 requests a minute from one address; a wrong link counts again (20 in 15 minutes).
+  // Public routes: 60 requests a minute from one address; a link that matches nothing ever sent counts
+  // again (20 in 15 minutes).
   const perMinute = makeDbLimiter(db, 'callout_ack', 60, 60_000);
   const wrong = makeDbLimiter(db, 'callout_ack_bad', 20, 15 * 60_000);
   // Sending: at most 20 messages (and reminders) an hour for one activation.
@@ -282,8 +284,14 @@ export function registerCallouts(ctx: ModuleContext) {
       const token = randomBytes(32).toString('base64url');
       const sent = await deliver(row, c, a, token, base, org, true);
       if (!sent.emailLogId && !sent.textLogIds.length) continue;
-      await db.query('update activation_callout_recipients set token_hash = $2, email_log_id = coalesce($3, email_log_id), text_log_ids = $4::jsonb where id = $1',
-        [r.id, hash(token), sent.emailLogId, JSON.stringify(sent.textLogIds.length ? sent.textLogIds : (r.text_log_ids ?? []))]);
+      await db.tx(async (tx) => {
+        // The replaced link is remembered, so opening it later is not counted as a wrong link.
+        if (r.token_hash) {
+          await tx.query('insert into activation_callout_replaced_links (token_hash, recipient_id) values ($1, $2) on conflict (token_hash) do nothing', [r.token_hash, r.id]);
+        }
+        await tx.query('update activation_callout_recipients set token_hash = $2, email_log_id = coalesce($3, email_log_id), text_log_ids = $4::jsonb where id = $1',
+          [r.id, hash(token), sent.emailLogId, JSON.stringify(sent.textLogIds.length ? sent.textLogIds : (r.text_log_ids ?? []))]);
+      });
       reached += 1;
     }
     const summary = `Reminder sent to ${reached} of the ${waiting.length} ${waiting.length === 1 ? 'person' : 'people'} who had not acknowledged.`;
@@ -310,11 +318,14 @@ export function registerCallouts(ctx: ModuleContext) {
          from activation_callout_recipients r join activation_callouts c on c.id = r.callout_id
          join emergency_activations a on a.id = r.activation_id where r.token_hash = $1`, [hash(token)])
       : undefined;
-    if (!r || r.deleted_at || r.status === 'closed' || new Date(r.expires_at).getTime() <= Date.now()) {
-      await wrong.hit(ip);
-      ctx.fail(404, 'not_found', NOT_VALID);
-    }
-    return r!;
+    if (r && !r.deleted_at && r.status !== 'closed' && new Date(r.expires_at).getTime() > Date.now()) return r;
+    // The same answer whatever the reason. Only a link that matches nothing ever sent counts toward the
+    // wrong-link limit: an expired link, one whose emergency is over, or one a reminder replaced is a
+    // real link that people at one shared address may well open (wave 23 security review, S5).
+    const known = Boolean(r) || (TOKEN_RE.test(token)
+      && Boolean(await db.one('select 1 from activation_callout_replaced_links where token_hash = $1', [hash(token)])));
+    if (!known) await wrong.hit(ip);
+    return ctx.fail(404, 'not_found', NOT_VALID);
   }
 
   const publicView = async (r: Row) => ({

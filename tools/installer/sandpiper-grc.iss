@@ -4,10 +4,13 @@
 ;
 ; The work is done by deploy\windows\grc-windows.ps1 (installed as {app}\grc-windows.ps1): this
 ; script asks the questions, copies the files and calls it at three points:
-;   - before the files are copied, on an upgrade: pre-upgrade (stop, back up, keep the old files);
+;   - before the files are copied: prepare (a new installation: check and lock the program folder
+;     and the data folder, refusing either if it holds anything another user made) or pre-upgrade
+;     (the same check, then stop, back up, keep the old files);
 ;   - after they are copied: install (a new installation) or post-upgrade (migrate, start, check,
 ;     and roll back by itself if any of that fails);
-;   - when the installer ends: recover (rolls back an upgrade the installer left half-way).
+;   - when the installer ends: recover (rolls back an upgrade the installer left half-way), with
+;     the copy of grc-windows.ps1 in the installer's own temporary folder, never one in the data folder.
 ;
 ; Silent installation (an administrator's command prompt):
 ;   SandpiperGRC-Setup-<version>.exe /VERYSILENT /SUPPRESSMSGBOXES /LOG=setup-log.txt
@@ -15,7 +18,7 @@
 ;     [/TLSCERT=C:\certs\grc.pem /TLSKEY=C:\certs\grc-key.pem [/FIREWALL=1]]
 ;     [/TASKS="startmenu,desktopicon"]
 ; Exit codes: 0 done; 1-8 Inno Setup's own (for example 1: an older version over a newer one was
-; refused); 11 installed but the service did not become ready; 12 the upgrade failed and the previous
+; refused; 7: a folder that already exists was refused, or the upgrade could not start); 11 installed but the service did not become ready; 12 the upgrade failed and the previous
 ; version runs again with its data; 13 the rollback did not finish (the service is stopped).
 ; Silent removal: "{app}\unins000.exe" /VERYSILENT [/REMOVEDATA=1]
 
@@ -290,15 +293,33 @@ begin
   Result := Code;
 end;
 
+// The reason grc-windows.ps1 gave for refusing (it writes it to a file in the temporary folder).
+function Reason(Default: String): String;
+var
+  Text: AnsiString;
+begin
+  if LoadStringFromFile(ExpandConstant('{tmp}\reason.txt'), Text) and (Trim(String(Text)) <> '') then Result := Trim(String(Text))
+  else Result := Default;
+  Log('Refused: ' + Result);
+end;
+
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
   Result := '';
-  if not IsUpgrade then Exit;
-  WizardForm.PreparingLabel.Caption := 'Stopping the service and backing up the data...';
   ExtractTemporaryFile('grc-windows.ps1');
-  if Script(ExpandConstant('{tmp}\grc-windows.ps1'), 'pre-upgrade -ServiceName "{#ServiceName}" -Version "{#AppVersion}"') <> 0 then
-    Result := 'The upgrade could not start: the service could not be stopped or the data could not be backed up. Nothing was changed. ' +
-      'The details are in ' + DataRoot('') + '\logs\setup.log.'
+  if not IsUpgrade then begin
+    // Before any file is copied: the program folder and the data folder are checked and locked.
+    WizardForm.PreparingLabel.Caption := 'Checking the program and data folders...';
+    if Script(ExpandConstant('{tmp}\grc-windows.ps1'), 'prepare -ServiceName "{#ServiceName}" -Version "{#AppVersion}" -InstallDir "' +
+      ExpandConstant('{app}') + '" -DataRoot "' + DataRoot('') + '" -ReasonFile "' + ExpandConstant('{tmp}\reason.txt') + '"') <> 0 then
+      Result := Reason('The program folder or the data folder could not be prepared. Nothing was installed.');
+    Exit;
+  end;
+  WizardForm.PreparingLabel.Caption := 'Stopping the service and backing up the data...';
+  if Script(ExpandConstant('{tmp}\grc-windows.ps1'), 'pre-upgrade -ServiceName "{#ServiceName}" -Version "{#AppVersion}" -ReasonFile "' +
+    ExpandConstant('{tmp}\reason.txt') + '"') <> 0 then
+    Result := Reason('The upgrade could not start: the service could not be stopped or the data could not be backed up. Nothing was changed. ' +
+      'The details are in ' + DataRoot('') + '\setup.log.')
   else
     PreUpgradeDone := True;
 end;
@@ -326,12 +347,12 @@ begin
     Failed := True;
     case StepCode of
       2: SuppressibleMsgBox('The upgrade failed, so it was undone: version ' + Installed + ' is running again with the data as it was before. ' +
-           'The details are in ' + DataRoot('') + '\logs\setup.log.', mbError, MB_OK, IDOK);
+           'The details are in ' + DataRoot('') + '\setup.log.', mbError, MB_OK, IDOK);
       3: SuppressibleMsgBox('The upgrade failed and putting the previous version back did not finish. The service is stopped. ' +
-           'The steps to finish by hand are in ' + DataRoot('') + '\logs\setup.log.', mbCriticalError, MB_OK, IDOK);
+           'The steps to finish by hand are in ' + DataRoot('') + '\setup.log.', mbCriticalError, MB_OK, IDOK);
     else
       SuppressibleMsgBox('Sandpiper GRC was installed but the service did not start and answer. ' +
-        'The details are in ' + DataRoot('') + '\logs\setup.log and service.log.', mbError, MB_OK, IDOK);
+        'The details are in ' + DataRoot('') + '\setup.log and logs\service.log.', mbError, MB_OK, IDOK);
     end;
   end;
 end;
@@ -355,8 +376,10 @@ var
   Saved: String;
 begin
   // The files were being replaced but the installer stopped before post-upgrade: put the old ones back.
+  // The script is this installer's own copy, in its temporary folder (still there at this point),
+  // which also ran pre-upgrade; a copy in the data folder is never run here.
   if PreUpgradeDone and not PostRan then begin
-    Saved := DataRoot('') + '\upgrade\grc-windows.ps1';
+    Saved := ExpandConstant('{tmp}\grc-windows.ps1');
     if FileExists(Saved) then Script(Saved, 'recover -ServiceName "{#ServiceName}"');
   end;
 end;

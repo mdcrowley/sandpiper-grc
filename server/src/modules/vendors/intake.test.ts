@@ -140,6 +140,25 @@ describe('intake, checks and the block on active contracts', () => {
     expect((await editor.post('/api/contracts', { title: 'Second order', vendor_id: v.id, status: 'active' })).status).toBe(400);
   });
 
+  it('checks the new vendor when an active contract moves to another vendor (W23 F3)', async () => {
+    const clean = await newVendor('Intake Move From');
+    const needy = await newVendor('Intake Move To');
+    expect((await editor.post(`/api/vendors/${needy.id}/intake`, { answers: answersOf({ data: 'personal' }) })).status).toBe(201);
+    const active = await editor.post('/api/contracts', { title: 'Moved contract', vendor_id: clean.id, status: 'active' });
+    expect(active.status).toBe(201);
+    // Without vendors.approve the checks cannot be waived, and moving the contract does not get around them.
+    const moved = await editor.patch(`/api/contracts/${active.body.id}`, { vendor_id: needy.id });
+    expect(moved.status).toBe(400);
+    expect(moved.body.error.fields.vendor_id).toMatch(/High risk tier needs these checks/);
+    expect((await t.api.get(`/api/contracts/${active.body.id}`)).body.vendor_id).toBe(clean.id);
+    // A contract that is not active may move; it is checked when it becomes active.
+    const draft = await editor.post('/api/contracts', { title: 'Moved draft', vendor_id: clean.id, status: 'draft' });
+    expect((await editor.patch(`/api/contracts/${draft.body.id}`, { vendor_id: needy.id })).status).toBe(200);
+    expect((await editor.patch(`/api/contracts/${draft.body.id}`, { status: 'active' })).status).toBe(400);
+    // Other changes to an active contract are not held up.
+    expect((await editor.patch(`/api/contracts/${active.body.id}`, { title: 'Moved contract (renamed)' })).status).toBe(200);
+  });
+
   it('counts an expired check as needed again, and future or invalid dates are refused', async () => {
     const v = await newVendor('Intake Expiry');
     await editor.post(`/api/vendors/${v.id}/intake`, { answers: answersOf() });

@@ -105,6 +105,22 @@ export function scopeSql(def: ResourceDef, user: SessionUser | null | undefined,
   return `(${parts.join(' or ')})`;
 }
 
+/**
+ * Whether a person may change the facts a scope is worked out from (wave 23 A1): a department's or
+ * site's manager and the department or site it sits under, and a roster row linked to their own
+ * account. Someone whose roles scope any module could otherwise widen their own reach. Allowed for
+ * system work, administrators (`admin.administer`), and people none of whose roles is scoped (they
+ * see every record already, so nothing they change here widens what they reach).
+ */
+export function mayChangeScopeSources(user: SessionUser | null | undefined): boolean {
+  if (!user) return true;
+  if (user.permissions.some((p) => p === '*' || p === 'admin.*' || p === 'admin.administer')) return true;
+  return !(user.scoped?.length);
+}
+
+/** The refusal given for such a change. */
+export const SCOPE_SOURCE_MESSAGE = 'Your roles are limited to your departments or sites, so only an administrator can change this.';
+
 /** SQL (for the user queries in core/auth.ts) giving the modules one of the person's enabled roles scopes. */
 export const SCOPED_MODULES_SQL = (userCol: string) =>
   `coalesce((select array_agg(distinct sk.key) from user_roles sur join roles sr on sr.id = sur.role_id and sr.enabled

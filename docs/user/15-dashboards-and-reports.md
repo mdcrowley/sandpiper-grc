@@ -187,7 +187,7 @@ A board usually wants to see how a figure moves from month to month: open risks 
 
 - At the end of every month the application records each figure that is switched on for recording (it runs every hour as the background job **reports.figures_month_end** and records a month once, at its first run after the month ends; the value says when it was recorded). A figure added during a month is first recorded at the end of that month.
 - **Record figures now** (people who may change reports) records every figure at once for the month so far; **Record now** on a figure's page records that one. The current month shows the value so far and is marked "(so far)". Once the month ends, its month-end value takes the place of the values recorded on demand.
-- Figures are **the same for everyone**: they count every record, restricted ones included, and never show the words or people of a record, only numbers and, for a breakdown, the values of a list (such as a risk level). You see a figure when your role may view the records it counts.
+- Figures are **the same for everyone**: they count every record, restricted ones included, and never show the words or people of a record, only numbers and, for a breakdown, the values of a list (such as a risk level). You see a figure when your role may view the records it counts, under the same rule as the report builder: a count of a kind of record that is wholly restricted (risks, security incidents, vulnerabilities) needs security access too. A metric is shown to everyone whose role may view its records.
 
 **The standard figures.** The application comes with **Open risks by level**, **Overdue actions**, **Open audit findings by rating**, **Audit findings overdue**, **Open vulnerabilities by severity** and **Staff qualified for their position**. A figure whose part of the application is switched off is not shown.
 
@@ -197,6 +197,7 @@ A board usually wants to see how a figure moves from month to month: open risks 
 2. Enter a **Name** and, if you like, a **Description** (shown under the chart and in board packs).
 3. Under **What it measures**, choose:
    - **A count of records**: choose the **Records to count**, optionally **Break down by** a list field (one line per value on the chart, for example one per risk level), and add **Filters** as in the report builder (a figure cannot be filtered by "me", since it is the same for everyone).
+     A figure is checked against **your** access when you add or change it, as a report is: you can count only records you may report on, and a filter can reach only related records you may report on (for example, a filter on a linked risk needs access to risks). Because a figure counts restricted records too, a filter on the words or people of a kind of record that has restricted records (a title, a description, an owner) needs security access; without it, filter on list fields, dates and numbers, or on whether a field is blank. Figures added before this check keep being recorded as they are.
    - **A metric the application works out**: choose a **Metric**, such as overdue actions or the share of inspections done on time.
 4. Leave **Record at the end of every month** on, and select **Add figure**.
 

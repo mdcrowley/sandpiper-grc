@@ -98,7 +98,7 @@ Reviewers open their systems from the notification or from **My access reviews**
 
 - Select **Keep** or **Remove** on each account, or check several and use the buttons above the table. You can change a decision until you sign off.
 - Keeping the account of someone who has **left** needs a comment saying why (for example, it is being handed over).
-- You never decide on your own account: it is marked **Your own account**, and the campaign owner decides on it.
+- You never decide on your own account: it is marked **Your own account**, and the campaign owner decides on it. An account is yours when the staff roster links it to you, and also when its account name or email address on the system is your username or email address (capitals do not matter), so an administrator login such as your username on the system, or an account the roster does not match, still counts as yours.
 - When every account is decided, select **Sign off**. Your decisions become final, and each account to remove becomes a **removal** with a due date.
 
 ## Removals

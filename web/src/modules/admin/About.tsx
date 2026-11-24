@@ -99,7 +99,7 @@ export function AboutPage() {
               {u.checkedAt && u.enabled && <Fact label="Last checked">{formatDateTime(u.checkedAt)}</Fact>}
             </dl>
             <Notice>
-              The check asks the project&apos;s public release list on GitHub for the newest version. It sends nothing about this installation,
+              The check asks the release list on GitHub for the newest version. It sends nothing about this installation,
               your organization or its people, and it never installs anything. It runs only while this switch is on, outbound connections are
               on and <code>api.github.com</code> is an allowed host. The result is shown here only. All releases:{' '}
               <a href={u.releasesPage} target="_blank" rel="noreferrer noopener">{u.releasesPage}</a>. How to upgrade is in the

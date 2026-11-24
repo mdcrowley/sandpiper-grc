@@ -1,14 +1,23 @@
 // Searching inside attached files (E41-16). A background job reads the text of PDF, Word (.docx) and
-// plain-text files into `attachment_texts` (migration 005), with a search vector; the global search
-// (core/search-global.ts) finds a record by that text under the record's own visibility rules, as
-// it does by its comments and file names. Nothing here decides who may see what: a file's text is
-// only ever reached through its record.
+// plain-text files into `attachment_texts` (migrations 005 and 006), with a search vector; the global
+// search (core/search-global.ts) finds a record by that text under the record's own visibility
+// rules, as it does by its comments and file names. Nothing here decides who may see what: a file's
+// text is only ever reached through its record.
 //
-// Limits: a file larger than TEXT_MAX_BYTES is not read; each file is read in a worker thread with
-// its own memory limit that is ended after TEXT_TIME_LIMIT_MS; at most TEXT_MAX_CHARS characters
-// (and TEXT_MAX_PAGES pages of a PDF) are kept. Reading never runs macros or outside programs
-// (text-worker.mjs).
-import { Worker } from 'node:worker_threads';
+// Limits: a file larger than TEXT_MAX_BYTES is not read; each file is read in a separate process
+// (text-reader.mjs, which reads in a worker thread with its own heap limit and ends itself when the
+// process passes TEXT_MAX_MEMORY_MB), killed after TEXT_TIME_LIMIT_MS; at most TEXT_MAX_CHARS
+// characters (and TEXT_MAX_PAGES pages of a PDF) are kept. Reading never runs macros or outside
+// programs (text-worker.mjs).
+//
+// A hostile file cannot make the server crash again and again (wave 23 security review, S1): the
+// attempt is recorded (status `reading`, `attempts`) before the reader starts, so a file whose
+// reading was stopped, by the time or memory limit or because the server itself went down, is
+// tried once more and then marked failed and never picked again automatically. Files a vendor sent
+// through a response link are not read while they wait in the holding area; they are read once staff
+// take them over (vendors/responseFiles.ts).
+import { fork, type ChildProcess } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { ensureJobs, scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { SEARCH_CONFIG } from '../../core/search.ts';
@@ -20,39 +29,55 @@ export const TEXT_MAX_BYTES = 25 * 1024 * 1024;
 export const TEXT_TIME_LIMIT_MS = 30_000;
 export const TEXT_MAX_CHARS = 300_000;
 export const TEXT_MAX_PAGES = 2_000;
+/** The resident memory, in megabytes, at which the reading process ends itself (text-reader.mjs). */
+export const TEXT_MAX_MEMORY_MB = 768;
+/** A file whose reading was stopped this many times (time, memory, or the server going down) is marked failed. */
+export const TEXT_MAX_ATTEMPTS = 2;
+/** Record types whose files are not read: a vendor's files waiting to be taken over (vendors/responseFiles.ts HOLD_TYPE). */
+const NOT_READ_TYPES = ['vendor_response_link'];
 /** A .docx whose text parts unpack beyond this is read only as far as it fits (zip bombs). */
 const MAX_UNPACKED = 100 * 1024 * 1024;
 const BATCH = 25;
 const HOUR = 3_600_000;
 
-export type TextResult = { ok: true; text: string } | { ok: false; error: string; unavailable?: boolean };
+export type TextResult = { ok: true; text: string } | { ok: false; error: string; unavailable?: boolean; stopped?: boolean };
 
-/** Reads the text of one file's bytes in a worker thread, ended after the time limit. */
-export function extractText(bytes: Buffer, extension: string, opts: { timeoutMs?: number; maxChars?: number } = {}): Promise<TextResult> {
+/**
+ * Reads the text of one file's bytes in a separate process, killed after the time limit; the
+ * process ends itself past `maxMemoryMb`. Whatever the file does to the reader, the server process
+ * is not affected. `stopped` says the reader was killed or died, rather than giving up on the file.
+ */
+export function extractText(bytes: Buffer, extension: string, opts: { timeoutMs?: number; maxChars?: number; maxMemoryMb?: number } = {}): Promise<TextResult> {
   return new Promise((resolve) => {
     let settled = false;
-    const done = (r: TextResult) => { if (!settled) { settled = true; resolve(r); } };
-    let worker: Worker;
+    let child: ChildProcess | undefined;
+    const limitMs = opts.timeoutMs ?? TEXT_TIME_LIMIT_MS;
+    const done = (r: TextResult) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (child && child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+      resolve(r);
+    };
+    const timer = setTimeout(() => done({ ok: false, error: `took longer than ${Math.round(limitMs / 1000)} seconds`, stopped: true }), limitMs);
     try {
-      worker = new Worker(new URL('./text-worker.mjs', import.meta.url), {
-        workerData: {
-          bytes: new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength), extension,
-          maxChars: opts.maxChars ?? TEXT_MAX_CHARS, maxPages: TEXT_MAX_PAGES, maxUnpacked: MAX_UNPACKED,
-        },
-        resourceLimits: { maxOldGenerationSizeMb: 384, maxYoungGenerationSizeMb: 64, stackSizeMb: 8 },
-        stdout: true, stderr: true, // pdf.js warnings about damaged files stay out of the log
+      child = fork(fileURLToPath(new URL('./text-reader.mjs', import.meta.url)), [], {
+        // Never the server's own options (such as the development runner's loader): plain Node.
+        execArgv: ['--max-old-space-size=256'],
+        serialization: 'advanced', stdio: ['ignore', 'ignore', 'ignore', 'ipc'], windowsHide: true,
       });
     } catch (err) {
-      done({ ok: false, error: `could not start the reader: ${(err as Error).message}` });
+      done({ ok: false, error: `could not start the reader: ${(err as Error).message}`.slice(0, 300) });
       return;
     }
-    const timer = setTimeout(() => {
-      done({ ok: false, error: `took longer than ${Math.round((opts.timeoutMs ?? TEXT_TIME_LIMIT_MS) / 1000)} seconds` });
-      void worker.terminate();
-    }, opts.timeoutMs ?? TEXT_TIME_LIMIT_MS);
-    worker.once('message', (m: TextResult) => { clearTimeout(timer); done(m); void worker.terminate(); });
-    worker.once('error', (err: Error) => { clearTimeout(timer); done({ ok: false, error: /memory/i.test(err.message) ? 'needed too much memory' : err.message.slice(0, 300) }); });
-    worker.once('exit', (code) => { clearTimeout(timer); done({ ok: false, error: `the reader stopped (${code})` }); });
+    child.once('message', (m) => done(m as TextResult));
+    child.once('error', (err) => done({ ok: false, error: `could not start the reader: ${err.message}`.slice(0, 300) }));
+    child.once('exit', (code, signal) => done({ ok: false, error: `the reader stopped (${signal ?? code})`, stopped: true }));
+    child.send({
+      bytes: new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength), extension,
+      maxChars: opts.maxChars ?? TEXT_MAX_CHARS, maxPages: TEXT_MAX_PAGES, maxUnpacked: MAX_UNPACKED,
+      maxMemoryMb: opts.maxMemoryMb ?? TEXT_MAX_MEMORY_MB,
+    }, (err) => { if (err) done({ ok: false, error: `could not start the reader: ${err.message}`.slice(0, 300) }); });
   });
 }
 
@@ -86,17 +111,38 @@ async function store(ctx: ModuleContext, id: string, status: string, detail: str
   }
 }
 
+/**
+ * Records that the file is about to be read, before the reader starts, so that a reader that takes
+ * the server down with it is known afterward. Returns the attempt number, or 0 when the file is gone.
+ */
+async function startAttempt(ctx: ModuleContext, id: string): Promise<number> {
+  const row = await ctx.db.one<{ attempts: number }>(
+    `insert into attachment_texts (attachment_id, status, detail, attempts)
+     select $1, 'reading', 'reading did not finish', 1 where exists (select 1 from attachments where id = $1 and deleted_at is null)
+     on conflict (attachment_id) do update set status = 'reading', detail = 'reading did not finish', attempts = attachment_texts.attempts + 1,
+       chars = 0, content = null, vector = null, extracted_at = now()
+     returning attempts`, [id]);
+  return row?.attempts ?? 0;
+}
+
 /** Types whose reader library is missing from this installation (until the next start): left waiting. */
 const unavailable = new Set<string>();
 const readable = () => TEXT_EXTENSIONS.filter((e) => !unavailable.has(e));
 
+/** The files to read: never looked at, or stopped once while being read. */
+const WAITING = `a.deleted_at is null and a.storage_driver <> 'link' and a.extension = any($1::text[]) and a.record_type <> all($2::text[])
+  and not exists (select 1 from attachment_texts x where x.attachment_id = a.id and not (x.status = 'reading' and x.attempts < ${TEXT_MAX_ATTEMPTS}))`;
+
 /** Reads the text of the next files that have not been looked at yet. */
-export async function indexFileTexts(ctx: ModuleContext, limit = BATCH, opts: { timeoutMs?: number } = {}) {
+export async function indexFileTexts(ctx: ModuleContext, limit = BATCH, opts: { timeoutMs?: number; maxMemoryMb?: number } = {}) {
+  // A file whose reading was stopped on its last attempt (the server went down while reading it)
+  // is given up on, for good.
+  await ctx.db.query(
+    `update attachment_texts set status = 'failed', detail = 'the reader was stopped while reading this file, twice; it is not read again'
+     where status = 'reading' and attempts >= ${TEXT_MAX_ATTEMPTS}`);
   const files = await ctx.db.query<Row>(
-    `select a.id, a.extension, a.size_bytes, a.storage_driver, a.storage_key from attachments a
-     where a.deleted_at is null and a.storage_driver <> 'link' and a.extension = any($1::text[])
-       and not exists (select 1 from attachment_texts x where x.attachment_id = a.id)
-     order by a.created_at desc limit $2`, [readable(), limit]);
+    `select a.id, a.extension, a.size_bytes, a.storage_driver, a.storage_key from attachments a where ${WAITING}
+     order by a.created_at desc limit $3`, [readable(), NOT_READ_TYPES, limit]);
   const sum = { read: 0, indexed: 0, empty: 0, skipped: 0, failed: 0, waiting: 0 };
   for (const att of files) {
     sum.read += 1;
@@ -116,17 +162,24 @@ export async function indexFileTexts(ctx: ModuleContext, limit = BATCH, opts: { 
       continue;
     }
     if (!bytes) { await store(ctx, att.id, 'skipped', `larger than ${TEXT_MAX_BYTES / 1024 / 1024} MB`, null); sum.skipped += 1; continue; }
+    const attempt = await startAttempt(ctx, att.id);
+    if (!attempt) continue; // removed meanwhile
     const r = await extractText(bytes, att.extension, opts);
     if (!r.ok && r.unavailable) {
       // The reader library is missing from this installation: nothing is recorded, so the file is
       // read once it is there, and files of other types go on being read meanwhile.
+      await ctx.db.query(`delete from attachment_texts where attachment_id = $1 and status = 'reading'`, [att.id]);
       unavailable.add(att.extension);
       console.warn(`[attachments] text of .${att.extension} files not read: ${r.error}`);
       sum.waiting += 1;
       continue;
     }
-    if (!r.ok) {
-      await store(ctx, att.id, 'failed', r.error, null);
+    if (!r.ok && r.stopped && attempt < TEXT_MAX_ATTEMPTS) {
+      // Killed for time or memory: left as `reading`, so a later run tries once more.
+      await ctx.db.query(`update attachment_texts set detail = $2 where attachment_id = $1 and status = 'reading'`, [att.id, r.error.slice(0, 300)]);
+      sum.failed += 1;
+    } else if (!r.ok) {
+      await store(ctx, att.id, 'failed', r.stopped ? `${r.error}; it is not read again` : r.error, null);
       sum.failed += 1;
     } else if (!r.text) {
       await store(ctx, att.id, 'empty', null, null);
@@ -137,8 +190,7 @@ export async function indexFileTexts(ctx: ModuleContext, limit = BATCH, opts: { 
     }
   }
   const remaining = (await ctx.db.one<{ n: number }>(
-    `select count(*)::int as n from attachments a where a.deleted_at is null and a.storage_driver <> 'link' and a.extension = any($1::text[])
-       and not exists (select 1 from attachment_texts x where x.attachment_id = a.id)`, [readable()]))?.n ?? 0;
+    `select count(*)::int as n from attachments a where ${WAITING}`, [readable(), NOT_READ_TYPES]))?.n ?? 0;
   return { ...sum, remaining };
 }
 

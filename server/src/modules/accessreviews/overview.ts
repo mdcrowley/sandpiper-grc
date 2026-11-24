@@ -54,8 +54,12 @@ export function registerOverview(ctx: ModuleContext) {
     key: 'accessreviews.decisions', label: 'My access reviews due', recordType: 'access_review', permission: 'systems.view',
     work: true, named: true, kind: 'Access reviews', // an overdue system stays listed until it is signed off
     events: async (c, user, from, to) => {
-      const own = c.resources.get('person')
-        ? `and not exists (select 1 from people p where p.id = i.holder_person_id and p.user_id = s.reviewer_id and p.deleted_at is null)` : '';
+      // The reviewer's own accounts are decided by the campaign owner (campaigns.ts mayDecide): by the
+      // roster link, or by the account's name or email on the system being the reviewer's.
+      const own = `${c.resources.get('person')
+        ? `and not exists (select 1 from people p where p.id = i.holder_person_id and p.user_id = s.reviewer_id and p.deleted_at is null)` : ''}
+        and not exists (select 1 from users su left join system_accounts a on a.id = i.account_id where su.id = s.reviewer_id
+          and (lower(su.username) in (lower(i.account_name), lower(a.email)) or lower(su.email) in (lower(i.account_name), lower(a.email))))`;
       const rows = await c.db.query<Row>(
         `select r.id, r.ref, r.title, r.due_on, s.system_id, sy.name as system_name,
                 (select count(*)::int from access_review_items i where i.review_system_id = s.id and i.decision is null ${own}) as open

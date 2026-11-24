@@ -22,6 +22,7 @@
 // The call never throws: a failure is logged and reported as nothing sent.
 import { UUID_RE } from '../../core/errors.ts';
 import type { ModuleContext, ResourceDef, Row, SessionUser } from '../../core/module.ts';
+import { reviewerSql } from '../../core/reviewers.ts';
 import { TIME_ZONE, todayInZone } from '../../core/timezone.ts';
 
 export interface NotifyInput {
@@ -51,6 +52,13 @@ export interface NotifyInput {
    * (muted, or unable to see the record) is not recorded and may be told on a later run.
    */
   once?: string;
+  /**
+   * The bell only, whatever the person chose for this kind: no email (so no row of the outgoing
+   * message log names them) and no immediate push job (the regular push sweep still tells their phone
+   * "You have N new notifications"). For a message whose recipient must stay unnamed, such as a
+   * confidential safety reporter (E41-05).
+   */
+  inAppOnly?: boolean;
 }
 
 export interface NotifyResult { sent: number; skipped: number }
@@ -94,14 +102,17 @@ export const switchedOffParams = (app: ModuleContext['app']): [string[], string[
   app.hasDecorator('switchedOffPaths') ? app.switchedOffPaths() : [],
 ];
 
-/** Every active user with the permissions their enabled roles grant (as core loads a session user). */
+/**
+ * Every active user with the permissions their enabled roles grant (as core loads a session user).
+ * An outside reviewer's account holds none, whatever roles it was given (core/reviewers.ts).
+ */
 export async function activeUsers(ctx: ModuleContext): Promise<SessionUser[]> {
   const rows = await ctx.db.query<Row>(
     `select u.id, u.username, u.display_name, u.email,
         coalesce(array_agg(distinct r.key) filter (where r.enabled), '{}') as roles,
         coalesce(array_agg(distinct rp.permission) filter (where r.enabled and rp.permission is not null), '{}') as permissions
      from users u
-     left join user_roles ur on ur.user_id = u.id
+     left join user_roles ur on ur.user_id = u.id and not ${await reviewerSql(ctx.db, 'u.id')}
      left join roles r on r.id = ur.role_id
      left join role_permissions rp on rp.role_id = r.id
      where u.status = 'active' and u.deleted_at is null
@@ -185,7 +196,8 @@ export function makeNotify(ctx: ModuleContext) {
     const listed: string[] = [];
     for (const user of targets) {
       const pref = prefs.get(user.id);
-      const channel = channelFor(pref, kind);
+      const chosen = channelFor(pref, kind);
+      const channel = input.inAppOnly === true && chosen !== 'none' ? 'app' : chosen;
       if (channel === 'none' || already.has(user.id)) continue;
       if (def && !(await maySee(ctx, user, def, recordId!))) continue;
       // Email, if chosen and possible; otherwise the bell, so that nothing is lost.
@@ -226,7 +238,7 @@ export function makeNotify(ctx: ModuleContext) {
     }
     // Push to the phone (E38-14, modules/push) follows the list: what reaches the person's list (the
     // bell) is pushed as "You have N new notifications"; a muted or email-only kind is not.
-    if (listed.length && ctx.app.hasDecorator('pushNotify')) await ctx.app.pushNotify(listed);
+    if (listed.length && input.inAppOnly !== true && ctx.app.hasDecorator('pushNotify')) await ctx.app.pushNotify(listed);
     return { sent, skipped: targets.length - sent };
   }
 

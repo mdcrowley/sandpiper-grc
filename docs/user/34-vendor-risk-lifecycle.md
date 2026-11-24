@@ -55,7 +55,7 @@ The checks are kept as history, newest first, and **Last exclusion-list check** 
 
 ### Checks before a contract becomes active
 
-With **Need a recent exclusion-list check before a contract becomes active** on, a person cannot make a contract **Active** (by creating it as active or by changing its status) unless the vendor's latest check is within the months set and is not a **Match**. The contract form says what is missing. Contracts loaded by the system (imports of a contract register, sample data) are not held up.
+With **Need a recent exclusion-list check before a contract becomes active** on, a person cannot make a contract **Active** (by creating it as active or by changing its status), or move an active contract to another vendor, unless the vendor's latest check is within the months set and is not a **Match**. The contract form says what is missing. Contracts loaded by the system (imports of a contract register, sample data) are not held up.
 
 ## Intake and risk tiers
 
@@ -84,7 +84,7 @@ The latest record of each check counts. Every record stays under **Checks record
 
 ### A contract cannot become active until the checks are done
 
-A person cannot make a contract **Active**, by creating it as active or by changing its status, while a check its vendor's tier needs is **Not done** or **Expired**. The contract form names the checks still missing; create the contract as **Draft** meanwhile. A draft contract's page also shows which checks stand in the way, with a link to the vendor's checks. Contracts loaded by the system (imports of a contract register, sample data) are not held up, and a contract already active stays active when a check later expires or the tier rises.
+A person cannot make a contract **Active**, by creating it as active or by changing its status, while a check its vendor's tier needs is **Not done** or **Expired**. Moving an active contract to another vendor is checked the same way against the new vendor, so it cannot be used to get around a check that only someone who may approve vendors can waive; the **Vendor** field says what is missing. The contract form names the checks still missing; create the contract as **Draft** meanwhile. A draft contract's page also shows which checks stand in the way, with a link to the vendor's checks. Contracts loaded by the system (imports of a contract register, sample data) are not held up, and a contract already active stays active when a check later expires or the tier rises.
 
 A vendor with no intake has no tier and needs no checks, unless an administrator switches on **Require a completed intake before a contract becomes active**.
 

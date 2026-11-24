@@ -152,7 +152,7 @@ status `done`; issues in progress, open or blocked are counted in the total only
 | [E15](epics/E15-self-service-portal.md) | Self-service portal | done | 14 / 14 |
 | [E16](epics/E16-hosting-operations-and-hardening.md) | Hosting, operations and hardening | in progress | 35 / 39 |
 | [E17](epics/E17-documentation.md) | Documentation | done | 14 / 14 |
-| [E18](epics/E18-quality-and-known-defects.md) | Quality and known defects | done | 67 / 67 |
+| [E18](epics/E18-quality-and-known-defects.md) | Quality and known defects | done | 68 / 68 |
 | [E19](epics/E19-fleet-and-services.md) | Fleet and services | done | 14 / 14 |
 | [E20](epics/E20-safety-management.md) | Safety management | done | 15 / 15 |
 | [E21](epics/E21-mcp-server.md) | MCP server (AI assistant access) | done | 25 / 25 |
@@ -176,8 +176,8 @@ status `done`; issues in progress, open or blocked are counted in the total only
 | [E39](epics/E39-vehicle-and-asset-models.md) | Vehicle and asset models | done | 7 / 7 |
 | [E40](epics/E40-production-hardening.md) | Production hardening | done | 14 / 14 |
 | [E41](epics/E41-product-gaps-wave-19.md) | Product gaps found in the wave 19 review | done | 17 / 17 |
-| [E42](epics/E42-windows-installer.md) | Windows installer, in-place updates and the update check | in progress | 6 / 7 |
-| | **Total** | | **781 / 792** |
+| [E42](epics/E42-windows-installer.md) | Windows installer, in-place updates and the update check | in progress | 7 / 8 |
+| | **Total** | | **783 / 794** |
 
 Of the 11 issues not done, E42-07 (the Windows installer on a real Windows Server, by hand) needs a
 person. Every product gap of the wave 19 review (E41) is built. Wave 20 built E41-01
@@ -221,6 +221,15 @@ message; each person acknowledges through their own link without signing in; the
 who has not acknowledged, with phone acknowledgments and reminders), E41-15 (a retention schedule
 and destruction log for the organization's own records) and E41-16 (search inside attached files,
 with previews of images and PDFs).
+
+Wave 23 was an internal security review of waves 20 to 22 (E18-68): file text is read in a separate
+process with memory and time limits, so a hostile PDF cannot exhaust the server; the Windows installer
+refuses pre-created folders, reads only `GRC_*` settings, checks ownership before elevated steps and
+locks down the program folder (E42-08); figures are checked as the person who saves them; scoped
+people cannot widen their own scope and detail groupings are masked by scope; outside reviewer
+accounts hold no roles, must use a second factor and are not offered in pickers; published policy
+translations need approval and acknowledgments record the text's SHA-256; call-out links and meeting
+invitations are rate limited more precisely.
 
 Of the other 10, 5 are in the epics E37 (asset tags) and E38 (mobile apps), specified in
 [the asset tags and mobile apps specification](specs/asset-tags-and-mobile-apps.md): the online app
@@ -297,14 +306,17 @@ Keep this table in step with that file.
 | Load test with the database on its own machine and people in different roles | E16-41 |
 | Operations: the audit archive as the owner from a scheduled task; secret rotation proven by unit tests only | E40-14 (done; the limits are recorded there) |
 | Windows installer unsigned, not yet proven on a real Windows Server; only Windows has an installer | E42-07 |
+| Installations made outside Program Files before wave 23 should be reinstalled, not upgraded | E42-08 (done; the limit is recorded there) |
 | User access reviews: no connection to systems; account lists imported, removals done by people | E41-02 (done; the limit is recorded there) |
 | Compliance calendar: records requests, plan reviews and condition assessments show only the viewer's own items | E41-03 (done; the limit is recorded there) |
 | Confidential safety reporting cannot protect the report's own text or the identity from people who run the server | E41-05 (done; the limit is recorded there) |
 | Certification: one certificate of readiness per project, no second-person verification, CSV source type kept, no mobile My work entry | E41-08 (done; the limits are recorded there) |
 | Registers: workflows on a new register start after a restart; no calendar, My work or app entries; least-privilege accounts wait for `migrate` | E41-06 (done; the limits are recorded there) |
 | Languages: English and Spanish only; staff screens and organization content in English; Spanish not reviewed by a native speaker | E41-07 (done; the limits are recorded there) |
-| Outside reviewers read and download only; staff pickers list them; no second factor unless required for everyone | E41-09 (done; the limits are recorded there) |
-| Search inside files: PDF, .docx and plain text only; previews of images and PDFs; retention items under Records requests in the calendar filter | E41-15, E41-16 (done; the limits are recorded there) |
+| Outside reviewers read and download only; a few hand-written recipient lists read roles directly | E41-09, E18-68 (done; the limits are recorded there) |
+| Hand-written module figure masks ignore department and site scope | E18-68 (done; the limit is recorded there) |
+| Figures saved before wave 23 not re-checked; acknowledgments stamp the current translation; older acknowledgments record only the language | E41-04, E41-07, E18-68 (done; the limits are recorded there) |
+| Search inside files: PDF, .docx and plain text only; previews of images and PDFs; retention items under Records requests in the calendar filter; the reader's memory cap is checked every 20 ms, fixed and not pooled | E41-15, E41-16, E18-68 (done; the limits are recorded there) |
 
 ### Verification status
 

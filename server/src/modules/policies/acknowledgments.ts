@@ -162,7 +162,7 @@ export async function ackTracking(ctx: ModuleContext, policy: Row, version: Row 
   if (!version) return { today, version: null, counts: empty, rows: [] as TrackedRow[], departments: [] };
   const raw = await ctx.db.query<Row>(
     `select a.id, a.user_id, u.display_name as user_name, u.email, u.status as user_status, d.name as department,
-            a.requested_at, a.due_on, a.acknowledged_at, a.reminded_at, a.reminder_count, a.superseded_at, a.language
+            a.requested_at, a.due_on, a.acknowledged_at, a.reminded_at, a.reminder_count, a.superseded_at, a.language, a.translation_sha256
      from policy_acknowledgements a
      join users u on u.id = a.user_id
      left join departments d on d.id = u.department_id and d.deleted_at is null

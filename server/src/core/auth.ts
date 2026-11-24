@@ -9,13 +9,14 @@ import { fail, UUID_RE } from './errors.ts';
 import { featureState } from './features.ts';
 import { SCOPED_MODULES_SQL } from './scope.ts';
 import { isApiRequest } from './api/versioning.ts';
-import { afterSignIn, checkSignIn, sessionSecondFactor, signOutRedirect } from './identity/hooks.ts';
+import { addSignInPolicy, afterSignIn, checkSignIn, sessionSecondFactor, signOutRedirect } from './identity/hooks.ts';
 import type { SessionUser } from './module.ts';
 import { publicBranding } from './organization.ts';
 import { makeDbLimiter } from './ratelimit.ts';
 import { clientIp, cookieSecure } from './request.ts';
 import { loadSecretBox, type SecretBox } from './secretbox.ts';
 import { resealStoredSecrets, retiredKeyAdvice } from './secretkey-reseal.ts';
+import { isReviewerAccount, reviewerSql, reviewersConfined } from './reviewers.ts';
 import type { makeAudit, makeSettings } from './services.ts';
 import { registerTokens, revokeProgramAccess, revokedSummary, tokenConfirmedAt } from './tokens.ts';
 import { matchTotpStep } from './totp.ts';
@@ -284,11 +285,34 @@ export const MFA_ENROLLMENT_ROUTES = [
   ...WEBAUTHN_ENROLLMENT_ROUTES,
 ];
 
+/** A rule that makes a second factor required of a person at once, whatever `auth.mfa_enforcement` says. */
+export type SecondFactorRule = (userId: string) => Promise<boolean>;
+const secondFactorRules = new WeakMap<object, SecondFactorRule[]>();
+
+/**
+ * Adds a rule under which a person must have a second factor before anything but enrollment works,
+ * with no grace period and whatever the enforcement setting is (outside reviewers, E41-09).
+ */
+export function requireSecondFactorWhen(db: Db, rule: SecondFactorRule): void {
+  secondFactorRules.set(db, [...(secondFactorRules.get(db) ?? []), rule]);
+}
+
+/** True when such a rule applies to the person and they have neither an authenticator nor a passkey. */
+async function strictSecondFactorMissing(db: Db, userId: string): Promise<boolean> {
+  for (const rule of secondFactorRules.get(db) ?? []) {
+    if (!(await rule(userId))) continue;
+    const row = await db.one<{ totp_enabled: boolean }>('select totp_enabled from users where id = $1', [userId]);
+    return !row?.totp_enabled && !(await hasActivePasskey(db, userId));
+  }
+  return false;
+}
+
 /**
  * Whether the second factor is required of this user and missing, and whether that now blocks them.
  * The grace period (`auth.mfa_grace_days`, default none) runs from the first request made while required.
  */
 export async function mfaStatus(deps: Deps, userId: string): Promise<{ required: boolean; blocked: boolean; graceEndsAt: string | null }> {
+  if (await strictSecondFactorMissing(deps.db, userId)) return { required: true, blocked: true, graceEndsAt: null };
   const mode = await mfaEnforcement(deps);
   if (mode === 'off' || !(await mfaEnrollmentRequired(deps, userId))) return { required: false, blocked: false, graceEndsAt: null };
   if (mode === 'notice') return { required: true, blocked: false, graceEndsAt: null };
@@ -378,7 +402,8 @@ export async function loadUser(db: Db, userId: string): Promise<SessionUser | nu
     `select u.id, u.username, u.display_name, u.email,
         coalesce(array_agg(distinct r.key) filter (where r.enabled), '{}') as roles,
         coalesce(array_agg(distinct rp.permission) filter (where r.enabled and rp.permission is not null), '{}') as permissions,
-        ${SCOPED_MODULES_SQL('u.id')} as scoped
+        ${SCOPED_MODULES_SQL('u.id')} as scoped,
+        ${await reviewerSql(db, 'u.id')} as reviewer
      from users u
      left join user_roles ur on ur.user_id = u.id
      left join roles r on r.id = ur.role_id
@@ -388,6 +413,7 @@ export async function loadUser(db: Db, userId: string): Promise<SessionUser | nu
     [userId],
   );
   if (!row) return null;
+  if (row.reviewer) return reviewerUser(db, row);
   return {
     id: row.id, username: row.username, displayName: row.display_name, email: row.email,
     roles: row.roles, permissions: row.permissions,
@@ -396,6 +422,15 @@ export async function loadUser(db: Db, userId: string): Promise<SessionUser | nu
     // Modules one of their roles scopes to their departments or sites (E41-01, core/scope.ts).
     scoped: row.scoped ?? [],
   };
+}
+
+/**
+ * An outside reviewer's account (core/reviewers.ts) holds no role or permission, whatever it was
+ * given; and while the outsidereviews module is not loaded to confine it, it is not loaded at all.
+ */
+function reviewerUser(db: Db, row: any): SessionUser | null {
+  if (!reviewersConfined(db)) return null;
+  return { id: row.id, username: row.username, displayName: row.display_name, email: row.email, roles: [], permissions: [], off: [], scoped: [] };
 }
 
 /** The settings every signed-in request needs, read with its session (E16-38). */
@@ -418,6 +453,7 @@ async function sessionUser(db: Db, token: string | undefined) {
         coalesce(array_agg(distinct r.key) filter (where r.enabled), '{}') as roles,
         coalesce(array_agg(distinct rp.permission) filter (where r.enabled and rp.permission is not null), '{}') as permissions,
         ${SCOPED_MODULES_SQL('u.id')} as scoped,
+        ${await reviewerSql(db, 'u.id')} as reviewer,
         extract(epoch from now() - s.last_seen_at)::float8 as idle_seconds,
         (select jsonb_object_agg(st.key, st.value) from settings st where st.key = any($2::text[])) as settings
      from sessions s
@@ -435,6 +471,10 @@ async function sessionUser(db: Db, token: string | undefined) {
   const idleMinutes = Number(settings['auth.idle_minutes'] ?? 30);
   if (!(Number(row.idle_seconds) < (Number.isFinite(idleMinutes) ? idleMinutes : 30) * 60)) return null;
   if (Number(row.idle_seconds) > 60) await db.query('update sessions set last_seen_at = now() where token_hash = $1', [hashed]);
+  if (row.reviewer) {
+    const reviewer = reviewerUser(db, row);
+    return reviewer ? { user: reviewer, hashed, settings } : null;
+  }
   const user: SessionUser = {
     id: row.id, username: row.username, displayName: row.display_name, email: row.email,
     roles: row.roles, permissions: row.permissions,
@@ -481,6 +521,11 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
   app.decorateRequest('apiToken', null);
   const tokens = registerTokens(app, { db, audit, settings, loadUser, requireRecentAuth: (req, what) => requireRecentAuth(deps, req, what) });
   registerWebAuthn(app, deps); // passkeys and security keys: /api/auth/webauthn/...
+  // An outside reviewer's account signs in only while the outsidereviews module confines it (core/reviewers.ts).
+  addSignInPolicy(app, {
+    check: async ({ userId }) => (!reviewersConfined(db) && (await isReviewerAccount(db, userId))
+      ? 'outside reviewer account, and the outside reviews module is not loaded' : null),
+  });
 
   app.addHook('onRequest', async (req) => {
     // By path or by matched route (the path is canonical before routing: core/api/versioning.ts).
@@ -510,6 +555,9 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
     // A required second factor that is missing limits the person to enrollment (and signing out).
     if (req.user && !req.routeOptions?.config?.public && !MFA_ENROLLMENT_ROUTES.includes(req.url.split('?')[0])) {
       // Read with the session when there is one (one statement per request); a token reads it here.
+      if (await strictSecondFactorMissing(db, req.user.id)) {
+        fail(403, 'mfa_enrolment_required', 'Set up your second factor to continue. Open Account security to do it.');
+      }
       const known = requestSettings.get(req);
       const mode = known ? enforcementOf(known['auth.mfa_enforcement']) : await mfaEnforcement(deps);
       if (mode === 'required' && (await mfaStatusForSession(deps, app, req.user.id, req.sessionHash)).blocked) {
@@ -828,9 +876,11 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
         `select id, display_name as label from users where deleted_at is null and id = any($1::uuid[]) order by display_name`, [ids]);
     }
     const q = `%${String(query.q ?? '').trim().replace(/[%_\\]/g, '\\$&')}%`;
+    // Outside reviewers' accounts are not staff: they are never offered (core/reviewers.ts).
     return db.query(
-      `select id, display_name as label from users
+      `select id, display_name as label from users u
        where deleted_at is null and status <> 'disabled' and (display_name ilike $1 or username ilike $1)
+         and not ${await reviewerSql(db, 'u.id')}
        order by display_name limit 25`,
       [q],
     );

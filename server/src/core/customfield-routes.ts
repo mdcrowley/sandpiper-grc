@@ -54,8 +54,11 @@ export function registerCustomFieldRoutes({ app, db, audit, res, custom }: Deps)
     const type = (req.query as Record<string, string>).record_type;
     const rows = await db.query<CustomField>(
       `select * from custom_fields where ($1::text is null or record_type = $1) order by record_type, active desc, position, label`, [type || null]);
+    // The fields of a switched-off record type (a register, a type of an area that is off) are not
+    // listed: a switched-off part shows nowhere but Administration > Features. They stay stored.
+    const off = new Set(app.hasDecorator('switchedOffTypes') ? app.switchedOffTypes() : []);
     return {
-      fields: rows.map(shape),
+      fields: rows.filter((f) => !off.has(f.record_type)).map(shape),
       types: CUSTOM_TYPES,
       recordTypes: res.registry.all().map((d) => ({ type: d.type, label: d.label, plural: d.plural })).sort((a, b) => a.label.localeCompare(b.label)),
     };

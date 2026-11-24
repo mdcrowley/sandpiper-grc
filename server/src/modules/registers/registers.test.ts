@@ -174,9 +174,13 @@ describe('switching a register off', () => {
     expect((await t.api.get('/api/reports/catalog')).body.types.find((x: any) => x.type === 'reg_key_log')).toBeUndefined();
     expect((await t.api.get('/api/history?record_type=reg_key_log&record_id=00000000-0000-4000-8000-000000000001')).body.error.code).toBe('switched_off');
     expect((await t.api.get('/api/admin/features')).body.areas.find((a: any) => a.key === 'reg_key_log').on).toBe(false);
+    // Its custom fields are not listed either (kept, and back when it is switched on).
+    const fieldsOf = async () => (await t.api.get('/api/admin/custom-fields')).body.fields.filter((f: any) => f.record_type === 'reg_key_log').length;
+    expect(await fieldsOf()).toBe(0);
 
     expect((await t.api.patch('/api/admin/features', { features: { reg_key_log: true } })).status).toBe(200);
     expect((await t.api.get('/api/registers/key_log')).body.total).toBe(5);
+    expect(await fieldsOf()).toBeGreaterThan(0);
   });
 });
 
@@ -199,6 +203,50 @@ describe('removing a register', () => {
     expect((await t.db.one<{ v: string | null }>(`select to_regclass('reg_spares')::text as v`))?.v).toBeNull();
     // The name is free again.
     expect((await define({ label: 'Spare', plural: 'Spares', key: 'spares', prefix: 'SP' })).status).toBe(201);
+  });
+
+  it('takes only its own grants, even when its key is a pattern for another module\'s (W23 F2)', async () => {
+    const grants = async (module: string) => (await t.db.one<{ n: number }>(`select count(*)::int as n from role_permissions where split_part(permission, '.', 1) = $1`, [module]))!.n;
+    const risks = await grants('risks');
+    expect(risks).toBeGreaterThan(0);
+    expect((await define({ label: 'Thing', plural: 'Things', key: 'risk_', prefix: 'QQ' })).status).toBe(201);
+    await t.api.post('/api/admin/roles', { name: 'Things desk', grants: ['risk_.view'] });
+    expect(await grants('risk_')).toBe(1);
+    await t.api.post('/api/auth/confirm', { password: ADMIN.password });
+    expect((await t.api.del('/api/admin/registers/risk_')).status).toBe(200);
+    expect(await grants('risk_')).toBe(0);
+    expect(await grants('risks')).toBe(risks);
+  });
+
+  it('counts its records again under a lock, so a record added meanwhile is not orphaned (W23 F4)', async () => {
+    expect((await define({ label: 'Badge', plural: 'Badges', key: 'badges', prefix: 'BDG' })).status).toBe(201);
+    await t.api.post('/api/auth/confirm', { password: ADMIN.password });
+    // A record arrives after the first count, while the password and the database account are checked.
+    const db = t.db as { query: typeof t.db.query };
+    const query = db.query;
+    let armed = true;
+    db.query = (async (sql: string, params?: unknown[]) => {
+      const rows = await query.call(t.db, sql, params);
+      if (armed && sql.includes('from register_records group by 1')) {
+        armed = false;
+        expect((await t.api.post('/api/registers/badges', { title: 'Late badge' })).status).toBe(201);
+      }
+      return rows;
+    }) as typeof t.db.query;
+    let res;
+    try { res = await t.api.del('/api/admin/registers/badges'); } finally { db.query = query; }
+    expect(armed).toBe(false);
+    expect([res.status, res.body.error?.code]).toEqual([409, 'in_use']);
+    // Not removed: the register and its record are still there.
+    expect((await t.api.get('/api/registers/badges')).body.total).toBe(1);
+    expect(await t.db.one(`select 1 from register_definitions where key = 'badges'`)).toBeTruthy();
+  });
+
+  it('cannot be defined again while records of an earlier register with its key are stored (W23 F4)', async () => {
+    await t.db.query(`insert into register_records (register_key, ref, title) values ('ghosts', 'GH-00001', 'Left behind')`);
+    const res = await define({ label: 'Ghost', plural: 'Ghosts', key: 'ghosts', prefix: 'GH' });
+    expect(res.status).toBe(400);
+    expect(res.body.error.fields.key).toMatch(/still stored/);
   });
 });
 

@@ -306,7 +306,7 @@ network's gateway, whose address the application looks up at start and logs
 
 Do not use `private`: it trusts every private address, and the people on your own network
 have private addresses too, so any of them could set the address the application records for
-them and get round the per-address limits. Keep `GRC_BIND=127.0.0.1` with `gateway`: with
+them and get around the per-address limits. Keep `GRC_BIND=127.0.0.1` with `gateway`: with
 the port published on every interface, some Docker set-ups (Docker Desktop in particular)
 forward outside connections from the gateway address too.
 

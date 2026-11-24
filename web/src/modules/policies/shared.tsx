@@ -45,11 +45,17 @@ export interface AckRow {
   days_overdue: number;
   /** The language the person read (E41-07); empty before translations existed. */
   language?: string | null;
+  /** The SHA-256 stamp of the translated text read (W23 F5); empty for the original and before stamps were kept. */
+  translation_sha256?: string | null;
 }
 
-/** " (read in Spanish)" after an acknowledgment given in a translation; nothing for the original language. */
-export const readIn = (language: string | null | undefined): string =>
-  language && language !== BASE_LANGUAGE ? ` (read in ${englishName(language)})` : '';
+/**
+ * " (read in Spanish)" after an acknowledgment given in a translation, with the first characters of
+ * the stamp of the text read when there is one (" (read in Spanish, text 1a2b3c4d)"); nothing for
+ * the original language.
+ */
+export const readIn = (language: string | null | undefined, stamp?: string | null): string =>
+  language && language !== BASE_LANGUAGE ? ` (read in ${englishName(language)}${stamp ? `, text ${stamp.slice(0, 8)}` : ''})` : '';
 
 export interface AckTracking {
   today: string;

@@ -146,6 +146,49 @@ describe('figures recorded over time', () => {
     expect((await lead.get(`/api/figures/${boxes.id}`)).status).toBe(404);
   });
 
+  it('checks a figure as the person saving it, so filters cannot read what they may not see (W23 F1)', async () => {
+    const roleWith = async (key: string, perms: string[]) => {
+      const r = await t.db.one<{ id: string }>(`insert into roles (key, name) values ($1, $1) returning id`, [key]);
+      for (const p of perms) await t.db.query('insert into role_permissions (role_id, permission) values ($1, $2)', [r!.id, p]);
+      return t.as(key);
+    };
+    const reporting = ['reports.view', 'reports.create', 'reports.edit'];
+    // Views things, but neither boxes (risks module) nor restricted records.
+    const plain = await roleWith('w23_fig_plain', ['tickets.view', ...reporting]);
+    // Views the boxes' module, but not restricted records: boxes are wholly restricted.
+    const boxer = await roleWith('w23_fig_boxer', ['tickets.view', 'risks.view', ...reporting]);
+    const add = (c: Client, body: object) => c.post('/api/figures', { name: 'Probe', source: 'count', ...body });
+    const filter = (field: string, op: string, value?: unknown) => ({ filters: { op: 'and', items: [{ field, op, value }] } });
+
+    // (a) Through a reference to a type the person may not report on: refused, as the report engine refuses it.
+    for (const c of [plain, boxer]) {
+      const r = await add(c, { record_type: 'rt_thing', ...filter('box_id.name', 'contains', 'Secret') });
+      expect(r.status).toBe(400);
+      expect(Object.keys(r.body.error.fields)).toEqual(['filters']);
+    }
+    // (b) A wholly restricted type itself, without security.view: refused, and a figure on it is not shown.
+    const onBoxes = await add(boxer, { record_type: 'rt_box', ...filter('name', 'contains', 'merger') });
+    expect(onBoxes.status).toBe(400);
+    expect(Object.keys(onBoxes.body.error.fields)).toEqual(['record_type']);
+    const adminBoxes = (await t.api.post('/api/figures', { name: 'All boxes', source: 'count', record_type: 'rt_box' })).body;
+    expect((await boxer.get(`/api/figures/${adminBoxes.id}`)).status).toBe(404);
+    expect((await boxer.get('/api/figures')).body.map((f: any) => f.id)).not.toContain(adminBoxes.id);
+    expect((await boxer.post('/api/figures/record', { ids: [adminBoxes.id] })).body.recorded).toBe(0);
+    expect((await lead.get(`/api/figures/${adminBoxes.id}`)).status).toBe(200);
+    // (c) The words of a type with restricted records, without security.view: refused; lists and blankness are fine.
+    const words = await add(plain, { record_type: 'rt_thing', ...filter('name', 'contains', 'R') });
+    expect(words.status).toBe(400);
+    expect(words.body.error.fields.filters).toMatch(/restricted records/);
+    expect((await add(plain, { record_type: 'rt_thing', ...filter('owner_id.email', 'contains', 'a') })).status).toBe(400);
+    expect((await add(plain, { record_type: 'rt_thing', ...filter('status', 'in', ['open']) })).status).toBe(201);
+    expect((await add(plain, { record_type: 'rt_thing', ...filter('name', 'nempty') })).status).toBe(201);
+    // Nor can an existing figure be changed to probe.
+    const mine = (await add(plain, { record_type: 'rt_thing' })).body;
+    expect((await plain.patch(`/api/figures/${mine.id}`, filter('name', 'eq', 'R'))).status).toBe(400);
+    // Someone who may see restricted records may filter on their words: the value is the same for everyone.
+    expect((await t.api.post('/api/figures', { name: 'Named R', source: 'count', record_type: 'rt_thing', ...filter('name', 'eq', 'R') })).status).toBe(201);
+  });
+
   it('charts a figure on a dashboard and in a board pack, and exports it as a tagged PDF', async () => {
     const widget = await lead.post('/api/dashboards/run-widget', { widget: { kind: 'figure', config: { figureId: byStatus.id, months: 6 } } });
     expect(widget.body).toMatchObject({ status: 'ok', chart: { kind: 'line' } });

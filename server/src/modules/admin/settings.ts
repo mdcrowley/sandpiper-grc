@@ -62,6 +62,8 @@ export const SETTINGS: Record<string, { fallback: unknown; check: Check }> = {
     fallback: 'preferred',
     check: (v) => (v === 'preferred' || v === 'required' ? { value: v } : 'Choose preferred or required.'),
   },
+  // Outside reviewers (E41-09) must set up a second factor at their first sign-in, whatever the enforcement setting says.
+  'outsidereviews.require_2fa': { fallback: true, check: bool },
   // Single sign-on (core/identity). Local passwords can be switched off only when a break-glass account
   // exists and everyone else has a linked provider (checked below).
   'auth.local_signin': { fallback: true, check: bool },
@@ -103,7 +105,7 @@ export const SETTINGS: Record<string, { fallback: unknown; check: Check }> = {
 };
 
 /** Security settings (sign-in, API tokens, outbound connections): changing one needs a recent password confirmation. */
-export const isSecuritySetting = (key: string) => key.startsWith('auth.') || key.startsWith('integrations.') || key.startsWith('tokens.');
+export const isSecuritySetting = (key: string) => key.startsWith('auth.') || key.startsWith('integrations.') || key.startsWith('tokens.') || key === 'outsidereviews.require_2fa';
 
 export function registerSettings(ctx: ModuleContext) {
   const { db } = ctx;

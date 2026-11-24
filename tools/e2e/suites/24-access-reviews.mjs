@@ -40,7 +40,7 @@ const reviewTest = (theme, width) => ({
       await page.waitFor(new Function(`return [...document.querySelectorAll('button[aria-pressed="true"]')].some((b) => b.getAttribute('aria-label') === ${JSON.stringify(`Remove e2e-leaver-${tag}`)});`));
       await page.click({ text: 'Sign off', tag: 'button' });
       await page.click({ text: 'Sign off', tag: '[role=dialog] button' });
-      await page.waitFor({ text: 'Signed off' });
+      await page.waitFor({ text: 'Signed off', tag: 'main *' });
     });
 
     await t.step('the removal is listed on the campaign and recorded as done', async () => {

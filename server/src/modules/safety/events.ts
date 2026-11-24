@@ -58,6 +58,9 @@ export function registerEvents(ctx: ModuleContext, reporting: Reporting) {
       title: confidential ? 'A safety report you made has been closed' : `Your safety report ${row.ref} is closed`,
       body: confidential && portal ? 'Read what was done under My safety reports in the portal.' : outcome || 'The safety team has finished looking into it.',
       route: portal ? '/portal/safety' : confidential ? '/notifications' : `/safety/events/${row.id}`,
+      // A confidential reporter is told in the application only: an email would put their name and
+      // address in the outgoing message log at the moment the event closed (wave 23 A6).
+      inAppOnly: confidential,
     });
     await ctx.audit(req, { action: 'safety_event.reporter_told', recordType: 'safety_event', recordId: row.id, summary: 'Reporter told what was done about their report' });
   }

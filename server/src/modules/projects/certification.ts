@@ -509,7 +509,7 @@ export function registerCertification(ctx: ModuleContext, svc: ProjectService): 
     overview(await svc.needProject(params(req).id, req), req.user));
   ctx.describeRoute({
     method: 'GET', path: '/api/projects/:id/certification', tag: 'Projects', permission: 'projects.view',
-    summary: 'A project\'s safety and security certification: certifiable items, their requirements and evidence, what stops the certificate of readiness, and the certificates issued',
+    summary: 'A project\'s certification: certifiable items, their requirements and evidence, what stops the certificate of readiness, and the certificates issued',
   });
 
   ctx.app.post('/api/projects/:id/certificates', approve, async (req, reply) => {

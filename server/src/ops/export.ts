@@ -54,6 +54,8 @@ export const SECRET_TABLES = [
   'mcp_oauth_codes', 'mcp_oauth_tokens', 'mobile_codes', 'mobile_tokens',
   // Each phone's push token or endpoint: the phones sign in again after such a restore and register anew.
   'push_registrations',
+  // Call-out links a reminder replaced (continuity): dead links, kept only so opening one is not counted as a wrong link.
+  'activation_callout_replaced_links',
 ];
 
 /** A token hash replaced by a value no token can hash to (still unique, so the row loads). */

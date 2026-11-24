@@ -8,10 +8,14 @@
 // Members are reached by their account's email address, or by the email of their roster person (the
 // people module, when loaded). A member known only by a typed name is listed as not invited.
 // `GET /api/meetings/:id/invitation.ics` gives the same event to add by hand.
+//
+// Sending is limited to INVITES_PER_HOUR sends for one meeting in an hour (wave 23 security review,
+// S6): each send emails every member, roster addresses included, so a loop must not flood them.
 import type { FastifyRequest } from 'fastify';
 import { configuredBase, loopbackBase } from '../../core/identity/base.ts';
 import { EMAIL_RE } from '../../core/mail/service.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { makeDbLimiter } from '../../core/ratelimit.ts';
 import { TIME_ZONE, todayInZone } from '../../core/timezone.ts';
 import { escapeText, fold, utcStamp } from '../feeds/ics.ts';
 import { membersOn } from './committees.ts';
@@ -19,6 +23,8 @@ import { meetingFor } from './meetings.ts';
 
 const PROD_ID = '-//Sandpiper GRC//Meetings//EN';
 export const DEFAULT_MINUTES = 60;
+/** Invitations (updates and cancellations included) sent for one meeting in an hour. */
+export const INVITES_PER_HOUR = 10;
 
 export interface Invitee { name: string; email: string | null; userId: string | null; how: 'account' | 'roster' | null }
 
@@ -82,6 +88,7 @@ export function meetingCalendar(opts: {
 
 export function registerInvitations(ctx: ModuleContext): void {
   const { app, db } = ctx;
+  const perMeeting = makeDbLimiter(db, 'meeting_invite', INVITES_PER_HOUR, 60 * 60_000);
 
   const committeeName = async (meeting: Row) =>
     (await db.one<{ name: string }>('select name from committees where id = $1', [meeting.committee_id]))?.name ?? 'Committee';
@@ -113,6 +120,10 @@ export function registerInvitations(ctx: ModuleContext): void {
     if (!cancel && new Date(meeting.scheduled_at).getTime() < Date.now()) ctx.fail(409, 'meeting_past', 'The meeting has already taken place.');
     const invitees = (await inviteesOf(ctx, meeting)).filter((i) => i.email);
     if (!invitees.length) ctx.fail(409, 'nobody', 'No member of the committee has an email address to send the invitation to.');
+    const claim = await perMeeting.take(meeting.id);
+    if (!claim.ok) {
+      ctx.fail(429, 'rate_limited', `Invitations for this meeting have been sent ${INVITES_PER_HOUR} times in the last hour. Wait a while before sending again, or download the calendar file.`);
+    }
     const sequence = meeting.invited_at ? Number(meeting.invite_sequence ?? 0) + 1 : 0;
     const me = await db.one<{ email: string | null }>('select email from users where id = $1', [req.user!.id]);
     const organizer = me?.email && EMAIL_RE.test(me.email) ? { name: req.user!.displayName, email: me.email } : null;
@@ -147,6 +158,7 @@ export function registerInvitations(ctx: ModuleContext): void {
   ctx.describeRoute({
     method: 'POST', path: '/api/meetings/:id/invitations', permission: 'governance.edit',
     summary: 'Email the meeting to the committee\'s members as a calendar invitation (.ics): again after a change as an update, or a cancellation once it is canceled',
+    description: `At most ${INVITES_PER_HOUR} sends for one meeting in an hour: 429 rate_limited past that.`,
     response: '{ queued, method: REQUEST | PUBLISH | CANCEL, sequence, invited, not_invited: [name] }',
   });
 

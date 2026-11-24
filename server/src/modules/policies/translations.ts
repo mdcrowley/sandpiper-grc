@@ -2,7 +2,11 @@
 // and text in another language. The version's own text is the approved original (in BASE_LANGUAGE);
 // a translation is kept beside it, may be added or corrected after the version is published (every
 // change audited with the text it replaced), and is what staff who chose that language read in the
-// portal, on the kiosk and in the app. An acknowledgment records the language that was read.
+// portal, on the kiosk and in the app. An acknowledgment records the language that was read and,
+// for a translation, a SHA-256 stamp of the translated text (W23 F5), so it shows which text was read
+// even if the translation changes later. Changing or removing the translation of a published version
+// needs policies.approve, as publishing does; on drafts policies.edit is enough.
+import { createHash } from 'node:crypto';
 import type { FastifyRequest } from 'fastify';
 import { BASE_LANGUAGE, englishName, isLanguage, languageName, LANGUAGES } from '../../../../shared/i18n.ts';
 import type { Db } from '../../core/db.ts';
@@ -69,14 +73,24 @@ export async function translateTitles<T extends Row>(db: Db, rows: T[], wanted: 
   });
 }
 
-/**
- * The language to record for an acknowledgment: the one the person says they read, when the version
- * has a translation in it (or it is the original's); otherwise the original's.
- */
-export async function languageRead(db: Db, versionId: string, said: unknown): Promise<string> {
-  if (!isLanguage(said) || said === BASE_LANGUAGE) return BASE_LANGUAGE;
-  const tr = await db.one('select 1 from policy_version_translations where version_id = $1 and language = $2', [versionId, said]);
-  return tr ? said : BASE_LANGUAGE;
+/** The SHA-256 stamp of a translation's text: its title, summary, change summary and body, as stored. */
+export function translationStamp(tr: Row): string {
+  return createHash('sha256').update(JSON.stringify([tr.title ?? null, tr.summary ?? null, tr.change_summary ?? null, tr.body ?? null])).digest('hex');
+}
+
+export interface ReadText {
+  /** The language read: the one the person says, when the version has a translation in it; otherwise the original's. */
+  language: string;
+  /** The stamp of the translation read (translationStamp); null when the original was read. */
+  translation_sha256: string | null;
+}
+
+/** What to record for an acknowledgment: the language read and, for a translation, the stamp of its text. */
+export async function textRead(db: Db, versionId: string, said: unknown): Promise<ReadText> {
+  const original = { language: BASE_LANGUAGE, translation_sha256: null };
+  if (!isLanguage(said) || said === BASE_LANGUAGE) return original;
+  const tr = await db.one<Row>('select title, summary, change_summary, body from policy_version_translations where version_id = $1 and language = $2', [versionId, said]);
+  return tr ? { language: said, translation_sha256: translationStamp(tr) } : original;
 }
 
 const text = (v: unknown): string | null => {
@@ -88,7 +102,7 @@ const text = (v: unknown): string | null => {
 const view = (t: Row, withBody = true) => ({
   id: t.id, version_id: t.version_id, language: t.language, language_name: languageName(String(t.language)),
   title: t.title, summary: t.summary, change_summary: t.change_summary,
-  updated_at: t.updated_at, updated_by_name: t.updated_by_name ?? null,
+  updated_at: t.updated_at, updated_by_name: t.updated_by_name ?? null, sha256: translationStamp(t),
   ...(withBody ? { body: t.body, body_html: renderPolicyMarkdown(String(t.body ?? '')) } : {}),
 });
 
@@ -96,6 +110,12 @@ export function registerTranslations(ctx: ModuleContext): void {
   const { db } = ctx;
   const label = (p: Row) => [p.ref, p.title].filter(Boolean).join(' ');
   const seesDrafts = (req: FastifyRequest) => ctx.can(req.user, 'policies.edit') || ctx.can(req.user, 'policies.approve');
+  /** Staff read a published version's translation at once, so changing it is an approval, as publishing is (W23 F5). */
+  function mayChange(req: FastifyRequest, version: Row) {
+    if (version.status === 'published' && !ctx.can(req.user, 'policies.approve')) {
+      ctx.fail(403, 'forbidden', 'This version is published, so changing or removing its translations needs permission to approve policies.');
+    }
+  }
 
   async function needVersion(req: FastifyRequest): Promise<{ policy: Row; version: Row }> {
     const params = req.params as Row;
@@ -144,6 +164,7 @@ export function registerTranslations(ctx: ModuleContext): void {
     const lang = needLanguage(req);
     if (policy.status === 'retired') ctx.fail(409, 'retired', 'This policy is retired. Its translations cannot change.');
     if (version.status === 'superseded') ctx.fail(409, 'superseded', 'A newer version has been published. Translate that version instead.');
+    mayChange(req, version);
     const b = (req.body ?? {}) as Row;
     const fields: Record<string, string> = {};
     const title = text(b.title);
@@ -172,16 +193,16 @@ export function registerTranslations(ctx: ModuleContext): void {
       summary: `${englishName(lang)} translation of version ${version.version} of ${label(policy)} ${before ? 'changed' : 'added'}`,
       // The text it replaced is kept, so what a person read and acknowledged can always be shown again.
       before: before ? { language: lang, title: before.title, summary: before.summary, change_summary: before.change_summary, body: before.body } : undefined,
-      after: { language: lang, version: Number(version.version), title, summary, change_summary: changeSummary, body_length: body.length },
+      after: { language: lang, version: Number(version.version), title, summary, change_summary: changeSummary, body_length: body.length, sha256: translationStamp(row) },
     });
     return view(row);
   });
   ctx.describeRoute({
     method: 'PUT', path: '/api/policies/:id/versions/:vid/translations/:lang', permission: 'policies.edit', tag: 'Policies',
     summary: 'Add or change the translation of a version into one language',
-    description: 'Allowed on drafts and on the published version (a translation may follow publication); 409 `superseded` on a replaced version and `retired` on a retired policy. `lang` is a translation language (GET /api/policies/translation-languages). Audited with the text it replaced.',
+    description: 'Allowed on drafts (`policies.edit`) and on the published version (a translation may follow publication; that needs `policies.approve` too, else 403 `forbidden`); 409 `superseded` on a replaced version and `retired` on a retired policy. `lang` is a translation language (GET /api/policies/translation-languages). Audited with the text it replaced. `sha256` is the stamp of the translated text that acknowledgments record.',
     body: '{ title, summary?, change_summary?, body (Markdown, as the version\'s own text) }',
-    response: '{ id, language, language_name, title, summary, change_summary, body, body_html, updated_at }',
+    response: '{ id, language, language_name, title, summary, change_summary, body, body_html, updated_at, sha256 }',
   });
 
   ctx.app.delete('/api/policies/:id/versions/:vid/translations/:lang', { preHandler: ctx.requirePerm('policies.edit') }, async (req) => {
@@ -189,6 +210,7 @@ export function registerTranslations(ctx: ModuleContext): void {
     const lang = needLanguage(req);
     if (policy.status === 'retired') ctx.fail(409, 'retired', 'This policy is retired. Its translations cannot change.');
     if (version.status === 'superseded') ctx.fail(409, 'superseded', 'A newer version has been published. Its translations are kept as they were.');
+    mayChange(req, version);
     const gone = await db.one<Row>('delete from policy_version_translations where version_id = $1 and language = $2 returning *', [version.id, lang]);
     if (!gone) ctx.fail(404, 'not_found', 'This version has no translation in that language.');
     await ctx.audit(req, {
@@ -201,7 +223,7 @@ export function registerTranslations(ctx: ModuleContext): void {
   ctx.describeRoute({
     method: 'DELETE', path: '/api/policies/:id/versions/:vid/translations/:lang', permission: 'policies.edit', tag: 'Policies',
     summary: 'Remove the translation of a version into one language',
-    description: '404 `not_found` when there is none. Acknowledgments already given in that language keep it. Audited with the text removed.',
+    description: 'On the published version this needs `policies.approve` too (403 `forbidden`). 404 `not_found` when there is none. Acknowledgments already given in that language keep it and the stamp of the text read. Audited with the text removed.',
     response: '{ ok: true }',
   });
 }

@@ -3,6 +3,7 @@
 import type { FastifyRequest } from 'fastify';
 import type { Db, Queryable } from '../db.ts';
 import type { AuditInput } from '../module.ts';
+import { isReviewerAccount } from '../reviewers.ts';
 import { domainAllowed } from './config.ts';
 import type { ExternalIdentity, ProviderRecord, RoleMapping } from './types.ts';
 
@@ -139,7 +140,9 @@ export async function syncMappedRoles(
   if (!cfg.mappingEnabled || !Array.isArray(cfg.mappings) || !cfg.mappings.length) return null;
   const rules = cfg.mappings as RoleMapping[];
   const mapped = new Set(rules.map((m) => m.role));
-  const wanted = new Set(rules.filter((m) => groups.includes(m.value)).map((m) => m.role));
+  // An outside reviewer's account holds no roles (E41-09): mapping takes them away and never gives one.
+  const reviewer = await isReviewerAccount(deps.db, userId);
+  const wanted = new Set(reviewer ? [] : rules.filter((m) => groups.includes(m.value)).map((m) => m.role));
   const roles = await deps.db.query<{ id: string; key: string }>('select id, key from roles where key = any($1::text[])', [[...mapped]]);
   const held = new Set((await deps.db.query<{ key: string }>(
     'select r.key from user_roles ur join roles r on r.id = ur.role_id where ur.user_id = $1', [userId],

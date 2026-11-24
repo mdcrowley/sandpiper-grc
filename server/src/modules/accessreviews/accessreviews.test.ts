@@ -339,3 +339,35 @@ describe('reminders, calendar and the switch', () => {
     }
   });
 });
+
+describe('the reviewer\'s own account without a roster link (wave 23 A5)', () => {
+  it('is recognized by its name or email on the system, so the campaign owner decides on it', async () => {
+    const me = (await t.db.one<{ username: string; email: string }>('select username, email from users where id = $1', [auditor.userId]))!;
+    const sys = (await t.api.post('/api/systems', { name: 'Invented crew scheduling system', business_owner_id: auditor.userId })).body.id;
+    const make = async (data: Record<string, unknown>) => {
+      const res = await agent.post('/api/system-accounts', { system_id: sys, ...data });
+      expect(res.status, JSON.stringify(res.body)).toBe(201);
+      expect(res.body.holder_person_id).toBeNull(); // the roster does not know these
+    };
+    await make({ account_name: me.username.toUpperCase() });
+    await make({ account_name: 'crew-admin-7', email: me.email.toUpperCase() });
+    await make({ account_name: 'crew-planner-2', display_name: 'Nobody we know either' });
+    const review = (await agent.post('/api/access-reviews', { title: 'Invented crew system review', due_on: '2099-03-31' })).body.id;
+    const added = await agent.post(`/api/access-reviews/${review}/systems`, { system_ids: [sys] });
+    expect(added.body[0].reviewer_id).toBe(auditor.userId);
+    expect((await agent.post(`/api/access-reviews/${review}/launch`)).status).toBe(200);
+
+    const page = (await auditor.get(`/api/access-reviews/${review}/systems/${sys}/items`)).body;
+    const item = (name: string) => page.items.find((i: any) => i.account_name.toLowerCase() === name.toLowerCase());
+    expect(item(me.username)).toMatchObject({ own: true, mayDecide: false });
+    expect(item('crew-admin-7')).toMatchObject({ own: true, mayDecide: false });
+    expect(item('crew-planner-2')).toMatchObject({ own: false, mayDecide: true });
+    expect(page.items[0].same_user_ids).toBeUndefined();
+    const own = await auditor.post(`/api/access-reviews/${review}/decisions`, { items: [item(me.username).id, item('crew-admin-7').id], decision: 'keep' });
+    expect(own.status).toBe(403);
+    expect(own.body.error.code).toBe('own_account');
+    expect((await auditor.post(`/api/access-reviews/${review}/decisions`, { items: [item('crew-planner-2').id], decision: 'keep' })).body.saved).toBe(1);
+    // The campaign owner decides on the reviewer's own accounts.
+    expect((await agent.post(`/api/access-reviews/${review}/decisions`, { items: [item(me.username).id, item('crew-admin-7').id], decision: 'keep' })).body.saved).toBe(2);
+  });
+});

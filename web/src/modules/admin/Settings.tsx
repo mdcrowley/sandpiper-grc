@@ -20,6 +20,7 @@ interface Values {
   'auth.idle_minutes': number | null;
   'auth.mfa_required_for_all': boolean;
   'auth.mfa_enforcement': Enforcement;
+  'outsidereviews.require_2fa'?: boolean;
   'auth.mfa_grace_days': number | null;
   'auth.reauth_minutes': number | null;
   'tokens.max_days': number | null;
@@ -251,6 +252,14 @@ export function SettingsPage() {
               <Setting title="Grace period" changed={isChanged('auth.mfa_grace_days')} text="With Required, how many days a person may keep working before the block applies, counted from their first visit. Default 0: no grace period.">
                 {number('auth.mfa_grace_days', 'Grace period in days', form['auth.mfa_enforcement'] === 'required' ? 'Days, from 0 to 30.' : 'Days, from 0 to 30. Only used when enforcement is Required.')}
               </Setting>
+              {has('outsidereviews.require_2fa') && (auth.areaOn('audits') || auth.areaOn('funding')) && (
+                <Setting
+                  title="Outside reviewers" changed={isChanged('outsidereviews.require_2fa')}
+                  text="People invited from outside the organization to an audit or a funder review must set up an authenticator app or a passkey at their first sign-in before they can see anything, whatever the enforcement above says. Default on."
+                >
+                  <Switch label="Outside reviewers must use a second factor" checked={form['outsidereviews.require_2fa'] !== false} onChange={(on) => set('outsidereviews.require_2fa', on)} />
+                </Setting>
+              )}
             </Card>
             <Card title="Password confirmation">
               <Setting title="Ask again after" changed={isChanged('auth.reauth_minutes')} text="Changing roles, permissions, these security settings, a person's second factor, or issuing a one-time link asks for your password again unless you gave it within this many minutes. Default 10.">

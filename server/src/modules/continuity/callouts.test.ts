@@ -28,6 +28,8 @@ async function runMail() {
   await t.db.query(`update jobs set run_at = now() - interval '1 second' where type in ('mail.send', 'text.webhook') and status = 'queued'`);
   await t.app.jobs.runDue({ types: ['mail.send', 'text.webhook'] });
 }
+/** Wrong-link hits recorded against addresses (the 20-in-15-minutes limit of the public routes). */
+const wrongHits = async () => (await t.db.one<{ n: number }>(`select count(*)::int as n from rate_limit_hits where bucket = 'callout_ack_bad'`))!.n;
 const tokenIn = (body: string) => /\/call-out\/([A-Za-z0-9_-]{43})/.exec(body.replace(/=\r?\n/g, ''))?.[1];
 
 beforeAll(async () => {
@@ -113,10 +115,13 @@ describe('sending a call tree a message', () => {
   });
 
   it('answers the same "not valid" for a wrong or malformed link', async () => {
+    const hits = await wrongHits();
     const wrong = await t.anon.get(`/api/call-out/${'x'.repeat(43)}`);
     expect(wrong.status).toBe(404);
     expect(wrong.body.error.message).toBe(NOT_VALID);
     expect((await t.anon.get('/api/call-out/short')).body.error.message).toBe(NOT_VALID);
+    // A link that matches nothing ever sent counts toward the address's wrong-link limit.
+    expect(await wrongHits()).toBe(hits + 2);
   });
 
   it('lets staff record an acknowledgment by phone, and reminds those who have not acknowledged with a new link', async () => {
@@ -135,7 +140,13 @@ describe('sending a call tree a message', () => {
       await sink.waitFor(before + 1);
       const fresh = tokenIn(sink.messages.at(-1)!.body)!;
       expect(sink.messages.at(-1)!.subject).toMatch(/^Reminder: /);
-      expect((await t.anon.get(`/api/call-out/${tokens.driver}`)).status).toBe(404); // replaced
+      // The replaced link: the same "not valid", but not counted as a wrong link (wave 23 review, S5),
+      // so people at one shared address opening the earlier message do not lock each other out.
+      const hits = await wrongHits();
+      const replaced = await t.anon.get(`/api/call-out/${tokens.driver}`);
+      expect([replaced.status, replaced.body.error.message]).toEqual([404, NOT_VALID]);
+      expect((await t.anon.post(`/api/call-out/${tokens.driver}`, {})).status).toBe(404);
+      expect(await wrongHits()).toBe(hits);
       ok(await t.anon.get(`/api/call-out/${fresh}`));
       tokens.driver = fresh;
     }
@@ -146,7 +157,9 @@ describe('sending a call tree a message', () => {
   it('stops working when the message expires, when the activation closes, and while the area is switched off', async () => {
     if (tokens.driver) {
       await t.db.query(`update activation_callouts set expires_at = now() - interval '1 minute' where id = $1`, [calloutId]);
+      const hits = await wrongHits();
       expect((await t.anon.get(`/api/call-out/${tokens.driver}`)).status).toBe(404);
+      expect(await wrongHits()).toBe(hits); // expired, not wrong
       expect((await manager.post(`/api/emergency-activations/${activationId}/call-outs/${calloutId}/remind`, {})).body.error.code).toBe('expired');
       await t.db.query(`update activation_callouts set expires_at = now() + interval '1 hour' where id = $1`, [calloutId]);
       ok(await t.anon.get(`/api/call-out/${tokens.driver}`));
@@ -159,7 +172,11 @@ describe('sending a call tree a message', () => {
     ok(await manager.post(`/api/emergency-activations/${activationId}/stand-down`, { summary: 'Water down' }));
     expect((await manager.post(`/api/emergency-activations/${activationId}/call-outs`, { plan_id: planId, message: 'x' })).body.error.code).toBe('not_active');
     ok(await manager.post(`/api/emergency-activations/${activationId}/close`, { after_action_summary: 'Drains to clear.' }));
-    if (tokens.driver) expect((await t.anon.get(`/api/call-out/${tokens.driver}`)).status).toBe(404);
+    if (tokens.driver) {
+      const hits = await wrongHits();
+      expect((await t.anon.get(`/api/call-out/${tokens.driver}`)).status).toBe(404);
+      expect(await wrongHits()).toBe(hits); // closed, not wrong
+    }
   });
 
   it('anonymizing the activation clears the names and notes', async () => {

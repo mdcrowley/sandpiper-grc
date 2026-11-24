@@ -217,6 +217,15 @@ export const tests = [
       });
       await t.step('Tab and Shift+Tab stay inside the dialog', () => trapped(page));
       await t.step('Escape closes the dialog and focus returns to "New site"', async () => {
+        // Focus may have stopped on a search picker, whose list opens on focus: the first Escape closes only
+        // that list (the dialog stays), the next one closes the dialog.
+        const listOpen = () => page.eval(`document.activeElement?.getAttribute('role') === 'combobox' && document.activeElement.getAttribute('aria-expanded') === 'true'`);
+        if (await listOpen()) {
+          await page.key('Escape');
+          await sleep(200);
+          if (await listOpen()) throw new Error('Escape did not close the open list');
+          if (!(await page.eval(`!!document.querySelector('[role=dialog]')`))) throw new Error('Escape on an open list closed the whole dialog');
+        }
         await page.key('Escape');
         await page.waitFor('[role=dialog]', { gone: true, timeout: 3000 });
         if (!(await isMarkedFocused(page))) throw new Error('focus did not return to the New site button');

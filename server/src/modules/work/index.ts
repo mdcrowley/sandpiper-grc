@@ -98,7 +98,7 @@ function registerRoutes(ctx: ModuleContext) {
   });
   ctx.describeRoute({
     method: 'GET', path: '/api/work/mine', tag: 'My work',
-    summary: 'My due work across every area that is on: evidence requests, control tests, verifications, inspections, attestations, reassessments, certifications and more',
+    summary: 'My due work across every area that is on, by kind: each kind of dated work an area offers',
     description: 'Each kind is a calendar source a module registers (`work`). Items are the signed-in person\'s own, visible to them, overdue or due within `days` (default 30, at most 365); each kind lists at most `limit` items (default 5, at most 200), most urgent first, with its full count. Kinds of switched-off areas, or that need a permission the person lacks, are left out.',
     query: { type: 'object', properties: { days: { type: 'integer', minimum: 0, maximum: 365 }, limit: { type: 'integer', minimum: 1, maximum: 200 }, skip: { type: 'string', description: 'Comma-separated kinds (source keys) to leave out, for example `actions.due` where actions have a list of their own.' } } },
     response: 'MyDueWork: { sections: [{ key, kind, area, areaLabel, count, overdue, items: DueItem[] }], total, overdue, until, generatedAt }',

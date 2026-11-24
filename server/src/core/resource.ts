@@ -71,6 +71,8 @@ export const DETAIL_TYPES: ReadonlySet<string> = new Set(['text', 'longtext', 'j
 export const MASKED_SQL = `(chr(1) || 'restricted')`;
 export const MASKED_VALUE = '\u0001restricted';
 export const MASKED_LABEL = 'Restricted records';
+/** The same bucket when it also holds records outside the person's department or site scope. */
+export const OTHER_LABEL = 'Other records';
 
 /**
  * Record types whose files are evidence unless their definition says otherwise (E14-18): vendor
@@ -239,6 +241,19 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
     if (def.restricted === 'flag') parts.push(`coalesce(${alias ? `${alias}.` : ''}restricted, false)`);
     if (def.rowRule?.figures === 'mask' && def.rowRule.hidden) parts.push(`coalesce((${def.rowRule.hidden(columnOf(alias))}), false)`);
     return parts.length ? parts.join(' or ') : null;
+  }
+
+  /**
+   * The same for one person's figure, with the rows outside their department or site scope added
+   * (wave 23 A2): grouping or matching by a detail never reveals the words of a record the person
+   * cannot see. `scoped`: some rows are masked only for this person, so the bucket is "Other records".
+   */
+  function figureMaskFor(def: ResourceDef, user: SessionUser | null | undefined): { sql: string | null; scoped: boolean } {
+    const masked = maskedSql(def);
+    const scope = def.scope && user ? scopeSql(def, user, columnOf(), { people: defs.has('person'), sites: defs.has('site') }) : 'true';
+    if (scope === 'true') return { sql: masked, scoped: false };
+    const outside = `not coalesce(${scope}, false)`;
+    return { sql: masked ? `(${masked}) or ${outside}` : outside, scoped: true };
   }
 
   // ---------- inherited restriction ----------
@@ -740,7 +755,7 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
     const everyone = figures && !personal;
     // A personal item's rule (rowRule figures 'filter') applies to figures too.
     const where = ['deleted_at is null', everyone ? (def.rowRule?.figures === 'filter' ? rowRuleSql(def, user) : 'true') : visibilitySql(def, user)];
-    const masked = everyone ? maskedSql(def) : null;
+    const masked = everyone ? figureMaskFor(def, user).sql : null;
     const guard = (cond: string) => (masked ? `(not (${masked}) and ${cond})` : cond);
     const params: unknown[] = [];
     const add = (v: unknown) => { params.push(v); return `$${params.length}`; };
@@ -933,7 +948,8 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
       if (!f || !IDENT.test(group) || f.multiple) fail(400, 'bad_group', `Cannot group by "${group}".`);
       const { where, params, everyone } = buildWhere(def, query, req.user, customDefs, true);
       const col = columnSql(group, f);
-      const masked = everyone ? maskedSql(def) : null;
+      const hidden = everyone ? figureMaskFor(def, req.user) : { sql: null, scoped: false };
+      const masked = hidden.sql;
       const value = masked && DETAIL_TYPES.has(f.type)
         ? `case when (${masked}) and ${col} is not null then ${MASKED_SQL} else ${col}::text end`
         : `${col}::text`;
@@ -946,7 +962,7 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
       const names = f.type === 'user' ? await userNames(values) : new Map<string, string>();
       const refs = f.type === 'ref' ? await labelsFor(f.to!, values, req.user) : new Map<string, RecordLabel>();
       const groups = rows.map((r) => {
-        if (r.value === MASKED_VALUE) return { value: null, label: MASKED_LABEL, color: 'gray', count: r.count, restricted: true };
+        if (r.value === MASKED_VALUE) return { value: null, label: hidden.scoped ? OTHER_LABEL : MASKED_LABEL, color: 'gray', count: r.count, restricted: true };
         const lv = list.find((x) => x.value === r.value);
         const label = r.value === null ? 'None'
           : f.type === 'lookup' ? lv?.label ?? r.value

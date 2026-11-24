@@ -163,11 +163,11 @@ Select the **More actions** button (three dots), then **Retire policy**, and con
 Staff can choose to read the self-service portal, the acknowledgment kiosk and the mobile app in another language (English and Spanish today). A version can carry a translation for each of those languages; the version's own text stays the approved original.
 
 1. Open the policy's **Translations** tab. **Version** at the top right chooses which version (the published one first).
-2. Select **Translate** on the language's row (**Edit** once there is one). You need **Edit** on **Policies**.
+2. Select **Translate** on the language's row (**Edit** once there is one). You need **Edit** on **Policies**; for the published version you also need **Approve** on **Policies**, because staff read the change at once.
 3. Write the **Title**, and if you like the **Summary** and **What changed**, in that language, and the **Text** in Markdown, as the original. **Read the original text** below the form shows what you are translating. A new version's translation starts from the previous version's, when it had one.
 4. Select **Save translation**.
 
-You can translate a draft before it is approved, or add or correct the translation of the published version afterward: people who chose that language read it from the moment you save. A replaced (superseded) version's translations are kept as they were, and so are a retired policy's. **Read** shows a translation; **Remove** takes it away, after which people read the original. Every change is in the policy's **History**, with the text it replaced, so what someone read when they acknowledged can always be shown again. Discarding a draft discards its translations too.
+You can translate a draft before it is approved, or add or correct the translation of the published version afterward: people who chose that language read it from the moment you save. Changing or removing the translation of the published version needs permission to approve policies, as publishing does; the tab says so to people who may only edit. **Last changed** shows each translation's **text** stamp (the first characters of a SHA-256 fingerprint of its title, summary and text), which acknowledgments given in it record. A replaced (superseded) version's translations are kept as they were, and so are a retired policy's. **Read** shows a translation; **Remove** takes it away, after which people read the original. Every change is in the policy's **History**, with the text it replaced, so what someone read when they acknowledged can always be shown again. Discarding a draft discards its translations too.
 
 ## Compare versions
 
@@ -218,8 +218,8 @@ Open the policy's **Acknowledgments** tab.
 - **People** lists who was asked. Use **Show** to switch between outstanding, overdue only, acknowledged and everyone.
 - **By department** gives the same counts for each department.
 - **Version** switches to an earlier version's record.
-- An acknowledgment given in a translation says so after its date, for example (read in Spanish).
-- **Export CSV** downloads the list for the version shown, with a **Language read** column.
+- An acknowledgment given in a translation says so after its date, with the stamp of the translated text read, for example (read in Spanish, text 1a2b3c4d). If the translation was corrected later, its stamp on the **Translations** tab differs, and the policy's **History** holds the text that was read. Acknowledgments given before stamps were kept show the language only.
+- **Export CSV** downloads the list for the version shown, with a **Language read** column and a **Translation read (SHA-256)** column holding the full stamp.
 - **Staff on the roster** (shown to people who can see the roster) lists the roster people asked, with their employee number, position, status, when and how they acknowledged (**Sign-in sheet**, **Kiosk** or **By hand**) and who recorded it, with the same counts.
 
 ### Record acknowledgments from a sign-in sheet

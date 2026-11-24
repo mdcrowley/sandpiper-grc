@@ -6,15 +6,23 @@
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { UUID_RE } from '../../core/errors.ts';
+import { mayChangeScopeSources, SCOPE_SOURCE_MESSAGE } from '../../core/scope.ts';
 
 export function registerDepartments(ctx: ModuleContext): void {
   const { db } = ctx;
   const invalid = (fields: Record<string, string>): never => ctx.fail(400, 'validation', 'Check the highlighted fields.', fields);
 
   /** Name unique among live departments; the parent is another live department and not one below this one. */
-  async function check(patch: Row, existing: Row | null): Promise<Row> {
+  async function check(req: FastifyRequest | null, patch: Row, existing: Row | null): Promise<Row> {
     const fields: Record<string, string> = {};
     const id = existing?.id ?? null;
+    // A department's manager and the department it sits under decide whose scope it is in (core/scope.ts):
+    // someone whose roles are scoped may not move them, or they could widen their own reach.
+    if (existing && !mayChangeScopeSources(req?.user)) {
+      for (const k of ['manager_id', 'parent_id'] as const) {
+        if (k in patch && String(patch[k] ?? '') !== String(existing[k] ?? '')) fields[k] = SCOPE_SOURCE_MESSAGE;
+      }
+    }
     if (typeof patch.name === 'string') patch.name = patch.name.trim();
     if ('name' in patch) {
       if (!patch.name) fields.name = 'Give the department a name.';
@@ -56,8 +64,8 @@ export function registerDepartments(ctx: ModuleContext): void {
       description: { label: 'Description', type: 'longtext', personal: false },
     },
     hooks: {
-      beforeCreate: (_req, data) => check(data, null),
-      beforeUpdate: (_req, existing, patch) => check(patch, existing),
+      beforeCreate: (req, data) => check(req, data, null),
+      beforeUpdate: (req, existing, patch) => check(req, patch, existing),
     },
   });
 
@@ -80,6 +88,8 @@ export function registerDepartments(ctx: ModuleContext): void {
     if (!UUID_RE.test(id)) ctx.fail(404, 'not_found', 'Department not found.');
     if (!UUID_RE.test(into)) invalid({ into: 'Choose the department to merge into.' });
     if (id === into) invalid({ into: 'Choose another department.' });
+    // Merging moves a department's records and the departments below it: it changes scopes too.
+    if (!mayChangeScopeSources(req.user)) ctx.fail(403, 'forbidden', SCOPE_SOURCE_MESSAGE);
     const from = await ctx.resources.find('department', id, req.user);
     if (!from) ctx.fail(404, 'not_found', 'Department not found.');
     const target = await ctx.resources.find('department', into, req.user);

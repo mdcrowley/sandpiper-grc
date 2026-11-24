@@ -44,7 +44,7 @@ const destructionTest = (theme, width) => ({
 
     await t.step('the Progress card says a legal hold applies', async () => {
       await page.goto(`/destruction-log/${destruction.id}`);
-      await page.waitFor({ text: 'Under a legal hold' });
+      await page.waitFor({ text: 'Under a legal hold', tag: 'main *' });
       t.soft((await page.text('main')).includes(hold.ref), 'the hold reference is not shown');
     });
     const refused = await api.call('POST', `/api/records-destructions/${destruction.id}/submit`, {});
@@ -55,7 +55,7 @@ const destructionTest = (theme, width) => ({
       await page.goto(`/destruction-log/${destruction.id}`);
       await page.click({ text: 'Submit for approval', tag: 'button' });
       await page.click({ text: 'Submit', tag: 'button', within: '[role="dialog"]' });
-      await page.waitFor({ text: 'Waiting for approval' });
+      await page.waitFor({ text: 'Waiting for approval', tag: 'main *' });
     });
   },
 });

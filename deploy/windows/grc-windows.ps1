@@ -12,6 +12,8 @@
     & "C:\Program Files\Sandpiper GRC\grc-windows.ps1" cli <command> [args]   (any server/src/cli.ts command: status, backups, verify-backup, restore, export-all, seed, ...)
 
   Actions run by the installer (see tools\installer\sandpiper-grc.iss):
+    prepare        before the files of a new installation are copied: check and lock the program
+                   folder and the data folder (refused if either holds anything another user made)
     install        a new installation: folders and their permissions, the secret key, settings,
                    the service under its own virtual account, the firewall rule, start, wait for /api/ready
     pre-upgrade    before the new program files are copied: stop the service, back up the data with
@@ -27,7 +29,22 @@
   upgrade failed and the previous version is running again with its data; 3 the rollback did not
   finish (the service is stopped; the steps to finish by hand are printed and logged).
 
-  Everything it does is logged to <data folder>\logs\setup.log.
+  Everything it does is logged to <data folder>\setup.log, beside the folders, where only SYSTEM
+  and Administrators may write (the service may change logs\, so the log of what administrators
+  run is not kept there).
+
+  Trust (wave 23 security review, S2 to S4):
+    - Before a data folder or program folder that already exists is used, every item in it must
+      belong to SYSTEM, Administrators or TrustedInstaller (in data, backups, logs and seed also
+      the service's own account), and none may be a junction or symbolic link. Otherwise nothing is
+      done: another user may have made it, with settings or a key of their choosing. When the
+      check passes, ownership goes to Administrators and every permission below the top folder is
+      reset to the inherited ones, so no other entry survives.
+    - The program folder gets its own permissions (SYSTEM and Administrators full control, Users
+      and the service read and run), not those of its parent, wherever it is.
+    - Only GRC_* settings are taken from grc.env (never NODE_OPTIONS, PATH or anything else).
+    - Settings, upgrade\state.json and the program files are checked again (owner and
+      permissions) before this script, running elevated, reads or runs them.
 #>
 param(
   [Parameter(Position = 0)][string]$Action = 'help',
@@ -42,6 +59,7 @@ param(
   [switch]$RemoveData,
   [string]$Label = 'manual',
   [int]$ReadyTimeout = 300,
+  [string]$ReasonFile,
   [Parameter(ValueFromRemainingArguments = $true)][string[]]$Rest
 )
 
@@ -49,6 +67,20 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $RegistryRoot = 'HKLM:\SOFTWARE\Sandpiper GRC'
 $script:logFile = $null
+
+# Well-known accounts, by SID so that the names in any Windows language work.
+$SidSystem = 'S-1-5-18'
+$SidAdmins = 'S-1-5-32-544'
+$SidUsers = 'S-1-5-32-545'
+$SidNetworkService = 'S-1-5-20'
+$SidTrustedInstaller = 'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464'
+$TrustedOwners = @($SidSystem, $SidAdmins, $SidTrustedInstaller)
+# The folders of the data folder the service may change.
+$WritableFolders = @('data', 'backups', 'logs', 'seed')
+# The only settings taken from grc.env: the application's own.
+$AllowedSetting = '^GRC_[A-Za-z0-9_]+$'
+# The privileges the service keeps (sc.exe privs): no SeImpersonatePrivilege.
+$ServicePrivileges = 'SeChangeNotifyPrivilege/SeCreateGlobalPrivilege'
 
 function Write-Log([string]$text, [string]$color = '') {
   $line = '{0}  {1}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $text
@@ -93,7 +125,8 @@ function Set-UninstallVersion([string]$dir, [string]$ver) {
   }
 }
 
-# KEY=VALUE lines; # starts a comment.
+# KEY=VALUE lines; # starts a comment. Only GRC_* keys are returned; any other key (NODE_OPTIONS,
+# PATH...) is ignored and reported, because these settings reach processes run as administrator.
 function Read-EnvFile([string]$file) {
   $values = [ordered]@{}
   if (Test-Path $file) {
@@ -101,7 +134,10 @@ function Read-EnvFile([string]$file) {
       $line = $raw.Trim()
       if (-not $line -or $line.StartsWith('#')) { continue }
       $eq = $line.IndexOf('=')
-      if ($eq -gt 0) { $values[$line.Substring(0, $eq).Trim()] = $line.Substring($eq + 1).Trim() }
+      if ($eq -le 0) { continue }
+      $key = $line.Substring(0, $eq).Trim()
+      if ($key -notmatch $AllowedSetting) { Write-Log "Ignored the setting $key in $file`: only GRC_* settings are read." 'Yellow'; continue }
+      $values[$key] = $line.Substring($eq + 1).Trim()
     }
   }
   return $values
@@ -113,7 +149,8 @@ function Set-EnvValues([string]$file, $values) {
   if (Test-Path $file) { foreach ($l in Get-Content $file -Encoding UTF8) { $lines.Add($l) } }
   else {
     $lines.Add('# Sandpiper GRC settings, read by the service at every start (KEY=VALUE; see docs/installation.md, "Environment variables").')
-    $lines.Add('# Restart the service after a change. Never put a password or key here directly: use the *_FILE settings.')
+    $lines.Add('# Only GRC_* settings are read; any other line is ignored. Restart the service after a change.')
+    $lines.Add('# Never put a password or key here directly: use the *_FILE settings.')
   }
   foreach ($k in $values.Keys) {
     $v = [string]$values[$k]
@@ -137,6 +174,7 @@ function Get-Paths([string]$root) {
     Seed = Join-Path $root 'seed'; Config = Join-Path $root 'config'; Upgrade = Join-Path $root 'upgrade'
     EnvFile = Join-Path $root 'config\grc.env'; KeyFile = Join-Path $root 'config\secret.key'
     State = Join-Path $root 'upgrade\state.json'; Previous = Join-Path $root 'upgrade\previous'
+    SetupLog = Join-Path $root 'setup.log'
   }
 }
 
@@ -156,8 +194,10 @@ function Invoke-Native {
 }
 
 # Runs a command of server/src/cli.ts with the program files in $dir and the settings in grc.env.
+# It runs elevated, so the settings and the program it runs must be ones only administrators can change.
 function Invoke-Cli([string]$dir, [string]$root) {
   $paths = Get-Paths $root
+  Assert-AdminOnly @($paths.Root, $paths.Config, $paths.EnvFile, $dir, (Join-Path $dir 'node'), (Join-Path $dir 'node\node.exe'), (Join-Path $dir 'app'))
   foreach ($kv in (Read-EnvFile $paths.EnvFile).GetEnumerator()) { [Environment]::SetEnvironmentVariable($kv.Key, $kv.Value, 'Process') }
   $env:NODE_ENV = 'production'
   $env:GRC_WEB_DIST = Join-Path $dir 'app\dist\web'
@@ -220,21 +260,187 @@ function Invoke-Sc {
 
 # ---------- folders and permissions ----------
 
-# The data folder belongs to SYSTEM and Administrators; the service's own account may change the
-# data, backups, logs and seed folders and read the settings and the key; nobody else has access.
-function Set-Permissions($paths, [string]$svc) {
-  $acct = "NT SERVICE\$svc"
-  foreach ($d in $paths.Root, $paths.Data, $paths.Backups, $paths.Logs, $paths.Seed, $paths.Config, $paths.Upgrade) {
-    New-Item -ItemType Directory -Force $d | Out-Null
-  }
-  $grant = { param($target, [string[]]$rules) & icacls.exe $target @rules /Q | Out-Null; if ($LASTEXITCODE -ne 0) { throw "icacls $target failed ($LASTEXITCODE)." } }
-  & $grant $paths.Root @('/inheritance:r', '/grant:r', '*S-1-5-18:(OI)(CI)F', '*S-1-5-32-544:(OI)(CI)F', "${acct}:(RX)")
-  foreach ($d in $paths.Data, $paths.Backups, $paths.Logs, $paths.Seed) { & $grant $d @('/grant:r', "${acct}:(OI)(CI)M") }
-  & $grant $paths.Config @('/grant:r', "${acct}:(OI)(CI)RX")
-  Write-Log "Permissions set on $($paths.Root): SYSTEM and Administrators full control; $acct may change data, backups, logs and seed, and read config."
+# The SID of NT SERVICE\<name>, worked out from the name (the service need not exist yet).
+function Get-ServiceSid([string]$svc) {
+  $out = (& sc.exe showsid $svc 2>&1) -join "`n"
+  $m = [regex]::Match($out, 'S-1-5-80(-\d+){5}')
+  if (-not $m.Success) { throw "Could not work out the service SID of $svc ($out)." }
+  return $m.Value
 }
 
-# 32 random bytes as hex, readable by SYSTEM, Administrators and the service only.
+function Get-AccountName([string]$sid) {
+  try { return (New-Object Security.Principal.SecurityIdentifier $sid).Translate([Security.Principal.NTAccount]).Value } catch { return $sid }
+}
+
+function Test-Link($item) { return [bool]($item.Attributes -band [IO.FileAttributes]::ReparsePoint) }
+
+# Every item of a folder, the folder too, without following links. Returns what may not be trusted:
+# an item whose owner is not SYSTEM, Administrators or TrustedInstaller (in the folders named by
+# $writable also $writableOwners: the service's own account), a junction or symbolic link, or an
+# item that cannot be read. Stops after $max findings.
+function Find-UntrustedItems([string]$root, [string[]]$writable = @(), [string[]]$writableOwners = @(), [int]$max = 10) {
+  $found = New-Object System.Collections.Generic.List[string]
+  $stack = New-Object System.Collections.Generic.Stack[object]
+  $stack.Push(@((New-Object IO.DirectoryInfo $root), $false, $true))
+  while ($stack.Count -and $found.Count -lt $max) {
+    $entry = $stack.Pop()
+    $item = $entry[0]; $inWritable = $entry[1]; $isRoot = $entry[2]
+    try {
+      if (Test-Link $item) { $found.Add("$($item.FullName) (a junction or symbolic link)"); continue }
+      $owner = $item.GetAccessControl([Security.AccessControl.AccessControlSections]::Owner).GetOwner([Security.Principal.SecurityIdentifier]).Value
+      if (-not ($TrustedOwners -contains $owner -or ($inWritable -and $writableOwners -contains $owner))) {
+        $found.Add("$($item.FullName) (owner $(Get-AccountName $owner))")
+        continue
+      }
+      if ($item -is [IO.DirectoryInfo]) {
+        foreach ($c in $item.EnumerateFileSystemInfos()) {
+          $stack.Push(@($c, ($inWritable -or ($isRoot -and $c -is [IO.DirectoryInfo] -and $writable -contains $c.Name)), $false))
+        }
+      }
+    } catch { $found.Add("$($item.FullName) (cannot be read: $($_.Exception.Message))") }
+  }
+  return , $found
+}
+
+function Format-Refusal([string]$what, [string]$root, $found) {
+  return ("The $what $root already exists and holds items that another user may have made or can change:`r`n  " + ($found -join "`r`n  ") + "`r`n" +
+    "Nothing was changed. If you did not make this folder yourself, delete it (or choose another folder) and run the installer again. " +
+    "If you made it and have checked what is in it, give it to Administrators and run the installer again: " +
+    "takeown /F `"$root`" /A /R /D Y  (and delete any junction or link in it). See docs/installation.md, `"A folder that already exists`".")
+}
+
+# Rights that let someone change an item (or what it holds): write or append data, delete,
+# delete a child, change permissions or owner, and the generic write and all rights.
+$ChangeRights = 0x2 -bor 0x4 -bor 0x40 -bor 0x10000 -bor 0x40000 -bor 0x80000 -bor 0x10000000 -bor 0x40000000
+
+# Throws unless each path that exists belongs to SYSTEM, Administrators or TrustedInstaller, is not
+# a link, and gives no other account a right to change it. Run before this script, elevated,
+# reads settings or state, or runs a program, from a folder.
+function Assert-AdminOnly([string[]]$items, [int]$rights = $ChangeRights) {
+  foreach ($p in $items) {
+    if (-not $p -or -not (Test-Path -LiteralPath $p)) { continue }
+    $item = Get-Item -LiteralPath $p -Force
+    if (Test-Link $item) { throw "$p is a junction or symbolic link, so it is not used." }
+    $acl = $item.GetAccessControl([Security.AccessControl.AccessControlSections]'Owner, Access')
+    $owner = $acl.GetOwner([Security.Principal.SecurityIdentifier]).Value
+    if ($TrustedOwners -notcontains $owner) { throw "$p belongs to $(Get-AccountName $owner), not to Administrators, so it is not used. Run the installer again, which checks and resets the permissions." }
+    foreach ($r in $acl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier])) {
+      if ($r.AccessControlType -ne 'Allow' -or ($r.PropagationFlags -band [Security.AccessControl.PropagationFlags]::InheritOnly)) { continue }
+      $sid = $r.IdentityReference.Value
+      if ($TrustedOwners -contains $sid -or $sid -eq 'S-1-3-0') { continue }
+      if ([int]$r.FileSystemRights -band $rights) {
+        throw "$(Get-AccountName $sid) may change $p, so it is not used. Run the installer again (an upgrade, or the same version), which resets the permissions."
+      }
+    }
+  }
+}
+
+# A folder's own permissions, replacing whatever it had and not inherited from its parent; owner Administrators.
+# $rules: @(SID, rights, inherited by its contents).
+function Set-FolderAcl([string]$path, $rules) {
+  $sec = New-Object Security.AccessControl.DirectorySecurity
+  $sec.SetOwner((New-Object Security.Principal.SecurityIdentifier $SidAdmins))
+  $sec.SetAccessRuleProtection($true, $false)
+  foreach ($r in $rules) { $sec.AddAccessRule((New-Rule $r[0] $r[1] $r[2])) }
+  [IO.Directory]::SetAccessControl($path, $sec)
+}
+
+function Invoke-Icacls {
+  $out = & icacls.exe @args /C /Q 2>&1
+  if ($LASTEXITCODE -ne 0) { throw "icacls $($args -join ' ') failed ($LASTEXITCODE): $out" }
+}
+
+# Everything below $root: owner Administrators, explicit permissions removed (so only what is
+# inherited from $root and its folders applies). The check before has made sure no link is there.
+function Reset-Below([string]$root) {
+  if (@(Get-ChildItem -LiteralPath $root -Force).Count -eq 0) { return }
+  Invoke-Icacls "$root\*" /reset /T
+  Invoke-Icacls $root /setowner "*$SidAdmins" /T
+}
+
+# Checks a folder that exists (refused if anything in it may come from another user), creates it
+# if missing, and gives it its own permissions. The check runs again once it is locked, in case
+# something was added in between.
+function Protect-Folder([string]$what, [string]$root, $rules, [string[]]$writable = @(), [string[]]$writableOwners = @()) {
+  if (Test-Path -LiteralPath $root) {
+    $found = Find-UntrustedItems $root $writable $writableOwners
+    if ($found.Count) { throw (Format-Refusal $what $root $found) }
+  } else { New-Item -ItemType Directory -Force $root | Out-Null }
+  Set-FolderAcl $root $rules
+  $found = Find-UntrustedItems $root $writable $writableOwners
+  if ($found.Count) { throw (Format-Refusal $what $root $found) }
+  Reset-Below $root
+}
+
+# The program folder, wherever it is: SYSTEM and Administrators full control, Users and the service
+# read and run; nothing inherited from its parent (C:\ lets every signed-in user change new folders).
+function Protect-ProgramFolder([string]$dir, [string]$svc) {
+  $svcSid = Get-ServiceSid $svc
+  Protect-Folder 'program folder' $dir @(@($SidSystem, 'FullControl', $true), @($SidAdmins, 'FullControl', $true), @($SidUsers, 'ReadAndExecute', $true), @($svcSid, 'ReadAndExecute', $true))
+  Write-Log "Program folder $dir checked and locked: SYSTEM and Administrators full control, Users and the service read and run."
+  Write-ParentWarning $dir
+}
+
+# Re-applies the program folder's own permissions after files were copied into it (they inherit them).
+function Lock-ProgramFolder([string]$dir, [string]$svc) {
+  Set-FolderAcl $dir @(@($SidSystem, 'FullControl', $true), @($SidAdmins, 'FullControl', $true), @($SidUsers, 'ReadAndExecute', $true), @((Get-ServiceSid $svc), 'ReadAndExecute', $true))
+}
+
+# A folder whose parent others may rename or delete from could be moved away and replaced: say so.
+# (Adding files to the parent, as Users may in C:\ProgramData, does not matter.)
+$MoveRights = 0x40 -bor 0x10000 -bor 0x40000 -bor 0x80000 -bor 0x10000000
+function Write-ParentWarning([string]$dir) {
+  $parent = Split-Path $dir -Parent
+  while ($parent -and (Split-Path $parent -Parent)) {
+    try { Assert-AdminOnly @($parent) $MoveRights } catch {
+      Write-Log "Warning: an account other than the administrators may rename or change $parent, so $dir could be moved away and replaced. A folder only administrators can change, such as C:\Program Files or C:\ProgramData, is safer." 'Yellow'
+      return
+    }
+    $parent = Split-Path $parent -Parent
+  }
+}
+
+# The data folder belongs to SYSTEM and Administrators; the service's own account may change the
+# data, backups, logs and seed folders and read the settings and the key; nobody else has access.
+# A folder that exists is used only if nothing in it may come from another user (see the top).
+function Protect-DataFolder($paths, [string]$svc) {
+  $svcSid = Get-ServiceSid $svc
+  Protect-Folder 'data folder' $paths.Root @(@($SidSystem, 'FullControl', $true), @($SidAdmins, 'FullControl', $true), @($svcSid, 'ReadAndExecute', $false)) `
+    $WritableFolders @($svcSid, $SidNetworkService)
+  foreach ($d in $paths.Data, $paths.Backups, $paths.Logs, $paths.Seed, $paths.Config, $paths.Upgrade) { New-Item -ItemType Directory -Force $d | Out-Null }
+  foreach ($d in $paths.Data, $paths.Backups, $paths.Logs, $paths.Seed) { Grant-Folder $d $svcSid 'Modify' }
+  Grant-Folder $paths.Config $svcSid 'ReadAndExecute'
+  if (Test-Path -LiteralPath $paths.KeyFile) { Lock-SecretKey $paths.KeyFile $svcSid }
+  $script:logFile = $paths.SetupLog
+  Write-Log "Data folder $($paths.Root) checked and locked: SYSTEM and Administrators full control; NT SERVICE\$svc may change data, backups, logs and seed, and read config; no other entry is left."
+  Write-ParentWarning $paths.Root
+}
+
+# Permissions are set with .NET and SIDs, not icacls: icacls refuses NT SERVICE\<name> before the
+# service exists, which is the case when a new installation is prepared.
+function New-Rule([string]$sid, [string]$rights, [bool]$inherit) {
+  $flags = if ($inherit) { [Security.AccessControl.InheritanceFlags]'ContainerInherit, ObjectInherit' } else { [Security.AccessControl.InheritanceFlags]::None }
+  return New-Object Security.AccessControl.FileSystemAccessRule((New-Object Security.Principal.SecurityIdentifier $sid),
+    [Security.AccessControl.FileSystemRights]$rights, $flags, [Security.AccessControl.PropagationFlags]::None, [Security.AccessControl.AccessControlType]::Allow)
+}
+
+# Gives $sid these rights on a folder and everything in it, replacing any it had there.
+function Grant-Folder([string]$path, [string]$sid, [string]$rights) {
+  $sec = [IO.Directory]::GetAccessControl($path)
+  $sec.SetAccessRule((New-Rule $sid $rights $true))
+  [IO.Directory]::SetAccessControl($path, $sec)
+}
+
+function Lock-SecretKey([string]$file, [string]$svcSid) {
+  $sec = New-Object Security.AccessControl.FileSecurity
+  $sec.SetOwner((New-Object Security.Principal.SecurityIdentifier $SidAdmins))
+  $sec.SetAccessRuleProtection($true, $false)
+  foreach ($r in @(@($SidSystem, 'FullControl'), @($SidAdmins, 'FullControl'), @($svcSid, 'Read'))) { $sec.AddAccessRule((New-Rule $r[0] $r[1] $false)) }
+  [IO.File]::SetAccessControl($file, $sec)
+}
+
+# 32 random bytes as hex, readable by SYSTEM, Administrators and the service only. A key that is
+# there already was checked with its folder (Protect-DataFolder) and is kept.
 function New-SecretKey([string]$file, [string]$svc) {
   if (Test-Path $file) { Write-Log "Keeping the existing secret key $file."; return }
   $bytes = New-Object byte[] 32
@@ -242,8 +448,32 @@ function New-SecretKey([string]$file, [string]$svc) {
   $rng.GetBytes($bytes)
   $hex = -join ($bytes | ForEach-Object { $_.ToString('x2') })
   [IO.File]::WriteAllText($file, "$hex`n", (New-Object Text.UTF8Encoding($false)))
-  & icacls.exe $file /inheritance:r /grant:r '*S-1-5-18:F' '*S-1-5-32-544:F' "NT SERVICE\${svc}:R" /Q | Out-Null
+  Lock-SecretKey $file (Get-ServiceSid $svc)
   Write-Log "Created the secret key $file (readable by SYSTEM, Administrators and the service only). Keep a copy somewhere safe, apart from the backups."
+}
+
+# Deletes a folder and everything in it without following links: a junction or symbolic link in it
+# is removed as a link and what it points to is left alone (Remove-Item in Windows PowerShell 5.1
+# would delete the target's contents).
+function Remove-TreeSafely([string]$path) {
+  if (-not $path -or -not (Test-Path -LiteralPath $path)) { return }
+  $top = Get-Item -LiteralPath $path -Force
+  $links = New-Object System.Collections.Generic.List[object]
+  if (Test-Link $top) { $links.Add($top) } else {
+    $stack = New-Object System.Collections.Generic.Stack[IO.DirectoryInfo]
+    $stack.Push($top)
+    while ($stack.Count) {
+      foreach ($c in $stack.Pop().EnumerateFileSystemInfos()) {
+        if (Test-Link $c) { $links.Add($c) } elseif ($c -is [IO.DirectoryInfo]) { $stack.Push($c) }
+      }
+    }
+  }
+  foreach ($l in $links) {
+    Write-Log "  Removing the link $($l.FullName) (not what it points to)."
+    if ($l -is [IO.DirectoryInfo]) { & cmd.exe /d /c rmdir "$($l.FullName)" } else { & cmd.exe /d /c del /f /q /a "$($l.FullName)" }
+    if (Test-Path -LiteralPath $l.FullName) { throw "Could not remove the link $($l.FullName); nothing more was deleted." }
+  }
+  if (-not (Test-Link $top)) { Remove-Item -LiteralPath $path -Recurse -Force }
 }
 
 # ---------- actions ----------
@@ -259,20 +489,43 @@ function Confirm-ServiceLogon([string]$svc) {
   Write-Log "Windows refused NT SERVICE\$svc the right to log on as a service (a policy of this computer or its domain sets that right). Using NT AUTHORITY\NetworkService instead; the permissions of NT SERVICE\$svc still apply." 'Yellow'
   Invoke-Sc config $svc 'obj=' 'NT AUTHORITY\NetworkService' 'password=' '""'
 }
+
+# Only the privileges the server needs. Without this the account keeps the default service
+# privileges, among them SeImpersonatePrivilege, with which code running in the server could
+# make itself SYSTEM. Applies from the next start.
+function Set-ServicePrivileges([string]$svc) {
+  Invoke-Sc privs $svc $ServicePrivileges
+  Write-Log "The service keeps only $($ServicePrivileges -replace '/', ' and ') (no SeImpersonatePrivilege)."
+}
+
+# Before the installer copies the files of a new installation: the program folder and the data
+# folder are checked and locked first, so nothing can be put into either while it copies.
+function Invoke-Prepare {
+  foreach ($n in 'InstallDir', 'DataRoot') { if (-not (Get-Variable $n -ValueOnly)) { throw "prepare needs -$n." } }
+  Protect-DataFolder (Get-Paths $DataRoot) $ServiceName
+  Protect-ProgramFolder $InstallDir $ServiceName
+  Write-Log "== Prepared a new installation of Sandpiper GRC $Version (program $InstallDir, data $DataRoot)."
+  return 0
+}
+
 function Install-Grc {
   foreach ($n in 'InstallDir', 'DataRoot', 'Version') { if (-not (Get-Variable $n -ValueOnly)) { throw "install needs -$n." } }
   $paths = Get-Paths $DataRoot
-  New-Item -ItemType Directory -Force $paths.Logs | Out-Null
-  $script:logFile = Join-Path $paths.Logs 'setup.log'
-  Write-Log "== Installing Sandpiper GRC $Version as the service $ServiceName (program $InstallDir, data $DataRoot, port $Port)"
   $tls = [bool]$TlsCert
   if ($tls -and -not $TlsKey) { throw 'An HTTPS certificate needs its private key file too (-TlsKey).' }
   foreach ($f in @($TlsCert, $TlsKey) | Where-Object { $_ }) { if (-not (Test-Path $f -PathType Leaf)) { throw "File not found: $f" } }
 
+  # A service of this name (a reinstallation) is stopped first, so nothing changes the folders while they are checked.
+  $replace = [bool](Get-Service -Name $ServiceName -ErrorAction SilentlyContinue)
+  if ($replace) { Stop-GrcService $ServiceName }
+  # Nothing is read from or written to the folders before they are checked and locked.
+  Protect-DataFolder $paths $ServiceName
+  Protect-ProgramFolder $InstallDir $ServiceName
+  Write-Log "== Installing Sandpiper GRC $Version as the service $ServiceName (program $InstallDir, data $DataRoot, port $Port)"
+
   # The service, under its own virtual account (NT SERVICE\<name>): no password, no rights elsewhere.
-  if (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue) {
+  if ($replace) {
     Write-Log "A service named $ServiceName exists already; replacing its definition."
-    Stop-GrcService $ServiceName
     Invoke-Sc delete $ServiceName
     Start-Sleep -Seconds 2
   }
@@ -281,12 +534,12 @@ function Install-Grc {
     -StartupType Automatic -Description 'Sandpiper GRC: governance, risk and compliance. Its logs are in the logs folder of its data folder.' | Out-Null
   Invoke-Sc config $ServiceName 'obj=' "NT SERVICE\$ServiceName"
   Invoke-Sc sidtype $ServiceName unrestricted
+  Set-ServicePrivileges $ServiceName
   # Restart after a failure: 5 seconds, then 10, then a minute; the count resets after a day.
   Invoke-Sc failure $ServiceName 'reset=' 86400 'actions=' 'restart/5000/restart/10000/restart/60000'
   Invoke-Sc failureflag $ServiceName 1
   Write-Log "Service $ServiceName created (starts at boot, runs as NT SERVICE\$ServiceName, restarts after a failure)."
 
-  Set-Permissions $paths $ServiceName
   New-SecretKey $paths.KeyFile $ServiceName
   if ($tls) {
     foreach ($f in $TlsCert, $TlsKey) { & icacls.exe $f /grant "NT SERVICE\${ServiceName}:R" /Q | Out-Null }
@@ -321,9 +574,20 @@ function Install-Grc {
 function Save-State($paths, $state) {
   [IO.File]::WriteAllText($paths.State, ($state | ConvertTo-Json), (New-Object Text.UTF8Encoding($false)))
 }
-function Read-State($paths) {
+# upgrade\state.json drives copies and a restore as administrator, so it is used only when only
+# administrators can have written it, and only with this installation's own folders in it.
+function Read-State($paths, $i) {
   if (-not (Test-Path $paths.State)) { return $null }
-  return Get-Content $paths.State -Raw | ConvertFrom-Json
+  Assert-AdminOnly @($paths.Root, $paths.Upgrade, $paths.State)
+  $state = Get-Content $paths.State -Raw | ConvertFrom-Json
+  $same = { param($a, $b) [IO.Path]::GetFullPath([string]$a).TrimEnd('\') -eq [IO.Path]::GetFullPath([string]$b).TrimEnd('\') }
+  if (-not (& $same $state.previous $paths.Previous) -or -not (& $same $state.installDir $i.InstallDir)) {
+    throw "upgrade\state.json names other folders than this installation's ($($state.previous), $($state.installDir)), so it is not used."
+  }
+  if ($state.backup -and -not [IO.Path]::GetFullPath([string]$state.backup).StartsWith($paths.Backups.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase)) {
+    throw "upgrade\state.json names a backup outside $($paths.Backups) ($($state.backup)), so it is not used."
+  }
+  return $state
 }
 
 function Copy-Tree([string]$from, [string]$to) {
@@ -335,15 +599,25 @@ function Invoke-PreUpgrade {
   $i = Read-Installation $ServiceName
   if (-not $i) { throw "No installation named $ServiceName is recorded in the registry." }
   $paths = Get-Paths $i.DataRoot
-  New-Item -ItemType Directory -Force $paths.Upgrade | Out-Null
-  $script:logFile = Join-Path $paths.Logs 'setup.log'
-  Write-Log "== Upgrading Sandpiper GRC $($i.Version) to $Version (service $ServiceName)"
-  # This script stays beside the data, so a rollback can run whatever state the program folder is in.
-  Copy-Item $PSCommandPath (Join-Path $paths.Upgrade 'grc-windows.ps1') -Force
   $wasRunning = (Get-ServiceState $ServiceName) -eq 'Running'
-
-  Write-Log '[1/6] Stop the service'
+  # Stopped first, so nothing changes the folders while they are checked.
   Stop-GrcService $ServiceName
+  try {
+    # The same check as a new installation: an installation made before it (or a folder made in
+    # advance by another user) is checked, and its permissions are reset, before anything is read.
+    Protect-DataFolder $paths $ServiceName
+    Protect-ProgramFolder $i.InstallDir $ServiceName
+  } catch {
+    $why = $_.Exception.Message
+    if ($wasRunning) { Start-GrcService $i | Out-Null }
+    throw "$why Nothing was upgraded."
+  }
+  Write-Log "== Upgrading Sandpiper GRC $($i.Version) to $Version (service $ServiceName)"
+  # A copy of this script stays beside the data, for an administrator who must finish a rollback by
+  # hand. The installer itself runs its own copy (in its temporary folder), never this one.
+  Copy-Item $PSCommandPath (Join-Path $paths.Upgrade 'grc-windows.ps1') -Force
+
+  Write-Log '[1/6] Stop the service (stopped)'
 
   Write-Log '[2/6] Back up the data (with the installed version)'
   $backup = $null
@@ -377,10 +651,12 @@ function Invoke-PreUpgrade {
 function Invoke-PostUpgrade {
   $i = Read-Installation $ServiceName
   $paths = Get-Paths $i.DataRoot
-  $script:logFile = Join-Path $paths.Logs 'setup.log'
-  $state = Read-State $paths
+  $script:logFile = $paths.SetupLog
+  $state = Read-State $paths $i
   if (-not $state) { throw 'No upgrade is in progress (upgrade\state.json is missing).' }
   Write-Log '[4/6] Program files replaced by the installer'
+  Lock-ProgramFolder $i.InstallDir $ServiceName
+  Set-ServicePrivileges $ServiceName
   $state.stage = 'migrate'; Save-State $paths $state
 
   Write-Log '[5/6] Database migrations'
@@ -392,7 +668,7 @@ function Invoke-PostUpgrade {
 
   $i.Version = $Version
   Save-Installation $i
-  Remove-Item $paths.Previous -Recurse -Force -ErrorAction SilentlyContinue
+  try { Remove-TreeSafely $paths.Previous } catch { Write-Log "Could not remove $($paths.Previous): $_" 'Yellow' }
   Remove-Item $paths.State -Force
   Write-Log "Upgrade complete: $($state.fromVersion) to $Version." 'Green'
   if ($state.backup) { Write-Log "The data as it was before the upgrade is in the backup $($state.backup)." }
@@ -402,14 +678,15 @@ function Invoke-PostUpgrade {
 function Invoke-Rollback([string]$step, [bool]$dataMayHaveChanged) {
   $i = Read-Installation $ServiceName
   $paths = Get-Paths $i.DataRoot
-  if (-not $script:logFile) { $script:logFile = Join-Path $paths.Logs 'setup.log' }
-  $state = Read-State $paths
+  if (-not $script:logFile) { $script:logFile = $paths.SetupLog }
+  $state = Read-State $paths $i
   if (-not $state) { Write-Log 'No upgrade is in progress: nothing to roll back.'; return 0 }
   Write-Log "UPGRADE FAILED at: $step. Rolling back to version $($state.fromVersion)..." 'Yellow'
   $failedAt = $null
   try { Stop-GrcService $ServiceName } catch { Write-Log "Stopping: $_" }
   try {
     Copy-Tree $state.previous $state.installDir
+    Lock-ProgramFolder $state.installDir $ServiceName
     Write-Log "  Program files: version $($state.fromVersion) put back."
   } catch { $failedAt = "putting the previous program files back ($_)" }
   if (-not $failedAt -and $dataMayHaveChanged -and $state.backup) {
@@ -439,16 +716,16 @@ function Invoke-Recover {
   $i = Read-Installation $ServiceName
   if (-not $i) { return 0 }
   $paths = Get-Paths $i.DataRoot
-  $state = Read-State $paths
+  $script:logFile = $paths.SetupLog
+  $state = Read-State $paths $i
   if (-not $state) { return 0 }
-  $script:logFile = Join-Path $paths.Logs 'setup.log'
   if ($state.stage -eq 'files') { return (Invoke-Rollback 'replacing the program files (the installer did not finish)' $false) }
   return (Invoke-Rollback "an interrupted upgrade (stage $($state.stage))" $true)
 }
 
 function Uninstall-Grc {
   $i = Read-Installation $ServiceName
-  if ($i) { $script:logFile = Join-Path $i.DataRoot 'logs\setup.log' }
+  if ($i) { try { Assert-AdminOnly @($i.DataRoot); $script:logFile = (Get-Paths $i.DataRoot).SetupLog } catch { Write-Host "$_" } }
   Write-Log "== Removing the service $ServiceName"
   if (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue) {
     Stop-GrcService $ServiceName
@@ -459,10 +736,12 @@ function Uninstall-Grc {
   Remove-Item (Get-RegistryKey $ServiceName) -Recurse -Force -ErrorAction SilentlyContinue
   if ((Test-Path $RegistryRoot) -and -not (Get-ChildItem $RegistryRoot)) { Remove-Item $RegistryRoot -Force }
   if ($i) {
-    Remove-Item (Get-Paths $i.DataRoot).Previous -Recurse -Force -ErrorAction SilentlyContinue
+    try { Remove-TreeSafely (Get-Paths $i.DataRoot).Previous } catch { Write-Log "Could not remove the copy of the previous program files: $_" 'Yellow' }
     if ($RemoveData) {
       $script:logFile = $null
-      Remove-Item $i.DataRoot -Recurse -Force
+      # Links in it (the service could make some in the folders it may change) are removed as links:
+      # what they point to is never deleted.
+      Remove-TreeSafely $i.DataRoot
       Write-Host "Deleted the data folder $($i.DataRoot)."
     } else {
       Write-Log "The data folder $($i.DataRoot) was kept: the database, attached files, backups, settings and the secret key. Installing again with the same data folder uses it."
@@ -482,6 +761,7 @@ if ($needsAdmin -and -not (Test-Administrator)) {
 $code = 0
 try {
   switch ($Action) {
+    'prepare' { $code = Invoke-Prepare }
     'install' { $code = Install-Grc }
     'pre-upgrade' { $code = Invoke-PreUpgrade }
     'post-upgrade' { $code = Invoke-PostUpgrade }
@@ -493,7 +773,8 @@ try {
     'restart' { $i = Read-Installation $ServiceName; Stop-GrcService $ServiceName; $code = $(if (Start-GrcService $i) { 0 } else { 1 }) }
     'backup' {
       $i = Read-Installation $ServiceName
-      $script:logFile = Join-Path $i.DataRoot 'logs\setup.log'
+      Assert-AdminOnly @($i.DataRoot)
+      $script:logFile = (Get-Paths $i.DataRoot).SetupLog
       $was = (Get-ServiceState $ServiceName) -eq 'Running'
       Stop-GrcService $ServiceName
       $code = Invoke-Cli $i.InstallDir $i.DataRoot backup --label $Label
@@ -513,10 +794,12 @@ try {
       Write-Host "Program: $($i.InstallDir)  Data: $($i.DataRoot)  Address: $($i.Scheme)://localhost:$($i.Port)/"
       $code = $(if ($state -eq 'Running' -and $ready) { 0 } else { 1 })
     }
-    default { Get-Help $PSCommandPath | Out-Host; Write-Host 'Actions: install, pre-upgrade, post-upgrade, rollback, recover, uninstall, start, stop, restart, backup, cli, status' }
+    default { Get-Help $PSCommandPath | Out-Host; Write-Host 'Actions: prepare, install, pre-upgrade, post-upgrade, rollback, recover, uninstall, start, stop, restart, backup, cli, status' }
   }
 } catch {
   Write-Log "FAILED: $_" 'Red'
+  # The installer shows this reason (it cannot see this window).
+  if ($ReasonFile) { try { [IO.File]::WriteAllText($ReasonFile, "$_", (New-Object Text.UTF8Encoding($false))) } catch { } }
   $code = 1
 }
 # A function's stray output must not hide its exit code: the last value is the code.

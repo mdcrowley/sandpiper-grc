@@ -8,6 +8,7 @@ import { UUID_RE } from '../../core/errors.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import type { FastifyRequest } from 'fastify';
 import { featureState, ownedOff } from '../../core/features.ts';
+import { isReviewerAccount, REVIEWER_ROLES_MESSAGE } from '../../core/reviewers.ts';
 import { adminRoute, administratorIds, body, guardAdministrators, idParam, invalid, sensitive } from './shared.ts';
 
 // Never selects password_hash, totp_secret or recovery_codes.
@@ -223,6 +224,8 @@ export function registerUsers(ctx: ModuleContext) {
       const s = await featureState(db);
       const keep = (before.roles as { key: string }[]).map((r) => r.key).filter((k) => ownedOff(s, 'role', k) && !roles!.some((r) => r.key === k));
       if (keep.length) roles.push(...await db.query<{ id: string; key: string }>('select id, key from roles where key = any($1::text[])', [keep]));
+      // An outside reviewer's account holds no roles (E41-09, core/reviewers.ts).
+      if (roles.length && (await isReviewerAccount(db, id))) fields.roles = REVIEWER_ROLES_MESSAGE;
     }
     let status: string | undefined;
     if (b.status !== undefined) {

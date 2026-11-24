@@ -8,7 +8,7 @@ const KEY = 'lost_property';
 
 const FIELDS = [
   { key: 'found_on', label: 'Found on', type: 'date', position: 10 },
-  { key: 'found_where', label: 'Where found', type: 'text', position: 20, help: 'Vehicle, station, stop or depot.' },
+  { key: 'found_where', label: 'Where found', type: 'text', position: 20, help: 'The place the item was found or handed in.' },
   {
     key: 'category', label: 'Kind of item', type: 'select', position: 30,
     options: [['bag', 'Bag'], ['phone', 'Phone'], ['wallet', 'Wallet or purse'], ['keys', 'Keys'], ['clothing', 'Clothing'], ['other', 'Other']],
@@ -27,7 +27,7 @@ export async function seedRegisters(ctx: ModuleContext, regs: Registers, opts: S
   if (!regs.rows.has(KEY)) {
     const values = await checkRegister(ctx, regs, {
       key: KEY, label: 'Lost property item', plural: 'Lost property', prefix: 'LP', nav_group: 'Service desk', icon: 'box', title_label: 'Item',
-      description: 'Items found on vehicles and at stations and depots, kept until the owner collects them or they are disposed of.',
+      description: 'Items found and handed in, kept until the owner collects them or they are disposed of.',
     }, null);
     await createRegister(ctx, regs, values, null);
   }

@@ -1,6 +1,6 @@
 # E18 Quality and known defects
 
-**Status:** done (67 of 67 issues done)
+**Status:** done (68 of 68 issues done)
 
 ## Goal
 
@@ -88,6 +88,7 @@ has never been checked, so nobody relies on something untested.
 | E18-65 | Hand-written tables, the Create menu filter and the remaining interface items | done | P3 |
 | E18-66 | Wave 19 security review: models and custom references | done | P1 |
 | E18-67 | Wave 19 security review: provisioning, sign-in address and CSV | done | P1 |
+| E18-68 | Wave 23 security review: access, platform, files and the Windows installer | done | P1 |
 
 ---
 
@@ -1422,3 +1423,23 @@ The wave 19 internal security review found: two definitions of "can administer",
 - [x] The dev-seed sample rename fallback is audited with its reason and skips records under a legal hold
 
 **Implemented in:** `server/src/core/identity/accounts.ts`, `service.ts`, `server/src/modules/integrations/scim.ts`, `scim-admin.ts`, `shared.ts`, `migrations/002_scim_provisioned.sql`, `server/src/modules/admin/users.ts`, `roles.ts`, `sso.ts`, `web/src/modules/admin/SamlFields.tsx`, `shared/csv-guard.ts`, `server/src/core/export/csv.ts`, `server/src/core/import/routes.ts`, `web/src/core/ListBulk.tsx`, `web/src/modules/training/Records.tsx`, `server/src/modules/inventory/seed-rename.ts`; tests in `integrations/scim.test.ts`, `admin/sso.test.ts`, `core/identity/`, `web/src/core/csvGuard.test.ts`, `inventory/seed-rename-hold.test.ts`.
+
+
+### E18-68 Wave 23 security review: access, platform, files and the Windows installer
+
+**Status:** done · **Priority:** P1 · **Type:** security
+
+The wave 23 internal security review of waves 20 to 22 found issues in four groups: access (scoped people could widen their own scope, detail groupings showed out-of-scope values, outside reviewer accounts could be given roles, offered in pickers and spared a second factor, access-review self-decision under another spelling of the same account, a confidential reporter named in the outgoing message log); the platform (figures saved by people who could not report on their type, register removal, moving an active contract to another vendor, published policy translations changed without approval); attached files (a hostile PDF could exhaust the server while its text was read); and the Windows installer (pre-created folders, settings and scripts that other users could change, service privileges, uninstall following links). Each finding has a regression test; the installer fixes were proven by an elevated install on Windows 11 and in the GitHub Windows workflow. What is left is listed in [Known gaps](../../known-gaps.md).
+
+**Acceptance criteria**
+
+- [x] A hostile PDF cannot exhaust the server: file text is read in a child process with memory and time limits, attempts are recorded first, a stopped file is retried once then failed; vendor files waiting for review are not read (S1)
+- [x] A pre-created data or program folder is refused; only `GRC_*` settings are read; elevated steps check file ownership; the program folder is locked down wherever installed; the service keeps two privileges; uninstall does not follow links (S2-S4, E42-08)
+- [x] Replaced or expired call-out links do not count toward the wrong-link limit; meeting invitations are limited to 10 sends per meeting per hour (S5, S6)
+- [x] Figures are checked as the person who saves them; register removal touches only its own grants and refuses records arriving during removal; moving an active contract to another vendor is checked like an activation; published policy translations need approval and acknowledgments record the text's SHA-256 (F1-F5)
+- [x] Scoped people cannot widen their own scope; detail groupings are masked by scope; outside reviewer accounts hold no roles, fail closed without their module, must use a second factor and are not offered in pickers; access-review self-decision by name or email; the confidential reporter's closing message is in-app only (A1-A6)
+- [x] Every finding has a regression test; the installer fixes were proven by an elevated install on Windows 11 and in the GitHub Windows workflow
+
+**Implemented in:** `server/src/modules/attachments/text.ts`, `text-reader.mjs`, `deploy/windows/`, `server/src/modules/reports/figures.ts`, `server/src/modules/registers/admin.ts`, `server/src/modules/vendors/index.ts`, `server/src/modules/policies/translations.ts`, `server/src/core/scope.ts`, `core/reviewers.ts`, `core/resource.ts`, `server/src/modules/accessreviews/campaigns.ts`, `server/src/modules/safety/confidential.ts`.
+
+**GitHub browser run of waves 20 to 22:** the Projects menu entry for certification is now "Certifiable items", the same as its page title; text naming switched-off areas was removed from the assistant's `my_work` tool, the API help, the compliance calendar, About, the role "Which records" card, the starter vendor intake and the sample register; the custom fields of a switched-off record type or register are no longer listed under Administration > Custom fields. The new browser tests in suites 05, 13, 17, 24, 25 and 26 were corrected (waits for plain text name an element, Escape closes an open search list before its dialog, the switched-off register's expected 404 is allowed); no product change was needed for them.

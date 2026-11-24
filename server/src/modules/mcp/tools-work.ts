@@ -35,8 +35,8 @@ async function typeMeta(t: ToolContext, key: string) { return (await t.meta()).r
 const myWork: ToolSpec = {
   name: 'my_work', title: 'My work', group: 'Work and insight', idempotent: true,
   description: 'What is waiting for you in the parts of the application you use: work assigned to you, your open actions, '
-    + 'approvals and acknowledgments waiting for you, every other kind of due work (evidence requests, control tests, verifications, inspections, '
-    + 'obligation periods to attest, vendor reassessments, certifications) and unread notifications, soonest due first.',
+    + 'approvals and acknowledgments waiting for you, every other kind of dated work that the areas switched on offer, '
+    + 'and unread notifications, soonest due first.',
   input: {},
   async run(_args, t) {
     const sections: Section[] = [];

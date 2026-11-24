@@ -122,7 +122,7 @@ const callOutTest = (theme, width) => ({
       await page.click({ text: 'Record acknowledgment', tag: 'button' });
       await page.fill({ label: 'Note' }, 'Called at 05:10');
       await page.click({ text: 'Record', tag: 'button' });
-      await page.waitFor({ text: '1 of 2 acknowledged' });
+      await page.waitFor({ text: '1 of 2 acknowledged', tag: 'main *' });
       t.soft((await page.text('main')).includes('Called at 05:10'), 'the note is not shown');
     });
   },

@@ -9,8 +9,9 @@
 //   SandpiperService.exe --name <service name> --config <grc.env>             (run by the service manager)
 //   SandpiperService.exe --name <service name> --config <grc.env> --console   (in a window, for a test; Enter stops it)
 //
-// The configuration file holds KEY=VALUE lines (# starts a comment). They are given to the server
-// as environment variables, on top of the service's own environment. Paths of the program files
+// The configuration file holds KEY=VALUE lines (# starts a comment). The GRC_* ones are given to
+// the server as environment variables, on top of the service's own environment; any other key
+// (NODE_OPTIONS, PATH...) is ignored and named in service.log. Paths of the program files
 // are worked out from where this file is: node\node.exe and app\ beside it.
 //
 // Stopping: the server watches for <GRC_DATA_DIR>\grc.stop and shuts down cleanly when it appears
@@ -85,8 +86,13 @@ namespace Sandpiper
             return 0;
         }
 
-        /// <summary>KEY=VALUE lines; blank lines and lines starting with # are skipped.</summary>
-        public static Dictionary<string, string> ReadSettings(string file)
+        /// <summary>
+        /// KEY=VALUE lines; blank lines and lines starting with # are skipped. Only the application's
+        /// own settings (GRC_ followed by letters, digits and _) are taken: anything else, such as
+        /// NODE_OPTIONS or PATH, could make node.exe run other code, so it is left out and its name
+        /// is added to <paramref name="ignored"/>.
+        /// </summary>
+        public static Dictionary<string, string> ReadSettings(string file, List<string> ignored)
         {
             Dictionary<string, string> values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (string raw in File.ReadAllLines(file, Encoding.UTF8))
@@ -95,8 +101,29 @@ namespace Sandpiper
                 if (line.Length == 0 || line.StartsWith("#")) continue;
                 int eq = line.IndexOf('=');
                 if (eq <= 0) continue;
-                values[line.Substring(0, eq).Trim()] = line.Substring(eq + 1).Trim();
+                string key = line.Substring(0, eq).Trim();
+                if (!IsAllowedSetting(key)) { if (ignored != null) ignored.Add(key); continue; }
+                values[key] = line.Substring(eq + 1).Trim();
             }
+            return values;
+        }
+
+        public static bool IsAllowedSetting(string key)
+        {
+            if (key.Length <= 4 || !key.StartsWith("GRC_", StringComparison.OrdinalIgnoreCase)) return false;
+            foreach (char c in key)
+            {
+                if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_')) return false;
+            }
+            return true;
+        }
+
+        private Dictionary<string, string> LoadSettings()
+        {
+            List<string> ignored = new List<string>();
+            Dictionary<string, string> values = ReadSettings(configFile, ignored);
+            if (ignored.Count > 0 && logFile != null)
+                Log("Ignored settings in " + configFile + ": " + string.Join(", ", ignored.ToArray()) + " (only GRC_* settings are read).");
             return values;
         }
 
@@ -122,7 +149,7 @@ namespace Sandpiper
 
         public void StartHost()
         {
-            settings = ReadSettings(configFile);
+            settings = ReadSettings(configFile, null);
             string logDir = Setting("GRC_LOG_DIR", Path.Combine(Path.GetDirectoryName(Path.GetFullPath(configFile)), "..\\logs"));
             Directory.CreateDirectory(logDir);
             logFile = Path.Combine(logDir, "service.log");
@@ -194,7 +221,7 @@ namespace Sandpiper
 
         private Process Launch()
         {
-            settings = ReadSettings(configFile);
+            settings = LoadSettings();
             string node = Path.Combine(baseDir, "node\\node.exe");
             string app = Path.Combine(baseDir, "app");
             ProcessStartInfo psi = new ProcessStartInfo(node,

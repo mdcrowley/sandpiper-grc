@@ -130,7 +130,7 @@ Open the person from the **Users** list.
 - On the **Details** card, change the **Name**, **Username**, **Email** or **Department** and select **Save details**.
 - On the **Roles** card, select or clear roles and select **Save roles**. A role marked "(switched off)" can be given but grants nothing until it is switched on. A role marked "needs a second factor" expects its members to set one up.
 
-Role changes take effect immediately.
+Role changes take effect immediately. An outside reviewer's account cannot be given roles: the application refuses, and so do role mapping from a sign-in provider and user provisioning.
 
 ### Unlocking an account
 
@@ -162,6 +162,8 @@ When someone leaves or no longer needs access, disable the account rather than r
 Select **Enable account** to reverse it. Accounts cannot be deleted, so that names in records and history keep their meaning.
 
 Accounts of outside reviewers (people outside the organization invited to one audit or funder review, see [Outside reviewers](25-audits-and-inspections.md#outside-reviewers)) are listed here too. They are disabled by themselves when no review is open to them any more. Give them no roles: whatever their roles, they reach only the reviews they are invited to and their own account security. An outside reviewer's account you disable stays disabled even when someone invites them again.
+
+Outside reviewers' accounts cannot hold roles: saving roles on one is refused, single sign-on role mapping and user provisioning never give them one, and any role that reaches one another way grants nothing and is taken off by the next check, every six hours. Their accounts are never offered when someone picks a person. They must set up a second factor at their first sign-in (see [Second factor](#second-factor)). If the server is ever started without the outside reviews part of the application, these accounts cannot sign in at all.
 
 Two safeguards apply. You cannot disable your own account or remove your own administrator access; ask another administrator. And the application refuses any change that would leave no active administrator.
 
@@ -286,7 +288,8 @@ A role can be limited to the records of its members' own departments or sites, s
 - A record with no department or site, or another one, is hidden from them everywhere: lists, record pages, search, pickers, links, exports and the AI assistant, as restricted records are. They always see the records they created.
 - A limit applies only to records that carry that kind of place: limited to **Their sites**, a role still reaches every project, since projects have no site.
 - Another role of theirs that grants the same area with **All records** lifts the limit. The **Administrator** role cannot be limited.
-- Figures (counts, charts and dashboards) still count every record, the same for everyone.
+- Figures (counts, charts and dashboards) still count every record, the same for everyone. A figure grouped by words (a name, an email address, notes) shows the words only of records the person can see: records outside their departments or sites, and restricted ones, are counted together under **Other records**, so the total is unchanged. Figures grouped by a list (status, priority, type) are the same for everyone.
+- A person whose role is limited this way cannot widen their own reach: they cannot change the **Manager** or **Part of** of a department or site, merge departments, link a roster entry to their own account, or change the department, work site or status of their own roster entry. An administrator, or someone none of whose roles is limited, makes those changes.
 
 Limiting a role narrows what its members work with; it does not keep records confidential. For that, use restricted records.
 
@@ -309,6 +312,7 @@ A second factor means a stolen password is not enough to sign in. After setting 
 
 - Members of any role that has **Members must use a second factor** checked. **Administrator** and **Security lead** have it to begin with.
 - Everyone, if **Expect a second factor from every user** is switched on under **Settings > Security**.
+- Outside reviewers (people invited from outside the organization to one audit or funder review), while **Outside reviewers must use a second factor** is on under **Settings > Security** (on to begin with). For them it is always required at once, whatever **Enforcement** and **Grace period** say: after their first sign-in they can only set up an authenticator app or a passkey, change their password or sign out.
 
 What happens to a person who is expected to use a second factor and has not set one up depends on **Enforcement** under **Settings > Security**:
 
@@ -804,7 +808,7 @@ An option of a part that is switched off counts as off and cannot be changed unt
 
 Custom fields are your own fields on a kind of record, added without any change to the software. Open **Administration > Custom fields**. For a kind of record of your own (lost property, keys issued, visitors), define a register under **Administration > Registers** and give it custom fields: see [Registers](41-registers.md).
 
-Choose the kind of record under **Record type**. The table lists its custom fields in order, with **Order**, **Field** (the label, and underneath the name used in the API and exports, such as `cf_funding_source`), **Type**, **Section** and **State** (**In use** or **Switched off**).
+Choose the kind of record under **Record type**. The table lists its custom fields in order, with **Order**, **Field** (the label, and underneath the name used in the API and exports, such as `cf_funding_source`), **Type**, **Section** and **State** (**In use** or **Switched off**). The fields of a kind of record whose area is switched off under **Administration > Features** (or of a register that is switched off) are not listed; they are kept and come back when it is switched on again.
 
 A custom field appears on the record type's forms and record pages, can be chosen as a list column and filter, and is included in CSV exports, the record's history and webhook deliveries. That includes the guided forms (a new ticket, a new change, declaring a security incident, taking an assessment snapshot, a project request). Two places ask less, on purpose: the self-service portal does not ask the custom fields of tickets (the service desk fills them in, and a required one is not enforced there), and the one-line quick add for actions asks only the required ones. A project request does not ask them of people who may submit requests but not view projects, and does not enforce required ones for them.
 

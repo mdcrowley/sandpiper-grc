@@ -224,6 +224,7 @@ Read them in code with `ctx.settings.get(key, fallback)`, using the same fallbac
 | `auth.mfa_required_for_all` | `false` | Second factor required for everyone |
 | `auth.mfa_enforcement` | `notice` | `off`, `notice` or `required` |
 | `auth.mfa_grace_days` | `0` | Days to enroll before enforcement |
+| `outsidereviews.require_2fa` | `true` | Outside reviewers must set up a second factor at their first sign-in, whatever `auth.mfa_enforcement` says (password confirmation to change) |
 | `auth.reauth_minutes` | `10` | How long a password confirmation lasts |
 | `auth.passkey_sign_in` | `true` | A passkey alone may sign a person in |
 | `auth.passkey_user_verification` | `preferred` | `preferred` or `required` (every passkey use checks a PIN or biometric) |
@@ -448,7 +449,10 @@ export default mod;
   under `MASKED_SQL` from `core/resource.ts` instead of their value, and never match a
   restricted row by such a field. Lists, their totals and drill-downs keep `visibleWhere`.
   In a figure use `ctx.resources.figureWhere(type, user, alias)` for the rows and
-  `ctx.resources.figureMask(type, alias)` for the rows whose details must be masked.
+  `ctx.resources.figureMask(type, alias)` for the rows whose details must be masked. The generated
+  `GET {path}/stats` uses `figureMaskFor` in `core/resource.ts`, which also puts rows outside a scoped
+  person's departments or sites under "Other records"; the hand-written `figureMask` does not apply
+  scope yet (see [Known gaps](known-gaps.md)).
 - `ctx.readSeed(opts, 'systems.psv', '|')` - parses a delimited seed file into objects keyed by header.
   `opts.organization` is the organization profile (`{}` when there is none).
 - `ctx.fail(status, code, message, fields?)` - throws an API error.
@@ -469,7 +473,9 @@ Services other modules may offer are Fastify decorators; check before use:
 - `app.notify(...)`: in-app notifications (notifications module;
   `if (ctx.app.hasDecorator('notify')) ...`). For reminders pass `oncePerDay: true` (at
   most once per person, record and kind each organization day) or `once: '<key>'` (at most
-  once per person ever, for example `'obligation.due:<id>:<date>'`). A reminder's lead time
+  once per person ever, for example `'obligation.due:<id>:<date>'`). `inAppOnly: true` sends no
+  email and no immediate push (for a message whose recipient must not appear in the outgoing message
+  log, such as a confidential reporter). A reminder's lead time
   is a setting read with `ctx.settings.get(key, fallback)`; add it to the list in
   `modules/notifications/reminder-settings.ts` so administrators can change it under
   Administration > Reminders.
@@ -506,7 +512,9 @@ Services other modules may offer are Fastify decorators; check before use:
   `core/export/pdf.ts`. Never use the standard fonts (not embedded). Check new PDFs in tests with
   `checkPdfUa(buffer)` from `core/export/pdfua.ts` (pdf.js); `pdfText` reads
   embedded-font text. `pdfjs-dist` is a runtime dependency since wave 22 (it also reads the text of
-  attached files, E41-16), not only the PDF/UA test check.
+  attached files, E41-16), not only the PDF/UA test check. Text extraction from attached files runs in
+  a child process (`attachments/text-reader.mjs`); never call pdf.js on untrusted files inside the
+  server process.
 - `app.sendMail({ userIds, template, purpose, data, record?, attachments? })` and
   `app.mailEnabled()` (`core/mail`): email through the job queue. Off until an
   administrator sets up a mail server (Administration > Email), so always guard with
@@ -633,7 +641,9 @@ records new files there as evidence (`evidence: false` turns it off). The defaul
 
 `scope: { department?: col | (col) => sql, site?: … }` says where a record belongs, for role grants
 scoped to departments or sites (E41-01, `core/scope.ts`); core adds the rule to `visibleWhere`, never
-to figures. `directory: true` lets every signed-in person pick and read a type's names (departments).
+to figures. A person whose roles scope any module may not change the facts scope is worked out from
+(department or site manager and parent, merges, their own roster row); check
+`mayChangeScopeSources(user)` from `core/scope.ts` in any new route that changes them. `directory: true` lets every signed-in person pick and read a type's names (departments).
 A type that used to keep its department as text uses `departmentPrepare(ctx.db)` as its `prepare`
 hook and a module migration that adds `department_id`, converts the text and adds the
 `grc_department_name` trigger (core migration 031).
@@ -782,6 +792,10 @@ Module `outsidereviews` (not an area) confines accounts listed in `outside_revie
 nothing to stay out of their reach. Kinds of invitation are listed in `subjects.ts`
 (`audit_engagement`, `compliance_review`); their staff routes hang under the record type's path, so
 they follow its area. The state grant `outsidereviews.reviewer` makes `App.tsx` show `ReviewerApp`.
+Reviewer accounts fail closed in core (`core/reviewers.ts`: `isReviewerAccount`, `reviewerSql`):
+every place that loads a person gives them no permission, role assignment refuses them
+(`REVIEWER_ROLES_MESSAGE`) and staff pickers leave them out. Leave them out of any new
+hand-written recipient or picker query with `not ${await reviewerSql(db, 'u.id')}`.
 
 ### Feature switches (optional areas)
 
@@ -1271,7 +1285,7 @@ has filter, sort, saved view and export; every record shows its history.
 | `push` | no record type: push notifications to the mobile app (tables `push_config`, `push_registrations`, `push_cursor`; part of the `mobile` area; `app.pushNotify(userIds)`, called by the notifications service) |
 | `safety` | `hazard` → hazards, `safety_event` → safety_events (flag), `safety_indicator` → safety_indicators; tables safety_event_people, safety_event_timeline, safety_event_statements, safety_report_rules, safety_notifications, safety_indicator_values, safety_indicator_targets (no record type) |
 | `reports` | `report_definition` → report_definitions, `dashboard` → dashboards, `report_schedule` → report_schedules, `report_pack` → report_packs |
-| `attachments` | no record type: files on any record (table `attachments`; `AttachmentsPanel`; stored in `<data>/files`), links to documents kept elsewhere (`storage_driver = 'link'`, never fetched), and the text of PDF, .docx and plain-text files for search (table `attachment_texts`, job `attachments.text_index`, `text.ts`/`text-worker.mjs`); `GET /api/attachments/:id/preview` |
+| `attachments` | no record type: files on any record (table `attachments`; `AttachmentsPanel`; stored in `<data>/files`), links to documents kept elsewhere (`storage_driver = 'link'`, never fetched), and the text of PDF, .docx and plain-text files for search (table `attachment_texts`, job `attachments.text_index`, `text.ts`, `text-reader.mjs` (a child process) and `text-worker.mjs`; `attachment_texts.status` `'reading'` and `attempts` record each attempt before reading); `GET /api/attachments/:id/preview` |
 | `feeds` | no record type: calendar feeds (calendar_feeds), calendar sources of earlier modules (sources.ts), work-tracker bridge (tables ticket_connectors, external_ticket_links) |
 | `integrations` | no record type: user provisioning over SCIM 2.0 (scim_tokens, scim_group_roles, scim_group_members, scim_role_grants, user_external_ids), audit-log forwarding (audit_forwarders, audit_forward_log) and sealed webhook addresses (always on) |
 | `portal` | no record type: the self-service portal's settings and pages (portal requests are tickets, scoped to their requester) |

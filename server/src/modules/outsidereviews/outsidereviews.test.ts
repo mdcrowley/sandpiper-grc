@@ -134,6 +134,75 @@ describe('inviting an outside reviewer (E41-09)', () => {
     reviewer = login.cookies.find((c) => c.name === SESSION_COOKIE)!.value;
     expect((await t.db.query(`select 1 from audit_events where action = 'outside_review.invite' and record_id = $1`, [auditId])).length).toBe(1);
   });
+
+  it('asks for a second factor before anything else (outsidereviews.require_2fa, on by default)', async () => {
+    // The site-wide enforcement is only a reminder here, but a reviewer is blocked until they enroll.
+    const blocked = await call('GET', '/api/outside-review', reviewer);
+    expect(blocked.status).toBe(403);
+    expect(blocked.body.error.code).toBe('mfa_enrolment_required');
+    expect((await call('GET', '/api/auth/state', reviewer)).body).toMatchObject({ mfaEnrollmentRequired: true, mfaEnrollmentBlocked: true });
+    // The enrollment routes stay open.
+    expect((await call('GET', '/api/auth/security', reviewer)).status).toBe(200);
+    expect((await call('POST', '/api/auth/totp/begin', reviewer)).status).toBeLessThan(300);
+    // With the setting off it is not asked for.
+    await confirmAll();
+    expect((await t.api.patch('/api/admin/settings', { 'outsidereviews.require_2fa': false })).status).toBe(200);
+    expect((await call('GET', '/api/outside-review', reviewer)).status).toBe(200);
+    expect((await t.api.patch('/api/admin/settings', { 'outsidereviews.require_2fa': true })).status).toBe(200);
+    expect((await call('GET', '/api/outside-review', reviewer)).status).toBe(403);
+    // Once enrolled (an authenticator here), the workspace opens.
+    await t.db.query('update users set totp_enabled = true where id = $1', [reviewerId]);
+    expect((await call('GET', '/api/outside-review', reviewer)).status).toBe(200);
+    expect((await call('GET', '/api/auth/state', reviewer)).body.mfaEnrollmentBlocked).toBe(false);
+    // Staff are not affected.
+    expect((await t.api.get('/api/auth/state')).body.mfaEnrollmentBlocked).toBe(false);
+  });
+});
+
+describe('roles and permissions of a reviewer account (wave 23 A3)', () => {
+  it('cannot be given a role by an administrator, single sign-on or provisioning', async () => {
+    await confirmAll();
+    const refused = await t.api.patch(`/api/admin/users/${reviewerId}`, { roles: ['auditor'] });
+    expect(refused.status).toBe(400);
+    expect(refused.body.error.fields.roles).toMatch(/outside reviewer/);
+    expect((await t.api.patch(`/api/admin/users/${reviewerId}`, { roles: [] })).status).toBe(200);
+    // Sign-in provider role mapping.
+    const { syncMappedRoles } = await import('../../core/identity/accounts.ts');
+    const provider = { key: 'invented-idp', name: 'Invented provider', config: { mappingEnabled: true, mappings: [{ value: 'auditors', role: 'auditor' }] } };
+    const mapped = await syncMappedRoles({ db: t.db, audit: async () => {} } as never, null, reviewerId, provider as never, ['auditors']);
+    expect(mapped).toEqual({ added: [], removed: [] });
+    // Provisioning (SCIM) group sync.
+    if ((await t.db.one(`select to_regclass('scim_group_roles')::text as t`))?.t) {
+      const { syncProvisionedRoles } = await import('../integrations/shared.ts');
+      const g = await t.db.one<{ id: string }>(`insert into scim_group_roles (display_name, role_keys) values ('Invented auditors', '["auditor"]') returning id`);
+      await t.db.query('insert into scim_group_members (group_id, user_id) values ($1, $2)', [g!.id, reviewerId]);
+      expect(await t.db.tx((tx) => syncProvisionedRoles(t.ctx, tx, reviewerId))).toEqual({ added: [], removed: [] });
+    }
+    expect((await t.db.query('select 1 from user_roles where user_id = $1', [reviewerId])).length).toBe(0);
+  });
+
+  it('holds no permission outside a request either, and is never offered in a staff picker', async () => {
+    // A role that got there another way (before the sweep takes it off) gives nothing.
+    await t.db.query(`insert into user_roles (user_id, role_id) select $1, id from roles where key = 'auditor'`, [reviewerId]);
+    try {
+      const { loadUser } = await import('../../core/auth.ts');
+      expect((await loadUser(t.db, reviewerId))!.permissions).toEqual([]);
+      const { activeUsers } = await import('../notifications/service.ts');
+      expect((await activeUsers(t.ctx)).find((u) => u.id === reviewerId)!.permissions).toEqual([]);
+      const before = (await t.db.one<{ n: number }>('select count(*)::int as n from notifications where user_id = $1', [reviewerId]))!.n;
+      await t.ctx.app.notify({ permission: 'audits.view', kind: 'general', title: 'Invented broadcast to auditors' });
+      expect((await t.db.one<{ n: number }>('select count(*)::int as n from notifications where user_id = $1', [reviewerId]))!.n).toBe(before);
+      const sent = await t.ctx.app.sendMail({ permission: 'audits.view', template: 'message', purpose: 'other', data: { subject: 'Invented mail to auditors', body: 'x' } });
+      expect(sent.queued).toBeGreaterThanOrEqual(0);
+      expect((await t.db.query(`select 1 from mail_log where user_id = $1 and subject = 'Invented mail to auditors'`, [reviewerId])).length).toBe(0);
+    } finally {
+      await t.db.query('delete from user_roles where user_id = $1', [reviewerId]);
+    }
+    const picker = (await t.api.get('/api/users/options?q=jordan')).body.map((u: any) => u.id);
+    expect(picker).not.toContain(reviewerId);
+    // A picker showing a value already chosen still names it.
+    expect((await t.api.get(`/api/users/options?ids=${reviewerId}`)).body.map((u: any) => u.id)).toEqual([reviewerId]);
+  });
 });
 
 describe('the reviewer workspace', () => {

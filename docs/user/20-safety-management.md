@@ -61,7 +61,7 @@ What confidentiality does not cover: the words of the report itself (ask reporte
 
 When an event that has a reporter (in **Reported by**, or a confidential one) is closed, the reporter is told in plain words what was done about their report. **Close event** asks for **What the reporter is told**: what was found and what was done about it, without names or personal details. The event cannot be closed without it. The reporter then gets a notification (**Your safety report SE-00104 is closed**, with your words), **Reporter told** records when, and the **History** shows "Reporter told what was done about their report". In the portal, **My safety reports** shows the words under the closed report.
 
-A confidential reporter's notification says only **A safety report you made has been closed** and asks them to read what was done under **My safety reports** in the portal, so the notification names neither the event nor what it was about. (When the portal is off, the notification carries the words.)
+A confidential reporter's notification says only **A safety report you made has been closed** and asks them to read what was done under **My safety reports** in the portal, so the notification names neither the event nor what it was about. (When the portal is off, the notification carries the words.) It is shown in the application only, never sent by email, even when the reporter chose email for their notifications: an email would put their name and address in the outgoing message log (Administration > Email) at the moment the event closed.
 
 Both appear on the event page in the **Telling the reporter** card, where the words can be changed. Reopening an event and closing it again tells the reporter again.
 

@@ -162,7 +162,9 @@ content, which belongs in a document tool (E25-13, E29-11, E32-06, E34-09).
 - **Windows installer (E42)**: the installer is unsigned (SmartScreen warns; check the SHA-256 in
   the release's SHA256SUMS.txt). It has been tested silently on a Windows 11 workstation (GitHub's
   Windows Server runner workflow added, first run pending), not yet on a real Windows Server across
-  a restart or through its pages by hand (E42-07). Only Windows has an installer.
+  a restart or through its pages by hand (E42-07). Only Windows has an installer. An installation
+  made outside Program Files before wave 23 cannot be proven untampered (the old inherited Modify
+  permission let other users change files); reinstall it rather than upgrade.
 - **Vehicle and asset models (E39)**: a model change saves each member on its own, not in one
   database transaction; a member refused by its own rules is listed on the model and takes the value
   at its next save unless overridden. Inherited custom fields are marked on the model lists, not under
@@ -187,6 +189,11 @@ content, which belongs in a document tool (E25-13, E29-11, E32-06, E34-09).
   shows it only to named people, each look audited. It cannot protect what the reporter writes in the
   report itself, and people who run the server can still find the identity in the database, backups
   and the request log.
+- **Figures and policy translations (wave 23)**: figures saved before wave 23 are not re-checked
+  against their creator's access; they keep being recorded as the system (review them under
+  Reports > Figures over time). An acknowledgment records the stamp of the translation current when
+  the person acknowledges, not the text their screen showed (changes to a published translation
+  need approval). Acknowledgments given before wave 23 record only the language.
 - **Certification (E41-08)** issues one certificate of readiness per project, with no per-item
   certificate of conformance and no second-person confirmation of a verification. Requirement CSV
   exports keep the stored source type ('hazard' or 'risk') even when that area is switched off. The
@@ -198,12 +205,21 @@ content, which belongs in a document tool (E25-13, E29-11, E32-06, E34-09).
   messages, notifications and email, organization-written content (catalog, articles, lookup lists)
   and the app's Search, records, approvals and field work screens are English only. The Spanish has
   not been reviewed by a native speaker.
-- **Outside reviewers (E41-09)** read and download only (no comments or questions); staff user
-  pickers still list reviewer accounts; a second factor is not required of reviewers unless it is
-  required for everyone.
+- **Outside reviewers (E41-09)** read and download only (no comments or questions). A few
+  hand-written recipient lists (security incident responders and kit, confidential safety viewers,
+  scheduled reports, disposal approvers, workflow approvers) read roles directly; a reviewer account
+  is still kept out of them by the role refusal and the 6-hourly sweep.
+- **Scope in module figures**: the hand-written `figureMask(type, alias)` used by some module figure
+  queries ignores department/site scope (restriction is masked; scope details may show in those
+  module-specific groupings).
 - **Search inside files (E41-16)** covers PDF, .docx and plain text only; scanned PDFs (no
   OCR), .doc, spreadsheets and presentations are found by name only. File previews cover images and
-  PDFs (first 30 pages). In the compliance calendar's area filter, retention items (E41-15) are listed under
+  PDFs (first 30 pages).
+  File text reading: the memory cap is checked every 20 ms, so a single very large allocation can
+  briefly push the reader process past 768 MB before it ends; only the reader process is affected,
+  not the server. The cap is resident memory (the working set on Windows) and is not configurable.
+  Text reading starts one Node process per file (about 100 ms each); acceptable for hourly batches
+  of 25 but not pooled. In the compliance calendar's area filter, retention items (E41-15) are listed under
   Records requests and privacy (they share its permissions).
 
 ## Verification status

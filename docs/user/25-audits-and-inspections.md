@@ -163,7 +163,7 @@ An external auditor, a certification body or a funder's reviewer can be given ac
 
 On the audit's **Outside reviewers** tab, select **Invite a reviewer** (needs `audits.edit`, and email set up under Administration > Email). Enter their **Name**, **Email address**, optionally their **Organization** (their firm, or the funder), and the day **Access ends** (from today to a year ahead), then select **Send the invitation**. You are asked to confirm your password first, because an invitation can make an account.
 
-- The first invitation of an address makes an account for it, with no roles, and emails a set-up link to that address only. Nobody in the organization sees the link. The person chooses a password and then signs in like anyone else: the same password rules, lockout, session time-out and second-factor rules apply (to require a second factor of reviewers, require it for everyone under Administration > Settings).
+- The first invitation of an address makes an account for it, with no roles, and emails a set-up link to that address only. Nobody in the organization sees the link. The person chooses a password and then signs in like anyone else: the same password rules, lockout and session time-out apply. At their first sign-in they must set up a second factor (an authenticator app or a passkey) before they can see anything; an administrator can switch this off with **Outside reviewers must use a second factor** under Administration > Settings > Security, which is on to begin with.
 - A later invitation of the same address, to another audit or a funder review, reuses that account and sends a notice without a link.
 - An address that belongs to a staff account cannot be invited: staff get access through their roles.
 - The email names the audit by its reference only, never its title.
@@ -173,7 +173,7 @@ The tab lists each reviewer with their organization, the day access ends, its st
 
 ### What the reviewer sees
 
-The reviewer signs in to a page of their own, **Your reviews**, with the audits and reviews open to them and how many days are left. Opening one shows its details (type, status, lead auditor, dates, scope and criteria; the report summary and overall opinion once the report is approved or the audit closed), the evidence requests with each answer and its files, the evidence files on the audit, and the findings with their criteria, condition, cause, effect, recommendation and management response. They can download the files. Files on the audit that are not marked as evidence are not shown, so mark the files the reviewer should see as evidence. **Account security** lets them change their password and set up a second factor.
+The reviewer signs in to a page of their own, **Your reviews**, with the audits and reviews open to them and how many days are left. Opening one shows its details (type, status, lead auditor, dates, scope and criteria; the report summary and overall opinion once the report is approved or the audit closed), the evidence requests with each answer and its files, the evidence files on the audit, and the findings with their criteria, condition, cause, effect, recommendation and management response. They can download the files. Files on the audit that are not marked as evidence are not shown, so mark the files the reviewer should see as evidence. **Account security** lets them change their password and manage their second factor.
 
 Every time a reviewer opens an audit (at most once an hour) and every file they download is recorded in the audit's history.
 
@@ -181,7 +181,7 @@ Every time a reviewer opens an audit (at most once an hour) and every file they 
 
 Access ends at the end of the chosen day, or at once when revoked. When nothing is open to a reviewer any more, their sessions end and their account is disabled (checked every few hours, and at once on revoking). Inviting them again turns the account back on, unless an administrator disabled it.
 
-**Administration > Outside reviewers** (administrators) lists every invitation, with the audit or review it opens, and can revoke any of them. Reviewer accounts also appear under **Users**; give them no roles. Even with a role, the account still reaches only its reviews.
+**Administration > Outside reviewers** (administrators) lists every invitation, with the audit or review it opens, and can revoke any of them. Reviewer accounts also appear under **Users**. They cannot be given roles (the application refuses, and so do sign-in provider role mapping and user provisioning), they are never offered when someone picks a person, and they never receive notifications or email meant for holders of a permission. Even a role that reached one another way gives it nothing, and the check every six hours takes it off.
 
 While **Audits and inspections** is switched off (Administration > Features), invitations to audits are hidden and closed to their reviewers.
 

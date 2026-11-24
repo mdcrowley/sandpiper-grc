@@ -1,6 +1,6 @@
 # Projects
 
-The Projects area takes a technology project from a one-page request through a fixed set of stages, with a gate between each stage where a checklist must be complete, the required documents must be in place and an approval recorded before the project can move on. This page covers submitting a request, how the tier is set, working a gate, moving a project back, status reports, the project register, milestones, scoring, safety and security certification, actions and the portfolio views. The screens are in the **Projects** group of the menu: **Project portfolio**, **New project request**, **Safety and security certification** and **Project settings**.
+The Projects area takes a technology project from a one-page request through a fixed set of stages, with a gate between each stage where a checklist must be complete, the required documents must be in place and an approval recorded before the project can move on. This page covers submitting a request, how the tier is set, working a gate, moving a project back, status reports, the project register, milestones, scoring, safety and security certification, actions and the portfolio views. The screens are in the **Projects** group of the menu: **Project portfolio**, **New project request**, **Certifiable items** and **Project settings**.
 
 An administrator can switch projects off under **Administration > Features** (see [Administration](09-administration.md#features)). Records are kept and return when it is switched back on.
 
@@ -332,7 +332,7 @@ An administrator can turn on **Require a certificate of readiness** on a gate te
 
 ### Across projects
 
-**Projects > Safety and security certification** lists every certifiable item you may see, across projects, with filters by status, category, project and owner; **All requirements** lists the requirements. A role scoped to departments (see [Administration](09-administration.md)) sees the items and requirements of its departments' projects.
+**Projects > Certifiable items** lists every certifiable item you may see, across projects, with filters by status, category, project and owner; **All requirements** lists the requirements. A role scoped to departments (see [Administration](09-administration.md)) sees the items and requirements of its departments' projects.
 
 ## Actions
 

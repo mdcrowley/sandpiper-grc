@@ -485,10 +485,10 @@ guide (backups, restore, logs, the recovery runbook) applies too, with the paths
 | What | Where |
 |---|---|
 | Program files | `C:\Program Files\Sandpiper GRC` (`node\`, `app\`, `SandpiperService.exe`, `grc-windows.ps1`, `sandpiper.cmd`, `sandpiper.ps1`) |
-| Data folder | `C:\ProgramData\Sandpiper GRC` unless chosen otherwise: `data\`, `backups\`, `logs\`, `seed\`, `config\`, `upgrade\` |
-| Settings | `config\grc.env` in the data folder: `KEY=VALUE` lines read at every start of the service |
+| Data folder | `C:\ProgramData\Sandpiper GRC` unless chosen otherwise: `data\`, `backups\`, `logs\`, `seed\`, `config\`, `upgrade\`, `setup.log` |
+| Settings | `config\grc.env` in the data folder: `KEY=VALUE` lines read at every start of the service; only `GRC_*` lines are read |
 | Secret key | `config\secret.key` in the data folder. Keep a copy somewhere safe, apart from the backups |
-| Logs | `logs\grc.log` (the server), `logs\service.log` (the service host and the server's console, rotated at 10 MB, three kept), `logs\setup.log` (every install, upgrade, rollback and removal) |
+| Logs | `logs\grc.log` (the server), `logs\service.log` (the service host and the server's console, rotated at 10 MB, three kept), and `setup.log` in the data folder itself (every install, upgrade, rollback and removal; kept out of `logs\`, which the service may change) |
 
 **The service.** `SandpiperService.exe` is a small service host (its source is
 `deploy\windows\SandpiperService.cs`, compiled when the installer is built with the C# compiler
@@ -503,7 +503,11 @@ outside the folders the installer granted. Where a domain policy sets "Log on as
 accounts out, the installer runs it as Network Service instead (the service keeps its own service
 identity, so the folder permissions given to `NT SERVICE\SandpiperGRC` still apply); `setup.log`
 says when that happened. `Get-CimInstance Win32_Service -Filter "Name='SandpiperGRC'"` shows the
-account in use.
+account in use. The service keeps only `SeChangeNotifyPrivilege` and `SeCreateGlobalPrivilege`
+(`sc.exe qprivs SandpiperGRC`), so code that took over the server could not use
+`SeImpersonatePrivilege` to become SYSTEM. The program folder and the data folder belong to
+Administrators and have their own permissions, not their parent's (see
+[Installation](installation.md#windows-installer)); every install and upgrade checks and resets them.
 
 **Managing it.** The Start menu folder "Sandpiper GRC" holds shortcuts that run
 `sandpiper.cmd` in an ordinary console window, which waits for Enter before it closes. From a
@@ -542,12 +546,22 @@ Start-Service SandpiperGRC
 & $grc cli status
 ```
 
-**Changing a setting.** Edit `config\grc.env` (as an administrator) and restart the service.
-The installer owns the lines `GRC_PORT`, `GRC_HOST`, `GRC_TLS_CERT`, `GRC_TLS_KEY` and the
+**Changing a setting.** Edit `config\grc.env` (as an administrator, in an elevated editor) and
+restart the service. Only `GRC_*` lines are read; any other line (`NODE_OPTIONS`, `PATH`...) is
+ignored and named in `logs\service.log`, because these settings also reach the commands run as
+administrator. The installer owns the lines `GRC_PORT`, `GRC_HOST`, `GRC_TLS_CERT`, `GRC_TLS_KEY` and the
 folder settings when it installs; every other line is kept, also across upgrades. A renewed
 certificate in the same files is picked up by itself (`GRC_TLS_RELOAD_SECONDS`). Never put a
 password or key in the file directly: use the `*_FILE` settings and grant the service read
-access to the file (`icacls <file> /grant "NT SERVICE\SandpiperGRC:R"`).
+access to the file (`icacls <file> /grant "NT SERVICE\SandpiperGRC:R"`); a file kept in
+`config\` is readable by the service already, and an upgrade resets its permissions to those of
+`config\`.
+
+`grc-windows.ps1` runs as administrator, so before `backup`, `cli` or an upgrade step reads the
+settings, `upgrade\state.json` or runs `node.exe`, it checks that each belongs to Administrators (or
+SYSTEM) and that no other account may change it, and refuses otherwise (running the installer
+again resets the permissions). `upgrade\state.json` must also name this installation's own
+folders and a backup in its `backups\` folder.
 
 **Backups.** The server's own daily backups (Administration > Backups) work as usual and need
 no service stop. **Back up now** (or `sandpiper.cmd backup`) takes a stop-and-copy backup into
@@ -558,7 +572,12 @@ create one.
 ### Updating the Windows installation
 
 Run the newer installer (after [checking its checksum](installation.md#windows-installer)). It
-shows the six steps it will take and keeps the port, data folder and certificate:
+shows the six steps it will take and keeps the port, data folder and certificate. Before the first
+step it checks the data folder and the program folder as a new installation does (every item
+belonging to SYSTEM, Administrators or, where it may write, the service; no junctions or links)
+and resets their permissions; an installation made before this check that fails it is not
+upgraded, the service is started again and `setup.log` names what was found (see
+[A folder that already exists](installation.md#windows-installer)). Then:
 
 1. **stop** the service;
 2. **back up** the data with the installed version (`pre-upgrade` backup in `backups\`);
@@ -574,8 +593,9 @@ the service, copies the previous program files back, restores the pre-upgrade ba
 previous version (the data as the new version left it is kept as a pre-restore backup), starts the
 previous version and checks it, records the previous version again (also in Settings > Apps) and
 says so (exit code 12 when silent). If the installer stops while the files are being replaced,
-the old files are put back when it ends. If the rollback itself cannot finish, the service is
-left stopped and `logs\setup.log` gives the commands to finish by hand (exit code 13). If the
+the old files are put back when it ends, by the installer's own copy of `grc-windows.ps1` (in its
+temporary folder; the copy in `upgrade\` is only for finishing by hand). If the rollback itself cannot finish, the service is
+left stopped and `setup.log` gives the commands to finish by hand (exit code 13). If the
 backup in step 2 fails, nothing is changed and the service is started again.
 
 **Downgrades are refused:** an installer older than the installed version stops with a message
@@ -592,7 +612,8 @@ removes the service, the firewall rule, the shortcuts, the program files and the
 The data folder (database, files, backups, logs, settings and the secret key) is **kept** unless
 you check **Also delete the data folder**; installing again with the same data folder carries on
 with it. Silently: `"C:\Program Files\Sandpiper GRC\unins000.exe" /VERYSILENT`, adding
-`/REMOVEDATA=1` to delete the data folder too.
+`/REMOVEDATA=1` to delete the data folder too. Deleting it never follows a junction or symbolic
+link inside: each is removed as a link first, and what it points to is left alone.
 
 ### The update check
 

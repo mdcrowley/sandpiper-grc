@@ -5,6 +5,7 @@ import type { FastifyRequest } from 'fastify';
 import type { Queryable } from '../../core/db.ts';
 import type { ModuleContext, SessionUser } from '../../core/module.ts';
 import { adminCapableRoleIds } from '../../core/identity/accounts.ts';
+import { isReviewerAccount } from '../../core/reviewers.ts';
 import { administratorIds } from '../admin/shared.ts';
 
 /**
@@ -41,7 +42,9 @@ export async function syncProvisionedRoles(ctx: Pick<ModuleContext, 'fail'>, tx:
        join scim_group_roles g on g.id = m.group_id
        join roles r on r.key in (select jsonb_array_elements_text(g.role_keys))
      where m.user_id = $1`, [userId]);
-  const desired = new Map(wanted.filter((r) => !admins.has(r.id)).map((r) => [r.id, r.key]));
+  // An outside reviewer's account holds no roles (E41-09): provisioning never gives it one.
+  const reviewer = await isReviewerAccount(tx, userId);
+  const desired = new Map(wanted.filter((r) => !reviewer && !admins.has(r.id)).map((r) => [r.id, r.key]));
   const held = new Set((await tx.query<{ role_id: string }>('select role_id from user_roles where user_id = $1', [userId])).map((r) => r.role_id));
   const granted = (await tx.query<{ role_id: string }>('select role_id from scim_role_grants where user_id = $1', [userId])).map((r) => r.role_id);
   const keyOf = async (id: string) => (await tx.one<{ key: string }>('select key from roles where id = $1', [id]))?.key ?? id;

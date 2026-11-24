@@ -67,11 +67,11 @@ export const DEFAULT_INTAKE: IntakeConfig = {
       ],
     },
     {
-      key: 'service', text: 'If this vendor failed, what would happen to service or safety?', help: 'Consider vehicles, stations, dispatch, fares and rider information.',
+      key: 'service', text: 'If this vendor failed, what would happen to service or to people?', help: 'Consider stations, dispatch, fares and rider information.',
       options: [
         { value: 'none', label: 'Nothing riders would notice' },
         { value: 'some', label: 'Some disruption, with a workaround' },
-        { value: 'major', label: 'Service stops or safety is affected' },
+        { value: 'major', label: 'Service stops or people could be harmed' },
       ],
     },
     {

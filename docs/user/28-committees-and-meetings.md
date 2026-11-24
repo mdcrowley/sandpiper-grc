@@ -59,7 +59,7 @@ The **Invitations** tab lists the committee's members in office on the day of th
 - Once the meeting is canceled, **Email the cancellation** sends a cancellation that takes the meeting off their calendars.
 - **Download calendar file** gives you the same file to send or import yourself, for example while email is not set up.
 
-Invitations can be emailed by anyone who may edit meetings, while email is set up (see [Email](14-attachments-and-notifications.md)), and not for a meeting that has already taken place. **Invitations sent** on the meeting shows when they were last emailed, and each sending is in the meeting's history.
+Invitations can be emailed by anyone who may edit meetings, while email is set up (see [Email](14-attachments-and-notifications.md)), and not for a meeting that has already taken place. **Invitations sent** on the meeting shows when they were last emailed, and each sending is in the meeting's history. Invitations for one meeting (updates and cancellations included) can be emailed at most 10 times in an hour; after that, wait a while or download the calendar file.
 
 A meeting moves through **Planned**, **Agenda published**, **Held** and **Minutes approved**, shown along the top of its page. Use **Publish agenda**, **Mark as held** and **Cancel meeting** at the top of the page. **Minutes approved** is set only by the chair's approval (see [Minutes](#minutes)).
 

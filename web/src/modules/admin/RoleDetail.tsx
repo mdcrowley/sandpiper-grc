@@ -279,7 +279,7 @@ export function RoleDetailPage() {
             <div className="stack">
               <p className="muted">
                 Limit an area to the records of the members' own departments or sites, and those below them: a depot manager sees
-                the hazards, inspections and actions of their depot. Members always see the records they created. Their departments
+                the records of their own depot. Members always see the records they created. Their departments
                 are the one on their account, their department on the staff roster and the departments they manage; their sites are
                 their work site on the roster and the sites they manage. Another role that grants the same area without a limit lifts
                 it. Figures (counts and charts) still count every record.

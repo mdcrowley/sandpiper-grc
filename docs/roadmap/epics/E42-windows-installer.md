@@ -1,6 +1,6 @@
 # E42 Windows installer, in-place updates and the update check
 
-**Status:** in progress (6 of 7 issues done; E42-07 needs a real Windows Server and a person)
+**Status:** in progress (7 of 8 issues done; E42-07 needs a real Windows Server and a person)
 
 ## Goal
 
@@ -22,6 +22,7 @@ upgrade and rollback steps, the settings file read by the service).
 | E42-05 | Management scripts and Start menu shortcuts | done | P2 |
 | E42-06 | The update check on Administration > About | done | P2 |
 | E42-07 | Build and test in continuous integration; release asset; proof on a real Windows Server | in progress | P1 |
+| E42-08 | Installer hardening: folders made in advance, the program folder's permissions, service privileges, links | done | P1 |
 
 ### E42-01 The Windows installer: one offline file, install pages, silent install
 
@@ -105,3 +106,25 @@ run, nothing at sign-in.
 - [x] The same test script passed on a Windows 11 workstation (domain-joined, with endpoint protection), elevated by a person at the UAC prompt
 - [ ] The workflow has run green on GitHub (it needs a push)
 - [ ] On a real Windows Server: install through the pages by hand, restart the machine and see the service come back, HTTPS with a real certificate reached from another computer through the firewall rule, an upgrade between two published releases
+
+### E42-08 Installer hardening: folders made in advance, the program folder's permissions, service privileges, links
+
+**Status:** done · **Priority:** P1 · **Type:** security · **Found by:** the wave 23 security review (S2 high, S3 medium, S4 low) · **Implemented in:** `deploy/windows/grc-windows.ps1` (`prepare`, `Protect-DataFolder`, `Protect-ProgramFolder`, `Find-UntrustedItems`, `Assert-AdminOnly`, `Read-State`, `Set-ServicePrivileges`, `Remove-TreeSafely`, `GRC_*`-only `Read-EnvFile`), `deploy/windows/SandpiperService.cs` (`GRC_*`-only settings), `tools/installer/sandpiper-grc.iss` (`prepare` before files are copied, the refusal reason shown, `recover` run from the installer's temporary folder), `tools/installer/test-install.ps1` (steps 0 and 8 and the permission checks), `.github/workflows/windows-installer.yml`.
+
+Any user may create folders in `C:\ProgramData` (and directly under `C:\`), so before this a user
+without administrator rights could make the data folder before an installation, with a `grc.env`
+holding `NODE_OPTIONS` and a secret key they knew, and keep ownership of it: their code then ran as
+the service and, through Back up now and upgrades, as an administrator. A program folder outside
+Program Files inherited "Authenticated Users: Modify" from `C:\`.
+
+**Acceptance criteria**
+
+- [x] A data folder or program folder that exists (new installation, reinstallation, every upgrade) is used only if every item in it belongs to SYSTEM, Administrators or TrustedInstaller (in `data`, `backups`, `logs`, `seed` also the service's account) and none is a junction or link; otherwise the installer stops before copying anything (exit code 7), names what it found and says how to proceed; an upgrade changes nothing and starts the service again
+- [x] When the check passes, ownership goes to Administrators and every permission inside is reset to the inherited ones; the existing settings and key are kept
+- [x] The program folder gets its own permissions wherever it is (SYSTEM and Administrators full, Users and the service read and run, nothing inherited), before the files are copied and again after an upgrade or rollback; a parent folder others could rename is reported in `setup.log`
+- [x] Only `GRC_*` settings are read from `grc.env`, by the service host and by `grc-windows.ps1`; others are ignored and logged
+- [x] `grc-windows.ps1` checks owner and permissions of the settings, `upgrade\state.json` and the program files before reading or running them elevated; `state.json` must name the installation's own folders; the installer's recovery runs its own copy of the script, never the one in the data folder
+- [x] The service keeps only `SeChangeNotifyPrivilege` and `SeCreateGlobalPrivilege` (`sc.exe privs`; no `SeImpersonatePrivilege`), also after an upgrade of an older installation
+- [x] `setup.log` is written to the data folder itself, which the service cannot change
+- [x] Removing the data folder (and `upgrade\previous`) deletes junctions and links as links, never what they point to
+- [x] The installer test covers a planted data folder and program folder, an install outside Program Files with permission checks, `NODE_OPTIONS` ignored, the privileges, a reinstallation refused while a junction is in the data folder, and `/REMOVEDATA=1` sparing a junction's target; it passed elevated on a Windows 11 workstation with folders planted by a user without administrator rights (2026-11-24)

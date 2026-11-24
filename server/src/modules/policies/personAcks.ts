@@ -7,7 +7,7 @@ import type { ModuleContext, Row } from '../../core/module.ts';
 import { makeDbLimiter } from '../../core/ratelimit.ts';
 import { addDays, daysBetween, isDate, localDate } from './dates.ts';
 import { renderPolicyMarkdown } from './markdown.ts';
-import { languageRead, readingOf } from './translations.ts';
+import { readingOf, textRead } from './translations.ts';
 import { BASE_LANGUAGE, englishName, isLanguage, LANGUAGES } from '../../../../shared/i18n.ts';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -85,7 +85,7 @@ export function registerPersonAcks(ctx: ModuleContext): void {
     const today = localDate();
     if (!version) return { today, version: null, counts: { total: 0, acknowledged: 0, outstanding: 0, overdue: 0 }, rows: [], positions: [] };
     const raw = await db.query<Row>(
-      `select a.id, a.person_id, a.requested_at, a.due_on, a.acknowledged_at, a.method, a.superseded_at, a.sheet_attachment_id, a.language,
+      `select a.id, a.person_id, a.requested_at, a.due_on, a.acknowledged_at, a.method, a.superseded_at, a.sheet_attachment_id, a.language, a.translation_sha256,
               p.ref as person_ref, p.full_name as person, p.employee_number, pos.name as position, d.name as department,
               u.display_name as recorded_by_name
        from policy_person_acknowledgements a
@@ -117,7 +117,7 @@ export function registerPersonAcks(ctx: ModuleContext): void {
     method: 'GET', path: '/api/policies/:id/person-acknowledgments', permission: 'people.view',
     summary: 'Roster people asked to acknowledge a version of a policy, and who has (needs policies.view and people.view)',
     query: { version: 'version number (default: the published version)' },
-    response: '{ today, version, counts: { total, acknowledged, outstanding, overdue }, rows: [{ id, person_id, person, employee_number, position, state, method, acknowledged_at, language, recorded_by_name, sheet_attachment_id }], positions }',
+    response: '{ today, version, counts: { total, acknowledged, outstanding, overdue }, rows: [{ id, person_id, person, employee_number, position, state, method, acknowledged_at, language, translation_sha256, recorded_by_name, sheet_attachment_id }], positions }',
   });
 
   /**
@@ -168,26 +168,26 @@ export function registerPersonAcks(ctx: ModuleContext): void {
     const unknown = [...ids.filter((i) => !known.has(i)), ...numbers.filter((n) => !known.has(n.toLowerCase()))];
     const at = on === today ? new Date().toISOString() : `${on}T12:00:00Z`;
     const due = addDays(today, Math.max(1, Math.trunc(Number(policy.ack_days) || 14)));
-    const language = await languageRead(db, String(version.id), body.language);
+    const { language, translation_sha256: stamp } = await textRead(db, String(version.id), body.language);
     let recorded = 0;
     let already = 0;
     for (const p of found) {
       const row = await db.one<Row>(
-        `insert into policy_person_acknowledgements (policy_id, version_id, person_id, due_on, acknowledged_at, method, recorded_by, sheet_attachment_id, language)
-         values ($1,$2,$3,$4::date,$5,$6,$7,$8,$9)
+        `insert into policy_person_acknowledgements (policy_id, version_id, person_id, due_on, acknowledged_at, method, recorded_by, sheet_attachment_id, language, translation_sha256)
+         values ($1,$2,$3,$4::date,$5,$6,$7,$8,$9,$10)
          on conflict (version_id, person_id) do update
            set acknowledged_at = excluded.acknowledged_at, method = excluded.method, recorded_by = excluded.recorded_by,
-               sheet_attachment_id = excluded.sheet_attachment_id, superseded_at = null, language = excluded.language
+               sheet_attachment_id = excluded.sheet_attachment_id, superseded_at = null, language = excluded.language, translation_sha256 = excluded.translation_sha256
            where policy_person_acknowledgements.acknowledged_at is null
          returning id`,
-        [policy.id, version.id, p.id, due, at, method, req.user!.id, sheet, language],
+        [policy.id, version.id, p.id, due, at, method, req.user!.id, sheet, language, stamp],
       );
       if (row) recorded++; else already++;
     }
     await ctx.audit(req, {
       action: 'policy.person_acknowledge', recordType: 'policy', recordId: policy.id,
       summary: `${recorded} roster ${recorded === 1 ? 'acknowledgment' : 'acknowledgments'} of version ${version.version} of ${label(policy)} recorded by ${req.user!.displayName} (${method === 'sign_in_sheet' ? 'sign-in sheet' : 'by hand'}, ${on})`,
-      after: { version: Number(version.version), method, acknowledged_on: on, people: found.map((p) => p.id), recorded, already, sheet_attachment_id: sheet, language },
+      after: { version: Number(version.version), method, acknowledged_on: on, people: found.map((p) => p.id), recorded, already, sheet_attachment_id: sheet, language, translation_sha256: stamp },
     });
     reply.code(201);
     return { recorded, already, unknown };
@@ -321,12 +321,12 @@ export function registerPersonAcks(ctx: ModuleContext): void {
     // E41-07: the language each document was read in ({ ack id: code }, or one `language` for all).
     const said = (body.languages && typeof body.languages === 'object' ? body.languages : {}) as Row;
     for (const s of stamped) {
-      const language = await languageRead(db, String(s.version_id), said[s.id] ?? body.language);
-      await db.query('update policy_person_acknowledgements set language = $2 where id = $1', [s.id, language]);
+      const { language, translation_sha256: stamp } = await textRead(db, String(s.version_id), said[s.id] ?? body.language);
+      await db.query('update policy_person_acknowledgements set language = $2, translation_sha256 = $3 where id = $1', [s.id, language, stamp]);
       await ctx.audit(req, {
         action: 'policy.person_acknowledge', recordType: 'policy', recordId: s.policy_id,
         summary: `${person.ref} acknowledged version ${s.version} of ${label(s)} on the kiosk${language === BASE_LANGUAGE ? '' : ` (read in ${englishName(language)})`} (recorded by ${req.user!.displayName})`,
-        after: { version: Number(s.version), person_id: person.id, method: 'kiosk', recorded_by: req.user!.id, language },
+        after: { version: Number(s.version), person_id: person.id, method: 'kiosk', recorded_by: req.user!.id, language, translation_sha256: stamp },
       });
     }
     return { acknowledged: stamped.length };

@@ -14,7 +14,7 @@ const mod: ModuleDef = {
     // Shown to whoever may send a request: who may is a setting (E11-16), so the server grants
     // "projects.request" per person in /api/auth/state (BW-06).
     { group: 'Projects', label: 'New project request', path: '/projects/new', icon: 'plus', permission: 'projects.request', order: 20 },
-    { group: 'Projects', label: 'Safety and security certification', path: '/projects/certifiable-items', icon: 'shield', permission: 'projects.view', order: 30 },
+    { group: 'Projects', label: 'Certifiable items', path: '/projects/certifiable-items', icon: 'shield', permission: 'projects.view', order: 30 },
     { group: 'Projects', label: 'Project settings', path: '/projects/settings', icon: 'settings', permission: 'projects.administer', order: 90 },
   ],
   routes: [

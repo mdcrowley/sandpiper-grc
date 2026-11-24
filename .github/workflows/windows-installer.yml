@@ -12,6 +12,14 @@ name: Windows installer
 #   C  as B, version +0.0.2, with a migration that fails on purpose (-BrokenMigration): the upgrade
 #      to it must roll back to B with B's data
 # A is also run over B to prove an older installer is refused.
+#
+# The test also covers the wave 23 security review (S2 to S4): a data folder and a program folder
+# made in advance and owned by another account are refused before anything is copied; the program
+# folder (installed outside Program Files here, where C:\ would let every signed-in user change it)
+# and the data folder get their own locked permissions, kept across the upgrade; NODE_OPTIONS in
+# grc.env is ignored; the service has no SeImpersonatePrivilege; setup.log is outside the service's
+# reach; a reinstallation over a data folder holding a junction is refused; and uninstalling with
+# /REMOVEDATA=1 deletes a junction in the data folder without deleting what it points to.
 
 on:
   push:
@@ -113,20 +121,22 @@ jobs:
           powershell @common -Version '${{ steps.v.outputs.c }}' -BrokenMigration
           if ($LASTEXITCODE -ne 0) { throw 'build C failed' }
 
-      - name: Install, sign in, back up, upgrade, refuse a downgrade, roll back, uninstall
+      - name: Refuse planted folders, install outside Program Files, sign in, back up, upgrade, refuse a downgrade, roll back, uninstall, reinstall, remove the data
         run: |
           $out = "$env:RUNNER_TEMP\test"
           powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\installer\test-install.ps1 `
             -Installer "$out\SandpiperGRC-test-Setup-${{ steps.v.outputs.a }}.exe" `
             -Upgrade "$out\SandpiperGRC-test-Setup-${{ steps.v.outputs.b }}.exe" `
             -Broken "$out\SandpiperGRC-test-Setup-${{ steps.v.outputs.c }}.exe" `
-            -Instance test -Port 8206 -LogDir "$env:RUNNER_TEMP\installer-logs"
+            -Instance test -Port 8206 -InstallDir 'C:\SandpiperGRC-test' -ReinstallDir "$env:ProgramFiles\Sandpiper GRC test" `
+            -LogDir "$env:RUNNER_TEMP\installer-logs"
           if ($LASTEXITCODE -ne 0) { throw 'test-install.ps1 failed' }
 
       - name: Logs of the test installation
         if: always()
         run: |
-          foreach ($f in Get-ChildItem "$env:ProgramData\SandpiperGRC-test\logs" -File -ErrorAction SilentlyContinue) { Write-Host "--- $($f.FullName)"; Get-Content $f.FullName -Tail 80 }
+          $root = "$env:ProgramData\SandpiperGRC-test"
+          foreach ($f in @(Get-Item "$root\setup.log" -ErrorAction SilentlyContinue) + @(Get-ChildItem "$root\logs" -File -ErrorAction SilentlyContinue)) { Write-Host "--- $($f.FullName)"; Get-Content $f.FullName -Tail 80 }
           foreach ($f in Get-ChildItem "$env:RUNNER_TEMP\installer-logs" -File -ErrorAction SilentlyContinue) { Write-Host "--- $($f.FullName)"; Get-Content $f.FullName -Tail 40 }
 
       - name: Keep the installer

@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { startSmtpSink, type SmtpSink } from '../../core/mail/smtp-sink.ts';
 import { ADMIN, testApp } from '../../test/helpers.ts';
 import { forgetConfidentialReporter } from './confidential.ts';
 
@@ -11,6 +12,7 @@ let reporterName = '';
 let safety: Awaited<ReturnType<typeof t.as>>;
 let named: Awaited<ReturnType<typeof t.as>>;
 let eventId = '';
+let sink: SmtpSink | undefined;
 
 const report = {
   title: 'Supervisor told me to skip the brake check', description: 'At the start of the early shift the brake check was skipped to leave on time.',
@@ -27,7 +29,7 @@ beforeAll(async () => {
   safety = await t.as('safety_manager');
   named = await t.as('safety_manager');
 });
-afterAll(async () => { await t.close(); });
+afterAll(async () => { await t.close(); await sink?.close(); });
 
 describe('a confidential report from the portal', () => {
   it('keeps the reporter apart from the event', async () => {
@@ -137,6 +139,15 @@ describe('telling the reporter what was done', () => {
     expect(refused.status).toBe(400);
     expect(refused.body.error.fields.reporter_outcome).toBeDefined();
     const outcome = 'We added ten minutes to the early shift start so the brake check is never skipped, and briefed every supervisor.';
+    // The reporter chose the bell and email for general notifications, and email is on (wave 23 A6).
+    sink = await startSmtpSink();
+    const mail = await t.api.put('/api/admin/mail/settings', {
+      host: '127.0.0.1', port: sink.port, tlsMode: 'none', fromAddress: 'grc@example.test', baseUrl: 'https://grc.example.test', enabled: true,
+    });
+    expect(mail.status, JSON.stringify(mail.body)).toBe(200);
+    await t.db.query(
+      `insert into notification_preferences (user_id, muted_kinds, daily_digest, channels) values ($1, '[]'::jsonb, false, '{"general":"both"}'::jsonb)
+       on conflict (user_id) do update set channels = excluded.channels, daily_digest = false`, [reporter.userId]);
     const closed = await safety.patch(`/api/safety-events/${eventId}`, { ...closing, reporter_outcome: outcome });
     expect(closed.status).toBe(200);
     expect(closed.body.reporter_told_at).toBeTruthy();
@@ -145,6 +156,10 @@ describe('telling the reporter what was done', () => {
     const told = mine.find((n) => n.title.includes('safety report'));
     expect(told).toMatchObject({ title: 'A safety report you made has been closed', route: '/portal/safety' });
     expect(`${told!.title} ${told!.body}`).not.toContain(report.title);
+    // In the application only: no email, so the outgoing message log never names them (wave 23 A6).
+    expect((await t.db.query('select 1 from mail_log where user_id = $1', [reporter.userId])).length).toBe(0);
+    const reporterEmail = (await t.db.one<{ email: string }>('select email from users where id = $1', [reporter.userId]))!.email;
+    expect((await t.db.query('select 1 from mail_log where lower(to_address) = lower($1)', [reporterEmail])).length).toBe(0);
     // The portal shows the words.
     const row = (await reporter.get('/api/portal/safety-reports')).body.rows.find((r: { id: string }) => r.id === eventId);
     expect(row).toMatchObject({ status: { key: 'closed' }, outcome });
@@ -158,6 +173,8 @@ describe('telling the reporter what was done', () => {
     await safety.patch(`/api/safety-events/${event.id}`, { status: 'closed', root_cause: 'Bolts worked loose.', reporter_outcome: 'The handrail was refixed the same day.' });
     const mine = (await reporter.get('/api/notifications')).body.rows as { title: string; body: string }[];
     expect(mine.find((n) => n.title === `Your safety report ${event.ref} is closed`)?.body).toBe('The handrail was refixed the same day.');
+    // A named reporter gets the email they chose.
+    expect((await t.db.query('select 1 from mail_log where user_id = $1', [reporter.userId])).length).toBe(1);
     // An event with no reporter closes without the words.
     const plain = await safety.post('/api/safety-events', { title: 'No reporter', occurred_at: '2026-11-18T06:00:00Z', event_type: 'near_miss', severity: 'minor' });
     const closed = await safety.patch(`/api/safety-events/${plain.body.id}`, { status: 'closed', root_cause: 'Nothing more to do.' });

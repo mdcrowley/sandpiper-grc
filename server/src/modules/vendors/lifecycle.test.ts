@@ -137,6 +137,12 @@ describe('exclusion-list checks', () => {
       expect((await editor.patch(`/api/contracts/${draft.body.id}`, { status: 'active' })).body.error.fields.status).toContain('found a match');
       await editor.post(`/api/vendors/${v.id}/exclusion-checks`, { list_key: 'government_exclusion_list', result: 'clear' });
       expect((await editor.patch(`/api/contracts/${draft.body.id}`, { status: 'active' })).status).toBe(200);
+      // Moving the active contract to a vendor with no check is refused too (W23 F3).
+      const other = await newVendor('Activation Gate Other');
+      const moved = await editor.patch(`/api/contracts/${draft.body.id}`, { vendor_id: other.id });
+      expect(moved.status).toBe(400);
+      expect(moved.body.error.fields.vendor_id).toContain('exclusion-list check');
+      expect((await t.api.get(`/api/contracts/${draft.body.id}`)).body.vendor_id).toBe(v.id);
     } finally {
       await t.api.put('/api/vendors/lifecycle-settings', { exclusion_before_contract: false });
     }

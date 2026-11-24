@@ -65,9 +65,9 @@ Every register has its own switch under **Administration > Features**, listed un
 
 ## Removing a register
 
-A register that holds no records can be removed: choose **Remove register** from the **More actions** menu on its page (it asks for your password again). Its fields, its lifecycle and the roles' permissions for it are removed with it, and its name is free to use again.
+A register that holds no records can be removed: choose **Remove register** from the **More actions** menu on its page (it asks for your password again). Its fields, its lifecycle and the roles' permissions for it (exactly those starting with its name and a dot, never another part's) are removed with it, and its name is free to use again.
 
-A register that holds records cannot be removed: switch it off instead. Deleted records count too, because deleting a record keeps it in the database (as for every other kind of record).
+A register that holds records cannot be removed: switch it off instead. Deleted records count too, because deleting a record keeps it in the database (as for every other kind of record). The records are counted again at the moment of removal, so if someone adds one while you confirm your password, the removal is refused with the same message. A new register cannot take the name of an earlier one while records stored under that name remain.
 
 ## On a server with a least-privilege database account
 

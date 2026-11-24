@@ -28,7 +28,16 @@ const ymd = (v: unknown) => (v instanceof Date ? v.toISOString().slice(0, 10) : 
 export interface ItemRow extends Row {
   id: string; review_id: string; review_system_id: string; system_id: string; account_id: string;
   decision: string | null; removal_status: string | null; holder_user_id: string | null;
+  /** Accounts here whose username or email is the account's name or email on the system (case-insensitive). */
+  same_user_ids: string[] | null;
 }
+
+/** Whether the item is this person's own account: through the staff roster, or by name or email. */
+const holds = (item: ItemRow, userId: string | null | undefined): boolean =>
+  !!userId && (item.holder_user_id === userId || (item.same_user_ids ?? []).includes(userId));
+
+/** An item as the API gives it (the matched account ids are only for the check above). */
+const shown = ({ same_user_ids: _matched, ...item }: ItemRow): Row => item;
 
 export function registerCampaigns(ctx: ModuleContext) {
   const { app, db } = ctx;
@@ -138,7 +147,11 @@ export function registerCampaigns(ctx: ModuleContext) {
       `select i.*, a.attention as attention_now, a.status as account_status, a.ref as account_ref,
               ${roster ? 'p.full_name as holder_name, p.status as holder_status, p.user_id as holder_user_id,' : 'null as holder_name, null as holder_status, null::uuid as holder_user_id,'}
               coalesce(d.display_name, d.username) as decided_by_name, coalesce(rm.display_name, rm.username) as removed_by_name,
-              sy.name as system_name
+              sy.name as system_name,
+              -- Nobody decides on their own account, even when the roster does not link it to them.
+              array(select su.id from users su where su.deleted_at is null and (
+                lower(su.username) in (lower(i.account_name), lower(a.email))
+                or lower(su.email) in (lower(i.account_name), lower(a.email)))) as same_user_ids
        from access_review_items i
        left join system_accounts a on a.id = i.account_id
        ${roster ? 'left join people p on p.id = i.holder_person_id and p.deleted_at is null' : ''}
@@ -174,8 +187,8 @@ export function registerCampaigns(ctx: ModuleContext) {
       system: { ...system, review_system_id: rs.id, reviewer_id: rs.reviewer_id, signed_off_at: rs.signed_off_at, signed_off_by: rs.signed_off_by },
       isReviewer, mayManage: ctx.can(req.user, 'systems.edit'),
       items: items.map((i) => ({
-        ...i,
-        own: !!i.holder_user_id && i.holder_user_id === req.user!.id,
+        ...shown(i),
+        own: holds(i, req.user!.id),
         mayDecide: open && mayDecide(req.user!, review, rs, i),
       })),
     };
@@ -187,11 +200,16 @@ export function registerCampaigns(ctx: ModuleContext) {
     response: '{ review, system, isReviewer, mayManage, items: [{ id, account_id, account_name, display_name, holder_name, holder_status, role_on_system, privileged, last_seen_on, attention, attention_now, decision, comment, decided_by_name, decided_at, removal_status, removal_due_on, removed_at, own, mayDecide }] }',
   });
 
-  /** The named reviewer decides, except on their own account, which the campaign owner decides. */
+  /**
+   * The named reviewer decides, except on their own account, which the campaign owner decides. An
+   * account is someone's own when the roster links it to them, or when its name or email on the
+   * system is their username or email (so it holds without the people module too, and for an
+   * account the roster does not match).
+   */
   function mayDecide(user: SessionUser, review: Row, rs: Row, item: ItemRow): boolean {
-    if (item.holder_user_id && item.holder_user_id === user.id) return false;
-    if (rs.reviewer_id === user.id) return !(item.holder_user_id && item.holder_user_id === rs.reviewer_id);
-    return review.owner_id === user.id && !!item.holder_user_id && item.holder_user_id === rs.reviewer_id;
+    if (holds(item, user.id)) return false;
+    if (rs.reviewer_id === user.id) return true;
+    return review.owner_id === user.id && holds(item, rs.reviewer_id);
   }
 
   app.get('/api/access-reviews/mine', async (req) => {
@@ -367,7 +385,7 @@ export function registerCampaigns(ctx: ModuleContext) {
       const rs = systems.get(i.review_system_id)!;
       if (rs.signed_off_at) ctx.fail(409, 'signed_off', `${i.system_name ?? 'This system'} has been signed off; its decisions are final.`);
       if (!mayDecide(req.user!, review, rs, i)) {
-        if (i.holder_user_id === req.user!.id) ctx.fail(403, 'own_account', 'Someone else decides on your own account. The campaign owner decides on a reviewer\'s own account.');
+        if (holds(i, req.user!.id)) ctx.fail(403, 'own_account', 'Someone else decides on your own account. The campaign owner decides on a reviewer\'s own account.');
         ctx.fail(403, 'forbidden', 'Only the reviewer named for this system may decide on its accounts.');
       }
       if (decision === 'keep' && !comment && !i.comment && (i.attention_now === 'leaver' || i.attention === 'leaver')) {
@@ -506,7 +524,7 @@ export function registerCampaigns(ctx: ModuleContext) {
 
   app.get('/api/access-reviews/:id/removals', { preHandler: ctx.requirePerm('systems.view') }, async (req) => {
     const review = await campaignFor(req);
-    return itemsOf(`i.review_id = $1 and i.removal_status is not null`, [review.id]);
+    return (await itemsOf(`i.review_id = $1 and i.removal_status is not null`, [review.id])).map(shown);
   });
   ctx.describeRoute({
     method: 'GET', path: '/api/access-reviews/:id/removals', permission: 'systems.view',

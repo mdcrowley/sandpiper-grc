@@ -43,6 +43,7 @@ invented.
 - [Vehicle and asset models](#vehicle-and-asset-models)
 - [Routes added in wave 20](#routes-added-in-wave-20)
 - [Routes added in waves 21 and 22](#routes-added-in-waves-21-and-22)
+- [Changes in wave 23 (security review)](#changes-in-wave-23-security-review)
 - [Examples of common integrations](#examples-of-common-integrations)
 
 ## Authentication: personal access tokens
@@ -639,7 +640,8 @@ cell, and `/api/vehicles/:id/equipment` adds `count`, `source`, `installed`, `wo
 
 - `GET /api/assets/:id/data-wiping-certificate.pdf` (`assets.view`).
 - `GET /api/meetings/:id/invitations` (`governance.view`); `POST /api/meetings/:id/invitations`
-  (`governance.edit`; 409 `mail_off`, `not_invited`, `meeting_past`, `minutes_approved`, `nobody`);
+  (`governance.edit`; 409 `mail_off`, `not_invited`, `meeting_past`, `minutes_approved`, `nobody`;
+  429 `rate_limited` after 10 sends per meeting in an hour);
   `GET /api/meetings/:id/invitation.ics` (`governance.view`).
 - `GET /api/risks/heatmap/common?basis=&include_closed=` (`risks.view` and `security.view`; the same
   shape as `/api/risks/heatmap`, scale key `_common`).
@@ -725,6 +727,28 @@ cell, and `/api/vehicles/:id/equipment` adds `count`, `source`, `installed`, `wo
 - `/api/record-series` and `/api/records-destructions`, with `/:id/state`, `/:id/submit`,
   `/:id/carried-out` and `/:id/cancel`.
 - `GET /api/attachments/:id/preview`: images and PDFs inline; 415 `no_preview` otherwise.
+
+## Changes in wave 23 (security review)
+
+- `POST /api/meetings/:id/invitations`: 429 `rate_limited` after 10 sends per meeting per hour.
+- `POST`/`PATCH /api/figures`: 400 on `record_type` when the caller may not report on that type
+  (restricted types need `security.view`), 400 on `filters` for a link into a type the caller may
+  not report on or for a filter on restricted records' words without `security.view`.
+- `PUT`/`DELETE /api/policies/:id/versions/:vid/translations/:lang` on the published version: 403
+  without `policies.approve`; translations carry `sha256`. Acknowledgment tracking rows carry
+  `translation_sha256`; the CSV adds **Translation read (SHA-256)**.
+- `PATCH /api/contracts/:id`: moving an active contract to another vendor is checked like an
+  activation (400 on `vendor_id`).
+- `DELETE /api/admin/registers/:key`: 409 `in_use` if a record arrived during the removal.
+  `POST /api/admin/registers`: 400 on `key` while records are stored under that key.
+- `GET {path}/stats`: for a person with a department or site scope, groups by a detail field put
+  out-of-scope rows under `{ value: null, label: 'Other records', restricted: true }`.
+- Access-review items: `own` and `mayDecide` also treat an account whose name or email matches the
+  caller's username or email (case-insensitive) as the caller's own.
+- `PATCH /api/admin/users/:id` with roles on an outside reviewer's account answers 400
+  `fields.roles`. `/api/users/options?q=` leaves out outside reviewer accounts.
+- `POST /api/departments/:id/merge`: 403 for people whose roles are scoped, unless they hold
+  `admin.administer`.
 
 ## Examples of common integrations
 

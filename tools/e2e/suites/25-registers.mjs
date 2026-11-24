@@ -40,8 +40,10 @@ const registerTest = (theme, width) => ({
         await page.goto('/registers');
         await page.waitFor({ text: 'Registers', tag: 'h1' });
         t.soft(!(await page.text('nav')).includes(plural), 'the switched-off register is still in the navigation');
+        // The page asks for the register and is told it is switched off (404, code switched_off).
+        page.allow({ status: 404, url: new RegExp(`/api/registers/${key}\\b`) });
         await page.goto(`/registers/${key}`);
-        await page.waitFor({ text: 'switched off' });
+        await page.waitFor({ text: 'switched off', tag: 'main *' });
       } finally {
         await api.must('PATCH', '/api/admin/features', { features: { [`reg_${key}`]: true } });
       }

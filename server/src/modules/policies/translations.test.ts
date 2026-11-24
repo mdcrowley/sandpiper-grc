@@ -90,6 +90,14 @@ describe('translations of a version', () => {
     const csv = await author.get(`/api/policies/${policyId}/acknowledgments?format=csv`);
     expect(csv.text).toContain('Language read');
     expect(csv.text).toContain('Spanish');
+
+    // W23 F5: the acknowledgment records which translated text was read, by its stamp.
+    const stamp = (await author.get(`/api/policies/${policyId}/versions/${versionId}/translations`)).body.rows[0].sha256;
+    expect(stamp).toMatch(/^[0-9a-f]{64}$/);
+    expect(tracking.body.rows.find((r: any) => r.user_id === reader.userId).translation_sha256).toBe(stamp);
+    expect(JSON.parse(typeof event.after === 'string' ? event.after : JSON.stringify(event.after)).translation_sha256).toBe(stamp);
+    expect(csv.text).toContain('Translation read (SHA-256)');
+    expect(csv.text).toContain(stamp);
   });
 
   it('records the original language when the version has no translation in the language given', async () => {
@@ -97,6 +105,8 @@ describe('translations of a version', () => {
     await t.db.query('delete from policy_version_translations where version_id = $1', [versionId]);
     const ack = await author.post(`/api/policies/acknowledgments/${mine.id}/acknowledge`, { language: 'es' });
     expect(ack.body.acknowledged_language).toBe('en');
+    const tracked = (await author.get(`/api/policies/${policyId}/acknowledgments`)).body.rows.find((r: any) => r.user_id === author.userId);
+    expect(tracked).toMatchObject({ language: 'en', translation_sha256: null });
     // Put it back for the kiosk.
     expect((await author.put(`/api/policies/${policyId}/versions/${versionId}/translations/es`, { title: 'Uso aceptable inventado', body: SPANISH })).status).toBe(200);
   });
@@ -113,6 +123,27 @@ describe('translations of a version', () => {
     expect(ack.body.acknowledged).toBe(1);
     const tracked = await author.get(`/api/policies/${policyId}/person-acknowledgments`);
     expect(tracked.body.rows.find((r: any) => r.person_id === personId)).toMatchObject({ method: 'kiosk', language: 'es' });
+    const stamp = (await author.get(`/api/policies/${policyId}/versions/${versionId}/translations`)).body.rows[0].sha256;
+    expect(tracked.body.rows.find((r: any) => r.person_id === personId).translation_sha256).toBe(stamp);
+  });
+
+  it('needs approval rights to change or remove the translation of a published version (W23 F5)', async () => {
+    const role = (await t.db.one<{ id: string }>(`insert into roles (key, name) values ('w23_pol_editor', 'Policy editor (test)') returning id`))!;
+    for (const perm of ['policies.view', 'policies.edit', 'policies.create']) await t.db.query('insert into role_permissions (role_id, permission) values ($1, $2)', [role.id, perm]);
+    const editor = await t.as('w23_pol_editor');
+    const url = `/api/policies/${policyId}/versions/${versionId}/translations/es`;
+    const before = (await author.get(`/api/policies/${policyId}/versions/${versionId}/translations`)).body.rows[0];
+    const put = await editor.put(url, { title: 'Cambiado sin aprobación', body: 'Otro texto.' });
+    expect(put.status).toBe(403);
+    expect(put.body.error.message).toMatch(/approve/);
+    expect((await editor.del(url)).status).toBe(403);
+    const after = (await author.get(`/api/policies/${policyId}/versions/${versionId}/translations`)).body.rows[0];
+    expect(after).toMatchObject({ title: before.title, body: before.body, sha256: before.sha256 });
+    // On a draft, policies.edit is still enough.
+    const draft = (await author.post(`/api/policies/${policyId}/versions`, { body: 'Invented draft text.' })).body.id;
+    expect((await editor.put(`/api/policies/${policyId}/versions/${draft}/translations/es`, { title: 'Borrador', body: 'Texto del borrador.' })).status).toBe(200);
+    expect((await editor.del(`/api/policies/${policyId}/versions/${draft}/translations/es`)).status).toBe(200);
+    expect((await author.del(`/api/policies/${policyId}/versions/${draft}`)).status).toBe(200);
   });
 
   it('keeps the replaced text in the audit trail, and freezes the translations of a superseded version', async () => {

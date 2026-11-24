@@ -74,7 +74,7 @@ const intakeTest = (theme, width) => ({
         // The last answer of each starter question is the riskiest.
         await page.click({ css: `input[name="intake-${q.key}"][value="${q.options[q.options.length - 1].value}"]` });
       }
-      await page.waitFor({ text: 'Risk tier from these answers:' });
+      await page.waitFor({ text: 'Risk tier from these answers:', tag: '[role=dialog] *' });
       await page.click({ text: 'Save the intake', tag: 'button' });
       await page.waitFor({ text: 'Why this tier', tag: 'h3' });
     });
@@ -88,7 +88,7 @@ const intakeTest = (theme, width) => ({
       t.soft(refused.status === 400, 'a contract became active while required checks were missing');
       await t.step('a draft contract says which checks stand in the way', async () => {
         await page.goto(`/contracts/${contract.id}`);
-        await page.waitFor({ text: 'This contract cannot become active yet' });
+        await page.waitFor({ text: 'This contract cannot become active yet', tag: 'main *' });
       });
     }
 
@@ -98,7 +98,7 @@ const intakeTest = (theme, width) => ({
       await page.click({ text: 'Score', tag: 'button' });
       await page.fill({ label: 'Score (%)' }, '97.5');
       await page.fill({ label: 'Comment' }, `E2E comment ${tag}`);
-      await page.waitFor({ text: 'Below the target' });
+      await page.waitFor({ text: 'Below the target', tag: 'body *' });
       await page.click({ text: 'Record the score', tag: 'button' });
       await page.waitFor({ text: `E2E comment ${tag}`, tag: 'td' });
     });

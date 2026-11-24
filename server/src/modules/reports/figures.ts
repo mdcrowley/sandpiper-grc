@@ -10,15 +10,22 @@
 // Figures are the same for everyone (docs/security.md): a value is worked out once, as the system
 // (no person's permissions), counts every record, restricted or not, and holds only numbers and,
 // for a breakdown, list values with their labels and colors, never words or people from records.
-// Who may look at a figure follows the metrics rule: view permission on the module of the record
-// type it counts. A figure whose record type or metric is switched off or not loaded is not shown.
+// Who may look at a count follows the report engine's rule (spec.ts mayView): view permission on
+// the module of the record type it counts, and security.view for a wholly restricted type; a metric
+// follows the metrics rule (view permission on the module). A figure whose record type or metric is
+// switched off or not loaded is not shown. Because the value is worked out as the system, a figure
+// is checked as the person who saves it: the record type and every related type its filters reach
+// must be ones they may report on, and they cannot filter on the words of restricted records
+// without security.view (W23 F1). Figures saved earlier keep being recorded as they are.
 import { addMonths } from '../../../../shared/dates.ts';
 import { UUID_RE } from '../../core/errors.ts';
 import { metricsAvailable, type MetricDef } from '../../core/metrics.ts';
 import type { ModuleContext, ResourceDef, Row, SessionUser } from '../../core/module.ts';
 import { todayInZone } from '../../core/timezone.ts';
 import { bucketLabel, runReport, type Pivot, type ReportResult, type ResultColumn, type ResultRow } from './query.ts';
-import { compileWithCustom, reportable, SpecError, type Condition, type FilterGroup } from './spec.ts';
+import { DETAIL_TYPES } from '../../core/resource.ts';
+import { customDefs } from './custom.ts';
+import { compileWithCustom, mayView, reportable, SpecError, STD_FIELDS, type Condition, type FilterGroup } from './spec.ts';
 
 export type FigureSource = 'count' | 'metric';
 export interface FigureGroup { value: string | null; label: string; color: string | null; count: number }
@@ -49,11 +56,16 @@ export function makeFigures(ctx: ModuleContext) {
   };
   /** The figure can be worked out here: its record type or metric is loaded and switched on. */
   const available = (f: Row): boolean => (f.source === 'metric' ? Boolean(metricOf(f)) : Boolean(typeOf(f)));
-  /** May this person see the figure? View permission on the module of what it counts (the figure itself counts every record). */
+  /**
+   * May this person see the figure? A count follows the report engine's rule for its record type
+   * (view permission on its module, and security.view for a wholly restricted type); a metric
+   * follows the metrics rule (view permission on the module). The figure itself counts every record.
+   */
   const mayRead = (user: SessionUser | null, f: Row): boolean => {
     if (!available(f)) return false;
     const def = typeOf(f);
-    return !def || ctx.can(user, `${def.module}.view`);
+    if (!def) return true;
+    return f.source === 'metric' ? ctx.can(user, `${def.module}.view`) : mayView(ctx, user, def);
   };
   const unitOf = (f: Row): 'count' | 'percent' | 'number' => (f.source === 'metric' ? metricOf(f)?.unit ?? 'number' : 'count');
 
@@ -74,6 +86,35 @@ export function makeFigures(ctx: ModuleContext) {
   // ---------- checking what people save ----------
 
   const hasMe = (g: FilterGroup | undefined): boolean => Boolean(g?.items?.some((i) => ((i as FilterGroup).items ? hasMe(i as FilterGroup) : (i as Condition).op === 'me')));
+  const conditionsOf = (g: FilterGroup | undefined, depth = 0): Condition[] => (!g || !Array.isArray(g.items) || depth > 5 ? []
+    : g.items.flatMap((i) => (i && Array.isArray((i as FilterGroup).items) ? conditionsOf(i as FilterGroup, depth + 1) : [i as Condition])));
+
+  /**
+   * A condition that reads the words of a restricted record (text, people) for someone without
+   * security.view: the field's label, else null. A figure is worked out as the system, so such a
+   * condition would let its author test a restricted record's words one guess at a time. Blank or
+   * not blank says nothing about the words and stays allowed.
+   */
+  async function restrictedDetail(user: SessionUser | null, def: ResourceDef, filters: FilterGroup | null): Promise<string | null> {
+    if (!user || !filters || ctx.can(user, 'security.view')) return null;
+    const custom = await customDefs(ctx, def.type);
+    const baseFields = { ...STD_FIELDS, ...custom, ...def.fields } as Record<string, { label: string; type: string; to?: string }>;
+    for (const c of conditionsOf(filters)) {
+      if (!c || typeof c.field !== 'string' || c.op === 'empty' || c.op === 'nempty') continue;
+      const [name, sub] = c.field.split('.');
+      const base = baseFields[name];
+      if (!base) continue; // the compiler refuses it
+      let owner: ResourceDef | undefined = def;
+      let detail = DETAIL_TYPES.has(base.type);
+      if (sub !== undefined && base.type === 'ref') {
+        owner = base.to ? ctx.resources.get(base.to) : undefined;
+        const tf = owner ? ({ ...STD_FIELDS, ...owner.fields } as Record<string, { type: string }>)[sub] : undefined;
+        detail = Boolean(tf && DETAIL_TYPES.has(tf.type));
+      } else if (sub !== undefined && base.type === 'user') detail = true;
+      if (owner?.restricted && detail) return base.label;
+    }
+    return null;
+  }
 
   /** Validates a create or a change; returns the columns to write. */
   async function clean(user: SessionUser | null, input: Row, existing: Row | null): Promise<Row> {
@@ -97,7 +138,8 @@ export function makeFigures(ctx: ModuleContext) {
       return out;
     }
     const def = merged.record_type ? ctx.resources.get(String(merged.record_type)) : undefined;
-    if (!def || !reportable(def) || !ctx.can(user, `${def.module}.view`)) throw new FigureError('record_type', 'Choose the records to count.');
+    // The report engine's rule: view permission on the module, and security.view for a wholly restricted type.
+    if (!def || !reportable(def) || !mayView(ctx, user, def)) throw new FigureError('record_type', 'Choose the records to count.');
     let filters = (merged.filters ?? null) as FilterGroup | null;
     if (filters !== null && (typeof filters !== 'object' || !Array.isArray(filters.items))) throw new FigureError('filters', 'The filters are not valid.');
     if (filters && !filters.items.length) filters = null;
@@ -105,8 +147,11 @@ export function makeFigures(ctx: ModuleContext) {
     if (hasMe(filters ?? undefined)) throw new FigureError('filters', 'A figure is the same for everyone, so it cannot be filtered by "me".');
     const group = merged.group_field ? String(merged.group_field) : null;
     if (group && def.fields[group]?.type !== 'lookup') throw new FigureError('group_field', 'Break the count down by a list field, or not at all.');
+    const words = await restrictedDetail(user, def, filters);
+    if (words) throw new FigureError('filters', `"${words}" holds the words of restricted records, which you may not see, so a figure cannot be filtered on it.`);
     try {
-      await compileWithCustom(ctx, null, { type: def.type, filters: filters ?? undefined, groupBy: group ? [{ field: group }] : undefined });
+      // Checked as the person saving it: a related record type they may not report on cannot be used.
+      await compileWithCustom(ctx, user, { type: def.type, filters: filters ?? undefined, groupBy: group ? [{ field: group }] : undefined });
     } catch (err) {
       if (err instanceof SpecError) throw new FigureError(err.field === 'type' ? 'record_type' : 'filters', err.message);
       throw err;

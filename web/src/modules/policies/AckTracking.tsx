@@ -121,7 +121,7 @@ export function AckTracking({ row, versions }: { row: Row; versions: PolicyVersi
                         />
                       </td>
                       <td>{formatDate(r.due_on)}</td>
-                      <td>{r.acknowledged_at ? `${formatDateTime(r.acknowledged_at)}${readIn(r.language)}` : <span className="muted">—</span>}</td>
+                      <td>{r.acknowledged_at ? `${formatDateTime(r.acknowledged_at)}${readIn(r.language, r.translation_sha256)}` : <span className="muted">—</span>}</td>
                       <td>{r.reminded_at ? `${formatDate(r.reminded_at)}${r.reminder_count > 1 ? ` (${r.reminder_count} sent)` : ''}` : <span className="muted">—</span>}</td>
                     </tr>
                   ))}

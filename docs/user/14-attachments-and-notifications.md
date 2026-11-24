@@ -89,7 +89,9 @@ The search at the top of every page finds a record by the words inside its PDF, 
 
 - The text is read in the background a minute or so after a file is attached, so a new file is not found at once. Files attached before this was added are read too, newest first.
 - What you find follows the record, exactly as the files do: you only find records you can open, and a restricted record's files only if your role lets you see restricted records.
-- A scanned PDF that holds only pictures of pages has no text to find. Files larger than 25 MB, and files that cannot be read in 30 seconds, are not read. Only the first 300,000 characters of a file are searched.
+- A scanned PDF that holds only pictures of pages has no text to find. Files larger than 25 MB, and files that cannot be read in 30 seconds or would need too much memory to read, are not read. Only the first 300,000 characters of a file are searched.
+- Each file is read apart from the rest of the application, so a damaged or deliberately harmful file cannot slow it down or stop it. A file whose reading had to be stopped is tried once more; if that fails too, it is left unread for good and is found by its name only.
+- Files a vendor sends through a response link are not read while they wait for review; their text is read once someone takes them over (see [Files from the vendor](04-vendors-and-contracts.md#files-from-the-vendor)).
 - When a file is removed its text is forgotten at once; if an administrator puts the file back, it is read again.
 - Older Word files (`.doc`), spreadsheets and presentations are found by their names only.
 

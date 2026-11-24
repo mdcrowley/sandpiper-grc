@@ -1,10 +1,11 @@
 import PDFDocument from 'pdfkit';
 import { strToU8, zipSync } from 'fflate';
+import { createDeflate } from 'node:zlib';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createSession, SESSION_COOKIE } from '../../core/auth.ts';
 import { testApp } from '../../test/helpers.ts';
 import { previewKind } from './filetypes.ts';
-import { extractText, TEXT_JOB } from './text.ts';
+import { extractText, indexFileTexts, TEXT_JOB } from './text.ts';
 
 // E41-16: the text inside attached PDF, Word and plain-text files is read by a background job and
 // found by the global search under the record's own visibility; images and PDFs can be shown in the
@@ -35,6 +36,43 @@ function docxWith(text: string): Buffer {
     '[Content_Types].xml': strToU8('<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>'),
     'word/document.xml': strToU8(xml),
   }));
+}
+
+/**
+ * A small PDF whose embedded font is a compressed stream that unpacks to `mb` megabytes of zeros
+ * (wave 23 security review, S1): pdf.js unpacks it into memory outside the heap limit.
+ */
+async function fontBombPdf(mb: number): Promise<Buffer> {
+  const d = createDeflate({ level: 9 });
+  const out: Buffer[] = [];
+  d.on('data', (c: Buffer) => out.push(c));
+  const ended = new Promise((res) => d.on('end', res));
+  const chunk = Buffer.alloc(1024 * 1024, 0);
+  for (let i = 0; i < mb; i++) if (!d.write(chunk)) await new Promise((res) => d.once('drain', res));
+  d.end();
+  await ended;
+  const stream = Buffer.concat(out);
+  const content = Buffer.from('BT /F1 12 Tf 10 10 Td (hello) Tj ET\n');
+  const objects: Array<string | Buffer[]> = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
+    [Buffer.from(`<< /Length ${content.length} >> stream\n`), content, Buffer.from('\nendstream')],
+    '<< /Type /Font /Subtype /TrueType /BaseFont /Bomb /FirstChar 32 /LastChar 126 /FontDescriptor 6 0 R >>',
+    '<< /Type /FontDescriptor /FontName /Bomb /Flags 32 /FontBBox [0 0 1000 1000] /ItalicAngle 0 /Ascent 800 /Descent -200 /CapHeight 700 /StemV 80 /FontFile2 7 0 R >>',
+    [Buffer.from(`<< /Length ${stream.length} /Filter /FlateDecode >> stream\n`), stream, Buffer.from('\nendstream')],
+  ];
+  const parts: Buffer[] = [Buffer.from('%PDF-1.4\n')];
+  let pos = parts[0].length;
+  const offsets: number[] = [];
+  objects.forEach((body, i) => {
+    offsets.push(pos);
+    const bufs = [Buffer.from(`${i + 1} 0 obj `), ...(typeof body === 'string' ? [Buffer.from(body)] : body), Buffer.from(' endobj\n')];
+    for (const b of bufs) { parts.push(b); pos += b.length; }
+  });
+  const xref = `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.map((o) => `${String(o).padStart(10, '0')} 00000 n \n`).join('')}`;
+  parts.push(Buffer.from(`${xref}trailer << /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${pos}\n%%EOF\n`));
+  return Buffer.concat(parts);
 }
 
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
@@ -131,6 +169,64 @@ describe('reading the text of attached files', () => {
     await runText();
     expect(await t.db.one(`select status from attachment_texts where attachment_id = $1`, [bad.id])).toMatchObject({ status: 'failed' });
     expect(await t.db.one(`select status from attachment_texts where attachment_id = $1`, [img.id])).toBeUndefined();
+  });
+});
+
+describe('a file that makes the reader run away (wave 23 security review, S1)', () => {
+  // The reader runs in its own process with a memory cap; these tests use a low cap and a bomb that
+  // unpacks to more than it, so they stay quick and light.
+  const CAP_MB = 300;
+  let bomb: Buffer;
+  beforeAll(async () => { bomb = await fontBombPdf(600); }, 60_000);
+  const ctx = () => ({ db: t.db, app: t.app }) as any;
+  const state = (id: string) => t.db.one<{ status: string; attempts: number; detail: string | null }>(
+    `select status, attempts, detail from attachment_texts where attachment_id = $1`, [id]);
+
+  it('stops a PDF whose font unpacks to gigabytes, outside the server process', async () => {
+    expect(bomb.length).toBeLessThan(2 * 1024 * 1024);
+    const before = process.memoryUsage().arrayBuffers;
+    const r = await extractText(bomb, 'pdf', { maxMemoryMb: CAP_MB });
+    expect(r).toEqual({ ok: false, error: 'needed too much memory', stopped: true });
+    // Nothing was unpacked in this process.
+    expect(process.memoryUsage().arrayBuffers - before).toBeLessThan(64 * 1024 * 1024);
+  }, 60_000);
+
+  it('records the attempt before reading, tries once more, then marks the file failed for good', async () => {
+    const sys = (await t.api.post('/api/systems', { name: 'Bomb host' })).body;
+    const file = await upload('system', sys.id, 'bomb.pdf', bomb);
+    await indexFileTexts(ctx(), 25, { maxMemoryMb: CAP_MB });
+    expect(await state(file.id)).toMatchObject({ status: 'reading', attempts: 1, detail: 'needed too much memory' });
+    await indexFileTexts(ctx(), 25, { maxMemoryMb: CAP_MB });
+    expect(await state(file.id)).toMatchObject({ status: 'failed', attempts: 2, detail: expect.stringMatching(/memory; it is not read again/) });
+    const again = await indexFileTexts(ctx(), 25, { maxMemoryMb: CAP_MB });
+    expect(again.read).toBe(0);
+    expect(await state(file.id)).toMatchObject({ status: 'failed', attempts: 2 });
+  }, 120_000);
+
+  it('after the server went down while reading, tries once more, and gives up after a second time', async () => {
+    const sys = (await t.api.post('/api/systems', { name: 'Crash host' })).body;
+    const once = await upload('system', sys.id, 'once.txt', Buffer.from('Bandicootgear after one crash'));
+    const twice = await upload('system', sys.id, 'twice.txt', Buffer.from('Wombatlever after two crashes'));
+    // As the server leaves it when it dies in the middle of reading.
+    await t.db.query(`insert into attachment_texts (attachment_id, status, detail, attempts) values ($1, 'reading', 'reading did not finish', 1), ($2, 'reading', 'reading did not finish', 2)`, [once.id, twice.id]);
+    await runText();
+    expect(await state(once.id)).toMatchObject({ status: 'indexed', attempts: 2 });
+    expect(await state(twice.id)).toMatchObject({ status: 'failed', attempts: 2, detail: expect.stringMatching(/stopped while reading this file, twice/) });
+    expect((await search(t.api, 'bandicootgear')).map((h) => h.id)).toContain(sys.id);
+    expect(await search(t.api, 'wombatlever')).toEqual([]);
+  });
+
+  it('does not read a file a vendor sent while it waits to be taken over', async () => {
+    const sys = (await t.api.post('/api/systems', { name: 'Held file host' })).body;
+    const file = await upload('system', sys.id, 'held.txt', Buffer.from('Quollbracket from a vendor'));
+    await t.db.query(`update attachments set record_type = 'vendor_response_link' where id = $1`, [file.id]);
+    await runText();
+    expect(await state(file.id)).toBeUndefined();
+    // Taken over: read like any other file.
+    await t.db.query(`update attachments set record_type = 'system' where id = $1`, [file.id]);
+    await t.app.jobs.enqueue(TEXT_JOB, {});
+    await runText();
+    expect(await state(file.id)).toMatchObject({ status: 'indexed', attempts: 1 });
   });
 });
 

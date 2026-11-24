@@ -59,8 +59,9 @@ service that starts at boot and restarts after a crash.
 |---|---|
 | Program files: `node\node.exe`, `app\` (server, web application, packages), `SandpiperService.exe`, `grc-windows.ps1`, `sandpiper.cmd` and `sandpiper.ps1` | `C:\Program Files\Sandpiper GRC` |
 | Data (`GRC_DATA_DIR`), backups (`GRC_BACKUP_DIR`), seed folder (`GRC_SEED_DIR`) | `data\`, `backups\`, `seed\` in the data folder |
-| Logs: `grc.log` (the server's own), `service.log` (the service and the server's console), `setup.log` (installs, upgrades, removals) | `logs\` in the data folder |
-| Settings, read by the service at every start | `config\grc.env` in the data folder (`KEY=VALUE` lines, the [environment variables](#environment-variables)) |
+| Logs: `grc.log` (the server's own), `service.log` (the service and the server's console) | `logs\` in the data folder |
+| The setup log: every install, upgrade, rollback and removal | `setup.log` in the data folder itself, where the service cannot write |
+| Settings, read by the service at every start | `config\grc.env` in the data folder (`KEY=VALUE` lines, the [environment variables](#environment-variables); only `GRC_*` lines are read) |
 | The secret key, 32 random bytes made at install time | `config\secret.key` in the data folder (`GRC_SECRET_KEY_FILE`) |
 | The service | `SandpiperGRC` ("Sandpiper GRC"), automatic start, restarted after a failure, running as its own virtual account `NT SERVICE\SandpiperGRC` |
 | Where the installation is recorded | `HKLM\SOFTWARE\Sandpiper GRC\SandpiperGRC` |
@@ -68,8 +69,35 @@ service that starts at boot and restarts after a crash.
 The data folder does not inherit the permissions of `C:\ProgramData`: only SYSTEM and
 Administrators have access, and the service's virtual account may change `data`, `backups`,
 `logs` and `seed` and read `config`. The secret key file is readable by SYSTEM, Administrators
-and the service only. The service account has no password and no rights anywhere else; it can
-read a certificate and key you named, and the installer grants it exactly that. Where a domain policy sets "Log on as a service" without the virtual accounts (Windows allows them by default), the service runs as Network Service instead and keeps its own service identity, so the same folder permissions apply; `logs\setup.log` says so.
+and the service only. The program folder has its own permissions too, wherever it is: SYSTEM and
+Administrators have full control, Users and the service may read and run the files, and nothing
+is inherited from the folder above (a new folder directly under `C:\` would otherwise let every
+signed-in user change it). Both folders belong to Administrators. The service account has no password, no rights anywhere else, and only
+the privileges `SeChangeNotifyPrivilege` and `SeCreateGlobalPrivilege` (without
+`SeImpersonatePrivilege`, which code taking over a service could use to become SYSTEM); it can
+read a certificate and key you named, and the installer grants it exactly that. Where a domain policy sets "Log on as a service" without the virtual accounts (Windows allows them by default), the service runs as Network Service instead and keeps its own service identity, so the same folder permissions apply; `setup.log` says so.
+
+**A folder that already exists.** Any user may create folders in `C:\ProgramData`, and in a folder
+directly under `C:\`, so a data folder or program folder that is already there may have been
+prepared by someone else, with settings or a secret key of their choosing. Before the installer
+uses either (a new installation, a reinstallation over a kept data folder, and every upgrade), it
+checks every item in it: each must belong to SYSTEM, Administrators or TrustedInstaller (in `data`,
+`backups`, `logs` and `seed` also the service's own account), and none may be a junction or
+symbolic link. If anything fails the check, the installer stops before copying anything (exit
+code 7 when silent; an upgrade changes nothing and starts the service again) and names what it
+found. If you did not make the folder, delete it or choose another one. If you made it yourself
+without administrator rights (from an ordinary Explorer window, for example) and have checked what
+is in it, give it to Administrators and run the installer again:
+
+```powershell
+takeown /F "C:\ProgramData\Sandpiper GRC" /A /R /D Y
+```
+
+When the check passes, the installer resets every permission inside the folder to the inherited
+ones, so no other entry is left, and keeps the existing settings and secret key. In `config\grc.env`
+only `GRC_*` lines are read, by the service and by every command the installer and the management
+scripts run as administrator; any other line, such as `NODE_OPTIONS` or `PATH`, is ignored and
+named in `logs\service.log` and `setup.log`.
 
 **Silent installation**, from an administrator's command prompt:
 
@@ -79,9 +107,13 @@ read a certificate and key you named, and the installer grants it exactly that. 
 ```
 
 `/DIR=` changes the program folder and `/TASKS="startmenu,desktopicon"` the shortcuts. Exit
-code 0 means the service is running and ready; 11 that it was installed but did not become
+code 0 means the service is running and ready; 7 that the installer stopped before copying
+anything (a [folder that already exists](#windows-installer) failed the check, or an upgrade could
+not start; the reason is in the `/LOG` file); 11 that it was installed but did not become
 ready (see `logs\service.log`); 12 that an upgrade failed and was undone; 13 that undoing it did not
-finish.
+finish. A program folder outside `C:\Program Files` is locked down the same way, but the folder
+above it must be one only administrators can rename or change (the installer warns in `setup.log`
+when it is not).
 
 **Managing it.** The Start menu folder has **Open Sandpiper GRC**, **Server status**, **Start
 server**, **Stop server**, **Restart server**, **Back up now**, **Check for updates**, **Open
@@ -97,9 +129,11 @@ and keeps the data folder unless you check the box to delete it. Details:
 [Operations](operations.md#windows-service-installed-by-the-installer).
 
 The workflow "Windows installer" builds the installer on a clean Windows Server runner and, as an
-administrator there, installs it silently, signs in, backs up, upgrades to a newer build, refuses
-an older one, rolls back a broken upgrade and uninstalls; the same test passed on a Windows 11
-workstation. A real Windows Server restart and an install clicked through by a person are still to
+administrator there, refuses a data folder and a program folder planted by another account,
+installs it silently outside Program Files and checks both folders' permissions and the service's
+privileges, signs in, backs up, upgrades to a newer build, refuses an older one, rolls back a
+broken upgrade, uninstalls, reinstalls over the kept data, and removes the data without following
+a junction in it; the same test passed on a Windows 11 workstation. A real Windows Server restart and an install clicked through by a person are still to
 be done ([E42](roadmap/epics/E42-windows-installer.md)). Other
 platforms install [from source](#macos) or with [Docker](#quick-start-with-docker); installers
 for them may follow and would reuse the same pieces.

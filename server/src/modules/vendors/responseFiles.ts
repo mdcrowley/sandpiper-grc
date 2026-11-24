@@ -21,6 +21,7 @@ import {
   canReceiveFiles, discardReceived, insertAttachment, prepareFile, receiveFile, sandboxDownload, sendStoredFile, type Refusal,
 } from '../attachments/intake.ts';
 import { formatBytes, readSettings, validateDescriptive } from '../attachments/service.ts';
+import { queueFileTexts } from '../attachments/text.ts';
 import type { LinkKit, LinkSettings } from './responseLinks.ts';
 
 /** The record type of the holding area. Not a resource type: nothing outside this file reads it. */
@@ -291,6 +292,8 @@ export async function registerResponseFiles(ctx: ModuleContext, kit: LinkKit) {
         kind: meta.kind, collected_on: meta.collected_on, expires_on: meta.expires_on, scan_status: f.scan_status,
       },
     });
+    // Its text is read now that it belongs to the vendor (files waiting on a link are never read).
+    await queueFileTexts(ctx);
     return { ok: true, attachment_id: f.id, record_type: 'vendor', record_id: a.vendor_id };
   });
   ctx.describeRoute({

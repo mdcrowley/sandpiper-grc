@@ -50,6 +50,8 @@ A procurement officer wants each check against an exclusion list recorded with d
 
 **Implemented in:** `vendors/lifecycle.ts` (`/api/vendors/:id/exclusion-checks`, `activationBlock` on contract activation), table `vendor_exclusion_checks`; `web/src/modules/vendors/Lifecycle.tsx`
 
+Wave 23 security review (platform F3): the gate also runs when an active contract is moved to another vendor (see E41-10).
+
 ### E35-03 Vendor issues register
 
 **Status:** done · **Priority:** P3 · **Type:** feature

@@ -7,6 +7,7 @@
 import { loadUser, secretBox } from '../auth.ts';
 import { DEFAULT_APP_NAME } from '../config.ts';
 import { mailBranding } from '../organization.ts';
+import { reviewerSql } from '../reviewers.ts';
 import { UUID_RE } from '../errors.ts';
 import { DeferJobError, PermanentJobError, RetryLaterError, type JobQueue } from '../jobs/index.ts';
 import type { ModuleContext, Row, SessionUser } from '../module.ts';
@@ -320,10 +321,11 @@ export function makeMail(ctx: ModuleContext, jobs: JobQueue) {
 
   async function recipients(input: SendMailInput): Promise<{ users: { id: string; email: string }[]; skipped: number }> {
     const ids = new Set((input.userIds ?? []).filter((i): i is string => typeof i === 'string' && UUID_RE.test(i)));
+    // An outside reviewer's account holds no permission, whatever roles it was given (core/reviewers.ts).
     const rows = await db.query<Row>(
       `select u.id, u.email, coalesce(array_agg(distinct rp.permission) filter (where r.enabled and rp.permission is not null), '{}') as permissions,
               coalesce(array_agg(distinct r.key) filter (where r.enabled), '{}') as roles
-       from users u left join user_roles ur on ur.user_id = u.id left join roles r on r.id = ur.role_id
+       from users u left join user_roles ur on ur.user_id = u.id and not ${await reviewerSql(db, 'u.id')} left join roles r on r.id = ur.role_id
        left join role_permissions rp on rp.role_id = r.id
        where u.status = 'active' and u.deleted_at is null and (u.id = any($1::uuid[]) or $2::text is not null)
        group by u.id`,

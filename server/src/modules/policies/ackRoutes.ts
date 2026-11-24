@@ -5,7 +5,7 @@ import type { ModuleContext, Row } from '../../core/module.ts';
 import { ackState, ackTracking } from './acknowledgments.ts';
 import { daysBetween, localDate } from './dates.ts';
 import { renderPolicyMarkdown } from './markdown.ts';
-import { languageRead, readingOf, translatedLanguages, translateTitles } from './translations.ts';
+import { readingOf, textRead, translatedLanguages, translateTitles } from './translations.ts';
 import { BASE_LANGUAGE, englishName } from '../../../../shared/i18n.ts';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -88,15 +88,15 @@ export function registerAckRoutes(ctx: ModuleContext) {
     const today = localDate();
     if (a.acknowledged_at) return mineView(a, today);
     if (a.superseded_at) ctx.fail(409, 'superseded', 'This version has been replaced or the policy retired. There is nothing to acknowledge.');
-    const language = await languageRead(db, String(a.version_id), ((req.body ?? {}) as Row).language);
+    const { language, translation_sha256: stamp } = await textRead(db, String(a.version_id), ((req.body ?? {}) as Row).language);
     const stamped = await db.one<Row>(
-      'update policy_acknowledgements set acknowledged_at = now(), language = $2 where id = $1 and acknowledged_at is null returning acknowledged_at', [a.id, language],
+      'update policy_acknowledgements set acknowledged_at = now(), language = $2, translation_sha256 = $3 where id = $1 and acknowledged_at is null returning acknowledged_at', [a.id, language, stamp],
     );
     const at = stamped?.acknowledged_at ?? new Date();
     await ctx.audit(req, {
       action: 'policy.acknowledge', recordType: 'policy', recordId: a.policy_id,
       summary: `${req.user!.displayName} acknowledged version ${a.version} of ${[a.policy_ref, a.policy_title].filter(Boolean).join(' ')}${language === BASE_LANGUAGE ? '' : ` (read in ${englishName(language)})`}`,
-      after: { version: Number(a.version), user_id: req.user!.id, acknowledged_at: at, late: a.due_on < today, language },
+      after: { version: Number(a.version), user_id: req.user!.id, acknowledged_at: at, late: a.due_on < today, language, translation_sha256: stamp },
     });
     return mineView({ ...a, acknowledged_at: at, acknowledged_language: language }, today);
   });
@@ -118,12 +118,12 @@ export function registerAckRoutes(ctx: ModuleContext) {
     if (query.format !== 'csv') return data;
 
     if (!ctx.can(req.user, 'policies.export')) ctx.fail(403, 'forbidden', 'You do not have permission to do that.');
-    const head = ['Policy', 'Version', 'Person', 'Email', 'Department', 'Status', 'Requested', 'Due', 'Acknowledged', 'Language read', 'Days overdue', 'Last reminded'];
+    const head = ['Policy', 'Version', 'Person', 'Email', 'Department', 'Status', 'Requested', 'Due', 'Acknowledged', 'Language read', 'Translation read (SHA-256)', 'Days overdue', 'Last reminded'];
     const lines = [head.join(',')];
     for (const r of data.rows) {
       lines.push([
         [policy.ref, policy.title].filter(Boolean).join(' '), data.version?.version, r.user_name, r.email, r.department,
-        STATE_LABEL[r.state], r.requested_at, r.due_on, r.acknowledged_at, r.language ? englishName(String(r.language)) : '', r.days_overdue || '', r.reminded_at,
+        STATE_LABEL[r.state], r.requested_at, r.due_on, r.acknowledged_at, r.language ? englishName(String(r.language)) : '', r.translation_sha256 ?? '', r.days_overdue || '', r.reminded_at,
       ].map(csvCell).join(','));
     }
     await ctx.audit(req, {

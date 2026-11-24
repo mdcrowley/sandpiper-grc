@@ -267,3 +267,82 @@ describe('departments', () => {
     expect((await t.api.post('/api/departments', { name: 'Invented fleet maintenance' })).status).toBe(201);
   });
 });
+
+describe('a scoped person cannot widen their own scope (wave 23 A1)', () => {
+  it('refuses moving a department\'s or site\'s manager or parent, linking a roster row to themselves, and merging', async () => {
+    if (!t.ctx.resources.get('person') || !t.ctx.resources.get('action')) return;
+    // Actions scoped to their departments; the roster, departments and sites unscoped and editable.
+    const role = await t.db.one<{ id: string }>(
+      `insert into roles (key, name, description, enabled, scopes) values ('widen_test', 'Widen test', '', true, '{"actions":"department"}') returning id`);
+    for (const g of ['actions.view', 'people.view', 'people.create', 'people.edit', 'people.delete', 'sites.view', 'sites.edit']) {
+      await t.db.query('insert into role_permissions (role_id, permission) values ($1, $2)', [role!.id, g]);
+    }
+    const who = await t.as('widen_test');
+    await t.db.query('update users set department_id = $1 where id = $2', [ids.deptA, who.userId]);
+    const action = await bareRow(t.ctx.resources.get('action')!, { department_id: ids.deptB, title: 'Invented head office action' });
+    const sees = async () => (await who.get(`/api/actions/${action}`)).status;
+    expect(await sees()).toBe(404);
+
+    // 1. Making themselves the manager of another department, or moving it under their own.
+    const manager = await who.patch(`/api/departments/${ids.deptB}`, { manager_id: who.userId });
+    expect(manager.status).toBe(400);
+    expect(manager.body.error.fields.manager_id).toMatch(/administrator/);
+    expect((await who.patch(`/api/departments/${ids.deptB}`, { parent_id: ids.deptA })).body.error.fields.parent_id).toBeTruthy();
+    // Other changes to a department are still theirs to make, and sending the same values back is fine.
+    expect((await who.patch(`/api/departments/${ids.deptB}`, { description: 'Invented description', manager_id: null, parent_id: null })).status).toBe(200);
+    // Merging moves records and departments between scopes too.
+    expect((await who.post(`/api/departments/${ids.deptB}/merge`, { into: ids.deptA })).status).toBe(403);
+
+    // 2. A roster row linked to their own account, in another department.
+    const linked = await who.post('/api/people', { full_name: 'Invented Self', user_id: who.userId, department_id: ids.deptB });
+    expect(linked.status).toBe(400);
+    expect(linked.body.error.fields.user_id).toBeTruthy();
+    // A row already theirs cannot be moved to another department either; someone else's row can.
+    const mine = await t.api.post('/api/people', { full_name: 'Invented Own Row', user_id: who.userId, department_id: ids.deptA });
+    expect(mine.status).toBe(201);
+    expect((await who.patch(`/api/people/${mine.body.id}`, { department_id: ids.deptB })).body.error.fields.department_id).toBeTruthy();
+    const other = await t.api.post('/api/people', { full_name: 'Invented Colleague', department_id: ids.deptA });
+    expect((await who.patch(`/api/people/${other.body.id}`, { department_id: ids.deptB })).status).toBe(200);
+    expect((await who.patch(`/api/people/${other.body.id}`, { user_id: who.userId })).body.error.fields.user_id).toBeTruthy();
+
+    // 3. A site's manager.
+    if (ids.siteT) expect((await who.patch(`/api/sites/${ids.siteT}`, { manager_id: who.userId })).body.error.fields.manager_id).toBeTruthy();
+
+    expect(await sees()).toBe(404);
+
+    // An administrator may; so may someone none of whose roles is scoped.
+    expect((await t.api.patch(`/api/departments/${ids.deptB}`, { manager_id: who.userId })).status).toBe(200);
+    expect(await sees()).toBe(200);
+    expect((await t.api.patch(`/api/departments/${ids.deptB}`, { manager_id: null })).status).toBe(200);
+    const open = await t.db.one<{ id: string }>(`insert into roles (key, name, description, enabled) values ('widen_open', 'Widen open', '', true) returning id`);
+    await t.db.query(`insert into role_permissions (role_id, permission) values ($1, 'people.edit'), ($1, 'people.view')`, [open!.id]);
+    const hr = await t.as('widen_open');
+    expect((await hr.patch(`/api/departments/${ids.deptB}`, { parent_id: ids.deptA })).status).toBe(200);
+    expect((await hr.patch(`/api/departments/${ids.deptB}`, { parent_id: null })).status).toBe(200);
+  });
+});
+
+describe('figures grouped by a detail (wave 23 A2)', () => {
+  it('put records outside the person\'s scope under "Other records"; the total and the list-field figures stay the same', async () => {
+    if (!t.ctx.resources.get('person')) return;
+    const def = t.ctx.resources.get('person')!;
+    const who = await scopedPerson(def, 'department');
+    await bareRow(def, { department_id: ids.deptA1, full_name: 'Invented Inside Person', notes: 'Znote inside', status: 'active' });
+    await bareRow(def, { department_id: ids.deptB, full_name: 'Invented Outside Person', notes: 'Znote outside', status: 'active' });
+    const theirs = await who.get('/api/people/stats?group=notes');
+    const admins = await t.api.get('/api/people/stats?group=notes');
+    expect(theirs.status).toBe(200);
+    const labels = theirs.body.groups.map((g: any) => g.label);
+    expect(labels).toContain('Znote inside');
+    expect(labels).not.toContain('Znote outside');
+    expect(labels).toContain('Other records');
+    expect(admins.body.groups.map((g: any) => g.label)).toContain('Znote outside');
+    expect(theirs.body.total).toBe(admins.body.total);
+    // Grouping by a list field gives everyone the same figures.
+    const byStatus = async (api: typeof who | typeof t.api) => (await api.get('/api/people/stats?group=status')).body;
+    expect(await byStatus(who)).toEqual(await byStatus(t.api));
+    // Nor can a figure be matched by an out-of-scope record's words.
+    expect((await who.get(`/api/people/stats?group=status&f.notes=${encodeURIComponent('Znote outside')}`)).body.total).toBe(0);
+    expect((await t.api.get(`/api/people/stats?group=status&f.notes=${encodeURIComponent('Znote outside')}`)).body.total).toBe(1);
+  });
+});

@@ -237,7 +237,11 @@ const mod: ModuleDef = {
           }
           const merged = { ...existing, ...patch };
           checkContractNumbers(merged);
-          await checkActivation(req, merged.vendor_id, patch.status === 'active' && existing.status !== 'active');
+          // Becoming active, or an active contract moving to another vendor (W23 F3): the new vendor's
+          // exclusion-list check and intake checks must allow it, as when a contract is made active.
+          const moved = patch.vendor_id !== undefined && String(patch.vendor_id) !== String(existing.vendor_id);
+          if (patch.status === 'active' && existing.status !== 'active') await checkActivation(req, merged.vendor_id, true);
+          else if (moved && merged.status === 'active') await checkActivation(req, merged.vendor_id, true, 'vendor_id');
           patch.notice_date = noticeDate(merged.end_date, merged.notice_days);
           return patch;
         },
@@ -251,13 +255,13 @@ const mod: ModuleDef = {
     });
 
     /**
-     * A person may make a contract active only after an exclusion-list check while that setting is on
+     * A person may make a contract active (or move an active contract to another vendor, W23 F3) only after an exclusion-list check while that setting is on
      * (E35-02), and only once every check the vendor's risk tier needs is done or waived (E41-10).
      */
-    async function checkActivation(req: FastifyRequest | null, vendorId: string, activating: boolean) {
+    async function checkActivation(req: FastifyRequest | null, vendorId: string, activating: boolean, field: 'status' | 'vendor_id' = 'status') {
       if (!req || !activating) return; // system work (imports of the register, samples) is not held up
       const block = (await activationBlock(ctx, vendorId)) ?? (await checksBlock(ctx, vendorId));
-      if (block) ctx.fail(400, 'validation', 'Check the highlighted fields.', { status: block });
+      if (block) ctx.fail(400, 'validation', 'Check the highlighted fields.', { [field]: block });
     }
 
     // ---------- evidence ----------

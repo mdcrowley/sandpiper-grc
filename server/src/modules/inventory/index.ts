@@ -1,5 +1,5 @@
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
-import { departmentPrepare } from '../../core/scope.ts';
+import { departmentPrepare, mayChangeScopeSources, SCOPE_SOURCE_MESSAGE } from '../../core/scope.ts';
 import { registerDisposalRequests, ROUTED_ONLY } from './disposal.ts';
 import { CONDITION_ASSET_FIELDS, CONDITION_SITE_FIELDS, ensureConditionLists } from './fields-condition.ts';
 import { ASSET_MODEL_FIELDS } from './fields-models.ts';
@@ -140,6 +140,19 @@ async function register(ctx: ModuleContext) {
       manager_id: { label: 'Site manager', type: 'user' },
       ...CONDITION_SITE_FIELDS,
       ...TAG_NUMBER_FIELDS,
+    },
+    hooks: {
+      // A site's manager and the site it sits within decide whose scope it is in (core/scope.ts): someone
+      // whose roles are scoped may not move them, or they could widen their own reach (wave 23 A1).
+      beforeUpdate: (req, existing, patch) => {
+        if (mayChangeScopeSources(req?.user)) return patch;
+        const fields: Record<string, string> = {};
+        for (const k of ['manager_id', 'parent_id']) {
+          if (k in patch && String(patch[k] ?? '') !== String(existing[k] ?? '')) fields[k] = SCOPE_SOURCE_MESSAGE;
+        }
+        if (Object.keys(fields).length) ctx.fail(400, 'validation', 'Check the highlighted fields.', fields);
+        return patch;
+      },
     },
   });
 

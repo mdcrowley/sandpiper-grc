@@ -14,6 +14,8 @@ interface RosterRow {
   due_on: string | null; acknowledged_at: string | null; method: string | null; recorded_by_name: string | null; sheet_attachment_id: string | null;
   /** The language read (E41-07). */
   language?: string | null;
+  /** The stamp of the translated text read (W23 F5). */
+  translation_sha256?: string | null;
 }
 interface RosterTracking {
   version: { version: number } | null;
@@ -116,7 +118,7 @@ export function RosterAcks({ policy, versionNumber }: { policy: Row; versionNumb
                     <td>{r.employee_number ?? '–'}</td>
                     <td>{r.position ?? '–'}</td>
                     <td><StatusChip color={ACK_STATE[r.state].color} label={ACK_STATE[r.state].label} /></td>
-                    <td>{r.acknowledged_at ? `${formatDate(r.acknowledged_at)}${readIn(r.language)}` : r.due_on ? `Due ${formatDate(r.due_on)}` : '–'}</td>
+                    <td>{r.acknowledged_at ? `${formatDate(r.acknowledged_at)}${readIn(r.language, r.translation_sha256)}` : r.due_on ? `Due ${formatDate(r.due_on)}` : '–'}</td>
                     <td>{r.method ? <Badge color="gray">{METHOD[r.method] ?? r.method}</Badge> : '–'}</td>
                     <td>{r.recorded_by_name ?? (r.acknowledged_at ? 'Sample data or import' : '–')}</td>
                   </tr>
