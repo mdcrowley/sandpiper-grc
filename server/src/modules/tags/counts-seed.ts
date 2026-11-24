@@ -1,5 +1,6 @@
 import type { ModuleContext, Row, SeedOptions } from '../../core/module.ts';
 import { sequenceValue, valueKey } from '../../../../shared/tag-format.ts';
+import { renameSamples, type SampleRename } from '../inventory/seed-rename.ts';
 import { COUNT_TYPE } from './counts.ts';
 
 // Sample data of the Asset tags area (E37-10; dev profile only, invented values): a format and a bought
@@ -38,9 +39,13 @@ async function giveTag(ctx: ModuleContext, type: string, field: string, id: stri
   return true;
 }
 
+/** Names of an earlier version ("X (sample)"), renamed in place (E18-65). */
+export const TAGS_RENAMES: SampleRename[] = [{ table: 'tag_formats', names: ['[Sample] Equipment tags'] }];
+
 export async function seedTagSamples(ctx: ModuleContext, opts: SeedOptions): Promise<string> {
   if (opts.profile !== 'dev') return 'skipped: samples are for the dev profile only';
   if (!ctx.resources.get(COUNT_TYPE) || !ctx.resources.get('site') || !ctx.resources.get('asset')) return 'skipped: the Asset tags area or the inventory is not available';
+  await renameSamples(ctx, TAGS_RENAMES);
   if (await ctx.db.one('select 1 from tag_ranges where note = $1 and deleted_at is null', [NOTE])) return 'samples already loaded';
   // Modules seed in name order: fleet and inventory have run, but load their samples if they did not (idempotent).
   if (ctx.resources.get('vehicle')) {
@@ -55,7 +60,7 @@ export async function seedTagSamples(ctx: ModuleContext, opts: SeedOptions): Pro
   // A format and the bought range.
   const format = await ctx.db.one<{ id: string }>(
     `insert into tag_formats (name, characters, prefix, length_min, length_max, check_character, carrier, record_types, notes)
-     values ('Equipment tags (sample)', 'digits', $1, $2, $2, 'none', 'any', '[]'::jsonb, 'Invented sample: printed digits with a Code 128 barcode.') returning id`,
+     values ('[Sample] Equipment tags', 'digits', $1, $2, $2, 'none', 'any', '[]'::jsonb, 'Invented sample: printed digits with a Code 128 barcode.') returning id`,
     [PREFIX, DIGITS]);
   await ctx.db.query(
     `insert into tag_ranges (format_id, kind, prefix, digits, first_number, last_number, first_key, last_key, source, supplier_note, note, received_on, created_by)

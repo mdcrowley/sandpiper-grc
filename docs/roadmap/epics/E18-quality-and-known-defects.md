@@ -1,6 +1,6 @@
 # E18 Quality and known defects
 
-**Status:** in progress (64 of 65 issues done)
+**Status:** done (65 of 65 issues done)
 
 ## Goal
 
@@ -85,7 +85,7 @@ has never been checked, so nobody relies on something untested.
 | E18-62 | Wave 17 correctness review findings | done | P2 |
 | E18-63 | Wave 17 interface review: layout | done | P2 |
 | E18-64 | Wave 17 interface review: pages and switched-off areas | done | P2 |
-| E18-65 | Hand-written tables, the Create menu filter and the remaining interface items | open | P3 |
+| E18-65 | Hand-written tables, the Create menu filter and the remaining interface items | done | P3 |
 
 ---
 
@@ -1367,14 +1367,19 @@ The wave 17 interface review found switched-off areas still shown: roles of an o
 
 ### E18-65 Hand-written tables, the Create menu filter and the remaining interface items
 
-**Status:** open · **Priority:** P3 · **Type:** debt
+**Status:** done · **Priority:** P3 · **Type:** debt
 
 Left over from E18-63. The hand-written tables (asset condition, privacy, assessments, audits, the Overview widget) still scroll sideways at 820, now with the edge fade, rather than leaving out lower-priority columns. The Create menu has no filter box, and some entries are verbs rather than nouns ("Plan activation"). Left over from E18-64: sample data is marked two ways ("[Sample]" first, or "(sample)" last; renaming needs a one-off rename of existing data because the seeds find records by name), charts sit small in tall cards, the relationship map's lines can run over group headings, the core `formatCurrency` still shows cents on whole amounts (pages use a local helper) and a date field's time zone hint shows the raw id.
 
+Done in wave 18. A hand-written table in `<TableWrap fit>` leaves out lower-priority columns (`data-priority` on its headings) by the same rule as the shared lists; the Create menu is a `FilterMenu` with a filter box; every seed marks sample data "[Sample] …" and renames records an older seed made ("X (sample)") before it looks them up; the chart grid fault that drew plots small and centered is fixed; map headings sit on a band drawn over the lines; `formatCurrency` drops cents on whole amounts and date fields name the zone in everyday words. Proven by unit and component tests, the browser suites and the accessibility audit listed below and screenshots at 1440, 820 and 390 (portal); not yet checked with a real screen reader.
+
 **Acceptance criteria**
 
-- [ ] The hand-written tables use column priorities (or the shared list) and fit at 820
-- [ ] The Create menu has a filter box; every entry names a kind of record
-- [ ] Sample data marked one way in every seed
-- [ ] Charts top-aligned in tall cards (core `ChartImpl`); map lines routed behind group headings
-- [ ] Core `formatCurrency` without cents on whole amounts; friendly time zone name in date field hints
+- [x] The hand-written tables use column priorities (or the shared list) and fit at 820: asset condition, privacy coverage (long cells wrap within 20rem), assessment snapshots, audit coverage (past years and the cycle give way first) and the Overview widget tables, through `TableWrap fit` (`watchTableFit`, `fitTableColumns`)
+- [x] The Create menu has a filter box (focus on open, arrow keys, Home and End, Enter opens the first match, "No match" announced); every entry names a kind of record ("Emergency activation", "Audit engagement", "Framework")
+- [x] Sample data marked one way in every seed ("[Sample]" first); `renameSamples` (`inventory/seed-rename.ts`) renames an existing "X (sample)" record, with an audit event, so running the sample data again neither duplicates nor leaves old names (`seed-rename.test.ts`: a fresh and an existing database)
+- [x] Charts top-aligned in tall cards (core `ChartImpl`: a chart whose labels need no extra room kept its own grid instead of ECharts' wide default); map lines drawn behind group headings (on screen and in the saved picture)
+- [x] Core `formatCurrency` without cents on whole amounts (the local `wholeCurrency` helpers are gone); friendly time zone name in date field hints (`timeZoneLabel`, shared with the portal)
+- [x] Tests: `fit.test.ts`, `createMenu.test.ts`, `TableWrap.component.test.ts`, `FilterMenu.component.test.ts`, `dateFields.component.test.ts`, `format.test.ts`, `reports/labels.test.ts`, `inventory/mapExport.test.ts`, `inventory/seed-rename.test.ts` and the changed seed tests; e2e 01-smoke, 05-keyboard, 06-lists, 09-features-off, 11-audits, 12-governance, 13-continuity, 14-condition, 15-ot, 16-records, 17-vendor-lifecycle, 19-feeds and 21-tags pass (52 tests); the accessibility audit on the changed routes is clean (light and dark, 1440 and 820)
+
+**Implemented in:** `web/src/core/{fit.ts,ui.tsx,overlay.tsx,createMenu.ts,Shell.tsx,ChartImpl.tsx,format.ts,dateFields.tsx,base.css,README.md}`, `web/src/modules/{condition,records,frameworks,audits,home,inventory,portal,funding,projects}`, the Create entries in `audits`, `continuity` and `frameworks`, `server/src/modules/inventory/seed-rename.ts` and the seeds of condition, continuity, feeds, fleet, funding, governance, holds, ot, projects, records, tags and vendors.

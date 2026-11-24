@@ -185,7 +185,7 @@ The tab needs `funding.view` (and `funding.edit` to change it) besides the contr
 
 ## Sample data
 
-The `dev` sample data adds four invented awards ("Bus replacement (sample)", "Station accessibility upgrade (sample)", "Operating assistance (sample)" and "Cybersecurity improvement (sample)") from invented funders, this year's certification with twenty statements, and one compliance review built from the invented sample file of review areas, with three requests and two deficiencies (one with a corrective action plan), and two invented sub-recipients of "Operating assistance (sample)" ("Sample county paratransit partner (sample)" and "Sample university research partner (sample)"), each with monitoring history, one with findings and a corrective action plan. The sample awards are linked to the sample vehicles, assets, projects and contracts that exist when the sample data is loaded.
+The `dev` sample data adds four invented awards ("[Sample] Bus replacement", "[Sample] Station accessibility upgrade", "[Sample] Operating assistance" and "[Sample] Cybersecurity improvement") from invented funders, this year's certification with twenty statements, and one compliance review built from the invented sample file of review areas, with three requests and two deficiencies (one with a corrective action plan), and two invented sub-recipients of "[Sample] Operating assistance" ("[Sample] County paratransit partner" and "[Sample] University research partner"), each with monitoring history, one with findings and a corrective action plan. The sample awards are linked to the sample vehicles, assets, projects and contracts that exist when the sample data is loaded.
 
 ## Not available yet
 

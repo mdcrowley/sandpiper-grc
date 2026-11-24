@@ -14,6 +14,8 @@ interface Coverage {
   vehicles: {
     id: string; fleet_number: string; mode: string; mode_label: string; status_label: string; status_color: string;
     depot_name: string | null; cells: Record<string, 'ok' | 'not_working' | 'missing' | 'not_required'>; gaps: number;
+    /** Per requirement (E39-04): how many are needed, where that comes from, and the units counted. */
+    detail?: Record<string, { count: number; source: 'mode' | 'model' | 'mode_and_model'; installed: number; working: number; not_working: number; missing: number }>;
   }[];
   summary: { vehicles: number; with_gaps: number; fully_equipped: number };
 }
@@ -42,7 +44,7 @@ export function CoveragePage() {
 
   return (
     <div className="stack">
-      <PageHeader title="Equipment coverage" subtitle="Which vehicles carry working equipment of every kind their mode needs."
+      <PageHeader title="Equipment coverage" subtitle="Which vehicles carry working equipment of every kind their mode and their vehicle model need."
         actions={can('fleet.administer') && <Button icon="settings" onClick={() => setEditing(true)}>Required equipment</Button>} />
       <FleetTabs active="coverage" />
       {data && (
@@ -69,7 +71,8 @@ export function CoveragePage() {
           <Card flush>
             <ul className="fl-legend" aria-label="Key">
               {Object.entries(CELL).map(([k, c]) => <li key={k}><span className={`fl-cell ${c.cls}`}><Icon name={c.icon} size={16} /></span>{c.label}</li>)}
-              <li><span className="fl-cell fl-cell-na">—</span>Not needed for this mode</li>
+              <li><span className="fl-cell fl-cell-na">—</span>Not needed for this mode or model</li>
+              <li><span className="fl-count">1/2</span>Working units of a count set by the vehicle model</li>
             </ul>
             <TableWrap label="Equipment coverage by vehicle" className="fl-coverage">
               <table className="table">
@@ -97,7 +100,17 @@ export function CoveragePage() {
                         const s = v.cells[c.value];
                         if (s === 'not_required') return <td key={c.value} className="fl-col"><span className="fl-cell fl-cell-na" aria-label="Not needed">—</span></td>;
                         const cell = CELL[s];
-                        return <td key={c.value} className="fl-col"><span className={`fl-cell ${cell.cls}`} title={`${c.label}: ${cell.label}`}><Icon name={cell.icon} size={16} label={cell.label} /></span></td>;
+                        const d = v.detail?.[c.value];
+                        // More than one needed (a vehicle model's count): working units out of the count.
+                        const many = d && d.count > 1 ? `${d.working} of ${d.count} working` : '';
+                        const from = d?.source === 'model' ? ' (added by the vehicle model)' : '';
+                        const label = `${cell.label}${many ? `, ${many}` : ''}${from}`;
+                        return (
+                          <td key={c.value} className="fl-col">
+                            <span className={`fl-cell ${cell.cls}`} title={`${c.label}: ${label}`}><Icon name={cell.icon} size={16} label={label} /></span>
+                            {many && <span className="fl-count" aria-hidden="true">{d!.working}/{d!.count}</span>}
+                          </td>
+                        );
                       })}
                       <td className="num">{v.gaps ? <strong>{v.gaps}</strong> : <span className="muted">0</span>}</td>
                     </tr>

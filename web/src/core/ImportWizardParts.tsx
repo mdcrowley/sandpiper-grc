@@ -12,6 +12,8 @@ export type ImportMode = 'create' | 'update' | 'upsert';
 export interface ImportField {
   name: string; label: string; type: string; required: boolean;
   list?: string; to?: string; multiple?: boolean; custom?: boolean;
+  /** May be left unmapped when this other field is mapped (a vehicle's mode comes from its model). */
+  filledBy?: string;
 }
 export interface ReadResult {
   type: string; label: string; plural: string; route: string;

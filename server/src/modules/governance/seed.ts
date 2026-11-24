@@ -218,8 +218,8 @@ async function applySample(ctx: ModuleContext): Promise<boolean> {
       record_type: k.recordType, record_id: recordId, notes: `${MARK} Applied to a waiting approval.`,
     });
     try {
-      await eng.decide(k.key, recordId, null, 'approved', `Decided at ${meeting.ref} (sample).`, { userId: board.chair_id, via: 'meeting' });
-      await ctx.db.query('update meeting_decisions set applied_at = now(), applied_to_workflow = $2 where id = $1', [decision.id, `${k.label}: approved as the chair (sample)`]);
+      await eng.decide(k.key, recordId, null, 'approved', `[Sample] Decided at ${meeting.ref}.`, { userId: board.chair_id, via: 'meeting' });
+      await ctx.db.query('update meeting_decisions set applied_at = now(), applied_to_workflow = $2 where id = $1', [decision.id, `[Sample] ${k.label}: approved as the chair`]);
       return true;
     } catch {
       // The chair could not decide it (another rule of the engine): the sample decision is taken back.

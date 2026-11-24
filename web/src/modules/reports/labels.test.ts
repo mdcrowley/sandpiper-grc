@@ -10,6 +10,11 @@ describe('fitting category labels to the room each one has', () => {
     const fit = fitCategoryLabels(bars(['New', 'Open', 'Done']), 600, measure);
     expect(fit.xAxis?.[0].axisLabel).toMatchObject({ interval: 0, overflow: 'none' });
     expect(fit.grid).toBeUndefined();
+    // E18-65: no `grid` key at all, so spreading the result keeps the chart's own margins (a
+    // `grid: undefined` made ECharts use its wide defaults: a small plot centered in a tall card).
+    expect('grid' in fit).toBe(false);
+    const chartGrid = { top: 16, right: 16, bottom: 32, left: 48 };
+    expect({ grid: chartGrid, ...fit }.grid).toBe(chartGrid);
   });
 
   it('wraps two-word labels onto two lines when a word fits, and makes room below', () => {

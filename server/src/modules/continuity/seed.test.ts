@@ -18,14 +18,14 @@ describe('sample continuity records', () => {
     expect(await seedContinuity(t.ctx, dev)).toMatch(/^10 sample business processes/);
     const processes = (await t.api.get('/api/business-processes?pageSize=100')).body.rows as Row[];
     expect(processes).toHaveLength(10);
-    expect(processes.every((p) => p.name.endsWith('(sample)'))).toBe(true);
+    expect(processes.every((p) => p.name.startsWith('[Sample] '))).toBe(true);
 
     const summary = (await t.api.get('/api/continuity/summary')).body;
     expect(summary).toMatchObject({ processes: 10, with_gap: 2, plans: { total: 3, review_overdue: 1 }, activations: { active: 0 } });
     const gaps = (await t.api.get('/api/continuity/gaps')).body.rows as Row[];
-    expect(gaps.filter((g) => g.gap).map((g) => g.name).sort()).toEqual(['Fare collection (sample)', 'Payroll (sample)']);
+    expect(gaps.filter((g) => g.gap).map((g) => g.name).sort()).toEqual(['[Sample] Fare collection', '[Sample] Payroll']);
     // Paratransit scheduling reaches its systems through the Dial-a-Ride service.
-    expect(gaps.find((g) => g.name === 'Paratransit scheduling (sample)')?.systems.some((s: Row) => s.via)).toBe(true);
+    expect(gaps.find((g) => g.name === '[Sample] Paratransit scheduling')?.systems.some((s: Row) => s.via)).toBe(true);
 
     const plans = (await t.api.get('/api/continuity-plans?pageSize=10')).body.rows as Row[];
     expect(plans.map((p) => p.status).sort()).toEqual(['approved', 'approved', 'in_review']);

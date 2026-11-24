@@ -1,6 +1,10 @@
 /* Records requests and privacy. */
 .rr-pad { padding: var(--space-4, 1rem); margin: 0; }
 .rr-wrap { overflow-wrap: anywhere; min-width: 10rem; }
+/* Long cells of the privacy coverage table wrap within a set width, so the table fits at 820 px (E18-65). */
+.table td.rr-wrap { white-space: normal; }
+.table td.rr-wrap a { display: inline; max-width: none; }
+.rr-cell { max-width: 20rem; }
 .rr-actions { display: flex; gap: 0.25rem; justify-content: flex-end; flex-wrap: wrap; white-space: nowrap; }
 .rr-summary { display: grid; gap: var(--space-4, 1rem); grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); align-items: start; }
 .rr-figures { margin: 0; }

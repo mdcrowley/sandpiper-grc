@@ -172,6 +172,8 @@ reference (`TKT-00012`).
 | `service_desk_metrics` (`from?`, `to?`) | can see `ticket` | `GET /api/tickets/metrics` |
 | `fleet_equipment_gaps` (`mode?`) | fleet module loaded, `fleet.view` | `GET /api/fleet/coverage?gaps=true` |
 | `safety_summary` | safety module loaded, `safety.view` | `GET /api/safety/summary` |
+| `vehicle_model_members` (`model`, `limit?`) | fleet module loaded and on, `fleet.view` | `/api/vehicle-models`, `/:id/summary`, `/inherited-fields`, `/api/vehicles?f.model_id=` |
+| `asset_model_members` (`model`, `limit?`) | `assets.view` | The same under `/api/asset-models` and `/api/assets` |
 | `run_report` (`report?`, `max_rows?` ≤ 200) | can see `report_definition` | Without `report`: the saved reports you can run. With an id or name: `GET /api/reports/:id/run` as labeled rows. Reports progress |
 | `system_impact` (`system`: id, reference or name) | can see `system` | `GET /api/systems/:id/impact`: downstream systems with depth and criticality, and the sites, data categories, assets, vehicles and services affected (each only where visible). Reports progress |
 | `my_approvals` | always (answers "not available" without the workflows module) | `GET /api/workflows/approvals`: the approval steps waiting for your decision, soonest due first, each with its `step_id` |

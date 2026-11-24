@@ -38,6 +38,7 @@ invented.
 - [User provisioning (SCIM 2.0)](#user-provisioning-scim-20)
 - [Calendar feeds and the work-tracker bridge](#calendar-feeds-and-the-work-tracker-bridge)
 - [Asset tags and inventory counts](#asset-tags-and-inventory-counts)
+- [Vehicle and asset models](#vehicle-and-asset-models)
 - [Examples of common integrations](#examples-of-common-integrations)
 
 ## Authentication: personal access tokens
@@ -549,6 +550,24 @@ is off.
     discrepancy summary into a ticket or an action.
   - `GET /api/inventory-counts/report?days=&site=` gives counts by status, coverage by site (the
     same for everyone) and the records not verified within `days`.
+
+## Vehicle and asset models
+
+Record types `vehicle_model` (`/api/vehicle-models`, fleet permissions, off with Fleet and services)
+and `asset_model` (`/api/asset-models`, assets permissions). Vehicles and assets carry `model_id` and
+`model_overrides` (inherited fields the record keeps as its own). On create or update, inherited
+fields not sent and not overridden take the model's value; a field left empty on the model is not
+passed on. A sent value that differs from the model's becomes an override, and sending
+`model_overrides` without a field clears its override. A model's `PATCH` applies the change to its
+members and answers with `_model_change` (`status`, `total`, `applied`, `kept`, `refused`).
+
+Further routes, under `{base}` = `/api/vehicle-models` or `/api/asset-models`:
+`{base}/:id/preview`, `/summary`, `/changes[/:changeId]`, `/assign/preview`, `/assign`
+(`{ ids, keep }`), `{base}/suggestions`, `{base}/inherited-fields` (GET; PUT `{ custom: [keys] }`
+needs `admin.administer`), and `/api/vehicle-models/:id/equipment` (GET; PUT
+`{ items: [{ asset_type, count, asset_model_id? }] }`). `/api/fleet/coverage` rows add `detail` per
+cell, and `/api/vehicles/:id/equipment` adds `count`, `source`, `installed`, `working`,
+`not_working` and `missing`. Imports resolve a model by name.
 
 ## Examples of common integrations
 

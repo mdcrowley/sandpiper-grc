@@ -80,8 +80,10 @@ button.inv-nudge:hover { box-shadow: inset 0 0 0 1px var(--c-amber-solid); }
   position: absolute; inset-block-end: var(--s-2); inset-inline-end: var(--s-3); padding: 1px 8px; border-radius: 999px;
   background: var(--surface); border: 1px solid var(--border); color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums;
 }
-.inv-lane-label { fill: var(--text-muted); font-size: 12px; font-weight: 650; letter-spacing: 0.06em; text-transform: uppercase; }
-.inv-group rect { fill: var(--surface); stroke: var(--border-control); stroke-width: 1; }
+.inv-lane-label { fill: var(--text-muted); font-size: 12px; font-weight: 650; letter-spacing: 0.06em; text-transform: uppercase; paint-order: stroke; stroke: var(--bg); stroke-width: 5px; stroke-linejoin: round; }
+.inv-group-box { fill: var(--surface); stroke: var(--border-control); stroke-width: 1; }
+/* The band behind a group heading hides the lines that pass under it (E18-65). */
+.inv-group-band { fill: var(--surface); stroke: none; }
 .inv-group text { fill: var(--text); font-size: 12.5px; font-weight: 650; }
 .inv-group-count { fill: var(--text-muted); font-weight: 500; }
 

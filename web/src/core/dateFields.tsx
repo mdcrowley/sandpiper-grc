@@ -7,7 +7,7 @@ import dayjs from 'dayjs';
 import customParseFormat from 'dayjs/plugin/customParseFormat';
 import type { DateFieldProps, DateTimeFieldProps } from './fields';
 import { fieldShell } from './fieldShell';
-import { fromZonedInput, timeZone, toZonedInput } from './format';
+import { fromZonedInput, timeZoneLabel, toZonedInput } from './format';
 import { usePopupHost } from './popups';
 
 dayjs.extend(customParseFormat);
@@ -54,7 +54,7 @@ export function DateTimeFieldImpl({ value, onChange, hint, placeholder = 'Pick a
   const local = toZonedInput(value); // "YYYY-MM-DDTHH:mm" in the organization's zone
   return (
     <DateTimePicker
-      {...fieldShell({ ...field, hint: hint ?? `Time zone: ${timeZone().replace(/_/g, ' ')}` })}
+      {...fieldShell({ ...field, hint: hint ?? `Time zone: ${timeZoneLabel()}` })}
       ref={host.ref}
       popoverProps={host.popup}
       value={local ? `${local.replace('T', ' ')}:00` : null}

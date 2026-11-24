@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createEntries, createHome } from './createMenu';
+import { createEntries, createHome, filterEntries } from './createMenu';
 import type { NavItem } from './module';
 
 // E18-63: the Create menu is grouped like the navigation and every entry has an icon.
@@ -34,5 +34,32 @@ describe('Create menu entries', () => {
       'Inventory: Asset (box)',
       'Change: Change (refresh)',
     ]);
+  });
+});
+
+describe('the Create menu filter (E18-65)', () => {
+  const items = [
+    { label: 'Ticket', group: 'Service desk' },
+    { label: 'Knowledge article', group: 'Service desk' },
+    { label: 'Safety event', group: 'Safety' },
+    { label: 'Hazard', group: 'Safety' },
+    { label: 'Emergency activation', group: 'Governance' },
+  ];
+
+  it('lists everything while the box is empty', () => {
+    expect(filterEntries(items, '')).toEqual(items);
+    expect(filterEntries(items, '   ')).toEqual(items);
+  });
+
+  it('matches the label or the group, ignoring case, every word', () => {
+    expect(filterEntries(items, 'TICK').map((i) => i.label)).toEqual(['Ticket']);
+    expect(filterEntries(items, 'safety').map((i) => i.label)).toEqual(['Safety event', 'Hazard']);
+    expect(filterEntries(items, 'article desk').map((i) => i.label)).toEqual(['Knowledge article']);
+    expect(filterEntries(items, 'activation').map((i) => i.label)).toEqual(['Emergency activation']);
+  });
+
+  it('finds nothing for words that match no entry', () => {
+    expect(filterEntries(items, 'zebra')).toEqual([]);
+    expect(filterEntries(items, 'ticket safety')).toEqual([]);
   });
 });

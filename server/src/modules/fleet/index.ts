@@ -1,6 +1,7 @@
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
 import { registerEquipment } from './equipment.ts';
 import { CONDITION_VEHICLE_FIELDS, ensureFleetConditionLists } from './fields-condition.ts';
+import { VEHICLE_MODEL_FIELDS } from './fields-models.ts';
 import { registerFleetTaggables, VEHICLE_TAG_FIELDS } from './fields-tags.ts';
 import { seedFleet } from './seed.ts';
 import { registerServices } from './services.ts';
@@ -82,6 +83,7 @@ async function register(ctx: ModuleContext) {
       notes: { label: 'Notes', type: 'longtext' },
       ...CONDITION_VEHICLE_FIELDS,
       ...VEHICLE_TAG_FIELDS,
+      ...VEHICLE_MODEL_FIELDS,
     },
     hooks: {
       beforeCreate: async (_req, data) => { await checkVehicle(ctx, data, data, null); return data; },

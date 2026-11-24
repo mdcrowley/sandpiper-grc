@@ -145,7 +145,7 @@ An evaluator wants an invented hold, requests and assessments, and a guide page.
 
 **Acceptance criteria**
 
-- [x] Invented samples, labeled "(sample)": one active hold (two safety events by hand, the sample incident by query), six requests (one overdue, one extended, one closed with exemptions), personal-data flags on the sample data categories, three assessments (approved, in review, due)
+- [x] Invented samples, labeled "[Sample]": one active hold (two safety events by hand, the sample incident by query), six requests (one overdue, one extended, one closed with exemptions), personal-data flags on the sample data categories, three assessments (approved, in review, due)
 - [x] Guide pages `33-legal-holds.md` (always shown) and `37-records-requests-and-privacy.md` (follows the area); the legal-hold part was split from the planned page 33 so that it stays readable while the records area is off
 
 **Implemented in:** `server/src/modules/holds/seed.ts`, `server/src/modules/records/seed.ts`; `docs/user/33-legal-holds.md`, `docs/user/37-records-requests-and-privacy.md`; browser suite `tools/e2e/suites/16-records.mjs`

@@ -50,8 +50,8 @@ function ChangesThisWeek() {
               <EmptyState icon="calendar" title="No changes are planned for this week"
                 message={o.awaiting_approval ? `${o.awaiting_approval} ${o.awaiting_approval === 1 ? 'change is' : 'changes are'} waiting for approval.` : undefined} />
             ) : (
-              <TableWrap label="Changes this week"><table className="table">
-                <thead><tr><th>Change</th><th>Planned start</th><th>Status</th></tr></thead>
+              <TableWrap fit label="Changes this week"><table className="table">
+                <thead><tr><th>Change</th><th>Planned start</th><th data-priority={1}>Status</th></tr></thead>
                 <tbody>
                   {rows.map((c) => (
                     <tr key={c.id}>

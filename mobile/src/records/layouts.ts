@@ -15,12 +15,12 @@ export interface PhoneLayout {
 export const LAYOUTS: Record<string, PhoneLayout> = {
   asset: {
     summary: ['status', 'asset_type', 'site_id', 'location'],
-    key: ['tag', 'serial', 'make', 'model', 'user_id', 'owner_id', 'condition_rating', 'system_id', 'notes'],
+    key: ['tag', 'serial', 'model_id', 'make', 'model', 'user_id', 'owner_id', 'condition_rating', 'system_id', 'notes'],
     editable: ['status', 'site_id', 'location', 'user_id', 'condition_rating', 'tag', 'notes'],
   },
   vehicle: {
     summary: ['status', 'mode', 'depot_id'],
-    key: ['fleet_number', 'registration', 'tag_number', 'make', 'model', 'model_year', 'odometer_miles', 'condition_rating', 'notes'],
+    key: ['fleet_number', 'registration', 'tag_number', 'model_id', 'make', 'model', 'model_year', 'odometer_miles', 'condition_rating', 'notes'],
     editable: ['status', 'depot_id', 'tag_number', 'odometer_miles', 'condition_rating', 'notes'],
   },
   site: {

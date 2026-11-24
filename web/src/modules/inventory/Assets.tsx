@@ -11,11 +11,17 @@ import { CheckInDialog, CheckOutDialog, DisposeDialog, useAssetMoveBlocked } fro
 import type { DisposalRequest } from './AssetDialogs';
 import { AssignmentTab, DisposalTab, LifecycleBand, RequestCard, WhereCard } from './AssetLifecycle';
 import { ExtensionSections, ListExtensionActions, useBulkExtensions } from './Extensions';
+import { MODEL_KINDS, modelAnnotate, useFromModel } from './models';
 import { funderFields, RelatedWork, useFunder } from './shared';
+
+const annotateAsset = modelAnnotate(MODEL_KINDS.asset);
 
 export function AssetList() {
   const funder = useFunder();
   const bulkActions = useBulkExtensions('asset');
+  // "New asset from this model" (E39-05): the New form opens filled with the model's values.
+  const fromModel = useFromModel(MODEL_KINDS.asset);
+  if (fromModel.pending) return <Loading lines={6} label="Loading the asset model" />;
   return (
     <ResourceList
       type="asset"
@@ -32,10 +38,12 @@ export function AssetList() {
         { field: 'serial', hidden: true },
         { field: 'cost', hidden: true },
         { field: 'purchase_date', hidden: true },
+        { field: 'model_id', hidden: true },
       ]}
-      filters={funderFields(['status', 'asset_type', 'site_id', 'system_id', 'user_id', 'owner_id', 'funding_source', 'funder_interest', 'disposal_request_status', 'warranty_end', 'support_end', 'purchase_date'], funder.on)}
+      filters={funderFields(['status', 'asset_type', 'model_id', 'site_id', 'system_id', 'user_id', 'owner_id', 'funding_source', 'funder_interest', 'disposal_request_status', 'warranty_end', 'support_end', 'purchase_date'], funder.on)}
       bulkFields={['status', 'asset_type', 'site_id', 'owner_id', 'system_id', 'funding_source', 'warranty_end', 'support_end']}
-      createFields={funderFields(['name', 'asset_type', 'status', 'make', 'model', 'serial', 'site_id', 'location', 'purchase_date', 'cost', 'funding_source', 'funder_interest', 'funder_interest_pct', 'warranty_end', 'support_end'], funder.on)}
+      createInitial={fromModel.initial}
+      createFields={funderFields(['name', 'model_id', 'asset_type', 'status', 'make', 'model', 'serial', 'site_id', 'location', 'purchase_date', 'cost', 'funding_source', 'funder_interest', 'funder_interest_pct', 'warranty_end', 'support_end'], funder.on)}
       // Import is the list's own (the generic import wizard, E13-21).
       actions={<><ListExtensionActions recordType="asset" /><Link className="btn btn-secondary" to="/assets/disposals">Disposal approvals</Link></>}
       bulkActions={bulkActions}
@@ -43,7 +51,7 @@ export function AssetList() {
   );
 }
 
-const DETAILS = ['name', 'tag', 'asset_type', 'status', 'make', 'model', 'serial', 'system_id'];
+const DETAILS = ['name', 'tag', 'model_id', 'asset_type', 'status', 'make', 'model', 'serial', 'system_id'];
 const PURCHASE = ['purchase_date', 'cost', 'funding_source', 'funder_interest', 'funder_interest_pct', 'warranty_end', 'support_end', 'vendor_id', 'contract_id'];
 const TECHNICAL = ['os', 'os_version', 'ip_address', 'mac_address', 'notes'];
 
@@ -88,7 +96,7 @@ export function AssetDetail() {
       summary={({ row, reload, canEdit }) => (
         <>
           <div className="inv-asset-summary">
-            <EditableSummary type="asset" row={row} fields={DETAILS} onSaved={reload} sections={[{ title: 'What it is', fields: DETAILS }]} />
+            <EditableSummary type="asset" row={row} fields={DETAILS} onSaved={reload} sections={[{ title: 'What it is', fields: DETAILS }]} annotate={(f) => annotateAsset(row, f)} />
             <WhereCard row={row} canEdit={canEdit} onChanged={reload} />
           </div>
           <ExtensionSections recordType="asset" row={row} />
@@ -100,7 +108,7 @@ export function AssetDetail() {
           key: 'details', label: 'Purchase and support',
           content: ({ row, reload }) => (
             <div className="stack">
-              <EditableSummary type="asset" row={row} fields={purchase} title="Purchase, funding and support" onSaved={reload} />
+              <EditableSummary type="asset" row={row} fields={purchase} title="Purchase, funding and support" onSaved={reload} annotate={(f) => annotateAsset(row, f)} />
               <EditableSummary type="asset" row={row} fields={TECHNICAL} title="Technical" onSaved={reload} />
             </div>
           ),

@@ -106,6 +106,26 @@ describe('what a switched-off area leaves behind', () => {
     expect(sla).toMatchObject({ enabled: false });
   });
 
+  it('hides vehicle models with Fleet and services and keeps asset models (E39)', async () => {
+    const model = await t.api.post('/api/vehicle-models', { name: 'Invented Quarrybank 8', mode: (await t.ctx.lookups.values('vehicle_mode'))[0].value });
+    expect(model.status).toBe(201);
+    expect((await setFeatures({ fleet: false })).status).toBe(200);
+    const m = await meta();
+    expect(m.resources.vehicle_model).toBeUndefined();
+    expect(m.resources.asset_model.fields.model_id).toBeUndefined();
+    expect(m.resources.asset.fields.model_id).toMatchObject({ type: 'ref', to: 'asset_model' });
+    for (const path of ['/api/vehicle-models', `/api/vehicle-models/${model.body.id}/summary`, '/api/vehicle-models/suggestions']) {
+      const res = await t.api.get(path);
+      expect([res.status, res.body.error?.code], path).toEqual([404, 'switched_off']);
+    }
+    expect((await t.api.get('/api/records/lookup?type=vehicle_model&q=Quarrybank')).status).toBe(404);
+    const tools = (await t.api.get('/api/mcp/admin')).body.tools.map((x: any) => x.name);
+    expect(tools).not.toContain('vehicle_model_members');
+    expect(tools).toContain('asset_model_members');
+    expect((await setFeatures({ fleet: true })).status).toBe(200);
+    expect((await t.api.get(`/api/vehicle-models/${model.body.id}`)).body.name).toBe('Invented Quarrybank 8');
+  });
+
   it('leaves its AI assistant tools, background jobs and retention category out of the administration pages', async () => {
     const tools = async () => (await t.api.get('/api/mcp/admin')).body.tools.map((x: any) => x.name);
     expect(await tools()).toContain('fleet_equipment_gaps');

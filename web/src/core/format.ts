@@ -11,6 +11,7 @@ let dateFmt: Intl.DateTimeFormat;
 let dateTimeFmt: Intl.DateTimeFormat;
 let partsFmt: Intl.DateTimeFormat;
 let currencyFmt: Intl.NumberFormat;
+let wholeCurrencyFmt: Intl.NumberFormat;
 
 function build() {
   dateFmt = new Intl.DateTimeFormat('en-US', { day: 'numeric', month: 'short', year: 'numeric', timeZone: zone });
@@ -21,11 +22,23 @@ function build() {
     year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: zone,
   });
   currencyFmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode });
+  wholeCurrencyFmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode, minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 build();
 
 /** The organization's IANA time zone, e.g. "Europe/London". */
 export const timeZone = (): string => zone;
+/**
+ * The organization's time zone by its everyday name ("Eastern Standard Time", for the time of year of
+ * `at`), not its identifier; the identifier with spaces when the browser has no name for it (E18-65).
+ */
+export function timeZoneLabel(at: Date = new Date()): string {
+  try {
+    const name = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'long' }).formatToParts(at).find((p) => p.type === 'timeZoneName')?.value;
+    if (name && !/^GMT[+-]/.test(name)) return name;
+  } catch { /* an unknown zone: fall back to its identifier */ }
+  return zone.replace(/_/g, ' ');
+}
 /** The organization's ISO 4217 currency code, e.g. "USD". */
 export const currency = (): string => currencyCode;
 
@@ -103,11 +116,15 @@ export function formatDuration(ms: number): string {
   return `${s}s`;
 }
 
-/** "$1,234.50" */
+/**
+ * An amount in full: "$1,234.50", and without cents when it is whole ("$50,000"), the money rule of
+ * E18-64 (E18-65). Only KPI tiles, board cards and chart axes use a compact form.
+ */
 export function formatCurrency(value: number | string | null | undefined): string {
   if (value === null || value === undefined || value === '') return EMPTY;
   const n = Number(value);
-  return Number.isFinite(n) ? currencyFmt.format(n) : EMPTY;
+  if (!Number.isFinite(n)) return EMPTY;
+  return Math.round(n * 100) % 100 === 0 ? wholeCurrencyFmt.format(n) : currencyFmt.format(n);
 }
 
 /** "1,234.5" */

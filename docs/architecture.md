@@ -393,6 +393,14 @@ File formats are documented in [Installation](installation.md#5-load-data).
   `$env:Path = "$PWD\.tools\node;$env:Path"`.)
 - Tests never read the private `seed/` folder. They use invented data.
 
+### Vehicle and asset models (E39)
+
+Members store inherited values in their own columns, so every generic list, filter, search and
+report keeps working. The models module installs a `prepare` hook (`ResourceDef.hooks.prepare`, run
+before validation) on vehicles and assets to fill them. A model change is applied member by member
+through `resources.update(..., { via })`, logged in `model_changes`, and moved to the job queue above
+`models.background_after` (200) members.
+
 ## How to add a module
 
 A short outline, for an invented "meeting rooms" module. The exact shapes are in

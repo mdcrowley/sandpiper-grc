@@ -2,6 +2,7 @@ import { approvalEngine } from '../../core/approval-kinds.ts';
 import type { ModuleContext, Row, SeedOptions } from '../../core/module.ts';
 import { dayInZone } from '../../core/timezone.ts';
 import { seedFleet } from '../fleet/seed.ts';
+import { renameSamples, type SampleRename } from '../inventory/seed-rename.ts';
 import { seedDevEstate } from '../inventory/seed-sample.ts';
 import { seedPeople } from '../people/seed.ts';
 import { PLAN_KIND } from './plans.ts';
@@ -9,7 +10,7 @@ import { mirrorLinks } from './processes.ts';
 import { addMonths } from './shared.ts';
 
 /**
- * Dev profile only, all invented and labeled "(sample)": ten business processes of a bus and
+ * Dev profile only, all invented and labeled "[Sample]": ten business processes of a bus and
  * light-rail operator with what they depend on (sample systems, services, sites, vendors and
  * positions), impact analyses for six of them, three plans (one approved, one in review, one
  * overdue for review) with call trees from the sample roster and checklists, two recovery gaps by
@@ -21,11 +22,12 @@ import { addMonths } from './shared.ts';
  * dependencies on them are added when the seed runs again.
  */
 
-const MARK = '(sample)';
+const MARK = '[Sample]';
+const mark = (text: string) => `${MARK} ${text}`;
 
 const SAMPLE_USERS = [
-  { username: 'sample.bc.avery', name: 'Avery Lindqvist (sample)', role: 'continuity_manager' },
-  { username: 'sample.bc.jordan', name: 'Jordan Mbatha (sample)', role: 'continuity_manager' },
+  { username: 'sample.bc.avery', name: '[Sample] Jordan Okafor-Reyes', role: 'continuity_manager' },
+  { username: 'sample.bc.jordan', name: '[Sample] Jordan Mbatha', role: 'continuity_manager' },
 ];
 
 type Dep = [kind: 'system' | 'service' | 'site' | 'vendor' | 'position', name: string, critical: boolean];
@@ -135,6 +137,25 @@ const CHECKLIST: Record<string, [string, string, string][]> = {
   ],
 };
 
+const PLAN_TITLES = ['Business continuity plan', 'Emergency operations plan with severe weather annex', 'IT disaster recovery plan'];
+const TYPED_NAMES = ['Operations lead', 'Duty dispatcher', 'Depot supervisor North', 'Depot supervisor South', 'Maintenance lead', 'Signal maintainer on call', 'Communications officer'].map(mark);
+
+/** Names of an earlier version ("X (sample)"), renamed in place (E18-65). */
+export const CONTINUITY_RENAMES: SampleRename[] = [
+  { type: 'business_process', names: PROCESSES.map((p) => mark(p.name)) },
+  { type: 'continuity_plan', column: 'title', names: PLAN_TITLES.map(mark) },
+  { type: 'emergency_activation', column: 'title', names: [mark('Flooding after a severe storm')] },
+  { type: 'cap', column: 'title', names: [mark('Keep the Depot South drains clear before storms')] },
+  // People's names typed into records.
+  { table: 'users', column: 'display_name', every: true, names: SAMPLE_USERS.map((u) => u.name) },
+  { type: 'continuity_plan', column: 'approved_by_name', every: true, names: SAMPLE_USERS.map((u) => u.name) },
+  { type: 'bia', column: 'signed_off_by_name', every: true, names: SAMPLE_USERS.map((u) => u.name) },
+  { table: 'activation_log_entries', column: 'by_name', every: true, names: SAMPLE_USERS.map((u) => u.name) },
+  { table: 'activation_checklist', column: 'done_by_name', every: true, names: SAMPLE_USERS.map((u) => u.name) },
+  { table: 'call_tree_nodes', every: true, names: TYPED_NAMES },
+  { table: 'activation_roles', every: true, names: TYPED_NAMES },
+];
+
 async function sampleUsers(ctx: ModuleContext): Promise<string[]> {
   const ids: string[] = [];
   for (const p of SAMPLE_USERS) {
@@ -168,7 +189,7 @@ async function depId(ctx: ModuleContext, kind: Dep[0], name: string): Promise<st
 async function linkDependencies(ctx: ModuleContext): Promise<number> {
   let added = 0;
   for (const p of PROCESSES) {
-    const proc = await ctx.db.one<{ id: string }>('select id from business_processes where name = $1 and deleted_at is null', [`${p.name} ${MARK}`]);
+    const proc = await ctx.db.one<{ id: string }>('select id from business_processes where name = $1 and deleted_at is null', [mark(p.name)]);
     if (!proc) continue;
     for (const [i, [kind, name, critical]] of p.deps.entries()) {
       const id = await depId(ctx, kind, name);
@@ -188,7 +209,7 @@ async function linkExercises(ctx: ModuleContext): Promise<number> {
   if (!ctx.resources.get('exercise')) return 0;
   const exercises = await ctx.db.query<Row>(
     `select id, type from exercises where deleted_at is null and type in ('continuity_test', 'tabletop', 'restore_test') order by exercise_date desc limit 6`);
-  const plans = await ctx.db.query<Row>('select id, plan_type from continuity_plans where deleted_at is null and title like $1', [`%${MARK}`]);
+  const plans = await ctx.db.query<Row>('select id, plan_type from continuity_plans where deleted_at is null and title like $1', [`${MARK} %`]);
   let n = 0;
   for (const e of exercises) {
     const plan = plans.find((p) => (e.type === 'restore_test' ? p.plan_type === 'it_disaster_recovery' : p.plan_type !== 'it_disaster_recovery'));
@@ -204,7 +225,8 @@ async function linkExercises(ctx: ModuleContext): Promise<number> {
 export async function seedContinuity(ctx: ModuleContext, opts: SeedOptions): Promise<string> {
   if (opts.profile !== 'dev') return 'nothing to load (sample continuity records are dev profile only)';
   if (!(await ctx.db.one('select 1 from users limit 1'))) return 'nothing to load yet (no account exists)';
-  if (await ctx.db.one('select 1 from business_processes where name like $1 limit 1', [`%${MARK}`])) {
+  await renameSamples(ctx, CONTINUITY_RENAMES);
+  if (await ctx.db.one('select 1 from business_processes where name like $1 limit 1', [`${MARK} %`])) {
     const deps = await linkDependencies(ctx);
     const ex = await linkExercises(ctx);
     return `sample continuity records already loaded${deps ? `; ${deps} more dependencies linked` : ''}${ex ? `; ${ex} exercises linked to plans` : ''}`;
@@ -220,7 +242,7 @@ export async function seedContinuity(ctx: ModuleContext, opts: SeedOptions): Pro
   const procIds = new Map<string, string>();
   for (const p of PROCESSES) {
     const row = await ctx.resources.create('business_process', {
-      name: `${p.name} ${MARK}`, department: p.department, owner_id: owners[p.owner], description: p.description, criticality: p.criticality,
+      name: mark(p.name), department: p.department, owner_id: owners[p.owner], description: p.description, criticality: p.criticality,
       status: 'active', peak_periods: p.peak, mtd_hours: p.mtd, rto_target_hours: p.rto, rpo_target_hours: p.rpo, minimum_staff: p.staff,
       manual_workaround: p.workaround, next_bia_due: IMPACTS[p.name] ? null : addMonths(today, 1),
     });
@@ -239,7 +261,7 @@ export async function seedContinuity(ctx: ModuleContext, opts: SeedOptions): Pro
       impacts: rows.map((r, b) => ({ band: BANDS[b], ...Object.fromEntries(AREAS.map((a, k) => [a, r[k]])) })),
       mtd_hours: p.mtd, rto_target_hours: p.rto, rpo_target_hours: p.rpo,
       answers: { riders_notice: p.criticality === 'vital' ? 'yes' : 'no', deadline_reporting: name === 'Payroll' ? 'yes' : 'no', workaround_hours: Math.min(p.mtd * 2, 48), restore_needs: 'The system supplier and the IT recovery lead.' },
-      notes: `Workshop with the process owner and the IT recovery lead ${MARK}.`,
+      notes: mark('Workshop with the process owner and the IT recovery lead.'),
       status: draft ? 'draft' : 'signed_off', ...(draft ? {} : { signed_off_by_name: SAMPLE_USERS[0].name, signed_off_on: assessed }),
     });
     if (!draft) {
@@ -250,7 +272,7 @@ export async function seedContinuity(ctx: ModuleContext, opts: SeedOptions): Pro
 
   // Plans: approved, in review, and approved but overdue for review.
   const plan = async (title: string, type: string, owner: string, data: Row, processNames: string[]) => {
-    const row = await ctx.resources.create('continuity_plan', { title: `${title} ${MARK}`, plan_type: type, owner_id: owner, review_months: 12, ...data });
+    const row = await ctx.resources.create('continuity_plan', { title: mark(title), plan_type: type, owner_id: owner, review_months: 12, ...data });
     for (const n of processNames) {
       await ctx.db.query('insert into continuity_plan_processes (plan_id, process_id) values ($1,$2) on conflict do nothing', [row.id, procIds.get(n)]);
     }
@@ -260,7 +282,7 @@ export async function seedContinuity(ctx: ModuleContext, opts: SeedOptions): Pro
     return row;
   };
   const bcp = await plan('Business continuity plan', 'continuity', avery, {
-    status: 'approved', approved_on: dayInZone(-100), approved_by_name: 'Jordan Mbatha (sample)', next_review_on: addMonths(dayInZone(-100), 12),
+    status: 'approved', approved_on: dayInZone(-100), approved_by_name: SAMPLE_USERS[1].name, next_review_on: addMonths(dayInZone(-100), 12),
     scope: 'Every vital and essential business process at the head office, the operations control center and the depots.',
     activation_criteria: 'A vital process is down, or is expected to be down, for longer than half its tolerable downtime.',
     recovery_strategies: 'Manual workarounds first; systems restored in order of process criticality; staff moved to the other depot when a depot is lost.',
@@ -271,7 +293,7 @@ export async function seedContinuity(ctx: ModuleContext, opts: SeedOptions): Pro
     recovery_strategies: 'Reduced timetable announced in advance; vehicles moved away from flood-prone areas; service restored line by line after inspection.',
   }, ['Rail operations control', 'Bus dispatch', 'Passenger information', 'Radio communications']);
   const itdr = await plan('IT disaster recovery plan', 'it_disaster_recovery', jordan, {
-    status: 'approved', approved_on: dayInZone(-400), approved_by_name: 'Avery Lindqvist (sample)', next_review_on: dayInZone(-35),
+    status: 'approved', approved_on: dayInZone(-400), approved_by_name: SAMPLE_USERS[0].name, next_review_on: dayInZone(-35),
     scope: 'Recovery of the systems the vital and essential processes depend on, from the nightly copies.',
     activation_criteria: 'Loss of the main server room, or of a tier 1 system for longer than its recovery time objective.',
     recovery_strategies: 'Directory and network first, then tier 1 systems, then tier 2, each checked with its owner.',
@@ -279,7 +301,7 @@ export async function seedContinuity(ctx: ModuleContext, opts: SeedOptions): Pro
 
   // The emergency operations plan waits for approval, when a workflow can take it.
   const eng = approvalEngine(ctx.app);
-  const started = eng ? await eng.start(PLAN_KIND, await ctx.resources.find('continuity_plan', eop.id, null) as Row, { requester: avery, req: null, note: `Annual update ${MARK}` }).catch(() => null) : null;
+  const started = eng ? await eng.start(PLAN_KIND, await ctx.resources.find('continuity_plan', eop.id, null) as Row, { requester: avery, req: null, note: mark('Annual update') }).catch(() => null) : null;
   if (started?.status === 'running') await ctx.resources.update('continuity_plan', eop.id, { status: 'in_review' });
 
   // Call trees from the sample roster (or typed names when there is no roster).
@@ -296,13 +318,13 @@ export async function seedContinuity(ctx: ModuleContext, opts: SeedOptions): Pro
   for (const p of [bcp, eop, itdr]) {
     const lead = await ctx.db.one<{ id: string }>(
       `insert into call_tree_nodes (plan_id, sort, role, user_id) values ($1, 10, $2, $3) returning id`, [p.id, 'Plan lead', p.owner_id]);
-    const ops = await node(p.id, lead!.id, 10, 'Operations lead', pick('[Sample] Supervisor', 0), 'Operations lead (sample)', '555-0140');
-    await node(p.id, ops, 10, 'Duty dispatcher', pick('[Sample] Dispatcher', 0), 'Duty dispatcher (sample)', '555-0141');
-    await node(p.id, ops, 20, 'Depot supervisor, North', pick('[Sample] Supervisor', 1), 'Depot supervisor North (sample)', '555-0142');
-    await node(p.id, ops, 30, 'Depot supervisor, South', pick('[Sample] Supervisor', 2), 'Depot supervisor South (sample)', '555-0143');
-    const maint = await node(p.id, lead!.id, 20, 'Maintenance lead', pick('[Sample] Rolling stock maintainer', 0), 'Maintenance lead (sample)', '555-0144');
-    await node(p.id, maint, 10, 'Signal maintainer on call', pick('[Sample] Signal maintainer', 0), 'Signal maintainer on call (sample)', '555-0145');
-    await node(p.id, lead!.id, 30, 'Communications', null, 'Communications officer (sample)', '555-0146');
+    const ops = await node(p.id, lead!.id, 10, 'Operations lead', pick('[Sample] Supervisor', 0), '[Sample] Operations lead', '555-0140');
+    await node(p.id, ops, 10, 'Duty dispatcher', pick('[Sample] Dispatcher', 0), '[Sample] Duty dispatcher', '555-0141');
+    await node(p.id, ops, 20, 'Depot supervisor, North', pick('[Sample] Supervisor', 1), '[Sample] Depot supervisor North', '555-0142');
+    await node(p.id, ops, 30, 'Depot supervisor, South', pick('[Sample] Supervisor', 2), '[Sample] Depot supervisor South', '555-0143');
+    const maint = await node(p.id, lead!.id, 20, 'Maintenance lead', pick('[Sample] Rolling stock maintainer', 0), '[Sample] Maintenance lead', '555-0144');
+    await node(p.id, maint, 10, 'Signal maintainer on call', pick('[Sample] Signal maintainer', 0), '[Sample] Signal maintainer on call', '555-0145');
+    await node(p.id, lead!.id, 30, 'Communications', null, '[Sample] Communications officer', '555-0146');
     tree += 8;
   }
 
@@ -313,7 +335,7 @@ export async function seedContinuity(ctx: ModuleContext, opts: SeedOptions): Pro
   const sites = (await ctx.db.query<{ id: string }>(`select id from sites where name in ('Example Depot South', 'Example Rail Yard') and deleted_at is null`)).map((r) => r.id);
   const services = ctx.resources.get('service') ? (await ctx.db.query<{ id: string }>(`select id from services where route_code in ('7', '15', 'LR-B') and deleted_at is null`)).map((r) => r.id) : [];
   const act = await ctx.resources.create('emergency_activation', {
-    title: `Flooding after a severe storm ${MARK}`, event_type: 'severe_weather', level: 'partial', declared_at: declared.toISOString(), declared_by: avery,
+    title: mark('Flooding after a severe storm'), event_type: 'severe_weather', level: 'partial', declared_at: declared.toISOString(), declared_by: avery,
     plan_ids: [eop.id], sites_affected: sites, services_affected: services,
   });
   await ctx.db.query('update activation_log_entries set at = $2, by_id = $3, by_name = $4 where activation_id = $1', [act.id, declared.toISOString(), avery, SAMPLE_USERS[0].name]);
@@ -326,22 +348,22 @@ export async function seedContinuity(ctx: ModuleContext, opts: SeedOptions): Pro
     [12, 'Normal service on all routes. Stand-down agreed with the operations lead.'],
   ] as const;
   for (const [h, entry] of log) {
-    await ctx.db.query('insert into activation_log_entries (activation_id, at, entry, by_id, by_name) values ($1,$2,$3,$4,$5)', [act.id, at(h), `${entry} ${MARK}`, avery, SAMPLE_USERS[0].name]);
+    await ctx.db.query('insert into activation_log_entries (activation_id, at, entry, by_id, by_name) values ($1,$2,$3,$4,$5)', [act.id, at(h), mark(entry), avery, SAMPLE_USERS[0].name]);
   }
   await ctx.db.query('insert into activation_roles (activation_id, role, user_id, assigned_at) values ($1,$2,$3,$4)', [act.id, 'Emergency manager', avery, at(0.25)]);
   await ctx.db.query('insert into activation_roles (activation_id, role, person_id, name, assigned_at) values ($1,$2,$3,$4,$5)',
-    [act.id, 'Operations lead', pick('[Sample] Supervisor', 0), pick('[Sample] Supervisor', 0) ? null : 'Operations lead (sample)', at(0.3)]);
-  await ctx.db.query('insert into activation_roles (activation_id, role, name, assigned_at) values ($1,$2,$3,$4)', [act.id, 'Communications lead', 'Communications officer (sample)', at(0.5)]);
+    [act.id, 'Operations lead', pick('[Sample] Supervisor', 0), pick('[Sample] Supervisor', 0) ? null : '[Sample] Operations lead', at(0.3)]);
+  await ctx.db.query('insert into activation_roles (activation_id, role, name, assigned_at) values ($1,$2,$3,$4)', [act.id, 'Communications lead', '[Sample] Communications officer', at(0.5)]);
   await ctx.db.query(`update activation_checklist set done_by = $2, done_by_name = $3, done_at = $4 where activation_id = $1`, [act.id, avery, SAMPLE_USERS[0].name, at(6)]);
   await ctx.resources.update('emergency_activation', act.id, {
     status: 'closed', stood_down_at: at(12), closed_at: at(24 * 6),
-    summary: `Service back to normal after twelve hours. No injuries; two buses with water damage. ${MARK}`,
-    after_action_summary: `Went well: buses moved early, notices posted within the hour. To improve: the Depot South drains were blocked, and the underpass has no water-level alarm. ${MARK}`,
+    summary: mark('Service back to normal after twelve hours. No injuries; two buses with water damage.'),
+    after_action_summary: mark('Went well: buses moved early, notices posted within the hour. To improve: the Depot South drains were blocked, and the underpass has no water-level alarm.'),
   });
   let caps = 0;
   if (ctx.resources.get('cap')) {
     await ctx.resources.create('cap', {
-      title: `Keep the Depot South drains clear before storms ${MARK}`, source: 'continuity', source_type: 'emergency_activation', source_id: act.id,
+      title: mark('Keep the Depot South drains clear before storms'), source: 'continuity', source_type: 'emergency_activation', source_id: act.id,
       problem_statement: 'Blocked drains flooded the Depot South yard during the storm, so buses had to be moved at short notice.',
       root_cause: 'The drains are cleared once a year; leaves block them every autumn.', responsible_id: jordan, due_on: dayInZone(30),
     });

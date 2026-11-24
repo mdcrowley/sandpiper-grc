@@ -152,10 +152,10 @@ content, which belongs in a document tool (E25-13, E29-11, E32-06, E34-09).
   to 3.7 s. Under bursts of writes, a request that waits more than `GRC_DATABASE_CONNECT_TIMEOUT` (10 s)
   for one of the `GRC_DATABASE_POOL_MAX` (10) connections fails with "Something went wrong" (30 of
   about 82,000 while seeding scale 4).
-- **Interface**: sample data is marked two ways ("[Sample]" at the start of most names, "(sample)" at
-  the end in the later parts), the relationship map's lines can run over group headings, and a few
-  hand-written tables (asset condition, privacy, assessments, audits, the Overview widget) scroll
-  sideways at 820 pixels instead of leaving out columns (E18-65).
+- **Vehicle and asset models (E39)**: a model change saves each member on its own, not in one
+  database transaction; a member refused by its own rules is listed on the model and takes the value
+  at its next save unless overridden. Inherited custom fields are marked on the model lists, not under
+  Administration > Custom fields. Models carry no maintenance schedules or parts (E32-06).
 - **Vendors**: the contract import fills structured dates only where the text is
   unambiguous; the "Complete the dates" queue lists the rest.
 

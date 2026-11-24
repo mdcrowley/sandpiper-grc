@@ -140,12 +140,9 @@ export function renderMapSvg(layout: Layout, o: MapSvgOptions): { svg: string; w
   if (o.subtitle) out.push(`<text x="${MARGIN}" y="${MARGIN + 44}" font-size="13" fill="${p.textMuted}">${xml(o.subtitle)}</text>`);
 
   out.push(`<g transform="translate(${MARGIN} ${mapTop})">`);
-  for (const l of layout.lanes) {
-    out.push(`<text x="${l.x + (l.type === 'system' ? 0 : 2)}" y="${l.y + 18}" font-size="12" font-weight="650" letter-spacing="0.7" fill="${p.textMuted}">${xml(l.label.toUpperCase())}</text>`);
-  }
+  // Back to front as on screen (E18-65): group boxes, lines, then headings on a band that hides the lines under them, then nodes.
   for (const g of layout.groups) {
     out.push(`<rect x="${g.x}" y="${g.y}" width="${g.w}" height="${g.h}" rx="12" fill="${p.surface}" stroke="${p.borderControl}"/>`);
-    out.push(`<text x="${g.x + 12}" y="${g.y + 21}" font-size="12.5" font-weight="650" fill="${p.text}">${xml(shortLabel(g.label, Math.max(8, Math.floor((g.w - 34) / 7))))}<tspan fill="${p.textMuted}" font-weight="500"> ${g.count}</tspan></text>`);
   }
   for (const e of layout.edges) {
     const flow = e.kind === 'integration';
@@ -159,6 +156,13 @@ export function renderMapSvg(layout: Layout, o: MapSvgOptions): { svg: string; w
       marker ? `marker-end="${marker}"` : '', marker && e.direction === 'two_way' ? `marker-start="${marker}"` : '',
     ].filter(Boolean);
     out.push(`<path ${attrs.join(' ')}/>`);
+  }
+  for (const l of layout.lanes) {
+    out.push(`<text x="${l.x + (l.type === 'system' ? 0 : 2)}" y="${l.y + 18}" font-size="12" font-weight="650" letter-spacing="0.7" fill="${p.textMuted}" stroke="${p.bg}" stroke-width="5" stroke-linejoin="round" paint-order="stroke">${xml(l.label.toUpperCase())}</text>`);
+  }
+  for (const g of layout.groups) {
+    out.push(`<rect class="group-band" x="${g.x + 1}" y="${g.y + 1}" width="${Math.max(0, g.w - 2)}" height="28" rx="11" fill="${p.surface}"/>`);
+    out.push(`<text x="${g.x + 12}" y="${g.y + 21}" font-size="12.5" font-weight="650" fill="${p.text}">${xml(shortLabel(g.label, Math.max(8, Math.floor((g.w - 34) / 7))))}<tspan fill="${p.textMuted}" font-weight="500"> ${g.count}</tspan></text>`);
   }
   for (const n of layout.nodes) {
     const c = colorOf(p, typeInfo(n.type).color);

@@ -143,7 +143,7 @@ export async function seedSampleProjects(ctx: ModuleContext, svc: ProjectService
          where g.id = $1`, [gate.id]);
       const result = await svc.decideGate(null, project, gate.id, {
         decision: 'approved', approver_name: 'Sample approver', approver_role: 'Chief Information Officer',
-        decided_on: day(-(steps - i) * 30), reference: 'Sample data', notes: 'Approval recorded from email (sample).',
+        decided_on: day(-(steps - i) * 30), reference: 'Sample data', notes: '[Sample] Approval recorded from email.',
       });
       project = result.project;
     }

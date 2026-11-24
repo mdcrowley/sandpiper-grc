@@ -158,14 +158,14 @@ An asset is a piece of equipment, a license or a subscription. Open **Assets** i
 
 Equipment fitted to vehicles (onboard computers, CAD/AVL units, fareboxes, card validators, on-vehicle routers, cameras, radios and passenger information displays) is recorded here as assets with those types, and installed on a vehicle from the vehicle's **Equipment** tab. See [Fleet and services](19-fleet-and-services.md).
 
-Use the column chooser to add **Disposal approval**, **Department**, **Owner**, **System**, **Serial number**, **Cost** or **Purchase date**. To change several assets at once, check them and select **Edit selected…**: you can set **Status**, **Type**, **Site**, **Owner**, **System**, **Funding source**, **Warranty end** or **Support end**. The disposal rules below still apply to each asset.
+Use the column chooser to add **Disposal approval**, **Department**, **Owner**, **System**, **Serial number**, **Cost**, **Purchase date** or **Asset model**. To change several assets at once, check them and select **Edit selected…**: you can set **Status**, **Type**, **Site**, **Owner**, **System**, **Funding source**, **Warranty end** or **Support end**. The disposal rules below still apply to each asset.
 
 ### Add an asset
 
 1. Select **New asset**, or **Create** then **Asset**.
 2. Enter the **Name** and choose the **Type**, for example **Workstation**, **Server** or **Software license**. Equipment on vehicles has its own types: **Onboard computer**, **CAD/AVL unit**, **Farebox**, **Card validator**, **On-vehicle router**, **Camera**, **Radio** and **Passenger information display**. Put the vehicle number in **Location**.
 3. Choose the **Status**: **Ordered**, **In stock**, **In use**, **In repair** or **Retired**. Do not choose **Disposed** here; use the disposal step below.
-4. Enter **Make**, **Model** and **Serial number**, the **Site** and **Location**.
+4. Enter **Make**, **Model** and **Serial number**, the **Site** and **Location**. If the asset is one of a kind you have recorded as an [asset model](#asset-models), choose it under **Asset model** instead of typing the shared values: the type, make, model, vendor, funding source and support end come from the model. **New asset from this model** on the model's page fills in the form for you.
 5. Enter the **Purchase date**, **Cost** and **Funding source**. Costs are in the organization's currency, here and in an import; an amount written with another currency's symbol is refused.
 6. If an outside funder paid for some or all of it and keeps an interest, check **Funder interest** and enter **Funder interest (%)**. These two fields appear only while the **Outside funder interest in equipment** option is on, and your administrator may have given them another name, such as **Grant interest** (see [Features](09-administration.md#options-within-the-parts)).
 7. Enter the **Warranty end** and **Support end** dates if you know them.
@@ -181,7 +181,7 @@ The top of the record shows where the asset is in its life: **Ordered**, **In st
 - A **Funder interest** notice appears when an outside funder keeps an interest in the asset.
 - **Disposal awaiting approval** or **Disposal approved** appears while a disposal is in progress.
 
-The **Details** card holds what the asset is. The **Who has it and where** card shows **Assigned to**, **Owner**, **Department**, **Site** and **Location**; select **Edit** to change the owner, department, site or location. **Department** is chosen from the organization's department list (set up under **Administration**, **Settings**); it is free text only while no departments exist.
+The **Details** card holds what the asset is, with its **Asset model** when it has one: each value it takes from the model says **From model** under it, and a value the asset keeps as its own says **Overridden**, with **Use the model's value** to clear it (see [Asset models](#asset-models)). The **Who has it and where** card shows **Assigned to**, **Owner**, **Department**, **Site** and **Location**; select **Edit** to change the owner, department, site or location. **Department** is chosen from the organization's department list (set up under **Administration**, **Settings**); it is free text only while no departments exist.
 
 While **OT and rail-systems security** is on, an **Operational technology (OT)** section under the details records whether the asset is OT, its control level, whether it is life-critical, its security zone and its firmware version ([OT security](32-ot-security.md)).
 
@@ -262,6 +262,22 @@ The application sends a notification (see the bell at the top of the page):
 
 Retired and disposed assets are left out. Each reminder is sent once. In your notification preferences you can have **Reminders** and **Due dates** sent by email as well as, or instead of, the bell, or switch them off (see [Preferences](14-attachments-and-notifications.md#preferences)). An administrator chooses the steps for warranty and support end dates (30, 7 and 0 days unless changed) under **Administration** > **Reminders**; the change is kept in the audit log.
 
+## Asset models
+
+Many assets are copies of one another: a station camera model installed in dozens of places, a card validator fitted at every door. An **asset model** holds what they share; each asset keeps its own tag, serial number and location, points at its model and takes the shared values from it. Open **Asset models** in the **Inventory** group. (An asset's **Type** stays the kind of thing, such as a camera; a model is a particular specification of it.)
+
+An asset model has a **Name**, the values its assets share: **Type**, **Make**, **Model**, **Vendor**, **Asset class** (where asset condition is in use), **Funding source** and **Support end**, plus a **Description** and an **Active** switch. A field left empty on the model is not shared: each asset keeps its own value. Add one with **New asset model**, or **Create** then **Asset model**.
+
+Asset models work exactly like vehicle models; the details are in [Fleet and services](19-fleet-and-services.md#vehicle-models):
+
+- **Giving assets a model**: **New asset from this model** on the model's page; choosing the **Asset model** on an asset; selecting assets on the list and **Set model** (the dialog shows which values differ, and you choose which to keep as each asset's own); **Review and assign** for existing assets with no model whose make and model name match; or an **Asset model** column in an import file, matched by the model's name.
+- **Overrides**: editing a shared value on an asset makes it an override, kept whatever happens to the model, until **Use the model's value** clears it. Removing the model keeps the asset's current values.
+- **Changing a model**: saving a change first shows how many assets take it and how many keep their own value; each asset is then saved through the usual rules and its history says the change came from the model. An asset whose rules refuse the change is listed on the model's page and left unchanged. A change reaching more than 200 assets runs in the background with its progress shown.
+- The model's **Assets** tab shows how many assets use it by status and which values some keep as their own; **Model changes** lists every change applied and every assignment.
+- An inactive model is not offered for new assets; a model that still has assets cannot be deleted.
+- A vehicle model's equipment list can name an asset model, so that only equipment of that model counts as working in equipment coverage.
+- An administrator chooses which custom fields of assets are inherited with **Inherited custom fields** on the asset model list (see [Administration](09-administration.md#custom-fields)).
+
 ## Sites
 
 A site is a building or location. Open **Sites** in the **Inventory** group.
@@ -324,7 +340,7 @@ What is particular to assets:
 
 - **Find existing records by** the **Tag** or the **Serial number** (choose **Update existing records only** or **Update existing records and create the rest** to change assets that are already there). Matching ignores capital letters.
 - The asset rules apply to every row, in the check as on import: a tag already in use is refused, **Funder interest (%)** must be between 0 and 100, and a row with the status **Disposed** needs the disposal approval (who approved it and when, and, while the funder-interest option is on, the approval reference). Disposing of an asset from its record is usually simpler.
-- For **Site**, use the site's name; for **System**, its name or reference; for **Owner** and **User**, the person's username, email or display name; for **Department**, a name from the department list.
+- For **Site**, use the site's name; for **System**, its name or reference; for **Owner** and **User**, the person's username, email or display name; for **Department**, a name from the department list; for **Asset model**, the model's name (the asset then takes the model's shared values, and a value given in the file that differs from the model's is kept as the asset's own).
 
 Tools that push assets automatically (endpoint management or discovery) use `POST /api/assets/ingest`, which matches by serial number, then by tag. The older `POST /api/assets/import` still works but is deprecated: integrations should move to `POST /api/import/asset` ([integration guide](../api.md)).
 

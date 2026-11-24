@@ -5,7 +5,7 @@ import { inTrial, type Db } from './db.ts';
 import { fail, UUID_RE } from './errors.ts';
 import { assertNotHeld } from './holds.ts';
 import { pageOf } from './api/conventions.ts';
-import type { CreateOptions, FieldDef, ResourceDef, ResourceRegistry, Row, SessionUser } from './module.ts';
+import type { CreateOptions, FieldDef, ResourceDef, ResourceRegistry, Row, SessionUser, UpdateOptions } from './module.ts';
 import { CUSTOM_PREFIX, customFieldDef, customName, type CustomField, type CustomFields } from './customfields.ts';
 import { makeLifecycles, type HeldMove, type Lifecycles } from './lifecycle.ts';
 import { BODY_SEPARATOR, bodyLike, ensureCommentSearch, ensureSearchIndex, maySchemaChange, parseSearch, requestSchemaChange, schemaChangeDone, substringColumns } from './search.ts';
@@ -420,6 +420,7 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
 
   async function create(type: string, input: Row, req: FastifyRequest | null = null, opts: CreateOptions = {}): Promise<Row> {
     const def = need(type);
+    if (def.hooks?.prepare) input = await def.hooks.prepare(req, { ...input }, null);
     let data = await validate(def, input, 'create', !req, opts.skipCustomRequired === true);
     await checkRefsVisible(def, data, req);
     await checkLifecycle(def, null, data, req);
@@ -446,9 +447,10 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
     return row;
   }
 
-  async function update(type: string, id: string, input: Row, req: FastifyRequest | null = null): Promise<Row> {
+  async function update(type: string, id: string, input: Row, req: FastifyRequest | null = null, opts: UpdateOptions = {}): Promise<Row> {
     const def = need(type);
     const existing = (await find(type, id, req?.user)) ?? fail(404, 'not_found', `${def.label} not found.`);
+    if (def.hooks?.prepare) input = await def.hooks.prepare(req, { ...input }, existing);
     let patch = await validate(def, input, 'update', !req);
     await checkRefsVisible(def, patch, req, existing);
     await checkLifecycle(def, existing, patch, req);
@@ -500,7 +502,7 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
     ))!;
     await audit(req, {
       action: `${type}.update`, recordType: type, recordId: id,
-      summary: `${def.label} updated: ${labelOf(def, row)} (${Object.keys(after).map((k) => def.fields[k]?.label ?? labels[k] ?? k).join(', ')})`,
+      summary: `${def.label} updated: ${labelOf(def, row)} (${Object.keys(after).map((k) => def.fields[k]?.label ?? labels[k] ?? k).join(', ')})${opts.via ? ` from ${opts.via}` : ''}`,
       before, after,
     });
     if (def.restricted === 'flag' && 'restricted' in after) await propagateRestriction(type, id, row.restricted === true);

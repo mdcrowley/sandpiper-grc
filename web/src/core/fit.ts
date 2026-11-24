@@ -59,3 +59,20 @@ export function fitTabs(widths: number[], available: number, moreWidth: number, 
   if (shown.length === 0) shown.push(active >= 0 && active < widths.length ? active : 0);
   return shown;
 }
+
+/** A heading cell of a hand-written table: its priority (`data-priority`, default 1 for the first column, else 2) and width. */
+export interface FitHeading { priority?: string | null; colSpan?: number; width: number }
+
+/**
+ * The 1-based positions of the columns of a hand-written table to leave out so it fits `available`
+ * pixels (E18-65), by the same rule as `fitColumns`. A heading row with a cell spanning columns is
+ * not fitted (positions would not match the body cells).
+ */
+export function fitTableColumns(headings: FitHeading[], available: number): number[] {
+  if (headings.some((h) => (h.colSpan ?? 1) > 1)) return [];
+  const columns: FitColumn[] = headings.map((h, i) => {
+    const p = Number(h.priority);
+    return { field: String(i + 1), priority: (p === 1 || p === 2 || p === 3 ? p : i === 0 ? 1 : 2) as ColumnPriority, width: h.width };
+  });
+  return fitColumns(columns, available).map(Number).sort((a, b) => a - b);
+}

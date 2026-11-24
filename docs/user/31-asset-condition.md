@@ -4,7 +4,7 @@ Asset condition helps you keep the organization's vehicles, equipment, facilitie
 
 Open **Asset condition** from the **Inventory** group in the navigation. The pages share tabs along the top: **Dashboard**, **Asset classes**, **Assessments** and **Aging**. Lists and record pages work as described in [Getting started](01-getting-started.md).
 
-If your organization does not track condition here, an administrator can switch **Asset condition and state of good repair** off under **Administration > Features** (see [Administration](09-administration.md#features)). The pages, the **Condition** sections on vehicles, assets and sites, the condition fields (class, condition, end of useful life, replacement project, kind of site, year built, odometer), the reminders and the calendar entries then disappear. Records and values are kept and return when it is switched back on. While **Fleet and services** is switched off, asset condition carries on for assets and sites, and its pages and reminder settings no longer mention vehicles.
+If your organization does not track condition here, an administrator can switch **Asset condition and state of good repair** off under **Administration > Features** (see [Administration](09-administration.md#features)). The pages, the **Condition** sections on vehicles, assets and sites, the condition fields (class, condition, end of useful life, replacement project, kind of site, year built, odometer), the reminders and the calendar entries then disappear; vehicle and asset models then neither show nor pass on the asset class. Records and values are kept and return when it is switched back on. While **Fleet and services** is switched off, asset condition carries on for assets and sites, and its pages and reminder settings no longer mention vehicles.
 
 ## Who can do what
 
@@ -105,7 +105,7 @@ A record's **Replacement project** is also shown on its **Related** tab, and on 
 
 ## Sample data
 
-The `dev` sample profile loads nine invented classes (40-foot bus, cutaway, light rail vehicle, heavy rail car, passenger station, maintenance facility, track segment, traction power substation and farebox, each labeled "(sample)") with targets for this year and last year, puts every sample vehicle, the sample stations, depots, track segments and substations and the fareboxes in a class, records an assessment for each, and links three sample replacement projects.
+The `dev` sample profile loads nine invented classes (40-foot bus, cutaway, light rail vehicle, heavy rail car, passenger station, maintenance facility, track segment, traction power substation and farebox, each labeled "[Sample]") with targets for this year and last year, puts every sample vehicle, the sample stations, depots, track segments and substations and the fareboxes in a class, records an assessment for each, and links three sample replacement projects.
 
 ## Not available yet
 

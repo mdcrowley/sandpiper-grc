@@ -223,6 +223,12 @@ export function ResourceList({
   const queryKey = JSON.stringify(query);
   const url = resource ? `${resource.path}${listQuery({ ...query, page, pageSize })}` : null;
   const { data, loading, error, reload } = useFetch<ListResult>(url, { keepPrevious: true });
+  // A bulk action of another module that changed rows of this type (E39-05: set the model) asks for a reload.
+  useEffect(() => {
+    const onChanged = (e: Event) => { if ((e as CustomEvent<{ type?: string }>).detail?.type === type) reload(); };
+    window.addEventListener('grc:list-changed', onChanged);
+    return () => window.removeEventListener('grc:list-changed', onChanged);
+  }, [type, reload]);
 
   // A different search or filter is a different set of rows: start the selection again.
   useEffect(() => setSelected(new Map()), [queryKey]);

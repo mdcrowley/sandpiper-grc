@@ -407,7 +407,43 @@ function tour(name, pickOff) {
   };
 }
 
+/**
+ * Vehicle and asset models (E39): vehicle models belong to Fleet and services, asset models to the
+ * inventory (always on). With fleet off, vehicle models are gone from the server and the pages, and
+ * the asset model pages name no vehicle.
+ */
+const modelsTest = {
+  name: 'fleet off: vehicle models are gone, asset models stay and name no vehicle',
+  async run(t) {
+    const api = t.api();
+    await api.must('POST', '/api/auth/confirm', { password: PASSWORD });
+    const initial = Object.fromEntries((await api.must('GET', '/api/admin/features')).areas.map((a) => [a.key, a.on]));
+    const model = listOf(await api.must('GET', '/api/asset-models?pageSize=1'))[0];
+    await setAreas(t, { ...Object.fromEntries(Object.keys(initial).map((k) => [k, true])), fleet: false });
+    try {
+      const meta = (await api.must('GET', '/api/meta')).resources ?? {};
+      t.soft(!meta.vehicle_model, '/api/meta still lists vehicle models');
+      t.soft(Boolean(meta.asset_model) && Boolean(meta.asset?.fields?.model_id), '/api/meta lost asset models or the asset\'s model field');
+      for (const path of ['/api/vehicle-models', '/api/vehicle-models/suggestions', '/api/vehicle-models/inherited-fields']) {
+        const r = await api.get(path);
+        t.soft(r.status === 404 && r.body?.error?.code === 'switched_off', `${path} answers ${r.status} while fleet is off`);
+      }
+      await t.page.goto('/vehicle-models');
+      await t.page.waitFor(() => /switched off/i.test(document.querySelector('main')?.innerText ?? ''), { timeout: 10000 });
+      for (const path of ['/asset-models', ...(model ? [`/asset-models/${model.id}`] : [])]) {
+        await t.page.goto(path);
+        const text = await t.page.eval(`document.querySelector('main')?.innerText ?? ''`);
+        const named = (TERMS.fleet ?? []).find((re) => re.test(text.replace(/\[Sample\][^\n]*/g, '')));
+        t.soft(!named, `${path} names the fleet while it is off`);
+      }
+    } finally {
+      await setAreas(t, initial);
+    }
+  },
+};
+
 export const tests = [
+  modelsTest,
   tour('every area off: nothing of them is shown', (areas) => areas),
   tour('portal, fleet, safety and funding off: nothing of them is shown', () => ['portal', 'fleet', 'safety', 'funding']),
   {

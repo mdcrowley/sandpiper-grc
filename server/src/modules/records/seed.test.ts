@@ -3,7 +3,7 @@ import { testApp } from '../../test/helpers.ts';
 import { SAMPLE_MATTER, seedHolds } from '../holds/seed.ts';
 import { seedRecords } from './seed.ts';
 
-// Sample data (E34-08): invented, labeled "(sample)", dev profile only, and idempotent.
+// Sample data (E34-08): invented, labeled "[Sample]", dev profile only, and idempotent.
 let t: Awaited<ReturnType<typeof testApp>>;
 beforeAll(async () => { t = await testApp(); }, 60_000);
 afterAll(async () => { await t?.close(); });
@@ -22,11 +22,11 @@ describe('sample requests, assessments and hold', () => {
     await seedRecords(t.ctx, opts('dev'));
     await seedHolds(t.ctx, opts('dev'));
     const n = async (sql: string) => (await t.db.one<{ n: number }>(sql))!.n;
-    expect(await n(`select count(*)::int n from records_requests where subject like '%(sample)'`)).toBe(6);
+    expect(await n(`select count(*)::int n from records_requests where subject like '[Sample] %'`)).toBe(6);
     expect(await n(`select count(*)::int n from records_requests where kind like 'personal_%'`)).toBe(3);
     expect(await n(`select count(*)::int n from records_requests where extended_due_on is not null`)).toBe(1);
     expect(await n(`select count(*)::int n from records_request_items where exemption is not null`)).toBe(1);
-    expect(await n(`select count(*)::int n from privacy_assessments where title like '%(sample)'`)).toBe(3);
+    expect(await n(`select count(*)::int n from privacy_assessments where title like '[Sample] %'`)).toBe(3);
     expect(await n(`select count(*)::int n from data_categories where personal_data`)).toBeGreaterThanOrEqual(5);
     expect(await n(`select count(*)::int n from legal_holds where matter = '${SAMPLE_MATTER}'`)).toBe(1);
     expect(await n(`select count(*)::int n from legal_hold_queries`)).toBe(1);

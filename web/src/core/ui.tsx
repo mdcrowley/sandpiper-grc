@@ -9,7 +9,7 @@ import { createPortal } from 'react-dom';
 import { ActionIcon, Alert as MAlert, Button as MButton, Menu as MMenu, Skeleton, Tabs as MTabs, Tooltip } from '@mantine/core';
 import { Link } from 'react-router-dom';
 import { errorMessage } from './api';
-import { fitTabs } from './fit';
+import { fitTableColumns, fitTabs } from './fit';
 import { appTitle } from './branding';
 import { formatDateTime, formatDuration } from './format';
 import { Icon, type IconName } from './Icon';
@@ -248,17 +248,63 @@ export function Card({ title, actions, children, flush, className, id, padding =
 }
 
 /**
+ * Leaves out lower-priority columns of the table in `box` while it is wider than the box (E18-65),
+ * like the shared lists: give a heading `data-priority` 1 (always shown), 2 or 3 (gives way first);
+ * by default the first column is 1 and the rest 2. The positions left out go in the table's
+ * `data-fit-hide` attribute, which base.css turns into hidden cells. Each column's natural width is
+ * measured (the table laid out at max-content for a moment) and remembered at its largest, so columns
+ * do not come and go as rows change. Returns a function that stops watching.
+ */
+export function watchTableFit(box: HTMLElement): () => void {
+  let widths: number[] = [];
+  let fitting = false;
+  const fit = () => {
+    const table = box.querySelector<HTMLTableElement>(':scope > table');
+    const row = table?.querySelector<HTMLTableRowElement>(':scope > thead > tr');
+    if (fitting || !table || !row) return;
+    fitting = true;
+    const width = table.style.width;
+    table.removeAttribute('data-fit-hide');
+    table.style.width = 'max-content';
+    const cells = Array.from(row.children) as HTMLTableCellElement[];
+    if (widths.length !== cells.length) widths = [];
+    const headings = cells.map((c, i) => {
+      widths[i] = Math.max(widths[i] ?? 0, c.getBoundingClientRect().width);
+      return { priority: c.getAttribute('data-priority'), colSpan: Number(c.getAttribute('colspan') ?? 1), width: widths[i] };
+    });
+    table.style.width = width;
+    const hide = fitTableColumns(headings, box.clientWidth).join(' ');
+    if (hide) table.setAttribute('data-fit-hide', hide);
+    fitting = false;
+  };
+  fit();
+  const watch = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => fit());
+  const observeTable = () => { const t = box.querySelector(':scope > table'); if (t) watch?.observe(t); };
+  watch?.observe(box);
+  observeTable();
+  // The table may be swapped for another (a loading state), or its rows may change.
+  const mutations = typeof MutationObserver === 'undefined' ? null : new MutationObserver(() => { observeTable(); fit(); });
+  mutations?.observe(box, { childList: true });
+  return () => { watch?.disconnect(); mutations?.disconnect(); };
+}
+
+/**
  * The scroll box around a table (`.table-wrap`). When the table is wider than the box, the box joins the tab order as a
  * named region, so keyboard users can scroll it even when the table holds no link or button of its own.
  */
 export interface TableWrapProps extends Omit<HTMLAttributes<HTMLDivElement>, 'role' | 'aria-label' | 'tabIndex' | 'children'> {
   /** Names the region while the table scrolls: usually the table's caption. */
   label: string;
+  /**
+   * Leave out lower-priority columns while the table is too wide, like the shared lists (headings
+   * carry `data-priority`; see `watchTableFit`). For a table with one heading row and no spanning headings.
+   */
+  fit?: boolean;
   children?: ReactNode;
   ref?: Ref<HTMLDivElement>;
 }
 
-export function TableWrap({ label, className, children, ref: outerRef, ...rest }: TableWrapProps) {
+export function TableWrap({ label, className, children, fit, ref: outerRef, ...rest }: TableWrapProps) {
   const ref = useRef<HTMLDivElement | null>(null);
   const [scrolls, setScrolls] = useState(false);
   const setRef = useCallback((el: HTMLDivElement | null) => {
@@ -282,6 +328,7 @@ export function TableWrap({ label, className, children, ref: outerRef, ...rest }
     const edges = watchScrollEdges(el);
     return () => { watch.disconnect(); mutations?.disconnect(); edges(); };
   }, []);
+  useLayoutEffect(() => (fit && ref.current ? watchTableFit(ref.current) : undefined), [fit]);
   return (
     <div {...rest} ref={setRef} className={cx('table-wrap', className)} role={scrolls ? 'region' : undefined}
       aria-label={scrolls ? label : undefined} tabIndex={scrolls ? 0 : undefined}>

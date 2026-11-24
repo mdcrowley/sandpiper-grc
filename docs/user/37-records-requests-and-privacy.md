@@ -82,4 +82,4 @@ An approved assessment becomes **Needs update** when the system's data categorie
 
 ## Sample data
 
-The sample data (development profile) holds six invented requests (one overdue, one extended, one closed with an exemption), personal-data flags on the sample data categories and three assessments (one approved, one in review and one due for review), each labeled "(sample)".
+The sample data (development profile) holds six invented requests (one overdue, one extended, one closed with an exemption), personal-data flags on the sample data categories and three assessments (one approved, one in review and one due for review), each labeled "[Sample]".

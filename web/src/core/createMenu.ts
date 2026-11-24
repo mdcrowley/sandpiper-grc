@@ -38,3 +38,16 @@ export function createEntries(mods: { create?: CreateItem[]; nav?: NavItem[] }[]
     }))
     .sort((a, b) => groups.indexOf(a.group) - groups.indexOf(b.group) || a.label.localeCompare(b.label));
 }
+
+/**
+ * The entries whose label or group holds every word typed in the Create menu's filter box (case
+ * ignored); all of them while the box is empty (E18-65).
+ */
+export function filterEntries<T extends { label: string; group?: string }>(items: T[], query: string): T[] {
+  const words = query.toLocaleLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return items;
+  return items.filter((item) => {
+    const text = `${item.label} ${item.group ?? ''}`.toLocaleLowerCase();
+    return words.every((w) => text.includes(w));
+  });
+}

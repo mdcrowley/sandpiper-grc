@@ -43,13 +43,14 @@ function CoverageGrid({ years }: { years: number }) {
   }
   const thisYear = Number(data.today.slice(0, 4));
   return (
-    <TableWrap label="Audits of each area by year, with the area's cycle and next due date" className="au-coverage">
+    <TableWrap fit label="Audits of each area by year, with the area's cycle and next due date" className="au-coverage">
       <table className="table">
         <caption className="sr-only">Audits of each area by year, with the area's cycle and next due date</caption>
         <thead>
           <tr>
-            <th scope="col">Area</th><th scope="col">Cycle</th><th scope="col">Next due</th>
-            {data.years.map((y) => <th scope="col" key={y}>{y}{y > thisYear ? ' (plan)' : ''}</th>)}
+            <th scope="col">Area</th><th scope="col" data-priority={3}>Cycle</th><th scope="col" data-priority={1}>Next due</th>
+            {/* Past years and the cycle give way first, then the plan year; this year always shows (E18-65). */}
+            {data.years.map((y) => <th scope="col" key={y} data-priority={y < thisYear ? 3 : y > thisYear ? 2 : 1}>{y}{y > thisYear ? ' (plan)' : ''}</th>)}
           </tr>
         </thead>
         <tbody>

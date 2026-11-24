@@ -30,7 +30,7 @@ const mod: ModuleDef = {
   create: [
     { label: 'Framework outcome', path: '/frameworks/outcomes?new=1', permission: 'frameworks.create' },
     { label: 'Assessment snapshot', path: '/assessments?new=1', permission: 'frameworks.create' },
-    { label: 'Framework from a file', path: '/frameworks/manage?new=1', permission: 'frameworks.create' },
+    { label: 'Framework', path: '/frameworks/manage?new=1', permission: 'frameworks.create' },
   ],
 };
 

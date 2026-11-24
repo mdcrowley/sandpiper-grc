@@ -1,6 +1,7 @@
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { isRetired, todayIso } from './shared.ts';
+import { assess, requirementsFor } from '../models/equipment.ts';
 
 /**
  * Equipment installed on vehicles (assets from the inventory module, with install and removal
@@ -47,7 +48,7 @@ export function registerEquipment(ctx: ModuleContext) {
       `select e.id, e.vehicle_id, e.asset_id, e.installed_on::text as installed_on, e.install_notes,
               e.removed_on::text as removed_on, e.removal_reason, e.created_at, e.removed_at,
               v.fleet_number, v.mode,
-              a.tag, a.name as asset_name, a.asset_type, a.status as asset_status, a.system_id, a.serial,
+              a.tag, a.name as asset_name, a.asset_type, a.status as asset_status, a.system_id, a.serial, a.model_id as asset_model_id,
               cu.display_name as installed_by, ru.display_name as removed_by
        from vehicle_equipment e
        join vehicles v on v.id = e.vehicle_id
@@ -70,18 +71,21 @@ export function registerEquipment(ctx: ModuleContext) {
     const vehicle = await vehicleFor(req);
     needAssets(req);
     const rows = await installations('vehicle_id', vehicle.id);
-    const required = (await requirements())[vehicle.mode] ?? [];
+    // The mode's list, with what the vehicle's model adds on top (E39-04: kinds, counts, an asset model).
+    const required = (await requirementsFor(ctx, await requirements(), [vehicle])).get(vehicle.id) ?? [];
     const types = await ctx.lookups.values('asset_type');
-    const current = rows.filter((r) => r.current);
+    const current = rows.filter((r) => r.current).map((r) => ({ asset_type: r.asset_type, status: r.asset_status, model_id: r.asset_model_id ?? null }));
+    const named = required.map((r) => r.asset_model_id).filter((id): id is string => Boolean(id));
+    const assetModels = named.length && ctx.resources.get('asset_model')
+      ? new Map((await db.query<{ id: string; name: string }>('select id, name from asset_models where id = any($1::uuid[])', [named])).map((m) => [m.id, m.name]))
+      : new Map<string, string>();
     return {
       installations: rows,
-      required: required.map((t) => {
-        const fitted = current.filter((r) => r.asset_type === t);
-        return {
-          asset_type: t, label: types.find((x) => x.value === t)?.label ?? t,
-          state: fitted.some((r) => r.working) ? 'ok' : fitted.length ? 'not_working' : 'missing',
-        };
-      }),
+      required: required.map((r) => ({
+        asset_type: r.asset_type, label: types.find((x) => x.value === r.asset_type)?.label ?? r.asset_type,
+        count: r.count, source: r.source, asset_model_id: r.asset_model_id, asset_model_name: r.asset_model_id ? assetModels.get(r.asset_model_id) ?? null : null,
+        ...assess(r, current, WORKING),
+      })),
     };
   });
   ctx.describeRoute({ method: 'GET', path: '/api/vehicles/:id/equipment', summary: 'Equipment installed on a vehicle, its history and the required equipment it lacks', permission: 'fleet.view' });
@@ -211,40 +215,44 @@ export function registerEquipment(ctx: ModuleContext) {
     if (list(q.status).length) { params.push(list(q.status)); where.push(`v.status = any($${params.length}::text[])`); }
     if (list(q.depot_id).filter((s) => UUID.test(s)).length) { params.push(list(q.depot_id).filter((s) => UUID.test(s))); where.push(`v.depot_id = any($${params.length}::uuid[])`); }
     const vehicles = await db.query<Row>(
-      `select v.id, v.fleet_number, v.mode, v.status, v.depot_id, s.name as depot_name
+      `select v.id, v.fleet_number, v.mode, v.status, v.depot_id, v.model_id, s.name as depot_name
        from vehicles v left join sites s on s.id = v.depot_id
        where ${where.join(' and ')} order by v.fleet_number`, params);
     const fitted = await db.query<Row>(
-      `select e.vehicle_id, a.asset_type, a.status from vehicle_equipment e
+      `select e.vehicle_id, a.asset_type, a.status, a.model_id from vehicle_equipment e
        join assets a on a.id = e.asset_id and a.deleted_at is null
        where e.removed_on is null and e.vehicle_id = any($1::uuid[])`, [vehicles.map((v) => v.id)]);
     const byVehicle = new Map<string, Row[]>();
     for (const f of fitted) (byVehicle.get(f.vehicle_id) ?? byVehicle.set(f.vehicle_id, []).get(f.vehicle_id)!).push(f);
 
-    const shownModes = [...new Set(vehicles.map((v) => v.mode))];
-    const columns = typeList.filter((t) => shownModes.some((m) => (req_[m] ?? []).includes(t.value)));
+    // Each vehicle's requirements: its mode's list with its model's equipment on top (E39-04).
+    const needs = await requirementsFor(ctx, req_, vehicles);
+    const columns = typeList.filter((t) => vehicles.some((v) => (needs.get(v.id) ?? []).some((n) => n.asset_type === t.value)));
     const totals: Record<string, { ok: number; not_working: number; missing: number }> = {};
     for (const c of columns) totals[c.value] = { ok: 0, not_working: 0, missing: 0 };
 
     let rows = vehicles.map((v) => {
-      const need = req_[v.mode] ?? [];
-      const on = byVehicle.get(v.id) ?? [];
+      const need = needs.get(v.id) ?? [];
+      const on = (byVehicle.get(v.id) ?? []).map((f) => ({ asset_type: f.asset_type, status: f.status, model_id: f.model_id ?? null }));
       const cells: Record<string, string> = {};
+      // Per requirement: how many are needed, where that comes from, and the units counted.
+      const detail: Record<string, Row> = {};
       let gaps = 0;
       for (const c of columns) {
-        if (!need.includes(c.value)) { cells[c.value] = 'not_required'; continue; }
-        const of = on.filter((f) => f.asset_type === c.value);
-        const state = of.some((f) => f.status === WORKING) ? 'ok' : of.length ? 'not_working' : 'missing';
-        cells[c.value] = state;
-        totals[c.value][state as 'ok']++;
-        if (state !== 'ok') gaps++;
+        const n = need.find((x) => x.asset_type === c.value);
+        if (!n) { cells[c.value] = 'not_required'; continue; }
+        const a = assess(n, on, WORKING);
+        cells[c.value] = a.state;
+        detail[c.value] = { count: n.count, source: n.source, asset_model_id: n.asset_model_id, installed: a.installed, working: a.working, not_working: a.not_working, missing: a.missing };
+        totals[c.value][a.state]++;
+        if (a.state !== 'ok') gaps++;
       }
       return {
         id: v.id, fleet_number: v.fleet_number, mode: v.mode, status: v.status, depot_id: v.depot_id, depot_name: v.depot_name,
         mode_label: modes.find((m) => m.value === v.mode)?.label ?? v.mode,
         status_label: statuses.find((s) => s.value === v.status)?.label ?? v.status,
         status_color: statuses.find((s) => s.value === v.status)?.color ?? 'gray',
-        cells, gaps,
+        cells, detail, gaps, model_id: v.model_id ?? null,
       };
     });
     const withGaps = rows.filter((r) => r.gaps > 0).length;

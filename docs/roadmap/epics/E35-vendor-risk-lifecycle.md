@@ -94,7 +94,7 @@ An evaluator wants invented reassessments, exclusion checks, vendor issues, an o
 
 **Acceptance criteria**
 
-- [x] Invented samples, labeled "(sample)"
+- [x] Invented samples, labeled "[Sample]"
 - [x] Guide page `34-vendor-risk-lifecycle.md`; edits to the vendors and funding guides
 
 **Implemented in:** `vendors/seed-lifecycle.ts`, `funding/subrecipients.ts` (`seedSubrecipients`); `docs/user/34-vendor-risk-lifecycle.md`, `04-vendors-and-contracts.md`, `27-funding-and-grants.md`; browser suite `tools/e2e/suites/17-vendor-lifecycle.mjs`

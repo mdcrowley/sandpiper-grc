@@ -700,7 +700,7 @@ Each part has a switch, a line saying what it covers, whether it is **On** or **
 | **Vulnerabilities** | Vulnerability records, scanner imports and remediation deadlines | On |
 | **Projects** | Projects, the portfolio and project reminders | On |
 | **Dashboards and reports** | Saved dashboards, the report catalog, scheduled reports and report packs. The **Overview** page and its figures stay | On |
-| **Fleet and services** | Vehicles, services (routes and lines) and the systems they depend on | On |
+| **Fleet and services** | Vehicles, vehicle models, services (routes and lines) and the systems they depend on | On |
 | **Safety management** | Hazards, safety events, safety performance indicators, and safety reports from the portal | On |
 | **Audits and inspections** | The audit plan and coverage, audit engagements and findings, checklist templates and recurring inspections | On |
 | **Control library and testing** | The control library, what each control covers, control tests and their schedule | On |
@@ -794,6 +794,10 @@ If something is wrong, for example the key is already used, the reason is shown 
 Select **Edit** to change the label, section, position, help or whether it is required. The up and down buttons in the **Order** column move a field earlier or later on forms. For a choice field you can also **Add options**. **In use** switches the field on or off.
 
 Select **Switch off** to hide a field everywhere. **The values already entered are kept**: select **Switch on** to bring the field and its values back. Fields are never deleted.
+
+### Fields inherited from a model
+
+A custom field of vehicles or assets can come from the vehicle's or asset's model, like the make or the passenger capacity. Open **Vehicle models** or **Asset models**, select **Inherited custom fields** and check the fields to inherit, then **Save**. Each checked field then appears on every model of that kind, and vehicles or assets with a model take its value unless they keep their own (see [Fleet and services](19-fleet-and-services.md#vehicle-models) and [Inventory](03-inventory.md#asset-models)). Unchecking a field stops the inheritance; the values already on the vehicles and assets stay.
 
 On an installation whose server uses a database account that may not change the database's structure (a least-privilege account, see [Installation](../installation.md#a-least-privilege-database-role)), custom fields still work at once. A new text field is found by the search box only after the database owner's next migrate step (run at every server start when the owner account is set up): until then the record type is searched as before, and the server log says that a change is waiting.
 

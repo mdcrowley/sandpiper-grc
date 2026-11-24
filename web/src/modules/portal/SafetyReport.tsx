@@ -4,7 +4,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   api, ApiError, Button, Checkbox, DateTimeField, errorMessage, ErrorState, Icon, Loading, NumberField, relativeTime, TextArea, TextField,
-  timeZone, useFetch, useToast,
+  timeZoneLabel, useFetch, useToast,
 } from '../../core';
 import { ChoiceCards } from './RequestForm';
 import { Section, useFocusFirstProblem, usePortalTitle, type Choice } from './parts';
@@ -40,12 +40,7 @@ export function MySafetyReports({ compact = false, refresh = 0 }: { compact?: bo
 
 /** The organization's time zone by its everyday name ("Eastern Standard Time"), not its identifier (E18-64). */
 function zoneHint(): string {
-  try {
-    const name = new Intl.DateTimeFormat('en-US', { timeZone: timeZone(), timeZoneName: 'long' }).formatToParts(new Date()).find((p) => p.type === 'timeZoneName')?.value;
-    return `Local time${name ? ` (${name})` : ''}.`;
-  } catch {
-    return 'Local time.';
-  }
+  return `Local time (${timeZoneLabel()}).`;
 }
 
 export function SafetyReport() {

@@ -41,7 +41,7 @@ const mod: ModuleDef = {
     { path: '/audit-findings/:id', element: <FindingDetail />, permission: view },
   ],
   create: [
-    { label: 'Audit', path: '/audits/engagements?new=1', permission: 'audits.create', icon: 'clipboard' },
+    { label: 'Audit engagement', path: '/audits/engagements?new=1', permission: 'audits.create', icon: 'clipboard' },
     { label: 'Inspection', path: '/inspections?new=1', permission: 'audits.create', icon: 'check-square' },
   ],
 };

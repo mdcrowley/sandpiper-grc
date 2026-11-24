@@ -20,6 +20,8 @@ export type ImportMode = 'create' | 'update' | 'upsert';
 export interface ImportField {
   name: string; label: string; type: FieldDef['type']; required: boolean;
   list?: string; to?: string; multiple?: boolean; custom?: boolean;
+  /** A required field that may be left unmapped when this other field is mapped (ResourceDef.filledBy). */
+  filledBy?: string;
 }
 
 export interface ImportDeps {
@@ -43,6 +45,7 @@ export async function importableFields(deps: ImportDeps, def: ResourceDef): Prom
     .filter(([, f]) => !f.readOnly && f.type !== 'json')
     .map(([name, f]) => ({
       name, label: f.label, type: f.type, required: Boolean(f.required && f.default === undefined),
+      ...(def.filledBy?.[name] ? { filledBy: def.filledBy[name] } : {}),
       ...(f.list ? { list: f.list } : {}), ...(f.to ? { to: f.to } : {}),
       ...(f.multiple ? { multiple: true } : {}), ...(f.custom ? { custom: true } : {}),
     }));
@@ -327,7 +330,7 @@ export function checkMapping(def: ResourceDef, fields: ImportField[], headers: s
   if (mode !== 'create' && !matchKey) errors._match = 'Choose the field that identifies existing records.';
   if (matchKey && !seen.has(matchKey)) errors._match = 'Map a column to the field chosen to identify existing records.';
   if (mode !== 'update') {
-    for (const f of fields) if (f.required && !seen.has(f.name)) errors[f.name] = `Map a column to ${f.label}; every new ${def.label.toLowerCase()} needs one.`;
+    for (const f of fields) if (f.required && !seen.has(f.name) && !(f.filledBy && seen.has(f.filledBy))) errors[f.name] = `Map a column to ${f.label}; every new ${def.label.toLowerCase()} needs one.`;
   }
   if (!columns.some(([, f]) => f !== 'id' && f !== def.ref?.field)) errors._mapping = errors._mapping ?? 'Map at least one column to a field.';
   if (Object.keys(errors).length) throw new MappingError('Check the column mapping.', errors);

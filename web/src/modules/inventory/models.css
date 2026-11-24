@@ -1,0 +1,10 @@
+/* Vehicle and asset models (E39): notes beside inherited values, suggestions, counts. */
+.mdl-note { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-1) var(--s-2); margin-top: var(--s-1); font-size: var(--fs-sm); }
+.mdl-from { color: var(--text-muted); }
+.mdl-suggestions { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-2); }
+.mdl-suggestions li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-2); }
+.mdl-counts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-3); }
+.mdl-keep { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: var(--s-3); display: grid; gap: var(--s-2); }
+.mdl-keep legend { font-weight: 600; padding: 0 var(--s-1); }
+.mdl-equipment-row { display: grid; grid-template-columns: minmax(10rem, 2fr) minmax(5rem, 7rem) minmax(10rem, 2fr) auto; gap: var(--s-2); align-items: end; }
+@media (max-width: 900px) { .mdl-equipment-row { grid-template-columns: 1fr 1fr; } }

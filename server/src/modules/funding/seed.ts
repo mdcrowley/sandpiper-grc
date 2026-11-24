@@ -2,7 +2,8 @@ import type { ModuleContext, Row, SeedOptions } from '../../core/module.ts';
 import { dayInZone, todayInZone } from '../../core/timezone.ts';
 import { FUNDED_BY } from './awards.ts';
 import { applyAreaSet, loadAreas, readSampleAreas, validateAreaSet } from './reviews.ts';
-import { seedSubrecipients } from './subrecipients.ts';
+import { renameSamples, type SampleRename } from '../inventory/seed-rename.ts';
+import { SUBRECIPIENT_RENAMES, seedSubrecipients } from './subrecipients.ts';
 
 /**
  * Dev profile only, all invented: four funding awards with invented funders, this year's
@@ -16,10 +17,10 @@ import { seedSubrecipients } from './subrecipients.ts';
 export const SAMPLE_NOTE = 'Invented sample record.';
 
 const AWARDS: Row[] = [
-  { title: 'Bus replacement (sample)', funder_name: 'Example Regional Transport Fund', program_name: 'Sample capital program', award_number: 'SAMPLE-CAP-0101', status: 'active', amount: 6400000, local_share: 1600000, reporting_frequency: 'quarterly', start: -400, end: 700, report: 20, closeout: 790, funds: ['vehicle', 'project'] },
-  { title: 'Station accessibility upgrade (sample)', funder_name: 'Example Accessibility Grant Fund', program_name: 'Sample access program', award_number: 'SAMPLE-ACC-0207', status: 'awarded', amount: 1850000, local_share: 370000, reporting_frequency: 'half_yearly', start: -60, end: 900, report: 120, closeout: 990, funds: ['contract'] },
-  { title: 'Operating assistance (sample)', funder_name: 'Example Regional Transport Fund', program_name: 'Sample operating program', award_number: 'SAMPLE-OPS-0330', status: 'active', amount: 2200000, local_share: 2200000, reporting_frequency: 'yearly', start: -300, end: 65, report: -5, closeout: 155, funds: [] },
-  { title: 'Cybersecurity improvement (sample)', funder_name: 'Example Resilience Foundation', program_name: 'Sample resilience grants', award_number: 'SAMPLE-RES-0412', status: 'applied', amount: 480000, local_share: 120000, reporting_frequency: 'quarterly', start: 30, end: 760, report: null, closeout: null, funds: ['asset'] },
+  { title: '[Sample] Bus replacement', funder_name: 'Example Regional Transport Fund', program_name: 'Sample capital program', award_number: 'SAMPLE-CAP-0101', status: 'active', amount: 6400000, local_share: 1600000, reporting_frequency: 'quarterly', start: -400, end: 700, report: 20, closeout: 790, funds: ['vehicle', 'project'] },
+  { title: '[Sample] Station accessibility upgrade', funder_name: 'Example Accessibility Grant Fund', program_name: 'Sample access program', award_number: 'SAMPLE-ACC-0207', status: 'awarded', amount: 1850000, local_share: 370000, reporting_frequency: 'half_yearly', start: -60, end: 900, report: 120, closeout: 990, funds: ['contract'] },
+  { title: '[Sample] Operating assistance', funder_name: 'Example Regional Transport Fund', program_name: 'Sample operating program', award_number: 'SAMPLE-OPS-0330', status: 'active', amount: 2200000, local_share: 2200000, reporting_frequency: 'yearly', start: -300, end: 65, report: -5, closeout: 155, funds: [] },
+  { title: '[Sample] Cybersecurity improvement', funder_name: 'Example Resilience Foundation', program_name: 'Sample resilience grants', award_number: 'SAMPLE-RES-0412', status: 'applied', amount: 480000, local_share: 120000, reporting_frequency: 'quarterly', start: 30, end: 760, report: null, closeout: null, funds: ['asset'] },
 ];
 
 /** [category, statement] */
@@ -52,8 +53,17 @@ const REQUESTS: [string, string, number, string][] = [
   ['AM', 'Inventory of funded equipment with funding shares', 21, 'open'],
 ];
 
+/** Names of an earlier version ("X (sample)"), renamed in place (E18-65). */
+export const FUNDING_RENAMES: SampleRename[] = [
+  { type: 'funding_award', column: 'title', names: AWARDS.map((a) => a.title) },
+  { type: 'funding_certification', column: 'title', names: ['[Sample] Yearly certifications and assurances'] },
+  { type: 'compliance_review', column: 'title', names: ['[Sample] Funder compliance review'] },
+  ...SUBRECIPIENT_RENAMES,
+];
+
 export async function seedFunding(ctx: ModuleContext, opts: SeedOptions): Promise<string> {
   if (opts.profile !== 'dev') return 'nothing to load (sample funding data is dev profile only)';
+  await renameSamples(ctx, FUNDING_RENAMES);
   const owner = (await ctx.db.one<Row>(`select id from users where status = 'active' and deleted_at is null order by created_at limit 1`))?.id ?? null;
   const loaded = await ctx.db.one('select 1 from funding_awards where notes = $1 limit 1', [SAMPLE_NOTE]);
   const parts: string[] = [];
@@ -74,7 +84,7 @@ export async function seedFunding(ctx: ModuleContext, opts: SeedOptions): Promis
     // This year's certification, most items confirmed.
     const year = Number(todayInZone().slice(0, 4));
     const cert = await ctx.resources.create('funding_certification', {
-      year, title: 'Yearly certifications and assurances (sample)', funder_name: 'Example Regional Transport Fund',
+      year, title: '[Sample] Yearly certifications and assurances', funder_name: 'Example Regional Transport Fund',
       due_on: dayInZone(40), signer_id: owner, status: 'draft', notes: SAMPLE_NOTE,
     });
     for (const [i, [category, statement]] of ITEMS.entries()) {
@@ -91,7 +101,7 @@ export async function seedFunding(ctx: ModuleContext, opts: SeedOptions): Promis
     const { set } = validateAreaSet(readSampleAreas());
     const imported = await applyAreaSet(ctx, set!, null, { sourceFile: 'review-areas.sample.json' });
     const review = await ctx.resources.create('compliance_review', {
-      title: 'Funder compliance review (sample)', funder_name: 'Example Regional Transport Fund', period: 'Last three financial years',
+      title: '[Sample] Funder compliance review', funder_name: 'Example Regional Transport Fund', period: 'Last three financial years',
       site_visit_on: dayInZone(45), lead_id: owner, status: 'self_assessment', notes: SAMPLE_NOTE,
     });
     await loadAreas(ctx, review, imported.set_id!, null);

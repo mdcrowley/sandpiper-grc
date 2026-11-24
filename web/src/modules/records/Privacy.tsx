@@ -35,19 +35,19 @@ export function CoveragePage() {
                 {data.total} system{data.total === 1 ? '' : 's'} hold personal data; {data.without_current} without a current assessment
                 {data.hidden ? ` (${data.hidden} you cannot see)` : ''}.
               </p>
-              <TableWrap label="Systems holding personal data">
+              <TableWrap fit label="Systems holding personal data">
                 <table className="table">
                   <caption className="sr-only">Systems holding personal data</caption>
-                  <thead><tr><th scope="col">System</th><th scope="col">Personal data</th><th scope="col">Assessment</th><th scope="col">Next review</th></tr></thead>
+                  <thead><tr><th scope="col">System</th><th scope="col" data-priority={3}>Personal data</th><th scope="col" data-priority={1}>Assessment</th><th scope="col">Next review</th></tr></thead>
                   <tbody>
                     {data.rows.map((s) => (
                       <tr key={s.id}>
                         <td className="rr-wrap"><Link to={`/systems/${s.id}`}>{s.ref && <span className="ref">{s.ref}</span>} {s.name}</Link></td>
-                        <td className="rr-wrap">{s.categories.map((c) => c.name).join(', ') || <span className="muted">Not shown</span>}</td>
-                        <td className="rr-wrap">
+                        <td className="rr-wrap"><div className="rr-cell">{s.categories.map((c) => c.name).join(', ') || <span className="muted">Not shown</span>}</div></td>
+                        <td className="rr-wrap"><div className="rr-cell">
                           {s.current ? <StatusChip size="sm" color="green" label="Current" /> : <StatusChip size="sm" color="amber" label="No current assessment" />}
                           {s.assessment && <div><Link to={`/privacy/assessments/${s.assessment.id}`}><span className="ref">{s.assessment.ref}</span> {s.assessment.title}</Link> <LookupChip list="privacy_assessment_status" value={s.assessment.status} /></div>}
-                        </td>
+                        </div></td>
                         <td>{s.assessment?.next_review_on ? formatDate(s.assessment.next_review_on) : <span className="muted">—</span>}</td>
                       </tr>
                     ))}

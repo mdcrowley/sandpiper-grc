@@ -114,7 +114,7 @@ Anonymizing a vendor at the end of its retention period also clears its contacts
 
 ## Sample data
 
-The `dev` sample data sets owners on the sample vendors, adds completed assessments that leave three reassessments overdue, twelve exclusion-list checks against the example list (one a possible match, and one vendor overdue for a check), five vendor issues labeled "(sample)" (one with a corrective action plan), and an ended contract "Redbrick legacy backup service (sample)" with an offboarding in progress that has system, remote-access and asset items.
+The `dev` sample data sets owners on the sample vendors, adds completed assessments that leave three reassessments overdue, twelve exclusion-list checks against the example list (one a possible match, and one vendor overdue for a check), five vendor issues labeled "[Sample]" (one with a corrective action plan), and an ended contract "[Sample] Redbrick legacy backup service" with an offboarding in progress that has system, remote-access and asset items.
 
 ## Not available yet
 

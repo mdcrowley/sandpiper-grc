@@ -117,8 +117,8 @@ function TopRisks() {
           <div className="row">
             {d.levels.map((l) => <StatusChip key={l.value} color={toColorName(l.color)} label={`${l.label}: ${l.count}`} />)}
           </div>
-          <TableWrap label="Top risks"><table className="table">
-            <thead><tr><th>Risk</th><th>Residual rating</th><th>Owner</th></tr></thead>
+          <TableWrap fit label="Top risks"><table className="table">
+            <thead><tr><th>Risk</th><th data-priority={1}>Residual rating</th><th>Owner</th></tr></thead>
             <tbody>
               {d.top.slice(0, 5).map((r) => (
                 <tr key={r.id}>
@@ -144,8 +144,8 @@ function ContractNotice() {
         return (
           <div className="stack">
             {soon.length === 0 ? <EmptyState icon="calendar" title="No notice dates in the next 120 days" /> : (
-              <TableWrap label="Contracts approaching notice"><table className="table">
-                <thead><tr><th>Contract</th><th>Notice date</th><th className="num">Days</th></tr></thead>
+              <TableWrap fit label="Contracts approaching notice"><table className="table">
+                <thead><tr><th>Contract</th><th>Notice date</th><th className="num" data-priority={1}>Days</th></tr></thead>
                 <tbody>
                   {soon.map((c) => (
                     <tr key={c.id}>
@@ -181,8 +181,8 @@ function ProjectsByStatus() {
           <div className="row">
             {d.funnel.map((f) => <StatusChip key={f.stage} color={toColorName(f.color)} label={`${f.label}: ${f.count}`} />)}
           </div>
-          <TableWrap label="Projects by status"><table className="table">
-            <thead><tr><th>Project</th><th>Overall</th><th>Trend</th></tr></thead>
+          <TableWrap fit label="Projects by status"><table className="table">
+            <thead><tr><th>Project</th><th data-priority={1}>Overall</th><th>Trend</th></tr></thead>
             <tbody>
               {d.register.slice(0, 7).map((p) => {
                 const trend = p.rag_trend ? TREND[p.rag_trend] : undefined;

@@ -99,7 +99,7 @@ An evaluator wants invented zones, conduits and OT systems, and a guide page.
 
 **Acceptance criteria**
 
-- [x] Invented samples, labeled "(sample)"
+- [x] Invented samples, labeled "[Sample]"
 - [x] Guide page `32-ot-security.md`
 
 **Implemented in:** `server/src/modules/ot/seed.ts`, `docs/user/32-ot-security.md`, targeted edits to `03-inventory.md` and `05-cybersecurity-frameworks.md`, browser suite `tools/e2e/suites/15-ot.mjs`

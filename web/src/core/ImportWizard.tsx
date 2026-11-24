@@ -155,7 +155,7 @@ export function ImportWizard({ resource, open, onClose, onImported }: ImportWiza
   };
 
   const mappedFields = new Set(Object.values(mapping).filter(Boolean));
-  const missing = read && mode !== 'update' ? read.fields.filter((f) => f.required && !mappedFields.has(f.name)) : [];
+  const missing = read && mode !== 'update' ? read.fields.filter((f) => f.required && !mappedFields.has(f.name) && !(f.filledBy && mappedFields.has(f.filledBy))) : [];
   const keyOptions = read ? read.matchKeys.filter((k) => mappedFields.has(k.name)) : [];
   const needsKey = mode !== 'create';
   const canCheck = Boolean(read) && mappedFields.size > 0 && !missing.length && (!needsKey || Boolean(matchKey && mappedFields.has(matchKey)));

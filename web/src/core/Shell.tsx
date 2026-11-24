@@ -10,7 +10,7 @@ import { useFetch, useMediaQuery } from './hooks';
 import { Icon, type IconName } from './Icon';
 import { Logo, Wordmark } from './Logo';
 import { moduleOn, modules, navAllowed, NAV_GROUPS, preloadRoute, type NavGroup, type NavItem } from './module';
-import { Menu } from './overlay';
+import { FilterMenu } from './overlay';
 import { createEntries } from './createMenu';
 import { formatDate } from './format';
 import { ShortcutsDialog } from './Shortcuts';
@@ -345,7 +345,7 @@ export function Shell({ children }: { children: ReactNode }) {
               </Popover>
             )}
             {createItems.length > 0 && (
-              <Menu label="Create" icon="plus" variant="primary" align="end" iconOnly={small}
+              <FilterMenu label="Create" icon="plus" variant="primary" align="end" iconOnly={small} filterLabel="Filter what to create"
                 items={createItems.map((item) => ({ label: item.label, icon: item.icon, to: item.path, group: item.group }))} />
             )}
             {hasNotifications && NotificationBell && (

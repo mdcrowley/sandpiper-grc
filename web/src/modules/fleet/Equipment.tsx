@@ -11,7 +11,22 @@ import type { Installation } from './shared';
 
 interface EquipmentData {
   installations: Installation[];
-  required: { asset_type: string; label: string; state: 'ok' | 'not_working' | 'missing' }[];
+  required: {
+    asset_type: string; label: string; state: 'ok' | 'not_working' | 'missing';
+    /** How many are needed, where that comes from (E39-04), and the units counted. */
+    count?: number; source?: 'mode' | 'model' | 'mode_and_model'; asset_model_name?: string | null;
+    installed?: number; working?: number; not_working?: number; missing?: number;
+  }[];
+}
+
+const SOURCE = { mode: 'Required for the mode', model: 'Added by the vehicle model', mode_and_model: 'Required for the mode, count set by the vehicle model' } as const;
+
+/** "2 of 2 working", "1 working, 1 missing": the units behind a requirement of more than one. */
+function units(r: EquipmentData['required'][number]): string {
+  const parts = [`${r.working ?? 0} working`];
+  if (r.not_working) parts.push(`${r.not_working} not working`);
+  if (r.missing) parts.push(`${r.missing} missing`);
+  return `Needs ${r.count}: ${parts.join(', ')}`;
 }
 
 const STATE = {
@@ -47,7 +62,11 @@ export function EquipmentPanel({ vehicleId, fleetNumber, retired }: { vehicleId:
             <ul className="fl-required" aria-label="Required equipment and its state">
               {data.required.map((r) => (
                 <li key={r.asset_type}>
-                  <span>{r.label}</span>
+                  <span>
+                    {r.count && r.count > 1 ? `${r.count} x ${r.label}` : r.label}
+                    {r.asset_model_name && <span className="muted"> ({r.asset_model_name})</span>}
+                    {r.source && <div className="muted fl-note">{SOURCE[r.source]}{r.count && r.count > 1 ? `. ${units(r)}` : ''}</div>}
+                  </span>
                   <StatusChip color={STATE[r.state].color} label={STATE[r.state].label} />
                 </li>
               ))}

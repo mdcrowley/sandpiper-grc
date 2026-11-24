@@ -37,7 +37,7 @@ export function ConditionDashboard() {
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
       legend: { bottom: 0 },
       grid: { top: 16, right: 16, bottom: 56, left: 48 },
-      xAxis: { type: 'category', data: list.map((c) => c.name.replace(/ \(sample\)$/, '')), axisLabel: { interval: 0, overflow: 'truncate', width: 90 } },
+      xAxis: { type: 'category', data: list.map((c) => c.name.replace(/^\[Sample\] /, '')), axisLabel: { interval: 0, overflow: 'truncate', width: 90 } },
       yAxis: { type: 'value', max: 100, axisLabel: { formatter: '{value}%' } },
       series: [
         {
@@ -99,16 +99,16 @@ export function ConditionDashboard() {
 
       <Card title="By class" flush actions={can('assets.create') ? <Link className="btn btn-ghost btn-sm" to="/condition/classes?new=1">New asset class</Link> : undefined}>
         {d.classes.length === 0 ? <EmptyState icon="chart" title="No asset classes yet" message={`Add an asset class with its useful life, then put ${words.plural} in it.`} /> : (
-          <TableWrap label={`State of good repair by asset class in ${d.year}`}>
+          <TableWrap fit label={`State of good repair by asset class in ${d.year}`}>
             <table className="table">
               <caption className="sr-only">State of good repair by asset class in {d.year}</caption>
               <thead>
                 <tr>
-                  <th scope="col">Class</th><th scope="col">Rates</th><th scope="col" className="num">In use</th>
-                  <th scope="col" className="num">Past useful life</th><th scope="col" className="num">Target</th>
-                  <th scope="col" className="num">Poor condition</th><th scope="col" className="num">Not rated</th>
-                  <th scope="col" className="num">Average age</th><th scope="col" className="num">Replacement project</th>
-                  {d.funding && <th scope="col" className="num">Funded</th>}
+                  <th scope="col">Class</th><th scope="col" data-priority={3}>Rates</th><th scope="col" className="num">In use</th>
+                  <th scope="col" className="num" data-priority={1}>Past useful life</th><th scope="col" className="num">Target</th>
+                  <th scope="col" className="num">Poor condition</th><th scope="col" className="num" data-priority={3}>Not rated</th>
+                  <th scope="col" className="num" data-priority={3}>Average age</th><th scope="col" className="num" data-priority={3}>Replacement project</th>
+                  {d.funding && <th scope="col" className="num" data-priority={3}>Funded</th>}
                 </tr>
               </thead>
               <tbody>

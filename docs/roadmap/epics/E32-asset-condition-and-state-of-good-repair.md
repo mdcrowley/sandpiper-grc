@@ -129,7 +129,7 @@ An evaluator wants invented asset classes, assessments and targets, and a guide 
 
 **Acceptance criteria**
 
-- [x] Invented samples, labeled "(sample)"
+- [x] Invented samples, labeled "[Sample]"
 - [x] Guide page `31-asset-condition.md`; vehicle condition in the fleet guide
 
 **Implemented in:** `server/src/modules/condition/seed.ts` (dev profile: nine classes, the sample estate's sites and every sample vehicle and farebox classed and assessed, targets for this year and last, three replacement projects), `docs/user/31-asset-condition.md`, `docs/user/19-fleet-and-services.md` ("Vehicle condition"), browser suite `tools/e2e/suites/14-condition.mjs`

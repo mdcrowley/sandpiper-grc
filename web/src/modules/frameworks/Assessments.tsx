@@ -71,13 +71,13 @@ function TakeSnapshot({ frameworkId, onDone, onCancel }: { frameworkId: string; 
 function SnapshotTable({ progress }: { progress: Progress }) {
   const rows = [...progress.series].reverse();
   return (
-    <TableWrap label="Snapshots, newest first">
+    <TableWrap fit label="Snapshots, newest first">
       <table className="table">
         <thead>
           <tr>
-            <th scope="col">Snapshot</th><th scope="col">Date</th><th scope="col" style={{ minWidth: 180 }}>Outcomes by status</th>
-            <th scope="col" className="num">Score, priority</th><th scope="col" className="num">Score, all</th><th scope="col" className="num">Priority at target</th>
-            <th scope="col"><span className="sr-only">Report</span></th>
+            <th scope="col">Snapshot</th><th scope="col">Date</th><th scope="col" style={{ minWidth: 180 }} data-priority={3}>Outcomes by status</th>
+            <th scope="col" className="num" data-priority={1}>Score, priority</th><th scope="col" className="num">Score, all</th><th scope="col" className="num">Priority at target</th>
+            <th scope="col" data-priority={1}><span className="sr-only">Report</span></th>
           </tr>
         </thead>
         <tbody>

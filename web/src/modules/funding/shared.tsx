@@ -1,15 +1,7 @@
 // Shared pieces of the funding pages: section tabs and the corrective action plan panel loader.
 import { lazy, Suspense, type ComponentType } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { currency, Loading, Tabs } from '../../core';
-
-/** An amount in full, without cents when it is whole ("$10,930,000"): the money rule of E18-64. */
-export function wholeCurrency(value: number | string | null | undefined): string {
-  const n = Number(value);
-  if (value === null || value === undefined || value === '' || !Number.isFinite(n)) return '—';
-  const digits = Number.isInteger(n) ? 0 : 2;
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: currency(), minimumFractionDigits: digits, maximumFractionDigits: digits }).format(n);
-}
+import { Loading, Tabs } from '../../core';
 
 const SECTIONS = [
   { key: 'dashboard', label: 'Dashboard', path: '/funding' },

@@ -3,6 +3,7 @@ import { scheduleWork } from '../../core/jobs/index.ts';
 import type { LookupValue, ModuleContext, Row, SeedOptions } from '../../core/module.ts';
 import { ANONYMIZED_TEXT, onAnonymize } from '../../core/retention.ts';
 import { dayInZone, todayInZone } from '../../core/timezone.ts';
+import type { SampleRename } from '../inventory/seed-rename.ts';
 import { activeUser, cleanText, idParam, validDate } from './shared.ts';
 
 /**
@@ -244,27 +245,38 @@ export async function registerSubrecipients(ctx: ModuleContext): Promise<void> {
   await scheduleWork(ctx, 'funding.subrecipients', async () => ({ reminded: await runSubrecipientReminders(ctx) }), { every: 24 * 60 * 60 * 1000, firstRunInMs: 95_000 });
 }
 
-/** Sample sub-recipients (dev profile), invented and labeled "(sample)". Called from seed.ts after the sample awards. */
+const SAMPLE_SUBRECIPIENTS = ['[Sample] County paratransit partner', '[Sample] University research partner'];
+
+/** Names of an earlier version, renamed in place (E18-65); run by seed.ts before the awards are looked up. */
+export const SUBRECIPIENT_RENAMES: SampleRename[] = [
+  { type: 'subrecipient', names: [
+    ['Sample county paratransit partner (sample)', SAMPLE_SUBRECIPIENTS[0]],
+    ['Sample university research partner (sample)', SAMPLE_SUBRECIPIENTS[1]],
+  ] },
+  { type: 'cap', column: 'title', names: [['Sample county paratransit partner (sample): monitoring findings', `${SAMPLE_SUBRECIPIENTS[0]}: monitoring findings`]] },
+];
+
+/** Sample sub-recipients (dev profile), invented and labeled "[Sample]". Called from seed.ts after the sample awards. */
 export async function seedSubrecipients(ctx: ModuleContext, opts: SeedOptions): Promise<string | null> {
   if (opts.profile !== 'dev') return null;
-  if (await ctx.db.one(`select 1 from subrecipients where name like '%(sample)' limit 1`)) return null;
+  if (await ctx.db.one(`select 1 from subrecipients where name like '[Sample] %' limit 1`)) return null;
   const award = await ctx.db.one<Row>(
-    `select id from funding_awards where deleted_at is null and title = 'Operating assistance (sample)' order by created_at limit 1`)
+    `select id from funding_awards where deleted_at is null and title = '[Sample] Operating assistance' order by created_at limit 1`)
     ?? await ctx.db.one<Row>('select id from funding_awards where deleted_at is null order by created_at limit 1');
   if (!award) return null;
   const owner = (await ctx.db.one<Row>(`select id from users where status = 'active' and deleted_at is null order by created_at limit 1`))?.id ?? null;
   const samples = [
     {
-      name: 'Sample county paratransit partner (sample)', amount: 420000, risk_level: 'high', monitoring_frequency: 'quarterly',
-      notes: 'Runs demand-response trips in the outer service area under the award (invented sample).',
+      name: SAMPLE_SUBRECIPIENTS[0], amount: 420000, risk_level: 'high', monitoring_frequency: 'quarterly',
+      notes: '[Sample] Runs demand-response trips in the outer service area under the award.',
       history: [
         { on: -200, method: 'desk_review', result: 'satisfactory', findings: null },
         { on: -110, method: 'site_visit', result: 'findings', findings: 'Driver training records for two new drivers were not on file at the visit. Vehicle inspection sheets were incomplete for one month.', cap: true },
       ],
     },
     {
-      name: 'Sample university research partner (sample)', amount: 95000, risk_level: 'low', monitoring_frequency: 'yearly',
-      notes: 'Studies rider travel patterns for the service plan (invented sample).',
+      name: SAMPLE_SUBRECIPIENTS[1], amount: 95000, risk_level: 'low', monitoring_frequency: 'yearly',
+      notes: '[Sample] Studies rider travel patterns for the service plan.',
       history: [
         { on: -300, method: 'report_review', result: 'satisfactory', findings: null },
       ],

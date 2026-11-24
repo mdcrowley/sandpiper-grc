@@ -156,7 +156,7 @@ If more than one framework has been loaded, a framework selector appears beside 
 
 The **More** menu also leads to **Coverage of other frameworks**, **Assessments**, **Frameworks and structure** and **Framework settings**, and on the board holds **Print this board**.
 
-The **Create** menu at the top of every page offers **Framework outcome**, **Assessment snapshot** and **Framework from a file** to people with **Create**.
+The **Create** menu at the top of every page offers **Framework outcome**, **Assessment snapshot** and **Framework** (from a file) to people with **Create**.
 
 ## Working on one outcome
 

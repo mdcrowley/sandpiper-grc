@@ -34,7 +34,7 @@ const mod: ModuleDef = {
   create: [
     { label: 'Business process', path: '/continuity/processes?new=1', permission: 'continuity.create', icon: 'shield' },
     { label: 'Continuity plan', path: '/continuity/plans?new=1', permission: 'continuity.create', icon: 'clipboard' },
-    { label: 'Activate a plan', path: '/continuity/activations?new=1', permission: 'continuity.create', icon: 'alert' },
+    { label: 'Emergency activation', path: '/continuity/activations?new=1', permission: 'continuity.create', icon: 'alert' },
   ],
 };
 export default mod;

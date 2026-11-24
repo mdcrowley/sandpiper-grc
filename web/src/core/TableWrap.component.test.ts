@@ -2,7 +2,7 @@
 import { createElement as h } from 'react';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { GIZMO_META as meta } from './componentMeta';
-import { render, type Harness } from './componentHarness';
+import { render, waitFor, type Harness } from './componentHarness';
 import { TableWrap } from './ui';
 
 // E22-48: the scroll box around a table is a named Tab stop only while the table is wider (or
@@ -53,5 +53,41 @@ describe('TableWrap', () => {
     const el = box(ui.container);
     expect(el.className).toBe('table-wrap adm-table-frame');
     expect(el.getAttribute('aria-busy')).toBe('true');
+  });
+});
+
+// E18-65: a hand-written table in <TableWrap fit> leaves out lower-priority columns while it is too
+// wide, like the shared lists. Each heading states its natural width in data-w (no layout here).
+describe('TableWrap fit', () => {
+  let rect: PropertyDescriptor | undefined;
+  beforeAll(() => {
+    rect = Object.getOwnPropertyDescriptor(Element.prototype, 'getBoundingClientRect');
+    Object.defineProperty(Element.prototype, 'getBoundingClientRect', {
+      configurable: true,
+      value(this: HTMLElement) { const w = Number(this.dataset?.w ?? 0); return { width: w, height: 20, top: 0, left: 0, right: w, bottom: 20, x: 0, y: 0, toJSON() {} }; },
+    });
+  });
+  afterAll(() => { if (rect) Object.defineProperty(Element.prototype, 'getBoundingClientRect', rect); });
+
+  const th = (text: string, w: number, priority?: number) => h('th', { key: text, 'data-w': w, 'data-priority': priority }, text);
+  const wide = () => h('table', null,
+    h('thead', null, h('tr', null, th('Class', 200), th('Rates', 80, 3), th('In use', 70), th('Past useful life', 120, 1), th('Target', 80))),
+    h('tbody', null, h('tr', null, ['Bus', 'Vehicles', '40', '5', '8%'].map((t) => h('td', { key: t }, t)))));
+  const hidden = (container: HTMLElement) => container.querySelector('table')?.getAttribute('data-fit-hide') ?? '';
+
+  it('leaves out priority 3 columns, then the rightmost priority 2, while the table is too wide', async () => {
+    ui = await render(h(TableWrap, { label: 'Classes', fit: true, 'data-cw': '420' } as never, wide()), { meta });
+    await waitFor(() => expect(hidden(ui!.container)).toBe('2 5'));
+  });
+
+  it('keeps every column when the table fits', async () => {
+    ui = await render(h(TableWrap, { label: 'Classes', fit: true, 'data-cw': '1000' } as never, wide()), { meta });
+    await waitFor(() => expect(ui!.container.querySelector('table')).not.toBeNull());
+    expect(ui.container.querySelector('table')?.hasAttribute('data-fit-hide')).toBe(false);
+  });
+
+  it('does nothing without fit', async () => {
+    ui = await render(h(TableWrap, { label: 'Classes', 'data-cw': '200' } as never, wide()), { meta });
+    expect(ui.container.querySelector('table')?.hasAttribute('data-fit-hide')).toBe(false);
   });
 });

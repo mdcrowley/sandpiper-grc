@@ -1018,6 +1018,16 @@ Offline work for the app (E38-10): a new kind of work is a server sync kind (`de
 `modules/mobile/sync.ts`), an optional package part (`definePackagePart`, `modules/mobile/package.ts`)
 and an app outbox kind (`mobile/src/offline/kinds.ts`); see [Mobile app](mobile.md#adding-a-kind-of-offline-work).
 End-to-end flows: `mobile/test/maestro/run.sh` (Maestro in `.tools/maestro`, `MAESTRO_CLI_NO_ANALYTICS=1`).
+Vehicle and asset models (E39) are the `models` module: `vehicle_model` (table `vehicle_models`,
+permission `fleet`) and `asset_model` (`asset_models`, `assets`), with tables `vehicle_model_equipment`
+and `model_changes`, and settings `models.inherited_custom` and `models.background_after`. It added
+to the resource engine: `pickerWhere` (SQL a record must meet to be offered in pickers), `filledBy`
+(`{ field: otherField }`: imports may leave a required field unmapped when the other is mapped),
+`hooks.prepare(req, input, existing)` (before validation) and `ctx.resources.update(type, id, patch,
+req, { via })` (the audit line ends "from <via>"); and on the web, `annotate` on `RecordPage` and
+`EditableSummary`, `confirmSave` on `ResourceForm`, and the `grc:list-changed` window event that makes
+a `ResourceList` reload.
+
 Field work (wave 15, E38-11, E38-12) is in `modules/mobile/fieldwork.ts` (sync kinds
 `inspection.answers`, `inspection.complete`, `condition.assess`, `count.found`; package parts
 `inspections`, `condition`, `counts`) and the app's `src/inspections/`, `src/counts/` and
@@ -1097,13 +1107,14 @@ List columns have a priority (`columns={[..., { field: 'owner_id', priority: 3 }
 when the table is wider than the page, priority 3 and then 2 columns are left out, the rightmost
 first. The default is 1 for the first column, the reference, the title and `status`, and 2 for the
 rest. Mark a column 1 only when the list makes no sense without it. The person can check a left-out
-column in the column chooser to keep it on. Lists never scroll down inside themselves. `Tabs` puts
+column in the column chooser to keep it on. A hand-written table does the same in `<TableWrap fit>`, with
+`data-priority` on its headings (E18-65). Lists never scroll down inside themselves. `Tabs` puts
 tabs that do not fit into a **More** menu; never wrap them or make the strip scroll. In a
 `PageHeader`, give the primary action as a core `Button variant="primary"` (it comes first on record
 pages) and the overflow as an icon-only `Menu` or one labeled "More" or "More actions" (always
 last). A list that is the page but has no title of its own puts its New button in the page header.
 Use `Notice` (not a bare Mantine `Alert`, whose role is `alert`) for messages; only `tone="error"`
-is announced as urgent. Number boxes are at most 16rem wide.
+is announced as urgent. Create entries name a kind of record (a noun, matching the record type's label: "Emergency activation", not "Activate a plan"); the Create menu (`FilterMenu`) has a filter box. Money is shown with core `formatCurrency` (no cents on whole amounts); only tiles, cards and chart axes use a compact form. Sample data names start with "[Sample] "; a seed that renames sample records calls `renameSamples` (`server/src/modules/inventory/seed-rename.ts`) first, since seeds find records by name. Number boxes are at most 16rem wide.
 
 Forms register unsaved changes with `useUnsavedChanges(dirty)` (`core/unsaved.tsx`): leaving the page
 asks first, dialogs ask before closing, and a session that ends mid-edit keeps the draft. Call

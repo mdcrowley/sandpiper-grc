@@ -226,7 +226,7 @@ Search looks in titles, references and text, and also in comments and the names 
 
 ### Create button
 
-The **Create** button at the top right lists everything you are allowed to create, grouped under the same headings as the navigation (for example **Service desk**, **Inventory**, **Change**), A to Z within each group, each with its icon. Choosing an item opens the form for a new record of that kind. The same choices are in the search panel.
+The **Create** button at the top right lists everything you are allowed to create, grouped under the same headings as the navigation (for example **Service desk**, **Inventory**, **Change**), A to Z within each group, each with its icon. A filter box at the top takes the cursor when the menu opens: type part of a name or a group (for example "haz" or "safety") to narrow the list, use the Down and Up arrows to move through what is left, and Enter to open the first one; **No match** says when nothing fits. Choosing an item opens the form for a new record of that kind. The same choices are in the search panel.
 
 ### Notifications bell
 
@@ -280,13 +280,13 @@ Short confirmations and errors, such as "Password changed.", appear at the botto
 
 ### Dates, numbers and amounts
 
-Dates are written as "Nov 18, 2026", numbers as "1,234.5" and amounts in the organization's currency as "$1,234.50", whatever language your browser is set to, so a figure reads the same for everyone, on screen and in exports. Notifications and emails write dates the same way. "Today" is the day on the organization's calendar, in its time zone, not your computer's.
+Dates are written as "Nov 18, 2026", numbers as "1,234.5" and amounts in the organization's currency as "$1,234.50" (or "$50,000" when there are no cents), whatever language your browser is set to, so a figure reads the same for everyone, on screen and in exports. Notifications and emails write dates the same way. "Today" is the day on the organization's calendar, in its time zone, not your computer's.
 
 ## How every list works
 
 Tickets, assets, vendors, risks and most other records are shown in lists that all behave the same way. Above the table is a toolbar: the **Search** box and the **Filters** button on the left; the views button, the column chooser, the row-height button, **Import** and **Export** on the right (each only when your role allows it).
 
-The page scrolls down; the table never has a scroll bar of its own for that. When the window is narrow, less important columns are left out so the rest fit; they are still in the column chooser, marked **Hidden to fit this width**, and checking one keeps it on however narrow the window. If the columns that are always shown are still too wide, the table scrolls sideways, and the edge with more to see fades out. When the table fits, its column headings stay in view as you scroll down.
+The page scrolls down; the table never has a scroll bar of its own for that. When the window is narrow, less important columns are left out so the rest fit; they are still in the column chooser, marked **Hidden to fit this width**, and checking one keeps it on however narrow the window. Tables on dashboards and overview pages (for example asset condition, privacy coverage, assessment snapshots and audit coverage) leave out less important columns in the same way. If the columns that are always shown are still too wide, the table scrolls sideways, and the edge with more to see fades out. When the table fits, its column headings stay in view as you scroll down.
 
 ### Search
 
@@ -425,7 +425,7 @@ In forms:
 - **Choice fields** open a list; a colored dot shows the color used for that value elsewhere. Long lists can be narrowed by typing.
 - **Person and record fields** search as you type. Use the arrow keys and `Enter` to choose, and the cross to clear.
 - **Date fields** take a day from the calendar or typed in, for example `Nov 18, 2026`, `11/18/2026` (month first) or `2026-11-18`.
-- **Date and time fields** are in your organization's time zone, which is named under the field.
+- **Date and time fields** are in your organization's time zone, which is named under the field by its everyday name (for example "Time zone: Eastern Standard Time").
 
 ### Tabs
 

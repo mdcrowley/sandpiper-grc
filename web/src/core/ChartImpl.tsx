@@ -201,10 +201,10 @@ export function fitCategoryLabels(option: Loose, chartWidth: number, measure: (s
     return { ...axis, axisLabel: { ...label, interval: 'auto', rotate: 36, width, overflow: 'truncate', hideOverlap: true } };
   });
   if (!changed) return {};
-  return {
-    xAxis: fitted,
-    grid: extraBottom ? { ...grid, bottom: px(grid.bottom, 0, DEFAULT_GRID.bottom) + extraBottom } : undefined,
-  };
+  // No `grid` key at all when the labels need no extra room: `grid: undefined` would replace the
+  // chart's own grid and ECharts would fall back to its wide default margins, leaving the plot small
+  // and centered in its box (E18-65).
+  return extraBottom ? { xAxis: fitted, grid: { ...grid, bottom: px(grid.bottom, 0, DEFAULT_GRID.bottom) + extraBottom } } : { xAxis: fitted };
 }
 
 /** Changes whenever the color scheme changes, whichever attribute carries it. */

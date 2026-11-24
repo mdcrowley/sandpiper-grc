@@ -43,10 +43,14 @@ export interface EditableSummaryProps {
    * several summary cards does not repeat them; RecordPage's default summary turns it on.
    */
   customFields?: boolean;
+  /** Shown after a field's value, for example "From model Forty-foot bus" (E39-02). */
+  annotate?: (field: string) => ReactNode;
+  /** Asked before a save is sent; false keeps the form open (see ResourceForm). */
+  confirmSave?: (body: Record<string, unknown>) => Promise<boolean>;
 }
 
 /** A definition list of the given fields that flips into a form. */
-export function EditableSummary({ type, row, fields, onSaved, title = 'Details', editable, sections, customFields = false }: EditableSummaryProps) {
+export function EditableSummary({ type, row, fields, onSaved, title = 'Details', editable, sections, customFields = false, annotate, confirmSave }: EditableSummaryProps) {
   const resource = useResource(type);
   const { can, user } = useAuth();
   const toast = useToast();
@@ -83,6 +87,7 @@ export function EditableSummary({ type, row, fields, onSaved, title = 'Details',
           fields={fields}
           sections={sections}
           customFields={customFields}
+          confirmSave={confirmSave}
           initial={row}
           onCancel={() => setEditing(false)}
           onSaved={(saved) => {
@@ -101,7 +106,7 @@ export function EditableSummary({ type, row, fields, onSaved, title = 'Details',
             return (
               <div key={field} className={`rc-def${wide ? ' rc-def-wide' : ''}`}>
                 <dt>{meta.label}</dt>
-                <dd><FieldValue resource={resource} field={field} row={row} /></dd>
+                <dd><FieldValue resource={resource} field={field} row={row} />{annotate?.(field)}</dd>
               </div>
             );
           })}
@@ -186,6 +191,10 @@ export interface RecordPageProps {
   banner?: (rec: RecordContext) => ReactNode;
   /** Fields for the default summary (an EditableSummary). */
   summaryFields?: string[];
+  /** Shown after a field's value in the default summary (E39-02: where an inherited value comes from). */
+  annotate?: (row: Row, field: string) => ReactNode;
+  /** Asked before the default summary's form saves; false keeps it open (E39-03). */
+  confirmSave?: (row: Row, body: Record<string, unknown>) => Promise<boolean>;
   /** Replaces the default summary entirely. */
   summary?: (rec: RecordContext) => ReactNode;
   /** Module tabs, shown before the built-in ones. */
@@ -210,7 +219,7 @@ const ALL_DEFAULT_TABS: DefaultTab[] = ['activity', 'attachments', 'links', 'his
 
 export function RecordPage({
   type, id: idProp, title, subtitle, status, actions, banner, summaryFields, summary, tabs = [],
-  defaultTabs = ALL_DEFAULT_TABS, breadcrumbs, tags = true, watch = true, evidence: evidenceProp,
+  defaultTabs = ALL_DEFAULT_TABS, breadcrumbs, tags = true, watch = true, evidence: evidenceProp, annotate, confirmSave,
 }: RecordPageProps) {
   const params = useParams();
   const id = idProp ?? params.id ?? '';
@@ -326,7 +335,13 @@ export function RecordPage({
       {banner && <div className="rc-record-banner">{banner(rec)}</div>}
       {summary
         ? <>{summary(rec)}<CustomFieldsCard type={type} row={row} onSaved={reload} /></>
-        : summaryFields && <EditableSummary type={type} row={row} fields={summaryFields} onSaved={reload} customFields />}
+        : summaryFields && (
+          <EditableSummary
+            type={type} row={row} fields={summaryFields} onSaved={reload} customFields
+            annotate={annotate ? (field) => annotate(row, field) : undefined}
+            confirmSave={confirmSave ? (body) => confirmSave(row, body) : undefined}
+          />
+        )}
       {allTabs.length > 0 && (
         <div className="rc-record-tabs">
           <Tabs

@@ -185,18 +185,10 @@ export function MapCanvas({ layout, label, selectedId, onSelect, impacted, cente
           ))}
         </defs>
         <g transform={`translate(${view.x} ${view.y}) scale(${view.k})`} className={`inv-world${layout.edges.length > 90 ? ' is-dense' : ''}`}>
-          {layout.lanes.map((l) => (
-            <text key={l.type} x={l.x + (l.type === 'system' ? 0 : 2)} y={l.y + 18} className="inv-lane-label" style={{ fontSize: Math.min(headSize, 16) }}>{l.label}</text>
-          ))}
+          {/* Layers, back to front (E18-65): group boxes, then the lines, then the lane and group headings on a
+              band of their own color (so a line passes behind a heading, never through it), then the nodes. */}
           {layout.groups.map((g) => (
-            <g key={g.key} className="inv-group">
-              <rect x={g.x} y={g.y} width={g.w} height={g.h} rx={12} />
-              <text x={g.x + 12} y={g.y + 21} style={{ fontSize: headSize }}>
-                <title>{g.label} ({g.count})</title>
-                {short(g.label, Math.max(8, Math.floor((g.w - 34) / (headSize * 0.56))))}
-                <tspan className="inv-group-count"> {g.count}</tspan>
-              </text>
-            </g>
+            <rect key={g.key} className="inv-group-box" x={g.x} y={g.y} width={g.w} height={g.h} rx={12} />
           ))}
           <g fill="none">
             {layout.edges.map((e) => {
@@ -220,6 +212,19 @@ export function MapCanvas({ layout, label, selectedId, onSelect, impacted, cente
               );
             })}
           </g>
+          {layout.lanes.map((l) => (
+            <text key={l.type} x={l.x + (l.type === 'system' ? 0 : 2)} y={l.y + 18} className="inv-lane-label" style={{ fontSize: Math.min(headSize, 16) }}>{l.label}</text>
+          ))}
+          {layout.groups.map((g) => (
+            <g key={g.key} className="inv-group">
+              <rect className="inv-group-band" x={g.x + 1} y={g.y + 1} width={Math.max(0, g.w - 2)} height={Math.max(28, headSize + 14)} rx={11} />
+              <text x={g.x + 12} y={g.y + 21} style={{ fontSize: headSize }}>
+                <title>{g.label} ({g.count})</title>
+                {short(g.label, Math.max(8, Math.floor((g.w - 34) / (headSize * 0.56))))}
+                <tspan className="inv-group-count"> {g.count}</tspan>
+              </text>
+            </g>
+          ))}
           {layout.nodes.map((n) => {
             const crit = n.type === 'system' ? n.attrs?.criticality : null;
             // Operational technology (E33-04): a small OT badge beside the name.

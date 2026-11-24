@@ -116,7 +116,25 @@ export interface ResourceDef {
   evidence?: boolean;
   defaultSort?: { field: string; dir: 'asc' | 'desc' };
   fields: Record<string, FieldDef>;
+  /**
+   * SQL condition (no parameters, columns unqualified) a record must meet to be offered in record
+   * pickers (`GET /api/records/lookup`), for example `active` (E39: an inactive vehicle model is not
+   * offered for new vehicles). Stored values are unaffected.
+   */
+  pickerWhere?: string;
+  /**
+   * Required fields the `prepare` hook fills from another field, by field: `{ mode: 'model_id' }` (E39:
+   * a new vehicle takes its mode from its vehicle model). An import may leave such a field unmapped
+   * when the other field is mapped; the save itself still requires a value.
+   */
+  filledBy?: Record<string, string>;
   hooks?: {
+    /**
+     * Runs before validation on the raw input of a create (`existing` null) or update, and may add or
+     * change fields; what it returns is validated like the caller's own input, so lifecycle rules and
+     * lookups apply to it (E39-02: a vehicle or asset takes its model's values).
+     */
+    prepare?: (req: FastifyRequest | null, input: Row, existing: Row | null) => Promise<Row> | Row;
     beforeCreate?: (req: FastifyRequest | null, data: Row) => Promise<Row> | Row;
     beforeUpdate?: (req: FastifyRequest | null, existing: Row, patch: Row) => Promise<Row> | Row;
     afterCreate?: (req: FastifyRequest | null, row: Row) => Promise<void> | void;
@@ -170,6 +188,15 @@ export interface CreateOptions {
   skipCustomRequired?: boolean;
 }
 
+/** Options for `ResourceRegistry.update`. */
+export interface UpdateOptions {
+  /**
+   * Where the change comes from when it is not the record's own form (E39-03: "vehicle model
+   * Forty-foot bus"); the audit summary and history line end with "from <via>".
+   */
+  via?: string;
+}
+
 export interface ResourceRegistry {
   get(type: string): ResourceDef | undefined;
   all(): ResourceDef[];
@@ -180,7 +207,7 @@ export interface ResourceRegistry {
   /** Validated create with auto-number, hooks and audit. `req` null = system actor (seeding, automation). */
   create(type: string, data: Row, req?: FastifyRequest | null, opts?: CreateOptions): Promise<Row>;
   /** Validated partial update with hooks and audit. */
-  update(type: string, id: string, patch: Row, req?: FastifyRequest | null): Promise<Row>;
+  update(type: string, id: string, patch: Row, req?: FastifyRequest | null, opts?: UpdateOptions): Promise<Row>;
   /**
    * SQL condition (no parameters) that is true for the rows of `type` that `user` may see under the
    * restricted-record rules. Hand-written queries over a resource table must include it:

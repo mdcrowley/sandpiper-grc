@@ -132,6 +132,7 @@ export function registerCoreRoutes({ app, db, audit, lookups, res, custom, gate,
     return db.query(
       `select id, ${def.titleField}::text as label, ${def.ref ? def.ref.field : 'null'} as ref from ${def.table}
        where deleted_at is null and ${visibilitySql(def, req.user)} and (${cols.map((c) => `${c}::text ilike $1`).join(' or ')})
+         and (${def.pickerWhere ?? 'true'})
        order by ${def.titleField} limit 25`,
       [`%${q.trim()}%`],
     );

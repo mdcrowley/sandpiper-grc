@@ -5,10 +5,11 @@ import type { Availability, Session, ToolSpec } from './toolkit.ts';
 import { APPROVAL_TOOLS } from './tools-approvals.ts';
 import { PROGRAM_TOOLS } from './tools-programs.ts';
 import { RECORD_TOOLS } from './tools-records.ts';
+import { MODEL_TOOLS } from './tools-models.ts';
 import { WORK_TOOLS } from './tools-work.ts';
 
 /** Every tool the server knows, in the order they are listed. Delete is deliberately not among them. */
-export const ALL_TOOLS: ToolSpec[] = [...RECORD_TOOLS, ...WORK_TOOLS, ...APPROVAL_TOOLS, ...PROGRAM_TOOLS];
+export const ALL_TOOLS: ToolSpec[] = [...RECORD_TOOLS, ...MODEL_TOOLS, ...WORK_TOOLS, ...APPROVAL_TOOLS, ...PROGRAM_TOOLS];
 
 export function availability(ctx: ModuleContext, permissions: string[]): Availability {
   const user = { permissions } as SessionUser;

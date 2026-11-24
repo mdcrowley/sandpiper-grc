@@ -115,4 +115,4 @@ To use it:
 
 ## Sample data
 
-The sample data (the `dev` seed) adds five invented zones (train control, traction power supervisory, station systems, fare collection back office and maintenance shop network; two below target and one restricted), six conduits (two with remote access), four OT systems and two OT assets, all labeled "(sample)".
+The sample data (the `dev` seed) adds five invented zones (train control, traction power supervisory, station systems, fare collection back office and maintenance shop network; two below target and one restricted), six conduits (two with remote access), four OT systems and two OT assets, all labeled "[Sample]".

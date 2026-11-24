@@ -95,7 +95,7 @@ The **Exercises** tab (when exercises are part of your installation) shows the d
 
 ## Emergency activations
 
-Open **Emergency activations**, select **Activate a plan** (or **Create** then **Activate a plan**), and give **What is happening**, the **Kind of event** (**Severe weather**, **Power loss**, **Major service disruption**, **Loss of a facility**, **Public health** or **Other**), the **Level** (**Monitoring**, **Partial activation** or **Full activation**) and the **Plans to activate**. **Declare the activation** opens its workspace. Each plan's checklist is copied in, and the log starts with the declaration.
+Open **Emergency activations**, select **Activate a plan** (or **Create** then **Emergency activation**), and give **What is happening**, the **Kind of event** (**Severe weather**, **Power loss**, **Major service disruption**, **Loss of a facility**, **Public health** or **Other**), the **Level** (**Monitoring**, **Partial activation** or **Full activation**) and the **Plans to activate**. **Declare the activation** opens its workspace. Each plan's checklist is copied in, and the log starts with the declaration.
 
 The workspace has four tabs:
 
@@ -127,4 +127,4 @@ Anonymizing a plan at the end of its retention period also clears the typed name
 
 ## Sample data
 
-The sample data (development profile only) has ten invented business processes of a bus and light-rail operator, with dependencies on the sample systems, services, sites, vendors and positions; impact analyses for six; two recovery gaps by construction (fare collection and payroll); three plans (an approved business continuity plan, an emergency operations plan with a severe weather annex waiting for approval, and an IT disaster recovery plan overdue for review) with call trees from the sample roster and checklists; and one closed severe-weather activation with its log, roles, checklist and an after-action corrective action plan. Everything is marked "(sample)". Vendors and exercises are loaded after this part, so they are linked when the sample data is loaded a second time.
+The sample data (development profile only) has ten invented business processes of a bus and light-rail operator, with dependencies on the sample systems, services, sites, vendors and positions; impact analyses for six; two recovery gaps by construction (fare collection and payroll); three plans (an approved business continuity plan, an emergency operations plan with a severe weather annex waiting for approval, and an IT disaster recovery plan overdue for review) with call trees from the sample roster and checklists; and one closed severe-weather activation with its log, roles, checklist and an after-action corrective action plan. Everything is marked "[Sample]". Vendors and exercises are loaded after this part, so they are linked when the sample data is loaded a second time.

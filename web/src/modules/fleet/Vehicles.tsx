@@ -8,6 +8,9 @@ import { EquipmentPanel } from './Equipment';
 import { SafetyEventsCard } from './SafetyEvents';
 import { FleetTabs } from './shared';
 import { ListExtensionActions, useBulkExtensions, useExtensionTabs } from '../inventory/Extensions';
+import { MODEL_KINDS, modelAnnotate, useFromModel } from '../inventory/models';
+
+const annotate = modelAnnotate(MODEL_KINDS.vehicle);
 
 const year = (row: Record<string, unknown>) => (row.model_year ? String(row.model_year) : '—');
 
@@ -24,6 +27,10 @@ export function VehicleList() {
   const bulkActions = useBulkExtensions('vehicle');
   // Columns of the condition area only while the server offers their fields (it hides them while the area is off).
   const condition = CONDITION_COLUMNS.filter((f) => resource?.fields[f]).map((field) => ({ field, hidden: true }));
+  // "New vehicle from this model" (E39-05): the New form opens filled with the model's values.
+  const fromModel = useFromModel(MODEL_KINDS.vehicle);
+  const withModel = Boolean(resource?.fields.model_id);
+  if (fromModel.pending) return <Loading lines={6} label="Loading the vehicle model" />;
   return (
     <div className="stack">
       <PageHeader title="Vehicles" subtitle="Every vehicle in the fleet, where it is kept and what state it is in." />
@@ -33,10 +40,11 @@ export function VehicleList() {
         urlState
         columns={['fleet_number', 'mode', 'status', 'depot_id', 'make', 'model',
           { field: 'model_year', label: 'Model year', sortable: true, align: 'right', render: year },
-          { field: 'registration', hidden: true }, { field: 'funder_interest', hidden: true }, ...condition]}
-        filters={['mode', 'status', 'depot_id', 'funding_source', 'funder_interest', 'in_service_date',
+          { field: 'registration', hidden: true }, { field: 'funder_interest', hidden: true }, ...(withModel ? [{ field: 'model_id', hidden: true }] : []), ...condition]}
+        filters={['mode', 'status', 'depot_id', 'model_id', 'funding_source', 'funder_interest', 'in_service_date',
           ...['asset_class_id', 'condition_rating', 'useful_life_end'].filter((f) => resource?.fields[f])]}
-        createFields={['fleet_number', 'mode', 'status', 'depot_id', 'make', 'model', 'model_year', 'registration', 'in_service_date', 'capacity', 'funding_source', 'funder_interest', 'funder_interest_pct', 'notes']}
+        createInitial={fromModel.initial}
+        createFields={['fleet_number', 'model_id', 'mode', 'status', 'depot_id', 'make', 'model', 'model_year', 'registration', 'in_service_date', 'capacity', 'funding_source', 'funder_interest', 'funder_interest_pct', 'notes']}
         actions={<ListExtensionActions recordType="vehicle" />}
         bulkActions={bulkActions}
       />
@@ -53,7 +61,8 @@ export function VehicleDetail() {
     <RecordPage
       type="vehicle"
       title={(row) => `Vehicle ${row.fleet_number}`}
-      summaryFields={['fleet_number', 'mode', 'status', 'depot_id', 'make', 'model', 'model_year', 'registration', 'in_service_date', 'capacity', 'funding_source', 'funder_interest', 'funder_interest_pct', 'notes']}
+      annotate={annotate}
+      summaryFields={['fleet_number', 'model_id', 'mode', 'status', 'depot_id', 'make', 'model', 'model_year', 'registration', 'in_service_date', 'capacity', 'funding_source', 'funder_interest', 'funder_interest_pct', 'notes']}
       tabs={[
         { key: 'equipment', label: 'Equipment', content: ({ row }) => <EquipmentPanel vehicleId={row.id} fleetNumber={row.fleet_number} retired={row.status === 'retired'} /> },
         ...(condition && LazySection ? [{

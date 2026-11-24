@@ -1,6 +1,7 @@
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
 import { registerDisposalRequests, ROUTED_ONLY } from './disposal.ts';
 import { CONDITION_ASSET_FIELDS, CONDITION_SITE_FIELDS, ensureConditionLists } from './fields-condition.ts';
+import { ASSET_MODEL_FIELDS } from './fields-models.ts';
 import { ensureOtLists, OT_ASSET_FIELDS, OT_SYSTEM_FIELDS } from './fields-ot.ts';
 import { ensurePrivacyLists, PRIVACY_DATA_CATEGORY_FIELDS } from './fields-privacy.ts';
 import { registerInventoryTaggables, TAG_NUMBER_FIELDS } from './fields-tags.ts';
@@ -246,6 +247,7 @@ async function register(ctx: ModuleContext) {
       notes: { label: 'Notes', type: 'longtext' },
       ...OT_ASSET_FIELDS,
       ...CONDITION_ASSET_FIELDS,
+      ...ASSET_MODEL_FIELDS,
     },
     hooks: {
       beforeCreate: async (req, data) => {

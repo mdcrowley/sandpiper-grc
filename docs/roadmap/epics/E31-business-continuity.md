@@ -151,7 +151,7 @@ An evaluator wants invented sample processes, plans and an activation, and a gui
 
 **Acceptance criteria**
 
-- [x] Invented samples, labeled "(sample)"
+- [x] Invented samples, labeled "[Sample]"
 - [x] Guide page `30-business-continuity.md`
 
 **Implemented in:** `server/src/modules/continuity/seed.ts`; `docs/user/30-business-continuity.md`

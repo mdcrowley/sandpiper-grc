@@ -152,7 +152,7 @@ status `done`; issues in progress, open or blocked are counted in the total only
 | [E15](epics/E15-self-service-portal.md) | Self-service portal | done | 14 / 14 |
 | [E16](epics/E16-hosting-operations-and-hardening.md) | Hosting, operations and hardening | in progress | 35 / 39 |
 | [E17](epics/E17-documentation.md) | Documentation | done | 14 / 14 |
-| [E18](epics/E18-quality-and-known-defects.md) | Quality and known defects | in progress | 64 / 65 |
+| [E18](epics/E18-quality-and-known-defects.md) | Quality and known defects | done | 65 / 65 |
 | [E19](epics/E19-fleet-and-services.md) | Fleet and services | done | 14 / 14 |
 | [E20](epics/E20-safety-management.md) | Safety management | done | 15 / 15 |
 | [E21](epics/E21-mcp-server.md) | MCP server (AI assistant access) | done | 25 / 25 |
@@ -173,15 +173,17 @@ status `done`; issues in progress, open or blocked are counted in the total only
 | [E36](epics/E36-integrations.md) | Integrations | done | 8 / 8 |
 | [E37](epics/E37-asset-tags.md) | Asset tags: values, printing and lookup | in progress | 9 / 10 |
 | [E38](epics/E38-mobile-apps.md) | Mobile apps for iPhone and Android | in progress | 11 / 15 |
-| | **Total** | | **734 / 745** |
+| [E39](epics/E39-vehicle-and-asset-models.md) | Vehicle and asset models | done | 7 / 7 |
+| | **Total** | | **742 / 752** |
 
-Of the 11 issues not done, 5 are in the epics E37 (asset tags) and E38 (mobile apps), specified in
+Of the 10 issues not done, 5 are in the epics E37 (asset tags) and E38 (mobile apps), specified in
 [the asset tags and mobile apps specification](specs/asset-tags-and-mobile-apps.md): the online app
 was built in wave 13, offline reports, push notifications and the Maestro flows in wave 14, and
 offline inspections, condition assessments and counts (E38-11, E38-12) and the Android UnifiedPush
 connector in wave 15, and the apps' internal accessibility and security review (E38-15) in wave 16; checks on real phones and signed
-releases need a person. Of the other 6, E18-65 (interface items left from the wave 17 review) can
-be built here; the rest need a person or a real machine (E02-08, E16-15, E16-40, E16-41, E16-42). E23 to E30 were built in wave 10 and E31 to E36 in wave 11 (the product gaps of the
+releases need a person. The other 5 need a person or a real machine (E02-08, E16-15, E16-40, E16-41,
+E16-42); E18-65, the interface items left from the wave 17 review, was built in wave 18. E39
+(vehicle and asset models, members inheriting a shared specification) was built in wave 18 too. E23 to E30 were built in wave 10 and E31 to E36 in wave 11 (the product gaps of the
 November 2026 review); E31-10, the last of them, was built in wave 12. Some of their done issues are
 "Not planned" entries (E25-13, E29-11, E32-06, E34-09): features recorded so that nobody builds them.
 
@@ -200,7 +202,6 @@ with real data, then those that close the main known gaps.
 | 6 | [E16-15](epics/E16-hosting-operations-and-hardening.md) A walkthrough by a screen reader user | NVDA has been run through the main journeys by a script; no screen reader user has used the application |
 | 7 | [E16-41](epics/E16-hosting-operations-and-hardening.md) Load test with the database on its own machine | Measured with the database in a limited container on the same laptop; search and the full-text list tuned for it (wave 15) |
 | 8 | [E16-42](epics/E16-hosting-operations-and-hardening.md) Services across a restart of a real machine, and macOS | Proven across a restart of a systemd container |
-| 9 | [E18-65](epics/E18-quality-and-known-defects.md) Hand-written tables, the Create menu filter and the remaining interface items | Left from the wave 17 interface review; nothing is broken |
 
 ## Known gaps coverage
 
@@ -244,7 +245,6 @@ Keep this table in step with that file.
 | Mobile app accessibility not tried by people (VoiceOver, a TalkBack user) | E38-15 |
 | Mobile app security limits: expiry by the phone's clock, iPhone protection class and backup exclusion unchecked on a device, Android recents thumbnail, proprietary ML Kit and Firebase, build-tool audit advisories | E38-15 |
 | Printed tags not yet read by real phones; signed releases | E37-08, E38-05, E38-13 |
-| Sample data marked two ways; relationship map lines over group headings | E18-65 |
 | Load test with the database on its own machine and people in different roles | E16-41 |
 
 ### Verification status

@@ -119,7 +119,7 @@ export async function seedFleet(ctx: ModuleContext, opts: SeedOptions): Promise<
       const installed = await ctx.db.one('select 1 from vehicle_equipment where asset_id = $1', [asset.id]);
       if (!installed) {
         await ctx.db.query('insert into vehicle_equipment (vehicle_id, asset_id, installed_on, install_notes) values ($1,$2,$3,$4)',
-          [vehicle.id, asset.id, v.in_service_date, 'Fitted when the vehicle entered service (sample).']);
+          [vehicle.id, asset.id, v.in_service_date, '[Sample] Fitted when the vehicle entered service.']);
         fitted++;
       }
     }
@@ -132,7 +132,7 @@ export async function seedFleet(ctx: ModuleContext, opts: SeedOptions): Promise<
     await ctx.db.query(
       `insert into vehicle_equipment (vehicle_id, asset_id, installed_on, install_notes, removed_on, removal_reason, removed_at)
        values ($1,$2,$3,$4,$5,$6, now())`,
-      [bus1203.id, old.row.id, dayOffset(-2500), 'Fitted when the vehicle entered service (sample).', dayOffset(-400), 'Replaced with a newer model (sample).']);
+      [bus1203.id, old.row.id, dayOffset(-2500), '[Sample] Fitted when the vehicle entered service.', dayOffset(-400), '[Sample] Replaced with a newer model.']);
   }
 
   let services = 0;

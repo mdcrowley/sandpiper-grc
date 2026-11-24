@@ -1,5 +1,5 @@
 import { Avatar, Group, Progress, Text, Tooltip } from '@mantine/core';
-import { currency, Icon, LookupChip, StatusChip } from '../../core';
+import { currency, formatCurrency, Icon, LookupChip, StatusChip } from '../../core';
 import type { ColorName } from '../../core';
 import { RAG_COLOR, RAG_LABEL, type RagTrend } from './types';
 
@@ -10,18 +10,11 @@ export function currencySymbol(): string {
 }
 
 /**
- * An amount in full, without cents when it is whole ("$50,000", "$1,234.50"). The money rule (E18-64):
- * amounts are shown in full on records, in tables and in sentences; only KPI tiles, board cards and chart
- * axes use `compactCurrency`, with the full amount as their tooltip.
+ * A short amount in the configured currency for chart axes and tiles, for example "€12K". The money
+ * rule (E18-64): amounts are shown in full on records, in tables and in sentences (core `formatCurrency`,
+ * without cents when whole); only KPI tiles, board cards and chart axes use this compact form, with the
+ * full amount as their tooltip.
  */
-export function wholeCurrency(value: number | string | null | undefined): string {
-  const n = Number(value);
-  if (value === null || value === undefined || value === '' || !Number.isFinite(n)) return '—';
-  const digits = Number.isInteger(n) ? 0 : 2;
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: currency(), minimumFractionDigits: digits, maximumFractionDigits: digits }).format(n);
-}
-
-/** A short amount in the configured currency for chart axes and tiles, for example "€12K". */
 export function compactCurrency(value: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: currency(), notation: 'compact', maximumSignificantDigits: 3 }).format(value);
 }
@@ -80,8 +73,8 @@ export function budgetText(budget: number | null | undefined, spend: number | nu
   const b = Number(budget) || 0;
   const s = Number(spend) || 0;
   if (!b && !s) return 'No budget or spend recorded';
-  if (!b) return `${wholeCurrency(s)} spent, no budget set`;
-  return `${wholeCurrency(s)} of ${wholeCurrency(b)} spent (${Math.round((s / b) * 100)}%)${s > b ? ', over budget' : ''}`;
+  if (!b) return `${formatCurrency(s)} spent, no budget set`;
+  return `${formatCurrency(s)} of ${formatCurrency(b)} spent (${Math.round((s / b) * 100)}%)${s > b ? ', over budget' : ''}`;
 }
 
 /**
@@ -101,7 +94,7 @@ export function BudgetBar({ budget, spend, detail }: { budget: number | null | u
     return (
       <div>
         <Group justify="space-between" gap="xs" mb={4} wrap="nowrap">
-          <Text size="xs" c="dimmed" truncate>{b ? `${wholeCurrency(s)} of ${wholeCurrency(b)}` : `${wholeCurrency(s)} spent`}</Text>
+          <Text size="xs" c="dimmed" truncate>{b ? `${formatCurrency(s)} of ${formatCurrency(b)}` : `${formatCurrency(s)} spent`}</Text>
           <Text size="xs" fw={600} c={over ? 'var(--danger-text)' : undefined} style={{ whiteSpace: 'nowrap' }}>
             {b ? `${pct}%` : 'No budget'}{over ? ' over' : ''}
           </Text>

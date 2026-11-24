@@ -60,4 +60,4 @@ A released hold shows when, by whom and why. Its records then follow their reten
 
 ## Sample data
 
-The sample data (development profile) holds one active invented hold, "Sample matter: platform incident claim (sample)", with two sample safety events placed by hand and a saved query holding the sample security incident. The records are placed once the server has started after loading the samples.
+The sample data (development profile) holds one active invented hold, "[Sample] Platform incident claim", with two sample safety events placed by hand and a saved query holding the sample security incident. The records are placed once the server has started after loading the samples.

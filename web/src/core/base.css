@@ -175,7 +175,7 @@ body {
 }
 .card-title { font-size: 0.9375rem; font-weight: 650; letter-spacing: -0.005em; }
 .card-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); font-size: var(--fs-sm); }
-.card-body { display: grid; gap: var(--s-3); padding: var(--s-4) 20px 20px; min-width: 0; }
+.card-body { display: grid; align-content: start; gap: var(--s-3); padding: var(--s-4) 20px 20px; min-width: 0; }
 .card-body > * { min-width: 0; }
 .card-flush { min-width: 0; overflow: hidden; border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
 .card-flush > .table-wrap { border: 0; border-radius: 0; }
@@ -546,6 +546,20 @@ button.step-body:hover .step-label { text-decoration: underline; }
 .ui-menu-group { padding-top: var(--s-2); font-weight: 650; color: var(--text-muted); }
 .ui-menu-group:first-child { padding-top: 4px; }
 a.ui-menu-item { text-decoration: none; }
+/* A menu with a filter box (FilterMenu, the Create menu; E18-65): the box stays at the top while the entries scroll. */
+.ui-fmenu { padding-top: 0; }
+.ui-fmenu-box { position: sticky; top: 0; z-index: 1; background: var(--surface); padding: 4px 0 6px; }
+.ui-fmenu-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 34px; padding: 6px 12px;
+  border: 0; border-radius: var(--radius-sm); background: none; color: var(--text); font: inherit; font-size: var(--fs-md);
+  text-align: start; text-decoration: none; cursor: pointer;
+}
+.ui-fmenu-item:hover, .ui-fmenu-item:focus-visible { background: var(--surface-2); }
+.ui-fmenu-item:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.ui-fmenu-item > svg { flex: none; color: var(--text-muted); }
+.ui-fmenu-danger { color: var(--danger-text); }
+.ui-fmenu-group { padding: var(--s-2) 12px 4px; font-size: var(--fs-sm); }
+.ui-fmenu-empty { margin: 0; padding: 10px 12px; color: var(--text-muted); }
 /* Hand-written menu markup */
 .menu { position: relative; display: inline-flex; }
 .menu-list {
@@ -710,6 +724,33 @@ a.ui-menu-item { text-decoration: none; }
   mask-image: linear-gradient(to right,
     #000 0 1px, var(--fade-start) 1px, #000 3rem, #000 calc(100% - 3rem), var(--fade-end) calc(100% - 1px), #000 calc(100% - 1px));
 }
+
+/* A hand-written table in <TableWrap fit> leaves out lower-priority columns while it is too wide
+   (watchTableFit in core/ui.tsx lists their positions in data-fit-hide), like the shared lists (E18-65). */
+.table-wrap > table[data-fit-hide~="1"] > * > tr > :nth-child(1),
+.table-wrap > table[data-fit-hide~="2"] > * > tr > :nth-child(2),
+.table-wrap > table[data-fit-hide~="3"] > * > tr > :nth-child(3),
+.table-wrap > table[data-fit-hide~="4"] > * > tr > :nth-child(4),
+.table-wrap > table[data-fit-hide~="5"] > * > tr > :nth-child(5),
+.table-wrap > table[data-fit-hide~="6"] > * > tr > :nth-child(6),
+.table-wrap > table[data-fit-hide~="7"] > * > tr > :nth-child(7),
+.table-wrap > table[data-fit-hide~="8"] > * > tr > :nth-child(8),
+.table-wrap > table[data-fit-hide~="9"] > * > tr > :nth-child(9),
+.table-wrap > table[data-fit-hide~="10"] > * > tr > :nth-child(10),
+.table-wrap > table[data-fit-hide~="11"] > * > tr > :nth-child(11),
+.table-wrap > table[data-fit-hide~="12"] > * > tr > :nth-child(12),
+.table-wrap > table[data-fit-hide~="13"] > * > tr > :nth-child(13),
+.table-wrap > table[data-fit-hide~="14"] > * > tr > :nth-child(14),
+.table-wrap > table[data-fit-hide~="15"] > * > tr > :nth-child(15),
+.table-wrap > table[data-fit-hide~="16"] > * > tr > :nth-child(16),
+.table-wrap > table[data-fit-hide~="17"] > * > tr > :nth-child(17),
+.table-wrap > table[data-fit-hide~="18"] > * > tr > :nth-child(18),
+.table-wrap > table[data-fit-hide~="19"] > * > tr > :nth-child(19),
+.table-wrap > table[data-fit-hide~="20"] > * > tr > :nth-child(20),
+.table-wrap > table[data-fit-hide~="21"] > * > tr > :nth-child(21),
+.table-wrap > table[data-fit-hide~="22"] > * > tr > :nth-child(22),
+.table-wrap > table[data-fit-hide~="23"] > * > tr > :nth-child(23),
+.table-wrap > table[data-fit-hide~="24"] > * > tr > :nth-child(24) { display: none; }
 
 /* Number boxes are no wider than their numbers need (16rem at most), not the whole row; the label and hint keep the full width. */
 .mantine-NumberInput-wrapper { max-width: 16rem; }

@@ -77,4 +77,16 @@ describe('saving the map as a picture', () => {
     expect(pictureName('Connections of CAD/AVL (main)', '2026-11-19', 'svg')).toBe('connections-of-cad-avl-main-2026-11-19.svg');
     expect(pictureName('***', '2026-11-19', 'svg')).toBe('map-2026-11-19.svg');
   });
+
+  it('draws the lines behind the group headings, on a band that hides them (E18-65)', () => {
+    const { svg } = renderMapSvg(layout, { palette, title: 'Relationship map' });
+    const lastLine = Math.max(...layout.edges.map((e) => svg.indexOf(`d="${e.path}"`)));
+    const firstBand = svg.indexOf('class="group-band"');
+    expect(lastLine).toBeGreaterThan(0);
+    expect(firstBand).toBeGreaterThan(lastLine);
+    // Every group heading comes after the last line, and every node after the headings.
+    for (const g of layout.groups) expect(svg.indexOf(`>${xml(g.label)}<tspan`)).toBeGreaterThan(lastLine);
+    expect(svg.indexOf('<g transform="translate(', firstBand)).toBeGreaterThan(firstBand);
+    expect(svg.lastIndexOf('class="group-band"')).toBeLessThan(svg.indexOf('<g transform="translate(', firstBand));
+  });
 });

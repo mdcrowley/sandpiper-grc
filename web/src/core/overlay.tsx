@@ -1,6 +1,7 @@
 // Overlays on Mantine: Modal, Drawer, ConfirmDialog, Menu and toasts.
-import { Fragment, useEffect, useId, useRef, type ReactNode } from 'react';
-import { Button as MButton, ActionIcon, Drawer as MDrawer, Menu as MMenu, Modal as MModal, Tooltip } from '@mantine/core';
+import { Fragment, useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
+import { Button as MButton, ActionIcon, Drawer as MDrawer, Menu as MMenu, Modal as MModal, Popover, TextInput, Tooltip } from '@mantine/core';
+import { filterEntries } from './createMenu';
 import { notifications } from '@mantine/notifications';
 import { Link } from 'react-router-dom';
 import { Icon, type IconName } from './Icon';
@@ -246,6 +247,111 @@ export function Menu({ label, icon, iconOnly, variant = 'secondary', size, items
       </MMenu.Dropdown>
     </MMenu>
     </HeaderSlot>
+  );
+}
+
+/* ---------- Menu with a filter box (the Create menu) ---------- */
+
+export interface FilterMenuProps extends Omit<MenuProps, 'size'> {
+  /** The filter box's accessible name. */
+  filterLabel?: string;
+}
+
+/**
+ * A button that opens a long menu with a filter box above it (E18-65): focus starts in the box;
+ * typing narrows the entries (label or group, see `filterEntries`); ArrowDown and ArrowUp move into
+ * the entries, which then move with the arrow keys, Home and End as in any menu (ArrowUp on the first
+ * goes back to the box, typing a letter goes back to the box with it); Enter in the box opens the first
+ * entry; Escape closes and focus returns to the button. Entries are grouped under their `group`.
+ */
+export function FilterMenu({ label, icon, iconOnly, variant = 'secondary', items, align = 'start', filterLabel = `Filter ${label.toLowerCase()} choices` }: FilterMenuProps) {
+  const [opened, setOpened] = useState(false);
+  const [query, setQuery] = useState('');
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const id = useId();
+  const shown = filterEntries(items, query);
+  const close = () => { setOpened(false); setQuery(''); };
+  const entries = () => Array.from(listRef.current?.querySelectorAll<HTMLElement>('[role=menuitem]') ?? []);
+  const focusAt = (at: number) => {
+    const all = entries();
+    if (all.length > 0) all[(at + all.length) % all.length].focus();
+  };
+  const onBoxKey = (e: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); focusAt(0); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); focusAt(-1); }
+    else if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+      const first = entries()[0];
+      if (first) { e.preventDefault(); first.click(); }
+    }
+  };
+  const onEntryKey = (e: ReactKeyboardEvent<HTMLElement>) => {
+    const at = entries().indexOf(e.currentTarget);
+    switch (e.key) {
+      case 'ArrowDown': e.preventDefault(); focusAt(at + 1); break;
+      case 'ArrowUp': e.preventDefault(); if (at <= 0) inputRef.current?.focus(); else focusAt(at - 1); break;
+      case 'Home': e.preventDefault(); focusAt(0); break;
+      case 'End': e.preventDefault(); focusAt(-1); break;
+      case ' ': e.preventDefault(); e.currentTarget.click(); break;
+      default:
+        // A letter typed on an entry goes to the filter box (focus moves before the character lands).
+        if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) inputRef.current?.focus();
+    }
+  };
+  const groups: { group: string; items: MenuItem[] }[] = [];
+  for (const item of shown) {
+    const group = item.group ?? '';
+    if (groups.length === 0 || groups[groups.length - 1].group !== group) groups.push({ group, items: [] });
+    groups[groups.length - 1].items.push(item);
+  }
+  const entry = (item: MenuItem) => {
+    const shared = {
+      role: 'menuitem', tabIndex: -1, className: cx('ui-fmenu-item', item.danger && 'ui-fmenu-danger'), onKeyDown: onEntryKey,
+      onClick: () => { item.onSelect?.(); close(); },
+    } as const;
+    const inner = <>{item.icon && <Icon name={item.icon} size={16} />}<span>{item.label}</span></>;
+    return item.to
+      ? <Link key={`${item.group ?? ''}-${item.label}`} {...shared} to={item.to}>{inner}</Link>
+      : <button key={`${item.group ?? ''}-${item.label}`} type="button" {...shared}>{inner}</button>;
+  };
+  return (
+    <Popover opened={opened} onChange={(o) => (o ? setOpened(true) : close())} position={align === 'end' ? 'bottom-end' : 'bottom-start'}
+      offset={6} shadow="md" trapFocus returnFocus>
+      <Popover.Target>
+        {iconOnly ? (
+          <Tooltip label={label} disabled={opened}>
+            <ActionIcon {...BUTTON_LOOK[variant]} size={36} aria-label={label} className={cx('ui-btn', 'ui-icon-btn', `ui-btn-${variant}`)}
+              onClick={() => (opened ? close() : setOpened(true))}>
+              <Icon name={icon ?? 'more'} size={18} />
+            </ActionIcon>
+          </Tooltip>
+        ) : (
+          <MButton {...BUTTON_LOOK[variant]} size="sm" className={cx('ui-btn', `ui-btn-${variant}`)}
+            leftSection={icon ? <Icon name={icon} size={16} /> : undefined} rightSection={<Icon name="chevron-down" size={14} />}
+            onClick={() => (opened ? close() : setOpened(true))}>
+            {label}
+          </MButton>
+        )}
+      </Popover.Target>
+      <Popover.Dropdown className="ui-menu ui-fmenu" aria-label={label} p={4}>
+        <TextInput ref={inputRef} data-autofocus aria-label={filterLabel} placeholder="Filter…" size="sm" type="search" autoComplete="off"
+          aria-controls={`${id}-list`} value={query} onChange={(e) => setQuery(e.currentTarget.value)} onKeyDown={onBoxKey}
+          leftSection={<Icon name="search" size={14} />} className="ui-fmenu-box" />
+        <div role="status" className="sr-only">{query && (shown.length === 0 ? 'No match' : `${shown.length} ${shown.length === 1 ? 'choice' : 'choices'}`)}</div>
+        {shown.length === 0 ? (
+          <p className="ui-fmenu-empty">{items.length === 0 ? 'Nothing here yet' : `No match for “${query.trim()}”`}</p>
+        ) : (
+          <div role="menu" id={`${id}-list`} aria-label={label} ref={listRef}>
+            {groups.map((g, gi) => (g.group ? (
+              <div role="group" key={g.group} aria-labelledby={`${id}-g${gi}`}>
+                <div id={`${id}-g${gi}`} className="ui-menu-group ui-fmenu-group">{g.group}</div>
+                {g.items.map(entry)}
+              </div>
+            ) : <Fragment key={`none-${gi}`}>{g.items.map(entry)}</Fragment>))}
+          </div>
+        )}
+      </Popover.Dropdown>
+    </Popover>
   );
 }
 

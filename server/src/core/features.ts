@@ -134,7 +134,7 @@ export const AREAS: Area[] = [
   },
   {
     key: 'fleet', label: 'Fleet and services', defaultOn: true,
-    description: 'Vehicles, the services (routes and lines) they run, and which systems each depends on.',
+    description: 'Vehicles, vehicle models, the services (routes and lines) they run, and which systems each depends on.',
     permissions: ['fleet'], modules: ['fleet'], jobs: ['fleet.'],
     lookupValues: { condition_target_type: ['vehicle'] },
   },

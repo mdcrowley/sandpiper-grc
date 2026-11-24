@@ -96,11 +96,11 @@ describe('sub-recipients', () => {
   });
 
   it('seeds two invented sub-recipients once, labeled as samples', async () => {
-    await t.ctx.resources.create('funding_award', { title: 'Operating assistance (sample)', status: 'active' });
+    await t.ctx.resources.create('funding_award', { title: '[Sample] Operating assistance', status: 'active' });
     expect(await seedSubrecipients(t.ctx, { profile: 'pilot', seedDir: '', organization: {} } as never)).toBeNull();
     expect(await seedSubrecipients(t.ctx, { profile: 'dev', seedDir: '', organization: {} } as never)).toMatch(/sub-recipients 2/);
     expect(await seedSubrecipients(t.ctx, { profile: 'dev', seedDir: '', organization: {} } as never)).toBeNull();
-    const names = (await t.db.query<Row>(`select name from subrecipients where name like '%(sample)'`)).map((r) => r.name);
+    const names = (await t.db.query<Row>(`select name from subrecipients where name like '[Sample] %'`)).map((r) => r.name);
     expect(names).toHaveLength(2);
   });
 

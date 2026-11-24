@@ -16,7 +16,7 @@ always run with `--no-metrics`. No paid build service is needed.
 
 | Path | What |
 |---|---|
-| `mobile/app/` | Screens (expo-router: every file is a screen). `(auth)/connect.tsx` connect and sign in; `(tabs)/` the five tabs (My work, Tag, Report, Search, Account); `notifications.tsx`; `record/`, `approvals/` |
+| `mobile/app/` | Screens (expo-router: every file is a screen). `(auth)/connect.tsx` connect and sign in; `(tabs)/` the five tabs (My work, Tag, Report, Search, Account); `notifications.tsx`; `record/` (vehicles and assets show their model among the key fields, read-only, E39-07), `approvals/` |
 | `mobile/src/api/client.ts` | The only way screens reach the server: `apiFetch`, `apiUpload`, `useSession`, `confirmIdentity`, `ApiError` |
 | `mobile/src/auth/` | Connecting (`server.ts`), OAuth with PKCE (`oauth.ts`), tokens and the session (`session.ts`), storage in the Keychain or Keystore (`storage.ts`), the unlock (`unlock.ts`, `LockScreen.tsx`) |
 | `mobile/src/inspections/`, `mobile/src/counts/` | Field work offline (E38-11, E38-12): the inspection runner, signature, condition assessments, the Field work list; counting mode. Routes `app/fieldwork/` |

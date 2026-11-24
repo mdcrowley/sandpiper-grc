@@ -494,6 +494,8 @@ The panels and helpers also work on their own (e.g. on a custom page):
   remove asks for confirmation. If a lookup list named `link_relation` exists it supplies the
   relation choices, otherwise relation is free text.
 
+Record pages take `annotate` (on `RecordPage` and `EditableSummary`): a function that adds a note under a field's value, such as "From model <name>" with a button to clear an override. `ResourceForm` takes `confirmSave`: a function that may show a confirmation (for example how many members a model change affects) before the form saves, and may change the values saved. A `grc:list-changed` window event makes a `ResourceList` reload.
+
 ## 6. Chart
 
 A thin ECharts wrapper. Registered: bar, line, pie (and doughnut), heatmap, graph; grid,
@@ -608,12 +610,13 @@ is needed around it).
 | `StatusChip` | `color?`, `label` | Chip with a dot; use for status and priority |
 | `LookupChip` | `list`, `value` | Label and color from the lookup list |
 | `Card` | `title?`, `actions?`, `flush?`, `className?`, `children` | `flush` removes body padding; a `table-wrap` directly inside a flush card loses its own border |
-| `TableWrap` | `label` (required: the region name, usually the caption), `className?`, `ref?`, plus `<div>` attributes | The bordered scroll box around a data table (`.table-wrap`). While the table is wider or taller than the box, the box is a named region in the tab order so the keyboard can scroll it (WCAG 2.1.1). Every `<table>` goes in one; `tableWrap.test.ts` fails on a hand-written `table-wrap` box or Mantine `Table.ScrollContainer` |
+| `TableWrap` | `label` (required: the region name, usually the caption), `fit?`, `className?`, `ref?`, plus `<div>` attributes | The bordered scroll box around a data table (`.table-wrap`). While the table is wider or taller than the box, the box is a named region in the tab order so the keyboard can scroll it (WCAG 2.1.1). Every `<table>` goes in one; `tableWrap.test.ts` fails on a hand-written `table-wrap` box or Mantine `Table.ScrollContainer`. With `fit`, a hand-written table leaves out lower-priority columns while it is too wide, like the shared lists (E18-65): give a heading `data-priority={1 | 2 | 3}` (default 1 for the first column, 2 for the rest; 3 gives way first, then 2, rightmost first; 1 always shows). For one heading row without spanning headings; let long cells wrap within a set width so the measured widths are fair |
 | `Stat` | `label`, `value`, `trend?: { direction: 'up' \| 'down' \| 'flat', label, tone?: 'good' \| 'bad' \| 'neutral' }`, `color?`, `to?`, `icon?`, `hint?` | Number tile; `to` makes it a drill-down link, `icon` sits beside the label, `hint` is a short line under the value. Lay several out with `<div className="grid-stats">` |
 | `Tabs` | `tabs: { key, label, count?, content? }[]`, `active?`, `onChange?`, `label?` | Mantine `Tabs`: arrow keys, Home and End move between tabs. Uncontrolled unless `active` is passed; only the active panel is mounted. Tabs that do not fit the width go into a **More** menu after the tab list (outside the `tablist`); the active tab always stays in the strip, and a tab chosen from More gets the focus. The strip never scrolls sideways |
 | `Modal` (alias `Dialog`) | `open`, `title`, `onClose`, `footer?`, `size?: 'sm' \| 'md' \| 'lg'`, `dirty?`, `discardPrompt?`, `children` | Mantine `Modal`: focus trap, Esc and backdrop close, focus returns to the opener. With `dirty` (or a `ResourceForm` inside that has changes) closing asks "Discard this draft?" first. Focus starts in the first form control. With several open, Esc closes only the top one, and never while a dropdown inside it is open. `footer` stays visible while the body scrolls |
 | `Drawer` | as `Modal`, plus `side?: 'left' \| 'right'` | Side panel (Mantine `Drawer`), same behavior |
 | `ConfirmDialog` | `open`, `title`, `message`, `confirmLabel?`, `danger?`, `busy?`, `onConfirm`, `onCancel` | Focus starts on Cancel when `danger`, otherwise on the confirm button |
+| `FilterMenu` | as `Menu` (no `size`), plus `filterLabel?` | A long menu with a filter box above it (the Create menu, E18-65): focus starts in the box; typing narrows the items by label or group; ArrowDown/ArrowUp move into the items, which move with the arrow keys, Home and End (ArrowUp on the first returns to the box; a typed letter goes to the box); Enter in the box opens the first match; "No match" when nothing matches, announced politely; Escape closes and returns focus |
 | `Menu` | `label`, `items: { label, icon?, onSelect?, to?, danger?, disabled?, separated?, group? }[]`, `icon?`, `iconOnly?`, `variant?`, `size?`, `align?: 'start' \| 'end'` | Button with a dropdown menu (Mantine `Menu`): arrow keys, Esc, type-ahead. Items with `to` are real links; `group` draws a heading above the first item of each group. In a `PageHeader`, an icon-only "⋯" menu (or one labeled "More" or "More actions") is always drawn last |
 | `useToast()` | returns `{ success(msg), error(msg), info(msg) }` | Mantine notifications at the bottom right; errors stay 9 seconds, others 5. Works anywhere inside the app, e.g. `toast.error(errorMessage(err))` |
 | `EmptyState` | `title`, `message?`, `icon?`, `action?` | Icon in a soft circle, title, message, then the action (usually a `Button`) |
@@ -699,7 +702,8 @@ All in the organization's time zone (`timeZone()`, set by the server's `GRC_TIME
 | `formatDateTime(v)` | `Nov 18, 2026, 14:05` |
 | `relativeTime(v)` | `3 hours ago`, `in 2 days` |
 | `formatDuration(ms)` | `2d 4h`, `3h 12m`, `45m` |
-| `formatCurrency(v)` | `$1,234.50` |
+| `formatCurrency(v)` | `$1,234.50`; whole amounts without cents, `$50,000` (E18-65) |
+| `timeZoneLabel(at?)` | `Eastern Standard Time`: the organization zone by its everyday name (the identifier when there is none); date and time fields use it in their hint |
 | `formatNumber(v)` | `1,234.5` |
 | `escapeHtml(v)` | `&lt;b&gt;`: for the few HTML strings built by hand (chart tooltip formatters) |
 | `humanize('review_date')` | `Review date` |

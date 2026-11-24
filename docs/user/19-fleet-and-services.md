@@ -1,8 +1,8 @@
 # Fleet and services
 
-The fleet pages record the vehicles you run, the equipment fitted to each one, the services (routes and lines) you operate and the systems each service needs. Together they answer two everyday questions: which vehicles are missing working equipment, and which vehicles and services are affected when a system fails. Open them from the **Inventory** group: **Vehicles**, **Services**, **Equipment coverage** and **What is affected**. The four pages share tabs along the top, so you can move between them directly. Lists and record pages work as described in [Getting started](01-getting-started.md).
+The fleet pages record the vehicles you run, the equipment fitted to each one, the services (routes and lines) you operate and the systems each service needs. Together they answer two everyday questions: which vehicles are missing working equipment, and which vehicles and services are affected when a system fails. Open them from the **Inventory** group: **Vehicles**, **Vehicle models**, **Services**, **Equipment coverage** and **What is affected**. The five pages share tabs along the top, so you can move between them directly. Lists and record pages work as described in [Getting started](01-getting-started.md).
 
-If your organization does not manage vehicles here, an administrator can switch **Fleet and services** off under **Administration > Features** (see [Administration](09-administration.md#features)). Vehicles and services then disappear everywhere, including the impact panels on system pages, the relationship map and the **Affected** tab of security incidents. Records are kept and return when it is switched back on.
+If your organization does not manage vehicles here, an administrator can switch **Fleet and services** off under **Administration > Features** (see [Administration](09-administration.md#features)). Vehicles, vehicle models and services then disappear everywhere, including the impact panels on system pages, the relationship map and the **Affected** tab of security incidents. Records are kept and return when it is switched back on.
 
 You need the **fleet** permissions to see these pages (`fleet.view`, and `fleet.create`, `fleet.edit`, `fleet.delete`, `fleet.export` to change and export; `fleet.administer` for the required equipment). Equipment is made of assets, so working with it also needs permission to see assets; **What is affected** needs permission to see systems.
 
@@ -10,12 +10,12 @@ Of the default roles, **Agent** holds every fleet permission; **Security lead**,
 
 ## Vehicles
 
-Open **Vehicles**. The list shows each vehicle's **Fleet number**, **Mode**, **Status**, **Depot or garage**, **Make**, **Model** and **Model year**. Filter by mode, status, depot, funding source, funder interest or the date it entered service.
+Open **Vehicles**. The list shows each vehicle's **Fleet number**, **Mode**, **Status**, **Depot or garage**, **Make**, **Model** and **Model year**; the **Vehicle model** column can be turned on with the column chooser. Filter by mode, status, depot, vehicle model, funding source, funder interest or the date it entered service.
 
 ### Add a vehicle
 
 1. Select **New vehicle**, or **Create** then **Vehicle**.
-2. Enter the **Fleet number** (it must be unique) and choose the **Mode**: **Bus**, **Trolleybus**, **Light rail**, **Heavy rail**, **Paratransit / demand-responsive** or **Ferry**.
+2. Enter the **Fleet number** (it must be unique). If the vehicle is one of a kind you have recorded as a [vehicle model](#vehicle-models), choose it under **Vehicle model**; it is quicker to start from the model's page with **New vehicle from this model**, which fills in the form. Choose the **Mode**: **Bus**, **Trolleybus**, **Light rail**, **Heavy rail**, **Paratransit / demand-responsive** or **Ferry**.
 3. Choose the **Status**: **In service**, **Spare**, **In maintenance**, **Out of service** or **Retired**.
 4. Choose the **Depot or garage** (a site from the inventory), and enter the **Make**, **Model**, **Model year** (four digits), **Registration or vehicle number**, **In service since** and **Passenger capacity** if you know them.
 5. If an outside funder paid for part of the vehicle, choose the **Funding source**, check **Funder interest** and enter the **Funder interest (%)**, as for assets.
@@ -25,13 +25,13 @@ A vehicle that still has equipment installed cannot be set to **Retired**: remov
 
 ### Import vehicles
 
-Select **Import** on the vehicle list and follow the import screen (see [Importing and exporting](17-importing-and-exporting.md#importing-records)). To update vehicles you already have, choose **Update existing records only** (or **Update existing records and create the rest**) and pick **Fleet number** under **Find existing records by**. A depot is matched by the site's name, and a mode or status by its value or its label (for example "Bus"). Every row is checked by the same rules as a vehicle added by hand.
+Select **Import** on the vehicle list and follow the import screen (see [Importing and exporting](17-importing-and-exporting.md#importing-records)). To update vehicles you already have, choose **Update existing records only** (or **Update existing records and create the rest**) and pick **Fleet number** under **Find existing records by**. A depot is matched by the site's name, a vehicle model by its name, and a mode or status by its value or its label (for example "Bus"). A file with a **Vehicle model** column needs no **Mode** column: each new vehicle takes the model's mode and other shared values, and a value given in the file that differs from the model's is kept as that vehicle's own. Every row is checked by the same rules as a vehicle added by hand.
 
 ### The vehicle record
 
-The **Details** card holds the facts above; select **Edit** to change them. The **Equipment** tab shows:
+The **Details** card holds the facts above; select **Edit** to change them. When the vehicle has a **Vehicle model**, each value it takes from the model says **From model** under it, and a value the vehicle keeps as its own says **Overridden** (see [Vehicle models](#vehicle-models)). The **Equipment** tab shows:
 
-- **Required equipment**: each kind of equipment this mode of vehicle should carry, marked **Working**, **Not working** (installed, but the asset's status is not **In use**, for example **In repair**) or **Missing**. The card's heading says how many gaps there are, or **Fully equipped**.
+- **Required equipment**: each kind of equipment this vehicle should carry (what its mode requires and what its vehicle model adds, with how many and where each requirement comes from), marked **Working**, **Not working** (installed, but the asset's status is not **In use**, for example **In repair**) or **Missing**. The card's heading says how many gaps there are, or **Fully equipped**.
 - **Installed now**: the equipment on the vehicle, with its type, the asset's status and when it was installed.
 - **Earlier installations**: equipment that has been removed, with when and why.
 
@@ -55,16 +55,63 @@ A piece of equipment can be on only one vehicle at a time: if it is on another v
 
 Select **Remove** beside the item under **Installed now**, enter **Removed on** (leave it empty for today; it cannot be before the installation date) and a **Reason**, and select **Remove**. The installation moves to **Earlier installations**; the asset itself is not changed. Both the vehicle's and the asset's history record each installation and removal.
 
+## Vehicle models
+
+Many vehicles are copies of one another: a bus order of the same length, make and equipment. A **vehicle model** holds what they share. Each vehicle still has its own fleet number, registration and tag; it points at its model and takes the shared values from it. Open **Vehicle models**.
+
+A vehicle model has a **Name**, and the values its vehicles share: **Mode**, **Make**, **Model**, **Model year**, **Passenger capacity**, **Asset class** (where asset condition is in use) and **Funding source**, plus a **Description** and an **Active** switch. Custom fields of vehicles that an administrator marks as inherited appear on the model too (see [Inherited custom fields](#inherited-custom-fields)). A field left empty on the model is not shared: each vehicle keeps its own value. Add a model with **New vehicle model**, or **Create** then **Vehicle model**.
+
+### Give vehicles a model
+
+- **One new vehicle**: open the model and select **New vehicle from this model**. The new vehicle form opens with the model's values filled in.
+- **One existing vehicle**: edit the vehicle and choose its **Vehicle model**. The shared values are filled in from the model, except those the vehicle keeps as its own.
+- **Many vehicles**: on the vehicle list, select the vehicles, then **Set model** in the bar that appears. Choose the model: the dialog shows how many of the selected vehicles already have it and, for each shared value, how many vehicles have a different one (with examples). Every vehicle takes the model's values unless you check **Keep their own** for a value; a value kept this way becomes that vehicle's override. Select **Give the model to ... vehicles**. Any vehicle whose own rules refuse the change is listed and left as it was.
+- **Suggestions**: the vehicle model list says when existing vehicles with no model match a model by make, model name and (when the model has one) model year. Select **Review and assign** to open the same dialog for them.
+- **Import**: a **Vehicle model** column in an import file names the model (see [Import vehicles](#import-vehicles)).
+
+An inactive model is not offered for new vehicles; vehicles that already have it keep it. A model that still has vehicles cannot be deleted: give them another model, or make it inactive.
+
+### Overrides
+
+On a vehicle with a model, a shared value marked **From model** follows the model. Editing that value on the vehicle makes it an **override**: the vehicle keeps its own value whatever happens to the model, and the value is marked **Overridden**. Select **Use the model's value** beside it to clear the override; the vehicle then takes the model's value again. Typing the model's own value is not an override. Removing the vehicle's model keeps its current values as its own.
+
+### Change a model
+
+Edit the model's **Details** and save. When the change reaches vehicles, a dialog first says how many of the model's vehicles take the new values, how many keep their own value (an override) for each field that changes, and which ones. Select **Save and apply**, or **Cancel** to change nothing.
+
+Each vehicle is then saved through the usual rules, so its lifecycle rules and checks still apply, and its **History** (and the audit log) says the change came from the model, for example "Vehicle updated: 1205 (Make) from vehicle model [Sample] Citystrider 12 diesel bus". Webhooks are sent for each vehicle that changed. A vehicle whose own rules refuse the new value is left unchanged and listed in a notice on the model's page; it takes the value at its next save unless you keep its value as an override. A change that reaches more than 200 vehicles runs in the background: the model's page shows its progress until it is done.
+
+The model's tabs:
+
+- **Vehicles**: how many vehicles use the model by status, which shared values some of them keep as their own, and the vehicles themselves.
+- **Equipment**: what the model adds to the equipment its vehicles' mode requires (see below).
+- **Model changes**: every change applied to the vehicles and every time the model was given to vehicles: when, by whom, which fields, how many changed, how many kept their own value, and which refused.
+
+### Equipment a model adds
+
+The equipment a mode requires (set under [Required equipment](#required-equipment)) is the base for every vehicle of that mode. A vehicle model can add to it on its **Equipment** tab: select **Edit**, then for each row choose the **Kind of equipment** (an asset type) and **How many**, and optionally an **Asset model**. Select **Save**.
+
+- A kind the mode does not require is added for the model's vehicles.
+- A kind the mode requires with a higher count raises the count ("2 cameras" where the mode asks for one).
+- With an asset model named, only equipment of that asset model counts as working; other equipment of that kind counts as installed but not working.
+
+The vehicle's **Equipment** tab and **Equipment coverage** then show each requirement with where it comes from (**Required for the mode**, **Added by the vehicle model**, or the mode's with the count set by the model) and, for a count above one, how many units are working, not working and missing.
+
+### Inherited custom fields
+
+An administrator selects **Inherited custom fields** on the vehicle model list and checks the custom fields of vehicles that should come from the model. Each checked field then appears on every vehicle model (in the **Inherited custom fields** card, changed with **Edit**) and is inherited with overrides like the built-in shared values. See [Administration](09-administration.md#custom-fields).
+
 ## Equipment coverage
 
-Open **Equipment coverage**. The tiles count the vehicles (retired ones are left out), those **Fully equipped** and those **With a gap**. The table has one row per vehicle and one column for each kind of equipment a mode needs, with a key above it:
+Open **Equipment coverage**. The tiles count the vehicles (retired ones are left out), those **Fully equipped** and those **With a gap**. The table has one row per vehicle and one column for each kind of equipment a mode or a vehicle model needs, with a key above it:
 
 | Mark | Meaning |
 |---|---|
 | Check mark | **Working**: equipment of that kind is installed and in use |
 | Exclamation mark | **Installed, not working**: installed, but the asset is in repair or otherwise not in use |
 | Cross | **Missing**: nothing of that kind is installed |
-| Dash | **Not needed for this mode** |
+| Dash | **Not needed for this mode or model** |
+| 1/2 | Where a vehicle model asks for more than one: working units out of the count |
 
 Each column heading says how many gaps it has, and the **Gaps** column counts them for each vehicle. Filter by **Mode** or **Depot or garage**, or switch on **Only vehicles with a gap**, for example to find every bus without a working on-vehicle router or camera. Select a fleet number to open that vehicle's equipment.
 
@@ -106,7 +153,7 @@ The answer is only as good as the equipment installed on vehicles and the depend
 
 ## Sample data
 
-The `dev` sample profile loads an invented operator: 40 buses at two depots and 8 light-rail vehicles at the rail yard, each with its equipment, a few deliberate gaps, one replaced router in the history of bus 1203, and twelve services with the systems they depend on.
+The `dev` sample profile loads an invented operator: 40 buses at two depots and 8 light-rail vehicles at the rail yard, each with its equipment, a few deliberate gaps, one replaced router in the history of bus 1203, and twelve services with the systems they depend on. Every vehicle has one of four sample vehicle models (one of which adds a second camera and a passenger information display, so its two buses show gaps), bus 1205 keeps its own passenger capacity as an override, and a fifth model is inactive.
 
 When the application is set up, the person installing it can load your own vehicles and services from two files in the private seed folder, `vehicles.psv` and `services.psv` (the `pilot` profile; their columns are described in the installation guide). Running it again updates the vehicles and services by fleet number and route rather than adding them twice. After set-up, use **Import** on the lists instead.
 
@@ -115,3 +162,4 @@ When the application is set up, the person installing it can load your own vehic
 - Vehicle blocks and daily assignments of vehicles to services.
 - Individual vehicles on the relationship map: they are drawn as groups by depot and mode. Open a group's vehicle list to see each one.
 - Mileage logs, inspections and maintenance work orders; these belong in a fleet maintenance system. Only the latest odometer reading is kept, for the useful life.
+- Maintenance schedules and parts on a vehicle model (planned separately, E32-06). A model never creates vehicles by itself.

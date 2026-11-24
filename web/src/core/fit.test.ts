@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fitColumns, fitTabs, type FitColumn } from './fit';
+import { fitColumns, fitTableColumns, fitTabs, type FitColumn } from './fit';
 
 const col = (field: string, priority: 1 | 2 | 3, width: number): FitColumn => ({ field, priority, width });
 
@@ -57,5 +57,33 @@ describe('fitTabs', () => {
 
   it('draws unmeasured tabs so they can be measured', () => {
     expect(fitTabs([0, 0, 0], 50, 80, 0)).toEqual([0, 1, 2]);
+  });
+});
+
+describe('fitTableColumns (hand-written tables, E18-65)', () => {
+  const h = (width: number, priority?: string) => ({ width, priority });
+
+  it('leaves nothing out when the table fits', () => {
+    expect(fitTableColumns([h(200), h(100), h(100)], 400)).toEqual([]);
+  });
+
+  it('reads data-priority, defaulting to 1 for the first column and 2 for the rest', () => {
+    // Class (1), Rates (3), In use (2), Past useful life (1), Target (2)
+    const cols = [h(200), h(80, '3'), h(70), h(120, '1'), h(80)];
+    expect(fitTableColumns(cols, 500)).toEqual([2]);
+    expect(fitTableColumns(cols, 420)).toEqual([2, 5]);
+    expect(fitTableColumns(cols, 300)).toEqual([2, 3, 5]);
+  });
+
+  it('never leaves out the first column or a priority 1 column', () => {
+    expect(fitTableColumns([h(500), h(500, '1'), h(10)], 100)).toEqual([3]);
+  });
+
+  it('does not fit a table whose heading spans columns', () => {
+    expect(fitTableColumns([h(500), { width: 500, colSpan: 2 }], 100)).toEqual([]);
+  });
+
+  it('ignores a priority it does not know', () => {
+    expect(fitTableColumns([h(100), h(100, '9'), h(100, '3')], 250)).toEqual([3]);
   });
 });

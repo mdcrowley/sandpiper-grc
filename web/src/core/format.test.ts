@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   EMPTY, currency, formatCurrency, formatDate, formatDateTime, formatDuration, formatNumber,
-  fromZonedInput, humanize, relativeTime, setLocaleSettings, timeZone, toZonedInput, todayInZone,
+  fromZonedInput, humanize, relativeTime, setLocaleSettings, timeZone, timeZoneLabel, toZonedInput, todayInZone,
 } from './format';
 
 // The organization's zone is set explicitly so the results do not depend on the machine's clock
@@ -38,6 +38,14 @@ describe('dates', () => {
     expect(toZonedInput(null)).toBe('');
     expect(fromZonedInput('')).toBe('');
     expect(fromZonedInput('2026-13-45T99:99')).toBe('');
+  });
+
+  it('names the zone in everyday words for date field hints (E18-65)', () => {
+    expect(timeZoneLabel(new Date('2026-01-15T12:00:00Z'))).toBe('Eastern Standard Time');
+    expect(timeZoneLabel(new Date('2026-07-15T12:00:00Z'))).toBe('Eastern Daylight Time');
+    setLocaleSettings({ timeZone: 'UTC' });
+    expect(timeZoneLabel()).toBe('Coordinated Universal Time');
+    setLocaleSettings({ timeZone: 'America/New_York' });
   });
 
   it('ignores an unknown zone or currency and keeps the previous ones', () => {
@@ -100,6 +108,12 @@ describe('numbers and money', () => {
 
   it('formats money in the organization currency', () => {
     expect(formatCurrency(1234.5)).toMatch(/1.234.50/);
+    // E18-65: no cents on whole amounts; cents kept when there are any.
+    expect(formatCurrency(50000)).toBe('$50,000');
+    expect(formatCurrency('10930000.00')).toBe('$10,930,000');
+    expect(formatCurrency(1234.05)).toBe('$1,234.05');
+    expect(formatCurrency(0.5)).toBe('$0.50');
+    expect(formatCurrency(-20)).toBe('-$20');
     expect(formatCurrency(0)).not.toBe(EMPTY);
     expect(formatCurrency('x')).toBe(EMPTY);
     setLocaleSettings({ currency: 'EUR' });

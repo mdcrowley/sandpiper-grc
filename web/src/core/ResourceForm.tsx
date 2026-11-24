@@ -47,6 +47,11 @@ export interface ResourceFormProps {
    * own section. Default true; pass false for a short dialog that edits only a few fields.
    */
   customFields?: boolean;
+  /**
+   * Asked with the body just before it is sent; answering false keeps the form open without saving
+   * (E39-03: a vehicle model first shows how many vehicles the change reaches).
+   */
+  confirmSave?: (body: Record<string, unknown>) => Promise<boolean>;
 }
 
 type Values = Record<string, unknown>;
@@ -59,7 +64,7 @@ const pick = (from: Values, keys: string[]): Values => Object.fromEntries(keys.f
 export const formDraftKey = (type: string, id: string | undefined, fields: string[]) => `form:${type}:${id ?? 'new'}:${fields.join(',')}`;
 
 export function ResourceForm({
-  type, fields: given, initial = {}, id, onSaved, onCancel, submitLabel, sections: givenSections, hints, onDirtyChange, customFields = true,
+  type, fields: given, initial = {}, id, onSaved, onCancel, submitLabel, sections: givenSections, hints, onDirtyChange, customFields = true, confirmSave,
 }: ResourceFormProps) {
   const resource = useResource(type);
   // Custom fields the author did not place themselves follow the given ones, each under its own section.
@@ -185,6 +190,7 @@ export function ResourceForm({
       return;
     }
 
+    if (confirmSave && !(await confirmSave(body))) return;
     setSaving(true);
     try {
       const row = id

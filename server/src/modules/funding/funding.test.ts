@@ -349,7 +349,7 @@ describe('dashboard and sample data', () => {
     expect(first).toMatch(/1 plan/);
     const second = await mod.seed!(ctx, { profile: 'dev', seedDir: 'none', organization: {} });
     expect(second).not.toMatch(/awards 4/);
-    expect((await t.db.one<any>(`select count(*)::int as n from funding_awards where title like '%(sample)'`)).n).toBe(4);
+    expect((await t.db.one<any>(`select count(*)::int as n from funding_awards where title like '[Sample] %'`)).n).toBe(4);
     expect(await mod.seed!(ctx, { profile: 'pilot', seedDir: 'none', organization: {} })).toMatch(/dev profile only/);
   });
 });

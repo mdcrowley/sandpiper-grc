@@ -42,3 +42,6 @@
 .fl-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-4); }
 
 .fl-file { align-self: flex-start; cursor: pointer; }
+
+/* Vehicle models (E39-04): working units out of a count set by the vehicle model, beside the cell icon. */
+.fl-count { margin-inline-start: var(--s-1); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
